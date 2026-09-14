@@ -46,6 +46,13 @@ Then follow the normal brainstorm → spec → plan → subagent-driven-developm
 
 ## Open questions / decisions to revisit
 
+- This app is meant to be embeddable in a host site/app the same way `monitor-map`'s
+  `MapShell` is (plus a future Tauri desktop wrap — both now documented in
+  `ARCHITECTURE.md`'s "Embedding" section and `ROADMAP.md`). The `sv-router`
+  escape hatch (`routerEscapeHatch`/`basePath`-style options) this needs is not yet
+  built — worth keeping in mind when designing each tab's state manager so URL-state
+  wiring doesn't get too deeply hardcoded to owning the top-level route.
+
 - Whether a spreadsheet view of raw HMS smoke/fire records is worth building for v1,
   or should stay map-only (noted as an open decision in the design spec).
 - Exact home for the shared date-range helper currently only in `monitor-map`'s

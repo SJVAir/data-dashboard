@@ -32,3 +32,9 @@ above) ships:
 - **Tauri desktop build** — the app is being built as a plain Vite SPA (no SvelteKit,
   no server runtime) specifically to keep this feasible later, with extended
   capabilities not practical or worth the cost in-browser.
+- **Embeddable production build** — like `monitor-map`'s `MapShell`, this app is meant
+  to eventually be embeddable inside another host app/site, not just run standalone.
+  The SPA architecture is chosen partly to keep this feasible, but the actual escape
+  hatch (`routerEscapeHatch`/`basePath`-style options for `src/router.ts`, plus a
+  non-URL fallback for view state) isn't built yet — see `ARCHITECTURE.md`'s
+  "Embedding" section. Revisit once v1's three tabs are in place.
