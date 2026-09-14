@@ -9,6 +9,7 @@ the worktree/branch cleaned up. The next piece of work is the **Monitors tab**, 
 has **not been brainstormed yet** — do not jump straight to writing an implementation
 plan for it. Start with `superpowers:brainstorming` (architectural path likely, given
 it introduces new data-fetching/state-manager patterns) to work out:
+
 - The tab's own `*.svelte.ts` manager design (fetching from `@sjvair/sdk`, holding
   `$state`, deriving map/chart/spreadsheet-ready data) — `ARCHITECTURE.md` describes
   the intent at a high level but not the concrete manager API.
@@ -24,6 +25,14 @@ Then follow the normal brainstorm → spec → plan → subagent-driven-developm
 
 ## Done
 
+- [x] **Vertical nav sidebar** — replaced the horizontal top-bar nav (`App.svelte`) with
+      a vertical sidebar on desktop (`sm:` and up) and an off-canvas overlay drawer on
+      mobile (shadcn-svelte `Sheet`, triggered by a hamburger button in a slim mobile
+      top bar). Nav links extracted to `src/lib/components/AppNav.svelte`, shared by
+      both. Also installed shadcn-svelte's `sheet`/`button` components for the first
+      time, which required adding the standard `WithElementRef`/`WithoutChildrenOrChild`
+      helper types to `src/lib/utils.ts` (missing since the scaffold predated any
+      component install).
 - [x] Brainstormed and wrote the v1 design spec:
       `docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`
 - [x] **monitor-map modularization** — `MapShell` extracted as a configurable map-layout
@@ -46,6 +55,13 @@ Then follow the normal brainstorm → spec → plan → subagent-driven-developm
 
 ## Open questions / decisions to revisit
 
+- **Deferred: icon-only collapse for the sidebar.** The vertical nav sidebar
+  (`App.svelte`/`AppNav.svelte`) intentionally does not yet support collapsing to an
+  icon-only rail on desktop — noted as future work once more tabs are added and the
+  full-width labels stop being worth the horizontal space. The current split between
+  the desktop sidebar and the mobile `Sheet` drawer was structured so this can be
+  added later as a self-contained change (a collapsed/expanded `$state` toggle plus
+  per-link icons) without restructuring the responsive layout itself.
 - This app is meant to be embeddable in a host site/app the same way `monitor-map`'s
   `MapShell` is (plus a future Tauri desktop wrap — both now documented in
   `ARCHITECTURE.md`'s "Embedding" section and `ROADMAP.md`). The `sv-router`

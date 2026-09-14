@@ -38,3 +38,7 @@ above) ships:
   hatch (`routerEscapeHatch`/`basePath`-style options for `src/router.ts`, plus a
   non-URL fallback for view state) isn't built yet — see `ARCHITECTURE.md`'s
   "Embedding" section. Revisit once v1's three tabs are in place.
+- **Icon-only collapsed sidebar** — the nav sidebar added in `App.svelte` is full-width
+  labels only for now; once more tabs exist and the labels stop being worth the
+  horizontal space, add a collapse/expand toggle (desktop) that shrinks it to an icon
+  rail. See `TODO.md`'s open questions for the current layout this builds on.
