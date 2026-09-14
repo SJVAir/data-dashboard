@@ -96,7 +96,7 @@
 		"svelte-check": "^4.7.6",
 		"tailwindcss": "^4.3.3",
 		"tw-animate-css": "^1.4.0",
-		"typescript": "^7.0.2",
+		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.70.0",
 		"vite": "^8.3.0",
 		"vitest": "^5.0.0"
@@ -114,7 +114,7 @@
 }
 ```
 
-(`@sjvair/sdk` is JSR-published; resolving the `npm:@jsr/sjvair__sdk` alias requires the `.npmrc` created in Step 6a below.)
+(`@sjvair/sdk` is JSR-published; resolving the `npm:@jsr/sjvair__sdk` alias requires the `.npmrc` created in Step 6a below. `typescript` is pinned to `^6.0.3` — the same version `monitor-map` deliberately uses — rather than the newer `^7.x` line, because `svelte-check@^4.7.6`'s peer range only covers `typescript@^5.0.0 || ^6.0.0`; installing `typescript@^7.x` alongside it produces an unresolvable ERESOLVE peer-dependency conflict.)
 
 - [ ] **Step 2: Create `tsconfig.json`**
 
