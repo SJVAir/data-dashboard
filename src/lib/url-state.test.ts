@@ -32,12 +32,20 @@ describe("views codec", () => {
 		expect(decodeViews(encodeViews(views), allViews)).toEqual(views);
 	});
 
-	it("decodes null as all views disabled", () => {
-		expect(decodeViews(null, allViews)).toEqual({ map: false, chart: false, spreadsheet: false });
+	it("decodes null as no views param", () => {
+		expect(decodeViews(null, allViews)).toBeNull();
+	});
+
+	it("decodes undefined as no views param", () => {
+		expect(decodeViews(undefined, allViews)).toBeNull();
 	});
 
 	it("encodes no enabled views as an empty string", () => {
 		expect(encodeViews({ map: false, chart: false, spreadsheet: false })).toBe("");
+	});
+
+	it("decodes an empty string as all views disabled", () => {
+		expect(decodeViews("", allViews)).toEqual({ map: false, chart: false, spreadsheet: false });
 	});
 
 	it("ignores unknown keys when decoding", () => {

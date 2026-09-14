@@ -26,7 +26,8 @@ export function encodeViews(views: Record<string, boolean>): string {
 export function decodeViews<K extends string>(
 	value: string | null | undefined,
 	allKeys: readonly K[]
-): Record<K, boolean> {
-	const enabled = new Set((value ?? "").split(",").filter(Boolean));
+): Record<K, boolean> | null {
+	if (value == null) return null;
+	const enabled = new Set(value.split(",").filter(Boolean));
 	return Object.fromEntries(allKeys.map((key) => [key, enabled.has(key)])) as Record<K, boolean>;
 }

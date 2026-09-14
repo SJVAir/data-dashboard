@@ -65,4 +65,24 @@ describe("preferences", () => {
 		localStorage.setItem("sjvair-dashboard-preferences", "{not json");
 		expect(getTabPreferences("monitors")).toEqual({});
 	});
+
+	it("recovers from a stored tabs value that isn't an object", () => {
+		localStorage.setItem("sjvair-dashboard-preferences", JSON.stringify({ tabs: null }));
+		expect(getTabPreferences("monitors")).toEqual({});
+	});
+
+	it("behaves safely when localStorage itself is unavailable", () => {
+		// @ts-expect-error - simulating an environment without localStorage
+		delete globalThis.localStorage;
+
+		expect(() => getTabPreferences("monitors")).not.toThrow();
+		expect(getTabPreferences("monitors")).toEqual({});
+
+		expect(() =>
+			setTabPreferences("monitors", { dateRange: { start: "2026-01-01", end: "2026-01-02" } })
+		).not.toThrow();
+		expect(getTabPreferences("monitors")).toEqual({});
+
+		expect(() => clearAllPreferences()).not.toThrow();
+	});
 });
