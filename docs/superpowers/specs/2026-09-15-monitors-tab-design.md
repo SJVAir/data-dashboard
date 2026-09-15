@@ -19,8 +19,22 @@ averages — building them now, before that's decided, risks throwaway work.
 - **`data-dashboard`** (this repo) — all new work described here.
 - **`sdk-js`** / **`monitor-map`** — no further changes required. Both
   already ship what this spec needs (`@sjvair/sdk@^4.1.0`'s `regions` module,
-  `monitor-map@^3.5.0`'s `MonitorsDataSource`-accepting
+  `monitor-map@^3.5.1`'s `MonitorsDataSource`-accepting
   `MonitorsMapIntegration`).
+
+## Entry-type scope for this pass
+
+`monitor-map`'s `MonitorsPollutant` type (used by `MonitorsDataSource` and
+`MonitorsMapIntegration` for icon coloring) only supports `"pm25" | "o3"`,
+even though the SDK's full `MonitorEntryType` union has nine values and the
+V1 design listed all nine as the Monitors tab's filter options. The
+calendar itself has no such restriction (region summaries accept any
+`MonitorEntryType`), but the map cannot color/filter by anything else.
+**Decision: the tab's entry-type selector is restricted to `pm25`/`o3` for
+this pass**, so map and calendar always share one entry-type value with no
+per-view fallback state to design. The other seven entry types are deferred
+until `monitor-map`'s map view supports them (or the map view is reworked)
+— a follow-up spec, not part of this one.
 
 ## Data sources
 
