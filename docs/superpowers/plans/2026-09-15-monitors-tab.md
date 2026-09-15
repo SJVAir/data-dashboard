@@ -700,7 +700,10 @@ git commit -m "Add reusable Calendar component"
   `counties`, `pollutant`, `dateRange`, `selectedCountyId`, `latest`,
   `calendarDays`, `levels`, `visibleMonitors`, and methods `init()`,
   `refreshMapAverages()`, `refreshCalendar()`. Consumed by Task 9's
-  `MonitorsTab.svelte`.
+  `MonitorsTab.svelte`. Both refresh methods must loop over every calendar
+  year the selected date range spans (not just the start year) — a range
+  crossing a year boundary would otherwise silently drop data from the
+  later year.
 
 This task has no dedicated unit test — it's fetch-orchestration glue over
 already-tested pure helpers (Tasks 2, 4, 5, 6), matching this repo's
@@ -782,15 +785,21 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		const pollutant = this.pollutant;
 		const resolution = pickSummaryResolution(this.dateRange.start, this.dateRange.end);
-		const year = new Date(this.dateRange.start).getFullYear();
+		const startYear = new Date(this.dateRange.start).getFullYear();
+		const endYear = new Date(this.dateRange.end).getFullYear();
+		const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
 		const averages = new Map<string, number>();
 
 		await Promise.all(
 			this.visibleMonitors.map(async (monitor) => {
-				const rows =
-					resolution === "daily"
-						? await getMonitorSummariesDaily({ monitorId: monitor.id, entryType: pollutant, year })
-						: await getMonitorSummariesMonthly({ monitorId: monitor.id, entryType: pollutant, year });
+				const rowsByYear = await Promise.all(
+					years.map((year) =>
+						resolution === "daily"
+							? getMonitorSummariesDaily({ monitorId: monitor.id, entryType: pollutant, year })
+							: getMonitorSummariesMonthly({ monitorId: monitor.id, entryType: pollutant, year })
+					)
+				);
+				const rows = rowsByYear.flat();
 
 				const inRange = rows.filter((row) => {
 					const date = row.timestamp.slice(0, 10);
@@ -874,11 +883,18 @@ git commit -m "Add MonitorsTabManager"
 
 **Interfaces:**
 - Consumes: `monitorsTabManager` (Task 8), `Calendar` (Task 7), `Select.*`
-  (Task 1), `encodeDateRange`/`decodeDateRange` (existing),
+  (Task 1), `Button` (existing `$lib/components/ui/button/index.js`),
+  `encodeDateRange`/`decodeDateRange` (existing),
   `encodePollutant`/`decodePollutant`/`encodeCounty`/`decodeCounty` (Task
   3), `getTabPreferences`/`setTabPreferences` (existing `preferences.ts`),
   `route`/`searchParams` from `../router`, `MapShell`/`MonitorsMapIntegration`
   from `@sjvair/monitor-map`.
+- This task must render controls for **all three** of the tab's filters —
+  pollutant (pm25/o3), date range, and county — not just the county
+  `Select`. The pollutant and date-range controls are the only way to
+  change `manager.pollutant`/`manager.dateRange` after the initial load;
+  without them those values are frozen at their URL/default values for the
+  lifetime of the page view.
 
 - [ ] **Step 1: Replace the placeholder**
 
@@ -888,6 +904,7 @@ git commit -m "Add MonitorsTabManager"
 	import { onMount } from "svelte";
 	import { MapShell, MonitorsMapIntegration } from "@sjvair/monitor-map";
 	import Calendar from "$lib/components/Calendar.svelte";
+	import { Button } from "$lib/components/ui/button/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
 	import { getTabPreferences, setTabPreferences } from "$lib/preferences";
 	import {
@@ -896,7 +913,8 @@ git commit -m "Add MonitorsTabManager"
 		decodePollutant,
 		encodeCounty,
 		encodeDateRange,
-		encodePollutant
+		encodePollutant,
+		type MonitorsPollutantParam
 	} from "$lib/url-state";
 	import { route, searchParams } from "../router";
 	import { monitorsTabManager } from "./monitors/monitors-tab.svelte";
@@ -914,13 +932,17 @@ git commit -m "Add MonitorsTabManager"
 		};
 	}
 
+	function asString(value: string | number | boolean | undefined): string | undefined {
+		return typeof value === "string" ? value : undefined;
+	}
+
 	onMount(async () => {
 		await manager.init();
 
 		const prefs = getTabPreferences("monitors");
-		const urlRange = decodeDateRange(route.search.range as string | undefined);
-		const urlPollutant = decodePollutant(route.search.pollutant as string | undefined);
-		const urlCounty = decodeCounty(route.search.county as string | undefined);
+		const urlRange = decodeDateRange(asString(route.search.range));
+		const urlPollutant = decodePollutant(asString(route.search.pollutant));
+		const urlCounty = decodeCounty(asString(route.search.county));
 
 		const dateRange = urlRange ?? prefs.dateRange ?? defaultDateRange();
 		const pollutant = urlPollutant ?? "pm25";
@@ -942,8 +964,22 @@ git commit -m "Add MonitorsTabManager"
 	async function handleCountyChange(regionId: string | undefined) {
 		manager.selectedCountyId = regionId ?? null;
 		searchParams.set("county", regionId ? encodeCounty(regionId) : "", { replace: true });
-		setTabPreferences("monitors", { dateRange: manager.dateRange });
 		await manager.refreshCalendar();
+	}
+
+	async function handlePollutantChange(pollutant: MonitorsPollutantParam) {
+		manager.pollutant = pollutant;
+		searchParams.set("pollutant", encodePollutant(pollutant), { replace: true });
+		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
+	}
+
+	async function handleDateRangeChange(field: "start" | "end", value: string) {
+		if (!value) return;
+		const nextRange = { ...manager.dateRange, [field]: value };
+		manager.dateRange = nextRange;
+		searchParams.set("range", encodeDateRange(nextRange), { replace: true });
+		setTabPreferences("monitors", { dateRange: nextRange });
+		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
 	}
 
 	let selectedCountyName = $derived(
@@ -952,7 +988,45 @@ git commit -m "Add MonitorsTabManager"
 </script>
 
 <div class="flex h-full flex-col gap-4 p-4">
-	<div class="flex items-center gap-4">
+	<div class="flex flex-wrap items-center gap-4">
+		<div class="flex items-center gap-2" role="radiogroup" aria-label="Pollutant">
+			<Button
+				variant={manager.pollutant === "pm25" ? "default" : "outline"}
+				size="sm"
+				aria-pressed={manager.pollutant === "pm25"}
+				onclick={() => handlePollutantChange("pm25")}
+			>
+				PM2.5
+			</Button>
+			<Button
+				variant={manager.pollutant === "o3" ? "default" : "outline"}
+				size="sm"
+				aria-pressed={manager.pollutant === "o3"}
+				onclick={() => handlePollutantChange("o3")}
+			>
+				Ozone
+			</Button>
+		</div>
+
+		<label class="flex items-center gap-2 text-sm">
+			Start
+			<input
+				type="date"
+				class="border-input rounded border px-2 py-1"
+				value={manager.dateRange.start}
+				onchange={(event) => handleDateRangeChange("start", event.currentTarget.value)}
+			/>
+		</label>
+		<label class="flex items-center gap-2 text-sm">
+			End
+			<input
+				type="date"
+				class="border-input rounded border px-2 py-1"
+				value={manager.dateRange.end}
+				onchange={(event) => handleDateRangeChange("end", event.currentTarget.value)}
+			/>
+		</label>
+
 		<Select.Root
 			type="single"
 			value={manager.selectedCountyId ?? undefined}
@@ -983,7 +1057,10 @@ git commit -m "Add MonitorsTabManager"
 ```
 
 If Task 1's Step 3 found different export names on `Select.*` than
-`Root`/`Trigger`/`Content`/`Item`, substitute the actual names here.
+`Root`/`Trigger`/`Content`/`Item`, substitute the actual names here. If the
+installed `Button` component's `variant`/`size` prop values differ from
+`"default"`/`"outline"`/`"sm"` (check `src/lib/components/ui/button/button.svelte`'s
+prop types), substitute the actual accepted values.
 
 - [ ] **Step 2: Format**
 
@@ -1015,6 +1092,13 @@ Open the app in a browser at the printed local URL. Confirm:
   "Kern County") from `getRegionsList({ type: "county" })`.
 - The map renders monitor icons colored by their averaged PM2.5 value over
   the default (last 7 days) range.
+- Clicking the "Ozone" button switches `manager.pollutant` to `o3`, updates
+  the URL's `pollutant` param, and re-renders the map with ozone-averaged
+  icon colors (and the calendar, if a county is selected, with ozone-based
+  day colors).
+- Changing either date input updates the URL's `range` param and
+  re-fetches/re-renders both the map and (if a county is selected) the
+  calendar for the new range.
 - Selecting a county filters the map's monitors and makes the calendar
   appear, showing one colored cell per day in the range for that county's
   daily `RegionSummary.mean`.
@@ -1022,7 +1106,7 @@ Open the app in a browser at the printed local URL. Confirm:
   page with no `county` param hides the calendar again.
 - The URL reflects `range`, `pollutant`, and (once selected) `county`
   params, and reloading the page with those params present reproduces the
-  same view.
+  same view (pollutant/date-range selections included).
 
 If any of these fail, fix the underlying code (manager, component, or
 wiring) before proceeding — do not commit a broken manual-verification
