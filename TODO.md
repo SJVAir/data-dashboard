@@ -1,19 +1,21 @@
 # TODO / Current Status
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
 
 ## Start here (next session)
 
-**Mid-brainstorm on the Monitors tab** — not yet at the point of writing the design
-spec. Decided so far:
+**Mid-brainstorm on the Monitors tab.** All the cross-repo prerequisite plumbing is
+now done and merged/released; what's left is the actual design work below, which
+hasn't started yet — do that before writing the design spec.
+
+Decided so far:
 
 - **Map data comes from summaries, not live/per-entry data.** Stakeholders want the
   Monitors tab's map to plot each monitor's **average of the summary data
   (`getMonitorSummariesDaily`/etc.) over the selected date range**, not a live reading
   and not raw per-entry data. The tab is still controlled by a date range picker; that
   range picks which summary rows get averaged.
-- **`@sjvair/sdk` is now v4.0.0** (bumped in this repo's `package.json` already — see
-  "Done" below). v4 renamed the old no-arg `getMonitors()` to `getMonitorsList()`,
+- **`@sjvair/sdk` v4.0.0** renamed the old no-arg `getMonitors()` to `getMonitorsList()`,
   folded `getMonitorsLatest(pollutant)` into `getMonitors(entryType, options?)` (which
   now also supports a historical `timestamp` via the new `/monitors/{entry_type}/at/`
   endpoint), and added `getMonitorSummariesHourly/Daily/Monthly/Quarterly/Seasonal/
@@ -22,25 +24,17 @@ Yearly` and `getMonitorEntriesExportCSVUrl/JSON`. See sdk-js's `CLAUDE.md`/
 - **How the map reuses `monitor-map`'s rendering code:** `monitor-map`'s
   `MonitorsMapIntegration`/`MonitorShapeIconManager` used to hardcode the live,
   auto-polling `monitorsManager` singleton, which made them unusable for
-  summary-derived data. Fixed upstream (see "Done" below) by having both accept an
-  injected `MonitorsDataSource` (`{ meta, pollutant, latest, levels }`), defaulting to
+  summary-derived data. Fixed upstream by having both accept an injected
+  `MonitorsDataSource` (`{ meta, pollutant, latest, levels }`), defaulting to
   `monitorsManager` so existing consumers are unaffected. **This tab will implement its
   own `MonitorsDataSource`**: fetch `getMonitorsList()` once for the roster
   (county/position/type), fetch summaries per visible monitor for the selected range
   and entry type, average `.mean` across them, and pack the result into the `latest`
   shape the interface expects — then construct `new MonitorsMapIntegration(thisSource)`
   to get clustering/icon-coloring/filters/tooltips/click-handling for free.
-- **Prerequisite work is done but not yet merged.** Two branches in `monitor-map`
-  (local only, not pushed):
-  - `feature/sdk-v4-upgrade` — bumps `monitor-map`'s own `@sjvair/sdk` dependency to
-    v4.0.0 and fixes the renamed calls in `monitorsManager`.
-  - `feature/monitors-map-data-source` (branched off `main`, independent of the sdk
-    bump above) — the `MonitorsDataSource` decoupling described above. Also replaced
-    `monitor-map`'s stale create-svelte boilerplate `README.md` with real usage/
-    extension docs.
-    These need to be pushed, reviewed, merged, and released (npm publish via
-    `release-package.yml`) before `data-dashboard` can add `@sjvair/monitor-map` as a
-    dependency and actually build against the new `MonitorsDataSource` seam.
+- **All prerequisite work is merged, released, and installed** — see "Done" below.
+  `@sjvair/monitor-map@^3.5.0` is now a dependency of this repo; nothing left to do
+  upstream before starting the manager implementation.
 
 Still open, to work out before writing the design spec:
 
@@ -64,12 +58,22 @@ Then follow the normal brainstorm → spec → plan → subagent-driven-developm
 
 ## Done
 
+- [x] **`@sjvair/monitor-map` added as a dependency** (`^3.5.0`). Its `@tstk/*` jsr
+      dependencies (`@tstk/builtin-extensions`, `@tstk/utils` — real runtime deps of
+      `monitorsManager`/map-integration plumbing, not just types) are non-root/transitive
+      from this repo's perspective, which this repo's `.npmrc` (`allow-remote=root`)
+      blocks by design. Resolved by declaring both directly as root dependencies here
+      too (pinned to the same ranges `monitor-map` uses) rather than loosening the
+      policy to `allow-remote=all` project-wide.
 - [x] **`@sjvair/sdk` upgraded to v4.0.0** in this repo's `package.json` (jsr-backed
       npm alias). No call sites in this repo used the renamed/removed functions yet,
       so this was a version-bump-only change.
-- [x] **`monitor-map`: `MonitorsDataSource` decoupling + sdk v4 upgrade** — see
-      "Start here" above for the details and why. Both are local branches in
-      `monitor-map`, not yet pushed/merged/released.
+- [x] **`monitor-map`: `MonitorsDataSource` decoupling + sdk v4 upgrade + full dependency
+      update** — see "Start here" above for the `MonitorsDataSource` details. Merged via
+      SJVAir/monitor-map#102 and #103 (stacked), plus a follow-up dependency sweep
+      (every dep except TypeScript, notably `sv-router` peer range widened to `^0.19.0`
+      and `@maptiler/weather` bumped to 4.0.1). Released as `@sjvair/monitor-map@3.4.0`
+      then `3.5.0`.
 - [x] **Vertical nav sidebar** — replaced the horizontal top-bar nav (`App.svelte`) with
       a vertical sidebar on desktop (`sm:` and up) and an off-canvas overlay drawer on
       mobile (shadcn-svelte `Sheet`, triggered by a hamburger button in a slim mobile
