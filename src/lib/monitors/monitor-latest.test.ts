@@ -11,7 +11,7 @@ function makeMonitor(id: string): MonitorData {
 		data_source: { name: "SJVAir", url: "https://sjvair.com" },
 		data_providers: [],
 		device: "bam1022",
-		grade: "trusted",
+		grade: "fem",
 		id,
 		is_active: true,
 		is_sjvair: true,
