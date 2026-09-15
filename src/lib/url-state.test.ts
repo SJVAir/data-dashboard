@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { decodeDateRange, decodeViews, encodeDateRange, encodeViews } from "./url-state";
+import {
+	decodeDateRange,
+	decodeViews,
+	encodeDateRange,
+	encodeViews,
+	decodePollutant,
+	encodePollutant,
+	decodeCounty,
+	encodeCounty
+} from "./url-state";
 
 describe("date range codec", () => {
 	it("round-trips a date range through encode and decode", () => {
@@ -54,5 +63,44 @@ describe("views codec", () => {
 			chart: false,
 			spreadsheet: false
 		});
+	});
+});
+
+describe("pollutant codec", () => {
+	it("decodes pm25 and o3 as valid pollutants", () => {
+		expect(decodePollutant("pm25")).toBe("pm25");
+		expect(decodePollutant("o3")).toBe("o3");
+	});
+
+	it("decodes an unsupported value as null", () => {
+		expect(decodePollutant("pm10")).toBeNull();
+	});
+
+	it("decodes null and undefined as null", () => {
+		expect(decodePollutant(null)).toBeNull();
+		expect(decodePollutant(undefined)).toBeNull();
+	});
+
+	it("round-trips a valid pollutant through encode", () => {
+		expect(decodePollutant(encodePollutant("pm25"))).toBe("pm25");
+	});
+});
+
+describe("county codec", () => {
+	it("decodes a non-empty string as the region id", () => {
+		expect(decodeCounty("abc123")).toBe("abc123");
+	});
+
+	it("decodes an empty string as no county selected", () => {
+		expect(decodeCounty("")).toBeNull();
+	});
+
+	it("decodes null and undefined as no county selected", () => {
+		expect(decodeCounty(null)).toBeNull();
+		expect(decodeCounty(undefined)).toBeNull();
+	});
+
+	it("round-trips a region id through encode", () => {
+		expect(decodeCounty(encodeCounty("abc123"))).toBe("abc123");
 	});
 });
