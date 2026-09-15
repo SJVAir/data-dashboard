@@ -78,6 +78,15 @@ VITE_OPENWEATHERMAP_KEY=    # used by @sjvair/monitor-map (future tab plans)
 VITE_CARBONMAPPER_KEY=      # reserved for a future data source integration
 ```
 
+## Releases and publishing — standing restriction
+
+NEVER create a GitHub release, run `npm publish`, trigger a CI release/publish
+workflow, or otherwise cause a package to be published, in this or any related
+SJVAir project, without the user's explicit permission for that specific
+release — every single time. Approval for one release does not carry forward
+to the next, even later in the same session or as the natural next step of a
+task already in progress. Always stop and ask first.
+
 ## Code Style
 
 - **Tabs** for indentation (not spaces)
