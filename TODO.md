@@ -4,27 +4,72 @@ Last updated: 2026-09-14
 
 ## Start here (next session)
 
-Nothing is in progress — the last session ended cleanly with the scaffold merged and
-the worktree/branch cleaned up. The next piece of work is the **Monitors tab**, and it
-has **not been brainstormed yet** — do not jump straight to writing an implementation
-plan for it. Start with `superpowers:brainstorming` (architectural path likely, given
-it introduces new data-fetching/state-manager patterns) to work out:
+**Mid-brainstorm on the Monitors tab** — not yet at the point of writing the design
+spec. Decided so far:
 
-- The tab's own `*.svelte.ts` manager design (fetching from `@sjvair/sdk`, holding
-  `$state`, deriving map/chart/spreadsheet-ready data) — `ARCHITECTURE.md` describes
-  the intent at a high level but not the concrete manager API.
+- **Map data comes from summaries, not live/per-entry data.** Stakeholders want the
+  Monitors tab's map to plot each monitor's **average of the summary data
+  (`getMonitorSummariesDaily`/etc.) over the selected date range**, not a live reading
+  and not raw per-entry data. The tab is still controlled by a date range picker; that
+  range picks which summary rows get averaged.
+- **`@sjvair/sdk` is now v4.0.0** (bumped in this repo's `package.json` already — see
+  "Done" below). v4 renamed the old no-arg `getMonitors()` to `getMonitorsList()`,
+  folded `getMonitorsLatest(pollutant)` into `getMonitors(entryType, options?)` (which
+  now also supports a historical `timestamp` via the new `/monitors/{entry_type}/at/`
+  endpoint), and added `getMonitorSummariesHourly/Daily/Monthly/Quarterly/Seasonal/
+Yearly` and `getMonitorEntriesExportCSVUrl/JSON`. See sdk-js's `CLAUDE.md`/
+  `api-urls.md` for the full surface.
+- **How the map reuses `monitor-map`'s rendering code:** `monitor-map`'s
+  `MonitorsMapIntegration`/`MonitorShapeIconManager` used to hardcode the live,
+  auto-polling `monitorsManager` singleton, which made them unusable for
+  summary-derived data. Fixed upstream (see "Done" below) by having both accept an
+  injected `MonitorsDataSource` (`{ meta, pollutant, latest, levels }`), defaulting to
+  `monitorsManager` so existing consumers are unaffected. **This tab will implement its
+  own `MonitorsDataSource`**: fetch `getMonitorsList()` once for the roster
+  (county/position/type), fetch summaries per visible monitor for the selected range
+  and entry type, average `.mean` across them, and pack the result into the `latest`
+  shape the interface expects — then construct `new MonitorsMapIntegration(thisSource)`
+  to get clustering/icon-coloring/filters/tooltips/click-handling for free.
+- **Prerequisite work is done but not yet merged.** Two branches in `monitor-map`
+  (local only, not pushed):
+  - `feature/sdk-v4-upgrade` — bumps `monitor-map`'s own `@sjvair/sdk` dependency to
+    v4.0.0 and fixes the renamed calls in `monitorsManager`.
+  - `feature/monitors-map-data-source` (branched off `main`, independent of the sdk
+    bump above) — the `MonitorsDataSource` decoupling described above. Also replaced
+    `monitor-map`'s stale create-svelte boilerplate `README.md` with real usage/
+    extension docs.
+    These need to be pushed, reviewed, merged, and released (npm publish via
+    `release-package.yml`) before `data-dashboard` can add `@sjvair/monitor-map` as a
+    dependency and actually build against the new `MonitorsDataSource` seam.
+
+Still open, to work out before writing the design spec:
+
+- The tab's own `*.svelte.ts` manager design in full: how the per-monitor summary
+  fetch-and-average work is triggered/cached/invalidated as the date range or entry
+  type changes, and which summary resolution (`daily`/`monthly`/etc.) to request for a
+  given range length (a week of `daily` summaries vs. a year of `monthly`, say).
+- How the chart/spreadsheet views (also summary-driven, presumably, for consistency —
+  not yet decided) relate to the map's per-monitor averages once a monitor is
+  selected — do they show the same summary rows unaveraged (a time series), or drill
+  into raw entries for the selected monitor?
 - How `src/lib/preferences.ts` and `src/lib/url-state.ts` (already built, unit-tested,
   but **not yet wired into anything**) actually get consumed by this tab's date range,
   county filter, and view toggles.
-- How `@sjvair/monitor-map`'s `MapShell` (published v3.3.0) gets embedded for the map
-  view — remember it needs `routerEscapeHatch={false}` since this app has its own
-  `sv-router`, per `monitor-map`'s `CLAUDE.md`.
+- `MapShell`'s `routerEscapeHatch={false}` embedding is unaffected by any of the above
+  — still needed since this app has its own `sv-router`, per `monitor-map`'s
+  `CLAUDE.md`/`README.md`.
 
 Then follow the normal brainstorm → spec → plan → subagent-driven-development cycle
 (see the two prior plans in `docs/superpowers/plans/` for the pattern this project uses).
 
 ## Done
 
+- [x] **`@sjvair/sdk` upgraded to v4.0.0** in this repo's `package.json` (jsr-backed
+      npm alias). No call sites in this repo used the renamed/removed functions yet,
+      so this was a version-bump-only change.
+- [x] **`monitor-map`: `MonitorsDataSource` decoupling + sdk v4 upgrade** — see
+      "Start here" above for the details and why. Both are local branches in
+      `monitor-map`, not yet pushed/merged/released.
 - [x] **Vertical nav sidebar** — replaced the horizontal top-bar nav (`App.svelte`) with
       a vertical sidebar on desktop (`sm:` and up) and an off-canvas overlay drawer on
       mobile (shadcn-svelte `Sheet`, triggered by a hamburger button in a slim mobile
