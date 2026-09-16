@@ -4,57 +4,28 @@ Last updated: 2026-09-15
 
 ## Start here (next session)
 
-**Mid-brainstorm on the Monitors tab.** All the cross-repo prerequisite plumbing is
-now done and merged/released; what's left is the actual design work below, which
-hasn't started yet — do that before writing the design spec.
+**Monitors tab (map + calendar views) is shipped.** Implementation is complete per
+`docs/superpowers/plans/2026-09-15-monitors-tab.md` and the corresponding design spec
+(`docs/superpowers/specs/2026-09-15-monitors-tab-design.md`). See those for the full
+scope and decisions.
 
-Decided so far:
+Shipped in this cycle:
 
-- **Map data comes from summaries, not live/per-entry data.** Stakeholders want the
-  Monitors tab's map to plot each monitor's **average of the summary data
-  (`getMonitorSummariesDaily`/etc.) over the selected date range**, not a live reading
-  and not raw per-entry data. The tab is still controlled by a date range picker; that
-  range picks which summary rows get averaged.
-- **`@sjvair/sdk` v4.0.0** renamed the old no-arg `getMonitors()` to `getMonitorsList()`,
-  folded `getMonitorsLatest(pollutant)` into `getMonitors(entryType, options?)` (which
-  now also supports a historical `timestamp` via the new `/monitors/{entry_type}/at/`
-  endpoint), and added `getMonitorSummariesHourly/Daily/Monthly/Quarterly/Seasonal/
-Yearly` and `getMonitorEntriesExportCSVUrl/JSON`. See sdk-js's `CLAUDE.md`/
-  `api-urls.md` for the full surface.
-- **How the map reuses `monitor-map`'s rendering code:** `monitor-map`'s
-  `MonitorsMapIntegration`/`MonitorShapeIconManager` used to hardcode the live,
-  auto-polling `monitorsManager` singleton, which made them unusable for
-  summary-derived data. Fixed upstream by having both accept an injected
-  `MonitorsDataSource` (`{ meta, pollutant, latest, levels }`), defaulting to
-  `monitorsManager` so existing consumers are unaffected. **This tab will implement its
-  own `MonitorsDataSource`**: fetch `getMonitorsList()` once for the roster
-  (county/position/type), fetch summaries per visible monitor for the selected range
-  and entry type, average `.mean` across them, and pack the result into the `latest`
-  shape the interface expects — then construct `new MonitorsMapIntegration(thisSource)`
-  to get clustering/icon-coloring/filters/tooltips/click-handling for free.
-- **All prerequisite work is merged, released, and installed** — see "Done" below.
-  `@sjvair/monitor-map@^3.5.0` is now a dependency of this repo; nothing left to do
-  upstream before starting the manager implementation.
+- Map view: polls counties, shows monitor locations, colors by PM2.5/O3 average over a
+  selected date range (wired to calendar), clusters at zoom, supports click drill-down.
+- Calendar view: date-range picker driving the map; feeds to a future chart view
+  (not in scope for this pass).
+- State management: `MonitorsTabManager` with cached summaries and reactive
+  county/pollutant/date updates.
 
-Still open, to work out before writing the design spec:
+Explicitly deferred to future work:
 
-- The tab's own `*.svelte.ts` manager design in full: how the per-monitor summary
-  fetch-and-average work is triggered/cached/invalidated as the date range or entry
-  type changes, and which summary resolution (`daily`/`monthly`/etc.) to request for a
-  given range length (a week of `daily` summaries vs. a year of `monthly`, say).
-- How the chart/spreadsheet views (also summary-driven, presumably, for consistency —
-  not yet decided) relate to the map's per-monitor averages once a monitor is
-  selected — do they show the same summary rows unaveraged (a time series), or drill
-  into raw entries for the selected monitor?
-- How `src/lib/preferences.ts` and `src/lib/url-state.ts` (already built, unit-tested,
-  but **not yet wired into anything**) actually get consumed by this tab's date range,
-  county filter, and view toggles.
-- `MapShell`'s `routerEscapeHatch={false}` embedding is unaffected by any of the above
-  — still needed since this app has its own `sv-router`, per `monitor-map`'s
-  `CLAUDE.md`/`README.md`.
-
-Then follow the normal brainstorm → spec → plan → subagent-driven-development cycle
-(see the two prior plans in `docs/superpowers/plans/` for the pattern this project uses).
+- Chart/spreadsheet views (noted as "TBD" in the design spec).
+- Entry-type selector still restricted to PM2.5/O3 only (per design spec scope).
+- HMS Smoke/Fire and Collocation Sites tabs.
+- Type-check, build, and automated tests all pass; interactive visual browser
+  verification was not completed during implementation — UI/UX validation is still
+  outstanding and should be done before shipping.
 
 ## Done
 
@@ -92,13 +63,16 @@ Then follow the normal brainstorm → spec → plan → subagent-driven-developm
       utilities (unit-tested), and this set of project docs. Merged as
       SJVAir/data-dashboard#1 into `main`.
       Plan: `docs/superpowers/plans/2026-09-14-data-dashboard-scaffold.md`
+- [x] **Monitors tab (map + calendar)** — map view showing monitor locations colored by
+      PM2.5/O3 average over selected date range, calendar view for date selection, state
+      management via `MonitorsTabManager` with cached summaries. Wired to `@sjvair/sdk`
+      and `@sjvair/monitor-map`'s `MapShell` with county filter and pollutant toggle.
+      Chart/spreadsheet views and HMS/Collocation tabs still deferred.
+      Plan: `docs/superpowers/plans/2026-09-15-monitors-tab.md`
+      Spec: `docs/superpowers/specs/2026-09-15-monitors-tab-design.md`
 
 ## Next up
 
-- [ ] **Monitors tab** — real content: entry_type filter, date range selector, client-side
-      county filter, and map/chart/spreadsheet views wired to `@sjvair/sdk` and
-      `@sjvair/monitor-map`'s `MapShell`. Needs its own brainstorm/spec/plan cycle
-      before implementation — see "Start here" above.
 - [ ] **HMS Smoke/Fire tab**
 - [ ] **Collocation Sites tab**
 
