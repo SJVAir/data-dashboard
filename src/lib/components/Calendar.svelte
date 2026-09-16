@@ -11,7 +11,7 @@
 	let months = $derived(groupDaysByMonth(days));
 </script>
 
-<div class="flex flex-col gap-4">
+<div class="flex flex-row flex-wrap gap-4">
 	{#each months as group (group.month)}
 		<div>
 			<h3 class="text-muted-foreground mb-1 text-sm font-medium">{group.month}</h3>
