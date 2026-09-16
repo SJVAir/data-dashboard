@@ -7,7 +7,11 @@ import {
 	decodePollutant,
 	encodePollutant,
 	decodeCounty,
-	encodeCounty
+	encodeCounty,
+	decodeYear,
+	encodeYear,
+	decodeMonth,
+	encodeMonth
 } from "./url-state";
 
 describe("date range codec", () => {
@@ -102,5 +106,45 @@ describe("county codec", () => {
 
 	it("round-trips a region id through encode", () => {
 		expect(decodeCounty(encodeCounty("abc123"))).toBe("abc123");
+	});
+});
+
+describe("year codec", () => {
+	it("round-trips a valid year", () => {
+		expect(decodeYear(encodeYear(2026))).toBe(2026);
+	});
+
+	it("decodes a non-numeric string as null", () => {
+		expect(decodeYear("not-a-year")).toBeNull();
+	});
+
+	it("decodes null and undefined as null", () => {
+		expect(decodeYear(null)).toBeNull();
+		expect(decodeYear(undefined)).toBeNull();
+	});
+
+	it("decodes a non-string value as null", () => {
+		expect(decodeYear(2026)).toBeNull();
+		expect(decodeYear(true)).toBeNull();
+	});
+});
+
+describe("month codec", () => {
+	it("round-trips a valid month", () => {
+		expect(decodeMonth(encodeMonth(9))).toBe(9);
+	});
+
+	it("decodes an out-of-range month as null", () => {
+		expect(decodeMonth("0")).toBeNull();
+		expect(decodeMonth("13")).toBeNull();
+	});
+
+	it("decodes a non-numeric string as null", () => {
+		expect(decodeMonth("september")).toBeNull();
+	});
+
+	it("decodes null and undefined as null", () => {
+		expect(decodeMonth(null)).toBeNull();
+		expect(decodeMonth(undefined)).toBeNull();
 	});
 });
