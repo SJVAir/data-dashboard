@@ -1,10 +1,10 @@
 import {
 	getMonitorsList,
-	getMonitorSummariesDaily,
 	getMonitorSummariesMonthly,
 	getMonitorsMeta,
 	getRegionsList,
 	getRegionSummariesDaily,
+	getRegionSummariesMonthly,
 	type MonitorData,
 	type MonitorLatestType,
 	type MonitorsMeta,
@@ -15,8 +15,8 @@ import type { MonitorsDataSource } from "@sjvair/monitor-map";
 import { XMap } from "@tstk/builtin-extensions";
 import { buildCalendarDays, type CalendarDay } from "$lib/calendar";
 import { countyMatches } from "$lib/county-match";
+import { buildCountyFillColors } from "$lib/monitors/county-fill";
 import { buildMonitorsLatest, type SupportedPollutant } from "$lib/monitors/monitor-latest";
-import { pickSummaryResolution } from "$lib/monitors/summary-resolution";
 
 export interface DateRange {
 	start: string;
@@ -36,6 +36,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
 	calendarDays: Array<CalendarDay> | null = $state(null);
+	countyFillColors: Map<string, string> | null = $state(null);
 
 	levels: Array<SJVAirEntryLevel> | null = $derived(
 		this.meta && this.pollutant ? (this.meta.entryType(this.pollutant).asIter.levels ?? null) : null
@@ -68,7 +69,6 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		const monitors = this.visibleMonitors;
 		const pollutant = this.pollutant;
-		const resolution = pickSummaryResolution(this.dateRange.start, this.dateRange.end);
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
 		const startYear = new Date(this.dateRange.start).getFullYear();
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
@@ -81,9 +81,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 			monitors.map(async (monitor) => {
 				const rowsByYear = await Promise.all(
 					years.map((year) =>
-						resolution === "daily"
-							? getMonitorSummariesDaily({ monitorId: monitor.id, entryType: pollutant, year })
-							: getMonitorSummariesMonthly({ monitorId: monitor.id, entryType: pollutant, year })
+						getMonitorSummariesMonthly({ monitorId: monitor.id, entryType: pollutant, year })
 					)
 				);
 				const rows = rowsByYear.flat();
@@ -136,6 +134,38 @@ class MonitorsTabManager implements MonitorsDataSource {
 			valuesByDate,
 			this.levels
 		);
+	}
+
+	async refreshCountyFill(): Promise<void> {
+		if (!this.pollutant || !this.dateRange.start || !this.counties) {
+			this.countyFillColors = null;
+			return;
+		}
+
+		const pollutant = this.pollutant;
+		const monthKey = this.dateRange.start.slice(0, 7);
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
+		const year = new Date(this.dateRange.start).getFullYear();
+		const regions = this.selectedCountyId
+			? this.counties.filter((county) => county.id === this.selectedCountyId)
+			: this.counties;
+
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
+		const means = new Map<string, number>();
+
+		await Promise.all(
+			regions.map(async (region) => {
+				const rows = await getRegionSummariesMonthly({
+					regionId: region.id,
+					entryType: pollutant,
+					year
+				});
+				const row = rows.find((r) => r.timestamp.slice(0, 7) === monthKey);
+				if (row) means.set(region.id, row.mean);
+			})
+		);
+
+		this.countyFillColors = buildCountyFillColors(means, this.levels);
 	}
 }
 
