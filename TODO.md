@@ -29,9 +29,12 @@ Explicitly deferred to future work:
 - Chart/spreadsheet views (noted as "TBD" in the design spec).
 - Entry-type selector still restricted to PM2.5/O3 only (per design spec scope).
 - HMS Smoke/Fire and Collocation Sites tabs.
-- Type-check, build, and automated tests all pass; interactive visual browser
-  verification was not completed during implementation — UI/UX validation is still
-  outstanding and should be done before shipping.
+- Type-check, build, and automated tests all pass. Interactive visual browser
+  verification was performed during implementation; it caught one real bug (an
+  unbounded date-range picker that could hang the browser on a very wide or
+  reversed range), which was fixed in the same pass (span clamped to 5 years,
+  reversed ranges normalized, plus a defensive cap in `buildCalendarDays`). No
+  other issues found — the tab is otherwise working as expected.
 
 ## Done
 
@@ -70,9 +73,16 @@ Explicitly deferred to future work:
       SJVAir/data-dashboard#1 into `main`.
       Plan: `docs/superpowers/plans/2026-09-14-data-dashboard-scaffold.md`
 - [x] **Monitors tab (map + calendar)** — map view showing monitor locations colored by
-      PM2.5/O3 average over selected date range, calendar view for date selection, state
-      management via `MonitorsTabManager` with cached summaries. Wired to `@sjvair/sdk`
-      and `@sjvair/monitor-map`'s `MapShell` with county filter and pollutant toggle.
+      PM2.5/O3 average over selected date range; calendar view is a color-coded day grid
+      of the selected county's daily `RegionSummary` averages (not a date picker). State
+      management via `MonitorsTabManager`: the monitor roster, meta, and county list are
+      fetched once and cached in `init()`; per-monitor and per-region summaries are
+      refetched from scratch on every filter change (date range, pollutant, or county).
+      Summary resolution policy (`src/lib/monitors/summary-resolution.ts`) is a single
+      fixed 45-day threshold — ranges of 45 days or fewer use daily summaries, longer
+      ranges use monthly. Wired to `@sjvair/sdk` and `@sjvair/monitor-map`'s `MapShell`
+      with county filter and pollutant toggle; clustering/click-drill-down behavior is
+      inherited from `monitor-map` and was not independently verified in this pass.
       Chart/spreadsheet views and HMS/Collocation tabs still deferred.
       Plan: `docs/superpowers/plans/2026-09-15-monitors-tab.md`
       Spec: `docs/superpowers/specs/2026-09-15-monitors-tab-design.md`
