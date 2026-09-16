@@ -62,7 +62,7 @@
 	async function handleCountyChange(regionId: string | undefined) {
 		manager.selectedCountyId = regionId ?? null;
 		searchParams.set("county", regionId ? encodeCounty(regionId) : "", { replace: true });
-		await manager.refreshCalendar();
+		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
 	}
 
 	async function handlePollutantChange(pollutant: MonitorsPollutantParam) {
