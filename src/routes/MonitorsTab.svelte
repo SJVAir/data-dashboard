@@ -7,7 +7,6 @@
 	import { Button } from "$lib/components/ui/button/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
 	import { type Bounds, unionBounds } from "$lib/monitors/region-bounds";
-	import { getTabPreferences, setTabPreferences } from "$lib/preferences";
 	import {
 		decodeCounty,
 		decodeMonth,
@@ -62,7 +61,6 @@
 	onMount(async () => {
 		await manager.init();
 
-		const prefs = getTabPreferences("monitors");
 		// route.search values come from sv-router, which parses numeric-looking query
 		// values (e.g. "?year=2026") into a JS number rather than a string — each
 		// decode* function already accepts string | number | boolean, so pass its raw
@@ -72,9 +70,13 @@
 		const urlPollutant = decodePollutant(route.search.pollutant);
 		const urlCounty = decodeCounty(route.search.county);
 
+		// localStorage-backed month preference is temporarily disabled (URL-only
+		// fallback to the current month) while we're testing — re-add
+		// `prefs.month?.year`/`prefs.month?.month` as a fallback before `defaults`
+		// once that's ready to come back.
 		const defaults = currentYearMonth();
-		const year = urlYear ?? prefs.month?.year ?? defaults.year;
-		const month = urlMonth ?? prefs.month?.month ?? defaults.month;
+		const year = urlYear ?? defaults.year;
+		const month = urlMonth ?? defaults.month;
 		const pollutant = urlPollutant ?? "pm25";
 
 		manager.dateRange = monthRange(year, month);
@@ -124,7 +126,7 @@
 		manager.dateRange = nextRange;
 		searchParams.set("year", encodeYear(year), { replace: true });
 		searchParams.set("month", encodeMonth(month), { replace: true });
-		setTabPreferences("monitors", { month: { year, month } });
+		// localStorage-backed month preference write disabled for now — see onMount.
 		await Promise.all([
 			manager.refreshMapAverages(),
 			manager.refreshCalendar(),
