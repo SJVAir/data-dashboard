@@ -78,9 +78,7 @@ describe("preferences", () => {
 		expect(() => getTabPreferences("monitors")).not.toThrow();
 		expect(getTabPreferences("monitors")).toEqual({});
 
-		expect(() =>
-			setTabPreferences("monitors", { month: { year: 2026, month: 1 } })
-		).not.toThrow();
+		expect(() => setTabPreferences("monitors", { month: { year: 2026, month: 1 } })).not.toThrow();
 		expect(getTabPreferences("monitors")).toEqual({});
 
 		expect(() => clearAllPreferences()).not.toThrow();

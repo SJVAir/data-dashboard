@@ -56,9 +56,7 @@ export function encodeYear(year: number): string {
 	return String(year);
 }
 
-export function decodeYear(
-	value: string | number | boolean | null | undefined
-): number | null {
+export function decodeYear(value: string | number | boolean | null | undefined): number | null {
 	if (typeof value !== "string") return null;
 	const year = Number(value);
 	return Number.isInteger(year) ? year : null;
@@ -68,9 +66,7 @@ export function encodeMonth(month: number): string {
 	return String(month);
 }
 
-export function decodeMonth(
-	value: string | number | boolean | null | undefined
-): number | null {
+export function decodeMonth(value: string | number | boolean | null | undefined): number | null {
 	if (typeof value !== "string") return null;
 	const month = Number(value);
 	return Number.isInteger(month) && month >= 1 && month <= 12 ? month : null;

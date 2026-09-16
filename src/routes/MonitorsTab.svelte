@@ -1,20 +1,22 @@
+<!-- src/routes/MonitorsTab.svelte -->
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
+	import { endOfMonth, format, startOfMonth } from "date-fns";
 	import { MapShell, mapManager, MonitorsMapIntegration } from "@sjvair/monitor-map";
 	import Calendar from "$lib/components/Calendar.svelte";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
-	import { MAX_CALENDAR_DAYS } from "$lib/calendar";
 	import { type Bounds, unionBounds } from "$lib/monitors/region-bounds";
 	import { getTabPreferences, setTabPreferences } from "$lib/preferences";
 	import {
 		decodeCounty,
-		decodeDateRange,
+		decodeMonth,
 		decodePollutant,
+		decodeYear,
 		encodeCounty,
-		encodeDateRange,
+		encodeMonth,
 		encodePollutant,
+		encodeYear,
 		type MonitorsPollutantParam
 	} from "$lib/url-state";
 	import { route, searchParams } from "../router";
@@ -28,14 +30,32 @@
 	// collide with this.
 	const ALL_COUNTIES_VALUE = "all";
 
-	function defaultDateRange() {
-		const end = new Date();
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
-		const start = new Date();
-		start.setDate(end.getDate() - 6);
+	const MONTH_NAMES = [
+		"January",
+		"February",
+		"March",
+		"April",
+		"May",
+		"June",
+		"July",
+		"August",
+		"September",
+		"October",
+		"November",
+		"December"
+	];
+
+	function currentYearMonth(): { year: number; month: number } {
+		const now = new Date();
+		return { year: now.getFullYear(), month: now.getMonth() + 1 };
+	}
+
+	function monthRange(year: number, month: number) {
+		const first = startOfMonth(new Date(year, month - 1, 1));
+		const last = endOfMonth(first);
 		return {
-			start: start.toISOString().slice(0, 10),
-			end: end.toISOString().slice(0, 10)
+			start: format(first, "yyyy-MM-dd"),
+			end: format(last, "yyyy-MM-dd")
 		};
 	}
 
@@ -47,67 +67,87 @@
 		await manager.init();
 
 		const prefs = getTabPreferences("monitors");
-		const urlRange = decodeDateRange(asString(route.search.range));
+		const urlYear = decodeYear(asString(route.search.year));
+		const urlMonth = decodeMonth(asString(route.search.month));
 		const urlPollutant = decodePollutant(asString(route.search.pollutant));
 		const urlCounty = decodeCounty(asString(route.search.county));
 
-		const dateRange = urlRange ?? prefs.dateRange ?? defaultDateRange();
+		const defaults = currentYearMonth();
+		const year = urlYear ?? prefs.month?.year ?? defaults.year;
+		const month = urlMonth ?? prefs.month?.month ?? defaults.month;
 		const pollutant = urlPollutant ?? "pm25";
 
-		manager.dateRange = dateRange;
+		manager.dateRange = monthRange(year, month);
 		manager.pollutant = pollutant;
 		manager.selectedCountyId = urlCounty;
 
-		if (!urlRange) {
-			searchParams.set("range", encodeDateRange(dateRange), { replace: true });
+		if (!urlYear) {
+			searchParams.set("year", encodeYear(year), { replace: true });
+		}
+		if (!urlMonth) {
+			searchParams.set("month", encodeMonth(month), { replace: true });
 		}
 		if (!urlPollutant) {
 			searchParams.set("pollutant", encodePollutant(pollutant), { replace: true });
 		}
 
-		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
+		await Promise.all([
+			manager.refreshMapAverages(),
+			manager.refreshCalendar(),
+			manager.refreshCountyFill()
+		]);
 	});
 
 	async function handleCountyChange(value: string | undefined) {
 		const regionId = value && value !== ALL_COUNTIES_VALUE ? value : null;
 		manager.selectedCountyId = regionId;
 		searchParams.set("county", regionId ? encodeCounty(regionId) : "", { replace: true });
-		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
+		await Promise.all([
+			manager.refreshMapAverages(),
+			manager.refreshCalendar(),
+			manager.refreshCountyFill()
+		]);
 	}
 
 	async function handlePollutantChange(pollutant: MonitorsPollutantParam) {
 		manager.pollutant = pollutant;
 		searchParams.set("pollutant", encodePollutant(pollutant), { replace: true });
-		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
+		await Promise.all([
+			manager.refreshMapAverages(),
+			manager.refreshCalendar(),
+			manager.refreshCountyFill()
+		]);
 	}
 
-	async function handleDateRangeChange(field: "start" | "end", value: string) {
-		if (!value) return;
-
-		let start = field === "start" ? value : manager.dateRange.start;
-		let end = field === "end" ? value : manager.dateRange.end;
-
-		// Normalize a reversed range (start after end) rather than erroring.
-		if (start > end) [start, end] = [end, start];
-
-		// Clamp the total span to a maximum of 5 years (MAX_CALENDAR_DAYS days). We
-		// adjust whichever end the user did NOT just edit, so the edit itself is
-		// preserved rather than silently ignored.
-		const spanDays = differenceInCalendarDays(parseISO(end), parseISO(start)) + 1;
-		if (spanDays > MAX_CALENDAR_DAYS) {
-			if (value === start) {
-				end = format(addDays(parseISO(start), MAX_CALENDAR_DAYS - 1), "yyyy-MM-dd");
-			} else {
-				start = format(addDays(parseISO(end), -(MAX_CALENDAR_DAYS - 1)), "yyyy-MM-dd");
-			}
-		}
-
-		const nextRange = { start, end };
+	async function handleYearMonthChange(year: number, month: number) {
+		const nextRange = monthRange(year, month);
 		manager.dateRange = nextRange;
-		searchParams.set("range", encodeDateRange(nextRange), { replace: true });
-		setTabPreferences("monitors", { dateRange: nextRange });
-		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
+		searchParams.set("year", encodeYear(year), { replace: true });
+		searchParams.set("month", encodeMonth(month), { replace: true });
+		setTabPreferences("monitors", { month: { year, month } });
+		await Promise.all([
+			manager.refreshMapAverages(),
+			manager.refreshCalendar(),
+			manager.refreshCountyFill()
+		]);
 	}
+
+	async function handleYearChange(value: string | undefined) {
+		if (!value) return;
+		await handleYearMonthChange(Number(value), selectedMonth);
+	}
+
+	async function handleMonthChange(value: string | undefined) {
+		if (!value) return;
+		await handleYearMonthChange(selectedYear, Number(value));
+	}
+
+	let selectedYear = $derived(Number(manager.dateRange.start.slice(0, 4)));
+	let selectedMonth = $derived(Number(manager.dateRange.start.slice(5, 7)));
+	let yearOptions = $derived.by(() => {
+		const current = currentYearMonth().year;
+		return Array.from({ length: 5 }, (_, i) => current - i);
+	});
 
 	let selectedCountyName = $derived(
 		manager.counties?.find((county) => county.id === manager.selectedCountyId)?.name ??
@@ -125,59 +165,21 @@
 		return $state.snapshot(bbox) as Bounds;
 	}
 
-	const COUNTY_BORDER_SOURCE_ID = "selected-county-boundary";
-	const COUNTY_BORDER_LAYER_ID = "selected-county-boundary-line";
-	// Blue reads clearly against the basemap's tan/green palette and won't be
-	// confused with any of the AQI marker colors (green/yellow/orange/red/purple).
-	const COUNTY_BORDER_COLOR = "#2563eb";
-
-	// Pan/zoom the map to the selected county's bounds (and outline its
-	// boundary), or back out to cover every county when none is selected.
-	// Re-runs whenever the selection or the county list changes, and also
-	// once the map itself becomes ready (mapManager.map is reactive), so it
-	// self-corrects if this effect ran before the map finished initializing.
+	// Pan/zoom the map to the selected county's bounds, or back out to cover
+	// every county when none is selected. Re-runs whenever the selection or
+	// the county list changes, and also once the map itself becomes ready
+	// (mapManager.map is reactive), so it self-corrects if this effect ran
+	// before the map finished initializing.
 	$effect(() => {
 		if (!mapManager.map || !manager.counties) return;
 
-		if (!mapManager.map.getSource(COUNTY_BORDER_SOURCE_ID)) {
-			mapManager.map.addSource(COUNTY_BORDER_SOURCE_ID, {
-				type: "geojson",
-				data: { type: "FeatureCollection", features: [] }
-			});
-			mapManager.map.addLayer({
-				id: COUNTY_BORDER_LAYER_ID,
-				type: "line",
-				source: COUNTY_BORDER_SOURCE_ID,
-				paint: {
-					"line-color": COUNTY_BORDER_COLOR,
-					"line-width": 3
-				}
-			});
-		}
-
 		if (manager.selectedCountyId) {
 			const region = manager.counties.find((county) => county.id === manager.selectedCountyId);
-
 			if (region?.boundary?.bbox) {
 				mapManager.map.fitBounds(toBounds(region.boundary.bbox), { padding: 40 });
 			}
-
-			mapManager.setDataSource(
-				COUNTY_BORDER_SOURCE_ID,
-				region?.boundary?.geometry
-					? [
-							{
-								type: "Feature",
-								properties: {},
-								geometry: $state.snapshot(region.boundary.geometry)
-							}
-						]
-					: []
-			);
 			return;
 		}
-
-		mapManager.setDataSource(COUNTY_BORDER_SOURCE_ID, []);
 
 		const allBounds = manager.counties
 			.map((county) => county.boundary?.bbox)
@@ -187,6 +189,50 @@
 		if (bounds) {
 			mapManager.map.fitBounds(bounds, { padding: 40 });
 		}
+	});
+
+	const COUNTY_FILL_SOURCE_ID = "county-fill";
+	const COUNTY_FILL_LAYER_ID = "county-fill-polygons";
+
+	// Fill each county with a semi-transparent version of its monthly
+	// average's level color — every county when none is selected, only the
+	// selected one otherwise (manager.countyFillColors already reflects
+	// that scoping, computed in MonitorsTabManager.refreshCountyFill()).
+	$effect(() => {
+		if (!mapManager.map || !manager.counties) return;
+
+		if (!mapManager.map.getSource(COUNTY_FILL_SOURCE_ID)) {
+			mapManager.map.addSource(COUNTY_FILL_SOURCE_ID, {
+				type: "geojson",
+				data: { type: "FeatureCollection", features: [] }
+			});
+			mapManager.map.addLayer({
+				id: COUNTY_FILL_LAYER_ID,
+				type: "fill",
+				source: COUNTY_FILL_SOURCE_ID,
+				paint: {
+					"fill-color": ["get", "color"],
+					"fill-opacity": 0.35
+				}
+			});
+		}
+
+		const counties = manager.counties;
+		const colors = manager.countyFillColors;
+		const entries = colors ? Array.from(colors.entries()) : [];
+		const features = entries.flatMap(([regionId, color]) => {
+			const county = counties.find((c) => c.id === regionId);
+			if (!county?.boundary?.geometry) return [];
+			return [
+				{
+					type: "Feature" as const,
+					properties: { color },
+					geometry: $state.snapshot(county.boundary.geometry)
+				}
+			];
+		});
+
+		mapManager.setDataSource(COUNTY_FILL_SOURCE_ID, features);
 	});
 </script>
 
@@ -211,24 +257,23 @@
 			</Button>
 		</div>
 
-		<label class="flex items-center gap-2 text-sm">
-			Start
-			<input
-				type="date"
-				class="border-input rounded border px-2 py-1"
-				value={manager.dateRange.start}
-				onchange={(event) => handleDateRangeChange("start", event.currentTarget.value)}
-			/>
-		</label>
-		<label class="flex items-center gap-2 text-sm">
-			End
-			<input
-				type="date"
-				class="border-input rounded border px-2 py-1"
-				value={manager.dateRange.end}
-				onchange={(event) => handleDateRangeChange("end", event.currentTarget.value)}
-			/>
-		</label>
+		<Select.Root type="single" value={String(selectedYear)} onValueChange={handleYearChange}>
+			<Select.Trigger class="w-28">{selectedYear}</Select.Trigger>
+			<Select.Content>
+				{#each yearOptions as year (year)}
+					<Select.Item value={String(year)} label={String(year)}>{year}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+
+		<Select.Root type="single" value={String(selectedMonth)} onValueChange={handleMonthChange}>
+			<Select.Trigger class="w-36">{MONTH_NAMES[selectedMonth - 1]}</Select.Trigger>
+			<Select.Content>
+				{#each MONTH_NAMES as name, index (name)}
+					<Select.Item value={String(index + 1)} label={name}>{name}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
 
 		<Select.Root
 			type="single"
