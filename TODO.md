@@ -4,37 +4,71 @@ Last updated: 2026-09-15
 
 ## Start here (next session)
 
-**Monitors tab (map + calendar views) is shipped.** Implementation is complete per
-`docs/superpowers/plans/2026-09-15-monitors-tab.md` and the corresponding design spec
+**Monitors tab (map + calendar views) is implemented and in review.**
+Implementation is on branch `worktree-monitors-tab`, open as
+[SJVAir/data-dashboard#2](https://github.com/SJVAir/data-dashboard/pull/2), per
+`docs/superpowers/plans/2026-09-15-monitors-tab.md` and the design spec
 (`docs/superpowers/specs/2026-09-15-monitors-tab-design.md`). See those for the full
-scope and decisions.
+scope and decisions. **There is an open design question below that should be resolved
+before doing more work on the map view.**
 
 Shipped in this cycle:
 
 - Date-range picker: two `<input type="date">` (Start/End) driving both map averages
   and calendar refresh together; wired to URL state and localStorage preferences.
+  Span clamped to 5 years, reversed ranges normalized (see bug note below).
 - County selector: shadcn-svelte `Select` filtering which monitors show on map and
   which county's data populates the calendar (calendar doesn't render until a county
   is selected).
 - Map view: shows monitor locations, colors by PM2.5/O3 average over selected date
-  range, clusters at zoom, supports click drill-down via `MapShell` + custom `MonitorsDataSource`.
+  range. Clustering/click-drill-down behavior is inherited from `monitor-map` and was
+  not independently verified in this pass.
 - Calendar view: color-coded day grid showing the selected county's daily `RegionSummary`
-  averages; reusable component wired to `manager.calendarDays` and `manager.refreshCalendar()`.
-- State management: `MonitorsTabManager` with cached monitor summaries and region
-  summaries, reactive updates for county/pollutant/date, resolution policy for summary
-  fetch (weekly `daily`, yearly `monthly`, etc.).
+  averages (not a date picker — the date `<input>`s are the actual range picker). Lays
+  out multiple months horizontally, wrapping as needed, and sizes to its content instead
+  of stretching full-width. Always fetches at daily resolution regardless of range length
+  (deliberate — see spec).
+- State management: `MonitorsTabManager` fetches the monitor roster/meta/county list once
+  and caches them in `init()`; per-monitor and per-region summaries are refetched from
+  scratch on every filter change (date range, pollutant, or county) — no summary caching.
 
-Explicitly deferred to future work:
+**Open design question (unresolved, paused here):** the map's per-monitor averaging
+(`refreshMapAverages` in `src/routes/monitors/monitors-tab.svelte.ts`) picks daily vs.
+monthly summary resolution based on a 45-day threshold
+(`src/lib/monitors/summary-resolution.ts`). Testing against the local `sjvair.com` dev
+backend found that **monthly (and coarser) summary rollups aren't populated there** —
+only daily rollups have real data — so any date range over 45 days shows **no monitors
+on the map** (empty averages). Also, "monthly" resolution doesn't even save a real
+request-volume cost, since `getMonitorSummariesMonthly` without a `month` param fetches
+the whole year anyway, same as `getMonitorSummariesDaily` without a `month` param — so
+the resolution-switching buys little. Three options were on the table when the session
+paused, no decision made:
+
+1. Drop the resolution-switching and always fetch daily for the map too (matches the
+   calendar's approach, simpler, removes the dependency on monthly-rollup availability).
+2. Drop per-monitor color-coding entirely — map becomes a pure location reference (no
+   values shown), calendar remains the only place pollution values are displayed. Would
+   make `refreshMapAverages`, `summary-resolution.ts`, and `monitor-latest.ts` dead code.
+3. Same as #2, but explicitly as a temporary simplification to revisit later rather than
+   a final call.
+   **Resolve this before touching `refreshMapAverages`/the map's data source again.**
+
+Explicitly deferred to future work (per spec, or per final code review):
 
 - Chart/spreadsheet views (noted as "TBD" in the design spec).
 - Entry-type selector still restricted to PM2.5/O3 only (per design spec scope).
 - HMS Smoke/Fire and Collocation Sites tabs.
-- Type-check, build, and automated tests all pass. Interactive visual browser
-  verification was performed during implementation; it caught one real bug (an
-  unbounded date-range picker that could hang the browser on a very wide or
-  reversed range), which was fixed in the same pass (span clamped to 5 years,
-  reversed ranges normalized, plus a defensive cap in `buildCalendarDays`). No
-  other issues found — the tab is otherwise working as expected.
+- Whole-year over-fetch inefficiency (see open design question above — `month` param
+  exists on both summary endpoints and isn't used to narrow requests).
+- No in-flight request coordination — rapid filter changes can race, last-to-finish wins
+  rather than last-requested.
+- Preferences only persist date range, not pollutant; URL state is read once at mount,
+  not reactive to browser back/forward within the tab.
+- Type-check, build, and automated tests all pass (46 tests). Interactive visual browser
+  verification was performed during implementation and again during manual testing after
+  merge review; it caught the unbounded-date-range hang (fixed: span clamped to 5 years,
+  reversed ranges normalized, defensive cap in `buildCalendarDays`) and the monthly-summary
+  data-availability issue described above (not yet resolved).
 
 ## Done
 
