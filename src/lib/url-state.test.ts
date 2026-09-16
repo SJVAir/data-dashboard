@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { decodeDateRange, decodeViews, encodeDateRange, encodeViews } from "./url-state";
+import {
+	decodeDateRange,
+	decodeViews,
+	encodeDateRange,
+	encodeViews,
+	decodePollutant,
+	encodePollutant,
+	decodeCounty,
+	encodeCounty,
+	decodeYear,
+	encodeYear,
+	decodeMonth,
+	encodeMonth
+} from "./url-state";
 
 describe("date range codec", () => {
 	it("round-trips a date range through encode and decode", () => {
@@ -54,5 +67,107 @@ describe("views codec", () => {
 			chart: false,
 			spreadsheet: false
 		});
+	});
+});
+
+describe("pollutant codec", () => {
+	it("decodes pm25 and o3 as valid pollutants", () => {
+		expect(decodePollutant("pm25")).toBe("pm25");
+		expect(decodePollutant("o3")).toBe("o3");
+	});
+
+	it("decodes an unsupported value as null", () => {
+		expect(decodePollutant("pm10")).toBeNull();
+	});
+
+	it("decodes null and undefined as null", () => {
+		expect(decodePollutant(null)).toBeNull();
+		expect(decodePollutant(undefined)).toBeNull();
+	});
+
+	it("round-trips a valid pollutant through encode", () => {
+		expect(decodePollutant(encodePollutant("pm25"))).toBe("pm25");
+	});
+});
+
+describe("county codec", () => {
+	it("decodes a non-empty string as the region id", () => {
+		expect(decodeCounty("abc123")).toBe("abc123");
+	});
+
+	it("decodes an empty string as no county selected", () => {
+		expect(decodeCounty("")).toBeNull();
+	});
+
+	it("decodes null and undefined as no county selected", () => {
+		expect(decodeCounty(null)).toBeNull();
+		expect(decodeCounty(undefined)).toBeNull();
+	});
+
+	it("round-trips a region id through encode", () => {
+		expect(decodeCounty(encodeCounty("abc123"))).toBe("abc123");
+	});
+});
+
+describe("year codec", () => {
+	it("round-trips a valid year", () => {
+		expect(decodeYear(encodeYear(2026))).toBe(2026);
+	});
+
+	it("decodes a non-numeric string as null", () => {
+		expect(decodeYear("not-a-year")).toBeNull();
+	});
+
+	it("decodes an empty string as null", () => {
+		expect(decodeYear("")).toBeNull();
+	});
+
+	it("decodes a non-4-digit numeric string as null", () => {
+		expect(decodeYear("0")).toBeNull();
+	});
+
+	it("decodes null and undefined as null", () => {
+		expect(decodeYear(null)).toBeNull();
+		expect(decodeYear(undefined)).toBeNull();
+	});
+
+	it("decodes a numeric value the same as its string form", () => {
+		// sv-router parses numeric-looking query values (e.g. "?year=2026") into a
+		// JS number rather than a string, so this must round-trip like the string case.
+		expect(decodeYear(2026)).toBe(2026);
+	});
+
+	it("decodes a boolean as null", () => {
+		expect(decodeYear(true)).toBeNull();
+	});
+});
+
+describe("month codec", () => {
+	it("round-trips a valid month", () => {
+		expect(decodeMonth(encodeMonth(9))).toBe(9);
+	});
+
+	it("decodes an out-of-range month as null", () => {
+		expect(decodeMonth("0")).toBeNull();
+		expect(decodeMonth("13")).toBeNull();
+	});
+
+	it("decodes a non-numeric string as null", () => {
+		expect(decodeMonth("september")).toBeNull();
+	});
+
+	it("decodes null and undefined as null", () => {
+		expect(decodeMonth(null)).toBeNull();
+		expect(decodeMonth(undefined)).toBeNull();
+	});
+
+	it("decodes a numeric value the same as its string form", () => {
+		// sv-router parses numeric-looking query values (e.g. "?month=9") into a
+		// JS number rather than a string, so this must round-trip like the string case.
+		expect(decodeMonth(9)).toBe(9);
+	});
+
+	it("decodes a boolean as null", () => {
+		expect(decodeMonth(true)).toBeNull();
 	});
 });

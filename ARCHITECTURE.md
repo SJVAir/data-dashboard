@@ -12,6 +12,27 @@ applicable, county), and view the result as a map, chart, and/or spreadsheet.
 Cross-dataset analysis, server-side location search, server-synced preferences, and
 a Tauri desktop build are deliberately out of scope for v1 — see `ROADMAP.md`.
 
+## Embedding (production build)
+
+Like `monitor-map`'s `MapShell`, this app's production build is intended to be
+embeddable inside another host app/site, not only run standalone. This shapes several
+decisions made along the way:
+
+- **No SvelteKit, plain Vite SPA** — a pure static client with no server runtime to
+  strip out, so the same build works standalone, embedded in a host page, and
+  eventually wrapped by Tauri.
+- **`sv-router` needs a host-safe escape hatch** — same problem `monitor-map` solved
+  for `MapShell` with `routerEscapeHatch`/`basePath` (see its `CLAUDE.md`): a host
+  page that already has its own router must be able to either mount this app under a
+  sub-path (`basePath`) or disable this app's own history/URL manipulation entirely
+  when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
+  currently assumes it owns top-level routing. Needs to be addressed before this app
+  can actually be embedded (see `ROADMAP.md`).
+- **URL-as-source-of-truth vs. embedding** — the state architecture below treats the
+  URL as the source of truth for view state. When embedded with the escape hatch
+  active, this needs a fallback (e.g. an in-memory store) since the host may not want
+  this app touching the outer page's URL at all.
+
 ## Repos involved
 
 - **`data-dashboard`** (this repo) — the app itself.

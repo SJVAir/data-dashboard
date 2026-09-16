@@ -29,9 +29,9 @@ describe("preferences", () => {
 	});
 
 	it("persists and retrieves preferences for a tab", () => {
-		setTabPreferences("monitors", { dateRange: { start: "2026-01-01", end: "2026-01-02" } });
+		setTabPreferences("monitors", { month: { year: 2026, month: 1 } });
 		expect(getTabPreferences("monitors")).toEqual({
-			dateRange: { start: "2026-01-01", end: "2026-01-02" }
+			month: { year: 2026, month: 1 }
 		});
 	});
 
@@ -47,16 +47,16 @@ describe("preferences", () => {
 	});
 
 	it("merges partial updates instead of overwriting the whole tab", () => {
-		setTabPreferences("monitors", { dateRange: { start: "2026-01-01", end: "2026-01-02" } });
+		setTabPreferences("monitors", { month: { year: 2026, month: 1 } });
 		setTabPreferences("monitors", { views: { map: true, chart: true, spreadsheet: false } });
 		expect(getTabPreferences("monitors")).toEqual({
-			dateRange: { start: "2026-01-01", end: "2026-01-02" },
+			month: { year: 2026, month: 1 },
 			views: { map: true, chart: true, spreadsheet: false }
 		});
 	});
 
 	it("clearAllPreferences removes all stored data", () => {
-		setTabPreferences("monitors", { dateRange: { start: "2026-01-01", end: "2026-01-02" } });
+		setTabPreferences("monitors", { month: { year: 2026, month: 1 } });
 		clearAllPreferences();
 		expect(getTabPreferences("monitors")).toEqual({});
 	});
@@ -78,9 +78,7 @@ describe("preferences", () => {
 		expect(() => getTabPreferences("monitors")).not.toThrow();
 		expect(getTabPreferences("monitors")).toEqual({});
 
-		expect(() =>
-			setTabPreferences("monitors", { dateRange: { start: "2026-01-01", end: "2026-01-02" } })
-		).not.toThrow();
+		expect(() => setTabPreferences("monitors", { month: { year: 2026, month: 1 } })).not.toThrow();
 		expect(getTabPreferences("monitors")).toEqual({});
 
 		expect(() => clearAllPreferences()).not.toThrow();

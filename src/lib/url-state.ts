@@ -31,3 +31,49 @@ export function decodeViews<K extends string>(
 	const enabled = new Set(value.split(",").filter(Boolean));
 	return Object.fromEntries(allKeys.map((key) => [key, enabled.has(key)])) as Record<K, boolean>;
 }
+
+export type MonitorsPollutantParam = "pm25" | "o3";
+
+export function encodePollutant(pollutant: MonitorsPollutantParam): string {
+	return pollutant;
+}
+
+export function decodePollutant(
+	value: string | number | boolean | null | undefined
+): MonitorsPollutantParam | null {
+	return value === "pm25" || value === "o3" ? value : null;
+}
+
+export function encodeCounty(regionId: string): string {
+	return regionId;
+}
+
+export function decodeCounty(value: string | number | boolean | null | undefined): string | null {
+	return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+export function encodeYear(year: number): string {
+	return String(year);
+}
+
+export function decodeYear(value: string | number | boolean | null | undefined): number | null {
+	// sv-router's route.search parses numeric-looking query values (e.g. "?year=2026")
+	// into a JS number rather than a string, so a plain string-only check here would
+	// silently reject every real URL and always fall back to the default year.
+	if (typeof value !== "string" && typeof value !== "number") return null;
+	const str = String(value);
+	if (!/^\d{4}$/.test(str)) return null;
+	const year = Number(str);
+	return Number.isInteger(year) ? year : null;
+}
+
+export function encodeMonth(month: number): string {
+	return String(month);
+}
+
+export function decodeMonth(value: string | number | boolean | null | undefined): number | null {
+	// Same sv-router number-coercion caveat as decodeYear above.
+	if (typeof value !== "string" && typeof value !== "number") return null;
+	const month = Number(value);
+	return Number.isInteger(month) && month >= 1 && month <= 12 ? month : null;
+}

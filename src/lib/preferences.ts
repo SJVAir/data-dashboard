@@ -5,7 +5,7 @@ export interface ViewToggles {
 }
 
 export interface TabPreferences {
-	dateRange?: { start: string; end: string };
+	month?: { year: number; month: number };
 	views?: ViewToggles;
 }
 
