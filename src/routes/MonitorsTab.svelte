@@ -195,11 +195,14 @@
 
 	const COUNTY_FILL_SOURCE_ID = "county-fill";
 	const COUNTY_FILL_LAYER_ID = "county-fill-polygons";
+	const COUNTY_FILL_BORDER_LAYER_ID = "county-fill-border";
 
 	// Fill each county with a semi-transparent version of its monthly
 	// average's level color — every county when none is selected, only the
 	// selected one otherwise (manager.countyFillColors already reflects
 	// that scoping, computed in MonitorsTabManager.refreshCountyFill()).
+	// A solid-color border (same color as the fill, full opacity) traces
+	// each filled county so its boundary stays legible against neighbors.
 	$effect(() => {
 		if (!mapManager.map || !manager.counties) return;
 
@@ -215,6 +218,15 @@
 				paint: {
 					"fill-color": ["get", "color"],
 					"fill-opacity": 0.35
+				}
+			});
+			mapManager.map.addLayer({
+				id: COUNTY_FILL_BORDER_LAYER_ID,
+				type: "line",
+				source: COUNTY_FILL_SOURCE_ID,
+				paint: {
+					"line-color": ["get", "color"],
+					"line-width": 2
 				}
 			});
 		}
