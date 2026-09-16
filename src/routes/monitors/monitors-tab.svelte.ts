@@ -69,22 +69,17 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		const monitors = this.visibleMonitors;
 		const pollutant = this.pollutant;
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
-		const startYear = new Date(this.dateRange.start).getFullYear();
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
-		const endYear = new Date(this.dateRange.end).getFullYear();
-		const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+		const year = Number(this.dateRange.start.slice(0, 4));
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 		const averages = new Map<string, number>();
 
 		await Promise.all(
 			monitors.map(async (monitor) => {
-				const rowsByYear = await Promise.all(
-					years.map((year) =>
-						getMonitorSummariesMonthly({ monitorId: monitor.id, entryType: pollutant, year })
-					)
-				);
-				const rows = rowsByYear.flat();
+				const rows = await getMonitorSummariesMonthly({
+					monitorId: monitor.id,
+					entryType: pollutant,
+					year
+				});
 
 				const inRange = rows.filter((row) => {
 					const date = row.timestamp.slice(0, 10);
@@ -108,17 +103,9 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		const regionId = this.selectedCountyId;
 		const pollutant = this.pollutant;
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
-		const startYear = new Date(this.dateRange.start).getFullYear();
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
-		const endYear = new Date(this.dateRange.end).getFullYear();
-		const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+		const year = Number(this.dateRange.start.slice(0, 4));
 
-		const rows = (
-			await Promise.all(
-				years.map((year) => getRegionSummariesDaily({ regionId, entryType: pollutant, year }))
-			)
-		).flat();
+		const rows = await getRegionSummariesDaily({ regionId, entryType: pollutant, year });
 
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 		const valuesByDate = new Map<string, number>();
@@ -144,8 +131,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		const pollutant = this.pollutant;
 		const monthKey = this.dateRange.start.slice(0, 7);
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
-		const year = new Date(this.dateRange.start).getFullYear();
+		const year = Number(this.dateRange.start.slice(0, 4));
 		const regions = this.selectedCountyId
 			? this.counties.filter((county) => county.id === this.selectedCountyId)
 			: this.counties;

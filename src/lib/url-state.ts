@@ -58,6 +58,7 @@ export function encodeYear(year: number): string {
 
 export function decodeYear(value: string | number | boolean | null | undefined): number | null {
 	if (typeof value !== "string") return null;
+	if (!/^\d{4}$/.test(value)) return null;
 	const year = Number(value);
 	return Number.isInteger(year) ? year : null;
 }

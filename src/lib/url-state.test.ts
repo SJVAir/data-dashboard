@@ -118,6 +118,14 @@ describe("year codec", () => {
 		expect(decodeYear("not-a-year")).toBeNull();
 	});
 
+	it("decodes an empty string as null", () => {
+		expect(decodeYear("")).toBeNull();
+	});
+
+	it("decodes a non-4-digit numeric string as null", () => {
+		expect(decodeYear("0")).toBeNull();
+	});
+
 	it("decodes null and undefined as null", () => {
 		expect(decodeYear(null)).toBeNull();
 		expect(decodeYear(undefined)).toBeNull();
