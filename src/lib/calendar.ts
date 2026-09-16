@@ -1,11 +1,13 @@
 import type { SJVAirEntryLevel } from "@sjvair/sdk";
-import { eachDayOfInterval, format, parseISO } from "date-fns";
+import { differenceInCalendarDays, eachDayOfInterval, format, parseISO } from "date-fns";
 
 export interface CalendarDay {
 	date: string;
 	value: number | null;
 	color: string | null;
 }
+
+export const MAX_CALENDAR_DAYS = 1826;
 
 export function getCurrentLevel(
 	value: number,
@@ -20,7 +22,19 @@ export function buildCalendarDays(
 	valuesByDate: Map<string, number>,
 	levels: Array<SJVAirEntryLevel> | null
 ): Array<CalendarDay> {
-	return eachDayOfInterval({ start: parseISO(start), end: parseISO(end) }).map((date) => {
+	// Normalize a reversed range (start after end) before computing the span —
+	// date-fns's eachDayOfInterval silently returns a descending interval otherwise.
+	const [rangeStart, rangeEnd] =
+		parseISO(start).getTime() <= parseISO(end).getTime() ? [start, end] : [end, start];
+
+	const dayCount = differenceInCalendarDays(parseISO(rangeEnd), parseISO(rangeStart)) + 1;
+	if (dayCount > MAX_CALENDAR_DAYS) {
+		throw new Error(
+			`Date range too large: ${dayCount} days requested, maximum is ${MAX_CALENDAR_DAYS}`
+		);
+	}
+
+	return eachDayOfInterval({ start: parseISO(rangeStart), end: parseISO(rangeEnd) }).map((date) => {
 		const key = format(date, "yyyy-MM-dd");
 		const value = valuesByDate.get(key) ?? null;
 		const level = value !== null && levels ? getCurrentLevel(value, levels) : undefined;

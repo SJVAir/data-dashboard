@@ -1,6 +1,12 @@
+import { addDays, format, parseISO } from "date-fns";
 import { describe, expect, it } from "vitest";
 import type { SJVAirEntryLevel } from "@sjvair/sdk";
-import { buildCalendarDays, getCurrentLevel, groupDaysByMonth } from "./calendar";
+import {
+	MAX_CALENDAR_DAYS,
+	buildCalendarDays,
+	getCurrentLevel,
+	groupDaysByMonth
+} from "./calendar";
 
 const levels: Array<SJVAirEntryLevel> = [
 	{ name: "good", label: "Good", color: "#00e400", range: [0, 9], guidance: null },
@@ -32,6 +38,30 @@ describe("buildCalendarDays", () => {
 		const valuesByDate = new Map([["2026-01-01", 5]]);
 		const days = buildCalendarDays("2026-01-01", "2026-01-01", valuesByDate, null);
 		expect(days).toEqual([{ date: "2026-01-01", value: 5, color: null }]);
+	});
+
+	it("succeeds at exactly the maximum range (1826 days)", () => {
+		const start = "2020-01-01";
+		const end = format(addDays(parseISO(start), MAX_CALENDAR_DAYS - 1), "yyyy-MM-dd");
+		const days = buildCalendarDays(start, end, new Map(), null);
+		expect(days).toHaveLength(MAX_CALENDAR_DAYS);
+	});
+
+	it("throws when the range is one day over the maximum", () => {
+		const start = "2020-01-01";
+		const end = format(addDays(parseISO(start), MAX_CALENDAR_DAYS), "yyyy-MM-dd");
+		expect(() => buildCalendarDays(start, end, new Map(), null)).toThrow(
+			`Date range too large: ${MAX_CALENDAR_DAYS + 1} days requested, maximum is ${MAX_CALENDAR_DAYS}`
+		);
+	});
+
+	it("normalizes a reversed range (start after end) instead of misbehaving", () => {
+		const valuesByDate = new Map([["2026-01-01", 5]]);
+		const days = buildCalendarDays("2026-01-02", "2026-01-01", valuesByDate, levels);
+		expect(days).toEqual([
+			{ date: "2026-01-01", value: 5, color: "#00e400" },
+			{ date: "2026-01-02", value: null, color: null }
+		]);
 	});
 });
 
