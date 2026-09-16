@@ -4,9 +4,10 @@ Last updated: 2026-09-16
 
 ## Start here (next session)
 
-**Monitors tab (map + calendar views) is shipped and merged.**
-The tab's core functionality is complete and merged to `main`. The latest iteration
-replaced the date-range picker with a Year/Month picker and upgraded the map's
+**Monitors tab (map + calendar views) is implemented and in review.**
+Implementation is on branch `worktree-monitors-tab`, open as
+[SJVAir/data-dashboard#2](https://github.com/SJVAir/data-dashboard/pull/2). The latest
+iteration replaced the date-range picker with a Year/Month picker and upgraded the map's
 county visualization from a blue border outline to a semi-transparent county-fill
 choropleth, per `docs/superpowers/plans/2026-09-16-monitors-tab-month-picker.md`
 and the design spec (`docs/superpowers/specs/2026-09-16-monitors-tab-month-picker-design.md`).
