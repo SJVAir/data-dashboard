@@ -172,6 +172,8 @@
 	</div>
 
 	{#if manager.calendarDays}
-		<Calendar days={manager.calendarDays} />
+		<div class="self-start">
+			<Calendar days={manager.calendarDays} />
+		</div>
 	{/if}
 </div>
