@@ -48,7 +48,7 @@
 	"dependencies": {
 		"@lucide/svelte": "^1.46.0",
 		"@sjvair/monitor-map": "^3.5.1",
-		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@^4.1.0",
+		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@^4.2.0",
 		"@tstk/builtin-extensions": "npm:@jsr/tstk__builtin-extensions@^1.0.8",
 		"@tstk/utils": "npm:@jsr/tstk__utils@^1.1.2",
 		"bits-ui": "^2.19.2",
