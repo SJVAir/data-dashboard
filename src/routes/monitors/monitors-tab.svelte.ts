@@ -66,6 +66,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 	async refreshMapAverages(): Promise<void> {
 		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end) return;
 
+		const monitors = this.visibleMonitors;
 		const pollutant = this.pollutant;
 		const resolution = pickSummaryResolution(this.dateRange.start, this.dateRange.end);
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
@@ -77,7 +78,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 		const averages = new Map<string, number>();
 
 		await Promise.all(
-			this.visibleMonitors.map(async (monitor) => {
+			monitors.map(async (monitor) => {
 				const rowsByYear = await Promise.all(
 					years.map((year) =>
 						resolution === "daily"
@@ -98,12 +99,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 			})
 		);
 
-		this.latest = buildMonitorsLatest(
-			this.visibleMonitors,
-			averages,
-			pollutant,
-			this.dateRange.end
-		);
+		this.latest = buildMonitorsLatest(monitors, averages, pollutant, this.dateRange.end);
 	}
 
 	async refreshCalendar(): Promise<void> {
