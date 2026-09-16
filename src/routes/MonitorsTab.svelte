@@ -22,6 +22,11 @@
 	const manager = monitorsTabManager;
 	const mapIntegration = new MonitorsMapIntegration(manager);
 
+	// Sentinel value for the county Select's "All counties" item — bits-ui's Select
+	// doesn't accept an empty string as an item value, so a real county id can never
+	// collide with this.
+	const ALL_COUNTIES_VALUE = "all";
+
 	function defaultDateRange() {
 		const end = new Date();
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
@@ -62,8 +67,9 @@
 		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
 	});
 
-	async function handleCountyChange(regionId: string | undefined) {
-		manager.selectedCountyId = regionId ?? null;
+	async function handleCountyChange(value: string | undefined) {
+		const regionId = value && value !== ALL_COUNTIES_VALUE ? value : null;
+		manager.selectedCountyId = regionId;
 		searchParams.set("county", regionId ? encodeCounty(regionId) : "", { replace: true });
 		await Promise.all([manager.refreshMapAverages(), manager.refreshCalendar()]);
 	}
@@ -150,11 +156,12 @@
 
 		<Select.Root
 			type="single"
-			value={manager.selectedCountyId ?? undefined}
+			value={manager.selectedCountyId ?? ALL_COUNTIES_VALUE}
 			onValueChange={handleCountyChange}
 		>
 			<Select.Trigger class="w-56">{selectedCountyName}</Select.Trigger>
 			<Select.Content>
+				<Select.Item value={ALL_COUNTIES_VALUE} label="All counties">All counties</Select.Item>
 				{#each manager.counties ?? [] as county (county.id)}
 					<Select.Item value={county.id} label={county.name}>{county.name}</Select.Item>
 				{/each}
