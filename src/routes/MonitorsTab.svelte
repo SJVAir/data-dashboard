@@ -22,6 +22,7 @@
 
 	function defaultDateRange() {
 		const end = new Date();
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive value
 		const start = new Date();
 		start.setDate(end.getDate() - 6);
 		return {
