@@ -11,12 +11,18 @@ scope and decisions.
 
 Shipped in this cycle:
 
-- Map view: polls counties, shows monitor locations, colors by PM2.5/O3 average over a
-  selected date range (wired to calendar), clusters at zoom, supports click drill-down.
-- Calendar view: date-range picker driving the map; feeds to a future chart view
-  (not in scope for this pass).
-- State management: `MonitorsTabManager` with cached summaries and reactive
-  county/pollutant/date updates.
+- Date-range picker: two `<input type="date">` (Start/End) driving both map averages
+  and calendar refresh together; wired to URL state and localStorage preferences.
+- County selector: shadcn-svelte `Select` filtering which monitors show on map and
+  which county's data populates the calendar (calendar doesn't render until a county
+  is selected).
+- Map view: shows monitor locations, colors by PM2.5/O3 average over selected date
+  range, clusters at zoom, supports click drill-down via `MapShell` + custom `MonitorsDataSource`.
+- Calendar view: color-coded day grid showing the selected county's daily `RegionSummary`
+  averages; reusable component wired to `manager.calendarDays` and `manager.refreshCalendar()`.
+- State management: `MonitorsTabManager` with cached monitor summaries and region
+  summaries, reactive updates for county/pollutant/date, resolution policy for summary
+  fetch (weekly `daily`, yearly `monthly`, etc.).
 
 Explicitly deferred to future work:
 
