@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 	import { MapShell, MonitorsMapIntegration } from "@sjvair/monitor-map";
 	import Calendar from "$lib/components/Calendar.svelte";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
+	import { MAX_CALENDAR_DAYS } from "$lib/calendar";
 	import { getTabPreferences, setTabPreferences } from "$lib/preferences";
 	import {
 		decodeCounty,
@@ -74,7 +76,26 @@
 
 	async function handleDateRangeChange(field: "start" | "end", value: string) {
 		if (!value) return;
-		const nextRange = { ...manager.dateRange, [field]: value };
+
+		let start = field === "start" ? value : manager.dateRange.start;
+		let end = field === "end" ? value : manager.dateRange.end;
+
+		// Normalize a reversed range (start after end) rather than erroring.
+		if (start > end) [start, end] = [end, start];
+
+		// Clamp the total span to a maximum of 5 years (MAX_CALENDAR_DAYS days). We
+		// adjust whichever end the user did NOT just edit, so the edit itself is
+		// preserved rather than silently ignored.
+		const spanDays = differenceInCalendarDays(parseISO(end), parseISO(start)) + 1;
+		if (spanDays > MAX_CALENDAR_DAYS) {
+			if (value === start) {
+				end = format(addDays(parseISO(start), MAX_CALENDAR_DAYS - 1), "yyyy-MM-dd");
+			} else {
+				start = format(addDays(parseISO(end), -(MAX_CALENDAR_DAYS - 1)), "yyyy-MM-dd");
+			}
+		}
+
+		const nextRange = { start, end };
 		manager.dateRange = nextRange;
 		searchParams.set("range", encodeDateRange(nextRange), { replace: true });
 		setTabPreferences("monitors", { dateRange: nextRange });
