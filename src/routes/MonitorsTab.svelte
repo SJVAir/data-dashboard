@@ -59,18 +59,18 @@
 		};
 	}
 
-	function asString(value: string | number | boolean | undefined): string | undefined {
-		return typeof value === "string" ? value : undefined;
-	}
-
 	onMount(async () => {
 		await manager.init();
 
 		const prefs = getTabPreferences("monitors");
-		const urlYear = decodeYear(asString(route.search.year));
-		const urlMonth = decodeMonth(asString(route.search.month));
-		const urlPollutant = decodePollutant(asString(route.search.pollutant));
-		const urlCounty = decodeCounty(asString(route.search.county));
+		// route.search values come from sv-router, which parses numeric-looking query
+		// values (e.g. "?year=2026") into a JS number rather than a string — each
+		// decode* function already accepts string | number | boolean, so pass its raw
+		// value straight through rather than pre-filtering to strings only.
+		const urlYear = decodeYear(route.search.year);
+		const urlMonth = decodeMonth(route.search.month);
+		const urlPollutant = decodePollutant(route.search.pollutant);
+		const urlCounty = decodeCounty(route.search.county);
 
 		const defaults = currentYearMonth();
 		const year = urlYear ?? prefs.month?.year ?? defaults.year;

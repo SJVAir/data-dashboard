@@ -57,9 +57,13 @@ export function encodeYear(year: number): string {
 }
 
 export function decodeYear(value: string | number | boolean | null | undefined): number | null {
-	if (typeof value !== "string") return null;
-	if (!/^\d{4}$/.test(value)) return null;
-	const year = Number(value);
+	// sv-router's route.search parses numeric-looking query values (e.g. "?year=2026")
+	// into a JS number rather than a string, so a plain string-only check here would
+	// silently reject every real URL and always fall back to the default year.
+	if (typeof value !== "string" && typeof value !== "number") return null;
+	const str = String(value);
+	if (!/^\d{4}$/.test(str)) return null;
+	const year = Number(str);
 	return Number.isInteger(year) ? year : null;
 }
 
@@ -68,7 +72,8 @@ export function encodeMonth(month: number): string {
 }
 
 export function decodeMonth(value: string | number | boolean | null | undefined): number | null {
-	if (typeof value !== "string") return null;
+	// Same sv-router number-coercion caveat as decodeYear above.
+	if (typeof value !== "string" && typeof value !== "number") return null;
 	const month = Number(value);
 	return Number.isInteger(month) && month >= 1 && month <= 12 ? month : null;
 }

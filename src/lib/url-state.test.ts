@@ -131,8 +131,13 @@ describe("year codec", () => {
 		expect(decodeYear(undefined)).toBeNull();
 	});
 
-	it("decodes a non-string value as null", () => {
-		expect(decodeYear(2026)).toBeNull();
+	it("decodes a numeric value the same as its string form", () => {
+		// sv-router parses numeric-looking query values (e.g. "?year=2026") into a
+		// JS number rather than a string, so this must round-trip like the string case.
+		expect(decodeYear(2026)).toBe(2026);
+	});
+
+	it("decodes a boolean as null", () => {
 		expect(decodeYear(true)).toBeNull();
 	});
 });
@@ -154,5 +159,15 @@ describe("month codec", () => {
 	it("decodes null and undefined as null", () => {
 		expect(decodeMonth(null)).toBeNull();
 		expect(decodeMonth(undefined)).toBeNull();
+	});
+
+	it("decodes a numeric value the same as its string form", () => {
+		// sv-router parses numeric-looking query values (e.g. "?month=9") into a
+		// JS number rather than a string, so this must round-trip like the string case.
+		expect(decodeMonth(9)).toBe(9);
+	});
+
+	it("decodes a boolean as null", () => {
+		expect(decodeMonth(true)).toBeNull();
 	});
 });
