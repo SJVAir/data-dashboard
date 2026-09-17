@@ -108,6 +108,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		this.activeRegions = regions;
 		if (!this.regionSelections.has(type)) {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
 			this.regionSelections.set(type, new Set());
 		}
 	}
@@ -123,6 +124,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 		}
 
 		const pollutant = this.pollutant;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 		const averages = new Map<string, number>();
 
 		const results = await getMonitorSummariesBulkMonthly({
@@ -177,8 +179,10 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		if (token !== this.#calendarFetchToken) return;
 
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 		const daysByRegion = new Map<string, Map<string, number>>();
 		for (const region of results) {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 			const valuesByDate = new Map<string, number>();
 			for (const row of region.summaries) {
 				const date = row.timestamp.slice(0, 10);
@@ -194,6 +198,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 			days: buildCalendarDays(
 				this.dateRange.start,
 				this.dateRange.end,
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 				daysByRegion.get(region.id) ?? new Map(),
 				this.levels
 			)
@@ -229,6 +234,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		if (token !== this.#regionFillFetchToken) return;
 
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 		const means = new Map<string, number>();
 		for (const region of results) {
 			const row = region.summaries.find((r) => r.timestamp.slice(0, 7) === monthKey);
@@ -249,7 +255,9 @@ class MonitorsTabManager implements MonitorsDataSource {
 	}
 
 	toggleRegion(regionId: string): void {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
 		const current = this.regionSelections.get(this.selectedRegionType) ?? new Set<string>();
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
 		const next = new Set(current);
 		if (next.has(regionId)) {
 			next.delete(regionId);
