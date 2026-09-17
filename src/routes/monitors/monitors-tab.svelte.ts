@@ -4,6 +4,8 @@ import {
 	getMonitorsMeta,
 	getRegionsList,
 	getRegionsMeta,
+	getRegionSummariesBulkDaily,
+	getRegionSummariesBulkMonthly,
 	type MonitorData,
 	type MonitorLatestType,
 	type MonitorsMeta,
@@ -68,8 +70,10 @@ class MonitorsTabManager implements MonitorsDataSource {
 		return this.monitors.filter((monitor) => monitorInRegions(monitor, selectedRegions));
 	});
 
-	// init()/refresh*() bodies land in Task 15 — this task only establishes the
-	// field shapes so `npm run check` passes with the rest of the class stubbed:
+	#activeRegionsFetchToken = 0;
+	#mapAveragesFetchToken = 0;
+	#calendarFetchToken = 0;
+	#regionFillFetchToken = 0;
 
 	async init(): Promise<void> {
 		if (this.initialized) return;
@@ -88,16 +92,175 @@ class MonitorsTabManager implements MonitorsDataSource {
 		this.initialized = true;
 	}
 
+	async refreshActiveRegions(): Promise<void> {
+		const token = ++this.#activeRegionsFetchToken;
+		const type = this.selectedRegionType;
+
+		const withinIds = shouldNarrow(this.regionSelections, type, this.narrowingEnabled)
+			? Array.from(unionOfOtherTypeSelections(this.regionSelections, type))
+			: undefined;
+
+		const regions = await getRegionsList({ type, within: withinIds });
+
+		// A newer call (from a subsequent region-type switch) has already
+		// landed — this response is stale, discard it rather than racing.
+		if (token !== this.#activeRegionsFetchToken) return;
+
+		this.activeRegions = regions;
+		if (!this.regionSelections.has(type)) {
+			this.regionSelections.set(type, new Set());
+		}
+	}
+
 	async refreshMapAverages(): Promise<void> {
-		/* rewritten in Task 15 */
+		const token = ++this.#mapAveragesFetchToken;
+		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end) return;
+
+		const monitors = this.visibleMonitors;
+		if (monitors.length === 0) {
+			this.latest = new XMap();
+			return;
+		}
+
+		const pollutant = this.pollutant;
+		const averages = new Map<string, number>();
+
+		const results = await getMonitorSummariesBulkMonthly({
+			entryType: pollutant,
+			start: this.dateRange.start,
+			end: this.dateRange.end
+		});
+
+		if (token !== this.#mapAveragesFetchToken) return;
+
+		for (const monitor of results) {
+			const inRange = monitor.summaries.filter((row) => {
+				const date = row.timestamp.slice(0, 10);
+				return date >= this.dateRange.start && date <= this.dateRange.end;
+			});
+			if (inRange.length === 0) continue;
+
+			const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
+			averages.set(monitor.id, mean);
+		}
+
+		this.latest = buildMonitorsLatest(monitors, averages, pollutant, this.dateRange.end);
 	}
 
 	async refreshCalendar(): Promise<void> {
-		/* rewritten in Task 15 */
+		const token = ++this.#calendarFetchToken;
+		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end || !this.activeRegions) {
+			this.calendarDays = null;
+			this.regionCalendars = null;
+			return;
+		}
+
+		const pollutant = this.pollutant;
+		const selectedRegions = this.activeRegions
+			.filter((region) => this.selectedRegionIds.has(region.id))
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		if (selectedRegions.length === 0) {
+			if (token === this.#calendarFetchToken) {
+				this.calendarDays = null;
+				this.regionCalendars = null;
+			}
+			return;
+		}
+
+		const results = await getRegionSummariesBulkDaily({
+			entryType: pollutant,
+			start: this.dateRange.start,
+			end: this.dateRange.end,
+			region: selectedRegions.map((r) => r.id)
+		});
+
+		if (token !== this.#calendarFetchToken) return;
+
+		const daysByRegion = new Map<string, Map<string, number>>();
+		for (const region of results) {
+			const valuesByDate = new Map<string, number>();
+			for (const row of region.summaries) {
+				const date = row.timestamp.slice(0, 10);
+				if (date < this.dateRange.start || date > this.dateRange.end) continue;
+				valuesByDate.set(date, row.mean);
+			}
+			daysByRegion.set(region.id, valuesByDate);
+		}
+
+		this.calendarDays = null;
+		this.regionCalendars = selectedRegions.map((region) => ({
+			region,
+			days: buildCalendarDays(
+				this.dateRange.start,
+				this.dateRange.end,
+				daysByRegion.get(region.id) ?? new Map(),
+				this.levels
+			)
+		}));
 	}
 
 	async refreshRegionFill(): Promise<void> {
-		/* rewritten in Task 15 */
+		const token = ++this.#regionFillFetchToken;
+		if (!this.pollutant || !this.dateRange.start || !this.activeRegions) {
+			this.regionFillColors = null;
+			return;
+		}
+
+		const pollutant = this.pollutant;
+		const monthKey = this.dateRange.start.slice(0, 7);
+		const selectedIds = this.selectedRegionIds;
+		const regions =
+			selectedIds.size > 0
+				? this.activeRegions.filter((region) => selectedIds.has(region.id))
+				: this.activeRegions;
+
+		if (regions.length === 0) {
+			if (token === this.#regionFillFetchToken) this.regionFillColors = null;
+			return;
+		}
+
+		const results = await getRegionSummariesBulkMonthly({
+			entryType: pollutant,
+			start: this.dateRange.start,
+			end: this.dateRange.start,
+			region: regions.map((r) => r.id)
+		});
+
+		if (token !== this.#regionFillFetchToken) return;
+
+		const means = new Map<string, number>();
+		for (const region of results) {
+			const row = region.summaries.find((r) => r.timestamp.slice(0, 7) === monthKey);
+			if (row) means.set(region.id, row.mean);
+		}
+
+		this.regionFillColors = buildCountyFillColors(means, this.levels);
+	}
+
+	async setRegionType(type: RegionType): Promise<void> {
+		this.selectedRegionType = type;
+		await this.refreshActiveRegions();
+		await Promise.all([
+			this.refreshMapAverages(),
+			this.refreshCalendar(),
+			this.refreshRegionFill()
+		]);
+	}
+
+	toggleRegion(regionId: string): void {
+		const current = this.regionSelections.get(this.selectedRegionType) ?? new Set<string>();
+		const next = new Set(current);
+		if (next.has(regionId)) {
+			next.delete(regionId);
+		} else {
+			next.add(regionId);
+		}
+		this.regionSelections.set(this.selectedRegionType, next);
+	}
+
+	disableNarrowing(type: RegionType): void {
+		this.narrowingEnabled.set(type, false);
 	}
 }
 
