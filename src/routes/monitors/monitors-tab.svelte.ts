@@ -3,18 +3,20 @@ import {
 	getMonitorSummariesBulkMonthly,
 	getMonitorsMeta,
 	getRegionsList,
-	getRegionSummariesDaily,
-	getRegionSummariesMonthly,
+	getRegionsMeta,
 	type MonitorData,
 	type MonitorLatestType,
 	type MonitorsMeta,
 	type RegionData,
+	type RegionsMeta,
+	type RegionType,
 	type SJVAirEntryLevel
 } from "@sjvair/sdk";
 import type { MonitorsDataSource } from "@sjvair/monitor-map";
 import { XMap } from "@tstk/builtin-extensions";
 import { buildCalendarDays, type CalendarDay } from "$lib/calendar";
-import { countyMatches } from "$lib/county-match";
+import { monitorInRegions } from "$lib/monitors/region-scoping";
+import { shouldNarrow, unionOfOtherTypeSelections } from "$lib/monitors/region-narrowing";
 import { buildCountyFillColors } from "$lib/monitors/county-fill";
 import { buildMonitorsLatest, type SupportedPollutant } from "$lib/monitors/monitor-latest";
 
@@ -23,136 +25,79 @@ export interface DateRange {
 	end: string;
 }
 
+const DEFAULT_REGION_TYPE: RegionType = "county";
+
 class MonitorsTabManager implements MonitorsDataSource {
 	initialized: boolean = $state(false);
 
 	monitors: Array<MonitorData> | null = $state(null);
 	meta: MonitorsMeta | null = $state(null);
-	counties: Array<RegionData> | null = $state(null);
+	regionTypes: RegionsMeta | null = $state(null);
 
 	pollutant: SupportedPollutant | null = $state(null);
 	dateRange: DateRange = $state({ start: "", end: "" });
-	selectedCountyId: string | null = $state(null);
+
+	selectedRegionType: RegionType = $state(DEFAULT_REGION_TYPE);
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- keys are stable per-type sentinels, not reactive per-entry state
+	regionSelections: Map<RegionType, Set<string>> = $state(new Map());
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- same as above
+	narrowingEnabled: Map<RegionType, boolean> = $state(new Map());
+	activeRegions: Array<RegionData> | null = $state(null);
 
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
 	calendarDays: Array<CalendarDay> | null = $state(null);
-	countyFillColors: Map<string, string> | null = $state(null);
+	regionCalendars: Array<{ region: RegionData; days: Array<CalendarDay> }> | null = $state(null);
+	regionFillColors: Map<string, string> | null = $state(null);
 
 	levels: Array<SJVAirEntryLevel> | null = $derived(
 		this.meta && this.pollutant ? (this.meta.entryType(this.pollutant).asIter.levels ?? null) : null
 	);
 
+	selectedRegionIds: Set<string> = $derived(
+		this.regionSelections.get(this.selectedRegionType) ?? new Set()
+	);
+
 	visibleMonitors: Array<MonitorData> = $derived.by(() => {
-		if (!this.monitors || !this.selectedCountyId || !this.counties) return [];
+		if (!this.monitors || !this.activeRegions || this.selectedRegionIds.size === 0) return [];
 
-		const region = this.counties.find((county) => county.id === this.selectedCountyId);
-		if (!region) return [];
+		const selectedRegions = this.activeRegions.filter((region) =>
+			this.selectedRegionIds.has(region.id)
+		);
+		if (selectedRegions.length === 0) return [];
 
-		return this.monitors.filter((monitor) => countyMatches(monitor.county, region.name));
+		return this.monitors.filter((monitor) => monitorInRegions(monitor, selectedRegions));
 	});
+
+	// init()/refresh*() bodies land in Task 15 — this task only establishes the
+	// field shapes so `npm run check` passes with the rest of the class stubbed:
 
 	async init(): Promise<void> {
 		if (this.initialized) return;
 
-		[this.monitors, this.meta, this.counties] = await Promise.all([
+		const county: RegionType = DEFAULT_REGION_TYPE;
+		[this.monitors, this.meta, this.regionTypes, this.activeRegions] = await Promise.all([
 			getMonitorsList(),
 			getMonitorsMeta(),
-			getRegionsList({ type: "county" })
+			getRegionsMeta(),
+			getRegionsList({ type: county })
 		]);
+
+		// Default: all counties selected, matching today's "All Counties" default.
+		this.regionSelections.set(county, new Set(this.activeRegions.map((r) => r.id)));
 
 		this.initialized = true;
 	}
 
 	async refreshMapAverages(): Promise<void> {
-		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end) return;
-
-		const monitors = this.visibleMonitors;
-		if (monitors.length === 0) {
-			this.latest = new XMap();
-			return;
-		}
-
-		const pollutant = this.pollutant;
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-		const averages = new Map<string, number>();
-
-		const results = await getMonitorSummariesBulkMonthly({
-			entryType: pollutant,
-			start: this.dateRange.start,
-			end: this.dateRange.end
-		});
-
-		for (const monitor of results) {
-			const inRange = monitor.summaries.filter((row) => {
-				const date = row.timestamp.slice(0, 10);
-				return date >= this.dateRange.start && date <= this.dateRange.end;
-			});
-			if (inRange.length === 0) continue;
-
-			const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
-			averages.set(monitor.id, mean);
-		}
-
-		this.latest = buildMonitorsLatest(monitors, averages, pollutant, this.dateRange.end);
+		/* rewritten in Task 15 */
 	}
 
 	async refreshCalendar(): Promise<void> {
-		if (!this.selectedCountyId || !this.pollutant || !this.dateRange.start || !this.dateRange.end) {
-			this.calendarDays = null;
-			return;
-		}
-
-		const regionId = this.selectedCountyId;
-		const pollutant = this.pollutant;
-		const year = Number(this.dateRange.start.slice(0, 4));
-
-		const rows = await getRegionSummariesDaily({ regionId, entryType: pollutant, year });
-
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-		const valuesByDate = new Map<string, number>();
-		for (const row of rows) {
-			const date = row.timestamp.slice(0, 10);
-			if (date < this.dateRange.start || date > this.dateRange.end) continue;
-			valuesByDate.set(date, row.mean);
-		}
-
-		this.calendarDays = buildCalendarDays(
-			this.dateRange.start,
-			this.dateRange.end,
-			valuesByDate,
-			this.levels
-		);
+		/* rewritten in Task 15 */
 	}
 
-	async refreshCountyFill(): Promise<void> {
-		if (!this.pollutant || !this.dateRange.start || !this.counties) {
-			this.countyFillColors = null;
-			return;
-		}
-
-		const pollutant = this.pollutant;
-		const monthKey = this.dateRange.start.slice(0, 7);
-		const year = Number(this.dateRange.start.slice(0, 4));
-		const regions = this.selectedCountyId
-			? this.counties.filter((county) => county.id === this.selectedCountyId)
-			: this.counties;
-
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-		const means = new Map<string, number>();
-
-		await Promise.all(
-			regions.map(async (region) => {
-				const rows = await getRegionSummariesMonthly({
-					regionId: region.id,
-					entryType: pollutant,
-					year
-				});
-				const row = rows.find((r) => r.timestamp.slice(0, 7) === monthKey);
-				if (row) means.set(region.id, row.mean);
-			})
-		);
-
-		this.countyFillColors = buildCountyFillColors(means, this.levels);
+	async refreshRegionFill(): Promise<void> {
+		/* rewritten in Task 15 */
 	}
 }
 
