@@ -23,6 +23,7 @@
 
 	const manager = monitorsTabManager;
 	const mapIntegration = new MonitorsMapIntegration(manager);
+	mapIntegration.clustered = false;
 
 	// Sentinel value for the county Select's "All counties" item — bits-ui's Select
 	// doesn't accept an empty string as an item value, so a real county id can never
@@ -316,15 +317,6 @@
 	{#if manager.calendarDays}
 		<div class="self-start">
 			<Calendar days={manager.calendarDays} />
-		</div>
-	{:else if manager.countyCalendars}
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-			{#each manager.countyCalendars as entry (entry.county.id)}
-				<div>
-					<h3 class="mb-2 text-sm font-semibold">{entry.county.name}</h3>
-					<Calendar days={entry.days} />
-				</div>
-			{/each}
 		</div>
 	{/if}
 </div>
