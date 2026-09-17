@@ -24,6 +24,7 @@
 	const manager = monitorsTabManager;
 	const mapIntegration = new MonitorsMapIntegration(manager);
 	mapIntegration.clustered = false;
+	mapIntegration.tooltipsEnabled = false;
 
 	// Sentinel value for the county Select's "All counties" item — bits-ui's Select
 	// doesn't accept an empty string as an item value, so a real county id can never
@@ -305,7 +306,7 @@
 		</Select.Root>
 	</div>
 
-	<div class="h-96 shrink-0">
+	<div class="min-h-0 flex-1">
 		<MapShell
 			integrations={[mapIntegration]}
 			ready={manager.initialized}
