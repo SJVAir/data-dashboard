@@ -2,7 +2,12 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { endOfMonth, format, startOfMonth } from "date-fns";
-	import { MapShell, mapManager, MonitorsMapIntegration } from "@sjvair/monitor-map";
+	import {
+		MapShell,
+		mapManager,
+		monitorsMapIntegration as defaultMonitorsMapIntegration,
+		MonitorsMapIntegration
+	} from "@sjvair/monitor-map";
 	import Calendar from "$lib/components/Calendar.svelte";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
@@ -24,6 +29,17 @@
 	const manager = monitorsTabManager;
 	const mapIntegration = new MonitorsMapIntegration(manager);
 	mapIntegration.clustered = false;
+	mapIntegration.tooltipManager.enabled = false;
+
+	// @sjvair/monitor-map exports a module-level default MonitorsMapIntegration
+	// singleton (constructed as a side effect of importing anything from the
+	// package) that self-applies onto the shared map as soon as it exists,
+	// independent of the mapIntegration instance we construct and pass to
+	// MapShell above. Left alone, it collides with ours on the same "monitors"
+	// layer id with its own (default: tooltip-enabled) TooltipManager, so it
+	// needs the same overrides.
+	defaultMonitorsMapIntegration.clustered = false;
+	defaultMonitorsMapIntegration.tooltipManager.enabled = false;
 
 	// Sentinel value for the county Select's "All counties" item — bits-ui's Select
 	// doesn't accept an empty string as an item value, so a real county id can never
@@ -194,6 +210,24 @@
 		}
 	});
 
+	// MapShell only calls map.resize() for its own internal panel transition,
+	// not for host-driven layout changes -- the map's flex-1 wrapper here
+	// grows/shrinks depending on whether the calendar block below it is
+	// present, and without an explicit resize() after that, MapLibre's canvas
+	// keeps stale internal dimensions and renders against the wrong bounds.
+	let mapWrapper: HTMLDivElement | undefined = $state();
+
+	$effect(() => {
+		if (!mapWrapper) return;
+
+		const observer = new ResizeObserver(() => {
+			mapManager.map?.resize();
+		});
+		observer.observe(mapWrapper);
+
+		return () => observer.disconnect();
+	});
+
 	const COUNTY_FILL_SOURCE_ID = "county-fill";
 	const COUNTY_FILL_LAYER_ID = "county-fill-polygons";
 	const COUNTY_FILL_BORDER_LAYER_ID = "county-fill-border";
@@ -305,7 +339,7 @@
 		</Select.Root>
 	</div>
 
-	<div class="h-96 shrink-0">
+	<div class="min-h-0 flex-1" bind:this={mapWrapper}>
 		<MapShell
 			integrations={[mapIntegration]}
 			ready={manager.initialized}
