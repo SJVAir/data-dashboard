@@ -1,6 +1,6 @@
 import {
 	getMonitorsList,
-	getMonitorSummariesMonthly,
+	getMonitorSummariesBulkMonthly,
 	getMonitorsMeta,
 	getRegionsList,
 	getRegionSummariesDaily,
@@ -36,6 +36,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
 	calendarDays: Array<CalendarDay> | null = $state(null);
+	countyCalendars: Array<{ county: RegionData; days: Array<CalendarDay> }> | null = $state(null);
 	countyFillColors: Map<string, string> | null = $state(null);
 
 	levels: Array<SJVAirEntryLevel> | null = $derived(
@@ -69,42 +70,34 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 		const monitors = this.visibleMonitors;
 		const pollutant = this.pollutant;
-		const year = Number(this.dateRange.start.slice(0, 4));
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 		const averages = new Map<string, number>();
 
-		await Promise.all(
-			monitors.map(async (monitor) => {
-				const rows = await getMonitorSummariesMonthly({
-					monitorId: monitor.id,
-					entryType: pollutant,
-					year
-				});
+		const results = await getMonitorSummariesBulkMonthly({
+			entryType: pollutant,
+			start: this.dateRange.start,
+			end: this.dateRange.end
+		});
 
-				const inRange = rows.filter((row) => {
-					const date = row.timestamp.slice(0, 10);
-					return date >= this.dateRange.start && date <= this.dateRange.end;
-				});
-				if (inRange.length === 0) return;
+		for (const monitor of results) {
+			const inRange = monitor.summaries.filter((row) => {
+				const date = row.timestamp.slice(0, 10);
+				return date >= this.dateRange.start && date <= this.dateRange.end;
+			});
+			if (inRange.length === 0) continue;
 
-				const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
-				averages.set(monitor.id, mean);
-			})
-		);
+			const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
+			averages.set(monitor.id, mean);
+		}
 
 		this.latest = buildMonitorsLatest(monitors, averages, pollutant, this.dateRange.end);
 	}
 
-	async refreshCalendar(): Promise<void> {
-		if (!this.selectedCountyId || !this.pollutant || !this.dateRange.start || !this.dateRange.end) {
-			this.calendarDays = null;
-			return;
-		}
-
-		const regionId = this.selectedCountyId;
-		const pollutant = this.pollutant;
+	async fetchCountyCalendarDays(
+		regionId: string,
+		pollutant: SupportedPollutant
+	): Promise<Array<CalendarDay>> {
 		const year = Number(this.dateRange.start.slice(0, 4));
-
 		const rows = await getRegionSummariesDaily({ regionId, entryType: pollutant, year });
 
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
@@ -115,11 +108,32 @@ class MonitorsTabManager implements MonitorsDataSource {
 			valuesByDate.set(date, row.mean);
 		}
 
-		this.calendarDays = buildCalendarDays(
-			this.dateRange.start,
-			this.dateRange.end,
-			valuesByDate,
-			this.levels
+		return buildCalendarDays(this.dateRange.start, this.dateRange.end, valuesByDate, this.levels);
+	}
+
+	async refreshCalendar(): Promise<void> {
+		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end || !this.counties) {
+			this.calendarDays = null;
+			this.countyCalendars = null;
+			return;
+		}
+
+		const pollutant = this.pollutant;
+
+		if (this.selectedCountyId) {
+			this.countyCalendars = null;
+			this.calendarDays = await this.fetchCountyCalendarDays(this.selectedCountyId, pollutant);
+			return;
+		}
+
+		const counties = [...this.counties].sort((a, b) => a.name.localeCompare(b.name));
+
+		this.calendarDays = null;
+		this.countyCalendars = await Promise.all(
+			counties.map(async (county) => ({
+				county,
+				days: await this.fetchCountyCalendarDays(county.id, pollutant)
+			}))
 		);
 	}
 
