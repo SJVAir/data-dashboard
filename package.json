@@ -51,6 +51,7 @@
 		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@^4.4.0",
 		"@tstk/builtin-extensions": "npm:@jsr/tstk__builtin-extensions@^1.0.8",
 		"@tstk/utils": "npm:@jsr/tstk__utils@^1.1.2",
+		"@turf/boolean-point-in-polygon": "^7.4.0",
 		"bits-ui": "^2.19.2",
 		"clsx": "^2.1.1",
 		"date-fns": "^4.4.0",
