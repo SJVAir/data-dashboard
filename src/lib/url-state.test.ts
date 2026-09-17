@@ -11,7 +11,11 @@ import {
 	decodeYear,
 	encodeYear,
 	decodeMonth,
-	encodeMonth
+	encodeMonth,
+	decodeRegionType,
+	encodeRegionType,
+	decodeRegionSelection,
+	encodeRegionSelection
 } from "./url-state";
 
 describe("date range codec", () => {
@@ -169,5 +173,46 @@ describe("month codec", () => {
 
 	it("decodes a boolean as null", () => {
 		expect(decodeMonth(true)).toBeNull();
+	});
+});
+
+describe("region type codec", () => {
+	it("round-trips a region type", () => {
+		expect(decodeRegionType(encodeRegionType("tract"))).toBe("tract");
+	});
+
+	it("returns null for null/undefined", () => {
+		expect(decodeRegionType(null)).toBeNull();
+		expect(decodeRegionType(undefined)).toBeNull();
+	});
+
+	it("returns null for an empty string", () => {
+		expect(decodeRegionType("")).toBeNull();
+	});
+});
+
+describe("region selection codec", () => {
+	it("round-trips a set of ids", () => {
+		const ids = new Set(["id1", "id2", "id3"]);
+		expect(decodeRegionSelection(encodeRegionSelection(ids))).toEqual(ids);
+	});
+
+	it("round-trips an array of ids", () => {
+		expect(decodeRegionSelection(encodeRegionSelection(["id1", "id2"]))).toEqual(
+			new Set(["id1", "id2"])
+		);
+	});
+
+	it("returns an empty set for null/undefined", () => {
+		expect(decodeRegionSelection(null)).toEqual(new Set());
+		expect(decodeRegionSelection(undefined)).toEqual(new Set());
+	});
+
+	it("returns an empty set for an empty string", () => {
+		expect(decodeRegionSelection("")).toEqual(new Set());
+	});
+
+	it("filters out empty entries from stray commas", () => {
+		expect(decodeRegionSelection("id1,,id2")).toEqual(new Set(["id1", "id2"]));
 	});
 });
