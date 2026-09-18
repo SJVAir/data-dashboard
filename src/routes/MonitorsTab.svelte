@@ -155,6 +155,11 @@
 	async function handleShowAll() {
 		manager.disableNarrowing(manager.selectedRegionType);
 		await manager.refreshActiveRegions();
+		await Promise.all([
+			manager.refreshMapAverages(),
+			manager.refreshCalendar(),
+			manager.refreshRegionFill()
+		]);
 	}
 
 	async function handlePollutantChange(pollutant: MonitorsPollutantParam) {
