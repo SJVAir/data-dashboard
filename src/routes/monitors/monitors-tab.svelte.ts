@@ -47,6 +47,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 	regionSelections: SvelteMap<RegionType, Set<string>> = $state(new SvelteMap());
 	narrowingEnabled: SvelteMap<RegionType, boolean> = $state(new SvelteMap());
 	activeRegions: Array<RegionData> | null = $state(null);
+	lastError: string | null = $state(null);
 
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
 	calendarDays: Array<CalendarDay> | null = $state(null);
@@ -101,20 +102,27 @@ class MonitorsTabManager implements MonitorsDataSource {
 		const token = ++this.#activeRegionsFetchToken;
 		const type = this.selectedRegionType;
 
-		const withinIds = shouldNarrow(this.regionSelections, type, this.narrowingEnabled)
-			? Array.from(unionOfOtherTypeSelections(this.regionSelections, type))
-			: undefined;
+		try {
+			const withinIds = shouldNarrow(this.regionSelections, type, this.narrowingEnabled)
+				? Array.from(unionOfOtherTypeSelections(this.regionSelections, type))
+				: undefined;
 
-		const regions = await getRegionsList({ type, within: withinIds });
+			const regions = await getRegionsList({ type, within: withinIds });
 
-		// A newer call (from a subsequent region-type switch) has already
-		// landed — this response is stale, discard it rather than racing.
-		if (token !== this.#activeRegionsFetchToken) return;
+			// A newer call (from a subsequent region-type switch) has already
+			// landed — this response is stale, discard it rather than racing.
+			if (token !== this.#activeRegionsFetchToken) return;
 
-		this.activeRegions = regions;
-		if (!this.regionSelections.has(type)) {
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
-			this.regionSelections.set(type, new Set());
+			this.activeRegions = regions;
+			if (!this.regionSelections.has(type)) {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
+				this.regionSelections.set(type, new Set());
+			}
+			this.lastError = null;
+		} catch {
+			if (token !== this.#activeRegionsFetchToken) return;
+			this.activeRegions = null;
+			this.lastError = "Failed to load region data.";
 		}
 	}
 
@@ -129,29 +137,37 @@ class MonitorsTabManager implements MonitorsDataSource {
 		}
 
 		const pollutant = this.pollutant;
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-		const averages = new Map<string, number>();
 
-		const results = await getMonitorSummariesBulkMonthly({
-			entryType: pollutant,
-			start: this.dateRange.start,
-			end: this.dateRange.end
-		});
+		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
+			const averages = new Map<string, number>();
 
-		if (token !== this.#mapAveragesFetchToken) return;
-
-		for (const monitor of results) {
-			const inRange = monitor.summaries.filter((row) => {
-				const date = row.timestamp.slice(0, 10);
-				return date >= this.dateRange.start && date <= this.dateRange.end;
+			const results = await getMonitorSummariesBulkMonthly({
+				entryType: pollutant,
+				start: this.dateRange.start,
+				end: this.dateRange.end
 			});
-			if (inRange.length === 0) continue;
 
-			const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
-			averages.set(monitor.id, mean);
+			if (token !== this.#mapAveragesFetchToken) return;
+
+			for (const monitor of results) {
+				const inRange = monitor.summaries.filter((row) => {
+					const date = row.timestamp.slice(0, 10);
+					return date >= this.dateRange.start && date <= this.dateRange.end;
+				});
+				if (inRange.length === 0) continue;
+
+				const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
+				averages.set(monitor.id, mean);
+			}
+
+			this.latest = buildMonitorsLatest(monitors, averages, pollutant, this.dateRange.end);
+			this.lastError = null;
+		} catch {
+			if (token !== this.#mapAveragesFetchToken) return;
+			this.latest = new XMap();
+			this.lastError = "Failed to load region data — try a narrower date range or fewer regions.";
 		}
-
-		this.latest = buildMonitorsLatest(monitors, averages, pollutant, this.dateRange.end);
 	}
 
 	async refreshCalendar(): Promise<void> {
@@ -175,39 +191,47 @@ class MonitorsTabManager implements MonitorsDataSource {
 			return;
 		}
 
-		const results = await getRegionSummariesBulkDaily({
-			entryType: pollutant,
-			start: this.dateRange.start,
-			end: this.dateRange.end,
-			region: selectedRegions.map((r) => r.id)
-		});
+		try {
+			const results = await getRegionSummariesBulkDaily({
+				entryType: pollutant,
+				start: this.dateRange.start,
+				end: this.dateRange.end,
+				region: selectedRegions.map((r) => r.id)
+			});
 
-		if (token !== this.#calendarFetchToken) return;
+			if (token !== this.#calendarFetchToken) return;
 
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-		const daysByRegion = new Map<string, Map<string, number>>();
-		for (const region of results) {
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-			const valuesByDate = new Map<string, number>();
-			for (const row of region.summaries) {
-				const date = row.timestamp.slice(0, 10);
-				if (date < this.dateRange.start || date > this.dateRange.end) continue;
-				valuesByDate.set(date, row.mean);
-			}
-			daysByRegion.set(region.id, valuesByDate);
-		}
-
-		this.calendarDays = null;
-		this.regionCalendars = selectedRegions.map((region) => ({
-			region,
-			days: buildCalendarDays(
-				this.dateRange.start,
-				this.dateRange.end,
+			const daysByRegion = new Map<string, Map<string, number>>();
+			for (const region of results) {
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-				daysByRegion.get(region.id) ?? new Map(),
-				this.levels
-			)
-		}));
+				const valuesByDate = new Map<string, number>();
+				for (const row of region.summaries) {
+					const date = row.timestamp.slice(0, 10);
+					if (date < this.dateRange.start || date > this.dateRange.end) continue;
+					valuesByDate.set(date, row.mean);
+				}
+				daysByRegion.set(region.id, valuesByDate);
+			}
+
+			this.calendarDays = null;
+			this.regionCalendars = selectedRegions.map((region) => ({
+				region,
+				days: buildCalendarDays(
+					this.dateRange.start,
+					this.dateRange.end,
+					// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
+					daysByRegion.get(region.id) ?? new Map(),
+					this.levels
+				)
+			}));
+			this.lastError = null;
+		} catch {
+			if (token !== this.#calendarFetchToken) return;
+			this.calendarDays = null;
+			this.regionCalendars = null;
+			this.lastError = "Failed to load region data — try a narrower date range or fewer regions.";
+		}
 	}
 
 	async refreshRegionFill(): Promise<void> {
@@ -232,23 +256,30 @@ class MonitorsTabManager implements MonitorsDataSource {
 			return;
 		}
 
-		const results = await getRegionSummariesBulkMonthly({
-			entryType: pollutant,
-			start: this.dateRange.start,
-			end: this.dateRange.start,
-			region: regions.map((r) => r.id)
-		});
+		try {
+			const results = await getRegionSummariesBulkMonthly({
+				entryType: pollutant,
+				start: this.dateRange.start,
+				end: this.dateRange.start,
+				region: regions.map((r) => r.id)
+			});
 
-		if (token !== this.#regionFillFetchToken) return;
+			if (token !== this.#regionFillFetchToken) return;
 
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-		const means = new Map<string, number>();
-		for (const region of results) {
-			const row = region.summaries.find((r) => r.timestamp.slice(0, 7) === monthKey);
-			if (row) means.set(region.id, row.mean);
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
+			const means = new Map<string, number>();
+			for (const region of results) {
+				const row = region.summaries.find((r) => r.timestamp.slice(0, 7) === monthKey);
+				if (row) means.set(region.id, row.mean);
+			}
+
+			this.regionFillColors = buildRegionFillColors(means, this.levels);
+			this.lastError = null;
+		} catch {
+			if (token !== this.#regionFillFetchToken) return;
+			this.regionFillColors = null;
+			this.lastError = "Failed to load region data — try a narrower date range or fewer regions.";
 		}
-
-		this.regionFillColors = buildCountyFillColors(means, this.levels);
 	}
 
 	async setRegionType(type: RegionType): Promise<void> {

@@ -152,9 +152,9 @@
 		]);
 	}
 
-	function handleShowAll() {
+	async function handleShowAll() {
 		manager.disableNarrowing(manager.selectedRegionType);
-		manager.refreshActiveRegions();
+		await manager.refreshActiveRegions();
 	}
 
 	async function handlePollutantChange(pollutant: MonitorsPollutantParam) {
@@ -255,10 +255,10 @@
 	const REGION_FILL_LAYER_ID = "region-fill-polygons";
 	const REGION_FILL_BORDER_LAYER_ID = "region-fill-border";
 
-	// Fill each active region with a semi-transparent version of its monthly
-	// average's level color — every active region when none is selected, only
-	// the selected ones otherwise (manager.regionFillColors already reflects
-	// that scoping, computed in MonitorsTabManager.refreshRegionFill()).
+	// Fill each selected region with a semi-transparent version of its monthly
+	// average's level color — no fill at all when nothing is selected
+	// (manager.regionFillColors already reflects that scoping, computed in
+	// MonitorsTabManager.refreshRegionFill()).
 	// A solid-color border (same color as the fill, full opacity) traces
 	// each filled region so its boundary stays legible against neighbors.
 	$effect(() => {
@@ -400,6 +400,10 @@
 		collapses the map to 0 instead of giving it real screen space. The page scrolls as a
 		whole (via the app shell's <main class="overflow-auto">) once content exceeds the
 		viewport, rather than trying to keep the map pinned in a fixed-height layout. -->
+	{#if manager.lastError}
+		<p class="text-destructive text-sm">{manager.lastError}</p>
+	{/if}
+
 	<div class="min-h-[400px] flex-1" bind:this={mapWrapper}>
 		<MapShell
 			integrations={[mapIntegration]}
