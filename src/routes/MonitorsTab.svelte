@@ -8,18 +8,23 @@
 		monitorsMapIntegration as defaultMonitorsMapIntegration,
 		MonitorsMapIntegration
 	} from "@sjvair/monitor-map";
+	import type { RegionType } from "@sjvair/sdk";
 	import Calendar from "$lib/components/Calendar.svelte";
+	import RegionCheckboxList from "$lib/components/RegionCheckboxList.svelte";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
+	import { shouldNarrow, unionOfOtherTypeSelections } from "$lib/monitors/region-narrowing";
 	import { type Bounds, unionBounds } from "$lib/monitors/region-bounds";
 	import {
-		decodeCounty,
 		decodeMonth,
 		decodePollutant,
+		decodeRegionSelection,
+		decodeRegionType,
 		decodeYear,
-		encodeCounty,
 		encodeMonth,
 		encodePollutant,
+		encodeRegionSelection,
+		encodeRegionType,
 		encodeYear,
 		type MonitorsPollutantParam
 	} from "$lib/url-state";
@@ -40,11 +45,6 @@
 	// needs the same overrides.
 	defaultMonitorsMapIntegration.clustered = false;
 	defaultMonitorsMapIntegration.tooltipManager.enabled = false;
-
-	// Sentinel value for the county Select's "All counties" item — bits-ui's Select
-	// doesn't accept an empty string as an item value, so a real county id can never
-	// collide with this.
-	const ALL_COUNTIES_VALUE = "all";
 
 	const MONTH_NAMES = [
 		"January",
@@ -85,7 +85,8 @@
 		const urlYear = decodeYear(route.search.year);
 		const urlMonth = decodeMonth(route.search.month);
 		const urlPollutant = decodePollutant(route.search.pollutant);
-		const urlCounty = decodeCounty(route.search.county);
+		const urlRegionType = decodeRegionType(route.search.regionType);
+		const urlRegions = decodeRegionSelection(route.search.regions);
 
 		// localStorage-backed month preference is temporarily disabled (URL-only
 		// fallback to the current month) while we're testing — re-add
@@ -95,10 +96,20 @@
 		const year = urlYear ?? defaults.year;
 		const month = urlMonth ?? defaults.month;
 		const pollutant = urlPollutant ?? "pm25";
+		const regionType = (urlRegionType as RegionType | null) ?? "county";
 
 		manager.dateRange = monthRange(year, month);
 		manager.pollutant = pollutant;
-		manager.selectedCountyId = urlCounty;
+
+		if (regionType !== manager.selectedRegionType) {
+			manager.selectedRegionType = regionType;
+			await manager.refreshActiveRegions();
+		}
+		if (urlRegions.size > 0) {
+			manager.regionSelections.set(regionType, urlRegions);
+		}
+		// If `regions` was absent from the URL, manager.init() already seeded
+		// "all counties selected" as the default for the county type.
 
 		if (!urlYear) {
 			searchParams.set("year", encodeYear(year), { replace: true });
@@ -109,23 +120,41 @@
 		if (!urlPollutant) {
 			searchParams.set("pollutant", encodePollutant(pollutant), { replace: true });
 		}
+		if (!urlRegionType) {
+			searchParams.set("regionType", encodeRegionType(regionType), { replace: true });
+		}
 
 		await Promise.all([
 			manager.refreshMapAverages(),
 			manager.refreshCalendar(),
-			manager.refreshCountyFill()
+			manager.refreshRegionFill()
 		]);
 	});
 
-	async function handleCountyChange(value: string | undefined) {
-		const regionId = value && value !== ALL_COUNTIES_VALUE ? value : null;
-		manager.selectedCountyId = regionId;
-		searchParams.set("county", regionId ? encodeCounty(regionId) : "", { replace: true });
+	async function handleRegionTypeChange(value: string | undefined) {
+		if (!value) return;
+		await manager.setRegionType(value as RegionType);
+		searchParams.set("regionType", encodeRegionType(value), { replace: true });
+		searchParams.set("regions", encodeRegionSelection(manager.selectedRegionIds), {
+			replace: true
+		});
+	}
+
+	async function handleRegionToggle(regionId: string) {
+		manager.toggleRegion(regionId);
+		searchParams.set("regions", encodeRegionSelection(manager.selectedRegionIds), {
+			replace: true
+		});
 		await Promise.all([
 			manager.refreshMapAverages(),
 			manager.refreshCalendar(),
-			manager.refreshCountyFill()
+			manager.refreshRegionFill()
 		]);
+	}
+
+	function handleShowAll() {
+		manager.disableNarrowing(manager.selectedRegionType);
+		manager.refreshActiveRegions();
 	}
 
 	async function handlePollutantChange(pollutant: MonitorsPollutantParam) {
@@ -134,7 +163,7 @@
 		await Promise.all([
 			manager.refreshMapAverages(),
 			manager.refreshCalendar(),
-			manager.refreshCountyFill()
+			manager.refreshRegionFill()
 		]);
 	}
 
@@ -147,7 +176,7 @@
 		await Promise.all([
 			manager.refreshMapAverages(),
 			manager.refreshCalendar(),
-			manager.refreshCountyFill()
+			manager.refreshRegionFill()
 		]);
 	}
 
@@ -168,40 +197,34 @@
 		return Array.from({ length: 5 }, (_, i) => current - i);
 	});
 
-	let selectedCountyName = $derived(
-		manager.counties?.find((county) => county.id === manager.selectedCountyId)?.name ??
-			"All counties"
-	);
-
 	// Zod's tuple inference types `RegionBoundary.bbox` as
 	// `[number, number, number, number, ...unknown[]]` rather than a clean
 	// 4-tuple, even though the schema (and the server) always sends exactly
-	// 4 numbers. Also, reading it off `manager.counties` (a `$state` array)
-	// hands back a Svelte reactive Proxy wrapping the array, not a plain
-	// array — MapLibre's bounds parsing doesn't handle that correctly, so
-	// `$state.snapshot()` unwraps it into a real array before we hand it off.
+	// 4 numbers. Also, reading it off `manager.activeRegions` (a `$state`
+	// array) hands back a Svelte reactive Proxy wrapping the array, not a
+	// plain array — MapLibre's bounds parsing doesn't handle that correctly,
+	// so `$state.snapshot()` unwraps it into a real array before we hand it
+	// off.
 	function toBounds(bbox: unknown): Bounds {
 		return $state.snapshot(bbox) as Bounds;
 	}
 
-	// Pan/zoom the map to the selected county's bounds, or back out to cover
-	// every county when none is selected. Re-runs whenever the selection or
-	// the county list changes, and also once the map itself becomes ready
-	// (mapManager.map is reactive), so it self-corrects if this effect ran
-	// before the map finished initializing.
+	// Pan/zoom the map to the union of every selected region's bounds, or back
+	// out to cover every active region when none is selected. Re-runs
+	// whenever the selection or the active region list changes, and also once
+	// the map itself becomes ready (mapManager.map is reactive), so it
+	// self-corrects if this effect ran before the map finished initializing.
 	$effect(() => {
-		if (!mapManager.map || !manager.counties) return;
+		if (!mapManager.map || !manager.activeRegions) return;
 
-		if (manager.selectedCountyId) {
-			const region = manager.counties.find((county) => county.id === manager.selectedCountyId);
-			if (region?.boundary?.bbox) {
-				mapManager.map.fitBounds(toBounds(region.boundary.bbox), { padding: 40 });
-			}
-			return;
-		}
+		const selectedIds = manager.selectedRegionIds;
+		const targetRegions =
+			selectedIds.size > 0
+				? manager.activeRegions.filter((r) => selectedIds.has(r.id))
+				: manager.activeRegions;
 
-		const allBounds = manager.counties
-			.map((county) => county.boundary?.bbox)
+		const allBounds = targetRegions
+			.map((region) => region.boundary?.bbox)
 			.filter((bbox) => bbox != null)
 			.map(toBounds);
 		const bounds = unionBounds(allBounds);
@@ -228,37 +251,37 @@
 		return () => observer.disconnect();
 	});
 
-	const COUNTY_FILL_SOURCE_ID = "county-fill";
-	const COUNTY_FILL_LAYER_ID = "county-fill-polygons";
-	const COUNTY_FILL_BORDER_LAYER_ID = "county-fill-border";
+	const REGION_FILL_SOURCE_ID = "region-fill";
+	const REGION_FILL_LAYER_ID = "region-fill-polygons";
+	const REGION_FILL_BORDER_LAYER_ID = "region-fill-border";
 
-	// Fill each county with a semi-transparent version of its monthly
-	// average's level color — every county when none is selected, only the
-	// selected one otherwise (manager.countyFillColors already reflects
-	// that scoping, computed in MonitorsTabManager.refreshCountyFill()).
+	// Fill each active region with a semi-transparent version of its monthly
+	// average's level color — every active region when none is selected, only
+	// the selected ones otherwise (manager.regionFillColors already reflects
+	// that scoping, computed in MonitorsTabManager.refreshRegionFill()).
 	// A solid-color border (same color as the fill, full opacity) traces
-	// each filled county so its boundary stays legible against neighbors.
+	// each filled region so its boundary stays legible against neighbors.
 	$effect(() => {
-		if (!mapManager.map || !manager.counties) return;
+		if (!mapManager.map || !manager.activeRegions) return;
 
-		if (!mapManager.map.getSource(COUNTY_FILL_SOURCE_ID)) {
-			mapManager.map.addSource(COUNTY_FILL_SOURCE_ID, {
+		if (!mapManager.map.getSource(REGION_FILL_SOURCE_ID)) {
+			mapManager.map.addSource(REGION_FILL_SOURCE_ID, {
 				type: "geojson",
 				data: { type: "FeatureCollection", features: [] }
 			});
 			mapManager.map.addLayer({
-				id: COUNTY_FILL_LAYER_ID,
+				id: REGION_FILL_LAYER_ID,
 				type: "fill",
-				source: COUNTY_FILL_SOURCE_ID,
+				source: REGION_FILL_SOURCE_ID,
 				paint: {
 					"fill-color": ["get", "color"],
 					"fill-opacity": 0.35
 				}
 			});
 			mapManager.map.addLayer({
-				id: COUNTY_FILL_BORDER_LAYER_ID,
+				id: REGION_FILL_BORDER_LAYER_ID,
 				type: "line",
-				source: COUNTY_FILL_SOURCE_ID,
+				source: REGION_FILL_SOURCE_ID,
 				paint: {
 					"line-color": ["get", "color"],
 					"line-width": 2
@@ -266,22 +289,22 @@
 			});
 		}
 
-		const counties = manager.counties;
-		const colors = manager.countyFillColors;
+		const regions = manager.activeRegions;
+		const colors = manager.regionFillColors;
 		const entries = colors ? Array.from(colors.entries()) : [];
 		const features = entries.flatMap(([regionId, color]) => {
-			const county = counties.find((c) => c.id === regionId);
-			if (!county?.boundary?.geometry) return [];
+			const region = regions.find((r) => r.id === regionId);
+			if (!region?.boundary?.geometry) return [];
 			return [
 				{
 					type: "Feature" as const,
 					properties: { color },
-					geometry: $state.snapshot(county.boundary.geometry)
+					geometry: $state.snapshot(region.boundary.geometry)
 				}
 			];
 		});
 
-		mapManager.setDataSource(COUNTY_FILL_SOURCE_ID, features);
+		mapManager.setDataSource(REGION_FILL_SOURCE_ID, features);
 	});
 </script>
 
@@ -326,20 +349,58 @@
 
 		<Select.Root
 			type="single"
-			value={manager.selectedCountyId ?? ALL_COUNTIES_VALUE}
-			onValueChange={handleCountyChange}
+			value={manager.selectedRegionType}
+			onValueChange={handleRegionTypeChange}
 		>
-			<Select.Trigger class="w-56">{selectedCountyName}</Select.Trigger>
+			<Select.Trigger class="w-56">
+				{manager.regionTypes?.type(manager.selectedRegionType)?.label ?? manager.selectedRegionType}
+			</Select.Trigger>
 			<Select.Content>
-				<Select.Item value={ALL_COUNTIES_VALUE} label="All counties">All counties</Select.Item>
-				{#each manager.counties ?? [] as county (county.id)}
-					<Select.Item value={county.id} label={county.name}>{county.name}</Select.Item>
+				{#each ["administrative", "census", "district"] as category (category)}
+					<Select.Group>
+						<Select.GroupHeading class="text-muted-foreground px-2 text-xs uppercase">
+							{category}
+						</Select.GroupHeading>
+						{#each manager.regionTypes?.asIter.types.filter((t) => t.category === category) ?? [] as regionType (regionType.type)}
+							<Select.Item value={regionType.type} label={regionType.label}>
+								{regionType.label}
+							</Select.Item>
+						{/each}
+					</Select.Group>
 				{/each}
 			</Select.Content>
 		</Select.Root>
 	</div>
 
-	<div class="min-h-0 flex-1" bind:this={mapWrapper}>
+	{#if shouldNarrow(manager.regionSelections, manager.selectedRegionType, manager.narrowingEnabled)}
+		{@const otherIds = unionOfOtherTypeSelections(
+			manager.regionSelections,
+			manager.selectedRegionType
+		)}
+		{@const otherNames = (manager.activeRegions ?? [])
+			.filter((r) => otherIds.has(r.id))
+			.map((r) => r.name)
+			.join(", ")}
+		<p class="text-muted-foreground text-sm">
+			Showing regions within: {otherNames || `${otherIds.size} region(s)`}
+			<Button variant="link" size="sm" onclick={handleShowAll}>show all</Button>
+		</p>
+	{/if}
+
+	<RegionCheckboxList
+		regions={manager.activeRegions ?? []}
+		selected={manager.selectedRegionIds}
+		onToggle={handleRegionToggle}
+	/>
+
+	<!-- min-h-[400px] (not min-h-0) since this container's flex parent no longer has a
+		bounded height once the region checkbox list and per-region calendar grid below can
+		both grow past the viewport (previously only a single optional calendar sat here) —
+		without a floor, "flex-1" computes its size against an unconstrained container and
+		collapses the map to 0 instead of giving it real screen space. The page scrolls as a
+		whole (via the app shell's <main class="overflow-auto">) once content exceeds the
+		viewport, rather than trying to keep the map pinned in a fixed-height layout. -->
+	<div class="min-h-[400px] flex-1" bind:this={mapWrapper}>
 		<MapShell
 			integrations={[mapIntegration]}
 			ready={manager.initialized}
@@ -348,9 +409,14 @@
 		/>
 	</div>
 
-	{#if manager.calendarDays}
-		<div class="self-start">
-			<Calendar days={manager.calendarDays} />
+	{#if manager.regionCalendars}
+		<div class="flex flex-row flex-wrap gap-6">
+			{#each manager.regionCalendars as { region, days } (region.id)}
+				<div>
+					<h3 class="mb-1 text-sm font-medium">{region.name}</h3>
+					<Calendar {days} />
+				</div>
+			{/each}
 		</div>
 	{/if}
 </div>

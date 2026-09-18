@@ -16,6 +16,7 @@ import {
 } from "@sjvair/sdk";
 import type { MonitorsDataSource } from "@sjvair/monitor-map";
 import { XMap } from "@tstk/builtin-extensions";
+import { SvelteMap } from "svelte/reactivity";
 import { buildCalendarDays, type CalendarDay } from "$lib/calendar";
 import { monitorInRegions } from "$lib/monitors/region-scoping";
 import { shouldNarrow, unionOfOtherTypeSelections } from "$lib/monitors/region-narrowing";
@@ -40,10 +41,11 @@ class MonitorsTabManager implements MonitorsDataSource {
 	dateRange: DateRange = $state({ start: "", end: "" });
 
 	selectedRegionType: RegionType = $state(DEFAULT_REGION_TYPE);
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- keys are stable per-type sentinels, not reactive per-entry state
-	regionSelections: Map<RegionType, Set<string>> = $state(new Map());
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- same as above
-	narrowingEnabled: Map<RegionType, boolean> = $state(new Map());
+	// Persistent selection state read by `selectedRegionIds` below and mutated in place by
+	// toggleRegion()/disableNarrowing() — must be a real reactive collection (not a plain
+	// Map) for those mutations to propagate to derived/template reads.
+	regionSelections: SvelteMap<RegionType, Set<string>> = $state(new SvelteMap());
+	narrowingEnabled: SvelteMap<RegionType, boolean> = $state(new SvelteMap());
 	activeRegions: Array<RegionData> | null = $state(null);
 
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
@@ -56,7 +58,9 @@ class MonitorsTabManager implements MonitorsDataSource {
 	);
 
 	selectedRegionIds: Set<string> = $derived(
-		this.regionSelections.get(this.selectedRegionType) ?? new Set()
+		this.regionSelections.get(this.selectedRegionType) ??
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
+			new Set()
 	);
 
 	visibleMonitors: Array<MonitorData> = $derived.by(() => {
@@ -87,6 +91,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 		]);
 
 		// Default: all counties selected, matching today's "All Counties" default.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
 		this.regionSelections.set(county, new Set(this.activeRegions.map((r) => r.id)));
 
 		this.initialized = true;
@@ -212,13 +217,15 @@ class MonitorsTabManager implements MonitorsDataSource {
 			return;
 		}
 
+		const selectedIds = this.selectedRegionIds;
+		if (selectedIds.size === 0) {
+			this.regionFillColors = null;
+			return;
+		}
+
 		const pollutant = this.pollutant;
 		const monthKey = this.dateRange.start.slice(0, 7);
-		const selectedIds = this.selectedRegionIds;
-		const regions =
-			selectedIds.size > 0
-				? this.activeRegions.filter((region) => selectedIds.has(region.id))
-				: this.activeRegions;
+		const regions = this.activeRegions.filter((region) => selectedIds.has(region.id));
 
 		if (regions.length === 0) {
 			if (token === this.#regionFillFetchToken) this.regionFillColors = null;
