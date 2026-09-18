@@ -92,6 +92,24 @@ class MonitorsTabManager implements MonitorsDataSource {
 	#calendarFetchToken = 0;
 	#regionFillFetchToken = 0;
 
+	// Memoizes already-fetched summary data so toggling a region on/off only
+	// fetches what's actually new — deselecting never needs a network call at
+	// all, since it can only shrink the set of ids we already have data for.
+	// Region ids are unique across every region type (single Region table,
+	// sqid per row), so these are safe to reuse across a region-type switch
+	// too. Keyed by pollutant + date range (+ region id) rather than proactively
+	// invalidated on pollutant/date-range change — a stale key is simply never
+	// looked up again, and a session only ever touches a handful of distinct
+	// (pollutant, month) combinations, so unbounded growth isn't a real concern.
+	// Plain (non-$state) fields: purely internal memoization, never read by the
+	// template.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- plain cache, not read by the template
+	#regionDailyCache = new Map<string, Array<{ timestamp: string; mean: number }>>();
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- plain cache, not read by the template
+	#regionMonthlyCache = new Map<string, number | undefined>();
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- plain cache, not read by the template
+	#monitorAveragesCache = new Map<string, Map<string, number>>();
+
 	async init(): Promise<void> {
 		if (this.initialized) return;
 
@@ -149,31 +167,40 @@ class MonitorsTabManager implements MonitorsDataSource {
 		}
 
 		const pollutant = this.pollutant;
+		const start = this.dateRange.start;
+		const end = this.dateRange.end;
+
+		// This fetch isn't scoped by region at all (it always covers every
+		// published monitor), so a region toggle never needs to re-issue it —
+		// only the pollutant/date range can invalidate it.
+		const cacheKey = `${pollutant}|${start}|${end}`;
 
 		try {
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-			const averages = new Map<string, number>();
+			let averages = this.#monitorAveragesCache.get(cacheKey);
 
-			const results = await getMonitorSummariesBulkMonthly({
-				entryType: pollutant,
-				start: this.dateRange.start,
-				end: this.dateRange.end
-			});
+			if (!averages) {
+				const results = await getMonitorSummariesBulkMonthly({ entryType: pollutant, start, end });
+
+				if (token !== this.#mapAveragesFetchToken) return;
+
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- plain cache value, not read by the template
+				averages = new Map<string, number>();
+				for (const monitor of results) {
+					const inRange = monitor.summaries.filter((row) => {
+						const date = row.timestamp.slice(0, 10);
+						return date >= start && date <= end;
+					});
+					if (inRange.length === 0) continue;
+
+					const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
+					averages.set(monitor.id, mean);
+				}
+				this.#monitorAveragesCache.set(cacheKey, averages);
+			}
 
 			if (token !== this.#mapAveragesFetchToken) return;
 
-			for (const monitor of results) {
-				const inRange = monitor.summaries.filter((row) => {
-					const date = row.timestamp.slice(0, 10);
-					return date >= this.dateRange.start && date <= this.dateRange.end;
-				});
-				if (inRange.length === 0) continue;
-
-				const mean = inRange.reduce((sum, row) => sum + row.mean, 0) / inRange.length;
-				averages.set(monitor.id, mean);
-			}
-
-			this.latest = buildMonitorsLatest(monitors, averages, pollutant, this.dateRange.end);
+			this.latest = buildMonitorsLatest(monitors, averages, pollutant, end);
 			this.lastError = null;
 		} catch {
 			if (token !== this.#mapAveragesFetchToken) return;
@@ -191,6 +218,8 @@ class MonitorsTabManager implements MonitorsDataSource {
 		}
 
 		const pollutant = this.pollutant;
+		const start = this.dateRange.start;
+		const end = this.dateRange.end;
 		const selectedRegions = this.activeRegions
 			.filter((region) => this.selectedRegionIds.has(region.id))
 			.sort((a, b) => a.name.localeCompare(b.name));
@@ -203,40 +232,53 @@ class MonitorsTabManager implements MonitorsDataSource {
 			return;
 		}
 
+		// Deselecting a region only shrinks `selectedRegions` — it never needs
+		// data we don't already have. Only fetch for regions this exact
+		// (pollutant, date range) combination hasn't already cached.
+		const cacheKeyPrefix = `${pollutant}|${start}|${end}|`;
+		const missingRegions = selectedRegions.filter(
+			(region) => !this.#regionDailyCache.has(cacheKeyPrefix + region.id)
+		);
+
 		try {
-			const results = await getRegionSummariesBulkDaily({
-				entryType: pollutant,
-				start: this.dateRange.start,
-				end: this.dateRange.end,
-				region: selectedRegions.map((r) => r.id)
-			});
+			if (missingRegions.length > 0) {
+				const results = await getRegionSummariesBulkDaily({
+					entryType: pollutant,
+					start,
+					end,
+					region: missingRegions.map((r) => r.id)
+				});
+
+				if (token !== this.#calendarFetchToken) return;
+
+				for (const region of results) {
+					this.#regionDailyCache.set(cacheKeyPrefix + region.id, region.summaries);
+				}
+				// The bulk endpoint omits a region entirely when it has zero matching
+				// rows, rather than including it with an empty array — seed a cache
+				// entry for those too, or we'd refetch a data-less region every time.
+				for (const region of missingRegions) {
+					const cacheKey = cacheKeyPrefix + region.id;
+					if (!this.#regionDailyCache.has(cacheKey)) {
+						this.#regionDailyCache.set(cacheKey, []);
+					}
+				}
+			}
 
 			if (token !== this.#calendarFetchToken) return;
 
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-			const daysByRegion = new Map<string, Map<string, number>>();
-			for (const region of results) {
+			this.calendarDays = null;
+			this.regionCalendars = selectedRegions.map((region) => {
+				const rows = this.#regionDailyCache.get(cacheKeyPrefix + region.id) ?? [];
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 				const valuesByDate = new Map<string, number>();
-				for (const row of region.summaries) {
+				for (const row of rows) {
 					const date = row.timestamp.slice(0, 10);
-					if (date < this.dateRange.start || date > this.dateRange.end) continue;
+					if (date < start || date > end) continue;
 					valuesByDate.set(date, row.mean);
 				}
-				daysByRegion.set(region.id, valuesByDate);
-			}
-
-			this.calendarDays = null;
-			this.regionCalendars = selectedRegions.map((region) => ({
-				region,
-				days: buildCalendarDays(
-					this.dateRange.start,
-					this.dateRange.end,
-					// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
-					daysByRegion.get(region.id) ?? new Map(),
-					this.levels
-				)
-			}));
+				return { region, days: buildCalendarDays(start, end, valuesByDate, this.levels) };
+			});
 			this.lastError = null;
 		} catch {
 			if (token !== this.#calendarFetchToken) return;
@@ -260,7 +302,8 @@ class MonitorsTabManager implements MonitorsDataSource {
 		}
 
 		const pollutant = this.pollutant;
-		const monthKey = this.dateRange.start.slice(0, 7);
+		const start = this.dateRange.start;
+		const monthKey = start.slice(0, 7);
 		const regions = this.activeRegions.filter((region) => selectedIds.has(region.id));
 
 		if (regions.length === 0) {
@@ -268,21 +311,44 @@ class MonitorsTabManager implements MonitorsDataSource {
 			return;
 		}
 
+		const cacheKeyPrefix = `${pollutant}|${monthKey}|`;
+		const missingRegions = regions.filter(
+			(region) => !this.#regionMonthlyCache.has(cacheKeyPrefix + region.id)
+		);
+
 		try {
-			const results = await getRegionSummariesBulkMonthly({
-				entryType: pollutant,
-				start: this.dateRange.start,
-				end: this.dateRange.start,
-				region: regions.map((r) => r.id)
-			});
+			if (missingRegions.length > 0) {
+				const results = await getRegionSummariesBulkMonthly({
+					entryType: pollutant,
+					start,
+					end: start,
+					region: missingRegions.map((r) => r.id)
+				});
+
+				if (token !== this.#regionFillFetchToken) return;
+
+				for (const region of results) {
+					const row = region.summaries.find((r) => r.timestamp.slice(0, 7) === monthKey);
+					this.#regionMonthlyCache.set(cacheKeyPrefix + region.id, row?.mean);
+				}
+				// Same reasoning as refreshCalendar: a region with no matching row is
+				// omitted by the endpoint entirely, so seed `undefined` explicitly or
+				// we'd refetch it on every subsequent toggle.
+				for (const region of missingRegions) {
+					const cacheKey = cacheKeyPrefix + region.id;
+					if (!this.#regionMonthlyCache.has(cacheKey)) {
+						this.#regionMonthlyCache.set(cacheKey, undefined);
+					}
+				}
+			}
 
 			if (token !== this.#regionFillFetchToken) return;
 
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
 			const means = new Map<string, number>();
-			for (const region of results) {
-				const row = region.summaries.find((r) => r.timestamp.slice(0, 7) === monthKey);
-				if (row) means.set(region.id, row.mean);
+			for (const region of regions) {
+				const mean = this.#regionMonthlyCache.get(cacheKeyPrefix + region.id);
+				if (mean !== undefined) means.set(region.id, mean);
 			}
 
 			this.regionFillColors = buildRegionFillColors(means, this.levels);
