@@ -64,6 +64,16 @@ class MonitorsTabManager implements MonitorsDataSource {
 			new Set()
 	);
 
+	// Snapshotted once per recompute, not read reactively inside the hot loop:
+	// monitorInRegions() runs @turf/boolean-point-in-polygon, which does exhaustive
+	// nested-array traversal over every polygon vertex (up to ~9,600 per region) for
+	// every monitor. Touching that many array/property accesses through Svelte 5's
+	// $state reactive proxy (each one pays proxy-trap dependency-tracking overhead)
+	// measured ~44x slower than running the identical algorithm on a plain,
+	// unwrapped snapshot — a ~10s main-thread stall vs. ~200ms. $state.snapshot()
+	// still tracks `this.monitors`/`this.activeRegions` as reactive dependencies
+	// (read before snapshotting), so this recomputes correctly when either changes;
+	// only the expensive inner loop operates on de-proxied data.
 	visibleMonitors: Array<MonitorData> = $derived.by(() => {
 		if (!this.monitors || !this.activeRegions || this.selectedRegionIds.size === 0) return [];
 
@@ -72,7 +82,9 @@ class MonitorsTabManager implements MonitorsDataSource {
 		);
 		if (selectedRegions.length === 0) return [];
 
-		return this.monitors.filter((monitor) => monitorInRegions(monitor, selectedRegions));
+		const plainMonitors = $state.snapshot(this.monitors);
+		const plainRegions = $state.snapshot(selectedRegions);
+		return plainMonitors.filter((monitor) => monitorInRegions(monitor, plainRegions));
 	});
 
 	#activeRegionsFetchToken = 0;
