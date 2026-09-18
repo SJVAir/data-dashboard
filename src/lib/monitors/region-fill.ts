@@ -1,7 +1,7 @@
 import type { SJVAirEntryLevel } from "@sjvair/sdk";
 import { getCurrentLevel } from "$lib/calendar";
 
-export function buildCountyFillColors(
+export function buildRegionFillColors(
 	regionMeans: Map<string, number>,
 	levels: Array<SJVAirEntryLevel> | null
 ): Map<string, string> {

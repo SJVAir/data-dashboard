@@ -44,14 +44,6 @@ export function decodePollutant(
 	return value === "pm25" || value === "o3" ? value : null;
 }
 
-export function encodeCounty(regionId: string): string {
-	return regionId;
-}
-
-export function decodeCounty(value: string | number | boolean | null | undefined): string | null {
-	return typeof value === "string" && value.length > 0 ? value : null;
-}
-
 export function encodeYear(year: number): string {
 	return String(year);
 }

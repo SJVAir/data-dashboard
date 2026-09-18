@@ -20,7 +20,7 @@ import { SvelteMap } from "svelte/reactivity";
 import { buildCalendarDays, type CalendarDay } from "$lib/calendar";
 import { monitorInRegions } from "$lib/monitors/region-scoping";
 import { shouldNarrow, unionOfOtherTypeSelections } from "$lib/monitors/region-narrowing";
-import { buildCountyFillColors } from "$lib/monitors/county-fill";
+import { buildRegionFillColors } from "$lib/monitors/region-fill";
 import { buildMonitorsLatest, type SupportedPollutant } from "$lib/monitors/monitor-latest";
 
 export interface DateRange {

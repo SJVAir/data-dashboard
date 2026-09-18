@@ -6,8 +6,6 @@ import {
 	encodeViews,
 	decodePollutant,
 	encodePollutant,
-	decodeCounty,
-	encodeCounty,
 	decodeYear,
 	encodeYear,
 	decodeMonth,
@@ -91,25 +89,6 @@ describe("pollutant codec", () => {
 
 	it("round-trips a valid pollutant through encode", () => {
 		expect(decodePollutant(encodePollutant("pm25"))).toBe("pm25");
-	});
-});
-
-describe("county codec", () => {
-	it("decodes a non-empty string as the region id", () => {
-		expect(decodeCounty("abc123")).toBe("abc123");
-	});
-
-	it("decodes an empty string as no county selected", () => {
-		expect(decodeCounty("")).toBeNull();
-	});
-
-	it("decodes null and undefined as no county selected", () => {
-		expect(decodeCounty(null)).toBeNull();
-		expect(decodeCounty(undefined)).toBeNull();
-	});
-
-	it("round-trips a region id through encode", () => {
-		expect(decodeCounty(encodeCounty("abc123"))).toBe("abc123");
 	});
 });
 
