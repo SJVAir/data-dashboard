@@ -72,6 +72,10 @@ class MonitorsTabManager implements MonitorsDataSource {
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
 	regionCalendars: Array<{ region: RegionData; days: Array<CalendarDay> }> | null = $state(null);
 	regionFillColors: Map<string, string> | null = $state(null);
+	// The raw monthly-average mean behind each entry in regionFillColors —
+	// kept alongside it (rather than derived from it) so the region tooltip
+	// can show the actual value, not just the level color derived from it.
+	regionFillMeans: Map<string, number> | null = $state(null);
 
 	levels: Array<SJVAirEntryLevel> | null = $derived(
 		this.meta && this.pollutant ? (this.meta.entryType(this.pollutant).asIter.levels ?? null) : null
@@ -400,12 +404,14 @@ class MonitorsTabManager implements MonitorsDataSource {
 		const token = ++this.#regionFillFetchToken;
 		if (!this.pollutant || !this.dateRange.start) {
 			this.regionFillColors = null;
+			this.regionFillMeans = null;
 			return;
 		}
 
 		const regions = this.selectedRegions;
 		if (regions.length === 0) {
 			this.regionFillColors = null;
+			this.regionFillMeans = null;
 			return;
 		}
 
@@ -451,10 +457,12 @@ class MonitorsTabManager implements MonitorsDataSource {
 			}
 
 			this.regionFillColors = buildRegionFillColors(means, this.levels);
+			this.regionFillMeans = means;
 			this.lastError = null;
 		} catch {
 			if (token !== this.#regionFillFetchToken) return;
 			this.regionFillColors = null;
+			this.regionFillMeans = null;
 			this.lastError = "Failed to load region data — try a narrower date range or fewer regions.";
 		}
 	}

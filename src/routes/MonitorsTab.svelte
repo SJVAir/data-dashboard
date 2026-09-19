@@ -1,7 +1,9 @@
 <!-- src/routes/MonitorsTab.svelte -->
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { mount, onMount, unmount } from "svelte";
 	import { endOfMonth, format, startOfMonth } from "date-fns";
+	import { Popup, type LngLat } from "@maptiler/sdk";
+	import type { Feature } from "geojson";
 	import {
 		MapShell,
 		mapManager,
@@ -29,6 +31,7 @@
 	} from "$lib/url-state";
 	import { route, searchParams } from "../router";
 	import { monitorsTabManager } from "./monitors/monitors-tab.svelte";
+	import RegionTooltip from "./monitors/RegionTooltip.svelte";
 
 	const manager = monitorsTabManager;
 	const mapIntegration = new MonitorsMapIntegration(manager);
@@ -380,6 +383,8 @@
 				{
 					type: "Feature" as const,
 					properties: {
+						id: region.id,
+						name: region.name,
 						color: color ?? NO_VALUE_BORDER_COLOR,
 						hasValue: Boolean(color)
 					},
@@ -389,6 +394,65 @@
 		});
 
 		mapManager.setDataSource(REGION_FILL_SOURCE_ID, features);
+	});
+
+	// Hover tooltip for selected regions, mirroring the DataBox-style tooltip
+	// @sjvair/monitor-map shows for monitor markers (see its MonitorTooltip.svelte)
+	// — region name plus a colored value box, or just the name when the region
+	// has no average to show (matching the black-border-only fill case above).
+	let activePopup: Popup | null = null;
+	let activePopupInstance: object | null = null;
+	let activePopupRegionId: string | null = null;
+
+	function clearRegionTooltip() {
+		if (mapManager.map) mapManager.map.getCanvas().style.cursor = "";
+		activePopup?.remove();
+		if (activePopupInstance) unmount(activePopupInstance);
+		activePopup = null;
+		activePopupInstance = null;
+		activePopupRegionId = null;
+	}
+
+	function showRegionTooltip(evt: { features?: Array<Feature>; lngLat: LngLat }) {
+		if (!mapManager.map) return;
+
+		const properties = evt.features?.[0]?.properties;
+		const regionId = properties?.id as string | undefined;
+		const regionName = properties?.name as string | undefined;
+		if (!regionId || !regionName) return;
+
+		if (activePopupRegionId === regionId) {
+			activePopup?.setLngLat(evt.lngLat);
+			return;
+		}
+
+		clearRegionTooltip();
+		mapManager.map.getCanvas().style.cursor = "pointer";
+
+		const container = document.createElement("div");
+		activePopupInstance = mount(RegionTooltip, {
+			target: container,
+			props: { regionId, regionName }
+		});
+		activePopup = new Popup({ closeButton: false, closeOnClick: false, maxWidth: "none" })
+			.setLngLat(evt.lngLat)
+			.setDOMContent(container)
+			.addTo(mapManager.map);
+		activePopupRegionId = regionId;
+	}
+
+	$effect(() => {
+		if (!mapManager.map) return;
+		const map = mapManager.map;
+
+		map.on("mousemove", REGION_FILL_LAYER_ID, showRegionTooltip);
+		map.on("mouseleave", REGION_FILL_LAYER_ID, clearRegionTooltip);
+
+		return () => {
+			map.off("mousemove", REGION_FILL_LAYER_ID, showRegionTooltip);
+			map.off("mouseleave", REGION_FILL_LAYER_ID, clearRegionTooltip);
+			clearRegionTooltip();
+		};
 	});
 </script>
 
