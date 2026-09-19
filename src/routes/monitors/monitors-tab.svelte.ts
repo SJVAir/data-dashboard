@@ -166,7 +166,13 @@ class MonitorsTabManager implements MonitorsDataSource {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- reassigned wholesale, see field comment
 		this.parentSelection = new Set(this.parentRegions.map((r) => r.id));
 
-		await this.refreshChildren();
+		// Deliberately does NOT await refreshChildren() here: MonitorsTab.svelte's
+		// onMount already calls it explicitly, right after setting dateRange/
+		// pollutant/URL overrides. Awaiting it in init() too would make init()'s
+		// promise (and everything onMount does after awaiting it, including
+		// setting dateRange) block on all 8 child-type region fetches completing
+		// first -- with nothing else changed, that adds ~1-2s where the year/
+		// month selects render "0"/blank before dateRange is ever set.
 		this.initialized = true;
 	}
 
