@@ -525,7 +525,9 @@
 	<div class="flex flex-col gap-4">
 		{#each CATEGORIES as category (category)}
 			{@const typesInCategory = manager.childTypes.filter(
-				(type) => manager.regionTypes?.type(type)?.category === category
+				(type) =>
+					manager.regionTypes?.type(type)?.category === category &&
+					(manager.childRegionsByType.get(type)?.length ?? 0) > 0
 			)}
 			{#if typesInCategory.length > 0}
 				<div>
