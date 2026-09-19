@@ -34,9 +34,11 @@ const DEFAULT_REGION_TYPE: RegionType = "county";
 // (see CATEGORIES in MonitorsTab.svelte) — getRegionsMeta() reports all 15
 // backend Region.Type values, but this feature is only scoped to these 3
 // categories (9 types). The rest (urban_area, land_use, protected, place,
-// mtrs, custom) are out of scope, and some of them (land_use, mtrs) never
-// respond from the dev backend at all, which would otherwise hang
-// refreshChildren()'s Promise.all forever.
+// mtrs, custom) are out of scope, and two of them are unsafe to include on
+// the dev backend: land_use never responds at all (confirmed hanging past
+// 60s), and mtrs, while it does respond, takes ~12s — either one sitting in
+// refreshChildren()'s Promise.all alongside the fast in-scope fetches would
+// stall the whole child refresh behind it.
 const IN_SCOPE_CATEGORIES = ["administrative", "census", "district"];
 
 class MonitorsTabManager implements MonitorsDataSource {
