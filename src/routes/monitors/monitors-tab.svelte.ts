@@ -19,7 +19,7 @@ import { XMap } from "@tstk/builtin-extensions";
 import { SvelteMap } from "svelte/reactivity";
 import { buildCalendarDays, type CalendarDay } from "$lib/calendar";
 import { monitorInRegions } from "$lib/monitors/region-scoping";
-import { shouldNarrow, unionOfOtherTypeSelections } from "$lib/monitors/region-narrowing";
+import { pruneSelection } from "$lib/monitors/region-narrowing";
 import { buildRegionFillColors } from "$lib/monitors/region-fill";
 import { buildMonitorsLatest, type SupportedPollutant } from "$lib/monitors/monitor-latest";
 
@@ -40,17 +40,27 @@ class MonitorsTabManager implements MonitorsDataSource {
 	pollutant: SupportedPollutant | null = $state(null);
 	dateRange: DateRange = $state({ start: "", end: "" });
 
-	selectedRegionType: RegionType = $state(DEFAULT_REGION_TYPE);
-	// Persistent selection state read by `selectedRegionIds` below and mutated in place by
-	// toggleRegion()/disableNarrowing() — must be a real reactive collection (not a plain
-	// Map) for those mutations to propagate to derived/template reads.
-	regionSelections: SvelteMap<RegionType, Set<string>> = $state(new SvelteMap());
-	narrowingEnabled: SvelteMap<RegionType, boolean> = $state(new SvelteMap());
-	activeRegions: Array<RegionData> | null = $state(null);
+	parentType: RegionType = $state(DEFAULT_REGION_TYPE);
+	parentRegions: Array<RegionData> | null = $state(null);
+	// Always reassigned wholesale (this.parentSelection = new Set(...)) —
+	// $state field reassignment triggers reactivity regardless of the
+	// assigned value's type, so this doesn't need SvelteSet.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- always reassigned wholesale, see above
+	parentSelection: Set<string> = $state(new Set());
+
+	// Both maps below are updated via .set() on the same long-lived map
+	// instance (one entry per child type) rather than reassigned wholesale —
+	// that requires SvelteMap, since a plain Map's .set() doesn't propagate
+	// reactively under Svelte 5 $state(). The *values* inside
+	// childSelectionsByType (individual Sets) are still always freshly built
+	// and handed to childSelectionsByType.set(type, next) — never mutated
+	// in place — so they stay plain Set.
+	childRegionsByType: SvelteMap<RegionType, Array<RegionData>> = $state(new SvelteMap());
+	childSelectionsByType: SvelteMap<RegionType, Set<string>> = $state(new SvelteMap());
+
 	lastError: string | null = $state(null);
 
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
-	calendarDays: Array<CalendarDay> | null = $state(null);
 	regionCalendars: Array<{ region: RegionData; days: Array<CalendarDay> }> | null = $state(null);
 	regionFillColors: Map<string, string> | null = $state(null);
 
@@ -58,11 +68,40 @@ class MonitorsTabManager implements MonitorsDataSource {
 		this.meta && this.pollutant ? (this.meta.entryType(this.pollutant).asIter.levels ?? null) : null
 	);
 
-	selectedRegionIds: Set<string> = $derived(
-		this.regionSelections.get(this.selectedRegionType) ??
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
-			new Set()
-	);
+	// Every in-scope region type except the current parent — always 8
+	// entries once `regionTypes` has loaded (9 in-scope types total).
+	childTypes: Array<RegionType> = $derived.by(() => {
+		if (!this.regionTypes) return [];
+		return Object.keys(this.regionTypes.types).filter(
+			(type) => type !== this.parentType
+		) as Array<RegionType>;
+	});
+
+	// Every currently-selected region across the parent AND all 8 child
+	// types, flattened into one list — this is what every map/calendar/fill/
+	// marker computation reads from, replacing the old single-active-type
+	// selectedRegionIds/activeRegions pair.
+	selectedRegions: Array<RegionData> = $derived.by(() => {
+		const result: Array<RegionData> = [];
+
+		if (this.parentRegions) {
+			for (const region of this.parentRegions) {
+				if (this.parentSelection.has(region.id)) result.push(region);
+			}
+		}
+
+		for (const type of this.childTypes) {
+			const regions = this.childRegionsByType.get(type);
+			const selection = this.childSelectionsByType.get(type);
+			if (!regions || !selection || selection.size === 0) continue;
+
+			for (const region of regions) {
+				if (selection.has(region.id)) result.push(region);
+			}
+		}
+
+		return result;
+	});
 
 	// Snapshotted once per recompute, not read reactively inside the hot loop:
 	// monitorInRegions() runs @turf/boolean-point-in-polygon, which does exhaustive
@@ -70,24 +109,17 @@ class MonitorsTabManager implements MonitorsDataSource {
 	// every monitor. Touching that many array/property accesses through Svelte 5's
 	// $state reactive proxy (each one pays proxy-trap dependency-tracking overhead)
 	// measured ~44x slower than running the identical algorithm on a plain,
-	// unwrapped snapshot — a ~10s main-thread stall vs. ~200ms. $state.snapshot()
-	// still tracks `this.monitors`/`this.activeRegions` as reactive dependencies
-	// (read before snapshotting), so this recomputes correctly when either changes;
-	// only the expensive inner loop operates on de-proxied data.
+	// unwrapped snapshot — a ~10s main-thread stall vs. ~200ms.
 	visibleMonitors: Array<MonitorData> = $derived.by(() => {
-		if (!this.monitors || !this.activeRegions || this.selectedRegionIds.size === 0) return [];
-
-		const selectedRegions = this.activeRegions.filter((region) =>
-			this.selectedRegionIds.has(region.id)
-		);
-		if (selectedRegions.length === 0) return [];
+		if (!this.monitors || this.selectedRegions.length === 0) return [];
 
 		const plainMonitors = $state.snapshot(this.monitors);
-		const plainRegions = $state.snapshot(selectedRegions);
+		const plainRegions = $state.snapshot(this.selectedRegions);
 		return plainMonitors.filter((monitor) => monitorInRegions(monitor, plainRegions));
 	});
 
-	#activeRegionsFetchToken = 0;
+	#parentRegionsFetchToken = 0;
+	#childRegionsFetchToken = 0;
 	#mapAveragesFetchToken = 0;
 	#calendarFetchToken = 0;
 	#regionFillFetchToken = 0;
@@ -96,7 +128,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 	// fetches what's actually new — deselecting never needs a network call at
 	// all, since it can only shrink the set of ids we already have data for.
 	// Region ids are unique across every region type (single Region table,
-	// sqid per row), so these are safe to reuse across a region-type switch
+	// sqid per row), so these are safe to reuse across a parent-type switch
 	// too. Keyed by pollutant + date range (+ region id) rather than proactively
 	// invalidated on pollutant/date-range change — a stale key is simply never
 	// looked up again, and a session only ever touches a handful of distinct
@@ -114,7 +146,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 		if (this.initialized) return;
 
 		const county: RegionType = DEFAULT_REGION_TYPE;
-		[this.monitors, this.meta, this.regionTypes, this.activeRegions] = await Promise.all([
+		[this.monitors, this.meta, this.regionTypes, this.parentRegions] = await Promise.all([
 			getMonitorsList(),
 			getMonitorsMeta(),
 			getRegionsMeta(),
@@ -122,38 +154,100 @@ class MonitorsTabManager implements MonitorsDataSource {
 		]);
 
 		// Default: all counties selected, matching today's "All Counties" default.
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
-		this.regionSelections.set(county, new Set(this.activeRegions.map((r) => r.id)));
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- reassigned wholesale, see field comment
+		this.parentSelection = new Set(this.parentRegions.map((r) => r.id));
 
+		await this.refreshChildren();
 		this.initialized = true;
 	}
 
-	async refreshActiveRegions(): Promise<void> {
-		const token = ++this.#activeRegionsFetchToken;
-		const type = this.selectedRegionType;
+	async refreshParentRegions(): Promise<void> {
+		const token = ++this.#parentRegionsFetchToken;
 
 		try {
-			const withinIds = shouldNarrow(this.regionSelections, type, this.narrowingEnabled)
-				? Array.from(unionOfOtherTypeSelections(this.regionSelections, type))
-				: undefined;
+			const regions = await getRegionsList({ type: this.parentType });
 
-			const regions = await getRegionsList({ type, within: withinIds });
+			if (token !== this.#parentRegionsFetchToken) return;
 
-			// A newer call (from a subsequent region-type switch) has already
-			// landed — this response is stale, discard it rather than racing.
-			if (token !== this.#activeRegionsFetchToken) return;
+			this.parentRegions = regions;
+			this.lastError = null;
+		} catch {
+			if (token !== this.#parentRegionsFetchToken) return;
+			this.parentRegions = null;
+			this.lastError = "Failed to load region data.";
+		}
+	}
 
-			this.activeRegions = regions;
-			if (!this.regionSelections.has(type)) {
+	// Fetches every child type's region list narrowed by the current parent
+	// selection, and prunes each child type's existing selection down to
+	// whatever's still in its newly-narrowed list — a child selection can
+	// only ever shrink as a result of a parent-selection change, never grow.
+	async refreshChildren(): Promise<void> {
+		const token = ++this.#childRegionsFetchToken;
+		const types = this.childTypes;
+		const withinIds = this.parentSelection.size > 0 ? Array.from(this.parentSelection) : undefined;
+
+		try {
+			const results = await Promise.all(
+				types.map((type) => getRegionsList({ type, within: withinIds }))
+			);
+
+			if (token !== this.#childRegionsFetchToken) return;
+
+			for (let i = 0; i < types.length; i++) {
+				const type = types[i];
+				const regions = results[i];
+				this.childRegionsByType.set(type, regions);
+
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
-				this.regionSelections.set(type, new Set());
+				const availableIds = new Set(regions.map((r) => r.id));
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
+				const currentSelection = this.childSelectionsByType.get(type) ?? new Set<string>();
+				this.childSelectionsByType.set(type, pruneSelection(currentSelection, availableIds));
 			}
 			this.lastError = null;
 		} catch {
-			if (token !== this.#activeRegionsFetchToken) return;
-			this.activeRegions = null;
+			if (token !== this.#childRegionsFetchToken) return;
 			this.lastError = "Failed to load region data.";
 		}
+	}
+
+	async setParentType(type: RegionType): Promise<void> {
+		this.parentType = type;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- reassigned wholesale, see field comment
+		this.parentSelection = new Set();
+
+		await this.refreshParentRegions();
+		await this.refreshChildren();
+		await Promise.all([
+			this.refreshMapAverages(),
+			this.refreshCalendar(),
+			this.refreshRegionFill()
+		]);
+	}
+
+	toggleParentRegion(regionId: string): void {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- reassigned wholesale, see field comment
+		const next = new Set(this.parentSelection);
+		if (next.has(regionId)) {
+			next.delete(regionId);
+		} else {
+			next.add(regionId);
+		}
+		this.parentSelection = next;
+	}
+
+	toggleChildRegion(type: RegionType, regionId: string): void {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
+		const current = this.childSelectionsByType.get(type) ?? new Set<string>();
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
+		const next = new Set(current);
+		if (next.has(regionId)) {
+			next.delete(regionId);
+		} else {
+			next.add(regionId);
+		}
+		this.childSelectionsByType.set(type, next);
 	}
 
 	async refreshMapAverages(): Promise<void> {
@@ -211,8 +305,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 	async refreshCalendar(): Promise<void> {
 		const token = ++this.#calendarFetchToken;
-		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end || !this.activeRegions) {
-			this.calendarDays = null;
+		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end) {
 			this.regionCalendars = null;
 			return;
 		}
@@ -220,21 +313,13 @@ class MonitorsTabManager implements MonitorsDataSource {
 		const pollutant = this.pollutant;
 		const start = this.dateRange.start;
 		const end = this.dateRange.end;
-		const selectedRegions = this.activeRegions
-			.filter((region) => this.selectedRegionIds.has(region.id))
-			.sort((a, b) => a.name.localeCompare(b.name));
+		const selectedRegions = [...this.selectedRegions].sort((a, b) => a.name.localeCompare(b.name));
 
 		if (selectedRegions.length === 0) {
-			if (token === this.#calendarFetchToken) {
-				this.calendarDays = null;
-				this.regionCalendars = null;
-			}
+			if (token === this.#calendarFetchToken) this.regionCalendars = null;
 			return;
 		}
 
-		// Deselecting a region only shrinks `selectedRegions` — it never needs
-		// data we don't already have. Only fetch for regions this exact
-		// (pollutant, date range) combination hasn't already cached.
 		const cacheKeyPrefix = `${pollutant}|${start}|${end}|`;
 		const missingRegions = selectedRegions.filter(
 			(region) => !this.#regionDailyCache.has(cacheKeyPrefix + region.id)
@@ -267,7 +352,6 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 			if (token !== this.#calendarFetchToken) return;
 
-			this.calendarDays = null;
 			this.regionCalendars = selectedRegions.map((region) => {
 				const rows = this.#regionDailyCache.get(cacheKeyPrefix + region.id) ?? [];
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch map
@@ -282,7 +366,6 @@ class MonitorsTabManager implements MonitorsDataSource {
 			this.lastError = null;
 		} catch {
 			if (token !== this.#calendarFetchToken) return;
-			this.calendarDays = null;
 			this.regionCalendars = null;
 			this.lastError = "Failed to load region data — try a narrower date range or fewer regions.";
 		}
@@ -290,13 +373,13 @@ class MonitorsTabManager implements MonitorsDataSource {
 
 	async refreshRegionFill(): Promise<void> {
 		const token = ++this.#regionFillFetchToken;
-		if (!this.pollutant || !this.dateRange.start || !this.activeRegions) {
+		if (!this.pollutant || !this.dateRange.start) {
 			this.regionFillColors = null;
 			return;
 		}
 
-		const selectedIds = this.selectedRegionIds;
-		if (selectedIds.size === 0) {
+		const regions = this.selectedRegions;
+		if (regions.length === 0) {
 			this.regionFillColors = null;
 			return;
 		}
@@ -304,12 +387,6 @@ class MonitorsTabManager implements MonitorsDataSource {
 		const pollutant = this.pollutant;
 		const start = this.dateRange.start;
 		const monthKey = start.slice(0, 7);
-		const regions = this.activeRegions.filter((region) => selectedIds.has(region.id));
-
-		if (regions.length === 0) {
-			if (token === this.#regionFillFetchToken) this.regionFillColors = null;
-			return;
-		}
 
 		const cacheKeyPrefix = `${pollutant}|${monthKey}|`;
 		const missingRegions = regions.filter(
@@ -331,9 +408,6 @@ class MonitorsTabManager implements MonitorsDataSource {
 					const row = region.summaries.find((r) => r.timestamp.slice(0, 7) === monthKey);
 					this.#regionMonthlyCache.set(cacheKeyPrefix + region.id, row?.mean);
 				}
-				// Same reasoning as refreshCalendar: a region with no matching row is
-				// omitted by the endpoint entirely, so seed `undefined` explicitly or
-				// we'd refetch it on every subsequent toggle.
 				for (const region of missingRegions) {
 					const cacheKey = cacheKeyPrefix + region.id;
 					if (!this.#regionMonthlyCache.has(cacheKey)) {
@@ -358,33 +432,6 @@ class MonitorsTabManager implements MonitorsDataSource {
 			this.regionFillColors = null;
 			this.lastError = "Failed to load region data — try a narrower date range or fewer regions.";
 		}
-	}
-
-	async setRegionType(type: RegionType): Promise<void> {
-		this.selectedRegionType = type;
-		await this.refreshActiveRegions();
-		await Promise.all([
-			this.refreshMapAverages(),
-			this.refreshCalendar(),
-			this.refreshRegionFill()
-		]);
-	}
-
-	toggleRegion(regionId: string): void {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
-		const current = this.regionSelections.get(this.selectedRegionType) ?? new Set<string>();
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
-		const next = new Set(current);
-		if (next.has(regionId)) {
-			next.delete(regionId);
-		} else {
-			next.add(regionId);
-		}
-		this.regionSelections.set(this.selectedRegionType, next);
-	}
-
-	disableNarrowing(type: RegionType): void {
-		this.narrowingEnabled.set(type, false);
 	}
 }
 

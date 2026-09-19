@@ -14,7 +14,7 @@ describe("MonitorsTabManager.refreshRegionFill", () => {
 	it("clears the fill and skips the bulk fetch when the active type's selection is empty", async () => {
 		monitorsTabManager.pollutant = "pm25";
 		monitorsTabManager.dateRange = { start: "2026-01-01", end: "2026-01-31" };
-		monitorsTabManager.activeRegions = [];
+		monitorsTabManager.parentRegions = [];
 		monitorsTabManager.regionFillColors = new Map([["placeholder", "#fff"]]);
 
 		await monitorsTabManager.refreshRegionFill();
