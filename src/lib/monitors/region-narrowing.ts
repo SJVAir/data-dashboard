@@ -18,3 +18,11 @@ export function shouldNarrow(
 	if (unionOfOtherTypeSelections(selections, activeType).size === 0) return false;
 	return narrowingEnabled.get(activeType) !== false;
 }
+
+export function pruneSelection(selection: Set<string>, availableIds: Set<string>): Set<string> {
+	const pruned = new Set<string>();
+	for (const id of selection) {
+		if (availableIds.has(id)) pruned.add(id);
+	}
+	return pruned;
+}
