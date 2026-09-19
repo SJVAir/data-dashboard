@@ -333,13 +333,17 @@
 	const REGION_FILL_LAYER_ID = "region-fill-polygons";
 	const REGION_FILL_BORDER_LAYER_ID = "region-fill-border";
 
+	const NO_VALUE_BORDER_COLOR = "#000000";
+
 	// Fill each selected region (parent or any child type) with a
 	// semi-transparent version of its monthly average's level color — no
 	// fill at all when nothing is selected anywhere (manager.regionFillColors
 	// already reflects that scoping, computed in
 	// MonitorsTabManager.refreshRegionFill()). A solid-color border (same
 	// color as the fill, full opacity) traces each filled region so its
-	// boundary stays legible against neighbors.
+	// boundary stays legible against neighbors. A region with no average to
+	// derive a color from still gets a plain black border, so it's visible
+	// as "selected but no data" rather than invisible.
 	$effect(() => {
 		if (!mapManager.map) return;
 
@@ -354,7 +358,7 @@
 				source: REGION_FILL_SOURCE_ID,
 				paint: {
 					"fill-color": ["get", "color"],
-					"fill-opacity": 0.35
+					"fill-opacity": ["case", ["get", "hasValue"], 0.35, 0]
 				}
 			});
 			mapManager.map.addLayer({
@@ -370,12 +374,15 @@
 
 		const colors = manager.regionFillColors;
 		const features = manager.selectedRegions.flatMap((region) => {
+			if (!region.boundary?.geometry) return [];
 			const color = colors?.get(region.id);
-			if (!color || !region.boundary?.geometry) return [];
 			return [
 				{
 					type: "Feature" as const,
-					properties: { color },
+					properties: {
+						color: color ?? NO_VALUE_BORDER_COLOR,
+						hasValue: Boolean(color)
+					},
 					geometry: $state.snapshot(region.boundary.geometry)
 				}
 			];
