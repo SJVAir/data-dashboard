@@ -30,6 +30,15 @@ export interface DateRange {
 
 const DEFAULT_REGION_TYPE: RegionType = "county";
 
+// Mirrors the same in-scope category filter the parent-type dropdown uses
+// (see CATEGORIES in MonitorsTab.svelte) — getRegionsMeta() reports all 15
+// backend Region.Type values, but this feature is only scoped to these 3
+// categories (9 types). The rest (urban_area, land_use, protected, place,
+// mtrs, custom) are out of scope, and some of them (land_use, mtrs) never
+// respond from the dev backend at all, which would otherwise hang
+// refreshChildren()'s Promise.all forever.
+const IN_SCOPE_CATEGORIES = ["administrative", "census", "district"];
+
 class MonitorsTabManager implements MonitorsDataSource {
 	initialized: boolean = $state(false);
 
@@ -72,9 +81,9 @@ class MonitorsTabManager implements MonitorsDataSource {
 	// entries once `regionTypes` has loaded (9 in-scope types total).
 	childTypes: Array<RegionType> = $derived.by(() => {
 		if (!this.regionTypes) return [];
-		return Object.keys(this.regionTypes.types).filter(
-			(type) => type !== this.parentType
-		) as Array<RegionType>;
+		return this.regionTypes.asIter.types
+			.filter((t) => IN_SCOPE_CATEGORIES.includes(t.category) && t.type !== this.parentType)
+			.map((t) => t.type);
 	});
 
 	// Every currently-selected region across the parent AND all 8 child
