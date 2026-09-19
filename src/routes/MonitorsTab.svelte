@@ -87,8 +87,18 @@
 		searchParams.set("parent", encodeRegionSelection(manager.parentSelection), { replace: true });
 		for (const type of manager.childTypes) {
 			const selection = manager.childSelectionsByType.get(type) ?? new Set<string>();
-			searchParams.set(type, encodeRegionSelection(selection), { replace: true });
+			if (selection.size > 0) {
+				searchParams.set(type, encodeRegionSelection(selection), { replace: true });
+			} else {
+				searchParams.delete(type, undefined, { replace: true });
+			}
 		}
+		// The current parentType's own param key can be left over from a
+		// previous session where it was a child type (its selection was tracked
+		// under its own key rather than "parent") — it's excluded from
+		// childTypes above (childTypes is every in-scope type EXCEPT the
+		// parent), so the loop never reaches it and it needs an explicit delete.
+		searchParams.delete(manager.parentType, undefined, { replace: true });
 	}
 
 	onMount(async () => {

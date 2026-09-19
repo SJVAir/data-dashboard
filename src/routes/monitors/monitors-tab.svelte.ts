@@ -225,6 +225,8 @@ class MonitorsTabManager implements MonitorsDataSource {
 		this.parentType = type;
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- reassigned wholesale, see field comment
 		this.parentSelection = new Set();
+		this.childRegionsByType.clear();
+		this.childSelectionsByType.clear();
 
 		await this.refreshParentRegions();
 		await this.refreshChildren();
