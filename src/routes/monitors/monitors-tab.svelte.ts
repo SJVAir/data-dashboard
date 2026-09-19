@@ -235,8 +235,16 @@ class MonitorsTabManager implements MonitorsDataSource {
 		this.childSelectionsByType.clear();
 
 		await this.refreshParentRegions();
-		await this.refreshChildren();
+		// refreshChildren() runs concurrently with the map/calendar/fill refresh,
+		// not before it -- child selections were just cleared above, so there's
+		// nothing for refreshChildren()'s pruning step to affect yet, and the map
+		// doesn't need the (currently all-collapsed) child lists to be freshly
+		// re-fetched before it can render the parent's own selection correctly.
+		// Measured: refreshChildren()'s 8 parallel per-type fetches can take
+		// several seconds; blocking the visibly-faster map update behind them
+		// made switching parent type feel far slower than it needs to.
 		await Promise.all([
+			this.refreshChildren(),
 			this.refreshMapAverages(),
 			this.refreshCalendar(),
 			this.refreshRegionFill()

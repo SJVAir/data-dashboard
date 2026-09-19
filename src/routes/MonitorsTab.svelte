@@ -76,6 +76,20 @@
 		};
 	}
 
+	// Whether pruning a child selection against a fresh refreshChildren() call
+	// could possibly change what's currently shown -- true only if some child
+	// type actually has a selection right now. Used to decide whether the map/
+	// calendar/fill refresh needs to wait for refreshChildren() to finish
+	// (correctness: don't briefly show a now-out-of-scope child region) or can
+	// run concurrently with it (the common case: nothing to prune, so there's
+	// no reason to block the map behind refreshChildren()'s 8 parallel
+	// per-type fetches, which can take several seconds on their own).
+	function hasAnyChildSelection(): boolean {
+		return manager.childTypes.some(
+			(type) => (manager.childSelectionsByType.get(type)?.size ?? 0) > 0
+		);
+	}
+
 	// Writes the parentType/parent/<child-type> query params from the
 	// manager's current state. Called after any action that can change
 	// parent or child selections, since a parent-selection change prunes
@@ -154,14 +168,27 @@
 		if (!urlMonth) searchParams.set("month", encodeMonth(month), { replace: true });
 		if (!urlPollutant) searchParams.set("pollutant", encodePollutant(pollutant), { replace: true });
 
-		await manager.refreshChildren();
-		syncSelectionToUrl();
-
-		await Promise.all([
-			manager.refreshMapAverages(),
-			manager.refreshCalendar(),
-			manager.refreshRegionFill()
-		]);
+		if (hasAnyChildSelection()) {
+			// A bookmarked URL supplied a child selection that might not actually
+			// fall within the bookmarked parent selection -- refreshChildren()'s
+			// pruning must resolve before the map/calendar/fill refresh runs, or
+			// it could briefly render a region that gets pruned a moment later.
+			await manager.refreshChildren();
+			syncSelectionToUrl();
+			await Promise.all([
+				manager.refreshMapAverages(),
+				manager.refreshCalendar(),
+				manager.refreshRegionFill()
+			]);
+		} else {
+			syncSelectionToUrl();
+			await Promise.all([
+				manager.refreshChildren(),
+				manager.refreshMapAverages(),
+				manager.refreshCalendar(),
+				manager.refreshRegionFill()
+			]);
+		}
 	});
 
 	async function handleParentTypeChange(value: string | undefined) {
@@ -172,13 +199,34 @@
 
 	async function handleParentToggle(regionId: string) {
 		manager.toggleParentRegion(regionId);
-		await manager.refreshChildren();
-		syncSelectionToUrl();
-		await Promise.all([
-			manager.refreshMapAverages(),
-			manager.refreshCalendar(),
-			manager.refreshRegionFill()
-		]);
+
+		if (hasAnyChildSelection()) {
+			// A selected child region could fall outside the new parent scope --
+			// refreshChildren()'s pruning must resolve before the map/calendar/
+			// fill refresh runs, or it could briefly show a now-out-of-scope
+			// region (see the spec's "Selection pruning" section).
+			await manager.refreshChildren();
+			syncSelectionToUrl();
+			await Promise.all([
+				manager.refreshMapAverages(),
+				manager.refreshCalendar(),
+				manager.refreshRegionFill()
+			]);
+		} else {
+			// Nothing selected in any child type, so refreshChildren()'s pruning
+			// step has nothing to affect -- run it concurrently with the map
+			// update instead of blocking behind it. refreshChildren() exists to
+			// keep the (currently all-collapsed) child checkbox lists narrowed
+			// correctly, which has no bearing on what the map should show right
+			// now.
+			syncSelectionToUrl();
+			await Promise.all([
+				manager.refreshChildren(),
+				manager.refreshMapAverages(),
+				manager.refreshCalendar(),
+				manager.refreshRegionFill()
+			]);
+		}
 	}
 
 	async function handleChildToggle(type: RegionType, regionId: string) {
