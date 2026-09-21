@@ -142,22 +142,45 @@ class MonitorsTabManager implements MonitorsDataSource {
 		return result;
 	});
 
+	// Tracks in-flight #ensureBoundary() fetches by region id so concurrent
+	// callers (e.g. init()'s fire-and-forget seeding of the default "all
+	// counties" selection racing refreshMapAverages()'s
+	// #ensureSelectedBoundaries() moments later) await the same request
+	// instead of each issuing their own getRegionDetails() call — without
+	// this, both fire before either resolves, since selectedRegionBoundaries
+	// (the only other guard) doesn't get populated until the first one
+	// completes. Plain (non-$state) field: purely internal bookkeeping,
+	// never read by the template.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- plain cache, not read by the template
+	#boundaryFetchesInFlight = new Map<string, Promise<void>>();
+
 	// Fetches and caches a region's full boundary (including geometry) the
 	// first time it's selected — see selectedRegionBoundaries above for why
-	// this is needed. Safe to call repeatedly for the same id; only the
-	// first call for a given id does any work.
-	async #ensureBoundary(regionId: string): Promise<void> {
-		if (this.selectedRegionBoundaries.has(regionId)) return;
+	// this is needed. Safe to call repeatedly (or concurrently) for the same
+	// id; only one fetch is ever in flight per id at a time.
+	#ensureBoundary(regionId: string): Promise<void> {
+		if (this.selectedRegionBoundaries.has(regionId)) return Promise.resolve();
 
-		try {
-			const region = await getRegionDetails(regionId);
-			if (region.boundary) this.selectedRegionBoundaries.set(regionId, region.boundary);
-		} catch {
-			// Non-fatal: the region stays selected with its bbox-only boundary
-			// from the list response, so fitBounds/selection state are still
-			// correct -- only the map fill polygon and point-in-region monitor
-			// filtering are affected, and only for this one region.
-		}
+		const inFlight = this.#boundaryFetchesInFlight.get(regionId);
+		if (inFlight) return inFlight;
+
+		const fetchPromise = (async () => {
+			try {
+				const region = await getRegionDetails(regionId);
+				if (region.boundary) this.selectedRegionBoundaries.set(regionId, region.boundary);
+			} catch {
+				// Non-fatal: the region stays selected with its bbox-only boundary
+				// from the list response, so fitBounds/selection state are still
+				// correct -- only the map fill polygon and point-in-region monitor
+				// filtering are affected, and only for this one region. Removing
+				// the in-flight entry (below, via finally) lets a later call retry.
+			} finally {
+				this.#boundaryFetchesInFlight.delete(regionId);
+			}
+		})();
+
+		this.#boundaryFetchesInFlight.set(regionId, fetchPromise);
+		return fetchPromise;
 	}
 
 	// Snapshotted once per recompute, not read reactively inside the hot loop:
@@ -334,6 +357,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 	// remembering to await it, is what makes refreshMapAverages() below safe
 	// to call right after any of them.
 	async #ensureSelectedBoundaries(): Promise<void> {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, non-reactive scratch set
 		const ids = new Set(this.parentSelection);
 		for (const selection of this.childSelectionsByType.values()) {
 			for (const id of selection) ids.add(id);
