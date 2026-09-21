@@ -62,4 +62,41 @@ describe("MonitorsTabManager.selectedRegions", () => {
 		const selectedIds = monitorsTabManager.selectedRegions.map((region) => region.id).sort();
 		expect(selectedIds).toEqual(["city-c", "parent-a", "zip-e"]);
 	});
+
+	// RegionList (what populates parentRegions/childRegionsByType) omits
+	// boundary.geometry to keep large `within=` narrowing fast - full geometry
+	// is fetched lazily per-region via getRegionDetails() once selected, and
+	// cached in selectedRegionBoundaries. selectedRegions must overlay that
+	// cached boundary onto the otherwise-geometry-less list result.
+	it("overlays a cached full boundary onto a selected region that lacks one", () => {
+		const bboxOnlyRegion = makeRegion("parent-a");
+		monitorsTabManager.parentRegions = [bboxOnlyRegion];
+		monitorsTabManager.parentSelection = new Set([bboxOnlyRegion.id]);
+		monitorsTabManager.childRegionsByType.clear();
+		monitorsTabManager.childSelectionsByType.clear();
+
+		const fullBoundary = {
+			id: "boundary-a",
+			version: "2020",
+			geometry: { type: "MultiPolygon", coordinates: [] },
+			bbox: [0, 0, 1, 1]
+		} as RegionData["boundary"];
+		monitorsTabManager.selectedRegionBoundaries.set(bboxOnlyRegion.id, fullBoundary!);
+
+		const [region] = monitorsTabManager.selectedRegions;
+		expect(region.boundary).toEqual(fullBoundary);
+	});
+
+	it("falls back to the list-provided boundary before the cache is populated", () => {
+		monitorsTabManager.selectedRegionBoundaries.clear();
+
+		const bboxOnlyRegion = makeRegion("parent-a");
+		monitorsTabManager.parentRegions = [bboxOnlyRegion];
+		monitorsTabManager.parentSelection = new Set([bboxOnlyRegion.id]);
+		monitorsTabManager.childRegionsByType.clear();
+		monitorsTabManager.childSelectionsByType.clear();
+
+		const [region] = monitorsTabManager.selectedRegions;
+		expect(region.boundary).toBe(bboxOnlyRegion.boundary);
+	});
 });

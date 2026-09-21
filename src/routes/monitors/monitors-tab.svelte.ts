@@ -2,6 +2,7 @@ import {
 	getMonitorsList,
 	getMonitorSummariesBulkMonthly,
 	getMonitorsMeta,
+	getRegionDetails,
 	getRegionsList,
 	getRegionsMeta,
 	getRegionSummariesBulkDaily,
@@ -9,6 +10,7 @@ import {
 	type MonitorData,
 	type MonitorLatestType,
 	type MonitorsMeta,
+	type RegionBoundary,
 	type RegionData,
 	type RegionsMeta,
 	type RegionType,
@@ -69,6 +71,17 @@ class MonitorsTabManager implements MonitorsDataSource {
 	childRegionsByType: SvelteMap<RegionType, Array<RegionData>> = $state(new SvelteMap());
 	childSelectionsByType: SvelteMap<RegionType, Set<string>> = $state(new SvelteMap());
 
+	// RegionList (what populates parentRegions/childRegionsByType) omits
+	// `boundary.geometry` -- serializing every candidate's full polygon is
+	// what made narrowing to a large `within=` selection take ~1.7s; `bbox`
+	// alone covers the picker/fitBounds use cases those lists exist for.
+	// Full geometry (needed for the map fill layer and point-in-region
+	// monitor filtering) is fetched lazily per region only once it's
+	// actually selected, and kept here for the rest of the session -- these
+	// are static boundaries a user selects a handful of at a time, not worth
+	// evicting.
+	selectedRegionBoundaries: SvelteMap<string, RegionBoundary> = $state(new SvelteMap());
+
 	lastError: string | null = $state(null);
 
 	latest: XMap<string, MonitorLatestType<SupportedPollutant>> | null = $state(null);
@@ -96,12 +109,23 @@ class MonitorsTabManager implements MonitorsDataSource {
 	// types, flattened into one list — this is what every map/calendar/fill/
 	// marker computation reads from, replacing the old single-active-type
 	// selectedRegionIds/activeRegions pair.
+	//
+	// parentRegions/childRegionsByType come from RegionList, which omits
+	// `boundary.geometry` (see selectedRegionBoundaries above) — withBoundary()
+	// overlays the lazily-fetched full boundary once it's available, and
+	// falls back to the list-provided (bbox-only) boundary until then, so
+	// fitBounds still has something to work with immediately.
 	selectedRegions: Array<RegionData> = $derived.by(() => {
+		const withBoundary = (region: RegionData): RegionData => {
+			const boundary = this.selectedRegionBoundaries.get(region.id);
+			return boundary ? { ...region, boundary } : region;
+		};
+
 		const result: Array<RegionData> = [];
 
 		if (this.parentRegions) {
 			for (const region of this.parentRegions) {
-				if (this.parentSelection.has(region.id)) result.push(region);
+				if (this.parentSelection.has(region.id)) result.push(withBoundary(region));
 			}
 		}
 
@@ -111,12 +135,30 @@ class MonitorsTabManager implements MonitorsDataSource {
 			if (!regions || !selection || selection.size === 0) continue;
 
 			for (const region of regions) {
-				if (selection.has(region.id)) result.push(region);
+				if (selection.has(region.id)) result.push(withBoundary(region));
 			}
 		}
 
 		return result;
 	});
+
+	// Fetches and caches a region's full boundary (including geometry) the
+	// first time it's selected — see selectedRegionBoundaries above for why
+	// this is needed. Safe to call repeatedly for the same id; only the
+	// first call for a given id does any work.
+	async #ensureBoundary(regionId: string): Promise<void> {
+		if (this.selectedRegionBoundaries.has(regionId)) return;
+
+		try {
+			const region = await getRegionDetails(regionId);
+			if (region.boundary) this.selectedRegionBoundaries.set(regionId, region.boundary);
+		} catch {
+			// Non-fatal: the region stays selected with its bbox-only boundary
+			// from the list response, so fitBounds/selection state are still
+			// correct -- only the map fill polygon and point-in-region monitor
+			// filtering are affected, and only for this one region.
+		}
+	}
 
 	// Snapshotted once per recompute, not read reactively inside the hot loop:
 	// monitorInRegions() runs @turf/boolean-point-in-polygon, which does exhaustive
@@ -171,6 +213,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 		// Default: all counties selected, matching today's "All Counties" default.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- reassigned wholesale, see field comment
 		this.parentSelection = new Set(this.parentRegions.map((r) => r.id));
+		for (const region of this.parentRegions) void this.#ensureBoundary(region.id);
 
 		// Deliberately does NOT await refreshChildren() here: MonitorsTab.svelte's
 		// onMount already calls it explicitly, right after setting dateRange/
@@ -264,6 +307,7 @@ class MonitorsTabManager implements MonitorsDataSource {
 			next.delete(regionId);
 		} else {
 			next.add(regionId);
+			void this.#ensureBoundary(regionId);
 		}
 		this.parentSelection = next;
 	}
@@ -277,13 +321,38 @@ class MonitorsTabManager implements MonitorsDataSource {
 			next.delete(regionId);
 		} else {
 			next.add(regionId);
+			void this.#ensureBoundary(regionId);
 		}
 		this.childSelectionsByType.set(type, next);
+	}
+
+	// Ensures every currently selected region (parent + every child type) has
+	// its full boundary cached, regardless of how the selection got to its
+	// current state (toggle, a bookmarked URL restoring parentSelection
+	// directly, pruning, setParentType's reset+reseed, etc.) -- centralizing
+	// this here, rather than depending on every selection-mutation call site
+	// remembering to await it, is what makes refreshMapAverages() below safe
+	// to call right after any of them.
+	async #ensureSelectedBoundaries(): Promise<void> {
+		const ids = new Set(this.parentSelection);
+		for (const selection of this.childSelectionsByType.values()) {
+			for (const id of selection) ids.add(id);
+		}
+		await Promise.all([...ids].map((id) => this.#ensureBoundary(id)));
 	}
 
 	async refreshMapAverages(): Promise<void> {
 		const token = ++this.#mapAveragesFetchToken;
 		if (!this.pollutant || !this.dateRange.start || !this.dateRange.end) return;
+
+		// visibleMonitors depends on selectedRegions having full boundary
+		// geometry (see selectedRegionBoundaries) -- without this, a region
+		// selected moments ago (still mid-fetch) would look empty here, this
+		// function would cache `this.latest` as empty, and nothing would ever
+		// re-trigger it once the boundary actually loads (this function is
+		// call-and-forget, not reactive to visibleMonitors changing later).
+		await this.#ensureSelectedBoundaries();
+		if (token !== this.#mapAveragesFetchToken) return;
 
 		const monitors = this.visibleMonitors;
 		if (monitors.length === 0) {
