@@ -49,7 +49,7 @@
 	"dependencies": {
 		"@lucide/svelte": "^1.46.0",
 		"@maptiler/sdk": "^4.1.0",
-		"@sjvair/monitor-map": "^3.6.2",
+		"@sjvair/monitor-map": "^3.6.3",
 		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@^4.5.0",
 		"@tstk/builtin-extensions": "npm:@jsr/tstk__builtin-extensions@^1.0.8",
 		"@tstk/utils": "npm:@jsr/tstk__utils@^1.1.2",
