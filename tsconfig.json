@@ -17,7 +17,13 @@
 		"lib": ["esnext", "dom", "dom.iterable"],
 		"paths": {
 			"$lib": ["./src/lib"],
-			"$lib/*": ["./src/lib/*"]
+			"$lib/*": ["./src/lib/*"],
+			// TEMPORARY — see the matching comment in vite.config.ts. Remove once
+			// sdk-js v4.5.0 is published and @sjvair/sdk is a real published dep.
+			"@sjvair/sdk": ["../sdk-js/mod.ts"],
+			"$http": ["../sdk-js/lib/http/mod.ts"],
+			"$datetime": ["../sdk-js/lib/datetime/mod.ts"],
+			"zod": ["./node_modules/zod"]
 		}
 	},
 	"include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts"],

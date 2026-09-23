@@ -44,14 +44,6 @@ export function decodePollutant(
 	return value === "pm25" || value === "o3" ? value : null;
 }
 
-export function encodeCounty(regionId: string): string {
-	return regionId;
-}
-
-export function decodeCounty(value: string | number | boolean | null | undefined): string | null {
-	return typeof value === "string" && value.length > 0 ? value : null;
-}
-
 export function encodeYear(year: number): string {
 	return String(year);
 }
@@ -76,4 +68,25 @@ export function decodeMonth(value: string | number | boolean | null | undefined)
 	if (typeof value !== "string" && typeof value !== "number") return null;
 	const month = Number(value);
 	return Number.isInteger(month) && month >= 1 && month <= 12 ? month : null;
+}
+
+export function encodeRegionType(regionType: string): string {
+	return regionType;
+}
+
+export function decodeRegionType(
+	value: string | number | boolean | null | undefined
+): string | null {
+	return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+export function encodeRegionSelection(ids: Set<string> | Array<string>): string {
+	return Array.from(ids).join(",");
+}
+
+export function decodeRegionSelection(
+	value: string | number | boolean | null | undefined
+): Set<string> {
+	if (typeof value !== "string" || value.length === 0) return new Set();
+	return new Set(value.split(",").filter(Boolean));
 }
