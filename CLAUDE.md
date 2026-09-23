@@ -67,6 +67,9 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
   `localStorage`, `Notification`, file-save APIs, etc. directly from components or
   managers — go through the platform adapter layer so a Tauri build can swap them.
 - Never enable cross-origin isolation (COOP/COEP) app-wide.
+- **Metadata is the source of truth** (see `ARCHITECTURE.md` → "Metadata as source of
+  truth"). Never hardcode labels, units, breakpoints, colors, scales, or coverage — read
+  them from server `…/meta/` endpoints; if missing, add them server-side.
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
   "Authentication"): session cookie when embedded on sjvair.com's origin; `Token`
   header when standalone on another origin or under Tauri.

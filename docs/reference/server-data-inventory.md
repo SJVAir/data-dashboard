@@ -96,3 +96,10 @@ labels, smoke density values, or pesticide category/IARC choices.
   - `NO_VALUE_BORDER_COLOR`.
 - **sdk-js docs:** `api-urls.md` lists stale `/hms-smoke/` paths and omits `regions/meta/`
   and bulk region summaries.
+
+## Confirmed issue: PM2.5 breakpoints (2026-09-23)
+
+`camp/apps/entries/levels.py` `PM25` = GOOD 0.0, MODERATE 9.1, USG 35.5, UNHEALTHY 55.5,
+**VERY_UNHEALTHY 150.5, HAZARDOUS 250.5**. The first boundaries follow EPA's 2024 revision
+but the top two are pre-2024 values (2024: 125.5 / 225.5). The guideline templates'
+55.5–125.4 range is the correct one. Tracked as an urgent standalone fix in `TODO.md`.

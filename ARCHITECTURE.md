@@ -431,6 +431,51 @@ schemaVersion`) + endpoints: short links, cross-device access (subsumes server-s
 - **Server share → live link.** Recipients see the owner's current version read-only,
   with **"Make a copy"** to edit their own. Fits teacher → class and SJVAir → public.
 
+## Metadata as source of truth
+
+Decided 2026-09-23 (IDEA.md Open Question #7). Audit basis:
+`docs/reference/server-data-inventory.md`.
+
+**Rule:** anything describing data — labels, units, level breakpoints, colors, scales,
+resolutions, coverage, attribution — comes from server metadata endpoints. Never
+hardcode it in this app, `monitor-map`, or `sdk-js`. When a value is missing, add it to
+server metadata rather than hardcoding "for now".
+
+**Structure: per-domain meta + a catalog index.**
+
+- Each domain owns a `…/meta/` endpoint (existing: `monitors/meta/`, `regions/meta/`;
+  new: `hms/meta/`, `pesticides/meta/`, `calheatscore/meta/`, `forecasts/meta/`,
+  `ces/meta/`, `ceidars/meta/`, `tempo/meta/` as needed).
+- A top-level **`meta/datasets/`** catalog lists every dataset and links to its domain
+  meta.
+- **Coverage is separate** (it changes with the data); everything else is effectively
+  static and long-cacheable.
+
+**Gaps, in priority order:**
+
+1. **Dataset catalog** — label, description, geography type, available resolutions,
+   units, source attribution/license. Needed by the Widget Creation picker,
+   `AnalysisSpec` input filters, export manifests.
+2. **Coverage/availability** — first/last data date per dataset and per
+   monitor/region × entry type; which summary resolutions are complete (monthly+
+   rollups exist only after the period ends).
+3. **Non-pollutant scales** — smoke density, fire FRP tiers, CalHeatScore, AQI 0–500,
+   temperature thresholds, forecast categories/burn status (labels + colors). Currently
+   hardcoded in `monitor-map` and server Sass.
+4. **Alert metadata** — alertable entry types per monitor type, alert levels,
+   evaluation windows (today only in server `ENTRY_CONFIG`).
+5. **Region hierarchy** — nesting between region types, counts, which regions have
+   summaries.
+6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
+7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
+
+**Cleanup to do alongside** (removing hardcoded duplicates once metadata covers them):
+server breakpoints defined twice (`levels.py` + entry classes), legacy
+`Subscription.LEVELS`, Sass AQ colors, `generate_group_map.py`; `monitor-map`'s
+`colors.ts`, legend gradient, `150.5` fallback, hardcoded "µg/m³", smoke/fire colors;
+this repo's `"pm25" | "o3"` restriction and `NO_VALUE_BORDER_COLOR`; stale `sdk-js`
+`api-urls.md`.
+
 ## Embedding (production build)
 
 Like `monitor-map`'s `MapShell`, this app's production build is intended to be
