@@ -1,121 +1,182 @@
-# SJVAir Data Dashboard
+# SJVAir Data Dashboard — Planning Brief
 
-This document is intended to be consumed. It is intended to be used to modify/rebuild our other documents such as CLAUDE.md, ARCHITECTURE.md, ROADMAP.md, and TODO.md, and any other documents which will be used as reference material during the building of this project. All sentiments in this document should be noted in one of our other documents (whichever one makes sense depending on the context)
+## Purpose of This Document
 
-## Goal
+This document is intended to be consumed, not just read. Use it to modify or rebuild our other reference documents — CLAUDE.md, ARCHITECTURE.md, ROADMAP.md, TODO.md, and any others used during the build — as well as anything else useful for this project. Every sentiment here should end up reflected in whichever of those documents it fits best.
 
-I would like to make this a more interactive, and personal dashboard, as well as a data analytics toolbox for all of the public data we in our server. I'll give you as much information as I can think of, but this is still a developing idea, and will be a rather large project. Please look for gaps in my plans/ideas and interview me to fill those gaps in. I want this to be intuitive for basic users, and feature rich for power users. Since we have both historical and live data on the server, I see this as something that could be used to just monitor data to day things, explore trends local to the region(s) they are viewing, or even monitor live data for alerts. There are 3 targeted audiences for this: everyday community members, schools, and research scholars.
+This is a developing idea for a large project. I want you to look for gaps in my plans, and to interview me to fill those gaps — especially the items listed under **Open Questions** below. Treat that section as the starting point for our brainstorming session, not an afterthought.
 
-At the moment, I am envisioning 3 views (this can be changed if it makes sense for us to do so), the main dashboard, the widget builder, and analytics toolbox.
+### How to Use This Document
 
-I also intend on turning this into a desktop application by using [Tauri](https://github.com/tauri-apps/tauri). We don't have to start this right now, but I would like to keep that in mind and build for it considering it will offer extended capabilities (e.g. larger downloads, offline first, local data storage, tray support, etc.). Investigate the Tauri framework and think about whether or not it makes sense to start building this now. Since Tauri just wraps our vite output I think it might be better to just do it all at once and we can think of the web app as a side effect of building this desktop app. But please investigate this and discus your findings with me. As of this moment writing though, I am leaning towards building it all at once.
+Start with the **Open Questions** section and go through it in the order listed. Discuss each item with me and ask follow-up questions where needed — don't just assume an answer and move on. Explore the sibling projects as needed to inform the discussion, especially for the map SDK and context menu questions. Don't write any code or scaffold any files yet. As we resolve each question, update CLAUDE.md, ARCHITECTURE.md, ROADMAP.md, TODO.md, and any other relevant reference documents accordingly before moving on to the next question, rather than saving all the updates for the end.
 
-## Context
+---
 
-### Sibling Projects
+## Vision / Goal
 
-This project will be built utilizing other existing projects, and interfacing with the SJVAir server. These projects were built with a specific intention, but may need to be updated to work with this project. We must make sure that any modifications we make to them will not break their other use cases. Specifically for the map sdk, I expect we will have to make it more modular and configurable. I also expect us to have to make changes to all of these projects at one point or another. Just make sure you have an approved plan before modifying them. Explore them freely to gather better context when planning new features for this project, as we will often utilize all of these.
+I want to build a more interactive, personal dashboard and a data analytics toolbox for all the public data on our server. Since we have both historical and live data, this should support three kinds of use: monitoring day-to-day conditions, exploring trends local to a region, and staying on top of live data for alerts — both self-monitoring (the dashboard surfaces live data clearly enough that a user can visually catch concerning values as they arrive) and automated alerting (the system proactively notifies the user when values cross a threshold).
 
-| Project Reference Name                                        | Project Purpose                                                                                                                                                                                                                                                                       | Project directory              |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| server                                                        | The SJVAir server which houses all of our data and user accounts.                                                                                                                                                                                                                     | ~/workspace/sjvair/sjvair.com  |
-| sdk                                                           | The TypeScript/JavaScript client sdk for interfacing with the server api                                                                                                                                                                                                              | ~/workspace/sjvair/sdk-js      |
-| map sdk (sometimes referred to by it's old name: monitor-map) | The primary map toolkit we will use to build maps in this project. It is also used to build the monitor-map embeded in the server (referenced above), and the map utilized in the SJVAir mobile app. We must keep this in mind when making any modifications we make to it's codebase | ~/workspace/sjvair/monitor-map |
+Three target audiences: **everyday community members**, **schools**, and **research scholars**. It should be intuitive for basic users and feature-rich for power users.
+
+At the moment I'm envisioning three views — **Dashboard**, **Widget Creation**, and **Analysis** — detailed below. This can change if it makes sense to.
+
+---
+
+## Decided
 
 ### Stack
 
-The stack is already pretty well defined for this project. There is no additional information to add for the direction change. We are still using the same tools which we have already picked out. We might even add more as needed.
+The stack is already well-defined and isn't changing as part of this effort. Reference the existing stack decisions in ARCHITECTURE.md (or wherever they currently live) rather than treating this document as silent on the topic. We may add tools as needed, but nothing is being ripped out.
 
-### Theme
+### Theme & Styling
 
-We have yet to define a specific theme for the SJVAir ecosystem. Colors and style guides may be derived from the pages and templates in the server. Keep in mind that the server uses Bulma for a css framework and pre-made components, and we will never use the Bulma ecosystem. Make sure you always use tailwind css and shadcn-svelte for pre-built components in this project.
+- No specific SJVAir ecosystem theme exists yet. Colors and style direction may be derived from the pages/templates already in the server.
+- The server uses Bulma. **We will never use Bulma** in this project.
+- Always use **Tailwind CSS** and **shadcn-svelte** for pre-built components.
 
-### Style
+### Style Direction
 
-Elements and components in this project should be built and styled according to modern best practices. Animations for transitions and effects are encouraged. I want it to be clean (not messy), but not pain, boring, or corporate feeling either. Things should be laid out in an intuitive way using common patterns which users should already be accustomed to. We should also strive to have a responsive design. While I don't expect many people to be utilizing their dashboard on devices as small as their phones, I still want to it to be usable.
+- Modern best practices for components and layout.
+- Animations for transitions/effects are encouraged.
+- Tone: clean, not messy — but not plain, boring, or corporate either.
+- Layouts should use patterns users are already accustomed to.
+- Responsive design is required. Phone-sized usage isn't the primary target, but it should still work.
 
-### Metadata
+### Charting
 
-We have some metadata endpoints which contain extra information about the types of monitors and what data they offer, as well as the pollutant bucket ranges for specific pollutant types (AQI level type buckets). We should reference the metadata as often as possible, as it makes it easy to make some updates across projects simply by updating the metadata on the server. I would like to add more metadata endpoints, and extend existing ones as needed to make things function similarly and act on a single source of truth rather than hard coding values in each project individually and having to keep those in sync.
+Use [uPlot](https://github.com/leeoniya/uplot) for all charts/graphs. Nearly all our data is time series, so this should be a fairly consistent pattern to configure.
+
+### Alerts
+
+The server already has an alert/notification system. We can extend it as needed to support alerting from this dashboard, rather than building a separate system from scratch.
+
+### Metadata as Source of Truth
+
+We have metadata endpoints describing monitor types, what data they offer, and pollutant bucket ranges (AQI level buckets). Reference metadata as often as possible rather than hardcoding values — the goal is a single source of truth that updates propagate from, instead of keeping values in sync by hand across projects. We expect to add new metadata endpoints and extend existing ones as this project surfaces gaps.
+
+### Sibling Projects
+
+This project will be built using, and interfacing with, other existing projects. They were each built with a specific original intent and may need updates to work with this new project — but any changes must not break their existing use cases. Explore them freely for context when planning new features; we'll likely touch all of them at some point. **Get an approved plan before modifying any of them.**
+
+| Project Reference Name           | Project Purpose                                                                                                                                                                                                 | Project Directory                |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| server                           | The SJVAir server which houses all of our data and user accounts.                                                                                                                                               | `~/workspace/sjvair/sjvair.com`  |
+| sdk                              | The TypeScript/JavaScript client SDK for interfacing with the server API.                                                                                                                                       | `~/workspace/sjvair/sdk-js`      |
+| map sdk (formerly "monitor-map") | The primary map toolkit for building maps in this project. Also used to build the monitor-map embedded in the server and the map in the SJVAir mobile app. Keep both other consumers in mind when modifying it. | `~/workspace/sjvair/monitor-map` |
+
+For the map SDK specifically, I expect we'll need to make it more modular and configurable — see the Map widget section and Open Questions below.
+
+---
+
+## Open Questions (interview me on these)
+
+These are the gaps I'm most aware of. Please don't just acknowledge them — actually dig in, ask me follow-up questions, and help me reach decisions before we build against them. I'd like to tackle these somewhat in priority order (roughly as listed), since the Tauri decision in particular affects a lot of downstream architecture choices — but tell me if you think a different order makes more sense.
+
+1. **Tauri now or later?** I intend to eventually turn this into a desktop app using [Tauri](https://github.com/tauri-apps/tauri) — larger downloads, offline-first, local data storage, tray support, etc. We don't have to start immediately, but I want to build with it in mind. Since Tauri just wraps our Vite output, my current lean is to build for Tauri from day one and treat the web app as a side effect of the desktop build — but I want you to actually investigate the framework and push back on that lean if it doesn't hold up, rather than just going along with it.
+
+2. **Map widget partial dataset selection.** I'm not sure how a user would select a _partial_ dataset from a map widget for analysis — it might have to be all-or-nothing. I'm open to ideas for how partial selection from an existing map widget could work intuitively.
+
+3. **Map SDK modularity / plugin system.** I expect we'll need to make the map SDK more modular to support this dashboard's Map widget type, possibly with a basic plugin system to make configuration easier. Since the same map is embedded in the server and used in the mobile app, it also needs structures in place for displaying all the data types we have — not just what this dashboard needs today.
+
+4. **Dashboard layout mechanics.** Widgets should behave like a desktop windowing system: drag-and-drop repositioning, resize via edge/corner hover, "fullscreen" (fills the dashboard area, not the whole screen), and minimize to a horizontally-scrolling taskbar at the bottom. I want widgets to auto-align — possibly via CSS Grid or Flexbox. Is that compatible with free-form drag-and-drop and resizing, or does it push us toward a different layout approach? Also: as more widgets are added and take up more space, should the dashboard area scroll (e.g. horizontally) rather than shrink everything to fit? I lean toward horizontal scrolling but want your take.
+
+5. **Dynamic context menu architecture.** I want a context menu whose options vary by what was clicked, with nesting where organizationally useful, and an easy system for things to register their own options (e.g., widgets define their own menu entries, which get merged with global options and dashboard-level options when relevant). There's a rough prior example at `~/workspace/sjvair/monitor-inventory-tracker/src/lib/components/ContextMenu.svelte` — please review it, but don't treat it as a constraint. I'd like you to think about whether there's a better architecture entirely, and only borrow from the example if it earns its place.
+
+6. **Analysis view — the biggest open area.** This needs the most brainstorming of anything in this document:
+   - What are 5–10 good pre-defined analyses to ship with, given the data we actually have (air quality, fire, smoke, weather, pesticide use by chemical/region/commodity, and possibly health data)?
+   - What should user-defined analysis creation look like, and how would it be saved/shared?
+   - How should staged data work — i.e., data marked for analysis from various dashboard widgets needs some kind of shared state/pool that the Analysis view reads from. What's a good architecture for that?
+   - Should we integrate JupyterLite in-browser and JupyterLabs for the desktop app? If so, how does that relate to the staged-data pool and the pre-defined analyses above — are notebooks a separate power-user path, or do they share infrastructure with the rest of the Analysis view? We should also investigate whether their licensing permits this kind of integration before committing to the approach.
+   - See "Prior Brainstorm" below for early thinking on the generic-vs-goal-directed analysis question — investigate this further and tell me what you land on.
+
+7. **Metadata gaps.** What metadata endpoints do we already have, and what's missing given everything described in this document? I'd like an audit before we start adding new ones ad hoc.
+
+8. **More widget ideas.** The widget list above (Map, Calendar, Charts/Graphs) is non-exhaustive. I'd like to brainstorm additional widget types for displaying and visualizing data beyond what's already listed.
+
+---
 
 ## Features
 
 ### Saving and Sharing Dashboard Configurations
 
-Dashboard configurations should be savable and shareable. This can just be a JSON object with all of the widget types, their locations, dimensions, and each individual widget's configuration. Dashboards should be selectable, at least by a drop down, but ideally I would like to have a nice visual picker to select dashboards. Maybe a drop down will be most intuitive though.
+Dashboard configurations should be savable and shareable — likely a JSON object describing widget types, positions, dimensions, and each widget's individual configuration. Dashboards should be selectable, at minimum via dropdown; ideally via a nicer visual picker, but a dropdown may end up being the most intuitive option.
 
-### Dynamic Context Menu (right click menu)
+### Dynamic Context Menu (Right-Click Menu)
 
-Options in the context menu will vary depending on what was clicked. Options/menus can be nested where it makes organizational sense to do so. This should be an easy system to integrate with. I'm thinking we can have global options (which are always present), and other things can define menu options and those will be consolidated on click. e.g. widgets have a pre defined set of context menu options, and the context menu pulls those in when it is opened on the specific widget. Say if a user right clicks on blank space in the dashboard, maybe a couple options show up like "Add widget" and "Save Dashboard" show up, and when a user right clicks a map widget, we have those previous options pop up, because the dashboard is still relevant context (widget is in dashboard) as well as options defined in the map widget definition (something like "Refresh Map", or "Analyze this data").
-
-An example of something similar to this can be found here:
-~/workspace/sjvair/monitor-inventory-tracker/src/lib/components/ContextMenu.svelte
-
-However, I expect this can be greatly optimized and re-architected to work better or more intuitively. Please review it and make any changes to improve it's implementation. We don't need to implement any of that example if you can think of a better way of implementing the Dynamic Context Menu described above.
+See Open Question #5 for the architecture question. Functionally: options vary based on what was clicked, and can nest where it makes sense. There should be global options (always present) and per-element options that get pulled in and consolidated on click — e.g., right-clicking blank dashboard space might show "Add widget" and "Save Dashboard"; right-clicking a map widget shows those same dashboard-level options _plus_ widget-specific ones like "Refresh Map" or "Analyze this data."
 
 ### Widgets
 
-This list is non-exhaustive, and I would like to brainstorm other widget ideas for displaying and visualizing data.
+This list is non-exhaustive — I'd like to brainstorm additional widget ideas for displaying and visualizing data.
 
-All widgets should offer context menu options such as "Mark for analysis" to add the data to the current pool of data up for analysis, and "Analyze" which will both add the data to the current pool of data up for analysis as well as navigate the user to the analysis tab.
+**Shared widget behavior:**
 
-Widgets should have a title bar which defaults to the name of the datasets included and the date range of the data, but also may be renamed to a custom value by the user.
+- All widgets offer context menu options including "Mark for analysis" (adds the widget's data to the current analysis pool) and "Analyze" (adds to the pool _and_ navigates to the Analysis view).
+- Widgets have a title bar defaulting to the dataset name(s) and date range, but can be renamed to a custom value by the user.
 
-#### Map
+**Map**
+Built on our existing map SDK (see Open Questions #2 and #3 for the architectural questions this raises).
 
-I would like to utilize the map sdk we already have for creating map widgets. I'm sure we will have to make some architectural changes to the map sdk because of this, and that's fine. If it makes sense, maybe we can make it more modular and even add in a basic "plugin" system if it makes configuring things easier. However, I would like the map to have structures in place for displaying all of the types of data we have in the server anyways, since we will most likely be displaying them on the embedded version of the map that is used on the server and mobile app. I'm not too sure how they might select a partial dataset from the map data, so it might be all or nothing for analysing datasets that come from map widgets. I am open to exploring ideas on how they might select partial datasets from existing map widgets if you can think of an intuitive way of achieving this.
+**Calendar**
+Two variants to start:
 
-#### Calendar
+- A day-colored summary calendar (similar to what we already have), where each day's color reflects that day's average.
+- A GitHub-contribution-graph-style view, but with an adjustable range (as short as 1 week, unlike GitHub's fixed year-to-date).
 
-I would like to start with two different calendar options. One is like what we already have, where each day is colored with the average (summary) of that day. The other, I want to be something similar to the contribution graph on Github profiles, but with an adjustable range (github's is always year to date, I want to offer smaller ranges as well, as low as 1 week). A user should be able to highlight a range of days from these, and if the user right clicks on the with a selection made we can have additional context menu options like "Mark selected data for analysis" and "Analyse selected data" in addition to the default whole dataset marking or analyzing.
+Users should be able to highlight a range of days on either calendar. With a range selected, right-clicking should offer additional context menu options — "Mark selected data for analysis" and "Analyze selected data" — alongside the default whole-dataset options.
 
-#### Charts/Graphs
+**Charts/Graphs**
+Built with uPlot (see Decided section). Since our data is time series, this should be relatively straightforward to configure per dataset.
 
-We can utilize [uPlot](https://github.com/leeoniya/uplot) to build any charts or graphs. I believe all of our data is time series, so this one should be pretty straight forward for configuring.
+---
 
 ## Views
 
-### Dashboard
+### Dashboard (Primary View)
 
-This will be the primary view. This is the area with all of the widgets. Widgets can be reorganized via an intuitive drag and drop system, and resized via hovering over an edge or corner similar to how native desktop windows operate. I'm thinking this may also be a scrollable area depending on how
+The main view containing all widgets. See Open Question #4 for the open layout-mechanics questions (grid/flexbox vs. free-form, scrolling behavior).
 
-Users should have some way to also add new widgets to the dashboard. We will have a predefined list of widgets (e.g. map, calendar, various types of charts/graphs, plus any others that we can think of together), and this will take them to another tab where they can select which types of data that widget will display (which will be something similar to what we have already implemented)
+Settled behavior:
 
-I think we can have a horizontal navigation bar on top, and the dashboard below that. I want the dashboard to behave similar to a desktop windowing system. Widgets can be moved drag and drop style, resized, "fullscreened" (in which the widget takes up the whole dashboard rather than the actual whole screen), and minimized to a taskbar at the bottom. Should this taskbar become overloaded, it can scroll horizontally to view the remaining. Widgets should auto align (maybe we can leverage css grid system or flexbox if one of those can work with the drag and drop system).
+- Horizontal navigation bar on top, dashboard area below.
+- Widgets: drag-and-drop repositioning, edge/corner-hover resizing, fullscreen (within the dashboard area), minimize to a bottom taskbar that scrolls horizontally when overloaded.
+- Users need a way to add new widgets — selecting from a predefined list (map, calendar, various charts, plus whatever else we come up with), which leads into the Widget Creation view to configure the data it displays.
 
 ### Widget Creation
 
-What we currently have in this project, I believe, could be used as the basis for the widget creation view. The tabs on the side can become accordions, each containing their respective options. For datasets which are pollutant based (e.g. o3, pm25, etc.) only one pollutant can be selected at at time. We should not allow mixing pollutant datasets inside the same widget. Since all of our data is time series, we can have the date selection above the accordians. Only one date selection may be used within a given widget. We should not allow users to select multiple date ranges for multiple datasets withing the same widget.
+Likely based on what we currently have in the current version of the data-dashboard project itself as a starting point, adapted as follows:
 
-I want to offer 3 different methods of date ranges: Set ranges (year, month, week, day), rolling ranges (year to date, month to date, week to date), and custom ranges (user selected). Only one of these methods should be visible at a time, but there should be a method to toggle between them (maybe a drop down if there is nothing more aesthetically pleasing).
-
-A live preview of the widget will be on the right side. The live preview should still be a drag and drop area, and the widget should still be resizable just as they are on the dashboard.
+- Existing side tabs become accordions, each containing their respective options.
+- For pollutant-based datasets (O3, PM2.5, etc.), only one pollutant may be selected per widget — no mixing pollutant datasets within the same widget.
+- Date selection sits above the accordions, and only one date range applies per widget (no multiple date ranges for multiple datasets within the same widget). This applies to dashboard display widgets specifically — a future need for comparing datasets with a time offset (e.g. lag effects) belongs to the Analysis view rather than this constraint; see the Analysis section below.
+- Three date range methods, only one visible at a time, with a way to toggle between them (dropdown, unless something more elegant fits):
+  - **Set ranges**: year, month, week, day
+  - **Rolling ranges**: year-to-date, month-to-date, week-to-date
+  - **Custom ranges**: user-selected
+- A live preview of the widget sits on the right — itself a drag-and-drop and resizable area, matching dashboard behavior.
 
 ### Analysis
 
-The analysis view is where all of the data analysis tools will live. Please investigate the data available in the server and include common analysis tools. I would like to have 5-10 pre defined analyses to run, but also allow users to define their own in some way. User defined analysis should also be savable and shareable.
+See Open Question #6 — this is the least settled view and needs the most brainstorming.
 
-I also think it would be cool to integrate JupyterLite in the browser and JupyterLabs for the desktop app. This is the area that will require the most brainstorming.
+What I know so far:
 
-I would like the analysis section to have some way of managing it's state, so data can be staged for analysis from various widgets on the dashboard.
+- Should include investigation of the data actually available on the server to inform which analyses make sense.
+- Target: 5–10 pre-defined analyses, plus a way for users to define, save, and share their own.
+- Needs some form of state management so data can be staged for analysis from various dashboard widgets.
+- Comparing datasets with a time offset (e.g. lag effects, per the prior brainstorm below) is expected to live here rather than as a dashboard widget capability — dashboard widgets are constrained to a single date range (see Widget Creation above).
+- Possible JupyterLite (browser) / JupyterLabs (desktop app) integration — unresolved, see Open Question #6.
 
-I will include a small brainstorming session from earlier for reference, as it will provide more info than I can at this point. The short brainstorming session from earlier resolved to:
+**Prior Brainstorm (reference only — not a settled decision):**
 
-Prompt: "I have a server with lots of data. It has historical air quality data, fire, smoke, weather, pesticide use (by chemical, region, and commodity), and I think some health data. Almost, if not all, is selectable by date. I want to offer analysis tools for users, but I don't know what is useful, or what I might need to include. Is it possible to let the user select any dataset sorted by date, and compare/contrast (look for trends and patterns) dynamically like that? Or does one need a specific goal in mind first?"
+> **Prompt:** "I have a server with lots of data. It has historical air quality data, fire, smoke, weather, pesticide use (by chemical, region, and commodity), and I think some health data. Almost, if not all, is selectable by date. I want to offer analysis tools for users, but I don't know what is useful, or what I might need to include. Is it possible to let the user select any dataset sorted by date, and compare/contrast (look for trends and patterns) dynamically like that? Or does one need a specific goal in mind first?"
+>
+> **Response:** Both approaches work, but they solve different problems — the suggested path was "build the generic tool, but seed it with specific starter analyses."
+>
+> A generic cross-dataset explorer (pick any datasets, auto-align by date, overlay/correlate) is good for exploration, but raises real problems regardless of approach: resolution mismatch (daily AQI vs. monthly pesticide reports vs. annual health stats), geographic mismatch (county vs. station vs. zip code crosswalks), lag effects (e.g. smoke exposure today possibly correlating with ER visits days later — needs a shiftable time axis), and spurious correlation (unrelated series can look related over the same period; correlation coefficients need confidence intervals and a "not causation" caveat).
+>
+> Goal-directed tools (e.g. "wildfire smoke days vs. respiratory ER visits by county") are easier to build well and validate, since the confounders and axes are already known.
+>
+> The suggestion: build the generic date-aligned comparison engine as the underlying capability (shared date index, resampling logic, overlay chart), but launch it paired with 5–10 curated starter comparisons based on known or plausible relationships in the data (fire→smoke→AQI→health; pesticide timing→health by region) — giving users a template for "useful" while keeping the engine flexible enough for their own dataset pairs later.
 
-Response: "Both approaches work, but they solve different problems — and the best answer is probably "build the generic tool, but seed it with specific starter analyses."
-
-**Generic cross-dataset explorer (no fixed goal)**
-Fully possible: let users pick any two (or more) datasets, auto-align by date, and overlay/correlate them. This is great for exploration and hypothesis generation. But you'll need to solve a few things regardless of which path you pick:
-
-- **Resolution mismatch** — daily AQI vs. monthly pesticide reports vs. annual health stats need aggregation/interpolation rules
-- **Geographic mismatch** — county vs. station vs. zip code; you'll need a crosswalk
-- **Lag effects** — smoke exposure today might correlate with ER visits 3–5 days later, not same-day; a good tool lets users shift the time axis
-- **Spurious correlation** — two unrelated series can look related over the same period; showing correlation coefficients without confidence intervals or a "this is not causation" caveat will mislead people
-
-**Goal-directed tools**
-Easier to build well, easier to validate, and much more useful for decisions. E.g., "wildfire smoke days vs. respiratory ER visits by county," or "pesticide application timing vs. specific health outcome in the same commodity region." You know what confounders matter and what the axes should be.
-
-**My actual suggestion:** build the generic date-aligned comparison engine as the underlying capability (it's not that hard — a shared date index, resampling logic, and an overlay chart), but don't launch it as an open-ended "pick anything" tool. Pair it with 5–10 curated starter comparisons based on known or plausible relationships in your data (fire→smoke→AQI→health; pesticide timing→health by region). That gives users a template for what "useful" looks like, while the underlying engine stays flexible enough that they can swap in their own dataset pairs once they get the idea."
-
-Keep in mind, that this was just a brief brainstorm, I only include it to give you more reference since I don't fully know where I am going with this. Please investigate this as well and let me know what you come up with.
+This was a brief, early brainstorm — please investigate further and tell me what you land on.
