@@ -46,7 +46,7 @@ Tauri-ready seams required **from day one**:
 - **No server runtime, no origin assumptions** (already true — plain Vite SPA). See
   "Authentication" below for the one origin-sensitive piece.
 - **Cross-origin isolation is page-scoped, not global.** Some candidate analysis
-  tooling (e.g. JupyterLite's SharedArrayBuffer file access) needs COOP/COEP headers,
+  tooling (e.g. JupyterLite's SharedArrayBuffer file access) benefits from COOP/COEP headers,
   which break cross-origin resources (map tiles, API) that don't opt in. Never enable
   isolation app-wide; if needed, confine it to a dedicated page/window (Tauri can set
   headers per window). See Open Question #6 in `IDEA.md`.
@@ -344,6 +344,92 @@ wrappers (CalEnviroScreen, CalHeatScore) — a sdk-js change needing its own app
 | 8   | Heat + AQ compound days: CalHeatScore and PM2.5/O₃ both elevated               | CalHeatScore + summaries     | Schools             | SDK+                          |
 | 9   | Pesticide use trends: lbs by chemical/commodity/region, category filters       | PUR region summaries         | Community, research | Ready (yearly only)           |
 | 10  | Low-cost sensor vs reference: scatter, bias, R² over time for collocated pairs | Collocation + entries        | Research / QA       | Ready                         |
+
+## Notebooks
+
+Decided 2026-09-23 (IDEA.md Open Question #6, Jupyter part). Research:
+`docs/reference/jupyterlite-kernels.md`. Licensing is not a blocker (JupyterLite/
+JupyterLab BSD-3, Pyodide MPL-2.0 used unmodified — ship license notices).
+
+Notebooks are a **separate power-user path that shares the data layer, not the engine**:
+Collections/descriptors are shared; the TypeScript engine and uPlot views are not.
+
+### Export to notebook (all languages)
+
+An "Export to notebook" action on a Collection or analysis downloads a `.zip` bundle:
+
+- `analysis.ipynb` (Python), `analysis-r.ipynb` (R), `analysis-ts.ipynb` (Deno /
+  TypeScript) — data-loading cell + the analysis steps written out where practical.
+  Generation priority: Python → R → Deno/TS.
+- Data as **Parquet + CSV**, and a `collection.json` manifest (descriptors, units, AQ
+  levels) so any kernel can load it and live data can be re-fetched.
+- A short README: open in JupyterLab, RStudio, Deno's Jupyter kernel, or Google Colab.
+
+This is **language-neutral**: loading needs no SJVAir-specific helper (a helper
+package is an optional convenience). Deno's built-in Jupyter kernel gives JS/TS users
+real TypeScript and can import `@sjvair/sdk` straight from JSR.
+
+A web page cannot launch a local JupyterLab; that true "Open locally" (write bundle to
+a folder, launch `jupyter lab` if installed) is a **Tauri** capability — see `DEFERRED.md`.
+
+### Embedded JupyterLite (Python only)
+
+So schools and community users can write code with **no install** (incl. Chromebooks):
+
+- **Kernel: Pyodide** (`jupyterlite-pyodide-kernel`) — real CPython 3.14 with pandas,
+  numpy, scipy, statsmodels, scikit-learn, matplotlib, pyarrow; seaborn/plotly bundled as
+  wheels. **Python only**; in-browser R and JavaScript are deferred (see `DEFERRED.md`).
+- **Fully bundled for offline**: self-hosted Pyodide, custom `pyodide-lock`, piplite
+  wheels, `disablePyPIFallback: true`. Kernel and Pyodide versions upgraded in lockstep.
+- **A separate static app** at its own path/subdomain, not inside dashboard pages
+  (tens of MB). It is the **only** place cross-origin isolation (COOP/COEP) may be
+  enabled, per "Platform strategy"; it also works without isolation (service-worker
+  file access).
+- **Opens the same export bundle** — "Open in browser notebook" loads the bundle's
+  notebook + data into JupyterLite, so there is one bundle format for both paths.
+- Known limits to document for users: no threads/multiprocessing, ~2–4 GB memory,
+  no installing unbundled packages offline, slower pure-Python code.
+- **Timing:** after Collections and the starter analyses exist.
+
+## Saving & sharing documents
+
+Decided 2026-09-23 (IDEA.md Open Question #6, save/share part).
+
+**Dashboards, Collections, and analyses are all "documents"** sharing one mechanism:
+
+```ts
+type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
+	kind: K;
+	schemaVersion: number;
+	id: string;
+	name: string;
+	body: DocumentBody<K>;
+};
+```
+
+- **Versioned from day one.** Every document carries `schemaVersion`; a pure, tested
+  migration chain upgrades old documents on load. Shared links live for years.
+- **References, not data.** Documents store query descriptors, never fetched data, so
+  they stay small and a recipient sees the same _query_ run against current data.
+
+**Storage, staged:**
+
+1. **Local + files (first).** Documents persist through the platform adapter
+   (IndexedDB on web, filesystem/SQLite under Tauri). Share by **Export/Import `.json`**,
+   or for small documents a **link with the document lz-string-compressed into the URL
+   fragment** (fragment → never sent to a server). If the encoded link exceeds a safe
+   length, the UI falls back to file export.
+2. **Server-backed (later; needs an approved sjvair.com plan).** A `SavedDocument`
+   model (`owner, kind, name, body, visibility: private | link | public,
+schemaVersion`) + endpoints: short links, cross-device access (subsumes server-synced
+   preferences), SJVAir-curated public templates. See `DEFERRED.md`.
+
+**Share semantics:**
+
+- **File / URL share → copy (fork on open).** Opening creates the recipient's own
+  independent document.
+- **Server share → live link.** Recipients see the owner's current version read-only,
+  with **"Make a copy"** to edit their own. Fits teacher → class and SJVAir → public.
 
 ## Embedding (production build)
 

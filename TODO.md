@@ -27,7 +27,7 @@ updating the docs after each one. No code yet.
       Snippets); DOM-ancestry resolution with payload enrichment for canvas widgets;
       specific-first merge; bits-ui `ContextMenu`; same actions power widget "⋯" menus
       and a future command palette. See `ARCHITECTURE.md` → "Actions & context menu".
-- [ ] **Q6 Analysis view** (in progress)
+- [x] **Q6 Analysis view**
   - [x] Staged data → named **Collections** of query descriptors, independent of
         dashboards (provenance link only); active + per-dashboard default targets.
   - [x] Engine → generic date-aligned core; starters and user analyses share one
@@ -37,8 +37,13 @@ updating the docs after each one. No code yet.
         deferred (see `DEFERRED.md`).
   - [x] Pre-defined analyses → **all 10** confirmed. See `ARCHITECTURE.md` →
         "Starter analyses".
-  - [ ] Save/share mechanism details
-  - [ ] JupyterLite / JupyterLab integration + licensing
+  - [x] Save/share → one versioned `SavedDocument` format for dashboards/Collections/
+        analyses; local + JSON file + URL-fragment sharing first (fork on open);
+        server-backed live links later. See `ARCHITECTURE.md` → "Saving & sharing".
+  - [x] Notebooks → "Export to notebook" bundles (Python, R, Deno/TS; Parquet + CSV +
+        `collection.json`) plus embedded **JupyterLite with Pyodide only**, bundled
+        offline, as a separate static app. Licensing OK. See `ARCHITECTURE.md` →
+        "Notebooks" and `docs/reference/jupyterlite-kernels.md`.
 - [ ] Q7 Metadata gaps audit
 - [ ] Q8 More widget ideas
 
@@ -65,6 +70,11 @@ Follow-ups created by decisions so far:
   functions with tests.
 - sdk-js: wrap `calenviroscreen/` and `calheatscore/` endpoints (needed by starter
   analyses #7 and #8) — needs an approved sdk-js plan.
+- `SavedDocument` types + migration chain; export/import and URL-fragment share.
+- Export-to-notebook bundle generator (Python first, then R, then Deno/TS).
+- JupyterLite (Pyodide-only) static app: offline build config, bundle loading. After
+  Collections + starter analyses.
+- Open: should an optional `sjvair` Python helper be its own published package?
 
 ## Start here (previous work — superseded by the planning session above)
 

@@ -15,14 +15,23 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").
   **Revisit when** there is a concrete desktop-only win, such as tray-based background
   alerting or large offline datasets for researchers. **Prerequisite:** a WebKitGTK spike
-  with a map widget to confirm Linux desktop is viable.
+  with a map widget to confirm Linux desktop is viable. The spike must also confirm JupyterLite
+  kernels can access files under Tauri-set COOP/COEP headers (service workers don't
+  register on `tauri://` on macOS — see `docs/reference/jupyterlite-kernels.md`).
+- **"Open locally" for notebooks (Tauri).** _Deferred 2026-09-23 (IDEA.md Q6)._ Write an
+  export bundle to a folder and launch the user's `jupyter lab` if installed. Not
+  possible from a web page. **Revisit when** the Tauri build starts.
 - **Embeddable production build.** _Deferred 2026-09-14 (v1 spec)._ Needs a `sv-router`
   escape hatch (`routerEscapeHatch`/`basePath`) and a non-URL fallback for view state.
   **Revisit when** the dashboard's core views exist. Keep state managers from hardcoding
   ownership of the top-level route in the meantime.
-- **Server-synced preferences.** _Deferred 2026-09-14 (v1 spec)._ Preferences are local
-  only. **Revisit when** saved dashboards and Collections need to follow a user across
-  devices. This probably arrives together with the save/share design.
+- **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23
+  (IDEA.md Q6)._ `SavedDocument` model + endpoints on sjvair.com with
+  private/link/public visibility, live read-only links with "Make a copy", curated public
+  templates. Subsumes **server-synced preferences** (deferred 2026-09-14, v1 spec). Local
+  storage with file/URL sharing ships first. **Revisit when** local documents exist and
+  users need cross-device access or teacher → class sharing; needs an approved
+  sjvair.com plan.
 - **Heavier WASM analysis engine (e.g. DuckDB-WASM).** _Deferred 2026-09-23 (IDEA.md Q6)._
   Plain TypeScript over typed arrays in a worker is enough for now. **Revisit when**
   researcher-scale datasets make the TypeScript engine too slow or memory-bound.
@@ -71,6 +80,15 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   are hardcoded in `url-state.ts`, `monitor-latest.ts`, and `MonitorsTab.svelte`. The
   dashboard direction should drive them from `monitors/meta/` (see IDEA.md Q7).
   **Revisit when** the Widget Creation dataset picker is built.
+
+- **In-browser R and JavaScript kernels in JupyterLite.** _Deferred 2026-09-23
+  (IDEA.md Q6)._ Embedded JupyterLite ships Python (Pyodide) only; R/JS/TS users use
+  export bundles in their local tools. xeus-r lacks `openair`/`sf`/CRAN; the webR
+  JupyterLite kernel is stale; xeus-javascript can't start offline and
+  `jupyterlite/javascript-kernel` is alpha. Full findings in
+  `docs/reference/jupyterlite-kernels.md`. **Revisit when** `openair`/`sf` reach
+  emscripten-forge or webR's kernel is revived (R), `jupyterlite/javascript-kernel`
+  ships a stable 0.4 (JS), or schools/community users ask for them.
 
 ## UI & UX
 
