@@ -48,9 +48,36 @@ renders the nav and `<Router />`). Each top-level tab is a route under `src/rout
   is a reusable, configurable map-layout primitive intended for exactly this kind of
   embedding — see its `CLAUDE.md` for the `routerEscapeHatch`/`basePath` props needed
   when embedding it inside an app with its own routing (like this one).
-- `@sjvair/sdk` (sibling repo `../sdk-js`) — the SJVAir API client. Currently covers
-  the `monitors` (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), and
-  `collocation_sites` domains.
+  A 4.0 clean break (per-map instances + plugin system, needed for multiple map
+  widgets) is planned — see `ARCHITECTURE.md` → "Map SDK".
+- `@sjvair/sdk` (sibling repo `../sdk-js`) — the SJVAir API client. Covers `monitors`
+  (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
+  `pesticides`, `regions`, and `account` (login, subscriptions, air alerts).
+- `../sjvair.com` — the Django server (data, user accounts, alert/notification system).
+- `../v3-mobile` — the current SJVAir mobile app (Capacitor); consumes `@sjvair/monitor-map`
+  and authenticates with `Token` headers. (`../mobile` is an unrelated project — exclude
+  it from all work.)
+
+**Get an approved plan before modifying any sibling project**, and never break its
+existing consumers (monitor-map is also used by sjvair.com and the mobile app).
+
+### Platform & auth rules
+
+- **Web-first, Tauri-ready** (see `ARCHITECTURE.md` → "Platform strategy"). Never call
+  `localStorage`, `Notification`, file-save APIs, etc. directly from components or
+  managers — go through the platform adapter layer so a Tauri build can swap them.
+- Never enable cross-origin isolation (COOP/COEP) app-wide.
+- **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
+  "Authentication"): session cookie when embedded on sjvair.com's origin; `Token`
+  header when standalone on another origin or under Tauri.
+
+## Deferred work — standing rule
+
+**`DEFERRED.md` is the single register of everything deferred or ruled out.** Whenever
+anything is deferred — in a brainstorm, spec, plan, code review, or implementation — add
+it to `DEFERRED.md` in the same change, with why and what triggers revisiting it. Never
+leave a deferral only in a spec/plan/TODO/commit message. Items leave `DEFERRED.md` only
+by being done or explicitly dropped by the user (recorded under "Dropped").
 
 ## Key Libraries
 

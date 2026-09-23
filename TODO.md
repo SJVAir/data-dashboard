@@ -2,7 +2,71 @@
 
 Last updated: 2026-09-16
 
-## Start here (next session)
+## Planning session in progress: IDEA.md (started 2026-09-23)
+
+`IDEA.md` describes a larger direction (Dashboard / Widget Creation / Analysis views,
+windowed widgets, alerts, Tauri). We're working through its **Open Questions** in order,
+updating the docs after each one. No code yet.
+
+- [x] **Q1 Tauri now or later?** → Web-first, Tauri-ready. See `ARCHITECTURE.md`
+      → "Platform strategy" and "Authentication".
+- [x] **Q2 Map widget partial dataset selection** → Stage query descriptors, not data;
+      one `SpatialSelection` model fed by feature picking (A), region picking (B), and
+      later drawn shapes (C, opt-in monitor-map plugin). No map time scrubbing. See
+      `ARCHITECTURE.md` → "Widget data selection".
+- [x] **Q3 Map SDK modularity / plugin system** → `@sjvair/monitor-map` 4.0 clean
+      break: per-map `MapContext` instead of singletons, factory plugins with data-source
+      interfaces, `MapShell` + lightweight `MapView`, injected config; migrate
+      sjvair.com and `v3-mobile` in the same effort. See `ARCHITECTURE.md` →
+      "Map SDK".
+- [x] **Q4 Dashboard layout mechanics** → Snapping grid (no overlap), pure layout
+      engine + CSS Grid rendering, fullscreen within dashboard area, minimize-to-taskbar
+      with compaction, vertical scrolling with cooperative map gestures, multiple
+      dashboards for crowding. See `ARCHITECTURE.md` → "Dashboard layout mechanics".
+- [x] **Q5 Dynamic context menu architecture** → Shared scoped action list (data, not
+      Snippets); DOM-ancestry resolution with payload enrichment for canvas widgets;
+      specific-first merge; bits-ui `ContextMenu`; same actions power widget "⋯" menus
+      and a future command palette. See `ARCHITECTURE.md` → "Actions & context menu".
+- [ ] **Q6 Analysis view** (in progress)
+  - [x] Staged data → named **Collections** of query descriptors, independent of
+        dashboards (provenance link only); active + per-dashboard default targets.
+  - [x] Engine → generic date-aligned core; starters and user analyses share one
+        `AnalysisSpec` format; pitfalls (resolution/geography/lag/spurious correlation)
+        are built-in steps. See `ARCHITECTURE.md` → "Analysis: Collections & engine".
+  - [x] Health data → **CalEnviroScreen only**; outside health data + ER-lag analysis
+        deferred (see `DEFERRED.md`).
+  - [x] Pre-defined analyses → **all 10** confirmed. See `ARCHITECTURE.md` →
+        "Starter analyses".
+  - [ ] Save/share mechanism details
+  - [ ] JupyterLite / JupyterLab integration + licensing
+- [ ] Q7 Metadata gaps audit
+- [ ] Q8 More widget ideas
+
+Follow-ups created by decisions so far:
+
+- Record every deferral in `DEFERRED.md` (standing rule — see `CLAUDE.md`).
+- Build the platform adapter layer (storage, notifications, file export, background
+  tasks, online status, auth mode/token storage); move `src/lib/preferences.ts` behind it.
+- Design the local-first data cache (IndexedDB/OPFS on web).
+- WebKitGTK + map widget spike before committing to a Tauri build.
+- Define the query-descriptor type (dataset, entry_type, date range, `SpatialSelection`)
+  — shared by widget config, staging, and saved dashboards.
+- Map feature/region selection (A, B), then a `terra-draw` drawing plugin in
+  monitor-map (C) — needs an approved monitor-map plan first.
+- monitor-map 4.0 spec + plan (instance-scoped core, plugin interface, `MapView`),
+  then per-consumer migration plans for sjvair.com and `v3-mobile`. Releasing
+  4.0 requires explicit per-release approval.
+- Dashboard layout engine (pure functions + tests): placement, collision, compaction,
+  minimize/restore, responsive stack derivation.
+- Action/menu registry (pure resolution + merge logic, tested) and bits-ui
+  `ContextMenu` host; install shadcn-svelte `context-menu`.
+- Collections store + drawer UI; `QueryDescriptor`/`AnalysisSpec` types; analysis
+  engine steps (resample, align, lag, aggregate, correlate) as pure worker-side
+  functions with tests.
+- sdk-js: wrap `calenviroscreen/` and `calheatscore/` endpoints (needed by starter
+  analyses #7 and #8) — needs an approved sdk-js plan.
+
+## Start here (previous work — superseded by the planning session above)
 
 **Monitors tab (map + calendar views) is implemented and in review.**
 Implementation is on branch `worktree-monitors-tab`, open as
@@ -36,17 +100,11 @@ Shipped in this cycle:
   map's per-monitor averaging now always uses monthly summaries (previously had a
   45-day threshold switching between daily and monthly; the threshold logic has been removed).
 
-Explicitly deferred to future work (per spec, or per final code review):
+Deferred follow-ups from this work now live in `DEFERRED.md` → "Legacy Monitors-tab
+follow-ups".
 
-- Chart/spreadsheet views (noted as "TBD" in the design spec).
-- Entry-type selector still restricted to PM2.5/O3 only (per design spec scope).
-- HMS Smoke/Fire and Collocation Sites tabs.
-- Whole-year over-fetch inefficiency — `month` param exists on both summary endpoints
-  and can be used to narrow requests, but currently unused.
-- No in-flight request coordination — rapid filter changes can race, last-to-finish wins
-  rather than last-requested.
-- Preferences only persist month selection, not pollutant; URL state is read once at mount,
-  not reactive to browser back/forward within the tab.
+Verification status at the time:
+
 - Type-check, build, and automated tests all pass (59 tests). Interactive visual browser
   verification was performed during implementation and again during manual testing after
   merge review.
@@ -113,26 +171,6 @@ Explicitly deferred to future work (per spec, or per final code review):
 
 ## Open questions / decisions to revisit
 
-- **Deferred: icon-only collapse for the sidebar.** The vertical nav sidebar
-  (`App.svelte`/`AppNav.svelte`) intentionally does not yet support collapsing to an
-  icon-only rail on desktop — noted as future work once more tabs are added and the
-  full-width labels stop being worth the horizontal space. The current split between
-  the desktop sidebar and the mobile `Sheet` drawer was structured so this can be
-  added later as a self-contained change (a collapsed/expanded `$state` toggle plus
-  per-link icons) without restructuring the responsive layout itself.
-- This app is meant to be embeddable in a host site/app the same way `monitor-map`'s
-  `MapShell` is (plus a future Tauri desktop wrap — both now documented in
-  `ARCHITECTURE.md`'s "Embedding" section and `ROADMAP.md`). The `sv-router`
-  escape hatch (`routerEscapeHatch`/`basePath`-style options) this needs is not yet
-  built — worth keeping in mind when designing each tab's state manager so URL-state
-  wiring doesn't get too deeply hardcoded to owning the top-level route.
-
-- Whether a spreadsheet view of raw HMS smoke/fire records is worth building for v1,
-  or should stay map-only (noted as an open decision in the design spec).
-- Exact home for the shared date-range helper currently only in `monitor-map`'s
-  `data-chart/DateRange.ts` — extract to `@sjvair/sdk`'s `datetime` module, or a
-  `monitor-map` export both projects consume? Decide when building the first tab that
-  needs it.
-- Visual/brand design (colors, typography beyond the inherited shadcn defaults,
-  overall layout polish) is untouched so far — explicitly deferred per the original
-  brief ("All initial design ideas are up for debate").
+Everything deferred (sidebar collapse, embedding escape hatch, HMS spreadsheet view,
+date-range helper home, visual/brand design, …) is tracked in **`DEFERRED.md`**. Open
+questions from the current planning session are listed at the top of this file.
