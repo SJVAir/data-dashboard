@@ -238,16 +238,21 @@ viable. See `ROADMAP.md`.
 `@sjvair/sdk` supports two auth modes, and which one applies depends on **where this
 app is running**, not on a user choice:
 
-| Deployment context                                 | Auth mode                                     |
-| -------------------------------------------------- | --------------------------------------------- |
-| Embedded in sjvair.com (served from its origin)    | Django **session cookie** (same-origin)       |
-| Standalone on a different origin, or Tauri desktop | **`Authorization: Token <api_token>`** header |
-| (Reference: `../v3-mobile`, the mobile app)        | Token header                                  |
+| Deployment context                                                                    | Auth mode                                     |
+| ------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Served from sjvair.com's origin (Release 1: `/dashboard/`; host-page embedding later) | Django **session cookie** (same-origin)       |
+| Standalone on a different origin, or Tauri desktop                                    | **`Authorization: Token <api_token>`** header |
+| (Reference: `../v3-mobile`, the mobile app)                                           | Token header                                  |
 
-How the SDK does it: `account/login` returns `UserDetails` including `api_token`;
-authenticated calls (e.g. `account/subscriptions`) take an optional `apiToken` — when
-passed, a `Token` header is sent; when omitted, the request relies on the browser
-sending the same-origin session cookie. Consequences:
+Release 1 is served from sjvair.com's origin and uses cookie auth (see "Deployment").
+
+How the SDK does it: `account/login` returns `UserDetails` including `api_token`. Some
+authenticated calls (e.g. `account/subscriptions`) take an **optional** `apiToken`: when it
+is passed a `Token` header is sent, and when it is omitted the request relies on the
+browser's same-origin session cookie. Others **require** a token today:
+`getAirAlerts`, the phone functions, and change-password (`sdk-js/lib/account/*`). The
+server (resticus) accepts an existing session for them, so this is an SDK signature
+limitation. Consequences:
 
 - Cookies **only work same-origin**. A standalone deployment (e.g. a separate
   subdomain) or a Tauri window (`tauri://`/`http://tauri.localhost` origin) must use
@@ -347,7 +352,8 @@ documents (see "Saving & sharing documents").
   selection, calendar drag range).
 - **Local IDs are device-local:** opening `/d/:id` for a document not on this device
   shows "This dashboard is saved on another device" with a pointer to **Share**
-  (URL-fragment/file now; server-backed live links later work anywhere).
+  (URL-fragment/file for anyone; server-backed live links, Release 1 for signed-in users,
+  work anywhere).
 - **Embedding:** same routes, held in memory when the host owns the URL (see
   "Embedding").
 - Carried forward from v1: `url-state.ts`'s date-range codec (reused for serializing
@@ -516,14 +522,14 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
 Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = needs a new
 `@sjvair/sdk` wrapper for an existing server endpoint.
 
-**First release:**
+**First widget set** (Release 1, except the Alerts feed, which ships with Release 2):
 
 | Widget                    | What it shows                                                                                          | Notes                          |
 | ------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------ |
 | Map                       | monitor-map 4.0 `MapView` + plugins; spatial selection (feature/region, later drawn)                   | See "Map SDK"                  |
 | Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Existing Monitors-tab calendar |
 | Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                                |
-| Chart                     | uPlot time series for one pollutant/dataset over the widget's date range                               |                                |
+| Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                                |
 | Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor or region              |
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore)   |
 | Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)               |
@@ -596,6 +602,16 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   trigger around the dashboard, items computed on open. Provides submenus, keyboard
   navigation, ARIA roles, and viewport collision handling. Opens via right-click,
   long-press (touch), and Shift+F10 / Menu key (focused element).
+- **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
+  - _Global:_ Undo / Redo, "Clear my data", Sign in / out.
+  - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
+    New / Duplicate / Rename / Delete dashboard.
+  - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
+    (opens Widget Creation), Rename, Minimize, Fullscreen, Move… / Resize… (keyboard
+    alternatives), Delete, **Mark for analysis**, **Analyze**, Add to collection ▸.
+  - _Selection (map features/regions, calendar range):_ Mark selected data for
+    analysis, Analyze selected data.
+  - _Map feature:_ e.g. "Analyze this monitor", contributed by map plugins.
 - **Reuse:** the widget "⋯" menu calls the same resolution with that widget as target;
   the future command palette queries global + focused-scope actions.
 
@@ -742,7 +758,7 @@ So schools and community users can write code with **no install** (incl. Chromeb
   wheels. **Python only**; in-browser R and JavaScript are deferred (see `DEFERRED.md`).
 - **Fully bundled for offline**: self-hosted Pyodide, custom `pyodide-lock`, piplite
   wheels, `disablePyPIFallback: true`. Kernel and Pyodide versions upgraded in lockstep.
-- **A separate static app** at its own path/subdomain, not inside dashboard pages
+- **A separate static app** at its own path (`/notebooks/`, see "Deployment"), not inside dashboard pages
   (tens of MB). It is the **only** place cross-origin isolation (COOP/COEP) may be
   enabled, per "Platform strategy"; it also works without isolation (service-worker
   file access).
@@ -940,7 +956,8 @@ wrap simple.
 - **Planned additions (decided):** Paraglide JS (i18n-ready messages), `vite-plugin-pwa`
   (app-shell service worker), `@date-fns/tz` (Pacific-time math), `lz-string`
   (URL-fragment sharing), `terra-draw` (drawn-shape selection, via a monitor-map
-  plugin), JupyterLite + Pyodide (separate notebook app).
+  plugin), JupyterLite + Pyodide (separate notebook app), and for testing Playwright,
+  `vitest-browser-svelte`, and `@axe-core/playwright`.
 
 ## Accessibility
 
@@ -1022,8 +1039,10 @@ decisions made along the way:
   page that already has its own router must be able to either mount this app under a
   sub-path (`basePath`) or disable this app's own history/URL manipulation entirely
   when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
-  currently assumes it owns top-level routing. Needs to be addressed before this app
-  can actually be embedded (see `DEFERRED.md` → "Embeddable production build").
+  currently assumes it owns top-level routing. **`basePath` ships in Release 1** for
+  serving under `/dashboard/` (see "Deployment"); the escape-hatch/in-memory mode for
+  true host-page embedding stays deferred (see `DEFERRED.md` → "Embeddable production
+  build").
 - **URL state vs. embedding** — decided in "Routing, URL state & undo": when the host
   owns the URL, the same routes are held in memory.
 

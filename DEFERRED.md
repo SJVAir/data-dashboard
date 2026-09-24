@@ -198,8 +198,8 @@ ship, or a specific audience asks for one.
 These came from the Monitors-tab work. If that tab is replaced by widgets, re-check each
 item against the widget design rather than dropping it silently.
 
-- **Chart and spreadsheet views**: _deferred 2026-09-15_. Likely becomes chart and table
-  widgets.
+- **Chart and spreadsheet views**: _deferred 2026-09-15; superseded 2026-09-24_: now the
+  Chart and Data table widgets (ROADMAP Release 1 step 4). Close when they ship.
 - **HMS Smoke/Fire and Collocation Sites tabs**: _v1 roadmap; superseded 2026-09-24_ —
   the v1 tabs are replaced by the starter dashboard (ROADMAP Release 1 step 6). HMS
   becomes the smoke & fire map preset (see "Widgets"); collocation becomes the
@@ -224,6 +224,13 @@ point.
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
+- **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide
+  in** the Release 3 spec.
+- **User-defined analysis editor UI** (IDEA.md Q6: "What should user-defined analysis
+  creation look like"). The data model (`AnalysisSpec`) is decided; the editor UX isn't.
+  **Decide in** the Release 3 spec.
+- **Geographic crosswalk method**: monitor→region, tract (CES), ZIP (CalHeatScore),
+  county/MTRS (PUR), and area weighting. **Decide in** the Release 3 spec.
 
 ## Decided against (kept for the record, not planned)
 

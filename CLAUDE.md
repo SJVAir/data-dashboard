@@ -44,7 +44,8 @@ URL state & undo".
 
 - **Dashboard direction (new code):** the URL identifies _where you are_ (dashboard,
   fullscreen widget, Widget Creation, Analysis); saved documents hold _what's there_.
-  All document edits go through `applyChange` (gives undo/redo). See `ARCHITECTURE.md` →
+  All document edits go through `applyChange` (gives undo/redo), and every change
+  autosaves (there is no explicit Save). See `ARCHITECTURE.md` →
   "Routing, URL state & undo" and "Saving & sharing documents".
 - **Legacy v1 tab code (current Monitors tab):** the URL is the source of truth for the
   tab's view (filters, date range, toggles). `src/lib/preferences.ts` (localStorage
@@ -90,7 +91,8 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
   `format` module; weeks start on Sunday. See `ARCHITECTURE.md` → "Time zone & calendar
   conventions".
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
-  "Authentication"): session cookie when embedded on sjvair.com's origin; `Token`
+  "Authentication"): session cookie when served from sjvair.com's origin (Release 1:
+  `/dashboard/`); `Token`
   header when standalone on another origin or under Tauri.
 
 ## Deferred work — standing rule
@@ -103,19 +105,31 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 ## Key Libraries
 
-| Library                     | Purpose                                 |
-| --------------------------- | --------------------------------------- |
-| `sv-router`                 | Client-side routing                     |
-| `@sjvair/sdk`               | Air quality data API                    |
-| `@sjvair/monitor-map`       | Map widget (4.0 plugin API planned)     |
-| `date-fns` + `@date-fns/tz` | Date handling (Pacific time)            |
-| Paraglide JS (inlang)       | UI message catalog (English-only today) |
-| `lz-string` (planned)       | URL-fragment document sharing           |
-| `terra-draw` (planned)      | Drawn-shape map selection (via plugin)  |
-| `uplot`                     | **All** charts (time-series-first)      |
-| shadcn-svelte / bits-ui     | Accessible UI primitives                |
-| `@lucide/svelte`            | Icons                                   |
-| Vitest                      | Unit tests for framework-agnostic logic |
+Installed:
+
+| Library                 | Purpose                                        |
+| ----------------------- | ---------------------------------------------- |
+| `sv-router`             | Client-side routing                            |
+| `@sjvair/sdk`           | Air quality data API                           |
+| `@sjvair/monitor-map`   | Map widget (4.0 plugin API planned)            |
+| `date-fns`              | Date handling                                  |
+| `uplot`                 | **All** charts (time-series-first)             |
+| shadcn-svelte / bits-ui | Accessible UI primitives                       |
+| `@lucide/svelte`        | Icons                                          |
+| Vitest                  | Unit tests (browser-mode component tests next) |
+
+Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
+
+| Library                                         | Purpose                                               |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `@date-fns/tz`                                  | Pacific-time date math (via the `format` module)      |
+| Paraglide JS (inlang)                           | UI message catalog (English-only today)               |
+| `vite-plugin-pwa`                               | App-shell service worker, installability              |
+| `lz-string`                                     | URL-fragment document sharing                         |
+| `terra-draw`                                    | Drawn-shape map selection (via a monitor-map plugin)  |
+| Playwright                                      | E2E on Chromium/WebKit/Firefox                        |
+| `vitest-browser-svelte`, `@axe-core/playwright` | Component tests in a real browser; WCAG 2.2 AA checks |
+| JupyterLite + Pyodide                           | Separate `/notebooks/` app (Release 3)                |
 
 ## Environment Variables
 

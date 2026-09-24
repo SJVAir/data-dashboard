@@ -32,7 +32,11 @@ needs explicit per-release approval.
    - **minimal Collections** (decided 2026-09-24): the store, the Collections drawer,
      "Add to collection ▸", and a placeholder Analysis view that lists a Collection's
      items with "starter analyses coming soon"
-   - local save, Export/Import `.json`, and URL-fragment sharing (`/import`)
+   - autosave (no explicit Save) with a "Saved" indicator; picker actions (new,
+     duplicate, rename, delete with an undo toast)
+   - local durability safeguards (`storage.persist()`, status note, backup nudge, quota
+     errors) and "Clear my data"
+   - Export/Import `.json` and URL-fragment sharing (`/import`)
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/dashboard/`
@@ -42,7 +46,8 @@ needs explicit per-release approval.
      `/dashboard/`, with an offline notice and an update prompt
 2. **Dashboard layout engine and windowing**: snapping grid, drag/resize,
    minimize-to-taskbar, fullscreen, and responsive stacking. Proven with placeholder
-   widgets.
+   widgets. Includes the **WCAG 2.2 AA** pieces: keyboard move/resize, live-region
+   announcements, focus management, `prefers-reduced-motion`.
 3. **Metadata enablers** (sjvair.com + sdk-js; runs in parallel with 1–2)
    - the available-pollutants list
    - the `meta/datasets/` catalog
@@ -52,9 +57,9 @@ needs explicit per-release approval.
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - HTTP cache headers on the summary endpoints
    - hardcoded-value cleanup in sjvair.com and this repo, and fixing sdk-js `api-urls.md`
-   - alert metadata is part of Release 2
 4. **Widget Creation and the non-map widgets**
-   - Widget Creation view
+   - Widget Creation view (catalog-driven dataset accordions, layers)
+   - the `WidgetType` registry and `WidgetDataConfig`
    - Chart
    - Calendar (day-colored)
    - Calendar (contribution)
@@ -125,7 +130,7 @@ The Release 3 spec must also decide what IDEA.md and the planning session left o
 Everything in `DEFERRED.md`, each entry with its own revisit trigger. The notable ones:
 
 - web push
-- server-backed saved documents and live share links
+- SJVAir-curated public templates (on top of Release 1's server-backed documents)
 - drawn-shape map selection
 - more alert sources
 - translations

@@ -17,8 +17,9 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
-3. In parallel once approved: **metadata enablers** (Release 1 step 3) and **server
-   alerting** (Release 2) plans in sjvair.com.
+3. In parallel once approved (sjvair.com/sdk-js plans): Release 1's **metadata
+   enablers**, **hosting under `/dashboard/`**, and **server-backed documents** tracks,
+   plus **server alerting** (Release 2).
 
 ## Planning session record: IDEA.md (2026-09-23 → 2026-09-24)
 
@@ -57,7 +58,8 @@ updating the docs after each one.
         "Starter analyses".
   - [x] Save/share → one versioned `SavedDocument` format for dashboards/Collections/
         analyses; local + JSON file + URL-fragment sharing first (fork on open);
-        server-backed live links later. See `ARCHITECTURE.md` → "Saving & sharing".
+        server-backed live links later (since moved into Release 1). See `ARCHITECTURE.md` →
+        "Saving & sharing documents".
   - [x] Notebooks → "Export to notebook" bundles (Python, R, Deno/TS; Parquet + CSV +
         `collection.json`) plus embedded **JupyterLite with Pyodide only**, bundled
         offline, as a separate static app. Licensing OK. See `ARCHITECTURE.md` →
@@ -167,7 +169,7 @@ package release needs explicit per-release approval.
 - Available-pollutants list (PM2.5 + O3 initially). It replaces this repo's hardcoded
   `"pm25" | "o3"`.
 - In order: the `meta/datasets/` catalog, the coverage endpoint, per-domain scale metas
-  (hms, calheatscore, forecasts, AQI), alert meta, region hierarchy, choice lists, and
+  (hms, calheatscore, forecasts, AQI), region hierarchy, choice lists, and
   display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints.
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
@@ -272,7 +274,8 @@ are in `DEFERRED.md` → "Legacy Monitors-tab follow-ups".
       npm alias). No call sites in this repo used the renamed/removed functions yet,
       so this was a version-bump-only change.
 - [x] **`monitor-map`: `MonitorsDataSource` decoupling + sdk v4 upgrade + full dependency
-      update** — see "Start here" above for the `MonitorsDataSource` details. Merged via
+      update**: lets a host app reuse monitor-map's monitor rendering against non-live data
+      (e.g. date-range averages). Merged via
       SJVAir/monitor-map#102 and #103 (stacked), plus a follow-up dependency sweep
       (every dep except TypeScript, notably `sv-router` peer range widened to `^0.19.0`
       and `@maptiler/weather` bumped to 4.0.1). Released as `@sjvair/monitor-map@3.4.0`
