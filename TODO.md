@@ -73,8 +73,10 @@ suggested order (one at a time, docs updated after each, no code):
       stitching; data-cadence-aware refresh, shared polls, pause when hidden; minimized
       widgets refresh only with thresholds. See `ARCHITECTURE.md` → "Data resolution &
       live refresh".
-- [ ] **URL state with dashboards.** What a URL identifies now that dashboards are saved
-      documents.
+- [x] **URL state with dashboards** → URL = location, document = content (routes for
+      dashboards, fullscreen widgets, Widget Creation, Analysis, `/import#…`); document-
+      level undo/redo via `applyChange` in the first release. See `ARCHITECTURE.md` →
+      "Routing, URL state & undo".
 - [ ] **Sequencing.** Rewrite `ROADMAP.md` (still the old tab plan) into sub-projects
       across monitor-map 4.0, server metadata + PM2.5 fix, sdk-js wrappers, and this app;
       each gets its own spec → plan.

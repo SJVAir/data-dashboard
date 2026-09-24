@@ -40,15 +40,15 @@ renders the nav and `<Router />`). Each top-level tab is a route under `src/rout
 
 ### State architecture
 
-- **URL is the source of truth** for the current view (active tab, filters, date
-  range, which views are toggled on) — see `ARCHITECTURE.md` for the full rationale.
-- **`src/lib/preferences.ts`** is a localStorage-backed store of _defaults_ only
-  (`getTabPreferences`/`setTabPreferences`/`clearAllPreferences`), used to seed the URL
-  when a tab is opened with no params present — never to override an existing URL.
-- **`src/lib/url-state.ts`** provides pure encode/decode codecs (`encodeDateRange`/
-  `decodeDateRange`, `encodeViews`/`decodeViews`) for serializing state into URL search
-  params. These are framework-agnostic and unit-tested independently of `sv-router`;
-  a tab wires them to `sv-router`'s reactive `route.search`/`searchParams`.
+- **Dashboard direction (new code):** the URL identifies _where you are_ (dashboard,
+  fullscreen widget, Widget Creation, Analysis); saved documents hold _what's there_.
+  All document edits go through `applyChange` (gives undo/redo). See `ARCHITECTURE.md` →
+  "Routing, URL state & undo" and "Saving & sharing documents".
+- **Legacy v1 tab code (current Monitors tab):** the URL is the source of truth for the
+  tab's view (filters, date range, toggles). `src/lib/preferences.ts` (localStorage
+  defaults that seed the URL when no params exist) and `src/lib/url-state.ts` (pure,
+  unit-tested codecs such as `encodeDateRange`/`decodeDateRange`) support this; the
+  date-range codec carries forward into query-descriptor serialization.
 
 ### Related SJVAir projects
 

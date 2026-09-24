@@ -292,6 +292,47 @@ widget.
 - In-flight requests are superseded by newer ones for the same widget
   (last-requested wins, not last-to-finish).
 
+## Routing, URL state & undo
+
+Decided 2026-09-24. Supersedes the v1 "URL is the source of truth" rule (see "Legacy:
+v1 tab model") for the dashboard direction.
+
+**The URL identifies _where you are_; the saved document holds _what's there_.** A
+dashboard's layout and widget configs are far too large for a URL and are now saved
+documents (see "Saving & sharing documents").
+
+```
+/                                     last-opened dashboard (preference) or a starter
+/d/:dashboardId                       a dashboard
+/d/:dashboardId/w/:widgetId           that widget fullscreen (deep-linkable)
+/d/:dashboardId/w/new?type=map        Widget Creation for a new widget
+/d/:dashboardId/w/:widgetId/edit      Widget Creation editing an existing widget
+/analysis/:collectionId               a Collection in the Analysis view
+/analysis/:collectionId/a/:analysisId an analysis run on it
+/import#<lz-compressed document>      URL-fragment share → opens a copy (fork on open)
+```
+
+- **Back/forward navigates between places** (dashboards, fullscreen, Widget Creation,
+  Analysis) — never between edits.
+- **Ephemeral UI state stays out of the URL** (open accordions, in-progress map
+  selection, calendar drag range).
+- **Local IDs are device-local:** opening `/d/:id` for a document not on this device
+  shows "This dashboard is saved on another device" with a pointer to **Share**
+  (URL-fragment/file now; server-backed live links later work anywhere).
+- **Embedding:** same routes, held in memory when the host owns the URL (see
+  "Embedding").
+- Carried forward from v1: `url-state.ts`'s date-range codec (reused for serializing
+  query descriptors); preference seeding becomes "last-opened dashboard" + Widget
+  Creation defaults.
+
+**Undo/redo (first release).** A **document-level undo/redo stack** (Ctrl+Z /
+Ctrl+Shift+Z, plus menu actions via the shared action list), separate from browser
+history. All edits to dashboards, Collections, and analyses go through a single
+**`applyChange(doc, change)`** function producing a new document version plus an
+inverse change — so undo is free by construction and edits are testable. Covers move,
+resize, minimize/restore, add/delete/configure widget, rename, and Collection edits.
+The stack is per document and per session (not persisted).
+
 ## Widget data selection (partial datasets)
 
 Decided 2026-09-23 (IDEA.md Open Question #2).
@@ -770,7 +811,8 @@ decisions made along the way:
   when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
   currently assumes it owns top-level routing. Needs to be addressed before this app
   can actually be embedded (see `ROADMAP.md`).
-- **URL-as-source-of-truth vs. embedding** — the state architecture below treats the
+- **URL state vs. embedding** — see "Routing, URL state & undo"; the legacy state
+  architecture below treated the
   URL as the source of truth for view state. When embedded with the escape hatch
   active, this needs a fallback (e.g. an in-memory store) since the host may not want
   this app touching the outer page's URL at all.
