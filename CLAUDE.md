@@ -4,10 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-SJVAir's data exploration dashboard — a Vite + Svelte 5 SPA for browsing and comparing
-the SJVAir ecosystem's data sets (air monitors, HMS smoke/fire, collocation sites).
-See `ARCHITECTURE.md` for the full design and `ROADMAP.md` for what's deliberately
-deferred past v1.
+SJVAir's data dashboard — a Vite + Svelte 5 SPA: a personal, interactive dashboard and
+data-analysis toolbox over all public SJVAir data, for community members, schools, and
+researchers. Three views: **Dashboard** (windowed widgets), **Widget Creation**, and
+**Analysis** (Collections, starter analyses, notebooks).
+
+Where to look:
+
+- `IDEA.md` — the planning brief this direction comes from.
+- `ARCHITECTURE.md` — all design decisions (each notes which IDEA.md question it resolves).
+- `TODO.md` — current status and "start here".
+- `ROADMAP.md` — sequencing of sub-projects.
+- `DEFERRED.md` — **every** deferred or ruled-out item (see the standing rule below).
+- `docs/reference/` — server data inventory, notebook-kernel evaluation.
 
 ## Commands
 
@@ -84,16 +93,16 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 ## Key Libraries
 
-| Library                 | Purpose                                     |
-| ----------------------- | ------------------------------------------- |
-| `sv-router`             | Client-side routing                         |
-| `@sjvair/sdk`           | Air quality data API                        |
-| `@sjvair/monitor-map`   | Embeddable map component (future tab plans) |
-| `date-fns`              | Date handling                               |
-| `uplot`                 | Charts (future tab plans)                   |
-| shadcn-svelte / bits-ui | Accessible UI primitives                    |
-| `@lucide/svelte`        | Icons                                       |
-| Vitest                  | Unit tests for framework-agnostic logic     |
+| Library                 | Purpose                                 |
+| ----------------------- | --------------------------------------- |
+| `sv-router`             | Client-side routing                     |
+| `@sjvair/sdk`           | Air quality data API                    |
+| `@sjvair/monitor-map`   | Map widget (4.0 plugin API planned)     |
+| `date-fns`              | Date handling                           |
+| `uplot`                 | **All** charts (time-series-first)      |
+| shadcn-svelte / bits-ui | Accessible UI primitives                |
+| `@lucide/svelte`        | Icons                                   |
+| Vitest                  | Unit tests for framework-agnostic logic |
 
 ## Environment Variables
 
@@ -125,4 +134,8 @@ task already in progress. Always stop and ask first.
 - Print width: 100 characters
 - Prettier + ESLint (flat config); run `npm run format` before committing
 - Tailwind CSS v4 for styling; prefer utility classes over custom `<style>` blocks
+- UI components from shadcn-svelte (bits-ui). **Never use Bulma** (the server's CSS
+  framework) in this project.
+- Animations for transitions are encouraged; responsive layouts are required (phones
+  must work, though they aren't the primary target)
 - Svelte 5 runes only (`$state`, `$derived`, `$effect`) — no legacy `$:` reactive statements

@@ -1,16 +1,96 @@
 # Architecture
 
-This document describes the design of the SJVAir data-exploration dashboard. It
-reflects the decisions recorded in
-`docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`; consult that spec
-for the full rationale behind each decision.
+This document describes the design of SJVAir's data dashboard. The current direction
+comes from `IDEA.md` (planning brief) and the decisions made while working through its
+Open Questions on 2026-09-23 — each section below notes which question it resolves.
+Deferred and ruled-out items live in `DEFERRED.md`; the server's actual data is
+catalogued in `docs/reference/server-data-inventory.md`. The original v1 tab-based
+design (`docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`) is being
+superseded — see "Legacy: v1 tab model" at the end.
 
-## Scope (v1)
+## Product direction
 
-Data exploration only: browse each data domain, filter by date range (and, where
-applicable, county), and view the result as a map, chart, and/or spreadsheet.
-Cross-dataset analysis, server-side location search, server-synced preferences, and
-a Tauri desktop build are deliberately out of scope for v1 — see `ROADMAP.md`.
+**A personal, interactive dashboard and data-analysis toolbox for all public SJVAir
+data** (historical and live). Three uses:
+
+- **Day-to-day monitoring** of conditions.
+- **Exploring trends** local to a region.
+- **Staying on top of live data for alerts** — both _self-monitoring_ (live data shown
+  clearly enough to spot concerning values as they arrive) and _automated alerting_
+  (the system notifies the user when values cross a threshold).
+
+**Audiences:** everyday community members, schools, and research scholars. Intuitive
+for basic users, feature-rich for power users.
+
+### Views
+
+- **Dashboard** (primary) — horizontal navigation bar on top (replacing the v1 vertical
+  sidebar), dashboard area below. Holds widgets (see "Dashboard layout mechanics",
+  "Widget catalog"). Multiple saved dashboards, selectable at minimum via a dropdown
+  (ideally a nicer visual picker if it proves more intuitive). "Add widget" picks a type
+  from the predefined list, then opens Widget Creation to configure its data.
+- **Widget Creation** — configures one widget's data (see below).
+- **Analysis** — Collections, starter and user-defined analyses, notebooks (see
+  "Analysis: Collections & engine", "Notebooks").
+
+These may change if a better structure emerges.
+
+### Widget Creation view
+
+Starting point: the existing Monitors-tab filter UI, adapted:
+
+- **Date selection sits above** the option accordions. **One date range per widget**
+  (dashboard display widgets only — time-offset/lag comparison belongs to Analysis).
+- **Three date-range methods**, one visible at a time, toggled via a dropdown (unless
+  something more elegant fits):
+  - **Set ranges** — year, month, week, day
+  - **Rolling ranges** — year-to-date, month-to-date, week-to-date
+  - **Custom ranges** — user-selected
+- The existing side tabs become **accordions**, each holding its options.
+- **Pollutant datasets: exactly one pollutant per widget** (no mixing O3 and PM2.5 in one
+  widget).
+- **Live preview on the right**, itself a drag-and-drop, resizable area matching
+  dashboard behavior.
+
+### Shared widget behavior
+
+- **Title bar** defaults to the dataset name(s) + date range; user-renamable.
+- Every widget contributes **"Mark for analysis"** (add its data — or current selection —
+  to a Collection) and **"Analyze"** (add + navigate to Analysis) via the shared action
+  list (see "Actions & context menu"). Widgets with a selection (map features/regions,
+  calendar day ranges) add "Mark selected data for analysis" / "Analyze selected data"
+  alongside the whole-dataset options.
+- Minimize, fullscreen, drag, resize per "Dashboard layout mechanics".
+
+### Theme & style
+
+- **Tailwind CSS + shadcn-svelte** for components. **Never Bulma** (the server uses it;
+  this project never will).
+- No SJVAir ecosystem theme exists yet; colors and style direction may be derived from
+  the server's existing pages/templates (a dedicated design pass is in `DEFERRED.md`).
+- Modern component/layout practice; **animations for transitions encouraged**. Tone:
+  clean, not messy — but not plain, boring, or corporate. Use layout patterns users
+  already know.
+- **Responsive required** — phones aren't the primary target but must work.
+
+### Charting
+
+**uPlot for all charts.** Nearly all data is time series, so chart configuration should
+converge on a consistent, shared pattern.
+
+### Alerts
+
+The server already has an alert/notification system; **extend it** for dashboard
+alerting rather than building a separate one. Its current shape (per-monitor, level-
+category thresholds, SMS only, PM2.5/O3 only) is in the data inventory; the dashboard's
+alerting design is still open — see `TODO.md`.
+
+### Sibling projects
+
+Built with and against `sjvair.com` (server), `sdk-js` (`@sjvair/sdk`), and
+`monitor-map` (map SDK, also used by sjvair.com and `v3-mobile`). They may need changes,
+but **must not break their existing use cases**, and **each change needs an approved
+plan first**.
 
 ## Platform strategy: web-first, Tauri-ready
 
@@ -520,14 +600,21 @@ decisions made along the way:
   active, this needs a fallback (e.g. an in-memory store) since the host may not want
   this app touching the outer page's URL at all.
 
-## Repos involved
+## Legacy: v1 tab model
+
+The sections below describe the original tab-per-data-domain design that the Monitors
+tab was built on. They remain accurate for the **current code** but are being superseded
+by the dashboard/widget direction above; the useful parts (URL-state codecs, per-view
+accessibility fallbacks, region selector, calendar) carry forward into widgets.
+
+### Repos involved
 
 - **`data-dashboard`** (this repo) — the app itself.
 - **`monitor-map`** — provides the embeddable map component (`MapShell`, published
   in `@sjvair/monitor-map` v3.3.0+) used by the Monitors tab's map view.
 - **`sdk-js`** (`@sjvair/sdk`) — the API client this app fetches data through.
 
-## Tech stack
+### Tech stack
 
 Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4, shadcn-svelte (bits-ui),
 `@lucide/svelte`, `date-fns`, `uplot`, `@sveltejs/enhanced-img`, `@sjvair/sdk`.
@@ -535,7 +622,7 @@ Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4, shadcn-svelte (bits-
 No SvelteKit — a plain Vite SPA, matching `monitor-map` and `v3-mobile`, and keeping
 a future Tauri wrap simple (pure static client, no server runtime to strip out).
 
-## Tab structure
+### Tab structure
 
 One top-level tab per SDK data domain, routed via `sv-router`:
 
@@ -551,7 +638,7 @@ One top-level tab per SDK data domain, routed via `sv-router`:
   select a pair → drill into a comparison view of both monitors' entries over a date
   range (reusing the Monitors tab's chart/spreadsheet views against two monitor IDs).
 
-## State & URL architecture
+### State & URL architecture
 
 - **The URL is the source of truth** for current view state: active tab,
   entry_type/filters, date range, county filter, and which views (map/chart/
@@ -570,7 +657,7 @@ One top-level tab per SDK data domain, routed via `sv-router`:
   from `monitor-map`'s own managers, which are scoped to "all currently active
   monitors," not arbitrary historical date ranges.
 
-## Views
+### Views (v1 tabs)
 
 Rendered as simultaneous split panes when more than one is toggled on (side-by-side
 on desktop, stacked on mobile), not switchable sub-tabs.
@@ -584,7 +671,7 @@ on desktop, stacked on mobile), not switchable sub-tabs.
   the SDK's existing CSV entries endpoint over re-serializing fetched JSON client-side
   where the endpoint's shape matches what's displayed.
 
-## Accessibility
+### Accessibility
 
 - Every view has a non-visual fallback: the spreadsheet view already serves as one
   for chart/map data; map and chart views should expose their underlying data as
@@ -594,6 +681,6 @@ on desktop, stacked on mobile), not switchable sub-tabs.
 - Standard per-view loading/error states (skeleton or spinner while fetching; inline
   error message with retry).
 
-## Out of scope for v1
+### Out of scope
 
-See `ROADMAP.md`.
+See `DEFERRED.md`.
