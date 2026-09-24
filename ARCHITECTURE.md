@@ -211,6 +211,23 @@ Tauri-ready seams required **from day one**:
   isolation app-wide; if needed, confine it to a dedicated page/window (Tauri can set
   headers per window). See Open Question #6 in `IDEA.md`.
 
+**Web offline stance (decided 2026-09-24): installable app with an app-shell service
+worker, in Release 1.** Uses `vite-plugin-pwa` (Workbox):
+
+- The **app shell** (HTML, JS, CSS, fonts, icons) is precached, so the dashboard **opens
+  offline** and shows cached data with an "Offline, data from 2:14 PM" notice.
+- **API data is not cached by the service worker.** It flows only through the
+  local-first data cache, which keeps its freshness and TTL rules and never serves stale
+  data silently.
+- **Installable ("Add to Home Screen" / Install).** An installed site is exempt from
+  Safari's 7-day storage eviction, which improves local-document durability. It's also a
+  prerequisite for iOS web push (the next alerts channel).
+- **Scope is `/dashboard/` only** on sjvair.com, so it cannot affect the rest of the site
+  or monitor-map. JupyterLite's own worker is separately scoped to `/notebooks/`.
+- **Update flow:** when a new version is detected, show a "New version available, reload"
+  prompt. Never swap versions under an open document.
+- Test on each engine (Chromium, WebKit/Safari, Firefox).
+
 When to actually add Tauri: once there's a concrete desktop-only win (most likely
 background alerting from the tray, or large offline datasets for researchers). Before
 committing, run a short WebKitGTK spike with the map widget to confirm Linux desktop is
@@ -920,7 +937,8 @@ wrap simple.
 - **Current:** Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4,
   shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot`,
   `@sveltejs/enhanced-img`, `@sjvair/sdk`, `@sjvair/monitor-map`, Vitest.
-- **Planned additions (decided):** Paraglide JS (i18n-ready messages), `lz-string`
+- **Planned additions (decided):** Paraglide JS (i18n-ready messages), `vite-plugin-pwa`
+  (app-shell service worker), `@date-fns/tz` (Pacific-time math), `lz-string`
   (URL-fragment sharing), `terra-draw` (drawn-shape selection, via a monitor-map
   plugin), JupyterLite + Pyodide (separate notebook app).
 

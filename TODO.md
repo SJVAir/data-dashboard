@@ -135,6 +135,9 @@ package release needs explicit per-release approval.
 - App shell: top nav, dashboard picker, and the new route table (`ARCHITECTURE.md` →
   "Routing"), plus `basePath` support for `sjvair.com/dashboard/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
+- Installable app: `vite-plugin-pwa` app-shell service worker (scope `/dashboard/`), an
+  offline notice, a "new version, reload" prompt, and a manifest and icons. API data
+  stays in the data cache, not the service worker.
 - "Clear my data" and session-only sign-in.
 - Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
   actions: new, duplicate, rename, delete with an undo toast.

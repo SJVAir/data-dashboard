@@ -141,7 +141,7 @@ ship, or a specific audience asks for one.
 
 - **Web push for alerts.** _Sequenced as next iteration 2026-09-24._ Reaches desktop
   and Android with the dashboard closed, no per-message cost; iOS only for home-screen-
-  installed sites. Needs a service worker (coordinate with the web offline stance — see "Open decisions"),
+  installed sites. Builds on Release 1's app-shell service worker (`ARCHITECTURE.md` → "Platform strategy"),
   VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
   iteration (SMS + email + inbox) ships.
 - **Mobile app push for alerts (`v3-mobile`).** _Deferred 2026-09-24._ No FCM/APNs setup
