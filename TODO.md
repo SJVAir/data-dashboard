@@ -149,6 +149,8 @@ package release needs explicit per-release approval.
   - one poll per descriptor
   - pause when the tab is hidden
   - last-requested-wins
+- Dataset adapter registry keyed by catalog id; hide catalog entries with no adapter
+  (`ARCHITECTURE.md` → "What a dataset is").
 - `QueryDescriptor` type: one definition, in `ARCHITECTURE.md` → "Widget data selection".
 - Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
@@ -191,7 +193,8 @@ package release needs explicit per-release approval.
 
 - Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
   hardcoding pollutants.
-- In order: the `meta/datasets/` catalog, the coverage endpoint, per-domain scale metas
+- In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "What a dataset
+  is"), the coverage endpoint, per-domain scale metas
   (hms, calheatscore, forecasts, AQI), region hierarchy, choice lists, and
   display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints.

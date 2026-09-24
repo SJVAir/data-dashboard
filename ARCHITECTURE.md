@@ -988,6 +988,45 @@ resolutions, coverage, attribution — comes from server metadata endpoints. Nev
 hardcode it in this app, `map-sdk`, `monitor-map`, or `sdk-js`. When a value is missing, add it to
 server metadata rather than hardcoding "for now".
 
+**What a dataset is (decided 2026-09-24).** A catalog entry is a **broad data domain**, and
+each one is one Widget Creation accordion:
+
+```ts
+type DatasetCatalogEntry = {
+	id: string; // e.g. "air-quality", "weather", "hms-smoke", "hms-fire", "pesticide-use",
+	//          "pesticide-notices", "forecasts", "calheatscore", "calenviroscreen"
+	label: string;
+	description: string;
+	source: string;
+	license: string; // attribution
+	entryTypes: {
+		id: string;
+		label: string;
+		kind: "pollutant" | "meteorological" | "other";
+		units: string;
+	}[];
+	geographies: ("monitor" | "region" | "polygon" | "point" | "tract" | "zip" | "zone")[];
+	resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
+	metaUrl: string; // the domain's own …/meta/ endpoint
+};
+```
+
+- **Air quality is one dataset.** Its entry types are PM2.5, O3, … (`kind: "pollutant"`).
+  Monitor vs. region is a **geography choice inside a layer**, not a separate dataset.
+  "At most one pollutant per widget" means at most one layer whose entry type has
+  `kind: "pollutant"`, and the available-pollutants list filters which pollutants
+  appear.
+- **Weather (CIMIS) is its own dataset**, even though the server stores it as monitor
+  entries: to users it's a different thing, and it isn't a pollutant.
+- **Where "no code changes" ends:** new entry types, levels, labels, or colors inside a
+  known dataset need **metadata only** (e.g. enabling NO2). A **new domain** (e.g. TEMPO)
+  needs a client **dataset adapter** (fetch and shape), plus a map plugin if it's shown on
+  maps. The client keeps an adapter registry keyed by dataset id, and **catalog entries
+  without an adapter are hidden**, so the server can list datasets before the dashboard
+  supports them.
+- **A layer with no selection** means "all features" on a map. Charts and calendars
+  **require** a place or selection (a monitor or region).
+
 **Structure: per-domain meta + a catalog index.**
 
 - Each domain owns a `…/meta/` endpoint (existing: `monitors/meta/`, `regions/meta/`;
@@ -1000,9 +1039,9 @@ server metadata rather than hardcoding "for now".
 
 **Gaps, in priority order:**
 
-1. **Dataset catalog** — label, description, geography type, available resolutions,
-   units, source attribution/license. Needed by the Widget Creation picker,
-   `AnalysisSpec` input filters, export manifests.
+1. **Dataset catalog**: label, description, geography type, available resolutions,
+   units, and source attribution/license. Needed by the Widget Creation picker,
+   `AnalysisSpec` input filters, and export manifests. See "What a dataset is" below.
 2. **Coverage/availability** — first/last data date per dataset and per
    monitor/region × entry type; which summary resolutions are complete (monthly+
    rollups exist only after the period ends).
