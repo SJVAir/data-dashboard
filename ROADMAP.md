@@ -71,7 +71,7 @@ needs explicit per-release approval.
    - Forecast strip
    - "Can we go outside?"
    - client-side self-monitoring thresholds
-   - "Mark for analysis" / "Analyze" on every widget, plus the calendar's "selected
+   - "Mark for analysis" / "Analyze" on every `analyzable` widget, plus the calendar's "selected
      data" variants, feeding Release 1's Collections
 5. **monitor-map 4.0 and the Map widget**
    - instance-scoped core, plugins, `MapView`

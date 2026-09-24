@@ -67,7 +67,7 @@ Starting point: the v1 app's data-type tabs and their filter options, adapted:
 ### Shared widget behavior
 
 - **Title bar** defaults to the dataset name(s) + date range; user-renamable.
-- Every widget contributes **"Mark for analysis"** (add its data — or current selection —
+- Every widget with data (`analyzable`; see "Widget-type contract") contributes **"Mark for analysis"** (add its data — or current selection —
   to a Collection) and **"Analyze"** (add + navigate to Analysis) via the shared action
   list (see "Actions & context menu"). Widgets with a selection (map features/regions,
   calendar day ranges) add "Mark selected data for analysis" / "Analyze selected data"
@@ -247,10 +247,11 @@ app is running**, not on a user choice:
 Release 1 is served from sjvair.com's origin and uses cookie auth (see "Deployment").
 
 How the SDK does it: `account/login` returns `UserDetails` including `api_token`. Some
-authenticated calls (e.g. `account/subscriptions`) take an **optional** `apiToken`: when it
+authenticated calls (e.g. `getSubscriptions`) take an **optional** `apiToken`: when it
 is passed a `Token` header is sent, and when it is omitted the request relies on the
 browser's same-origin session cookie. Others **require** a token today:
-`getAirAlerts`, the phone functions, and change-password (`sdk-js/lib/account/*`). The
+`getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`, the phone functions, and
+change-password (`sdk-js/lib/account/*`). The
 server (resticus) accepts an existing session for them, so this is an SDK signature
 limitation. Consequences:
 
@@ -313,7 +314,8 @@ approach is staged:
   standalone builds using tokens. The rest of the app only asks "am I signed in?", so
   the switch is contained.
 - **SDK:** make `apiToken` optional on the account calls that require it today
-  (`getAirAlerts`, the phone functions, change-password) so a session works everywhere.
+  (`getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`, the phone functions,
+  change-password) so a session works everywhere.
   sdk-js change, approved plan first.
 - **Development:** the Vite dev server proxies `/api` (and `/account/`) to the local
   podman sjvair.com, so dev is same-origin and cookies behave as in production.
@@ -605,6 +607,8 @@ range:
   Collections drawer.
 - **Forecast strip:** stages the forecast zone over the same 3-day trailing window where
   past forecasts exist; otherwise `analyzable: false`.
+- **Alerts feed** (Release 2): `analyzable: false`. It lists fired alerts; the data behind
+  an alert is reachable from its monitor or region.
 
 ## Actions & context menu
 
@@ -705,7 +709,7 @@ type Collection = { id: string; name: string; items: CollectionItem[] };
   already fetched).
 - Persisted via the platform adapter (IndexedDB on web).
 - **Ships in Release 1** (decided 2026-09-24), ahead of the analysis engine: the store,
-  the drawer, "Mark for analysis" / "Analyze" / "Add to collection ▸" on every widget,
+  the drawer, "Mark for analysis" / "Analyze" / "Add to collection ▸" on every `analyzable` widget,
   and a placeholder Analysis view listing a Collection's items with "starter analyses
   coming soon" until Release 3. That way IDEA.md's shared widget behavior is complete
   from the first release.
@@ -842,8 +846,8 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
    needs an approved plan). A `SavedDocument` model (`owner, kind, name, body,
 version, visibility: private | link | public, schemaVersion`) plus endpoints. Gives
    short links, live share links, cross-device access (which covers server-synced
-   preferences), protection from browser storage eviction, and SJVAir-curated public
-   templates.
+   preferences), protection from browser storage eviction, and later
+   SJVAir-curated public templates (see `DEFERRED.md`).
    - **Local-first sync, kept simple:** documents always save locally first. For
      signed-in users the server copy is authoritative, and each save carries a
      `version`. On a conflict (the same document edited on two devices), the user

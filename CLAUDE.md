@@ -136,8 +136,8 @@ Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 Copy `.env.example` to `.env` and fill in real values (never commit `.env` itself):
 
 ```
-VITE_DEV_URL=              # @sjvair/sdk origin used in dev (setOrigin)
-VITE_PROD_URL=              # @sjvair/sdk origin used in production builds
+VITE_DEV_URL=              # @sjvair/sdk origin in dev (current code; planned: Vite proxy → same-origin)
+VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /dashboard/ → location.origin)
 VITE_MAPTILER_KEY=          # MapTiler basemap key (monitor-map; injected via config in 4.0)
 VITE_NREL_KEY=               # NREL alt-fuel API, monitor-map EV-stations layer
 VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)

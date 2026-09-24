@@ -184,7 +184,8 @@ package release needs explicit per-release approval.
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), a place picker for
   "now" widgets, and a live preview.
 - The `WidgetType` registry (including `analyzable`) and `WidgetDataConfig`; "now" widgets
-  stage a 3-day trailing window for analysis, and Notes offers no analysis actions (`ARCHITECTURE.md` → "Widget-type
+  stage a 3-day trailing window for analysis (Forecast strip only where past forecasts
+  exist), and Notes offers no analysis actions (`ARCHITECTURE.md` → "Widget-type
   contract").
 - Widgets:
   - Chart
@@ -196,7 +197,7 @@ package release needs explicit per-release approval.
   - Hour × weekday heatmap
   - Forecast strip
   - "Can we go outside?"
-- "Mark for analysis" / "Analyze" actions on every widget, including the calendar's
+- "Mark for analysis" / "Analyze" actions on every `analyzable` widget, including the calendar's
   selected-range variants.
 - Client-side self-monitoring thresholds. These need no server work and ship with the
   widgets.
