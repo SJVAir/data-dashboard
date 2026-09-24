@@ -64,10 +64,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **`place` / `protected` / `custom` region types.** _Deferred 2026-09-17._ They have 0
   rows in dev today. No code changes are needed once they have data. **Revisit when** data
   appears. Forecast zones are stored as `custom`.
-- **Cross-type region selection persistence in the URL.** _Deferred 2026-09-17._ Only the
-  active region type's selection is stored in the URL. **Revisit when** users want to
-  share or bookmark a view spanning several region types. This may be absorbed by saved
-  dashboard configs.
 - **Lightweight (geometry-free) regions list endpoint.** _Deferred 2026-09-17._
   **Revisit when** large unnarrowed lists (e.g. about 1,200 tracts) prove slow.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
@@ -192,10 +188,6 @@ ship, or a specific audience asks for one.
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
   registry and the widget "⋯" menus have shipped.
-- **Icon-only collapsed sidebar.** _Deferred 2026-09-16._ This is a self-contained change:
-  a collapsed `$state` toggle plus per-link icons. **Revisit when** the nav has enough
-  entries that full-width labels cost too much space. The IDEA.md direction moves to a
-  top nav bar, so this may become moot.
 - **Visual and brand design system.** _Deferred 2026-09-14._ IDEA.md sets the direction
   (Tailwind + shadcn-svelte, never Bulma, clean but not corporate, with animations).
   Colors may come from the server's existing pages. **Revisit when** the dashboard shell
@@ -212,7 +204,6 @@ item against the widget design rather than dropping it silently.
   the v1 tabs are replaced by the starter dashboard (ROADMAP Release 1 step 6). HMS
   becomes the smoke & fire map preset (see "Widgets"); collocation becomes the
   low-cost-vs-reference starter analysis (#10). Close when those ship.
-- **Whether HMS gets a spreadsheet view of raw records**: _open since 2026-09-14_.
 - **Whole-year over-fetch**: _deferred 2026-09-16; addressed by design 2026-09-24_ (automatic
   resolution + narrow fetches in the data layer — see `ARCHITECTURE.md` → "Data resolution &
   live refresh"). Close once implemented. The `month` param exists on the
@@ -221,9 +212,6 @@ item against the widget design rather than dropping it silently.
   (last-requested wins in the data layer). Close once implemented. Rapid filter changes race,
   so the last response to finish wins instead of the last request made. This applies to
   every widget data manager, so solve it once in the data layer or cache.
-- **Preferences persist only the month**: _deferred 2026-09-16_. The URL is read once at
-  mount and doesn't react to back/forward.
-- **Migrating old `?range=` bookmark URLs**: _deferred 2026-09-16_.
 - **"Default to current month" can't show monthly data until the month ends**: _noted
   2026-09-16; addressed by design 2026-09-24_ (incomplete-period stitching). Close once
   implemented. Monthly rollups only compute after month-end.
@@ -276,4 +264,15 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 
 ## Dropped
 
-_(none yet)_
+Dropped 2026-09-24 with the user's approval (docs review), each overtaken by later decisions:
+
+- **Icon-only collapsed sidebar** (deferred 2026-09-16). The top nav bar replaces the
+  sidebar.
+- **Cross-type region selection persistence in the URL** (deferred 2026-09-17).
+  Selections live in saved widget configs; the URL holds only location.
+- **Whether HMS gets a spreadsheet view of raw records** (open since 2026-09-14). The Data
+  table widget covers any dataset layer.
+- **Preferences persist only the month; URL read once at mount** (deferred 2026-09-16).
+  Replaced by autosaved documents and the new routing.
+- **Migrating old `?range=` bookmark URLs** (deferred 2026-09-16). Now scheduled: ROADMAP
+  Release 1 step 6 redirects the old v1 URLs.

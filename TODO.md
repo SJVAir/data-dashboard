@@ -7,6 +7,11 @@ Last updated: 2026-09-24
 **Planning is complete (2026-09-23 → 2026-09-24, branch `planning`).** All IDEA.md Open
 Questions and the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
 sequencing is in `ROADMAP.md`; every deferral is in `DEFERRED.md`.
+A full traceability review against IDEA.md (2026-09-24) fixed the remaining gaps
+and decided nine follow-ups: minimal Collections in Release 1, autosave with durability
+safeguards, server documents in Release 1, dataset accordions as layers, Pacific time,
+hosting under `sjvair.com/dashboard/`, an installable app shell, WCAG 2.2 AA, and the
+testing strategy.
 
 Next steps (each its own spec → plan → implementation, per the brainstorming process):
 
