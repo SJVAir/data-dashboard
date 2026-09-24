@@ -255,6 +255,43 @@ you:**
   **"Clear my data"** action, and sign-in **without "remember me"** keeps the token
   session-only (through the platform adapter). A dedicated guest mode is deferred.
 
+## Data resolution & live refresh
+
+Decided 2026-09-24. Implemented once in the data layer / local-first cache, not per
+widget.
+
+**Automatic resolution by range span** (bounds fetch size):
+
+| Range span | Resolution        |
+| ---------- | ----------------- |
+| ≤ 2 days   | Raw entries       |
+| ≤ ~60 days | Hourly summaries  |
+| ≤ ~2 years | Daily summaries   |
+| longer     | Monthly summaries |
+
+- **Incomplete periods are stitched from finer data** — e.g. the current month (no
+  monthly rollup until it ends) is computed from daily summaries so far, today from
+  hourly. Fixes the "current month shows nothing" problem for every widget.
+- Advanced **resolution override** in Widget Creation; data table and exports show the
+  resolution used.
+- Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
+
+**Live refresh:**
+
+- Only widgets whose date range **includes now** refresh.
+- Cadence follows data cadence: raw/current-conditions every 2–5 min; hourly summaries
+  hourly, scheduled a few minutes after the server's :50 region-summary task; daily
+  after midnight plus hourly for today's partial value.
+- **One poll per descriptor**, shared across widgets via the cache; **pause while the
+  browser tab is hidden**; back off on errors.
+- **Minimized widgets refresh only if they have thresholds configured** — so their
+  taskbar entry can flash when a threshold is crossed (self-monitoring). Minimized
+  widgets without thresholds don't poll.
+- **Caching:** closed periods are immutable → cached indefinitely; open periods get a
+  TTL. Server summary endpoints should send HTTP cache headers (follow-up).
+- In-flight requests are superseded by newer ones for the same widget
+  (last-requested wins, not last-to-finish).
+
 ## Widget data selection (partial datasets)
 
 Decided 2026-09-23 (IDEA.md Open Question #2).

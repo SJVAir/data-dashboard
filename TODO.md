@@ -69,8 +69,10 @@ suggested order (one at a time, docs updated after each, no code):
 - [x] **Accounts & anonymous use** → existing sjvair.com accounts; everything anonymous
       except alerts / server docs / sync; lazy sign-in; browser profile as the boundary
       with "Clear my data" + session-only sign-in. See `ARCHITECTURE.md` → "Accounts".
-- [ ] **Live refresh & data volume.** Polling cadence; rule for choosing resolution
-      (default to summaries, not raw 1–2 min entries).
+- [x] **Live refresh & data volume** → automatic resolution by span with incomplete-period
+      stitching; data-cadence-aware refresh, shared polls, pause when hidden; minimized
+      widgets refresh only with thresholds. See `ARCHITECTURE.md` → "Data resolution &
+      live refresh".
 - [ ] **URL state with dashboards.** What a URL identifies now that dashboards are saved
       documents.
 - [ ] **Sequencing.** Rewrite `ROADMAP.md` (still the old tab plan) into sub-projects
@@ -118,6 +120,7 @@ Follow-ups created by decisions so far:
   rules (monitor/region pollutant, forecast, pesticide-notice rules), email channel,
   alert inbox API, caps + quiet hours; then sdk-js wrappers; then dashboard rule UI,
   inbox, and client-side self-monitoring in widgets.
+- Server: confirm/add HTTP cache headers (Cache-Control/ETag) on summary endpoints.
 - Add Paraglide JS (English-only) and the shared `format` module before building new UI.
 - Server: available-pollutants list in metadata (PM2.5 + O3 initially); replace this
   repo's hardcoded `"pm25" | "o3"` with it.

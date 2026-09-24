@@ -179,16 +179,20 @@ item against the widget design rather than dropping it silently.
 - **HMS Smoke/Fire and Collocation Sites tabs**: _v1 roadmap_. Likely becomes map and
   chart widgets or data sources.
 - **Whether HMS gets a spreadsheet view of raw records**: _open since 2026-09-14_.
-- **Whole-year over-fetch**: _deferred 2026-09-16_. The `month` param exists on the
+- **Whole-year over-fetch**: _deferred 2026-09-16; addressed by design 2026-09-24_ (automatic
+  resolution + narrow fetches in the data layer — see `ARCHITECTURE.md` → "Data resolution &
+  live refresh"). Close once implemented. The `month` param exists on the
   summary endpoints but isn't used.
-- **No in-flight request coordination**: _deferred 2026-09-16_. Rapid filter changes race,
+- **No in-flight request coordination**: _deferred 2026-09-16; addressed by design 2026-09-24_
+  (last-requested wins in the data layer). Close once implemented. Rapid filter changes race,
   so the last response to finish wins instead of the last request made. This applies to
   every widget data manager, so solve it once in the data layer or cache.
 - **Preferences persist only the month**: _deferred 2026-09-16_. The URL is read once at
   mount and doesn't react to back/forward.
 - **Migrating old `?range=` bookmark URLs**: _deferred 2026-09-16_.
 - **"Default to current month" can't show monthly data until the month ends**: _noted
-  2026-09-16_. Monthly rollups only compute after month-end.
+  2026-09-16; addressed by design 2026-09-24_ (incomplete-period stitching). Close once
+  implemented. Monthly rollups only compute after month-end.
 
 ## Decided against (kept for the record, not planned)
 
