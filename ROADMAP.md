@@ -80,8 +80,9 @@ needs explicit per-release approval.
    - The Map widget **waits for 4.0**; there is no interim single-map build.
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
-  of a pinned, versioned dashboard build into `dist/`, plus a Django catch-all route for
-  `/dashboard/*`. Production deploys only with explicit approval.
+  of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
+  pinning), a Django catch-all route for `/dashboard/*`, and Heroku config vars for
+  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js, decided
   2026-09-24). The `SavedDocument` model and endpoints, live share links (read-only
   plus "Make a copy"), versioned local-first sync with conflict prompts, local →

@@ -1038,18 +1038,33 @@ Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
   on CORS. This matters because Release 1 includes sign-in and server-backed documents.
   Token auth stays supported for Tauri and any future standalone build (see
   "Authentication").
-- **The monitor-map import pattern:** a sjvair.com build step imports this app's build
-  into `dist/` (like `scripts/import-monitor-map.sh`), and a Django catch-all route serves
-  `index.html` for `/dashboard/*`. The import should pull a **pinned, versioned build** so
-  the dashboard and the server can update independently. Needs an approved sjvair.com
+- **The monitor-map import pattern, as-is** (decided 2026-09-24). During each Heroku
+  deploy, a sjvair.com build step clones this repo's **`main`**, builds it, and copies it
+  into `dist/` (like `scripts/import-monitor-map.sh`). A Django catch-all route serves
+  `index.html` for `/dashboard/*`. **No version pinning:** `main` is always
+  production-ready and ships with every server deploy. Needs an approved sjvair.com
   plan.
+  - **Consequence: merging to dashboard `main` is the deploy approval point**, since any
+    server deploy (even an unrelated backend fix) ships it. Unfinished features stay on
+    branches or behind a flag; CI on PRs is the gate.
+  - A broken dashboard build would fail the server deploy. This is the same risk
+    monitor-map already carries, accepted for now.
+- **Build configuration:** `VITE_*` keys (MapTiler, NREL, …) come from **Heroku config
+  vars** at build time, as for monitor-map. Vite `base: "/dashboard/"` matches the
+  router's `basePath`.
+- **Same-origin API in production:** when served under `/dashboard/`, the SDK origin is
+  the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
+  `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
+  silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
+  builds (Tauri, standalone).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Full host-page embedding stays
   deferred.
 - **JupyterLite (Release 3)** lives at its own path (e.g. `/notebooks/`), and COOP/COEP
   headers are set only for that path.
-- **CI in this repo** runs lint, type-check, tests, and build on every PR. **Nothing deploys
-  to production without the user's explicit go-ahead**, the same as releases.
+- **CI in this repo** runs lint, type-check, tests, and build on every PR. **Merging to
+  `main` needs the user's explicit go-ahead**, because it is effectively a production
+  deploy. The same goes for triggering server deploys.
 - Server context: `CORS_ORIGIN_ALLOW_ALL = True` with `CORS_ALLOW_CREDENTIALS = True`. This is
   largely contained by Django's default `SameSite=Lax` session cookie. Tightening it is
   tracked in `DEFERRED.md`.

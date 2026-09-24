@@ -211,10 +211,14 @@ package release needs explicit per-release approval.
 **Release 1, parallel track: hosting on sjvair.com** (approved sjvair.com plan first)
 
 - sjvair.com:
-  - an import script that pulls a pinned, versioned dashboard build (modeled on
-    `scripts/import-monitor-map.sh`)
+  - an import script that clones and builds this repo's `main` during the Heroku deploy
+    (modeled on `scripts/import-monitor-map.sh`; no pinning)
   - a Django catch-all route for `/dashboard/*`
-- Production deploys only with the user's explicit go-ahead.
+  - `VITE_*` keys as Heroku config vars
+- This repo: Vite `base: "/dashboard/"`, and `setOrigin(location.origin)` when served
+  under `/dashboard/` (`VITE_PROD_URL` only for Tauri/standalone builds).
+- Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
+  server deploy).
 
 **Release 1, parallel track: server-backed documents** (approved sjvair.com plan first)
 

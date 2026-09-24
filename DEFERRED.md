@@ -50,6 +50,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `datetime` module or become a monitor-map export. **Decide when** the Widget Creation
   date-range picker (set, rolling, and custom ranges) is built.
 
+- **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
+  sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
+  `VITE_*` keys come from Heroku config vars at build time. **Revisit when** dashboard and
+  server deploys need to diverge (e.g. a server hotfix blocked by a dashboard build, or
+  a need to hold the dashboard back), or when keys must rotate without a redeploy. The
+  options then are a tag/version pin, a CI artifact, and config injected by the Django
+  view.
+
 ## Map & selection
 
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
