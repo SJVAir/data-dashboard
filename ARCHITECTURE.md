@@ -582,6 +582,7 @@ type WidgetType = {
 	accepts: DatasetFilter; // which accordions/layers apply (enforces ≤ 1 pollutant)
 	target?: "place"; // needs a monitor/region/location instead of layers
 	thresholds: boolean; // supports self-monitoring thresholds
+	analyzable: boolean; // offers Mark for analysis / Analyze
 	defaultTitle(config: WidgetDataConfig, meta: Metadata): string; // generated, not stored
 	menu: MenuProvider; // widget-scoped actions (see "Actions & context menu")
 	component: Component;
@@ -592,6 +593,18 @@ Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **
 strip**, and **"Can we go outside?"** are `time: "now"` with `target: "place"`; for those,
 Widget Creation hides the date section and shows a place picker instead of the dataset
 accordions. **Map** and **Chart** are `time: "range"` and accept multiple layers.
+
+**Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
+for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date
+range:
+
+- **Notes:** `analyzable: false`. It has no data, so the menu doesn't offer these actions.
+- **Current conditions, "Can we go outside?":** stage their place and pollutant with a
+  **default trailing window of the last 3 days (Pacific time)**, the "what led up to now"
+  question. The Collection item shows that range, and the user can adjust it in the
+  Collections drawer.
+- **Forecast strip:** stages the forecast zone over the same 3-day trailing window where
+  past forecasts exist; otherwise `analyzable: false`.
 
 ## Actions & context menu
 

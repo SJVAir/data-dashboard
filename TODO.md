@@ -183,7 +183,8 @@ package release needs explicit per-release approval.
 - The Widget Creation view: date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), a place picker for
   "now" widgets, and a live preview.
-- The `WidgetType` registry and `WidgetDataConfig` (`ARCHITECTURE.md` → "Widget-type
+- The `WidgetType` registry (including `analyzable`) and `WidgetDataConfig`; "now" widgets
+  stage a 3-day trailing window for analysis, and Notes offers no analysis actions (`ARCHITECTURE.md` → "Widget-type
   contract").
 - Widgets:
   - Chart
