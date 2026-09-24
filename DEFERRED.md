@@ -176,8 +176,10 @@ item against the widget design rather than dropping it silently.
 
 - **Chart and spreadsheet views**: _deferred 2026-09-15_. Likely becomes chart and table
   widgets.
-- **HMS Smoke/Fire and Collocation Sites tabs**: _v1 roadmap_. Likely becomes map and
-  chart widgets or data sources.
+- **HMS Smoke/Fire and Collocation Sites tabs**: _v1 roadmap; superseded 2026-09-24_ —
+  the v1 tabs are replaced by the starter dashboard (ROADMAP Release 1 step 6). HMS
+  becomes the smoke & fire map preset (see "Widgets"); collocation becomes the
+  low-cost-vs-reference starter analysis (#10). Close when those ship.
 - **Whether HMS gets a spreadsheet view of raw records**: _open since 2026-09-14_.
 - **Whole-year over-fetch**: _deferred 2026-09-16; addressed by design 2026-09-24_ (automatic
   resolution + narrow fetches in the data layer — see `ARCHITECTURE.md` → "Data resolution &

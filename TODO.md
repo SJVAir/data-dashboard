@@ -1,12 +1,25 @@
 # TODO / Current Status
 
-Last updated: 2026-09-23
+Last updated: 2026-09-24
 
-## Planning session in progress: IDEA.md (started 2026-09-23)
+## Start here
+
+**Planning is complete (2026-09-23 → 2026-09-24, branch `planning`).** All IDEA.md Open
+Questions and the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
+sequencing is in `ROADMAP.md`; every deferral is in `DEFERRED.md`.
+
+Next steps (each its own spec → plan → implementation, per the brainstorming process):
+
+1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
+2. **Release 1, step 1: Foundations** spec (this repo).
+3. In parallel once approved: **metadata enablers** (Release 1 step 3) and **server
+   alerting** (Release 2) plans in sjvair.com.
+
+## Planning session record: IDEA.md (2026-09-23 → 2026-09-24)
 
 `IDEA.md` describes a larger direction (Dashboard / Widget Creation / Analysis views,
-windowed widgets, alerts, Tauri). We're working through its **Open Questions** in order,
-updating the docs after each one. No code yet.
+windowed widgets, alerts, Tauri). We worked through its **Open Questions** in order,
+updating the docs after each one.
 
 - [x] **Q1 Tauri now or later?** → Web-first, Tauri-ready. See `ARCHITECTURE.md`
       → "Platform strategy" and "Authentication".
@@ -51,9 +64,8 @@ updating the docs after each one. No code yet.
       outside?", Forecast strip, Alerts feed, Data table, Notes, Hour × weekday heatmap
       to Map/Calendars/Chart; the rest deferred. See `ARCHITECTURE.md` → "Widget catalog".
 
-**Resume here next session (paused 2026-09-23).** All eight IDEA.md Open Questions are
-resolved. Next, interview the user on these gaps found during the session, in this
-suggested order (one at a time, docs updated after each, no code):
+**Planning session gaps (all resolved 2026-09-24).** Found while working through IDEA.md;
+each was interviewed and recorded:
 
 - [x] **Alerting design** (see `ARCHITECTURE.md` → "Alerts").
   - [x] Split: client self-monitoring (anyone) vs server automated alerting (accounts).
@@ -77,9 +89,10 @@ suggested order (one at a time, docs updated after each, no code):
       dashboards, fullscreen widgets, Widget Creation, Analysis, `/import#…`); document-
       level undo/redo via `applyChange` in the first release. See `ARCHITECTURE.md` →
       "Routing, URL state & undo".
-- [ ] **Sequencing.** Rewrite `ROADMAP.md` (still the old tab plan) into sub-projects
-      across monitor-map 4.0, server metadata + PM2.5 fix, sdk-js wrappers, and this app;
-      each gets its own spec → plan.
+- [x] **Sequencing** → `ROADMAP.md` rewritten: PM2.5 fix now; Release 1 Dashboard
+      (foundations → layout → metadata enablers ∥ → widgets → monitor-map 4.0 + Map
+      widget → starter dashboard replaces v1 tabs); Release 2 Alerts (server work starts
+      alongside Release 1); Release 3 Analysis. Map widget waits for 4.0.
 
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
 half-updated to EPA's 2024 AQI revision.** `camp/apps/entries/levels.py` `PM25` uses the
