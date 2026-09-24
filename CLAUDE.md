@@ -52,8 +52,8 @@ onto v1 code.
 - **Legacy v1 tab code (current Monitors tab, removed in Foundations):** the URL is the source of truth for the
   tab's view (filters, date range, toggles). `src/lib/preferences.ts` (localStorage
   defaults that seed the URL when no params exist) and `src/lib/url-state.ts` (pure,
-  unit-tested codecs such as `encodeDateRange`/`decodeDateRange`) support this; the
-  date-range codec carries forward into query-descriptor serialization.
+  unit-tested codecs such as `encodeDateRange`/`decodeDateRange`) support this. None of
+  it carries forward.
 
 ### Related SJVAir projects
 
@@ -109,16 +109,16 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 Installed:
 
-| Library                 | Purpose                                        |
-| ----------------------- | ---------------------------------------------- |
-| `sv-router`             | Client-side routing                            |
-| `@sjvair/sdk`           | Air quality data API                           |
-| `@sjvair/monitor-map`   | Map widget (4.0 plugin API planned)            |
-| `date-fns`              | Date handling                                  |
-| `uplot`                 | **All** charts (time-series-first)             |
-| shadcn-svelte / bits-ui | Accessible UI primitives                       |
-| `@lucide/svelte`        | Icons                                          |
-| Vitest                  | Unit tests (browser-mode component tests next) |
+| Library                                       | Purpose                                        |
+| --------------------------------------------- | ---------------------------------------------- |
+| `sv-router`                                   | Client-side routing                            |
+| `@sjvair/sdk`                                 | Air quality data API                           |
+| `@sjvair/monitor-map`                         | Map widget (4.0 plugin API planned)            |
+| `date-fns`                                    | Date handling                                  |
+| `uplot` (via monitor-map; direct dep planned) | **All** charts (time-series-first)             |
+| shadcn-svelte / bits-ui                       | Accessible UI primitives                       |
+| `@lucide/svelte`                              | Icons                                          |
+| Vitest                                        | Unit tests (browser-mode component tests next) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 

@@ -8,7 +8,9 @@ Last updated: 2026-09-24
 Questions and the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
 sequencing is in `ROADMAP.md`; every deferral is in `DEFERRED.md`.
 A full traceability review against IDEA.md (2026-09-24) fixed the remaining gaps
-and decided nine follow-ups: minimal Collections in Release 1, autosave with durability
+and decided nine follow-ups (more were settled later that day: the fresh start and the
+v1-lessons step, the deploy model, the sign-in staging, `analyzable` and the 3-day window,
+the private preview and go-live, and the full test gate on PRs into `main`): minimal Collections in Release 1, autosave with durability
 safeguards, server documents in Release 1, dataset accordions as layers, Pacific time,
 hosting under `sjvair.com/dashboard/`, an installable app shell, WCAG 2.2 AA, and the
 testing strategy.
@@ -69,7 +71,7 @@ updating the docs after each one.
       cleanup. See `ARCHITECTURE.md` → "Metadata as source of truth".
 - [x] **Q8 More widget ideas** → first release adds Current conditions, "Can we go
       outside?", Forecast strip, Alerts feed, Data table, Notes, Hour × weekday heatmap
-      to Map/Calendars/Chart; the rest deferred. See `ARCHITECTURE.md` → "Widget catalog".
+      to Map/Calendars/Chart (the Alerts feed ships in Release 2); the rest deferred. See `ARCHITECTURE.md` → "Widget catalog".
 
 **Planning session gaps (all resolved 2026-09-24).** Found while working through IDEA.md;
 each was interviewed and recorded:
@@ -121,7 +123,7 @@ package release needs explicit per-release approval.
 
 **Release 1, step 1: Foundations** (this repo)
 
-- **First, write `docs/reference/v1-lessons.md`**: what the v1 code and its 59 tests
+- **First, write `docs/reference/v1-lessons.md`**: what the v1 code and its 78 tests
   learned about server behavior, as behaviors rather than code. Examples:
   - monthly+ rollups exist only after the period ends
   - region boundaries are large, so they're fetched lazily for selected regions only, with
@@ -139,7 +141,8 @@ package release needs explicit per-release approval.
   Reuse existing code only if it's exactly what the new design needs.
 
 - Platform adapter: storage, notifications, file export, background tasks, online status,
-  auth mode, and token storage. Move `src/lib/preferences.ts` behind it.
+  auth mode, and token storage. Preferences (last-opened dashboard, active Collection)
+  go through it; the v1 `preferences.ts` is removed, not migrated.
 - Local-first cache and data layer (IndexedDB/OPFS):
   - automatic resolution selection
   - incomplete-period stitching
@@ -151,6 +154,8 @@ package release needs explicit per-release approval.
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
   Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
 - `SavedDocument` types, a migration chain, `applyChange`, and undo/redo.
+- Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
+  see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
 - Minimal Collections: the store, the drawer, "Add to collection ▸", and a placeholder
   Analysis view ("starter analyses coming soon").
@@ -184,20 +189,22 @@ package release needs explicit per-release approval.
 
 **Release 1, step 3: Metadata enablers** (sjvair.com + sdk-js, in parallel with steps 1–2)
 
-- Available-pollutants list (PM2.5 + O3 initially). It replaces this repo's hardcoded
-  `"pm25" | "o3"`.
+- Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
+  hardcoding pollutants.
 - In order: the `meta/datasets/` catalog, the coverage endpoint, per-domain scale metas
   (hms, calheatscore, forecasts, AQI), region hierarchy, choice lists, and
   display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints.
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
   `api-urls.md`.
-- Clean up hardcoded values in sjvair.com and this repo once the metadata exists. The
-  monitor-map cleanup folds into 4.0.
+- Clean up hardcoded values in sjvair.com once the metadata exists. The monitor-map
+  cleanup folds into 4.0; this repo's v1 values go away with the v1 code.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
-- The Widget Creation view: date methods above catalog-driven dataset accordions (the v1
+- The **starter dashboard** (first-visit default) with non-map widgets; map and calendar
+  widgets join in step 6.
+- The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), a place picker for
   "now" widgets, and a live preview.
 - The `WidgetType` registry (including `analyzable`) and `WidgetDataConfig`; "now" widgets
@@ -218,7 +225,6 @@ package release needs explicit per-release approval.
   selected-range variants.
 - Client-side self-monitoring thresholds. These need no server work and ship with the
   widgets.
-- Decide where the shared date-range helper lives (see `DEFERRED.md`).
 
 **Release 1, step 5: monitor-map 4.0 and the Map widget**
 

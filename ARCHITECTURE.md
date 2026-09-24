@@ -207,8 +207,9 @@ Tauri-ready seams required **from day one**:
   implementation uses IndexedDB/OPFS and browser APIs; a Tauri implementation later
   swaps in SQLite, native notifications, tray, and filesystem access. **Components and
   managers never call `localStorage`, `Notification`, `showSaveFilePicker`, etc.
-  directly** — only through the adapter. (`src/lib/preferences.ts` currently uses
-  `localStorage` directly and should move behind the adapter when it's built.)
+  directly** — only through the adapter. Preferences (e.g. last-opened dashboard,
+  active Collection) are stored through it. The v1 `src/lib/preferences.ts` is removed
+  with the rest of the v1 code, not migrated.
 - **Local-first data cache.** Fetched data lands in a local store that widgets read
   from. Benefits the web build immediately (fast reloads, analysis Collections,
   offline tolerance) and becomes a larger on-disk store under Tauri.
@@ -259,7 +260,8 @@ How the SDK does it: `account/login` returns `UserDetails` including `api_token`
 authenticated calls (e.g. `getSubscriptions`) take an **optional** `apiToken`: when it
 is passed a `Token` header is sent, and when it is omitted the request relies on the
 browser's same-origin session cookie. Others **require** a token today:
-`getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`, the phone functions, and
+`getUserDetails`, `updateUser`, `getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`,
+the phone functions, and
 change-password (`sdk-js/lib/account/*`). The
 server (resticus) accepts an existing session for them, so this is an SDK signature
 limitation. Consequences:
@@ -314,7 +316,7 @@ approach is staged:
   verification) and adds no new auth endpoint. Known cost: in-progress dialog state
   isn't preserved across the redirect (autosave keeps documents safe). **"Remember me"**
   needs a small sjvair.com change (a checkbox; when unchecked, the session expires at
-  browser close) in the hosting / server-documents plan.
+  browser close) in the server-backed documents plan.
 - **By Release 2: in-app session login.** A small `POST account/session/` endpoint
   (`{identifier, password, remember}` → Django `login()` plus session expiry, with a
   matching logout) behind an in-app sign-in dialog. That keeps mid-flow sign-in (e.g.
@@ -323,7 +325,8 @@ approach is staged:
   standalone builds using tokens. The rest of the app only asks "am I signed in?", so
   the switch is contained.
 - **SDK:** make `apiToken` optional on the account calls that require it today
-  (`getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`, the phone functions,
+  (`getUserDetails`, `updateUser`, `getAirAlerts`, `subscribe`/`unsubscribe`,
+  `deleteUser`, the phone functions,
   change-password) so a session works everywhere.
   sdk-js change, approved plan first.
 - **Development:** the Vite dev server proxies `/api` (and `/account/`) to the local
@@ -346,8 +349,8 @@ widget.
 - **Incomplete periods are stitched from finer data** — e.g. the current month (no
   monthly rollup until it ends) is computed from daily summaries so far, today from
   hourly. Fixes the "current month shows nothing" problem for every widget.
-- Advanced **resolution override** in Widget Creation; data table and exports show the
-  resolution used.
+- Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
+  exports show the resolution used.
 - Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
 
 **Live refresh:**
@@ -396,9 +399,8 @@ documents (see "Saving & sharing documents").
   work anywhere).
 - **Embedding:** same routes, held in memory when the host owns the URL (see
   "Embedding").
-- Carried forward from v1: `url-state.ts`'s date-range codec (reused for serializing
-  query descriptors); preference seeding becomes "last-opened dashboard" + Widget
-  Creation defaults.
+- The v1 per-tab URL seeding is gone. Preferences hold the "last-opened dashboard" and
+  Widget Creation defaults (through the platform adapter).
 
 **Undo/redo (first release).** A **document-level undo/redo stack** (Ctrl+Z /
 Ctrl+Shift+Z, plus menu actions via the shared action list), separate from browser
@@ -457,8 +459,10 @@ type SpatialSelection = {
 - **A. Feature picking** — click a monitor/region to select, shift-click to add;
   selection shows as removable chips in the widget title bar; right-click a feature
   for feature-scoped context-menu entries ("Analyze this monitor").
-- **B. Region picking** — reuse the existing multi-region selector (region hierarchy,
-  boundaries, tooltips). Preferred basis for analysis: regions are stable, meaningful
+- **B. Region picking** — a new region picker built on the region-hierarchy metadata
+  (hierarchy, boundaries, tooltips). The v1 multi-region selector's narrowing rules and
+  boundary-loading behavior are captured in `docs/reference/v1-lessons.md`, not reused
+  as code. Preferred basis for analysis: regions are stable, meaningful
   units the server already aggregates (`RegionSummary`) and are the natural
   crosswalk to other geographies (health, pesticide data).
 - **C. Drawn shapes** — box, lasso, radius-from-point, via `terra-draw` (MIT). The
@@ -467,7 +471,7 @@ type SpatialSelection = {
   geometry is kept in `source` so it can be redisplayed and re-resolved later (e.g.
   when new monitors come online). Users can prune the resulting chips.
 
-Build order: A and B first (cheap, share state with the existing region selector); C
+Build order: A and B first (both share one selection state); C
 later. Drawing tools belong in `@sjvair/monitor-map` as an **opt-in plugin, off by
 default**, so sjvair.com's map and the mobile app are unaffected (see Open Question #3).
 
@@ -523,8 +527,11 @@ import time. A dashboard with two map widgets would share all of that state.
 
 **Consumers to migrate in the same effort** (each needs its own approved plan):
 `sjvair.com` (templates `pages/app.html`/`index.html`) and `v3-mobile` (the mobile
-app). The major version bump protects anything unmigrated from pulling 4.0
-by accident.
+app). **Correction (2026-09-24):** the major version bump protects only `v3-mobile`
+(which depends on `^3.x`). sjvair.com's `scripts/import-monitor-map.sh` clones
+monitor-map's **`main` with no pin** and builds the standalone app that its templates
+load, so merging 4.0 into monitor-map's `main` ships it with the next server deploy. The
+rollout strategy for this is an open decision (see `DEFERRED.md`).
 
 ## Dashboard layout mechanics
 
@@ -564,19 +571,19 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 
 **First widget set** (Release 1, except the Alerts feed, which ships with Release 2):
 
-| Widget                    | What it shows                                                                                          | Notes                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------ |
-| Map                       | monitor-map 4.0 `MapView` + plugins; spatial selection (feature/region, later drawn)                   | See "Map SDK"                  |
-| Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Existing Monitors-tab calendar |
-| Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                                |
-| Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                                |
-| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor or region              |
-| "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore)   |
-| Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)               |
-| Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login                 |
-| Data table                | Sortable table + CSV export; the accessibility fallback for maps/charts                                |                                |
-| Notes                     | Markdown text for annotating shared dashboards                                                         | No data source                 |
-| Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                                |
+| Widget                    | What it shows                                                                                          | Notes                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| Map                       | monitor-map 4.0 `MapView` + plugins; spatial selection (feature/region, later drawn)                   | See "Map SDK"                |
+| Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Replaces the v1 calendar     |
+| Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                              |
+| Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
+| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor or region            |
+| "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
+| Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)             |
+| Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
+| Data table                | Sortable table + CSV export; the accessibility fallback for maps/charts                                |                              |
+| Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
+| Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                              |
 
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
@@ -603,7 +610,9 @@ type WidgetType = {
 Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **Forecast
 strip**, and **"Can we go outside?"** are `time: "now"` with `target: "place"`; for those,
 Widget Creation hides the date section and shows a place picker instead of the dataset
-accordions. **Map** and **Chart** are `time: "range"` and accept multiple layers.
+accordions. For Current conditions and "Can we go outside?" the place picker also picks
+the pollutant (gated by available pollutants); in `WidgetDataConfig` that's a single
+pollutant layer alongside `target`. **Map** and **Chart** are `time: "range"` and accept multiple layers.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
 for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date
@@ -989,15 +998,16 @@ SJVAir is only confident in some readings (PM2.5 and O3 today). A server-control
 **available-pollutants list in metadata** (e.g. an `available_pollutants` list or
 per-entry-type `available` flag on `monitors/meta/` — ideally admin-editable so changing
 it needs no deploy) gates which pollutants the frontend offers in **widgets, analyses,
-and alert rules**. Enabling NO2/SO2/CO later is a metadata change, not a code change. This
-replaces the hardcoded `"pm25" | "o3"` in this repo. Priority: alongside gap #1.
+and alert rules**. Enabling NO2/SO2/CO later is a metadata change, not a code change. The
+new code never hardcodes pollutants (the v1 `"pm25" | "o3"` goes away with the v1 code).
+Priority: alongside gap #1.
 
 **Cleanup to do alongside** (removing hardcoded duplicates once metadata covers them):
 server breakpoints defined twice (`levels.py` + entry classes), legacy
 `Subscription.LEVELS`, Sass AQ colors, `generate_group_map.py`; `monitor-map`'s
 `colors.ts`, legend gradient, `150.5` fallback, hardcoded "µg/m³", smoke/fire colors;
-this repo's `"pm25" | "o3"` restriction and `NO_VALUE_BORDER_COLOR`; stale `sdk-js`
-`api-urls.md`.
+stale `sdk-js` `api-urls.md`. (This repo's v1 hardcoded values disappear with the v1
+code; the new code never hardcodes them.)
 
 ## Tech stack
 
@@ -1006,7 +1016,8 @@ needed. Plain Vite SPA — no SvelteKit, no server runtime — keeping embedding
 wrap simple.
 
 - **Current:** Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4,
-  shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot`,
+  shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot` (currently only via
+  monitor-map; becomes a direct dependency),
   `@sveltejs/enhanced-img`, `@sjvair/sdk`, `@sjvair/monitor-map`, Vitest.
 - **Planned additions (decided):** Paraglide JS (i18n-ready messages), `vite-plugin-pwa`
   (app-shell service worker), `@date-fns/tz` (Pacific-time math), `lz-string`
@@ -1073,8 +1084,11 @@ Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
   production-ready and ships with every server deploy. Needs an approved sjvair.com
   plan.
   - **Consequence: merging to dashboard `main` is the deploy approval point**, since any
-    server deploy (even an unrelated backend fix) ships it. Unfinished features stay on
-    branches or behind a flag; CI on PRs is the gate.
+    server deploy (even an unrelated backend fix) ships it. CI on PRs is the gate.
+  - **Before go-live**, the import and route may be merged into sjvair.com but the
+    `/dashboard/*` route stays **disabled or hidden** (except for the private preview),
+    so in-progress work on `main` isn't public. Merges still need explicit approval.
+  - **After go-live**, unfinished features stay on branches or behind a flag.
   - A broken dashboard build would fail the server deploy. This is the same risk
     monitor-map already carries, accepted for now.
 - **Build configuration:** `VITE_*` keys (MapTiler, NREL, …) come from **Heroku config

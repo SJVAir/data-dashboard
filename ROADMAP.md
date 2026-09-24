@@ -28,7 +28,7 @@ needs explicit per-release approval.
    - local-first cache and data layer: automatic resolution, incomplete-period
      stitching, shared polling, last-requested-wins
    - Paraglide (English-only) and the `format` module
-   - `SavedDocument`, `applyChange`, and undo/redo
+   - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo
    - **minimal Collections** (decided 2026-09-24): the store, the Collections drawer,
      "Add to collection ▸", and a placeholder Analysis view that lists a Collection's
      items with "starter analyses coming soon"
@@ -46,7 +46,8 @@ needs explicit per-release approval.
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/dashboard/`
-   - CI: lint, type-check, tests, and build on every PR
+   - CI: lint, type-check, tests, and build on every PR. PRs into `main` run the full
+     suite (three engines plus axe); feature-branch PRs run the fast set
    - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev)
    - test infrastructure: Vitest browser mode, Playwright (3 engines), axe
    - installable app: an app-shell service worker via `vite-plugin-pwa`, scoped to
@@ -65,7 +66,10 @@ needs explicit per-release approval.
    - HTTP cache headers on the summary endpoints
    - hardcoded-value cleanup in sjvair.com and this repo, and fixing sdk-js `api-urls.md`
 4. **Widget Creation and the non-map widgets**
-   - Widget Creation view (catalog-driven dataset accordions, layers)
+   - Widget Creation view (catalog-driven dataset accordions, layers, advanced resolution
+     override)
+   - the **starter dashboard** (first-visit default) with non-map widgets. Until it
+     exists, `/` and "new from starter" open a blank dashboard
    - the `WidgetType` registry and `WidgetDataConfig`
    - Chart
    - Calendar (day-colored)
@@ -105,7 +109,9 @@ needs explicit per-release approval.
 6. **Starter dashboard and go-live.** The default dashboard a first-time visitor sees
    (not a blank page) gains its map + calendar widgets once step 5 lands. Before that it
    uses non-map widgets. **The `sjvair.com/dashboard/` route goes live when Release 1 is
-   complete.** Until then `main` isn't public, so work in progress on it is safe.
+   complete.** Until then the route stays disabled or hidden (except for the private
+   preview), so work in progress on `main` isn't public. Merges still need explicit
+   approval.
 
 ## Release 2: Alerts
 

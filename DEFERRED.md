@@ -45,10 +45,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   and server changes. Drawn-shape selection resolves on the client, so it doesn't depend
   on this. **Revisit when** client-side resolution gets too slow or needs data the client
   doesn't have.
-- **Shared date-range helper home.** _Open since 2026-09-14._ The helper currently exists
-  only in monitor-map's `data-chart/DateRange.ts`. It could move to `@sjvair/sdk`'s
-  `datetime` module or become a monitor-map export. **Decide when** the Widget Creation
-  date-range picker (set, rolling, and custom ranges) is built.
+- **Shared date-range helper home.** _Open since 2026-09-14; narrowed 2026-09-24._
+  monitor-map's `data-chart/DateRange.ts` uses the browser's local time zone, so it
+  conflicts with the Pacific-time rule and can't be reused as-is. This repo's
+  `DateRangeSpec` resolution lives with the `format` module in Foundations. **Still open:**
+  whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Decide
+  in** the monitor-map 4.0 spec.
 
 - **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
   sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
@@ -89,7 +91,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Entry types beyond PM2.5/O3.** _Deferred 2026-09-15; mechanism decided 2026-09-24._
   Pollutants offered in the frontend (widgets, analyses, alerts) will be gated by a
   server **available-pollutants** metadata list (PM2.5 + O3 today), replacing the
-  hardcoded `"pm25" | "o3"` in `url-state.ts`, `monitor-latest.ts`, `MonitorsTab.svelte`.
+  v1 hardcoded `"pm25" | "o3"` (which goes away with the v1 code).
   **Revisit when** SJVAir is confident in NO2/SO2/CO (or others) — enabling them is then a
   metadata change.
 
@@ -101,6 +103,21 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `docs/reference/jupyterlite-kernels.md`. **Revisit when** `openair`/`sf` reach
   emscripten-forge or webR's kernel is revived (R), `jupyterlite/javascript-kernel`
   ships a stable 0.4 (JS), or schools/community users ask for them.
+
+- **CEIDARS facility emissions.** _Deferred 2026-09-24 (docs review)._ On the server
+  (yearly facility emissions + health risk indices) but no widget, analysis, or SDK
+  wrapper is planned. **Revisit when** an emissions/facility-proximity use case comes up.
+- **Pesticide timing → health analysis** (from IDEA.md's prior brainstorm). _Deferred
+  2026-09-24._ No health outcome data beyond CalEnviroScreen; closest planned work is
+  starter #9 (use trends) and #7 (CES indicators). **Revisit with** the outside-health-data
+  entry above.
+- **Sub-yearly pesticide analysis.** _Deferred 2026-09-24._ Server region summaries are
+  yearly only; finer analysis needs the nullable `application_date`. **Revisit when**
+  users need seasonal pesticide timing; likely needs a server summary change.
+- **CarbonMapper data source.** _Noted 2026-09-24._ `VITE_CARBONMAPPER_KEY` is reserved in
+  `.env.example` (a `carbon-mapper-exploration` sibling repo exists) but nothing is
+  designed. **Revisit when** CarbonMapper integration is scoped. Same for the unused
+  `VITE_OPENWEATHERMAP_KEY` — remove it if no use appears.
 
 ## Map plugins
 
@@ -129,6 +146,8 @@ ship, or a specific audience asks for one.
 - **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
   timeline).
 - **Monitor health**: QA/QC scores and sensor agreement (research).
+
+## Alerts
 
 - **Additional automated-alert sources and targets.** _Deferred 2026-09-24 (alerting
   design)._ First server iteration covers pollutants (monitor/region targets),
@@ -174,21 +193,6 @@ ship, or a specific audience asks for one.
   for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and v3-mobile. Health guidance
   and alert text need human translation or review, not machine-only. **Revisit when**
   translators or funding for translation are available.
-
-- **CEIDARS facility emissions.** _Deferred 2026-09-24 (docs review)._ On the server
-  (yearly facility emissions + health risk indices) but no widget, analysis, or SDK
-  wrapper is planned. **Revisit when** an emissions/facility-proximity use case comes up.
-- **Pesticide timing → health analysis** (from IDEA.md's prior brainstorm). _Deferred
-  2026-09-24._ No health outcome data beyond CalEnviroScreen; closest planned work is
-  starter #9 (use trends) and #7 (CES indicators). **Revisit with** the outside-health-data
-  entry above.
-- **Sub-yearly pesticide analysis.** _Deferred 2026-09-24._ Server region summaries are
-  yearly only; finer analysis needs the nullable `application_date`. **Revisit when**
-  users need seasonal pesticide timing; likely needs a server summary change.
-- **CarbonMapper data source.** _Noted 2026-09-24._ `VITE_CARBONMAPPER_KEY` is reserved in
-  `.env.example` (a `carbon-mapper-exploration` sibling repo exists) but nothing is
-  designed. **Revisit when** CarbonMapper integration is scoped. Same for the unused
-  `VITE_OPENWEATHERMAP_KEY` — remove it if no use appears.
 
 ## UI & UX
 
