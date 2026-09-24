@@ -839,6 +839,25 @@ files, server `.po` files, per-language metadata caching, alerts in `User.langua
 Hmong formatting fallback, monitor-map / v3-mobile i18n. RTL support is not needed for
 the declared languages.
 
+## Time zone & calendar conventions
+
+Decided 2026-09-24. The server stores timestamps in UTC, but **all summary rollups are cut
+at America/Los_Angeles boundaries** (`settings.DEFAULT_TIMEZONE`, used in
+`summaries/tasks.py`). The dashboard matches that.
+
+- **Pacific time (America/Los_Angeles) everywhere, whatever the viewer's zone.** This
+  covers "today", calendar day cells, set ranges (day/week/month/year), rolling ranges,
+  and the hour × weekday heatmap. It keeps day boundaries identical to the server's daily
+  and monthly summaries.
+- **Timestamps display in Pacific time.** A "PT" label appears only when the viewer's
+  device is in a different zone.
+- **All date calculations go through the `format` module** with a time-zone-aware helper
+  (`@date-fns/tz`), never the browser's local zone. Daylight-saving days are handled
+  correctly: 23- and 25-hour days, and a repeated or missing hour in hourly data.
+- **Weeks start on Sunday** (US convention). This applies to set weeks, week-to-date, and
+  the contribution calendar. It is a single constant in the `format` module, so a future
+  locale can change it.
+
 ## Metadata as source of truth
 
 Decided 2026-09-23 (IDEA.md Open Question #7). Audit basis:

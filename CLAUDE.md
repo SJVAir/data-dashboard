@@ -86,6 +86,9 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
   "Internationalization"): all UI strings through Paraglide messages, no concatenated
   sentences, all formatting through the shared `format` module, never store generated
   English in saved documents.
+- **Dates use Pacific time (America/Los_Angeles), never the browser's zone**, via the
+  `format` module; weeks start on Sunday. See `ARCHITECTURE.md` → "Time zone & calendar
+  conventions".
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
   "Authentication"): session cookie when embedded on sjvair.com's origin; `Token`
   header when standalone on another origin or under Tauri.
@@ -100,19 +103,19 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 ## Key Libraries
 
-| Library                 | Purpose                                 |
-| ----------------------- | --------------------------------------- |
-| `sv-router`             | Client-side routing                     |
-| `@sjvair/sdk`           | Air quality data API                    |
-| `@sjvair/monitor-map`   | Map widget (4.0 plugin API planned)     |
-| `date-fns`              | Date handling                           |
-| Paraglide JS (inlang)   | UI message catalog (English-only today) |
-| `lz-string` (planned)   | URL-fragment document sharing           |
-| `terra-draw` (planned)  | Drawn-shape map selection (via plugin)  |
-| `uplot`                 | **All** charts (time-series-first)      |
-| shadcn-svelte / bits-ui | Accessible UI primitives                |
-| `@lucide/svelte`        | Icons                                   |
-| Vitest                  | Unit tests for framework-agnostic logic |
+| Library                     | Purpose                                 |
+| --------------------------- | --------------------------------------- |
+| `sv-router`                 | Client-side routing                     |
+| `@sjvair/sdk`               | Air quality data API                    |
+| `@sjvair/monitor-map`       | Map widget (4.0 plugin API planned)     |
+| `date-fns` + `@date-fns/tz` | Date handling (Pacific time)            |
+| Paraglide JS (inlang)       | UI message catalog (English-only today) |
+| `lz-string` (planned)       | URL-fragment document sharing           |
+| `terra-draw` (planned)      | Drawn-shape map selection (via plugin)  |
+| `uplot`                     | **All** charts (time-series-first)      |
+| shadcn-svelte / bits-ui     | Accessible UI primitives                |
+| `@lucide/svelte`            | Icons                                   |
+| Vitest                      | Unit tests for framework-agnostic logic |
 
 ## Environment Variables
 

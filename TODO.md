@@ -123,7 +123,9 @@ package release needs explicit per-release approval.
   - pause when the tab is hidden
   - last-requested-wins
 - `QueryDescriptor` type: one definition, in `ARCHITECTURE.md` → "Widget data selection".
-- Paraglide JS (English-only) and the shared `format` module, before any new UI.
+- Paraglide JS (English-only) and the shared `format` module, before any new UI. The
+  `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
+  Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
 - `SavedDocument` types, a migration chain, `applyChange`, and undo/redo.
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
 - Minimal Collections: the store, the drawer, "Add to collection ▸", and a placeholder
