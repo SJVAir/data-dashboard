@@ -62,9 +62,11 @@ onto v1 code.
   is a reusable, configurable map-layout primitive intended for exactly this kind of
   embedding — see its `CLAUDE.md` for the `routerEscapeHatch`/`basePath` props needed
   when embedding it inside an app with its own routing (like this one).
-  A 4.0 clean break (per-map instances + plugin system, needed for multiple map
-  widgets) is planned; dashboard map widgets will use its lightweight `MapView`, not
-  `MapShell` — see `ARCHITECTURE.md` → "Map SDK".
+  **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
+  `../map-sdk`, not yet created) holds the per-map core, plugins, `MapView`, and data
+  stores, while monitor-map is rebuilt on it as the monitor-map _experience_ (MapShell,
+  routes, panels, the standalone build sjvair.com imports). **Dashboard map widgets use
+  `map-sdk`'s `MapView`, not monitor-map.** See `ARCHITECTURE.md` → "Map SDK".
 - `@sjvair/sdk` (sibling repo `../sdk-js`) — the SJVAir API client. Covers `monitors`
   (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
   `pesticides`, `regions`, and `account` (login, subscriptions, air alerts).
@@ -113,7 +115,7 @@ Installed:
 | --------------------------------------------- | ---------------------------------------------- |
 | `sv-router`                                   | Client-side routing                            |
 | `@sjvair/sdk`                                 | Air quality data API                           |
-| `@sjvair/monitor-map`                         | Map widget (4.0 plugin API planned)            |
+| `@sjvair/monitor-map`                         | v1 map (replaced by `@sjvair/map-sdk`)         |
 | `date-fns`                                    | Date handling                                  |
 | `uplot` (via monitor-map; direct dep planned) | **All** charts (time-series-first)             |
 | shadcn-svelte / bits-ui                       | Accessible UI primitives                       |
@@ -128,7 +130,8 @@ Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 | Paraglide JS (inlang)                           | UI message catalog (English-only today)               |
 | `vite-plugin-pwa`                               | App-shell service worker, installability              |
 | `lz-string`                                     | URL-fragment document sharing                         |
-| `terra-draw`                                    | Drawn-shape map selection (via a monitor-map plugin)  |
+| `@sjvair/map-sdk`                               | Map widget: core, plugins, `MapView`, data stores     |
+| `terra-draw`                                    | Drawn-shape map selection (via a map-sdk plugin)      |
 | Playwright                                      | E2E on Chromium/WebKit/Firefox                        |
 | `vitest-browser-svelte`, `@axe-core/playwright` | Component tests in a real browser; WCAG 2.2 AA checks |
 | JupyterLite + Pyodide                           | Separate `/notebooks/` app (Release 3)                |
@@ -140,8 +143,8 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env` itsel
 ```
 VITE_DEV_URL=              # @sjvair/sdk origin in dev (current code; planned: Vite proxy → same-origin)
 VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /dashboard/ → location.origin)
-VITE_MAPTILER_KEY=          # MapTiler basemap key (monitor-map; injected via config in 4.0)
-VITE_NREL_KEY=               # NREL alt-fuel API, monitor-map EV-stations layer
+VITE_MAPTILER_KEY=          # MapTiler basemap key (passed to map-sdk as injected config)
+VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations map plugin
 VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)
 VITE_CARBONMAPPER_KEY=      # reserved; unused (see DEFERRED.md)
 ```

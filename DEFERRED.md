@@ -50,7 +50,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   conflicts with the Pacific-time rule and can't be reused as-is. This repo's
   `DateRangeSpec` resolution lives with the `format` module in Foundations. **Still open:**
   whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Decide
-  in** the monitor-map 4.0 spec.
+  in** the `map-sdk` 1.0 spec.
 
 - **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
   sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
@@ -64,9 +64,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
-  plugin in monitor-map. **Revisit when** feature and region selection have shipped.
+  plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
 - **Globe-projection zoom precision.** _Noted 2026-09-16._ Large counties are under-zoomed
-  in the globe projection. **Revisit when** building the map widget on monitor-map 4.0.
+  in the globe projection. **Revisit when** building the Map widget on `map-sdk`.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
@@ -124,7 +124,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Map plugins for the remaining server datasets.** _Deferred 2026-09-24 (docs review)._
   First release covers monitors, region fill, HMS smoke/fire, collocation, EV, wind,
   weather. Deferred: pesticide use and SprayDays notices, CalEnviroScreen tracts,
-  CalHeatScore ZIPs, forecast zones, CEIDARS facilities, TEMPO rasters. The 4.0 plugin
+  CalHeatScore ZIPs, forecast zones, CEIDARS facilities, TEMPO rasters. The `map-sdk` plugin
   interface must support points, polygons, choropleths, and rasters so these are
   additive. **Revisit when** a widget or analysis needs one on a map (pesticide notices
   likely first, alongside the alerts work).
@@ -256,8 +256,13 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   Tauri-build entry above.
 - **Time scrubbing or time selection inside map widgets**: _2026-09-23, Q2_. Time is fixed
   per widget, and calendar and chart widgets handle narrowing the time range.
-- **A long-lived monitor-map 3.x compat shim**: _2026-09-23, Q3_. We chose a clean 4.0
-  break with coordinated consumer migration.
+- **A long-lived monitor-map 3.x compat shim**: _2026-09-23, Q3_. We chose a clean break
+  with coordinated consumer migration (restructured 2026-09-24 as the `map-sdk` split).
+- **An in-place monitor-map 4.0 rewrite**: _2026-09-24_. Replaced by splitting out
+  `@sjvair/map-sdk` (library) with monitor-map rebuilt on it (experience), which also
+  removes the risk of shipping an unfinished 4.0 through sjvair.com's unpinned import.
+- **Keeping the name "monitor-map" for the map library**: _2026-09-24_. The library is
+  `map-sdk`; the monitor-map name stays with the monitor-map experience.
 - **Free-form, overlapping dashboard windows**: _2026-09-23, Q4_. We chose a snapping grid.
 - **A horizontally scrolling dashboard canvas**: _2026-09-23, Q4_. It grows vertically,
   and multiple dashboards handle crowding.
@@ -275,7 +280,7 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **User-set alert averaging windows** and **repeat notifications while a level holds**:
   _2026-09-24, alerting_.
 - **An interim single-map-widget build on monitor-map 3.x**: _2026-09-24, sequencing_. The
-  Map widget waits for 4.0.
+  Map widget waits for `map-sdk`.
 - **Explicit Save as the primary save model**: _2026-09-24_. Autosave plus undo instead;
   "Save as copy…" and "Export…" remain.
 - **Token auth for the Release 1 web build**: _2026-09-24_. It would put tokens in browser

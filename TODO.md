@@ -99,9 +99,9 @@ each was interviewed and recorded:
       level undo/redo via `applyChange` in the first release. See `ARCHITECTURE.md` →
       "Routing, URL state & undo".
 - [x] **Sequencing** → `ROADMAP.md` rewritten: PM2.5 fix now; Release 1 Dashboard
-      (foundations → layout → metadata enablers ∥ → widgets → monitor-map 4.0 + Map
-      widget → starter dashboard + go-live); Release 2 Alerts (server work starts
-      alongside Release 1); Release 3 Analysis. Map widget waits for 4.0.
+      (foundations → layout → metadata enablers ∥ → widgets → monitor-map 4.0 (now `map-sdk`) + Map
+      widget on map-sdk → starter dashboard + go-live); Release 2 Alerts (server work starts
+      alongside Release 1); Release 3 Analysis. Map widget waits for 4.0 (since restructured as `map-sdk`).
 
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
 half-updated to EPA's 2024 AQI revision.** `camp/apps/entries/levels.py` `PM25` uses the
@@ -197,8 +197,8 @@ package release needs explicit per-release approval.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints.
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
   `api-urls.md`.
-- Clean up hardcoded values in sjvair.com once the metadata exists. The monitor-map
-  cleanup folds into 4.0; this repo's v1 values go away with the v1 code.
+- Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
+  into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
@@ -226,10 +226,13 @@ package release needs explicit per-release approval.
 - Client-side self-monitoring thresholds. These need no server work and ship with the
   widgets.
 
-**Release 1, step 5: monitor-map 4.0 and the Map widget**
+**Release 1, step 5: `map-sdk` and the Map widget**
 
-- The 4.0 spec and plan: instance-scoped core, plugin interface, `MapView`. Then the
-  sjvair.com and `v3-mobile` migration plans.
+- Create the `@sjvair/map-sdk` repo. Its 1.0 spec and plan cover the instance-scoped core,
+  plugin interface, `MapView`, and app-level data stores (`createMonitorsStore()`).
+- A monitor-map plan: rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
+  standalone build). Merge to its `main` only after verification, with explicit approval.
+- A v3-mobile migration plan (stores from `map-sdk`, layout from the new monitor-map).
 - The Map widget, with feature/region selection (methods A and B). Drawn shapes (C, via a
   `terra-draw` plugin) come later.
 

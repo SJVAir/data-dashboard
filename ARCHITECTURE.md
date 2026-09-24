@@ -177,7 +177,8 @@ Channel reference:
 ### Sibling projects
 
 Built with and against `sjvair.com` (server), `sdk-js` (`@sjvair/sdk`), and
-`monitor-map` (map SDK, also used by sjvair.com and `v3-mobile`). They may need changes,
+`monitor-map` (map experience, also used by sjvair.com and `v3-mobile`), and the planned
+`map-sdk` (map library split out of monitor-map). They may need changes,
 but **must not break their existing use cases**, and **each change needs an approved
 plan first**.
 
@@ -472,22 +473,35 @@ type SpatialSelection = {
   when new monitors come online). Users can prune the resulting chips.
 
 Build order: A and B first (both share one selection state); C
-later. Drawing tools belong in `@sjvair/monitor-map` as an **opt-in plugin, off by
+later. Drawing tools belong in `@sjvair/map-sdk` as an **opt-in plugin, off by
 default**, so sjvair.com's map and the mobile app are unaffected (see Open Question #3).
 
-## Map SDK: instance-scoped core + plugins (`@sjvair/monitor-map` 4.0)
+## Map SDK: `@sjvair/map-sdk` + monitor-map rebuilt on it
 
-Decided 2026-09-23 (IDEA.md Open Question #3). **Clean break as a 4.0 major**, with
-all current consumers migrated as part of the same effort (no long-lived compat shim).
+Decided 2026-09-23 (IDEA.md Open Question #3), **restructured 2026-09-24**. IDEA.md calls
+it the "map sdk (formerly 'monitor-map')". The map toolkit is **split into two
+packages** instead of doing an in-place 4.0 rewrite:
 
-**The core problem is that the SDK assumes one map per page**, not a lack of
-configurability. As of 3.6.x: `mapManager` (one `map`), `integrationsManager`, and
-`clickManager` are module-level singletons; integrations are exported singleton
+| Package                                   | Contains                                                                                                                                                                                                                                     | Used by                                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **`@sjvair/map-sdk`** (new repo, 1.0)     | Per-map core (`createMap`/`MapContext`), the plugin interface and every data-type plugin, `MapView`, **app-level data stores** (e.g. `createMonitorsStore()`), the `terra-draw` drawing plugin, injected config. No routing, no page layouts | This dashboard; `monitor-map`; v3-mobile (directly for stores, and through monitor-map) |
+| **`@sjvair/monitor-map`** (existing repo) | The SJVAir monitor-map _experience_: `MapShell`/`MonitorMapLayout`, routes and detail panels, legends, load screen, and the standalone build sjvair.com imports. **Rebuilt on `map-sdk`** (its next major version)                           | sjvair.com (standalone build); v3-mobile (as a library)                                 |
+
+Why: the dashboard depends only on the library (no layouts or routing it has to work
+around); monitor-map becomes a real consumer of the plugin API, which keeps it honest;
+clear ownership (general map capabilities → `map-sdk`, monitor-map product decisions →
+`monitor-map`). Cost: changes that span both need a `map-sdk` release, then a bump in
+monitor-map (local linking for development; each publish needs explicit approval).
+
+**The core problem being solved is still "one map per page"**, not a lack of
+configurability. As of monitor-map 3.6.x: `mapManager` (one `map`), `integrationsManager`,
+and `clickManager` are module-level singletons; integrations are exported singleton
 instances (`export const monitorsMapIntegration = new MonitorsMapIntegration()`) that
 talk to `mapManager.map`; `MaptilerConfig.apiKey` is set from `import.meta.env` at
-import time. A dashboard with two map widgets would share all of that state.
+import time. v3-mobile also uses `monitorsManager` as an **app-wide data store outside
+any map** (`main.ts`, its Subscriptions/Alerts screens, `MonitorSubscription`).
 
-4.0 design:
+`map-sdk` design:
 
 - **Per-map instance.** `createMap(options)` returns a `MapContext` (own map, plugin
   registry, click manager, tooltips), provided to descendants via Svelte context.
@@ -517,21 +531,28 @@ import time. A dashboard with two map widgets would share all of that state.
   they're additive. The same renderer serves live data
   (sjvair.com, mobile) and historical/date-ranged data (this dashboard). New data
   types become new plugins, not edits to a monolith.
-- **Two shells.** `MapShell` stays as the full-page layout (load screen, routed detail
-  panel, router escape hatch). A lighter `MapView` (no routing, no load screen) is what
-  dashboard widgets use.
+- **Data is separate from maps.** App-level stores (e.g. `createMonitorsStore()`) are
+  created explicitly by the host, passed to plugins as data sources, and shareable across
+  the host's screens. This replaces the `monitorsManager` singleton for v3-mobile.
+- **`MapView`** (no routing, no load screen) is the embeddable map, and what dashboard
+  widgets use. **`MapShell`** (full-page layout, routed detail panel, router escape
+  hatch) moves to monitor-map, built on `MapView`.
 - **Config is injected**, not read from `import.meta.env` at import (MapTiler key etc.).
 - **WebGL context budget.** Browsers cap live WebGL contexts per page (~8–16); each
   map is one. Minimized/off-screen map widgets must tear down their map and rebuild on
   restore (affects dashboard layout, Q4).
 
-**Consumers to migrate in the same effort** (each needs its own approved plan):
-`sjvair.com` (templates `pages/app.html`/`index.html`) and `v3-mobile` (the mobile
-app). **Correction (2026-09-24):** the major version bump protects only `v3-mobile`
-(which depends on `^3.x`). sjvair.com's `scripts/import-monitor-map.sh` clones
-monitor-map's **`main` with no pin** and builds the standalone app that its templates
-load, so merging 4.0 into monitor-map's `main` ships it with the next server deploy. The
-rollout strategy for this is an open decision (see `DEFERRED.md`).
+**Rollout (resolves the "4.0 on an unpinned `main`" risk):** `map-sdk` starts as a
+new package, so nothing picks it up by accident. monitor-map migrates onto it **on a
+branch**; its `main`, which sjvair.com's import script builds unpinned, changes only once
+the standalone app is migrated and verified, and that merge needs explicit approval.
+v3-mobile (depending on `^3.x`) keeps working unchanged until it migrates. Each step
+needs an approved plan in its repo:
+
+1. `map-sdk` 1.0 (new repo)
+2. monitor-map rebuilt on `map-sdk` (its next major)
+3. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map)
+4. this dashboard's Map widget on `map-sdk`
 
 ## Dashboard layout mechanics
 
@@ -573,7 +594,7 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 
 | Widget                    | What it shows                                                                                          | Notes                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| Map                       | monitor-map 4.0 `MapView` + plugins; spatial selection (feature/region, later drawn)                   | See "Map SDK"                |
+| Map                       | `map-sdk` `MapView` + plugins; spatial selection (feature/region, later drawn)                         | See "Map SDK"                |
 | Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Replaces the v1 calendar     |
 | Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                              |
 | Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
@@ -962,7 +983,7 @@ Decided 2026-09-23 (IDEA.md Open Question #7). Audit basis:
 
 **Rule:** anything describing data — labels, units, level breakpoints, colors, scales,
 resolutions, coverage, attribution — comes from server metadata endpoints. Never
-hardcode it in this app, `monitor-map`, or `sdk-js`. When a value is missing, add it to
+hardcode it in this app, `map-sdk`, `monitor-map`, or `sdk-js`. When a value is missing, add it to
 server metadata rather than hardcoding "for now".
 
 **Structure: per-domain meta + a catalog index.**
@@ -1018,10 +1039,11 @@ wrap simple.
 - **Current:** Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4,
   shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot` (currently only via
   monitor-map; becomes a direct dependency),
-  `@sveltejs/enhanced-img`, `@sjvair/sdk`, `@sjvair/monitor-map`, Vitest.
+  `@sveltejs/enhanced-img`, `@sjvair/sdk`, `@sjvair/monitor-map` (v1 code; replaced by
+  `@sjvair/map-sdk`), Vitest.
 - **Planned additions (decided):** Paraglide JS (i18n-ready messages), `vite-plugin-pwa`
   (app-shell service worker), `@date-fns/tz` (Pacific-time math), `lz-string`
-  (URL-fragment sharing), `terra-draw` (drawn-shape selection, via a monitor-map
+  (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw` (drawn-shape selection, via a map-sdk
   plugin), JupyterLite + Pyodide (separate notebook app), and for testing Playwright,
   `vitest-browser-svelte`, and `@axe-core/playwright`.
 

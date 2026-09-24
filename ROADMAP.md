@@ -5,7 +5,7 @@ planning session. Design lives in `ARCHITECTURE.md`, current status in `TODO.md`
 everything deferred in `DEFERRED.md`.
 
 **Every numbered item below is its own sub-project** with its own spec, then plan, then
-implementation. Sub-projects in a sibling repo (sjvair.com, sdk-js, monitor-map,
+implementation. Sub-projects in a sibling repo (sjvair.com, sdk-js, map-sdk, monitor-map,
 v3-mobile) need an approved plan in that repo before any change. Publishing any package
 needs explicit per-release approval.
 
@@ -83,11 +83,14 @@ needs explicit per-release approval.
    - client-side self-monitoring thresholds
    - "Mark for analysis" / "Analyze" on every `analyzable` widget, plus the calendar's "selected
      data" variants, feeding Release 1's Collections
-5. **monitor-map 4.0 and the Map widget**
-   - instance-scoped core, plugins, `MapView`
-   - migrating sjvair.com and v3-mobile
-   - the Map widget with feature/region selection (methods A/B)
-   - The Map widget **waits for 4.0**; there is no interim single-map build.
+5. **`map-sdk` and the Map widget** (decided 2026-09-24: split out of monitor-map)
+   - `@sjvair/map-sdk` 1.0 (new repo): instance-scoped core, plugins, `MapView`,
+     app-level data stores
+   - monitor-map rebuilt on `map-sdk` on a branch; its `main` (which sjvair.com builds)
+     changes only once the migration is verified
+   - v3-mobile migrated
+   - the dashboard's Map widget on `map-sdk`, with feature/region selection (methods A/B)
+   - The Map widget **waits for `map-sdk`**; there is no interim single-map build.
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
