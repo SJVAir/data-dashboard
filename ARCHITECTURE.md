@@ -202,6 +202,29 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   stack auto-derived from the desktop layout's reading order. Only the desktop layout
   is persisted in a saved dashboard config.
 
+## Widget catalog
+
+Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = needs a new
+`@sjvair/sdk` wrapper for an existing server endpoint.
+
+**First release:**
+
+| Widget                    | What it shows                                                                                          | Notes                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| Map                       | monitor-map 4.0 `MapView` + plugins; spatial selection (feature/region, later drawn)                   | See "Map SDK"                  |
+| Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Existing Monitors-tab calendar |
+| Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                                |
+| Chart                     | uPlot time series for one pollutant/dataset over the widget's date range                               |                                |
+| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor or region              |
+| "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore)   |
+| Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)               |
+| Alerts feed               | Active alerts on subscribed monitors + forecast air-alert windows                                      | Requires login                 |
+| Data table                | Sortable table + CSV export; the accessibility fallback for maps/charts                                |                                |
+| Notes                     | Markdown text for annotating shared dashboards                                                         | No data source                 |
+| Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                                |
+
+The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
+
 ## Actions & context menu
 
 Decided 2026-09-23 (IDEA.md Open Question #5). **The right-click menu is one view onto

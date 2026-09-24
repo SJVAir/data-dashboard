@@ -47,7 +47,9 @@ updating the docs after each one. No code yet.
 - [x] **Q7 Metadata gaps audit** → per-domain `…/meta/` + top-level `meta/datasets/`
       catalog; coverage as a separate endpoint; 7 prioritized gaps + hardcoded-value
       cleanup. See `ARCHITECTURE.md` → "Metadata as source of truth".
-- [ ] Q8 More widget ideas
+- [x] **Q8 More widget ideas** → first release adds Current conditions, "Can we go
+      outside?", Forecast strip, Alerts feed, Data table, Notes, Hour × weekday heatmap
+      to Map/Calendars/Chart; the rest deferred. See `ARCHITECTURE.md` → "Widget catalog".
 
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
 half-updated to EPA's 2024 AQI revision.** `camp/apps/entries/levels.py` `PM25` uses the
@@ -85,6 +87,7 @@ Follow-ups created by decisions so far:
 - JupyterLite (Pyodide-only) static app: offline build config, bundle loading. After
   Collections + starter analyses.
 - Open: should an optional `sjvair` Python helper be its own published package?
+- sdk-js wrappers for `forecasts/` (Forecast strip) alongside CalHeatScore/CES.
 - Server metadata work (each needs an approved sjvair.com plan, then sdk-js wrappers):
   `meta/datasets/` catalog → coverage endpoint → per-domain scale metas (hms, calheatscore,
   forecasts, AQI) → alert meta → region hierarchy → choice lists → display hints.

@@ -90,6 +90,24 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   emscripten-forge or webR's kernel is revived (R), `jupyterlite/javascript-kernel`
   ships a stable 0.4 (JS), or schools/community users ask for them.
 
+## Widgets
+
+_Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in the first-release widget set
+(see `ARCHITECTURE.md` → "Widget catalog"). **Revisit when** the first-release widgets
+ship, or a specific audience asks for one.
+
+- **Rankings**: worst-N monitors/regions right now, with sparklines.
+- **Days-per-level stacked bars**: by month (widget form of starter analysis #1).
+- **Range bands chart**: mean + p25/p75/min/max bands from summaries.
+- **Pollution rose**: pollutant by wind direction/speed from CIMIS stations.
+- **Region comparison bars**: regions ranked by mean over the date range.
+- **Smoke & fire map preset**: map widget + HMS plugins.
+- **TEMPO satellite layer**: NO₂/O₃ raster overlays. Needs SDK wrapper + a raster map
+  plugin.
+- **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
+  timeline).
+- **Monitor health**: QA/QC scores and sensor agreement (research).
+
 ## UI & UX
 
 - **Command palette (Ctrl+K) and keyboard shortcuts.** _Deferred 2026-09-23 (IDEA.md
