@@ -205,6 +205,11 @@ ship, or a specific audience asks for one.
   Colors may come from the server's existing pages. **Revisit when** the dashboard shell
   is built, as a dedicated design pass.
 
+- **Visual dashboard picker** (thumbnail grid instead of the dropdown). _Deferred
+  2026-09-24._ IDEA.md: "at minimum via dropdown; ideally via a nicer visual picker".
+  Release 1 uses a top-nav dropdown. **Revisit when** people routinely keep more than
+  about 5–7 dashboards, or public templates ship and need browsing.
+
 ## Legacy Monitors-tab follow-ups
 
 These came from the Monitors-tab work. That code is removed in Release 1's Foundations
@@ -240,6 +245,9 @@ point.
 - **Private-preview mechanism**: a staging Heroku app or an unlisted route on
   sjvair.com. **Decide in** the Release 1 hosting-track plan (the preview starts around
   Release 1 step 4).
+- **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
+  something more elegant (e.g. a segmented control) for set / rolling / custom.
+  **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
 - **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide
   in** the Release 3 spec.
 - **User-defined analysis editor UI** (IDEA.md Q6: "What should user-defined analysis

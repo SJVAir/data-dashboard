@@ -161,7 +161,7 @@ package release needs explicit per-release approval.
   Analysis view ("starter analyses coming soon").
 - Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
-- App shell: top nav, dashboard picker, and the new route table (`ARCHITECTURE.md` →
+- App shell: top nav, dashboard picker (a dropdown), and the new route table (`ARCHITECTURE.md` →
   "Routing"), plus `basePath` support for `sjvair.com/dashboard/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
 - Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +

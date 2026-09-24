@@ -35,7 +35,8 @@ for basic users, feature-rich for power users.
 - **Dashboard** (primary) — horizontal navigation bar on top (replacing the v1 vertical
   sidebar), dashboard area below. Holds widgets (see "Dashboard layout mechanics",
   "Widget catalog"). Multiple saved dashboards, selectable at minimum via a dropdown
-  (ideally a nicer visual picker if it proves more intuitive). "Add widget" picks a type
+  (decided 2026-09-24: a **dropdown in the top nav** for Release 1, with new / duplicate /
+  rename / delete at its bottom; a visual thumbnail picker is deferred). "Add widget" picks a type
   from the predefined list, then opens Widget Creation to configure its data.
 - **Widget Creation** — configures one widget's data (see below).
 - **Analysis** — Collections, starter and user-defined analyses, notebooks (see
@@ -51,7 +52,8 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 - **Date selection sits above** the option accordions. **One date range per widget**
   (dashboard display widgets only — time-offset/lag comparison belongs to Analysis).
 - **Three date-range methods**, one visible at a time, toggled via a dropdown (unless
-  something more elegant fits):
+  something more elegant fits; decided in the Widget Creation spec, see `DEFERRED.md` →
+  "Open decisions"):
   - **Set ranges** — year, month, week, day
   - **Rolling ranges** — year-to-date, month-to-date, week-to-date
   - **Custom ranges** — user-selected
