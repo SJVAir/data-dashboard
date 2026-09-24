@@ -126,6 +126,8 @@ package release needs explicit per-release approval.
 - Paraglide JS (English-only) and the shared `format` module, before any new UI.
 - `SavedDocument` types, a migration chain, `applyChange`, and undo/redo.
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
+- Minimal Collections: the store, the drawer, "Add to collection ▸", and a placeholder
+  Analysis view ("starter analyses coming soon").
 - Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
 - App shell: top nav, dashboard picker, and the new route table (`ARCHITECTURE.md` →
@@ -164,6 +166,8 @@ package release needs explicit per-release approval.
   - Hour × weekday heatmap
   - Forecast strip
   - "Can we go outside?"
+- "Mark for analysis" / "Analyze" actions on every widget, including the calendar's
+  selected-range variants.
 - Client-side self-monitoring thresholds. These need no server work and ship with the
   widgets.
 - Decide where the shared date-range helper lives (see `DEFERRED.md`).
@@ -193,7 +197,8 @@ package release needs explicit per-release approval.
 
 **Release 3: Analysis**
 
-- The Collections store and drawer, `AnalysisSpec`, and the engine steps (resample, align,
+- The full Analysis view on top of Release 1's Collections, `AnalysisSpec`, and the
+  engine steps (resample, align,
   lag, aggregate, correlate) as pure worker-side functions.
 - The ten starter analyses.
 - The Export-to-notebook bundle generator (Python, then R, then Deno/TS).

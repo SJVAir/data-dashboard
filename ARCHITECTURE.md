@@ -582,6 +582,11 @@ type Collection = { id: string; name: string; items: CollectionItem[] };
   runs, through the local-first cache keyed by descriptor (reusing what widgets
   already fetched).
 - Persisted via the platform adapter (IndexedDB on web).
+- **Ships in Release 1** (decided 2026-09-24), ahead of the analysis engine: the store,
+  the drawer, "Mark for analysis" / "Analyze" / "Add to collection ▸" on every widget,
+  and a placeholder Analysis view listing a Collection's items with "starter analyses
+  coming soon" until Release 3. That way IDEA.md's shared widget behavior is complete
+  from the first release.
 
 ### Engine: generic core, curated starters as specs
 

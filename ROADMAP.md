@@ -29,6 +29,9 @@ needs explicit per-release approval.
      stitching, shared polling, last-requested-wins
    - Paraglide (English-only) and the `format` module
    - `SavedDocument`, `applyChange`, and undo/redo
+   - **minimal Collections** (decided 2026-09-24): the store, the Collections drawer,
+     "Add to collection ▸", and a placeholder Analysis view that lists a Collection's
+     items with "starter analyses coming soon"
    - local save, Export/Import `.json`, and URL-fragment sharing (`/import`)
    - the action/context-menu registry
    - the top-nav app shell
@@ -57,6 +60,8 @@ needs explicit per-release approval.
    - Forecast strip
    - "Can we go outside?"
    - client-side self-monitoring thresholds
+   - "Mark for analysis" / "Analyze" on every widget, plus the calendar's "selected
+     data" variants, feeding Release 1's Collections
 5. **monitor-map 4.0 and the Map widget**
    - instance-scoped core, plugins, `MapView`
    - migrating sjvair.com and v3-mobile
@@ -85,8 +90,8 @@ needs explicit per-release approval.
 
 ## Release 3: Analysis
 
-1. **Collections and the analysis engine**: the Collections store and drawer,
-   `AnalysisSpec`, and worker-side engine steps (resample, align, lag, aggregate,
+1. **Analysis engine**: `AnalysisSpec`, the full Analysis view (built on Release 1's
+   Collections), and worker-side engine steps (resample, align, lag, aggregate,
    correlate).
 2. **The ten starter analyses.** #7 needs the CalEnviroScreen wrapper and #8 needs the
    CalHeatScore wrapper, both from Release 1 step 3.
