@@ -133,6 +133,10 @@ package release needs explicit per-release approval.
 - App shell: top nav, dashboard picker, and the new route table (`ARCHITECTURE.md` →
   "Routing").
 - "Clear my data" and session-only sign-in.
+- Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
+  actions: new, duplicate, rename, delete with an undo toast.
+- Local durability: a `navigator.storage.persist()` request, a storage status note, a
+  backup nudge, and clear quota and write errors.
 
 **Release 1, step 2: Layout engine and windowing**
 
@@ -178,6 +182,16 @@ package release needs explicit per-release approval.
   sjvair.com and `v3-mobile` migration plans.
 - The Map widget, with feature/region selection (methods A and B). Drawn shapes (C, via a
   `terra-draw` plugin) come later.
+
+**Release 1, parallel track: server-backed documents** (approved sjvair.com plan first)
+
+- sjvair.com: the `SavedDocument` model and endpoints (visibility, `version`).
+- sdk-js wrappers.
+- Dashboard:
+  - the sign-in flow
+  - versioned local-first sync with conflict prompts
+  - live share links (read-only plus "Make a copy")
+  - local → account migration
 
 **Release 1, step 6: Starter dashboard**
 

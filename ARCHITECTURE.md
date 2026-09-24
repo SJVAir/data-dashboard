@@ -238,12 +238,12 @@ auth system. See "Authentication" for cookie vs token.
 **Everything works anonymously except what needs the server to act or persist for
 you:**
 
-| Anonymous (local via platform adapter)                 | Requires an account                                 |
-| ------------------------------------------------------ | --------------------------------------------------- |
-| Dashboards, widgets, Widget Creation                   | Automated alerts (SMS/email) + alert inbox          |
-| Collections, analyses, notebook export, JupyterLite    | Server-backed documents & live share links (later)  |
-| Self-monitoring (client-side thresholds/notifications) | Cross-device sync (arrives with server-backed docs) |
-| File / URL sharing (fork on open)                      |                                                     |
+| Anonymous (local via platform adapter)                 | Requires an account                        |
+| ------------------------------------------------------ | ------------------------------------------ |
+| Dashboards, widgets, Widget Creation                   | Automated alerts (SMS/email) + alert inbox |
+| Collections, analyses, notebook export, JupyterLite    | Server-backed documents & live share links |
+| Self-monitoring (client-side thresholds/notifications) | Cross-device sync                          |
+| File / URL sharing (fork on open)                      |                                            |
 
 - **Sign-in is lazy/contextual** — prompted only when needed (e.g. inside the "Create
   alert" flow), never as a gate on first load.
@@ -709,17 +709,45 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
 - **References, not data.** Documents store query descriptors, never fetched data, so
   they stay small and a recipient sees the same _query_ run against current data.
 
-**Storage, staged:**
+**Storage (decided 2026-09-24: both layers ship in Release 1):**
 
-1. **Local + files (first).** Documents persist through the platform adapter
+1. **Local + files.** Documents persist through the platform adapter
    (IndexedDB on web, filesystem/SQLite under Tauri). Share by **Export/Import `.json`**,
    or for small documents a **link with the document lz-string-compressed into the URL
    fragment** (fragment → never sent to a server). If the encoded link exceeds a safe
    length, the UI falls back to file export.
-2. **Server-backed (later; needs an approved sjvair.com plan).** A `SavedDocument`
-   model (`owner, kind, name, body, visibility: private | link | public,
-schemaVersion`) + endpoints: short links, cross-device access (subsumes server-synced
-   preferences), SJVAir-curated public templates. See `DEFERRED.md`.
+2. **Server-backed, for signed-in users** (a parallel sjvair.com track in Release 1;
+   needs an approved plan). A `SavedDocument` model (`owner, kind, name, body,
+version, visibility: private | link | public, schemaVersion`) plus endpoints. Gives
+   short links, live share links, cross-device access (which covers server-synced
+   preferences), protection from browser storage eviction, and SJVAir-curated public
+   templates.
+   - **Local-first sync, kept simple:** documents always save locally first. For
+     signed-in users the server copy is authoritative, and each save carries a
+     `version`. On a conflict (the same document edited on two devices), the user
+     picks "keep this version / use the other". No real-time co-editing.
+   - **Local → account migration:** the first sign-in offers to upload the local
+     documents.
+
+**Saving model (decided 2026-09-24): autosave.** Every `applyChange` persists immediately
+(debounced about 500 ms), with a small "Saved" indicator; undo covers mistakes. There is
+no explicit Save. IDEA.md's example "Save Dashboard" menu action becomes **"Save as
+copy…"** and **"Export…"**. The dashboard picker offers new (blank or from the starter
+dashboard), duplicate, rename, and delete (with an undo toast).
+
+**Local durability safeguards** (these matter most for anonymous users, whose documents
+stay local):
+
+- Request persistent storage (`navigator.storage.persist()`) on the first document
+  create or edit.
+- Show a quiet status ("Dashboards are stored in this browser") with a note when
+  protection isn't granted. Safari always falls in this case: it evicts script-written
+  storage after 7 days without a visit unless the site is installed to the home screen.
+- When documents aren't protected, show a **backup nudge** after meaningful edits
+  ("Download a backup", the `.json` export), plus a gentle "sign in to keep this safe
+  everywhere".
+- Surface quota and write errors clearly; keep the in-memory copy so nothing is lost
+  silently.
 
 **Share semantics:**
 

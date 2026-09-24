@@ -67,6 +67,13 @@ needs explicit per-release approval.
    - migrating sjvair.com and v3-mobile
    - the Map widget with feature/region selection (methods A/B)
    - The Map widget **waits for 4.0**; there is no interim single-map build.
+
+- **Parallel track: server-backed documents** (sjvair.com + sdk-js, decided
+  2026-09-24). The `SavedDocument` model and endpoints, live share links (read-only
+  plus "Make a copy"), versioned local-first sync with conflict prompts, local →
+  account migration, and the sign-in flow (which Release 2 reuses). Anonymous users
+  stay local, with durability safeguards.
+
 6. **Starter dashboard replaces the v1 tabs.** A default landing dashboard (map +
    calendar widgets covering today's Monitors tab) replaces the Monitors, HMS, and
    Collocation Sites tabs in one switch. **The v1 tabs stay live until this step**, which

@@ -25,14 +25,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   escape hatch (`routerEscapeHatch`/`basePath`) and a non-URL fallback for view state.
   **Revisit when** the dashboard's core views exist. Keep state managers from hardcoding
   ownership of the top-level route in the meantime.
-- **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23
-  (IDEA.md Q6)._ `SavedDocument` model + endpoints on sjvair.com with
-  private/link/public visibility, live read-only links with "Make a copy", curated public
-  templates. Subsumes **server-synced preferences** (deferred 2026-09-14, v1 spec). Local
-  storage with file/URL sharing ships first. **Revisit when** local documents exist and
-  users need cross-device access or teacher → class sharing; needs an approved
-  sjvair.com plan. Includes **local → account migration** (first sign-in offers to upload
-  local documents).
+- **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23;
+  **scheduled into Release 1 on 2026-09-24** as a parallel server track (see
+  `ROADMAP.md`)._ This covers server-synced preferences (deferred 2026-09-14) and local →
+  account migration. It stays listed here until it ships, then moves to TODO → Done.
+  **Still deferred within it:** SJVAir-curated public templates, which come after the
+  basic model ships.
 - **Heavier WASM analysis engine (e.g. DuckDB-WASM).** _Deferred 2026-09-23 (IDEA.md Q6)._
   Plain TypeScript over typed arrays in a worker is enough for now. **Revisit when**
   researcher-scale datasets make the TypeScript engine too slow or memory-bound.
@@ -260,6 +258,8 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   _2026-09-24, alerting_.
 - **An interim single-map-widget build on monitor-map 3.x**: _2026-09-24, sequencing_. The
   Map widget waits for 4.0.
+- **Explicit Save as the primary save model**: _2026-09-24_. Autosave plus undo instead;
+  "Save as copy…" and "Export…" remain.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
