@@ -229,6 +229,32 @@ sending the same-origin session cookie. Consequences:
 - Token storage must go through the adapter too (browser storage on web, OS keychain /
   secure store under Tauri).
 
+## Accounts & anonymous use
+
+Decided 2026-09-24. Uses the existing **sjvair.com accounts** (register, login,
+password reset, phone verification — all wrapped by `@sjvair/sdk` `account/*`); no new
+auth system. See "Authentication" for cookie vs token.
+
+**Everything works anonymously except what needs the server to act or persist for
+you:**
+
+| Anonymous (local via platform adapter)                 | Requires an account                                 |
+| ------------------------------------------------------ | --------------------------------------------------- |
+| Dashboards, widgets, Widget Creation                   | Automated alerts (SMS/email) + alert inbox          |
+| Collections, analyses, notebook export, JupyterLite    | Server-backed documents & live share links (later)  |
+| Self-monitoring (client-side thresholds/notifications) | Cross-device sync (arrives with server-backed docs) |
+| File / URL sharing (fork on open)                      |                                                     |
+
+- **Sign-in is lazy/contextual** — prompted only when needed (e.g. inside the "Create
+  alert" flow), never as a gate on first load.
+- **Local → account migration:** once server-backed documents exist, first sign-in offers
+  to upload local dashboards/Collections/analyses.
+- **No teacher/class/org accounts**; teachers share via links.
+- **Shared computers:** the **browser profile is the boundary** (as for any website;
+  managed Chromebooks usually give each student their own profile). Provide a visible
+  **"Clear my data"** action, and sign-in **without "remember me"** keeps the token
+  session-only (through the platform adapter). A dedicated guest mode is deferred.
+
 ## Widget data selection (partial datasets)
 
 Decided 2026-09-23 (IDEA.md Open Question #2).

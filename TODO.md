@@ -66,7 +66,9 @@ suggested order (one at a time, docs updated after each, no code):
 - [x] **Spanish / i18n** → ship English-only, translation-ready: Paraglide JS (English
       messages only) + 8 day-one practices; translations deferred. See `ARCHITECTURE.md`
       → "Internationalization".
-- [ ] **Accounts & anonymous use.** Which features need login; shared school machines.
+- [x] **Accounts & anonymous use** → existing sjvair.com accounts; everything anonymous
+      except alerts / server docs / sync; lazy sign-in; browser profile as the boundary
+      with "Clear my data" + session-only sign-in. See `ARCHITECTURE.md` → "Accounts".
 - [ ] **Live refresh & data volume.** Polling cadence; rule for choosing resolution
       (default to summaries, not raw 1–2 min entries).
 - [ ] **URL state with dashboards.** What a URL identifies now that dashboards are saved

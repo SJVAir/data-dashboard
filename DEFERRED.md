@@ -132,6 +132,17 @@ ship, or a specific audience asks for one.
   exists in `v3-mobile` or the server. **Revisit when** `v3-mobile` plans push
   notifications; needs its own approved plan.
 
+## Accounts
+
+- **Shared-computer guest mode.** _Deferred 2026-09-24._ A mode (e.g. enabled by a
+  teacher-distributed `?guest` link) where nothing persists after the tab closes.
+  Current approach: browser profile as the boundary + "Clear my data" + session-only
+  sign-in. **Revisit when** a school reports shared-device problems (i.e. students share
+  one browser profile).
+- **Teacher / class / organization accounts.** _Deferred 2026-09-24._ Rosters, class
+  dashboards, shared org alerts. Teachers share via links for now. **Revisit when**
+  schools ask for managed class use, likely after server-backed live share links exist.
+
 ## Internationalization
 
 - **Translations and language switching.** _Deferred 2026-09-24._ No translations exist
