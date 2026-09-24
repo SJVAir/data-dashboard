@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-09-16
+Last updated: 2026-09-23
 
 ## Planning session in progress: IDEA.md (started 2026-09-23)
 
@@ -50,6 +50,24 @@ updating the docs after each one. No code yet.
 - [x] **Q8 More widget ideas** → first release adds Current conditions, "Can we go
       outside?", Forecast strip, Alerts feed, Data table, Notes, Hour × weekday heatmap
       to Map/Calendars/Chart; the rest deferred. See `ARCHITECTURE.md` → "Widget catalog".
+
+**Resume here next session (paused 2026-09-23).** All eight IDEA.md Open Questions are
+resolved. Next, interview the user on these gaps found during the session, in this
+suggested order (one at a time, docs updated after each, no code):
+
+- [ ] **Alerting design.** The server system is per-monitor, SMS-only, PM2.5/O3-only, with
+      level-category thresholds. Open: numeric thresholds, region alerts, other datasets
+      (smoke, forecasts), in-app/browser/email notifications, server vs client split.
+- [ ] **Spanish / i18n.** Likely first-release for community and schools; includes
+      translating metadata such as level guidance text.
+- [ ] **Accounts & anonymous use.** Which features need login; shared school machines.
+- [ ] **Live refresh & data volume.** Polling cadence; rule for choosing resolution
+      (default to summaries, not raw 1–2 min entries).
+- [ ] **URL state with dashboards.** What a URL identifies now that dashboards are saved
+      documents.
+- [ ] **Sequencing.** Rewrite `ROADMAP.md` (still the old tab plan) into sub-projects
+      across monitor-map 4.0, server metadata + PM2.5 fix, sdk-js wrappers, and this app;
+      each gets its own spec → plan.
 
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
 half-updated to EPA's 2024 AQI revision.** `camp/apps/entries/levels.py` `PM25` uses the
