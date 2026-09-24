@@ -337,8 +337,20 @@ The stack is per document and per session (not persisted).
 
 Decided 2026-09-23 (IDEA.md Open Question #2).
 
-**What gets staged is a query descriptor, not copied data**: dataset + entry_type +
-date range + an optional spatial filter. "Whole widget" is simply the no-filter case,
+**What gets staged is a query descriptor, not copied data.** This is the **single
+definition** used by widget configs, Collections, saved documents, and export manifests:
+
+```ts
+type QueryDescriptor = {
+	dataset: string; // from the meta/datasets/ catalog
+	entryType?: string; // pollutant/entry type where applicable (one per widget)
+	dateRange: DateRangeSpec; // set / rolling / custom (see "Widget Creation view")
+	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
+	selection?: SpatialSelection; // omitted = whole widget
+};
+```
+
+"Whole widget" is simply the no-selection case,
 so partial and all-or-nothing selection are the same mechanism. Descriptors are cheap
 to stage, shareable, and reproducible. (These are the items held in analysis
 Collections — see "Analysis: Collections & engine".)
@@ -407,8 +419,12 @@ import time. A dashboard with two map widgets would share all of that state.
 
 - **One plugin per data type, each taking a data-source interface** (generalizing
   what `MonitorsDataSource` already does): monitors, region fill/choropleth, HMS
-  smoke, HMS fire, collocation, EV stations, wind, weather, later pesticides, and the
-  `terra-draw` drawing plugin (Q2, opt-in). The same renderer serves live data
+  smoke, HMS fire, collocation, EV stations, wind, weather, and the `terra-draw`
+  drawing plugin (Q2, opt-in). Plugins for the remaining server datasets — pesticide
+  use/notices, CalEnviroScreen tracts, CalHeatScore ZIPs, forecast zones, CEIDARS
+  facilities, TEMPO rasters — are deferred (see `DEFERRED.md` → "Map plugins"), but
+  the plugin interface must accommodate points, polygons, choropleths, and rasters so
+  they're additive. The same renderer serves live data
   (sjvair.com, mobile) and historical/date-ranged data (this dashboard). New data
   types become new plugins, not edits to a monolith.
 - **Two shells.** `MapShell` stays as the full-page layout (load screen, routed detail
@@ -434,7 +450,8 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   minimize, fullscreen, taskbar — not from overlap.
 - **Pure layout engine, CSS Grid rendering.** Collision/compaction/placement are pure
   TypeScript functions, unit-tested like `url-state.ts`. Widgets render via CSS Grid
-  `grid-column`/`grid-row`; drag/resize via pointer events. Chosen over `gridstack.js`,
+  `grid-column`/`grid-row`; drag by the title bar, **resize via edge/corner hover
+  handles** (resize cursors), all via pointer events. Chosen over `gridstack.js`,
   which owns DOM positioning and fights Svelte's rendering; the core algorithm is
   small enough to own.
 - **Fullscreen** overlays the dashboard area (not the browser window), animated from
@@ -470,7 +487,7 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor or region              |
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore)   |
 | Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)               |
-| Alerts feed               | Active alerts on subscribed monitors + forecast air-alert windows                                      | Requires login                 |
+| Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login                 |
 | Data table                | Sortable table + CSV export; the accessibility fallback for maps/charts                                |                                |
 | Notes                     | Markdown text for annotating shared dashboards                                                         | No data source                 |
 | Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                                |
@@ -795,6 +812,29 @@ server breakpoints defined twice (`levels.py` + entry classes), legacy
 this repo's `"pm25" | "o3"` restriction and `NO_VALUE_BORDER_COLOR`; stale `sdk-js`
 `api-urls.md`.
 
+## Tech stack
+
+The existing stack stays (IDEA.md: "nothing is being ripped out"); tools are added as
+needed. Plain Vite SPA — no SvelteKit, no server runtime — keeping embedding and a Tauri
+wrap simple.
+
+- **Current:** Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4,
+  shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot`,
+  `@sveltejs/enhanced-img`, `@sjvair/sdk`, `@sjvair/monitor-map`, Vitest.
+- **Planned additions (decided):** Paraglide JS (i18n-ready messages), `lz-string`
+  (URL-fragment sharing), `terra-draw` (drawn-shape selection, via a monitor-map
+  plugin), JupyterLite + Pyodide (separate notebook app).
+
+## Accessibility
+
+Applies to all widgets and views.
+
+- Every data widget has a non-visual fallback: the **Data table** widget serves chart/map
+  data; maps and charts expose their data as summary text or link to a table view.
+- Keyboard navigation and ARIA via shadcn-svelte / bits-ui primitives, not hand-rolled
+  interactive elements (includes the context menu — Shift+F10 / Menu key).
+- Standard loading/error states per widget (skeleton or spinner; inline error with retry).
+
 ## Embedding (production build)
 
 Like `monitor-map`'s `MapShell`, this app's production build is intended to be
@@ -810,19 +850,17 @@ decisions made along the way:
   sub-path (`basePath`) or disable this app's own history/URL manipulation entirely
   when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
   currently assumes it owns top-level routing. Needs to be addressed before this app
-  can actually be embedded (see `ROADMAP.md`).
-- **URL state vs. embedding** — see "Routing, URL state & undo"; the legacy state
-  architecture below treated the
-  URL as the source of truth for view state. When embedded with the escape hatch
-  active, this needs a fallback (e.g. an in-memory store) since the host may not want
-  this app touching the outer page's URL at all.
+  can actually be embedded (see `DEFERRED.md` → "Embeddable production build").
+- **URL state vs. embedding** — decided in "Routing, URL state & undo": when the host
+  owns the URL, the same routes are held in memory.
 
 ## Legacy: v1 tab model
 
 The sections below describe the original tab-per-data-domain design that the Monitors
 tab was built on. They remain accurate for the **current code** but are being superseded
-by the dashboard/widget direction above; the useful parts (URL-state codecs, per-view
-accessibility fallbacks, region selector, calendar) carry forward into widgets.
+by the dashboard/widget direction above; the useful parts (URL-state codecs, region
+selector, calendar) carry forward into widgets. Tech stack and accessibility rules now
+live in current sections above.
 
 ### Repos involved
 
@@ -830,14 +868,6 @@ accessibility fallbacks, region selector, calendar) carry forward into widgets.
 - **`monitor-map`** — provides the embeddable map component (`MapShell`, published
   in `@sjvair/monitor-map` v3.3.0+) used by the Monitors tab's map view.
 - **`sdk-js`** (`@sjvair/sdk`) — the API client this app fetches data through.
-
-### Tech stack
-
-Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4, shadcn-svelte (bits-ui),
-`@lucide/svelte`, `date-fns`, `uplot`, `@sveltejs/enhanced-img`, `@sjvair/sdk`.
-
-No SvelteKit — a plain Vite SPA, matching `monitor-map` and `v3-mobile`, and keeping
-a future Tauri wrap simple (pure static client, no server runtime to strip out).
 
 ### Tab structure
 
@@ -861,8 +891,8 @@ One top-level tab per SDK data domain, routed via `sv-router`:
   entry_type/filters, date range, county filter, and which views (map/chart/
   spreadsheet) are toggled on. Sharing a URL reproduces the exact same screen for the
   recipient, view toggles included.
-- **A preferences store** (`src/lib/preferences.ts`; localStorage in v1, server-backed
-  sync is a roadmap item) holds only _defaults_: last-used date range and view
+- **A preferences store** (`src/lib/preferences.ts`; localStorage in v1; server sync is
+  subsumed by server-backed documents, see `DEFERRED.md`) holds only _defaults_: last-used date range and view
   toggles per tab. It seeds the URL only when a tab is opened with no params present
   — not on every navigation. Once URL params exist, they win.
 - **`src/lib/url-state.ts`** provides the pure, unit-tested serialization codecs
@@ -887,16 +917,6 @@ on desktop, stacked on mobile), not switchable sub-tabs.
 - **Spreadsheet** — read-only, sortable/filterable table with CSV export, preferring
   the SDK's existing CSV entries endpoint over re-serializing fetched JSON client-side
   where the endpoint's shape matches what's displayed.
-
-### Accessibility
-
-- Every view has a non-visual fallback: the spreadsheet view already serves as one
-  for chart/map data; map and chart views should expose their underlying data as
-  visible summary text or link to the spreadsheet view.
-- Keyboard navigation and ARIA labeling via shadcn-svelte's primitives (bits-ui), not
-  hand-rolled interactive elements.
-- Standard per-view loading/error states (skeleton or spinner while fetching; inline
-  error message with retry).
 
 ### Out of scope
 

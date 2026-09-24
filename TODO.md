@@ -102,91 +102,113 @@ new Moderate boundary (9.1) but the old upper boundaries — `VERY_UNHEALTHY(150
 consumer. Also check the inline breakpoints in the PM2.5 entry class. Needs its own
 approved sjvair.com plan; decided 2026-09-23 to fix independently of the dashboard.
 
-Follow-ups created by decisions so far:
+## Work breakdown by ROADMAP step
 
-- Record every deferral in `DEFERRED.md` (standing rule — see `CLAUDE.md`).
-- Build the platform adapter layer (storage, notifications, file export, background
-  tasks, online status, auth mode/token storage); move `src/lib/preferences.ts` behind it.
-- Design the local-first data cache (IndexedDB/OPFS on web).
-- WebKitGTK + map widget spike before committing to a Tauri build.
-- Define the query-descriptor type (dataset, entry_type, date range, `SpatialSelection`)
-  — shared by widget config, staging, and saved dashboards.
-- Map feature/region selection (A, B), then a `terra-draw` drawing plugin in
-  monitor-map (C) — needs an approved monitor-map plan first.
-- monitor-map 4.0 spec + plan (instance-scoped core, plugin interface, `MapView`),
-  then per-consumer migration plans for sjvair.com and `v3-mobile`. Releasing
-  4.0 requires explicit per-release approval.
-- Dashboard layout engine (pure functions + tests): placement, collision, compaction,
-  minimize/restore, responsive stack derivation.
-- Action/menu registry (pure resolution + merge logic, tested) and bits-ui
-  `ContextMenu` host; install shadcn-svelte `context-menu`.
-- Collections store + drawer UI; `QueryDescriptor`/`AnalysisSpec` types; analysis
-  engine steps (resample, align, lag, aggregate, correlate) as pure worker-side
-  functions with tests.
-- sdk-js: wrap `calenviroscreen/` and `calheatscore/` endpoints (needed by starter
-  analyses #7 and #8) — needs an approved sdk-js plan.
-- `SavedDocument` types + migration chain; export/import and URL-fragment share.
-- Export-to-notebook bundle generator (Python first, then R, then Deno/TS).
-- JupyterLite (Pyodide-only) static app: offline build config, bundle loading. After
-  Collections + starter analyses.
-- Open: should an optional `sjvair` Python helper be its own published package?
-- sdk-js wrappers for `forecasts/` (Forecast strip) alongside CalHeatScore/CES.
-- Server alerting (approved sjvair.com plan first): generalize `Subscription` into alert
-  rules (monitor/region pollutant, forecast, pesticide-notice rules), email channel,
-  alert inbox API, caps + quiet hours; then sdk-js wrappers; then dashboard rule UI,
-  inbox, and client-side self-monitoring in widgets.
-- Server: confirm/add HTTP cache headers (Cache-Control/ETag) on summary endpoints.
-- Add Paraglide JS (English-only) and the shared `format` module before building new UI.
-- Server: available-pollutants list in metadata (PM2.5 + O3 initially); replace this
-  repo's hardcoded `"pm25" | "o3"` with it.
-- Server metadata work (each needs an approved sjvair.com plan, then sdk-js wrappers):
-  `meta/datasets/` catalog → coverage endpoint → per-domain scale metas (hms, calheatscore,
-  forecasts, AQI) → alert meta → region hierarchy → choice lists → display hints.
-- Hardcoded-value cleanup in sjvair.com, monitor-map (fold into the 4.0 plugin work), and
-  this repo once the metadata exists. Fix sdk-js `api-urls.md`.
+Every item below comes from a recorded decision (see `ARCHITECTURE.md`). Standing rule: record
+every deferral in `DEFERRED.md`. Sibling-repo items each need an approved plan first, and a
+package release needs explicit per-release approval.
 
-## Start here (previous work — superseded by the planning session above)
+**Now (independent)**
 
-**Monitors tab (map + calendar views) is implemented and in review.**
-Implementation is on branch `worktree-monitors-tab`, open as
-[SJVAir/data-dashboard#2](https://github.com/SJVAir/data-dashboard/pull/2). The latest
-iteration replaced the date-range picker with a Year/Month picker and upgraded the map's
-county visualization from a blue border outline to a semi-transparent county-fill
-choropleth, per `docs/superpowers/plans/2026-09-16-monitors-tab-month-picker.md`
-and the design spec (`docs/superpowers/specs/2026-09-16-monitors-tab-month-picker-design.md`).
-See those for the full scope and decisions.
+- sjvair.com PM2.5 breakpoint fix (see the warning above).
 
-Shipped in this cycle:
+**Release 1, step 1: Foundations** (this repo)
 
-- Month picker: dropdown selector spanning current year and 4 prior years, all 12 months,
-  defaulting to the current month. Last-selected month is remembered in localStorage
-  preferences via `setTabPreferences`/`getTabPreferences`.
-- County selector: shadcn-svelte `Select` filtering which monitors show on map and
-  which county's data populates the calendar (calendar doesn't render until a county
-  is selected).
-- Map view: shows monitor locations, colors by PM2.5/O3 monthly average. Counties are
-  filled with a semi-transparent color matching their monthly average level — all
-  counties when none is selected, only the selected county otherwise. This replaces the
-  previous blue border outline. Clustering/click-drill-down behavior is inherited from
-  `monitor-map` and was not independently verified in this pass.
-- Calendar view: color-coded day grid showing the selected county's daily `RegionSummary`
-  averages, scoped to exactly the selected month. Lays out vertically, sizing to its
-  content instead of stretching full-width. Always fetches at daily resolution for the
-  month in view.
-- State management: `MonitorsTabManager` fetches the monitor roster/meta/county list once
-  and caches them in `init()`; per-monitor and per-region summaries are refetched from
-  scratch on every filter change (month, pollutant, or county) — no summary caching. The
-  map's per-monitor averaging now always uses monthly summaries (previously had a
-  45-day threshold switching between daily and monthly; the threshold logic has been removed).
+- Platform adapter: storage, notifications, file export, background tasks, online status,
+  auth mode, and token storage. Move `src/lib/preferences.ts` behind it.
+- Local-first cache and data layer (IndexedDB/OPFS):
+  - automatic resolution selection
+  - incomplete-period stitching
+  - one poll per descriptor
+  - pause when the tab is hidden
+  - last-requested-wins
+- `QueryDescriptor` type: one definition, in `ARCHITECTURE.md` → "Widget data selection".
+- Paraglide JS (English-only) and the shared `format` module, before any new UI.
+- `SavedDocument` types, a migration chain, `applyChange`, and undo/redo.
+- Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
+- Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
+  `ContextMenu` host. Install shadcn-svelte `context-menu`.
+- App shell: top nav, dashboard picker, and the new route table (`ARCHITECTURE.md` →
+  "Routing").
+- "Clear my data" and session-only sign-in.
 
-Deferred follow-ups from this work now live in `DEFERRED.md` → "Legacy Monitors-tab
-follow-ups".
+**Release 1, step 2: Layout engine and windowing**
 
-Verification status at the time:
+- Pure layout functions, tested: placement, collision, compaction, minimize/restore, and
+  deriving the responsive stack.
+- Drag and resize with edge/corner handles, a taskbar, and fullscreen.
 
-- Type-check, build, and automated tests all pass (59 tests). Interactive visual browser
-  verification was performed during implementation and again during manual testing after
-  merge review.
+**Release 1, step 3: Metadata enablers** (sjvair.com + sdk-js, in parallel with steps 1–2)
+
+- Available-pollutants list (PM2.5 + O3 initially). It replaces this repo's hardcoded
+  `"pm25" | "o3"`.
+- In order: the `meta/datasets/` catalog, the coverage endpoint, per-domain scale metas
+  (hms, calheatscore, forecasts, AQI), alert meta, region hierarchy, choice lists, and
+  display hints.
+- HTTP cache headers (Cache-Control/ETag) on the summary endpoints.
+- sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
+  `api-urls.md`.
+- Clean up hardcoded values in sjvair.com and this repo once the metadata exists. The
+  monitor-map cleanup folds into 4.0.
+
+**Release 1, step 4: Widget Creation and non-map widgets**
+
+- The Widget Creation view, with date methods above accordions and a live preview.
+- Widgets:
+  - Chart
+  - Calendar (day-colored)
+  - Calendar (contribution)
+  - Current conditions
+  - Data table
+  - Notes
+  - Hour × weekday heatmap
+  - Forecast strip
+  - "Can we go outside?"
+- Client-side self-monitoring thresholds. These need no server work and ship with the
+  widgets.
+- Decide where the shared date-range helper lives (see `DEFERRED.md`).
+
+**Release 1, step 5: monitor-map 4.0 and the Map widget**
+
+- The 4.0 spec and plan: instance-scoped core, plugin interface, `MapView`. Then the
+  sjvair.com and `v3-mobile` migration plans.
+- The Map widget, with feature/region selection (methods A and B). Drawn shapes (C, via a
+  `terra-draw` plugin) come later.
+
+**Release 1, step 6: Starter dashboard**
+
+- A default dashboard that replaces the v1 Monitors/HMS/Collocation tabs, plus redirects
+  from the old v1 URLs.
+
+**Release 2: Alerts** (the server work can start alongside Release 1)
+
+- sjvair.com:
+  - alert rules (monitor/region pollutant, forecast, pesticide-notice)
+  - level-category thresholds, caps, and quiet hours
+  - SMS for every alert type, plus email
+  - the inbox API
+  - alert metadata
+- sdk-js wrappers.
+- Dashboard: the rule UI with lazy sign-in, the inbox, and the Alerts feed widget.
+
+**Release 3: Analysis**
+
+- The Collections store and drawer, `AnalysisSpec`, and the engine steps (resample, align,
+  lag, aggregate, correlate) as pure worker-side functions.
+- The ten starter analyses.
+- The Export-to-notebook bundle generator (Python, then R, then Deno/TS).
+- The JupyterLite (Pyodide-only) static app.
+
+**Tauri (later)**
+
+- A WebKitGTK + map widget spike before committing (see `DEFERRED.md`).
+
+## Previous work (v1 tab era)
+
+The Monitors tab (map + calendar, month picker, county choropleth) merged as
+SJVAir/data-dashboard#2, followed by the multi-region selector and single-parent
+narrowing (#3, #4). Specs and plans are in `docs/superpowers/`. Its deferred follow-ups
+are in `DEFERRED.md` → "Legacy Monitors-tab follow-ups".
 
 ## Done
 
@@ -243,13 +265,7 @@ Verification status at the time:
       Plan: `docs/superpowers/plans/2026-09-16-monitors-tab-month-picker.md`
       Spec: `docs/superpowers/specs/2026-09-16-monitors-tab-month-picker-design.md`
 
-## Next up
-
-- [ ] **HMS Smoke/Fire tab**
-- [ ] **Collocation Sites tab**
-
 ## Open questions / decisions to revisit
 
-Everything deferred (sidebar collapse, embedding escape hatch, HMS spreadsheet view,
-date-range helper home, visual/brand design, …) is tracked in **`DEFERRED.md`**. Open
-questions from the current planning session are listed at the top of this file.
+Everything deferred is tracked in **`DEFERRED.md`**. Anything still undecided is listed there
+under "Open decisions".

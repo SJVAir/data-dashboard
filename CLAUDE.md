@@ -36,7 +36,9 @@ npm run format       # Auto-format with Prettier
 
 Plain Vite SPA — no SvelteKit, no server-side rendering. Routing is handled by
 `sv-router` (`src/router.ts` exports `{ route, navigate, p, isActive }`; `src/App.svelte`
-renders the nav and `<Router />`). Each top-level tab is a route under `src/routes/`.
+renders the nav and `<Router />`). Today each v1 tab is a route under `src/routes/`; the
+dashboard direction replaces these with the route table in `ARCHITECTURE.md` → "Routing,
+URL state & undo".
 
 ### State architecture
 
@@ -58,7 +60,8 @@ renders the nav and `<Router />`). Each top-level tab is a route under `src/rout
   embedding — see its `CLAUDE.md` for the `routerEscapeHatch`/`basePath` props needed
   when embedding it inside an app with its own routing (like this one).
   A 4.0 clean break (per-map instances + plugin system, needed for multiple map
-  widgets) is planned — see `ARCHITECTURE.md` → "Map SDK".
+  widgets) is planned; dashboard map widgets will use its lightweight `MapView`, not
+  `MapShell` — see `ARCHITECTURE.md` → "Map SDK".
 - `@sjvair/sdk` (sibling repo `../sdk-js`) — the SJVAir API client. Covers `monitors`
   (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
   `pesticides`, `regions`, and `account` (login, subscriptions, air alerts).
@@ -104,6 +107,8 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 | `@sjvair/monitor-map`   | Map widget (4.0 plugin API planned)     |
 | `date-fns`              | Date handling                           |
 | Paraglide JS (inlang)   | UI message catalog (English-only today) |
+| `lz-string` (planned)   | URL-fragment document sharing           |
+| `terra-draw` (planned)  | Drawn-shape map selection (via plugin)  |
 | `uplot`                 | **All** charts (time-series-first)      |
 | shadcn-svelte / bits-ui | Accessible UI primitives                |
 | `@lucide/svelte`        | Icons                                   |
@@ -116,10 +121,10 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env` itsel
 ```
 VITE_DEV_URL=              # @sjvair/sdk origin used in dev (setOrigin)
 VITE_PROD_URL=              # @sjvair/sdk origin used in production builds
-VITE_MAPTILER_KEY=          # used by @sjvair/monitor-map's MapShell (future tab plans)
-VITE_NREL_KEY=               # used by @sjvair/monitor-map (future tab plans)
-VITE_OPENWEATHERMAP_KEY=    # used by @sjvair/monitor-map (future tab plans)
-VITE_CARBONMAPPER_KEY=      # reserved for a future data source integration
+VITE_MAPTILER_KEY=          # MapTiler basemap key (monitor-map; injected via config in 4.0)
+VITE_NREL_KEY=               # NREL alt-fuel API, monitor-map EV-stations layer
+VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)
+VITE_CARBONMAPPER_KEY=      # reserved; unused (see DEFERRED.md)
 ```
 
 ## Releases and publishing — standing restriction

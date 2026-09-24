@@ -31,7 +31,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   templates. Subsumes **server-synced preferences** (deferred 2026-09-14, v1 spec). Local
   storage with file/URL sharing ships first. **Revisit when** local documents exist and
   users need cross-device access or teacher → class sharing; needs an approved
-  sjvair.com plan.
+  sjvair.com plan. Includes **local → account migration** (first sign-in offers to upload
+  local documents).
 - **Heavier WASM analysis engine (e.g. DuckDB-WASM).** _Deferred 2026-09-23 (IDEA.md Q6)._
   Plain TypeScript over typed arrays in a worker is enough for now. **Revisit when**
   researcher-scale datasets make the TypeScript engine too slow or memory-bound.
@@ -92,6 +93,16 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   emscripten-forge or webR's kernel is revived (R), `jupyterlite/javascript-kernel`
   ships a stable 0.4 (JS), or schools/community users ask for them.
 
+## Map plugins
+
+- **Map plugins for the remaining server datasets.** _Deferred 2026-09-24 (docs review)._
+  First release covers monitors, region fill, HMS smoke/fire, collocation, EV, wind,
+  weather. Deferred: pesticide use and SprayDays notices, CalEnviroScreen tracts,
+  CalHeatScore ZIPs, forecast zones, CEIDARS facilities, TEMPO rasters. The 4.0 plugin
+  interface must support points, polygons, choropleths, and rasters so these are
+  additive. **Revisit when** a widget or analysis needs one on a map (pesticide notices
+  likely first, alongside the alerts work).
+
 ## Widgets
 
 _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in the first-release widget set
@@ -125,7 +136,7 @@ ship, or a specific audience asks for one.
 
 - **Web push for alerts.** _Sequenced as next iteration 2026-09-24._ Reaches desktop
   and Android with the dashboard closed, no per-message cost; iOS only for home-screen-
-  installed sites. Needs a service worker (coordinate with the Q1 offline/cache design),
+  installed sites. Needs a service worker (coordinate with the web offline stance — see "Open decisions"),
   VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
   iteration (SMS + email + inbox) ships.
 - **Mobile app push for alerts (`v3-mobile`).** _Deferred 2026-09-24._ No FCM/APNs setup
@@ -155,9 +166,25 @@ ship, or a specific audience asks for one.
   and alert text need human translation or review, not machine-only. **Revisit when**
   translators or funding for translation are available.
 
+- **CEIDARS facility emissions.** _Deferred 2026-09-24 (docs review)._ On the server
+  (yearly facility emissions + health risk indices) but no widget, analysis, or SDK
+  wrapper is planned. **Revisit when** an emissions/facility-proximity use case comes up.
+- **Pesticide timing → health analysis** (from IDEA.md's prior brainstorm). _Deferred
+  2026-09-24._ No health outcome data beyond CalEnviroScreen; closest planned work is
+  starter #9 (use trends) and #7 (CES indicators). **Revisit with** the outside-health-data
+  entry above.
+- **Sub-yearly pesticide analysis.** _Deferred 2026-09-24._ Server region summaries are
+  yearly only; finer analysis needs the nullable `application_date`. **Revisit when**
+  users need seasonal pesticide timing; likely needs a server summary change.
+- **CarbonMapper data source.** _Noted 2026-09-24._ `VITE_CARBONMAPPER_KEY` is reserved in
+  `.env.example` (a `carbon-mapper-exploration` sibling repo exists) but nothing is
+  designed. **Revisit when** CarbonMapper integration is scoped. Same for the unused
+  `VITE_OPENWEATHERMAP_KEY` — remove it if no use appears.
+
 ## UI & UX
 
-- **Command palette (Ctrl+K) and keyboard shortcuts.** _Deferred 2026-09-23 (IDEA.md
+- **Command palette (Ctrl+K) and per-action keyboard shortcuts** (beyond undo/redo and
+  menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
   registry and the widget "⋯" menus have shipped.
 - **Icon-only collapsed sidebar.** _Deferred 2026-09-16._ This is a self-contained change:
@@ -196,6 +223,15 @@ item against the widget design rather than dropping it silently.
   2026-09-16; addressed by design 2026-09-24_ (incomplete-period stitching). Close once
   implemented. Monthly rollups only compute after month-end.
 
+## Open decisions
+
+Undecided items that don't block current work but must be answered before the listed
+point.
+
+- **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
+  file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
+  Release 3 export-bundle spec.
+
 ## Decided against (kept for the record, not planned)
 
 Recorded so nobody re-proposes these without the context. Reopen only with a new reason.
@@ -209,6 +245,22 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Free-form, overlapping dashboard windows**: _2026-09-23, Q4_. We chose a snapping grid.
 - **A horizontally scrolling dashboard canvas**: _2026-09-23, Q4_. It grows vertically,
   and multiple dashboards handle crowding.
+- **`gridstack.js` for the layout engine**: _2026-09-23, Q4_. It owns DOM positioning and
+  fights Svelte; we own a small pure layout engine instead.
+- **Snippet-based context-menu items** (the monitor-inventory-tracker approach):
+  _2026-09-23, Q5_. Items are data so they can be merged, tested, and reused.
+- **Staging copied data instead of query descriptors**: _2026-09-23, Q2_.
+- **Persisting tablet/phone layouts separately**: _2026-09-23, Q4_. Only the desktop
+  layout is saved; smaller layouts are derived.
+- **URL as source of truth for dashboards**: _2026-09-24_. The URL holds location; the
+  document holds content.
+- **JupyterLite inside dashboard pages / app-wide cross-origin isolation**: _2026-09-23,
+  Q1/Q6_. JupyterLite is a separate static app.
+- **User-set alert averaging windows** and **repeat notifications while a level holds**:
+  _2026-09-24, alerting_.
+- **An interim single-map-widget build on monitor-map 3.x**: _2026-09-24, sequencing_. The
+  Map widget waits for 4.0.
+- **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
 

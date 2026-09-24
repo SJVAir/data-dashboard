@@ -29,6 +29,7 @@ needs explicit per-release approval.
      stitching, shared polling, last-requested-wins
    - Paraglide (English-only) and the `format` module
    - `SavedDocument`, `applyChange`, and undo/redo
+   - local save, Export/Import `.json`, and URL-fragment sharing (`/import`)
    - the action/context-menu registry
    - the top-nav app shell
 2. **Dashboard layout engine and windowing**: snapping grid, drag/resize,
@@ -40,6 +41,10 @@ needs explicit per-release approval.
    - the coverage endpoint
    - scale metas
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
+   - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
+   - HTTP cache headers on the summary endpoints
+   - hardcoded-value cleanup in sjvair.com and this repo, and fixing sdk-js `api-urls.md`
+   - alert metadata is part of Release 2
 4. **Widget Creation and the non-map widgets**
    - Widget Creation view
    - Chart
@@ -60,7 +65,10 @@ needs explicit per-release approval.
 6. **Starter dashboard replaces the v1 tabs.** A default landing dashboard (map +
    calendar widgets covering today's Monitors tab) replaces the Monitors, HMS, and
    Collocation Sites tabs in one switch. **The v1 tabs stay live until this step**, which
-   depends on 5.
+   depends on 5. The HMS and Collocation tabs are still placeholders, so nothing is lost.
+   Their replacements come later: the smoke & fire map preset (deferred) and starter
+   analysis #10 (Release 3). Old v1 URLs (`/hms`, `/collocation-sites`, `?range=`)
+   redirect.
 
 ## Release 2: Alerts
 
@@ -84,6 +92,13 @@ needs explicit per-release approval.
    CalHeatScore wrapper, both from Release 1 step 3.
 3. **Export-to-notebook bundles**: Python first, then R, then Deno/TypeScript.
 4. **JupyterLite app**: Pyodide only, bundled for offline use, a separate static app.
+
+The Release 3 spec must also decide what IDEA.md and the planning session left open:
+
+- the Analysis view's layout (Collections drawer, list of analyses, results)
+- the user-defined analysis editor UI
+- the geographic crosswalk method: monitor→region, tract (CES), ZIP (CalHeatScore),
+  county/MTRS (PUR), and area weighting
 
 ## Later
 
