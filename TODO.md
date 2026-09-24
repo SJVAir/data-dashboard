@@ -55,9 +55,14 @@ updating the docs after each one. No code yet.
 resolved. Next, interview the user on these gaps found during the session, in this
 suggested order (one at a time, docs updated after each, no code):
 
-- [ ] **Alerting design.** The server system is per-monitor, SMS-only, PM2.5/O3-only, with
-      level-category thresholds. Open: numeric thresholds, region alerts, other datasets
-      (smoke, forecasts), in-app/browser/email notifications, server vs client split.
+- [x] **Alerting design** (see `ARCHITECTURE.md` → "Alerts").
+  - [x] Split: client self-monitoring (anyone) vs server automated alerting (accounts).
+  - [x] Watch-list: pollutants on monitor/region targets (gated by available-pollutants
+        metadata), forecasts, nearby pesticide notices; others deferred.
+  - [x] Thresholds: level categories only; server-defined averaging windows; notify on
+        crossing/escalation/optional all-clear; daily caps + quiet hours.
+  - [x] Channels: SMS (all alert types) + email + in-app inbox first; web push next;
+        mobile push deferred.
 - [ ] **Spanish / i18n.** Likely first-release for community and schools; includes
       translating metadata such as level guidance text.
 - [ ] **Accounts & anonymous use.** Which features need login; shared school machines.
@@ -106,6 +111,12 @@ Follow-ups created by decisions so far:
   Collections + starter analyses.
 - Open: should an optional `sjvair` Python helper be its own published package?
 - sdk-js wrappers for `forecasts/` (Forecast strip) alongside CalHeatScore/CES.
+- Server alerting (approved sjvair.com plan first): generalize `Subscription` into alert
+  rules (monitor/region pollutant, forecast, pesticide-notice rules), email channel,
+  alert inbox API, caps + quiet hours; then sdk-js wrappers; then dashboard rule UI,
+  inbox, and client-side self-monitoring in widgets.
+- Server: available-pollutants list in metadata (PM2.5 + O3 initially); replace this
+  repo's hardcoded `"pm25" | "o3"` with it.
 - Server metadata work (each needs an approved sjvair.com plan, then sdk-js wrappers):
   `meta/datasets/` catalog → coverage endpoint → per-domain scale metas (hms, calheatscore,
   forecasts, AQI) → alert meta → region hierarchy → choice lists → display hints.

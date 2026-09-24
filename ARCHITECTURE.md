@@ -81,9 +81,77 @@ converge on a consistent, shared pattern.
 ### Alerts
 
 The server already has an alert/notification system; **extend it** for dashboard
-alerting rather than building a separate one. Its current shape (per-monitor, level-
-category thresholds, SMS only, PM2.5/O3 only) is in the data inventory; the dashboard's
-alerting design is still open — see `TODO.md`.
+alerting rather than building a separate one. Current shape (see
+`docs/reference/server-data-inventory.md`): `Subscription(user, monitor, level)`,
+level-category thresholds, evaluated every 10 min for PM2.5 (most monitors) / O3
+(AirNow, AQLite), **SMS only**; no push infrastructure exists on the server or in
+`v3-mobile`.
+
+Decided 2026-09-24: **two separate mechanisms.**
+
+**1. Self-monitoring — client-side, no account.** Widgets make threshold states obvious:
+level-colored threshold lines on charts, current-conditions tiles that change color /
+pulse on a level change, a toast when a newly arrived value crosses a threshold, and an
+opt-in browser notification **while the dashboard is open** (through the platform
+adapter). Thresholds default to metadata levels and are overridable per widget. Needs
+no server changes; ships with the widgets.
+
+**2. Automated alerting — server-side, requires an account.** The dashboard only
+_creates rules_; the server evaluates them on its periodic task and delivers through a
+channel that reaches the user when the dashboard is closed. Extends `Subscription` into
+a general alert rule (target monitor _or region_, entry type, condition, channels).
+Region targets fit naturally: `RegionSummary` is already computed hourly. Needs an
+approved sjvair.com plan.
+
+**What automated alerts watch (first server iteration, decided 2026-09-24):**
+
+- **Pollutants** — on **monitor** targets (existing 10-min evaluation) and **region**
+  targets (county, city, ZIP, **school district**, …; evaluated from hourly
+  `RegionSummary`, so ~1 h latency). Limited to the **available pollutants** list
+  (below) — PM2.5 and O3 today — though the rule model supports every summarized entry
+  type (pm25, o3, no2, so2, co).
+- **Forecasts** — tomorrow's AQI category, no-burn days, declared air alerts (per
+  forecast zone): before-the-fact warnings, especially for schools.
+- **Pesticide notices nearby** — a SprayDays application scheduled within N miles of a
+  chosen place.
+
+Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred — see
+`DEFERRED.md`.
+
+**Thresholds & notification behavior (decided 2026-09-24):**
+
+- **Pollutants: level categories only** (e.g. "Unhealthy for Sensitive Groups or
+  worse"), picked from metadata levels — so thresholds track breakpoint changes
+  automatically. Numeric thresholds are deferred (see `DEFERRED.md`).
+- **Averaging windows are server-defined, not user-set:** monitors keep today's 30-min
+  average to open / 60-min to update; regions use hourly summaries. Published via alert
+  metadata (Metadata gap #4) so the UI can explain "based on a 30-minute average".
+- **Notify on:** first crossing, escalation to a worse level, and an optional
+  **"back to normal"** message. No repeats while a level holds.
+- **Guard rails:** per-user daily cap per channel; optional **quiet hours** (e.g.
+  overnight SMS).
+- **Forecasts:** tomorrow's category ≥ a level, and/or no-burn day, and/or declared air
+  alert; checked once daily after forecasts publish.
+- **Pesticide notices:** place + radius (e.g. 1/2/5 mi), optional filters for
+  application method (aerial/ground) and chemical category (e.g. fumigants); notify when
+  the notice is published, optional reminder the day before application.
+
+**Delivery channels (decided 2026-09-24):** channels are chosen **per rule**. First
+iteration: **SMS** (available for **every** alert type — daily caps and quiet hours are
+the cost control), **email** (new; natural default for schools and slow alerts), and
+the **in-app alert inbox** (every fired alert lands there; history, not delivery).
+**Web push** is the next iteration; **mobile app push** is a separate `v3-mobile`
+project. Both are tracked in `DEFERRED.md`.
+
+Channel reference:
+
+| Channel                  | Reaches user with dashboard closed? | Notes                                                                                                                                     |
+| ------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| SMS                      | Yes                                 | Exists; per-message cost; verified phone                                                                                                  |
+| Email                    | Yes                                 | Cheap to add via Django                                                                                                                   |
+| Web push                 | Mostly                              | Desktop needs the browser running; Android works; iOS only for home-screen-installed sites. Needs a service worker + VAPID + server table |
+| Mobile app push          | Yes                                 | Would require FCM/APNs in `v3-mobile` — separate project                                                                                  |
+| In-dashboard alert inbox | No                                  | Not delivery — history of what fired, shown on next open                                                                                  |
 
 ### Sibling projects
 
@@ -571,6 +639,14 @@ server metadata rather than hardcoding "for now".
    summaries.
 6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
 7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
+
+**Available pollutants (decided 2026-09-24).** The code supports every entry type, but
+SJVAir is only confident in some readings (PM2.5 and O3 today). A server-controlled
+**available-pollutants list in metadata** (e.g. an `available_pollutants` list or
+per-entry-type `available` flag on `monitors/meta/` — ideally admin-editable so changing
+it needs no deploy) gates which pollutants the frontend offers in **widgets, analyses,
+and alert rules**. Enabling NO2/SO2/CO later is a metadata change, not a code change. This
+replaces the hardcoded `"pm25" | "o3"` in this repo. Priority: alongside gap #1.
 
 **Cleanup to do alongside** (removing hardcoded duplicates once metadata covers them):
 server breakpoints defined twice (`levels.py` + entry classes), legacy

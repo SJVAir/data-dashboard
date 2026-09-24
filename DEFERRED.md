@@ -76,10 +76,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   tract indicators for now. Adding outside data needs new server importers plus a
   privacy and small-number-suppression policy. **Revisit when** the pre-built analyses
   have shipped and there's demand, or when a data partner is available.
-- **Entry types beyond PM2.5/O3 in existing code.** _Deferred 2026-09-15._ The pollutants
-  are hardcoded in `url-state.ts`, `monitor-latest.ts`, and `MonitorsTab.svelte`. The
-  dashboard direction should drive them from `monitors/meta/` (see IDEA.md Q7).
-  **Revisit when** the Widget Creation dataset picker is built.
+- **Entry types beyond PM2.5/O3.** _Deferred 2026-09-15; mechanism decided 2026-09-24._
+  Pollutants offered in the frontend (widgets, analyses, alerts) will be gated by a
+  server **available-pollutants** metadata list (PM2.5 + O3 today), replacing the
+  hardcoded `"pm25" | "o3"` in `url-state.ts`, `monitor-latest.ts`, `MonitorsTab.svelte`.
+  **Revisit when** SJVAir is confident in NO2/SO2/CO (or others) — enabling them is then a
+  metadata change.
 
 - **In-browser R and JavaScript kernels in JupyterLite.** _Deferred 2026-09-23
   (IDEA.md Q6)._ Embedded JupyterLite ships Python (Pyodide) only; R/JS/TS users use
@@ -107,6 +109,28 @@ ship, or a specific audience asks for one.
 - **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
   timeline).
 - **Monitor health**: QA/QC scores and sensor agreement (research).
+
+- **Additional automated-alert sources and targets.** _Deferred 2026-09-24 (alerting
+  design)._ First server iteration covers pollutants (monitor/region targets),
+  forecasts, and nearby pesticide notices. Deferred: **HMS smoke** over an area
+  (density ≥ X), **heat** (CalHeatScore ≥ level), **fire detections** within N miles,
+  and **drawn-area / near-a-point targets** (resolved to monitor sets per Q2).
+  **Revisit when** the first alert-rule iteration ships, or ahead of wildfire/heat
+  season if demand appears.
+
+- **Numeric alert thresholds** (e.g. "PM2.5 > 25 µg/m³"). _Deferred 2026-09-24 (alerting
+  design)._ First iteration uses level categories only: simpler for community/schools
+  and consistent with the level colors shown everywhere. **Revisit when** researchers or
+  advocates ask for raw-value alerts; offer as an "advanced" option.
+
+- **Web push for alerts.** _Sequenced as next iteration 2026-09-24._ Reaches desktop
+  and Android with the dashboard closed, no per-message cost; iOS only for home-screen-
+  installed sites. Needs a service worker (coordinate with the Q1 offline/cache design),
+  VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
+  iteration (SMS + email + inbox) ships.
+- **Mobile app push for alerts (`v3-mobile`).** _Deferred 2026-09-24._ No FCM/APNs setup
+  exists in `v3-mobile` or the server. **Revisit when** `v3-mobile` plans push
+  notifications; needs its own approved plan.
 
 ## UI & UX
 
