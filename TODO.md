@@ -135,6 +135,10 @@ package release needs explicit per-release approval.
 - App shell: top nav, dashboard picker, and the new route table (`ARCHITECTURE.md` →
   "Routing"), plus `basePath` support for `sjvair.com/dashboard/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
+- Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +
+  `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,
+  `@axe-core/playwright`, and a dev-stack smoke suite. PRs run unit + component +
+  Chromium E2E; releases run all three engines plus axe.
 - Installable app: `vite-plugin-pwa` app-shell service worker (scope `/dashboard/`), an
   offline notice, a "new version, reload" prompt, and a manifest and icons. API data
   stays in the data cache, not the service worker.

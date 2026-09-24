@@ -37,6 +37,7 @@ needs explicit per-release approval.
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/dashboard/`
    - CI: lint, type-check, tests, and build on every PR
+   - test infrastructure: Vitest browser mode, Playwright (3 engines), axe
    - installable app: an app-shell service worker via `vite-plugin-pwa`, scoped to
      `/dashboard/`, with an offline notice and an update prompt
 2. **Dashboard layout engine and windowing**: snapping grid, drag/resize,

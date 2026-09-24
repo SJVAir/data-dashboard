@@ -965,6 +965,23 @@ and views.
   interactive elements (includes the context menu — Shift+F10 / Menu key).
 - Standard loading/error states per widget (skeleton or spinner; inline error with retry).
 
+## Testing strategy
+
+Decided 2026-09-24.
+
+| Layer         | Tool                                                                | Covers                                                                                                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit          | Vitest (existing)                                                   | Pure logic: layout engine, `applyChange`/undo, menu resolution and merge, `format` and Pacific time/DST, resolution selection and stitching, descriptor codecs, document migrations, analysis steps                                      |
+| Component     | Vitest browser mode (Playwright provider) + `vitest-browser-svelte` | Svelte components in a real browser: widgets, Widget Creation accordions, pickers                                                                                                                                                        |
+| End-to-end    | Playwright on Chromium, WebKit, Firefox                             | Drag/resize and keyboard move/resize, context menus, autosave → reload, undo, offline start (service worker) and the update prompt, fullscreen/taskbar focus, a Map widget WebGL smoke test. WebKit stands in for Safari and Tauri/macOS |
+| Accessibility | `@axe-core/playwright` inside E2E                                   | Automated WCAG 2.2 AA checks on key screens. Manual keyboard and screen-reader passes are still required before releases                                                                                                                 |
+
+- **API data:** E2E uses recorded fixtures via Playwright request routing, so runs are
+  deterministic. A small **smoke suite against the local sjvair.com dev stack** (podman)
+  catches contract drift.
+- **CI:** unit, component, and Chromium E2E on every PR; the **full three-engine E2E plus
+  axe run before each release**.
+
 ## Deployment
 
 Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
