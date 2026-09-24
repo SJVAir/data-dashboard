@@ -150,6 +150,9 @@ deploys** (e.g. importing a new dashboard build into sjvair.com).
 - Tailwind CSS v4 for styling; prefer utility classes over custom `<style>` blocks
 - UI components from shadcn-svelte (bits-ui). **Never use Bulma** (the server's CSS
   framework) in this project.
+- **Accessibility target: WCAG 2.2 AA** (see `ARCHITECTURE.md` → "Accessibility"). Every
+  drag interaction needs a keyboard alternative; animations respect
+  `prefers-reduced-motion`.
 - Animations for transitions are encouraged; responsive layouts are required (phones
   must work, though they aren't the primary target)
 - Svelte 5 runes only (`$state`, `$derived`, `$effect`) — no legacy `$:` reactive statements

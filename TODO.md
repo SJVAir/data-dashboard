@@ -149,6 +149,9 @@ package release needs explicit per-release approval.
 - Pure layout functions, tested: placement, collision, compaction, minimize/restore, and
   deriving the responsive stack.
 - Drag and resize with edge/corner handles, a taskbar, and fullscreen.
+- WCAG 2.2 AA pieces: keyboard move and resize (plus ⋯ menu actions), live-region
+  announcements, focus management for fullscreen and the taskbar, and
+  `prefers-reduced-motion`.
 
 **Release 1, step 3: Metadata enablers** (sjvair.com + sdk-js, in parallel with steps 1–2)
 

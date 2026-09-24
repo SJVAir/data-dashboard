@@ -944,7 +944,20 @@ wrap simple.
 
 ## Accessibility
 
-Applies to all widgets and views.
+**Target: WCAG 2.2 Level AA from Release 1** (decided 2026-09-24). Applies to all widgets
+and views.
+
+- **Keyboard move and resize** (WCAG 2.5.7, Dragging Movements). Focus a widget's title
+  bar and press Enter to pick it up; arrow keys move it one grid cell, Shift+arrows
+  resize, Enter drops, Esc cancels. The same **"Move…" / "Resize…"** actions appear in
+  the widget ⋯ menu through the shared action list.
+- **Live-region announcements** for layout changes, e.g. "Moved to column 3, row 2" or
+  "Widget minimized to taskbar".
+- **Focus management:**
+  - Fullscreen traps focus; Esc exits and restores focus.
+  - Minimize moves focus to the widget's taskbar item; restore returns it to the widget.
+  - The taskbar is a keyboard-navigable toolbar (roving tabindex).
+- **Animations respect `prefers-reduced-motion`.**
 
 - Every data widget has a non-visual fallback: the **Data table** widget serves chart/map
   data; maps and charts expose their data as summary text or link to a table view.
