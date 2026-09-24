@@ -34,7 +34,9 @@ needs explicit per-release approval.
      items with "starter analyses coming soon"
    - local save, Export/Import `.json`, and URL-fragment sharing (`/import`)
    - the action/context-menu registry
-   - the top-nav app shell
+   - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
+     `sjvair.com/dashboard/`
+   - CI: lint, type-check, tests, and build on every PR
 2. **Dashboard layout engine and windowing**: snapping grid, drag/resize,
    minimize-to-taskbar, fullscreen, and responsive stacking. Proven with placeholder
    widgets.
@@ -68,6 +70,9 @@ needs explicit per-release approval.
    - the Map widget with feature/region selection (methods A/B)
    - The Map widget **waits for 4.0**; there is no interim single-map build.
 
+- **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
+  of a pinned, versioned dashboard build into `dist/`, plus a Django catch-all route for
+  `/dashboard/*`. Production deploys only with explicit approval.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js, decided
   2026-09-24). The `SavedDocument` model and endpoints, live share links (read-only
   plus "Make a copy"), versioned local-first sync with conflict prompts, local →

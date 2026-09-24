@@ -24,7 +24,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Embeddable production build.** _Deferred 2026-09-14 (v1 spec)._ Needs a `sv-router`
   escape hatch (`routerEscapeHatch`/`basePath`) and a non-URL fallback for view state.
   **Revisit when** the dashboard's core views exist. Keep state managers from hardcoding
-  ownership of the top-level route in the meantime.
+  ownership of the top-level route in the meantime. **Partly pulled forward 2026-09-24:** `basePath` support ships in
+  Release 1 for serving under `sjvair.com/dashboard/`. Still deferred: host-page
+  embedding and the in-memory router mode.
+- **Tighten sjvair.com CORS.** _Noted 2026-09-24._ `CORS_ORIGIN_ALLOW_ALL` plus
+  `CORS_ALLOW_CREDENTIALS` is normally risky; it's largely contained by Django's default
+  `SameSite=Lax` session cookie. The dashboard doesn't need it, since it's served from the
+  same origin. **Revisit when** server security settings are next touched, or when
+  non-browser/standalone clients are reviewed. Needs an approved sjvair.com plan.
 - **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23;
   **scheduled into Release 1 on 2026-09-24** as a parallel server track (see
   `ROADMAP.md`)._ This covers server-synced preferences (deferred 2026-09-14) and local →
@@ -260,6 +267,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   Map widget waits for 4.0.
 - **Explicit Save as the primary save model**: _2026-09-24_. Autosave plus undo instead;
   "Save as copy…" and "Export…" remain.
+- **Hosting Release 1 on a separate origin** (e.g. `dashboard.sjvair.com`): _2026-09-24_.
+  Chose same-origin hosting under a path for cookie auth; token auth stays supported for
+  Tauri and future standalone builds.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

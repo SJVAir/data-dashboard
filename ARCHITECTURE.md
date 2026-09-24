@@ -934,6 +934,32 @@ Applies to all widgets and views.
   interactive elements (includes the context menu — Shift+F10 / Menu key).
 - Standard loading/error states per widget (skeleton or spinner; inline error with retry).
 
+## Deployment
+
+Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
+`sjvair.com/dashboard/`), not from a separate origin.
+
+- **Same origin, so cookie auth.** Users signed in to sjvair.com are signed in to the
+  dashboard. There is no token handling, no token in browser storage, and no dependence
+  on CORS. This matters because Release 1 includes sign-in and server-backed documents.
+  Token auth stays supported for Tauri and any future standalone build (see
+  "Authentication").
+- **The monitor-map import pattern:** a sjvair.com build step imports this app's build
+  into `dist/` (like `scripts/import-monitor-map.sh`), and a Django catch-all route serves
+  `index.html` for `/dashboard/*`. The import should pull a **pinned, versioned build** so
+  the dashboard and the server can update independently. Needs an approved sjvair.com
+  plan.
+- **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
+  deferred embedding work that serving under a path needs. Full host-page embedding stays
+  deferred.
+- **JupyterLite (Release 3)** lives at its own path (e.g. `/notebooks/`), and COOP/COEP
+  headers are set only for that path.
+- **CI in this repo** runs lint, type-check, tests, and build on every PR. **Nothing deploys
+  to production without the user's explicit go-ahead**, the same as releases.
+- Server context: `CORS_ORIGIN_ALLOW_ALL = True` with `CORS_ALLOW_CREDENTIALS = True`. This is
+  largely contained by Django's default `SameSite=Lax` session cookie. Tightening it is
+  tracked in `DEFERRED.md`.
+
 ## Embedding (production build)
 
 Like `monitor-map`'s `MapShell`, this app's production build is intended to be

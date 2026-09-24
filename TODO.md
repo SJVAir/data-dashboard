@@ -133,7 +133,8 @@ package release needs explicit per-release approval.
 - Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
 - App shell: top nav, dashboard picker, and the new route table (`ARCHITECTURE.md` →
-  "Routing").
+  "Routing"), plus `basePath` support for `sjvair.com/dashboard/`.
+- CI workflow: lint, type-check, tests, and build on every PR.
 - "Clear my data" and session-only sign-in.
 - Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
   actions: new, duplicate, rename, delete with an undo toast.
@@ -188,6 +189,14 @@ package release needs explicit per-release approval.
   sjvair.com and `v3-mobile` migration plans.
 - The Map widget, with feature/region selection (methods A and B). Drawn shapes (C, via a
   `terra-draw` plugin) come later.
+
+**Release 1, parallel track: hosting on sjvair.com** (approved sjvair.com plan first)
+
+- sjvair.com:
+  - an import script that pulls a pinned, versioned dashboard build (modeled on
+    `scripts/import-monitor-map.sh`)
+  - a Django catch-all route for `/dashboard/*`
+- Production deploys only with the user's explicit go-ahead.
 
 **Release 1, parallel track: server-backed documents** (approved sjvair.com plan first)
 
