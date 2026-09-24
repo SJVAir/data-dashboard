@@ -233,6 +233,9 @@ point.
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
+- **Private-preview mechanism**: a staging Heroku app or an unlisted route on
+  sjvair.com. **Decide in** the Release 1 hosting-track plan (the preview starts around
+  Release 1 step 4).
 - **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide
   in** the Release 3 spec.
 - **User-defined analysis editor UI** (IDEA.md Q6: "What should user-defined analysis

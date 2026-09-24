@@ -121,8 +121,22 @@ package release needs explicit per-release approval.
 
 **Release 1, step 1: Foundations** (this repo)
 
-- Fresh start: remove the v1 app shell, sidebar, tab routes, and tab pages. Reuse existing
-  code only if it's exactly what the new design needs.
+- **First, write `docs/reference/v1-lessons.md`**: what the v1 code and its 59 tests
+  learned about server behavior, as behaviors rather than code. Examples:
+  - monthly+ rollups exist only after the period ends
+  - region boundaries are large, so they're fetched lazily for selected regions only, with
+    concurrent fetches deduped
+  - single-parent region-narrowing rules and child-type filtering
+  - selected regions with no average get a black border
+  - `land_use` and `mtrs` are too large to list
+  - globe-projection zoom precision for large counties
+  - year/month showing 0 or blank during initial load
+  - map/calendar updates must not block on child-list refetches
+
+  Harvest the edge cases the tests encode as well.
+
+- Then the fresh start: remove the v1 app shell, sidebar, tab routes, and tab pages.
+  Reuse existing code only if it's exactly what the new design needs.
 
 - Platform adapter: storage, notifications, file export, background tasks, online status,
   auth mode, and token storage. Move `src/lib/preferences.ts` behind it.
@@ -242,6 +256,12 @@ package release needs explicit per-release approval.
 - The default first-visit dashboard gains its map and calendar widgets (non-map widgets
   until step 5).
 - Go-live: enable the `sjvair.com/dashboard/` route once Release 1 is complete.
+
+**Release 1: private preview (from about step 4)**
+
+- An unlisted preview (staging Heroku app or hidden route; decide in the hosting-track
+  plan) for a pilot teacher and a researcher. Collect feedback on the windowed dashboard
+  before go-live.
 
 **Release 2: Alerts** (the server work can start alongside Release 1)
 

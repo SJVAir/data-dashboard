@@ -40,7 +40,9 @@ needs explicit per-release approval.
    - **a fresh start** (decided 2026-09-24): the v1 app shell, sidebar, tab routes, and
      tab pages are removed; the new top-nav shell and route table replace them from this
      step on. The v1 app was never deployed, so there are no users or URLs to migrate.
-     Existing code is reused only if it's exactly what the new design needs.
+     Existing code is reused only if it's exactly what the new design needs. **Before
+     removing it**, write `docs/reference/v1-lessons.md` capturing the server behaviors
+     and edge cases the v1 code and its tests learned (behaviors, not code).
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/dashboard/`
@@ -94,6 +96,11 @@ needs explicit per-release approval.
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (plus a server "remember me" change); sdk-js
   makes `apiToken` optional on account calls.
+
+- **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
+  a staging Heroku app or a hidden route) for a pilot teacher and a researcher, so the
+  windowed-dashboard experience gets real feedback well before go-live. The mechanism is
+  decided in the hosting-track plan.
 
 6. **Starter dashboard and go-live.** The default dashboard a first-time visitor sees
    (not a blank page) gains its map + calendar widgets once step 5 lands. Before that it

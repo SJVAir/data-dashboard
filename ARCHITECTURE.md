@@ -9,10 +9,12 @@ design (`docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`) is supe
 and its code is removed in Release 1's Foundations step. See "Legacy: v1 tab model" at
 the end.
 
-**A fresh start, not a retrofit** (decided 2026-09-24). The new direction is built as one
-cohesive design. The v1 layout and tab code are not kept or adapted. Existing code is
+**A fresh start, not a retrofit** (decided 2026-09-24). The new direction is built as
+one cohesive design. The v1 layout and tab code are not kept or adapted. Existing code is
 reused only when it is exactly what the new design needs (e.g. a well-tested pure
-helper), never to save effort at the cost of fitting the new architecture.
+helper), never to save effort at the cost of fitting the new architecture. Before the v1
+code is removed, its _lessons_ (server behaviors and edge cases, not code) are captured
+in `docs/reference/v1-lessons.md`.
 
 ## Product direction
 
@@ -1086,6 +1088,10 @@ Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Full host-page embedding stays
   deferred.
+- **Private preview before go-live** (decided 2026-09-24). `sjvair.com/dashboard/` goes
+  public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
+  preview** (a staging Heroku app or a hidden route; chosen in the hosting-track plan)
+  lets a pilot teacher and a researcher try it and give feedback early.
 - **JupyterLite (Release 3)** lives at its own path (e.g. `/notebooks/`), and COOP/COEP
   headers are set only for that path.
 - **CI in this repo** runs lint, type-check, tests, and build on every PR. **Merging to
