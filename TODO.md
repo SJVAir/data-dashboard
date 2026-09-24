@@ -149,7 +149,8 @@ package release needs explicit per-release approval.
 - Installable app: `vite-plugin-pwa` app-shell service worker (scope `/dashboard/`), an
   offline notice, a "new version, reload" prompt, and a manifest and icons. API data
   stays in the data cache, not the service worker.
-- "Clear my data" and session-only sign-in.
+- "Clear my data".
+- Vite dev proxy: `/api` and `/account/` to the local podman sjvair.com.
 - Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
   actions: new, duplicate, rename, delete with an undo toast.
 - Local durability: a `navigator.storage.persist()` request, a storage status note, a
@@ -220,7 +221,9 @@ package release needs explicit per-release approval.
 - sjvair.com: the `SavedDocument` model and endpoints (visibility, `version`).
 - sdk-js wrappers.
 - Dashboard:
-  - the sign-in flow
+  - the sign-in flow: redirect to sjvair.com login/registration with `?next=`; a
+    server "remember me" change (session expires at browser close when unchecked)
+  - sdk-js: make `apiToken` optional on account calls that require it today
   - versioned local-first sync with conflict prompts
   - live share links (read-only plus "Make a copy")
   - local → account migration
@@ -239,6 +242,8 @@ package release needs explicit per-release approval.
   - the inbox API
   - alert metadata
 - sdk-js wrappers.
+- In-app session sign-in: sjvair.com `POST account/session/` (rate-limited,
+  non-enumerating errors) plus an in-app dialog replacing the Release 1 redirect.
 - Dashboard: the rule UI with lazy sign-in, the inbox, and the Alerts feed widget.
 
 **Release 3: Analysis**

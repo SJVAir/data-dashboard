@@ -41,6 +41,7 @@ needs explicit per-release approval.
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/dashboard/`
    - CI: lint, type-check, tests, and build on every PR
+   - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev)
    - test infrastructure: Vitest browser mode, Playwright (3 engines), axe
    - installable app: an app-shell service worker via `vite-plugin-pwa`, scoped to
      `/dashboard/`, with an offline notice and an update prompt
@@ -85,7 +86,9 @@ needs explicit per-release approval.
   2026-09-24). The `SavedDocument` model and endpoints, live share links (read-only
   plus "Make a copy"), versioned local-first sync with conflict prompts, local →
   account migration, and the sign-in flow (which Release 2 reuses). Anonymous users
-  stay local, with durability safeguards.
+  stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
+  sjvair.com's login/registration pages (plus a server "remember me" change); sdk-js
+  makes `apiToken` optional on account calls.
 
 6. **Starter dashboard replaces the v1 tabs.** A default landing dashboard (map +
    calendar widgets covering today's Monitors tab) replaces the Monitors, HMS, and
@@ -105,6 +108,8 @@ needs explicit per-release approval.
   - SMS for every alert type, a new email channel, and the alert inbox API
   - alert metadata
 - sdk-js wrappers for the new alert endpoints.
+- **In-app session sign-in**: a `POST account/session/` endpoint plus an in-app sign-in
+  dialog, replacing Release 1's redirect so mid-flow sign-in keeps context.
 - Dashboard: an alert-rule UI (lazy sign-in), the alert inbox, and the Alerts feed
   widget.
 

@@ -262,6 +262,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   Map widget waits for 4.0.
 - **Explicit Save as the primary save model**: _2026-09-24_. Autosave plus undo instead;
   "Save as copy…" and "Export…" remain.
+- **Token auth for the Release 1 web build**: _2026-09-24_. It would put tokens in browser
+  storage and force a second sign-in for people already signed in to sjvair.com. Cookie
+  sessions instead; tokens remain for Tauri and standalone builds.
 - **Hosting Release 1 on a separate origin** (e.g. `dashboard.sjvair.com`): _2026-09-24_.
   Chose same-origin hosting under a path for cookie auth; token auth stays supported for
   Tauri and future standalone builds.

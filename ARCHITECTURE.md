@@ -286,8 +286,37 @@ you:**
 - **No teacher/class/org accounts**; teachers share via links.
 - **Shared computers:** the **browser profile is the boundary** (as for any website;
   managed Chromebooks usually give each student their own profile). Provide a visible
-  **"Clear my data"** action, and sign-in **without "remember me"** keeps the token
-  session-only (through the platform adapter). A dedicated guest mode is deferred.
+  **"Clear my data"** action. Signing in **without "remember me"** gives a session that
+  ends when the browser closes: under cookie auth that's a browser-session cookie (a
+  small server change, see "Sign-in flow"), and for token builds a session-only token
+  via the platform adapter. A dedicated guest mode is deferred.
+
+### Sign-in flow
+
+Decided 2026-09-24. The API's `account/login` is **token-only**
+(`TokenAuthEndpoint`: it returns `api_token` and never calls Django's `login()`). Only the
+website form at `/account/login/` (Django `LoginView`) creates a session cookie. The
+approach is staged:
+
+- **Release 1: redirect.** "Sign in" / "Create account" go to sjvair.com's own pages
+  (`/account/login/?next=/dashboard/…`, registration likewise) and return to the same
+  dashboard route. This reuses the mature Django flows (password reset, phone
+  verification) and adds no new auth endpoint. Known cost: in-progress dialog state
+  isn't preserved across the redirect (autosave keeps documents safe). **"Remember me"**
+  needs a small sjvair.com change (a checkbox; when unchecked, the session expires at
+  browser close) in the hosting / server-documents plan.
+- **By Release 2: in-app session login.** A small `POST account/session/` endpoint
+  (`{identifier, password, remember}` → Django `login()` plus session expiry, with a
+  matching logout) behind an in-app sign-in dialog. That keeps mid-flow sign-in (e.g.
+  inside "Create alert") in context and matches the app's design. It needs rate
+  limiting and non-enumerating error messages. The same dialog later serves Tauri and
+  standalone builds using tokens. The rest of the app only asks "am I signed in?", so
+  the switch is contained.
+- **SDK:** make `apiToken` optional on the account calls that require it today
+  (`getAirAlerts`, the phone functions, change-password) so a session works everywhere.
+  sdk-js change, approved plan first.
+- **Development:** the Vite dev server proxies `/api` (and `/account/`) to the local
+  podman sjvair.com, so dev is same-origin and cookies behave as in production.
 
 ## Data resolution & live refresh
 
