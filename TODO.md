@@ -4,6 +4,52 @@ Last updated: 2026-09-24
 
 ## Start here
 
+**⏸ Resume here: final-review decisions in progress (paused 2026-09-24).** A three-way
+final review found 12 gaps; #1–#3, #8, and #9 are decided (map-sdk split, dropdown
+picker, dataset definition). Continue **one at a time** with these proposed defaults,
+updating the docs after each:
+
+- [ ] **#4 Resolution for data without summaries** (only pm25/o3/no2/so2/co have
+      summaries). Proposed:
+  - the catalog's `resolutions` drive the ladder
+  - daily-native data (smoke, fire, forecasts, heat) is fetched as-is and aggregated
+    for display
+  - weather/PM10 are fetched raw with a span cap (~1 year per chunk) and downsampled in
+    a worker, labeled "computed from raw"
+  - pesticides stay yearly
+  - **defer** server summaries for weather/PM10 (revisit when raw fetches get slow)
+
+  _(Question was asked; awaiting the user's answer.)_
+
+- [ ] **#5 Document identity and share route.** Proposed:
+  - the server keeps client-generated UUIDs
+  - a new `/s/:shareToken` read-only route with "Make a copy"
+  - `link` documents can be viewed without an account
+  - `public` is reserved until templates ship
+  - the server stores the body as opaque JSON with a size cap
+- [ ] **#6 Sync scope and sign-out.** Proposed:
+  - all documents sync once signed in
+  - sign-out offers "keep on this device / remove"
+  - preferences stay local in Release 1
+  - "Clear my data" never deletes server copies
+- [ ] **#7 Rolling ranges when staged or shared.** Proposed: dashboards keep ranges
+      rolling; "Mark for analysis" freezes them to absolute Pacific dates, with a "keep
+      rolling" toggle in the Collections drawer.
+- [ ] **#10 CSRF.** The server's API views (resticus) are `csrf_exempt`, and Release 1
+      adds the first cookie-authenticated writes. Proposed: new session-authenticated
+      write endpoints require `X-CSRFToken`, and the SDK sends it from the `csrftoken`
+      cookie when no `apiToken` is given.
+- [ ] **#11 Email alerts.** `User.email` is optional and unverified, and
+      `USERNAME_FIELD = phone`. Proposed: email alerts require a verified email (a new
+      flow mirroring phone verification) plus one-click unsubscribe. Also confirm that a
+      required phone number is acceptable for people who only want server-saved
+      documents.
+- [ ] **#12 Existing SMS subscriptions.** Proposed: migrate each `Subscription` into a
+      monitor rule that reproduces today's behavior exactly, and keep the legacy
+      endpoints as a compatibility facade so v3-mobile works unchanged.
+
+After these, push `planning` (ask first).
+
 **Planning is complete (2026-09-23 → 2026-09-24, branch `planning`).** All IDEA.md Open
 Questions and the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
 sequencing is in `ROADMAP.md`; every deferral is in `DEFERRED.md`.
