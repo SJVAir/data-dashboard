@@ -201,15 +201,16 @@ ship, or a specific audience asks for one.
   Colors may come from the server's existing pages. **Revisit when** the dashboard shell
   is built, as a dedicated design pass.
 
-## Legacy Monitors-tab follow-ups (may be superseded by the dashboard/widget direction)
+## Legacy Monitors-tab follow-ups
 
-These came from the Monitors-tab work. If that tab is replaced by widgets, re-check each
-item against the widget design rather than dropping it silently.
+These came from the Monitors-tab work. That code is removed in Release 1's Foundations
+step (a fresh start), so each item stays here only until the new design delivers what
+it describes.
 
 - **Chart and spreadsheet views**: _deferred 2026-09-15; superseded 2026-09-24_: now the
   Chart and Data table widgets (ROADMAP Release 1 step 4). Close when they ship.
 - **HMS Smoke/Fire and Collocation Sites tabs**: _v1 roadmap; superseded 2026-09-24_ —
-  the v1 tabs are replaced by the starter dashboard (ROADMAP Release 1 step 6). HMS
+  the v1 tabs are removed in Release 1's Foundations step (a fresh start). HMS
   becomes the smoke & fire map preset (see "Widgets"); collocation becomes the
   low-cost-vs-reference starter analysis (#10). Close when those ship.
 - **Whole-year over-fetch**: _deferred 2026-09-16; addressed by design 2026-09-24_ (automatic
@@ -276,6 +277,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Hosting Release 1 on a separate origin** (e.g. `dashboard.sjvair.com`): _2026-09-24_.
   Chose same-origin hosting under a path for cookie auth; token auth stays supported for
   Tauri and future standalone builds.
+- **Keeping or adapting the v1 app while building the new one**: _2026-09-24_. It was
+  never deployed. Foundations removes it, and a fresh, cohesive codebase is built
+  instead of retrofitting.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
@@ -292,5 +296,6 @@ Dropped 2026-09-24 with the user's approval (docs review), each overtaken by lat
   table widget covers any dataset layer.
 - **Preferences persist only the month; URL read once at mount** (deferred 2026-09-16).
   Replaced by autosaved documents and the new routing.
-- **Migrating old `?range=` bookmark URLs** (deferred 2026-09-16). Now scheduled: ROADMAP
-  Release 1 step 6 redirects the old v1 URLs.
+- **Migrating old `?range=` bookmark URLs** (deferred 2026-09-16). Not needed: the v1 app
+  was never deployed, so there are no public v1 URLs (a redirect step was briefly planned
+  and removed on 2026-09-24).

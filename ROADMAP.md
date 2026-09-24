@@ -37,6 +37,10 @@ needs explicit per-release approval.
    - local durability safeguards (`storage.persist()`, status note, backup nudge, quota
      errors) and "Clear my data"
    - Export/Import `.json` and URL-fragment sharing (`/import`)
+   - **a fresh start** (decided 2026-09-24): the v1 app shell, sidebar, tab routes, and
+     tab pages are removed; the new top-nav shell and route table replace them from this
+     step on. The v1 app was never deployed, so there are no users or URLs to migrate.
+     Existing code is reused only if it's exactly what the new design needs.
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/dashboard/`
@@ -91,13 +95,10 @@ needs explicit per-release approval.
   sjvair.com's login/registration pages (plus a server "remember me" change); sdk-js
   makes `apiToken` optional on account calls.
 
-6. **Starter dashboard replaces the v1 tabs.** A default landing dashboard (map +
-   calendar widgets covering today's Monitors tab) replaces the Monitors, HMS, and
-   Collocation Sites tabs in one switch. **The v1 tabs stay live until this step**, which
-   depends on 5. The HMS and Collocation tabs are still placeholders, so nothing is lost.
-   Their replacements come later: the smoke & fire map preset (deferred) and starter
-   analysis #10 (Release 3). Old v1 URLs (`/hms`, `/collocation-sites`, `?range=`)
-   redirect.
+6. **Starter dashboard and go-live.** The default dashboard a first-time visitor sees
+   (not a blank page) gains its map + calendar widgets once step 5 lands. Before that it
+   uses non-map widgets. **The `sjvair.com/dashboard/` route goes live when Release 1 is
+   complete.** Until then `main` isn't public, so work in progress on it is safe.
 
 ## Release 2: Alerts
 

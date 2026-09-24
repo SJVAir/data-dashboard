@@ -36,9 +36,11 @@ npm run format       # Auto-format with Prettier
 
 Plain Vite SPA — no SvelteKit, no server-side rendering. Routing is handled by
 `sv-router` (`src/router.ts` exports `{ route, navigate, p, isActive }`; `src/App.svelte`
-renders the nav and `<Router />`). Today each v1 tab is a route under `src/routes/`; the
-dashboard direction replaces these with the route table in `ARCHITECTURE.md` → "Routing,
-URL state & undo".
+renders the nav and `<Router />`). Today each v1 tab is a route under `src/routes/`. **This
+v1 code is removed in Release 1's Foundations step (a fresh start)**, and the route table
+in `ARCHITECTURE.md` → "Routing, URL state & undo" replaces it. When building new code,
+reuse existing code only if it's exactly what the new design needs. Don't adapt or bolt
+onto v1 code.
 
 ### State architecture
 
@@ -47,7 +49,7 @@ URL state & undo".
   All document edits go through `applyChange` (gives undo/redo), and every change
   autosaves (there is no explicit Save). See `ARCHITECTURE.md` →
   "Routing, URL state & undo" and "Saving & sharing documents".
-- **Legacy v1 tab code (current Monitors tab):** the URL is the source of truth for the
+- **Legacy v1 tab code (current Monitors tab, removed in Foundations):** the URL is the source of truth for the
   tab's view (filters, date range, toggles). `src/lib/preferences.ts` (localStorage
   defaults that seed the URL when no params exist) and `src/lib/url-state.ts` (pure,
   unit-tested codecs such as `encodeDateRange`/`decodeDateRange`) support this; the

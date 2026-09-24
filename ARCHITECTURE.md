@@ -5,8 +5,14 @@ comes from `IDEA.md` (planning brief) and the decisions made while working throu
 Open Questions on 2026-09-23 — each section below notes which question it resolves.
 Deferred and ruled-out items live in `DEFERRED.md`; the server's actual data is
 catalogued in `docs/reference/server-data-inventory.md`. The original v1 tab-based
-design (`docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`) is being
-superseded — see "Legacy: v1 tab model" at the end.
+design (`docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`) is superseded,
+and its code is removed in Release 1's Foundations step. See "Legacy: v1 tab model" at
+the end.
+
+**A fresh start, not a retrofit** (decided 2026-09-24). The new direction is built as one
+cohesive design. The v1 layout and tab code are not kept or adapted. Existing code is
+reused only when it is exactly what the new design needs (e.g. a well-tested pure
+helper), never to save effort at the cost of fitting the new architecture.
 
 ## Product direction
 
@@ -37,7 +43,8 @@ These may change if a better structure emerges.
 
 ### Widget Creation view
 
-Starting point: the v1 app's data-type tabs and their filter options, adapted:
+Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter options
+(e.g. pollutant, regions), now living inside the new dataset accordions:
 
 - **Date selection sits above** the option accordions. **One date range per widget**
   (dashboard display widgets only — time-offset/lag comparison belongs to Analysis).
@@ -1042,8 +1049,10 @@ Decided 2026-09-24.
 - **API data:** E2E uses recorded fixtures via Playwright request routing, so runs are
   deterministic. A small **smoke suite against the local sjvair.com dev stack** (podman)
   catches contract drift.
-- **CI:** unit, component, and Chromium E2E on every PR; the **full three-engine E2E plus
-  axe run before each release**.
+- **CI** (decided 2026-09-24): **PRs into `main` run the full suite**: unit, component,
+  and three-engine E2E (Chromium, WebKit, Firefox) plus axe. Merging to `main` is
+  effectively a deploy, so this is the pre-production gate. PRs between feature branches
+  run the fast set (unit, component, Chromium E2E).
 
 ## Deployment
 
@@ -1109,11 +1118,11 @@ decisions made along the way:
 
 ## Legacy: v1 tab model
 
-The sections below describe the original tab-per-data-domain design that the Monitors
-tab was built on. They remain accurate for the **current code** but are being superseded
-by the dashboard/widget direction above; the useful parts (URL-state codecs, region
-selector, calendar) carry forward into widgets. Tech stack and accessibility rules now
-live in current sections above.
+The sections below describe the original tab-per-data-domain design that the current code
+implements. **That code is removed in Release 1's Foundations step** (a fresh start; it
+was never deployed). Parts are reused only if they're exactly what the new design needs.
+These sections stay only as a record until then. Tech stack and accessibility rules live
+in current sections above.
 
 ### Repos involved
 

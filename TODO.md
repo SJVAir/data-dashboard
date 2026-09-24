@@ -98,7 +98,7 @@ each was interviewed and recorded:
       "Routing, URL state & undo".
 - [x] **Sequencing** → `ROADMAP.md` rewritten: PM2.5 fix now; Release 1 Dashboard
       (foundations → layout → metadata enablers ∥ → widgets → monitor-map 4.0 + Map
-      widget → starter dashboard replaces v1 tabs); Release 2 Alerts (server work starts
+      widget → starter dashboard + go-live); Release 2 Alerts (server work starts
       alongside Release 1); Release 3 Analysis. Map widget waits for 4.0.
 
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
@@ -120,6 +120,9 @@ package release needs explicit per-release approval.
 - sjvair.com PM2.5 breakpoint fix (see the warning above).
 
 **Release 1, step 1: Foundations** (this repo)
+
+- Fresh start: remove the v1 app shell, sidebar, tab routes, and tab pages. Reuse existing
+  code only if it's exactly what the new design needs.
 
 - Platform adapter: storage, notifications, file export, background tasks, online status,
   auth mode, and token storage. Move `src/lib/preferences.ts` behind it.
@@ -144,8 +147,8 @@ package release needs explicit per-release approval.
 - CI workflow: lint, type-check, tests, and build on every PR.
 - Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +
   `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,
-  `@axe-core/playwright`, and a dev-stack smoke suite. PRs run unit + component +
-  Chromium E2E; releases run all three engines plus axe.
+  `@axe-core/playwright`, and a dev-stack smoke suite. PRs into `main` run the full suite
+  (three engines plus axe); feature-branch PRs run unit + component + Chromium E2E.
 - Installable app: `vite-plugin-pwa` app-shell service worker (scope `/dashboard/`), an
   offline notice, a "new version, reload" prompt, and a manifest and icons. API data
   stays in the data cache, not the service worker.
@@ -234,10 +237,11 @@ package release needs explicit per-release approval.
   - live share links (read-only plus "Make a copy")
   - local → account migration
 
-**Release 1, step 6: Starter dashboard**
+**Release 1, step 6: Starter dashboard and go-live**
 
-- A default dashboard that replaces the v1 Monitors/HMS/Collocation tabs, plus redirects
-  from the old v1 URLs.
+- The default first-visit dashboard gains its map and calendar widgets (non-map widgets
+  until step 5).
+- Go-live: enable the `sjvair.com/dashboard/` route once Release 1 is complete.
 
 **Release 2: Alerts** (the server work can start alongside Release 1)
 
@@ -269,8 +273,9 @@ package release needs explicit per-release approval.
 
 The Monitors tab (map + calendar, month picker, county choropleth) merged as
 SJVAir/data-dashboard#2, followed by the multi-region selector and single-parent
-narrowing (#3, #4). Specs and plans are in `docs/superpowers/`. Its deferred follow-ups
-are in `DEFERRED.md` → "Legacy Monitors-tab follow-ups".
+narrowing (#3, #4). Specs and plans are in `docs/superpowers/`. This code is removed in
+Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DEFERRED.md`
+→ "Legacy Monitors-tab follow-ups".
 
 ## Done
 
