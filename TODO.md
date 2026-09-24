@@ -159,7 +159,11 @@ package release needs explicit per-release approval.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
-- The Widget Creation view, with date methods above accordions and a live preview.
+- The Widget Creation view: date methods above catalog-driven dataset accordions (the v1
+  tabs become accordions), multiple layers per widget (≤ 1 pollutant), a place picker for
+  "now" widgets, and a live preview.
+- The `WidgetType` registry and `WidgetDataConfig` (`ARCHITECTURE.md` → "Widget-type
+  contract").
 - Widgets:
   - Chart
   - Calendar (day-colored)

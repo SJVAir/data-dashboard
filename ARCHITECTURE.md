@@ -37,7 +37,7 @@ These may change if a better structure emerges.
 
 ### Widget Creation view
 
-Starting point: the existing Monitors-tab filter UI, adapted:
+Starting point: the v1 app's data-type tabs and their filter options, adapted:
 
 - **Date selection sits above** the option accordions. **One date range per widget**
   (dashboard display widgets only — time-offset/lag comparison belongs to Analysis).
@@ -46,9 +46,21 @@ Starting point: the existing Monitors-tab filter UI, adapted:
   - **Set ranges** — year, month, week, day
   - **Rolling ranges** — year-to-date, month-to-date, week-to-date
   - **Custom ranges** — user-selected
-- The existing side tabs become **accordions**, each holding its options.
-- **Pollutant datasets: exactly one pollutant per widget** (no mixing O3 and PM2.5 in one
-  widget).
+- **The v1 sidebar tabs themselves become accordion sections** (decided 2026-09-24).
+  No tab view or side menu survives. Where v1 had a "Monitors" tab leading to a page of
+  Monitors filters, Widget Creation has a **"Monitors" accordion** that expands to those
+  options (pollutant, monitors/regions). The same goes for "HMS Smoke/Fire" and the
+  others. The accordion list is **generated from the `meta/datasets/` catalog**, so new
+  data types (Pesticides, Weather, Forecasts, …) appear as new accordions without code
+  changes.
+- **Multiple accordions per widget.** A widget combines dataset **layers**, one per
+  accordion used, e.g. a map with PM2.5 plus smoke, or a chart overlaying PM2.5 with
+  smoke days. All layers share the widget's single date range.
+- **Pollutants: at most one pollutant layer per widget** (no mixing O3 and PM2.5 in one
+  widget). Non-pollutant layers can be combined freely.
+- Which accordions a widget offers, and whether the date section appears at all, comes
+  from its **widget type** (see "Widget catalog" → "Widget-type contract"). For example,
+  Notes has no date or data, and Current conditions picks a place instead of a range.
 - **Live preview on the right**, itself a drag-and-drop, resizable area matching
   dashboard behavior.
 
@@ -338,17 +350,28 @@ The stack is per document and per session (not persisted).
 Decided 2026-09-23 (IDEA.md Open Question #2).
 
 **What gets staged is a query descriptor, not copied data.** This is the **single
-definition** used by widget configs, Collections, saved documents, and export manifests:
+definition** used by Collections, saved documents, and export manifests. A widget's
+config is **one shared date range plus a list of layers** (see "Widget Creation view"),
+and each layer resolves to one descriptor:
 
 ```ts
 type QueryDescriptor = {
 	dataset: string; // from the meta/datasets/ catalog
-	entryType?: string; // pollutant/entry type where applicable (one per widget)
+	entryType?: string; // pollutant/entry type where applicable
 	dateRange: DateRangeSpec; // set / rolling / custom (see "Widget Creation view")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
-	selection?: SpatialSelection; // omitted = whole widget
+	selection?: SpatialSelection; // omitted = whole layer
+};
+
+type WidgetDataConfig = {
+	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
+	target?: PlaceRef; // monitor/region/location for "now" widgets
+	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
 };
 ```
+
+"Mark for analysis" on a multi-layer widget adds **one Collection item per layer**, each
+with the widget's date range and any current time sub-range or selection.
 
 "Whole widget" is simply the no-selection case,
 so partial and all-or-nothing selection are the same mechanism. Descriptors are cheap
@@ -493,6 +516,30 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                                |
 
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
+
+### Widget-type contract
+
+Each widget type declares what Widget Creation shows and how the dashboard treats it:
+
+```ts
+type WidgetType = {
+	type: string;
+	label: MessageKey; // i18n: message key, never literal English
+	minSize: { w: number; h: number }; // grid cells
+	time: "range" | "now" | "none"; // the date section is shown only for "range"
+	accepts: DatasetFilter; // which accordions/layers apply (enforces ≤ 1 pollutant)
+	target?: "place"; // needs a monitor/region/location instead of layers
+	thresholds: boolean; // supports self-monitoring thresholds
+	defaultTitle(config: WidgetDataConfig, meta: Metadata): string; // generated, not stored
+	menu: MenuProvider; // widget-scoped actions (see "Actions & context menu")
+	component: Component;
+};
+```
+
+Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **Forecast
+strip**, and **"Can we go outside?"** are `time: "now"` with `target: "place"`; for those,
+Widget Creation hides the date section and shows a place picker instead of the dataset
+accordions. **Map** and **Chart** are `time: "range"` and accept multiple layers.
 
 ## Actions & context menu
 
