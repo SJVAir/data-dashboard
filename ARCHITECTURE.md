@@ -602,6 +602,42 @@ schemaVersion`) + endpoints: short links, cross-device access (subsumes server-s
 - **Server share → live link.** Recipients see the owner's current version read-only,
   with **"Make a copy"** to edit their own. Fits teacher → class and SJVAir → public.
 
+## Internationalization: English-only, translation-ready
+
+Decided 2026-09-24. **Ship in English only**; no translations exist and there is no
+timeline for them. But build so adding a language is _adding message files_, not a
+retrofit. Context: sjvair.com declares `LANGUAGES` = en, es, tl (Filipino), hmn (Hmong)
+and stores `User.language`, and server metadata strings are gettext-marked — but no
+translation files exist and alerts ignore `User.language`. monitor-map and v3-mobile have
+no i18n.
+
+**Day-one practices (cheap now, expensive to retrofit):**
+
+1. **All UI strings via Paraglide JS** (inlang; compiled message functions, works with
+   plain Vite, type-checked, tree-shaken) with an **English-only** message file. No inline
+   UI strings in components.
+2. **No string-concatenated sentences.** One message with parameters (and plural
+   variants) per sentence.
+3. **One `format` module** for numbers, dates, durations, and units via `Intl`/`date-fns`
+   with a locale parameter (always `en-US` for now). No ad-hoc formatting.
+4. **Saved documents store meaning, not English.** Default widget titles are stored as
+   auto (`title: null`) and generated at render from metadata; only user renames are
+   stored as text.
+5. **Built-in content uses message keys** — starter-analysis notes/caveats, widget-type
+   names, action/menu labels. User-authored text (Notes widget, custom names) is stored
+   verbatim.
+6. **Alert text is rendered at send time** from the rule's data, never stored at rule
+   creation — so `User.language` can apply later without a data migration.
+7. **Server-sourced text stays server-sourced** (metadata rule), and the data layer has a
+   single place that sends a language (`Accept-Language`), currently always `en`.
+8. **Layouts tolerate longer text** (Spanish ≈ 20–30% longer): no fixed-width text
+   containers sized for English.
+
+Deferred until translations exist (see `DEFERRED.md`): language picker, translation
+files, server `.po` files, per-language metadata caching, alerts in `User.language`,
+Hmong formatting fallback, monitor-map / v3-mobile i18n. RTL support is not needed for
+the declared languages.
+
 ## Metadata as source of truth
 
 Decided 2026-09-23 (IDEA.md Open Question #7). Audit basis:

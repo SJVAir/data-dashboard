@@ -132,6 +132,18 @@ ship, or a specific audience asks for one.
   exists in `v3-mobile` or the server. **Revisit when** `v3-mobile` plans push
   notifications; needs its own approved plan.
 
+## Internationalization
+
+- **Translations and language switching.** _Deferred 2026-09-24._ No translations exist
+  and there's no timeline; the app ships English-only but translation-ready (see
+  `ARCHITECTURE.md` → "Internationalization"). Deferred together: Spanish, Filipino (tl),
+  and Hmong (hmn) message files; a language picker (saving to `User.language` when
+  signed in); server `.po` files for sjvair.com (metadata labels/guidance, alert text);
+  per-language metadata caching; alerts sent in `User.language`; a formatting fallback
+  for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and v3-mobile. Health guidance
+  and alert text need human translation or review, not machine-only. **Revisit when**
+  translators or funding for translation are available.
+
 ## UI & UX
 
 - **Command palette (Ctrl+K) and keyboard shortcuts.** _Deferred 2026-09-23 (IDEA.md

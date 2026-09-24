@@ -63,8 +63,9 @@ suggested order (one at a time, docs updated after each, no code):
         crossing/escalation/optional all-clear; daily caps + quiet hours.
   - [x] Channels: SMS (all alert types) + email + in-app inbox first; web push next;
         mobile push deferred.
-- [ ] **Spanish / i18n.** Likely first-release for community and schools; includes
-      translating metadata such as level guidance text.
+- [x] **Spanish / i18n** → ship English-only, translation-ready: Paraglide JS (English
+      messages only) + 8 day-one practices; translations deferred. See `ARCHITECTURE.md`
+      → "Internationalization".
 - [ ] **Accounts & anonymous use.** Which features need login; shared school machines.
 - [ ] **Live refresh & data volume.** Polling cadence; rule for choosing resolution
       (default to summaries, not raw 1–2 min entries).
@@ -115,6 +116,7 @@ Follow-ups created by decisions so far:
   rules (monitor/region pollutant, forecast, pesticide-notice rules), email channel,
   alert inbox API, caps + quiet hours; then sdk-js wrappers; then dashboard rule UI,
   inbox, and client-side self-monitoring in widgets.
+- Add Paraglide JS (English-only) and the shared `format` module before building new UI.
 - Server: available-pollutants list in metadata (PM2.5 + O3 initially); replace this
   repo's hardcoded `"pm25" | "o3"` with it.
 - Server metadata work (each needs an approved sjvair.com plan, then sdk-js wrappers):

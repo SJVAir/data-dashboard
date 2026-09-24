@@ -79,6 +79,10 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 - **Metadata is the source of truth** (see `ARCHITECTURE.md` → "Metadata as source of
   truth"). Never hardcode labels, units, breakpoints, colors, scales, or coverage — read
   them from server `…/meta/` endpoints; if missing, add them server-side.
+- **English-only but translation-ready** (see `ARCHITECTURE.md` →
+  "Internationalization"): all UI strings through Paraglide messages, no concatenated
+  sentences, all formatting through the shared `format` module, never store generated
+  English in saved documents.
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
   "Authentication"): session cookie when embedded on sjvair.com's origin; `Token`
   header when standalone on another origin or under Tauri.
@@ -99,6 +103,7 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 | `@sjvair/sdk`           | Air quality data API                    |
 | `@sjvair/monitor-map`   | Map widget (4.0 plugin API planned)     |
 | `date-fns`              | Date handling                           |
+| Paraglide JS (inlang)   | UI message catalog (English-only today) |
 | `uplot`                 | **All** charts (time-series-first)      |
 | shadcn-svelte / bits-ui | Accessible UI primitives                |
 | `@lucide/svelte`        | Icons                                   |
