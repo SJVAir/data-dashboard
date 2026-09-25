@@ -349,6 +349,16 @@ widget.
 | ≤ ~2 years | Daily summaries   |
 | longer     | Monthly summaries |
 
+- **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
+  server summaries, so the ladder only uses levels the catalog's `resolutions` list:
+  - **Naturally daily data** (HMS smoke/fire, forecasts, CalHeatScore) is fetched as-is
+    and aggregated for display (e.g. smoke days per month).
+  - **Unsummarized time series** (CIMIS weather, PM10) are fetched raw with a span cap
+    (about 1 year per request, split into chunks) and **downsampled in a Web Worker** to
+    the resolution the ladder would pick. The table and exports say "computed from raw
+    data".
+  - **Pesticide use** stays yearly (sub-yearly is deferred).
+  - Server summaries for weather/PM10 are deferred (see `DEFERRED.md`).
 - **Incomplete periods are stitched from finer data** — e.g. the current month (no
   monthly rollup until it ends) is computed from daily summaries so far, today from
   hourly. Fixes the "current month shows nothing" problem for every widget.

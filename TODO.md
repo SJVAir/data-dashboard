@@ -9,18 +9,9 @@ final review found 12 gaps; #1–#3, #8, and #9 are decided (map-sdk split, drop
 picker, dataset definition). Continue **one at a time** with these proposed defaults,
 updating the docs after each:
 
-- [ ] **#4 Resolution for data without summaries** (only pm25/o3/no2/so2/co have
-      summaries). Proposed:
-  - the catalog's `resolutions` drive the ladder
-  - daily-native data (smoke, fire, forecasts, heat) is fetched as-is and aggregated
-    for display
-  - weather/PM10 are fetched raw with a span cap (~1 year per chunk) and downsampled in
-    a worker, labeled "computed from raw"
-  - pesticides stay yearly
-  - **defer** server summaries for weather/PM10 (revisit when raw fetches get slow)
-
-  _(Question was asked; awaiting the user's answer.)_
-
+- [x] **#4 Resolution for data without summaries**: catalog-driven; daily-native data
+      as-is; weather/PM10 raw with a span cap, downsampled in a worker; server summaries
+      for them deferred. See `ARCHITECTURE.md` → "Data resolution & live refresh".
 - [ ] **#5 Document identity and share route.** Proposed:
   - the server keeps client-generated UUIDs
   - a new `/s/:shareToken` read-only route with "Make a copy"
@@ -190,6 +181,7 @@ package release needs explicit per-release approval.
   auth mode, and token storage. Preferences (last-opened dashboard, active Collection)
   go through it; the v1 `preferences.ts` is removed, not migrated.
 - Local-first cache and data layer (IndexedDB/OPFS):
+  - catalog-driven resolution for unsummarized data (worker downsampling, span caps)
   - automatic resolution selection
   - incomplete-period stitching
   - one poll per descriptor

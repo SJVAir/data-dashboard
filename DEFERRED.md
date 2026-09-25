@@ -111,6 +111,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   2026-09-24._ No health outcome data beyond CalEnviroScreen; closest planned work is
   starter #9 (use trends) and #7 (CES indicators). **Revisit with** the outside-health-data
   entry above.
+- **Server summaries for CIMIS weather and PM10.** _Deferred 2026-09-25._ Only pm25, o3,
+  no2, so2 and co are summarized. Until then the client fetches these raw (span-capped,
+  chunked) and downsamples them in a worker. **Revisit when** raw fetches get slow or large
+  (e.g. a multi-year weather chart takes more than a few seconds). Needs an approved
+  sjvair.com plan (add them to the summary rollups).
 - **Sub-yearly pesticide analysis.** _Deferred 2026-09-24._ Server region summaries are
   yearly only; finer analysis needs the nullable `application_date`. **Revisit when**
   users need seasonal pesticide timing; likely needs a server summary change.
