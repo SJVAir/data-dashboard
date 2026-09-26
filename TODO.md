@@ -14,7 +14,7 @@ updating the docs after each:
       for them deferred. See `ARCHITECTURE.md` → "Data resolution & live refresh".
 - [ ] **#5 Document identity and share route.** Proposed:
   - the server keeps client-generated UUIDs
-  - a new `/s/:shareToken` read-only route with "Make a copy"
+  - a new `/shared/:token` read-only route with "Make a copy"
   - `link` documents can be viewed without an account
   - `public` is reserved until templates ship
   - the server stores the body as opaque JSON with a size cap
@@ -49,7 +49,7 @@ and decided nine follow-ups (more were settled later that day: the fresh start a
 v1-lessons step, the deploy model, the sign-in staging, `analyzable` and the 3-day window,
 the private preview and go-live, and the full test gate on PRs into `main`): minimal Collections in Release 1, autosave with durability
 safeguards, server documents in Release 1, dataset accordions as layers, Pacific time,
-hosting under `sjvair.com/dashboard/`, an installable app shell, WCAG 2.2 AA, and the
+hosting under `sjvair.com/explore/`, an installable app shell, WCAG 2.2 AA, and the
 testing strategy.
 
 Next steps (each its own spec → plan → implementation, per the brainstorming process):
@@ -57,7 +57,7 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
 3. In parallel once approved (sjvair.com/sdk-js plans): Release 1's **metadata
-   enablers**, **hosting under `/dashboard/`**, and **server-backed documents** tracks,
+   enablers**, **hosting under `/explore/`**, and **server-backed documents** tracks,
    plus **server alerting** (Release 2).
 
 ## Planning session record: IDEA.md (2026-09-23 → 2026-09-24)
@@ -202,13 +202,13 @@ package release needs explicit per-release approval.
 - Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
 - App shell: top nav, dashboard picker (a dropdown), and the new route table (`ARCHITECTURE.md` →
-  "Routing"), plus `basePath` support for `sjvair.com/dashboard/`.
+  "Routing"), plus `basePath` support for `sjvair.com/explore/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
 - Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +
   `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,
   `@axe-core/playwright`, and a dev-stack smoke suite. PRs into `main` run the full suite
   (three engines plus axe); feature-branch PRs run unit + component + Chromium E2E.
-- Installable app: `vite-plugin-pwa` app-shell service worker (scope `/dashboard/`), an
+- Installable app: `vite-plugin-pwa` app-shell service worker (scope `/explore/`), an
   offline notice, a "new version, reload" prompt, and a manifest and icons. API data
   stays in the data cache, not the service worker.
 - "Clear my data".
@@ -282,10 +282,10 @@ package release needs explicit per-release approval.
 - sjvair.com:
   - an import script that clones and builds this repo's `main` during the Heroku deploy
     (modeled on `scripts/import-monitor-map.sh`; no pinning)
-  - a Django catch-all route for `/dashboard/*`
+  - a Django catch-all route for `/explore/*`
   - `VITE_*` keys as Heroku config vars
-- This repo: Vite `base: "/dashboard/"`, and `setOrigin(location.origin)` when served
-  under `/dashboard/` (`VITE_PROD_URL` only for Tauri/standalone builds).
+- This repo: Vite `base: "/explore/"`, and `setOrigin(location.origin)` when served
+  under `/explore/` (`VITE_PROD_URL` only for Tauri/standalone builds).
 - Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
   server deploy).
 
@@ -305,7 +305,7 @@ package release needs explicit per-release approval.
 
 - The default first-visit dashboard gains its map and calendar widgets (non-map widgets
   until step 5).
-- Go-live: enable the `sjvair.com/dashboard/` route once Release 1 is complete.
+- Go-live: enable the `sjvair.com/explore/` route once Release 1 is complete.
 
 **Release 1: private preview (from about step 4)**
 

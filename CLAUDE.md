@@ -96,7 +96,7 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
   conventions".
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
   "Authentication"): session cookie when served from sjvair.com's origin (Release 1:
-  `/dashboard/`); `Token`
+  `/explore/`); `Token`
   header when standalone on another origin or under Tauri.
 
 ## Deferred work — standing rule
@@ -142,7 +142,7 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env` itsel
 
 ```
 VITE_DEV_URL=              # @sjvair/sdk origin in dev (current code; planned: Vite proxy → same-origin)
-VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /dashboard/ → location.origin)
+VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /explore/ → location.origin)
 VITE_MAPTILER_KEY=          # MapTiler basemap key (passed to map-sdk as injected config)
 VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations map plugin
 VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)

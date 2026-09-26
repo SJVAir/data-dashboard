@@ -25,7 +25,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   escape hatch (`routerEscapeHatch`/`basePath`) and a non-URL fallback for view state.
   **Revisit when** the dashboard's core views exist. Keep state managers from hardcoding
   ownership of the top-level route in the meantime. **Partly pulled forward 2026-09-24:** `basePath` support ships in
-  Release 1 for serving under `sjvair.com/dashboard/`. Still deferred: host-page
+  Release 1 for serving under `sjvair.com/explore/`. Still deferred: host-page
   embedding and the in-memory router mode.
 - **Tighten sjvair.com CORS.** _Noted 2026-09-24._ `CORS_ORIGIN_ALLOW_ALL` plus
   `CORS_ALLOW_CREDENTIALS` is normally risky; it's largely contained by Django's default
@@ -307,6 +307,10 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   instead of retrofitting.
 - **Single-letter route segments** (e.g. `/d/:id`) and **readable slugs in URLs**:
   _2026-09-25_. Routes use readable words; IDs stay opaque.
+- **`/dashboard/` as the base path, and dashboard IDs directly under the base**
+  (`/dashboard/:id`): _2026-09-25_. Chose `/explore/` plus plural collections
+  (`/explore/dashboards/:id`) so IDs never share a level with fixed words like
+  `analysis` and `shared`, and the base names the whole app.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

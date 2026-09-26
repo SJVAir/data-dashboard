@@ -45,13 +45,13 @@ needs explicit per-release approval.
      and edge cases the v1 code and its tests learned (behaviors, not code).
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
-     `sjvair.com/dashboard/`
+     `sjvair.com/explore/`
    - CI: lint, type-check, tests, and build on every PR. PRs into `main` run the full
      suite (three engines plus axe); feature-branch PRs run the fast set
    - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev)
    - test infrastructure: Vitest browser mode, Playwright (3 engines), axe
    - installable app: an app-shell service worker via `vite-plugin-pwa`, scoped to
-     `/dashboard/`, with an offline notice and an update prompt
+     `/explore/`, with an offline notice and an update prompt
 2. **Dashboard layout engine and windowing**: snapping grid, drag/resize,
    minimize-to-taskbar, fullscreen, and responsive stacking. Proven with placeholder
    widgets. Includes the **WCAG 2.2 AA** pieces: keyboard move/resize, live-region
@@ -94,7 +94,7 @@ needs explicit per-release approval.
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
-  pinning), a Django catch-all route for `/dashboard/*`, and Heroku config vars for
+  pinning), a Django catch-all route for `/explore/*`, and Heroku config vars for
   `VITE_*` keys. Merging to dashboard `main` is the deploy approval point.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js, decided
   2026-09-24). The `SavedDocument` model and endpoints, live share links (read-only
@@ -111,7 +111,7 @@ needs explicit per-release approval.
 
 6. **Starter dashboard and go-live.** The default dashboard a first-time visitor sees
    (not a blank page) gains its map + calendar widgets once step 5 lands. Before that it
-   uses non-map widgets. **The `sjvair.com/dashboard/` route goes live when Release 1 is
+   uses non-map widgets. **The `sjvair.com/explore/` route goes live when Release 1 is
    complete.** Until then the route stays disabled or hidden (except for the private
    preview), so work in progress on `main` isn't public. Merges still need explicit
    approval.

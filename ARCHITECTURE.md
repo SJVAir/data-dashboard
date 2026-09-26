@@ -235,7 +235,7 @@ worker, in Release 1.** Uses `vite-plugin-pwa` (Workbox):
 - **Installable ("Add to Home Screen" / Install).** An installed site is exempt from
   Safari's 7-day storage eviction, which improves local-document durability. It's also a
   prerequisite for iOS web push (the next alerts channel).
-- **Scope is `/dashboard/` only** on sjvair.com, so it cannot affect the rest of the site
+- **Scope is `/explore/` only** on sjvair.com, so it cannot affect the rest of the site
   or monitor-map. JupyterLite's own worker is separately scoped to `/notebooks/`.
 - **Update flow:** when a new version is detected, show a "New version available, reload"
   prompt. Never swap versions under an open document.
@@ -251,11 +251,11 @@ viable. See `ROADMAP.md`.
 `@sjvair/sdk` supports two auth modes, and which one applies depends on **where this
 app is running**, not on a user choice:
 
-| Deployment context                                                                    | Auth mode                                     |
-| ------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Served from sjvair.com's origin (Release 1: `/dashboard/`; host-page embedding later) | Django **session cookie** (same-origin)       |
-| Standalone on a different origin, or Tauri desktop                                    | **`Authorization: Token <api_token>`** header |
-| (Reference: `../v3-mobile`, the mobile app)                                           | Token header                                  |
+| Deployment context                                                                  | Auth mode                                     |
+| ----------------------------------------------------------------------------------- | --------------------------------------------- |
+| Served from sjvair.com's origin (Release 1: `/explore/`; host-page embedding later) | Django **session cookie** (same-origin)       |
+| Standalone on a different origin, or Tauri desktop                                  | **`Authorization: Token <api_token>`** header |
+| (Reference: `../v3-mobile`, the mobile app)                                         | Token header                                  |
 
 Release 1 is served from sjvair.com's origin and uses cookie auth (see "Deployment").
 
@@ -314,7 +314,7 @@ website form at `/account/login/` (Django `LoginView`) creates a session cookie.
 approach is staged:
 
 - **Release 1: redirect.** "Sign in" / "Create account" go to sjvair.com's own pages
-  (`/account/login/?next=/dashboard/…`, registration likewise) and return to the same
+  (`/account/login/?next=/explore/…`, registration likewise) and return to the same
   dashboard route. This reuses the mature Django flows (password reset, phone
   verification) and adds no new auth endpoint. Known cost: in-progress dialog state
   isn't preserved across the redirect (autosave keeps documents safe). **"Remember me"**
@@ -392,10 +392,15 @@ dashboard's layout and widget configs are far too large for a URL and are now sa
 documents (see "Saving & sharing documents").
 
 **Routes use readable words, never single-letter segments** (decided 2026-09-25). IDs
-stay opaque (no readable slugs).
+stay opaque (no readable slugs). **IDs only appear inside their own plural collection**
+(`/dashboards/:id`, `/collections/:id`), never at the same level as fixed words, so no
+reserved-word list is needed. All routes sit under the `/explore/` base path (see
+"Deployment"), e.g. `sjvair.com/explore/dashboards/:id`. Trimming a URL lands somewhere
+sensible (`…/dashboards/:id` → `…/dashboards`, a list of dashboards).
 
 ```
 /                                                last-opened dashboard (preference) or the starter
+/dashboards                                      all dashboards (list)
 /dashboards/:id                                  a dashboard
 /dashboards/:id/widgets/new?type=map             Widget Creation for a new widget
 /dashboards/:id/widgets/:widgetId                that widget fullscreen (deep-linkable)
@@ -1147,8 +1152,15 @@ Decided 2026-09-24.
 
 ## Deployment
 
-Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
-`sjvair.com/dashboard/`), not from a separate origin.
+Decided 2026-09-24. **Release 1 is served from sjvair.com under a path**, not from a
+separate origin. **The base path is `/explore/`** (decided 2026-09-25).
+
+- **Why `/explore/`:** the base path names the _app_, not one of its resources. The app
+  holds Dashboards _and_ Analysis, so `/dashboard/` would either repeat itself
+  (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product can
+  still be called the "SJVAir Dashboard" in the UI; only the URL uses `explore`.
+- **Before hosting:** confirm no existing sjvair.com CMS page uses `explore` (Django's
+  final catch-all serves prose pages).
 
 - **Same origin, so cookie auth.** Users signed in to sjvair.com are signed in to the
   dashboard. There is no token handling, no token in browser storage, and no dependence
@@ -1158,21 +1170,21 @@ Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
 - **The monitor-map import pattern, as-is** (decided 2026-09-24). During each Heroku
   deploy, a sjvair.com build step clones this repo's **`main`**, builds it, and copies it
   into `dist/` (like `scripts/import-monitor-map.sh`). A Django catch-all route serves
-  `index.html` for `/dashboard/*`. **No version pinning:** `main` is always
+  `index.html` for `/explore/*`. **No version pinning:** `main` is always
   production-ready and ships with every server deploy. Needs an approved sjvair.com
   plan.
   - **Consequence: merging to dashboard `main` is the deploy approval point**, since any
     server deploy (even an unrelated backend fix) ships it. CI on PRs is the gate.
   - **Before go-live**, the import and route may be merged into sjvair.com but the
-    `/dashboard/*` route stays **disabled or hidden** (except for the private preview),
+    `/explore/*` route stays **disabled or hidden** (except for the private preview),
     so in-progress work on `main` isn't public. Merges still need explicit approval.
   - **After go-live**, unfinished features stay on branches or behind a flag.
   - A broken dashboard build would fail the server deploy. This is the same risk
     monitor-map already carries, accepted for now.
 - **Build configuration:** `VITE_*` keys (MapTiler, NREL, …) come from **Heroku config
-  vars** at build time, as for monitor-map. Vite `base: "/dashboard/"` matches the
+  vars** at build time, as for monitor-map. Vite `base: "/explore/"` matches the
   router's `basePath`.
-- **Same-origin API in production:** when served under `/dashboard/`, the SDK origin is
+- **Same-origin API in production:** when served under `/explore/`, the SDK origin is
   the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
   silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
@@ -1180,7 +1192,7 @@ Decided 2026-09-24. **Release 1 is served from sjvair.com under a path** (e.g.
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Full host-page embedding stays
   deferred.
-- **Private preview before go-live** (decided 2026-09-24). `sjvair.com/dashboard/` goes
+- **Private preview before go-live** (decided 2026-09-24). `sjvair.com/explore/` goes
   public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
   preview** (a staging Heroku app or a hidden route; chosen in the hosting-track plan)
   lets a pilot teacher and a researcher try it and give feedback early.
@@ -1208,7 +1220,7 @@ decisions made along the way:
   sub-path (`basePath`) or disable this app's own history/URL manipulation entirely
   when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
   currently assumes it owns top-level routing. **`basePath` ships in Release 1** for
-  serving under `/dashboard/` (see "Deployment"); the escape-hatch/in-memory mode for
+  serving under `/explore/` (see "Deployment"); the escape-hatch/in-memory mode for
   true host-page embedding stays deferred (see `DEFERRED.md` → "Embeddable production
   build").
 - **URL state vs. embedding** — decided in "Routing, URL state & undo": when the host
