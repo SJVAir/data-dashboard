@@ -32,6 +32,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `SameSite=Lax` session cookie. The dashboard doesn't need it, since it's served from the
   same origin. **Revisit when** server security settings are next touched, or when
   non-browser/standalone clients are reviewed. Needs an approved sjvair.com plan.
+  **Related (2026-09-25):** session-authenticated API requests currently skip CSRF
+  checks (see TODO.md #10). The CSRF fix is being decided for Release 1, and CORS
+  tightening can ride along with it.
 - **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23;
   **scheduled into Release 1 on 2026-09-24** as a parallel server track (see
   `ROADMAP.md`)._ This includes local → account migration. It stays listed here until it ships, then moves to TODO → Done.

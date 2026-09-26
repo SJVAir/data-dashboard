@@ -4,7 +4,7 @@ Last updated: 2026-09-24
 
 ## Start here
 
-**⏸ Resume here: final-review decisions in progress (paused 2026-09-24).** A three-way
+**⏸ Resume here: final-review decisions in progress (paused 2026-09-24, again 2026-09-25).** A three-way
 final review found 12 gaps; #1–#3, #8, and #9 are decided (map-sdk split, dropdown
 picker, dataset definition). Continue **one at a time** with these proposed defaults,
 updating the docs after each:
@@ -21,10 +21,23 @@ updating the docs after each:
       browser-only.
 - [x] **#7 Rolling ranges**: dashboards stay rolling; staging freezes to fixed Pacific
       dates, with a per-item "keep rolling" toggle; exports always record fixed dates.
-- [ ] **#10 CSRF.** The server's API views (resticus) are `csrf_exempt`, and Release 1
-      adds the first cookie-authenticated writes. Proposed: new session-authenticated
-      write endpoints require `X-CSRFToken`, and the SDK sends it from the `csrftoken`
-      cookie when no `apiToken` is given.
+- [ ] **#10 CSRF** (in progress; the user asked a clarifying question and the answer was
+      verified against the code on 2026-09-25):
+  - **Website pages and forms are protected**: Django's CSRF middleware is on and sets
+    the `csrftoken` cookie.
+  - **Session-cookie API requests are not.** resticus `Endpoint.dispatch` is
+    `@method_decorator(csrf_exempt)`, and `Endpoint.authenticate` (`resticus/views.py`
+    ~L82–87) returns `request.user` early when the session middleware has already
+    authenticated. So `SessionAuth.enforce_csrf` (`resticus/auth.py`) never runs.
+  - Today this is mitigated by token auth for most API writes and by `SameSite=Lax`.
+    Release 1's cookie-based document saves would be the first significant writes on
+    this path.
+  - **Proposal awaiting the user's answer:**
+    - fix it at the root in resticus/sjvair.com: run the CSRF check for any request
+      authenticated by the session, not by a token
+    - the SDK sends `X-CSRFToken` from the `csrftoken` cookie on session calls
+    - check which existing sjvair.com pages call the API with cookies so they don't break
+    - scope: the Release 1 server-documents plan
 - [ ] **#11 Email alerts.** `User.email` is optional and unverified, and
       `USERNAME_FIELD = phone`. Proposed: email alerts require a verified email (a new
       flow mirroring phone verification) plus one-click unsubscribe. Also confirm that a
