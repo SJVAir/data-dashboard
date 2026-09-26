@@ -765,6 +765,16 @@ type Collection = { id: string; name: string; items: CollectionItem[] };
   Collection**. "Mark for analysis" adds to the dashboard's default, else the active
   one; the **Add to collection ▸** submenu (existing Collections + "New collection…")
   targets explicitly; "Analyze" adds and navigates to the Analysis view.
+- **Rolling ranges** (decided 2026-09-25):
+  - **Dashboards keep rolling ranges rolling** (month-to-date moves forward daily; shared
+    dashboards stay live).
+  - **"Mark for analysis" freezes the range** into fixed Pacific dates when staged, shown
+    on the item (e.g. "Sep 1 – Sep 25, 2026 (was: month-to-date)"), so analyses stay
+    reproducible. The same applies to the "now" widgets' 3-day window.
+  - A **"keep rolling" toggle per Collection item** allows deliberately rolling inputs
+    (e.g. a weekly rerun on "the last 30 days"). Analyses and exports show the resolved
+    dates they used.
+  - **Notebook exports always record fixed dates** in `collection.json`.
 - **Lazy data:** staging stores only the descriptor. Data is fetched when an analysis
   runs, through the local-first cache keyed by descriptor (reusing what widgets
   already fetched).

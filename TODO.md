@@ -19,9 +19,8 @@ updating the docs after each:
 - [x] **#6 Sync scope and sign-out**: every document syncs when signed in; sign-out
       offers keep/remove (remove by default); preferences stay local; "Clear my data" is
       browser-only.
-- [ ] **#7 Rolling ranges when staged or shared.** Proposed: dashboards keep ranges
-      rolling; "Mark for analysis" freezes them to absolute Pacific dates, with a "keep
-      rolling" toggle in the Collections drawer.
+- [x] **#7 Rolling ranges**: dashboards stay rolling; staging freezes to fixed Pacific
+      dates, with a per-item "keep rolling" toggle; exports always record fixed dates.
 - [ ] **#10 CSRF.** The server's API views (resticus) are `csrf_exempt`, and Release 1
       adds the first cookie-authenticated writes. Proposed: new session-authenticated
       write endpoints require `X-CSRFToken`, and the SDK sends it from the `csrftoken`
