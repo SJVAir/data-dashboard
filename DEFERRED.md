@@ -305,6 +305,8 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Keeping or adapting the v1 app while building the new one**: _2026-09-24_. It was
   never deployed. Foundations removes it, and a fresh, cohesive codebase is built
   instead of retrofitting.
+- **Single-letter route segments** (e.g. `/d/:id`) and **readable slugs in URLs**:
+  _2026-09-25_. Routes use readable words; IDs stay opaque.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

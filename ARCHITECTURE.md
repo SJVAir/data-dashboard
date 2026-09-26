@@ -391,22 +391,27 @@ v1 tab model") for the dashboard direction.
 dashboard's layout and widget configs are far too large for a URL and are now saved
 documents (see "Saving & sharing documents").
 
+**Routes use readable words, never single-letter segments** (decided 2026-09-25). IDs
+stay opaque (no readable slugs).
+
 ```
-/                                     last-opened dashboard (preference) or a starter
-/d/:dashboardId                       a dashboard
-/d/:dashboardId/w/:widgetId           that widget fullscreen (deep-linkable)
-/d/:dashboardId/w/new?type=map        Widget Creation for a new widget
-/d/:dashboardId/w/:widgetId/edit      Widget Creation editing an existing widget
-/analysis/:collectionId               a Collection in the Analysis view
-/analysis/:collectionId/a/:analysisId an analysis run on it
-/import#<lz-compressed document>      URL-fragment share → opens a copy (fork on open)
+/                                                last-opened dashboard (preference) or the starter
+/dashboards/:id                                  a dashboard
+/dashboards/:id/widgets/new?type=map             Widget Creation for a new widget
+/dashboards/:id/widgets/:widgetId                that widget fullscreen (deep-linkable)
+/dashboards/:id/widgets/:widgetId/edit           Widget Creation editing an existing widget
+/analysis                                        Analysis home (your Collections)
+/analysis/collections/:id                        a Collection
+/analysis/collections/:id/analyses/:analysisId   an analysis run on it
+/shared/:token                                   a server-shared document (read-only + "Make a copy")
+/import#<lz-compressed document>                 URL-fragment share → opens a copy (fork on open)
 ```
 
 - **Back/forward navigates between places** (dashboards, fullscreen, Widget Creation,
   Analysis) — never between edits.
 - **Ephemeral UI state stays out of the URL** (open accordions, in-progress map
   selection, calendar drag range).
-- **Local IDs are device-local:** opening `/d/:id` for a document not on this device
+- **Local IDs are device-local:** opening `/dashboards/:id` for a document not on this device
   shows "This dashboard is saved on another device" with a pointer to **Share**
   (URL-fragment/file for anyone; server-backed live links, Release 1 for signed-in users,
   work anywhere).
