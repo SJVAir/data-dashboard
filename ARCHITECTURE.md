@@ -909,10 +909,36 @@ version, visibility: private | link | public, schemaVersion`) plus endpoints. Gi
    short links, live share links, cross-device access (which covers server-synced
    preferences), protection from browser storage eviction, and later
    SJVAir-curated public templates (see `DEFERRED.md`).
-   - **Local-first sync, kept simple:** documents always save locally first. For
-     signed-in users the server copy is authoritative, and each save carries a
-     `version`. On a conflict (the same document edited on two devices), the user
-     picks "keep this version / use the other". No real-time co-editing.
+   - **Local-first sync, kept simple** (refined 2026-09-25): documents always save
+     locally first. For signed-in users the server copy is authoritative. Each save says
+     "based on version N"; the server accepts it only if it's still at N, otherwise it
+     reports a conflict (the same document edited on two devices, in two tabs, or
+     offline).
+   - **Automatic replay:** on a conflict the client replays its own `applyChange`
+     operations on top of the newer server version, so edits that touch different
+     widgets or fields merge silently.
+   - **Prompt only on true overlaps** (both sides changed the same widget or field):
+     "Keep mine / Use the other version / Save mine as a copy".
+   - No real-time co-editing and no CRDT (e.g. Automerge). Research and school
+     workflows are solo work with handoffs, and sharing goes through read-only links,
+     copies, and notebook export. Multiple editors and real-time co-editing are
+     deferred (see `DEFERRED.md`).
+   - **Document identity and sharing** (decided 2026-09-25):
+     - The client generates a UUID, and the server **keeps the same id** on upload, so
+       `/explore/dashboards/:id` works on any signed-in device.
+     - Share links use a **separate, revocable token** (`/explore/shared/:token`), not
+       the document id. They open a read-only view with "Make a copy".
+     - **`link` documents can be opened by anyone with the link, no account needed**
+       (teacher → class). A copy saves locally for anonymous users, or to their account
+       if signed in.
+     - **`public`** is reserved (it behaves like `link`) until curated templates ship.
+       There is no public listing or search in Release 1.
+     - **The server stores `body` without interpreting it** (JSON, size-limited, e.g.
+       1 MB). The server's database table is a normal Django model and migration in
+       sjvair.com. The document format inside `body` is defined in this repo's
+       TypeScript and upgraded by client-side `schemaVersion` functions on load. The
+       trade-off: the server can't query inside documents; specific fields can be
+       promoted to real columns later if needed.
    - **Local → account migration:** the first sign-in offers to upload the local
      documents.
 

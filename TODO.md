@@ -12,12 +12,10 @@ updating the docs after each:
 - [x] **#4 Resolution for data without summaries**: catalog-driven; daily-native data
       as-is; weather/PM10 raw with a span cap, downsampled in a worker; server summaries
       for them deferred. See `ARCHITECTURE.md` → "Data resolution & live refresh".
-- [ ] **#5 Document identity and share route.** Proposed:
-  - the server keeps client-generated UUIDs
-  - a new `/shared/:token` read-only route with "Make a copy"
-  - `link` documents can be viewed without an account
-  - `public` is reserved until templates ship
-  - the server stores the body as opaque JSON with a size cap
+- [x] **#5 Document identity and sharing**: server keeps client UUIDs; `/explore/shared/:token`
+      (revocable, anonymous read-only + copy); `public` reserved; body stored without
+      interpretation; automatic replay of non-overlapping edits plus a 3-choice prompt;
+      no CRDT. Also decided: readable routes and the `/explore/` base path.
 - [ ] **#6 Sync scope and sign-out.** Proposed:
   - all documents sync once signed in
   - sign-out offers "keep on this device / remove"

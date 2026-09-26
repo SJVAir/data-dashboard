@@ -187,6 +187,20 @@ ship, or a specific audience asks for one.
   dashboards, shared org alerts. Teachers share via links for now. **Revisit when**
   schools ask for managed class use, likely after server-backed live share links exist.
 
+- **Multiple editors on a shared document** (group/co-owner permissions). _Deferred
+  2026-09-25._ The most plausible real need is a community group maintaining one
+  dashboard, taking turns. It works with the existing versioned sync plus automatic
+  replay, and needs no CRDT. **Revisit when** community groups or schools ask for shared
+  ownership.
+- **Real-time co-editing (Automerge or similar CRDT).** _Deferred 2026-09-25._ Automerge's
+  core library works over our existing Django HTTP API (it merges in the browser and
+  Django stores bytes); its optional `automerge-repo` sync server isn't required. No
+  demand is expected: research and school workflows are solo work with handoffs.
+  **Revisit when** simultaneous editing is actually requested, or overlap prompts turn
+  out to be common. **Note:** adopting it means a one-time conversion of all stored JSON
+  documents to Automerge's format, plus reworking `schemaVersion` upgrades as CRDT
+  changes.
+
 ## Internationalization
 
 - **Translations and language switching.** _Deferred 2026-09-24._ No translations exist
