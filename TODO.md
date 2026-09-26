@@ -16,11 +16,9 @@ updating the docs after each:
       (revocable, anonymous read-only + copy); `public` reserved; body stored without
       interpretation; automatic replay of non-overlapping edits plus a 3-choice prompt;
       no CRDT. Also decided: readable routes and the `/explore/` base path.
-- [ ] **#6 Sync scope and sign-out.** Proposed:
-  - all documents sync once signed in
-  - sign-out offers "keep on this device / remove"
-  - preferences stay local in Release 1
-  - "Clear my data" never deletes server copies
+- [x] **#6 Sync scope and sign-out**: every document syncs when signed in; sign-out
+      offers keep/remove (remove by default); preferences stay local; "Clear my data" is
+      browser-only.
 - [ ] **#7 Rolling ranges when staged or shared.** Proposed: dashboards keep ranges
       rolling; "Mark for analysis" freezes them to absolute Pacific dates, with a "keep
       rolling" toggle in the Collections drawer.
@@ -298,6 +296,7 @@ package release needs explicit per-release approval.
   - versioned local-first sync with conflict prompts
   - live share links (read-only plus "Make a copy")
   - local → account migration
+  - sign-out "keep on this device / remove" (remove by default)
 
 **Release 1, step 6: Starter dashboard and go-live**
 

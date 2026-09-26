@@ -34,10 +34,15 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   non-browser/standalone clients are reviewed. Needs an approved sjvair.com plan.
 - **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23;
   **scheduled into Release 1 on 2026-09-24** as a parallel server track (see
-  `ROADMAP.md`)._ This covers server-synced preferences (deferred 2026-09-14) and local →
-  account migration. It stays listed here until it ships, then moves to TODO → Done.
+  `ROADMAP.md`)._ This includes local → account migration. It stays listed here until it ships, then moves to TODO → Done.
   **Still deferred within it:** SJVAir-curated public templates, which come after the
   basic model ships.
+- **Server-synced preferences** (last-opened dashboard, active Collection, Widget
+  Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
+  sync in Release 1; preferences stay local per device (they're conveniences, and devices
+  can reasonably differ). **Revisit when** users ask for preferences to follow them
+  across devices; this would add a `preferences` kind of `SavedDocument` or a user-settings
+  endpoint.
 - **Heavier WASM analysis engine (e.g. DuckDB-WASM).** _Deferred 2026-09-23 (IDEA.md Q6)._
   Plain TypeScript over typed arrays in a worker is enough for now. **Revisit when**
   researcher-scale datasets make the TypeScript engine too slow or memory-bound.

@@ -906,8 +906,8 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
 2. **Server-backed, for signed-in users** (a parallel sjvair.com track in Release 1;
    needs an approved plan). A `SavedDocument` model (`owner, kind, name, body,
 version, visibility: private | link | public, schemaVersion`) plus endpoints. Gives
-   short links, live share links, cross-device access (which covers server-synced
-   preferences), protection from browser storage eviction, and later
+   short links, live share links, cross-device access to documents, protection from
+   browser storage eviction, and later
    SJVAir-curated public templates (see `DEFERRED.md`).
    - **Local-first sync, kept simple** (refined 2026-09-25): documents always save
      locally first. For signed-in users the server copy is authoritative. Each save says
@@ -941,6 +941,16 @@ version, visibility: private | link | public, schemaVersion`) plus endpoints. Gi
        promoted to real columns later if needed.
    - **Local → account migration:** the first sign-in offers to upload the local
      documents.
+   - **Sync scope and sign-out** (decided 2026-09-25):
+     - **Every document syncs once signed in**; there's no per-document sync toggle.
+     - **Sign-out asks "Keep your dashboards on this device, or remove them?"**, with
+       _remove_ as the default (safe, since server copies remain; protects shared
+       computers).
+     - **Preferences** (last-opened dashboard, active Collection) **stay local per device**
+       in Release 1. Server-synced preferences are deferred.
+     - **"Clear my data" only clears this browser**, never server copies. Deleting server
+       documents is a separate, explicit action (delete a document, or delete the
+       account).
 
 **Saving model (decided 2026-09-24): autosave.** Every `applyChange` persists immediately
 (debounced about 500 ms), with a small "Saved" indicator; undo covers mistakes. There is
