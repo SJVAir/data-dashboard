@@ -25,7 +25,8 @@ needs explicit per-release approval.
 
 1. **Foundations** (this repo)
    - platform adapter
-   - local-first cache and data layer: automatic resolution, incomplete-period
+   - data layer (in-memory cache plus HTTP caching; documents local-first): automatic
+     resolution, incomplete-period
      stitching, shared polling, last-requested-wins
    - Paraglide (English-only) and the `format` module
    - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo
@@ -50,8 +51,8 @@ needs explicit per-release approval.
      suite (three engines plus axe); feature-branch PRs run the fast set
    - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev)
    - test infrastructure: Vitest browser mode, Playwright (3 engines), axe
-   - installable app: an app-shell service worker via `vite-plugin-pwa`, scoped to
-     `/explore/`, with an offline notice and an update prompt
+   - installable via a web app manifest (no service worker in Release 1), plus an
+     offline banner
 2. **Dashboard layout engine and windowing**: snapping grid, drag/resize,
    minimize-to-taskbar, fullscreen, and responsive stacking. Proven with placeholder
    widgets. Includes the **WCAG 2.2 AA** pieces: keyboard move/resize, live-region

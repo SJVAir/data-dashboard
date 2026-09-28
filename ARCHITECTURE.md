@@ -236,15 +236,18 @@ Tauri-ready seams required **from day one**:
 
 - **Platform adapter layer.** A small set of interfaces for storage, notifications,
   file save/export, background tasks, and online/offline status. The web
-  implementation uses IndexedDB/OPFS and browser APIs; a Tauri implementation later
+  implementation uses IndexedDB (for documents and preferences) and browser APIs; a Tauri implementation later
   swaps in SQLite, native notifications, tray, and filesystem access. **Components and
   managers never call `localStorage`, `Notification`, `showSaveFilePicker`, etc.
   directly** — only through the adapter. Preferences (e.g. last-opened dashboard,
   active Collection) are stored through it. The v1 `src/lib/preferences.ts` is removed
   with the rest of the v1 code, not migrated.
-- **Local-first data cache.** Fetched data lands in a local store that widgets read
-  from. Benefits the web build immediately (fast reloads, analysis Collections,
-  offline tolerance) and becomes a larger on-disk store under Tauri.
+- **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
+  live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
+  air-quality data uses an **in-memory cache** shared across widgets, plus the
+  **browser's HTTP cache** for persistence across reloads (long `Cache-Control` on
+  completed periods, short on the current one). There is no custom persistent data
+  store. A larger on-disk data store is a Tauri-era concern.
 - **No server runtime, no origin assumptions** (already true — plain Vite SPA). See
   "Authentication" below for the one origin-sensitive piece.
 - **Cross-origin isolation is page-scoped, not global.** Some candidate analysis
@@ -253,22 +256,24 @@ Tauri-ready seams required **from day one**:
   isolation app-wide; if needed, confine it to a dedicated page/window (Tauri can set
   headers per window). See Open Question #6 in `IDEA.md`.
 
-**Web offline stance (decided 2026-09-24): installable app with an app-shell service
-worker, in Release 1.** Uses `vite-plugin-pwa` (Workbox):
+**Web offline stance (decided 2026-09-24; revised 2026-09-28): not offline-first.**
+Air-quality data is inherently live; schools have connectivity; researchers who need data
+offline export a notebook bundle. What Release 1 keeps:
 
-- The **app shell** (HTML, JS, CSS, fonts, icons) is precached, so the dashboard **opens
-  offline** and shows cached data with an "Offline, data from 2:14 PM" notice.
-- **API data is not cached by the service worker.** It flows only through the
-  local-first data cache, which keeps its freshness and TTL rules and never serves stale
-  data silently.
-- **Installable ("Add to Home Screen" / Install).** An installed site is exempt from
-  Safari's 7-day storage eviction, which improves local-document durability. It's also a
-  prerequisite for iOS web push (the next alerts channel).
-- **Scope is `/explore/` only** on sjvair.com, so it cannot affect the rest of the site
-  or monitor-map. JupyterLite's own worker is separately scoped to `/notebooks/`.
-- **Update flow:** when a new version is detected, show a "New version available, reload"
-  prompt. Never swap versions under an open document.
-- Test on each engine (Chromium, WebKit/Safari, Firefox).
+- **Local documents** (above) and **versioned sync**, which are needed regardless:
+  anonymous storage, autosave, and conflicts from two tabs or devices even when online.
+- **Installable via a web app manifest only** ("Add to Home Screen" / Install). An
+  installed site is exempt from Safari's 7-day storage eviction, which protects anonymous
+  users' dashboards. Modern browsers need only the manifest (and icons), not an offline
+  service worker.
+- **An offline banner** ("You're offline, data may be out of date") from the browser's
+  online/offline events, through the platform adapter.
+
+Removed from Release 1: the **app-shell service worker** (the app opening offline, the
+update prompt, cache versioning) and the **persistent data cache**. A service worker
+arrives with **web push**, which needs one anyway (including on iOS); app-shell caching
+can come with it if wanted, scoped to `/explore/` (JupyterLite's worker stays on
+`/notebooks/`). True offline-first remains a Tauri concern (see `DEFERRED.md`).
 
 When to actually add Tauri: once there's a concrete desktop-only win (most likely
 background alerting from the tray, or large offline datasets for researchers). Before
@@ -426,8 +431,8 @@ approach is staged:
 
 ## Data resolution & live refresh
 
-Decided 2026-09-24. Implemented once in the data layer / local-first cache, not per
-widget.
+Decided 2026-09-24. Implemented once in the data layer (in-memory cache plus HTTP
+caching), not per widget.
 
 **Automatic resolution by range span** (bounds fetch size):
 
@@ -466,8 +471,11 @@ widget.
 - **Minimized widgets refresh only if they have thresholds configured** — so their
   taskbar entry can flash when a threshold is crossed (self-monitoring). Minimized
   widgets without thresholds don't poll.
-- **Caching:** closed periods are immutable → cached indefinitely; open periods get a
-  TTL. Server summary endpoints should send HTTP cache headers (follow-up).
+- **Caching:** an in-memory cache keyed by descriptor, shared across widgets. Across
+  reloads, the **browser's HTTP cache** does the work: completed periods are immutable, so
+  the server sends a long `Cache-Control`; open periods get a short one. The server's
+  summary cache headers are therefore a **Release 1 requirement** (metadata enablers,
+  step 3), not an optional follow-up.
 - In-flight requests are superseded by newer ones for the same widget
   (last-requested wins, not last-to-finish).
 
@@ -867,7 +875,7 @@ type Collection = { id: string; name: string; items: CollectionItem[] };
     dates they used.
   - **Notebook exports always record fixed dates** in `collection.json`.
 - **Lazy data:** staging stores only the descriptor. Data is fetched when an analysis
-  runs, through the local-first cache keyed by descriptor (reusing what widgets
+  runs, through the data layer's cache keyed by descriptor (reusing what widgets
   already fetched).
 - Persisted via the platform adapter (IndexedDB on web).
 - **Ships in Release 1** (decided 2026-09-24), ahead of the analysis engine: the store,
@@ -1240,8 +1248,7 @@ wrap simple.
   monitor-map; becomes a direct dependency),
   `@sveltejs/enhanced-img`, `@sjvair/sdk`, `@sjvair/monitor-map` (v1 code; replaced by
   `@sjvair/map-sdk`), Vitest.
-- **Planned additions (decided):** Paraglide JS (i18n-ready messages), `vite-plugin-pwa`
-  (app-shell service worker), `@date-fns/tz` (Pacific-time math), `lz-string`
+- **Planned additions (decided):** Paraglide JS (i18n-ready messages), `@date-fns/tz` (Pacific-time math), `lz-string`
   (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw` (drawn-shape selection, via a map-sdk
   plugin), JupyterLite + Pyodide (separate notebook app), and for testing Playwright,
   `vitest-browser-svelte`, and `@axe-core/playwright`.
@@ -1273,12 +1280,12 @@ and views.
 
 Decided 2026-09-24.
 
-| Layer         | Tool                                                                | Covers                                                                                                                                                                                                                                   |
-| ------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit          | Vitest (existing)                                                   | Pure logic: layout engine, `applyChange`/undo, menu resolution and merge, `format` and Pacific time/DST, resolution selection and stitching, descriptor codecs, document migrations, analysis steps                                      |
-| Component     | Vitest browser mode (Playwright provider) + `vitest-browser-svelte` | Svelte components in a real browser: widgets, Widget Creation accordions, pickers                                                                                                                                                        |
-| End-to-end    | Playwright on Chromium, WebKit, Firefox                             | Drag/resize and keyboard move/resize, context menus, autosave → reload, undo, offline start (service worker) and the update prompt, fullscreen/taskbar focus, a Map widget WebGL smoke test. WebKit stands in for Safari and Tauri/macOS |
-| Accessibility | `@axe-core/playwright` inside E2E                                   | Automated WCAG 2.2 AA checks on key screens. Manual keyboard and screen-reader passes are still required before releases                                                                                                                 |
+| Layer         | Tool                                                                | Covers                                                                                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit          | Vitest (existing)                                                   | Pure logic: layout engine, `applyChange`/undo, menu resolution and merge, `format` and Pacific time/DST, resolution selection and stitching, descriptor codecs, document migrations, analysis steps    |
+| Component     | Vitest browser mode (Playwright provider) + `vitest-browser-svelte` | Svelte components in a real browser: widgets, Widget Creation accordions, pickers                                                                                                                      |
+| End-to-end    | Playwright on Chromium, WebKit, Firefox                             | Drag/resize and keyboard move/resize, context menus, autosave → reload, undo, the offline banner, fullscreen/taskbar focus, a Map widget WebGL smoke test. WebKit stands in for Safari and Tauri/macOS |
+| Accessibility | `@axe-core/playwright` inside E2E                                   | Automated WCAG 2.2 AA checks on key screens. Manual keyboard and screen-reader passes are still required before releases                                                                               |
 
 - **API data:** E2E uses recorded fixtures via Playwright request routing, so runs are
   deterministic. A small **smoke suite against the local sjvair.com dev stack** (podman)

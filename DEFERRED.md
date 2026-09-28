@@ -187,7 +187,8 @@ ship, or a specific audience asks for one.
 
 - **Web push for alerts.** _Sequenced as next iteration 2026-09-24._ Reaches desktop
   and Android with the dashboard closed, no per-message cost; iOS only for home-screen-
-  installed sites. Builds on Release 1's app-shell service worker (`ARCHITECTURE.md` → "Platform strategy"),
+  installed sites. Brings in the dashboard's **first service worker** (none in Release 1;
+  `ARCHITECTURE.md` → "Platform strategy"),
   VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
   iteration (SMS + email + inbox) ships.
 - **v3-mobile on the new alert-rule endpoints.** _Deferred 2026-09-28._ Release 2 keeps
@@ -353,6 +354,11 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   (`/dashboard/:id`): _2026-09-25_. Chose `/explore/` plus plural collections
   (`/explore/dashboards/:id`) so IDs never share a level with fixed words like
   `analysis` and `shared`, and the base names the whole app.
+- **Offline-first for the web build** (the app-shell service worker that opens the app
+  offline, and a persistent IndexedDB/OPFS data cache): _2026-09-28_. Air-quality data is
+  live, schools are online, and researchers export notebooks. Release 1 keeps local
+  documents, sync, manifest-based installability, and an offline banner. A service worker
+  comes with web push; true offline-first stays a Tauri concern.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

@@ -42,7 +42,7 @@ and decided nine follow-ups (more were settled later that day: the fresh start a
 v1-lessons step, the deploy model, the sign-in staging, `analyzable` and the 3-day window,
 the private preview and go-live, and the full test gate on PRs into `main`): minimal Collections in Release 1, autosave with durability
 safeguards, server documents in Release 1, dataset accordions as layers, Pacific time,
-hosting under `sjvair.com/explore/`, an installable app shell, WCAG 2.2 AA, and the
+hosting under `sjvair.com/explore/`, an installable app (revised 2026-09-28: manifest only, no service worker), WCAG 2.2 AA, and the
 testing strategy.
 
 Next steps (each its own spec → plan → implementation, per the brainstorming process):
@@ -174,7 +174,8 @@ package release needs explicit per-release approval.
 - Platform adapter: storage, notifications, file export, background tasks, online status,
   auth mode, and token storage. Preferences (last-opened dashboard, active Collection)
   go through it; the v1 `preferences.ts` is removed, not migrated.
-- Local-first cache and data layer (IndexedDB/OPFS):
+- Data layer (in-memory cache shared across widgets; HTTP cache for reloads; documents in
+  IndexedDB):
   - catalog-driven resolution for unsummarized data (worker downsampling, span caps)
   - automatic resolution selection
   - incomplete-period stitching
@@ -202,9 +203,8 @@ package release needs explicit per-release approval.
   `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,
   `@axe-core/playwright`, and a dev-stack smoke suite. PRs into `main` run the full suite
   (three engines plus axe); feature-branch PRs run unit + component + Chromium E2E.
-- Installable app: `vite-plugin-pwa` app-shell service worker (scope `/explore/`), an
-  offline notice, a "new version, reload" prompt, and a manifest and icons. API data
-  stays in the data cache, not the service worker.
+- Installable app: a web app manifest and icons (no service worker in Release 1), plus an
+  offline banner from the online/offline events.
 - "Clear my data".
 - Vite dev proxy: `/api` and `/account/` to the local podman sjvair.com.
 - Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
@@ -229,7 +229,9 @@ package release needs explicit per-release approval.
   is"), the coverage endpoint, per-domain scale metas
   (hms, calheatscore, forecasts, AQI), region hierarchy, choice lists, and
   display hints.
-- HTTP cache headers (Cache-Control/ETag) on the summary endpoints.
+- HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
+  browser's HTTP cache is the dashboard's persistent data cache (long on completed
+  periods, short on the current one).
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
   `api-urls.md`.
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds

@@ -131,7 +131,6 @@ Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 | ----------------------------------------------- | ----------------------------------------------------- |
 | `@date-fns/tz`                                  | Pacific-time date math (via the `format` module)      |
 | Paraglide JS (inlang)                           | UI message catalog (English-only today)               |
-| `vite-plugin-pwa`                               | App-shell service worker, installability              |
 | `lz-string`                                     | URL-fragment document sharing                         |
 | `@sjvair/map-sdk`                               | Map widget: core, plugins, `MapView`, data stores     |
 | `terra-draw`                                    | Drawn-shape map selection (via a map-sdk plugin)      |
