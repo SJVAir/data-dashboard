@@ -128,6 +128,9 @@ needs explicit per-release approval.
   - generalize `Subscription` into alert rules for monitor/region pollutants (gated by
     available pollutants), forecasts, and nearby pesticide notices
   - level-category thresholds, caps, and quiet hours
+  - migrate existing SMS subscriptions to rules with today's behavior exactly (new
+    features default off); keep the legacy endpoints as a logged compatibility layer so
+    v3-mobile works unchanged
   - SMS for every alert type, a new email channel (verified email, one-click
     unsubscribe), and the alert inbox API
   - alert metadata

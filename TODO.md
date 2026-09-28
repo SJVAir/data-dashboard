@@ -29,9 +29,11 @@ updating the docs after each:
 - [x] **#11 Email alerts and accounts**: email alerts need a verified email plus
       one-click unsubscribe. **Email-only accounts in Release 1**: phone optional, a new
       email verification flow, login by either; phone flows keep working for v3-mobile.
-- [ ] **#12 Existing SMS subscriptions.** Proposed: migrate each `Subscription` into a
-      monitor rule that reproduces today's behavior exactly, and keep the legacy
-      endpoints as a compatibility facade so v3-mobile works unchanged.
+- [x] **#12 Existing SMS subscriptions**: migrate to monitor rules that reproduce today's
+      behavior exactly (caps and quiet hours off), with opt-in to new behavior. New rules'
+      "back to normal" means below the user's threshold (today's all-clear rarely reaches
+      anyone). Legacy endpoints stay as a logged compatibility layer; their removal and the
+      v3-mobile update are deferred.
 
 After these, push `planning` (ask first).
 

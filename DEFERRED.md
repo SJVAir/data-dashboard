@@ -185,6 +185,16 @@ ship, or a specific audience asks for one.
   installed sites. Builds on Release 1's app-shell service worker (`ARCHITECTURE.md` → "Platform strategy"),
   VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
   iteration (SMS + email + inbox) ships.
+- **v3-mobile on the new alert-rule endpoints.** _Deferred 2026-09-28._ Release 2 keeps
+  v3-mobile working through the legacy subscription endpoints, but dashboard-only rules
+  (regions, forecasts, pesticide notices) don't appear in the app. **Revisit when**
+  Release 2 ships, or when v3-mobile users ask to see or manage those rules. Needs an
+  approved v3-mobile plan.
+- **Remove the legacy subscription endpoints.** _Deferred 2026-09-28._ They remain a
+  compatibility layer over alert rules, with usage logged by app version. **Revisit when**
+  v3-mobile **and** any sjvair.com pages use the new rule endpoints, **and** legacy usage
+  has been near zero for a set period (e.g. 4–8 weeks), or a v3-mobile minimum-version
+  prompt guarantees nobody needs them. Removing them doesn't affect anyone's alerts.
 - **Mobile app push for alerts (`v3-mobile`).** _Deferred 2026-09-24._ No FCM/APNs setup
   exists in `v3-mobile` or the server. **Revisit when** `v3-mobile` plans push
   notifications; needs its own approved plan.

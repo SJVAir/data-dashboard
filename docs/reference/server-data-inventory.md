@@ -58,6 +58,10 @@ after the period ends.
 - `periodic_alerts` runs every 10 minutes. It uses a 30-minute average to create an alert and
   a 60-minute average to update it (the latest value for hourly monitors). An alert opens at
   Moderate or above and ends when the reading returns to Good for at least 60 minutes.
+- Every level change while not Good sends an update to subscribers whose threshold is ≤
+  the new level. The final ✅ "Good" update therefore only reaches Good-level
+  subscribers, and dropping below a subscriber's threshold is silent (verified
+  2026-09-28).
 - Only entry types with an `alerts` config are evaluated: PM2.5 on most monitors, O3 on
   AirNow/AQLite.
 - The only channel is **SMS** to a verified phone. There is no email or push.

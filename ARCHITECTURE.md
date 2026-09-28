@@ -149,8 +149,32 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
 - **Averaging windows are server-defined, not user-set:** monitors keep today's 30-min
   average to open / 60-min to update; regions use hourly summaries. Published via alert
   metadata (Metadata gap #4) so the UI can explain "based on a 30-minute average".
-- **Notify on:** first crossing, escalation to a worse level, and an optional
-  **"back to normal"** message. No repeats while a level holds.
+- **Notify on** (new rules): first crossing, any level change while at or above the
+  user's threshold, and an optional **"back to normal"** message, meaning **dropped
+  below the user's own threshold** (on by default), e.g. "PM2.5 is now Moderate, below
+  your alert level". No repeats while a level holds.
+- **Today's behavior, verified in `alerts/models.py` and `evaluator.py`
+  (2026-09-28):** every level change while not Good creates an `AlertUpdate` that texts
+  subscribers whose threshold is ≤ the new level. The alert ends at Good (after ≥ 60 min)
+  with a ✅ update, but `send_notifications` only texts subscribers whose threshold is ≤
+  the new level, so **the all-clear only reaches "Good"-level subscribers**, and dropping
+  below a subscriber's threshold is silent. The new rule design fixes this for new
+  rules.
+- **Existing SMS subscriptions** (decided 2026-09-28):
+  - Every `Subscription` is **migrated to a monitor rule that reproduces today's
+    behavior exactly**, quirks included (SMS, same level, updates on every change at or
+    above the threshold, no all-clear for most). The genuinely new features (daily caps,
+    quiet hours) default **off** for migrated rules. Users can opt in to the new
+    behavior (including the below-threshold all-clear) from the dashboard's rule
+    settings.
+  - **The legacy endpoints** (`monitors/<id>/alerts/subscribe|unsubscribe`,
+    `alerts/subscriptions`) stay as a **compatibility layer** over the new rules, showing
+    and editing only rules a `Subscription` can express (single monitor, SMS, level). They
+    **log usage with the app version**. v3-mobile works unchanged; dashboard-only rules
+    don't appear in it until it is updated.
+  - One source of truth: old and new endpoints read and write the same rules.
+  - Removing the legacy endpoints later is deferred (see `DEFERRED.md`). Removing them
+    never affects anyone's alerts, only the old management API.
 - **Guard rails:** per-user daily cap per channel; optional **quiet hours** (e.g.
   overnight SMS).
 - **Forecasts:** tomorrow's category ≥ a level, and/or no-burn day, and/or declared air
