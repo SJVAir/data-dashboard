@@ -271,6 +271,8 @@ package release needs explicit per-release approval.
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
 - The "Duplicate widget" action (used to put several widgets on the same place).
+- Point places: resolve air quality to the smallest containing region with data (ZIP →
+  city → county) at render time, label the source, and freeze to that region on staging.
 - The **shared place picker**: monitors, regions (any hierarchy type) or places; search,
   hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
   metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.

@@ -607,6 +607,14 @@ kinds. Server support:
   name mode keeps its current single-region response. It uses the same geometry rules as `within=`, and builds on the
   existing `Monitor.regions()` query. The SDK wrapper gains the parameters. This is
   Release 1 step 3 work.
+- **What a point shows for air quality** (decided 2026-09-28): the **smallest containing
+  region with summaries for the pollutant**, tried in the order ZIP → city → county via the
+  coordinate lookup. Region averages use the server's monitor weighting, so they're
+  steadier than a single nearest sensor. The widget labels the source (e.g. "PM2.5 for ZIP
+  93721 (your location)"). The point itself is kept for display and for the other lookups
+  (ZIP for heat, forecast zone for the Forecast strip). The region is resolved when the
+  widget renders. **"Mark for analysis" freezes it** to the region actually used, staged as
+  a normal region item ("ZIP 93721 (from your location)").
 - **Geolocation** is a platform-adapter capability: an opt-in "Use my location" button,
   never automatic, with the browser's usual permission prompt. Tauri can supply its own.
 
