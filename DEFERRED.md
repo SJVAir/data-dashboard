@@ -84,6 +84,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   options then are a tag/version pin, a CI artifact, and config injected by the Django
   view.
 
+- **Branch protection on `main`** (PRs only, required CI). _Deferred 2026-09-28._ The user
+  sometimes pushes small fixes straight to `main`. **Revisit when** more contributors join,
+  or at go-live, when `main` becomes the production deploy.
+
 ## Map & selection
 
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
@@ -416,6 +420,8 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Keeping the dashboard repo private** (a read-only deploy token for the import, or a
   CI-built artifact): _2026-09-28_. There was no reason to keep it private, so it was made
   public (done 2026-09-28), matching monitor-map and sdk-js.
+- **Merging `planning` into `main` before planning is finished**: _2026-09-28_. It merges
+  once planning completes, with approval.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

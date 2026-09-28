@@ -47,6 +47,8 @@ testing strategy.
 
 Next steps (each its own spec → plan → implementation, per the brainstorming process):
 
+0. When planning is finished: merge `planning` into `main` (**needs the user's approval**).
+
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
 3. **Now** (the step 3 metadata plan runs alongside Foundations): **the user maps the 6 AQ levels onto CalHeatScore's

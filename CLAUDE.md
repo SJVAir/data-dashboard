@@ -164,6 +164,20 @@ is effectively a production deploy**: never merge to `main` without explicit app
 The same goes for **monitor-map `main`** (sjvair.com builds it unpinned) and
 **django-resticus `develop`** (sjvair.com installs it unpinned).
 
+## Repo workflow
+
+Decided 2026-09-28.
+
+- **Feature work happens on a branch per sub-project**, created from `main`. Stacked PRs are
+  fine for large steps. Never do feature or implementation work directly on `main`.
+- **Small housekeeping fixes may go directly to `main`** (e.g. a forgotten version bump in
+  `package.json`), but only when the user asks. Once sjvair.com builds this repo's `main`
+  (after the hosting track goes live), even these are production deploys and need
+  explicit approval.
+- **`main` is not branch-protected** for now (see `DEFERRED.md`).
+- **The `planning` branch merges into `main` when planning is finished**, with the user's
+  approval at that point. It isn't merged yet because planning is still in progress.
+
 ## Code Style
 
 - **Tabs** for indentation (not spaces)
