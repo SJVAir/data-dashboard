@@ -75,6 +75,8 @@ needs explicit per-release approval.
    - the **starter dashboard** (first-visit default) with non-map widgets. Until it
      exists, `/` and "new from starter" open a blank dashboard
    - the `WidgetType` registry and `WidgetDataConfig`
+   - the **shared place picker** (monitors, regions, places), reused by the Map widget
+     (step 5) and alert rules (Release 2)
    - Chart
    - Calendar (day-colored)
    - Calendar (contribution)
@@ -93,7 +95,8 @@ needs explicit per-release approval.
    - monitor-map rebuilt on `map-sdk` on a branch; its `main` (which sjvair.com builds)
      changes only once the migration is verified
    - v3-mobile migrated
-   - the dashboard's Map widget on `map-sdk`, with feature/region selection (methods A/B)
+   - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
+     ways with step 4's shared place picker (method B)
    - The Map widget **waits for `map-sdk`**; there is no interim single-map build.
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import

@@ -600,8 +600,14 @@ type SpatialSelection = {
 - **A. Feature picking** — click a monitor/region to select, shift-click to add;
   selection shows as removable chips in the widget title bar; right-click a feature
   for feature-scoped context-menu entries ("Analyze this monitor").
-- **B. Region picking** — a new region picker built on the region-hierarchy metadata
-  (hierarchy, boundaries, tooltips). The v1 multi-region selector's narrowing rules and
+- **B. Region picking**: uses the **shared place picker** (decided 2026-09-28), a non-map
+  component built in **Release 1 step 4** that picks monitors, regions (any type in the
+  hierarchy), or places, with search, hierarchy browsing, and single or multiple
+  selection, built on the region-hierarchy metadata. It's reused by Widget Creation's
+  accordions, the "now" widgets, Collections item editing, the Map widget (the same
+  picker, with the selection also shown on the map; selections sync both ways), and
+  Release 2's alert-rule targets. Step 5 adds only map-specific method A (clicking
+  features). The v1 multi-region selector's narrowing rules and
   boundary-loading behavior are captured in `docs/reference/v1-lessons.md`, not reused
   as code. Preferred basis for analysis: regions are stable, meaningful
   units the server already aggregates (`RegionSummary`) and are the natural

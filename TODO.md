@@ -260,6 +260,9 @@ package release needs explicit per-release approval.
 - The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), a place picker for
   "now" widgets, and a live preview.
+- The **shared place picker**: monitors, regions (any hierarchy type) or places; search,
+  hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
+  metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.
 - The `WidgetType` registry (including `analyzable`) and `WidgetDataConfig`; "now" widgets
   stage a 3-day trailing window for analysis (Forecast strip only where past forecasts
   exist), and Notes offers no analysis actions (`ARCHITECTURE.md` → "Widget-type
@@ -286,7 +289,8 @@ package release needs explicit per-release approval.
 - A monitor-map plan: rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.
 - A v3-mobile migration plan (stores from `map-sdk`, layout from the new monitor-map).
-- The Map widget, with feature/region selection (methods A and B). Drawn shapes (C, via a
+- The Map widget: map feature clicking (method A), synced both ways with the step 4 shared
+  place picker (method B). Drawn shapes (C, via a
   `terra-draw` plugin) come later.
 
 **Release 1, parallel track: hosting on sjvair.com** (approved sjvair.com plan first)
