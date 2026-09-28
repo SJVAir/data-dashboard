@@ -68,7 +68,8 @@ needs explicit per-release approval.
    - the coverage endpoint
    - scale metas
    - a shared action `tier` (0–4) on every scale level, and CalHeatScore per-score
-     guidance (**the user supplies tier assignments and wording before this plan**)
+     guidance (**the user supplies tier assignments before this plan**; heat guidance uses
+     CalHeatScore's official wording)
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - extend `regions/places/lookup/` with `?lat=&lon=` and `?monitor=` (containing

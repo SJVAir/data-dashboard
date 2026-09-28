@@ -348,11 +348,10 @@ point.
   with a Django view setting COOP/COEP only on `/notebooks/`. **Decide in** the Release 3
   step 4 spec (JupyterLite app).
 
-- **Action-tier assignments and heat guidance wording** (for the shared `tier` scale and
-  `calheatscore/meta/` guidance). **The user decides these personally.** They're needed
-  before the Release 1 step 3 metadata plan finalizes scale metas, and before step 4's "Can
-  we go outside?" card. Open question within it: CalHeatScore's official recommended
-  actions, or SJVAir's own wording.
+- **Action-tier assignments** (for the shared `tier` scale). **The user decides these
+  personally**, before the Release 1 step 3 metadata plan finalizes scale metas and before
+  step 4's "Can we go outside?" card. (Heat guidance wording is decided: CalHeatScore's
+  official recommended actions, confirmed 2026-09-28.)
 
 ## Decided against (kept for the record, not planned)
 

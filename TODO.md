@@ -49,8 +49,9 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
-3. Before the step 3 metadata plan: **the user decides the action-tier assignments and
-   heat guidance wording** (`DEFERRED.md` → "Open decisions").
+3. Before the step 3 metadata plan: **the user decides the action-tier assignments**
+   (`DEFERRED.md` → "Open decisions"). Heat guidance uses CalHeatScore's official
+   recommended actions.
 4. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
    **metadata enablers**, **hosting under `/explore/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**

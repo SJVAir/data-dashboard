@@ -1343,8 +1343,9 @@ type DatasetCatalogEntry = {
 (6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every
 level of every scale. A tier means a _recommended action_ (0 = no precautions … 4 =
 everyone avoids outdoor activity). Assignments are a public-health judgment kept in server
-metadata; **the user decides the tier assignments and the guidance wording** (see
-`DEFERRED.md` → "Open decisions"). Every scale in the metadata (including smoke density in Release 1) gets tiers, and any later scale joins the same tiers.
+metadata; **the user decides the tier assignments** (see `DEFERRED.md` → "Open
+decisions"). **Heat guidance text uses CalHeatScore's official recommended actions**
+(confirmed 2026-09-28), stored in `calheatscore/meta/`. Every scale in the metadata (including smoke density in Release 1) gets tiers, and any later scale joins the same tiers.
 
 - **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
   both conditions beneath it; ties show both guidance texts. Only tier numbers are
