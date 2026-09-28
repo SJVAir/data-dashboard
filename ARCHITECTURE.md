@@ -57,8 +57,10 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
 - **The first edit makes it the visitor's own copy**, saved and autosaved like any
   dashboard; the built-in template is never modified.
 - Titles are generated from metadata (nothing English is stored in the template).
-- Contents: non-map widgets (including calendars) from Release 1 step 4; the Map widget
-  joins in step 6.
+- **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
+  (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
+  day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
+  The Map widget joins in step 6.
 
 ### Widget Creation view
 
@@ -1451,6 +1453,13 @@ level of every scale.
   the same tiers. Trade-off: tier meanings are anchored to CalHeatScore's definitions, and
   a change there would mean revisiting the mapping (easy, since it's metadata).
 
+- **Heat for areas larger than a ZIP** (decided 2026-09-28): CalHeatScore is per ZIP, so a
+  county, city, or similar target uses the **highest heat score among its ZIPs**, labeled
+  (e.g. "Heat: High (highest in Fresno County today)"). That's the safe choice for activity
+  advice. A point or ZIP target uses that exact ZIP.
+- **Forecasts for areas that aren't a forecast zone:** use the containing zone (via the
+  place lookup). An area spanning zones uses the zone containing its center, labeled.
+  Fresno County is its own forecast zone.
 - **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
   both conditions beneath it; ties show both guidance texts. Only tier numbers are
   compared, and all wording is server metadata. With no heat data (uncovered ZIP, or not

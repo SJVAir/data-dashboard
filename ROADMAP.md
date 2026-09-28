@@ -96,7 +96,9 @@ needs explicit per-release approval.
    - Widget Creation view (catalog-driven dataset accordions, layers, advanced resolution
      override)
    - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
-     "Change place" bar; the first edit makes a personal copy) with non-map widgets. Until it
+     "Change place" bar; the first edit makes a personal copy) with non-map widgets: Current
+     conditions, Forecast strip, "Can we go outside?", a chart, a calendar, the heatmap, and
+     a welcome Note. Until it
      exists, `/` and "new from starter" open a blank dashboard
    - the `WidgetType` registry and `WidgetDataConfig`, including optional resolution pins
      (calendars `day`, heatmap `hour`; pin → override → ladder)

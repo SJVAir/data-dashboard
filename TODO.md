@@ -289,6 +289,8 @@ package release needs explicit per-release approval.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
+- Heat for areas larger than a ZIP = the highest ZIP score, labeled; forecasts for
+  non-zone areas = the containing zone (or the center's zone, labeled).
 - The **starter dashboard** (first-visit default): a built-in document defaulting to
   **Fresno County**, a "Showing … · Change place" bar (the shared picker plus opt-in
   location) that re-targets all its widgets, and a personal copy on first edit. It has non-map widgets, including
