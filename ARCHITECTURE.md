@@ -306,6 +306,46 @@ you:**
   small server change, see "Sign-in flow"), and for token builds a session-only token
   via the platform adapter. A dedicated guest mode is deferred.
 
+### CSRF protection for cookie-authenticated API writes
+
+Decided 2026-09-28. Verified in code:
+
+- **Website pages and forms are protected.** Django's CSRF middleware is on (it sets the
+  `csrftoken` cookie).
+- **Session-cookie API requests are not.** sjvair.com's API uses `django-resticus`
+  (installed from its unpinned `develop` branch; configured with `TokenAuth` only).
+  `Endpoint.dispatch` is `csrf_exempt`, and `Endpoint.authenticate` returns an
+  already-logged-in session user early, so resticus's own `SessionAuth.enforce_csrf`
+  never runs.
+- It is mitigated today by token auth for most API writes (v3-mobile) and by
+  `SameSite=Lax`. **Release 1's cookie-based document saves would be the first
+  significant writes on this path**, so the fix must land first.
+
+**The fix goes in resticus** (local repo `~/workspace/django-resticus`, remote
+`dmpayton/django-resticus`; the user has access and coordinates with its developer). When a
+request is authenticated by the **session** (not a token) and **changes data**
+(POST/PUT/PATCH/DELETE), run Django's CSRF check. Keep the existing early return (add the
+check there) so nothing else changes for existing resticus users. Tests cover:
+
+- session with no CSRF token → rejected
+- session with a CSRF token → accepted
+- token-only → accepted
+- GET → unaffected
+
+**Supporting changes:**
+
+- **The SDK sends `X-CSRFToken`** (from the `csrftoken` cookie) on session-based calls.
+  Token clients are unaffected.
+- **Update the existing sjvair.com pages that call the API with the cookie** so they send
+  the header.
+
+**Ordering, since resticus is not pinned** (decided 2026-09-28; the user is discussing
+pinning with its developer): sjvair.com installs resticus `develop`, so merging the fix
+there reaches production at the next server deploy. The sjvair.com pages that use the
+cookie and the SDK header must therefore be ready **before or together with** that merge,
+and all of it must land before the dashboard's cookie-based saves ship. Needs approved
+plans in resticus, sjvair.com, and sdk-js; any resticus release needs explicit approval.
+
 ### Sign-in flow
 
 Decided 2026-09-24. The API's `account/login` is **token-only**

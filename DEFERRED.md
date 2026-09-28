@@ -32,9 +32,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `SameSite=Lax` session cookie. The dashboard doesn't need it, since it's served from the
   same origin. **Revisit when** server security settings are next touched, or when
   non-browser/standalone clients are reviewed. Needs an approved sjvair.com plan.
-  **Related (2026-09-25):** session-authenticated API requests currently skip CSRF
-  checks (see TODO.md #10). The CSRF fix is being decided for Release 1, and CORS
+  **Related:** the CSRF fix for session-authenticated API writes is decided for
+  Release 1 (in django-resticus; see `ARCHITECTURE.md` → "CSRF protection"). CORS
   tightening can ride along with it.
+- **Pinning django-resticus in sjvair.com.** _Deferred 2026-09-28 by the user, who is
+  discussing it with resticus's developer._ sjvair.com installs
+  `git+https://github.com/dmpayton/django-resticus@develop` unpinned, so any commit to
+  `develop` reaches production at the next deploy. That is why the CSRF fix's rollout
+  order matters. **Revisit after** the user's conversation with the resticus developer.
 - **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23;
   **scheduled into Release 1 on 2026-09-24** as a parallel server track (see
   `ROADMAP.md`)._ This includes local → account migration. It stays listed here until it ships, then moves to TODO → Done.

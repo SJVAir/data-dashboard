@@ -71,6 +71,9 @@ onto v1 code.
   (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
   `pesticides`, `regions`, and `account` (login, subscriptions, air alerts).
 - `../sjvair.com` — the Django server (data, user accounts, alert/notification system).
+- `~/workspace/django-resticus` — the REST framework sjvair.com's API is built on
+  (remote `dmpayton/django-resticus`; sjvair.com installs its `develop` branch unpinned).
+  The user has access. It gets the CSRF fix; see `ARCHITECTURE.md` → "CSRF protection".
 - `../v3-mobile` — the current SJVAir mobile app (Capacitor); consumes `@sjvair/monitor-map`
   and authenticates with `Token` headers. (`../mobile` is an unrelated project — exclude
   it from all work.)

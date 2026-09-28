@@ -21,23 +21,11 @@ updating the docs after each:
       browser-only.
 - [x] **#7 Rolling ranges**: dashboards stay rolling; staging freezes to fixed Pacific
       dates, with a per-item "keep rolling" toggle; exports always record fixed dates.
-- [ ] **#10 CSRF** (in progress; the user asked a clarifying question and the answer was
-      verified against the code on 2026-09-25):
-  - **Website pages and forms are protected**: Django's CSRF middleware is on and sets
-    the `csrftoken` cookie.
-  - **Session-cookie API requests are not.** resticus `Endpoint.dispatch` is
-    `@method_decorator(csrf_exempt)`, and `Endpoint.authenticate` (`resticus/views.py`
-    ~L82–87) returns `request.user` early when the session middleware has already
-    authenticated. So `SessionAuth.enforce_csrf` (`resticus/auth.py`) never runs.
-  - Today this is mitigated by token auth for most API writes and by `SameSite=Lax`.
-    Release 1's cookie-based document saves would be the first significant writes on
-    this path.
-  - **Proposal awaiting the user's answer:**
-    - fix it at the root in resticus/sjvair.com: run the CSRF check for any request
-      authenticated by the session, not by a token
-    - the SDK sends `X-CSRFToken` from the `csrftoken` cookie on session calls
-    - check which existing sjvair.com pages call the API with cookies so they don't break
-    - scope: the Release 1 server-documents plan
+- [x] **#10 CSRF**: fix in django-resticus (`~/workspace/django-resticus`): enforce the
+      CSRF check for session-authenticated writes. The SDK sends `X-CSRFToken`, and
+      sjvair.com pages that call the API with the cookie send it too. Not pinned (the user
+      is talking with the developer), so those changes land before or with the resticus
+      merge. See `ARCHITECTURE.md` → "CSRF protection".
 - [ ] **#11 Email alerts.** `User.email` is optional and unverified, and
       `USERNAME_FIELD = phone`. Proposed: email alerts require a verified email (a new
       flow mirroring phone verification) plus one-click unsubscribe. Also confirm that a
@@ -298,6 +286,12 @@ package release needs explicit per-release approval.
   server deploy).
 
 **Release 1, parallel track: server-backed documents** (approved sjvair.com plan first)
+
+- **First: the CSRF fix** (`ARCHITECTURE.md` → "CSRF protection"). This covers a
+  django-resticus change enforcing CSRF for session-authenticated writes, the sdk-js
+  `X-CSRFToken` header, and updates to sjvair.com pages that call the API with the
+  cookie. Order: the pages and SDK are ready before or with the resticus merge, and all
+  of it lands before cookie-based saves ship.
 
 - sjvair.com: the `SavedDocument` model and endpoints (visibility, `version`).
 - sdk-js wrappers.
