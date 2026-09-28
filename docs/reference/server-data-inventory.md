@@ -41,7 +41,8 @@ facility health risk indices.
 
 ## Regions
 
-Types: county, city, zipcode, tract, cdp, congressional_district, state_assembly,
+Local dev (2026-09-28) has 0 rows of `place`, `protected`, `custom` and `school_district`;
+verify production. Types: county, city, zipcode, tract, cdp, congressional_district, state_assembly,
 state_senate, school_district, urban_area, land_use, protected, place (a synthetic union),
 mtrs, custom (forecast zones). Boundaries are versioned MultiPolygons.
 

@@ -49,7 +49,9 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
-3. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
+3. Before the step 3 metadata plan: **the user decides the action-tier assignments and
+   heat guidance wording** (`DEFERRED.md` → "Open decisions").
+4. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
    **metadata enablers**, **hosting under `/explore/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
    (Release 2).
@@ -223,7 +225,8 @@ package release needs explicit per-release approval.
 - Installable app: a web app manifest and icons (no service worker in Release 1), plus an
   offline banner from the online/offline events.
 - "Clear my data".
-- Vite dev proxy: `/api` and `/account/` to the local podman sjvair.com.
+- Vite dev proxy: `/api` and `/account/` to the local podman sjvair.com, plus a one-time `csrftoken`
+  cookie bootstrap (Vite serves the app, so Django's `ensure_csrf_cookie` doesn't run in dev).
 - Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
   actions: new, duplicate, rename, delete with an undo toast.
 - Local durability: a `navigator.storage.persist()` request, a storage status note, a
@@ -252,7 +255,8 @@ package release needs explicit per-release approval.
   browser's HTTP cache is the dashboard's persistent data cache (long on completed
   periods, short on the current one).
 - Extend `regions/places/lookup/` to accept `?lat=&lon=` or `?monitor=` (plus `type=`),
-  returning containing regions with the `within=` geometry rules; update
+  returning a list of containing regions (filtered by `type`) with the `within=` geometry
+  rules; the name mode is unchanged; update
   `lookupRegionPlace` in sdk-js.
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
   `api-urls.md`.
@@ -264,8 +268,9 @@ package release needs explicit per-release approval.
 - The **starter dashboard** (first-visit default) with non-map widgets, including
   calendars; the Map widget joins in step 6.
 - The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
-  tabs become accordions), multiple layers per widget (≤ 1 pollutant), a place picker for
-  "now" widgets, and a live preview.
+  tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
+  picker (plus a pollutant control) for "now" widgets, and a live preview.
+- The "Duplicate widget" action (used to put several widgets on the same place).
 - The **shared place picker**: monitors, regions (any hierarchy type) or places; search,
   hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
   metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.
@@ -311,8 +316,9 @@ package release needs explicit per-release approval.
   - confirm no existing CMS page uses `explore`
 - Confirm `SJVAir/data-dashboard` is public (the user is switching it, 2026-09-28) so the
   anonymous import clone works.
-- Restrict the MapTiler and NREL keys to sjvair.com in each provider's dashboard.
-  - `VITE_*` keys as Heroku config vars
+- `VITE_*` keys as Heroku config vars.
+- Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
+  plus separate keys or allowed domains for localhost dev and a staging preview).
 - This repo: Vite `base: "/explore/"`, and `setOrigin(location.origin)` when served
   under `/explore/` (`VITE_PROD_URL` only for Tauri/standalone builds).
 - Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
@@ -345,8 +351,8 @@ django-resticus plans first)
   `version`, revocable `share_token`, body size limit).
 - sdk-js wrappers; make `apiToken` optional on account calls that require it today.
 - Dashboard:
-  - the sign-in flow: redirect to sjvair.com login/registration with `?next=`; a
-    server "remember me" change (session expires at browser close when unchecked)
+  - the sign-in flow: redirect to sjvair.com login/registration with `?next=` (the server
+    "remember me" change is owned by the email-only accounts plan)
   - versioned local-first sync: automatic replay of non-overlapping edits, and a prompt
     (keep mine / use the other / save mine as a copy) on true overlaps
   - live share links (read-only plus "Make a copy")
@@ -370,7 +376,9 @@ django-resticus plans first)
 - sjvair.com:
   - alert rules (monitor/region pollutant, forecast, pesticide-notice)
   - level-category thresholds, caps, and quiet hours
-  - SMS for every alert type, plus email (verified email; one-click unsubscribe)
+  - SMS for every alert type, plus email (verified email; one-click unsubscribe). Email
+    depends on the email-only accounts track's verification flow; SMS, inbox and rules can
+    go first.
   - migrate existing SMS subscriptions to rules that reproduce today's behavior exactly
     (caps and quiet hours off, opt-in to new behavior)
   - keep the legacy subscription endpoints as a compatibility layer, logging usage with

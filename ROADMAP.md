@@ -31,7 +31,9 @@ needs explicit per-release approval.
      catalog-driven handling of unsummarized data (worker downsampling, span caps), the
      dataset adapter registry, and `DateRangeSpec` → Pacific date resolution
    - Paraglide (English-only) and the `format` module
-   - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo
+   - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo;
+     changes as serializable JSON with explicit targets, a persisted unsynced-change queue
+     with its base version, and cross-tab sync via `BroadcastChannel`
    - **minimal Collections** (decided 2026-09-24): the store, the Collections drawer,
      "Add to collection ▸", staging that freezes rolling ranges to fixed Pacific dates
      (with a per-item "keep rolling" toggle), and a placeholder Analysis view that lists a Collection's
@@ -65,6 +67,8 @@ needs explicit per-release approval.
    - the `meta/datasets/` catalog
    - the coverage endpoint
    - scale metas
+   - a shared action `tier` (0–4) on every scale level, and CalHeatScore per-score
+     guidance (**the user supplies tier assignments and wording before this plan**)
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - extend `regions/places/lookup/` with `?lat=&lon=` and `?monitor=` (containing
@@ -77,7 +81,8 @@ needs explicit per-release approval.
    - the **starter dashboard** (first-visit default) with non-map widgets. Until it
      exists, `/` and "new from starter" open a blank dashboard
    - the `WidgetType` registry and `WidgetDataConfig`
-   - the **shared place picker** (monitors, regions, places), reused by the Map widget
+   - the **shared place picker** (monitors, regions, or points; "place" here means a
+     `PlaceRef`), reused by the Map widget
      (step 5) and alert rules (Release 2)
    - Chart
    - Calendar (day-colored)
@@ -88,19 +93,21 @@ needs explicit per-release approval.
    - Hour × weekday heatmap
    - Forecast strip
    - "Can we go outside?"
-   - client-side self-monitoring thresholds
+   - client-side self-monitoring thresholds (in-browser notifications are desktop-only in
+     Release 1)
    - "Mark for analysis" / "Analyze" on every `analyzable` widget, plus the calendar's "selected
      data" variants, feeding Release 1's Collections
 5. **`map-sdk` and the Map widget** (decided 2026-09-24: split out of monitor-map)
-   - `@sjvair/map-sdk` 1.0 (new repo): instance-scoped core, plugins, `MapView`,
+   - `@sjvair/map-sdk` (new repo): instance-scoped core, plugins, `MapView`, optional
+     metadata/messages/format providers with defaults,
      app-level data stores
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B)
-   - **Critical path (decided 2026-09-28): only `map-sdk` 1.0 → the dashboard's Map
-     widget.** The Map widget waits for `map-sdk`; there is no interim single-map build.
-   - **Parallel, not blocking:** monitor-map rebuilt on `map-sdk` on a branch, **started
-     alongside the Map widget** as a second real consumer to validate the `map-sdk` API
-     before 1.0 settles. Its `main` (which sjvair.com builds) changes only once verified,
+   - **Critical path (decided 2026-09-28): only `map-sdk` → the dashboard's Map widget.**
+     There is no interim single-map build on monitor-map 3.x.
+   - **Parallel, not blocking:** monitor-map rebuilt on `map-sdk` on a branch. **The Map
+     widget and the monitor-map rebuild both build against pre-1.0 `map-sdk`, and 1.0 is
+     cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
      with approval.
    - **Separate later track, not blocking Release 1 or go-live:** the v3-mobile migration
      (see `DEFERRED.md`).
@@ -111,7 +118,8 @@ needs explicit per-release approval.
   `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. Also:
   `ensure_csrf_cookie` and no forced trailing slashes on `/explore/*`, and a check that no
   CMS page uses `explore`. This repo: Vite `base: "/explore/"` and
-  `setOrigin(location.origin)`.
+  `setOrigin(location.origin)`. Also: confirm the repo is public (done 2026-09-28) and
+  restrict the MapTiler and NREL keys by domain.
 - **Parallel track: email-only accounts** (sjvair.com + sdk-js, decided 2026-09-28).
   Phone becomes optional; an account needs a verified phone or email; a new email
   verification flow; login and registration by either. Phone flows keep working for
@@ -127,7 +135,8 @@ needs explicit per-release approval.
   dialog), sync scope and sign-out keep/remove, and the model details (server keeps the
   client UUID, revocable `share_token`, body size limit). Anonymous users
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
-  sjvair.com's login/registration pages (plus a server "remember me" change); sdk-js
+  sjvair.com's login/registration pages (the server "remember me" change is owned by the
+  email-only accounts track); sdk-js
   makes `apiToken` optional on account calls.
 
 - **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
@@ -153,7 +162,8 @@ needs explicit per-release approval.
     features default off); keep the legacy endpoints as a logged compatibility layer so
     v3-mobile works unchanged
   - SMS for every alert type, a new email channel (verified email, one-click
-    unsubscribe), and the alert inbox API
+    unsubscribe; **depends on the email-only accounts track's verification flow**; SMS,
+    inbox and rules can ship first), and the alert inbox API
   - alert metadata
 - sdk-js wrappers for the new alert endpoints.
 - **In-app session sign-in**: a `POST account/session/` endpoint plus an in-app sign-in

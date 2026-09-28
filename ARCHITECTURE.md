@@ -417,7 +417,7 @@ approach is staged:
   adds no new auth endpoint. Known cost: in-progress dialog state
   isn't preserved across the redirect (autosave keeps documents safe). **"Remember me"**
   needs a small sjvair.com change (a checkbox; when unchecked, the session expires at
-  browser close) in the server-backed documents plan.
+  browser close) in the **email-only accounts plan** (both change the login page).
 - **By Release 2: in-app session login.** A small `POST account/session/` endpoint
   (`{identifier, password, remember}` → Django `login()` plus session expiry, with a
   matching logout) behind an in-app sign-in dialog. That keeps mid-flow sign-in (e.g.
@@ -432,6 +432,10 @@ approach is staged:
   sdk-js change, approved plan first.
 - **Development:** the Vite dev server proxies `/api` (and `/account/`) to the local
   podman sjvair.com, so dev is same-origin and cookies behave as in production.
+  Because Vite serves the app itself in dev, Django's `ensure_csrf_cookie` never runs
+  there, so dev bootstraps the `csrftoken` cookie once through the proxy (e.g. a GET to a
+  Django page or a small cookie-setting endpoint). In production, cookie-based saves depend
+  on the hosting track's `ensure_csrf_cookie`.
 
 ## Data resolution & live refresh
 
@@ -591,8 +595,9 @@ kinds. Server support:
 - **Missing: lookup by coordinates or monitor.** Needed for "Use my location" and for
   mapping a monitor to its ZIP (CalHeatScore) or forecast zone. **Extend
   `regions/places/lookup/`** (no new endpoint) to accept `?lat=&lon=` or `?monitor=`,
-  plus `type=`. It returns the containing region of that type, or all containing regions
-  when `type` is omitted, using the same geometry rules as `within=`, and builds on the
+  plus `type=`. **Response shape:** in coordinate or monitor mode it always returns a
+  **list** of containing regions (only the given `type` when `type=` is set). The existing
+  name mode keeps its current single-region response. It uses the same geometry rules as `within=`, and builds on the
   existing `Monitor.regions()` query. The SDK wrapper gains the parameters. This is
   Release 1 step 3 work.
 - **Geolocation** is a platform-adapter capability: an opt-in "Use my location" button,
@@ -607,7 +612,8 @@ to stage, shareable, and reproducible. (These are the items held in analysis
 Collections — see "Analysis: Collections & engine".)
 
 **Map widgets select spatially only.** Time is fixed per widget by its single date
-range; narrowing _when_ is done via calendar/chart widgets, not a map time scrubber.
+range. Narrowing _when_ is done with a calendar or chart widget's **own** time selection
+(for staging its data), not a map time scrubber and not by filtering other widgets.
 
 One selection model, three ways to produce it:
 
@@ -744,8 +750,8 @@ needs an approved plan in its repo:
 4. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map)
 
 **Dependencies** (decided 2026-09-28): the dashboard's critical path is only 1 → 3.
-monitor-map's rebuild (2) runs **in parallel, started alongside 3** to validate the
-`map-sdk` API with a second consumer. v3-mobile (4) is a **separate later track** that
+monitor-map's rebuild (2) runs **in parallel, started alongside 3**. Both build against
+pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. v3-mobile (4) is a **separate later track** that
 blocks neither Release 1 nor go-live; it keeps working on monitor-map 3.x until then.
 
 ## Dashboard layout mechanics
@@ -829,9 +835,9 @@ type WidgetType = {
 
 Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **Forecast
 strip**, and **"Can we go outside?"** are `time: "now"` with `target: "place"`; for those,
-Widget Creation hides the date section and shows a place picker instead of the dataset
-accordions. For Current conditions and "Can we go outside?" the place picker also picks
-the pollutant (gated by available pollutants); in `WidgetDataConfig` that's a single
+Widget Creation hides the date section and shows **the shared place picker** instead of
+the dataset accordions, plus a **separate pollutant control** for Current conditions and
+"Can we go outside?" (gated by available pollutants); in `WidgetDataConfig` that's a single
 pollutant layer alongside `target`. **Map** and **Chart** are `time: "range"` and accept multiple layers.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
@@ -891,7 +897,7 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard.
   - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
-    (opens Widget Creation), Rename, Minimize, Fullscreen, Move… / Resize… (keyboard
+    (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move… / Resize… (keyboard
     alternatives), Delete, **Mark for analysis**, **Analyze**, Add to collection ▸.
   - _Selection (map features/regions, calendar range):_ Mark selected data for
     analysis, Analyze selected data.
@@ -1294,12 +1300,19 @@ type DatasetCatalogEntry = {
    hardcoded in `monitor-map` and server Sass. **CalHeatScore meta also carries per-score
    `guidance`**, since the server stores only 0–4 labels today.
 
+4. **Alert metadata** — alertable entry types per monitor type, alert levels,
+   evaluation windows (today only in server `ENTRY_CONFIG`).
+5. **Region hierarchy** — nesting between region types, counts, which regions have
+   summaries.
+6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
+7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
+
 **Shared action tiers** (decided 2026-09-28). Scales with different step counts and names
 (6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every
 level of every scale. A tier means a _recommended action_ (0 = no precautions … 4 =
 everyone avoids outdoor activity). Assignments are a public-health judgment kept in server
 metadata; **the user decides the tier assignments and the guidance wording** (see
-`DEFERRED.md` → "Open decisions"). Future scales (e.g. smoke density) join the same tiers.
+`DEFERRED.md` → "Open decisions"). Every scale in the metadata (including smoke density in Release 1) gets tiers, and any later scale joins the same tiers.
 
 - **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
   both conditions beneath it; ties show both guidance texts. Only tier numbers are
@@ -1307,13 +1320,6 @@ metadata; **the user decides the tier assignments and the guidance wording** (se
   yet published today), it falls back to air quality alone and says so.
 - Raising the tier when heat and poor air quality combine is deferred (see
   `DEFERRED.md`).
-
-4. **Alert metadata** — alertable entry types per monitor type, alert levels,
-   evaluation windows (today only in server `ENTRY_CONFIG`).
-5. **Region hierarchy** — nesting between region types, counts, which regions have
-   summaries.
-6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
-7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
 
 **Available pollutants (decided 2026-09-24).** The code supports every entry type, but
 SJVAir is only confident in some readings (PM2.5 and O3 today). A server-controlled
@@ -1328,7 +1334,8 @@ Priority: alongside gap #1.
 server breakpoints defined twice (`levels.py` + entry classes), legacy
 `Subscription.LEVELS`, Sass AQ colors, `generate_group_map.py`; `monitor-map`'s
 `colors.ts`, legend gradient, `150.5` fallback, hardcoded "µg/m³", smoke/fire colors;
-stale `sdk-js` `api-urls.md`. (This repo's v1 hardcoded values disappear with the v1
+stale `sdk-js` `api-urls.md`; v3-mobile's `PMGauge.svelte` (old PM2.5 scale, see
+`DEFERRED.md`). (This repo's v1 hardcoded values disappear with the v1
 code; the new code never hardcodes them.)
 
 ## Tech stack
@@ -1432,8 +1439,9 @@ separate origin. **The base path is `/explore/`** (decided 2026-09-25).
   `.env.example` with public URLs). This matches monitor-map and sdk-js, which are public.
 - **Build configuration:** `VITE_*` keys (MapTiler, NREL, …) come from **Heroku config
   vars** at build time, as for monitor-map. These keys end up in the built JavaScript like any
-  in-browser map key, so **each must be restricted to sjvair.com** in its provider's
-  dashboard (MapTiler, NREL). Vite `base: "/explore/"` matches the
+  in-browser map key, so **each must be restricted by domain** in its provider's
+  dashboard (MapTiler, NREL). Use separate keys, or extra allowed domains, for localhost
+  dev and a staging preview app. Vite `base: "/explore/"` matches the
   router's `basePath`.
 - **Same-origin API in production:** when served under `/explore/`, the SDK origin is
   the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents

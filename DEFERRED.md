@@ -20,7 +20,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   register on `tauri://` on macOS — see `docs/reference/jupyterlite-kernels.md`).
 - **"Open locally" for notebooks (Tauri).** _Deferred 2026-09-23 (IDEA.md Q6)._ Write an
   export bundle to a folder and launch the user's `jupyter lab` if installed. Not
-  possible from a web page. **Revisit when** the Tauri build starts.
+  possible from a web page. (IDEA.md asked for "JupyterLabs for the desktop app". Bundling
+  JupyterLab into Tauri was not chosen because it means shipping a full Python runtime and
+  packages, which is large and hard to maintain; JupyterLite already works offline in
+  Tauri, and researchers usually have their own Jupyter.) **Revisit when** the Tauri build starts.
 - **Embeddable production build.** _Deferred 2026-09-14 (v1 spec)._ Needs a `sv-router`
   escape hatch (`routerEscapeHatch`/`basePath`) and a non-URL fallback for view state.
   **Revisit when** the dashboard's core views exist. Keep state managers from hardcoding
@@ -59,8 +62,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Heavier WASM analysis engine (e.g. DuckDB-WASM).** _Deferred 2026-09-23 (IDEA.md Q6)._
   Plain TypeScript over typed arrays in a worker is enough for now. **Revisit when**
   researcher-scale datasets make the TypeScript engine too slow or memory-bound.
-- **Server-side location/radius search.** _Deferred 2026-09-14 (v1 spec)._ Needs sdk-js
-  and server changes. Drawn-shape selection resolves on the client, so it doesn't depend
+- **Server-side location/radius search.** _Deferred 2026-09-14 (v1 spec); narrowed
+  2026-09-28._ Point → containing-region lookup is now **scheduled** (Release 1 step 3,
+  `regions/places/lookup/`), and Release 2's pesticide-notice rules need a server-side
+  "within N miles" query for notices (part of that alert plan). Still deferred: general
+  monitor search by location/radius. Needs sdk-js and server changes. Drawn-shape selection resolves on the client, so it doesn't depend
   on this. **Revisit when** client-side resolution gets too slow or needs data the client
   doesn't have.
 - **Shared date-range helper home.** _Open since 2026-09-14; narrowed 2026-09-24._
@@ -89,9 +95,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
   pesticide analyses need parcel-level (MTRS) selection.
-- **`place` / `protected` / `custom` region types.** _Deferred 2026-09-17._ They have 0
-  rows in dev today. No code changes are needed once they have data. **Revisit when** data
-  appears. Forecast zones are stored as `custom`.
+- **`place` / `protected` / `custom` region types.** _Deferred 2026-09-17; re-checked
+  2026-09-28._ Local dev has 0 rows of `place`, `protected`, `custom`, **and
+  `school_district`**. Name lookup falls back to city/CDP, so `place` isn't required. But
+  plans rely on **`school_district`** (school region alerts, the picker) and **`custom`**
+  (forecast zones). **Verify production row counts before the step 3 metadata plan and the
+  Release 2 alerts plan**; import them if they're missing. No code changes are needed once
+  data exists.
 - **Lightweight (geometry-free) regions list endpoint.** _Deferred 2026-09-17._
   **Revisit when** large unnarrowed lists (e.g. about 1,200 tracts) prove slow.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
@@ -202,16 +212,6 @@ ship, or a specific audience asks for one.
   iteration (SMS + email + inbox) ships. That service worker also enables **in-browser
   self-monitoring notifications on Android/iOS** (desktop-only in Release 1). **Optional
   add-on:** app-shell caching, decided when the worker is built.
-- **v3-mobile migration to `map-sdk` and the rebuilt monitor-map.** _Deferred 2026-09-28._ It
-  doesn't block Release 1 or go-live; v3-mobile keeps working on monitor-map 3.x. **Revisit
-  when** the mobile team wants the new stores or features. Bundle the other v3-mobile
-  follow-ups into the same effort: the new alert-rule endpoints and the PM2.5 gauge. Needs
-  a v3-mobile plan and an app release (explicit approval).
-- **v3-mobile PM2.5 gauge on the old scale.** _Noted 2026-09-28 (docs review)._
-  `v3-mobile/src/components/PMGauge.svelte` hardcodes the full pre-2024 PM2.5 scale. The
-  sjvair.com breakpoint fix doesn't reach it. **Revisit with** the PM2.5 breakpoint fix
-  (ideally the gauge reads metadata levels). Needs a v3-mobile plan and an app release
-  (explicit approval).
 - **v3-mobile on the new alert-rule endpoints.** _Deferred 2026-09-28._ Release 2 keeps
   v3-mobile working through the legacy subscription endpoints, but dashboard-only rules
   (regions, forecasts, pesticide notices) don't appear in the app. **Revisit when**
@@ -225,6 +225,21 @@ ship, or a specific audience asks for one.
 - **Mobile app push for alerts (`v3-mobile`).** _Deferred 2026-09-24._ No FCM/APNs setup
   exists in `v3-mobile` or the server. **Revisit when** `v3-mobile` plans push
   notifications; needs its own approved plan.
+
+## v3-mobile
+
+- **v3-mobile migration to `map-sdk` and the rebuilt monitor-map.** _Deferred 2026-09-28._ It
+  doesn't block Release 1 or go-live; v3-mobile keeps working on monitor-map 3.x. **Revisit
+  when** the mobile team wants the new stores or features. Bundle the other v3-mobile
+  follow-ups into the same effort where timing allows: the new alert-rule endpoints, and
+  the PM2.5 gauge unless it has already shipped with the breakpoint fix. Needs
+  a v3-mobile plan and an app release (explicit approval).
+- **v3-mobile PM2.5 gauge on the old scale.** _Noted 2026-09-28 (docs review)._
+  `v3-mobile/src/components/PMGauge.svelte` hardcodes the full pre-2024 PM2.5 scale. The
+  sjvair.com breakpoint fix doesn't reach it. **Revisit with** the PM2.5 breakpoint fix
+  (ideally the gauge reads metadata levels), or with the v3-mobile migration, whichever
+  comes first. Needs a v3-mobile plan and an app release
+  (explicit approval).
 
 ## Accounts
 

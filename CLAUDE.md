@@ -58,10 +58,9 @@ onto v1 code.
 ### Related SJVAir projects
 
 - `@sjvair/monitor-map` (sibling repo `../monitor-map`) — SJVAir's interactive map,
-  packaged as an embeddable Svelte library. Its `MapShell` component (added in v3.3.0)
-  is a reusable, configurable map-layout primitive intended for exactly this kind of
-  embedding — see its `CLAUDE.md` for the `routerEscapeHatch`/`basePath` props needed
-  when embedding it inside an app with its own routing (like this one).
+  packaged as an embeddable Svelte library. Its `MapShell` (v3.3.0) is what the **v1**
+  Monitors tab embeds (see its `CLAUDE.md` for `routerEscapeHatch`/`basePath`). The new
+  dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
   `../map-sdk`, not yet created) holds the per-map core, plugins, `MapView`, and data
   stores, while monitor-map is rebuilt on it as the monitor-map _experience_ (MapShell,
@@ -146,8 +145,8 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env` itsel
 ```
 VITE_DEV_URL=              # @sjvair/sdk origin in dev (current code; planned: Vite proxy → same-origin)
 VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /explore/ → location.origin)
-VITE_MAPTILER_KEY=          # MapTiler basemap key (passed to map-sdk as injected config)
-VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations map plugin
+VITE_MAPTILER_KEY=          # MapTiler basemap key (injected into map-sdk; public in the build, so domain-restrict it)
+VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations plugin (public in the build; domain-restrict it)
 VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)
 VITE_CARBONMAPPER_KEY=      # reserved; unused (see DEFERRED.md)
 ```
