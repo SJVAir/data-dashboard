@@ -244,7 +244,9 @@ package release needs explicit per-release approval.
   hardcoding pollutants.
 - In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
   "What a dataset is"), the coverage endpoint, per-domain scale metas
-  (hms, calheatscore, forecasts, AQI), region hierarchy, choice lists, and
+  (hms, calheatscore with per-score guidance, forecasts, AQI), plus a shared `tier` (0–4)
+  on every level of every scale (the user supplies assignments and wording), region
+  hierarchy, choice lists, and
   display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
   browser's HTTP cache is the dashboard's persistent data cache (long on completed

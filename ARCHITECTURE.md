@@ -1281,9 +1281,25 @@ type DatasetCatalogEntry = {
 2. **Coverage/availability** — first/last data date per dataset and per
    monitor/region × entry type; which summary resolutions are complete (monthly+
    rollups exist only after the period ends).
-3. **Non-pollutant scales** — smoke density, fire FRP tiers, CalHeatScore, AQI 0–500,
+3. **Non-pollutant scales**: smoke density, fire FRP tiers, CalHeatScore, AQI 0–500,
    temperature thresholds, forecast categories/burn status (labels + colors). Currently
-   hardcoded in `monitor-map` and server Sass.
+   hardcoded in `monitor-map` and server Sass. **CalHeatScore meta also carries per-score
+   `guidance`**, since the server stores only 0–4 labels today.
+
+**Shared action tiers** (decided 2026-09-28). Scales with different step counts and names
+(6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every
+level of every scale. A tier means a _recommended action_ (0 = no precautions … 4 =
+everyone avoids outdoor activity). Assignments are a public-health judgment kept in server
+metadata; **the user decides the tier assignments and the guidance wording** (see
+`DEFERRED.md` → "Open decisions"). Future scales (e.g. smoke density) join the same tiers.
+
+- **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
+  both conditions beneath it; ties show both guidance texts. Only tier numbers are
+  compared, and all wording is server metadata. With no heat data (uncovered ZIP, or not
+  yet published today), it falls back to air quality alone and says so.
+- Raising the tier when heat and poor air quality combine is deferred (see
+  `DEFERRED.md`).
+
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).
 5. **Region hierarchy** — nesting between region types, counts, which regions have

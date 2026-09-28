@@ -125,6 +125,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **CEIDARS facility emissions.** _Deferred 2026-09-24 (docs review)._ On the server
   (yearly facility emissions + health risk indices) but no widget, analysis, or SDK
   wrapper is planned. **Revisit when** an emissions/facility-proximity use case comes up.
+- **Combined heat + air-quality tier bump** (raise the tier by one when both conditions
+  are at tier ≥ 2, reflecting combined heat and ozone effects). _Deferred 2026-09-28._ It
+  is a health claim needing expert backing. **Revisit when** the user or a health advisor
+  confirms a rule.
 - **Pesticide timing → health analysis** (from IDEA.md's prior brainstorm). _Deferred
   2026-09-24._ No health outcome data beyond CalEnviroScreen; closest planned work is
   starter #9 (use trends) and #7 (CES indicators). **Revisit with** the outside-health-data
@@ -318,6 +322,12 @@ point.
   separate build in this repo, or a new repo, imported by sjvair.com like the dashboard,
   with a Django view setting COOP/COEP only on `/notebooks/`. **Decide in** the Release 3
   step 4 spec (JupyterLite app).
+
+- **Action-tier assignments and heat guidance wording** (for the shared `tier` scale and
+  `calheatscore/meta/` guidance). **The user decides these personally.** They're needed
+  before the Release 1 step 3 metadata plan finalizes scale metas, and before step 4's "Can
+  we go outside?" card. Open question within it: CalHeatScore's official recommended
+  actions, or SJVAir's own wording.
 
 ## Decided against (kept for the record, not planned)
 
