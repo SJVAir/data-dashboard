@@ -55,6 +55,9 @@ needs explicit per-release approval.
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/explore/`
+   - browser support floor (Chrome/Edge 111+, Safari 16.4+, Firefox 128+) with an
+     unsupported-browser notice; a CI bundle budget (about 200 KB initial) and per-widget code
+     splitting
    - MIT license, a CI license check (permissive only), third-party notices
    - scrubbed front-end error reporting to Sentry, an in-app privacy note, and a preview
      feedback link (no Google Analytics on `/explore/`)

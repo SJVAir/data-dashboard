@@ -427,6 +427,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   public (done 2026-09-28), matching monitor-map and sdk-js.
 - **Merging `planning` into `main` before planning is finished**: _2026-09-28_. It merges
   once planning completes, with approval.
+- **Dropping to Tailwind v3 for older browsers**: _2026-09-28_. It would go against
+  "nothing ripped out" at high cost for a shrinking set of devices. Revisit only if the
+  preview shows many partner-school devices below the v4 floor.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

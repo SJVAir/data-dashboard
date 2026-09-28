@@ -229,6 +229,8 @@ package release needs explicit per-release approval.
 - App shell: top nav, dashboard picker (a dropdown), and the new route table (`ARCHITECTURE.md` →
   "Routing"), plus `basePath` support for `sjvair.com/explore/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
+- A CI bundle budget (about 200 KB compressed of initial JS), per-widget-type code
+  splitting, and an unsupported-browser notice (Chrome/Edge 111+, Safari 16.4+, Firefox 128+).
 - Error reporting through the platform adapter to Sentry (strict PII scrubbing), an in-app
   privacy note, and a preview feedback link.
 - Add an MIT `LICENSE` file (and `"license": "MIT"` in `package.json`), a CI license check
@@ -399,6 +401,8 @@ django-resticus plans first)
 
 - The default first-visit dashboard gains the Map widget (it has non-map widgets,
   including calendars, from step 4).
+- Before go-live: a low-end device performance check (Lighthouse with throttling, plus a
+  real older Chromebook from the preview school if possible).
 - Go-live: enable the `sjvair.com/explore/` route once Release 1 is complete.
 
 **Release 1: private preview (from about step 4)**

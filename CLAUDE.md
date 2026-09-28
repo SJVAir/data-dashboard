@@ -203,6 +203,9 @@ Decided 2026-09-28.
 - **Accessibility target: WCAG 2.2 AA** (see `ARCHITECTURE.md` → "Accessibility"). Every
   drag interaction needs a keyboard alternative; animations respect
   `prefers-reduced-motion`.
+- **Supported browsers:** Chrome/Edge 111+, Safari 16.4+, Firefox 128+ (Tailwind v4). Keep the
+  initial bundle around 200 KB compressed and lazy-load each widget type's code (CI enforces
+  this).
 - Animations for transitions are encouraged; responsive layouts are required (phones
   must work, though they aren't the primary target)
 - Svelte 5 runes only (`$state`, `$derived`, `$effect`) — no legacy `$:` reactive statements

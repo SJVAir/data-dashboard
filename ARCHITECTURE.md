@@ -1476,6 +1476,21 @@ wrap simple.
   plugin), JupyterLite + Pyodide (separate notebook app), and for testing Playwright,
   `vitest-browser-svelte`, and `@axe-core/playwright`.
 
+## Browser support & performance budget
+
+Decided 2026-09-28.
+
+- **Supported browsers = Tailwind v4's minimums: Chrome/Edge 111+, Safari 16.4+, Firefox
+  128+.** Older browsers see a friendly "Your browser is too old for this app" notice
+  that points to sjvair.com's main map. Some school Chromebooks past their update end
+  date may fall below this; check with partner schools during the private preview.
+  Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
+- **Performance budget, CI-enforced:** about **200 KB compressed** of initial JS for the app
+  shell. **Each widget type loads its own code only when used** (the map library only
+  with a Map widget, uPlot only with charts, and so on).
+- **A low-end device check before go-live:** Lighthouse with throttled CPU and network,
+  plus a real older Chromebook from the private-preview school if possible.
+
 ## Telemetry, analytics & privacy
 
 Decided 2026-09-28. The audience includes K-12 students; sjvair.com's `base.html` loads
