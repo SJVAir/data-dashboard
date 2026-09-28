@@ -215,6 +215,9 @@ package release needs explicit per-release approval.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
+- Version skew: open newer-`schemaVersion` documents read-only; tag queued changes with
+  their `schemaVersion` and replay before migrating; a `version.json` check on focus and
+  hourly, plus a chunk-load-failure reload prompt.
 - Schema validation (zod) plus size limits for every incoming document (file, fragment,
   server) before migration; reject invalid documents cleanly.
 - Minimal Collections: the store, the drawer, "Add to collection ▸", staging that freezes
@@ -366,6 +369,7 @@ django-resticus plans first)
   of it lands before cookie-based saves ship. Merging to resticus `develop` needs the
   user's explicit approval.
 
+- Reject saves whose `schemaVersion` is lower than the stored document's.
 - Share tokens ≥ 128 bits (`secrets.token_urlsafe(16)`+); per-user document-count and
   save-rate limits.
 - sjvair.com: the `SavedDocument` model and endpoints (`id` = client UUID, visibility,

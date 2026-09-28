@@ -1148,6 +1148,18 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
 
 - **Versioned from day one.** Every document carries `schemaVersion`; a pure, tested
   migration chain upgrades old documents on load. Shared links live for years.
+- **Version skew between app and documents** (decided 2026-09-28):
+  1. **Newer documents open read-only in older apps.** If `schemaVersion` is higher than
+     the app knows, the document opens **read-only** with "This dashboard was saved by a
+     newer version. Reload to edit." It is never overwritten.
+  2. **Queued changes record the `schemaVersion` they were written against.** They are
+     synced or replayed **before** a document is migrated, and never applied blindly
+     across a format change.
+  3. **The server refuses downgrades:** a save whose `schemaVersion` is lower than the
+     stored one is rejected.
+  4. **New deploys are detected.** The build emits `version.json`. The app checks it on tab
+     focus and hourly, and shows "A new version is available. Reload" when it changes.
+     Code-file (chunk) load failures show the same prompt instead of an error.
 - **References, not data.** Documents store query descriptors, never fetched data, so
   they stay small and a recipient sees the same _query_ run against current data.
 

@@ -42,6 +42,8 @@ needs explicit per-release approval.
      duplicate, rename, delete with an undo toast)
    - local durability safeguards (`storage.persist()`, status note, backup nudge, quota
      errors) and "Clear my data"
+   - version-skew handling (newer documents read-only, version-tagged change queue,
+     `version.json` deploy detection with a reload prompt)
    - Export/Import `.json` and URL-fragment sharing (`/import`), with schema validation and size limits
      on every incoming document
    - **a fresh start** (decided 2026-09-24): the v1 app shell, sidebar, tab routes, and
