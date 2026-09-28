@@ -94,12 +94,16 @@ needs explicit per-release approval.
 5. **`map-sdk` and the Map widget** (decided 2026-09-24: split out of monitor-map)
    - `@sjvair/map-sdk` 1.0 (new repo): instance-scoped core, plugins, `MapView`,
      app-level data stores
-   - monitor-map rebuilt on `map-sdk` on a branch; its `main` (which sjvair.com builds)
-     changes only once the migration is verified
-   - v3-mobile migrated
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B)
-   - The Map widget **waits for `map-sdk`**; there is no interim single-map build.
+   - **Critical path (decided 2026-09-28): only `map-sdk` 1.0 → the dashboard's Map
+     widget.** The Map widget waits for `map-sdk`; there is no interim single-map build.
+   - **Parallel, not blocking:** monitor-map rebuilt on `map-sdk` on a branch, **started
+     alongside the Map widget** as a second real consumer to validate the `map-sdk` API
+     before 1.0 settles. Its `main` (which sjvair.com builds) changes only once verified,
+     with approval.
+   - **Separate later track, not blocking Release 1 or go-live:** the v3-mobile migration
+     (see `DEFERRED.md`).
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no

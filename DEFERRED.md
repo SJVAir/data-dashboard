@@ -202,6 +202,11 @@ ship, or a specific audience asks for one.
   iteration (SMS + email + inbox) ships. That service worker also enables **in-browser
   self-monitoring notifications on Android/iOS** (desktop-only in Release 1). **Optional
   add-on:** app-shell caching, decided when the worker is built.
+- **v3-mobile migration to `map-sdk` and the rebuilt monitor-map.** _Deferred 2026-09-28._ It
+  doesn't block Release 1 or go-live; v3-mobile keeps working on monitor-map 3.x. **Revisit
+  when** the mobile team wants the new stores or features. Bundle the other v3-mobile
+  follow-ups into the same effort: the new alert-rule endpoints and the PM2.5 gauge. Needs
+  a v3-mobile plan and an app release (explicit approval).
 - **v3-mobile PM2.5 gauge on the old scale.** _Noted 2026-09-28 (docs review)._
   `v3-mobile/src/components/PMGauge.svelte` hardcodes the full pre-2024 PM2.5 scale. The
   sjvair.com breakpoint fix doesn't reach it. **Revisit with** the PM2.5 breakpoint fix

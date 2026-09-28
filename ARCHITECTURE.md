@@ -740,10 +740,13 @@ needs an approved plan in its repo:
 
 1. `map-sdk` 1.0 (new repo)
 2. monitor-map rebuilt on `map-sdk` (its next major)
-3. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map). How
-   this relates to the dashboard's Map widget and go-live is decided below (see
-   `ROADMAP.md` step 5).
-4. this dashboard's Map widget on `map-sdk`
+3. this dashboard's Map widget on `map-sdk`
+4. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map)
+
+**Dependencies** (decided 2026-09-28): the dashboard's critical path is only 1 → 3.
+monitor-map's rebuild (2) runs **in parallel, started alongside 3** to validate the
+`map-sdk` API with a second consumer. v3-mobile (4) is a **separate later track** that
+blocks neither Release 1 nor go-live; it keeps working on monitor-map 3.x until then.
 
 ## Dashboard layout mechanics
 

@@ -293,9 +293,10 @@ package release needs explicit per-release approval.
 - Create the `@sjvair/map-sdk` repo. Its 1.0 spec and plan cover the instance-scoped core,
   plugin interface, `MapView`, app-level data stores (`createMonitorsStore()`), and optional
   `metadata` / `messages` / `format` providers with built-in defaults.
-- A monitor-map plan: rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
+- A monitor-map plan (parallel, not blocking; start alongside the Map widget to validate
+  the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.
-- A v3-mobile migration plan (stores from `map-sdk`, layout from the new monitor-map).
+- The v3-mobile migration is a separate later track (see `DEFERRED.md`).
 - The Map widget: map feature clicking (method A), synced both ways with the step 4 shared
   place picker (method B). Drawn shapes (C, via a
   `terra-draw` plugin) come later.
