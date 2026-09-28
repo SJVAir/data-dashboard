@@ -101,6 +101,12 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
   `/explore/`); `Token`
   header when standalone on another origin or under Tauri.
 
+## Licensing
+
+This repo is **MIT** (as are `map-sdk`, `monitor-map`, and `sdk-js`). Only add dependencies
+with permissive licenses (MIT, BSD, Apache-2.0, ISC; MPL-2.0 only if unmodified). CI checks
+licenses and the build generates third-party notices. See `ARCHITECTURE.md` → "Licensing".
+
 ## Deferred work — standing rule
 
 **`DEFERRED.md` is the single register of everything deferred or ruled out.** Whenever

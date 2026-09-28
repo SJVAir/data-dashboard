@@ -224,6 +224,8 @@ package release needs explicit per-release approval.
 - App shell: top nav, dashboard picker (a dropdown), and the new route table (`ARCHITECTURE.md` →
   "Routing"), plus `basePath` support for `sjvair.com/explore/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
+- Add an MIT `LICENSE` file (and `"license": "MIT"` in `package.json`), a CI license check
+  (permissive only), and generated third-party notices.
 - Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +
   `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,
   `@axe-core/playwright`, and a dev-stack smoke suite. PRs into `main` run the full suite
@@ -309,11 +311,11 @@ package release needs explicit per-release approval.
 
 **Release 1, step 5: `map-sdk` and the Map widget**
 
-- Create the `@sjvair/map-sdk` repo. Its spec and plan (pre-1.0; 1.0 is cut once the Map
+- Create the `@sjvair/map-sdk` repo (MIT license from the start). Its spec and plan (pre-1.0; 1.0 is cut once the Map
   widget and the monitor-map rebuild validate it) cover the instance-scoped core,
   plugin interface, `MapView`, app-level data stores (`createMonitorsStore()`), and optional
   `metadata` / `messages` / `format` providers with built-in defaults.
-- A monitor-map plan (parallel, not blocking; start alongside the Map widget to validate
+- A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate
   the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.
 - The v3-mobile migration is a separate later track (see `DEFERRED.md`).

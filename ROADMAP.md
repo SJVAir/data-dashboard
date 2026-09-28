@@ -52,6 +52,7 @@ needs explicit per-release approval.
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/explore/`
+   - MIT license, a CI license check (permissive only), third-party notices
    - CI: lint, type-check, tests, and build on every PR. PRs into `main` run the full
      suite (three engines plus axe); feature-branch PRs run the fast set
    - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev), plus a
