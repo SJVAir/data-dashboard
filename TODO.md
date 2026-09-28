@@ -49,10 +49,13 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
-3. Before the step 3 metadata plan: **the user maps the 6 AQ levels onto CalHeatScore's
+3. **Now** (the step 3 metadata plan runs alongside Foundations): **the user maps the 6 AQ levels onto CalHeatScore's
    0–4 tiers** (`DEFERRED.md` → "Open decisions"). Heat maps one to one and uses
    CalHeatScore's official guidance.
-4. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
+4. Before the step 3 metadata plan and the Release 2 alerts plan: **verify production row
+   counts for `school_district` and `custom` (forecast zone) regions**, and import them if
+   missing (`DEFERRED.md`).
+5. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
    **metadata enablers**, **hosting under `/explore/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
    (Release 2).
@@ -277,7 +280,8 @@ package release needs explicit per-release approval.
 - The "Duplicate widget" action (used to put several widgets on the same place).
 - Point places: resolve air quality to the smallest containing region with data (ZIP →
   city → county) at render time, label the source, and freeze to that region on staging.
-- The **shared place picker**: monitors, regions (any hierarchy type) or places; search,
+- The **shared place picker**: monitors, regions (any hierarchy type), or points
+  (`PlaceRef`); search,
   hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
   metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.
 - The `WidgetType` registry (including `analyzable` and an optional pinned `resolution`:
@@ -303,7 +307,8 @@ package release needs explicit per-release approval.
 
 **Release 1, step 5: `map-sdk` and the Map widget**
 
-- Create the `@sjvair/map-sdk` repo. Its 1.0 spec and plan cover the instance-scoped core,
+- Create the `@sjvair/map-sdk` repo. Its spec and plan (pre-1.0; 1.0 is cut once the Map
+  widget and the monitor-map rebuild validate it) cover the instance-scoped core,
   plugin interface, `MapView`, app-level data stores (`createMonitorsStore()`), and optional
   `metadata` / `messages` / `format` providers with built-in defaults.
 - A monitor-map plan (parallel, not blocking; start alongside the Map widget to validate
@@ -322,8 +327,6 @@ package release needs explicit per-release approval.
   - a Django catch-all route for `/explore/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
   - confirm no existing CMS page uses `explore`
-- Confirm `SJVAir/data-dashboard` is public (the user is switching it, 2026-09-28) so the
-  anonymous import clone works.
 - `VITE_*` keys as Heroku config vars.
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
@@ -367,7 +370,7 @@ django-resticus plans first)
   - local → account migration
   - sign-out "keep on this device / remove" (remove by default)
 
-**Release 1, step 6: Starter dashboard and go-live**
+**Release 1, step 6: Map widget in the starter, and go-live**
 
 - The default first-visit dashboard gains the Map widget (it has non-map widgets,
   including calendars, from step 4).

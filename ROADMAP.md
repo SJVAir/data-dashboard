@@ -54,8 +54,10 @@ needs explicit per-release approval.
      `sjvair.com/explore/`
    - CI: lint, type-check, tests, and build on every PR. PRs into `main` run the full
      suite (three engines plus axe); feature-branch PRs run the fast set
-   - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev)
-   - test infrastructure: Vitest browser mode, Playwright (3 engines), axe
+   - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev), plus a
+     one-time `csrftoken` cookie bootstrap
+   - test infrastructure: Vitest browser mode, Playwright (3 engines) with fixture
+     routing, axe, and a dev-stack smoke suite
    - installable via a web app manifest (no service worker in Release 1), plus an
      offline banner
 2. **Dashboard layout engine and windowing**: snapping grid, drag/resize,
@@ -72,6 +74,8 @@ needs explicit per-release approval.
      mapping before this plan**
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
+   - verify production `school_district` and `custom` (forecast zone) region rows; import
+     if missing
    - extend `regions/places/lookup/` with `?lat=&lon=` and `?monitor=` (containing
      regions), plus the SDK wrapper update
    - HTTP cache headers on the summary endpoints
@@ -82,7 +86,11 @@ needs explicit per-release approval.
    - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
      "Change place" bar; the first edit makes a personal copy) with non-map widgets. Until it
      exists, `/` and "new from starter" open a blank dashboard
-   - the `WidgetType` registry and `WidgetDataConfig`
+   - the `WidgetType` registry and `WidgetDataConfig`, including optional resolution pins
+     (calendars `day`, heatmap `hour`; pin → override → ladder)
+   - the "Duplicate widget" action
+   - point places resolved to the smallest containing region with data (labeled; frozen
+     on staging)
    - the **shared place picker** (monitors, regions, or points; "place" here means a
      `PlaceRef`), reused by the Map widget
      (step 5) and alert rules (Release 2)
@@ -121,10 +129,12 @@ needs explicit per-release approval.
   `ensure_csrf_cookie` and no forced trailing slashes on `/explore/*`, and a check that no
   CMS page uses `explore`. This repo: Vite `base: "/explore/"` and
   `setOrigin(location.origin)`. Also: confirm the repo is public (done 2026-09-28) and
-  restrict the MapTiler and NREL keys by domain.
+  restrict the MapTiler and NREL keys by domain (with separate keys or allowed domains for
+  localhost dev and a staging preview).
 - **Parallel track: email-only accounts** (sjvair.com + sdk-js, decided 2026-09-28).
   Phone becomes optional; an account needs a verified phone or email; a new email
-  verification flow; login and registration by either. Phone flows keep working for
+  verification flow; login and registration by either; the server "remember me"
+  checkbox. Phone flows keep working for
   v3-mobile. It lands before sign-in-dependent features ship.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js + django-resticus,
   decided 2026-09-24). **First, the CSRF fix** in django-resticus (with the SDK header and
@@ -146,7 +156,7 @@ needs explicit per-release approval.
   windowed-dashboard experience gets real feedback well before go-live. The mechanism is
   decided in the hosting-track plan.
 
-6. **Starter dashboard and go-live.** The default dashboard a first-time visitor sees
+6. **Map widget in the starter, and go-live.** The default dashboard a first-time visitor sees
    (not a blank page) uses non-map widgets, including calendars, from step 4. The Map
    widget joins once step 5 lands. **The `sjvair.com/explore/` route goes live when Release 1 is
    complete.** Until then the route stays disabled or hidden (except for the private

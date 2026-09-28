@@ -74,7 +74,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   conflicts with the Pacific-time rule and can't be reused as-is. This repo's
   `DateRangeSpec` resolution lives with the `format` module in Foundations. **Still open:**
   whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Decide
-  in** the `map-sdk` 1.0 spec (also listed under "Open decisions").
+  in** the `map-sdk` spec (Release 1 step 5; also listed under "Open decisions").
 
 - **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
   sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
@@ -95,7 +95,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
   pesticide analyses need parcel-level (MTRS) selection.
-- **`place` / `protected` / `custom` region types.** _Deferred 2026-09-17; re-checked
+- **`place` / `protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28._ Local dev has 0 rows of `place`, `protected`, `custom`, **and
   `school_district`**. Name lookup falls back to city/CDP, so `place` isn't required. But
   plans rely on **`school_district`** (school region alerts, the picker) and **`custom`**
@@ -172,7 +172,8 @@ _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in the first-release wi
 (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit when** the first-release widgets
 ship, or a specific audience asks for one.
 
-- **Linking widgets**: _deferred 2026-09-28._ First step: a **dashboard-wide place and date
+- **Linking widgets**: _deferred 2026-09-28._ (The built-in starter's "Change place" bar
+  is a narrow, starter-only exception; design the two together.) First step: a **dashboard-wide place and date
   range** that widgets can choose to follow ("change the county once, everything
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
@@ -333,6 +334,8 @@ point.
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
+- **Whether the server keeps past forecasts** (decides whether the Forecast strip is
+  `analyzable`). **Check in** the Release 1 step 4 spec.
 - **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide
   in** the Release 3 step 1 spec (Analysis engine).
 - **User-defined analysis editor UI** (IDEA.md Q6: "What should user-defined analysis
@@ -342,7 +345,7 @@ point.
   county/MTRS (PUR), and area weighting. **Decide in** the Release 3 step 1 spec (Analysis
   engine).
 - **Shared date-range helper home** (see "Platform & infrastructure"). **Decide in** the
-  `map-sdk` 1.0 spec.
+  `map-sdk` spec (Release 1 step 5).
 - **JupyterLite app: owner repo and deploy path** (docs review 2026-09-28). Options: a
   separate build in this repo, or a new repo, imported by sjvair.com like the dashboard,
   with a Django view setting COOP/COEP only on `/notebooks/`. **Decide in** the Release 3
@@ -411,8 +414,8 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   documents, sync, manifest-based installability, and an offline banner. A service worker
   comes with web push; true offline-first stays a Tauri concern.
 - **Keeping the dashboard repo private** (a read-only deploy token for the import, or a
-  CI-built artifact): _2026-09-28_. There was no reason to keep it private, so it's being
-  made public, matching monitor-map and sdk-js.
+  CI-built artifact): _2026-09-28_. There was no reason to keep it private, so it was made
+  public (done 2026-09-28), matching monitor-map and sdk-js.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

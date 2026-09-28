@@ -2,7 +2,7 @@
 
 This document describes the design of SJVAir's data dashboard. The current direction
 comes from `IDEA.md` (planning brief) and the decisions made while working through its
-Open Questions on 2026-09-23 — each section below notes which question it resolves.
+Open Questions and follow-up reviews (2026-09-23 → 2026-09-28); each section below notes which question it resolves.
 Deferred and ruled-out items live in `DEFERRED.md`; the server's actual data is
 catalogued in `docs/reference/server-data-inventory.md`. The original v1 tab-based
 design (`docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`) is superseded,
@@ -593,8 +593,10 @@ type QueryDescriptor = {
 	dateRange: DateRangeSpec; // set / rolling / custom (see "Widget Creation view")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	selection?: SpatialSelection; // omitted = whole layer
-	resolution?: "auto" | "raw" | "hour" | "day" | "month" | "quarter" | "season" | "year"; // default "auto"
+	resolution?: "auto" | Resolution; // default "auto"
 };
+
+type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "year";
 
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
@@ -661,7 +663,7 @@ type SpatialSelection = {
   for feature-scoped context-menu entries ("Analyze this monitor").
 - **B. Region picking**: uses the **shared place picker** (decided 2026-09-28), a non-map
   component built in **Release 1 step 4** that picks monitors, regions (any type in the
-  hierarchy), or places, with search, hierarchy browsing, and single or multiple
+  hierarchy), or points (`PlaceRef`), with search, hierarchy browsing, and single or multiple
   selection, built on the region-hierarchy metadata. It's reused by Widget Creation's
   accordions, the "now" widgets, Collections item editing, the Map widget (the same
   picker, with the selection also shown on the map; selections sync both ways), and
@@ -687,10 +689,10 @@ Decided 2026-09-23 (IDEA.md Open Question #3), **restructured 2026-09-24**. IDEA
 it the "map sdk (formerly 'monitor-map')". The map toolkit is **split into two
 packages** instead of doing an in-place 4.0 rewrite:
 
-| Package                                   | Contains                                                                                                                                                                                                                                     | Used by                                                                                 |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **`@sjvair/map-sdk`** (new repo, 1.0)     | Per-map core (`createMap`/`MapContext`), the plugin interface and every data-type plugin, `MapView`, **app-level data stores** (e.g. `createMonitorsStore()`), the `terra-draw` drawing plugin, injected config. No routing, no page layouts | This dashboard; `monitor-map`; v3-mobile (directly for stores, and through monitor-map) |
-| **`@sjvair/monitor-map`** (existing repo) | The SJVAir monitor-map _experience_: `MapShell`/`MonitorMapLayout`, routes and detail panels, legends, load screen, and the standalone build sjvair.com imports. **Rebuilt on `map-sdk`** (its next major version)                           | sjvair.com (standalone build); v3-mobile (as a library)                                 |
+| Package                                                   | Contains                                                                                                                                                                                                                                             | Used by                                                                                 |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **`@sjvair/map-sdk`** (new repo; pre-1.0 until validated) | Per-map core (`createMap`/`MapContext`), the plugin interface and every data-type plugin, `MapView`, **app-level data stores** (e.g. `createMonitorsStore()`), the `terra-draw` drawing plugin (later), injected config. No routing, no page layouts | This dashboard; `monitor-map`; v3-mobile (directly for stores, and through monitor-map) |
+| **`@sjvair/monitor-map`** (existing repo)                 | The SJVAir monitor-map _experience_: `MapShell`/`MonitorMapLayout`, routes and detail panels, legends, load screen, and the standalone build sjvair.com imports. **Rebuilt on `map-sdk`** (its next major version)                                   | sjvair.com (standalone build); v3-mobile (as a library)                                 |
 
 Why: the dashboard depends only on the library (no layouts or routing it has to work
 around); monitor-map becomes a real consumer of the plugin API, which keeps it honest;
@@ -728,8 +730,8 @@ any map** (`main.ts`, its Subscriptions/Alerts screens, `MonitorSubscription`).
 
 - **One plugin per data type, each taking a data-source interface** (generalizing
   what `MonitorsDataSource` already does): monitors, region fill/choropleth, HMS
-  smoke, HMS fire, collocation, EV stations, wind, weather, and the `terra-draw`
-  drawing plugin (Q2, opt-in). Plugins for the remaining server datasets — pesticide
+  smoke, HMS fire, collocation, EV stations, wind, weather, and **later** the `terra-draw`
+  drawing plugin (Q2, opt-in; see `DEFERRED.md`). Plugins for the remaining server datasets — pesticide
   use/notices, CalEnviroScreen tracts, CalHeatScore ZIPs, forecast zones, CEIDARS
   facilities, TEMPO rasters — are deferred (see `DEFERRED.md` → "Map plugins"), but
   the plugin interface must accommodate points, polygons, choropleths, and rasters so
@@ -775,7 +777,7 @@ the standalone app is migrated and verified, and that merge needs explicit appro
 v3-mobile (depending on `^3.x`) keeps working unchanged until it migrates. Each step
 needs an approved plan in its repo:
 
-1. `map-sdk` 1.0 (new repo)
+1. `map-sdk` (new repo; pre-1.0, then 1.0 once steps 2 and 3 validate it)
 2. monitor-map rebuilt on `map-sdk` (its next major)
 3. this dashboard's Map widget on `map-sdk`
 4. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map)
@@ -1307,13 +1309,16 @@ type DatasetCatalogEntry = {
   without an adapter are hidden**, so the server can list datasets before the dashboard
   supports them.
 - **A layer with no selection** means "all features" on a map. Charts and calendars
-  **require** a place or selection (a monitor or region).
+  **require** a place or selection (a monitor or region). A **point** given to a range
+  widget (e.g. from the starter's "Change place" bar) is resolved to its smallest
+  containing region with data and stored as that region selection, labeled "(your
+  location)".
 
 **Structure: per-domain meta + a catalog index.**
 
 - Each domain owns a `…/meta/` endpoint (existing: `monitors/meta/`, `regions/meta/`;
   new: `hms/meta/`, `pesticides/meta/`, `calheatscore/meta/`, `forecasts/meta/`,
-  `ces/meta/`, `ceidars/meta/`, `tempo/meta/` as needed).
+  `calenviroscreen/meta/`, `ceidars/meta/`, `tempo/meta/` as needed).
 - A top-level **`meta/datasets/`** catalog lists every dataset and links to its domain
   meta.
 - **Coverage is separate** (it changes with the data); everything else is effectively
@@ -1474,7 +1479,7 @@ separate origin. **The base path is `/explore/`** (decided 2026-09-25).
   - **After go-live**, unfinished features stay on branches or behind a flag.
   - A broken dashboard build would fail the server deploy. This is the same risk
     monitor-map already carries, accepted for now.
-- **Repo visibility** (decided 2026-09-28): `SJVAir/data-dashboard` is being made
+- **Repo visibility** (decided 2026-09-28; done): `SJVAir/data-dashboard` is
   **public** (it was private, which would break the anonymous `git clone` in the
   monitor-map-style import). A history scan found no committed secrets (only
   `.env.example` with public URLs). This matches monitor-map and sdk-js, which are public.
