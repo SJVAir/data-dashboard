@@ -245,7 +245,8 @@ ship, or a specific audience asks for one.
   and Hmong (hmn) message files; a language picker (saving to `User.language` when
   signed in); server `.po` files for sjvair.com (metadata labels/guidance, alert text);
   per-language metadata caching; alerts sent in `User.language`; a formatting fallback
-  for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and v3-mobile. Health guidance
+  for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and v3-mobile (`map-sdk` is translation-ready via its `messages`
+  provider but ships English defaults). Health guidance
   and alert text need human translation or review, not machine-only. **Revisit when**
   translators or funding for translation are available.
 

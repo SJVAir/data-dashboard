@@ -706,6 +706,27 @@ any map** (`main.ts`, its Subscriptions/Alerts screens, `MonitorSubscription`).
   widgets use. **`MapShell`** (full-page layout, routed detail panel, router escape
   hatch) moves to monitor-map, built on `MapView`.
 - **Config is injected**, not read from `import.meta.env` at import (MapTiler key etc.).
+- **Host-provided metadata, messages, and formatting** (decided 2026-09-28). `createMap`
+  accepts three **optional providers**:
+
+  ```ts
+  createMap({
+  	config: { maptilerKey },
+  	metadata?: MetadataProvider, // levels, colors, units, labels from the host's cache
+  	messages?: MessageProvider, // UI strings for legends/tooltips (key → text)
+  	format?: FormatProvider // numbers, dates, times (Pacific)
+  });
+  ```
+
+  - **The dashboard passes all three** (its metadata cache, its Paraglide messages, and its
+    `format` module), so maps follow the metadata, i18n, and Pacific-time rules with a
+    single metadata cache.
+  - **monitor-map and v3-mobile pass nothing.** The defaults: `map-sdk` fetches metadata
+    itself, uses built-in English strings, and formats in Pacific time. Behavior is
+    unchanged.
+  - `map-sdk`'s strings are defined as **message keys with English defaults**, so it's
+    translation-ready.
+
 - **WebGL context budget.** Browsers cap live WebGL contexts per page (~8–16); each
   map is one. Minimized/off-screen map widgets must tear down their map and rebuild on
   restore (affects dashboard layout, Q4).
