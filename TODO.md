@@ -26,11 +26,9 @@ updating the docs after each:
       sjvair.com pages that call the API with the cookie send it too. Not pinned (the user
       is talking with the developer), so those changes land before or with the resticus
       merge. See `ARCHITECTURE.md` → "CSRF protection".
-- [ ] **#11 Email alerts.** `User.email` is optional and unverified, and
-      `USERNAME_FIELD = phone`. Proposed: email alerts require a verified email (a new
-      flow mirroring phone verification) plus one-click unsubscribe. Also confirm that a
-      required phone number is acceptable for people who only want server-saved
-      documents.
+- [x] **#11 Email alerts and accounts**: email alerts need a verified email plus
+      one-click unsubscribe. **Email-only accounts in Release 1**: phone optional, a new
+      email verification flow, login by either; phone flows keep working for v3-mobile.
 - [ ] **#12 Existing SMS subscriptions.** Proposed: migrate each `Subscription` into a
       monitor rule that reproduces today's behavior exactly, and keep the legacy
       endpoints as a compatibility facade so v3-mobile works unchanged.
@@ -284,6 +282,16 @@ package release needs explicit per-release approval.
   under `/explore/` (`VITE_PROD_URL` only for Tauri/standalone builds).
 - Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
   server deploy).
+
+**Release 1, parallel track: email-only accounts** (approved sjvair.com plan first)
+
+- sjvair.com:
+  - make `phone` optional (an account needs a verified phone or email; handle
+    `USERNAME_FIELD`)
+  - an email verification flow
+  - login and registration by email or phone
+  - keep the phone flows working for v3-mobile
+- sdk-js: account-call updates for email verification and email registration.
 
 **Release 1, parallel track: server-backed documents** (approved sjvair.com plan first)
 

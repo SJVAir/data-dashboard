@@ -96,6 +96,10 @@ needs explicit per-release approval.
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
   pinning), a Django catch-all route for `/explore/*`, and Heroku config vars for
   `VITE_*` keys. Merging to dashboard `main` is the deploy approval point.
+- **Parallel track: email-only accounts** (sjvair.com + sdk-js, decided 2026-09-28).
+  Phone becomes optional; an account needs a verified phone or email; a new email
+  verification flow; login and registration by either. Phone flows keep working for
+  v3-mobile. It lands before sign-in-dependent features ship.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js + django-resticus,
   decided 2026-09-24). **First, the CSRF fix** in django-resticus (with the SDK header and
   sjvair.com page updates), before any cookie-based saves. The `SavedDocument` model and endpoints, live share links (read-only
@@ -124,7 +128,8 @@ needs explicit per-release approval.
   - generalize `Subscription` into alert rules for monitor/region pollutants (gated by
     available pollutants), forecasts, and nearby pesticide notices
   - level-category thresholds, caps, and quiet hours
-  - SMS for every alert type, a new email channel, and the alert inbox API
+  - SMS for every alert type, a new email channel (verified email, one-click
+    unsubscribe), and the alert inbox API
   - alert metadata
 - sdk-js wrappers for the new alert endpoints.
 - **In-app session sign-in**: a `POST account/session/` endpoint plus an in-app sign-in

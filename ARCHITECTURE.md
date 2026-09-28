@@ -159,6 +159,11 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   application method (aerial/ground) and chemical category (e.g. fumigants); notify when
   the notice is published, optional reminder the day before application.
 
+**Email alerts** (decided 2026-09-28): require a **verified email** (the flow above) and
+include **one-click unsubscribe** (the `List-Unsubscribe` header plus a link), which major
+providers expect from automated senders. A rule can't use a channel until it is verified,
+and the rule UI prompts for verification when needed.
+
 **Delivery channels (decided 2026-09-24):** channels are chosen **per rule**. First
 iteration: **SMS** (available for **every** alert type — daily caps and quiet hours are
 the cost control), **email** (new; natural default for schools and slow alerts), and
@@ -283,6 +288,24 @@ limitation. Consequences:
 Decided 2026-09-24. Uses the existing **sjvair.com accounts** (register, login,
 password reset, phone verification — all wrapped by `@sjvair/sdk` `account/*`); no new
 auth system. See "Authentication" for cookie vs token.
+
+**Email-only accounts (decided 2026-09-28, Release 1).** Today every account **requires a
+phone number**: `phone` is unique and required, it is `USERNAME_FIELD`, and registration
+immediately texts a verification code. Email is optional and never verified. That would
+force teachers, researchers, and anyone without a mobile phone to give and verify a
+phone number just to sync dashboards. So in Release 1 (sjvair.com accounts work, approved
+plan first):
+
+- **`phone` becomes optional.** An account needs **either a verified phone or a verified
+  email**.
+- **A new email verification flow**, mirroring phone verification (an emailed link).
+- **Login by email or phone** (the existing `identifier` field), and registration by
+  either.
+- **SMS alerts require a verified phone; email alerts require a verified email.** Users
+  can add the other later.
+- **Must not break existing consumers:** phone-based registration and login keep working
+  for v3-mobile and existing users. The username-field change needs care (phone-less
+  users), which the plan must address.
 
 **Everything works anonymously except what needs the server to act or persist for
 you:**
