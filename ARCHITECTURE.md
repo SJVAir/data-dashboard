@@ -378,6 +378,34 @@ you:**
   small server change, see "Sign-in flow"), and for token builds a session-only token
   via the platform adapter. A dedicated guest mode is deferred.
 
+### Security baseline for untrusted content
+
+Decided 2026-09-28. The dashboard runs on **sjvair.com's own origin**, with the session
+cookie and a JS-readable CSRF cookie, so an XSS bug in `/explore/` could act as the
+signed-in user (change password, delete account, SMS sign-ups). Untrusted content enters
+through **Notes Markdown** (shown to anyone opening a share link) and through **`/import#…`**,
+files, and server documents.
+
+1. **Validate every incoming document**, from a file, URL fragment, or the server, against
+   a schema (zod, as in the SDK) and a size limit **before** migration or use. Invalid
+   documents are rejected with a clear message and never partly loaded.
+2. **Safe Markdown:** Notes render with **raw HTML off** and a link allowlist (`http`,
+   `https`, `mailto`).
+3. **A content security policy on `/explore/*`**, sent by the Django view: the
+   browser-enforced backstop if a bug slips past 1–2.
+   - `script-src 'self'` (plus `'wasm-unsafe-eval'` only where WebAssembly needs it): no
+     inline scripts or handlers, and no third-party scripts.
+   - `worker-src 'self' blob:`.
+   - Explicit `connect-src`/`img-src` hosts (the sjvair.com API, MapTiler, NREL, …), so
+     injected code can't send data elsewhere.
+   - `style-src` may need `'unsafe-inline'` (Svelte and map libraries set inline styles).
+   - **Rollout:** deploy in **report-only** mode first, then enforce once clean. It
+     applies only to `/explore/*`.
+4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
+   more), revocable.
+5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
+   rate, alongside the body size limit.
+
 ### CSRF protection for cookie-authenticated API writes
 
 Decided 2026-09-28. Verified in code:

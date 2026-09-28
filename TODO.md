@@ -215,6 +215,8 @@ package release needs explicit per-release approval.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
+- Schema validation (zod) plus size limits for every incoming document (file, fragment,
+  server) before migration; reject invalid documents cleanly.
 - Minimal Collections: the store, the drawer, "Add to collection ▸", staging that freezes
   rolling ranges to fixed Pacific dates (with a per-item "keep rolling" toggle), and a
   placeholder
@@ -300,7 +302,7 @@ package release needs explicit per-release approval.
   - Calendar (contribution)
   - Current conditions
   - Data table
-  - Notes
+  - Notes (safe Markdown: raw HTML off, link allowlist)
   - Hour × weekday heatmap
   - Forecast strip
   - "Can we go outside?"
@@ -332,6 +334,8 @@ package release needs explicit per-release approval.
     forcing trailing slashes
   - confirm no existing CMS page uses `explore`
 - `VITE_*` keys as Heroku config vars.
+- A CSP on `/explore/*` from the Django view: report-only first, then enforced
+  (`ARCHITECTURE.md` → "Security baseline").
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
 - This repo: Vite `base: "/explore/"`, and `setOrigin(location.origin)` when served
@@ -362,6 +366,8 @@ django-resticus plans first)
   of it lands before cookie-based saves ship. Merging to resticus `develop` needs the
   user's explicit approval.
 
+- Share tokens ≥ 128 bits (`secrets.token_urlsafe(16)`+); per-user document-count and
+  save-rate limits.
 - sjvair.com: the `SavedDocument` model and endpoints (`id` = client UUID, visibility,
   `version`, revocable `share_token`, body size limit).
 - sdk-js wrappers; make `apiToken` optional on account calls that require it today.

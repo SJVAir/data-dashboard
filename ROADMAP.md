@@ -42,7 +42,8 @@ needs explicit per-release approval.
      duplicate, rename, delete with an undo toast)
    - local durability safeguards (`storage.persist()`, status note, backup nudge, quota
      errors) and "Clear my data"
-   - Export/Import `.json` and URL-fragment sharing (`/import`)
+   - Export/Import `.json` and URL-fragment sharing (`/import`), with schema validation and size limits
+     on every incoming document
    - **a fresh start** (decided 2026-09-24): the v1 app shell, sidebar, tab routes, and
      tab pages are removed; the new top-nav shell and route table replace them from this
      step on. The v1 app was never deployed, so there are no users or URLs to migrate.
@@ -100,7 +101,7 @@ needs explicit per-release approval.
    - Calendar (contribution)
    - Current conditions
    - Data table
-   - Notes
+   - Notes (safe Markdown: raw HTML off, link allowlist)
    - Hour × weekday heatmap
    - Forecast strip
    - "Can we go outside?"
@@ -126,7 +127,8 @@ needs explicit per-release approval.
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
   pinning), a Django catch-all route for `/explore/*`, and Heroku config vars for
-  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. Also:
+  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. A CSP on `/explore/*` (report-only
+  first, then enforced). Also:
   `ensure_csrf_cookie` and no forced trailing slashes on `/explore/*`, and a check that no
   CMS page uses `explore`. This repo: Vite `base: "/explore/"` and
   `setOrigin(location.origin)`. Also: confirm the repo is public (done 2026-09-28) and
