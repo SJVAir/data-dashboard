@@ -51,6 +51,17 @@ FEM/FRM = 3.0; LCS = 1.0 × health score / 3. `station_count` and `weight` are s
 Coarser resolutions roll up from finer ones by cron. Monthly and longer rollups exist only
 after the period ends.
 
+**Place endpoints** (added 2026-09-28; the original survey missed them). All are wrapped by the SDK:
+
+- `regions/places/search/?q=&type=`: name search, high-confidence matches ranked by
+  similarity (`searchRegionPlaces`).
+- `regions/places/lookup/?q=&type=`: a name resolved to the single best region; without
+  `type`, the containing "place" via City/CDP fallback (`lookupRegionPlace`).
+- `regions/?within=<id>&type=`: children inside a parent region (excludes border-touching
+  and sliver overlaps).
+- There is **no lookup by coordinates or monitor** yet; extending `places/lookup/` is
+  planned.
+
 ## Alerts
 
 - `Subscription(user, monitor, level)`. The threshold is an AQ **level category**, not a
