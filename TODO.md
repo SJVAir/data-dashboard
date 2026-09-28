@@ -1,13 +1,12 @@
 # TODO / Current Status
 
-Last updated: 2026-09-24
+Last updated: 2026-09-28
 
 ## Start here
 
-**⏸ Resume here: final-review decisions in progress (paused 2026-09-24, again 2026-09-25).** A three-way
-final review found 12 gaps; #1–#3, #8, and #9 are decided (map-sdk split, dropdown
-picker, dataset definition). Continue **one at a time** with these proposed defaults,
-updating the docs after each:
+**Final-review decisions: complete (2026-09-24 → 2026-09-28).** A three-way final review
+found 12 gaps; all are decided and recorded. #1–#3, #8 and #9 cover the map-sdk split, the
+dropdown picker, and the dataset definition. The rest:
 
 - [x] **#4 Resolution for data without summaries**: catalog-driven; daily-native data
       as-is; weather/PM10 raw with a span cap, downsampled in a worker; server summaries
@@ -34,8 +33,6 @@ updating the docs after each:
       "back to normal" means below the user's threshold (today's all-clear rarely reaches
       anyone). Legacy endpoints stay as a logged compatibility layer; their removal and the
       v3-mobile update are deferred.
-
-After these, push `planning` (ask first).
 
 **Planning is complete (2026-09-23 → 2026-09-24, branch `planning`).** All IDEA.md Open
 Questions and the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
