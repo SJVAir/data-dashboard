@@ -68,7 +68,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   conflicts with the Pacific-time rule and can't be reused as-is. This repo's
   `DateRangeSpec` resolution lives with the `format` module in Foundations. **Still open:**
   whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Decide
-  in** the `map-sdk` 1.0 spec.
+  in** the `map-sdk` 1.0 spec (also listed under "Open decisions").
 
 - **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
   sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
@@ -190,7 +190,14 @@ ship, or a specific audience asks for one.
   installed sites. Brings in the dashboard's **first service worker** (none in Release 1;
   `ARCHITECTURE.md` → "Platform strategy"),
   VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
-  iteration (SMS + email + inbox) ships.
+  iteration (SMS + email + inbox) ships. That service worker also enables **in-browser
+  self-monitoring notifications on Android/iOS** (desktop-only in Release 1). **Optional
+  add-on:** app-shell caching, decided when the worker is built.
+- **v3-mobile PM2.5 gauge on the old scale.** _Noted 2026-09-28 (docs review)._
+  `v3-mobile/src/components/PMGauge.svelte` hardcodes the full pre-2024 PM2.5 scale. The
+  sjvair.com breakpoint fix doesn't reach it. **Revisit with** the PM2.5 breakpoint fix
+  (ideally the gauge reads metadata levels). Needs a v3-mobile plan and an app release
+  (explicit approval).
 - **v3-mobile on the new alert-rule endpoints.** _Deferred 2026-09-28._ Release 2 keeps
   v3-mobile working through the legacy subscription endpoints, but dashboard-only rules
   (regions, forecasts, pesticide notices) don't appear in the app. **Revisit when**
@@ -297,12 +304,19 @@ point.
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
 - **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide
-  in** the Release 3 spec.
+  in** the Release 3 step 1 spec (Analysis engine).
 - **User-defined analysis editor UI** (IDEA.md Q6: "What should user-defined analysis
   creation look like"). The data model (`AnalysisSpec`) is decided; the editor UX isn't.
-  **Decide in** the Release 3 spec.
+  **Decide in** the Release 3 step 1 spec (Analysis engine).
 - **Geographic crosswalk method**: monitor→region, tract (CES), ZIP (CalHeatScore),
-  county/MTRS (PUR), and area weighting. **Decide in** the Release 3 spec.
+  county/MTRS (PUR), and area weighting. **Decide in** the Release 3 step 1 spec (Analysis
+  engine).
+- **Shared date-range helper home** (see "Platform & infrastructure"). **Decide in** the
+  `map-sdk` 1.0 spec.
+- **JupyterLite app: owner repo and deploy path** (docs review 2026-09-28). Options: a
+  separate build in this repo, or a new repo, imported by sjvair.com like the dashboard,
+  with a Django view setting COOP/COEP only on `/notebooks/`. **Decide in** the Release 3
+  step 4 spec (JupyterLite app).
 
 ## Decided against (kept for the record, not planned)
 
@@ -312,8 +326,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   Tauri-build entry above.
 - **Time scrubbing or time selection inside map widgets**: _2026-09-23, Q2_. Time is fixed
   per widget, and calendar and chart widgets handle narrowing the time range.
-- **A long-lived monitor-map 3.x compat shim**: _2026-09-23, Q3_. We chose a clean break
-  with coordinated consumer migration (restructured 2026-09-24 as the `map-sdk` split).
+- **A long-lived monitor-map 3.x compat shim**: _2026-09-23, Q3_. No compat shim; with the
+  `map-sdk` split (2026-09-24), consumers migrate one at a time (v3-mobile stays on `^3.x`
+  until its own migration).
 - **An in-place monitor-map 4.0 rewrite**: _2026-09-24_. Replaced by splitting out
   `@sjvair/map-sdk` (library) with monitor-map rebuilt on it (experience), which also
   removes the risk of shipping an unfinished 4.0 through sjvair.com's unpinned import.
@@ -354,8 +369,8 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   (`/dashboard/:id`): _2026-09-25_. Chose `/explore/` plus plural collections
   (`/explore/dashboards/:id`) so IDs never share a level with fixed words like
   `analysis` and `shared`, and the base names the whole app.
-- **Offline-first for the web build** (the app-shell service worker that opens the app
-  offline, and a persistent IndexedDB/OPFS data cache): _2026-09-28_. Air-quality data is
+- **Offline-first for the web build** (a Release 1 app-shell service worker that opens the
+  app offline, and a persistent IndexedDB/OPFS data cache): _2026-09-28_. Air-quality data is
   live, schools are online, and researchers export notebooks. Release 1 keeps local
   documents, sync, manifest-based installability, and an offline banner. A service worker
   comes with web push; true offline-first stays a Tauri concern.

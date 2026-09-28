@@ -116,7 +116,8 @@ Decided 2026-09-24: **two separate mechanisms.**
 level-colored threshold lines on charts, current-conditions tiles that change color /
 pulse on a level change, a toast when a newly arrived value crosses a threshold, and an
 opt-in browser notification **while the dashboard is open** (through the platform
-adapter). Thresholds default to metadata levels and are overridable per widget. Needs
+adapter). **Desktop browsers only in Release 1:** Android Chrome and iOS need a service
+worker to show notifications, and that arrives with web push (see `DEFERRED.md`). Thresholds default to metadata levels and are overridable per widget. Needs
 no server changes; ships with the widgets.
 
 **2. Automated alerting — server-side, requires an account.** The dashboard only
@@ -209,7 +210,8 @@ Channel reference:
 
 Built with and against `sjvair.com` (server), `sdk-js` (`@sjvair/sdk`), and
 `monitor-map` (map experience, also used by sjvair.com and `v3-mobile`), and the planned
-`map-sdk` (map library split out of monitor-map). They may need changes,
+`map-sdk` (map library split out of monitor-map), and `django-resticus` (the API framework,
+`~/workspace/django-resticus`). They may need changes,
 but **must not break their existing use cases**, and **each change needs an approved
 plan first**.
 
@@ -264,16 +266,18 @@ offline export a notebook bundle. What Release 1 keeps:
   anonymous storage, autosave, and conflicts from two tabs or devices even when online.
 - **Installable via a web app manifest only** ("Add to Home Screen" / Install). An
   installed site is exempt from Safari's 7-day storage eviction, which protects anonymous
-  users' dashboards. Modern browsers need only the manifest (and icons), not an offline
+  users' dashboards _created in the installed app_. On iOS the home-screen app likely has
+  storage separate from Safari (unverified), so dashboards made in Safari first are moved
+  with Export/Import. Modern browsers need only the manifest (and icons), not an offline
   service worker.
 - **An offline banner** ("You're offline, data may be out of date") from the browser's
   online/offline events, through the platform adapter.
 
 Removed from Release 1: the **app-shell service worker** (the app opening offline, the
 update prompt, cache versioning) and the **persistent data cache**. A service worker
-arrives with **web push**, which needs one anyway (including on iOS); app-shell caching
-can come with it if wanted, scoped to `/explore/` (JupyterLite's worker stays on
-`/notebooks/`). True offline-first remains a Tauri concern (see `DEFERRED.md`).
+arrives with **web push**, which needs one anyway (including on iOS), scoped to
+`/explore/` (JupyterLite's worker stays on `/notebooks/`). Whether it also caches the app
+shell then is an optional add-on tracked with web push in `DEFERRED.md`. True offline-first remains a Tauri concern (see `DEFERRED.md`).
 
 When to actually add Tauri: once there's a concrete desktop-only win (most likely
 background alerting from the tray, or large offline datasets for researchers). Before
@@ -322,8 +326,8 @@ auth system. See "Authentication" for cookie vs token.
 phone number**: `phone` is unique and required, it is `USERNAME_FIELD`, and registration
 immediately texts a verification code. Email is optional and never verified. That would
 force teachers, researchers, and anyone without a mobile phone to give and verify a
-phone number just to sync dashboards. So in Release 1 (sjvair.com accounts work, approved
-plan first):
+phone number just to sync dashboards. So in Release 1 (sjvair.com accounts work plus sdk-js
+changes, approved plans first):
 
 - **`phone` becomes optional.** An account needs **either a verified phone or a verified
   email**.
@@ -339,12 +343,12 @@ plan first):
 **Everything works anonymously except what needs the server to act or persist for
 you:**
 
-| Anonymous (local via platform adapter)                 | Requires an account                        |
-| ------------------------------------------------------ | ------------------------------------------ |
-| Dashboards, widgets, Widget Creation                   | Automated alerts (SMS/email) + alert inbox |
-| Collections, analyses, notebook export, JupyterLite    | Server-backed documents & live share links |
-| Self-monitoring (client-side thresholds/notifications) | Cross-device sync                          |
-| File / URL sharing (fork on open)                      |                                            |
+| Anonymous (local via platform adapter)                 | Requires an account                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Dashboards, widgets, Widget Creation                   | Automated alerts (SMS/email) + alert inbox                                            |
+| Collections, analyses, notebook export, JupyterLite    | Creating server-backed documents & live share links (opening a link needs no account) |
+| Self-monitoring (client-side thresholds/notifications) | Cross-device sync                                                                     |
+| File / URL sharing (fork on open)                      |                                                                                       |
 
 - **Sign-in is lazy/contextual** — prompted only when needed (e.g. inside the "Create
   alert" flow), never as a gate on first load.
@@ -672,7 +676,9 @@ needs an approved plan in its repo:
 
 1. `map-sdk` 1.0 (new repo)
 2. monitor-map rebuilt on `map-sdk` (its next major)
-3. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map)
+3. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map). How
+   this relates to the dashboard's Map widget and go-live is decided below (see
+   `ROADMAP.md` step 5).
 4. this dashboard's Map widget on `map-sdk`
 
 ## Dashboard layout mechanics
@@ -1207,7 +1213,7 @@ type DatasetCatalogEntry = {
 
 1. **Dataset catalog**: label, description, geography type, available resolutions,
    units, and source attribution/license. Needed by the Widget Creation picker,
-   `AnalysisSpec` input filters, and export manifests. See "What a dataset is" below.
+   `AnalysisSpec` input filters, and export manifests. See "What a dataset is" above.
 2. **Coverage/availability** — first/last data date per dataset and per
    monitor/region × entry type; which summary resolutions are complete (monthly+
    rollups exist only after the period ends).
@@ -1306,6 +1312,12 @@ separate origin. **The base path is `/explore/`** (decided 2026-09-25).
   still be called the "SJVAir Dashboard" in the UI; only the URL uses `explore`.
 - **Before hosting:** confirm no existing sjvair.com CMS page uses `explore` (Django's
   final catch-all serves prose pages).
+- **CSRF cookie and trailing slashes** (docs review 2026-09-28): nothing in sjvair.com
+  calls `ensure_csrf_cookie`, so a user landing directly on `/explore/` may have no
+  `csrftoken` cookie, and every cookie-based save would fail after the resticus CSRF fix.
+  The `/explore/*` view must be decorated with **`ensure_csrf_cookie`**, and must **not
+  force trailing-slash redirects** (the catch-all `PageTemplate` does; the route table has
+  no trailing slashes). This is the hosting track's responsibility.
 
 - **Same origin, so cookie auth.** Users signed in to sjvair.com are signed in to the
   dashboard. There is no token handling, no token in browser storage, and no dependence

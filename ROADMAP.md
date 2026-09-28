@@ -5,7 +5,7 @@ planning session. Design lives in `ARCHITECTURE.md`, current status in `TODO.md`
 everything deferred in `DEFERRED.md`.
 
 **Every numbered item below is its own sub-project** with its own spec, then plan, then
-implementation. Sub-projects in a sibling repo (sjvair.com, sdk-js, map-sdk, monitor-map,
+implementation. Sub-projects in a sibling repo (sjvair.com, sdk-js, django-resticus, map-sdk, monitor-map,
 v3-mobile) need an approved plan in that repo before any change. Publishing any package
 needs explicit per-release approval.
 
@@ -65,7 +65,7 @@ needs explicit per-release approval.
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - HTTP cache headers on the summary endpoints
-   - hardcoded-value cleanup in sjvair.com and this repo, and fixing sdk-js `api-urls.md`
+   - hardcoded-value cleanup in sjvair.com, and fixing sdk-js `api-urls.md`
 4. **Widget Creation and the non-map widgets**
    - Widget Creation view (catalog-driven dataset accordions, layers, advanced resolution
      override)
@@ -96,7 +96,10 @@ needs explicit per-release approval.
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
   pinning), a Django catch-all route for `/explore/*`, and Heroku config vars for
-  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point.
+  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. Also:
+  `ensure_csrf_cookie` and no forced trailing slashes on `/explore/*`, and a check that no
+  CMS page uses `explore`. This repo: Vite `base: "/explore/"` and
+  `setOrigin(location.origin)`.
 - **Parallel track: email-only accounts** (sjvair.com + sdk-js, decided 2026-09-28).
   Phone becomes optional; an account needs a verified phone or email; a new email
   verification flow; login and registration by either. Phone flows keep working for
@@ -106,7 +109,9 @@ needs explicit per-release approval.
   sjvair.com page updates), before any cookie-based saves. The `SavedDocument` model and endpoints, live share links (read-only
   plus "Make a copy"), versioned local-first sync (automatic replay of non-overlapping
   edits; a prompt only on true overlaps), local →
-  account migration, and the sign-in flow (which Release 2 reuses). Anonymous users
+  account migration, the sign-in flow (Release 2 replaces the redirect with an in-app
+  dialog), sync scope and sign-out keep/remove, and the model details (server keeps the
+  client UUID, revocable `share_token`, body size limit). Anonymous users
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (plus a server "remember me" change); sdk-js
   makes `apiToken` optional on account calls.
@@ -117,8 +122,8 @@ needs explicit per-release approval.
   decided in the hosting-track plan.
 
 6. **Starter dashboard and go-live.** The default dashboard a first-time visitor sees
-   (not a blank page) gains its map + calendar widgets once step 5 lands. Before that it
-   uses non-map widgets. **The `sjvair.com/explore/` route goes live when Release 1 is
+   (not a blank page) uses non-map widgets, including calendars, from step 4. The Map
+   widget joins once step 5 lands. **The `sjvair.com/explore/` route goes live when Release 1 is
    complete.** Until then the route stays disabled or hidden (except for the private
    preview), so work in progress on `main` isn't public. Merges still need explicit
    approval.
@@ -152,7 +157,7 @@ needs explicit per-release approval.
 3. **Export-to-notebook bundles**: Python first, then R, then Deno/TypeScript.
 4. **JupyterLite app**: Pyodide only, bundled for offline use, a separate static app.
 
-The Release 3 spec must also decide what IDEA.md and the planning session left open:
+The Release 3 step 1 spec (Analysis engine) must also decide what IDEA.md and the planning session left open:
 
 - the Analysis view's layout (Collections drawer, list of analyses, results)
 - the user-defined analysis editor UI

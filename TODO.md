@@ -64,13 +64,14 @@ updating the docs after each one.
       → "Platform strategy" and "Authentication".
 - [x] **Q2 Map widget partial dataset selection** → Stage query descriptors, not data;
       one `SpatialSelection` model fed by feature picking (A), region picking (B), and
-      later drawn shapes (C, opt-in monitor-map plugin). No map time scrubbing. See
+      later drawn shapes (C, opt-in map plugin; now `map-sdk`). No map time scrubbing. See
       `ARCHITECTURE.md` → "Widget data selection".
 - [x] **Q3 Map SDK modularity / plugin system** → `@sjvair/monitor-map` 4.0 clean
       break: per-map `MapContext` instead of singletons, factory plugins with data-source
       interfaces, `MapShell` + lightweight `MapView`, injected config; migrate
-      sjvair.com and `v3-mobile` in the same effort. See `ARCHITECTURE.md` →
-      "Map SDK".
+      sjvair.com and `v3-mobile` in the same effort (restructured 2026-09-24 as
+      `@sjvair/map-sdk` 1.0 plus monitor-map rebuilt on it; consumers migrate one at a
+      time). See `ARCHITECTURE.md` → "Map SDK".
 - [x] **Q4 Dashboard layout mechanics** → Snapping grid (no overlap), pure layout
       engine + CSS Grid rendering, fullscreen within dashboard area, minimize-to-taskbar
       with compaction, vertical scrolling with cooperative map gestures, multiple
@@ -141,6 +142,16 @@ new Moderate boundary (9.1) but the old upper boundaries — `VERY_UNHEALTHY(150
 `monitors/meta/`, so maps, legends, and alerts above "Unhealthy" misclassify in every
 consumer. Also check the inline breakpoints in the PM2.5 entry class. Needs its own
 approved sjvair.com plan; decided 2026-09-23 to fix independently of the dashboard.
+**Every consumer found so far** (docs review 2026-09-28):
+
+- sjvair.com: `entries/levels.py`, the inline breakpoints in
+  `entries/models/particulates.py`, `generate_group_map.py`, `entries/tests/test_levels.py`,
+  and the guideline templates
+- monitor-map: the `150.5` fallback in `monitors-cluster-renderer.ts` (cleanup folds into the
+  map-sdk rebuild)
+- **v3-mobile**: `src/components/PMGauge.svelte` hardcodes the full pre-2024 scale
+  (12.1/35.5/55.5/150.5/250.5). Tracked in `DEFERRED.md`; it needs its own plan and an app
+  release.
 
 ## Work breakdown by ROADMAP step
 
@@ -183,7 +194,7 @@ package release needs explicit per-release approval.
   - pause when the tab is hidden
   - last-requested-wins
 - Dataset adapter registry keyed by catalog id; hide catalog entries with no adapter
-  (`ARCHITECTURE.md` → "What a dataset is").
+  (`ARCHITECTURE.md` → "Metadata as source of truth" → "What a dataset is").
 - `QueryDescriptor` type: one definition, in `ARCHITECTURE.md` → "Widget data selection".
 - Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
@@ -225,8 +236,8 @@ package release needs explicit per-release approval.
 
 - Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
   hardcoding pollutants.
-- In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "What a dataset
-  is"), the coverage endpoint, per-domain scale metas
+- In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
+  "What a dataset is"), the coverage endpoint, per-domain scale metas
   (hms, calheatscore, forecasts, AQI), region hierarchy, choice lists, and
   display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
@@ -239,8 +250,8 @@ package release needs explicit per-release approval.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
-- The **starter dashboard** (first-visit default) with non-map widgets; map and calendar
-  widgets join in step 6.
+- The **starter dashboard** (first-visit default) with non-map widgets, including
+  calendars; the Map widget joins in step 6.
 - The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), a place picker for
   "now" widgets, and a live preview.
@@ -278,7 +289,9 @@ package release needs explicit per-release approval.
 - sjvair.com:
   - an import script that clones and builds this repo's `main` during the Heroku deploy
     (modeled on `scripts/import-monitor-map.sh`; no pinning)
-  - a Django catch-all route for `/explore/*`
+  - a Django catch-all route for `/explore/*`, decorated with `ensure_csrf_cookie` and not
+    forcing trailing slashes
+  - confirm no existing CMS page uses `explore`
   - `VITE_*` keys as Heroku config vars
 - This repo: Vite `base: "/explore/"`, and `setOrigin(location.origin)` when served
   under `/explore/` (`VITE_PROD_URL` only for Tauri/standalone builds).
@@ -295,6 +308,8 @@ first)
   - login and registration by email or phone
   - keep the phone flows working for v3-mobile
 - sdk-js: account-call updates for email verification and email registration.
+- Lands before sign-in-dependent features ship. Fold the server "remember me" change into
+  this plan, since both change the login page.
 
 **Release 1, parallel track: server-backed documents** (approved sjvair.com, sdk-js, and
 django-resticus plans first)
@@ -305,12 +320,12 @@ django-resticus plans first)
   cookie. Order: the pages and SDK are ready before or with the resticus merge, and all
   of it lands before cookie-based saves ship.
 
-- sjvair.com: the `SavedDocument` model and endpoints (visibility, `version`).
-- sdk-js wrappers.
+- sjvair.com: the `SavedDocument` model and endpoints (`id` = client UUID, visibility,
+  `version`, revocable `share_token`, body size limit).
+- sdk-js wrappers; make `apiToken` optional on account calls that require it today.
 - Dashboard:
   - the sign-in flow: redirect to sjvair.com login/registration with `?next=`; a
     server "remember me" change (session expires at browser close when unchecked)
-  - sdk-js: make `apiToken` optional on account calls that require it today
   - versioned local-first sync: automatic replay of non-overlapping edits, and a prompt
     (keep mine / use the other / save mine as a copy) on true overlaps
   - live share links (read-only plus "Make a copy")
@@ -319,8 +334,8 @@ django-resticus plans first)
 
 **Release 1, step 6: Starter dashboard and go-live**
 
-- The default first-visit dashboard gains its map and calendar widgets (non-map widgets
-  until step 5).
+- The default first-visit dashboard gains the Map widget (it has non-map widgets,
+  including calendars, from step 4).
 - Go-live: enable the `sjvair.com/explore/` route once Release 1 is complete.
 
 **Release 1: private preview (from about step 4)**
