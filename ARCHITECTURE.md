@@ -1341,11 +1341,19 @@ type DatasetCatalogEntry = {
 
 **Shared action tiers** (decided 2026-09-28). Scales with different step counts and names
 (6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every
-level of every scale. A tier means a _recommended action_ (0 = no precautions … 4 =
-everyone avoids outdoor activity). Assignments are a public-health judgment kept in server
-metadata; **the user decides the tier assignments** (see `DEFERRED.md` → "Open
-decisions"). **Heat guidance text uses CalHeatScore's official recommended actions**
-(confirmed 2026-09-28), stored in `calheatscore/meta/`. Every scale in the metadata (including smoke density in Release 1) gets tiers, and any later scale joins the same tiers.
+level of every scale.
+
+- **The tier scale is CalHeatScore's own 0–4 scale.** Heat maps one to one (Low 0, Mild 1,
+  Moderate 2, High 3, Severe 4), and each tier's meaning comes from CalHeatScore's
+  **official recommended actions**, which are also the heat guidance text stored in
+  `calheatscore/meta/`.
+- **Only the air-quality side is a judgment call:** which tier each of the 6 AQ levels
+  maps to (e.g. is Unhealthy for Sensitive Groups a 2; do Very Unhealthy and Hazardous both
+  map to 4). **The user decides these** (see `DEFERRED.md` → "Open decisions"). The
+  mapping is kept in server metadata.
+- Every other scale in the metadata (including smoke density in Release 1) is mapped onto
+  the same tiers. Trade-off: tier meanings are anchored to CalHeatScore's definitions, and
+  a change there would mean revisiting the mapping (easy, since it's metadata).
 
 - **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
   both conditions beneath it; ties show both guidance texts. Only tier numbers are

@@ -49,9 +49,9 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
-3. Before the step 3 metadata plan: **the user decides the action-tier assignments**
-   (`DEFERRED.md` → "Open decisions"). Heat guidance uses CalHeatScore's official
-   recommended actions.
+3. Before the step 3 metadata plan: **the user maps the 6 AQ levels onto CalHeatScore's
+   0–4 tiers** (`DEFERRED.md` → "Open decisions"). Heat maps one to one and uses
+   CalHeatScore's official guidance.
 4. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
    **metadata enablers**, **hosting under `/explore/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
@@ -248,8 +248,9 @@ package release needs explicit per-release approval.
   hardcoding pollutants.
 - In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
   "What a dataset is"), the coverage endpoint, per-domain scale metas
-  (hms, calheatscore with per-score guidance, forecasts, AQI), plus a shared `tier` (0–4)
-  on every level of every scale (the user supplies assignments and wording), region
+  (hms, calheatscore with per-score guidance, forecasts, AQI), plus a shared `tier` (0–4;
+  CalHeatScore's scale, heat mapped one to one) on every level of every scale (the user
+  supplies the AQ-level mapping), region
   hierarchy, choice lists, and
   display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
