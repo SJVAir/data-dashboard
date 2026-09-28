@@ -103,7 +103,8 @@ needs explicit per-release approval.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js + django-resticus,
   decided 2026-09-24). **First, the CSRF fix** in django-resticus (with the SDK header and
   sjvair.com page updates), before any cookie-based saves. The `SavedDocument` model and endpoints, live share links (read-only
-  plus "Make a copy"), versioned local-first sync with conflict prompts, local →
+  plus "Make a copy"), versioned local-first sync (automatic replay of non-overlapping
+  edits; a prompt only on true overlaps), local →
   account migration, and the sign-in flow (which Release 2 reuses). Anonymous users
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (plus a server "remember me" change); sdk-js

@@ -183,7 +183,7 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   application method (aerial/ground) and chemical category (e.g. fumigants); notify when
   the notice is published, optional reminder the day before application.
 
-**Email alerts** (decided 2026-09-28): require a **verified email** (the flow above) and
+**Email alerts** (decided 2026-09-28): require a **verified email** (the verification flow in "Accounts & anonymous use") and
 include **one-click unsubscribe** (the `List-Unsubscribe` header plus a link), which major
 providers expect from automated senders. A rule can't use a channel until it is verified,
 and the rule UI prompts for verification when needed.
@@ -200,7 +200,7 @@ Channel reference:
 | Channel                  | Reaches user with dashboard closed? | Notes                                                                                                                                     |
 | ------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | SMS                      | Yes                                 | Exists; per-message cost; verified phone                                                                                                  |
-| Email                    | Yes                                 | Cheap to add via Django                                                                                                                   |
+| Email                    | Yes                                 | Cheap to add via Django; verified email; one-click unsubscribe (`List-Unsubscribe`)                                                       |
 | Web push                 | Mostly                              | Desktop needs the browser running; Android works; iOS only for home-screen-installed sites. Needs a service worker + VAPID + server table |
 | Mobile app push          | Yes                                 | Would require FCM/APNs in `v3-mobile` — separate project                                                                                  |
 | In-dashboard alert inbox | No                                  | Not delivery — history of what fired, shown on next open                                                                                  |
@@ -391,7 +391,8 @@ pinning with its developer): sjvair.com installs resticus `develop`, so merging 
 there reaches production at the next server deploy. The sjvair.com pages that use the
 cookie and the SDK header must therefore be ready **before or together with** that merge,
 and all of it must land before the dashboard's cookie-based saves ship. Needs approved
-plans in resticus, sjvair.com, and sdk-js; any resticus release needs explicit approval.
+plans in resticus, sjvair.com, and sdk-js. **Merging to resticus `develop` needs explicit
+approval** (it's effectively a production deploy while unpinned), as does any resticus release.
 
 ### Sign-in flow
 
@@ -403,7 +404,8 @@ approach is staged:
 - **Release 1: redirect.** "Sign in" / "Create account" go to sjvair.com's own pages
   (`/account/login/?next=/explore/…`, registration likewise) and return to the same
   dashboard route. This reuses the mature Django flows (password reset, phone
-  verification) and adds no new auth endpoint. Known cost: in-progress dialog state
+  verification, plus the new email verification from "Accounts & anonymous use") and
+  adds no new auth endpoint. Known cost: in-progress dialog state
   isn't preserved across the redirect (autosave keeps documents safe). **"Remember me"**
   needs a small sjvair.com change (a checkbox; when unchecked, the session expires at
   browser close) in the server-backed documents plan.
@@ -480,10 +482,12 @@ documents (see "Saving & sharing documents").
 
 **Routes use readable words, never single-letter segments** (decided 2026-09-25). IDs
 stay opaque (no readable slugs). **IDs only appear inside their own plural collection**
-(`/dashboards/:id`, `/collections/:id`), never at the same level as fixed words, so no
+(`/dashboards/:id`, `/analysis/collections/:id`), never at the same level as fixed words, so no
 reserved-word list is needed. All routes sit under the `/explore/` base path (see
-"Deployment"), e.g. `sjvair.com/explore/dashboards/:id`. Trimming a URL lands somewhere
-sensible (`…/dashboards/:id` → `…/dashboards`, a list of dashboards).
+"Deployment"), e.g. `sjvair.com/explore/dashboards/:id`. Where a trimmed URL has a
+page, it's the obvious one (e.g. `…/dashboards/:id` → `…/dashboards`, the list). Other
+trimmed paths (e.g. `…/analysis/collections`, `…/shared`) redirect to their section's
+home.
 
 ```
 /                                                last-opened dashboard (preference) or the starter
@@ -503,10 +507,10 @@ sensible (`…/dashboards/:id` → `…/dashboards`, a list of dashboards).
   Analysis) — never between edits.
 - **Ephemeral UI state stays out of the URL** (open accordions, in-progress map
   selection, calendar drag range).
-- **Local IDs are device-local:** opening `/dashboards/:id` for a document not on this device
-  shows "This dashboard is saved on another device" with a pointer to **Share**
-  (URL-fragment/file for anyone; server-backed live links, Release 1 for signed-in users,
-  work anywhere).
+- **Opening a document from another device:** for signed-in users, synced documents
+  open on any device (the server keeps the client UUID). The "This dashboard is saved on
+  another device" message, with a pointer to **Share**, appears only for anonymous users
+  or documents that were never synced.
 - **Embedding:** same routes, held in memory when the host owns the URL (see
   "Embedding").
 - The v1 per-tab URL seeding is gone. Preferences hold the "last-opened dashboard" and
@@ -1001,8 +1005,9 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
    fragment** (fragment → never sent to a server). If the encoded link exceeds a safe
    length, the UI falls back to file export.
 2. **Server-backed, for signed-in users** (a parallel sjvair.com track in Release 1;
-   needs an approved plan). A `SavedDocument` model (`owner, kind, name, body,
-version, visibility: private | link | public, schemaVersion`) plus endpoints. Gives
+   needs an approved plan). A `SavedDocument` model (`id` (the client UUID), `owner,
+kind, name, body, version, visibility: private | link | public, schemaVersion,
+share_token` (revocable)) plus endpoints. Gives
    short links, live share links, cross-device access to documents, protection from
    browser storage eviction, and later
    SJVAir-curated public templates (see `DEFERRED.md`).
@@ -1396,8 +1401,8 @@ One top-level tab per SDK data domain, routed via `sv-router`:
   entry_type/filters, date range, county filter, and which views (map/chart/
   spreadsheet) are toggled on. Sharing a URL reproduces the exact same screen for the
   recipient, view toggles included.
-- **A preferences store** (`src/lib/preferences.ts`; localStorage in v1; server sync is
-  subsumed by server-backed documents, see `DEFERRED.md`) holds only _defaults_: last-used date range and view
+- **A preferences store** (`src/lib/preferences.ts`; localStorage in v1; server sync of
+  preferences is deferred, see `DEFERRED.md` → "Server-synced preferences") holds only _defaults_: last-used date range and view
   toggles per tab. It seeds the URL only when a tab is opened with no params present
   — not on every navigation. Once URL params exist, they win.
 - **`src/lib/url-state.ts`** provides the pure, unit-tested serialization codecs

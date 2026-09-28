@@ -49,9 +49,10 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo).
-3. In parallel once approved (sjvair.com/sdk-js plans): Release 1's **metadata
-   enablers**, **hosting under `/explore/`**, and **server-backed documents** tracks,
-   plus **server alerting** (Release 2).
+3. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
+   **metadata enablers**, **hosting under `/explore/`**, **email-only accounts**, and
+   **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
+   (Release 2).
 
 ## Planning session record: IDEA.md (2026-09-23 → 2026-09-24)
 
@@ -111,7 +112,7 @@ each was interviewed and recorded:
   - [x] Watch-list: pollutants on monitor/region targets (gated by available-pollutants
         metadata), forecasts, nearby pesticide notices; others deferred.
   - [x] Thresholds: level categories only; server-defined averaging windows; notify on
-        crossing/escalation/optional all-clear; daily caps + quiet hours.
+        crossing/escalation/optional all-clear (since refined: below the user's threshold, on by default); daily caps + quiet hours.
   - [x] Channels: SMS (all alert types) + email + in-app inbox first; web push next;
         mobile push deferred.
 - [x] **Spanish / i18n** → ship English-only, translation-ready: Paraglide JS (English
@@ -282,7 +283,8 @@ package release needs explicit per-release approval.
 - Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
   server deploy).
 
-**Release 1, parallel track: email-only accounts** (approved sjvair.com plan first)
+**Release 1, parallel track: email-only accounts** (approved sjvair.com and sdk-js plans
+first)
 
 - sjvair.com:
   - make `phone` optional (an account needs a verified phone or email; handle
@@ -292,7 +294,8 @@ package release needs explicit per-release approval.
   - keep the phone flows working for v3-mobile
 - sdk-js: account-call updates for email verification and email registration.
 
-**Release 1, parallel track: server-backed documents** (approved sjvair.com plan first)
+**Release 1, parallel track: server-backed documents** (approved sjvair.com, sdk-js, and
+django-resticus plans first)
 
 - **First: the CSRF fix** (`ARCHITECTURE.md` → "CSRF protection"). This covers a
   django-resticus change enforcing CSRF for session-authenticated writes, the sdk-js
@@ -306,7 +309,8 @@ package release needs explicit per-release approval.
   - the sign-in flow: redirect to sjvair.com login/registration with `?next=`; a
     server "remember me" change (session expires at browser close when unchecked)
   - sdk-js: make `apiToken` optional on account calls that require it today
-  - versioned local-first sync with conflict prompts
+  - versioned local-first sync: automatic replay of non-overlapping edits, and a prompt
+    (keep mine / use the other / save mine as a copy) on true overlaps
   - live share links (read-only plus "Make a copy")
   - local → account migration
   - sign-out "keep on this device / remove" (remove by default)
@@ -328,7 +332,11 @@ package release needs explicit per-release approval.
 - sjvair.com:
   - alert rules (monitor/region pollutant, forecast, pesticide-notice)
   - level-category thresholds, caps, and quiet hours
-  - SMS for every alert type, plus email
+  - SMS for every alert type, plus email (verified email; one-click unsubscribe)
+  - migrate existing SMS subscriptions to rules that reproduce today's behavior exactly
+    (caps and quiet hours off, opt-in to new behavior)
+  - keep the legacy subscription endpoints as a compatibility layer, logging usage with
+    the app version, so v3-mobile works unchanged
   - the inbox API
   - alert metadata
 - sdk-js wrappers.

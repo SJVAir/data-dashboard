@@ -43,8 +43,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Server-backed saved documents & live share links.** _Sequenced later 2026-09-23;
   **scheduled into Release 1 on 2026-09-24** as a parallel server track (see
   `ROADMAP.md`)._ This includes local → account migration. It stays listed here until it ships, then moves to TODO → Done.
-  **Still deferred within it:** SJVAir-curated public templates, which come after the
-  basic model ships.
+  **Still deferred within it:**
+  - SJVAir-curated public templates, which come after the basic model ships.
+  - A public listing or search of documents. `public` visibility is reserved until
+    templates ship. **Revisit with** templates.
+  - Promoting fields inside `body` to real database columns (the server stores `body`
+    without interpreting it, so it can't query inside documents). **Revisit when** a
+    server-side feature needs to query documents (e.g. "dashboards using monitor X").
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
   sync in Release 1; preferences stay local per device (they're conveniences, and devices
