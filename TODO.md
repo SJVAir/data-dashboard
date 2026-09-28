@@ -205,6 +205,8 @@ package release needs explicit per-release approval.
 - Dataset adapter registry keyed by catalog id; hide catalog entries with no adapter
   (`ARCHITECTURE.md` → "Metadata as source of truth" → "What a dataset is").
 - `QueryDescriptor` type: one definition, in `ARCHITECTURE.md` → "Widget data selection".
+- A theme-token layer: all colors, fonts, radii, spacing, and motion as CSS variables; no
+  hardcoded styling values in components.
 - Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
   Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
@@ -250,6 +252,11 @@ package release needs explicit per-release approval.
   actions: new, duplicate, rename, delete with an undo toast.
 - Local durability: a `navigator.storage.persist()` request, a storage status note, a
   backup nudge, and clear quota and write errors.
+
+**Release 1: design pass** (its own small sub-project, before step 4 and the private preview)
+
+- Palette (from sjvair.com's pages, around the fixed EPA level colors), typography,
+  spacing, motion, and component styling, applied as theme-token values.
 
 **Release 1, step 2: Layout engine and windowing**
 

@@ -291,10 +291,9 @@ ship, or a specific audience asks for one.
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
   registry and the widget "⋯" menus have shipped.
-- **Visual and brand design system.** _Deferred 2026-09-14._ IDEA.md sets the direction
-  (Tailwind + shadcn-svelte, never Bulma, clean but not corporate, with animations).
-  Colors may come from the server's existing pages. **Revisit when** the dashboard shell
-  is built, as a dedicated design pass.
+- **Visual and brand design system.** _Deferred 2026-09-14; **scheduled 2026-09-28** as its
+  own sub-project before Release 1 step 4 (Foundations builds the theme-token layer it
+  plugs into)._ It stays listed here until it ships.
 
 - **Aggregate usage counts** (e.g. which widgets get used; cookieless, never per-person).
   _Deferred 2026-09-28._ Release 1 sends no analytics, only scrubbed error reports.

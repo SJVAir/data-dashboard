@@ -115,6 +115,13 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 
 ### Theme & style
 
+- **Theme tokens from Foundations; design pass before the widgets** (decided 2026-09-28).
+  Foundations builds on shadcn-svelte defaults, but **only through a theme layer**: all
+  colors, fonts, radii, spacing, and motion timings are CSS variables, and components never
+  hardcode them. A **design pass is its own small sub-project, scheduled before Release 1
+  step 4** (at the latest before the private preview). It covers the palette (drawn from
+  sjvair.com's pages, working around the fixed EPA level colors), typography, spacing,
+  motion, and component styling. Applying it mostly means swapping token values.
 - **Tailwind CSS + shadcn-svelte** for components. **Never Bulma** (the server uses it;
   this project never will).
 - No SJVAir ecosystem theme exists yet; colors and style direction may be derived from

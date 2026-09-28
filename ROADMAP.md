@@ -30,6 +30,7 @@ needs explicit per-release approval.
      stitching, shared polling, last-requested-wins, pause when the tab is hidden,
      catalog-driven handling of unsummarized data (worker downsampling, span caps), the
      dataset adapter registry, and `DateRangeSpec` → Pacific date resolution
+   - a theme-token layer (CSS variables for colors, fonts, radii, spacing, motion)
    - Paraglide (English-only) and the `format` module
    - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo;
      changes as serializable JSON with explicit targets, a persisted unsynced-change queue
@@ -92,6 +93,11 @@ needs explicit per-release approval.
      regions), plus the SDK wrapper update
    - HTTP cache headers on the summary endpoints
    - hardcoded-value cleanup in sjvair.com, and fixing sdk-js `api-urls.md`
+
+- **Design pass** (decided 2026-09-28): its own small sub-project **before step 4** (and the
+  private preview). It covers the palette, typography, spacing, motion, and component
+  styling, applied through Foundations' theme tokens.
+
 4. **Widget Creation and the non-map widgets**
    - Widget Creation view (catalog-driven dataset accordions, layers, advanced resolution
      override)

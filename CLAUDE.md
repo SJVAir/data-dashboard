@@ -198,6 +198,8 @@ Decided 2026-09-28.
 - Print width: 100 characters
 - Prettier + ESLint (flat config); run `npm run format` before committing
 - Tailwind CSS v4 for styling; prefer utility classes over custom `<style>` blocks
+- **Styling values come from theme tokens** (CSS variables for colors, fonts, radii,
+  spacing, motion); never hardcode them in components, so the design pass is a token swap
 - UI components from shadcn-svelte (bits-ui). **Never use Bulma** (the server's CSS
   framework) in this project.
 - **Accessibility target: WCAG 2.2 AA** (see `ARCHITECTURE.md` → "Accessibility"). Every
