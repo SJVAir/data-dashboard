@@ -647,7 +647,8 @@ kinds. Server support:
   parent region's children.
 - **Missing: lookup by coordinates or monitor.** Needed for "Use my location" and for
   mapping a monitor to its ZIP (CalHeatScore) or forecast zone. **Extend
-  `regions/places/lookup/`** (no new endpoint) to accept `?lat=&lon=` or `?monitor=`,
+  `regions/places/lookup/`** (no new endpoint) to accept rounded coordinates (`lat`/`lon` in a **POST body**; see "Location
+  privacy") or `?monitor=`,
   plus `type=`. **Response shape:** in coordinate or monitor mode it always returns a
   **list** of containing regions (only the given `type` when `type=` is set). The existing
   name mode keeps its current single-region response. It uses the same geometry rules as `within=`, and builds on the
@@ -661,6 +662,18 @@ kinds. Server support:
   (ZIP for heat, forecast zone for the Forecast strip). The region is resolved when the
   widget renders. **"Mark for analysis" freezes it** to the region actually used, staged as
   a normal region item ("ZIP 93721 (from your location)").
+- **Location privacy** (decided 2026-09-28). Exact coordinates are often a home or school,
+  and the audience includes students.
+  - **The owner's own document keeps the exact point**, private to their browser or
+    account.
+  - **Server lookups always send a rounded point** (3 decimals, about 100 m; enough for
+    ZIP, zone, and region), in a **POST body** rather than URL parameters, so router logs
+    never see coordinates. **The server scrubs `lat`/`lon`** from Sentry, Scout, and
+    application logs.
+  - **Sharing, copying, and exporting default to the resolved region** (e.g. "ZIP 93721"),
+    with a notice: "Your location is shared as ZIP 93721, not your exact position." The
+    notice offers an explicit **"Share my exact location instead"** option, off by
+    default and chosen per share, with a warning that anyone with the link will see it.
 - **Geolocation** is a platform-adapter capability: an opt-in "Use my location" button,
   never automatic, with the browser's usual permission prompt. Tauri can supply its own.
 

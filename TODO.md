@@ -268,7 +268,8 @@ package release needs explicit per-release approval.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
   browser's HTTP cache is the dashboard's persistent data cache (long on completed
   periods, short on the current one).
-- Extend `regions/places/lookup/` to accept `?lat=&lon=` or `?monitor=` (plus `type=`),
+- Extend `regions/places/lookup/` to accept coordinates (rounded, **in a POST body**; scrub
+  `lat`/`lon` from Sentry, Scout, and logs) or `?monitor=` (plus `type=`),
   returning a list of containing regions (filtered by `type`) with the `within=` geometry
   rules; the name mode is unchanged; update
   `lookupRegionPlace` in sdk-js.
@@ -287,6 +288,8 @@ package release needs explicit per-release approval.
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
 - The "Duplicate widget" action (used to put several widgets on the same place).
+- Location privacy: send rounded points to lookups; shares, copies, and exports default to
+  the region, with a per-share "Share my exact location instead" option and warning.
 - Point places: resolve air quality to the smallest containing region with data (ZIP →
   city → county) at render time, label the source, and freeze to that region on staging.
 - The **shared place picker**: monitors, regions (any hierarchy type), or points

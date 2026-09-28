@@ -80,7 +80,8 @@ needs explicit per-release approval.
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - verify production `school_district` and `custom` (forecast zone) region rows; import
      if missing
-   - extend `regions/places/lookup/` with `?lat=&lon=` and `?monitor=` (containing
+   - extend `regions/places/lookup/` with rounded coordinates (POST body; coordinates scrubbed
+     from logs, Sentry, Scout) and `?monitor=` (containing
      regions), plus the SDK wrapper update
    - HTTP cache headers on the summary endpoints
    - hardcoded-value cleanup in sjvair.com, and fixing sdk-js `api-urls.md`
