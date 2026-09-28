@@ -481,6 +481,21 @@ approach is staged:
   Django page or a small cookie-setting endpoint). In production, cookie-based saves depend
   on the hosting track's `ensure_csrf_cookie`.
 
+## SDK request options
+
+Decided 2026-09-28. `@sjvair/sdk`'s data wrappers build `{url, searchParams}` but pass no
+`init`, so there is no `AbortSignal` (needed for last-requested-wins), no single place to
+set headers (`X-CSRFToken`, a future `Accept-Language`), and no global `credentials`. One
+**additive** sdk-js change fixes this:
+
+- **Every data function accepts optional `signal` and `init`**, passed through to `fetch`.
+- **A global `setRequestDefaults({ headers, credentials })`** (or a request hook) that the
+  dashboard sets once.
+- **Nothing breaks:** all additions are optional (monitor-map, v3-mobile, and existing
+  code are unaffected).
+- It lands in the **first sdk-js plan (the metadata-enablers track)**, since Foundations'
+  data layer builds on it. The CSRF header and i18n readiness use it.
+
 ## Data resolution & live refresh
 
 Decided 2026-09-24. Implemented once in the data layer (in-memory cache plus HTTP

@@ -81,6 +81,8 @@ needs explicit per-release approval.
    - a shared action `tier` on every scale level, using **CalHeatScore's 0–4 scale** (heat
      maps one to one, with its official guidance); **the user supplies the AQ-level
      mapping before this plan**
+   - **first:** sdk-js request options (optional `signal`/`init`, global
+     `setRequestDefaults`), which Foundations' data layer needs
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - verify production `school_district` and `custom` (forecast zone) region rows; import

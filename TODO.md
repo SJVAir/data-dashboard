@@ -279,6 +279,9 @@ package release needs explicit per-release approval.
   returning a list of containing regions (filtered by `type`) with the `within=` geometry
   rules; the name mode is unchanged; update
   `lookupRegionPlace` in sdk-js.
+- **First sdk-js change:** optional `signal`/`init` on every data function plus a global
+  `setRequestDefaults({ headers, credentials })` (additive; `ARCHITECTURE.md` → "SDK request
+  options").
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
   `api-urls.md`.
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
