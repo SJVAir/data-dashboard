@@ -536,6 +536,21 @@ inverse change — so undo is free by construction and edits are testable. Cover
 resize, minimize/restore, add/delete/configure widget, rename, and Collection edits.
 The stack is per document and per session (not persisted).
 
+**Changes, unsynced edits, and tabs** (decided 2026-09-28):
+
+- **A change is serializable JSON naming exactly what it touches**, e.g.
+  `{ op: "moveWidget", target: { widgetId }, from, to }` or
+  `{ op: "setField", target: { widgetId, path: "layers.0.entryType" }, value }`. Undo
+  stores each change's inverse. Overlap detection for conflict handling compares
+  `target`s.
+- **Unsynced changes are persisted** in IndexedDB with the document: a queue plus the
+  base version they build on. They survive reloads and crashes, and sync resumes on
+  reopen.
+- **Tabs in the same browser stay in step via `BroadcastChannel`.** A change in one tab is
+  broadcast and applied in the others. Local saves are versioned too, and genuine
+  same-target edits across tabs go through the **same replay-and-prompt logic** as server
+  sync. Undo history stays per tab.
+
 ## Widget data selection (partial datasets)
 
 Decided 2026-09-23 (IDEA.md Open Question #2).

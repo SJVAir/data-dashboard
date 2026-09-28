@@ -199,7 +199,10 @@ package release needs explicit per-release approval.
 - Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
   Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
-- `SavedDocument` types, a migration chain, `applyChange`, and undo/redo.
+- `SavedDocument` types, a migration chain, `applyChange`, and undo/redo. The `Change`
+  format is serializable JSON with explicit `target`s, plus a persisted queue of unsynced
+  changes with their base version, and cross-tab sync via `BroadcastChannel`
+  (`ARCHITECTURE.md` → "Routing, URL state & undo").
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
