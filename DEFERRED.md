@@ -258,7 +258,8 @@ ship, or a specific audience asks for one.
   schools ask for managed class use, likely after server-backed live share links exist.
 
 - **Multiple editors on a shared document** (group/co-owner permissions). _Deferred
-  2026-09-25._ The most plausible real need is a community group maintaining one
+  2026-09-25; model prepared 2026-09-28: editors would be a separate access table (document,
+  user, role); only the owner deletes._ The most plausible real need is a community group maintaining one
   dashboard, taking turns. It works with the existing versioned sync plus automatic
   replay, and needs no CRDT. **Revisit when** community groups or schools ask for shared
   ownership.

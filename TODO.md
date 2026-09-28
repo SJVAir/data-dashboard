@@ -370,6 +370,10 @@ django-resticus plans first)
   user's explicit approval.
 
 - Reject saves whose `schemaVersion` is lower than the stored document's.
+- Deletion: synced soft delete (`deleted_at`, purged after about 30 days), a "Recently
+  deleted" list, a restore-or-discard prompt, and "no longer available" share pages.
+  Owner-only delete; `copied_from`; an optional public display name (no personal info on
+  shared pages by default).
 - Share tokens ≥ 128 bits (`secrets.token_urlsafe(16)`+); per-user document-count and
   save-rate limits.
 - sjvair.com: the `SavedDocument` model and endpoints (`id` = client UUID, visibility,

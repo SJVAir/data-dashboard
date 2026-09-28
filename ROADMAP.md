@@ -150,7 +150,8 @@ needs explicit per-release approval.
   edits; a prompt only on true overlaps), local →
   account migration, the sign-in flow (Release 2 replaces the redirect with an in-app
   dialog), sync scope and sign-out keep/remove, and the model details (server keeps the
-  client UUID, revocable `share_token`, body size limit). Anonymous users
+  client UUID, revocable `share_token`, body size limit, `copied_from`, soft delete with a
+  30-day restore, owner-only delete, and an optional public display name). Anonymous users
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (the server "remember me" change is owned by the
   email-only accounts track); sdk-js

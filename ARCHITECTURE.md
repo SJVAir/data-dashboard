@@ -1173,7 +1173,8 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
 2. **Server-backed, for signed-in users** (a parallel sjvair.com track in Release 1;
    needs an approved plan). A `SavedDocument` model (`id` (the client UUID), `owner,
 kind, name, body, version, visibility: private | link | public, schemaVersion,
-share_token` (revocable)) plus endpoints. Gives
+share_token` (revocable), `copied_from` (source document id, if a copy), `deleted_at`
+   (soft delete)) plus endpoints. Gives
    short links, live share links, cross-device access to documents, protection from
    browser storage eviction, and later
    SJVAir-curated public templates (see `DEFERRED.md`).
@@ -1209,6 +1210,28 @@ share_token` (revocable)) plus endpoints. Gives
        promoted to real columns later if needed.
    - **Local → account migration:** the first sign-in offers to upload the local
      documents.
+   - **Deletion** (decided 2026-09-28):
+     - **Delete is synced and recoverable:** a local deleted marker plus a server soft
+       delete (`deleted_at`), **purged after about 30 days**. The undo toast restores
+       immediately, and a **"Recently deleted"** list in the picker restores within 30
+       days. Anonymous users get the same local "Recently deleted" behavior.
+     - **Edits to a deleted document** prompt: "This dashboard was deleted on another
+       device. Restore it, or discard your changes?"
+     - **Share links to deleted documents** show "This shared dashboard is no longer
+       available". Restoring brings the link back.
+     - **"Remove from this device"** stays a separate, local-only action (like sign-out
+       "remove" and "Clear my data").
+   - **Ownership and provenance** (decided 2026-09-28):
+     - **A single `owner`** per document. **Only the owner can delete.** Future editors
+       (deferred) would live in a **separate access table** (document, user, role), so
+       adding them is additive; an editor's "delete" would only remove their own access.
+     - **`copied_from`** records the source document when a copy is made (from a share
+       link, the starter, or another dashboard). It stores only the id; the source's name
+       and author are shown ("Based on …") only if that document still exists and is
+       visible.
+     - **Shared pages show no personal information by default.** An owner may set an
+       optional public **display name** (e.g. "Ms. Lopez's class") shown on their shared
+       documents and in "Based on …" credits.
    - **Sync scope and sign-out** (decided 2026-09-25):
      - **Every document syncs once signed in**; there's no per-document sync toggle.
      - **Sign-out asks "Keep your dashboards on this device, or remove them?"**, with
