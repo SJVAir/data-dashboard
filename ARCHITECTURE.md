@@ -237,7 +237,7 @@ Why web-first:
 Tauri-ready seams required **from day one**:
 
 - **Platform adapter layer.** A small set of interfaces for storage, notifications,
-  file save/export, background tasks, and online/offline status. The web
+  file save/export, background tasks, online/offline status, and opt-in geolocation. The web
   implementation uses IndexedDB (for documents and preferences) and browser APIs; a Tauri implementation later
   swaps in SQLite, native notifications, tray, and filesystem access. **Components and
   managers never call `localStorage`, `Notification`, `showSaveFilePicker`, etc.
@@ -574,7 +574,29 @@ type WidgetDataConfig = {
 	target?: PlaceRef; // monitor/region/location for "now" widgets
 	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
 };
+
+type PlaceRef =
+	| { kind: "monitor"; id: string }
+	| { kind: "region"; id: string }
+	| { kind: "point"; lat: number; lon: number; label?: string };
 ```
+
+**Places** (decided 2026-09-28). The shared place picker produces all three `PlaceRef`
+kinds. Server support:
+
+- **Existing** (already wrapped by the SDK): `regions/places/search/?q=&type=`
+  (`searchRegionPlaces`) for name search in the picker; `regions/places/lookup/?q=&type=`
+  (`lookupRegionPlace`) to resolve a name to the best region; `regions/?within=` for a
+  parent region's children.
+- **Missing: lookup by coordinates or monitor.** Needed for "Use my location" and for
+  mapping a monitor to its ZIP (CalHeatScore) or forecast zone. **Extend
+  `regions/places/lookup/`** (no new endpoint) to accept `?lat=&lon=` or `?monitor=`,
+  plus `type=`. It returns the containing region of that type, or all containing regions
+  when `type` is omitted, using the same geometry rules as `within=`, and builds on the
+  existing `Monitor.regions()` query. The SDK wrapper gains the parameters. This is
+  Release 1 step 3 work.
+- **Geolocation** is a platform-adapter capability: an opt-in "Use my location" button,
+  never automatic, with the browser's usual permission prompt. Tauri can supply its own.
 
 "Mark for analysis" on a multi-layer widget adds **one Collection item per layer**, each
 with the widget's date range and any current time sub-range or selection.

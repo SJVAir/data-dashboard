@@ -67,6 +67,8 @@ needs explicit per-release approval.
    - scale metas
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
+   - extend `regions/places/lookup/` with `?lat=&lon=` and `?monitor=` (containing
+     regions), plus the SDK wrapper update
    - HTTP cache headers on the summary endpoints
    - hardcoded-value cleanup in sjvair.com, and fixing sdk-js `api-urls.md`
 4. **Widget Creation and the non-map widgets**

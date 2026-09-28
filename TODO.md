@@ -183,6 +183,7 @@ package release needs explicit per-release approval.
   Reuse existing code only if it's exactly what the new design needs.
 
 - Platform adapter: storage, notifications, file export, background tasks, online status,
+  opt-in geolocation,
   auth mode, and token storage. Preferences (last-opened dashboard, active Collection)
   go through it; the v1 `preferences.ts` is removed, not migrated.
 - Data layer (in-memory cache shared across widgets; HTTP cache for reloads; documents in
@@ -248,6 +249,9 @@ package release needs explicit per-release approval.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
   browser's HTTP cache is the dashboard's persistent data cache (long on completed
   periods, short on the current one).
+- Extend `regions/places/lookup/` to accept `?lat=&lon=` or `?monitor=` (plus `type=`),
+  returning containing regions with the `within=` geometry rules; update
+  `lookupRegionPlace` in sdk-js.
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
   `api-urls.md`.
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
