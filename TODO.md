@@ -229,6 +229,8 @@ package release needs explicit per-release approval.
 - App shell: top nav, dashboard picker (a dropdown), and the new route table (`ARCHITECTURE.md` →
   "Routing"), plus `basePath` support for `sjvair.com/explore/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
+- Error reporting through the platform adapter to Sentry (strict PII scrubbing), an in-app
+  privacy note, and a preview feedback link.
 - Add an MIT `LICENSE` file (and `"license": "MIT"` in `package.json`), a CI license check
   (permissive only), and generated third-party notices.
 - Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +
@@ -336,6 +338,8 @@ package release needs explicit per-release approval.
 - sjvair.com:
   - an import script that clones and builds this repo's `main` during the Heroku deploy
     (modeled on `scripts/import-monitor-map.sh`; no pinning)
+  - the `/explore/*` view serves the dashboard's own `index.html` (not `base.html`, so no
+    Google Tag Manager/Analytics)
   - a Django catch-all route for `/explore/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
   - confirm no existing CMS page uses `explore`

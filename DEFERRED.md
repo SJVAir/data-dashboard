@@ -296,6 +296,10 @@ ship, or a specific audience asks for one.
   Colors may come from the server's existing pages. **Revisit when** the dashboard shell
   is built, as a dedicated design pass.
 
+- **Aggregate usage counts** (e.g. which widgets get used; cookieless, never per-person).
+  _Deferred 2026-09-28._ Release 1 sends no analytics, only scrubbed error reports.
+  **Revisit when** someone needs usage numbers (e.g. for funding reports or prioritizing
+  widgets).
 - **Visual dashboard picker** (thumbnail grid instead of the dropdown). _Deferred
   2026-09-24._ IDEA.md: "at minimum via dropdown; ideally via a nicer visual picker".
   Release 1 uses a top-nav dropdown. **Revisit when** people routinely keep more than

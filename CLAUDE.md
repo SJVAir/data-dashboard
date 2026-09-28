@@ -96,6 +96,9 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 - **Dates use Pacific time (America/Los_Angeles), never the browser's zone**, via the
   `format` module; weeks start on Sunday. See `ARCHITECTURE.md` → "Time zone & calendar
   conventions".
+- **No analytics or tracking in the dashboard** (no Google Analytics/Tag Manager). Error
+  reports go through the platform adapter with strict PII scrubbing. See `ARCHITECTURE.md` →
+  "Telemetry, analytics & privacy".
 - **Treat document content as untrusted** (see `ARCHITECTURE.md` → "Security baseline"):
   validate every incoming document with a schema and size limit, render Markdown with raw
   HTML off, and never inject HTML or use inline scripts (a CSP on `/explore/` enforces this).

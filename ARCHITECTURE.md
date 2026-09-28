@@ -1476,6 +1476,24 @@ wrap simple.
   plugin), JupyterLite + Pyodide (separate notebook app), and for testing Playwright,
   `vitest-browser-svelte`, and `@axe-core/playwright`.
 
+## Telemetry, analytics & privacy
+
+Decided 2026-09-28. The audience includes K-12 students; sjvair.com's `base.html` loads
+Google Tag Manager/Analytics; and the dashboard's riskiest logic (sync, migrations,
+IndexedDB, conflict replay) runs only in the browser, where no SJVAir front end reports
+errors today.
+
+1. **No Google Analytics or Tag Manager on `/explore/`.** The Django view serves the
+   dashboard's own `index.html`, not sjvair.com's base template. Aggregate usage counts
+   are deferred (see `DEFERRED.md`).
+2. **Front-end errors go to the existing Sentry org**, through the platform adapter, with
+   strict scrubbing: never document bodies, Notes text, names, emails, or coordinates;
+   only the error, the app version, and anonymous technical context. Sentry's host is
+   added to the CSP's allowed hosts.
+3. **An in-app privacy note** (linked from the footer or account menu) explaining what's
+   stored locally, what syncs, and what error data is sent.
+4. **A feedback link** (an email address or form) for the private preview.
+
 ## Licensing
 
 Decided 2026-09-28.
