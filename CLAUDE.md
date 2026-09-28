@@ -123,6 +123,7 @@ Installed:
 | `uplot` (via monitor-map; direct dep planned) | **All** charts (time-series-first)             |
 | shadcn-svelte / bits-ui                       | Accessible UI primitives                       |
 | `@lucide/svelte`                              | Icons                                          |
+| `@sveltejs/enhanced-img`                      | Optimized images                               |
 | Vitest                                        | Unit tests (browser-mode component tests next) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
@@ -161,6 +162,8 @@ to the next, even later in the same session or as the natural next step of a
 task already in progress. Always stop and ask first. **The same applies to production
 deploys.** sjvair.com's Heroku deploy builds this repo's `main`, so **merging to `main`
 is effectively a production deploy**: never merge to `main` without explicit approval.
+The same goes for **monitor-map `main`** (sjvair.com builds it unpinned) and
+**django-resticus `develop`** (sjvair.com installs it unpinned).
 
 ## Code Style
 

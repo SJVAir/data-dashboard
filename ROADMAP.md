@@ -27,11 +27,14 @@ needs explicit per-release approval.
    - platform adapter
    - data layer (in-memory cache plus HTTP caching; documents local-first): automatic
      resolution, incomplete-period
-     stitching, shared polling, last-requested-wins
+     stitching, shared polling, last-requested-wins, pause when the tab is hidden,
+     catalog-driven handling of unsummarized data (worker downsampling, span caps), the
+     dataset adapter registry, and `DateRangeSpec` → Pacific date resolution
    - Paraglide (English-only) and the `format` module
    - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo
    - **minimal Collections** (decided 2026-09-24): the store, the Collections drawer,
-     "Add to collection ▸", and a placeholder Analysis view that lists a Collection's
+     "Add to collection ▸", staging that freezes rolling ranges to fixed Pacific dates
+     (with a per-item "keep rolling" toggle), and a placeholder Analysis view that lists a Collection's
      items with "starter analyses coming soon"
    - autosave (no explicit Save) with a "Saved" indicator; picker actions (new,
      duplicate, rename, delete with an undo toast)
@@ -106,7 +109,9 @@ needs explicit per-release approval.
   v3-mobile. It lands before sign-in-dependent features ship.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js + django-resticus,
   decided 2026-09-24). **First, the CSRF fix** in django-resticus (with the SDK header and
-  sjvair.com page updates), before any cookie-based saves. The `SavedDocument` model and endpoints, live share links (read-only
+  sjvair.com page updates), before any cookie-based saves. Merging to resticus `develop`
+  needs explicit approval (it's effectively a production deploy while unpinned). The
+  `SavedDocument` model and endpoints, live share links (read-only
   plus "Make a copy"), versioned local-first sync (automatic replay of non-overlapping
   edits; a prompt only on true overlaps), local →
   account migration, the sign-in flow (Release 2 replaces the redirect with an in-app

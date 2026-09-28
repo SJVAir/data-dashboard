@@ -203,7 +203,9 @@ package release needs explicit per-release approval.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
-- Minimal Collections: the store, the drawer, "Add to collection ▸", and a placeholder
+- Minimal Collections: the store, the drawer, "Add to collection ▸", staging that freezes
+  rolling ranges to fixed Pacific dates (with a per-item "keep rolling" toggle), and a
+  placeholder
   Analysis view ("starter analyses coming soon").
 - Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
@@ -318,7 +320,8 @@ django-resticus plans first)
   django-resticus change enforcing CSRF for session-authenticated writes, the sdk-js
   `X-CSRFToken` header, and updates to sjvair.com pages that call the API with the
   cookie. Order: the pages and SDK are ready before or with the resticus merge, and all
-  of it lands before cookie-based saves ship.
+  of it lands before cookie-based saves ship. Merging to resticus `develop` needs the
+  user's explicit approval.
 
 - sjvair.com: the `SavedDocument` model and endpoints (`id` = client UUID, visibility,
   `version`, revocable `share_token`, body size limit).
