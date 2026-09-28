@@ -274,7 +274,9 @@ package release needs explicit per-release approval.
 - The **shared place picker**: monitors, regions (any hierarchy type) or places; search,
   hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
   metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.
-- The `WidgetType` registry (including `analyzable`) and `WidgetDataConfig`; "now" widgets
+- The `WidgetType` registry (including `analyzable` and an optional pinned `resolution`:
+  calendars `day`, heatmap `hour`); layers and `QueryDescriptor` carry `resolution`
+  (pin → override → ladder) and `WidgetDataConfig`; "now" widgets
   stage a 3-day trailing window for analysis (Forecast strip only where past forecasts
   exist), and Notes offers no analysis actions (`ARCHITECTURE.md` → "Widget-type
   contract").

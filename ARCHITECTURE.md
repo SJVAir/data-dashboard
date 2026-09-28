@@ -466,6 +466,12 @@ caching), not per widget.
   hourly. Fixes the "current month shows nothing" problem for every widget.
 - Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
   exports show the resolution used.
+- **Where resolution lives** (decided 2026-09-28): each layer (and so each
+  `QueryDescriptor`) carries `resolution` (`"auto"` by default), so Collections and exports
+  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"`, the hour × weekday
+  heatmap `"hour"` (long hourly fetches still use span caps and chunking). **Priority:
+  widget-type pin → user override → automatic ladder.** Pinned widgets don't show the
+  override.
 - Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
 
 **Live refresh:**
@@ -571,6 +577,7 @@ type QueryDescriptor = {
 	dateRange: DateRangeSpec; // set / rolling / custom (see "Widget Creation view")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	selection?: SpatialSelection; // omitted = whole layer
+	resolution?: "auto" | "raw" | "hour" | "day" | "month" | "quarter" | "season" | "year"; // default "auto"
 };
 
 type WidgetDataConfig = {
@@ -827,6 +834,7 @@ type WidgetType = {
 	target?: "place"; // needs a monitor/region/location instead of layers
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
+	resolution?: Resolution; // pinned resolution (e.g. calendars "day", heatmap "hour"); hides the override
 	defaultTitle(config: WidgetDataConfig, meta: Metadata): string; // generated, not stored
 	menu: MenuProvider; // widget-scoped actions (see "Actions & context menu")
 	component: Component;
