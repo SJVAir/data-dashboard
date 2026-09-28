@@ -293,7 +293,9 @@ package release needs explicit per-release approval.
   non-zone areas = the containing zone (or the center's zone, labeled).
 - The **starter dashboard** (first-visit default): a built-in document defaulting to
   **Fresno County**, a "Showing … · Change place" bar (the shared picker plus opt-in
-  location) that re-targets all its widgets, and a personal copy on first edit. It has non-map widgets, including
+  location) that re-targets all its widgets, and a personal copy on first edit. It lives at `/explore/`; "Change place" is a preference (no
+  copy); a real edit makes a copy and replaces the URL with `/explore/dashboards/:id`; sharing
+  copies first. It has non-map widgets, including
   calendars; the Map widget joins in step 6.
 - The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place

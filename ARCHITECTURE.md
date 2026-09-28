@@ -54,8 +54,18 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   opt-in "Use my location". It **changes the place for all of the starter's widgets at
   once**. This is a feature of the built-in starter only, not general widget linking
   (which stays deferred).
-- **The first edit makes it the visitor's own copy**, saved and autosaved like any
-  dashboard; the built-in template is never modified.
+- **URL and copies** (decided 2026-09-28):
+  - The starter lives at **`/explore/`** for first-time visitors and anyone with no
+    dashboards of their own. Once someone has dashboards, `/explore/` opens their
+    last-opened one, and the starter stays reachable from the picker ("New from starter").
+  - **"Change place" does not create a copy.** The chosen place is saved as a
+    **preference** (through the platform adapter).
+  - **A real edit creates the visitor's own copy**: moving, resizing, adding, removing,
+    or configuring a widget, or renaming. The copy gets a new id, the URL is replaced with
+    `/explore/dashboards/:id` (no new history entry), it carries over the chosen place,
+    and a toast says "Saved as your own dashboard". The built-in template is never
+    modified.
+  - **Sharing the starter** first makes a copy, then shares that.
 - Titles are generated from metadata (nothing English is stored in the template).
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
