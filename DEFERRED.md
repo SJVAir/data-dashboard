@@ -430,6 +430,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Dropping to Tailwind v3 for older browsers**: _2026-09-28_. It would go against
   "nothing ripped out" at high cost for a shrinking set of devices. Revisit only if the
   preview shows many partner-school devices below the v4 floor.
+- **A server-side `text_color` per level**: _2026-09-28_. It's computed with color2k's
+  `readableColor` instead. Add an optional field only if a designer needs a non-black/white
+  override.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

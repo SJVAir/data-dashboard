@@ -231,6 +231,8 @@ package release needs explicit per-release approval.
 - CI workflow: lint, type-check, tests, and build on every PR.
 - A CI bundle budget (about 200 KB compressed of initial JS), per-widget-type code
   splitting, and an unsupported-browser notice (Chrome/Edge 111+, Safari 16.4+, Firefox 128+).
+- A shared `readableColor` helper (color2k) for text on level colors; outlined swatches;
+  labels always shown alongside level colors.
 - Error reporting through the platform adapter to Sentry (strict PII scrubbing), an in-app
   privacy note, and a preview feedback link.
 - Add an MIT `LICENSE` file (and `"license": "MIT"` in `package.json`), a CI license check

@@ -1539,6 +1539,17 @@ and views.
   - Minimize moves focus to the widget's taskbar item; restore returns it to the widget.
   - The taskbar is a keyboard-navigable toolbar (roving tabindex).
 - **Animations respect `prefers-reduced-motion`.**
+- **Official level colors, used accessibly** (decided 2026-09-28). Server metadata keeps the
+  official EPA AQI colors, some of which fail contrast on white (yellow `#ffff00` is about
+  1.07:1). So:
+  - **Color never carries meaning alone** (WCAG 1.4.1): tiles, chart threshold lines,
+    calendar cells, and legends always show the level's label, tier, or an icon.
+  - **Swatches and colored areas get a contrasting outline** (WCAG 1.4.11, 3:1).
+  - **Text on a level color uses color2k's `readableColor`** (black or white, whichever
+    contrasts more, per the WCAG luminance formula), shared through one helper in the
+    `format`/theme module (v3-mobile already uses it). No `text_color` metadata field.
+  - axe checks and manual passes cover these states (e.g. a yellow-level tile, the
+    calendar).
 
 - Every data widget has a non-visual fallback: the **Data table** widget serves chart/map
   data; maps and charts expose their data as summary text or link to a table view.

@@ -206,6 +206,8 @@ Decided 2026-09-28.
 - **Supported browsers:** Chrome/Edge 111+, Safari 16.4+, Firefox 128+ (Tailwind v4). Keep the
   initial bundle around 200 KB compressed and lazy-load each widget type's code (CI enforces
   this).
+- **Never convey meaning by color alone**: always show the level label or tier. Use the
+  shared `readableColor` helper for text on level colors, and outline colored swatches.
 - Animations for transitions are encouraged; responsive layouts are required (phones
   must work, though they aren't the primary target)
 - Svelte 5 runes only (`$state`, `$derived`, `$effect`) — no legacy `$:` reactive statements
