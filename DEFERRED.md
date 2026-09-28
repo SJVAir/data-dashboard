@@ -162,6 +162,11 @@ _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in the first-release wi
 (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit when** the first-release widgets
 ship, or a specific audience asks for one.
 
+- **Linking widgets**: _deferred 2026-09-28._ First step: a **dashboard-wide place and date
+  range** that widgets can choose to follow ("change the county once, everything
+  updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
+  calendar; a calendar selection narrows a chart). Both touch the document model, Widget
+  Creation, and undo. **Revisit when** pilot or private-preview users ask for it.
 - **Rankings**: worst-N monitors/regions right now, with sparklines.
 - **Days-per-level stacked bars**: by month (widget form of starter analysis #1).
 - **Range bands chart**: mean + p25/p75/min/max bands from summaries.

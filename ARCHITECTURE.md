@@ -799,6 +799,11 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
+**Widgets are independent in Release 1** (decided 2026-09-28). Each widget has its own data,
+date range, and selection; one widget doesn't drive another (no cross-filtering). Putting
+several widgets on the same place is done with the shared place picker and "Duplicate
+widget". Linking is deferred (see `DEFERRED.md`).
+
 ### Widget-type contract
 
 Each widget type declares what Widget Creation shows and how the dashboard treats it:
