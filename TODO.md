@@ -297,6 +297,9 @@ package release needs explicit per-release approval.
   - a Django catch-all route for `/explore/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
   - confirm no existing CMS page uses `explore`
+- Confirm `SJVAir/data-dashboard` is public (the user is switching it, 2026-09-28) so the
+  anonymous import clone works.
+- Restrict the MapTiler and NREL keys to sjvair.com in each provider's dashboard.
   - `VITE_*` keys as Heroku config vars
 - This repo: Vite `base: "/explore/"`, and `setOrigin(location.origin)` when served
   under `/explore/` (`VITE_PROD_URL` only for Tauri/standalone builds).

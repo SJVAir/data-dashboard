@@ -374,6 +374,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   live, schools are online, and researchers export notebooks. Release 1 keeps local
   documents, sync, manifest-based installability, and an offline banner. A service worker
   comes with web push; true offline-first stays a Tauri concern.
+- **Keeping the dashboard repo private** (a read-only deploy token for the import, or a
+  CI-built artifact): _2026-09-28_. There was no reason to keep it private, so it's being
+  made public, matching monitor-map and sdk-js.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

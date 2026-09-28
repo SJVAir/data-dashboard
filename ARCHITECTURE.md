@@ -1353,8 +1353,14 @@ separate origin. **The base path is `/explore/`** (decided 2026-09-25).
   - **After go-live**, unfinished features stay on branches or behind a flag.
   - A broken dashboard build would fail the server deploy. This is the same risk
     monitor-map already carries, accepted for now.
+- **Repo visibility** (decided 2026-09-28): `SJVAir/data-dashboard` is being made
+  **public** (it was private, which would break the anonymous `git clone` in the
+  monitor-map-style import). A history scan found no committed secrets (only
+  `.env.example` with public URLs). This matches monitor-map and sdk-js, which are public.
 - **Build configuration:** `VITE_*` keys (MapTiler, NREL, …) come from **Heroku config
-  vars** at build time, as for monitor-map. Vite `base: "/explore/"` matches the
+  vars** at build time, as for monitor-map. These keys end up in the built JavaScript like any
+  in-browser map key, so **each must be restricted to sjvair.com** in its provider's
+  dashboard (MapTiler, NREL). Vite `base: "/explore/"` matches the
   router's `basePath`.
 - **Same-origin API in production:** when served under `/explore/`, the SDK origin is
   the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
