@@ -44,6 +44,22 @@ for basic users, feature-rich for power users.
 
 These may change if a better structure emerges.
 
+### Starter dashboard
+
+Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
+
+- A **built-in document** whose place defaults to **Fresno County**. Automatic location is
+  ruled out (geolocation is opt-in only), and there is no Valley-wide region.
+- A **"Showing Fresno County · Change place"** bar offers the shared place picker plus an
+  opt-in "Use my location". It **changes the place for all of the starter's widgets at
+  once**. This is a feature of the built-in starter only, not general widget linking
+  (which stays deferred).
+- **The first edit makes it the visitor's own copy**, saved and autosaved like any
+  dashboard; the built-in template is never modified.
+- Titles are generated from metadata (nothing English is stored in the template).
+- Contents: non-map widgets (including calendars) from Release 1 step 4; the Map widget
+  joins in step 6.
+
 ### Widget Creation view
 
 Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter options

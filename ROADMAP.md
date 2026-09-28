@@ -78,7 +78,8 @@ needs explicit per-release approval.
 4. **Widget Creation and the non-map widgets**
    - Widget Creation view (catalog-driven dataset accordions, layers, advanced resolution
      override)
-   - the **starter dashboard** (first-visit default) with non-map widgets. Until it
+   - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
+     "Change place" bar; the first edit makes a personal copy) with non-map widgets. Until it
      exists, `/` and "new from starter" open a blank dashboard
    - the `WidgetType` registry and `WidgetDataConfig`
    - the **shared place picker** (monitors, regions, or points; "place" here means a
