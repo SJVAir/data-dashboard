@@ -66,7 +66,9 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
     and a toast says "Saved as your own dashboard". The built-in template is never
     modified.
   - **Sharing the starter** first makes a copy, then shares that.
-- Titles are generated from metadata (nothing English is stored in the template).
+- Titles are generated from metadata, and the welcome Note references a **message key**
+  (nothing English is stored in the template). A personal copy stores the Note's rendered
+  text only once the user edits it.
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
   day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
@@ -125,7 +127,7 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 - **Tailwind CSS + shadcn-svelte** for components. **Never Bulma** (the server uses it;
   this project never will).
 - No SJVAir ecosystem theme exists yet; colors and style direction may be derived from
-  the server's existing pages/templates (a dedicated design pass is in `DEFERRED.md`).
+  the server's existing pages/templates (the design pass is scheduled; see above).
 - Modern component/layout practice; **animations for transitions encouraged**. Tone:
   clean, not messy — but not plain, boring, or corporate. Use layout patterns users
   already know.
@@ -272,12 +274,13 @@ Why web-first:
 Tauri-ready seams required **from day one**:
 
 - **Platform adapter layer.** A small set of interfaces for storage, notifications,
-  file save/export, background tasks, online/offline status, and opt-in geolocation. The web
+  file save/export, background tasks, online/offline status, opt-in geolocation, and error
+  reporting. The web
   implementation uses IndexedDB (for documents and preferences) and browser APIs; a Tauri implementation later
   swaps in SQLite, native notifications, tray, and filesystem access. **Components and
   managers never call `localStorage`, `Notification`, `showSaveFilePicker`, etc.
   directly** — only through the adapter. Preferences (e.g. last-opened dashboard,
-  active Collection) are stored through it. The v1 `src/lib/preferences.ts` is removed
+  active Collection, the starter's chosen place) are stored through it. The v1 `src/lib/preferences.ts` is removed
   with the rest of the v1 code, not migrated.
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
@@ -302,7 +305,7 @@ offline export a notebook bundle. What Release 1 keeps:
 - **Installable via a web app manifest only** ("Add to Home Screen" / Install). An
   installed site is exempt from Safari's 7-day storage eviction, which protects anonymous
   users' dashboards _created in the installed app_. On iOS the home-screen app likely has
-  storage separate from Safari (unverified), so dashboards made in Safari first are moved
+  storage separate from Safari (unverified; **verify during the private preview**), so dashboards made in Safari first are moved
   with Export/Import. Modern browsers need only the manifest (and icons), not an offline
   service worker.
 - **An offline banner** ("You're offline, data may be out of date") from the browser's
@@ -704,7 +707,8 @@ kinds. Server support:
     ZIP, zone, and region), in a **POST body** rather than URL parameters, so router logs
     never see coordinates. **The server scrubs `lat`/`lon`** from Sentry, Scout, and
     application logs.
-  - **Sharing, copying, and exporting default to the resolved region** (e.g. "ZIP 93721"),
+  - **Sharing, copies made from a share, and exporting default to the resolved region**
+    (the owner's own copies, e.g. the starter copy or "Save as copy", keep the exact point) (e.g. "ZIP 93721"),
     with a notice: "Your location is shared as ZIP 93721, not your exact position." The
     notice offers an explicit **"Share my exact location instead"** option, off by
     default and chosen per share, with a warning that anyone with the link will see it.
@@ -906,7 +910,7 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Replaces the v1 calendar     |
 | Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                              |
 | Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
-| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor or region            |
+| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor, region, or point    |
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
 | Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)             |
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
@@ -958,8 +962,9 @@ range:
   **default trailing window of the last 3 days (Pacific time)**, the "what led up to now"
   question. The Collection item shows that range, and the user can adjust it in the
   Collections drawer.
-- **Forecast strip:** stages the forecast zone over the same 3-day trailing window where
-  past forecasts exist; otherwise `analyzable: false`.
+- **Forecast strip:** stages the forecast zone over the same 3-day trailing window. Past
+  forecasts are kept per `issued_date` (verified 2026-09-29; only same-day reissues are
+  replaced), so it is `analyzable`.
 - **Alerts feed** (Release 2): `analyzable: false`. It lists fired alerts; the data behind
   an alert is reachable from its monitor or region.
 
@@ -1189,6 +1194,8 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
 	schemaVersion: number;
 	id: string;
 	name: string;
+	copiedFrom?: string; // source document id when this is a copy
+	deletedAt?: string; // local soft delete ("Recently deleted"; purged after ~30 days)
 	body: DocumentBody<K>;
 };
 ```
@@ -1420,9 +1427,9 @@ type DatasetCatalogEntry = {
   supports them.
 - **A layer with no selection** means "all features" on a map. Charts and calendars
   **require** a place or selection (a monitor or region). A **point** given to a range
-  widget (e.g. from the starter's "Change place" bar) is resolved to its smallest
-  containing region with data and stored as that region selection, labeled "(your
-  location)".
+  widget (e.g. from the starter's "Change place" bar) is **kept as the point** and resolved
+  at render to its smallest containing region with data, labeled "(your location)", the
+  same rule as "now" widgets. Staging freezes it to that region.
 
 **Structure: per-domain meta + a catalog index.**
 
@@ -1474,9 +1481,10 @@ level of every scale.
   county, city, or similar target uses the **highest heat score among its ZIPs**, labeled
   (e.g. "Heat: High (highest in Fresno County today)"). That's the safe choice for activity
   advice. A point or ZIP target uses that exact ZIP.
-- **Forecasts for areas that aren't a forecast zone:** use the containing zone (via the
-  place lookup). An area spanning zones uses the zone containing its center, labeled.
-  Fresno County is its own forecast zone.
+- **Forecasts for areas that aren't a forecast zone:** use the containing zone, found
+  through the forecasts app's zone list (exposed in forecasts metadata), not a region
+  type. Note that forecast zones are **county regions for 6 of 9 zones** (incl. Fresno) and `custom` regions for Tulare (Valley portion), Kern (SJV Air Basin portion), and Sequoia National Park and Forest (`forecasts/tasks.py` `ZONE_TO_REGION`). An area spanning zones uses the zone containing its
+  center, labeled.
 - **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
   both conditions beneath it; ties show both guidance texts. Only tier numbers are
   compared, and all wording is server metadata. With no heat data (uncovered ZIP, or not
@@ -1510,11 +1518,13 @@ wrap simple.
 - **Current:** Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4,
   shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot` (currently only via
   monitor-map; becomes a direct dependency),
-  `@sveltejs/enhanced-img`, `@sjvair/sdk`, `@sjvair/monitor-map` (v1 code; replaced by
+  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, `@sjvair/monitor-map` (v1 code; replaced by
   `@sjvair/map-sdk`), Vitest.
 - **Planned additions (decided):** Paraglide JS (i18n-ready messages), `@date-fns/tz` (Pacific-time math), `lz-string`
   (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw` (drawn-shape selection, via a map-sdk
-  plugin), JupyterLite + Pyodide (separate notebook app), and for testing Playwright,
+  plugin), `zod` (document validation), a Markdown renderer with raw HTML off (Notes), the
+  Sentry browser SDK (via the platform adapter), JupyterLite + Pyodide (separate notebook
+  app), and for testing Playwright,
   `vitest-browser-svelte`, and `@axe-core/playwright`.
 
 ## Browser support & performance budget
@@ -1555,8 +1565,8 @@ errors today.
 Decided 2026-09-28.
 
 - **MIT** for `data-dashboard`, `map-sdk`, and `monitor-map`, matching `sdk-js` (and
-  `django-resticus`). Before this, `data-dashboard` (now public) and `monitor-map` (on npm)
-  had no license, which means "all rights reserved".
+  `django-resticus`). Still pending: the `LICENSE` files. `data-dashboard` (now public) and
+  `monitor-map` (on npm) currently have no license, which means "all rights reserved".
 - **Dependency policy:** bundled dependencies must be permissively licensed: MIT, BSD,
   Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide). A **CI license check**
   flags anything else, and the build generates a **third-party notices** file (which

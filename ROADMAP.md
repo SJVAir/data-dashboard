@@ -40,11 +40,12 @@ needs explicit per-release approval.
      (with a per-item "keep rolling" toggle), and a placeholder Analysis view that lists a Collection's
      items with "starter analyses coming soon"
    - autosave (no explicit Save) with a "Saved" indicator; picker actions (new,
-     duplicate, rename, delete with an undo toast)
+     duplicate, rename, delete with an undo toast); local soft delete with a "Recently
+     deleted" list (about 30 days), and `copiedFrom` on local copies
    - local durability safeguards (`storage.persist()`, status note, backup nudge, quota
      errors) and "Clear my data"
    - version-skew handling (newer documents read-only, version-tagged change queue,
-     `version.json` deploy detection with a reload prompt)
+     `version.json` deploy detection and chunk-load failures with a reload prompt)
    - Export/Import `.json` and URL-fragment sharing (`/import`), with schema validation and size limits
      on every incoming document
    - **a fresh start** (decided 2026-09-24): the v1 app shell, sidebar, tab routes, and
@@ -59,6 +60,7 @@ needs explicit per-release approval.
    - browser support floor (Chrome/Edge 111+, Safari 16.4+, Firefox 128+) with an
      unsupported-browser notice; a CI bundle budget (about 200 KB initial) and per-widget code
      splitting
+   - a shared `readableColor` helper, outlined swatches, labels always shown with level colors
    - MIT license, a CI license check (permissive only), third-party notices
    - scrubbed front-end error reporting to Sentry, an in-app privacy note, and a preview
      feedback link (no Google Analytics on `/explore/`)
@@ -86,8 +88,8 @@ needs explicit per-release approval.
      `setRequestDefaults`), which Foundations' data layer needs
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
-   - verify production `school_district` and `custom` (forecast zone) region rows; import
-     if missing
+   - verify production `school_district` rows and the 3 `custom` forecast-zone regions (the
+     other 6 zones are counties); import if missing
    - extend `regions/places/lookup/` with rounded coordinates (POST body; coordinates scrubbed
      from logs, Sentry, Scout) and `?monitor=` (containing
      regions), plus the SDK wrapper update
@@ -120,6 +122,12 @@ needs explicit per-release approval.
    - Current conditions
    - Data table
    - Notes (safe Markdown: raw HTML off, link allowlist)
+   - heat for areas larger than a ZIP (highest ZIP score, labeled); forecasts via the
+     containing zone
+   - location privacy: rounded points to lookups; shares default to the region, with a
+     per-share "share exact location" option
+   - starter details: lives at `/explore/`, "Change place" is a preference, a real edit
+     copies and replaces the URL, and sharing copies first
    - Hour × weekday heatmap
    - Forecast strip
    - "Can we go outside?"
@@ -131,6 +139,7 @@ needs explicit per-release approval.
    - `@sjvair/map-sdk` (new repo): instance-scoped core, plugins, `MapView`, optional
      metadata/messages/format providers with defaults,
      app-level data stores
+   - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B)
    - **Critical path (decided 2026-09-28): only `map-sdk` → the dashboard's Map widget.**
@@ -145,7 +154,8 @@ needs explicit per-release approval.
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
   pinning), a Django catch-all route for `/explore/*`, and Heroku config vars for
-  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. A CSP on `/explore/*` (report-only
+  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. The
+  `/explore/*` view serves the dashboard's own `index.html` (no Google Tag Manager). A CSP on `/explore/*` (report-only
   first, then enforced). Also:
   `ensure_csrf_cookie` and no forced trailing slashes on `/explore/*`, and a check that no
   CMS page uses `explore`. This repo: Vite `base: "/explore/"` and
@@ -166,7 +176,9 @@ needs explicit per-release approval.
   edits; a prompt only on true overlaps), local →
   account migration, the sign-in flow (Release 2 replaces the redirect with an in-app
   dialog), sync scope and sign-out keep/remove, and the model details (server keeps the
-  client UUID, revocable `share_token`, body size limit, `copied_from`, soft delete with a
+  client UUID, revocable `share_token` (≥ 128 bits), body size limit, per-user document-count
+  and save-rate limits, rejection of `schemaVersion` downgrades, a restore-or-discard prompt,
+  "no longer available" share pages, `copied_from`, soft delete with a
   30-day restore, owner-only delete, and an optional public display name). Anonymous users
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (the server "remember me" change is owned by the
@@ -179,11 +191,11 @@ needs explicit per-release approval.
   decided in the hosting-track plan.
 
 6. **Map widget in the starter, and go-live.** The default dashboard a first-time visitor sees
-   (not a blank page) uses non-map widgets, including calendars, from step 4. The Map
+   (not a blank page) uses non-map widgets, including a calendar, from step 4. The Map
    widget joins once step 5 lands. **The `sjvair.com/explore/` route goes live when Release 1 is
    complete.** Until then the route stays disabled or hidden (except for the private
    preview), so work in progress on `main` isn't public. Merges still need explicit
-   approval.
+   approval. Before go-live: a low-end device performance check.
 
 ## Release 2: Alerts
 

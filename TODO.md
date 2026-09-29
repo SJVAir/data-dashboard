@@ -45,8 +45,8 @@ dropdown picker, and the dataset definition. The rest:
       anyone). Legacy endpoints stay as a logged compatibility layer; their removal and the
       v3-mobile update are deferred.
 
-**Planning is complete (2026-09-23 → 2026-09-24, branch `planning`).** All IDEA.md Open
-Questions and the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
+**IDEA.md Open Questions resolved (2026-09-23 → 2026-09-24, branch `planning`).** They and
+the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
 sequencing is in `ROADMAP.md`; every deferral is in `DEFERRED.md`.
 A full traceability review against IDEA.md (2026-09-24) fixed the remaining gaps
 and decided nine follow-ups (more were settled later that day: the fresh start and the
@@ -61,12 +61,15 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 0. When planning is finished: merge `planning` into `main` (**needs the user's approval**).
 
 1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
-2. **Release 1, step 1: Foundations** spec (this repo).
+2. **Release 1, step 1: Foundations** spec (this repo). Its data layer depends on the
+   **sdk-js request-options change** (first item of the step 3 metadata track), so plan
+   that first.
 3. **Now** (the step 3 metadata plan runs alongside Foundations): **the user maps the 6 AQ levels onto CalHeatScore's
    0–4 tiers** (`DEFERRED.md` → "Open decisions"). Heat maps one to one and uses
    CalHeatScore's official guidance.
 4. Before the step 3 metadata plan and the Release 2 alerts plan: **verify production row
-   counts for `school_district` and `custom` (forecast zone) regions**, and import them if
+   counts for `school_district` regions and the 3 `custom` forecast-zone regions**
+   (Tulare, Kern, Sequoia; the other 6 zones are counties), and import them if
    missing (`DEFERRED.md`).
 5. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
    **metadata enablers**, **hosting under `/explore/`**, **email-only accounts**, and
@@ -89,7 +92,7 @@ updating the docs after each one.
       break: per-map `MapContext` instead of singletons, factory plugins with data-source
       interfaces, `MapShell` + lightweight `MapView`, injected config; migrate
       sjvair.com and `v3-mobile` in the same effort (restructured 2026-09-24 as
-      `@sjvair/map-sdk` 1.0 plus monitor-map rebuilt on it; consumers migrate one at a
+      `@sjvair/map-sdk` (pre-1.0, then 1.0 once validated) plus monitor-map rebuilt on it; consumers migrate one at a
       time). See `ARCHITECTURE.md` → "Map SDK".
 - [x] **Q4 Dashboard layout mechanics** → Snapping grid (no overlap), pure layout
       engine + CSS Grid rendering, fullscreen within dashboard area, minimize-to-taskbar
@@ -151,7 +154,8 @@ each was interviewed and recorded:
       "Routing, URL state & undo".
 - [x] **Sequencing** → `ROADMAP.md` rewritten: PM2.5 fix now; Release 1 Dashboard
       (foundations → layout → metadata enablers ∥ → widgets → monitor-map 4.0 (now `map-sdk`) + Map
-      widget on map-sdk → starter dashboard + go-live); Release 2 Alerts (server work starts
+      widget on map-sdk → starter dashboard + go-live, since revised: the starter is built in step 4 and step 6
+      adds the Map widget); Release 2 Alerts (server work starts
       alongside Release 1); Release 3 Analysis. Map widget waits for 4.0 (since restructured as `map-sdk`).
 
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
@@ -202,8 +206,9 @@ package release needs explicit per-release approval.
   Reuse existing code only if it's exactly what the new design needs.
 
 - Platform adapter: storage, notifications, file export, background tasks, online status,
-  opt-in geolocation,
-  auth mode, and token storage. Preferences (last-opened dashboard, active Collection)
+  opt-in geolocation, error reporting,
+  auth mode, and token storage. Preferences (last-opened dashboard, active Collection, the
+  starter's chosen place)
   go through it; the v1 `preferences.ts` is removed, not migrated.
 - Data layer (in-memory cache shared across widgets; HTTP cache for reloads; documents in
   IndexedDB):
@@ -260,7 +265,9 @@ package release needs explicit per-release approval.
 - Vite dev proxy: `/api` and `/account/` to the local podman sjvair.com, plus a one-time `csrftoken`
   cookie bootstrap (Vite serves the app, so Django's `ensure_csrf_cookie` doesn't run in dev).
 - Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
-  actions: new, duplicate, rename, delete with an undo toast.
+  actions: new, duplicate, rename, delete with an undo toast. Local soft delete with a
+  "Recently deleted" list (about 30 days), and `copiedFrom` on local copies (starter, Save as
+  copy).
 - Local durability: a `navigator.storage.persist()` request, a storage status note, a
   backup nudge, and clear quota and write errors.
 
@@ -305,6 +312,9 @@ package release needs explicit per-release approval.
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
 
+**Release 1, step 3 (addition):** verify production `school_district` rows and the 3
+`custom` forecast-zone regions; import if missing.
+
 **Release 1, step 4: Widget Creation and non-map widgets**
 
 - Heat for areas larger than a ZIP = the highest ZIP score, labeled; forecasts for
@@ -313,8 +323,8 @@ package release needs explicit per-release approval.
   **Fresno County**, a "Showing … · Change place" bar (the shared picker plus opt-in
   location) that re-targets all its widgets, and a personal copy on first edit. It lives at `/explore/`; "Change place" is a preference (no
   copy); a real edit makes a copy and replaces the URL with `/explore/dashboards/:id`; sharing
-  copies first. It has non-map widgets, including
-  calendars; the Map widget joins in step 6.
+  copies first. It has non-map widgets, including a
+  calendar; the Map widget joins in step 6.
 - The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
@@ -427,7 +437,7 @@ django-resticus plans first)
 **Release 1, step 6: Map widget in the starter, and go-live**
 
 - The default first-visit dashboard gains the Map widget (it has non-map widgets,
-  including calendars, from step 4).
+  including a calendar, from step 4).
 - Before go-live: a low-end device performance check (Lighthouse with throttling, plus a
   real older Chromebook from the preview school if possible).
 - Go-live: enable the `sjvair.com/explore/` route once Release 1 is complete.

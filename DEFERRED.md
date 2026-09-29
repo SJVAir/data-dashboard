@@ -102,8 +102,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **`place` / `protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28._ Local dev has 0 rows of `place`, `protected`, `custom`, **and
   `school_district`**. Name lookup falls back to city/CDP, so `place` isn't required. But
-  plans rely on **`school_district`** (school region alerts, the picker) and **`custom`**
-  (forecast zones). **Verify production row counts before the step 3 metadata plan and the
+  plans rely on **`school_district`** (school region alerts, the picker) and on the **3
+  `custom` forecast zones** (Tulare, Kern, Sequoia). The other 6 forecast zones, including
+  Fresno, are county regions, so a zone lookup goes through the forecasts data or a
+  metadata zone list, not `type=custom`. **Verify production row counts before the step 3 metadata plan and the
   Release 2 alerts plan**; import them if they're missing. No code changes are needed once
   data exists.
 - **Lightweight (geometry-free) regions list endpoint.** _Deferred 2026-09-17._
@@ -342,8 +344,8 @@ point.
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
-- **Whether the server keeps past forecasts** (decides whether the Forecast strip is
-  `analyzable`). **Check in** the Release 1 step 4 spec.
+- **Copyright holder name for the MIT `LICENSE` files** (e.g. "SJVAir" or the organization's
+  legal name). **The user decides**, before the Foundations license task.
 - **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide
   in** the Release 3 step 1 spec (Analysis engine).
 - **User-defined analysis editor UI** (IDEA.md Q6: "What should user-defined analysis

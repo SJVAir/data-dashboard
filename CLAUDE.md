@@ -101,7 +101,7 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
   "Telemetry, analytics & privacy".
 - **Treat document content as untrusted** (see `ARCHITECTURE.md` → "Security baseline"):
   validate every incoming document with a schema and size limit, render Markdown with raw
-  HTML off, and never inject HTML or use inline scripts (a CSP on `/explore/` enforces this).
+  HTML off, and never inject HTML or use inline scripts (a CSP on `/explore/*`, report-only then enforced, backs this up).
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
   "Authentication"): session cookie when served from sjvair.com's origin (Release 1:
   `/explore/`); `Token`
@@ -109,9 +109,10 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 
 ## Licensing
 
-This repo is **MIT** (as are `map-sdk`, `monitor-map`, and `sdk-js`). Only add dependencies
-with permissive licenses (MIT, BSD, Apache-2.0, ISC; MPL-2.0 only if unmodified). CI checks
-licenses and the build generates third-party notices. See `ARCHITECTURE.md` → "Licensing".
+This repo is **MIT** (decided 2026-09-28; the `LICENSE` file awaits the copyright holder's
+name), as are `map-sdk` and `monitor-map` once added, matching `sdk-js`. Only add
+dependencies with permissive licenses (MIT, BSD, Apache-2.0, ISC; MPL-2.0 only if
+unmodified). CI will check licenses and the build will generate third-party notices. See `ARCHITECTURE.md` → "Licensing".
 
 ## Deferred work — standing rule
 
@@ -135,6 +136,7 @@ Installed:
 | shadcn-svelte / bits-ui                       | Accessible UI primitives                       |
 | `@lucide/svelte`                              | Icons                                          |
 | `@sveltejs/enhanced-img`                      | Optimized images                               |
+| `color2k`                                     | `readableColor` for text on level colors       |
 | Vitest                                        | Unit tests (browser-mode component tests next) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
@@ -148,6 +150,9 @@ Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 | `terra-draw`                                    | Drawn-shape map selection (via a map-sdk plugin)      |
 | Playwright                                      | E2E on Chromium/WebKit/Firefox                        |
 | `vitest-browser-svelte`, `@axe-core/playwright` | Component tests in a real browser; WCAG 2.2 AA checks |
+| `zod`                                           | Validating every incoming document                    |
+| A Markdown renderer (raw HTML off)              | Safe Notes rendering                                  |
+| Sentry browser SDK                              | Scrubbed error reports (via the platform adapter)     |
 | JupyterLite + Pyodide                           | Separate `/notebooks/` app (Release 3)                |
 
 ## Environment Variables
@@ -171,8 +176,8 @@ SJVAir project, without the user's explicit permission for that specific
 release — every single time. Approval for one release does not carry forward
 to the next, even later in the same session or as the natural next step of a
 task already in progress. Always stop and ask first. **The same applies to production
-deploys.** sjvair.com's Heroku deploy builds this repo's `main`, so **merging to `main`
-is effectively a production deploy**: never merge to `main` without explicit approval.
+deploys.** Once the hosting track is live, sjvair.com's Heroku deploy builds this repo's
+`main`, so **merging to `main` is effectively a production deploy**: never merge to `main` without explicit approval.
 The same goes for **monitor-map `main`** (sjvair.com builds it unpinned) and
 **django-resticus `develop`** (sjvair.com installs it unpinned).
 
