@@ -4,6 +4,17 @@ Last updated: 2026-09-28
 
 ## Start here
 
+**⏸ Paused 2026-09-28 (end of day).** Planning is effectively complete: several full review
+passes have run, and every decision is recorded. Waiting on the user:
+
+- the AQ-level → CalHeatScore tier mapping (needed now)
+- checking production `school_district` / `custom` region rows
+- the copyright holder name for the MIT `LICENSE` file
+
+When resuming: optionally one more quick review pass, then merge `planning` → `main` (with
+approval) and start the first specs (PM2.5 fix, Foundations). `PRESENTATION.md` / `.docx` at
+the repo root are untracked handouts, not project docs.
+
 **Final-review decisions: complete (2026-09-24 → 2026-09-28).** A three-way final review
 found 12 gaps; all are decided and recorded. #1–#3, #8 and #9 cover the map-sdk split, the
 dropdown picker, and the dataset definition. The rest:
