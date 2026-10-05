@@ -4,16 +4,40 @@ Last updated: 2026-09-28
 
 ## Start here
 
-**⏸ Paused 2026-09-28 (end of day).** Planning is effectively complete: several full review
-passes have run, and every decision is recorded. Waiting on the user:
+**⏸ Paused 2026-10-05.** A broad review (2026-09-29) fixed the mechanical issues
+(`4a6f9a1`) and raised **10 decisions, still pending**:
 
-- the AQ-level → CalHeatScore tier mapping (needed now)
-- checking production `school_district` / `custom` region rows
-- the copyright holder name for the MIT `LICENSE` file
+1. sjvair.com's approved, unmerged **notifications redesign** (`worktree-notifications-redesign`,
+   PR #246) conflicts with Release 2. Its non-goal is "no channel" and it has different
+   escalation windows. Proposal: build on it, make its behavior the "today" baseline, and add
+   `channel` to its `Notification` model.
+2. **`feature/pesticides-explorer`** (PR #275) adds a `regions.Location` model (schools, child
+   care). Consider `PlaceRef` `{ kind: "location" }` and reuse its notice and radius queries.
+3. **Age policy (COPPA)** for email-only accounts.
+4. **Who owns the CSP host list**, plus the Sentry DSN and releases, across the two repos.
+5. **Which account owns local documents** on a shared browser (UUID collisions on upload).
+6. **User content under sjvair.com branding**: an "made by a user" bar, `ugc` links, staff
+   takedown, a report link.
+7. **Stable ids and deprecation**: what saved widgets and rules do when a pollutant, dataset, or
+   monitor goes away.
+8. **Recovery after a bad migration or sync bug** (a local pre-migration snapshot, a server
+   version table).
+9. **What account deletion does** to documents, rules, the inbox, and share links.
+10. **A "last N days" trailing date range** (used by the starter's 30-day chart, but not among
+    IDEA.md's three methods).
 
-When resuming: optionally one more quick review pass, then merge `planning` → `main` (with
-approval) and start the first specs (PM2.5 fix, Foundations). `PRESENTATION.md` / `.docx` at
-the repo root are untracked handouts, not project docs.
+**sjvair.com `next` branch (in progress).** The user is making `next` official and will share
+the details on resume. Current state reviewed 2026-10-05:
+
+- `next` is a local integration branch rebuilt by `scripts/rebuild-next.sh` (in the `next`
+  worktree), using rerere to replay resolutions.
+- `next-backup` is the script's backup and stays.
+- Local rebased branches ahead of GitHub are by design.
+- Suggested to the user: set `gc.rerereResolved`/`gc.rerereUnresolved` (the default 60-day
+  expiry would drop the Oct 1 resolutions around Nov 30), and track the script somewhere.
+
+**On resume:** hear the `next` changes, record the convention in the docs and memory, then
+take decisions 1–10 one at a time.
 
 **Final-review decisions: complete (2026-09-24 → 2026-09-28).** A three-way final review
 found 12 gaps; all are decided and recorded. #1–#3, #8 and #9 cover the map-sdk split, the
