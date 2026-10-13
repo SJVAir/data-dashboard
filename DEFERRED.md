@@ -94,6 +94,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   token in sjvair.com's Heroku build. Errors are reported without it, but with minified
   stack traces. The repo is public and MIT, so serving source maps publicly is a simpler
   alternative. **Revisit when** an unreadable stack trace first costs real debugging time.
+- **Bulk migration of saved references on the server** (rewriting every saved widget or
+  rule from a retired id to its replacement). _Deferred 2026-10-13._ The `replacedBy`
+  pointer handles it one widget at a time, as an undoable edit. **Revisit when** a
+  widely used id is retired and per-widget switching would affect many people.
+- **Full version history for documents** (previews, side-by-side comparison, named
+  versions). _Deferred 2026-10-13._ Release 1 has a dated "Restore an earlier version"
+  list for recovery only. **Revisit when** people use restore for everyday undo rather
+  than recovery, or ask to compare versions.
 
 ## Map & selection
 
@@ -232,14 +240,6 @@ ship, or a specific audience asks for one.
   "not yet told", so the alert goes out at the next check after quiet hours. It could
   only be opt-in, since smoke often worsens overnight. **Revisit when** people complain
   about night texts, or when the rule UI gains a settings page.
-- **Bulk migration of saved references on the server** (rewriting every saved widget or
-  rule from a retired id to its replacement). _Deferred 2026-10-13._ The `replacedBy`
-  pointer handles it one widget at a time, as an undoable edit. **Revisit when** a
-  widely used id is retired and per-widget switching would affect many people.
-- **Full version history for documents** (previews, side-by-side comparison, named
-  versions). _Deferred 2026-10-13._ Release 1 has a dated "Restore an earlier version"
-  list for recovery only. **Revisit when** people use restore for everyday undo rather
-  than recovery, or ask to compare versions.
 - **Numeric alert thresholds** (e.g. "PM2.5 > 25 µg/m³"). _Deferred 2026-09-24 (alerting
   design)._ First iteration uses level categories only: simpler for community/schools
   and consistent with the level colors shown everywhere. **Revisit when** researchers or
