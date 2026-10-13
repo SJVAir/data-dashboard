@@ -145,7 +145,9 @@ alerting rather than building a separate one. Current shape (see
 `docs/reference/server-data-inventory.md`): `Subscription(user, monitor, level)`,
 level-category thresholds, evaluated every 10 min for PM2.5 (most monitors) / O3
 (AirNow, AQLite), **SMS only**; no push infrastructure exists on the server or in
-`v3-mobile`.
+`mobile`. **The server's alert system was redesigned on 2026-10-12** (sjvair.com PR #246);
+see "Server baseline since the 2026-10-12 redesign" below. Several decisions in this
+section were made against the older behavior and are flagged there for re-confirmation.
 
 Decided 2026-09-24: **two separate mechanisms.**
 
@@ -174,7 +176,8 @@ approved sjvair.com plan.
 - **Forecasts** — tomorrow's AQI category, no-burn days, declared air alerts (per
   forecast zone): before-the-fact warnings, especially for schools.
 - **Pesticide notices nearby** — a SprayDays application scheduled within N miles of a
-  chosen place.
+  chosen place. The server already has `pesticides/notices/active/` (by bounding box or
+  `region` + `buffer`) and radius queries on `sections/` and `locations/` to build on.
 
 Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred — see
 `DEFERRED.md`.
@@ -184,31 +187,58 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
 - **Pollutants: level categories only** (e.g. "Unhealthy for Sensitive Groups or
   worse"), picked from metadata levels — so thresholds track breakpoint changes
   automatically. Numeric thresholds are deferred (see `DEFERRED.md`).
-- **Averaging windows are server-defined, not user-set:** monitors keep today's 30-min
-  average to open / 60-min to update; regions use hourly summaries. Published via alert
-  metadata (Metadata gap #4) so the UI can explain "based on a 30-minute average".
+- **Averaging windows are server-defined, not user-set.** Monitors use whatever the
+  server's evaluator uses (since 2026-10-12: one trailing 60-minute average with at least
+  50% coverage; the earlier 30-minute open window is gone); regions use hourly summaries.
+  Published via alert metadata (Metadata gap #4) so the UI can explain "based on a
+  60-minute average".
 - **Notify on** (new rules): first crossing, any level change while at or above the
   user's threshold, and an optional **"back to normal"** message, meaning **dropped
   below the user's own threshold** (on by default), e.g. "PM2.5 is now Moderate, below
   your alert level". No repeats while a level holds.
-- **Today's behavior, verified in `alerts/models.py` and `evaluator.py`
-  (2026-09-28):** every level change while not Good creates an `AlertUpdate` that texts
-  subscribers whose threshold is ≤ the new level. The alert ends at Good (after ≥ 60 min)
-  with a ✅ update, but `send_notifications` only texts subscribers whose threshold is ≤
-  the new level, so **the all-clear only reaches "Good"-level subscribers**, and dropping
-  below a subscriber's threshold is silent. The new rule design fixes this for new
-  rules.
+- **Server baseline since the 2026-10-12 redesign** (PR #246; verified in
+  `alerts/models.py`, `evaluator.py`, `notifications.py`, `tasks.py` on 2026-10-13). This
+  replaces the behavior verified on 2026-09-28:
+  - **Models:** `Subscription` gains `last_notified_level`, `last_notified_at`,
+    `below_threshold_since`. `Alert`/`AlertUpdate` use integer keys plus a `sqid` (old
+    alert rows were dropped). A new **`Notification`** model is the delivery audit trail
+    (kind `alert` | `reminder`, level, status, message, provider id). It has **no `channel`
+    field**; the redesign's spec lists a channel abstraction as a non-goal.
+  - **Evaluation:** one trailing 60-minute average (≥ 50% coverage) to create, escalate,
+    and de-escalate; feeds of 1 h or longer use the latest reading. An alert opens at
+    Moderate or above and closes at Good after at least 60 minutes.
+  - **Who gets texted:** only on **escalation** (the level is at or above the
+    subscriber's threshold _and_ above the last level they were texted). **Nothing is
+    sent when air improves: there is no all-clear at all.** Throttles: at most one text
+    per 2 hours and three per Pacific day per subscription (a jump of two or more levels
+    bypasses them), re-arming after 2 hours below the threshold. A daily **10 AM
+    "still bad" reminder** is new. The worst pollutant drives the text.
+  - **Gating and opt-out:** SMS goes only to users with the **`sms_alerts` waffle flag**
+    (so most subscribers may currently get no texts), and only when `SEND_SMS_ALERTS` is
+    on. STOP/START keywords are handled (`User.sms_blocked`). Texts use the user's
+    language setting.
+  - **API shape change:** `account/alerts/` now returns `sqid` and **no longer returns
+    `id` or `latest`**. `@sjvair/sdk` 4.5.0's `airAlertSchema` still requires both, and the
+    mobile app's Alerts screen reads `alert.latest`. That is a live cross-repo break to
+    fix independently of this project (see `TODO.md`).
+  - **Decisions here to re-confirm against this baseline** (pending decision 1 in
+    `TODO.md`): (a) our new-rule behavior ("any level change at or above the threshold",
+    plus a below-threshold "back to normal") vs. the server's escalation-only design;
+    (b) guard rails, since the server already throttles per subscription (quiet hours
+    still don't exist); (c) adding a `channel` to `Notification` for email and the in-app
+    inbox, which overrides the redesign's non-goal.
 - **Existing SMS subscriptions** (decided 2026-09-28):
-  - Every `Subscription` is **migrated to a monitor rule that reproduces today's
-    behavior exactly**, quirks included (SMS, same level, updates on every change at or
-    above the threshold, no all-clear for most). The genuinely new features (daily caps,
-    quiet hours) default **off** for migrated rules. Users can opt in to the new
+  - Every `Subscription` is **migrated to a monitor rule that reproduces the server's
+    current behavior exactly**. Since the 2026-10-12 redesign that means SMS, the same
+    level, escalation-only texts, the existing throttles and daily reminder, and no
+    all-clear. Genuinely new features (e.g. quiet hours) default **off** for migrated
+    rules. Users can opt in to the new
     behavior (including the below-threshold all-clear) from the dashboard's rule
     settings.
   - **The legacy endpoints** (`monitors/<id>/alerts/subscribe|unsubscribe`,
     `alerts/subscriptions`) stay as a **compatibility layer** over the new rules, showing
     and editing only rules a `Subscription` can express (single monitor, SMS, level). They
-    **log usage with the app version**. v3-mobile works unchanged; dashboard-only rules
+    **log usage with the app version**. mobile works unchanged; dashboard-only rules
     don't appear in it until it is updated.
   - One source of truth: old and new endpoints read and write the same rules.
   - Removing the legacy endpoints later is deferred (see `DEFERRED.md`). Removing them
@@ -230,7 +260,7 @@ and the rule UI prompts for verification when needed.
 iteration: **SMS** (available for **every** alert type — daily caps and quiet hours are
 the cost control), **email** (new; natural default for schools and slow alerts), and
 the **in-app alert inbox** (every fired alert lands there; history, not delivery).
-**Web push** is the next iteration; **mobile app push** is a separate `v3-mobile`
+**Web push** is the next iteration; **mobile app push** is a separate `mobile`
 project. Both are tracked in `DEFERRED.md`.
 
 Channel reference:
@@ -240,13 +270,13 @@ Channel reference:
 | SMS                      | Yes                                 | Exists; per-message cost; verified phone                                                                                                  |
 | Email                    | Yes                                 | Cheap to add via Django; verified email; one-click unsubscribe (`List-Unsubscribe`)                                                       |
 | Web push                 | Mostly                              | Desktop needs the browser running; Android works; iOS only for home-screen-installed sites. Needs a service worker + VAPID + server table |
-| Mobile app push          | Yes                                 | Would require FCM/APNs in `v3-mobile` — separate project                                                                                  |
+| Mobile app push          | Yes                                 | Would require FCM/APNs in `mobile` — separate project                                                                                     |
 | In-dashboard alert inbox | No                                  | Not delivery — history of what fired, shown on next open                                                                                  |
 
 ### Sibling projects
 
 Built with and against `sjvair.com` (server), `sdk-js` (`@sjvair/sdk`), and
-`monitor-map` (map experience, also used by sjvair.com and `v3-mobile`), and the planned
+`monitor-map` (map experience, also used by sjvair.com and `mobile`), and the planned
 `map-sdk` (map library split out of monitor-map), and `django-resticus` (the API framework,
 `~/workspace/django-resticus`). They may need changes,
 but **must not break their existing use cases**, and **each change needs an approved
@@ -331,7 +361,7 @@ app is running**, not on a user choice:
 | ----------------------------------------------------------------------------------- | --------------------------------------------- |
 | Served from sjvair.com's origin (Release 1: `/explore/`; host-page embedding later) | Django **session cookie** (same-origin)       |
 | Standalone on a different origin, or Tauri desktop                                  | **`Authorization: Token <api_token>`** header |
-| (Reference: `../v3-mobile`, the mobile app)                                         | Token header                                  |
+| (Reference: `../mobile`, the mobile app)                                            | Token header                                  |
 
 Release 1 is served from sjvair.com's origin and uses cookie auth (see "Deployment").
 
@@ -375,7 +405,7 @@ changes, approved plans first):
 - **SMS alerts require a verified phone; email alerts require a verified email.** Users
   can add the other later.
 - **Must not break existing consumers:** phone-based registration and login keep working
-  for v3-mobile and existing users. The username-field change needs care (phone-less
+  for mobile and existing users. The username-field change needs care (phone-less
   users), which the plan must address.
 
 **Everything works anonymously except what needs the server to act or persist for
@@ -439,7 +469,7 @@ Decided 2026-09-28. Verified in code:
   `Endpoint.dispatch` is `csrf_exempt`, and `Endpoint.authenticate` returns an
   already-logged-in session user early, so resticus's own `SessionAuth.enforce_csrf`
   never runs.
-- It is mitigated today by token auth for most API writes (v3-mobile) and by
+- It is mitigated today by token auth for most API writes (mobile) and by
   `SameSite=Lax`. **Release 1's cookie-based document saves would be the first
   significant writes on this path**, so the fix must land first.
 
@@ -513,7 +543,7 @@ set headers (`X-CSRFToken`, a future `Accept-Language`), and no global `credenti
 - **Every data function accepts optional `signal` and `init`**, passed through to `fetch`.
 - **A global `setRequestDefaults({ headers, credentials })`** (or a request hook) that the
   dashboard sets once.
-- **Nothing breaks:** all additions are optional (monitor-map, v3-mobile, and existing
+- **Nothing breaks:** all additions are optional (monitor-map, mobile, and existing
   code are unaffected).
 - It lands in the **first sdk-js plan (the metadata-enablers track)**, since Foundations'
   data layer builds on it. The CSRF header and i18n readiness use it.
@@ -680,8 +710,16 @@ kinds. Server support:
 
 - **Existing** (already wrapped by the SDK): `regions/places/search/?q=&type=`
   (`searchRegionPlaces`) for name search in the picker; `regions/places/lookup/?q=&type=`
-  (`lookupRegionPlace`) to resolve a name to the best region; `regions/?within=` for a
-  parent region's children.
+  (`lookupRegionPlace`) to resolve a name to the best region (without `type` it tries
+  city, then CDP, then urban area; the `place` region type no longer exists);
+  `regions/?within=` (repeatable) for a parent region's children. Since October 2026 the
+  region **list returns only `bbox`, not boundary geometry**; geometry comes from
+  `regions/geojson/?type=` or region detail, and `regions/<id>/?buffer=1|3|5` returns a
+  buffered boundary. Neither has an SDK wrapper yet.
+- **Schools and child care exist as `Location` rows** (public school, private school,
+  child care; a point with links to county, city, ZIP, and school district), served by
+  `pesticides/locations/`. Whether `PlaceRef` gains a `location` kind is pending decision
+  2 in `TODO.md`.
 - **Missing: lookup by coordinates or monitor.** Needed for "Use my location" and for
   mapping a monitor to its ZIP (CalHeatScore) or forecast zone. **Extend
   `regions/places/lookup/`** (no new endpoint) to accept rounded coordinates (`lat`/`lon` in a **POST body**; see "Location
@@ -766,12 +804,20 @@ default**, so sjvair.com's map and the mobile app are unaffected (see Open Quest
 
 Decided 2026-09-23 (IDEA.md Open Question #3), **restructured 2026-09-24**. IDEA.md calls
 it the "map sdk (formerly 'monitor-map')". The map toolkit is **split into two
-packages** instead of doing an in-place 4.0 rewrite:
+packages** instead of rewriting monitor-map in place.
 
-| Package                                                   | Contains                                                                                                                                                                                                                                             | Used by                                                                                 |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **`@sjvair/map-sdk`** (new repo; pre-1.0 until validated) | Per-map core (`createMap`/`MapContext`), the plugin interface and every data-type plugin, `MapView`, **app-level data stores** (e.g. `createMonitorsStore()`), the `terra-draw` drawing plugin (later), injected config. No routing, no page layouts | This dashboard; `monitor-map`; v3-mobile (directly for stores, and through monitor-map) |
-| **`@sjvair/monitor-map`** (existing repo)                 | The SJVAir monitor-map _experience_: `MapShell`/`MonitorMapLayout`, routes and detail panels, legends, load screen, and the standalone build sjvair.com imports. **Rebuilt on `map-sdk`** (its next major version)                                   | sjvair.com (standalone build); v3-mobile (as a library)                                 |
+**Status check 2026-10-13:** monitor-map has since shipped **4.0–4.2** (October 2026),
+but those are a UI and packaging major, **not this split**: a new options toolbar and
+unified legend (4.0), `./core` and `./routes` entry points (4.1), and a self-fetching
+detail panel with basemap-failure handling (4.2). It is still one map per page, with the
+same singletons, no `createMap`, no `MapView`, and config read from `import.meta.env`.
+Its own `CLAUDE.md` says "mount at most one `MapShell` per app instance". So the plan
+below stands, with the baseline now 4.2.0 and the rebuild becoming monitor-map **5.0**:
+
+| Package                                                   | Contains                                                                                                                                                                                                                                                   | Used by                                                                              |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **`@sjvair/map-sdk`** (new repo; pre-1.0 until validated) | Per-map core (`createMap`/`MapContext`), the plugin interface and every data-type plugin, `MapView`, **app-level data stores** (e.g. `createMonitorsStore()`), the `terra-draw` drawing plugin (later), injected config. No routing, no page layouts       | This dashboard; `monitor-map`; mobile (directly for stores, and through monitor-map) |
+| **`@sjvair/monitor-map`** (existing repo)                 | The SJVAir monitor-map _experience_: `MapShell`/`MonitorMapLayout`, routes and detail panels, legends, load screen, and the standalone build sjvair.com imports. **Rebuilt on `map-sdk`** (as its **5.0**), keeping the `/core` and `/routes` entry points | sjvair.com (standalone build); mobile (as a library)                                 |
 
 Why: the dashboard depends only on the library (no layouts or routing it has to work
 around); monitor-map becomes a real consumer of the plugin API, which keeps it honest;
@@ -780,12 +826,19 @@ clear ownership (general map capabilities → `map-sdk`, monitor-map product dec
 monitor-map (local linking for development; each publish needs explicit approval).
 
 **The core problem being solved is still "one map per page"**, not a lack of
-configurability. As of monitor-map 3.6.x: `mapManager` (one `map`), `integrationsManager`,
-and `clickManager` are module-level singletons; integrations are exported singleton
+configurability. As of monitor-map 4.2.0 (unchanged from 3.6.x): `mapManager` (one `map`),
+`integrationsManager`, and `clickManager` are module-level singletons; integrations are exported singleton
 instances (`export const monitorsMapIntegration = new MonitorsMapIntegration()`) that
 talk to `mapManager.map`; `MaptilerConfig.apiKey` is set from `import.meta.env` at
-import time. v3-mobile also uses `monitorsManager` as an **app-wide data store outside
-any map** (`main.ts`, its Subscriptions/Alerts screens, `MonitorSubscription`).
+import time. The mobile app (`../mobile`, on `^4.2.0`) also uses `monitorsManager` as an
+**app-wide data store outside any map**, imported from `@sjvair/monitor-map/core`
+(`monitors-list.ts` with `init(undefined, { autoUpdate: false })`, its Subscriptions and
+Alerts screens, `MonitorSubscription`), plus `provideMonitorMapRouter` from `/core` and
+`monitorMapRoutes` from `/routes`. **Those entry points, the `monitor/:id?pollutant=`
+route, and the `dist/lib` path are compatibility surface the 5.0 rebuild must keep.**
+New 4.x "experience" code to carry over into the rebuild: the options toolbar and panel,
+the unified legend (its gradient already comes from metadata levels), `mapStyleState`,
+`MonitorDetailsState`, lazy routes, and the re-entrant `init` rules.
 
 `map-sdk` design:
 
@@ -819,7 +872,7 @@ any map** (`main.ts`, its Subscriptions/Alerts screens, `MonitorSubscription`).
   types become new plugins, not edits to a monolith.
 - **Data is separate from maps.** App-level stores (e.g. `createMonitorsStore()`) are
   created explicitly by the host, passed to plugins as data sources, and shareable across
-  the host's screens. This replaces the `monitorsManager` singleton for v3-mobile.
+  the host's screens. This replaces the `monitorsManager` singleton for mobile.
 - **`MapView`** (no routing, no load screen) is the embeddable map, and what dashboard
   widgets use. **`MapShell`** (full-page layout, routed detail panel, router escape
   hatch) moves to monitor-map, built on `MapView`.
@@ -839,7 +892,7 @@ any map** (`main.ts`, its Subscriptions/Alerts screens, `MonitorSubscription`).
   - **The dashboard passes all three** (its metadata cache, its Paraglide messages, and its
     `format` module), so maps follow the metadata, i18n, and Pacific-time rules with a
     single metadata cache.
-  - **monitor-map and v3-mobile pass nothing.** The defaults: `map-sdk` fetches metadata
+  - **monitor-map and mobile pass nothing.** The defaults: `map-sdk` fetches metadata
     itself, uses built-in English strings, and formats in Pacific time. Behavior is
     unchanged.
   - `map-sdk`'s strings are defined as **message keys with English defaults**, so it's
@@ -853,18 +906,18 @@ any map** (`main.ts`, its Subscriptions/Alerts screens, `MonitorSubscription`).
 new package, so nothing picks it up by accident. monitor-map migrates onto it **on a
 branch**; its `main`, which sjvair.com's import script builds unpinned, changes only once
 the standalone app is migrated and verified, and that merge needs explicit approval.
-v3-mobile (depending on `^3.x`) keeps working unchanged until it migrates. Each step
+The mobile app (on `^4.2`) keeps working unchanged on monitor-map 4.x until it migrates. Each step
 needs an approved plan in its repo:
 
 1. `map-sdk` (new repo; pre-1.0, then 1.0 once steps 2 and 3 validate it)
-2. monitor-map rebuilt on `map-sdk` (its next major)
+2. monitor-map rebuilt on `map-sdk` (as monitor-map 5.0)
 3. this dashboard's Map widget on `map-sdk`
-4. v3-mobile migrated (stores from `map-sdk`, layout from the new monitor-map)
+4. mobile migrated (stores from `map-sdk`, layout from the new monitor-map)
 
 **Dependencies** (decided 2026-09-28): the dashboard's critical path is only 1 → 3.
 monitor-map's rebuild (2) runs **in parallel, started alongside 3**. Both build against
-pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. v3-mobile (4) is a **separate later track** that
-blocks neither Release 1 nor go-live; it keeps working on monitor-map 3.x until then.
+pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. mobile (4) is a **separate later track** that
+blocks neither Release 1 nor go-live; it keeps working on monitor-map 4.x until then.
 
 ## Dashboard layout mechanics
 
@@ -1329,9 +1382,12 @@ stay local):
 Decided 2026-09-24. **Ship in English only**; no translations exist and there is no
 timeline for them. But build so adding a language is _adding message files_, not a
 retrofit. Context: sjvair.com declares `LANGUAGES` = en, es, tl (Filipino), hmn (Hmong)
-and stores `User.language`, and server metadata strings are gettext-marked — but no
-translation files exist and alerts ignore `User.language`. monitor-map and v3-mobile have
-no i18n.
+and stores `User.language`, and server metadata strings are gettext-marked. As of
+2026-10-13 the server has locale catalogs for es, tl, and hmn (`camp/locale/*/django.po`,
+395 entries each), but **every entry is still untranslated**, and SMS alerts are now sent
+in the user's language setting (which falls back to English for the same reason).
+monitor-map and the mobile app have no i18n (the mobile app's language picker is
+commented out).
 
 **Day-one practices (cheap now, expensive to retrofit):**
 
@@ -1357,7 +1413,7 @@ no i18n.
 
 Deferred until translations exist (see `DEFERRED.md`): language picker, translation
 files, server `.po` files, per-language metadata caching, alerts in `User.language`,
-Hmong formatting fallback, monitor-map / v3-mobile i18n. RTL support is not needed for
+Hmong formatting fallback, monitor-map / mobile i18n. RTL support is not needed for
 the declared languages.
 
 ## Time zone & calendar conventions
@@ -1505,7 +1561,7 @@ Priority: alongside gap #1.
 server breakpoints defined twice (`levels.py` + entry classes), legacy
 `Subscription.LEVELS`, Sass AQ colors, `generate_group_map.py`; `monitor-map`'s
 `colors.ts`, legend gradient, `150.5` fallback, hardcoded "µg/m³", smoke/fire colors;
-stale `sdk-js` `api-urls.md`; v3-mobile's `PMGauge.svelte` (old PM2.5 scale, see
+stale `sdk-js` `api-urls.md`; mobile's `PMGauge.svelte` (old PM2.5 scale, see
 `DEFERRED.md`). (This repo's v1 hardcoded values disappear with the v1
 code; the new code never hardcodes them.)
 
@@ -1598,7 +1654,7 @@ and views.
   - **Swatches and colored areas get a contrasting outline** (WCAG 1.4.11, 3:1).
   - **Text on a level color uses color2k's `readableColor`** (black or white, whichever
     contrasts more, per the WCAG luminance formula), shared through one helper in the
-    `format`/theme module (v3-mobile already uses it). No `text_color` metadata field.
+    `format`/theme module (mobile already uses it). No `text_color` metadata field.
   - axe checks and manual passes cover these states (e.g. a yellow-level tile, the
     calendar).
 

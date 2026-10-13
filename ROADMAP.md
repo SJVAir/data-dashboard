@@ -6,8 +6,13 @@ everything deferred in `DEFERRED.md`.
 
 **Every numbered item below is its own sub-project** with its own spec, then plan, then
 implementation. Sub-projects in a sibling repo (sjvair.com, sdk-js, django-resticus, map-sdk, monitor-map,
-v3-mobile) need an approved plan in that repo before any change. Publishing any package
+mobile) need an approved plan in that repo before any change. Publishing any package
 needs explicit per-release approval.
+
+**Sibling-repo baseline (reviewed 2026-10-13):** monitor-map 4.2.0 (still one map per page);
+the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notifications redesign
+(#246) and Pesticides Data Explorer (#275), with #261 and #282 still open; `@sjvair/sdk` is
+unchanged at 4.5.0.
 
 ## Done (v1 tab era)
 
@@ -148,7 +153,7 @@ needs explicit per-release approval.
      widget and the monitor-map rebuild both build against pre-1.0 `map-sdk`, and 1.0 is
      cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
      with approval.
-   - **Separate later track, not blocking Release 1 or go-live:** the v3-mobile migration
+   - **Separate later track, not blocking Release 1 or go-live:** the mobile migration
      (see `DEFERRED.md`).
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
@@ -166,7 +171,7 @@ needs explicit per-release approval.
   Phone becomes optional; an account needs a verified phone or email; a new email
   verification flow; login and registration by either; the server "remember me"
   checkbox. Phone flows keep working for
-  v3-mobile. It lands before sign-in-dependent features ship.
+  mobile. It lands before sign-in-dependent features ship.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js + django-resticus,
   decided 2026-09-24). **First, the CSRF fix** in django-resticus (with the SDK header and
   sjvair.com page updates), before any cookie-based saves. Merging to resticus `develop`
@@ -203,10 +208,12 @@ needs explicit per-release approval.
   approved:
   - generalize `Subscription` into alert rules for monitor/region pollutants (gated by
     available pollutants), forecasts, and nearby pesticide notices
-  - level-category thresholds, caps, and quiet hours
+  - built on the **2026-10-12 notifications redesign** (escalation-only texts, existing
+    throttles, the `Notification` audit model); level-category thresholds, and any guard
+    rails beyond the existing throttles (e.g. quiet hours)
   - migrate existing SMS subscriptions to rules with today's behavior exactly (new
     features default off); keep the legacy endpoints as a logged compatibility layer so
-    v3-mobile works unchanged
+    mobile works unchanged
   - SMS for every alert type, a new email channel (verified email, one-click
     unsubscribe; **depends on the email-only accounts track's verification flow**; SMS,
     inbox and rules can ship first), and the alert inbox API

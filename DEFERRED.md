@@ -63,9 +63,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   Plain TypeScript over typed arrays in a worker is enough for now. **Revisit when**
   researcher-scale datasets make the TypeScript engine too slow or memory-bound.
 - **Server-side location/radius search.** _Deferred 2026-09-14 (v1 spec); narrowed
-  2026-09-28._ Point → containing-region lookup is now **scheduled** (Release 1 step 3,
-  `regions/places/lookup/`), and Release 2's pesticide-notice rules need a server-side
-  "within N miles" query for notices (part of that alert plan). Still deferred: general
+  2026-09-28; updated 2026-10-13._ Point → containing-region lookup is **scheduled**
+  (Release 1 step 3, `regions/places/lookup/`; still name-only on the server today). The
+  server now has radius and buffer queries for pesticides (`sections/` by
+  `lat,lng,radius`; `locations/` by radius up to 10 mi; `notices/active/` by bbox or
+  `region`+`buffer`, but not by radius) and `regions/<id>/?buffer=1|3|5`, which Release
+  2's pesticide-notice rules can build on. Still deferred: general
   monitor search by location/radius. Needs sdk-js and server changes. Drawn-shape selection resolves on the client, so it doesn't depend
   on this. **Revisit when** client-side resolution gets too slow or needs data the client
   doesn't have.
@@ -99,17 +102,18 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
   pesticide analyses need parcel-level (MTRS) selection.
-- **`place` / `protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
-  2026-09-28._ Local dev has 0 rows of `place`, `protected`, `custom`, **and
-  `school_district`**. Name lookup falls back to city/CDP, so `place` isn't required. But
-  plans rely on **`school_district`** (school region alerts, the picker) and on the **3
-  `custom` forecast zones** (Tulare, Kern, Sequoia). The other 6 forecast zones, including
-  Fresno, are county regions, so a zone lookup goes through the forecasts data or a
-  metadata zone list, not `type=custom`. **Verify production row counts before the step 3 metadata plan and the
-  Release 2 alerts plan**; import them if they're missing. No code changes are needed once
-  data exists.
-- **Lightweight (geometry-free) regions list endpoint.** _Deferred 2026-09-17._
-  **Revisit when** large unnarrowed lists (e.g. about 1,200 tracts) prove slow.
+- **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
+  2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server
+  (migrations 0009/0010); name lookup now tries city, then CDP, then urban area. New types
+  exist: `air_district` and `ab617`. `school_district` has an import command
+  (`import_school_districts`), and there is a new **`Location`** model for schools and
+  child care (`import_schools`). Plans rely on **`school_district`** (school region
+  alerts, the picker) and on the **3 `custom` forecast zones** (Tulare, Kern, Sequoia);
+  the other 6 forecast zones, including Fresno, are county regions, so a zone lookup goes
+  through the forecasts data or a metadata zone list, not `type=custom`. **Verify
+  production row counts before the step 3 metadata plan and the Release 2 alerts plan**
+  (local dev had 0 rows of `school_district` and `custom` on 2026-09-28); import them if
+  missing.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
@@ -138,9 +142,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   emscripten-forge or webR's kernel is revived (R), `jupyterlite/javascript-kernel`
   ships a stable 0.4 (JS), or schools/community users ask for them.
 
-- **CEIDARS facility emissions.** _Deferred 2026-09-24 (docs review)._ On the server
-  (yearly facility emissions + health risk indices) but no widget, analysis, or SDK
-  wrapper is planned. **Revisit when** an emissions/facility-proximity use case comes up.
+- **CEIDARS facility emissions.** _Deferred 2026-09-24 (docs review); updated 2026-10-13._ On
+  the server (yearly facility emissions + health risk indices) but no widget, analysis,
+  or SDK wrapper is planned. **Heads-up:** the open sjvair.com PR #282 (Facility Emissions
+  Explorer) replaces the `ceidars` app with an `emissions` app, moves the API to
+  `/api/2.0/emissions/…`, and adds CEPAM, dairies, wells, and toxics. Anything built on
+  `ceidars/` would break when it merges. **Revisit when** an emissions or
+  facility-proximity use case comes up, and after #282 lands.
 - **Combined heat + air-quality tier bump** (raise the tier by one when both conditions
   are at tier ≥ 2, reflecting combined heat and ozone effects). _Deferred 2026-09-28._ It
   is a health claim needing expert backing. **Revisit when** the user or a health advisor
@@ -154,9 +162,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   chunked) and downsamples them in a worker. **Revisit when** raw fetches get slow or large
   (e.g. a multi-year weather chart takes more than a few seconds). Needs an approved
   sjvair.com plan (add them to the summary rollups).
-- **Sub-yearly pesticide analysis.** _Deferred 2026-09-24._ Server region summaries are
-  yearly only; finer analysis needs the nullable `application_date`. **Revisit when**
-  users need seasonal pesticide timing; likely needs a server summary change.
+- **Sub-yearly pesticide analysis.** _Deferred 2026-09-24; updated 2026-10-13._ The server
+  now has **monthly pesticide rollups** (`PesticideUseRollup`, with month 0 for undated
+  records), exposed through the new `sections/` and `townships/` endpoints (`month=`) and
+  section detail. The `region/<id>/summary/` endpoint is still chemical × commodity ×
+  year. Starter analysis #9 stays yearly for now. **Revisit when** users need seasonal
+  pesticide timing; it now needs sdk-js wrappers and a client adapter rather than new
+  server summaries.
 - **CarbonMapper data source.** _Noted 2026-09-24._ `VITE_CARBONMAPPER_KEY` is reserved in
   `.env.example` (a `carbon-mapper-exploration` sibling repo exists) but nothing is
   designed. **Revisit when** CarbonMapper integration is scoped. Same for the unused
@@ -219,34 +231,40 @@ ship, or a specific audience asks for one.
   iteration (SMS + email + inbox) ships. That service worker also enables **in-browser
   self-monitoring notifications on Android/iOS** (desktop-only in Release 1). **Optional
   add-on:** app-shell caching, decided when the worker is built.
-- **v3-mobile on the new alert-rule endpoints.** _Deferred 2026-09-28._ Release 2 keeps
-  v3-mobile working through the legacy subscription endpoints, but dashboard-only rules
+- **Mobile app on the new alert-rule endpoints.** _Deferred 2026-09-28._ Release 2 keeps
+  mobile working through the legacy subscription endpoints, but dashboard-only rules
   (regions, forecasts, pesticide notices) don't appear in the app. **Revisit when**
-  Release 2 ships, or when v3-mobile users ask to see or manage those rules. Needs an
-  approved v3-mobile plan.
+  Release 2 ships, or when mobile users ask to see or manage those rules. Needs an
+  approved mobile plan.
 - **Remove the legacy subscription endpoints.** _Deferred 2026-09-28._ They remain a
   compatibility layer over alert rules, with usage logged by app version. **Revisit when**
-  v3-mobile **and** any sjvair.com pages use the new rule endpoints, **and** legacy usage
-  has been near zero for a set period (e.g. 4–8 weeks), or a v3-mobile minimum-version
+  mobile **and** any sjvair.com pages use the new rule endpoints, **and** legacy usage
+  has been near zero for a set period (e.g. 4–8 weeks), or a mobile minimum-version
   prompt guarantees nobody needs them. Removing them doesn't affect anyone's alerts.
-- **Mobile app push for alerts (`v3-mobile`).** _Deferred 2026-09-24._ No FCM/APNs setup
-  exists in `v3-mobile` or the server. **Revisit when** `v3-mobile` plans push
+- **Mobile app push for alerts (`mobile`).** _Deferred 2026-09-24._ No FCM/APNs setup
+  exists in `mobile` or the server. **Revisit when** `mobile` plans push
   notifications; needs its own approved plan.
 
-## v3-mobile
+## Mobile app (`../mobile`)
 
-- **v3-mobile migration to `map-sdk` and the rebuilt monitor-map.** _Deferred 2026-09-28._ It
-  doesn't block Release 1 or go-live; v3-mobile keeps working on monitor-map 3.x. **Revisit
-  when** the mobile team wants the new stores or features. Bundle the other v3-mobile
-  follow-ups into the same effort where timing allows: the new alert-rule endpoints, and
-  the PM2.5 gauge unless it has already shipped with the breakpoint fix. Needs
-  a v3-mobile plan and an app release (explicit approval).
-- **v3-mobile PM2.5 gauge on the old scale.** _Noted 2026-09-28 (docs review)._
-  `v3-mobile/src/components/PMGauge.svelte` hardcodes the full pre-2024 PM2.5 scale. The
-  sjvair.com breakpoint fix doesn't reach it. **Revisit with** the PM2.5 breakpoint fix
-  (ideally the gauge reads metadata levels), or with the v3-mobile migration, whichever
-  comes first. Needs a v3-mobile plan and an app release
-  (explicit approval).
+- **Mobile migration to `map-sdk` and the rebuilt monitor-map (5.0).** _Deferred
+  2026-09-28; updated 2026-10-13._ It doesn't block Release 1 or go-live. The mobile app
+  is on monitor-map `^4.2.0` and keeps working on 4.x. It depends on
+  `@sjvair/monitor-map/core` (`monitorsManager` as an app-wide store,
+  `provideMonitorMapRouter`) and `/routes` (`monitorMapRoutes`), which the rebuild must
+  keep. **Revisit when** the mobile team wants the new stores or features. Bundle the
+  other mobile follow-ups into the same effort where timing allows: the new alert-rule
+  endpoints, and the hardcoded PM2.5 scale unless it has already shipped with the
+  breakpoint fix. Needs a mobile plan and an app release (explicit approval; publishing
+  a GitHub Release there ships to TestFlight and the Play beta track).
+- **Mobile app's hardcoded PM2.5 scale.** _Noted 2026-09-28; widened 2026-10-13._ Three
+  files hardcode the pre-2024 scale: `src/components/PMGauge.svelte`
+  (12.1/35.5/55.5/150.5/250.5), `src/lib/colors.ts` (`pmValueColors`,
+  `ozoneValueColors`), and `src/components/AirQualityGuidelines.svelte`. Only its Alerts
+  and Subscriptions screens read levels from metadata. The sjvair.com breakpoint fix
+  doesn't reach these. **Revisit with** the PM2.5 breakpoint fix (ideally they read
+  metadata levels), or with the mobile migration, whichever comes first. Needs a mobile
+  plan and an app release (explicit approval).
 
 ## Accounts
 
@@ -276,13 +294,15 @@ ship, or a specific audience asks for one.
 
 ## Internationalization
 
-- **Translations and language switching.** _Deferred 2026-09-24._ No translations exist
-  and there's no timeline; the app ships English-only but translation-ready (see
+- **Translations and language switching.** _Deferred 2026-09-24; re-checked 2026-10-13._ The
+  server now has empty locale catalogs (es, tl, hmn; 395 untranslated entries each) and
+  sends SMS in the user's language, but no actual translations exist and there's no
+  timeline; the app ships English-only but translation-ready (see
   `ARCHITECTURE.md` → "Internationalization"). Deferred together: Spanish, Filipino (tl),
   and Hmong (hmn) message files; a language picker (saving to `User.language` when
   signed in); server `.po` files for sjvair.com (metadata labels/guidance, alert text);
   per-language metadata caching; alerts sent in `User.language`; a formatting fallback
-  for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and v3-mobile (`map-sdk` is translation-ready via its `messages`
+  for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and mobile (`map-sdk` is translation-ready via its `messages`
   provider but ships English defaults). Health guidance
   and alert text need human translation or review, not machine-only. **Revisit when**
   translators or funding for translation are available.
@@ -338,8 +358,11 @@ point.
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Private-preview mechanism**: a staging Heroku app or an unlisted route on
-  sjvair.com. **Decide in** the Release 1 hosting-track plan (the preview starts around
+- **Private-preview mechanism**: a staging Heroku app, an unlisted route on sjvair.com, or
+  (new option, 2026-10-13) the server's **waffle `beta_tools` flag**, which already gates
+  `/tools/pesticides/` to flagged "Beta testers" through `BetaToolsMiddleware`. Gating
+  `/explore/` the same way would give a preview on production with no separate
+  deployment. **Decide in** the Release 1 hosting-track plan (the preview starts around
   Release 1 step 4).
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
@@ -376,11 +399,12 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Time scrubbing or time selection inside map widgets**: _2026-09-23, Q2_. Time is fixed
   per widget, and calendar and chart widgets handle narrowing the time range.
 - **A long-lived monitor-map 3.x compat shim**: _2026-09-23, Q3_. No compat shim; with the
-  `map-sdk` split (2026-09-24), consumers migrate one at a time (v3-mobile stays on `^3.x`
+  `map-sdk` split (2026-09-24), consumers migrate one at a time (the mobile app stays on monitor-map 4.x
   until its own migration).
-- **An in-place monitor-map 4.0 rewrite**: _2026-09-24_. Replaced by splitting out
-  `@sjvair/map-sdk` (library) with monitor-map rebuilt on it (experience), which also
-  removes the risk of shipping an unfinished 4.0 through sjvair.com's unpinned import.
+- **Rewriting monitor-map in place as the multi-map library**: _2026-09-24_. Replaced by
+  splitting out `@sjvair/map-sdk` (library) with monitor-map rebuilt on it (experience).
+  (monitor-map 4.0–4.2 did ship in October 2026, but as a UI and packaging major on the
+  same one-map-per-page architecture; the rebuild on `map-sdk` will be monitor-map 5.0.)
 - **Keeping the name "monitor-map" for the map library**: _2026-09-24_. The library is
   `map-sdk`; the monitor-map name stays with the monitor-map experience.
 - **Free-form, overlapping dashboard windows**: _2026-09-23, Q4_. We chose a snapping grid.

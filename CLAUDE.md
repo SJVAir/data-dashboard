@@ -58,13 +58,16 @@ onto v1 code.
 ### Related SJVAir projects
 
 - `@sjvair/monitor-map` (sibling repo `../monitor-map`) — SJVAir's interactive map,
-  packaged as an embeddable Svelte library. Its `MapShell` (v3.3.0) is what the **v1**
-  Monitors tab embeds (see its `CLAUDE.md` for `routerEscapeHatch`/`basePath`). The new
+  packaged as an embeddable Svelte library, **now at v4.2.0** (4.0–4.2, October 2026: a new
+  options toolbar and unified legend, `./core` and `./routes` entry points, a self-fetching
+  detail panel). It is **still one map per page** (singleton `mapManager` and
+  integrations). This repo's v1 Monitors tab embeds its `MapShell` at `^3.6.3`. The new
   dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
   `../map-sdk`, not yet created) holds the per-map core, plugins, `MapView`, and data
-  stores, while monitor-map is rebuilt on it as the monitor-map _experience_ (MapShell,
-  routes, panels, the standalone build sjvair.com imports). **Dashboard map widgets use
+  stores, while monitor-map is rebuilt on it (as its **5.0**) as the monitor-map
+  _experience_ (MapShell, routes, panels, options toolbar, legend, the standalone build
+  sjvair.com imports), keeping the `/core` and `/routes` entry points the mobile app uses. **Dashboard map widgets use
   `map-sdk`'s `MapView`, not monitor-map.** See `ARCHITECTURE.md` → "Map SDK".
 - `@sjvair/sdk` (sibling repo `../sdk-js`) — the SJVAir API client. Covers `monitors`
   (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
@@ -73,9 +76,13 @@ onto v1 code.
 - `~/workspace/django-resticus` — the REST framework sjvair.com's API is built on
   (remote `dmpayton/django-resticus`; sjvair.com installs its `develop` branch unpinned).
   The user has access. It gets the CSRF fix; see `ARCHITECTURE.md` → "CSRF protection".
-- `../v3-mobile` — the current SJVAir mobile app (Capacitor); consumes `@sjvair/monitor-map`
-  and authenticates with `Token` headers. (`../mobile` is an unrelated project — exclude
-  it from all work.)
+- `../mobile` — the current SJVAir mobile app (`SJVAir/sjvair-mobile`, Svelte 5 +
+  Capacitor; the Svelte rebuild shipped as 3.0.0 on 2026-09-29, and it replaced the old
+  `v3-mobile` working copy). It consumes `@sjvair/monitor-map` `^4.2` through its `/core`
+  and `/routes` entry points (using `monitorsManager` as an app-wide data store) and
+  authenticates with `Token` headers only. Its `CLAUDE.md` lists off-limits areas (`ios/`,
+  `android/`, CI, env config, Capacitor plugin calls). Publishing a GitHub Release there
+  ships to TestFlight and the Play beta track, so it needs explicit approval.
 
 **Get an approved plan before modifying any sibling project**, and never break its
 existing consumers (monitor-map is also used by sjvair.com and the mobile app).

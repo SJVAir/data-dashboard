@@ -4,15 +4,22 @@ Last updated: 2026-09-28
 
 ## Start here
 
-**⏸ Paused 2026-10-05.** A broad review (2026-09-29) fixed the mechanical issues
-(`4a6f9a1`) and raised **10 decisions, still pending**:
+**Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
+docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
+from the 2026-09-29 review are still pending**, with two reshaped by those changes:
 
-1. sjvair.com's approved, unmerged **notifications redesign** (`worktree-notifications-redesign`,
-   PR #246) conflicts with Release 2. Its non-goal is "no channel" and it has different
-   escalation windows. Proposal: build on it, make its behavior the "today" baseline, and add
-   `channel` to its `Notification` model.
-2. **`feature/pesticides-explorer`** (PR #275) adds a `regions.Location` model (schools, child
-   care). Consider `PlaceRef` `{ kind: "location" }` and reuse its notice and radius queries.
+1. **Alerts on the redesigned server** (sjvair.com PR #246, **merged 2026-10-12**). The
+   redesign is now the baseline: escalation-only texts, built-in throttles, a daily
+   reminder, no all-clear, and a `Notification` audit model with no `channel`. Decide:
+   (a) whether new dashboard rules keep our "any level change + below-threshold all-clear"
+   behavior or follow the server's escalation-only design; (b) what guard rails to add
+   beyond the existing throttles (quiet hours); (c) adding `channel` to `Notification` for
+   email and the in-app inbox, overriding the redesign's "no channel" non-goal.
+2. **Schools as places** (sjvair.com PR #275, **merged 2026-10-13**). The server now has a
+   `regions.Location` model (public and private schools, child care) and pesticide
+   endpoints with radius and buffer queries. Decide whether `PlaceRef` gains
+   `{ kind: "location" }` ("pick my school"), and reuse the existing notice queries for
+   pesticide-notice alerts.
 3. **Age policy (COPPA)** for email-only accounts.
 4. **Who owns the CSP host list**, plus the Sentry DSN and releases, across the two repos.
 5. **Which account owns local documents** on a shared browser (UUID collisions on upload).
@@ -26,18 +33,29 @@ Last updated: 2026-09-28
 10. **A "last N days" trailing date range** (used by the starter's 30-day chart, but not among
     IDEA.md's three methods).
 
-**sjvair.com `next` branch (in progress).** The user is making `next` official and will share
-the details on resume. Current state reviewed 2026-10-05:
+**What changed in the sibling repos (reviewed 2026-10-13):**
 
-- `next` is a local integration branch rebuilt by `scripts/rebuild-next.sh` (in the `next`
-  worktree), using rerere to replay resolutions.
-- `next-backup` is the script's backup and stays.
-- Local rebased branches ahead of GitHub are by design.
-- Suggested to the user: set `gc.rerereResolved`/`gc.rerereUnresolved` (the default 60-day
-  expiry would drop the Oct 1 resolutions around Nov 30), and track the script somewhere.
-
-**On resume:** hear the `next` changes, record the convention in the docs and memory, then
-take decisions 1–10 one at a time.
+- **Mobile app:** `../mobile` (`SJVAir/sjvair-mobile`, v4.0.5) is now the current app; the
+  old `v3-mobile` working copy is gone. All docs now say `mobile`.
+- **monitor-map 4.0–4.2** shipped (options toolbar, unified legend, `/core` and `/routes`
+  entry points). It is **still one map per page**, so the `map-sdk` split still stands;
+  the rebuild becomes monitor-map 5.0 and must keep `/core` and `/routes` for the mobile
+  app.
+- **sjvair.com `main`** gained the notifications redesign (#246) and the Pesticides Data
+  Explorer (#275). **Still open:** legacy-entries backfill (#261) and the Facility
+  Emissions Explorer (#282, which will rename `ceidars/` to `emissions/`). New on `main`:
+  `Location` (schools, child care), region types `air_district` and `ab617` (`place`
+  removed), `regions/geojson/` and `?buffer=`, the region list without boundary geometry,
+  21 pesticide routes with monthly rollups, and a waffle `beta_tools` gate for `/tools/`.
+  **Unchanged:** PM2.5 breakpoints (still not fixed), metadata endpoints, accounts (phone
+  still required), resticus unpinned, no CSRF/CSP, no cache headers, the monitor-map
+  import script.
+- **`@sjvair/sdk`** is unchanged (4.5.0, no open work). Everything planned for it is still
+  to do, and it now also lacks wrappers for the new pesticide and region endpoints.
+- **sjvair.com `next`:** no longer the working base. `origin/next` is stale (475 behind
+  `main`); the old local integration branch is `my-next`, with `rebuild-next.sh` only in
+  its worktree. Two of its four branches are merged; #261 and #282 remain open PRs against
+  `main`. New sjvair.com work branches from `main` again unless the user says otherwise.
 
 **Final-review decisions: complete (2026-09-24 → 2026-09-28).** A three-way final review
 found 12 gaps; all are decided and recorded. #1–#3, #8 and #9 cover the map-sdk split, the
@@ -62,12 +80,12 @@ dropdown picker, and the dataset definition. The rest:
       merge. See `ARCHITECTURE.md` → "CSRF protection".
 - [x] **#11 Email alerts and accounts**: email alerts need a verified email plus
       one-click unsubscribe. **Email-only accounts in Release 1**: phone optional, a new
-      email verification flow, login by either; phone flows keep working for v3-mobile.
+      email verification flow, login by either; phone flows keep working for mobile.
 - [x] **#12 Existing SMS subscriptions**: migrate to monitor rules that reproduce today's
       behavior exactly (caps and quiet hours off), with opt-in to new behavior. New rules'
       "back to normal" means below the user's threshold (today's all-clear rarely reaches
       anyone). Legacy endpoints stay as a logged compatibility layer; their removal and the
-      v3-mobile update are deferred.
+      mobile update are deferred.
 
 **IDEA.md Open Questions resolved (2026-09-23 → 2026-09-24, branch `planning`).** They and
 the follow-up gaps are resolved and recorded in `ARCHITECTURE.md`;
@@ -115,7 +133,7 @@ updating the docs after each one.
 - [x] **Q3 Map SDK modularity / plugin system** → `@sjvair/monitor-map` 4.0 clean
       break: per-map `MapContext` instead of singletons, factory plugins with data-source
       interfaces, `MapShell` + lightweight `MapView`, injected config; migrate
-      sjvair.com and `v3-mobile` in the same effort (restructured 2026-09-24 as
+      sjvair.com and `mobile` in the same effort (restructured 2026-09-24 as
       `@sjvair/map-sdk` (pre-1.0, then 1.0 once validated) plus monitor-map rebuilt on it; consumers migrate one at a
       time). See `ARCHITECTURE.md` → "Map SDK".
 - [x] **Q4 Dashboard layout mechanics** → Snapping grid (no overlap), pure layout
@@ -182,6 +200,16 @@ each was interviewed and recorded:
       adds the Map widget); Release 2 Alerts (server work starts
       alongside Release 1); Release 3 Analysis. Map widget waits for 4.0 (since restructured as `map-sdk`).
 
+**⚠️ Urgent, separate from this project: the alerts API change breaks the SDK and the mobile
+app.** Since sjvair.com PR #246 (merged 2026-10-12), `account/alerts/` returns `sqid` and no
+longer returns `id` or `latest`. `@sjvair/sdk` 4.5.0's `airAlertSchema` requires both
+(`id: z.string()`, `latest: z.number()`), and the mobile app's Alerts screen
+(`mobile/src/features/account/Alerts.svelte`) uses `alert.latest` to pick the level. Once
+that server change is deployed, the mobile Alerts screen fails. It needs a coordinated fix
+(restore the fields on the server, or update the SDK schema and the mobile screen and ship
+releases), each with its own approved plan. Found 2026-10-13; whether production is
+already affected was not checked.
+
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
 half-updated to EPA's 2024 AQI revision.** `camp/apps/entries/levels.py` `PM25` uses the
 new Moderate boundary (9.1) but the old upper boundaries — `VERY_UNHEALTHY(150.5)` and
@@ -196,8 +224,10 @@ approved sjvair.com plan; decided 2026-09-23 to fix independently of the dashboa
   and the guideline templates
 - monitor-map: the `150.5` fallback in `monitors-cluster-renderer.ts` (cleanup folds into the
   map-sdk rebuild)
-- **v3-mobile**: `src/components/PMGauge.svelte` hardcodes the full pre-2024 scale
-  (12.1/35.5/55.5/150.5/250.5). Tracked in `DEFERRED.md`; it needs its own plan and an app
+- **mobile**: three files hardcode the pre-2024 scale: `src/components/PMGauge.svelte`
+  (12.1/35.5/55.5/150.5/250.5), `src/lib/colors.ts`, and
+  `src/components/AirQualityGuidelines.svelte`. (Re-checked 2026-10-13: the server
+  breakpoints are still not fixed.) Tracked in `DEFERRED.md`; it needs its own plan and an app
   release.
 
 ## Work breakdown by ROADMAP step
@@ -391,7 +421,7 @@ package release needs explicit per-release approval.
 - A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate
   the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.
-- The v3-mobile migration is a separate later track (see `DEFERRED.md`).
+- The mobile migration is a separate later track (see `DEFERRED.md`).
 - The Map widget: map feature clicking (method A), synced both ways with the step 4 shared
   place picker (method B). Drawn shapes (C, via a
   `terra-draw` plugin) come later.
@@ -424,7 +454,7 @@ first)
     `USERNAME_FIELD`)
   - an email verification flow
   - login and registration by email or phone
-  - keep the phone flows working for v3-mobile
+  - keep the phone flows working for mobile
 - sdk-js: account-call updates for email verification and email registration.
 - Lands before sign-in-dependent features ship. Fold the server "remember me" change into
   this plan, since both change the login page.
@@ -483,7 +513,7 @@ django-resticus plans first)
   - migrate existing SMS subscriptions to rules that reproduce today's behavior exactly
     (caps and quiet hours off, opt-in to new behavior)
   - keep the legacy subscription endpoints as a compatibility layer, logging usage with
-    the app version, so v3-mobile works unchanged
+    the app version, so mobile works unchanged
   - the inbox API
   - alert metadata
 - sdk-js wrappers.
@@ -513,6 +543,11 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 → "Legacy Monitors-tab follow-ups".
 
 ## Done
+
+- [x] **Geometry-free regions list** (was deferred 2026-09-17). Delivered server-side in
+      sjvair.com #280: `regions/` no longer returns `boundary.geometry` (only `bbox`), and
+      geometry comes from the new `regions/geojson/?type=` endpoint. Removed from
+      `DEFERRED.md` on 2026-10-13.
 
 - [x] **`@sjvair/monitor-map` added as a dependency** (`^3.5.0`). Its `@tstk/*` jsr
       dependencies (`@tstk/builtin-extensions`, `@tstk/utils` — real runtime deps of
