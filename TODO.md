@@ -25,6 +25,13 @@ clean; about 40 stale or missing passages were fixed; and six gaps were decided:
 6. The server reports which alert channels an account can use (covers the `sms_alerts`
    rollout flag).
 
+**Hosting pass (2026-10-13).** A narrower check of the hosting, build, and sign-in sections
+against the template-embedding model found that production static files are served from
+S3 (another origin), uncompressed and without cache headers. Decided: the dashboard uses
+that same pipeline, with the accommodations in `ARCHITECTURE.md` → "Template embedding"
+(headers set at upload, the static origin in the CSP, inline workers, the manifest and
+later service worker served by Django). The rest of those sections was consistent.
+
 **Next:** the user's call: another pass, or merge `planning` into `main` (with approval) and
 start the first specs.
 
