@@ -308,6 +308,9 @@ package release needs explicit per-release approval.
 - Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
   Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
+- The version 1 document body as sketched in `ARCHITECTURE.md` (`DashboardBody`,
+  `WidgetInstance`, `DateRangeSpec`, a layer's `place` or `selection`, `default-place`),
+  with zod schemas; the spec finalizes field detail.
 - `SavedDocument` types, a migration chain (validated after each upgrade, with the original
   kept locally for 30 days and permanent fixtures for every past `schemaVersion` run in
   CI), `applyChange`, and undo/redo. The `Change`
@@ -421,6 +424,8 @@ package release needs explicit per-release approval.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
+- Each widget type declares its allowed date methods and span (`dateMethods`, `span`);
+  Widget Creation hides what doesn't apply.
 - **Retired or missing references** in every widget type: the "stopped reporting" note,
   "Switch to the replacement", and the "no longer available" card with "Choose another" /
   "Remove" (`ARCHITECTURE.md` → "Stable ids and retirement").
