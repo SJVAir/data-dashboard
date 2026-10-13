@@ -28,7 +28,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   escape hatch (`routerEscapeHatch`/`basePath`) and a non-URL fallback for view state.
   **Revisit when** the dashboard's core views exist. Keep state managers from hardcoding
   ownership of the top-level route in the meantime. **Partly pulled forward 2026-09-24:** `basePath` support ships in
-  Release 1 for serving under `sjvair.com/explore/`. Still deferred: host-page
+  Release 1 for serving under `sjvair.com/workspace/`. Still deferred: host-page
   embedding and the in-memory router mode.
 - **Tighten sjvair.com CORS.** _Noted 2026-09-24._ `CORS_ORIGIN_ALLOW_ALL` plus
   `CORS_ALLOW_CREDENTIALS` is normally risky; it's largely contained by Django's default
@@ -90,6 +90,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Branch protection on `main`** (PRs only, required CI). _Deferred 2026-09-28._ The user
   sometimes pushes small fixes straight to `main`. **Revisit when** more contributors join,
   or at go-live, when `main` becomes the production deploy.
+- **Uploading source maps to Sentry.** _Deferred 2026-10-13._ It needs a secret Sentry
+  token in sjvair.com's Heroku build. Errors are reported without it, but with minified
+  stack traces. The repo is public and MIT, so serving source maps publicly is a simpler
+  alternative. **Revisit when** an unreadable stack trace first costs real debugging time.
 
 ## Map & selection
 
@@ -374,7 +378,7 @@ point.
 - **Private-preview mechanism**: a staging Heroku app, an unlisted route on sjvair.com, or
   (new option, 2026-10-13) the server's **waffle `beta_tools` flag**, which already gates
   `/tools/pesticides/` to flagged "Beta testers" through `BetaToolsMiddleware`. Gating
-  `/explore/` the same way would give a preview on production with no separate
+  `/workspace/` the same way would give a preview on production with no separate
   deployment. **Decide in** the Release 1 hosting-track plan (the preview starts around
   Release 1 step 4).
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
@@ -454,9 +458,13 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   instead of retrofitting.
 - **Single-letter route segments** (e.g. `/d/:id`) and **readable slugs in URLs**:
   _2026-09-25_. Routes use readable words; IDs stay opaque.
+- **`/explore/` as the base path**: _2026-10-13_. Chosen 2026-09-25, then replaced by
+  `/workspace/` because sjvair.com's `/tools/` section now holds "data explorers"
+  (pesticides, then emissions). `/tools/dashboard/` and `/data/` were also considered and
+  rejected (a repeated word and longer share links; the same confusion).
 - **`/dashboard/` as the base path, and dashboard IDs directly under the base**
-  (`/dashboard/:id`): _2026-09-25_. Chose `/explore/` plus plural collections
-  (`/explore/dashboards/:id`) so IDs never share a level with fixed words like
+  (`/dashboard/:id`): _2026-09-25_. Chose a neutral app-level base (now `/workspace/`) plus plural collections
+  (`/workspace/dashboards/:id`) so IDs never share a level with fixed words like
   `analysis` and `shared`, and the base names the whole app.
 - **Offline-first for the web build** (a Release 1 app-shell service worker that opens the
   app offline, and a persistent IndexedDB/OPFS data cache): _2026-09-28_. Air-quality data is

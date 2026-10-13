@@ -108,10 +108,10 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
   "Telemetry, analytics & privacy".
 - **Treat document content as untrusted** (see `ARCHITECTURE.md` → "Security baseline"):
   validate every incoming document with a schema and size limit, render Markdown with raw
-  HTML off, and never inject HTML or use inline scripts (a CSP on `/explore/*`, report-only then enforced, backs this up).
+  HTML off, and never inject HTML or use inline scripts (a CSP on `/workspace/*`, report-only then enforced, backs this up).
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
   "Authentication"): session cookie when served from sjvair.com's origin (Release 1:
-  `/explore/`); `Token`
+  `/workspace/`); `Token`
   header when standalone on another origin or under Tauri.
 
 ## Licensing
@@ -168,9 +168,10 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env` itsel
 
 ```
 VITE_DEV_URL=              # @sjvair/sdk origin in dev (current code; planned: Vite proxy → same-origin)
-VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /explore/ → location.origin)
+VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /workspace/ → location.origin)
 VITE_MAPTILER_KEY=          # MapTiler basemap key (injected into map-sdk; public in the build, so domain-restrict it)
 VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations plugin (public in the build; domain-restrict it)
+VITE_SENTRY_DSN=            # planned: the dashboard's Sentry project DSN (public by design); unset = error reporting off
 VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)
 VITE_CARBONMAPPER_KEY=      # reserved; unused (see DEFERRED.md)
 ```

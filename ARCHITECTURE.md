@@ -55,14 +55,14 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   once**. This is a feature of the built-in starter only, not general widget linking
   (which stays deferred).
 - **URL and copies** (decided 2026-09-28):
-  - The starter lives at **`/explore/`** for first-time visitors and anyone with no
-    dashboards of their own. Once someone has dashboards, `/explore/` opens their
+  - The starter lives at **`/workspace/`** for first-time visitors and anyone with no
+    dashboards of their own. Once someone has dashboards, `/workspace/` opens their
     last-opened one, and the starter stays reachable from the picker ("New from starter").
   - **"Change place" does not create a copy.** The chosen place is saved as a
     **preference** (through the platform adapter).
   - **A real edit creates the visitor's own copy**: moving, resizing, adding, removing,
     or configuring a widget, or renaming. The copy gets a new id, the URL is replaced with
-    `/explore/dashboards/:id` (no new history entry), it carries over the chosen place,
+    `/workspace/dashboards/:id` (no new history entry), it carries over the chosen place,
     and a toast says "Saved as your own dashboard". The built-in template is never
     modified.
   - **Sharing the starter** first makes a copy, then shares that.
@@ -364,7 +364,7 @@ offline export a notebook bundle. What Release 1 keeps:
 Removed from Release 1: the **app-shell service worker** (the app opening offline, the
 update prompt, cache versioning) and the **persistent data cache**. A service worker
 arrives with **web push**, which needs one anyway (including on iOS), scoped to
-`/explore/` (JupyterLite's worker stays on `/notebooks/`). Whether it also caches the app
+`/workspace/` (JupyterLite's worker stays on `/notebooks/`). Whether it also caches the app
 shell then is an optional add-on tracked with web push in `DEFERRED.md`. True offline-first remains a Tauri concern (see `DEFERRED.md`).
 
 When to actually add Tauri: once there's a concrete desktop-only win (most likely
@@ -377,11 +377,11 @@ viable. See `ROADMAP.md`.
 `@sjvair/sdk` supports two auth modes, and which one applies depends on **where this
 app is running**, not on a user choice:
 
-| Deployment context                                                                  | Auth mode                                     |
-| ----------------------------------------------------------------------------------- | --------------------------------------------- |
-| Served from sjvair.com's origin (Release 1: `/explore/`; host-page embedding later) | Django **session cookie** (same-origin)       |
-| Standalone on a different origin, or Tauri desktop                                  | **`Authorization: Token <api_token>`** header |
-| (Reference: `../mobile`, the mobile app)                                            | Token header                                  |
+| Deployment context                                                                    | Auth mode                                     |
+| ------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Served from sjvair.com's origin (Release 1: `/workspace/`; host-page embedding later) | Django **session cookie** (same-origin)       |
+| Standalone on a different origin, or Tauri desktop                                    | **`Authorization: Token <api_token>`** header |
+| (Reference: `../mobile`, the mobile app)                                              | Token header                                  |
 
 Release 1 is served from sjvair.com's origin and uses cookie auth (see "Deployment").
 
@@ -469,7 +469,7 @@ you:**
 ### Security baseline for untrusted content
 
 Decided 2026-09-28. The dashboard runs on **sjvair.com's own origin**, with the session
-cookie and a JS-readable CSRF cookie, so an XSS bug in `/explore/` could act as the
+cookie and a JS-readable CSRF cookie, so an XSS bug in `/workspace/` could act as the
 signed-in user (change password, delete account, SMS sign-ups). Untrusted content enters
 through **Notes Markdown** (shown to anyone opening a share link) and through **`/import#…`**,
 files, and server documents.
@@ -479,7 +479,7 @@ files, and server documents.
    documents are rejected with a clear message and never partly loaded.
 2. **Safe Markdown:** Notes render with **raw HTML off** and a link allowlist (`http`,
    `https`, `mailto`).
-3. **A content security policy on `/explore/*`**, sent by the Django view: the
+3. **A content security policy on `/workspace/*`**, sent by the Django view: the
    browser-enforced backstop if a bug slips past 1–2.
    - `script-src 'self'` (plus `'wasm-unsafe-eval'` only where WebAssembly needs it): no
      inline scripts or handlers, and no third-party scripts.
@@ -488,7 +488,14 @@ files, and server documents.
      injected code can't send data elsewhere.
    - `style-src` may need `'unsafe-inline'` (Svelte and map libraries set inline styles).
    - **Rollout:** deploy in **report-only** mode first, then enforce once clean. It
-     applies only to `/explore/*`.
+     applies only to `/workspace/*`.
+   - **Ownership** (decided 2026-10-13): **the dashboard owns the host list; sjvair.com
+     owns the header.** This repo keeps one checked-in file listing the hosts it needs
+     per directive, and the build copies it into the output. sjvair.com's view reads that
+     file from the built dashboard and assembles the header, adding only what the server
+     controls (the report-only or enforce switch and the report address). A host change is
+     one reviewed change in this repo, deployed with the code that needs it, and a test
+     here fails when code references a host that isn't listed.
 4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
@@ -543,7 +550,7 @@ website form at `/account/login/` (Django `LoginView`) creates a session cookie.
 approach is staged:
 
 - **Release 1: redirect.** "Sign in" / "Create account" go to sjvair.com's own pages
-  (`/account/login/?next=/explore/…`, registration likewise) and return to the same
+  (`/account/login/?next=/workspace/…`, registration likewise) and return to the same
   dashboard route. This reuses the mature Django flows (password reset, phone
   verification, plus the new email verification from "Accounts & anonymous use") and
   adds no new auth endpoint. Known cost: in-progress dialog state
@@ -652,8 +659,8 @@ documents (see "Saving & sharing documents").
 **Routes use readable words, never single-letter segments** (decided 2026-09-25). IDs
 stay opaque (no readable slugs). **IDs only appear inside their own plural collection**
 (`/dashboards/:id`, `/analysis/collections/:id`), never at the same level as fixed words, so no
-reserved-word list is needed. All routes sit under the `/explore/` base path (see
-"Deployment"), e.g. `sjvair.com/explore/dashboards/:id`. Where a trimmed URL has a
+reserved-word list is needed. All routes sit under the `/workspace/` base path (see
+"Deployment"), e.g. `sjvair.com/workspace/dashboards/:id`. Where a trimmed URL has a
 page, it's the obvious one (e.g. `…/dashboards/:id` → `…/dashboards`, the list). Other
 trimmed paths (e.g. `…/analysis/collections`, `…/shared`) redirect to their section's
 home.
@@ -1351,8 +1358,8 @@ share_token` (revocable), `copied_from` (source document id, if a copy), `delete
      deferred (see `DEFERRED.md`).
    - **Document identity and sharing** (decided 2026-09-25):
      - The client generates a UUID, and the server **keeps the same id** on upload, so
-       `/explore/dashboards/:id` works on any signed-in device.
-     - Share links use a **separate, revocable token** (`/explore/shared/:token`), not
+       `/workspace/dashboards/:id` works on any signed-in device.
+     - Share links use a **separate, revocable token** (`/workspace/shared/:token`), not
        the document id. They open a read-only view with "Make a copy".
      - **`link` documents can be opened by anyone with the link, no account needed**
        (teacher → class). A copy saves locally for anonymous users, or to their account
@@ -1655,13 +1662,21 @@ Google Tag Manager/Analytics; and the dashboard's riskiest logic (sync, migratio
 IndexedDB, conflict replay) runs only in the browser, where no SJVAir front end reports
 errors today.
 
-1. **No Google Analytics or Tag Manager on `/explore/`.** The Django view serves the
+1. **No Google Analytics or Tag Manager on `/workspace/`.** The Django view serves the
    dashboard's own `index.html`, not sjvair.com's base template. Aggregate usage counts
    are deferred (see `DEFERRED.md`).
 2. **Front-end errors go to the existing Sentry org**, through the platform adapter, with
    strict scrubbing: never document bodies, Notes text, names, emails, or coordinates;
    only the error, the app version, and anonymous technical context. Sentry's host is
-   added to the CSP's allowed hosts.
+   added to the CSP's allowed hosts. Setup (decided 2026-10-13):
+   - **A separate Sentry project** for the dashboard in the existing org, so browser
+     errors stay out of the Django project's issues. sjvair.com's `SENTRY_DSN` and
+     `SENTRY_DSN_CLIENT` are left alone.
+   - **The DSN is a Heroku config var injected at build time** (`VITE_SENTRY_DSN`; a DSN
+     is public by design). Without it (local dev, forks), error reporting is off.
+   - **The release name is this repo's git commit**, stamped at build time, since
+     sjvair.com builds `main` unpinned.
+   - **Source-map upload is deferred** (see `DEFERRED.md`).
 3. **An in-app privacy note** (linked from the footer or account menu) explaining what's
    stored locally, what syncs, and what error data is sent.
 4. **A feedback link** (an email address or form) for the private preview.
@@ -1736,18 +1751,26 @@ Decided 2026-09-24.
 ## Deployment
 
 Decided 2026-09-24. **Release 1 is served from sjvair.com under a path**, not from a
-separate origin. **The base path is `/explore/`** (decided 2026-09-25).
+separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replacing the
+2026-09-25 choice of `/explore/`).
 
-- **Why `/explore/`:** the base path names the _app_, not one of its resources. The app
+- **Why `/workspace/`:** the base path names the _app_, not one of its resources. The app
   holds Dashboards _and_ Analysis, so `/dashboard/` would either repeat itself
   (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product can
-  still be called the "SJVAir Dashboard" in the UI; only the URL uses `explore`.
-- **Before hosting:** confirm no existing sjvair.com CMS page uses `explore` (Django's
+  still be called the "SJVAir Dashboard" in the UI; only the URL uses `workspace`.
+- **Why not `/explore/` any more:** sjvair.com now has the "Pesticide Data Explorer" at
+  `/tools/pesticides/`, with a "Facility Emissions Explorer" to follow, and the server
+  calls them "the explorers". An `/explore/` path for a different product would confuse
+  people.
+- **Top-level, not under `/tools/`:** the dashboard is a person's home base that can link
+  out to the explorers, not one tool among them. The `beta_tools` gate can still cover it
+  with a small middleware change.
+- **Before hosting:** confirm no existing sjvair.com CMS page uses `workspace` (Django's
   final catch-all serves prose pages).
 - **CSRF cookie and trailing slashes** (docs review 2026-09-28): nothing in sjvair.com
-  calls `ensure_csrf_cookie`, so a user landing directly on `/explore/` may have no
+  calls `ensure_csrf_cookie`, so a user landing directly on `/workspace/` may have no
   `csrftoken` cookie, and every cookie-based save would fail after the resticus CSRF fix.
-  The `/explore/*` view must be decorated with **`ensure_csrf_cookie`**, and must **not
+  The `/workspace/*` view must be decorated with **`ensure_csrf_cookie`**, and must **not
   force trailing-slash redirects** (the catch-all `PageTemplate` does; the route table has
   no trailing slashes). This is the hosting track's responsibility.
 
@@ -1759,13 +1782,13 @@ separate origin. **The base path is `/explore/`** (decided 2026-09-25).
 - **The monitor-map import pattern, as-is** (decided 2026-09-24). During each Heroku
   deploy, a sjvair.com build step clones this repo's **`main`**, builds it, and copies it
   into `dist/` (like `scripts/import-monitor-map.sh`). A Django catch-all route serves
-  `index.html` for `/explore/*`. **No version pinning:** `main` is always
+  `index.html` for `/workspace/*`. **No version pinning:** `main` is always
   production-ready and ships with every server deploy. Needs an approved sjvair.com
   plan.
   - **Consequence: merging to dashboard `main` is the deploy approval point**, since any
     server deploy (even an unrelated backend fix) ships it. CI on PRs is the gate.
   - **Before go-live**, the import and route may be merged into sjvair.com but the
-    `/explore/*` route stays **disabled or hidden** (except for the private preview),
+    `/workspace/*` route stays **disabled or hidden** (except for the private preview),
     so in-progress work on `main` isn't public. Merges still need explicit approval.
   - **After go-live**, unfinished features stay on branches or behind a flag.
   - A broken dashboard build would fail the server deploy. This is the same risk
@@ -1778,9 +1801,9 @@ separate origin. **The base path is `/explore/`** (decided 2026-09-25).
   vars** at build time, as for monitor-map. These keys end up in the built JavaScript like any
   in-browser map key, so **each must be restricted by domain** in its provider's
   dashboard (MapTiler, NREL). Use separate keys, or extra allowed domains, for localhost
-  dev and a staging preview app. Vite `base: "/explore/"` matches the
+  dev and a staging preview app. Vite `base: "/workspace/"` matches the
   router's `basePath`.
-- **Same-origin API in production:** when served under `/explore/`, the SDK origin is
+- **Same-origin API in production:** when served under `/workspace/`, the SDK origin is
   the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
   silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
@@ -1788,7 +1811,7 @@ separate origin. **The base path is `/explore/`** (decided 2026-09-25).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Full host-page embedding stays
   deferred.
-- **Private preview before go-live** (decided 2026-09-24). `sjvair.com/explore/` goes
+- **Private preview before go-live** (decided 2026-09-24). `sjvair.com/workspace/` goes
   public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
   preview** (a staging Heroku app or a hidden route; chosen in the hosting-track plan)
   lets a pilot teacher and a researcher try it and give feedback early.
@@ -1816,7 +1839,7 @@ decisions made along the way:
   sub-path (`basePath`) or disable this app's own history/URL manipulation entirely
   when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
   currently assumes it owns top-level routing. **`basePath` ships in Release 1** for
-  serving under `/explore/` (see "Deployment"); the escape-hatch/in-memory mode for
+  serving under `/workspace/` (see "Deployment"); the escape-hatch/in-memory mode for
   true host-page embedding stays deferred (see `DEFERRED.md` → "Embeddable production
   build").
 - **URL state vs. embedding** — decided in "Routing, URL state & undo": when the host

@@ -25,7 +25,11 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
 3. ✅ **Age policy** (decided 2026-10-13): accounts are 13+, with a neutral age confirmation;
    under-13s use the dashboard anonymously; `full_name` optional; a site privacy policy;
    legal confirmation needed before the accounts plan is final.
-4. **Who owns the CSP host list**, plus the Sentry DSN and releases, across the two repos.
+4. ✅ **CSP and Sentry ownership** (decided 2026-10-13): the dashboard keeps the CSP host
+   list in a checked-in file that sjvair.com's view reads to build the header; a separate
+   Sentry project, DSN from a build-time config var, release = git commit; source-map
+   upload deferred. Also decided: **the base path is `/workspace/`, not `/explore/`** (the
+   server's "data explorers" made `/explore/` confusing).
 5. **Which account owns local documents** on a shared browser (UUID collisions on upload).
 6. **User content under sjvair.com branding**: an "made by a user" bar, `ugc` links, staff
    takedown, a report link.
@@ -68,10 +72,10 @@ dropdown picker, and the dataset definition. The rest:
 - [x] **#4 Resolution for data without summaries**: catalog-driven; daily-native data
       as-is; weather/PM10 raw with a span cap, downsampled in a worker; server summaries
       for them deferred. See `ARCHITECTURE.md` → "Data resolution & live refresh".
-- [x] **#5 Document identity and sharing**: server keeps client UUIDs; `/explore/shared/:token`
+- [x] **#5 Document identity and sharing**: server keeps client UUIDs; `/workspace/shared/:token`
       (revocable, anonymous read-only + copy); `public` reserved; body stored without
       interpretation; automatic replay of non-overlapping edits plus a 3-choice prompt;
-      no CRDT. Also decided: readable routes and the `/explore/` base path.
+      no CRDT. Also decided: readable routes and the `/workspace/` base path.
 - [x] **#6 Sync scope and sign-out**: every document syncs when signed in; sign-out
       offers keep/remove (remove by default); preferences stay local; "Clear my data" is
       browser-only.
@@ -99,7 +103,7 @@ and decided nine follow-ups (more were settled later that day: the fresh start a
 v1-lessons step, the deploy model, the sign-in staging, `analyzable` and the 3-day window,
 the private preview and go-live, and the full test gate on PRs into `main`): minimal Collections in Release 1, autosave with durability
 safeguards, server documents in Release 1, dataset accordions as layers, Pacific time,
-hosting under `sjvair.com/explore/`, an installable app (revised 2026-09-28: manifest only, no service worker), WCAG 2.2 AA, and the
+hosting under `sjvair.com/workspace/`, an installable app (revised 2026-09-28: manifest only, no service worker), WCAG 2.2 AA, and the
 testing strategy.
 
 Next steps (each its own spec → plan → implementation, per the brainstorming process):
@@ -118,7 +122,7 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
    (Tulare, Kern, Sequoia; the other 6 zones are counties), and import them if
    missing (`DEFERRED.md`).
 5. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
-   **metadata enablers**, **hosting under `/explore/`**, **email-only accounts**, and
+   **metadata enablers**, **hosting under `/workspace/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
    (Release 2).
 
@@ -303,7 +307,7 @@ package release needs explicit per-release approval.
 - Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
 - App shell: top nav, dashboard picker (a dropdown), and the new route table (`ARCHITECTURE.md` →
-  "Routing"), plus `basePath` support for `sjvair.com/explore/`.
+  "Routing"), plus `basePath` support for `sjvair.com/workspace/`.
 - CI workflow: lint, type-check, tests, and build on every PR.
 - A CI bundle budget (about 200 KB compressed of initial JS), per-widget-type code
   splitting, and an unsupported-browser notice (Chrome/Edge 111+, Safari 16.4+, Firefox 128+).
@@ -382,8 +386,8 @@ package release needs explicit per-release approval.
   non-zone areas = the containing zone (or the center's zone, labeled).
 - The **starter dashboard** (first-visit default): a built-in document defaulting to
   **Fresno County**, a "Showing … · Change place" bar (the shared picker plus opt-in
-  location) that re-targets all its widgets, and a personal copy on first edit. It lives at `/explore/`; "Change place" is a preference (no
-  copy); a real edit makes a copy and replaces the URL with `/explore/dashboards/:id`; sharing
+  location) that re-targets all its widgets, and a personal copy on first edit. It lives at `/workspace/`; "Change place" is a preference (no
+  copy); a real edit makes a copy and replaces the URL with `/workspace/dashboards/:id`; sharing
   copies first. It has non-map widgets, including a
   calendar; the Map widget joins in step 6.
 - The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
@@ -439,18 +443,18 @@ package release needs explicit per-release approval.
 - sjvair.com:
   - an import script that clones and builds this repo's `main` during the Heroku deploy
     (modeled on `scripts/import-monitor-map.sh`; no pinning)
-  - the `/explore/*` view serves the dashboard's own `index.html` (not `base.html`, so no
+  - the `/workspace/*` view serves the dashboard's own `index.html` (not `base.html`, so no
     Google Tag Manager/Analytics)
-  - a Django catch-all route for `/explore/*`, decorated with `ensure_csrf_cookie` and not
+  - a Django catch-all route for `/workspace/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
-  - confirm no existing CMS page uses `explore`
+  - confirm no existing CMS page uses `workspace`
 - `VITE_*` keys as Heroku config vars.
-- A CSP on `/explore/*` from the Django view: report-only first, then enforced
+- A CSP on `/workspace/*` from the Django view: report-only first, then enforced
   (`ARCHITECTURE.md` → "Security baseline").
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
-- This repo: Vite `base: "/explore/"`, and `setOrigin(location.origin)` when served
-  under `/explore/` (`VITE_PROD_URL` only for Tauri/standalone builds).
+- This repo: Vite `base: "/workspace/"`, and `setOrigin(location.origin)` when served
+  under `/workspace/` (`VITE_PROD_URL` only for Tauri/standalone builds).
 - Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
   server deploy).
 
@@ -505,7 +509,7 @@ django-resticus plans first)
   including a calendar, from step 4).
 - Before go-live: a low-end device performance check (Lighthouse with throttling, plus a
   real older Chromebook from the preview school if possible).
-- Go-live: enable the `sjvair.com/explore/` route once Release 1 is complete.
+- Go-live: enable the `sjvair.com/workspace/` route once Release 1 is complete.
 
 **Release 1: private preview (from about step 4)**
 

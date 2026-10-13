@@ -61,14 +61,14 @@ unchanged at 4.5.0.
      and edge cases the v1 code and its tests learned (behaviors, not code).
    - the action/context-menu registry
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
-     `sjvair.com/explore/`
+     `sjvair.com/workspace/`
    - browser support floor (Chrome/Edge 111+, Safari 16.4+, Firefox 128+) with an
      unsupported-browser notice; a CI bundle budget (about 200 KB initial) and per-widget code
      splitting
    - a shared `readableColor` helper, outlined swatches, labels always shown with level colors
    - MIT license, a CI license check (permissive only), third-party notices
    - scrubbed front-end error reporting to Sentry, an in-app privacy note, and a preview
-     feedback link (no Google Analytics on `/explore/`)
+     feedback link (no Google Analytics on `/workspace/`)
    - CI: lint, type-check, tests, and build on every PR. PRs into `main` run the full
      suite (three engines plus axe); feature-branch PRs run the fast set
    - Vite dev proxy to the local sjvair.com stack (same-origin cookies in dev), plus a
@@ -133,7 +133,7 @@ unchanged at 4.5.0.
      containing zone
    - location privacy: rounded points to lookups; shares default to the region, with a
      per-share "share exact location" option
-   - starter details: lives at `/explore/`, "Change place" is a preference, a real edit
+   - starter details: lives at `/workspace/`, "Change place" is a preference, a real edit
      copies and replaces the URL, and sharing copies first
    - Hour × weekday heatmap
    - Forecast strip
@@ -160,12 +160,12 @@ unchanged at 4.5.0.
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
-  pinning), a Django catch-all route for `/explore/*`, and Heroku config vars for
+  pinning), a Django catch-all route for `/workspace/*`, and Heroku config vars for
   `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. The
-  `/explore/*` view serves the dashboard's own `index.html` (no Google Tag Manager). A CSP on `/explore/*` (report-only
+  `/workspace/*` view serves the dashboard's own `index.html` (no Google Tag Manager). A CSP on `/workspace/*` (report-only
   first, then enforced). Also:
-  `ensure_csrf_cookie` and no forced trailing slashes on `/explore/*`, and a check that no
-  CMS page uses `explore`. This repo: Vite `base: "/explore/"` and
+  `ensure_csrf_cookie` and no forced trailing slashes on `/workspace/*`, and a check that no
+  CMS page uses `workspace`. This repo: Vite `base: "/workspace/"` and
   `setOrigin(location.origin)`. Also: confirm the repo is public (done 2026-09-28) and
   restrict the MapTiler and NREL keys by domain (with separate keys or allowed domains for
   localhost dev and a staging preview).
@@ -200,7 +200,7 @@ unchanged at 4.5.0.
 
 6. **Map widget in the starter, and go-live.** The default dashboard a first-time visitor sees
    (not a blank page) uses non-map widgets, including a calendar, from step 4. The Map
-   widget joins once step 5 lands. **The `sjvair.com/explore/` route goes live when Release 1 is
+   widget joins once step 5 lands. **The `sjvair.com/workspace/` route goes live when Release 1 is
    complete.** Until then the route stays disabled or hidden (except for the private
    preview), so work in progress on `main` isn't public. Merges still need explicit
    approval. Before go-live: a low-end device performance check.
