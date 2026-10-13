@@ -7,6 +7,27 @@ Last updated: 2026-10-13
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
 
+**Broad review pass (2026-10-13, after those decisions).** IDEA.md traceability came back
+clean; about 40 stale or missing passages were fixed; and six gaps were decided:
+
+1. Regions and locations are referenced by type and official code, not the server's
+   per-database id.
+2. The version 1 document body is specified (`DashboardBody`, `WidgetInstance`,
+   `DateRangeSpec`; one place or a multi-selection per layer; a `default-place` reference;
+   per-type date constraints).
+3. A per-rule event record on the server feeds the inbox and delivery log for every kind
+   of rule, and "fires" is defined per kind.
+4. Each local space and every save is bound to an account id, enforced by the server; the
+   dashboard gets identity without the API token.
+5. **The dashboard is embedded in a dedicated Django template** (the monitor-map pattern,
+   not extending the site's base template); the view holds the CSP host list. This
+   replaced an earlier assumption that the view serves the dashboard's own `index.html`.
+6. The server reports which alert channels an account can use (covers the `sms_alerts`
+   rollout flag).
+
+**Next:** the user's call: another pass, or merge `planning` into `main` (with approval) and
+start the first specs.
+
 **Sibling-repo review (2026-10-13).** A lot changed in the other repos; the docs were updated
 to match (see "What changed in the sibling repos" below). The 10 decisions, as recorded
 (two were reshaped by those changes):
