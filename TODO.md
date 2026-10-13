@@ -382,6 +382,9 @@ package release needs explicit per-release approval.
 
 - Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
   hardcoding pollutants.
+- Regions and locations by official code: detail and lookup endpoints accept `type` +
+  `external_id` (regions) and `source` + `external_id` (locations) and return them;
+  assign codes to the 3 `custom` forecast zones; sdk-js wrappers accept the pair.
 - Stable ids and retirement: a never-reuse rule for ids, `retired` (date, optional
   replacement) on catalog entries and entry types, and lookups that distinguish "retired"
   from "never existed" (`ARCHITECTURE.md` → "Stable ids and retirement").

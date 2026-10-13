@@ -810,8 +810,8 @@ type WidgetDataConfig = {
 
 type PlaceRef =
 	| { kind: "monitor"; id: string }
-	| { kind: "region"; id: string }
-	| { kind: "location"; id: string } // a school or child-care site (server `Location`)
+	| { kind: "region"; type: string; code: string } // e.g. county + "06019" (see below)
+	| { kind: "location"; source: string; code: string } // a school or child-care site
 	| { kind: "point"; lat: number; lon: number; label?: string };
 ```
 
@@ -893,7 +893,7 @@ One selection model, three ways to produce it:
 ```ts
 type SpatialSelection = {
 	kind: "monitors" | "regions";
-	ids: string[];
+	ids: string[]; // monitors: server ids; regions: "type:code" keys (see "Stable ids")
 	source?: GeoJSON.Geometry; // present when produced by a drawn shape
 };
 ```
@@ -1645,6 +1645,22 @@ things they point to change (the server removed the `place` region type in Octob
 - **Ids are permanent and never reused.** Dataset ids, entry-type keys, and region,
   monitor, and location ids are a public contract. A rename changes the label, never the
   id. The server-side metadata plan states this as a rule.
+- **Regions and locations are referenced by official code, not the server's id** (decided
+  2026-10-13). The server's public region and location id is a `sqid` derived from the
+  database row number, so it differs between local dev, a preview, and production, and
+  changes if rows are deleted and re-imported. Saved documents, alert rules, the built-in
+  starter, and test fixtures instead store:
+  - a region as its **`type` plus `external_id`** (county FIPS, ZIP code, tract number,
+    district code, …), which the server already treats as unique;
+  - a location as its **`source` plus `external_id`** (e.g. the state CDS code), likewise
+    unique on the server.
+  - Monitors keep their existing server id (a UUID).
+  - **Server work (step 3):** region and location detail and lookup endpoints accept the
+    code pair and include it in responses; every referenceable region has a non-empty
+    `external_id` (the **3 `custom` forecast zones** are found by name today and need
+    assigned codes); and the import commands never change an existing code.
+  - Using the server's ids for user documents and codes only for built-in ones was
+    decided against (see `DEFERRED.md`).
 - **Retire, don't delete.** Catalog entries and entry types carry `retired` (a date and an
   optional `replacedBy`) instead of disappearing. Old data stays readable. Retired
   entries are hidden from pickers for new widgets but still resolve for existing ones.

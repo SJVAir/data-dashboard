@@ -518,6 +518,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Building Widget Creation "based on what we currently have"** (IDEA.md's wording):
   _2026-09-28_. It is built fresh; the v1 tabs' options reappear as accordions, but no
   v1 code is carried over unless it is exactly what the new design needs.
+- **Server `sqid`s as the saved reference for regions and locations** (with official codes
+  only for built-in documents and fixtures): _2026-10-13_. Two reference styles in one
+  format, and a production re-import would still break everyone's saved dashboards.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

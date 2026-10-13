@@ -91,7 +91,8 @@ unchanged at 4.5.0.
    announcements, focus management, `prefers-reduced-motion`.
 3. **Metadata enablers** (sjvair.com + sdk-js; runs in parallel with 1–2)
    - the available-pollutants list
-   - the `meta/datasets/` catalog, with permanent ids and `retired` markers instead of
+   - the `meta/datasets/` catalog, with permanent ids (regions and locations referenced by type and official code, not the
+     per-database `sqid`) and `retired` markers instead of
      deletions
    - the coverage endpoint
    - scale metas
