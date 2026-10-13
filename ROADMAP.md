@@ -95,6 +95,7 @@ unchanged at 4.5.0.
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - verify production `school_district` rows and the 3 `custom` forecast-zone regions (the
      other 6 zones are counties); import if missing
+   - location (schools, child care) name search, SDK wrappers, and a production data check
    - extend `regions/places/lookup/` with rounded coordinates (POST body; coordinates scrubbed
      from logs, Sentry, Scout) and `?monitor=` (containing
      regions), plus the SDK wrapper update
@@ -118,7 +119,8 @@ unchanged at 4.5.0.
    - the "Duplicate widget" action
    - point places resolved to the smallest containing region with data (labeled; frozen
      on staging)
-   - the **shared place picker** (monitors, regions, or points; "place" here means a
+   - the **shared place picker** (monitors, regions, schools and child-care sites, or
+     points; "place" here means a
      `PlaceRef`), reused by the Map widget
      (step 5) and alert rules (Release 2)
    - Chart

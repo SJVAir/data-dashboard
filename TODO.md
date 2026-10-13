@@ -17,11 +17,11 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
    gains `channel` (sms | email); the in-app inbox is a view over `Alert`/`AlertUpdate`
    with a last-seen marker; throttling stays per rule. This overrides the redesign's "no
    channel" non-goal, so it needs approval in the sjvair.com Release 2 plan.
-2. **Schools as places** (sjvair.com PR #275, **merged 2026-10-13**). The server now has a
-   `regions.Location` model (public and private schools, child care) and pesticide
-   endpoints with radius and buffer queries. Decide whether `PlaceRef` gains
-   `{ kind: "location" }` ("pick my school"), and reuse the existing notice queries for
-   pesticide-notice alerts.
+2. ✅ **Schools as places** (decided 2026-10-13). `PlaceRef` gains
+   `{ kind: "location"; id }` for the server's `Location` rows (schools, child care): "pick
+   my school" in the place picker, no coordinate lookup or privacy handling needed, and
+   alert rules can target a school. Step 3 adds location name search, SDK wrappers, and a
+   production data check.
 3. **Age policy (COPPA)** for email-only accounts.
 4. **Who owns the CSP host list**, plus the Sentry DSN and releases, across the two repos.
 5. **Which account owns local documents** on a shared browser (UUID collisions on upload).
@@ -355,6 +355,9 @@ package release needs explicit per-release approval.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
   browser's HTTP cache is the dashboard's persistent data cache (long on completed
   periods, short on the current one).
+- Location (schools, child care) support: a name search endpoint (ideally outside
+  `pesticides/`), sdk-js wrappers for it and `pesticides/locations/`, and a check that
+  production has `import_schools` data.
 - Extend `regions/places/lookup/` to accept coordinates (rounded, **in a POST body**; scrub
   `lat`/`lon` from Sentry, Scout, and logs) or `?monitor=` (plus `type=`),
   returning a list of containing regions (filtered by `type`) with the `within=` geometry
@@ -389,7 +392,8 @@ package release needs explicit per-release approval.
   the region, with a per-share "Share my exact location instead" option and warning.
 - Point places: resolve air quality to the smallest containing region with data (ZIP →
   city → county) at render time, label the source, and freeze to that region on staging.
-- The **shared place picker**: monitors, regions (any hierarchy type), or points
+- The **shared place picker**: monitors, regions (any hierarchy type), schools and
+  child-care sites (`location`), or points
   (`PlaceRef`); search,
   hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
   metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.

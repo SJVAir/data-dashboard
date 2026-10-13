@@ -722,10 +722,11 @@ type WidgetDataConfig = {
 type PlaceRef =
 	| { kind: "monitor"; id: string }
 	| { kind: "region"; id: string }
+	| { kind: "location"; id: string } // a school or child-care site (server `Location`)
 	| { kind: "point"; lat: number; lon: number; label?: string };
 ```
 
-**Places** (decided 2026-09-28). The shared place picker produces all three `PlaceRef`
+**Places** (decided 2026-09-28). The shared place picker produces all four `PlaceRef`
 kinds. Server support:
 
 - **Existing** (already wrapped by the SDK): `regions/places/search/?q=&type=`
@@ -736,10 +737,23 @@ kinds. Server support:
   region **list returns only `bbox`, not boundary geometry**; geometry comes from
   `regions/geojson/?type=` or region detail, and `regions/<id>/?buffer=1|3|5` returns a
   buffered boundary. Neither has an SDK wrapper yet.
-- **Schools and child care exist as `Location` rows** (public school, private school,
-  child care; a point with links to county, city, ZIP, and school district), served by
-  `pesticides/locations/`. Whether `PlaceRef` gains a `location` kind is pending decision
-  2 in `TODO.md`.
+- **Schools and child care are places** (decided 2026-10-13). The server's `Location`
+  model (public school, private school, child care; added by sjvair.com PR #275) holds a
+  name, address, point, and **direct links to its county, city, ZIP, and school
+  district**; today it is served by `pesticides/locations/` (bounding box, region +
+  buffer, or radius).
+  - **"Pick my school"** in the shared place picker and the starter's "Change place" bar:
+    search by name alongside monitors and regions.
+  - **It resolves like a point, but with no coordinate lookup:** air quality uses the
+    smallest of its linked regions with data, heat uses its ZIP, forecasts use its
+    county's zone.
+  - **No location-privacy handling:** a school's address is public, so it is stored and
+    shared as-is (unlike a personal point).
+  - **Alert rules can target a location** (Release 2), e.g. pesticide applications within
+    1 mile of a school, using the server's existing radius queries.
+  - **Server and SDK work (step 3):** a name search for locations, ideally an endpoint
+    outside the `pesticides/` namespace since schools are used for air quality too; SDK
+    wrappers; and a check that production has the school data loaded (`import_schools`).
 - **Missing: lookup by coordinates or monitor.** Needed for "Use my location" and for
   mapping a monitor to its ZIP (CalHeatScore) or forecast zone. **Extend
   `regions/places/lookup/`** (no new endpoint) to accept rounded coordinates (`lat`/`lon` in a **POST body**; see "Location
@@ -800,7 +814,7 @@ type SpatialSelection = {
   for feature-scoped context-menu entries ("Analyze this monitor").
 - **B. Region picking**: uses the **shared place picker** (decided 2026-09-28), a non-map
   component built in **Release 1 step 4** that picks monitors, regions (any type in the
-  hierarchy), or points (`PlaceRef`), with search, hierarchy browsing, and single or multiple
+  hierarchy), schools and child-care sites, or points (`PlaceRef`), with search, hierarchy browsing, and single or multiple
   selection, built on the region-hierarchy metadata. It's reused by Widget Creation's
   accordions, the "now" widgets, Collections item editing, the Map widget (the same
   picker, with the selection also shown on the map; selections sync both ways), and
