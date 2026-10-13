@@ -12,9 +12,8 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
    redesign is now the baseline: escalation-only texts, built-in throttles, a daily
    reminder, no all-clear, and a `Notification` audit model with no `channel`.
    **(a) Decided 2026-10-13:** every rule and channel follows the server's escalation-only
-   rules; no all-clear notification; the in-app inbox shows the timeline. Still to decide:
-   (b) what guard rails to add
-   beyond the existing throttles (quiet hours); (c) adding `channel` to `Notification` for
+   rules; no all-clear notification; the in-app inbox shows the timeline. **(b) Decided 2026-10-13:** the server's per-subscription throttles are the only guard
+   rail; quiet hours deferred; no per-person cap. Still to decide: (c) adding `channel` to `Notification` for
    email and the in-app inbox, overriding the redesign's "no channel" non-goal.
 2. **Schools as places** (sjvair.com PR #275, **merged 2026-10-13**). The server now has a
    `regions.Location` model (public and private schools, child care) and pesticide
@@ -507,12 +506,12 @@ django-resticus plans first)
 
 - sjvair.com:
   - alert rules (monitor/region pollutant, forecast, pesticide-notice)
-  - level-category thresholds, caps, and quiet hours
+  - level-category thresholds, on the server's escalation-only rules and existing throttles
   - SMS for every alert type, plus email (verified email; one-click unsubscribe). Email
     depends on the email-only accounts track's verification flow; SMS, inbox and rules can
     go first.
   - migrate existing SMS subscriptions to rules that reproduce today's behavior exactly
-    (caps and quiet hours off, opt-in to new behavior)
+    (no visible change, since new rules behave the same way)
   - keep the legacy subscription endpoints as a compatibility layer, logging usage with
     the app version, so mobile works unchanged
   - the inbox API

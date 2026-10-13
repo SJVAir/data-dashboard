@@ -232,8 +232,7 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
     fix independently of this project (see `TODO.md`).
   - **Decisions here to re-confirm against this baseline** (pending decision 1 in
     `TODO.md`): (a) **decided 2026-10-13**: follow the server's escalation-only design
-    (see "Notify on" above); (b) guard rails, since the server already throttles per subscription (quiet hours
-    still don't exist); (c) adding a `channel` to `Notification` for email and the in-app
+    (see "Notify on" above); (b) **decided 2026-10-13**: no guard rails beyond the server's throttles (quiet hours deferred); (c) adding a `channel` to `Notification` for email and the in-app
     inbox, which overrides the redesign's non-goal.
 - **Existing SMS subscriptions** (decided 2026-09-28):
   - Every `Subscription` is **migrated to a monitor rule that reproduces the server's
@@ -250,8 +249,9 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   - One source of truth: old and new endpoints read and write the same rules.
   - Removing the legacy endpoints later is deferred (see `DEFERRED.md`). Removing them
     never affects anyone's alerts, only the old management API.
-- **Guard rails:** per-user daily cap per channel; optional **quiet hours** (e.g.
-  overnight SMS).
+- **Guard rails** (decided 2026-10-13): the server's existing **per-subscription
+  throttles** (one per 2 hours, three per Pacific day) are the only guard rail in Release 2. **Opt-in quiet hours are deferred**, and a per-person cap across rules is decided
+  against, following the server's throttling spec (see `DEFERRED.md`).
 - **Forecasts:** tomorrow's category ≥ a level, and/or no-burn day, and/or declared air
   alert; checked once daily after forecasts publish.
 - **Pesticide notices:** place + radius (e.g. 1/2/5 mi), optional filters for
@@ -264,8 +264,8 @@ providers expect from automated senders. A rule can't use a channel until it is 
 and the rule UI prompts for verification when needed.
 
 **Delivery channels (decided 2026-09-24):** channels are chosen **per rule**. First
-iteration: **SMS** (available for **every** alert type — daily caps and quiet hours are
-the cost control), **email** (new; natural default for schools and slow alerts), and
+iteration: **SMS** (available for **every** alert type — the server's per-subscription throttles
+are the cost control), **email** (new; natural default for schools and slow alerts), and
 the **in-app alert inbox** (every fired alert lands there; history, not delivery).
 **Web push** is the next iteration; **mobile app push** is a separate `mobile`
 project. Both are tracked in `DEFERRED.md`.

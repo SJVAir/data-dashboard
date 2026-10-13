@@ -209,8 +209,8 @@ unchanged at 4.5.0.
   - generalize `Subscription` into alert rules for monitor/region pollutants (gated by
     available pollutants), forecasts, and nearby pesticide notices
   - built on the **2026-10-12 notifications redesign** (escalation-only texts, existing
-    throttles, the `Notification` audit model); level-category thresholds, and any guard
-    rails beyond the existing throttles (e.g. quiet hours)
+    throttles, the `Notification` audit model); level-category thresholds; no extra guard rails
+    (quiet hours deferred)
   - migrate existing SMS subscriptions to rules with today's behavior exactly (new
     features default off); keep the legacy endpoints as a logged compatibility layer so
     mobile works unchanged

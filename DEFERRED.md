@@ -222,6 +222,11 @@ ship, or a specific audience asks for one.
   the server's escalation-only rules, with no all-clear; the in-app inbox shows when an
   alert eased or ended. An email-only all-clear has no per-message cost and could be
   offered as an opt-in. **Revisit when** users ask to be told when conditions improve.
+- **Opt-in quiet hours for alert texts** (e.g. none between 10 PM and 7 AM). _Deferred
+  2026-10-13._ The server's escalation logic makes this safe: a held text leaves the user
+  "not yet told", so the alert goes out at the next check after quiet hours. It could
+  only be opt-in, since smoke often worsens overnight. **Revisit when** people complain
+  about night texts, or when the rule UI gains a settings page.
 - **Numeric alert thresholds** (e.g. "PM2.5 > 25 µg/m³"). _Deferred 2026-09-24 (alerting
   design)._ First iteration uses level categories only: simpler for community/schools
   and consistent with the level colors shown everywhere. **Revisit when** researchers or
@@ -465,6 +470,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Notifying on every level change, with a default "back to normal" message** (the
   2026-09-28 alert design): _2026-10-13_. Replaced by the server's escalation-only rules
   after its throttling audit (8–27 texts a day per monitor under the earlier behavior).
+- **A per-person daily cap across all alert rules**: _2026-10-13_. The server's throttling
+  spec (2026-10-06) considered a cross-monitor cap and chose per-subscription limits
+  instead; we follow that.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
