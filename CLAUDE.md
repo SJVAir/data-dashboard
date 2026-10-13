@@ -77,7 +77,7 @@ onto v1 code.
   (remote `dmpayton/django-resticus`; sjvair.com installs its `develop` branch unpinned).
   The user has access. It gets the CSRF fix; see `ARCHITECTURE.md` → "CSRF protection".
 - `../mobile` — the current SJVAir mobile app (`SJVAir/sjvair-mobile`, Svelte 5 +
-  Capacitor; the Svelte rebuild shipped as 3.0.0 on 2026-09-29, and it replaced the old
+  Capacitor; the Svelte rebuild shipped as 3.0.0 on 2026-09-29, now at 4.0.5, and it replaced the old
   `v3-mobile` working copy). It consumes `@sjvair/monitor-map` `^4.2` through its `/core`
   and `/routes` entry points (using `monitorsManager` as an app-wide data store) and
   authenticates with `Token` headers only. Its `CLAUDE.md` lists off-limits areas (`ios/`,

@@ -23,6 +23,9 @@ unchanged at 4.5.0.
 
 ## Now: independent of everything
 
+- **Alerts API break (sjvair.com, sdk-js, mobile).** `account/alerts/` no longer returns
+  `id` or `latest`, which the SDK schema and the mobile Alerts screen require. It is urgent
+  and separate from this project; see `TODO.md`.
 - **PM2.5 breakpoint fix (sjvair.com).** `levels.py` is only half-updated to EPA's 2024
   AQI revision. It is urgent and separate from this project; see `TODO.md`.
 
@@ -49,6 +52,11 @@ unchanged at 4.5.0.
      deleted" list (about 30 days), and `copiedFrom` on local copies
    - local durability safeguards (`storage.persist()`, status note, backup nudge, quota
      errors) and "Clear my data"
+   - local storage spaces (an anonymous space plus one per account) for documents, queued
+     changes, and place preferences
+   - upgrade safety: validate after each upgrade and keep the original locally for 30 days
+   - the checked-in CSP host list (copied into the build) and Sentry via the platform
+     adapter, with the git commit as the build id
    - version-skew handling (newer documents read-only, version-tagged change queue,
      `version.json` deploy detection and chunk-load failures with a reload prompt)
    - Export/Import `.json` and URL-fragment sharing (`/import`), with schema validation and size limits
@@ -151,7 +159,7 @@ unchanged at 4.5.0.
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B)
    - **Critical path (decided 2026-09-28): only `map-sdk` → the dashboard's Map widget.**
-     There is no interim single-map build on monitor-map 3.x.
+     There is no interim single-map build on monitor-map 4.x.
    - **Parallel, not blocking:** monitor-map rebuilt on `map-sdk` on a branch. **The Map
      widget and the monitor-map rebuild both build against pre-1.0 `map-sdk`, and 1.0 is
      cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
@@ -164,7 +172,8 @@ unchanged at 4.5.0.
   pinning), a Django catch-all route for `/workspace/*`, and Heroku config vars for
   `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. The
   `/workspace/*` view serves the dashboard's own `index.html` (no Google Tag Manager). A CSP on `/workspace/*` (report-only
-  first, then enforced). Also:
+  first, then enforced), with its host list read from a file in the dashboard's build
+  output, and the dashboard's own Sentry project and DSN config var. Also:
   `ensure_csrf_cookie` and no forced trailing slashes on `/workspace/*`, and a check that no
   CMS page uses `workspace`. This repo: Vite `base: "/workspace/"` and
   `setOrigin(location.origin)`. Also: confirm the repo is public (done 2026-09-28) and
@@ -184,7 +193,7 @@ unchanged at 4.5.0.
   plus "Make a copy"), versioned local-first sync (automatic replay of non-overlapping
   edits; a prompt only on true overlaps), local →
   account migration, the sign-in flow (Release 2 replaces the redirect with an in-app
-  dialog), sync scope and sign-out keep/remove, and the model details (server keeps the
+  dialog), sign-out removing the account's local space, the "made by a user" bar on shared pages, and the model details (server keeps the
   client UUID, revocable `share_token` (≥ 128 bits), `noindex` shared pages, staff takedown of share
   links in the admin, body size limit, per-user document-count
   and save-rate limits, rejection of `schemaVersion` downgrades, document snapshots with restore, account deletion covering documents and share links (with
@@ -198,7 +207,7 @@ unchanged at 4.5.0.
   makes `apiToken` optional on account calls.
 
 - **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
-  a staging Heroku app or a hidden route) for a pilot teacher and a researcher, so the
+  a staging Heroku app, a hidden route, or the server's `beta_tools` flag) for a pilot teacher and a researcher, so the
   windowed-dashboard experience gets real feedback well before go-live. The mechanism is
   decided in the hosting-track plan.
 
@@ -213,7 +222,7 @@ unchanged at 4.5.0.
 
 - **Server work starts in parallel with Release 1**, once an sjvair.com plan is
   approved:
-  - generalize `Subscription` into alert rules for monitor/region pollutants (gated by
+  - generalize `Subscription` into alert rules for monitor/region/location pollutants (gated by
     available pollutants), forecasts, and nearby pesticide notices
   - built on the **2026-10-12 notifications redesign** (escalation-only texts, existing
     throttles, the `Notification` audit model); level-category thresholds; no extra guard rails
@@ -225,6 +234,8 @@ unchanged at 4.5.0.
     unsubscribe; **depends on the email-only accounts track's verification flow**; SMS,
     inbox and rules can ship first), a `channel` field on `Notification`, and the alert inbox
     API (a read view over alert history)
+  - rules pause (with an inbox notice) when their target is retired; account deletion
+    removes rules, the delivery log, and the inbox marker
   - alert metadata
 - sdk-js wrappers for the new alert endpoints.
 - **In-app session sign-in**: a `POST account/session/` endpoint plus an in-app sign-in

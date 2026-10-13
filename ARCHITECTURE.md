@@ -2,7 +2,7 @@
 
 This document describes the design of SJVAir's data dashboard. The current direction
 comes from `IDEA.md` (planning brief) and the decisions made while working through its
-Open Questions and follow-up reviews (2026-09-23 → 2026-09-28); each section below notes which question it resolves.
+Open Questions and follow-up reviews (2026-09-23 → 2026-10-13); each section below notes which question it resolves.
 Deferred and ruled-out items live in `DEFERRED.md`; the server's actual data is
 catalogued in `docs/reference/server-data-inventory.md`. The original v1 tab-based
 design (`docs/superpowers/specs/2026-09-14-data-dashboard-v1-design.md`) is superseded,
@@ -160,8 +160,8 @@ alerting rather than building a separate one. Current shape (see
 level-category thresholds, evaluated every 10 min for PM2.5 (most monitors) / O3
 (AirNow, AQLite), **SMS only**; no push infrastructure exists on the server or in
 `mobile`. **The server's alert system was redesigned on 2026-10-12** (sjvair.com PR #246);
-see "Server baseline since the 2026-10-12 redesign" below. Several decisions in this
-section were made against the older behavior and are flagged there for re-confirmation.
+see "Server baseline since the 2026-10-12 redesign" below. The decisions in this section that
+were made against the older behavior were re-confirmed or replaced on 2026-10-13.
 
 Decided 2026-09-24: **two separate mechanisms.**
 
@@ -176,7 +176,8 @@ no server changes; ships with the widgets.
 **2. Automated alerting — server-side, requires an account.** The dashboard only
 _creates rules_; the server evaluates them on its periodic task and delivers through a
 channel that reaches the user when the dashboard is closed. Extends `Subscription` into
-a general alert rule (target monitor _or region_, entry type, condition, channels).
+a general alert rule (target monitor, region, _or location_ such as a school; entry type;
+condition; channels).
 Region targets fit naturally: `RegionSummary` is already computed hourly. Needs an
 approved sjvair.com plan.
 
@@ -244,20 +245,19 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
     `id` or `latest`**. `@sjvair/sdk` 4.5.0's `airAlertSchema` still requires both, and the
     mobile app's Alerts screen reads `alert.latest`. That is a live cross-repo break to
     fix independently of this project (see `TODO.md`).
-  - **Decisions here to re-confirm against this baseline** (pending decision 1 in
-    `TODO.md`): (a) **decided 2026-10-13**: follow the server's escalation-only design
+  - **Decisions re-confirmed against this baseline on 2026-10-13:** (a) **decided 2026-10-13**: follow the server's escalation-only design
     (see "Notify on" above); (b) **decided 2026-10-13**: no guard rails beyond the server's throttles (quiet hours deferred); (c) **decided 2026-10-13**: see "Channels on the server" below.
 - **Existing SMS subscriptions** (decided 2026-09-28):
   - Every `Subscription` is **migrated to a monitor rule that reproduces the server's
     current behavior exactly**. Since the 2026-10-12 redesign that means SMS, the same
     level, escalation-only texts, the existing throttles and daily reminder, and no
     all-clear. Since new rules use the same behavior, migration changes nothing a
-    subscriber can notice. Genuinely new features (e.g. quiet hours, other channels)
+    subscriber can notice. Genuinely new features (e.g. email as a second channel)
     default **off** for migrated rules.
   - **The legacy endpoints** (`monitors/<id>/alerts/subscribe|unsubscribe`,
     `alerts/subscriptions`) stay as a **compatibility layer** over the new rules, showing
     and editing only rules a `Subscription` can express (single monitor, SMS, level). They
-    **log usage with the app version**. mobile works unchanged; dashboard-only rules
+    **log usage with the app version**. The mobile app works unchanged; dashboard-only rules
     don't appear in it until it is updated.
   - One source of truth: old and new endpoints read and write the same rules.
   - Removing the legacy endpoints later is deferred (see `DEFERRED.md`). Removing them
@@ -280,7 +280,7 @@ and the rule UI prompts for verification when needed.
 
 - **`Notification` gains a `channel` field** (`sms` | `email`), one row per delivery
   attempt per channel; existing rows default to `sms`. The audit trail, delivery statuses,
-  and daily reminder work the same for email. This **overrides the 2026-07-09 redesign's
+  and daily reminder work the same for email. This **overrides the redesign spec's (2026-07-09)
   "no channel abstraction" non-goal**, which predates this dashboard, so it goes through
   the sjvair.com Release 2 plan for approval there.
 - **The in-app alert inbox is not a channel.** It is a read view over the alert timeline
@@ -292,8 +292,9 @@ and the rule UI prompts for verification when needed.
 
 **Delivery channels (decided 2026-09-24):** channels are chosen **per rule**. First
 iteration: **SMS** (available for **every** alert type — the server's per-subscription throttles
-are the cost control), **email** (new; natural default for schools and slow alerts), and
-the **in-app alert inbox** (every fired alert lands there; history, not delivery).
+are the cost control) and **email** (new; natural default for schools and slow alerts).
+Every fired alert also appears in the **in-app alert inbox**, which is history, not a
+channel (see "Channels on the server").
 **Web push** is the next iteration; **mobile app push** is a separate `mobile`
 project. Both are tracked in `DEFERRED.md`.
 
@@ -803,7 +804,7 @@ type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "yea
 
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
-	target?: PlaceRef; // monitor/region/location for "now" widgets
+	target?: PlaceRef; // any PlaceRef kind, for "now" widgets
 	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
 };
 
@@ -1024,7 +1025,7 @@ the unified legend (its gradient already comes from metadata levels), `mapStyleS
   map is one. Minimized/off-screen map widgets must tear down their map and rebuild on
   restore (affects dashboard layout, Q4).
 
-**Rollout (resolves the "4.0 on an unpinned `main`" risk):** `map-sdk` starts as a
+**Rollout (resolves the risk of an unfinished major landing on an unpinned `main`):** `map-sdk` starts as a
 new package, so nothing picks it up by accident. monitor-map migrates onto it **on a
 branch**; its `main`, which sjvair.com's import script builds unpinned, changes only once
 the standalone app is migrated and verified, and that merge needs explicit approval.
@@ -1085,7 +1086,7 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Replaces the v1 calendar     |
 | Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                              |
 | Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
-| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Monitor, region, or point    |
+| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Any `PlaceRef`               |
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
 | Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)             |
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
@@ -1111,7 +1112,7 @@ type WidgetType = {
 	minSize: { w: number; h: number }; // grid cells
 	time: "range" | "now" | "none"; // the date section is shown only for "range"
 	accepts: DatasetFilter; // which accordions/layers apply (enforces ≤ 1 pollutant)
-	target?: "place"; // needs a monitor/region/location instead of layers
+	target?: "place"; // needs a PlaceRef (any kind) instead of layers
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
 	resolution?: Resolution; // pinned resolution (e.g. calendars "day", heatmap "hour"); hides the override
@@ -1184,7 +1185,7 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
 - **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
   - _Global:_ Undo / Redo, "Clear my data", Sign in / out.
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
-    New / Duplicate / Rename / Delete dashboard.
+    New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
   - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
     (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move… / Resize… (keyboard
     alternatives), Delete, **Mark for analysis**, **Analyze**, Add to collection ▸.
@@ -1399,15 +1400,18 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
      untouched original beside it (one per document, for 30 days). This protects people
      without accounts.
   3. **Keep earlier versions on the server.** For each document: the last version before
-     each `schemaVersion` change, plus one snapshot per day it changed, for 30 days. They
-     count toward the per-user storage caps.
+     each `schemaVersion` change, plus one snapshot per day it changed, for 30 days. The
+     server-documents plan sets a per-user storage limit that includes them, alongside
+     the document-count and save-rate limits.
   4. **"Restore an earlier version"** in the document menu: a dated list of the local and
      server snapshots. Restoring makes that version current and keeps the replaced one as
      a snapshot, so a restore can be undone.
   5. **Bad builds can be blocked.** The app sends its build id (the git commit) with
      every save. Staff can add a build to a server block list; saves from it are refused
      with a "please reload" response, and documents stay in the browser until the fixed
-     build loads (there is no service worker, so a reload always gets the current build).
+     build loads. On the web there is no service worker, so a reload always gets the
+     current build (any later service worker must keep that true); a blocked Tauri or
+     standalone build shows "update required" instead.
   6. **Fixtures for every past `schemaVersion` are kept permanently**, and CI runs the
      whole migration chain against all of them.
 - **References, not data.** Documents store query descriptors, never fetched data, so
@@ -1458,8 +1462,9 @@ share_token` (revocable), `copied_from` (source document id, if a copy), `delete
        TypeScript and upgraded by client-side `schemaVersion` functions on load. The
        trade-off: the server can't query inside documents; specific fields can be
        promoted to real columns later if needed.
-   - **Local → account migration:** the first sign-in offers to upload the local
-     documents.
+   - **Local → account migration:** signing in asks once whether to move the browser's
+     anonymous documents into the account (see "Accounts & anonymous use" → local
+     spaces).
    - **Deletion** (decided 2026-09-28):
      - **Delete is synced and recoverable:** a local deleted marker plus a server soft
        delete (`deleted_at`), **purged after about 30 days**. The undo toast restores
@@ -1469,8 +1474,8 @@ share_token` (revocable), `copied_from` (source document id, if a copy), `delete
        device. Restore it, or discard your changes?"
      - **Share links to deleted documents** show "This shared dashboard is no longer
        available". Restoring brings the link back.
-     - **"Remove from this device"** stays a separate, local-only action (like sign-out
-       "remove" and "Clear my data").
+     - **"Remove from this device"** stays a separate, local-only action (like "Clear my
+       data").
    - **Ownership and provenance** (decided 2026-09-28):
      - **A single `owner`** per document. **Only the owner can delete.** Future editors
        (deferred) would live in a **separate access table** (document, user, role), so
@@ -1484,9 +1489,9 @@ share_token` (revocable), `copied_from` (source document id, if a copy), `delete
        documents and in "Based on …" credits.
    - **Sync scope and sign-out** (decided 2026-09-25):
      - **Every document syncs once signed in**; there's no per-document sync toggle.
-     - **Sign-out asks "Keep your dashboards on this device, or remove them?"**, with
-       _remove_ as the default (safe, since server copies remain; protects shared
-       computers).
+     - **Sign-out removes the account's local copies** (decided 2026-10-13, replacing the
+       2026-09-25 keep-or-remove prompt; see "Accounts & anonymous use" → local spaces).
+       Server copies remain, and unsynced changes are flagged first.
      - **Preferences** (last-opened dashboard, active Collection) **stay local per device**
        in Release 1. Server-synced preferences are deferred.
      - **"Clear my data" only clears this browser**, never server copies. Deleting server
@@ -1555,7 +1560,8 @@ commented out).
    containers sized for English.
 
 Deferred until translations exist (see `DEFERRED.md`): language picker, translation
-files, server `.po` files, per-language metadata caching, alerts in `User.language`,
+files, translated content for the server's (currently empty) catalogs, per-language
+metadata caching, translated alert text,
 Hmong formatting fallback, monitor-map / mobile i18n. RTL support is not needed for
 the declared languages.
 
@@ -1604,6 +1610,7 @@ type DatasetCatalogEntry = {
 		label: string;
 		kind: "pollutant" | "meteorological" | "other";
 		units: string;
+		retired?: { since: string; replacedBy?: string };
 	}[];
 	geographies: ("monitor" | "region" | "polygon" | "point" | "tract" | "zip" | "zone")[];
 	resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
@@ -1626,7 +1633,7 @@ type DatasetCatalogEntry = {
   without an adapter are hidden**, so the server can list datasets before the dashboard
   supports them.
 - **A layer with no selection** means "all features" on a map. Charts and calendars
-  **require** a place or selection (a monitor or region). A **point** given to a range
+  **require** a place or selection (a monitor, region, or location). A **point** given to a range
   widget (e.g. from the starter's "Change place" bar) is **kept as the point** and resolved
   at render to its smallest containing region with data, labeled "(your location)", the
   same rule as "now" widgets. Staging freezes it to that region.
@@ -1929,7 +1936,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   deferred.
 - **Private preview before go-live** (decided 2026-09-24). `sjvair.com/workspace/` goes
   public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
-  preview** (a staging Heroku app or a hidden route; chosen in the hosting-track plan)
+  preview** (a staging Heroku app, a hidden route, or the server's `beta_tools` flag;
+  chosen in the hosting-track plan)
   lets a pilot teacher and a researcher try it and give feedback early.
 - **JupyterLite (Release 3)** lives at its own path (e.g. `/notebooks/`), and COOP/COEP
   headers are set only for that path.

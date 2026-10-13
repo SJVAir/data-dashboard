@@ -125,7 +125,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   through the forecasts data or a metadata zone list, not `type=custom`. **Verify
   production row counts before the step 3 metadata plan and the Release 2 alerts plan**
   (local dev had 0 rows of `school_district` and `custom` on 2026-09-28); import them if
-  missing.
+  missing. Nothing planned uses `protected`. **Revisit when** those two plans start.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
@@ -203,27 +203,26 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
   length the presets lack.
-  _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in the first-release widget set
-  (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit when** the first-release widgets
-  ship, or a specific audience asks for one.
-
 - **Linking widgets**: _deferred 2026-09-28._ (The built-in starter's "Change place" bar
   is a narrow, starter-only exception; design the two together.) First step: a **dashboard-wide place and date
   range** that widgets can choose to follow ("change the county once, everything
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
   Creation, and undo. **Revisit when** pilot or private-preview users ask for it.
-- **Rankings**: worst-N monitors/regions right now, with sparklines.
-- **Days-per-level stacked bars**: by month (widget form of starter analysis #1).
-- **Range bands chart**: mean + p25/p75/min/max bands from summaries.
-- **Pollution rose**: pollutant by wind direction/speed from CIMIS stations.
-- **Region comparison bars**: regions ranked by mean over the date range.
-- **Smoke & fire map preset**: map widget + HMS plugins.
-- **TEMPO satellite layer**: NO₂/O₃ raster overlays. Needs SDK wrapper + a raster map
-  plugin.
-- **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
-  timeline).
-- **Monitor health**: QA/QC scores and sensor agreement (research).
+- **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
+  the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
+  when** the first-release widgets ship, or a specific audience asks for one. The list:
+  - **Rankings**: worst-N monitors/regions right now, with sparklines.
+  - **Days-per-level stacked bars**: by month (widget form of starter analysis #1).
+  - **Range bands chart**: mean + p25/p75/min/max bands from summaries.
+  - **Pollution rose**: pollutant by wind direction/speed from CIMIS stations.
+  - **Region comparison bars**: regions ranked by mean over the date range.
+  - **Smoke & fire map preset**: map widget + HMS plugins.
+  - **TEMPO satellite layer**: NO₂/O₃ raster overlays. Needs SDK wrapper + a raster map
+    plugin.
+  - **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
+    timeline).
+  - **Monitor health**: QA/QC scores and sensor agreement (research).
 
 ## Alerts
 
@@ -254,7 +253,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   installed sites. Brings in the dashboard's **first service worker** (none in Release 1;
   `ARCHITECTURE.md` → "Platform strategy"),
   VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
-  iteration (SMS + email + inbox) ships. That service worker also enables **in-browser
+  iteration (SMS and email, plus the inbox) ships. **Constraint:** the bad-build block list
+  relies on a reload always fetching the current build, so this worker must not serve a
+  stale app shell. That service worker also enables **in-browser
   self-monitoring notifications on Android/iOS** (desktop-only in Release 1). **Optional
   add-on:** app-shell caching, decided when the worker is built.
 - **Mobile app on the new alert-rule endpoints.** _Deferred 2026-09-28._ Release 2 keeps
@@ -296,8 +297,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 - **Shared-computer guest mode.** _Deferred 2026-09-24._ A mode (e.g. enabled by a
   teacher-distributed `?guest` link) where nothing persists after the tab closes.
-  Current approach: browser profile as the boundary + "Clear my data" + session-only
-  sign-in. **Revisit when** a school reports shared-device problems (i.e. students share
+  Current approach: per-account local spaces (sign-out removes them), the browser profile
+  as the boundary for signed-out work, "Clear my data", and session-only sign-in. **Revisit when** a school reports shared-device problems (i.e. students share
   one browser profile).
 - **Accounts for children under 13** (with verifiable parental or school consent).
   _Deferred 2026-10-13._ It needs consent workflows, record-keeping, and stricter data
@@ -330,8 +331,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   timeline; the app ships English-only but translation-ready (see
   `ARCHITECTURE.md` → "Internationalization"). Deferred together: Spanish, Filipino (tl),
   and Hmong (hmn) message files; a language picker (saving to `User.language` when
-  signed in); server `.po` files for sjvair.com (metadata labels/guidance, alert text);
-  per-language metadata caching; alerts sent in `User.language`; a formatting fallback
+  signed in); translated content for sjvair.com's catalogs (metadata labels/guidance, alert
+  text; the mechanism already sends SMS in `User.language`); per-language metadata
+  caching; a formatting fallback
   for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and mobile (`map-sdk` is translation-ready via its `messages`
   provider but ships English defaults). Health guidance
   and alert text need human translation or review, not machine-only. **Revisit when**
@@ -447,15 +449,19 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   fights Svelte; we own a small pure layout engine instead.
 - **Snippet-based context-menu items** (the monitor-inventory-tracker approach):
   _2026-09-23, Q5_. Items are data so they can be merged, tested, and reused.
-- **Staging copied data instead of query descriptors**: _2026-09-23, Q2_.
+- **Staging copied data instead of query descriptors**: _2026-09-23, Q2_. Descriptors stay
+  small, stay current, and keep fetched data out of saved documents.
 - **Persisting tablet/phone layouts separately**: _2026-09-23, Q4_. Only the desktop
   layout is saved; smaller layouts are derived.
 - **URL as source of truth for dashboards**: _2026-09-24_. The URL holds location; the
   document holds content.
 - **JupyterLite inside dashboard pages / app-wide cross-origin isolation**: _2026-09-23,
   Q1/Q6_. JupyterLite is a separate static app.
-- **User-set alert averaging windows** and **repeat notifications while a level holds**:
-  _2026-09-24, alerting_.
+- **User-set alert averaging windows**: _2026-09-24, alerting_. The server defines one
+  window so every subscriber and the UI's explanation agree.
+- **Repeat notifications while a level holds**, beyond the server's single daily 10 AM
+  "still bad" reminder: _2026-09-24; amended 2026-10-13_ when the redesigned server's
+  reminder was adopted. More frequent repeats would undo its throttling.
 - **An interim single-map-widget build on monitor-map 3.x**: _2026-09-24, sequencing_. The
   Map widget waits for `map-sdk`.
 - **Explicit Save as the primary save model**: _2026-09-24_. Autosave plus undo instead;
@@ -507,6 +513,11 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **A grace period for account deletion** (deactivate for 30 days, then delete):
   _2026-10-13_. It would change behavior the mobile app already has and keep personal data
   longer than asked; the backup download covers a change of mind for documents.
+- **"Mark for analysis" on every widget** (IDEA.md's wording): _2026-09-28_. Notes and the
+  Alerts feed hold no query, so they are `analyzable: false` and don't offer it.
+- **Building Widget Creation "based on what we currently have"** (IDEA.md's wording):
+  _2026-09-28_. It is built fresh; the v1 tabs' options reappear as accordions, but no
+  v1 code is carried over unless it is exactly what the new design needs.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

@@ -91,7 +91,8 @@ dropdown picker, and the dataset definition. The rest:
       interpretation; automatic replay of non-overlapping edits plus a 3-choice prompt;
       no CRDT. Also decided: readable routes and the `/workspace/` base path.
 - [x] **#6 Sync scope and sign-out**: every document syncs when signed in; sign-out
-      offers keep/remove (remove by default); preferences stay local; "Clear my data" is
+      offers keep/remove (**superseded 2026-10-13:** sign-out removes the account's local
+      space); preferences stay local; "Clear my data" is
       browser-only.
 - [x] **#7 Rolling ranges**: dashboards stay rolling; staging freezes to fixed Pacific
       dates, with a per-item "keep rolling" toggle; exports always record fixed dates.
@@ -104,9 +105,9 @@ dropdown picker, and the dataset definition. The rest:
       one-click unsubscribe. **Email-only accounts in Release 1**: phone optional, a new
       email verification flow, login by either; phone flows keep working for mobile.
 - [x] **#12 Existing SMS subscriptions**: migrate to monitor rules that reproduce today's
-      behavior exactly (caps and quiet hours off), with opt-in to new behavior. New rules'
-      "back to normal" means below the user's threshold (today's all-clear rarely reaches
-      anyone). Legacy endpoints stay as a logged compatibility layer; their removal and the
+      behavior exactly. (**Superseded 2026-10-13:** the original plan had new rules send a
+      "back to normal" message with caps and quiet hours; every rule now follows the
+      server's escalation-only design, with no all-clear and only its existing throttles.) Legacy endpoints stay as a logged compatibility layer; their removal and the
       mobile update are deferred.
 
 **IDEA.md Open Questions resolved (2026-09-23 → 2026-09-24, branch `planning`).** They and
@@ -124,7 +125,8 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 0. When planning is finished: merge `planning` into `main` (**needs the user's approval**).
 
-1. **PM2.5 breakpoint fix** in sjvair.com (urgent, independent — see below).
+1. **PM2.5 breakpoint fix** in sjvair.com, and the **alerts API break** between sjvair.com,
+   the SDK, and the mobile app (both urgent and independent — see below).
 2. **Release 1, step 1: Foundations** spec (this repo). Its data layer depends on the
    **sdk-js request-options change** (first item of the step 3 metadata track), so plan
    that first.
@@ -152,7 +154,8 @@ updating the docs after each one.
       one `SpatialSelection` model fed by feature picking (A), region picking (B), and
       later drawn shapes (C, opt-in map plugin; now `map-sdk`). No map time scrubbing. See
       `ARCHITECTURE.md` → "Widget data selection".
-- [x] **Q3 Map SDK modularity / plugin system** → `@sjvair/monitor-map` 4.0 clean
+- [x] **Q3 Map SDK modularity / plugin system** → `@sjvair/monitor-map` 4.0 (a version number since used by an unrelated release; the
+      rebuild is now 5.0) clean
       break: per-map `MapContext` instead of singletons, factory plugins with data-source
       interfaces, `MapShell` + lightweight `MapView`, injected config; migrate
       sjvair.com and `mobile` in the same effort (restructured 2026-09-24 as
@@ -199,7 +202,8 @@ each was interviewed and recorded:
   - [x] Watch-list: pollutants on monitor/region targets (gated by available-pollutants
         metadata), forecasts, nearby pesticide notices; others deferred.
   - [x] Thresholds: level categories only; server-defined averaging windows; notify on
-        crossing/escalation/optional all-clear (since refined: below the user's threshold, on by default); daily caps + quiet hours.
+        crossing/escalation/optional all-clear; daily caps + quiet hours. (**Superseded
+        2026-10-13:** escalation-only, no all-clear, the server's throttles only.)
   - [x] Channels: SMS (all alert types) + email + in-app inbox first; web push next;
         mobile push deferred.
 - [x] **Spanish / i18n** → ship English-only, translation-ready: Paraglide JS (English
@@ -220,7 +224,7 @@ each was interviewed and recorded:
       (foundations → layout → metadata enablers ∥ → widgets → monitor-map 4.0 (now `map-sdk`) + Map
       widget on map-sdk → starter dashboard + go-live, since revised: the starter is built in step 4 and step 6
       adds the Map widget); Release 2 Alerts (server work starts
-      alongside Release 1); Release 3 Analysis. Map widget waits for 4.0 (since restructured as `map-sdk`).
+      alongside Release 1); Release 3 Analysis. Map widget waits for 4.0 (since restructured as `map-sdk`; the monitor-map rebuild is now 5.0).
 
 **⚠️ Urgent, separate from this project: the alerts API change breaks the SDK and the mobile
 app.** Since sjvair.com PR #246 (merged 2026-10-12), `account/alerts/` returns `sqid` and no
@@ -261,6 +265,8 @@ package release needs explicit per-release approval.
 **Now (independent)**
 
 - sjvair.com PM2.5 breakpoint fix (see the warning above).
+- The `account/alerts/` API break (`id`/`latest` removed; SDK schema and mobile Alerts
+  screen still need them; see the warning above).
 
 **Release 1, step 1: Foundations** (this repo)
 
@@ -308,6 +314,15 @@ package release needs explicit per-release approval.
   format is serializable JSON with explicit `target`s, plus a persisted queue of unsynced
   changes with their base version, and cross-tab sync via `BroadcastChannel`
   (`ARCHITECTURE.md` → "Routing, URL state & undo").
+- **Local storage spaces** from the first IndexedDB schema: an anonymous space plus one per
+  account, keying every document, queued change, and place preference; the one-time
+  "add anonymous work to your account" prompt; sign-out removing the account's space;
+  an expired session hiding it for 30 days; sign-in and sign-out applied across tabs
+  (`ARCHITECTURE.md` → "Accounts & anonymous use").
+- The **CSP host list**: one checked-in file of the hosts each directive needs, copied into
+  the build output, with a test that fails when code references an unlisted host. Sentry
+  through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and the git commit as
+  the release and build id.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
@@ -391,7 +406,9 @@ package release needs explicit per-release approval.
 - **First sdk-js change:** optional `signal`/`init` on every data function plus a global
   `setRequestDefaults({ headers, credentials })` (additive; `ARCHITECTURE.md` → "SDK request
   options").
-- sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`. Fix sdk-js
+- sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`, plus
+  `regions/geojson/` and the `buffer` parameter (the region list no longer returns
+  geometry). Fix sdk-js
   `api-urls.md`.
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
@@ -401,6 +418,9 @@ package release needs explicit per-release approval.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
+- **Retired or missing references** in every widget type: the "stopped reporting" note,
+  "Switch to the replacement", and the "no longer available" card with "Choose another" /
+  "Remove" (`ARCHITECTURE.md` → "Stable ids and retirement").
 - Heat for areas larger than a ZIP = the highest ZIP score, labeled; forecasts for
   non-zone areas = the containing zone (or the center's zone, labeled).
 - The **starter dashboard** (first-visit default): a built-in document defaulting to
@@ -434,7 +454,8 @@ package release needs explicit per-release approval.
   - Calendar (contribution)
   - Current conditions
   - Data table
-  - Notes (safe Markdown: raw HTML off, link allowlist)
+  - Notes (safe Markdown: raw HTML off, link allowlist, links open in a new tab with
+    `rel="ugc nofollow noopener"`)
   - Hour × weekday heatmap
   - Forecast strip
   - "Can we go outside?"
@@ -468,8 +489,11 @@ package release needs explicit per-release approval.
     forcing trailing slashes
   - confirm no existing CMS page uses `workspace`
 - `VITE_*` keys as Heroku config vars.
-- A CSP on `/workspace/*` from the Django view: report-only first, then enforced
+- A CSP on `/workspace/*` from the Django view: report-only first, then enforced, with the
+  host list **read from the file in the dashboard's build output**
   (`ARCHITECTURE.md` → "Security baseline").
+- Create the dashboard's own Sentry project in the existing org and set `VITE_SENTRY_DSN`
+  as a Heroku config var.
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
 - This repo: Vite `base: "/workspace/"`, and `setOrigin(location.origin)` when served
@@ -526,8 +550,11 @@ django-resticus plans first)
   - versioned local-first sync: automatic replay of non-overlapping edits, and a prompt
     (keep mine / use the other / save mine as a copy) on true overlaps
   - live share links (read-only plus "Make a copy")
-  - local → account migration
-  - sign-out "keep on this device / remove" (remove by default)
+  - local → account migration (the one-time prompt on sign-in) and sign-out removing the
+    account's local space
+  - the "made by a user" bar on shared pages (display name, "not an official SJVAir
+    page", the report link)
+  - "Restore an earlier version" (a dated list of local and server snapshots)
 
 **Release 1, step 6: Map widget in the starter, and go-live**
 
@@ -539,14 +566,16 @@ django-resticus plans first)
 
 **Release 1: private preview (from about step 4)**
 
-- An unlisted preview (staging Heroku app or hidden route; decide in the hosting-track
-  plan) for a pilot teacher and a researcher. Collect feedback on the windowed dashboard
+- An unlisted preview (staging Heroku app, hidden route, or the server's `beta_tools`
+  flag; decide in the hosting-track plan) for a pilot teacher and a researcher. During it, **verify whether an iOS
+  home-screen install has storage separate from Safari** (`ARCHITECTURE.md` → "Platform
+  strategy"). Collect feedback on the windowed dashboard
   before go-live.
 
 **Release 2: Alerts** (the server work can start alongside Release 1)
 
 - sjvair.com:
-  - alert rules (monitor/region pollutant, forecast, pesticide-notice)
+  - alert rules (monitor/region/location pollutant, forecast, pesticide-notice)
   - level-category thresholds, on the server's escalation-only rules and existing throttles
   - SMS for every alert type, plus email (verified email; one-click unsubscribe). Email
     depends on the email-only accounts track's verification flow; SMS, inbox and rules can
@@ -557,6 +586,8 @@ django-resticus plans first)
     the app version, so mobile works unchanged
   - a `channel` field on `Notification` (sms | email); the inbox API as a read view over
     `Alert`/`AlertUpdate` with a last-seen marker; throttling per rule
+  - rules whose target is retired pause and put one notice in the inbox
+  - account deletion also removes rules, the delivery log, and the inbox marker
   - alert metadata
 - sdk-js wrappers.
 - In-app session sign-in: sjvair.com `POST account/session/` (rate-limited,
