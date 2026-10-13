@@ -4,9 +4,8 @@ Last updated: 2026-09-28
 
 ## Start here
 
-**In progress 2026-10-13.** Decisions 1–7 are recorded (plus the base-path change to
-`/workspace/`). **Next: decision 8** (recovery after a bad migration or sync bug), then
-9–10 below, one at a time.
+**In progress 2026-10-13.** Decisions 1–8 are recorded (plus the base-path change to
+`/workspace/`). **Next: decision 9** (what account deletion does), then 10 below.
 
 **Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
 docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
@@ -45,8 +44,10 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
    entries are retired (with an optional replacement), not deleted; widgets show a clear
    state and offer a switch; rules pause and notify; no silent rewrites. `ceidars` becomes
    `emissions` before go-live, so we build against `emissions`.
-8. **Recovery after a bad migration or sync bug** (a local pre-migration snapshot, a server
-   version table).
+8. ✅ **Recovery after a bad upgrade or sync bug** (decided 2026-10-13): validate after
+   upgrading, keep the original locally (30 days), keep server snapshots (pre-upgrade plus
+   daily, 30 days), a "Restore an earlier version" list, a server block list for bad
+   builds, and permanent fixtures for every past format version.
 9. **What account deletion does** to documents, rules, the inbox, and share links.
 10. **A "last N days" trailing date range** (used by the starter's 30-day chart, but not among
     IDEA.md's three methods).
@@ -298,7 +299,9 @@ package release needs explicit per-release approval.
 - Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
   Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
-- `SavedDocument` types, a migration chain, `applyChange`, and undo/redo. The `Change`
+- `SavedDocument` types, a migration chain (validated after each upgrade, with the original
+  kept locally for 30 days and permanent fixtures for every past `schemaVersion` run in
+  CI), `applyChange`, and undo/redo. The `Change`
   format is serializable JSON with explicit `target`s, plus a persisted queue of unsynced
   changes with their base version, and cross-tab sync via `BroadcastChannel`
   (`ARCHITECTURE.md` → "Routing, URL state & undo").
@@ -507,7 +510,9 @@ django-resticus plans first)
 - sjvair.com: the `SavedDocument` model and endpoints (`id` = client UUID, visibility,
   `version`, revocable `share_token`, body size limit). Shared pages are served `noindex`;
   staff can disable a share link or block an account from sharing in the Django admin
-  (recorded), and the shared page's report link uses the existing contact form.
+  (recorded), and the shared page's report link uses the existing contact form. Document
+  snapshots (pre-upgrade plus daily, 30 days) with a list-and-restore endpoint, and a
+  build block list checked on save (the client sends its build id).
 - sdk-js wrappers; make `apiToken` optional on account calls that require it today.
 - Dashboard:
   - the sign-in flow: redirect to sjvair.com login/registration with `?next=` (the server

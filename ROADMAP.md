@@ -187,7 +187,8 @@ unchanged at 4.5.0.
   dialog), sync scope and sign-out keep/remove, and the model details (server keeps the
   client UUID, revocable `share_token` (≥ 128 bits), `noindex` shared pages, staff takedown of share
   links in the admin, body size limit, per-user document-count
-  and save-rate limits, rejection of `schemaVersion` downgrades, a restore-or-discard prompt,
+  and save-rate limits, rejection of `schemaVersion` downgrades, document snapshots with restore, a block list
+  for bad builds, a restore-or-discard prompt,
   "no longer available" share pages, `copied_from`, soft delete with a
   30-day restore, owner-only delete, and an optional public display name). Anonymous users
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to

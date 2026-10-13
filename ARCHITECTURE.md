@@ -1355,6 +1355,27 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
   4. **New deploys are detected.** The build emits `version.json`. The app checks it on tab
      focus and hourly, and shows "A new version is available. Reload" when it changes.
      Code-file (chunk) load failures show the same prompt instead of an error.
+- **Recovery from a bad upgrade or sync bug** (decided 2026-10-13). Upgrade on load, then
+  autosave, then sync, with the server refusing downgrades, has no way back by itself, so:
+  1. **Validate before saving.** An upgraded document is checked against the new schema.
+     If it fails, nothing is saved: the original stays untouched, the document opens
+     read-only with a plain message, and an error report is sent. One bad document never
+     blocks the others.
+  2. **Keep the original locally.** Before upgrading a document, the browser stores the
+     untouched original beside it (one per document, for 30 days). This protects people
+     without accounts.
+  3. **Keep earlier versions on the server.** For each document: the last version before
+     each `schemaVersion` change, plus one snapshot per day it changed, for 30 days. They
+     count toward the per-user storage caps.
+  4. **"Restore an earlier version"** in the document menu: a dated list of the local and
+     server snapshots. Restoring makes that version current and keeps the replaced one as
+     a snapshot, so a restore can be undone.
+  5. **Bad builds can be blocked.** The app sends its build id (the git commit) with
+     every save. Staff can add a build to a server block list; saves from it are refused
+     with a "please reload" response, and documents stay in the browser until the fixed
+     build loads (there is no service worker, so a reload always gets the current build).
+  6. **Fixtures for every past `schemaVersion` are kept permanently**, and CI runs the
+     whole migration chain against all of them.
 - **References, not data.** Documents store query descriptors, never fetched data, so
   they stay small and a recipient sees the same _query_ run against current data.
 

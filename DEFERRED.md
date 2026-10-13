@@ -236,6 +236,10 @@ ship, or a specific audience asks for one.
   rule from a retired id to its replacement). _Deferred 2026-10-13._ The `replacedBy`
   pointer handles it one widget at a time, as an undoable edit. **Revisit when** a
   widely used id is retired and per-widget switching would affect many people.
+- **Full version history for documents** (previews, side-by-side comparison, named
+  versions). _Deferred 2026-10-13._ Release 1 has a dated "Restore an earlier version"
+  list for recovery only. **Revisit when** people use restore for everyday undo rather
+  than recovery, or ask to compare versions.
 - **Numeric alert thresholds** (e.g. "PM2.5 > 25 µg/m³"). _Deferred 2026-09-24 (alerting
   design)._ First iteration uses level categories only: simpler for community/schools
   and consistent with the level colors shown everywhere. **Revisit when** researchers or
