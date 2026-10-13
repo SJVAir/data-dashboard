@@ -216,7 +216,8 @@ unchanged at 4.5.0.
     mobile works unchanged
   - SMS for every alert type, a new email channel (verified email, one-click
     unsubscribe; **depends on the email-only accounts track's verification flow**; SMS,
-    inbox and rules can ship first), and the alert inbox API
+    inbox and rules can ship first), a `channel` field on `Notification`, and the alert inbox
+    API (a read view over alert history)
   - alert metadata
 - sdk-js wrappers for the new alert endpoints.
 - **In-app session sign-in**: a `POST account/session/` endpoint plus an in-app sign-in
