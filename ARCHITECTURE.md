@@ -232,8 +232,7 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
     fix independently of this project (see `TODO.md`).
   - **Decisions here to re-confirm against this baseline** (pending decision 1 in
     `TODO.md`): (a) **decided 2026-10-13**: follow the server's escalation-only design
-    (see "Notify on" above); (b) **decided 2026-10-13**: no guard rails beyond the server's throttles (quiet hours deferred); (c) adding a `channel` to `Notification` for email and the in-app
-    inbox, which overrides the redesign's non-goal.
+    (see "Notify on" above); (b) **decided 2026-10-13**: no guard rails beyond the server's throttles (quiet hours deferred); (c) **decided 2026-10-13**: see "Channels on the server" below.
 - **Existing SMS subscriptions** (decided 2026-09-28):
   - Every `Subscription` is **migrated to a monitor rule that reproduces the server's
     current behavior exactly**. Since the 2026-10-12 redesign that means SMS, the same
@@ -262,6 +261,20 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
 include **one-click unsubscribe** (the `List-Unsubscribe` header plus a link), which major
 providers expect from automated senders. A rule can't use a channel until it is verified,
 and the rule UI prompts for verification when needed.
+
+**Channels on the server (decided 2026-10-13):**
+
+- **`Notification` gains a `channel` field** (`sms` | `email`), one row per delivery
+  attempt per channel; existing rows default to `sms`. The audit trail, delivery statuses,
+  and daily reminder work the same for email. This **overrides the 2026-07-09 redesign's
+  "no channel abstraction" non-goal**, which predates this dashboard, so it goes through
+  the sjvair.com Release 2 plan for approval there.
+- **The in-app alert inbox is not a channel.** It is a read view over the alert timeline
+  (`Alert` and `AlertUpdate`) for the user's rules, plus a "last seen" marker for unread
+  counts. It needs no `Notification` rows and works for rules with no SMS or email.
+- **Throttling stays per rule, not per channel.** The "last told" state lives on the
+  rule, so a rule with SMS and email sends both at the same moment under the same
+  throttle.
 
 **Delivery channels (decided 2026-09-24):** channels are chosen **per rule**. First
 iteration: **SMS** (available for **every** alert type — the server's per-subscription throttles

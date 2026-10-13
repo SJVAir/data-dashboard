@@ -8,13 +8,15 @@ Last updated: 2026-09-28
 docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
 from the 2026-09-29 review are still pending**, with two reshaped by those changes:
 
-1. **Alerts on the redesigned server** (sjvair.com PR #246, **merged 2026-10-12**). The
+1. ✅ **Alerts on the redesigned server** (sjvair.com PR #246, **merged 2026-10-12**). The
    redesign is now the baseline: escalation-only texts, built-in throttles, a daily
    reminder, no all-clear, and a `Notification` audit model with no `channel`.
    **(a) Decided 2026-10-13:** every rule and channel follows the server's escalation-only
    rules; no all-clear notification; the in-app inbox shows the timeline. **(b) Decided 2026-10-13:** the server's per-subscription throttles are the only guard
-   rail; quiet hours deferred; no per-person cap. Still to decide: (c) adding `channel` to `Notification` for
-   email and the in-app inbox, overriding the redesign's "no channel" non-goal.
+   rail; quiet hours deferred; no per-person cap. **(c) Decided 2026-10-13:** `Notification`
+   gains `channel` (sms | email); the in-app inbox is a view over `Alert`/`AlertUpdate`
+   with a last-seen marker; throttling stays per rule. This overrides the redesign's "no
+   channel" non-goal, so it needs approval in the sjvair.com Release 2 plan.
 2. **Schools as places** (sjvair.com PR #275, **merged 2026-10-13**). The server now has a
    `regions.Location` model (public and private schools, child care) and pesticide
    endpoints with radius and buffer queries. Decide whether `PlaceRef` gains
@@ -514,7 +516,8 @@ django-resticus plans first)
     (no visible change, since new rules behave the same way)
   - keep the legacy subscription endpoints as a compatibility layer, logging usage with
     the app version, so mobile works unchanged
-  - the inbox API
+  - a `channel` field on `Notification` (sms | email); the inbox API as a read view over
+    `Alert`/`AlertUpdate` with a last-seen marker; throttling per rule
   - alert metadata
 - sdk-js wrappers.
 - In-app session sign-in: sjvair.com `POST account/session/` (rate-limited,
