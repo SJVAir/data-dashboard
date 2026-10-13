@@ -473,6 +473,26 @@ you:**
     new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
   - **Sign-in and sign-out apply to every open tab at once**, through the cross-tab
     channel.
+- **Account deletion is immediate and complete** (decided 2026-10-13). The server already
+  deletes an account at once after a password check (the mobile app relies on it), and
+  subscriptions and the delivery log go with it. It now also covers everything the
+  dashboard adds:
+  - **Server-saved documents** are deleted for real, including ones in the 30-day trash
+    and all recovery snapshots. **Live share links stop at once** and show the "no longer
+    available" page.
+  - **Copies other people made stay theirs.** They keep only the original's id
+    (`copied_from`), which no longer resolves and holds no personal data.
+  - **Alert rules, the delivery log, the inbox marker, and the public display name** are
+    deleted. Staff takedown records are kept but unlinked from the person. Error reports
+    hold no names, emails, or account ids, so there is nothing to delete there.
+  - **Local copies** are removed from this browser immediately, and from other devices
+    the next time they contact the server and learn the account is gone.
+  - **A backup is offered first.** The confirmation states what will be deleted (counts
+    of documents, share links, and rules) and offers "Download my documents" as one file,
+    importable later with or without an account.
+  - **One place to do it:** sjvair.com's account page, where the password check lives.
+    The dashboard's account menu links there; the mobile app's flow is unchanged.
+  - A 30-day grace period is decided against (see `DEFERRED.md`).
 - **No teacher/class/org accounts**; teachers share via links.
 - **Shared computers:** per-account spaces (above) keep one person's signed-in documents
   away from the next person. For signed-out work the **browser profile is the boundary**

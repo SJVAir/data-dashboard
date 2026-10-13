@@ -500,6 +500,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Automatic text filtering or pre-publication review of shared pages**: _2026-10-13_.
   Too heavy for the expected volume, and it would delay teachers. Shared pages are
   labeled as user-made, reportable, and removable by staff instead.
+- **A grace period for account deletion** (deactivate for 30 days, then delete):
+  _2026-10-13_. It would change behavior the mobile app already has and keep personal data
+  longer than asked; the backup download covers a change of mind for documents.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

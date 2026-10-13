@@ -4,8 +4,8 @@ Last updated: 2026-09-28
 
 ## Start here
 
-**In progress 2026-10-13.** Decisions 1–8 are recorded (plus the base-path change to
-`/workspace/`). **Next: decision 9** (what account deletion does), then 10 below.
+**In progress 2026-10-13.** Decisions 1–9 are recorded (plus the base-path change to
+`/workspace/`). **Next: decision 10** (a "last N days" date range).
 
 **Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
 docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
@@ -48,7 +48,9 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
    upgrading, keep the original locally (30 days), keep server snapshots (pre-upgrade plus
    daily, 30 days), a "Restore an earlier version" list, a server block list for bad
    builds, and permanent fixtures for every past format version.
-9. **What account deletion does** to documents, rules, the inbox, and share links.
+9. ✅ **Account deletion** (decided 2026-10-13): immediate and complete, as today, extended to
+   documents, snapshots, share links, rules, and the display name; others' copies stay; a
+   backup download is offered first; done from sjvair.com's account page.
 10. **A "last N days" trailing date range** (used by the starter's 30-day chart, but not among
     IDEA.md's three methods).
 
@@ -512,7 +514,10 @@ django-resticus plans first)
   staff can disable a share link or block an account from sharing in the Django admin
   (recorded), and the shared page's report link uses the existing contact form. Document
   snapshots (pre-upgrade plus daily, 30 days) with a list-and-restore endpoint, and a
-  build block list checked on save (the client sends its build id).
+  build block list checked on save (the client sends its build id). Account deletion
+  removes documents, trash, snapshots, and share links; the account page's confirmation
+  lists what goes and offers a download of all documents; clients learn "account gone"
+  and clear that account's local space.
 - sdk-js wrappers; make `apiToken` optional on account calls that require it today.
 - Dashboard:
   - the sign-in flow: redirect to sjvair.com login/registration with `?next=` (the server
