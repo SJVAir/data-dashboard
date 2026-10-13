@@ -1,15 +1,15 @@
 # TODO / Current Status
 
-Last updated: 2026-09-28
+Last updated: 2026-10-13
 
 ## Start here
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
 
-**Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
-docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
-from the 2026-09-29 review are still pending**, with two reshaped by those changes:
+**Sibling-repo review (2026-10-13).** A lot changed in the other repos; the docs were updated
+to match (see "What changed in the sibling repos" below). The 10 decisions, as recorded
+(two were reshaped by those changes):
 
 1. ✅ **Alerts on the redesigned server** (sjvair.com PR #246, **merged 2026-10-12**). The
    redesign is now the baseline: escalation-only texts, built-in throttles, a daily
