@@ -399,6 +399,11 @@ point.
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
+- **Will the server's `sms_alerts` flag be on for everyone before Release 2?** (2026-10-13)
+  Today only flagged accounts receive alert texts. The rule UI handles either answer (it
+  offers only the channels the server reports as available), but the answer decides
+  whether most users see SMS as an option at launch. **The user asks the server team;
+  decide in** the Release 2 alerts plan.
 - **Legal confirmation of the account age policy** (13+, neutral age confirmation, no
   under-13 accounts; COPPA). **The user arranges this** with whoever advises SJVAir, before
   the email-only accounts plan is finalized.

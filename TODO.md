@@ -609,6 +609,8 @@ django-resticus plans first)
     every kind of rule (monitor alerts write to it too), which `Notification` points at;
     the inbox API as a read view over rule events with a last-seen marker; throttling per
     pollutant rule, once daily for forecast rules, once per notice for pesticide rules
+  - alert metadata reports which channels the account can use (covers the `sms_alerts`
+    rollout flag); the rule UI disables the rest and shows paused texts on existing rules
   - rules whose target is retired pause and put one notice in the inbox
   - account deletion also removes rules, the delivery log, and the inbox marker
   - alert metadata

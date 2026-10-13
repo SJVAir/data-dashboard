@@ -272,6 +272,21 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   application method (aerial/ground) and chemical category (e.g. fumigants); notify when
   the notice is published, optional reminder the day before application.
 
+**Channel availability per account** (decided 2026-10-13). The server sends alert texts
+only to accounts with its `sms_alerts` rollout flag, so a rule with SMS selected could
+otherwise save and never deliver.
+
+- **The server reports which channels this account can use**, as a per-account list in the
+  alert metadata (e.g. SMS available or not yet). The flag stays the server's business;
+  the dashboard never checks it directly.
+- **The rule UI offers only what will work.** An unavailable channel is shown disabled
+  with a plain explanation; the others remain. No rule can be created that silently does
+  nothing.
+- **Existing rules show their real state:** if a rule has SMS selected and the account
+  lacks it, the rule list says texts are paused and why.
+- Whether email gets its own rollout switch is for the Release 2 server plan; the same
+  list would carry it. The in-app inbox is never gated.
+
 **Email alerts** (decided 2026-09-28): require a **verified email** (the verification flow in "Accounts & anonymous use") and
 include **one-click unsubscribe** (the `List-Unsubscribe` header plus a link), which major
 providers expect from automated senders. A rule can't use a channel until it is verified,
