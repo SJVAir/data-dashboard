@@ -1553,6 +1553,7 @@ type DatasetCatalogEntry = {
 	geographies: ("monitor" | "region" | "polygon" | "point" | "tract" | "zip" | "zone")[];
 	resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
 	metaUrl: string; // the domain's own …/meta/ endpoint
+	retired?: { since: string; replacedBy?: string }; // see "Stable ids and retirement"
 };
 ```
 
@@ -1575,11 +1576,40 @@ type DatasetCatalogEntry = {
   at render to its smallest containing region with data, labeled "(your location)", the
   same rule as "now" widgets. Staging freezes it to that region.
 
+**Stable ids and retirement** (decided 2026-10-13). Saved documents and alert rules hold
+references (monitor, region, location, dataset, and entry-type ids) for years, and the
+things they point to change (the server removed the `place` region type in October 2026).
+
+- **Ids are permanent and never reused.** Dataset ids, entry-type keys, and region,
+  monitor, and location ids are a public contract. A rename changes the label, never the
+  id. The server-side metadata plan states this as a rule.
+- **Retire, don't delete.** Catalog entries and entry types carry `retired` (a date and an
+  optional `replacedBy`) instead of disappearing. Old data stays readable. Retired
+  entries are hidden from pickers for new widgets but still resolve for existing ones.
+- **A widget with a retired or missing reference shows a clear state**, never a blank or
+  an error:
+  - _Retired, with data:_ it keeps working over the dates that exist, with a short note
+    (e.g. "This monitor stopped reporting on March 3").
+  - _Replaced:_ the note offers "Switch to the replacement", a normal undoable edit.
+  - _Gone entirely:_ a "no longer available" card in the widget's place, with "Choose
+    another" and "Remove".
+  - **The app never rewrites a saved document silently.**
+- **Alert rules pause and tell the owner.** A rule whose target is retired stops
+  evaluating, shows as paused in the rule list, and puts one notice in the alert inbox.
+- **Shared pages behave the same way** for viewers, without the edit actions.
+- **Server work (step 3):** retirement fields in the catalog and domain metadata, the
+  never-reuse rule, and lookups that answer "retired" as distinct from "never existed"
+  (for monitors, regions, and locations).
+- **Naming to build against:** sjvair.com PR #282 renames the `ceidars` app and API to
+  `emissions` **before this dashboard goes live**, so the dashboard uses `emissions` from
+  the start and no saved document ever holds a `ceidars` id.
+
 **Structure: per-domain meta + a catalog index.**
 
 - Each domain owns a `…/meta/` endpoint (existing: `monitors/meta/`, `regions/meta/`;
   new: `hms/meta/`, `pesticides/meta/`, `calheatscore/meta/`, `forecasts/meta/`,
-  `calenviroscreen/meta/`, `ceidars/meta/`, `tempo/meta/` as needed).
+  `calenviroscreen/meta/`, `emissions/meta/` (today `ceidars/`, renamed by sjvair.com PR
+  #282 before go-live), `tempo/meta/` as needed).
 - A top-level **`meta/datasets/`** catalog lists every dataset and links to its domain
   meta.
 - **Coverage is separate** (it changes with the data); everything else is effectively

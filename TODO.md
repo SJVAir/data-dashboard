@@ -4,9 +4,9 @@ Last updated: 2026-09-28
 
 ## Start here
 
-**In progress 2026-10-13.** Decisions 1–6 are recorded (plus the base-path change to
-`/workspace/`). **Next: decision 7** (stable ids and deprecation), then 8–10 below, one at
-a time.
+**In progress 2026-10-13.** Decisions 1–7 are recorded (plus the base-path change to
+`/workspace/`). **Next: decision 8** (recovery after a bad migration or sync bug), then
+9–10 below, one at a time.
 
 **Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
 docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
@@ -41,8 +41,10 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
 6. ✅ **User content under sjvair.com's name** (decided 2026-10-13): a fixed "made by a
    user, not an official SJVAir page" bar on shared pages, `ugc nofollow` links, `noindex`,
    a report link to the contact form, and staff takedown in the Django admin.
-7. **Stable ids and deprecation**: what saved widgets and rules do when a pollutant, dataset, or
-   monitor goes away.
+7. ✅ **Stable ids and retirement** (decided 2026-10-13): ids are permanent and never reused;
+   entries are retired (with an optional replacement), not deleted; widgets show a clear
+   state and offer a switch; rules pause and notify; no silent rewrites. `ceidars` becomes
+   `emissions` before go-live, so we build against `emissions`.
 8. **Recovery after a bad migration or sync bug** (a local pre-migration snapshot, a server
    version table).
 9. **What account deletion does** to documents, rules, the inbox, and share links.
@@ -359,6 +361,9 @@ package release needs explicit per-release approval.
 
 - Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
   hardcoding pollutants.
+- Stable ids and retirement: a never-reuse rule for ids, `retired` (date, optional
+  replacement) on catalog entries and entry types, and lookups that distinguish "retired"
+  from "never existed" (`ARCHITECTURE.md` → "Stable ids and retirement").
 - In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
   "What a dataset is"), the coverage endpoint, per-domain scale metas
   (hms, calheatscore with per-score guidance, forecasts, AQI), plus a shared `tier` (0–4;

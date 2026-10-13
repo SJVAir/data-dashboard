@@ -150,9 +150,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   the server (yearly facility emissions + health risk indices) but no widget, analysis,
   or SDK wrapper is planned. **Heads-up:** the open sjvair.com PR #282 (Facility Emissions
   Explorer) replaces the `ceidars` app with an `emissions` app, moves the API to
-  `/api/2.0/emissions/…`, and adds CEPAM, dairies, wells, and toxics. Anything built on
-  `ceidars/` would break when it merges. **Revisit when** an emissions or
-  facility-proximity use case comes up, and after #282 lands.
+  `/api/2.0/emissions/…`, and adds CEPAM, dairies, wells, and toxics. The user confirmed
+  (2026-10-13) that this lands **before the dashboard goes live**, so anything we build
+  uses `emissions` from the start. **Revisit when** an emissions or facility-proximity
+  use case comes up, and after #282 lands.
 - **Combined heat + air-quality tier bump** (raise the tier by one when both conditions
   are at tier ≥ 2, reflecting combined heat and ozone effects). _Deferred 2026-09-28._ It
   is a health claim needing expert backing. **Revisit when** the user or a health advisor
@@ -231,6 +232,10 @@ ship, or a specific audience asks for one.
   "not yet told", so the alert goes out at the next check after quiet hours. It could
   only be opt-in, since smoke often worsens overnight. **Revisit when** people complain
   about night texts, or when the rule UI gains a settings page.
+- **Bulk migration of saved references on the server** (rewriting every saved widget or
+  rule from a retired id to its replacement). _Deferred 2026-10-13._ The `replacedBy`
+  pointer handles it one widget at a time, as an undoable edit. **Revisit when** a
+  widely used id is retired and per-widget switching would affect many people.
 - **Numeric alert thresholds** (e.g. "PM2.5 > 25 µg/m³"). _Deferred 2026-09-24 (alerting
   design)._ First iteration uses level categories only: simpler for community/schools
   and consistent with the level colors shown everywhere. **Revisit when** researchers or
