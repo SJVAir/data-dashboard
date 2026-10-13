@@ -22,7 +22,9 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
    my school" in the place picker, no coordinate lookup or privacy handling needed, and
    alert rules can target a school. Step 3 adds location name search, SDK wrappers, and a
    production data check.
-3. **Age policy (COPPA)** for email-only accounts.
+3. ✅ **Age policy** (decided 2026-10-13): accounts are 13+, with a neutral age confirmation;
+   under-13s use the dashboard anonymously; `full_name` optional; a site privacy policy;
+   legal confirmation needed before the accounts plan is final.
 4. **Who owns the CSP host list**, plus the Sentry DSN and releases, across the two repos.
 5. **Which account owns local documents** on a shared browser (UUID collisions on upload).
 6. **User content under sjvair.com branding**: an "made by a user" bar, `ugc` links, staff
@@ -461,6 +463,9 @@ first)
   - an email verification flow
   - login and registration by email or phone
   - keep the phone flows working for mobile
+  - a neutral age confirmation at registration (13+), `full_name` optional for email-only
+    accounts, and a privacy policy page on sjvair.com
+  - legal confirmation of the age policy before the plan is final
 - sdk-js: account-call updates for email verification and email registration.
 - Lands before sign-in-dependent features ship. Fold the server "remember me" change into
   this plan, since both change the login page.

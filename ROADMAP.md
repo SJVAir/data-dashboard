@@ -171,7 +171,8 @@ unchanged at 4.5.0.
   localhost dev and a staging preview).
 - **Parallel track: email-only accounts** (sjvair.com + sdk-js, decided 2026-09-28).
   Phone becomes optional; an account needs a verified phone or email; a new email
-  verification flow; login and registration by either; the server "remember me"
+  verification flow; login and registration by either; a neutral 13+ age confirmation;
+  optional `full_name`; a site privacy policy page; the server "remember me"
   checkbox. Phone flows keep working for
   mobile. It lands before sign-in-dependent features ship.
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js + django-resticus,

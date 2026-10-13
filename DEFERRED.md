@@ -282,6 +282,10 @@ ship, or a specific audience asks for one.
   Current approach: browser profile as the boundary + "Clear my data" + session-only
   sign-in. **Revisit when** a school reports shared-device problems (i.e. students share
   one browser profile).
+- **Accounts for children under 13** (with verifiable parental or school consent).
+  _Deferred 2026-10-13._ It needs consent workflows, record-keeping, and stricter data
+  rules. Under-13s use the dashboard anonymously. **Revisit when** a school partner needs
+  student accounts, together with class accounts below.
 - **Teacher / class / organization accounts.** _Deferred 2026-09-24._ Rosters, class
   dashboards, shared org alerts. Teachers share via links for now. **Revisit when**
   schools ask for managed class use, likely after server-backed live share links exist.
@@ -376,6 +380,9 @@ point.
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
+- **Legal confirmation of the account age policy** (13+, neutral age confirmation, no
+  under-13 accounts; COPPA). **The user arranges this** with whoever advises SJVAir, before
+  the email-only accounts plan is finalized.
 - **Copyright holder name for the MIT `LICENSE` files** (e.g. "SJVAir" or the organization's
   legal name). **The user decides**, before the Foundations license task.
 - **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide

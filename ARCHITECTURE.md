@@ -428,6 +428,22 @@ changes, approved plans first):
   for mobile and existing users. The username-field change needs care (phone-less
   users), which the plan must address.
 
+**Age policy (decided 2026-10-13).** Email-only accounts remove the phone barrier that
+kept most young students from registering, and COPPA restricts collecting personal
+information from children under 13 without verifiable parental consent.
+
+- **Accounts are for ages 13 and up.** Registration includes a **neutral age
+  confirmation** (e.g. a birth year, with no hint at the "right" answer).
+- **Students under 13 use the dashboard without an account.** Everything except alerts
+  and cross-device sync already works anonymously, and teachers share by link. Accounts
+  are not marketed to students.
+- **Collect less:** `full_name` becomes optional for email-only accounts (the public
+  display name is already optional).
+- **sjvair.com gets a privacy policy page**, which the in-app privacy note links to.
+- **The legal position must be confirmed** by whoever advises SJVAir before the
+  email-only accounts plan is finalized (see `DEFERRED.md` → "Open decisions").
+  Under-13 accounts with parental or school consent are deferred.
+
 **Everything works anonymously except what needs the server to act or persist for
 you:**
 
