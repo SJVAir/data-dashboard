@@ -192,10 +192,19 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   50% coverage; the earlier 30-minute open window is gone); regions use hourly summaries.
   Published via alert metadata (Metadata gap #4) so the UI can explain "based on a
   60-minute average".
-- **Notify on** (new rules): first crossing, any level change while at or above the
-  user's threshold, and an optional **"back to normal"** message, meaning **dropped
-  below the user's own threshold** (on by default), e.g. "PM2.5 is now Moderate, below
-  your alert level". No repeats while a level holds.
+- **Notify on: the server's escalation-only rules, for every rule and every channel**
+  (decided 2026-10-13; this replaces the 2026-09-28 "any level change plus a back-to-normal
+  message" design). A notification goes out only when conditions get **worse than what
+  the user was last told**, with the server's throttles (one per 2 hours, three per Pacific
+  day, bypassed by a jump of two or more levels; re-armed after 2 hours below the
+  threshold) and its daily 10 AM "still bad" reminder. **Nothing is sent on improvement,
+  and there is no all-clear notification.** Reasons: the server's approved throttling
+  design (2026-10-06) found the earlier behavior sent 8–27 texts a day per monitor, and it
+  matches how the Valley Air District alerts. One behavior for old and new rules means
+  nothing to migrate or explain twice.
+- **"Is it over yet?" is answered in the app, not by a message.** The server records every
+  level change and the alert's end (`AlertUpdate`), so the **in-app alert inbox shows the
+  full timeline** (rose, eased, ended), and widgets show current conditions live.
 - **Server baseline since the 2026-10-12 redesign** (PR #246; verified in
   `alerts/models.py`, `evaluator.py`, `notifications.py`, `tasks.py` on 2026-10-13). This
   replaces the behavior verified on 2026-09-28:
@@ -222,19 +231,17 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
     mobile app's Alerts screen reads `alert.latest`. That is a live cross-repo break to
     fix independently of this project (see `TODO.md`).
   - **Decisions here to re-confirm against this baseline** (pending decision 1 in
-    `TODO.md`): (a) our new-rule behavior ("any level change at or above the threshold",
-    plus a below-threshold "back to normal") vs. the server's escalation-only design;
-    (b) guard rails, since the server already throttles per subscription (quiet hours
+    `TODO.md`): (a) **decided 2026-10-13**: follow the server's escalation-only design
+    (see "Notify on" above); (b) guard rails, since the server already throttles per subscription (quiet hours
     still don't exist); (c) adding a `channel` to `Notification` for email and the in-app
     inbox, which overrides the redesign's non-goal.
 - **Existing SMS subscriptions** (decided 2026-09-28):
   - Every `Subscription` is **migrated to a monitor rule that reproduces the server's
     current behavior exactly**. Since the 2026-10-12 redesign that means SMS, the same
     level, escalation-only texts, the existing throttles and daily reminder, and no
-    all-clear. Genuinely new features (e.g. quiet hours) default **off** for migrated
-    rules. Users can opt in to the new
-    behavior (including the below-threshold all-clear) from the dashboard's rule
-    settings.
+    all-clear. Since new rules use the same behavior, migration changes nothing a
+    subscriber can notice. Genuinely new features (e.g. quiet hours, other channels)
+    default **off** for migrated rules.
   - **The legacy endpoints** (`monitors/<id>/alerts/subscribe|unsubscribe`,
     `alerts/subscriptions`) stay as a **compatibility layer** over the new rules, showing
     and editing only rules a `Subscription` can express (single monitor, SMS, level). They

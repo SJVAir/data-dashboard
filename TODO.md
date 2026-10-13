@@ -10,9 +10,10 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
 
 1. **Alerts on the redesigned server** (sjvair.com PR #246, **merged 2026-10-12**). The
    redesign is now the baseline: escalation-only texts, built-in throttles, a daily
-   reminder, no all-clear, and a `Notification` audit model with no `channel`. Decide:
-   (a) whether new dashboard rules keep our "any level change + below-threshold all-clear"
-   behavior or follow the server's escalation-only design; (b) what guard rails to add
+   reminder, no all-clear, and a `Notification` audit model with no `channel`.
+   **(a) Decided 2026-10-13:** every rule and channel follows the server's escalation-only
+   rules; no all-clear notification; the in-app inbox shows the timeline. Still to decide:
+   (b) what guard rails to add
    beyond the existing throttles (quiet hours); (c) adding `channel` to `Notification` for
    email and the in-app inbox, overriding the redesign's "no channel" non-goal.
 2. **Schools as places** (sjvair.com PR #275, **merged 2026-10-13**). The server now has a

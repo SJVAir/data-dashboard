@@ -218,6 +218,10 @@ ship, or a specific audience asks for one.
   **Revisit when** the first alert-rule iteration ships, or ahead of wildfire/heat
   season if demand appears.
 
+- **An opt-in "back to normal" message by email.** _Deferred 2026-10-13._ All channels follow
+  the server's escalation-only rules, with no all-clear; the in-app inbox shows when an
+  alert eased or ended. An email-only all-clear has no per-message cost and could be
+  offered as an opt-in. **Revisit when** users ask to be told when conditions improve.
 - **Numeric alert thresholds** (e.g. "PM2.5 > 25 µg/m³"). _Deferred 2026-09-24 (alerting
   design)._ First iteration uses level categories only: simpler for community/schools
   and consistent with the level colors shown everywhere. **Revisit when** researchers or
@@ -458,6 +462,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **A server-side `text_color` per level**: _2026-09-28_. It's computed with color2k's
   `readableColor` instead. Add an optional field only if a designer needs a non-black/white
   override.
+- **Notifying on every level change, with a default "back to normal" message** (the
+  2026-09-28 alert design): _2026-10-13_. Replaced by the server's escalation-only rules
+  after its throttling audit (8–27 texts a day per monitor under the earlier behavior).
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
