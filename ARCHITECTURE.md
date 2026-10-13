@@ -456,11 +456,28 @@ you:**
 
 - **Sign-in is lazy/contextual** — prompted only when needed (e.g. inside the "Create
   alert" flow), never as a gate on first load.
-- **Local → account migration:** once server-backed documents exist, first sign-in offers
-  to upload local dashboards/Collections/analyses.
+- **Local storage is split into spaces** (decided 2026-10-13): one anonymous space plus
+  one per account. Every local document, queued change, and place preference belongs to
+  exactly one space, and the app only ever shows the current one. Purely cosmetic device
+  settings (e.g. theme) stay with the browser.
+  - **Signing in asks once about anonymous work** ("Add the 3 dashboards made on this
+    browser to your account?"). Yes moves them into the account with the same IDs and out
+    of the anonymous space; No leaves them for signed-out use.
+  - **Signing out removes that account's local copies** from the browser (they are on the
+    server). If changes haven't synced, the app says so and offers to finish first.
+  - **An expired or browser-session-ended sign-in is not a sign-out:** the space is hidden
+    but kept, so unsynced work survives, and signing back in as the same person resumes
+    it. A hidden space nobody returns to is removed after 30 days.
+  - **ID collisions become copies.** The server accepts a save to an existing ID only
+    from its owner. If an upload hits an ID owned by someone else, the client assigns a
+    new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
+  - **Sign-in and sign-out apply to every open tab at once**, through the cross-tab
+    channel.
 - **No teacher/class/org accounts**; teachers share via links.
-- **Shared computers:** the **browser profile is the boundary** (as for any website;
-  managed Chromebooks usually give each student their own profile). Provide a visible
+- **Shared computers:** per-account spaces (above) keep one person's signed-in documents
+  away from the next person. For signed-out work the **browser profile is the boundary**
+  (as for any website; managed Chromebooks usually give each student their own profile).
+  Provide a visible
   **"Clear my data"** action. Signing in **without "remember me"** gives a session that
   ends when the browser closes: under cookie auth that's a browser-session cookie (a
   small server change, see "Sign-in flow"), and for token builds a session-only token

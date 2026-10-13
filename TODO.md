@@ -4,6 +4,10 @@ Last updated: 2026-09-28
 
 ## Start here
 
+**⏸ Paused 2026-10-13 after decision 5.** Decisions 1–5 are recorded (plus the base-path
+change to `/workspace/`). **Next: decision 6** (user content under sjvair.com branding),
+then 7–10 below, one at a time.
+
 **Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
 docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
 from the 2026-09-29 review are still pending**, with two reshaped by those changes:
@@ -30,7 +34,10 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
    Sentry project, DSN from a build-time config var, release = git commit; source-map
    upload deferred. Also decided: **the base path is `/workspace/`, not `/explore/`** (the
    server's "data explorers" made `/explore/` confusing).
-5. **Which account owns local documents** on a shared browser (UUID collisions on upload).
+5. ✅ **Local document ownership** (decided 2026-10-13): local storage is split into an
+   anonymous space and one per account; sign-in asks once about anonymous work; sign-out
+   removes the account's local copies; an expired session hides and keeps them (30 days);
+   an ID owned by someone else uploads as a copy.
 6. **User content under sjvair.com branding**: an "made by a user" bar, `ugc` links, staff
    takedown, a report link.
 7. **Stable ids and deprecation**: what saved widgets and rules do when a pollutant, dataset, or
