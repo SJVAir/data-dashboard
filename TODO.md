@@ -4,9 +4,9 @@ Last updated: 2026-09-28
 
 ## Start here
 
-**⏸ Paused 2026-10-13 after decision 5.** Decisions 1–5 are recorded (plus the base-path
-change to `/workspace/`). **Next: decision 6** (user content under sjvair.com branding),
-then 7–10 below, one at a time.
+**In progress 2026-10-13.** Decisions 1–6 are recorded (plus the base-path change to
+`/workspace/`). **Next: decision 7** (stable ids and deprecation), then 8–10 below, one at
+a time.
 
 **Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
 docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
@@ -38,8 +38,9 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
    anonymous space and one per account; sign-in asks once about anonymous work; sign-out
    removes the account's local copies; an expired session hides and keeps them (30 days);
    an ID owned by someone else uploads as a copy.
-6. **User content under sjvair.com branding**: an "made by a user" bar, `ugc` links, staff
-   takedown, a report link.
+6. ✅ **User content under sjvair.com's name** (decided 2026-10-13): a fixed "made by a
+   user, not an official SJVAir page" bar on shared pages, `ugc nofollow` links, `noindex`,
+   a report link to the contact form, and staff takedown in the Django admin.
 7. **Stable ids and deprecation**: what saved widgets and rules do when a pollutant, dataset, or
    monitor goes away.
 8. **Recovery after a bad migration or sync bug** (a local pre-migration snapshot, a server
@@ -499,7 +500,9 @@ django-resticus plans first)
 - Share tokens ≥ 128 bits (`secrets.token_urlsafe(16)`+); per-user document-count and
   save-rate limits.
 - sjvair.com: the `SavedDocument` model and endpoints (`id` = client UUID, visibility,
-  `version`, revocable `share_token`, body size limit).
+  `version`, revocable `share_token`, body size limit). Shared pages are served `noindex`;
+  staff can disable a share link or block an account from sharing in the Django admin
+  (recorded), and the shared page's report link uses the existing contact form.
 - sdk-js wrappers; make `apiToken` optional on account calls that require it today.
 - Dashboard:
   - the sign-in flow: redirect to sjvair.com login/registration with `?next=` (the server

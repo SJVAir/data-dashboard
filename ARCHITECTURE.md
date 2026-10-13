@@ -517,6 +517,20 @@ files, and server documents.
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
    rate, alongside the body size limit.
+6. **User-made pages are labeled and removable** (decided 2026-10-13). A live share link
+   sits on sjvair.com but its title, Notes, and links are the author's, so:
+   - **A "made by a user" bar on every shared page**, always visible and not removable by
+     the author: who shared it (the optional display name, else a generic label) and that
+     it is not an official SJVAir page. The data in the widgets is still SJVAir's.
+   - **Links in user text are marked as user content:** they open in a new tab with
+     `rel="ugc nofollow noopener"`. Shared pages are served `noindex`.
+   - **A "Report this page" link** in that bar, going to sjvair.com's existing contact form
+     with the share link filled in. No separate moderation system.
+   - **Staff takedown** in the Django admin: disable a share link (it then shows a "no
+     longer available" page) and, if needed, block an account from creating shares. The
+     author's own document is untouched. Each takedown records who and when.
+   - Automatic text filtering and pre-publication review are decided against, and a
+     public gallery stays deferred (see `DEFERRED.md`).
 
 ### CSRF protection for cookie-authenticated API writes
 
