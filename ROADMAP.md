@@ -205,7 +205,8 @@ unchanged at 4.5.0.
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (the server "remember me" change is owned by the
   email-only accounts track); sdk-js
-  makes `apiToken` optional on account calls.
+  makes `apiToken` optional on account calls. Saves carry the account id (refused on a
+  mismatch), and the dashboard reads a session-identity response that omits `api_token`.
 
 - **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
   a staging Heroku app, a hidden route, or the server's `beta_tools` flag) for a pilot teacher and a researcher, so the

@@ -320,7 +320,8 @@ package release needs explicit per-release approval.
 - **Local storage spaces** from the first IndexedDB schema: an anonymous space plus one per
   account, keying every document, queued change, and place preference; the one-time
   "add anonymous work to your account" prompt; sign-out removing the account's space;
-  an expired session hiding it for 30 days; sign-in and sign-out applied across tabs
+  an expired session hiding it for 30 days; each space bound to an account id, re-checked
+  on tab focus and before each sync; sign-in and sign-out applied across tabs
   (`ARCHITECTURE.md` → "Accounts & anonymous use").
 - The **CSP host list**: one checked-in file of the hosts each directive needs, copied into
   the build output, with a test that fails when code references an unlisted host. Sentry
@@ -551,6 +552,9 @@ django-resticus plans first)
   removes documents, trash, snapshots, and share links; the account page's confirmation
   lists what goes and offers a download of all documents; clients learn "account gone"
   and clear that account's local space.
+- sjvair.com: every document save carries the account id and is refused on a mismatch with
+  the session's account; a session-identity response without `api_token` (the existing
+  account response is unchanged for the mobile app).
 - sdk-js wrappers; make `apiToken` optional on account calls that require it today.
 - Dashboard:
   - the sign-in flow: redirect to sjvair.com login/registration with `?next=` (the server

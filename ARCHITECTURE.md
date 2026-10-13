@@ -507,6 +507,22 @@ you:**
     new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
   - **Sign-in and sign-out apply to every open tab at once**, through the cross-tab
     channel.
+  - **Saves are bound to an account** (decided 2026-10-13). In Release 1, sign-in and
+    sign-out happen on sjvair.com's pages, so the cookie can change (another person
+    signs in, or a session expires) while a tab still holds one person's queued changes.
+    - Each account space records its **account id** (the server's stable user id).
+    - **Every save names the account it is for, and the server refuses a mismatch**: no
+      write happens, and the response says who is signed in. This is the real guard, since
+      a client-only check can be raced.
+    - **The app re-checks who is signed in** when a tab regains focus and before each
+      sync. If the account changed, it switches spaces (hiding and keeping the previous
+      one, as for an expired session) and says so.
+  - **A session-identity response without the API token** (decided 2026-10-13). The
+    existing account response includes the permanent `api_token`, which the mobile app
+    needs but a cookie-authenticated dashboard never does; receiving it would let an
+    injection bug steal a credential that outlives the session. The dashboard uses a
+    response with only the account id, display name, email, and verification status. The
+    existing endpoint and the mobile app are unchanged.
 - **Account deletion is immediate and complete** (decided 2026-10-13). The server already
   deletes an account at once after a password check (the mobile app relies on it), and
   subscriptions and the delivery log go with it. It now also covers everything the
