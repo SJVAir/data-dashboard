@@ -207,7 +207,8 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   50% coverage; the earlier 30-minute open window is gone); regions use hourly summaries.
   Published via alert metadata (Metadata gap #4) so the UI can explain "based on a
   60-minute average".
-- **Notify on: the server's escalation-only rules, for every rule and every channel**
+- **Notify on: the server's escalation-only rules, for every pollutant rule and every
+  channel**
   (decided 2026-10-13; this replaces the 2026-09-28 "any level change plus a back-to-normal
   message" design). A notification goes out only when conditions get **worse than what
   the user was last told**, with the server's throttles (one per 2 hours, three per Pacific
@@ -283,9 +284,27 @@ and the rule UI prompts for verification when needed.
   and daily reminder work the same for email. This **overrides the redesign spec's (2026-07-09)
   "no channel abstraction" non-goal**, which predates this dashboard, so it goes through
   the sjvair.com Release 2 plan for approval there.
-- **The in-app alert inbox is not a channel.** It is a read view over the alert timeline
-  (`Alert` and `AlertUpdate`) for the user's rules, plus a "last seen" marker for unread
-  counts. It needs no `Notification` rows and works for rules with no SMS or email.
+- **The in-app alert inbox is not a channel.** It is a read view over **rule events**
+  (below) for the user's rules, plus a "last seen" marker for unread counts. It needs no
+  `Notification` rows and works for rules with no SMS or email.
+- **Rule events are the common record for every kind of rule.** The server's `Alert`
+  requires a monitor and `Notification` requires an `AlertUpdate`, so region, location,
+  forecast, and pesticide-notice rules would otherwise have no inbox source, no delivery
+  log, and nowhere to record "rule paused". The rules plan adds one small record: each
+  time a rule fires, changes level, ends, or is paused, the server writes a row (rule,
+  subject, kind of event, level if any, time). The inbox reads these and `Notification`
+  points at them. Monitor alerts keep their existing, tested logic and write rule events
+  as well. Stretching `Alert` to cover non-monitor targets was decided against (see
+  `DEFERRED.md`).
+- **What "fires" means per kind of rule:**
+  - _Pollutant rules (monitor, region, location):_ escalation-only with the server's
+    throttles and daily reminder. Region and location rules read the hourly region
+    summaries, so they are evaluated hourly.
+  - _Forecast rules:_ at most one notification per day, after forecasts publish, when
+    tomorrow meets the rule.
+  - _Pesticide-notice rules:_ one notification per notice when it is published, plus the
+    optional day-before reminder. No throttle (each notice is a distinct event), but a
+    notice never notifies twice for the same rule.
 - **Throttling stays per rule, not per channel.** The "last told" state lives on the
   rule, so a rule with SMS and email sends both at the same moment under the same
   throttle.

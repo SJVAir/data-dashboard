@@ -592,8 +592,10 @@ django-resticus plans first)
     (no visible change, since new rules behave the same way)
   - keep the legacy subscription endpoints as a compatibility layer, logging usage with
     the app version, so mobile works unchanged
-  - a `channel` field on `Notification` (sms | email); the inbox API as a read view over
-    `Alert`/`AlertUpdate` with a last-seen marker; throttling per rule
+  - a `channel` field on `Notification` (sms | email); a per-rule **event record** written by
+    every kind of rule (monitor alerts write to it too), which `Notification` points at;
+    the inbox API as a read view over rule events with a last-seen marker; throttling per
+    pollutant rule, once daily for forecast rules, once per notice for pesticide rules
   - rules whose target is retired pause and put one notice in the inbox
   - account deletion also removes rules, the delivery log, and the inbox marker
   - alert metadata

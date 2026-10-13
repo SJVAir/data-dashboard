@@ -233,8 +233,8 @@ unchanged at 4.5.0.
     mobile works unchanged
   - SMS for every alert type, a new email channel (verified email, one-click
     unsubscribe; **depends on the email-only accounts track's verification flow**; SMS,
-    inbox and rules can ship first), a `channel` field on `Notification`, and the alert inbox
-    API (a read view over alert history)
+    inbox and rules can ship first), a `channel` field on `Notification`, a per-rule event record for every
+    kind of rule, and the alert inbox API (a read view over those events)
   - rules pause (with an inbox notice) when their target is retired; account deletion
     removes rules, the delivery log, and the inbox marker
   - alert metadata

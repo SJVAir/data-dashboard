@@ -521,6 +521,10 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Server `sqid`s as the saved reference for regions and locations** (with official codes
   only for built-in documents and fixtures): _2026-10-13_. Two reference styles in one
   format, and a production re-import would still break everyone's saved dashboards.
+- **Stretching the server's `Alert` model to non-monitor targets** (an optional monitor plus
+  region, zone, and notice targets): _2026-10-13_. It would change a model that was just
+  redesigned and approved, and a pesticide notice is not an alert that opens and closes.
+  A separate rule-event record covers every kind of rule instead.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
