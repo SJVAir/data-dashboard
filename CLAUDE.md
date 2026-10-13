@@ -109,6 +109,10 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 - **Treat document content as untrusted** (see `ARCHITECTURE.md` → "Security baseline"):
   validate every incoming document with a schema and size limit, render Markdown with raw
   HTML off, and never inject HTML or use inline scripts (a CSP on `/workspace/*`, report-only then enforced, backs this up).
+- **The dashboard is embedded in a dedicated Django template on sjvair.com** (the
+  monitor-map pattern, but not extending the site's base template). The build emits
+  fixed-name entry files; `index.html` is for local dev and standalone builds only. See
+  `ARCHITECTURE.md` → "Deployment" → "Template embedding".
 - **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
   "Authentication"): session cookie when served from sjvair.com's origin (Release 1:
   `/workspace/`); `Token`

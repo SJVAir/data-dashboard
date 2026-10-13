@@ -520,8 +520,10 @@ you:**
   - **A session-identity response without the API token** (decided 2026-10-13). The
     existing account response includes the permanent `api_token`, which the mobile app
     needs but a cookie-authenticated dashboard never does; receiving it would let an
-    injection bug steal a credential that outlives the session. The dashboard uses a
-    response with only the account id, display name, email, and verification status. The
+    injection bug steal a credential that outlives the session. The dashboard gets
+    only the account id, display name, email, and verification status: **on first load
+    from the Django template** (as a non-executing JSON data block, see "Deployment" → "Template embedding"), and
+    for the later re-checks from a session-identity endpoint that omits the token. The
     existing endpoint and the mobile app are unchanged.
 - **Account deletion is immediate and complete** (decided 2026-10-13). The server already
   deletes an account at once after a password check (the mobile app relies on it), and
@@ -576,13 +578,14 @@ files, and server documents.
    - `style-src` may need `'unsafe-inline'` (Svelte and map libraries set inline styles).
    - **Rollout:** deploy in **report-only** mode first, then enforce once clean. It
      applies only to `/workspace/*`.
-   - **Ownership** (decided 2026-10-13): **the dashboard owns the host list; sjvair.com
-     owns the header.** This repo keeps one checked-in file listing the hosts it needs
-     per directive, and the build copies it into the output. sjvair.com's view reads that
-     file from the built dashboard and assembles the header, adding only what the server
-     controls (the report-only or enforce switch and the report address). A host change is
-     one reviewed change in this repo, deployed with the code that needs it, and a test
-     here fails when code references a host that isn't listed.
+   - **Ownership** (decided 2026-10-13, revised the same day once embedding was
+     settled): the page is a Django template, so **sjvair.com's view holds the host list
+     and sends the header**. This repo keeps a checked-in list of the hosts its code needs
+     as the reference, with a test that fails when code references an unlisted host; a
+     new host therefore needs a matching sjvair.com change, and the report-only phase and
+     the app's own violation reports (below) catch any drift.
+   - **The app also reports violations itself:** it listens for the browser's
+     policy-violation event and sends it through the scrubbed error reporting.
 4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
@@ -1878,8 +1881,9 @@ Google Tag Manager/Analytics; and the dashboard's riskiest logic (sync, migratio
 IndexedDB, conflict replay) runs only in the browser, where no SJVAir front end reports
 errors today.
 
-1. **No Google Analytics or Tag Manager on `/workspace/`.** The Django view serves the
-   dashboard's own `index.html`, not sjvair.com's base template. Aggregate usage counts
+1. **No Google Analytics or Tag Manager on `/workspace/`.** The dashboard is embedded in a
+   **dedicated Django template that does not extend sjvair.com's base template** (see
+   "Deployment" → "Template embedding"), so none of the site's tags load. Aggregate usage counts
    are deferred (see `DEFERRED.md`).
 2. **Front-end errors go to the existing Sentry org**, through the platform adapter, with
    strict scrubbing: never document bodies, Notes text, names, emails, or coordinates;
@@ -2017,8 +2021,37 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   vars** at build time, as for monitor-map. These keys end up in the built JavaScript like any
   in-browser map key, so **each must be restricted by domain** in its provider's
   dashboard (MapTiler, NREL). Use separate keys, or extra allowed domains, for localhost
-  dev and a staging preview app. Vite `base: "/workspace/"` matches the
-  router's `basePath`.
+  dev and a staging preview app. The router's `basePath` is `/workspace/`; built files are
+  served from Django's static path (see "Template embedding" below).
+- **Template embedding on sjvair.com** (decided 2026-10-13; the user corrected an earlier assumption that the
+  view would serve the dashboard's own `index.html`). **The dashboard is built at deploy
+  and embedded in a Django template view, the way the monitor map is**
+  (`pages/index.html`: `{% static %}` tags for a fixed-name script and stylesheet, a
+  helper for locating other build files, and the signed-in user passed in from the
+  template). One difference:
+  - **A dedicated template that does not extend `base.html` / `page.html`.** The site
+    shell would bring Google Tag Manager and Analytics, Bulma's global styles, the old
+    Raven script and inline scripts, and the site header, footer, and Translate widget,
+    which conflict with the no-analytics rule, Tailwind, the CSP, and the full-height
+    windowed layout. The template is a bare shell holding only the dashboard, whose own
+    nav links back to sjvair.com.
+  - **Build output:** fixed-name entry files (one script, one stylesheet) plus
+    content-hashed lazy chunks, located at runtime under the static path (as
+    monitor-map's `__cdnUrl` does), and `version.json`.
+  - **The template passes data, not script:** the signed-in user (id, display name, email,
+    verification status; never the API token) and the static path go in a
+    `json_script` data block, which the CSP does not treat as executable. No inline
+    JavaScript.
+  - **The view owns the response:** the CSP header, `X-Robots-Tag: noindex` on
+    `/workspace/shared/*`, `ensure_csrf_cookie`, no forced trailing slash, framing
+    protection, and cache headers (the page not cached; hashed files cached long-term).
+  - **A takedown or deleted share is answered by the API:** the view always serves the
+    app, which shows "no longer available" from the API's response.
+  - **This repo keeps an `index.html` for local development and standalone or Tauri
+    builds only.**
+  - Extending the site's base template, serving the dashboard's own `index.html`, and a
+    build-manifest file read by the server were considered and decided against (see
+    `DEFERRED.md`).
 - **Same-origin API in production:** when served under `/workspace/`, the SDK origin is
   the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and

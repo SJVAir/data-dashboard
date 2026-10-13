@@ -323,8 +323,12 @@ package release needs explicit per-release approval.
   an expired session hiding it for 30 days; each space bound to an account id, re-checked
   on tab focus and before each sync; sign-in and sign-out applied across tabs
   (`ARCHITECTURE.md` → "Accounts & anonymous use").
-- The **CSP host list**: one checked-in file of the hosts each directive needs, copied into
-  the build output, with a test that fails when code references an unlisted host. Sentry
+- The **CSP host reference list**: one checked-in file of the hosts each directive needs,
+  with a test that fails when code references an unlisted host (sjvair.com's view holds
+  the deployed copy), and a listener that reports policy violations.
+- Build output for embedding: fixed-name entry script and stylesheet, hashed lazy chunks
+  located under the static path, `version.json`; identity and static path read from the
+  template's JSON data block. `index.html` is for local dev and standalone builds only. Sentry
   through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and the git commit as
   the release and build id.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
@@ -492,20 +496,25 @@ package release needs explicit per-release approval.
 - sjvair.com:
   - an import script that clones and builds this repo's `main` during the Heroku deploy
     (modeled on `scripts/import-monitor-map.sh`; no pinning)
-  - the `/workspace/*` view serves the dashboard's own `index.html` (not `base.html`, so no
-    Google Tag Manager/Analytics)
+  - a **dedicated Django template** for `/workspace/*` that embeds the built dashboard the
+    way `pages/index.html` embeds the map (`{% static %}` tags, the user and static path
+    in a `json_script` block) but does **not** extend `base.html`/`page.html` (so no
+    Google Tag Manager/Analytics, Bulma, or site chrome)
+  - `X-Robots-Tag: noindex` on `/workspace/shared/*`, framing protection, and cache headers
+    (page uncached, hashed files long-lived)
   - a Django catch-all route for `/workspace/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
   - confirm no existing CMS page uses `workspace`
 - `VITE_*` keys as Heroku config vars.
 - A CSP on `/workspace/*` from the Django view: report-only first, then enforced, with the
-  host list **read from the file in the dashboard's build output**
+  host list **kept in sjvair.com beside the view** (matching this repo's reference list)
   (`ARCHITECTURE.md` → "Security baseline").
 - Create the dashboard's own Sentry project in the existing org and set `VITE_SENTRY_DSN`
   as a Heroku config var.
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
-- This repo: Vite `base: "/workspace/"`, and `setOrigin(location.origin)` when served
+- This repo: router `basePath` `/workspace/`, built files under the static path, and
+  `setOrigin(location.origin)` when served
   under `/workspace/` (`VITE_PROD_URL` only for Tauri/standalone builds).
 - Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
   server deploy).

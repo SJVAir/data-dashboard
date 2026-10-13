@@ -528,6 +528,15 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **A client-only identity check before syncing** (no server enforcement): _2026-10-13_. It
   leaves a window where the cookie changes between the check and the save; the server
   refuses mismatched saves instead.
+- **Serving the dashboard's own `index.html` from the `/workspace/*` view**: _2026-10-13_. An
+  assumption recorded on 2026-09-28; the user corrected it. The dashboard is embedded in
+  a Django template view, as the monitor map is.
+- **Extending sjvair.com's base template for the dashboard page**: _2026-10-13_. It would
+  load Google Tag Manager and Analytics, Bulma's global styles, and inline scripts, and
+  wrap the dashboard in the site header and footer. A dedicated bare template is used.
+- **A build-manifest file read by the server, or the CSP in a `<meta>` tag**: _2026-10-13_.
+  Unnecessary once the page is a Django template: the view holds the host list and sends
+  the header, and the build id is stamped into the app's code.
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.

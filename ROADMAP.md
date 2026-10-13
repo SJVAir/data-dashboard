@@ -55,7 +55,8 @@ unchanged at 4.5.0.
    - local storage spaces (an anonymous space plus one per account) for documents, queued
      changes, and place preferences
    - upgrade safety: validate after each upgrade and keep the original locally for 30 days
-   - the checked-in CSP host list (copied into the build) and Sentry via the platform
+   - the checked-in CSP host reference list, build output shaped for template embedding,
+     and Sentry via the platform
      adapter, with the git commit as the build id
    - version-skew handling (newer documents read-only, version-tagged change queue,
      `version.json` deploy detection and chunk-load failures with a reload prompt)
@@ -171,12 +172,12 @@ unchanged at 4.5.0.
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
   pinning), a Django catch-all route for `/workspace/*`, and Heroku config vars for
-  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. The
-  `/workspace/*` view serves the dashboard's own `index.html` (no Google Tag Manager). A CSP on `/workspace/*` (report-only
-  first, then enforced), with its host list read from a file in the dashboard's build
-  output, and the dashboard's own Sentry project and DSN config var. Also:
+  `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. The dashboard is embedded in a **dedicated Django template** (the monitor-map pattern, but
+  not extending the site's base template, so no Google Tag Manager, Bulma, or site chrome).
+  A CSP on `/workspace/*` (report-only first, then enforced) with the host list kept beside
+  the view, `noindex` on shared pages, cache headers, and the dashboard's own Sentry project and DSN config var. Also:
   `ensure_csrf_cookie` and no forced trailing slashes on `/workspace/*`, and a check that no
-  CMS page uses `workspace`. This repo: Vite `base: "/workspace/"` and
+  CMS page uses `workspace`. This repo: router `basePath` `/workspace/`, fixed-name entry files for the template, and
   `setOrigin(location.origin)`. Also: confirm the repo is public (done 2026-09-28) and
   restrict the MapTiler and NREL keys by domain (with separate keys or allowed domains for
   localhost dev and a staging preview).
