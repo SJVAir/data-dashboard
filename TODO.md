@@ -257,6 +257,13 @@ that server change is deployed, the mobile Alerts screen fails. It needs a coord
 releases), each with its own approved plan. Found 2026-10-13; whether production is
 already affected was not checked.
 
+**Worth doing, separate from this project: sjvair.com's static files are served
+uncompressed.** Checked on production 2026-10-13: the map's script
+(`static/monitor-map/sjvairMonitorMap.js` on S3) is sent as 2.18 MB with no
+`Content-Encoding` and no `Cache-Control`. Uploading it compressed would cut the download
+by roughly 70%. The dashboard's hosting plan sets these headers for its own files; the
+same change would help the existing site.
+
 **⚠️ Urgent, separate from this project: PM2.5 breakpoints in sjvair.com are
 half-updated to EPA's 2024 AQI revision.** `camp/apps/entries/levels.py` `PM25` uses the
 new Moderate boundary (9.1) but the old upper boundaries — `VERY_UNHEALTHY(150.5)` and
@@ -349,7 +356,9 @@ package release needs explicit per-release approval.
   the deployed copy), and a listener that reports policy violations.
 - Build output for embedding: fixed-name entry script and stylesheet, hashed lazy chunks
   located under the static path, `version.json`; identity and static path read from the
-  template's JSON data block. `index.html` is for local dev and standalone builds only. Sentry
+  template's JSON data block. `index.html` is for local dev and standalone builds only.
+  Workers are built inline (static files are cross-origin in production), and an E2E
+  smoke run serves static files from a second origin. Sentry
   through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and the git commit as
   the release and build id.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
@@ -521,8 +530,13 @@ package release needs explicit per-release approval.
     way `pages/index.html` embeds the map (`{% static %}` tags, the user and static path
     in a `json_script` block) but does **not** extend `base.html`/`page.html` (so no
     Google Tag Manager/Analytics, Bulma, or site chrome)
-  - `X-Robots-Tag: noindex` on `/workspace/shared/*`, framing protection, and cache headers
-    (page uncached, hashed files long-lived)
+  - `X-Robots-Tag: noindex` on `/workspace/shared/*`, framing protection, and the page
+    itself uncached
+  - **static files on S3** (the map's pipeline): upload the dashboard's files
+    pre-compressed with `Content-Encoding`, hashed chunks long-lived and immutable, entry
+    files and `version.json` as `no-cache`; a post-deploy header check; add the static
+    origin to the CSP; add the preview's origin to the bucket's cross-origin rule
+  - serve the web app manifest from Django under `/workspace/`
   - a Django catch-all route for `/workspace/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
   - confirm no existing CMS page uses `workspace`

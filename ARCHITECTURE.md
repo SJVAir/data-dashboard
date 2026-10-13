@@ -406,7 +406,8 @@ offline export a notebook bundle. What Release 1 keeps:
   users' dashboards _created in the installed app_. On iOS the home-screen app likely has
   storage separate from Safari (unverified; **verify during the private preview**), so dashboards made in Safari first are moved
   with Export/Import. Modern browsers need only the manifest (and icons), not an offline
-  service worker.
+  service worker. The manifest is served by Django under `/workspace/` (same origin), not
+  from S3.
 - **An offline banner** ("You're offline, data may be out of date") from the browser's
   online/offline events, through the platform adapter.
 
@@ -585,9 +586,10 @@ files, and server documents.
    `https`, `mailto`).
 3. **A content security policy on `/workspace/*`**, sent by the Django view: the
    browser-enforced backstop if a bug slips past 1–2.
-   - `script-src 'self'` (plus `'wasm-unsafe-eval'` only where WebAssembly needs it): no
-     inline scripts or handlers, and no third-party scripts.
-   - `worker-src 'self' blob:`.
+   - `script-src 'self'` plus the site's static origin (production serves built files
+     from S3; see "Deployment" → "Template embedding"), and `'wasm-unsafe-eval'` only where
+     WebAssembly needs it: no inline scripts or handlers, and no third-party scripts.
+   - `worker-src 'self' blob:` (workers are built inline; see "Template embedding").
    - Explicit `connect-src`/`img-src` hosts (the sjvair.com API, MapTiler, NREL, …), so
      injected code can't send data elsewhere.
    - `style-src` may need `'unsafe-inline'` (Svelte and map libraries set inline styles).
@@ -729,7 +731,7 @@ caching), not per widget.
   - **Naturally daily data** (HMS smoke/fire, forecasts, CalHeatScore) is fetched as-is
     and aggregated for display (e.g. smoke days per month).
   - **Unsummarized time series** (CIMIS weather, PM10) are fetched raw with a span cap
-    (about 1 year per request, split into chunks) and **downsampled in a Web Worker** to
+    (about 1 year per request, split into chunks) and **downsampled in a Web Worker** (built inline, since static files are cross-origin) to
     the resolution the ladder would pick. The table and exports say "computed from raw
     data".
   - **Pesticide use** stays yearly (sub-yearly is deferred).
@@ -1885,7 +1887,9 @@ Decided 2026-09-28.
   Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
 - **Performance budget, CI-enforced:** about **200 KB compressed** of initial JS for the app
   shell. **Each widget type loads its own code only when used** (the map library only
-  with a Map widget, uPlot only with charts, and so on).
+  with a Map widget, uPlot only with charts, and so on). The budget assumes compressed
+  delivery, which S3 only gives if files are uploaded pre-compressed (see "Template
+  embedding").
 - **A low-end device check before go-live:** Lighthouse with throttled CPU and network,
   plus a real older Chromebook from the private-preview school if possible.
 
@@ -2053,13 +2057,41 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   - **Build output:** fixed-name entry files (one script, one stylesheet) plus
     content-hashed lazy chunks, located at runtime under the static path (as
     monitor-map's `__cdnUrl` does), and `version.json`.
+  - **Static files are served from S3, a different origin** (decided 2026-10-13: the
+    same pipeline as the map; serving the dashboard's files from sjvair.com through
+    WhiteNoise was the alternative). Verified on production that day: sjvair.com's
+    static files are synced to S3 in the release phase (`sync_staticfiles_s3`) and served
+    from `sjvair-production.s3.amazonaws.com`, with **no compression, no `Cache-Control`**,
+    and cross-origin `GET` allowed only for `https://www.sjvair.com`. The dashboard
+    therefore needs these accommodations:
+    1. **Compression and cache headers are set at upload.** The dashboard's files go to
+       S3 pre-compressed with `Content-Encoding`, hashed chunks as long-lived and
+       immutable, and the fixed-name entry files and `version.json` as `no-cache`
+       (revalidated on each load). Without this the ~200 KB compressed budget means
+       nothing on the wire. A post-deploy check confirms the headers.
+    2. **The CSP allows the static origin** for scripts, styles, fonts, images, and
+       `connect-src`; the view adds it from `STATIC_URL`.
+    3. **Workers are built inline** (as blob workers), since a worker script cannot be
+       loaded from another origin. `worker-src blob:` already allows this.
+    4. **The web app manifest, and the later service worker, are served by Django under
+       `/workspace/`**, because they must be same-origin. Icons can stay on S3.
+    5. **`version.json` is fetched from the static origin** with `cache: "no-store"`
+       (allowed by the bucket's cross-origin rule).
+    6. **Cross-origin problems only show in production**, because local development serves
+       static files from the same origin. The private preview must use S3-style static
+       serving, the bucket's cross-origin rule must list the preview's origin, and an E2E
+       smoke run serves static files from a second origin.
+  - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
+    `sjvair.com/workspace/` for short; share links and the same-origin API use
+    `location.origin`.
   - **The template passes data, not script:** the signed-in user (id, display name, email,
     verification status; never the API token) and the static path go in a
     `json_script` data block, which the CSP does not treat as executable. No inline
     JavaScript.
   - **The view owns the response:** the CSP header, `X-Robots-Tag: noindex` on
     `/workspace/shared/*`, `ensure_csrf_cookie`, no forced trailing slash, framing
-    protection, and cache headers (the page not cached; hashed files cached long-term).
+    protection, the manifest, and no caching of the page itself (static-file headers are set
+    at upload, above).
   - **A takedown or deleted share is answered by the API:** the view always serves the
     app, which shows "no longer available" from the API's response.
   - **This repo keeps an `index.html` for local development and standalone or Tauri

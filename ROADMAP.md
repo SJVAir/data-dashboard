@@ -175,7 +175,8 @@ unchanged at 4.5.0.
   `VITE_*` keys. Merging to dashboard `main` is the deploy approval point. The dashboard is embedded in a **dedicated Django template** (the monitor-map pattern, but
   not extending the site's base template, so no Google Tag Manager, Bulma, or site chrome).
   A CSP on `/workspace/*` (report-only first, then enforced) with the host list kept beside
-  the view, `noindex` on shared pages, cache headers, and the dashboard's own Sentry project and DSN config var. Also:
+  the view, `noindex` on shared pages, static files on S3 uploaded pre-compressed with cache headers
+  (the map's pipeline; the manifest served by Django), and the dashboard's own Sentry project and DSN config var. Also:
   `ensure_csrf_cookie` and no forced trailing slashes on `/workspace/*`, and a check that no
   CMS page uses `workspace`. This repo: router `basePath` `/workspace/`, fixed-name entry files for the template, and
   `setOrigin(location.origin)`. Also: confirm the repo is public (done 2026-09-28) and

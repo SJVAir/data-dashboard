@@ -250,7 +250,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 - **Web push for alerts.** _Sequenced as next iteration 2026-09-24._ Reaches desktop
   and Android with the dashboard closed, no per-message cost; iOS only for home-screen-
-  installed sites. Brings in the dashboard's **first service worker** (none in Release 1;
+  installed sites. Brings in the dashboard's **first service worker** (served by Django under `/workspace/`,
+  since static files are on another origin; none in Release 1;
   `ARCHITECTURE.md` → "Platform strategy"),
   VAPID keys, and a server push-subscription table. **Revisit when** the first alerting
   iteration (SMS and email, plus the inbox) ships. **Constraint:** the bad-build block list
@@ -421,8 +422,11 @@ point.
   `map-sdk` spec (Release 1 step 5).
 - **JupyterLite app: owner repo and deploy path** (docs review 2026-09-28). Options: a
   separate build in this repo, or a new repo, imported by sjvair.com like the dashboard,
-  with a Django view setting COOP/COEP only on `/notebooks/`. **Decide in** the Release 3
-  step 4 spec (JupyterLite app).
+  with a Django view setting COOP/COEP only on `/notebooks/`. **Constraint found
+  2026-10-13:** production static files are on S3 (another origin), but JupyterLite is a
+  whole static site with its own service worker and needs cross-origin isolation, so it
+  must be served from sjvair.com's own origin. **Decide in** the Release 3 step 4 spec
+  (JupyterLite app).
 
 - **Air-quality tier assignments**: which CalHeatScore tier (0–4) each of the 6 AQ levels
   maps to. **The user decides these personally**, before the Release 1 step 3 metadata plan
@@ -542,6 +546,10 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **A build-manifest file read by the server, or the CSP in a `<meta>` tag**: _2026-10-13_.
   Unnecessary once the page is a Django template: the view holds the host list and sends
   the header, and the build id is stamped into the app's code.
+- **Serving the dashboard's built files from sjvair.com's own origin through WhiteNoise**:
+  _2026-10-13_. The user chose the map's existing S3 pipeline, with the cross-origin
+  accommodations listed in `ARCHITECTURE.md` → "Template embedding". Worth reconsidering
+  if those accommodations prove costly (workers, the service worker, or compression).
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
