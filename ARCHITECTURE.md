@@ -85,7 +85,21 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
   something more elegant fits; decided in the Widget Creation spec, see `DEFERRED.md` →
   "Open decisions"):
   - **Set ranges** — year, month, week, day
-  - **Rolling ranges** — year-to-date, month-to-date, week-to-date
+  - **Rolling ranges** — two groups in the same control:
+    - _To date:_ year-to-date, month-to-date, week-to-date (IDEA.md's list).
+    - _Last_ (trailing; added 2026-10-13): 24 hours, 3 days, 7 days, 30 days, 90 days,
+      12 months. IDEA.md's three methods couldn't express "the last 30 days", which the
+      starter chart, the "now" widgets' window, and Collections all use, and to-date
+      ranges are nearly empty at the start of a period. This extends the Rolling method;
+      there are still three methods.
+    - **Meaning (Pacific time):** "last 30 days" is today plus the 29 days before it, by
+      Pacific calendar day, so today's partial data is included; "last 12 months" counts
+      calendar days back one year. "Last 24 hours" is exact hours ending now.
+    - **Stored as an amount and a unit** (`{ kind: "trailing", amount: 30, unit: "day" }`;
+      units `hour` | `day` | `month`), so any length is representable although the UI
+      offers only the presets.
+    - Trailing ranges behave like the other rolling ranges: they move forward with time,
+      "Mark for analysis" freezes them, and "keep rolling" applies.
   - **Custom ranges** — user-selected
 - **The v1 sidebar tabs themselves become accordion sections** (decided 2026-09-24).
   No tab view or side menu survives. Where v1 had a "Monitors" tab leading to a page of
@@ -779,7 +793,7 @@ and each layer resolves to one descriptor:
 type QueryDescriptor = {
 	dataset: string; // from the meta/datasets/ catalog
 	entryType?: string; // pollutant/entry type where applicable
-	dateRange: DateRangeSpec; // set / rolling / custom (see "Widget Creation view")
+	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Widget Creation view")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	selection?: SpatialSelection; // omitted = whole layer
 	resolution?: "auto" | Resolution; // default "auto"
@@ -1121,7 +1135,7 @@ range:
 - **Notes:** `analyzable: false`. It has no data, so the menu doesn't offer these actions.
 - **Current conditions, "Can we go outside?":** stage their place and pollutant with a
   **default trailing window of the last 3 days (Pacific time)**, the "what led up to now"
-  question. The Collection item shows that range, and the user can adjust it in the
+  question. It is an ordinary "last 3 days" trailing range, not a special case. The Collection item shows that range, and the user can adjust it in the
   Collections drawer.
 - **Forecast strip:** stages the forecast zone over the same 3-day trailing window. Past
   forecasts are kept per `issued_date` (verified 2026-09-29; only same-day reissues are

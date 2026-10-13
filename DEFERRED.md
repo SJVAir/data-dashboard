@@ -199,9 +199,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Widgets
 
-_Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in the first-release widget set
-(see `ARCHITECTURE.md` → "Widget catalog"). **Revisit when** the first-release widgets
-ship, or a specific audience asks for one.
+- **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
+  method offers presets (24 hours to 12 months) and Custom covers anything else; the
+  saved format already holds any amount and unit. **Revisit when** people ask for a
+  length the presets lack.
+  _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in the first-release widget set
+  (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit when** the first-release widgets
+  ship, or a specific audience asks for one.
 
 - **Linking widgets**: _deferred 2026-09-28._ (The built-in starter's "Change place" bar
   is a narrow, starter-only exception; design the two together.) First step: a **dashboard-wide place and date

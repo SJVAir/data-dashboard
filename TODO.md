@@ -4,8 +4,8 @@ Last updated: 2026-09-28
 
 ## Start here
 
-**In progress 2026-10-13.** Decisions 1–9 are recorded (plus the base-path change to
-`/workspace/`). **Next: decision 10** (a "last N days" date range).
+**All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
+base-path change to `/workspace/`. Nothing from that review is pending.
 
 **Resumed 2026-10-13: sibling-repo review done.** A lot changed in the other repos; the
 docs were updated to match (see "What changed in the sibling repos" below). **10 decisions
@@ -51,8 +51,9 @@ from the 2026-09-29 review are still pending**, with two reshaped by those chang
 9. ✅ **Account deletion** (decided 2026-10-13): immediate and complete, as today, extended to
    documents, snapshots, share links, rules, and the display name; others' copies stay; a
    backup download is offered first; done from sjvair.com's account page.
-10. **A "last N days" trailing date range** (used by the starter's 30-day chart, but not among
-    IDEA.md's three methods).
+10. ✅ **Trailing date ranges** (decided 2026-10-13): the Rolling method gains a "Last" group
+    (24 hours, 3/7/30/90 days, 12 months), stored as an amount and unit, in Pacific calendar
+    days including today. Still three methods.
 
 **What changed in the sibling repos (reviewed 2026-10-13):**
 
