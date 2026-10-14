@@ -389,7 +389,7 @@ package release needs explicit per-release approval.
   with a test that fails when code references an unlisted host (sjvair.com's view holds
   the deployed copy), and a listener that reports policy violations.
 - Build output for embedding: fixed-name entry script and stylesheet, hashed lazy chunks
-  located under the static path, `version.json`; identity read from the template's JSON data
+  found by relative reference, `version.json`; identity read from the template's JSON data
   block. `index.html` is for local dev and standalone builds only.
   Files find each other by relative reference (`import.meta.url`; no runtime
   static-path helper), lazy assets keep hashed names, `default-place` is resolved at every
@@ -570,8 +570,8 @@ package release needs explicit per-release approval.
   - an import script that clones and builds this repo's `main` during the Heroku deploy
     (modeled on `scripts/import-monitor-map.sh`; no pinning)
   - a **dedicated Django template** for `/workspace/*` that embeds the built dashboard the
-    way `pages/index.html` embeds the map (`{% static %}` tags, the user and static path
-    in a `json_script` block) but does **not** extend `base.html`/`page.html` (so no
+    way `pages/index.html` embeds the map (`{% static %}` tags, the user in a `json_script`
+    block) but does **not** extend `base.html`/`page.html` (so no
     Google Tag Manager/Analytics, Bulma, or site chrome)
   - `X-Robots-Tag: noindex` on `/workspace/shared/*`, framing protection, and the page
     itself uncached
