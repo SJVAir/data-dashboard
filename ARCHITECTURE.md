@@ -589,8 +589,8 @@ files, and server documents.
    `https`, `mailto`).
 3. **A content security policy on `/workspace/*`**, sent by the Django view: the
    browser-enforced backstop if a bug slips past 1–2.
-   - `script-src 'self'` plus the site's static origin (production serves built files
-     from S3; see "Deployment" → "Template embedding"), and `'wasm-unsafe-eval'` only where
+   - `script-src 'self'` plus **the dashboard's own folder** on the static host (production
+     serves built files from S3; see "Deployment" → "Template embedding"), and `'wasm-unsafe-eval'` only where
      WebAssembly needs it: no inline scripts or handlers, and no third-party scripts.
    - `worker-src 'self' blob:` (workers are built inline; see "Template embedding").
    - Explicit `connect-src`/`img-src` hosts (the sjvair.com API, MapTiler, NREL, …), so
@@ -863,7 +863,6 @@ type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "yea
 
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
-	target?: PlaceRef; // any PlaceRef kind, for "now" widgets
 	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
 };
 
@@ -891,6 +890,11 @@ type DateRangeSpec =
   edit turns the starter into a personal copy, every `default-place` is replaced by the
   actual place at that moment, so the copy is self-contained; user documents never keep
   it.
+- **`default-place` never leaves the starter** (decided 2026-10-14). One resolve step
+  replaces it at every exit: the edit that creates a personal copy, "Mark for analysis"
+  and "Add to collection", "New from starter", Export, and sharing. Schema validation
+  rejects `default-place` in every document and Collection except the built-in starter, so
+  a missed path fails loudly instead of saving a placeholder nothing can resolve.
 
 **Places** (decided 2026-09-28). The shared place picker produces the four user-pickable `PlaceRef`
 kinds (not `default-place`, which only the built-in starter uses). Server support:
@@ -1189,7 +1193,7 @@ type WidgetType = {
 	minSize: { w: number; h: number }; // grid cells
 	time: "range" | "now" | "none"; // the date section is shown only for "range"
 	accepts: DatasetFilter; // which accordions/layers apply (enforces ≤ 1 pollutant)
-	target?: "place"; // needs a PlaceRef (any kind) instead of layers
+	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
 	resolution?: Resolution; // pinned resolution (e.g. calendars "day", heatmap "hour"); hides the override
@@ -1202,11 +1206,14 @@ type WidgetType = {
 ```
 
 Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **Forecast
-strip**, and **"Can we go outside?"** are `time: "now"` with `target: "place"`; for those,
+strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`; for those,
 Widget Creation hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
-"Can we go outside?" (gated by available pollutants); in `WidgetDataConfig` that's a single
-pollutant layer alongside `target`. **Map** and **Chart** are `time: "range"` and accept multiple layers.
+"Can we go outside?" (gated by available pollutants); in `WidgetDataConfig` that's a
+**single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
+`target` field was removed so every widget type stores places the same way). Current
+conditions and "Can we go outside?" have one pollutant layer (heat for "Can we go
+outside?" follows from the same place); the Forecast strip has one forecasts layer. **Map** and **Chart** are `time: "range"` and accept multiple layers.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
 for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date
@@ -1474,7 +1481,8 @@ type WidgetInstance = {
 
 Widget Creation offers only the date methods and spans a type declares (`dateMethods`,
 `span` in the widget-type contract), so a saved widget can't hold a range its type can't
-show.
+show. **A `span` is checked against a range's full unit** (decided 2026-10-14): week-to-date
+counts as a week even on a Sunday, and the widget shows the rest of the period as empty.
 
 - **Versioned from day one.** Every document carries `schemaVersion`; a pure, tested
   migration chain upgrades old documents on load. Shared links live for years.
@@ -2080,8 +2088,14 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     windowed layout. The template is a bare shell holding only the dashboard, whose own
     nav links back to sjvair.com.
   - **Build output:** fixed-name entry files (one script, one stylesheet) plus
-    content-hashed lazy chunks, located at runtime under the static path (as
-    monitor-map's `__cdnUrl` does), and `version.json`.
+    content-hashed lazy chunks, and `version.json`. **Files find each other by relative
+    reference** (decided 2026-10-14): the build resolves every chunk and asset relative to
+    the module that loads it (`import.meta.url`), so one build works in local
+    development, the preview, on S3, and in the second-origin test. This replaces
+    monitor-map's approach (a `window.__cdnUrl` helper set by an inline script, which the
+    no-inline-script rule forbids and which module import order would make fragile).
+    Lazily loaded assets keep content-hashed names (only the entry script and stylesheet
+    have fixed names), since they are uploaded as immutable.
   - **Static files are served from S3, a different origin** (decided 2026-10-13: the
     same pipeline as the map; serving the dashboard's files from sjvair.com through
     WhiteNoise was the alternative). Verified on production that day: sjvair.com's
@@ -2105,13 +2119,17 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        - file names keep their extensions so content types are right;
        - **the command fails the release on any upload error** (today it prints the
          return code and exits successfully).
-    2. **The CSP allows the static origin** for scripts, styles, fonts, images, and
-       `connect-src`; the view adds it from `STATIC_URL`.
+    2. **The CSP allows only the dashboard's folder on the static host** (decided
+       2026-10-14), e.g. `https://<bucket>/static/workspace/`, for scripts, styles,
+       fonts, images, and `connect-src`; the view builds it from `STATIC_URL`. Allowing the
+       whole host would also permit the site's other scripts there (htmx, admin jQuery,
+       monitor-map), which an injection bug could misuse.
     3. **Workers are built inline** (as blob workers), since a worker script cannot be
        loaded from another origin. `worker-src blob:` already allows this.
     4. **The web app manifest, and the later service worker, are served by Django under
        `/workspace/`**, because they must be same-origin. Icons can stay on S3.
-    5. **`version.json` is fetched from the static origin** with `cache: "no-store"`
+    5. **`version.json` is fetched from the static origin** (located relative to the entry
+       module) with `cache: "no-store"`
        (allowed by the bucket's cross-origin rule).
     6. **Cross-origin problems only show in production**, because local development serves
        static files from the same origin. The private preview must use S3-style static
@@ -2121,8 +2139,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.
   - **The template passes data, not script:** the signed-in user (id, display name, email,
-    verification status; never the API token) and the static path go in a
-    `json_script` data block, which the CSP does not treat as executable. No inline
+    verification status; never the API token) goes in a
+    `json_script` data block (the app finds its files by relative reference, so no
+    static path is passed), which the CSP does not treat as executable. No inline
     JavaScript.
   - **The view owns the response:** the CSP header, `X-Robots-Tag: noindex` on
     `/workspace/shared/*`, `ensure_csrf_cookie`, no forced trailing slash, framing

@@ -389,9 +389,13 @@ package release needs explicit per-release approval.
   with a test that fails when code references an unlisted host (sjvair.com's view holds
   the deployed copy), and a listener that reports policy violations.
 - Build output for embedding: fixed-name entry script and stylesheet, hashed lazy chunks
-  located under the static path, `version.json`; identity and static path read from the
-  template's JSON data block. `index.html` is for local dev and standalone builds only.
-  Workers are built inline (static files are cross-origin in production), and an E2E
+  located under the static path, `version.json`; identity read from the template's JSON data
+  block. `index.html` is for local dev and standalone builds only.
+  Files find each other by relative reference (`import.meta.url`; no runtime
+  static-path helper), lazy assets keep hashed names, `default-place` is resolved at every
+  exit from the starter and rejected by validation elsewhere, `span` is checked against a
+  range's full unit, and "now" widgets keep their place in their single layer (no
+  `target`). Workers are built inline (static files are cross-origin in production), and an E2E
   smoke run serves static files from a second origin. Sentry
   through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and the git commit as
   the release and build id.
@@ -576,8 +580,8 @@ package release needs explicit per-release approval.
     files and `version.json` as `no-cache`; the general sync excludes the dashboard's
     directory, which uploads in ordered passes (chunks, then assets, then entry files);
     the upload command fails the release on error (today it doesn't); a post-deploy
-    header check; add the static
-    origin to the CSP; add the preview's origin to the bucket's cross-origin rule
+    header check; add the dashboard's
+    own static folder (not the whole host) to the CSP; add the preview's origin to the bucket's cross-origin rule
   - serve the web app manifest from Django under `/workspace/`
   - a Django catch-all route for `/workspace/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
