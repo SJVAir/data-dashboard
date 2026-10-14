@@ -219,8 +219,8 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   matches how the Valley Air District alerts. One behavior for old and new rules means
   nothing to migrate or explain twice.
 - **"Is it over yet?" is answered in the app, not by a message.** The server records every
-  level change and the alert's end (`AlertUpdate`), so the **in-app alert inbox shows the
-  full timeline** (rose, eased, ended), and widgets show current conditions live.
+  level change and the alert's end as **rule events** (see "Channels on the server"), so
+  the **in-app alert inbox shows the full timeline** (rose, eased, ended), and widgets show current conditions live.
 - **Server baseline since the 2026-10-12 redesign** (PR #246; verified in
   `alerts/models.py`, `evaluator.py`, `notifications.py`, `tasks.py` on 2026-10-13). This
   replaces the behavior verified on 2026-09-28:
@@ -287,8 +287,8 @@ by STOP or have no verified phone, and any future rollout of a channel.
   nothing.
 - **Existing rules show their real state:** if a rule has SMS selected and the account
   lacks it, the rule list says texts are paused and why.
-- Whether email gets its own rollout switch is for the Release 2 server plan; the same
-  list would carry it. The in-app inbox is never gated.
+- Whether email gets its own rollout switch is for the Release 2 server plan (see
+  `DEFERRED.md` → "Open decisions"); the same list would carry it. The in-app inbox is never gated.
 
 **Email alerts** (decided 2026-09-28): require a **verified email** (the verification flow in "Accounts & anonymous use") and
 include **one-click unsubscribe** (the `List-Unsubscribe` header plus a link), which major
@@ -892,8 +892,8 @@ type DateRangeSpec =
   actual place at that moment, so the copy is self-contained; user documents never keep
   it.
 
-**Places** (decided 2026-09-28). The shared place picker produces all four `PlaceRef`
-kinds. Server support:
+**Places** (decided 2026-09-28). The shared place picker produces the four user-pickable `PlaceRef`
+kinds (not `default-place`, which only the built-in starter uses). Server support:
 
 - **Existing** (already wrapped by the SDK): `regions/places/search/?q=&type=`
   (`searchRegionPlaces`) for name search in the picker; `regions/places/lookup/?q=&type=`
@@ -1742,8 +1742,8 @@ type DatasetCatalogEntry = {
 references (monitor, region, location, dataset, and entry-type ids) for years, and the
 things they point to change (the server removed the `place` region type in October 2026).
 
-- **Ids are permanent and never reused.** Dataset ids, entry-type keys, and region,
-  monitor, and location ids are a public contract. A rename changes the label, never the
+- **Ids are permanent and never reused.** Dataset ids, entry-type keys, monitor ids, and
+  region and location codes (below) are a public contract. A rename changes the label, never the
   id. The server-side metadata plan states this as a rule.
 - **Regions and locations are referenced by official code, not the server's id** (decided
   2026-10-13). The server's public region and location id is a `sqid` derived from the
@@ -1757,8 +1757,14 @@ things they point to change (the server removed the `place` region type in Octob
   - Monitors keep their existing server id (a UUID).
   - **Server work (step 3):** region and location detail and lookup endpoints accept the
     code pair and include it in responses; every referenceable region has a non-empty
-    `external_id` (the **3 `custom` forecast zones** are found by name today and need
-    assigned codes); and the import commands never change an existing code.
+    `external_id` (the **3 `custom` forecast zones** already have codes in
+    `import_forecast_zones`, e.g. `sjvapcd-kern-airbasin`, but are **missing on
+    production**; see `TODO.md`); and the import commands never change an existing code.
+    Two known exceptions the plan must handle: **child-care sites** are keyed by the
+    lowest facility license number at a merged site, which changes when that license
+    closes (needs a stable site key, or old keys kept as aliases); and a **CDP that
+    incorporates** becomes a `city`, changing its type and code pair (retire the old pair
+    with `replacedBy`).
   - Using the server's ids for user documents and codes only for built-in ones was
     decided against (see `DEFERRED.md`).
 - **Retire, don't delete.** Catalog entries and entry types carry `retired` (a date and an
@@ -1844,7 +1850,7 @@ level of every scale.
   advice. A point or ZIP target uses that exact ZIP.
 - **Forecasts for areas that aren't a forecast zone:** use the containing zone, found
   through the forecasts app's zone list (exposed in forecasts metadata), not a region
-  type. Note that forecast zones are **county regions for 6 of 9 zones** (incl. Fresno) and `custom` regions for Tulare (Valley portion), Kern (SJV Air Basin portion), and Sequoia National Park and Forest (`forecasts/tasks.py` `ZONE_TO_REGION`). An area spanning zones uses the zone containing its
+  type. Note that forecast zones are **county regions for 6 of 9 zones** (incl. Fresno) and `custom` regions (missing on production as of 2026-10-14) for Tulare (Valley portion), Kern (SJV Air Basin portion), and Sequoia National Park and Forest (`forecasts/tasks.py` `ZONE_TO_REGION`). An area spanning zones uses the zone containing its
   center, labeled.
 - **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
   both conditions beneath it; ties show both guidance texts. Only tier numbers are
@@ -1938,7 +1944,8 @@ Decided 2026-09-28.
 
 - **MIT** for `data-dashboard`, `map-sdk`, and `monitor-map`, matching `sdk-js` (and
   `django-resticus`). **Copyright holder** (decided 2026-10-14): the
-  legal entity that operates SJVAir, with the brand after it. Every SJVAir repo uses the
+  legal entity that operates SJVAir (whether it owns contractors' and volunteers'
+  contributions is on the legal checklist in `DEFERRED.md`), with the brand after it. Every SJVAir repo uses the
   same line: `Copyright (c) 2026 Central California Asthma Collaborative (SJVAir)`. The
   CCAC website's footer says "All Rights Reserved", which must **not** be copied into the
   license, since the MIT terms grant those rights. Still pending: the `LICENSE` files. `data-dashboard` (now public) and
@@ -2038,8 +2045,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   "Authentication").
 - **The monitor-map import pattern, as-is** (decided 2026-09-24). During each Heroku
   deploy, a sjvair.com build step clones this repo's **`main`**, builds it, and copies it
-  into `dist/` (like `scripts/import-monitor-map.sh`). A Django catch-all route serves
-  `index.html` for `/workspace/*`. **No version pinning:** `main` is always
+  into `dist/` (like `scripts/import-monitor-map.sh`). A Django catch-all route renders the
+  dashboard's template for `/workspace/*` (see "Template embedding" below). **No version pinning:** `main` is always
   production-ready and ships with every server deploy. Needs an approved sjvair.com
   plan.
   - **Consequence: merging to dashboard `main` is the deploy approval point**, since any
@@ -2086,7 +2093,18 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        S3 pre-compressed with `Content-Encoding`, hashed chunks as long-lived and
        immutable, and the fixed-name entry files and `version.json` as `no-cache`
        (revalidated on each load). Without this the ~200 KB compressed budget means
-       nothing on the wire. A post-deploy check confirms the headers.
+       nothing on the wire. A post-deploy check confirms the headers. Today's
+       `sync_staticfiles_s3` (one `aws s3 sync`, the same headers for every file) can't do
+       this, so the hosting plan specifies the upload:
+       - the general sync **excludes the dashboard's directory**, so compressed files are
+         never uploaded without their `Content-Encoding`;
+       - the dashboard uploads in **separate passes, in order**: hashed chunks first, then
+         uncompressed assets (fonts, images), then the entry files and `version.json`
+         last, so a page never references a chunk that isn't there yet (old dynos keep
+         serving during the release phase);
+       - file names keep their extensions so content types are right;
+       - **the command fails the release on any upload error** (today it prints the
+         return code and exits successfully).
     2. **The CSP allows the static origin** for scripts, styles, fonts, images, and
        `connect-src`; the view adds it from `STATIC_URL`.
     3. **Workers are built inline** (as blob workers), since a worker script cannot be
@@ -2123,8 +2141,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
   builds (Tauri, standalone).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
-  deferred embedding work that serving under a path needs. Full host-page embedding stays
-  deferred.
+  deferred embedding work that serving under a path needs. Embedding in a host app with its
+  own router stays deferred.
 - **Private preview before go-live** (decided 2026-09-24). `sjvair.com/workspace/` goes
   public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
   preview** (a staging Heroku app, a hidden route, or the server's `beta_tools` flag;
@@ -2155,7 +2173,7 @@ decisions made along the way:
   when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
   currently assumes it owns top-level routing. **`basePath` ships in Release 1** for
   serving under `/workspace/` (see "Deployment"); the escape-hatch/in-memory mode for
-  true host-page embedding stays deferred (see `DEFERRED.md` → "Embeddable production
+  embedding in a host app with its own router stays deferred (see `DEFERRED.md` → "Embeddable production
   build").
 - **URL state vs. embedding** — decided in "Routing, URL state & undo": when the host
   owns the URL, the same routes are held in memory.

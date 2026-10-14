@@ -25,7 +25,7 @@ Abbreviations: S = `sjvair.com/camp`, MM = `monitor-map/src/lib`. All API URLs s
 | QA/QC health checks     | Hourly score 0–3                                                                                                                      | Monitor                                 | Not standalone (uncertain)                                    | Partial |
 | CalEnviroScreen 4/5     | Static indicators incl. asthma, CVD, low birth weight percentiles; SB535 DAC                                                          | Census tract                            | `calenviroscreen/4.0\|5.0/`                                   | **No**  |
 | CalHeatScore            | Daily 0–4                                                                                                                             | ZIP                                     | `calheatscore/`                                               | **No**  |
-| CEIDARS emissions       | Yearly facility emissions + health risk indices                                                                                       | Facility point                          | `ceidars/`, `ceidars/years/`                                  | **No**  |
+| CEIDARS emissions       | Yearly facility emissions + health risk indices (now under `emissions/`; see the end)                                                 | Facility point                          | `ceidars/`, `ceidars/years/`                                  | **No**  |
 | AQ forecasts            | Daily AQI category, pollutant, burn status, air alert window                                                                          | Forecast zone (county or custom region) | `forecasts/`                                                  | **No**  |
 | TEMPO satellite         | Hourly rasters: no2, o3tot, hcho, cldo4                                                                                               | SJV raster                              | `tempo/…` (point, region queries)                             | **No**  |
 
@@ -97,12 +97,12 @@ Rewritten 2026-10-13 for the redesign merged in sjvair.com PR #246.
 
 ## Metadata endpoints
 
-| URL                                            | Returns                                                                                                                                                                                            | SDK |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
-| `monitors/meta/`                               | Default pollutant; per monitor type: label, interval, entries (sensors, stages, calibration, processors); per entry type: label, units, AQS code, **levels** (name, label, color, range, guidance) | Yes |
-| `regions/meta/`                                | Region types, labels, categories                                                                                                                                                                   | Yes |
-| `pesticides/chemicals\|commodities\|products/` | Lookup tables                                                                                                                                                                                      | Yes |
-| `ceidars/years/`, `tempo/`                     | Available years, TEMPO products                                                                                                                                                                    | No  |
+| URL                                                 | Returns                                                                                                                                                                                            | SDK |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| `monitors/meta/`                                    | Default pollutant; per monitor type: label, interval, entries (sensors, stages, calibration, processors); per entry type: label, units, AQS code, **levels** (name, label, color, range, guidance) | Yes |
+| `regions/meta/`                                     | Region types, labels, categories                                                                                                                                                                   | Yes |
+| `pesticides/chemicals\|commodities\|products/`      | Lookup tables                                                                                                                                                                                      | Yes |
+| `ceidars/years/` (now `emissions/years/`), `tempo/` | Available years, TEMPO products                                                                                                                                                                    | No  |
 
 `monitors/meta/` does not expose: the EPA AQI 0–500 level set, stage choices, CalHeatScore
 labels, smoke density values, or pesticide category/IARC choices.
@@ -164,11 +164,11 @@ app 4.0.5, and sdk-js 4.5.0.
   `sms_blocked`); resticus installed from `@develop` unpinned; CORS allow-all with
   credentials; no CSRF cookie handling or CSP; GTM/GA in `base.html`; the monitor-map
   import script (clones `main` unpinned, so it builds 4.2.0); forecasts (6 county + 3
-  custom zones), CalHeatScore, and TEMPO.
+  custom zones; the 3 custom are missing on production, see below), CalHeatScore, and TEMPO.
 - **Translations:** locale catalogs exist for es, tl, and hmn (395 entries each), all
   untranslated.
 - **SDK gaps** (`@sjvair/sdk` 4.5.0 has no wrapper): `forecasts/`, `calheatscore/`,
-  `calenviroscreen/`, `ceidars/`, `tempo/`; pesticide `townships/`, `sections/`,
+  `calenviroscreen/`, `emissions/` (was `ceidars/`), `tempo/`; pesticide `townships/`, `sections/`,
   `locations/`, `notices/active|archive/`, `search/`; `regions/geojson/` and the `buffer`
   parameter. No data function exposes `init` or `signal`; only `getSubscriptions` takes an
   optional token.

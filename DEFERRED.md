@@ -28,8 +28,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   escape hatch (`routerEscapeHatch`/`basePath`) and a non-URL fallback for view state.
   **Revisit when** the dashboard's core views exist. Keep state managers from hardcoding
   ownership of the top-level route in the meantime. **Partly pulled forward 2026-09-24:** `basePath` support ships in
-  Release 1 for serving under `sjvair.com/workspace/`. Still deferred: host-page
-  embedding and the in-memory router mode.
+  Release 1 for serving under `sjvair.com/workspace/`. Still deferred: embedding in a
+  host app with its own router, and the in-memory router mode. (The Django-template
+  embedding on sjvair.com is decided and not part of this.)
 - **Tighten sjvair.com CORS.** _Noted 2026-09-24._ `CORS_ORIGIN_ALLOW_ALL` plus
   `CORS_ALLOW_CREDENTIALS` is normally risky; it's largely contained by Django's default
   `SameSite=Lax` session cookie. The dashboard doesn't need it, since it's served from the
@@ -404,6 +405,9 @@ point.
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
+- **Does email get its own rollout switch for alerts?** (2026-10-14) Text alerts open to
+  everyone before Release 2; email is a new channel. The per-account channel list carries
+  either answer. **Decide in** the Release 2 server alerting plan.
 - **Legal confirmation of the account and privacy approach.** **The user arranges this**
   with whoever advises SJVAir (operated by the Central California Asthma Collaborative),
   before the email-only accounts plan is finalized. The questions (listed 2026-10-14; not

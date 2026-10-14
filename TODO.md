@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 ## Start here
 
@@ -45,19 +45,20 @@ to match (see "What changed in the sibling repos" below). The 10 decisions, as r
    **(a) Decided 2026-10-13:** every rule and channel follows the server's escalation-only
    rules; no all-clear notification; the in-app inbox shows the timeline. **(b) Decided 2026-10-13:** the server's per-subscription throttles are the only guard
    rail; quiet hours deferred; no per-person cap. **(c) Decided 2026-10-13:** `Notification`
-   gains `channel` (sms | email); the in-app inbox is a view over `Alert`/`AlertUpdate`
-   with a last-seen marker; throttling stays per rule. This overrides the redesign's "no
+   gains `channel` (sms | email); the in-app inbox is a view with a last-seen marker
+   (over rule events, per review-pass item 3); throttling stays per rule. This overrides the redesign's "no
    channel" non-goal, so it needs approval in the sjvair.com Release 2 plan.
 2. ✅ **Schools as places** (decided 2026-10-13). `PlaceRef` gains
-   `{ kind: "location"; id }` for the server's `Location` rows (schools, child care): "pick
+   `{ kind: "location"; source; code }` (official codes, per review-pass item 1) for the server's `Location` rows (schools, child care): "pick
    my school" in the place picker, no coordinate lookup or privacy handling needed, and
    alert rules can target a school. Step 3 adds location name search, SDK wrappers, and a
    production data check.
 3. ✅ **Age policy** (decided 2026-10-13): accounts are 13+, with a neutral age confirmation;
    under-13s use the dashboard anonymously; `full_name` optional; a site privacy policy;
    legal confirmation needed before the accounts plan is final.
-4. ✅ **CSP and Sentry ownership** (decided 2026-10-13): the dashboard keeps the CSP host
-   list in a checked-in file that sjvair.com's view reads to build the header; a separate
+4. ✅ **CSP and Sentry ownership** (decided 2026-10-13): sjvair.com's view holds the CSP
+   host list and sends the header, and this repo keeps a reference list with a test
+   (revised the same day once template embedding was settled); a separate
    Sentry project, DSN from a build-time config var, release = git commit; source-map
    upload deferred. Also decided: **the base path is `/workspace/`, not `/explore/`** (the
    server's "data explorers" made `/explore/` confusing).
@@ -70,8 +71,8 @@ to match (see "What changed in the sibling repos" below). The 10 decisions, as r
    a report link to the contact form, and staff takedown in the Django admin.
 7. ✅ **Stable ids and retirement** (decided 2026-10-13): ids are permanent and never reused;
    entries are retired (with an optional replacement), not deleted; widgets show a clear
-   state and offer a switch; rules pause and notify; no silent rewrites. `ceidars` becomes
-   `emissions` before go-live, so we build against `emissions`.
+   state and offer a switch; rules pause and notify; no silent rewrites. `ceidars` became
+   `emissions` (sjvair.com #282, merged 2026-10-13), so we build against `emissions`.
 8. ✅ **Recovery after a bad upgrade or sync bug** (decided 2026-10-13): validate after
    upgrading, keep the original locally (30 days), keep server snapshots (pre-upgrade plus
    daily, 30 days), a "Restore an earlier version" list, a server block list for bad
@@ -162,10 +163,9 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
    Unhealthy for Sensitive Groups 2, Unhealthy 3, Very Unhealthy and Hazardous 4
    (`ARCHITECTURE.md` → "Shared action tiers"). Heat maps one to one and uses
    CalHeatScore's official guidance.
-4. Before the step 3 metadata plan and the Release 2 alerts plan: **verify production row
-   counts for `school_district` regions and the 3 `custom` forecast-zone regions**
-   (Tulare, Kern, Sequoia; the other 6 zones are counties), and import them if
-   missing (`DEFERRED.md`).
+4. ✅ **Production row counts verified 2026-10-14:** 201 school districts and the schools
+   are loaded; the 3 `custom` forecast zones are missing, and importing them is tracked
+   under item 1.
 5. In parallel once approved (sjvair.com / sdk-js / django-resticus plans): Release 1's
    **metadata enablers**, **hosting under `/workspace/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
@@ -240,7 +240,7 @@ each was interviewed and recorded:
       → "Internationalization".
 - [x] **Accounts & anonymous use** → existing sjvair.com accounts; everything anonymous
       except alerts / server docs / sync; lazy sign-in; browser profile as the boundary
-      with "Clear my data" + session-only sign-in. See `ARCHITECTURE.md` → "Accounts".
+      with "Clear my data" + session-only sign-in. See `ARCHITECTURE.md` → "Accounts & anonymous use".
 - [x] **Live refresh & data volume** → automatic resolution by span with incomplete-period
       stitching; data-cadence-aware refresh, shared polls, pause when hidden; minimized
       widgets refresh only with thresholds. See `ARCHITECTURE.md` → "Data resolution &
@@ -457,7 +457,9 @@ package release needs explicit per-release approval.
   hardcoding pollutants.
 - Regions and locations by official code: detail and lookup endpoints accept `type` +
   `external_id` (regions) and `source` + `external_id` (locations) and return them;
-  assign codes to the 3 `custom` forecast zones; sdk-js wrappers accept the pair. (Checked
+  assign codes to the 3 `custom` forecast zones; sdk-js wrappers accept the pair. Handle the two unstable codes: child-care
+  sites keyed by a license number that can change, and CDPs that incorporate into cities
+  (`ARCHITECTURE.md` → "Stable ids and retirement"). (Checked
   2026-10-14: the region API returns `id` (sqid), name, slug, type, and boundary, but not
   `external_id`.)
 - Stable ids and retirement: a never-reuse rule for ids, `retired` (date, optional
@@ -571,7 +573,10 @@ package release needs explicit per-release approval.
     itself uncached
   - **static files on S3** (the map's pipeline): upload the dashboard's files
     pre-compressed with `Content-Encoding`, hashed chunks long-lived and immutable, entry
-    files and `version.json` as `no-cache`; a post-deploy header check; add the static
+    files and `version.json` as `no-cache`; the general sync excludes the dashboard's
+    directory, which uploads in ordered passes (chunks, then assets, then entry files);
+    the upload command fails the release on error (today it doesn't); a post-deploy
+    header check; add the static
     origin to the CSP; add the preview's origin to the bucket's cross-origin rule
   - serve the web app manifest from Django under `/workspace/`
   - a Django catch-all route for `/workspace/*`, decorated with `ensure_csrf_cookie` and not
@@ -602,7 +607,8 @@ first)
   - keep the phone flows working for mobile
   - a neutral age confirmation at registration (13+), `full_name` optional for email-only
     accounts, and a privacy policy page on sjvair.com
-  - legal confirmation of the age policy before the plan is final
+  - legal confirmation of the account and privacy approach before the plan is final
+    (the checklist in `DEFERRED.md` → "Open decisions")
 - sdk-js: account-call updates for email verification and email registration.
 - Lands before sign-in-dependent features ship. Fold the server "remember me" change into
   this plan, since both change the login page.
