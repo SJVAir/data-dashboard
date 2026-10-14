@@ -122,10 +122,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   child care (`import_schools`). Plans rely on **`school_district`** (school region
   alerts, the picker) and on the **3 `custom` forecast zones** (Tulare, Kern, Sequoia);
   the other 6 forecast zones, including Fresno, are county regions, so a zone lookup goes
-  through the forecasts data or a metadata zone list, not `type=custom`. **Verify
-  production row counts before the step 3 metadata plan and the Release 2 alerts plan**
-  (local dev had 0 rows of `school_district` and `custom` on 2026-09-28); import them if
-  missing. Nothing planned uses `protected`. **Revisit when** those two plans start.
+  through the forecasts data or a metadata zone list, not `type=custom`. **Production checked
+  2026-10-14** (public API): 201 school districts and the schools are loaded, but there
+  are **0 `custom` regions**, so the 3 forecast zones are missing and production has no
+  forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses
+  `protected`. **Revisit when** the step 3 metadata plan and the Release 2 alerts plan
+  start, to confirm the zones were imported.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.

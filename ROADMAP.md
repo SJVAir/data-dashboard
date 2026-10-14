@@ -24,9 +24,11 @@ unchanged at 4.5.0.
 
 ## Now: independent of everything
 
-- **Alerts API break (sjvair.com, sdk-js, mobile).** `account/alerts/` no longer returns
-  `id` or `latest`, which the SDK schema and the mobile Alerts screen require. It is urgent
-  and separate from this project; see `TODO.md`.
+- **Mobile Alerts screen fix (sjvair.com, sdk-js, mobile).** The screen has never shown a
+  correct level and now shows no alerts at all; fix with a server `level` field, an SDK
+  minor release, and an app release. See `TODO.md`.
+- **Missing forecast zones (sjvair.com).** Production has no forecasts for Tulare, Kern, or
+  Sequoia because their 3 `custom` regions aren't loaded. See `TODO.md`.
 - **PM2.5 breakpoint fix (sjvair.com).** `levels.py` is only half-updated to EPA's 2024
   AQI revision. It is urgent and separate from this project; see `TODO.md`.
 

@@ -244,8 +244,9 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
     language setting.
   - **API shape change:** `account/alerts/` now returns `sqid` and **no longer returns
     `id` or `latest`**. `@sjvair/sdk` 4.5.0's `airAlertSchema` still requires both, and the
-    mobile app's Alerts screen reads `alert.latest`. That is a live cross-repo break to
-    fix independently of this project (see `TODO.md`).
+    mobile app's Alerts screen reads `alert.latest`. Traced on 2026-10-14: `latest` was
+    only ever an `AlertUpdate` id, so that screen has never shown a correct level and now
+    shows no alerts. A fix is planned independently of this project (see `TODO.md`).
   - **Decisions re-confirmed against this baseline on 2026-10-13:** (a) **decided 2026-10-13**: follow the server's escalation-only design
     (see "Notify on" above); (b) **decided 2026-10-13**: no guard rails beyond the server's throttles (quiet hours deferred); (c) **decided 2026-10-13**: see "Channels on the server" below.
 - **Existing SMS subscriptions** (decided 2026-09-28):

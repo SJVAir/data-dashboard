@@ -179,3 +179,11 @@ app 4.0.5, and sdk-js 4.5.0.
 - **Mobile app (`../mobile`, sjvair-mobile 4.0.5):** token auth only; no push (local
   notifications only); no i18n; hardcodes the old PM2.5 scale in `PMGauge.svelte`,
   `colors.ts`, and `AirQualityGuidelines.svelte`.
+- **Production checks (2026-10-14, public API):** regions by type: 201 school districts, 8
+  counties, 62 cities, 237 ZIP codes, 2 air districts, 4 AB 617 communities, and **0
+  `custom`** (so the 3 non-county forecast zones are missing). `forecasts/` returns only the
+  6 county zones. Schools are loaded (685 `Location` rows in a Fresno-area bounding box).
+  The region list returns `id` (sqid), `name`, `slug`, `type`, and `boundary` (with `bbox`),
+  not `external_id`.
+- **`account/alerts/` `latest` (traced 2026-10-14):** it was the `Alert.latest` foreign key
+  serialized as the `AlertUpdate` primary key, never a reading; see `TODO.md`.

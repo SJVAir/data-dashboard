@@ -152,8 +152,9 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 0. When planning is finished: merge `planning` into `main` (**needs the user's approval**).
 
-1. **PM2.5 breakpoint fix** in sjvair.com, and the **alerts API break** between sjvair.com,
-   the SDK, and the mobile app (both urgent and independent — see below).
+1. **PM2.5 breakpoint fix**, the **mobile Alerts screen fix** (sjvair.com, the SDK, and the
+   mobile app), and the **missing forecast zones** on sjvair.com (all urgent and independent
+   — see below; planned for a new session once the `planning` branch is done).
 2. **Release 1, step 1: Foundations** spec (this repo). Its data layer depends on the
    **sdk-js request-options change** (first item of the step 3 metadata track), so plan
    that first.
@@ -253,15 +254,40 @@ each was interviewed and recorded:
       adds the Map widget); Release 2 Alerts (server work starts
       alongside Release 1); Release 3 Analysis. Map widget waits for 4.0 (since restructured as `map-sdk`; the monitor-map rebuild is now 5.0).
 
-**⚠️ Urgent, separate from this project: the alerts API change breaks the SDK and the mobile
-app.** Since sjvair.com PR #246 (merged 2026-10-12), `account/alerts/` returns `sqid` and no
-longer returns `id` or `latest`. `@sjvair/sdk` 4.5.0's `airAlertSchema` requires both
-(`id: z.string()`, `latest: z.number()`), and the mobile app's Alerts screen
-(`mobile/src/features/account/Alerts.svelte`) uses `alert.latest` to pick the level. Once
-that server change is deployed, the mobile Alerts screen fails. It needs a coordinated fix
-(restore the fields on the server, or update the SDK schema and the mobile screen and ship
-releases), each with its own approved plan. Found 2026-10-13; whether production is
-already affected was not checked.
+**⚠️ Urgent, separate from this project: the mobile app's Alerts screen has never shown a
+correct level.** Traced 2026-10-14 through sjvair.com, `@sjvair/sdk`, and the mobile app:
+
+- The screen (`mobile/src/features/account/Alerts.svelte`) treats `alert.latest` as a PM2.5
+  reading and compares it with the PM2.5 level ranges to choose the label and color.
+- **`latest` was never a reading.** The server serialized the `Alert.latest` foreign key,
+  i.e. the id of the latest `AlertUpdate`: a text UUID before the sqids migration (so the
+  comparison always failed and every alert was dropped), briefly an integer during PR #246
+  (a meaningless level), and since 2026-10-01 (`4c098322`) **not returned at all**, along
+  with `id`. Every alert is dropped again and the screen says "There are no active air
+  quality alerts" even during an alert.
+- No error appears: `getAirAlerts` doesn't validate the response, so the SDK's
+  `airAlertSchema` (`id: z.string()`, `latest: z.number()`) is never applied.
+- It looks up PM2.5 levels only, so ozone alerts could never display correctly.
+- Texts are unaffected; this is only the in-app list.
+
+**Planned fix (to handle in a new session after the `planning` branch is done), each step
+with an approved plan in its repo and explicit approval for any release:**
+
+1. **sjvair.com (additive):** `account/alerts/` gains `level` (the current level key from the
+   latest `AlertUpdate`). Nothing existing changes, so it can ship on its own first.
+2. **sdk-js (minor release):** the alert type gains `sqid` and `level`; `id` and `latest`
+   become optional and deprecated.
+3. **Mobile (app release):** look up the level by key in the alert's own entry type's
+   metadata (fixing ozone too) and stop using `latest`.
+
+**⚠️ Separate from this project: three forecast zones are missing on production.** Checked
+2026-10-14 through the public API: production has **0 `custom` regions**, and the live
+`forecasts/` feed has only the 6 county zones (Fresno, Kings, Madera, Merced, San Joaquin,
+Stanislaus). **Tulare (SJV Valley portion), Kern (SJV Air Basin portion), and Sequoia
+National Park and Forest have no forecasts on sjvair.com**, because the forecast import
+(`ZONE_TO_REGION` in `forecasts/tasks.py`) can't match them to a region. Fix: import the
+three `custom` regions (and give them stable codes, per "Stable ids and retirement"), then
+re-run the forecast import. To handle in a new session alongside the alerts fix.
 
 **Worth doing, separate from this project: sjvair.com's static files are served
 uncompressed.** Checked on production 2026-10-13: the map's script
@@ -299,8 +325,9 @@ package release needs explicit per-release approval.
 **Now (independent)**
 
 - sjvair.com PM2.5 breakpoint fix (see the warning above).
-- The `account/alerts/` API break (`id`/`latest` removed; SDK schema and mobile Alerts
-  screen still need them; see the warning above).
+- The mobile Alerts screen fix (server `level` field, SDK minor release, app release; see
+  the warning above).
+- Import the 3 missing `custom` forecast zones on production (see the warning above).
 
 **Release 1, step 1: Foundations** (this repo)
 
@@ -428,7 +455,9 @@ package release needs explicit per-release approval.
   hardcoding pollutants.
 - Regions and locations by official code: detail and lookup endpoints accept `type` +
   `external_id` (regions) and `source` + `external_id` (locations) and return them;
-  assign codes to the 3 `custom` forecast zones; sdk-js wrappers accept the pair.
+  assign codes to the 3 `custom` forecast zones; sdk-js wrappers accept the pair. (Checked
+  2026-10-14: the region API returns `id` (sqid), name, slug, type, and boundary, but not
+  `external_id`.)
 - Stable ids and retirement: a never-reuse rule for ids, `retired` (date, optional
   replacement) on catalog entries and entry types, and lookups that distinguish "retired"
   from "never existed" (`ARCHITECTURE.md` → "Stable ids and retirement").
