@@ -156,12 +156,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 - **CEIDARS facility emissions.** _Deferred 2026-09-24 (docs review); updated 2026-10-13._ On
   the server (yearly facility emissions + health risk indices) but no widget, analysis,
-  or SDK wrapper is planned. **Heads-up:** the open sjvair.com PR #282 (Facility Emissions
-  Explorer) replaces the `ceidars` app with an `emissions` app, moves the API to
-  `/api/2.0/emissions/…`, and adds CEPAM, dairies, wells, and toxics. The user confirmed
-  (2026-10-13) that this lands **before the dashboard goes live**, so anything we build
-  uses `emissions` from the start. **Revisit when** an emissions or facility-proximity
-  use case comes up, and after #282 lands.
+  or SDK wrapper is planned. sjvair.com PR #282
+  (Facility Emissions Explorer, merged 2026-10-13) moved the API to
+  `/api/2.0/emissions/…` and added CEPAM, dairies, wells, and toxics, so anything we build
+  uses `emissions`. **Revisit when** an emissions or facility-proximity use case comes up.
 - **Combined heat + air-quality tier bump** (raise the tier by one when both conditions
   are at tier ≥ 2, reflecting combined heat and ozone effects). _Deferred 2026-09-28._ It
   is a health claim needing expert backing. **Revisit when** the user or a health advisor
@@ -182,9 +180,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   year. Starter analysis #9 stays yearly for now. **Revisit when** users need seasonal
   pesticide timing; it now needs sdk-js wrappers and a client adapter rather than new
   server summaries.
-- **CarbonMapper data source.** _Noted 2026-09-24._ `VITE_CARBONMAPPER_KEY` is reserved in
-  `.env.example` (a `carbon-mapper-exploration` sibling repo exists) but nothing is
-  designed. **Revisit when** CarbonMapper integration is scoped. Same for the unused
+- **CarbonMapper data source.** _Noted 2026-09-24; updated 2026-10-14._ The server now
+  imports Carbon Mapper methane sources and plumes and serves them under
+  `emissions/methane/` (merged with #282), so the dashboard would read them from the
+  server and needs no `VITE_CARBONMAPPER_KEY` (remove it from `.env.example` when
+  convenient). Carbon Mapper's terms are **non-commercial and share-alike**, which its
+  catalog entry's `license` and any export must carry. Nothing is designed in the
+  dashboard. **Revisit when** a methane layer or analysis is scoped. Same for the unused
   `VITE_OPENWEATHERMAP_KEY` — remove it if no use appears.
 
 ## Map plugins

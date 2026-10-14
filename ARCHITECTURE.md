@@ -1775,16 +1775,16 @@ things they point to change (the server removed the `place` region type in Octob
 - **Server work (step 3):** retirement fields in the catalog and domain metadata, the
   never-reuse rule, and lookups that answer "retired" as distinct from "never existed"
   (for monitors, regions, and locations).
-- **Naming to build against:** sjvair.com PR #282 renames the `ceidars` app and API to
-  `emissions` **before this dashboard goes live**, so the dashboard uses `emissions` from
-  the start and no saved document ever holds a `ceidars` id.
+- **Naming to build against:** sjvair.com PR #282 (merged 2026-10-13) replaced the
+  `ceidars` API with `emissions` (`/api/2.0/emissions/…`), so the dashboard uses
+  `emissions` from the start and no saved document ever holds a `ceidars` id.
 
 **Structure: per-domain meta + a catalog index.**
 
 - Each domain owns a `…/meta/` endpoint (existing: `monitors/meta/`, `regions/meta/`;
   new: `hms/meta/`, `pesticides/meta/`, `calheatscore/meta/`, `forecasts/meta/`,
-  `calenviroscreen/meta/`, `emissions/meta/` (today `ceidars/`, renamed by sjvair.com PR
-  #282 before go-live), `tempo/meta/` as needed).
+  `calenviroscreen/meta/`, `emissions/meta/` (the API moved from `ceidars/` in sjvair.com
+  PR #282), `tempo/meta/` as needed).
 - A top-level **`meta/datasets/`** catalog lists every dataset and links to its domain
   meta.
 - **Coverage is separate** (it changes with the data); everything else is effectively

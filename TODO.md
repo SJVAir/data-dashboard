@@ -92,8 +92,8 @@ to match (see "What changed in the sibling repos" below). The 10 decisions, as r
   the rebuild becomes monitor-map 5.0 and must keep `/core` and `/routes` for the mobile
   app.
 - **sjvair.com `main`** gained the notifications redesign (#246) and the Pesticides Data
-  Explorer (#275). **Still open:** legacy-entries backfill (#261) and the Facility
-  Emissions Explorer (#282, which will rename `ceidars/` to `emissions/`). New on `main`:
+  Explorer (#275), and on 2026-10-13 the Facility Emissions Explorer (#282, which moved the
+  API from `ceidars/` to `emissions/`). **Still open:** legacy-entries backfill (#261). New on `main`:
   `Location` (schools, child care), region types `air_district` and `ab617` (`place`
   removed), `regions/geojson/` and `?buffer=`, the region list without boundary geometry,
   21 pesticide routes with monthly rollups, and a waffle `beta_tools` gate for `/tools/`.
@@ -104,8 +104,7 @@ to match (see "What changed in the sibling repos" below). The 10 decisions, as r
   to do, and it now also lacks wrappers for the new pesticide and region endpoints.
 - **sjvair.com `next`:** no longer the working base. `origin/next` is stale (475 behind
   `main`); the old local integration branch is `my-next`, with `rebuild-next.sh` only in
-  its worktree. Two of its four branches are merged; #261 and #282 remain open PRs against
-  `main`. New sjvair.com work branches from `main` again unless the user says otherwise.
+  its worktree. Three of its four branches are merged; #261 remains an open PR against `main`. New sjvair.com work branches from `main` again unless the user says otherwise.
 
 **Final-review decisions: complete (2026-09-24 → 2026-09-28).** A three-way final review
 found 12 gaps; all are decided and recorded. #1–#3, #8 and #9 cover the map-sdk split, the

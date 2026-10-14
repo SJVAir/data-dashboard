@@ -141,9 +141,11 @@ From a re-survey of sjvair.com `origin/main` (`560e01c3`), monitor-map 4.2.0, th
 app 4.0.5, and sdk-js 4.5.0.
 
 - **Merged:** #246 (notifications redesign; see "Alerts") and #275 (Pesticides Data
-  Explorer). **Still open:** #261 (legacy-entries backfill) and #282 (Facility Emissions
-  Explorer, which will replace `ceidars` with an `emissions` app at `/api/2.0/emissions/…`
-  and add CEPAM, dairies, wells, and toxics).
+  Explorer). **Merged 2026-10-13 (after this survey):** #282 (Facility Emissions Explorer).
+  The API moved from `ceidars/` to `/api/2.0/emissions/…` (years, areas, places,
+  districts, facility GeoJSON and detail, dairies, wells, schools, and Carbon Mapper
+  methane sources and plumes); the `ceidars` app remains installed for its data. **Still
+  open:** #261 (legacy-entries backfill).
 - **Regions:** new `Location` model (public school, private school, child care; a point
   with links to county, city, ZIP, school district); new types `air_district` and `ab617`;
   `place` removed; `regions/geojson/?type=` (with `simplify=1`); `regions/<id>/?buffer=1|3|5`;

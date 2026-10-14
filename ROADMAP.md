@@ -11,7 +11,8 @@ needs explicit per-release approval.
 
 **Sibling-repo baseline (reviewed 2026-10-13):** monitor-map 4.2.0 (still one map per page);
 the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notifications redesign
-(#246) and Pesticides Data Explorer (#275), with #261 and #282 still open; `@sjvair/sdk` is
+(#246) and Pesticides Data Explorer (#275), and the Facility Emissions Explorer (#282, merged
+2026-10-13), with #261 still open; `@sjvair/sdk` is
 unchanged at 4.5.0.
 
 ## Done (v1 tab era)
