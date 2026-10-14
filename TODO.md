@@ -158,8 +158,9 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 2. **Release 1, step 1: Foundations** spec (this repo). Its data layer depends on the
    **sdk-js request-options change** (first item of the step 3 metadata track), so plan
    that first.
-3. **Now** (the step 3 metadata plan runs alongside Foundations): **the user maps the 6 AQ levels onto CalHeatScore's
-   0–4 tiers** (`DEFERRED.md` → "Open decisions"). Heat maps one to one and uses
+3. ✅ **AQ levels mapped onto CalHeatScore's 0–4 tiers** (2026-10-14): Good 0, Moderate 1,
+   Unhealthy for Sensitive Groups 2, Unhealthy 3, Very Unhealthy and Hazardous 4
+   (`ARCHITECTURE.md` → "Shared action tiers"). Heat maps one to one and uses
    CalHeatScore's official guidance.
 4. Before the step 3 metadata plan and the Release 2 alerts plan: **verify production row
    counts for `school_district` regions and the 3 `custom` forecast-zone regions**
@@ -464,8 +465,8 @@ package release needs explicit per-release approval.
 - In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
   "What a dataset is"), the coverage endpoint, per-domain scale metas
   (hms, calheatscore with per-score guidance, forecasts, AQI), plus a shared `tier` (0–4;
-  CalHeatScore's scale, heat mapped one to one) on every level of every scale (the user
-  supplies the AQ-level mapping), region
+  CalHeatScore's scale, heat mapped one to one) on every level of every scale (AQ levels: Good 0 … Unhealthy 3,
+  Very Unhealthy and Hazardous 4), region
   hierarchy, choice lists, and
   display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the

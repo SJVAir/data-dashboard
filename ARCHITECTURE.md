@@ -1819,10 +1819,19 @@ level of every scale.
   Moderate 2, High 3, Severe 4), and each tier's meaning comes from CalHeatScore's
   **official recommended actions**, which are also the heat guidance text stored in
   `calheatscore/meta/`.
-- **Only the air-quality side is a judgment call:** which tier each of the 6 AQ levels
-  maps to (e.g. is Unhealthy for Sensitive Groups a 2; do Very Unhealthy and Hazardous both
-  map to 4). **The user decides these** (see `DEFERRED.md` → "Open decisions"). The
-  mapping is kept in server metadata.
+- **The air-quality mapping** (decided by the user 2026-10-14). Very Unhealthy and
+  Hazardous share tier 4; the other levels take one tier each, in order. The mapping is
+  kept in server metadata.
+
+  | Air-quality level              | Tier | CalHeatScore name |
+  | ------------------------------ | ---- | ----------------- |
+  | Good                           | 0    | Low               |
+  | Moderate                       | 1    | Mild              |
+  | Unhealthy for Sensitive Groups | 2    | Moderate          |
+  | Unhealthy                      | 3    | High              |
+  | Very Unhealthy                 | 4    | Severe            |
+  | Hazardous                      | 4    | Severe            |
+
 - Every other scale in the metadata (including smoke density in Release 1) is mapped onto
   the same tiers. Trade-off: tier meanings are anchored to CalHeatScore's definitions, and
   a change there would mean revisiting the mapping (easy, since it's metadata).
