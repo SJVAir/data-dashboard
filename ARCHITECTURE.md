@@ -275,7 +275,9 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
 
 **Channel availability per account** (decided 2026-10-13). The server sends alert texts
 only to accounts with its `sms_alerts` rollout flag, so a rule with SMS selected could
-otherwise save and never deliver.
+otherwise save and never deliver. **The user confirmed (2026-10-14) that text alerts open
+to everyone before Release 2**, so at launch this mainly covers accounts that opted out
+by STOP or have no verified phone, and any future rollout of a channel.
 
 - **The server reports which channels this account can use**, as a per-account list in the
   alert metadata (e.g. SMS available or not yet). The flag stays the server's business;
