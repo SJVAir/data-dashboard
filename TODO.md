@@ -4,6 +4,23 @@ Last updated: 2026-10-14
 
 ## Start here
 
+**Status (2026-10-14, end of session): planning is complete.** All decisions are recorded,
+and a final consistency and build-readiness sweep (2026-10-14) fixed the remaining
+leftovers and settled five build details (relative file references, one `place` field per
+layer, `default-place` kept inside the starter, a CSP scoped to the dashboard's own static
+folder, `span` checked against a range's full unit). Also settled 2026-10-14: the AQ-level
+tier mapping, text alerts opening to everyone before Release 2, and the copyright holder
+(Central California Asthma Collaborative).
+
+- **Waiting on others:** the legal adviser's answers (`DEFERRED.md` → "Open decisions"),
+  which only gate the final email-only accounts plan; and whether email alerts get their
+  own rollout switch (Release 2 server plan).
+- **Next session (the user's plan):** the three sjvair.com-side fixes below (mobile Alerts
+  screen, missing forecast zones, PM2.5 breakpoints), each with an approved plan in its
+  repo.
+- **Then:** merge `planning` into `main` (**held; needs the user's explicit go-ahead**) and
+  start the Foundations spec.
+
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
 
@@ -31,9 +48,6 @@ S3 (another origin), uncompressed and without cache headers. Decided: the dashbo
 that same pipeline, with the accommodations in `ARCHITECTURE.md` → "Template embedding"
 (headers set at upload, the static origin in the CSP, inline workers, the manifest and
 later service worker served by Django). The rest of those sections was consistent.
-
-**Next:** the user's call: another pass, or merge `planning` into `main` (with approval) and
-start the first specs.
 
 **Sibling-repo review (2026-10-13).** A lot changed in the other repos; the docs were updated
 to match (see "What changed in the sibling repos" below). The 10 decisions, as recorded
