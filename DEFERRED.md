@@ -404,11 +404,30 @@ point.
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
-- **Legal confirmation of the account age policy** (13+, neutral age confirmation, no
-  under-13 accounts; COPPA). **The user arranges this** with whoever advises SJVAir, before
-  the email-only accounts plan is finalized.
-- **Copyright holder name for the MIT `LICENSE` files** (e.g. "SJVAir" or the organization's
-  legal name). **The user decides**, before the Foundations license task.
+- **Legal confirmation of the account and privacy approach.** **The user arranges this**
+  with whoever advises SJVAir (operated by the Central California Asthma Collaborative),
+  before the email-only accounts plan is finalized. The questions (listed 2026-10-14; not
+  legal advice):
+  1. **Does COPPA apply at all?** It targets commercial operators, and the FTC has said
+     nonprofits outside its jurisdiction are generally not covered. If CCAC is a
+     nonprofit, is it exempt? (The 13+ policy stays as a safeguard either way.)
+  2. **If COPPA applies, is the approach enough?** Accounts for ages 13 and up with a
+     neutral age question; under-13s use the dashboard without an account, with their
+     work kept in their own browser; teachers share by link. Since schools are a named
+     audience, confirm the site isn't treated as directed to children in a way that
+     requires parental consent anyway.
+  3. **California student privacy law (SOPIPA).** It covers services designed and
+     marketed for K-12 school purposes. Does it apply, given we promote the dashboard to
+     schools, and what does it require? The design already has no ad tracking, no selling
+     of data, no profiling, and complete deletion.
+  4. **What the privacy policy must say** (California requires one): what stays in the
+     browser and what syncs, scrubbed error reports, the text and email providers, the
+     30-day trash and snapshots, and how account deletion works.
+  5. **Location and anonymous use.** "Use my location" sends a rounded position to the
+     server to find the area, and anonymous error reports are sent. Confirm neither
+     counts as collecting personal information from anonymous, possibly under-13, users.
+  6. **Code ownership.** Confirm CCAC owns the code it licenses: automatic for employees'
+     work, but contractors' and volunteers' contributions depend on their agreements.
 - **Analysis view layout** (Collections drawer, list of analyses, results area). **Decide
   in** the Release 3 step 1 spec (Analysis engine).
 - **User-defined analysis editor UI** (IDEA.md Q6: "What should user-defined analysis

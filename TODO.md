@@ -418,7 +418,8 @@ package release needs explicit per-release approval.
   labels always shown alongside level colors.
 - Error reporting through the platform adapter to Sentry (strict PII scrubbing), an in-app
   privacy note, and a preview feedback link.
-- Add an MIT `LICENSE` file (and `"license": "MIT"` in `package.json`), a CI license check
+- Add an MIT `LICENSE` file (`Copyright (c) 2026 Central California Asthma Collaborative
+(SJVAir)`) (and `"license": "MIT"` in `package.json`), a CI license check
   (permissive only), and generated third-party notices.
 - Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +
   `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,

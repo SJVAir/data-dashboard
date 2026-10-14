@@ -1937,7 +1937,11 @@ errors today.
 Decided 2026-09-28.
 
 - **MIT** for `data-dashboard`, `map-sdk`, and `monitor-map`, matching `sdk-js` (and
-  `django-resticus`). Still pending: the `LICENSE` files. `data-dashboard` (now public) and
+  `django-resticus`). **Copyright holder** (decided 2026-10-14): the
+  legal entity that operates SJVAir, with the brand after it. Every SJVAir repo uses the
+  same line: `Copyright (c) 2026 Central California Asthma Collaborative (SJVAir)`. The
+  CCAC website's footer says "All Rights Reserved", which must **not** be copied into the
+  license, since the MIT terms grant those rights. Still pending: the `LICENSE` files. `data-dashboard` (now public) and
   `monitor-map` (on npm) currently have no license, which means "all rights reserved".
 - **Dependency policy:** bundled dependencies must be permissively licensed: MIT, BSD,
   Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide). A **CI license check**
@@ -1945,6 +1949,8 @@ Decided 2026-09-28.
   also covers the JupyterLite/Pyodide notices).
 - Adding the license to `monitor-map` is a sibling-repo change: it goes in its next plan,
   or as a tiny standalone change with the user's approval. `map-sdk` is created with MIT.
+  `sdk-js` declares MIT in `deno.json` but has no `LICENSE` file either; it gets the same
+  file the same way.
 
 ## Accessibility
 
