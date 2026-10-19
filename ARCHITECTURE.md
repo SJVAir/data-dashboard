@@ -1770,7 +1770,10 @@ things they point to change (the server removed the `place` region type in Octob
     production**; see `TODO.md`); and the import commands never change an existing code.
     Two known exceptions the plan must handle: **child-care sites** are keyed by the
     lowest facility license number at a merged site, which changes when that license
-    closes (needs a stable site key, or old keys kept as aliases); and a **CDP that
+    closes (needs a stable site key, or old keys kept as aliases). Since 2026-10-15 the
+    server also groups nearby same-name rows into one place at read time
+    (`one_per_place`), choosing the representative by lowest database id, which differs
+    between environments, so a reference must pick a group's code by a stable rule; and a **CDP that
     incorporates** becomes a `city`, changing its type and code pair (retire the old pair
     with `replacedBy`).
   - Using the server's ids for user documents and codes only for built-in ones was
