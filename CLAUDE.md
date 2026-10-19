@@ -4,10 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-SJVAir's data exploration dashboard — a Vite + Svelte 5 SPA for browsing and comparing
-the SJVAir ecosystem's data sets (air monitors, HMS smoke/fire, collocation sites).
-See `ARCHITECTURE.md` for the full design and `ROADMAP.md` for what's deliberately
-deferred past v1.
+SJVAir's data dashboard — a Vite + Svelte 5 SPA: a personal, interactive dashboard and
+data-analysis toolbox over all public SJVAir data, for community members, schools, and
+researchers. Three views: **Dashboard** (windowed widgets), **Widget Creation**, and
+**Analysis** (Collections, starter analyses, notebooks).
+
+Where to look:
+
+- `IDEA.md` — the planning brief this direction comes from.
+- `ARCHITECTURE.md` — all design decisions (each notes which IDEA.md question it resolves).
+- `TODO.md` — current status and "start here".
+- `ROADMAP.md` — sequencing of sub-projects.
+- `DEFERRED.md` — **every** deferred or ruled-out item (see the standing rule below).
+- `docs/reference/` — server data inventory, notebook-kernel evaluation.
 
 ## Commands
 
@@ -27,55 +36,148 @@ npm run format       # Auto-format with Prettier
 
 Plain Vite SPA — no SvelteKit, no server-side rendering. Routing is handled by
 `sv-router` (`src/router.ts` exports `{ route, navigate, p, isActive }`; `src/App.svelte`
-renders the nav and `<Router />`). Each top-level tab is a route under `src/routes/`.
+renders the nav and `<Router />`). Today each v1 tab is a route under `src/routes/`. **This
+v1 code is removed in Release 1's Foundations step (a fresh start)**, and the route table
+in `ARCHITECTURE.md` → "Routing, URL state & undo" replaces it. When building new code,
+reuse existing code only if it's exactly what the new design needs. Don't adapt or bolt
+onto v1 code.
 
 ### State architecture
 
-- **URL is the source of truth** for the current view (active tab, filters, date
-  range, which views are toggled on) — see `ARCHITECTURE.md` for the full rationale.
-- **`src/lib/preferences.ts`** is a localStorage-backed store of _defaults_ only
-  (`getTabPreferences`/`setTabPreferences`/`clearAllPreferences`), used to seed the URL
-  when a tab is opened with no params present — never to override an existing URL.
-- **`src/lib/url-state.ts`** provides pure encode/decode codecs (`encodeDateRange`/
-  `decodeDateRange`, `encodeViews`/`decodeViews`) for serializing state into URL search
-  params. These are framework-agnostic and unit-tested independently of `sv-router`;
-  a tab wires them to `sv-router`'s reactive `route.search`/`searchParams`.
+- **Dashboard direction (new code):** the URL identifies _where you are_ (dashboard,
+  fullscreen widget, Widget Creation, Analysis); saved documents hold _what's there_.
+  All document edits go through `applyChange` (gives undo/redo), and every change
+  autosaves (there is no explicit Save). See `ARCHITECTURE.md` →
+  "Routing, URL state & undo" and "Saving & sharing documents".
+- **Legacy v1 tab code (current Monitors tab, removed in Foundations):** the URL is the source of truth for the
+  tab's view (filters, date range, toggles). `src/lib/preferences.ts` (localStorage
+  defaults that seed the URL when no params exist) and `src/lib/url-state.ts` (pure,
+  unit-tested codecs such as `encodeDateRange`/`decodeDateRange`) support this. None of
+  it carries forward.
 
 ### Related SJVAir projects
 
 - `@sjvair/monitor-map` (sibling repo `../monitor-map`) — SJVAir's interactive map,
-  packaged as an embeddable Svelte library. Its `MapShell` component (added in v3.3.0)
-  is a reusable, configurable map-layout primitive intended for exactly this kind of
-  embedding — see its `CLAUDE.md` for the `routerEscapeHatch`/`basePath` props needed
-  when embedding it inside an app with its own routing (like this one).
-- `@sjvair/sdk` (sibling repo `../sdk-js`) — the SJVAir API client. Currently covers
-  the `monitors` (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), and
-  `collocation_sites` domains.
+  packaged as an embeddable Svelte library, **now at v4.2.0** (4.0–4.2, October 2026: a new
+  options toolbar and unified legend, `./core` and `./routes` entry points, a self-fetching
+  detail panel). It is **still one map per page** (singleton `mapManager` and
+  integrations). This repo's v1 Monitors tab embeds its `MapShell` at `^3.6.3`. The new
+  dashboard does not use it; see below.
+  **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
+  `../map-sdk`, not yet created) holds the per-map core, plugins, `MapView`, and data
+  stores, while monitor-map is rebuilt on it (as its **5.0**) as the monitor-map
+  _experience_ (MapShell, routes, panels, options toolbar, legend, the standalone build
+  sjvair.com imports), keeping the `/core` and `/routes` entry points the mobile app uses. **Dashboard map widgets use
+  `map-sdk`'s `MapView`, not monitor-map.** See `ARCHITECTURE.md` → "Map SDK".
+- `@sjvair/sdk` (sibling repo `../sdk-js`) — the SJVAir API client. Covers `monitors`
+  (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
+  `pesticides`, `regions`, and `account` (login, subscriptions, air alerts).
+- `../sjvair.com` — the Django server (data, user accounts, alert/notification system).
+- `~/workspace/django-resticus` — the REST framework sjvair.com's API is built on
+  (remote `dmpayton/django-resticus`; sjvair.com installs its `develop` branch unpinned).
+  The user has access. It gets the CSRF fix; see `ARCHITECTURE.md` → "CSRF protection".
+- `../mobile` — the current SJVAir mobile app (`SJVAir/sjvair-mobile`, Svelte 5 +
+  Capacitor; the Svelte rebuild shipped as 3.0.0 on 2026-09-29, now at 4.0.5, and it replaced the old
+  `v3-mobile` working copy). It consumes `@sjvair/monitor-map` `^4.2` through its `/core`
+  and `/routes` entry points (using `monitorsManager` as an app-wide data store) and
+  authenticates with `Token` headers only. Its `CLAUDE.md` lists off-limits areas (`ios/`,
+  `android/`, CI, env config, Capacitor plugin calls). Publishing a GitHub Release there
+  ships to TestFlight and the Play beta track, so it needs explicit approval.
+
+**Get an approved plan before modifying any sibling project**, and never break its
+existing consumers (monitor-map is also used by sjvair.com and the mobile app).
+
+### Platform & auth rules
+
+- **Web-first, Tauri-ready** (see `ARCHITECTURE.md` → "Platform strategy"). Never call
+  `localStorage`, `Notification`, file-save APIs, etc. directly from components or
+  managers — go through the platform adapter layer so a Tauri build can swap them.
+- Never enable cross-origin isolation (COOP/COEP) app-wide.
+- **Metadata is the source of truth** (see `ARCHITECTURE.md` → "Metadata as source of
+  truth"). Never hardcode labels, units, breakpoints, colors, scales, or coverage — read
+  them from server `…/meta/` endpoints; if missing, add them server-side.
+- **English-only but translation-ready** (see `ARCHITECTURE.md` →
+  "Internationalization"): all UI strings through Paraglide messages, no concatenated
+  sentences, all formatting through the shared `format` module, never store generated
+  English in saved documents.
+- **Dates use Pacific time (America/Los_Angeles), never the browser's zone**, via the
+  `format` module; weeks start on Sunday. See `ARCHITECTURE.md` → "Time zone & calendar
+  conventions".
+- **No analytics or tracking in the dashboard** (no Google Analytics/Tag Manager). Error
+  reports go through the platform adapter with strict PII scrubbing. See `ARCHITECTURE.md` →
+  "Telemetry, analytics & privacy".
+- **Treat document content as untrusted** (see `ARCHITECTURE.md` → "Security baseline"):
+  validate every incoming document with a schema and size limit, render Markdown with raw
+  HTML off, and never inject HTML or use inline scripts (a CSP on `/workspace/*`, report-only then enforced, backs this up).
+- **The dashboard is embedded in a dedicated Django template on sjvair.com** (the
+  monitor-map pattern, but not extending the site's base template). The build emits
+  fixed-name entry files; `index.html` is for local dev and standalone builds only. See
+  `ARCHITECTURE.md` → "Deployment" → "Template embedding".
+- **Auth mode depends on deployment context** (see `ARCHITECTURE.md` →
+  "Authentication"): session cookie when served from sjvair.com's origin (Release 1:
+  `/workspace/`); `Token`
+  header when standalone on another origin or under Tauri.
+
+## Licensing
+
+This repo is **MIT** (decided 2026-09-28; copyright holder: "Central California Asthma
+Collaborative (SJVAir)", decided 2026-10-14; the `LICENSE` file is added in Foundations), as are `map-sdk` and `monitor-map` once added, matching `sdk-js`. Only add
+dependencies with permissive licenses (MIT, BSD, Apache-2.0, ISC; MPL-2.0 only if
+unmodified). CI will check licenses and the build will generate third-party notices. See `ARCHITECTURE.md` → "Licensing".
+
+## Deferred work — standing rule
+
+**`DEFERRED.md` is the single register of everything deferred or ruled out.** Whenever
+anything is deferred — in a brainstorm, spec, plan, code review, or implementation — add
+it to `DEFERRED.md` in the same change, with why and what triggers revisiting it. Never
+leave a deferral only in a spec/plan/TODO/commit message. Items leave `DEFERRED.md` only
+by being done or explicitly dropped by the user (recorded under "Dropped").
 
 ## Key Libraries
 
-| Library                 | Purpose                                     |
-| ----------------------- | ------------------------------------------- |
-| `sv-router`             | Client-side routing                         |
-| `@sjvair/sdk`           | Air quality data API                        |
-| `@sjvair/monitor-map`   | Embeddable map component (future tab plans) |
-| `date-fns`              | Date handling                               |
-| `uplot`                 | Charts (future tab plans)                   |
-| shadcn-svelte / bits-ui | Accessible UI primitives                    |
-| `@lucide/svelte`        | Icons                                       |
-| Vitest                  | Unit tests for framework-agnostic logic     |
+Installed:
+
+| Library                                       | Purpose                                        |
+| --------------------------------------------- | ---------------------------------------------- |
+| `sv-router`                                   | Client-side routing                            |
+| `@sjvair/sdk`                                 | Air quality data API                           |
+| `@sjvair/monitor-map`                         | v1 map (replaced by `@sjvair/map-sdk`)         |
+| `date-fns`                                    | Date handling                                  |
+| `uplot` (via monitor-map; direct dep planned) | **All** charts (time-series-first)             |
+| shadcn-svelte / bits-ui                       | Accessible UI primitives                       |
+| `@lucide/svelte`                              | Icons                                          |
+| `@sveltejs/enhanced-img`                      | Optimized images                               |
+| `color2k`                                     | `readableColor` for text on level colors       |
+| Vitest                                        | Unit tests (browser-mode component tests next) |
+
+Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
+
+| Library                                         | Purpose                                               |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `@date-fns/tz`                                  | Pacific-time date math (via the `format` module)      |
+| Paraglide JS (inlang)                           | UI message catalog (English-only today)               |
+| `lz-string`                                     | URL-fragment document sharing                         |
+| `@sjvair/map-sdk`                               | Map widget: core, plugins, `MapView`, data stores     |
+| `terra-draw`                                    | Drawn-shape map selection (via a map-sdk plugin)      |
+| Playwright                                      | E2E on Chromium/WebKit/Firefox                        |
+| `vitest-browser-svelte`, `@axe-core/playwright` | Component tests in a real browser; WCAG 2.2 AA checks |
+| `zod`                                           | Validating every incoming document                    |
+| A Markdown renderer (raw HTML off)              | Safe Notes rendering                                  |
+| Sentry browser SDK                              | Scrubbed error reports (via the platform adapter)     |
+| JupyterLite + Pyodide                           | Separate `/notebooks/` app (Release 3)                |
 
 ## Environment Variables
 
 Copy `.env.example` to `.env` and fill in real values (never commit `.env` itself):
 
 ```
-VITE_DEV_URL=              # @sjvair/sdk origin used in dev (setOrigin)
-VITE_PROD_URL=              # @sjvair/sdk origin used in production builds
-VITE_MAPTILER_KEY=          # used by @sjvair/monitor-map's MapShell (future tab plans)
-VITE_NREL_KEY=               # used by @sjvair/monitor-map (future tab plans)
-VITE_OPENWEATHERMAP_KEY=    # used by @sjvair/monitor-map (future tab plans)
-VITE_CARBONMAPPER_KEY=      # reserved for a future data source integration
+VITE_DEV_URL=              # @sjvair/sdk origin in dev (current code; planned: Vite proxy → same-origin)
+VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /workspace/ → location.origin)
+VITE_MAPTILER_KEY=          # MapTiler basemap key (injected into map-sdk; public in the build, so domain-restrict it)
+VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations plugin (public in the build; domain-restrict it)
+VITE_SENTRY_DSN=            # planned: the dashboard's Sentry project DSN (public by design); unset = error reporting off
+VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)
+VITE_CARBONMAPPER_KEY=      # reserved; unused (see DEFERRED.md)
 ```
 
 ## Releases and publishing — standing restriction
@@ -85,7 +187,25 @@ workflow, or otherwise cause a package to be published, in this or any related
 SJVAir project, without the user's explicit permission for that specific
 release — every single time. Approval for one release does not carry forward
 to the next, even later in the same session or as the natural next step of a
-task already in progress. Always stop and ask first.
+task already in progress. Always stop and ask first. **The same applies to production
+deploys.** Once the hosting track is live, sjvair.com's Heroku deploy builds this repo's
+`main`, so **merging to `main` is effectively a production deploy**: never merge to `main` without explicit approval.
+The same goes for **monitor-map `main`** (sjvair.com builds it unpinned) and
+**django-resticus `develop`** (sjvair.com installs it unpinned).
+
+## Repo workflow
+
+Decided 2026-09-28.
+
+- **Feature work happens on a branch per sub-project**, created from `main`. Stacked PRs are
+  fine for large steps. Never do feature or implementation work directly on `main`.
+- **Small housekeeping fixes may go directly to `main`** (e.g. a forgotten version bump in
+  `package.json`), but only when the user asks. Once sjvair.com builds this repo's `main`
+  (after the hosting track goes live), even these are production deploys and need
+  explicit approval.
+- **`main` is not branch-protected** for now (see `DEFERRED.md`).
+- **The `planning` branch merges into `main` when planning is finished**, with the user's
+  approval at that point. It isn't merged yet because planning is still in progress.
 
 ## Code Style
 
@@ -95,4 +215,18 @@ task already in progress. Always stop and ask first.
 - Print width: 100 characters
 - Prettier + ESLint (flat config); run `npm run format` before committing
 - Tailwind CSS v4 for styling; prefer utility classes over custom `<style>` blocks
+- **Styling values come from theme tokens** (CSS variables for colors, fonts, radii,
+  spacing, motion); never hardcode them in components, so the design pass is a token swap
+- UI components from shadcn-svelte (bits-ui). **Never use Bulma** (the server's CSS
+  framework) in this project.
+- **Accessibility target: WCAG 2.2 AA** (see `ARCHITECTURE.md` → "Accessibility"). Every
+  drag interaction needs a keyboard alternative; animations respect
+  `prefers-reduced-motion`.
+- **Supported browsers:** Chrome/Edge 111+, Safari 16.4+, Firefox 128+ (Tailwind v4). Keep the
+  initial bundle around 200 KB compressed and lazy-load each widget type's code (CI enforces
+  this).
+- **Never convey meaning by color alone**: always show the level label or tier. Use the
+  shared `readableColor` helper for text on level colors, and outline colored swatches.
+- Animations for transitions are encouraged; responsive layouts are required (phones
+  must work, though they aren't the primary target)
 - Svelte 5 runes only (`$state`, `$derived`, `$effect`) — no legacy `$:` reactive statements
