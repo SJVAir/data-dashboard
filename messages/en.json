@@ -9,5 +9,18 @@
 	"doc_readonly_newer": "This dashboard was saved by a newer version. Reload to edit.",
 	"doc_readonly_invalid": "This dashboard couldn't be read, so it's open read-only.",
 	"widget_placeholder_title": "Placeholder widget",
-	"widget_placeholder_body": "This is a placeholder widget."
+	"widget_placeholder_body": "This is a placeholder widget.",
+	"page_title": "{name} · SJVAir Workspace",
+	"page_title_list": "Your dashboards · SJVAir Workspace",
+	"nav_label": "Main",
+	"nav_dashboards": "Dashboards",
+	"picker_choose": "Choose a dashboard",
+	"all_dashboards": "All dashboards",
+	"saving": "Saving…",
+	"saved": "Saved",
+	"save_failed": "Couldn't save",
+	"undo": "Undo",
+	"redo": "Redo",
+	"shortcut_undo": "Ctrl+Z",
+	"shortcut_redo": "Ctrl+Shift+Z"
 }

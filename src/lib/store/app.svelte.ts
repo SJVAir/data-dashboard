@@ -1,4 +1,5 @@
 import { getContext, setContext } from "svelte";
+import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -135,6 +136,19 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 export async function homeTarget(app: AppContext): Promise<HomeTarget> {
 	const lastOpened = await app.platform.preferences.get<string>(app.space, LAST_OPENED_KEY);
 	return resolveHome(app.index.items, lastOpened);
+}
+
+/**
+ * The current dashboard's display name: its own name as edited (before it's saved), else its
+ * generated name. `null` when no dashboard is open.
+ */
+export function currentDashboardName(app: AppContext): string | null {
+	const { session, isStarter } = app.current;
+	if (!session) return null;
+	if (isStarter) return m.dashboard_starter();
+	// A read-only "invalid" document is the raw stored value, so check the name's type.
+	const own = typeof session.doc.name === "string" ? session.doc.name : null;
+	return own ?? app.index.names.get(session.doc.id) ?? m.dashboard_untitled();
 }
 
 /** The context key, for `mount(App, { context: new Map([[APP_CONTEXT_KEY, app]]) })`. */
