@@ -104,14 +104,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   list for recovery only. **Revisit when** people use restore for everyday undo rather
   than recovery, or ask to compare versions.
 
-- **Run `import_forecast_zones` on production.** _Deferred 2026-10-20 by the user
-  ("we are working on features, not just fixes")._ Locally it adds the 3 `custom` forecast
-  zones and `fetch_forecasts` then covers all 9 (see `TODO.md` → the forecast-zones
-  warning); production still has 0 `custom` regions, so Tulare, Kern, and Sequoia have no
-  forecasts there. It's a one-off: `import_forecast_zones`, then `fetch_forecasts` (or the
-  next scheduled run), then a cache clear for the regions GeoJSON. **Revisit when**
-  `develop` is next deployed to production, or sooner if the user wants those forecasts
-  live. Production runs are the user's to do.
 - **sjvair.com API v2 archive links point at v1.** _Noted 2026-10-19 (Alerts fix)._ The
   v2 monthly-archive list builds each file's `url` with `Archive.get_csv_url()`, which
   reverses the **v1** route (`/api/1.0/.../archive/<year>/<month>/`), and the v2 archive
@@ -632,3 +624,9 @@ Dropped 2026-09-24 with the user's approval (docs review), each overtaken by lat
 - **Migrating old `?range=` bookmark URLs** (deferred 2026-09-16). Not needed: the v1 app
   was never deployed, so there are no public v1 URLs (a redirect step was briefly planned
   and removed on 2026-09-24).
+
+Dropped 2026-10-20 by the user ("we won't deal with production"):
+
+- **Run `import_forecast_zones` on production** (noted 2026-10-20). The three `custom`
+  forecast zones were imported and verified locally (`TODO.md` → the forecast-zones
+  warning); production work is out of scope.

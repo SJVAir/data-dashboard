@@ -323,8 +323,9 @@ already assigns stable codes (`sjvapcd-kern-airbasin`, `sjvapcd-tulare-valley`,
 0.99+ IoU, the Kern zone lies inside Kern County, Tulare valley + Sequoia tile Tulare
 County exactly, and `fetch_forecasts` then covers all 9 zones. sjvair.com **#289**
 (into `develop`) makes `fetch_forecasts` log an ERROR for any skipped zone, so a gap like
-this can't stay silent. Each environment still needs `import_forecast_zones` run once;
-production is out of scope for now (the user's call, 2026-10-20).
+this can't stay silent. Each environment needs `import_forecast_zones` run once (done
+locally); production is out of scope (the user's call, 2026-10-20; dropped in
+`DEFERRED.md`).
 
 **Worth doing, separate from this project: sjvair.com's static files are served
 uncompressed.** Checked on production 2026-10-13: the map's script
@@ -374,8 +375,8 @@ package release needs explicit per-release approval.
 - ~~sjvair.com PM2.5 breakpoint fix~~ — PR #288 (see the warning above).
 - ~~The mobile Alerts screen fix~~ — PRs #287, sdk-js #29 (4.6.0), mobile #112; the app
   release waits for #287 on production (see the warning above).
-- ~~Import the 3 missing `custom` forecast zones~~ — verified locally, PR #289; running the
-  import on production is deferred for now (see the warning above).
+- ~~Import the 3 missing `custom` forecast zones~~ — imported and verified locally, PR #289;
+  production is out of scope (see the warning above).
 
 **Release 1, step 1: Foundations** (this repo)
 
