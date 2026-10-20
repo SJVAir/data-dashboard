@@ -3,6 +3,8 @@ import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { ChangeTargetMissing } from "$lib/changes/apply";
+import { replaceIfOverlapping } from "$lib/changes/rebase";
+import type { Change } from "$lib/changes/types";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
@@ -82,9 +84,12 @@ function remove(app: AppContext, widgetId: string): void {
 			label: m.undo(),
 			onClick: () => {
 				// The dashboard it was deleted from (a starter forwards to its copy), even if
-				// another dashboard is current now. Skipped if the widget is already back.
+				// another dashboard is current now. Skipped if the widget is already back; moved
+				// to the bottom if another widget took its place meanwhile.
+				const target = session.editTarget;
+				const change: Change = { op: "addWidget", target: { widgetId }, widget, index };
 				try {
-					session.apply({ op: "addWidget", target: { widgetId }, widget, index });
+					target.apply(replaceIfOverlapping(target.doc, change));
 				} catch (error) {
 					if (!(error instanceof ChangeTargetMissing)) throw error;
 				}

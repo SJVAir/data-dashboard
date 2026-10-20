@@ -10,6 +10,7 @@ import { DocumentSession } from "$lib/store/document-session.svelte";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
+import { rectsOverlap } from "$lib/widgets/placement";
 import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
 
@@ -131,6 +132,27 @@ test("delete widget shows a toast whose undo restores it", async () => {
 	await page.getByRole("button", { name: "Undo" }).click();
 	expect(session.doc.body.widgets.map((w) => w.id)).toEqual(["a"]);
 	await expect.element(frame("a")).toBeVisible();
+});
+
+test("a widget's undo after its row was taken puts it back below, not on top", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 12, h: 3 })));
+	session.apply(add(widget("b", { x: 0, y: 3, w: 6, h: 4 }, "Readings"), 1));
+	await renderGrid(app);
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: "Delete widget" }).click();
+	// The new placeholder takes the freed row.
+	await page.getByRole("button", { name: "Add widget" }).click();
+	expect(session.doc.body.widgets[1].rect).toEqual({ x: 0, y: 3, w: 6, h: 4 });
+	const toastItem = page.getByRole("listitem").filter({ hasText: "Widget deleted" });
+	await toastItem.getByRole("button", { name: "Undo" }).click();
+
+	const widgets = session.doc.body.widgets;
+	expect(widgets.map((w) => w.id)).toContain("b");
+	const overlapping = widgets.flatMap((w, i) =>
+		widgets.slice(i + 1).filter((v) => rectsOverlap(w.rect, v.rect))
+	);
+	expect(overlapping).toEqual([]);
 });
 
 test("editing the starter creates a copy, replaces the URL, and shows the toast", async () => {

@@ -156,6 +156,11 @@ export class DocumentSession {
 		return this.#canRedo;
 	}
 
+	/** The session this one's edits land in: itself, or the copy a starter handed off to. */
+	get editTarget(): DocumentSession {
+		return this.#successor?.editTarget ?? this;
+	}
+
 	apply(change: Change): void {
 		if (this.readOnly) return;
 		if (this.#successor) {
