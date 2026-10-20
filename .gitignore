@@ -32,3 +32,6 @@ vite.config.ts.timestamp-*
 src/lib/paraglide/
 playwright-report/
 test-results/
+
+# Vitest browser-mode failure screenshots
+.vitest/
