@@ -1267,13 +1267,15 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   grouped with separators. An inner item with the same `id` overrides the outer one.
 - **Only the innermost scope shows all its items** (decided 2026-10-20). Outer scopes
   add only items marked `bubbles`, so a widget's menu doesn't list dashboard actions
-  like Add widget or Rename dashboard. Undo / Redo bubble, so they appear everywhere.
+  like Add widget or Rename dashboard. Undo / Redo belong to the dashboard's own menu
+  (they act on the whole dashboard's history), not to widget menus.
 - **Rendered with bits-ui's `ContextMenu`** (shadcn-svelte `context-menu`): one
   trigger around the dashboard, items computed on open. Provides submenus, keyboard
   navigation, ARIA roles, and viewport collision handling. Opens via right-click,
   long-press (touch), and Shift+F10 / Menu key (focused element).
 - **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
-  - _Global:_ Undo / Redo, "Clear my data", Sign in / out.
+  - _Global:_ Undo / Redo (in the dashboard's menu, not widgets'), "Clear my data",
+    Sign in / out.
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
   - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit

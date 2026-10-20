@@ -4,8 +4,8 @@ import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { MenuProvider } from "./types";
 
-/** Undo and Redo for the current dashboard; provided on the app root and shown in every menu. */
-export function globalActions(app: AppContext): MenuProvider {
+/** Undo and Redo for the current dashboard; part of the dashboard's own menu, not its widgets'. */
+export function historyActions(app: AppContext): MenuProvider {
 	return () => {
 		const session = app.current.session;
 		return [
@@ -15,7 +15,6 @@ export function globalActions(app: AppContext): MenuProvider {
 				icon: Undo2,
 				shortcut: m.shortcut_undo(),
 				group: "history",
-				bubbles: true,
 				disabled: !session?.canUndo,
 				// Read at run time: the starter hands off to its copy on the first edit.
 				run: () => app.current.session?.undo()
@@ -26,7 +25,6 @@ export function globalActions(app: AppContext): MenuProvider {
 				icon: Redo2,
 				shortcut: m.shortcut_redo(),
 				group: "history",
-				bubbles: true,
 				disabled: !session?.canRedo,
 				run: () => app.current.session?.redo()
 			}

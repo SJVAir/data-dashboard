@@ -263,15 +263,16 @@ Per "Starter dashboard", with placeholder contents until step 4:
 Per "Actions & context menu": `MenuItem`, `MenuContext`, `MenuProvider`, the `menuScope`
 attachment with its `WeakMap`, resolution by walking DOM ancestry, most-specific-first
 merge with `id` overrides, grouped sections. Only the innermost scope contributes all its
-items; outer scopes add only items marked `bubbles` (Undo / Redo), so a widget's menu has
-no dashboard actions (decided 2026-10-20, after trying the first build). Pure logic is unit-tested. Rendered by the
+items; outer scopes add only items marked `bubbles` (none yet), so a widget's menu has no
+dashboard actions. Undo / Redo sit in the dashboard's own menu, not widget menus, since
+they act on the whole dashboard (decided 2026-10-20, after trying the first build). Pure logic is unit-tested. Rendered by the
 shadcn-svelte `context-menu` (bits-ui) as one trigger around the dashboard, opened by
 right-click, long-press, and Shift+F10 / the Menu key. The widget ⋯ menu calls the same
 resolution with that widget as the target.
 
 Spec 1's actions:
 
-- _Global:_ Undo, Redo.
+- _Global:_ Undo, Redo (listed in the dashboard's menu).
 - _Dashboard:_ Add widget; New blank dashboard; New from starter; Duplicate, Rename…,
   Delete dashboard.
 - _Widget:_ Rename…, Duplicate, Delete.

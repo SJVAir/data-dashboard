@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { dashboardActions } from "$lib/actions/dashboard";
+	import { historyActions } from "$lib/actions/global";
 	import { menuScope } from "$lib/actions/scope";
+	import type { MenuProvider } from "$lib/actions/types";
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
@@ -11,7 +13,10 @@
 	import WidgetFrame from "./WidgetFrame.svelte";
 
 	const app = useApp();
-	const actions = dashboardActions(app);
+	const dashboard = dashboardActions(app);
+	const history = historyActions(app);
+	// Not bubbled: a widget's menu lists only its own actions.
+	const actions: MenuProvider = (ctx) => [...dashboard(ctx), ...history(ctx)];
 
 	const session = $derived(app.current.session);
 	// In reading order, so the single-column layout and the tab order follow it.

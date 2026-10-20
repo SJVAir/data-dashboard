@@ -103,6 +103,18 @@ test("widget ⋯ menu and right-click show the same items", async () => {
 	// Dashboard actions stay in the dashboard's own menu.
 	expect(fromButton).not.toContain("Add widget");
 	expect(fromButton).not.toContain("Rename dashboard…");
+	// Undo's text includes its shortcut, so check the start.
+	expect(fromButton.some((name) => name?.startsWith("Undo"))).toBe(false);
+});
+
+test("the dashboard's own menu has its actions plus Undo and Redo", async () => {
+	const { app } = await setup();
+	await renderGrid(app);
+	await page.getByText("This dashboard is empty.").click({ button: "right" });
+	// Undo and Redo also show their shortcut, so match the start of the name.
+	for (const name of [/^Add widget/, /^Rename dashboard…/, /^Undo/, /^Redo/]) {
+		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
+	}
 });
 
 test("a widget is a named group announcing its menu shortcut, not a region landmark", async () => {
