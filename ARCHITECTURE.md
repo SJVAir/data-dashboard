@@ -2021,8 +2021,10 @@ Decided 2026-09-24.
   catches contract drift.
 - **CI** (decided 2026-09-24): **PRs into `main` run the full suite**: unit, component,
   and three-engine E2E (Chromium, WebKit, Firefox) plus axe. Merging to `main` is
-  effectively a deploy, so this is the pre-production gate. PRs between feature branches
-  run the fast set (unit, component, Chromium E2E).
+  effectively a deploy, so this is the pre-production gate. PRs into the `foundations`
+  integration branch also run the full suite (decided 2026-10-20: GitHub can only start a
+  workflow by hand once it is on `main`). Other PRs between feature branches run the fast
+  set (unit, component, Chromium E2E).
 
 ## Deployment
 
