@@ -2,6 +2,7 @@
 	import { Router } from "sv-router";
 	import { globalActions } from "$lib/actions/global";
 	import { menuScope } from "$lib/actions/scope";
+	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 	import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
 	import TopNav from "$lib/components/shell/TopNav.svelte";
 	import { Toaster } from "$lib/components/ui/sonner";
@@ -19,4 +20,5 @@
 	</main>
 </div>
 <RenameDialog />
+<ConflictDialog />
 <Toaster />

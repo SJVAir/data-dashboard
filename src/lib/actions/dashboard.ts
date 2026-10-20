@@ -94,9 +94,15 @@ export async function leaveDeletedDashboard(
 	await goHome(await homeTarget(app));
 }
 
-function deleteDashboard(app: AppContext): void {
-	const { session, isStarter } = app.current;
-	if (!session || session.readOnly || isStarter) return;
+/**
+ * Soft-deletes `session`'s dashboard with an Undo toast. `onUndone` runs once the restore has
+ * been stored and the index refreshed.
+ */
+function softDelete(
+	app: AppContext,
+	session: DocumentSession,
+	onUndone: (id: string) => void | Promise<void>
+): void {
 	const id = session.doc.id;
 	const deletedAt = new Date().toISOString();
 	const restore: Change = {
@@ -105,7 +111,6 @@ function deleteDashboard(app: AppContext): void {
 		from: deletedAt,
 		to: null
 	};
-	// The page leaves a dashboard once it's deleted (`leaveDeletedDashboard`).
 	session.apply({ ...restore, from: session.doc.deletedAt ?? null, to: deletedAt });
 	toast(m.dashboard_deleted(), {
 		action: {
@@ -115,10 +120,60 @@ function deleteDashboard(app: AppContext): void {
 				void session
 					.flush()
 					.then(() => app.index.refresh())
-					.then(() => openDashboard(id));
+					.then(() => onUndone(id));
 			}
 		}
 	});
+}
+
+function deleteDashboard(app: AppContext): void {
+	const { session, isStarter } = app.current;
+	if (!session || session.readOnly || isStarter) return;
+	// The page leaves a dashboard once it's deleted (`leaveDeletedDashboard`).
+	softDelete(app, session, (id) => openDashboard(id));
+}
+
+/**
+ * The actions for one dashboard in the list (not necessarily the current one): rename,
+ * duplicate, and delete, working on that dashboard's own session.
+ */
+export function dashboardRowActions(app: AppContext, id: string): MenuProvider {
+	const withSession = async (fn: (session: DocumentSession) => void | Promise<void>) => {
+		const session = await app.sessions.get(id);
+		if (session && !session.readOnly) await fn(session);
+	};
+	return () => [
+		{
+			id: "rename-dashboard",
+			label: m.dashboard_rename(),
+			icon: Pencil,
+			group: "manage",
+			run: () => void withSession((session) => renameDashboard(app, () => session))
+		},
+		{
+			id: "duplicate-dashboard",
+			label: m.dashboard_duplicate(),
+			icon: Copy,
+			group: "manage",
+			run: () =>
+				void withSession(async (session) => {
+					await session.flush();
+					await app.index.duplicate(id);
+				})
+		},
+		{
+			id: "delete-dashboard",
+			label: m.dashboard_delete(),
+			icon: Trash2,
+			group: "manage",
+			run: () =>
+				void withSession(async (session) => {
+					softDelete(app, session, () => {});
+					await session.flush();
+					await app.index.refresh();
+				})
+		}
+	];
 }
 
 /** The dashboard's actions; provided on the dashboard and listed in the picker. */
