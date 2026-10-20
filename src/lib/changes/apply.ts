@@ -71,3 +71,19 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 		}
 	}
 }
+
+/**
+ * The change exactly as `applyChange` carried it out, rebuilt from its inverse: the clamped
+ * insert index, the widget actually removed, and the field's actual prior value as `from`.
+ * Rebase and undo record this rather than the requested change, whose details may be stale.
+ */
+export function appliedChange(inverse: Change): Change {
+	switch (inverse.op) {
+		case "addWidget":
+			return { ...inverse, op: "removeWidget" };
+		case "removeWidget":
+			return { ...inverse, op: "addWidget" };
+		case "setField":
+			return { ...inverse, from: inverse.to, to: inverse.from };
+	}
+}
