@@ -12,6 +12,11 @@
 	let items = $state<MenuItem[]>([]);
 	let ctx = $state<MenuContext | null>(null);
 
+	// Touch/pen long-press opens the menu without a `contextmenu` event, so resolve on pointerdown.
+	function onPointerdown(event: PointerEvent) {
+		if (event.pointerType !== "mouse") resolveFor(event);
+	}
+
 	// Resolved before bits-ui's trigger handles the same event, so the content is ready on open.
 	function resolveFor(event: Event) {
 		const target = event.target;
@@ -38,15 +43,14 @@
 		);
 	}
 
-	const dropdownCtx = $derived<MenuContext | null>(
-		dropdown.anchor ? { target: dropdown.anchor, payload: {} } : null
-	);
+	const anchor = $derived(dropdown.ctx?.target as HTMLElement | undefined);
 </script>
 
 <ContextMenu.Root>
 	<ContextMenu.Trigger
 		class="contents"
 		oncontextmenucapture={resolveFor}
+		onpointerdowncapture={onPointerdown}
 		onkeydowncapture={onKeydown}
 	>
 		{@render children()}
@@ -59,9 +63,15 @@
 </ContextMenu.Root>
 
 <DropdownMenu.Root bind:open={dropdown.open}>
-	<DropdownMenu.Content customAnchor={dropdown.anchor as HTMLElement | null}>
-		{#if dropdownCtx}
-			<MenuItems items={dropdown.items} ctx={dropdownCtx} kind="dropdown" />
+	<DropdownMenu.Content
+		customAnchor={anchor ?? null}
+		onCloseAutoFocus={(e) => {
+			e.preventDefault();
+			anchor?.focus();
+		}}
+	>
+		{#if dropdown.ctx}
+			<MenuItems items={dropdown.items} ctx={dropdown.ctx} kind="dropdown" />
 		{/if}
 	</DropdownMenu.Content>
 </DropdownMenu.Root>

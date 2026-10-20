@@ -43,3 +43,39 @@ test("openMenuFor renders the same items in a dropdown", async () => {
 	await page.getByRole("button", { name: "More" }).click();
 	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).toBeVisible();
 });
+
+test("openMenuFor passes its payload to run", async () => {
+	const run = vi.fn();
+	const outer: MenuItem[] = [{ id: "add", label: "Add widget", group: "d", run }];
+	await render(Harness, { inner: [], outer, payload: { widgetId: "w1" } });
+	await page.getByRole("button", { name: "More" }).click();
+	await page.getByRole("menuitem", { name: "Add widget" }).click();
+	expect(run.mock.calls[0][0].payload).toEqual({ widgetId: "w1" });
+});
+
+test("focus returns to the ⋯ button after Escape", async () => {
+	const { inner, outer } = setup();
+	await render(Harness, { inner, outer });
+	const more = page.getByRole("button", { name: "More" });
+	await more.click();
+	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).toBeVisible();
+	await userEvent.keyboard("{Escape}");
+	await expect.element(more).toHaveFocus();
+});
+
+test("long-press with touch resolves the target's items", async () => {
+	const { inner, outer } = setup();
+	await render(Harness, { inner, outer });
+	const el = page.getByTestId("focusable").element();
+	const rect = el.getBoundingClientRect();
+	el.dispatchEvent(
+		new PointerEvent("pointerdown", {
+			bubbles: true,
+			pointerType: "touch",
+			clientX: rect.left + 2,
+			clientY: rect.top + 2
+		})
+	);
+	await new Promise((r) => setTimeout(r, 900));
+	await expect.element(page.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+});

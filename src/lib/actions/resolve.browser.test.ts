@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { groupItems, resolveMenu } from "./resolve";
-import { menuScope } from "./scope";
+import { menuScope, providerFor } from "./scope";
 import type { MenuItem, MenuProvider } from "./types";
 
 function item(id: string, group = "g", label = id): MenuItem {
@@ -58,4 +58,12 @@ test("groups keep first-seen order", () => {
 		["1", "3"],
 		["2", "4"]
 	]);
+});
+
+test("menuScope teardown removes the provider", () => {
+	const el = document.createElement("div");
+	const cleanup = menuScope(() => [])(el) as () => void;
+	expect(providerFor(el)).toBeDefined();
+	cleanup();
+	expect(providerFor(el)).toBeUndefined();
 });

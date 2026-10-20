@@ -4,7 +4,11 @@
 	import ContextMenuHost from "../ContextMenuHost.svelte";
 	import { openMenuFor } from "../menu-state.svelte";
 
-	let { outer, inner }: { outer: MenuItem[]; inner: MenuItem[] } = $props();
+	let {
+		outer,
+		inner,
+		payload = {}
+	}: { outer: MenuItem[]; inner: MenuItem[]; payload?: Record<string, unknown> } = $props();
 	let more = $state<HTMLButtonElement>();
 </script>
 
@@ -13,6 +17,6 @@
 		<div {@attach menuScope(() => inner)} data-testid="inner">
 			<button data-testid="focusable">Focus me</button>
 		</div>
-		<button bind:this={more} onclick={() => more && openMenuFor(more)}>More</button>
+		<button bind:this={more} onclick={() => more && openMenuFor(more, payload)}>More</button>
 	</div>
 </ContextMenuHost>
