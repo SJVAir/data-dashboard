@@ -395,6 +395,20 @@ describe("DocumentSession journal", () => {
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
 	});
 
+	it("the page becoming hidden also writes the pending changes", async () => {
+		const page = Object.assign(new EventTarget(), { visibilityState: "hidden" });
+		vi.stubGlobal("document", page);
+		const { platform, session } = await setup();
+		session.apply(title("a", "Ozone"));
+		// The commit is held: mobile browsers may kill a hidden tab before it finishes.
+		platform.documents.commit = () => new Promise(() => {});
+
+		page.dispatchEvent(new Event("visibilitychange"));
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([
+			{ tabId: "tab-1", record: record([title("a", "Ozone")]) }
+		]);
+	});
+
 	it("pagehide writes nothing when nothing is pending", async () => {
 		const win = new EventTarget();
 		vi.stubGlobal("window", win);
@@ -445,6 +459,65 @@ describe("DocumentSession journal", () => {
 
 		await session!.resolveConflict("keep-mine");
 		expect((await stored(platform)).body.widgets[0].title).toBe("Mine");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("open replays only the part of a record that wasn't stored", async () => {
+		const { platform } = await setup();
+		// The tab's first edit was stored; the page went away before the second one was.
+		await saveAs(platform, "gone", [title("a", "Ozone")]);
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Ozone"), rename("Home")]));
+
+		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-3");
+		expect(session!.conflict).toBeNull();
+		expect(session!.doc.body.widgets[0].title).toBe("Ozone");
+		expect(session!.doc.name).toBe("Home");
+		const saved = await stored(platform);
+		expect(saved.version).toBe(2);
+		expect(saved.name).toBe("Home");
+		expect(await platform.documents.readLog(SPACE, "d1", 0)).toHaveLength(2);
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("two tabs opening a dashboard with a record both replay it without a conflict", async () => {
+		const { platform } = await setup();
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Ozone")]));
+
+		const [one, two] = await Promise.all([
+			DocumentSession.open(platform, SPACE, "d1", "tab-3"),
+			DocumentSession.open(platform, SPACE, "d1", "tab-4")
+		]);
+		await Promise.all([one!.flush(), two!.flush()]);
+		expect(one!.conflict).toBeNull();
+		expect(two!.conflict).toBeNull();
+		expect(one!.doc.body.widgets[0].title).toBe("Ozone");
+		expect(two!.doc.body.widgets[0].title).toBe("Ozone");
+		expect((await stored(platform)).body.widgets[0].title).toBe("Ozone");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("open keeps a record from a newer schema without replaying it", async () => {
+		const { platform } = await setup();
+		const newer = { ...record([title("a", "Ozone")]), schemaVersion: 2 };
+		platform.journal.write(SPACE, "d1", "newer", newer);
+
+		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-3");
+		expect(session!.doc).toEqual(makeDoc());
+		expect((await stored(platform)).version).toBe(0);
+		// A newer bundle replays it.
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([{ tabId: "newer", record: newer }]);
+	});
+
+	it("open discards a record the trimmed log no longer covers", async () => {
+		const { platform } = await setup();
+		await saveAs(platform, "tab-2", [rename("Home")]);
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Ozone")]));
+		platform.documents.readLog = async () => "trimmed";
+
+		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-3");
+		expect(session!.conflict).toBeNull();
+		expect(session!.doc.body.widgets[0].title).toBeNull();
+		expect((await stored(platform)).version).toBe(1);
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
 	});
 

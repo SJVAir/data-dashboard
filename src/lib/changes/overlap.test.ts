@@ -65,6 +65,11 @@ describe("changesOverlap", () => {
 		expect(changesOverlap(name("One"), name("Two"))).toBe(true);
 	});
 
+	it("two edits setting the same field to the same value agree, so they do not overlap", () => {
+		expect(changesOverlap(title("a", "One"), title("a", "One"))).toBe(false);
+		expect(changesOverlap(name("One"), name("One"))).toBe(false);
+	});
+
 	it("both sides removing the same widget agree, so they do not overlap", () => {
 		expect(changesOverlap(remove("a"), remove("a"))).toBe(false);
 	});

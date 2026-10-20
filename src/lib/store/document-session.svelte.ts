@@ -54,9 +54,9 @@ type StoredState = { stored: Dashboard; entries: LogEntry[] | null; theirs: Chan
  * overlap sets `conflict` and pauses saving until `resolveConflict`.
  *
  * Reloads and closes: IndexedDB writes started as the page goes away may never finish, so on
- * `pagehide` the pending changes are also written synchronously to `platform.journal`. `open`
- * replays any journal records for the dashboard (as a catch-up would), and a tab's record is
- * cleared once its changes are stored.
+ * `pagehide` (or the page becoming hidden) the pending changes are also written synchronously
+ * to `platform.journal`. `open` replays any journal records for the dashboard (as a catch-up
+ * would), and a tab's record is cleared once its changes are stored.
  */
 export class DocumentSession {
 	// Raw: the document is replaced, never mutated, and must stay structured-cloneable.
@@ -118,8 +118,11 @@ export class DocumentSession {
 		if (typeof document !== "undefined") {
 			const doc = document;
 			this.#listen(doc, "visibilitychange", () => {
-				if (doc.visibilityState === "hidden") void this.flush();
-				else void this.#requestCatchUp();
+				// Mobile browsers may kill a hidden tab without `pagehide`.
+				if (doc.visibilityState === "hidden") {
+					this.#writeJournal();
+					void this.flush();
+				} else void this.#requestCatchUp();
 			});
 		}
 	}
@@ -468,13 +471,14 @@ export class DocumentSession {
 	/**
 	 * Replay the journal records left for this dashboard by tabs that went away: each is caught
 	 * up like pending changes (stored if clean, the conflict prompt on an overlap). Invalid
-	 * records are discarded, and a record whose changes are already in the log is skipped.
+	 * records are discarded, and a record whose changes are already in the log is skipped. A
+	 * record from a newer schema is left for a newer version of the app to replay.
 	 */
 	#replayJournal(): Promise<void> {
 		return this.#enqueue(async () => {
 			const { journal } = this.#platform;
 			for (const { tabId, record } of journal.readAll(this.#space, this.doc.id)) {
-				if (tabId === this.#tabId || this.conflict) continue;
+				if (tabId === this.#tabId || this.conflict || isNewerRecord(record)) continue;
 				const parsed = JournalRecordSchema.safeParse(record);
 				if (!parsed.success) {
 					journal.clear(this.#space, this.doc.id, tabId);
@@ -488,29 +492,32 @@ export class DocumentSession {
 	async #replayRecord(tabId: string, { baseVersion, changes }: JournalRecord): Promise<void> {
 		const state = await this.#readStored(baseVersion);
 		if (!state) return;
-		const { stored, entries, theirs } = state;
+		const { stored, entries } = state;
 		const clear = () => this.#platform.journal.clear(this.#space, this.doc.id, tabId);
 		if (baseVersion > stored.version) return clear();
-		// Its save finished after all (the page lived long enough).
-		const saved = entries?.filter((e) => e.tabId === tabId).length ?? 0;
-		if (saved >= changes.length) return clear();
+		// The log no longer reaches back to the record's base, so there's no telling which of its
+		// changes were stored before the page went away; replaying them blind could apply them
+		// twice, or over newer edits without a prompt. Discarded (a rare loss: 500 saves since).
+		if (entries === null) return clear();
+		// The tab's own saves that finished (the page lived long enough) are the start of the
+		// record; only the rest is replayed, against what other tabs stored.
+		const saved = entries.filter((e) => e.tabId === tabId).length;
+		const mine = changes.slice(saved);
+		if (mine.length === 0) return clear();
+		const theirs = entries.filter((e) => e.tabId !== tabId).map((e) => e.change);
 
 		this.#replayed.push(tabId);
-		if (theirs !== null) {
-			const result = rebase(stored, theirs, changes);
-			if (result.kind === "conflict") {
-				// Shown with the replayed changes on top, as a tab with unsaved edits would be.
-				const { doc, applied } = applyForced(stored, changes);
-				this.doc = doc;
-				this.#pending = applied;
-				this.conflict = { pairs: result.pairs };
-				this.status = "error";
-				return;
-			}
-			return this.#adopt(result.doc, result.changes);
+		const result = rebase(stored, theirs, mine);
+		if (result.kind === "conflict") {
+			// Shown with the replayed changes on top, as a tab with unsaved edits would be.
+			const { doc, applied } = applyForced(stored, mine);
+			this.doc = doc;
+			this.#pending = applied;
+			this.conflict = { pairs: result.pairs };
+			this.status = "error";
+			return;
 		}
-		const { doc, applied } = applyForced(stored, changes);
-		return this.#adopt(doc, applied);
+		return this.#adopt(result.doc, result.changes);
 	}
 
 	#schedule(): void {
@@ -532,4 +539,11 @@ export class DocumentSession {
 		target.addEventListener(type, fn);
 		this.#listeners.push({ target, type, fn });
 	}
+}
+
+/** A journal record written by a newer version of the app, which this one can't replay. */
+function isNewerRecord(record: unknown): boolean {
+	if (typeof record !== "object" || record === null || !("schemaVersion" in record)) return false;
+	const { schemaVersion } = record;
+	return typeof schemaVersion === "number" && schemaVersion > CURRENT_SCHEMA_VERSION;
 }
