@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from "svelte";
+	import { leaveDeletedDashboard } from "$lib/actions/dashboard";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { STARTER_ID } from "$lib/starter/starter";
@@ -35,6 +36,14 @@
 		return () => {
 			active = false;
 		};
+	});
+
+	// Deleted while shown (Delete, or undoing the toast's restore): move on, as Delete does.
+	$effect(() => {
+		const session = app.current.session;
+		if (!session || typeof session.doc.deletedAt !== "string") return;
+		if (session.doc.id !== untrack(() => route.params.id)) return;
+		void leaveDeletedDashboard(app, session);
 	});
 
 	$effect(() => {

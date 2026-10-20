@@ -79,7 +79,22 @@ async function duplicateDashboard(app: AppContext): Promise<void> {
 	if (copy) renameDashboard(app, () => copy);
 }
 
-async function deleteDashboard(app: AppContext): Promise<void> {
+/**
+ * Leaves `session`'s dashboard, which was just deleted (by Delete or by undoing its restore):
+ * opens what `/workspace/` resolves to among the rest.
+ */
+export async function leaveDeletedDashboard(
+	app: AppContext,
+	session: DocumentSession
+): Promise<void> {
+	await session.flush();
+	await app.index.refresh();
+	// Restored meanwhile, or the person moved on.
+	if (session.doc.deletedAt === undefined || app.current.session !== session) return;
+	await goHome(await homeTarget(app));
+}
+
+function deleteDashboard(app: AppContext): void {
 	const { session, isStarter } = app.current;
 	if (!session || session.readOnly || isStarter) return;
 	const id = session.doc.id;
@@ -90,10 +105,8 @@ async function deleteDashboard(app: AppContext): Promise<void> {
 		from: deletedAt,
 		to: null
 	};
+	// The page leaves a dashboard once it's deleted (`leaveDeletedDashboard`).
 	session.apply({ ...restore, from: session.doc.deletedAt ?? null, to: deletedAt });
-	await session.flush();
-	await app.index.refresh();
-	await goHome(await homeTarget(app));
 	toast(m.dashboard_deleted(), {
 		action: {
 			label: m.undo(),
@@ -159,7 +172,7 @@ export function dashboardActions(app: AppContext): MenuProvider {
 				group: "manage",
 				// The starter is built in; it can't be deleted.
 				disabled: locked || isStarter,
-				run: () => void deleteDashboard(app)
+				run: () => deleteDashboard(app)
 			}
 		];
 	};

@@ -251,3 +251,40 @@ test("duplicate opens the copy with the rename dialog's text selected", async ()
 	expect(app.current.session?.doc.id).toBe(copyId);
 	expect(session.doc.name).toBe("Home");
 });
+
+test("a widget's undo restores it on its own dashboard after switching", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	const otherId = await app.index.createBlank();
+	const other = (await app.sessions.get(otherId))!;
+	await renderGrid(app);
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+	const toastItem = page.getByRole("listitem").filter({ hasText: "Widget deleted" });
+	await expect.element(toastItem).toBeVisible();
+
+	app.current = { session: other, isStarter: false };
+	await toastItem.getByRole("button", { name: "Undo" }).click();
+	expect(other.doc.body.widgets).toHaveLength(0);
+	expect(session.doc.body.widgets.map((w) => w.id)).toEqual(["a"]);
+});
+
+test("undoing a dashboard's restore leaves it again", async () => {
+	const { app, id, session } = await setup();
+	session.apply({ op: "setField", target: { path: "name" }, from: null, to: "Home" });
+	history.replaceState(null, "", `/workspace/dashboards/${id}`);
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await page.getByRole("button", { name: "Home" }).click();
+	await page.getByRole("menuitem", { name: "Delete dashboard" }).click();
+	const toastItem = page.getByRole("listitem").filter({ hasText: "Dashboard deleted" });
+	await toastItem.getByRole("button", { name: "Undo" }).click();
+	await expect.poll(() => app.current.session).toBe(session);
+	expect(session.doc.deletedAt).toBeUndefined();
+
+	// Ctrl+Z undoes the restore while the dashboard is shown: the page moves on.
+	session.undo();
+	expect(typeof session.doc.deletedAt).toBe("string");
+	await expect.poll(() => app.current.isStarter).toBe(true);
+	expect(location.pathname).toMatch(/^\/workspace\/?$/);
+	expect(app.index.items).toHaveLength(0);
+});

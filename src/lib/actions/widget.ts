@@ -2,6 +2,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
+import { ChangeTargetMissing } from "$lib/changes/apply";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
@@ -80,10 +81,13 @@ function remove(app: AppContext, widgetId: string): void {
 		action: {
 			label: m.undo(),
 			onClick: () => {
-				// The current session: a starter's delete went to its copy.
-				const target = app.current.session;
-				if (!target || target.doc.body.widgets.some((w) => w.id === widgetId)) return;
-				target.apply({ op: "addWidget", target: { widgetId }, widget, index });
+				// The dashboard it was deleted from (a starter forwards to its copy), even if
+				// another dashboard is current now. Skipped if the widget is already back.
+				try {
+					session.apply({ op: "addWidget", target: { widgetId }, widget, index });
+				} catch (error) {
+					if (!(error instanceof ChangeTargetMissing)) throw error;
+				}
 			}
 		}
 	});
