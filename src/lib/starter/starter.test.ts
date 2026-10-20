@@ -139,10 +139,12 @@ describe("starterSession", () => {
 
 	it("first edit of the starter creates a stored copy with copiedFrom starter and the edit applied", async () => {
 		const { platform, copies } = await setup();
-		const stored = (await platform.documents.get(SPACE, copies[0])) as Dashboard;
-		expect(stored.copiedFrom).toBe(STARTER_ID);
-		expect(stored.name).toBeNull();
-		expect(stored.body.widgets[0].title).toBe("Fresno");
+		await vi.waitFor(async () => {
+			const stored = (await platform.documents.get(SPACE, copies[0])) as Dashboard;
+			expect(stored.copiedFrom).toBe(STARTER_ID);
+			expect(stored.name).toBeNull();
+			expect(stored.body.widgets[0].title).toBe("Fresno");
+		});
 		expect(await platform.documents.list(SPACE)).toHaveLength(1);
 	});
 
@@ -160,6 +162,42 @@ describe("starterSession", () => {
 			expect(stored.body.widgets[1].title).toBe("Visalia");
 		});
 		expect(copies).toHaveLength(1);
+	});
+
+	it("edits made on the starter during the hand-off apply before edits made on the copy", async () => {
+		const platform = createMemoryPlatform();
+		// The copy's creation is stored at once; its later saves wait until released.
+		const commit = platform.documents.commit;
+		let release!: () => void;
+		const held = new Promise<void>((resolve) => (release = resolve));
+		platform.documents.commit = async (space, request) => {
+			if (request.baseVersion !== null) await held;
+			return commit(space, request);
+		};
+		const copied: { session?: DocumentSession } = {};
+		const starter = starterSession({
+			platform,
+			space: SPACE,
+			tabId: "tab-1",
+			now: () => NOW,
+			onCopied: (session) => (copied.session = session)
+		});
+		starter.apply(renameWidget("starter-1", "Fresno"));
+		// Made while the copy is being stored, so it waits for the hand-off.
+		starter.apply(renameWidget("starter-2", "Visalia"));
+		await vi.waitFor(() => expect(copied.session).toBeDefined());
+		// The copy is current now, so the next edit goes to it directly.
+		const copy = copied.session!;
+		copy.apply(renameWidget("starter-2", "Merced"));
+		release();
+		await vi.waitFor(async () => {
+			const stored = (await platform.documents.get(SPACE, copy.doc.id)) as Dashboard;
+			expect(stored.version).toBeGreaterThanOrEqual(3);
+		});
+		await copy.flush();
+		expect(copy.doc.body.widgets[1].title).toBe("Merced");
+		const stored = (await platform.documents.get(SPACE, copy.doc.id)) as Dashboard;
+		expect(stored.body.widgets[1].title).toBe("Merced");
 	});
 
 	it("undo after the copy reverts the edit but the copy remains", async () => {

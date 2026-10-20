@@ -120,7 +120,9 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 			const copy = new DocumentSession({ platform, space, tabId, channel, debounceMs, now, doc });
 			copy.apply(change);
 			opts.onCopied?.(copy);
-			await copy.flush();
+			// Not awaited: edits queued on the starter during the hand-off must reach the copy
+			// before any edit made on it directly, now that it's current.
+			void copy.flush();
 			return copy;
 		}
 	});

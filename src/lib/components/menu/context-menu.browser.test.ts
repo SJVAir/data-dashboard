@@ -76,6 +76,8 @@ test("long-press with touch resolves the target's items", async () => {
 			clientY: rect.top + 2
 		})
 	);
-	await new Promise((r) => setTimeout(r, 900));
-	await expect.element(page.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+	// bits-ui's own long-press timer opens it; polled generously rather than slept on.
+	await expect
+		.element(page.getByRole("menuitem", { name: "Rename" }), { timeout: 5000 })
+		.toBeVisible();
 });
