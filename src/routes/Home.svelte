@@ -10,6 +10,8 @@
 
 	// `/` shows the starter in place, or moves on to the dashboard it resolves to.
 	onMount(() => {
+		// Until the target resolves, nothing is current: undo must not reach the last page's dashboard.
+		app.current = { session: null, isStarter: false };
 		let active = true;
 		void (async () => {
 			const target = await homeTarget(app);

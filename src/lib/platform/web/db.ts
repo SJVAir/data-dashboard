@@ -13,8 +13,18 @@ export interface WorkspaceDB extends DBSchema {
 	syncQueue: { key: [SpaceId, string]; value: { space: SpaceId; id: string } };
 }
 
-export async function openWorkspaceDB(): Promise<IDBPDatabase<WorkspaceDB>> {
+export type OpenOptions = {
+	/** The open is waiting for another tab's older connection to close. */
+	onBlocked?: () => void;
+};
+
+export async function openWorkspaceDB(
+	options: OpenOptions = {}
+): Promise<IDBPDatabase<WorkspaceDB>> {
 	const db = await openDB<WorkspaceDB>(DB_NAME, 1, {
+		blocked() {
+			options.onBlocked?.();
+		},
 		blocking() {
 			// Another connection wants to delete or upgrade the database; let it.
 			db.close();

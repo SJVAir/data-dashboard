@@ -8,7 +8,7 @@ import {
 	type Platform,
 	type SpaceId
 } from "../types";
-import { openWorkspaceDB, type WorkspaceDB } from "./db";
+import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
 
 const logRange = (space: SpaceId, docId: string, from = 0) =>
 	IDBKeyRange.bound([space, docId, from], [space, docId, Number.MAX_SAFE_INTEGER]);
@@ -18,8 +18,8 @@ function strip(row: LogEntry & { space: SpaceId }): LogEntry {
 	return { docId, version, change, tabId, schemaVersion };
 }
 
-export async function createWebPlatform(): Promise<Platform> {
-	const db: IDBPDatabase<WorkspaceDB> = await openWorkspaceDB();
+export async function createWebPlatform(options: OpenOptions = {}): Promise<Platform> {
+	const db: IDBPDatabase<WorkspaceDB> = await openWorkspaceDB(options);
 
 	return {
 		documents: {

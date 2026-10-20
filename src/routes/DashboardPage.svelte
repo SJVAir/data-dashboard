@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from "svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { currentDashboardName, useApp } from "$lib/store/app.svelte";
 	import { route } from "../router";
@@ -13,7 +14,10 @@
 		if (!id) return;
 		let active = true;
 		missing = false;
-		app.current = { session: null, isStarter: false };
+		// Already current after the starter's hand-off to its copy: keep it, no flicker.
+		if (untrack(() => app.current.session?.doc.id) !== id) {
+			app.current = { session: null, isStarter: false };
+		}
 		void app.sessions.get(id).then((session) => {
 			if (!active) return;
 			missing = session === null;
