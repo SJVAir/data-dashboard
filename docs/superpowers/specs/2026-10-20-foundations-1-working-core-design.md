@@ -262,7 +262,9 @@ Per "Starter dashboard", with placeholder contents until step 4:
 
 Per "Actions & context menu": `MenuItem`, `MenuContext`, `MenuProvider`, the `menuScope`
 attachment with its `WeakMap`, resolution by walking DOM ancestry, most-specific-first
-merge with `id` overrides, grouped sections. Pure logic is unit-tested. Rendered by the
+merge with `id` overrides, grouped sections. Only the innermost scope contributes all its
+items; outer scopes add only items marked `bubbles` (Undo / Redo), so a widget's menu has
+no dashboard actions (decided 2026-10-20, after trying the first build). Pure logic is unit-tested. Rendered by the
 shadcn-svelte `context-menu` (bits-ui) as one trigger around the dashboard, opened by
 right-click, long-press, and Shift+F10 / the Menu key. The widget ⋯ menu calls the same
 resolution with that widget as the target.

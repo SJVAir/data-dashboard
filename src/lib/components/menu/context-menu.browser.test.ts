@@ -7,7 +7,9 @@ import Harness from "./test-harness/Harness.svelte";
 function setup() {
 	const run = vi.fn();
 	const inner: MenuItem[] = [{ id: "rename", label: "Rename", group: "widget", run }];
-	const outer: MenuItem[] = [{ id: "add", label: "Add widget", group: "dashboard", run: vi.fn() }];
+	const outer: MenuItem[] = [
+		{ id: "add", label: "Add widget", group: "dashboard", bubbles: true, run: vi.fn() }
+	];
 	return { run, inner, outer };
 }
 

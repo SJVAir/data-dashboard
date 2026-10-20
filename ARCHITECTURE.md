@@ -1245,6 +1245,7 @@ type MenuItem = {
 	shortcut?: string;
 	group: string; // rendered as separated sections
 	disabled?: boolean;
+	bubbles?: boolean; // also shown in nested scopes' menus; off by default
 	children?: MenuItem[]; // nesting / submenus
 	run(ctx: MenuContext): void;
 };
@@ -1264,6 +1265,9 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   feature-scoped items through `MapPlugin.contextMenu` (see "Map SDK").
 - **Merge order: most specific first** — feature → widget → dashboard → global,
   grouped with separators. An inner item with the same `id` overrides the outer one.
+- **Only the innermost scope shows all its items** (decided 2026-10-20). Outer scopes
+  add only items marked `bubbles`, so a widget's menu doesn't list dashboard actions
+  like Add widget or Rename dashboard. Undo / Redo bubble, so they appear everywhere.
 - **Rendered with bits-ui's `ContextMenu`** (shadcn-svelte `context-menu`): one
   trigger around the dashboard, items computed on open. Provides submenus, keyboard
   navigation, ARIA roles, and viewport collision handling. Opens via right-click,

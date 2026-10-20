@@ -7,6 +7,10 @@ function item(id: string, group = "g", label = id): MenuItem {
 	return { id, label, group, run: () => {} };
 }
 
+function bubbling(id: string, group = "g", label = id): MenuItem {
+	return { ...item(id, group, label), bubbles: true };
+}
+
 function scoped(provider: MenuProvider, parent: Element): HTMLElement {
 	const el = document.createElement("div");
 	menuScope(provider)(el);
@@ -16,7 +20,7 @@ function scoped(provider: MenuProvider, parent: Element): HTMLElement {
 
 test("inner items come first", () => {
 	const root = document.createElement("div");
-	const outer = scoped(() => [item("outer")], root);
+	const outer = scoped(() => [bubbling("outer")], root);
 	const inner = scoped(() => [item("inner")], outer);
 	document.body.append(root);
 	expect(resolveMenu(inner, { payload: {} }).map((i) => i.id)).toEqual(["inner", "outer"]);
@@ -25,11 +29,24 @@ test("inner items come first", () => {
 
 test("inner id overrides outer", () => {
 	const root = document.createElement("div");
-	const outer = scoped(() => [item("a", "g", "outer"), item("b")], root);
+	const outer = scoped(() => [bubbling("a", "g", "outer"), bubbling("b")], root);
 	const inner = scoped(() => [item("a", "g", "inner")], outer);
 	const items = resolveMenu(inner, { payload: {} });
 	expect(items.map((i) => i.id)).toEqual(["a", "b"]);
 	expect(items[0].label).toBe("inner");
+});
+
+test("outer items stay out of nested menus unless they bubble", () => {
+	const root = document.createElement("div");
+	const app = scoped(() => [bubbling("undo"), item("about")], root);
+	const dashboard = scoped(() => [item("add"), item("rename-dashboard")], app);
+	const widget = scoped(() => [item("rename-widget")], dashboard);
+	expect(resolveMenu(widget, { payload: {} }).map((i) => i.id)).toEqual(["rename-widget", "undo"]);
+	expect(resolveMenu(dashboard, { payload: {} }).map((i) => i.id)).toEqual([
+		"add",
+		"rename-dashboard",
+		"undo"
+	]);
 });
 
 test("elements without providers are skipped", () => {

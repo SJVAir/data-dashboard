@@ -13,6 +13,8 @@ export type MenuItem = {
 	shortcut?: string;
 	group: string; // rendered as separated sections
 	disabled?: boolean;
+	/** Also show in menus of scopes nested inside this one. Off by default. */
+	bubbles?: boolean;
 	children?: MenuItem[];
 	run(ctx: MenuContext): void;
 };

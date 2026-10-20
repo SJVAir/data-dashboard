@@ -99,9 +99,10 @@ test("widget ⋯ menu and right-click show the same items", async () => {
 	await expect.element(page.getByRole("menuitem", { name: "Rename widget…" })).toBeVisible();
 	const fromRightClick = await names();
 	expect(fromRightClick).toEqual(fromButton);
-	expect(fromButton).toEqual(
-		expect.arrayContaining(["Duplicate widget", "Delete widget", "Add widget"])
-	);
+	expect(fromButton).toEqual(expect.arrayContaining(["Duplicate widget", "Delete widget"]));
+	// Dashboard actions stay in the dashboard's own menu.
+	expect(fromButton).not.toContain("Add widget");
+	expect(fromButton).not.toContain("Rename dashboard…");
 });
 
 test("a widget is a named group announcing its menu shortcut, not a region landmark", async () => {
