@@ -198,6 +198,54 @@ describe("DocumentSession", () => {
 		expect(session.status).toBe("saved");
 	});
 
+	it("a commit that throws outside storage leaves later saves working", async () => {
+		const unhandled = vi.fn();
+		process.on("unhandledRejection", unhandled);
+		try {
+			let calls = 0;
+			const now = () => {
+				if (calls++ === 0) throw new Error("clock failed");
+				return NOW;
+			};
+			const { platform, session } = await setup({ now });
+			session.apply(rename("Home"));
+			await vi.advanceTimersByTimeAsync(500);
+			expect(session.status).toBe("error");
+			expect(session.doc.name).toBe("Home");
+
+			session.apply(title("a", "Map"));
+			await vi.advanceTimersByTimeAsync(500);
+			const saved = await stored(platform);
+			expect(saved.version).toBe(2);
+			expect(saved.name).toBe("Home");
+			expect(session.status).toBe("saved");
+			expect(unhandled).not.toHaveBeenCalled();
+		} finally {
+			process.off("unhandledRejection", unhandled);
+		}
+	});
+
+	it("a refused commit passes the stored version to catchUp, and its failure is an error", async () => {
+		const { platform } = await setup();
+		const seen: number[] = [];
+		class Failing extends DocumentSession {
+			protected override async catchUp(storedVersion: number): Promise<void> {
+				seen.push(storedVersion);
+				throw new Error("catch-up failed");
+			}
+		}
+		const other = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t2" });
+		other.apply(rename("Theirs"));
+		await other.flush();
+
+		const session = new Failing({ platform, space: SPACE, doc: makeDoc(), tabId: "tab-1" });
+		session.apply(title("a", "Map"));
+		await session.flush();
+		expect(seen).toEqual([1]);
+		expect(session.status).toBe("error");
+		expect(session.doc.body.widgets[0].title).toBe("Map");
+	});
+
 	it("read-only session refuses apply", async () => {
 		const { platform, session } = await setup({ readOnly: "newer" });
 		const commit = vi.spyOn(platform.documents, "commit");

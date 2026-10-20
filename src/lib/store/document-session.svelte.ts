@@ -141,7 +141,12 @@ export class DocumentSession {
 	/** Commit pending changes now. Commits run one at a time, in order. */
 	flush(): Promise<void> {
 		this.#clearTimer();
-		this.#commits = this.#commits.then(() => this.#commitPending());
+		// Never let a failure break the chain: later saves must still run.
+		const run = () =>
+			this.#commitPending().catch(() => {
+				this.status = "error";
+			});
+		this.#commits = this.#commits.then(run, run);
 		return this.#commits;
 	}
 
@@ -152,10 +157,11 @@ export class DocumentSession {
 	}
 
 	/**
-	 * Bring this tab up to the stored version after a refused commit. Cross-tab sync fills
-	 * this in; until then pending changes simply stay pending.
+	 * Bring this tab up to `storedVersion` after a refused commit. Cross-tab sync fills this
+	 * in; until then pending changes simply stay pending.
 	 */
-	protected async catchUp(): Promise<void> {}
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	protected async catchUp(storedVersion: number): Promise<void> {}
 
 	#record(doc: Dashboard, applied: Change): void {
 		this.doc = doc;
@@ -222,7 +228,7 @@ export class DocumentSession {
 		}
 
 		if (!result.ok) {
-			await this.catchUp();
+			await this.catchUp(result.currentVersion);
 			return;
 		}
 		// Edits made during the commit stay pending on top of the new stored version.
