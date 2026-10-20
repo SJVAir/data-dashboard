@@ -7,5 +7,7 @@
 	"dashboard_my_numbered": "My dashboard {number}",
 	"dashboard_starter": "Starter dashboard",
 	"doc_readonly_newer": "This dashboard was saved by a newer version. Reload to edit.",
-	"doc_readonly_invalid": "This dashboard couldn't be read, so it's open read-only."
+	"doc_readonly_invalid": "This dashboard couldn't be read, so it's open read-only.",
+	"widget_placeholder_title": "Placeholder widget",
+	"widget_placeholder_body": "This is a placeholder widget."
 }
