@@ -26,12 +26,12 @@
 	let more = $state<HTMLButtonElement | null>(null);
 </script>
 
+<!-- Not a named region: one landmark per widget would crowd the landmark list. -->
 <section
 	class="bg-card text-card-foreground border-border [grid-row:span_var(--h)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]"
 	style:--col="{widget.rect.x + 1} / span {widget.rect.w}"
 	style:--row="{widget.rect.y + 1} / span {widget.rect.h}"
 	style:--h={widget.rect.h}
-	aria-labelledby={titleId}
 	data-testid="widget-{widget.id}"
 	{@attach menuScope(provider)}
 >
@@ -42,6 +42,7 @@
 		tabindex="0"
 		role="group"
 		aria-labelledby={titleId}
+		aria-keyshortcuts="Shift+F10"
 	>
 		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
 		<Button

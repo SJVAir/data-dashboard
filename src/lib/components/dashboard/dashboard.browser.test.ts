@@ -104,6 +104,15 @@ test("widget ⋯ menu and right-click show the same items", async () => {
 	);
 });
 
+test("a widget is a named group announcing its menu shortcut, not a region landmark", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	await renderGrid(app);
+	const group = page.getByRole("group", { name: "Readings" });
+	await expect.element(group).toHaveAttribute("aria-keyshortcuts", "Shift+F10");
+	await expect.element(page.getByRole("region", { name: "Readings" })).not.toBeInTheDocument();
+});
+
 test("rename widget to blank shows the generated title", async () => {
 	const { app, session } = await setup();
 	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
