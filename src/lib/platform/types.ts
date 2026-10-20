@@ -34,6 +34,18 @@ export interface PreferenceStorage {
 	set(space: SpaceId, key: string, value: unknown): Promise<void>;
 }
 
+/**
+ * Unsaved changes written synchronously as a page goes away, so they survive a reload or close
+ * that cuts the asynchronous save short. One record per space, dashboard, and tab. Records are
+ * stored as given and read back unvalidated (`record` may be anything); writes that the browser
+ * refuses (quota, blocked storage) are dropped silently.
+ */
+export interface JournalStorage {
+	write(space: SpaceId, docId: string, tabId: string, record: unknown): void;
+	readAll(space: SpaceId, docId: string): Array<{ tabId: string; record: unknown }>;
+	clear(space: SpaceId, docId: string, tabId: string): void;
+}
+
 export interface IdentitySource {
 	currentSpace(): Promise<SpaceId>;
 }
@@ -41,6 +53,7 @@ export interface IdentitySource {
 export type Platform = {
 	documents: DocumentStorage;
 	preferences: PreferenceStorage;
+	journal: JournalStorage;
 	identity: IdentitySource;
 };
 

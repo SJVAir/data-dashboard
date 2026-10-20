@@ -348,3 +348,115 @@ describe("DocumentSession", () => {
 		expect(session?.readOnly).toBe("newer");
 	});
 });
+
+describe("DocumentSession journal", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+
+	const record = (changes: Change[], baseVersion = 0) => ({
+		baseVersion,
+		changes,
+		schemaVersion: 1,
+		writtenAt: NOW.toISOString()
+	});
+
+	/** Stores `changes` as `tabId`'s save on top of the stored version. */
+	async function saveAs(platform: Platform, tabId: string, changes: Change[]) {
+		const session = await DocumentSession.open(platform, SPACE, "d1", tabId);
+		for (const change of changes) session!.apply(change);
+		await session!.flush();
+		session!.dispose();
+	}
+
+	it("pagehide writes the pending changes, and the save clears them", async () => {
+		vi.useFakeTimers();
+		const win = new EventTarget();
+		vi.stubGlobal("window", win);
+		const { platform, session } = await setup();
+		session.apply(title("a", "Ozone"));
+		// The commit is held, as when the page is torn down mid-save.
+		const commit = platform.documents.commit;
+		let release!: () => void;
+		const held = new Promise<void>((resolve) => (release = resolve));
+		platform.documents.commit = async (...args) => {
+			await held;
+			return commit(...args);
+		};
+
+		win.dispatchEvent(new Event("pagehide"));
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([
+			{ tabId: "tab-1", record: record([title("a", "Ozone")]) }
+		]);
+		release();
+		await vi.advanceTimersByTimeAsync(0);
+		expect((await stored(platform)).body.widgets[0].title).toBe("Ozone");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("pagehide writes nothing when nothing is pending", async () => {
+		const win = new EventTarget();
+		vi.stubGlobal("window", win);
+		const { platform } = await setup();
+		win.dispatchEvent(new Event("pagehide"));
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("open replays a record cleanly and clears it once stored", async () => {
+		const { platform } = await setup();
+		// Another tab saved an unrelated change after the record's base version.
+		await saveAs(platform, "tab-2", [rename("Home")]);
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Ozone")]));
+
+		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-3");
+		expect(session!.doc.body.widgets[0].title).toBe("Ozone");
+		expect(session!.doc.name).toBe("Home");
+		const saved = await stored(platform);
+		expect(saved.version).toBe(2);
+		expect(saved.body.widgets[0].title).toBe("Ozone");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+		expect(session!.canUndo).toBe(false);
+	});
+
+	it("open skips a record whose changes were stored after all", async () => {
+		const { platform } = await setup();
+		await saveAs(platform, "gone", [title("a", "Ozone")]);
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Ozone")]));
+
+		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-3");
+		expect(session!.doc.body.widgets[0].title).toBe("Ozone");
+		expect((await stored(platform)).version).toBe(1);
+		expect(await platform.documents.readLog(SPACE, "d1", 0)).toHaveLength(1);
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("open raises a conflict when a record overlaps a later save", async () => {
+		const { platform } = await setup();
+		await saveAs(platform, "tab-2", [title("a", "Theirs")]);
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Mine")]));
+
+		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-3");
+		expect(session!.conflict).not.toBeNull();
+		expect(session!.doc.body.widgets[0].title).toBe("Mine");
+		expect((await stored(platform)).body.widgets[0].title).toBe("Theirs");
+		// Kept until the conflict is settled.
+		expect(platform.journal.readAll(SPACE, "d1")).toHaveLength(1);
+
+		await session!.resolveConflict("keep-mine");
+		expect((await stored(platform)).body.widgets[0].title).toBe("Mine");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("open discards a corrupt record", async () => {
+		const { platform } = await setup();
+		platform.journal.write(SPACE, "d1", "bad", { baseVersion: 0, changes: [{ op: "explode" }] });
+		platform.journal.write(SPACE, "d1", "worse", "not a record");
+
+		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-3");
+		expect(session!.conflict).toBeNull();
+		expect(session!.doc).toEqual(makeDoc());
+		expect((await stored(platform)).version).toBe(0);
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+});

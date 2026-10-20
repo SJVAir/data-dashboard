@@ -104,8 +104,8 @@ test("picker lists the registered dashboard actions", async () => {
 	for (const name of [
 		"New blank dashboard",
 		"New from starter",
-		"Duplicate",
-		"Rename…",
+		"Duplicate dashboard",
+		"Rename dashboard…",
 		"Delete dashboard"
 	]) {
 		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();

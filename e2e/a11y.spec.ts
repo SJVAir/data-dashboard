@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
 	PLACEHOLDER,
@@ -54,7 +55,7 @@ test("the context menu open", async ({ page }) => {
 
 test("the rename dialog", async ({ page }) => {
 	await page.goto("./");
-	await widgetMenuItem(page, PLACEHOLDER, "Rename…");
+	await widgetMenuItem(page, PLACEHOLDER, "Rename widget…");
 	await expect(page.getByRole("dialog", { name: "Rename widget" })).toBeVisible();
 	await expectNoViolations(page);
 });
@@ -69,7 +70,7 @@ test("the list page", async ({ page }) => {
 
 test("menus and dialogs don't animate under reduced motion", async ({ page }) => {
 	await page.goto("./");
-	await widgetMenuItem(page, PLACEHOLDER, "Rename…");
+	await widgetMenuItem(page, PLACEHOLDER, "Rename widget…");
 	const dialog = page.getByRole("dialog", { name: "Rename widget" });
 	await expect(dialog).toBeVisible();
 	const durations = await dialog.evaluate((el) => {
@@ -86,7 +87,7 @@ test("the context menu opens with Shift+F10 on a focused widget title bar", asyn
 	await page.keyboard.press("Shift+F10");
 	const menu = page.getByRole("menu");
 	await expect(menu).toBeVisible();
-	await expect(menu.getByRole("menuitem", { name: "Rename…" }).first()).toBeFocused();
+	await expect(menu.getByRole("menuitem", { name: "Rename widget…" })).toBeFocused();
 	await page.keyboard.press("Escape");
 	await expect(menu).toBeHidden();
 });

@@ -89,16 +89,18 @@ test("widget ⋯ menu and right-click show the same items", async () => {
 		(await page.getByRole("menuitem").all()).map((item) => item.element().textContent?.trim());
 
 	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await expect.element(page.getByRole("menuitem", { name: "Rename…" }).first()).toBeVisible();
+	await expect.element(page.getByRole("menuitem", { name: "Rename widget…" })).toBeVisible();
 	const fromButton = await names();
 	await userEvent.keyboard("{Escape}");
 	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
 
 	await page.getByRole("heading", { name: "Readings" }).click({ button: "right" });
-	await expect.element(page.getByRole("menuitem", { name: "Rename…" }).first()).toBeVisible();
+	await expect.element(page.getByRole("menuitem", { name: "Rename widget…" })).toBeVisible();
 	const fromRightClick = await names();
 	expect(fromRightClick).toEqual(fromButton);
-	expect(fromButton).toEqual(expect.arrayContaining(["Duplicate", "Delete", "Add widget"]));
+	expect(fromButton).toEqual(
+		expect.arrayContaining(["Duplicate widget", "Delete widget", "Add widget"])
+	);
 });
 
 test("rename widget to blank shows the generated title", async () => {
@@ -106,7 +108,7 @@ test("rename widget to blank shows the generated title", async () => {
 	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
 	await renderGrid(app);
 	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Rename…" }).first().click();
+	await page.getByRole("menuitem", { name: "Rename widget…" }).click();
 	const input = page.getByRole("textbox", { name: "Name" });
 	await expect.element(input).toHaveValue("Readings");
 	await expect.element(input).toHaveAttribute("maxlength", "100");
@@ -123,7 +125,7 @@ test("delete widget shows a toast whose undo restores it", async () => {
 	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
 	await renderGrid(app);
 	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+	await page.getByRole("menuitem", { name: "Delete widget" }).click();
 	expect(session.doc.body.widgets).toHaveLength(0);
 	await expect.element(page.getByText("Widget deleted")).toBeVisible();
 	await page.getByRole("button", { name: "Undo" }).click();
@@ -199,7 +201,12 @@ test("read-only dashboard shows the message and no edit actions", async () => {
 	await page.getByText("This dashboard was saved by a newer version.", { exact: false }).click({
 		button: "right"
 	});
-	for (const name of ["Add widget", "Rename…", "Delete dashboard", "Duplicate"]) {
+	for (const name of [
+		"Add widget",
+		"Rename dashboard…",
+		"Delete dashboard",
+		"Duplicate dashboard"
+	]) {
 		await expect
 			.element(page.getByRole("menuitem", { name }))
 			.toHaveAttribute("aria-disabled", "true");
@@ -236,7 +243,7 @@ test("duplicate opens the copy with the rename dialog's text selected", async ()
 	history.replaceState(null, "", `/workspace/dashboards/${id}`);
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await page.getByRole("button", { name: "Home" }).click();
-	await page.getByRole("menuitem", { name: "Duplicate" }).click();
+	await page.getByRole("menuitem", { name: "Duplicate dashboard" }).click();
 
 	const input = page.getByRole("textbox", { name: "Name" });
 	await expect.element(input).toHaveValue("Home");
@@ -259,7 +266,7 @@ test("a widget's undo restores it on its own dashboard after switching", async (
 	const other = (await app.sessions.get(otherId))!;
 	await renderGrid(app);
 	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+	await page.getByRole("menuitem", { name: "Delete widget" }).click();
 	const toastItem = page.getByRole("listitem").filter({ hasText: "Widget deleted" });
 	await expect.element(toastItem).toBeVisible();
 

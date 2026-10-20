@@ -6,6 +6,7 @@ import { UndoStack } from "$lib/changes/undo";
 import { loadDashboard } from "$lib/documents/load";
 import { CURRENT_SCHEMA_VERSION, type Dashboard } from "$lib/documents/schema";
 import type { CommitResult, LogEntry, Platform, SpaceId } from "$lib/platform/types";
+import { JournalRecordSchema, type JournalRecord } from "./journal";
 import type { TabChannel, TabMessage } from "./tab-channel";
 
 export type SaveStatus = "saved" | "saving" | "error";
@@ -31,10 +32,13 @@ export type DocumentSessionOptions = {
 	onBeforeFirstEdit?: (change: Change) => Promise<DocumentSession | null>;
 };
 
-type Listener = { target: EventTarget; type: string; fn: () => void };
+type Listener = { target: EventTarget; type: string; fn: (event: Event) => void };
 
-/** What other tabs stored since this tab's version, read from storage. */
-type StoredState = { stored: Dashboard; theirs: Change[] | null };
+/**
+ * What other tabs stored since a version, read from storage. `entries` and `theirs` are `null`
+ * when the log no longer reaches back that far.
+ */
+type StoredState = { stored: Dashboard; entries: LogEntry[] | null; theirs: Change[] | null };
 
 /**
  * One open dashboard. Every edit goes through `apply`/`undo`/`redo`: the document updates at
@@ -48,6 +52,11 @@ type StoredState = { stored: Dashboard; theirs: Change[] | null };
  * saved (a message, a refused commit, or the page becoming visible again) it catches up from
  * the change log: fast-forward, or replay its pending changes on top (`rebase`). A true
  * overlap sets `conflict` and pauses saving until `resolveConflict`.
+ *
+ * Reloads and closes: IndexedDB writes started as the page goes away may never finish, so on
+ * `pagehide` the pending changes are also written synchronously to `platform.journal`. `open`
+ * replays any journal records for the dashboard (as a catch-up would), and a tab's record is
+ * cleared once its changes are stored.
  */
 export class DocumentSession {
 	// Raw: the document is replaced, never mutated, and must stay structured-cloneable.
@@ -75,6 +84,10 @@ export class DocumentSession {
 	#timer: ReturnType<typeof setTimeout> | null = null;
 	#commits: Promise<void> = Promise.resolve();
 	#listeners: Listener[] = [];
+	/** This tab wrote a journal record that may still hold changes. */
+	#journaled = false;
+	/** Other tabs' journal records whose changes are pending here, cleared once stored. */
+	#replayed: string[] = [];
 
 	constructor(opts: DocumentSessionOptions) {
 		this.doc = opts.doc;
@@ -91,9 +104,16 @@ export class DocumentSession {
 		if (this.#channel) this.#unsubscribe = this.#channel.subscribe((msg) => this.#onMessage(msg));
 
 		if (typeof window !== "undefined") {
-			this.#listen(window, "pagehide", () => void this.flush());
-			// Restored from the back/forward cache: other tabs may have saved meanwhile.
-			this.#listen(window, "pageshow", () => void this.#requestCatchUp());
+			this.#listen(window, "pagehide", () => {
+				this.#writeJournal();
+				void this.flush();
+			});
+			// Restored from the back/forward cache: save what's left (clearing the journal), and
+			// catch up, since other tabs may have saved meanwhile.
+			this.#listen(window, "pageshow", (event) => {
+				if ((event as PageTransitionEvent).persisted) void this.flush();
+				void this.#requestCatchUp();
+			});
 		}
 		if (typeof document !== "undefined") {
 			const doc = document;
@@ -116,7 +136,11 @@ export class DocumentSession {
 		if (raw === undefined) return null;
 		const loaded = loadDashboard(raw);
 		const common = { ...options, platform, space, tabId };
-		if (loaded.status === "ok") return new DocumentSession({ ...common, doc: loaded.doc });
+		if (loaded.status === "ok") {
+			const session = new DocumentSession({ ...common, doc: loaded.doc });
+			await session.#replayJournal();
+			return session;
+		}
 		// Read-only: shown as stored, never edited or saved.
 		return new DocumentSession({ ...common, doc: raw as Dashboard, readOnly: loaded.reason });
 	}
@@ -199,6 +223,7 @@ export class DocumentSession {
 			this.conflict = null;
 			this.doc = stored;
 			this.status = "saved";
+			this.#settleJournal();
 			return;
 		}
 		if (theirs !== null) {
@@ -267,22 +292,22 @@ export class DocumentSession {
 		return copy.id;
 	}
 
-	/** The stored document and, when the log still covers it, the changes since `doc.version`. */
-	async #readStored(): Promise<StoredState | null> {
-		const base = this.doc.version;
+	/** The stored document and, when the log still covers it, the changes since `base`. */
+	async #readStored(base = this.doc.version): Promise<StoredState | null> {
 		const raw = await this.#platform.documents.get(this.#space, this.doc.id);
 		if (raw === undefined) return null;
 		const loaded = loadDashboard(raw);
 		if (loaded.status !== "ok") return null;
 		const stored = loaded.doc;
 		const log = await this.#platform.documents.readLog(this.#space, stored.id, base);
-		if (log === "trimmed") return { stored, theirs: null };
+		if (log === "trimmed") return { stored, entries: null, theirs: null };
 		// Entries past the stored version were saved after the read; the next catch-up gets them.
 		const entries = log.filter((e) => e.version <= stored.version);
 		const complete =
 			entries.length === stored.version - base &&
 			entries.every((e, i) => e.version === base + i + 1);
-		return { stored, theirs: complete ? entries.map((e) => e.change) : null };
+		if (!complete) return { stored, entries: null, theirs: null };
+		return { stored, entries, theirs: entries.map((e) => e.change) };
 	}
 
 	/** Show `doc` (based on the stored version) with `pending` on top of it, and save them. */
@@ -290,8 +315,10 @@ export class DocumentSession {
 		this.doc = doc;
 		this.#pending = pending;
 		this.#clearTimer();
-		if (pending.length === 0) this.status = "saved";
-		else await this.#commitPending();
+		if (pending.length === 0) {
+			this.status = "saved";
+			this.#settleJournal();
+		} else await this.#commitPending();
 	}
 
 	/** Storage couldn't be read (or holds something this tab can't load): keep everything. */
@@ -401,6 +428,7 @@ export class DocumentSession {
 		this.#pending = this.#pending.slice(batch.length);
 		this.doc = { ...this.doc, version, updatedAt };
 		this.status = this.#pending.length > 0 ? "saving" : "saved";
+		this.#settleJournal();
 		this.#channel?.post({
 			type: "committed",
 			space: this.#space,
@@ -408,6 +436,81 @@ export class DocumentSession {
 			version,
 			tabId: this.#tabId
 		});
+	}
+
+	/** Synchronously record the pending changes, for a page that may be torn down next. */
+	#writeJournal(): void {
+		if (this.readOnly || this.#successor || this.#pending.length === 0) return;
+		const record: JournalRecord = {
+			baseVersion: this.doc.version,
+			changes: this.#pending.slice(),
+			schemaVersion: CURRENT_SCHEMA_VERSION,
+			writtenAt: this.#now().toISOString()
+		};
+		this.#platform.journal.write(this.#space, this.doc.id, this.#tabId, record);
+		this.#journaled = true;
+	}
+
+	/**
+	 * After a save (or with nothing left to save): clear the replayed records, and this tab's
+	 * own record, or rewrite it with what's still pending.
+	 */
+	#settleJournal(): void {
+		const { journal } = this.#platform;
+		for (const tabId of this.#replayed) journal.clear(this.#space, this.doc.id, tabId);
+		this.#replayed = [];
+		if (!this.#journaled) return;
+		this.#journaled = false;
+		journal.clear(this.#space, this.doc.id, this.#tabId);
+		this.#writeJournal();
+	}
+
+	/**
+	 * Replay the journal records left for this dashboard by tabs that went away: each is caught
+	 * up like pending changes (stored if clean, the conflict prompt on an overlap). Invalid
+	 * records are discarded, and a record whose changes are already in the log is skipped.
+	 */
+	#replayJournal(): Promise<void> {
+		return this.#enqueue(async () => {
+			const { journal } = this.#platform;
+			for (const { tabId, record } of journal.readAll(this.#space, this.doc.id)) {
+				if (tabId === this.#tabId || this.conflict) continue;
+				const parsed = JournalRecordSchema.safeParse(record);
+				if (!parsed.success) {
+					journal.clear(this.#space, this.doc.id, tabId);
+					continue;
+				}
+				await this.#replayRecord(tabId, parsed.data);
+			}
+		});
+	}
+
+	async #replayRecord(tabId: string, { baseVersion, changes }: JournalRecord): Promise<void> {
+		const state = await this.#readStored(baseVersion);
+		if (!state) return;
+		const { stored, entries, theirs } = state;
+		const clear = () => this.#platform.journal.clear(this.#space, this.doc.id, tabId);
+		if (baseVersion > stored.version) return clear();
+		// Its save finished after all (the page lived long enough).
+		const saved = entries?.filter((e) => e.tabId === tabId).length ?? 0;
+		if (saved >= changes.length) return clear();
+
+		this.#replayed.push(tabId);
+		if (theirs !== null) {
+			const result = rebase(stored, theirs, changes);
+			if (result.kind === "conflict") {
+				// Shown with the replayed changes on top, as a tab with unsaved edits would be.
+				const { doc, applied } = applyForced(stored, changes);
+				this.doc = doc;
+				this.#pending = applied;
+				this.conflict = { pairs: result.pairs };
+				this.status = "error";
+				return;
+			}
+			return this.#adopt(result.doc, result.changes);
+		}
+		const { doc, applied } = applyForced(stored, changes);
+		return this.#adopt(doc, applied);
 	}
 
 	#schedule(): void {
@@ -425,7 +528,7 @@ export class DocumentSession {
 		this.#canRedo = this.#undoStack.canRedo;
 	}
 
-	#listen(target: EventTarget, type: string, fn: () => void): void {
+	#listen(target: EventTarget, type: string, fn: (event: Event) => void): void {
 		target.addEventListener(type, fn);
 		this.#listeners.push({ target, type, fn });
 	}

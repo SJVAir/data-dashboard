@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { expectSaved, makeOwnCopy, widgetMenuItem, widgetTitles } from "./helpers";
 
 test.use({ reducedMotion: "reduce" });
@@ -14,7 +15,7 @@ async function twoTabs(page: Page): Promise<Page> {
 
 /** Opens the rename dialog for the shared widget and types `value` without saving. */
 async function startRename(page: Page, value: string): Promise<void> {
-	await widgetMenuItem(page, "Shared widget", "Rename…");
+	await widgetMenuItem(page, "Shared widget", "Rename widget…");
 	await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill(value);
 }
 

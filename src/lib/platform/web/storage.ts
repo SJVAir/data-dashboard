@@ -9,6 +9,7 @@ import {
 	type SpaceId
 } from "../types";
 import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
+import { createWebJournal } from "./journal";
 
 const logRange = (space: SpaceId, docId: string, from = 0) =>
 	IDBKeyRange.bound([space, docId, from], [space, docId, Number.MAX_SAFE_INTEGER]);
@@ -63,6 +64,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 				await db.put("preferences", { space, key, value });
 			}
 		},
+		journal: createWebJournal(),
 		identity: { currentSpace: async () => "anonymous" }
 	};
 }

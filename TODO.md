@@ -26,9 +26,7 @@ and the copyright holder (Central California Asthma Collaborative).
   request-options change (needed by spec 2) gets its own sdk-js plan alongside spec 1.
 - **Spec 1 is implemented (2026-10-20)** on the `foundations-1-core` branch, with its
   finish-line, cross-tab, and accessibility E2E tests. It awaits the user's decision on
-  pushing and opening its PR into `foundations`. One known gap: an edit followed by an
-  immediate reload (inside the 500 ms autosave window) is lost (`DEFERRED.md` → "Edits made
-  just before a reload").
+  pushing and opening its PR into `foundations`.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.

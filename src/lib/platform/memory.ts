@@ -16,6 +16,7 @@ export function createMemoryPlatform(): Platform {
 	const docs = new Map<string, { space: SpaceId; doc: unknown }>();
 	const logs = new Map<string, LogEntry[]>();
 	const prefs = new Map<string, unknown>();
+	const journal = new Map<string, { space: SpaceId; docId: string; tabId: string; json: string }>();
 
 	return {
 		documents: {
@@ -56,6 +57,25 @@ export function createMemoryPlatform(): Platform {
 			},
 			async set(space, k, value) {
 				prefs.set(key(space, k), structuredClone(value));
+			}
+		},
+		journal: {
+			// Stored as JSON, as the web journal does.
+			write(space, docId, tabId, record) {
+				journal.set(key(space, docId, tabId), {
+					space,
+					docId,
+					tabId,
+					json: JSON.stringify(record)
+				});
+			},
+			readAll(space, docId) {
+				return [...journal.values()]
+					.filter((j) => j.space === space && j.docId === docId)
+					.map((j) => ({ tabId: j.tabId, record: JSON.parse(j.json) as unknown }));
+			},
+			clear(space, docId, tabId) {
+				journal.delete(key(space, docId, tabId));
 			}
 		},
 		identity: { currentSpace: async () => "anonymous" }

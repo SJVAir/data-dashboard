@@ -5,6 +5,7 @@ import { runStorageContract } from "../storage-contract";
 
 beforeEach(async () => {
 	await deleteDatabase();
+	localStorage.clear();
 });
 
 runStorageContract("indexeddb", () => createWebPlatform());

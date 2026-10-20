@@ -22,10 +22,7 @@ export async function expectSaved(page: Page): Promise<void> {
 	await expect(nav(page).getByText("Saved", { exact: true })).toBeVisible();
 }
 
-/**
- * Opens the `index`th widget titled `title`'s ⋯ menu and picks `item`. The widget's own items
- * come first; the dashboard's (which include another "Rename…") follow.
- */
+/** Opens the `index`th widget titled `title`'s ⋯ menu and picks `item`. */
 export async function widgetMenuItem(
 	page: Page,
 	title: string,
@@ -36,7 +33,7 @@ export async function widgetMenuItem(
 		.getByRole("button", { name: `Actions for ${title}`, exact: true })
 		.nth(index)
 		.click();
-	await page.getByRole("menuitem", { name: item }).first().click();
+	await page.getByRole("menuitem", { name: item }).click();
 }
 
 /** Fills the open rename dialog with `value` and saves. */
@@ -53,7 +50,7 @@ export async function renameWidget(
 	to: string,
 	index = 0
 ): Promise<void> {
-	await widgetMenuItem(page, title, "Rename…", index);
+	await widgetMenuItem(page, title, "Rename widget…", index);
 	await saveRename(page, to);
 }
 

@@ -165,5 +165,25 @@ export function runStorageContract(name: string, make: () => Promise<Platform>) 
 			expect(await p.preferences.get("account:1", "lastDashboard")).toBe("d2");
 			expect(await p.identity.currentSpace()).toBe("anonymous");
 		});
+
+		test("journal records round-trip per space, dashboard, and tab", () => {
+			const record = { baseVersion: 2, changes: [entry("a", 3).change], note: "x" };
+			p.journal.write("anonymous", "a", "tab-1", record);
+			p.journal.write("anonymous", "a", "tab-2", { baseVersion: 0 });
+			p.journal.write("anonymous", "ab", "tab-1", { other: true });
+			p.journal.write("account:1", "a", "tab-1", { other: true });
+			const found = p.journal.readAll("anonymous", "a");
+			expect(found.sort((x, y) => x.tabId.localeCompare(y.tabId))).toEqual([
+				{ tabId: "tab-1", record },
+				{ tabId: "tab-2", record: { baseVersion: 0 } }
+			]);
+			p.journal.write("anonymous", "a", "tab-1", { baseVersion: 5 });
+			p.journal.clear("anonymous", "a", "tab-2");
+			expect(p.journal.readAll("anonymous", "a")).toEqual([
+				{ tabId: "tab-1", record: { baseVersion: 5 } }
+			]);
+			expect(p.journal.readAll("anonymous", "missing")).toEqual([]);
+			expect(p.journal.readAll("account:1", "a")).toHaveLength(1);
+		});
 	});
 }

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
 	PLACEHOLDER,
@@ -44,7 +44,7 @@ test("add widgets, rename, reload, everything is still there", async ({ page }) 
 
 	await renameWidget(page, PLACEHOLDER, "Ozone trend", 4);
 	await openPicker(page, "My dashboard");
-	await page.getByRole("menuitem", { name: "Rename…" }).click();
+	await page.getByRole("menuitem", { name: "Rename dashboard…" }).click();
 	await saveRename(page, "Fresno school");
 	await expect(dashboardHeading(page, "Fresno school")).toBeAttached();
 	await expectSaved(page);
@@ -67,9 +67,7 @@ test("add widgets, rename, reload, everything is still there", async ({ page }) 
 	await expect(page).toHaveURL(url);
 });
 
-// Fails on all three engines: the pagehide flush's IndexedDB commit doesn't finish before the
-// page is torn down (see DEFERRED.md, "Edits made just before a reload").
-test.fixme("edit then immediate reload keeps the edit", async ({ page }) => {
+test("edit then immediate reload keeps the edit", async ({ page }) => {
 	await makeOwnCopy(page);
 	await renameWidget(page, "My first widget", "Renamed just now");
 	await page.reload();
@@ -115,7 +113,7 @@ test("new blank dashboard, duplicate (rename dialog opens), delete with undo", a
 	const blankUrl = page.url();
 
 	await openPicker(page, "Untitled dashboard");
-	await page.getByRole("menuitem", { name: "Duplicate" }).click();
+	await page.getByRole("menuitem", { name: "Duplicate dashboard" }).click();
 	await expect(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
 	await expect(page).not.toHaveURL(blankUrl);
 	await expect(page).toHaveURL(DASHBOARD_URL);

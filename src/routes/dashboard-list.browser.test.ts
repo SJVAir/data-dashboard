@@ -108,7 +108,7 @@ test("row rename leaves the last-opened preference unchanged", async () => {
 	await app.platform.preferences.set(app.space, LAST_OPENED_KEY, "elsewhere");
 	await render(ListHarness, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await page.getByRole("button", { name: "Actions for Untitled dashboard" }).click();
-	await page.getByRole("menuitem", { name: "Rename…" }).click();
+	await page.getByRole("menuitem", { name: "Rename dashboard…" }).click();
 	await page.getByRole("textbox", { name: "Name" }).fill("Renamed");
 	await page.getByRole("button", { name: "Save" }).click();
 	await expect.poll(() => app.index.names.get(id)).toBe("Renamed");
@@ -120,7 +120,7 @@ test("duplicating from the list opens the rename dialog on the copy", async () =
 	await app.index.createBlank();
 	await render(ListHarness, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await page.getByRole("button", { name: "Actions for Untitled dashboard" }).click();
-	await page.getByRole("menuitem", { name: "Duplicate" }).click();
+	await page.getByRole("menuitem", { name: "Duplicate dashboard" }).click();
 	await expect.element(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
 	expect(app.index.items).toHaveLength(2);
 });
