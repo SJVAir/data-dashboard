@@ -1,19 +1,31 @@
 import { z } from "zod";
 import { NAME_MAX, WidgetInstanceSchema } from "$lib/documents/schema";
 
-const AddWidgetSchema = z.object({
-	op: z.literal("addWidget"),
-	target: z.object({ widgetId: z.string().min(1) }),
-	widget: WidgetInstanceSchema,
-	index: z.number().int().min(0)
-});
+function sameWidgetId(change: { target: { widgetId: string }; widget: { id: string } }) {
+	return change.target.widgetId === change.widget.id;
+}
+const sameWidgetIdIssue = {
+	path: ["target", "widgetId"],
+	message: "target.widgetId must match widget.id"
+};
 
-const RemoveWidgetSchema = z.object({
-	op: z.literal("removeWidget"),
-	target: z.object({ widgetId: z.string().min(1) }),
-	widget: WidgetInstanceSchema,
-	index: z.number().int().min(0)
-});
+const AddWidgetSchema = z
+	.object({
+		op: z.literal("addWidget"),
+		target: z.object({ widgetId: z.string().min(1) }),
+		widget: WidgetInstanceSchema,
+		index: z.number().int().min(0)
+	})
+	.refine(sameWidgetId, sameWidgetIdIssue);
+
+const RemoveWidgetSchema = z
+	.object({
+		op: z.literal("removeWidget"),
+		target: z.object({ widgetId: z.string().min(1) }),
+		widget: WidgetInstanceSchema,
+		index: z.number().int().min(0)
+	})
+	.refine(sameWidgetId, sameWidgetIdIssue);
 
 const FieldValue = z.string().nullable();
 

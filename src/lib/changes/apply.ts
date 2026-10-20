@@ -44,15 +44,24 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 			};
 		}
 		case "setField": {
-			const inverse: Change = { ...change, from: change.to, to: change.from };
+			// The inverse restores what was really there; `change.from` may be stale (rebase).
+			const invert = (actual: string | null): Change => ({
+				...change,
+				from: change.to,
+				to: actual
+			});
 			const { path, widgetId } = change.target;
 			if (path === "title") {
 				const index = widgets.findIndex((w) => w.id === widgetId);
 				if (index === -1) throw new ChangeTargetMissing(`No widget ${widgetId}`);
 				const next = widgets.map((w, i) => (i === index ? { ...w, title: change.to } : w));
-				return { doc: { ...doc, body: { ...doc.body, widgets: next } }, inverse };
+				return {
+					doc: { ...doc, body: { ...doc.body, widgets: next } },
+					inverse: invert(widgets[index].title)
+				};
 			}
-			if (path === "name") return { doc: { ...doc, name: change.to }, inverse };
+			if (path === "name") return { doc: { ...doc, name: change.to }, inverse: invert(doc.name) };
+			const inverse = invert(doc.deletedAt ?? null);
 			if (change.to === null) {
 				const rest = { ...doc };
 				delete rest.deletedAt;

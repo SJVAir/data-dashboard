@@ -71,6 +71,37 @@ describe("applyChange", () => {
 		expect(applyChange(next, inverse).doc).toEqual(doc);
 	});
 
+	it("setField inverse restores the actual prior value even when `from` is stale", () => {
+		const doc = makeDoc({ body: { widgets: [widget("a", "Real"), widget("b")] } });
+		const change: Change = {
+			op: "setField",
+			target: { widgetId: "a", path: "title" },
+			from: "Stale",
+			to: "New"
+		};
+		const { doc: next, inverse } = applyChange(doc, change);
+		expect(inverse).toEqual({ ...change, from: "New", to: "Real" });
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+
+		const named = applyChange(doc, {
+			op: "setField",
+			target: { path: "name" },
+			from: "Stale",
+			to: "Other"
+		});
+		expect(named.inverse).toMatchObject({ from: "Other", to: "Mine" });
+		expect(applyChange(named.doc, named.inverse).doc).toEqual(doc);
+
+		const deleted = applyChange(doc, {
+			op: "setField",
+			target: { path: "deletedAt" },
+			from: "2026-10-19T00:00:00.000Z",
+			to: "2026-10-20T01:00:00.000Z"
+		});
+		expect(deleted.inverse).toMatchObject({ to: null });
+		expect(applyChange(deleted.doc, deleted.inverse).doc).toEqual(doc);
+	});
+
 	it("setField name on the document", () => {
 		const doc = makeDoc();
 		const { doc: next, inverse } = applyChange(doc, {
@@ -176,6 +207,13 @@ describe("ChangeSchema", () => {
 				to: "yesterday"
 			}).success
 		).toBe(false);
+	});
+
+	it("add/remove with mismatched target and widget ids is rejected by ChangeSchema", () => {
+		for (const op of ["addWidget", "removeWidget"]) {
+			const bad = { op, target: { widgetId: "x" }, widget: widget("c"), index: 0 };
+			expect(ChangeSchema.safeParse(bad).success).toBe(false);
+		}
 	});
 
 	it("accepts a valid change", () => {
