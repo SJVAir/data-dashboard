@@ -1,17 +1,46 @@
 import { defineConfig } from "vitest/config";
 import tailwindcss from "@tailwindcss/vite";
 import { enhancedImages } from "@sveltejs/enhanced-img";
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
+import { playwright } from "@vitest/browser-playwright";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
 	base: "/workspace/",
-	plugins: [tailwindcss(), enhancedImages(), svelte()],
+	plugins: [
+		paraglideVitePlugin({ project: "./project.inlang", outdir: "./src/lib/paraglide" }),
+		tailwindcss(),
+		enhancedImages(),
+		svelte()
+	],
 	resolve: {
 		alias: [{ find: "$lib", replacement: fileURLToPath(new URL("./src/lib", import.meta.url)) }]
 	},
 	test: {
-		environment: "node",
-		include: ["src/**/*.test.ts"]
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					environment: "node",
+					include: ["src/**/*.test.ts"],
+					exclude: ["src/**/*.browser.test.ts"]
+				}
+			},
+			{
+				extends: true,
+				test: {
+					name: "browser",
+					include: ["src/**/*.browser.test.ts"],
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright(),
+						instances: [{ browser: "chromium" }]
+					}
+				}
+			}
+		]
 	}
 });
