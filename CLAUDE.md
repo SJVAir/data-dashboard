@@ -73,6 +73,8 @@ onto v1 code.
   (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
   `pesticides`, `regions`, and `account` (login, subscriptions, air alerts).
 - `../sjvair.com` — the Django server (data, user accounts, alert/notification system).
+  **During Foundations, sjvair.com work branches from and PRs into its `develop` branch**
+  (decided 2026-10-19), not `main`.
 - `~/workspace/django-resticus` — the REST framework sjvair.com's API is built on
   (remote `dmpayton/django-resticus`; sjvair.com installs its `develop` branch unpinned).
   The user has access. It gets the CSRF fix; see `ARCHITECTURE.md` → "CSRF protection".
@@ -204,8 +206,8 @@ Decided 2026-09-28.
   (after the hosting track goes live), even these are production deploys and need
   explicit approval.
 - **`main` is not branch-protected** for now (see `DEFERRED.md`).
-- **The `planning` branch merges into `main` when planning is finished**, with the user's
-  approval at that point. It isn't merged yet because planning is still in progress.
+- **The `planning` branch was merged into `main` on 2026-10-19** (PR #5), with the user's
+  approval, once planning was finished.
 
 ## Code Style
 

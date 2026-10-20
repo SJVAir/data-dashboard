@@ -4,22 +4,21 @@ Last updated: 2026-10-14
 
 ## Start here
 
-**Status (2026-10-14, end of session): planning is complete.** All decisions are recorded,
-and a final consistency and build-readiness sweep (2026-10-14) fixed the remaining
-leftovers and settled five build details (relative file references, one `place` field per
-layer, `default-place` kept inside the starter, a CSP scoped to the dashboard's own static
-folder, `span` checked against a range's full unit). Also settled 2026-10-14: the AQ-level
-tier mapping, text alerts opening to everyone before Release 2, and the copyright holder
-(Central California Asthma Collaborative).
+**Status (2026-10-20): planning is complete and merged into `main`** (PR #5, 2026-10-19,
+with the user's approval). A final consistency and build-readiness sweep (2026-10-14) fixed
+the remaining leftovers and settled five build details (relative file references, one
+`place` field per layer, `default-place` kept inside the starter, a CSP scoped to the
+dashboard's own static folder, `span` checked against a range's full unit). Also settled
+2026-10-14: the AQ-level tier mapping, text alerts opening to everyone before Release 2,
+and the copyright holder (Central California Asthma Collaborative).
 
 - **Waiting on others:** the legal adviser's answers (`DEFERRED.md` → "Open decisions"),
   which only gate the final email-only accounts plan; and whether email alerts get their
   own rollout switch (Release 2 server plan).
-- **Next session (the user's plan):** the three sjvair.com-side fixes below (mobile Alerts
-  screen, missing forecast zones, PM2.5 breakpoints), each with an approved plan in its
-  repo.
-- **Then:** merge `planning` into `main` (**held; needs the user's explicit go-ahead**) and
-  start the Foundations spec.
+- **Done 2026-10-19/20: the three sjvair.com-side fixes**, each as PRs awaiting merge or
+  release (outcomes under each warning below). sjvair.com work now targets its new
+  `develop` branch during Foundations.
+- **Next:** the Foundations spec, on this repo's `foundations` branch.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -295,6 +294,19 @@ with an approved plan in its repo and explicit approval for any release:**
 3. **Mobile (app release):** look up the level by key in the alert's own entry type's
    metadata (fixing ozone too) and stop using `latest`.
 
+**Outcome (2026-10-20):** all three steps are done as PRs; nothing is released to users yet.
+
+- sjvair.com **#287** adds `level` to v2 `account/alerts/` only (our clients all call
+  v2; v1 is kept unchanged for outside users). Merged into sjvair.com `develop`.
+- sdk-js **#29** (`sqid`, `level`; `id`/`latest` optional and deprecated) merged and
+  **published as 4.6.0** (the JSR publish hung twice on JSR's side before going through).
+- mobile **#112** (4.0.6): `findAlertLevel` matches `alert.level` against each level's
+  `name` in the alert's own entry type (the metadata's level records are keyed in
+  uppercase), rows keyed by `sqid`, "—" before the first update, the map opens on the
+  alert's pollutant, and level badges use `readableColor`. QA'd against a local server.
+  **Its GitHub Release must wait until #287 reaches production**, and needs explicit
+  approval.
+
 **⚠️ Separate from this project: three forecast zones are missing on production.** Checked
 2026-10-14 through the public API: production has **0 `custom` regions**, and the live
 `forecasts/` feed has only the 6 county zones (Fresno, Kings, Madera, Merced, San Joaquin,
@@ -303,6 +315,16 @@ National Park and Forest have no forecasts on sjvair.com**, because the forecast
 (`ZONE_TO_REGION` in `forecasts/tasks.py`) can't match them to a region. Fix: import the
 three `custom` regions (and give them stable codes, per "Stable ids and retirement"), then
 re-run the forecast import. To handle in a new session alongside the alerts fix.
+
+**Outcome (2026-10-20):** no code change was needed to import them: the feed's 9 zone
+labels, `ZONE_TO_REGION`, and `import_forecast_zones`' names already match, and the import
+already assigns stable codes (`sjvapcd-kern-airbasin`, `sjvapcd-tulare-valley`,
+`sjvapcd-sequoia`). Verified locally: the import fits the six reference counties at
+0.99+ IoU, the Kern zone lies inside Kern County, Tulare valley + Sequoia tile Tulare
+County exactly, and `fetch_forecasts` then covers all 9 zones. sjvair.com **#289**
+(into `develop`) makes `fetch_forecasts` log an ERROR for any skipped zone, so a gap like
+this can't stay silent. Each environment still needs `import_forecast_zones` run once;
+production is out of scope for now (the user's call, 2026-10-20).
 
 **Worth doing, separate from this project: sjvair.com's static files are served
 uncompressed.** Checked on production 2026-10-13: the map's script
@@ -331,6 +353,16 @@ approved sjvair.com plan; decided 2026-09-23 to fix independently of the dashboa
   breakpoints are still not fixed.) Tracked in `DEFERRED.md`; it needs its own plan and an app
   release.
 
+**Outcome (2026-10-20):** sjvair.com **#288** (into `develop`) sets PM2.5 Very Unhealthy to
+125.5 and Hazardous to 225.5 (verified against the 2024 final rule and EPA's AQS
+breakpoint table), and every entry model now uses its shared set from `levels.py`
+instead of an inline copy (the copies were identical, which is how both stayed wrong).
+`generate_group_map` and the sample values in `test_levels.py` were updated too; the
+guideline templates and calibration code were already right. **No stored data needs
+recomputing**: alert records store level keys and summaries derive levels on display. On
+deploy, open alerts at 125.5–150.4 or 225.5–250.4 step up a level and send an escalation
+text (correct behavior). The mobile and monitor-map leftovers stay in `DEFERRED.md`.
+
 ## Work breakdown by ROADMAP step
 
 Every item below comes from a recorded decision (see `ARCHITECTURE.md`). Standing rule: record
@@ -339,10 +371,11 @@ package release needs explicit per-release approval.
 
 **Now (independent)**
 
-- sjvair.com PM2.5 breakpoint fix (see the warning above).
-- The mobile Alerts screen fix (server `level` field, SDK minor release, app release; see
-  the warning above).
-- Import the 3 missing `custom` forecast zones on production (see the warning above).
+- ~~sjvair.com PM2.5 breakpoint fix~~ — PR #288 (see the warning above).
+- ~~The mobile Alerts screen fix~~ — PRs #287, sdk-js #29 (4.6.0), mobile #112; the app
+  release waits for #287 on production (see the warning above).
+- ~~Import the 3 missing `custom` forecast zones~~ — verified locally, PR #289; running the
+  import on production is deferred for now (see the warning above).
 
 **Release 1, step 1: Foundations** (this repo)
 

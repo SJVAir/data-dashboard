@@ -104,6 +104,42 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   list for recovery only. **Revisit when** people use restore for everyday undo rather
   than recovery, or ask to compare versions.
 
+- **Run `import_forecast_zones` on production.** _Deferred 2026-10-20 by the user
+  ("we are working on features, not just fixes")._ Locally it adds the 3 `custom` forecast
+  zones and `fetch_forecasts` then covers all 9 (see `TODO.md` → the forecast-zones
+  warning); production still has 0 `custom` regions, so Tulare, Kern, and Sequoia have no
+  forecasts there. It's a one-off: `import_forecast_zones`, then `fetch_forecasts` (or the
+  next scheduled run), then a cache clear for the regions GeoJSON. **Revisit when**
+  `develop` is next deployed to production, or sooner if the user wants those forecasts
+  live. Production runs are the user's to do.
+- **sjvair.com API v2 archive links point at v1.** _Noted 2026-10-19 (Alerts fix)._ The
+  v2 monthly-archive list builds each file's `url` with `Archive.get_csv_url()`, which
+  reverses the **v1** route (`/api/1.0/.../archive/<year>/<month>/`), and the v2 archive
+  tests (`camp/api/v2/archive/tests.py`) also exercise the v1 routes, so the v2 endpoints
+  are untested. No current client uses archives (the SDK wraps them). **Revisit when**
+  anything starts using monthly archives (e.g. a dashboard download feature), or with the
+  next sjvair.com API cleanup. Needs an approved sjvair.com plan.
+- **sjvair.com test settings depend on the local env.** _Noted 2026-10-19._ Without
+  `TWILIO_AUTH_TOKEN`, 23 Twilio signature tests fail; with `BAM_MIRROR_ENABLED=1` in the
+  local `.env.test`, 2 BAM tests fail (they expect it off by default). `camp/settings/test.py`
+  could pin a dummy token and `BAM_MIRROR_ENABLED = False` so the suite runs the same
+  everywhere. **Revisit with** the next sjvair.com test or settings change. Needs an
+  approved sjvair.com plan.
+- **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
+  calls return API data without checking it against their Zod schemas, which is how the
+  stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
+  validation would change behavior for every call. **Revisit when** the dashboard's data
+  layer (Foundations) decides where responses are validated. Needs an sdk-js plan and a
+  release (explicit approval).
+- **sdk-js: subscription levels are incomplete.** _Noted 2026-10-19._
+  `monitorSubscriptionSchema.level` only allows `unhealthy_sensitive` and above, but the
+  server also accepts `good` and `moderate` (treated as Moderate). **Revisit with** the
+  Release 2 alert-rule SDK work. Needs an sdk-js plan and a release.
+- **sdk-js: misleading `AirAlert.level` doc.** _Noted 2026-10-20._ The 4.6.0 doc calls
+  `level` "a key into the levels" for the entry type, but `monitors/meta/` keys level
+  records in uppercase; `level` matches each level's `name`. Docs only. **Revisit with**
+  the next sdk-js release. Needs an sdk-js PR.
+
 ## Map & selection
 
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
@@ -295,9 +331,20 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (12.1/35.5/55.5/150.5/250.5), `src/lib/colors.ts` (`pmValueColors`,
   `ozoneValueColors`), and `src/components/AirQualityGuidelines.svelte`. Only its Alerts
   and Subscriptions screens read levels from metadata. The sjvair.com breakpoint fix
-  doesn't reach these. **Revisit with** the PM2.5 breakpoint fix (ideally they read
-  metadata levels), or with the mobile migration, whichever comes first. Needs a mobile
-  plan and an app release (explicit approval).
+  doesn't reach these. **Revisit when** the server fix (sjvair.com #288, in `develop`
+  since 2026-10-20) is on its way to production (ideally they read metadata levels), or
+  with the mobile migration, whichever comes first. Needs a mobile plan and an app release
+  (explicit approval).
+
+- **Mobile dev proxy still points at API v1.** _Noted 2026-10-19 (Alerts fix)._
+  `vite.config.ts` proxies only `/api/1.0` to `localhost:8000`, but the app calls
+  `/api/2.0` through the SDK at the full origin from `VITE_DEV_URL`, so the proxy is never
+  used. Harmless leftover. **Revisit with** the next mobile build-tooling change, or the
+  mobile migration. Needs a mobile plan.
+- **Monitors without a county show a bare "County".** _Noted 2026-10-20 (Alerts QA)._ The
+  Alerts and Subscriptions screens render `{monitor.county} County`, so a monitor with no
+  county reads "County". Pre-existing, not caused by the Alerts fix. **Revisit with** the
+  next change to those screens. Needs a mobile plan and an app release.
 
 ## Accounts
 
