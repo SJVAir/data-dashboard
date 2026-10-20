@@ -11,6 +11,15 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **Edits made just before a reload.** _Found 2026-10-20 (Foundations spec 1, Task 18)._ An
+  edit followed by a reload inside the 500 ms autosave window is lost on Chromium, Firefox,
+  and WebKit: the `pagehide`/`visibilitychange` flush starts its IndexedDB commit, but the
+  page is torn down before it finishes (even an explicitly committed write survives only
+  sometimes in Chromium). The E2E test `edit then immediate reload keeps the edit` is
+  `test.fixme` until this is fixed. A likely fix is a synchronous write-ahead record of
+  the pending changes (through the platform adapter) on `pagehide`, replayed when the
+  dashboard next opens. **Revisit when** the user decides the fix (it changes the storage
+  design), and before Foundations is merged.
 - **Tauri desktop build.** _Deferred 2026-09-23 (IDEA.md Q1)._ The web build comes first
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").
   **Revisit when** there is a concrete desktop-only win, such as tray-based background

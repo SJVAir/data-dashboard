@@ -26,8 +26,13 @@ npm run build        # Production build
 npm run preview      # Preview production build
 npm run check        # Type-check Svelte components
 npm run check:watch  # Type-check in watch mode
-npm run test         # Run the Vitest suite once
+npm run test         # Run the Vitest suite once (unit + browser-mode component tests)
+npm run test:unit    # Vitest unit tests only (Node)
+npm run test:browser # Vitest browser-mode component tests only
 npm run test:watch   # Run Vitest in watch mode
+npm run test:e2e     # Playwright E2E on Chromium (builds and serves /workspace/)
+npm run test:e2e:all # Playwright E2E on Chromium, Firefox, and WebKit
+npm run test:e2e:podman # All three engines in the official Playwright image (podman)
 npm run lint         # Prettier check + ESLint
 npm run format       # Auto-format with Prettier
 ```
@@ -36,11 +41,11 @@ npm run format       # Auto-format with Prettier
 
 Plain Vite SPA — no SvelteKit, no server-side rendering. Routing is handled by
 `sv-router` (`src/router.ts` exports `{ route, navigate, p, isActive }`; `src/App.svelte`
-renders the nav and `<Router />`). Today each v1 tab is a route under `src/routes/`. **This
-v1 code is removed in Release 1's Foundations step (a fresh start)**, and the route table
-in `ARCHITECTURE.md` → "Routing, URL state & undo" replaces it. When building new code,
-reuse existing code only if it's exactly what the new design needs. Don't adapt or bolt
-onto v1 code.
+renders the top nav and `<Router />`). The base path is `/workspace`. Routes live under
+`src/routes/`: `/` (last-opened dashboard or the starter), `/dashboards` (the list), and
+`/dashboards/:id`; the full table is in `ARCHITECTURE.md` → "Routing, URL state & undo".
+The v1 tab code was removed in Foundations spec 1 (a fresh start). When building new code,
+reuse existing code only if it's exactly what the new design needs.
 
 ### State architecture
 
@@ -49,11 +54,10 @@ onto v1 code.
   All document edits go through `applyChange` (gives undo/redo), and every change
   autosaves (there is no explicit Save). See `ARCHITECTURE.md` →
   "Routing, URL state & undo" and "Saving & sharing documents".
-- **Legacy v1 tab code (current Monitors tab, removed in Foundations):** the URL is the source of truth for the
-  tab's view (filters, date range, toggles). `src/lib/preferences.ts` (localStorage
-  defaults that seed the URL when no params exist) and `src/lib/url-state.ts` (pure,
-  unit-tested codecs such as `encodeDateRange`/`decodeDateRange`) support this. None of
-  it carries forward.
+- **Where it lives (Foundations spec 1):** documents and their change log in IndexedDB
+  through the platform adapter (`src/lib/platform/`); `DocumentSession`
+  (`src/lib/store/document-session.svelte.ts`) applies changes, keeps undo/redo, autosaves
+  after 500 ms, and syncs other tabs over `BroadcastChannel` (`src/lib/store/tab-channel.ts`).
 
 ### Related SJVAir projects
 
@@ -61,8 +65,8 @@ onto v1 code.
   packaged as an embeddable Svelte library, **now at v4.2.0** (4.0–4.2, October 2026: a new
   options toolbar and unified legend, `./core` and `./routes` entry points, a self-fetching
   detail panel). It is **still one map per page** (singleton `mapManager` and
-  integrations). This repo's v1 Monitors tab embeds its `MapShell` at `^3.6.3`. The new
-  dashboard does not use it; see below.
+  integrations). This repo no longer depends on it (the v1 Monitors tab that embedded its
+  `MapShell` was removed in Foundations spec 1). The new dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
   `../map-sdk`, not yet created) holds the per-map core, plugins, `MapView`, and data
   stores, while monitor-map is rebuilt on it (as its **5.0**) as the monitor-map
@@ -139,34 +143,35 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 Installed:
 
-| Library                                       | Purpose                                        |
-| --------------------------------------------- | ---------------------------------------------- |
-| `sv-router`                                   | Client-side routing                            |
-| `@sjvair/sdk`                                 | Air quality data API                           |
-| `@sjvair/monitor-map`                         | v1 map (replaced by `@sjvair/map-sdk`)         |
-| `date-fns`                                    | Date handling                                  |
-| `uplot` (via monitor-map; direct dep planned) | **All** charts (time-series-first)             |
-| shadcn-svelte / bits-ui                       | Accessible UI primitives                       |
-| `@lucide/svelte`                              | Icons                                          |
-| `@sveltejs/enhanced-img`                      | Optimized images                               |
-| `color2k`                                     | `readableColor` for text on level colors       |
-| Vitest                                        | Unit tests (browser-mode component tests next) |
+| Library                            | Purpose                                            |
+| ---------------------------------- | -------------------------------------------------- |
+| `sv-router`                        | Client-side routing                                |
+| `@sjvair/sdk`                      | Air quality data API                               |
+| `date-fns`                         | Date handling                                      |
+| `@date-fns/tz`                     | Pacific-time date math (via the `format` module)   |
+| Paraglide JS (inlang)              | UI message catalog (English-only today)            |
+| `zod`                              | Validating every incoming document                 |
+| `idb`                              | IndexedDB (inside the platform adapter only)       |
+| shadcn-svelte / bits-ui            | Accessible UI primitives                           |
+| `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)              |
+| `@lucide/svelte`                   | Icons                                              |
+| `@sveltejs/enhanced-img`           | Optimized images                                   |
+| `color2k`                          | `readableColor` for text on level colors           |
+| Vitest                             | Unit tests and browser-mode component tests        |
+| `vitest-browser-svelte`            | Rendering components in Vitest browser mode        |
+| Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 
-| Library                                         | Purpose                                               |
-| ----------------------------------------------- | ----------------------------------------------------- |
-| `@date-fns/tz`                                  | Pacific-time date math (via the `format` module)      |
-| Paraglide JS (inlang)                           | UI message catalog (English-only today)               |
-| `lz-string`                                     | URL-fragment document sharing                         |
-| `@sjvair/map-sdk`                               | Map widget: core, plugins, `MapView`, data stores     |
-| `terra-draw`                                    | Drawn-shape map selection (via a map-sdk plugin)      |
-| Playwright                                      | E2E on Chromium/WebKit/Firefox                        |
-| `vitest-browser-svelte`, `@axe-core/playwright` | Component tests in a real browser; WCAG 2.2 AA checks |
-| `zod`                                           | Validating every incoming document                    |
-| A Markdown renderer (raw HTML off)              | Safe Notes rendering                                  |
-| Sentry browser SDK                              | Scrubbed error reports (via the platform adapter)     |
-| JupyterLite + Pyodide                           | Separate `/notebooks/` app (Release 3)                |
+| Library                            | Purpose                                           |
+| ---------------------------------- | ------------------------------------------------- |
+| `uplot` (direct dependency)        | **All** charts (time-series-first)                |
+| `lz-string`                        | URL-fragment document sharing                     |
+| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView`, data stores |
+| `terra-draw`                       | Drawn-shape map selection (via a map-sdk plugin)  |
+| A Markdown renderer (raw HTML off) | Safe Notes rendering                              |
+| Sentry browser SDK                 | Scrubbed error reports (via the platform adapter) |
+| JupyterLite + Pyodide              | Separate `/notebooks/` app (Release 3)            |
 
 ## Environment Variables
 

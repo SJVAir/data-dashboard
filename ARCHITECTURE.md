@@ -1893,17 +1893,18 @@ The existing stack stays (IDEA.md: "nothing is being ripped out"); tools are add
 needed. Plain Vite SPA — no SvelteKit, no server runtime — keeping embedding and a Tauri
 wrap simple.
 
-- **Current:** Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4,
-  shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot` (currently only via
-  monitor-map; becomes a direct dependency),
-  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, `@sjvair/monitor-map` (v1 code; replaced by
-  `@sjvair/map-sdk`), Vitest.
-- **Planned additions (decided):** Paraglide JS (i18n-ready messages), `@date-fns/tz` (Pacific-time math), `lz-string`
-  (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw` (drawn-shape selection, via a map-sdk
-  plugin), `zod` (document validation), a Markdown renderer with raw HTML off (Notes), the
-  Sentry browser SDK (via the platform adapter), JupyterLite + Pyodide (separate notebook
-  app), and for testing Playwright,
-  `vitest-browser-svelte`, and `@axe-core/playwright`.
+- **Current** (after Foundations spec 1): Svelte 5 + TypeScript + Vite, `sv-router`,
+  Tailwind CSS v4, shadcn-svelte (bits-ui), `@lucide/svelte`, `svelte-sonner` (toasts),
+  `date-fns`, `@date-fns/tz` (Pacific-time math), Paraglide JS (i18n-ready messages),
+  `zod` (document validation), `idb` (IndexedDB, inside the platform adapter),
+  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, and for testing
+  Vitest (unit and browser mode with `vitest-browser-svelte`), Playwright, and
+  `@axe-core/playwright`.
+- **Planned additions (decided):** `uplot` (a direct dependency, for all charts),
+  `lz-string` (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw`
+  (drawn-shape selection, via a map-sdk plugin), a Markdown renderer with raw HTML off
+  (Notes), the Sentry browser SDK (via the platform adapter), and JupyterLite + Pyodide
+  (separate notebook app).
 
 ## Browser support & performance budget
 

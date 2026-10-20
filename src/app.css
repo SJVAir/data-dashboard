@@ -114,6 +114,14 @@
 		--motion-duration-fast: 0ms;
 		--motion-duration-base: 0ms;
 	}
+
+	/* The UI primitives' enter/exit animations set their own durations; collapse them too. */
+	*,
+	::before,
+	::after {
+		animation-duration: var(--motion-duration-base) !important;
+		transition-duration: var(--motion-duration-base) !important;
+	}
 }
 
 @layer base {

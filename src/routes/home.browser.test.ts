@@ -3,7 +3,7 @@ import { render } from "vitest-browser-svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import Home from "../routes/Home.svelte";
+import Home from "./Home.svelte";
 
 test("Home shows the starter when nothing is stored", async () => {
 	const app = await initApp(createMemoryPlatform(), { channel: createMemoryTabHub().channel() });
