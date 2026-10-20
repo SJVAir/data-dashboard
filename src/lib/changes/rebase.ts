@@ -47,7 +47,8 @@ export function applyForced(
 	return { doc, applied };
 }
 
-function replaceIfOverlapping(doc: Dashboard, change: Change): Change {
+/** An added widget whose rect would overlap one already in `doc`, moved to the bottom (same size). */
+export function replaceIfOverlapping(doc: Dashboard, change: Change): Change {
 	if (change.op !== "addWidget") return change;
 	const widgets = doc.body.widgets;
 	const { rect } = change.widget;

@@ -88,6 +88,30 @@ describe("UndoStack", () => {
 		expect(stack.canUndo).toBe(false);
 	});
 
+	it("undoing a delete re-places the widget when its spot was taken", () => {
+		const stack = new UndoStack();
+		const start: Dashboard = { ...makeDoc(), body: { widgets: [widget("a")] } };
+		let doc = edit(stack, start, {
+			op: "removeWidget",
+			target: { widgetId: "a" },
+			widget: start.body.widgets[0],
+			index: 0
+		});
+		// Another tab added a widget where "a" was, and one below it.
+		const below = { ...widget("d"), rect: { x: 0, y: 4, w: 12, h: 2 } };
+		doc = { ...doc, body: { widgets: [widget("c"), below] } };
+
+		const undone = stack.takeUndo(doc);
+		const restored = undone!.doc.body.widgets.find((w) => w.id === "a");
+		expect(restored?.rect).toEqual({ x: 0, y: 6, w: 6, h: 4 });
+		expect(undone?.change).toMatchObject({ op: "addWidget", widget: { rect: restored?.rect } });
+
+		// Redo deletes it, and undoing again restores it where it was re-placed.
+		const redone = stack.takeRedo(undone!.doc);
+		const again = stack.takeUndo(redone!.doc);
+		expect(again?.doc.body.widgets.find((w) => w.id === "a")?.rect).toEqual(restored?.rect);
+	});
+
 	it("push after undo clears redo", () => {
 		const stack = new UndoStack();
 		const doc = edit(stack, makeDoc(), title("a", "One"));

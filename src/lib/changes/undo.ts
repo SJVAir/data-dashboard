@@ -1,6 +1,7 @@
 import type { Dashboard } from "$lib/documents/schema";
 import type { Change } from "./types";
 import { applyChange, appliedChange, ChangeTargetMissing } from "./apply";
+import { replaceIfOverlapping } from "./rebase";
 
 type Entry = { change: Change; inverse: Change };
 
@@ -10,7 +11,8 @@ export type UndoResult = { doc: Dashboard; change: Change; inverse: Change };
 /**
  * Per-document, per-tab undo/redo history (not persisted). Entries hold the forward change
  * and its inverse. An entry whose target no longer exists (another tab removed the widget)
- * is discarded and the next one runs.
+ * is discarded and the next one runs; a widget re-added where another now sits is re-placed
+ * at the bottom.
  */
 export class UndoStack {
 	#undo: Entry[] = [];
@@ -54,7 +56,7 @@ function takeFrom(
 ): UndoResult | null {
 	for (let entry = stack.pop(); entry; entry = stack.pop()) {
 		try {
-			const result = applyChange(doc, pick(entry));
+			const result = applyChange(doc, replaceIfOverlapping(doc, pick(entry)));
 			return { doc: result.doc, change: appliedChange(result.inverse), inverse: result.inverse };
 		} catch (error) {
 			if (!(error instanceof ChangeTargetMissing)) throw error;

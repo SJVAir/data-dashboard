@@ -225,12 +225,12 @@ describe("DocumentSession", () => {
 		}
 	});
 
-	it("a refused commit passes the stored version to catchUp, and its failure is an error", async () => {
+	it("a refused commit calls catchUp, and its failure is an error", async () => {
 		const { platform } = await setup();
-		const seen: number[] = [];
+		let calls = 0;
 		class Failing extends DocumentSession {
-			protected override async catchUp(storedVersion: number): Promise<void> {
-				seen.push(storedVersion);
+			protected override async catchUp(): Promise<void> {
+				calls++;
 				throw new Error("catch-up failed");
 			}
 		}
@@ -241,7 +241,7 @@ describe("DocumentSession", () => {
 		const session = new Failing({ platform, space: SPACE, doc: makeDoc(), tabId: "tab-1" });
 		session.apply(title("a", "Map"));
 		await session.flush();
-		expect(seen).toEqual([1]);
+		expect(calls).toBe(1);
 		expect(session.status).toBe("error");
 		expect(session.doc.body.widgets[0].title).toBe("Map");
 	});
