@@ -45,6 +45,7 @@
 	"conflict_keep_mine": "Keep mine",
 	"conflict_use_other": "Use the other version",
 	"conflict_save_copy": "Save mine as a copy",
+	"conflict_failed": "Couldn't resolve that. Please try again.",
 	"starter_hint": "This is the starter dashboard. Any change saves it as your own.",
 	"starter_copied": "Saved as your own dashboard",
 	"widget_menu": "Actions for {title}",

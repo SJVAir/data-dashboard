@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toast } from "svelte-sonner";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { m } from "$lib/paraglide/messages.js";
@@ -16,6 +17,8 @@
 		try {
 			const copyId = await session.resolveConflict(choice);
 			if (copyId) await navigate("/dashboards/:id", { params: { id: copyId } });
+		} catch {
+			toast.error(m.conflict_failed());
 		} finally {
 			busy = false;
 		}

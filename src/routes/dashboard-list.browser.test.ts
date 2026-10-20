@@ -4,10 +4,14 @@ import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
-import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
+import { resolveMenu } from "$lib/actions/resolve";
+import { dashboardActions } from "$lib/actions/dashboard";
+import { menuScope } from "$lib/actions/scope";
+import { APP_CONTEXT_KEY, LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import DashboardList from "./DashboardList.svelte";
+import ListHarness from "./test-harness/ListHarness.svelte";
 
 const originalUrl = location.href;
 afterEach(() => {
@@ -96,4 +100,45 @@ test("conflict dialog can't be dismissed without a choice", async () => {
 	await userEvent.click(document.body, { position: { x: 2, y: 2 } });
 	await expect.element(page.getByRole("button", { name: "Keep mine" })).toBeVisible();
 	expect(resolveConflict).not.toHaveBeenCalled();
+});
+
+test("row rename leaves the last-opened preference unchanged", async () => {
+	const app = await setup();
+	const id = await app.index.createBlank();
+	await app.platform.preferences.set(app.space, LAST_OPENED_KEY, "elsewhere");
+	await render(ListHarness, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await page.getByRole("button", { name: "Actions for Untitled dashboard" }).click();
+	await page.getByRole("menuitem", { name: "Rename…" }).click();
+	await page.getByRole("textbox", { name: "Name" }).fill("Renamed");
+	await page.getByRole("button", { name: "Save" }).click();
+	await expect.poll(() => app.index.names.get(id)).toBe("Renamed");
+	expect(await app.platform.preferences.get(app.space, LAST_OPENED_KEY)).toBe("elsewhere");
+});
+
+test("duplicating from the list opens the rename dialog on the copy", async () => {
+	const app = await setup();
+	await app.index.createBlank();
+	await render(ListHarness, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await page.getByRole("button", { name: "Actions for Untitled dashboard" }).click();
+	await page.getByRole("menuitem", { name: "Duplicate" }).click();
+	await expect.element(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
+	expect(app.index.items).toHaveLength(2);
+});
+
+test("a row scope inside the page scope leaves one set of manage actions", async () => {
+	const app = await setup();
+	const outer = document.createElement("div");
+	const inner = document.createElement("div");
+	outer.append(inner);
+	document.body.append(outer);
+	const cleanups = [
+		menuScope(dashboardActions(app))(outer),
+		menuScope(dashboardActions(app, "row-id"))(inner)
+	];
+	const items = resolveMenu(inner, { payload: {} });
+	for (const id of ["rename-dashboard", "duplicate-dashboard", "delete-dashboard"]) {
+		expect(items.filter((item) => item.id === id)).toHaveLength(1);
+	}
+	for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
+	outer.remove();
 });

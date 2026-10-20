@@ -3,7 +3,8 @@
 	import FilePlus from "@lucide/svelte/icons/file-plus";
 	import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 	import { onMount } from "svelte";
-	import { dashboardRowActions } from "$lib/actions/dashboard";
+	import { dashboardActions } from "$lib/actions/dashboard";
+	import type { MenuProvider } from "$lib/actions/types";
 	import { menuScope } from "$lib/actions/scope";
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
@@ -19,6 +20,15 @@
 		app.current = { session: null, isStarter: false };
 		document.title = m.page_title_list();
 	});
+
+	// The same registered actions as the picker, less "Add widget" (it belongs on a dashboard).
+	const rowActions =
+		(id: string): MenuProvider =>
+		(ctx) =>
+			dashboardActions(
+				app,
+				id
+			)(ctx).filter((item) => item.group === "create" || item.group === "manage");
 
 	async function createBlank() {
 		await navigate("/dashboards/:id", { params: { id: await app.index.createBlank() } });
@@ -56,7 +66,7 @@
 					<li
 						class="flex items-center gap-2 py-1 pr-1 pl-3"
 						data-testid="dashboard-row-{item.id}"
-						{@attach menuScope(dashboardRowActions(app, item.id))}
+						{@attach menuScope(rowActions(item.id))}
 					>
 						<a
 							href={p("/dashboards/:id", { params: { id: item.id } })}

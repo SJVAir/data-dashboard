@@ -68,15 +68,31 @@ function renameDashboard(app: AppContext, session: () => DocumentSession | null)
 	});
 }
 
-async function duplicateDashboard(app: AppContext): Promise<void> {
-	const { session, isStarter } = app.current;
-	if (!session || session.readOnly) return;
+async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
+	const target = await resolveTarget(app, id);
+	if (!target || target.session.readOnly) return;
 	// The index copies the stored document, so store this tab's edits first.
-	if (!isStarter) await session.flush();
-	const id = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id);
-	await openDashboard(id);
-	const copy = await app.sessions.get(id);
+	if (!target.isStarter) await target.session.flush();
+	const copyId = await app.index.duplicate(target.isStarter ? STARTER_ID : target.session.doc.id);
+	await openDashboard(copyId);
+	const copy = await app.sessions.get(copyId);
 	if (copy) renameDashboard(app, () => copy);
+}
+
+/**
+ * The dashboard an action works on: `id`'s (opened without recording it as last opened), or
+ * the current one.
+ */
+async function resolveTarget(
+	app: AppContext,
+	id?: string
+): Promise<{ session: DocumentSession; isStarter: boolean } | null> {
+	if (id === undefined) {
+		const { session, isStarter } = app.current;
+		return session ? { session, isStarter } : null;
+	}
+	const session = await app.sessions.get(id, { remember: false });
+	return session ? { session, isStarter: false } : null;
 }
 
 /**
@@ -126,61 +142,30 @@ function softDelete(
 	});
 }
 
-function deleteDashboard(app: AppContext): void {
-	const { session, isStarter } = app.current;
-	if (!session || session.readOnly || isStarter) return;
-	// The page leaves a dashboard once it's deleted (`leaveDeletedDashboard`).
-	softDelete(app, session, (id) => openDashboard(id));
+async function deleteDashboard(app: AppContext, id?: string): Promise<void> {
+	const target = await resolveTarget(app, id);
+	if (!target || target.session.readOnly || target.isStarter) return;
+	const { session } = target;
+	if (id === undefined) {
+		// The page leaves a dashboard once it's deleted (`leaveDeletedDashboard`).
+		softDelete(app, session, (restored) => openDashboard(restored));
+		return;
+	}
+	softDelete(app, session, () => {});
+	await session.flush();
+	await app.index.refresh();
 }
 
 /**
- * The actions for one dashboard in the list (not necessarily the current one): rename,
- * duplicate, and delete, working on that dashboard's own session.
+ * The dashboard's actions; provided on the dashboard, listed in the picker, and on the list's
+ * rows (with that row's dashboard `id`, which the manage actions then work on instead of the
+ * current dashboard).
  */
-export function dashboardRowActions(app: AppContext, id: string): MenuProvider {
-	const withSession = async (fn: (session: DocumentSession) => void | Promise<void>) => {
-		const session = await app.sessions.get(id);
-		if (session && !session.readOnly) await fn(session);
-	};
-	return () => [
-		{
-			id: "rename-dashboard",
-			label: m.dashboard_rename(),
-			icon: Pencil,
-			group: "manage",
-			run: () => void withSession((session) => renameDashboard(app, () => session))
-		},
-		{
-			id: "duplicate-dashboard",
-			label: m.dashboard_duplicate(),
-			icon: Copy,
-			group: "manage",
-			run: () =>
-				void withSession(async (session) => {
-					await session.flush();
-					await app.index.duplicate(id);
-				})
-		},
-		{
-			id: "delete-dashboard",
-			label: m.dashboard_delete(),
-			icon: Trash2,
-			group: "manage",
-			run: () =>
-				void withSession(async (session) => {
-					softDelete(app, session, () => {});
-					await session.flush();
-					await app.index.refresh();
-				})
-		}
-	];
-}
-
-/** The dashboard's actions; provided on the dashboard and listed in the picker. */
-export function dashboardActions(app: AppContext): MenuProvider {
+export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 	return () => {
 		const { session, isStarter } = app.current;
-		const locked = !session || session.readOnly !== false;
+		// A row's dashboard isn't open; its actions check when they run.
+		const locked = id === undefined && (!session || session.readOnly !== false);
 		return [
 			{
 				id: "add-widget",
@@ -210,7 +195,7 @@ export function dashboardActions(app: AppContext): MenuProvider {
 				icon: Copy,
 				group: "manage",
 				disabled: locked,
-				run: () => void duplicateDashboard(app)
+				run: () => void duplicateDashboard(app, id)
 			},
 			{
 				id: "rename-dashboard",
@@ -218,7 +203,10 @@ export function dashboardActions(app: AppContext): MenuProvider {
 				icon: Pencil,
 				group: "manage",
 				disabled: locked,
-				run: () => renameDashboard(app, () => editable(app))
+				run: () => {
+					if (id === undefined) renameDashboard(app, () => editable(app));
+					else void resolveTarget(app, id).then((t) => t && renameDashboard(app, () => t.session));
+				}
 			},
 			{
 				id: "delete-dashboard",
@@ -226,8 +214,8 @@ export function dashboardActions(app: AppContext): MenuProvider {
 				icon: Trash2,
 				group: "manage",
 				// The starter is built in; it can't be deleted.
-				disabled: locked || isStarter,
-				run: () => deleteDashboard(app)
+				disabled: locked || (id === undefined && isStarter),
+				run: () => void deleteDashboard(app, id)
 			}
 		];
 	};

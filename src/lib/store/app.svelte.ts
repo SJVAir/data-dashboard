@@ -19,8 +19,10 @@ export type AppContext = {
 	tabId: string;
 	channel: TabChannel;
 	index: DashboardIndex;
-	/** Open sessions by id (one per dashboard in this tab); `STARTER_ID` gives the starter. */
-	sessions: { get(id: string): Promise<DocumentSession | null> };
+	/** Open sessions by id (one per dashboard in this tab); `STARTER_ID` gives the starter. Opening records the last-opened dashboard unless `remember` is false. */
+	sessions: {
+		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
+	};
 	current: CurrentDashboard;
 };
 
@@ -71,10 +73,10 @@ class App implements AppContext {
 		readonly options: AppOptions
 	) {
 		this.index = new DashboardIndex({ platform, space, channel, tabId, now: options.now });
-		this.sessions = { get: (id) => this.#get(id) };
+		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
 	}
 
-	async #get(id: string): Promise<DocumentSession | null> {
+	async #get(id: string, remember: boolean): Promise<DocumentSession | null> {
 		if (id === STARTER_ID) {
 			if (!this.#open.has(id)) this.#open.set(id, Promise.resolve(this.#starter()));
 			return this.#open.get(id)!;
@@ -95,7 +97,7 @@ class App implements AppContext {
 			if (this.#open.get(id) === opening) this.#open.delete(id);
 			return null;
 		}
-		await this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
+		if (remember) await this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
 		return session;
 	}
 
