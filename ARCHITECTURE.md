@@ -1455,7 +1455,7 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
 	kind: K;
 	schemaVersion: number;
 	id: string;
-	name: string;
+	name: string | null; // null = generated from a message key (decided 2026-10-20)
 	copiedFrom?: string; // source document id when this is a copy
 	deletedAt?: string; // local soft delete ("Recently deleted"; purged after ~30 days)
 	body: DocumentBody<K>;

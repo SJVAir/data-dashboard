@@ -18,7 +18,12 @@ and the copyright holder (Central California Asthma Collaborative).
 - **Done 2026-10-19/20: the three sjvair.com-side fixes**, each as PRs awaiting merge or
   release (outcomes under each warning below). sjvair.com work now targets its new
   `develop` branch during Foundations.
-- **Next:** the Foundations spec, on this repo's `foundations` branch.
+- **Now (2026-10-20): Foundations is split into five specs**, built as stacked PRs on
+  `foundations`: (1) the working core, (2) the data layer, (3) safety and sharing,
+  (4) Collections, (5) shipping readiness, in that order. Spec 1 is
+  `docs/superpowers/specs/2026-10-20-foundations-1-working-core-design.md`; its finish
+  line is "create a dashboard, add placeholder widgets, and have it autosave". The sdk-js
+  request-options change (needed by spec 2) gets its own sdk-js plan alongside spec 1.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
