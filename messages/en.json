@@ -1,4 +1,9 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-	"app_name": "SJVAir Workspace"
+	"app_name": "SJVAir Workspace",
+	"dashboard_untitled": "Untitled dashboard",
+	"dashboard_untitled_numbered": "Untitled dashboard {number}",
+	"dashboard_my": "My dashboard",
+	"dashboard_my_numbered": "My dashboard {number}",
+	"dashboard_starter": "Starter dashboard"
 }
