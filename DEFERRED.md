@@ -117,6 +117,16 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   could pin a dummy token and `BAM_MIRROR_ENABLED = False` so the suite runs the same
   everywhere. **Revisit with** the next sjvair.com test or settings change. Needs an
   approved sjvair.com plan.
+- **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
+  affects what spec 1 ships: Playwright runs with no retries in CI; sharp's install script
+  has no `allowScripts` decision yet; `@inlang/plugin-message-format` has an empty npm
+  `license` field although its `LICENSE` file is MIT, so spec 5's license check must accept
+  it; the `--duration-*` `@theme` aliases are probably inert. **Revisit when** CI first
+  flakes (retries), with spec 5's license check (sharp and the inlang plugin), and in the
+  design pass (the duration aliases).
+- **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
+  review)._ The home route shows as `/workspace` (sv-router drops the slash), while Vite's
+  base is `/workspace/`. **Revisit in** the hosting track: sjvair.com must serve both forms.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -131,6 +141,46 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `level` "a key into the levels" for the entry type, but `monitors/meta/` keys level
   records in uppercase; `level` matches each level's `name`. Docs only. **Revisit with**
   the next sdk-js release. Needs an sdk-js PR.
+
+## Documents & saving
+
+- **Name normalization edge cases.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+  `normalizeName` can split a surrogate pair (an emoji, say) at the 100-character cut, and
+  trimming again after the cut is untested. Names that long are rare. **Revisit with** spec
+  3 (the format freeze), or on the first report of a broken character at the end of a name.
+- **Migration chain hardening.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The
+  chain's test hard-codes `to: 1`; that migrations must not mutate their input isn't
+  documented on `Migration.migrate`; and a bare `catch` hides migration bugs as "invalid".
+  There is only one schema version so far. **Revisit with** spec 3 (the format freeze) for
+  the first two, and spec 5 (the error reporter) for the `catch`.
+- **IndexedDB adapter robustness.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A
+  connection closed by `blocking` or `terminated` is never reopened, so the UI shows
+  "Couldn't save" until a reload. The commit precondition (`doc.version` equals the last
+  entry's, entries contiguous) isn't enforced, and the memory and IndexedDB adapters diverge
+  on duplicate entry versions. Contract gaps: a commit on a missing id with a numeric base,
+  and `readLog` for an unknown document. The app's callers don't hit these cases
+  today. **Revisit before** any IndexedDB version bump (the reopen), or
+  with spec 3's durability work (the rest).
+- **DocumentSession durability gaps.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+  Edits queued during the starter hand-off are dropped if the hook returns `null` or
+  rejects, and aren't journaled while it runs. A failed save is retried only on the next
+  edit or `pagehide` (there's no retry timer). Errors on the commit chain aren't reported.
+  Each needs a storage failure at an unlucky moment. **Revisit with** spec 3 (durability)
+  for the first two, and spec 5 (Sentry) for reporting.
+- **Cross-tab sync edge cases.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A
+  catch-up from a trimmed log during a conflict leaves stale conflict pairs. "Keep mine"
+  after a journal-replay conflict can drop edits to widgets the other side deleted (it needs
+  a `#conflictBase`). The "error" status during a conflict looks like "Couldn't save".
+  Untested: save-as-copy with a replay, a catch-up during an in-flight commit, and
+  `pageshow`. All need several tabs editing the same widgets at once. **Revisit with** spec
+  3's durability work, or on the first report of lost edits after a conflict; the status
+  wording in the design pass.
+- **Journal limits and cleanup.** _Deferred 2026-10-20 (Foundations spec 1 review)._ Journal
+  records have no explicit size limit; records for dashboards that are never reopened stay
+  in `localStorage`; and the dashboards list shows a stale name when a rename exists only in
+  a journal record (until the dashboard is opened). Records are small and rare (only edits
+  pending at `pagehide`). **Revisit with** spec 3 (size limits), or if `localStorage` use
+  ever grows noticeably.
 
 ## Map & selection
 
@@ -232,6 +282,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Widgets
 
+- **Weak tests in the widget registry and `applyChange`.** _Deferred 2026-10-20 (Foundations
+  spec 1 review)._ Widget-type registration and lookup are untested, and the tests for
+  `applyChange`'s index clamping and for never mutating its input are weak. Both are
+  exercised indirectly by other tests. **Revisit when** a second widget type registers
+  (Release 1 step 4), or `applyChange` gains an operation.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
@@ -370,6 +425,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Internationalization
 
+- **Format module gaps.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The date-string
+  parsers don't validate `YYYY-MM-DD`; the DST tests check only lengths; `formatDate` is
+  untested; and the " PT" suffix is concatenated English rather than a message. Spec 1
+  formats only a few well-formed dates. **Revisit in** spec 2 (`DateRangeSpec`), which
+  builds date ranges on this module.
 - **Translations and language switching.** _Deferred 2026-09-24; re-checked 2026-10-13._ The
   server now has empty locale catalogs (es, tl, hmn; 395 untranslated entries each) and
   sends SMS in the user's language, but no actual translations exist and there's no
@@ -398,6 +458,39 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   _Deferred 2026-09-28._ Release 1 sends no analytics, only scrubbed error reports.
   **Revisit when** someone needs usage numbers (e.g. for funding reports or prioritizing
   widgets).
+- **Context menu loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The menu
+  items, context, and dropdown state could be `$state.raw`; the module-singleton dropdown
+  state needs a comment; submenus, disabled items, and separators have no tests; menus have
+  no reduced-motion test; and whether the Windows Menu key opens the menu twice is
+  unverified. Spec 1 menus are flat and short. **Revisit when** a menu first needs a
+  submenu, or in the first Windows testing pass.
+- **Shell keyboard handling.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The
+  text-entry check treats every `input` as text entry; IME composition (`isComposing`) isn't
+  skipped; shortcut labels say Ctrl on macOS; `contenteditable` is untested; and the
+  undo/redo buttons and shortcuts call `session.undo()` directly instead of the registered
+  global actions (the spec has nav controls be views onto actions). **Revisit in** Release 1
+  step 4 (its first checkbox or range input), with the command palette (the actions), and
+  before translations ship (IME).
+- **Startup failures all read as "storage unavailable".** _Deferred 2026-10-20 (Foundations
+  spec 1 review)._ An init failure that isn't a storage failure shows the same message.
+  **Revisit with** spec 5 (error reporting).
+- **Save-status and undo-toast timing.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+  The saved indicator's `aria-live` region announces "Saving…"/"Saved" on every edit, which
+  is noisy for screen readers. Undo toasts use sonner's 4-second default, after which a
+  dashboard deleted from the picker can't be recovered until "Recently deleted" ships (WCAG
+  2.2.1, Timing Adjustable). **Revisit in** the design pass (the announcements), and with
+  spec 3's "Recently deleted" (or lengthen the toasts sooner).
+- **Names of copies.** _Deferred 2026-10-20 (Foundations spec 1 review)._ "Save mine as a
+  copy" keeps the same name with no rename prompt, and duplicating an unnamed "My dashboard"
+  lists the copy as "Untitled dashboard". **Revisit in** the design pass, or when people
+  report confusing copies.
+- **Dashboard page and list loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+  The delete action's `deletedAt` comes from `new Date()`, not an injected clock; the
+  previous `document.title` lingers while a session loads; the conflict dialog watches only
+  the current session; list-row sessions are never disposed. Untested: leaving when another
+  tab deletes the dashboard, save-as-copy navigation, the `conflict_failed` toast, and
+  row-duplicate navigation. **Revisit with** the next change to the dashboard page or list,
+  or if many open list-row sessions start to cost memory.
 - **Visual dashboard picker** (thumbnail grid instead of the dropdown). _Deferred
   2026-09-24._ IDEA.md: "at minimum via dropdown; ideally via a nicer visual picker".
   Release 1 uses a top-nav dropdown. **Revisit when** people routinely keep more than
