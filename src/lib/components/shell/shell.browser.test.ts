@@ -96,3 +96,19 @@ test("picker lists dashboards by display name with the current one marked", asyn
 	await expect.element(untitled).toHaveAttribute("href", `/workspace/dashboards/${other}`);
 	await expect.element(page.getByRole("menuitem", { name: "All dashboards" })).toBeVisible();
 });
+
+test("picker lists the registered dashboard actions", async () => {
+	const { app } = await setup();
+	await renderNav(app);
+	await page.getByRole("button", { name: "Untitled dashboard" }).click();
+	for (const name of [
+		"New blank dashboard",
+		"New from starter",
+		"Duplicate",
+		"Rename…",
+		"Delete dashboard"
+	]) {
+		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
+	}
+	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).not.toBeInTheDocument();
+});

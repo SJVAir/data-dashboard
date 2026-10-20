@@ -1,6 +1,9 @@
 <script lang="ts">
 	import Check from "@lucide/svelte/icons/check";
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
+	import { dashboardActions } from "$lib/actions/dashboard";
+	import type { MenuContext } from "$lib/actions/types";
+	import MenuItems from "$lib/components/menu/MenuItems.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import { m } from "$lib/paraglide/messages.js";
@@ -12,10 +15,21 @@
 
 	const currentId = $derived(app.current.isStarter ? null : (app.current.session?.doc.id ?? null));
 	const currentName = $derived(currentDashboardName(app));
+
+	const actions = dashboardActions(app);
+	let trigger = $state<HTMLElement | null>(null);
+	const ctx = $derived<MenuContext | null>(trigger ? { target: trigger, payload: {} } : null);
+	// The registered dashboard actions, less "Add widget" (that belongs on the dashboard).
+	const items = $derived(
+		ctx ? actions(ctx).filter((item) => item.group === "create" || item.group === "manage") : []
+	);
 </script>
 
 <DropdownMenu.Root>
-	<DropdownMenu.Trigger class={cn(buttonVariants({ variant: "ghost" }), "max-w-full min-w-0")}>
+	<DropdownMenu.Trigger
+		bind:ref={trigger}
+		class={cn(buttonVariants({ variant: "ghost" }), "max-w-full min-w-0")}
+	>
 		<span class="truncate">{currentName ?? m.picker_choose()}</span>
 		<ChevronDown aria-hidden="true" />
 	</DropdownMenu.Trigger>
@@ -38,7 +52,10 @@
 		{#if app.index.items.length > 0}
 			<DropdownMenu.Separator />
 		{/if}
-		<!-- Task 16 adds the registered dashboard actions here. -->
+		{#if ctx}
+			<MenuItems {items} {ctx} kind="dropdown" />
+			<DropdownMenu.Separator />
+		{/if}
 		<DropdownMenu.Item>
 			{#snippet child({ props })}
 				<a {...props} href={p("/dashboards")}>{m.all_dashboards()}</a>

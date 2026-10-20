@@ -1,12 +1,17 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { toast } from "svelte-sonner";
+	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { STARTER_ID } from "$lib/starter/starter";
 	import { currentDashboardName, homeTarget, useApp } from "$lib/store/app.svelte";
+	import type { DocumentSession } from "$lib/store/document-session.svelte";
 	import { navigate } from "../router";
 
 	const app = useApp();
 	const name = $derived(currentDashboardName(app));
+	/** The starter's session while it's shown here. */
+	let starter: DocumentSession | null = null;
 
 	// `/` shows the starter in place, or moves on to the dashboard it resolves to.
 	onMount(() => {
@@ -21,11 +26,23 @@
 				return;
 			}
 			const session = await app.sessions.get(STARTER_ID);
-			if (active) app.current = { session, isStarter: true };
+			if (!active) return;
+			starter = session;
+			app.current = { session, isStarter: true };
 		})();
 		return () => {
 			active = false;
 		};
+	});
+
+	// The starter's first edit made a copy and made it current: show it at its own URL.
+	$effect(() => {
+		const { session, isStarter } = app.current;
+		if (!starter || isStarter || !session || session === starter) return;
+		if (session.doc.copiedFrom !== STARTER_ID) return;
+		starter = null;
+		void navigate("/dashboards/:id", { params: { id: session.doc.id }, replace: true });
+		toast(m.starter_copied());
 	});
 
 	$effect(() => {
@@ -33,7 +50,7 @@
 	});
 </script>
 
-<!-- Task 16 renders the dashboard (the starter's grid and hint) here. -->
 {#if name}
 	<h1 class="sr-only">{name}</h1>
 {/if}
+<DashboardGrid />

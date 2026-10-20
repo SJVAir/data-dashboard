@@ -15,7 +15,8 @@ export const placeholderType: WidgetType = {
 	thresholds: false,
 	analyzable: false,
 	defaultTitle: () => m.widget_placeholder_title(),
-	menu: () => [], // Task 16 adds the widget actions
+	// Type-specific items only; the widget frame adds the common widget actions.
+	menu: () => [],
 	component: Placeholder
 };
 
