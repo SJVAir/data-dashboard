@@ -34,17 +34,16 @@ specs and plans in `docs/superpowers/{specs,plans}/2026-09-1*`.
   the calendar (one row per day) and the monthly resolution, with `start` and `end` both set
   to the first of the month, for the map fill.
 - **Summary rows carry a timestamp whose first 10 characters are the date** (`yyyy-MM-dd`).
-  v1 compared on that prefix, and defensively filtered returned rows back to the requested range. Monthly rows were matched on the first
-  7 characters (`yyyy-MM`).
+  v1 compared on that prefix, and defensively filtered returned rows back to the requested
+  range. Monthly rows were matched on the first 7 characters (`yyyy-MM`).
 - **A month average for a monitor is the plain mean of its in-range rows.** A monitor with no
   in-range rows has no average and is left out, not shown as zero.
 - **Region ids are unique across all region types** (one table, one id per row), so caches
   keyed by region id stay valid when the user switches the parent type.
 - **Entry-type metadata supplies the level list** (name, label, color, range, guidance). A
-  value is bucketed by finding the level whose inclusive range contains it. A value in no
-  range (a gap between levels, or beyond the last) has no level and no color. Level ranges
-  are inclusive on both ends, so a value in a gap between adjacent levels (the test fixture
-  has 9 and 9.1) matches nothing.
+  value is bucketed by finding the level whose inclusive range contains it. Ranges are
+  inclusive on both ends, so a value in no range (in a gap between adjacent levels, such as
+  between the test fixture's 9 and 9.1, or beyond the last) has no level and no color.
 - **Monitor positions are GeoJSON points** (`longitude, latitude`), and may be null.
 - **Sizes and timings measured on the dev server:**
   - A regions list that includes full boundary geometry is slow. Narrowing to a large

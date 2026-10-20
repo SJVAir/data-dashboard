@@ -486,9 +486,10 @@ which part of a larger item it did.
 (SJVAir)`) (and `"license": "MIT"` in `package.json`), a CI license check
   (permissive only), and generated third-party notices.
 - Test infrastructure (spec 1: all but the dev-stack smoke suite; `ARCHITECTURE.md` →
-  "Testing strategy"): Vitest browser mode + `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,
-  `@axe-core/playwright`, and a dev-stack smoke suite. PRs into `main` run the full suite
-  (three engines plus axe); feature-branch PRs run unit + component + Chromium E2E.
+  "Testing strategy"): Vitest browser mode + `vitest-browser-svelte`, Playwright
+  (Chromium/WebKit/Firefox) with fixture routing, `@axe-core/playwright`, and a dev-stack
+  smoke suite. PRs into `main` run the full suite (three engines plus axe); feature-branch
+  PRs run unit + component + Chromium E2E.
 - Installable app: a web app manifest and icons (no service worker in Release 1), plus an
   offline banner from the online/offline events.
 - "Clear my data".
