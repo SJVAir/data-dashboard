@@ -24,7 +24,8 @@ and the copyright holder (Central California Asthma Collaborative).
   (4) Collections, (5) shipping readiness, in that order. Spec 1 is
   `docs/superpowers/specs/2026-10-20-foundations-1-working-core-design.md`; its finish
   line is "create a dashboard, add placeholder widgets, and have it autosave". The sdk-js
-  request-options change (needed by spec 2) gets its own sdk-js plan alongside spec 1.
+  request-options change (needed by spec 2) got its own sdk-js plan alongside spec 1; it is now
+  built (sdk-js PR #30, release awaiting approval).
 - **Spec 1 is done: merged into `foundations` as PR #6 (2026-10-21)**, with its
   finish-line, cross-tab, and accessibility E2E tests green on Chromium, Firefox, and
   WebKit in CI. PRs into `foundations` now run the full three-engine suite (GitHub can't
@@ -156,7 +157,9 @@ dropdown picker, and the dataset definition. The rest:
       dates, with a per-item "keep rolling" toggle; exports always record fixed dates.
 - [x] **#10 CSRF**: fix in django-resticus (`~/workspace/django-resticus`): enforce the
       CSRF check for session-authenticated writes. The SDK sends `X-CSRFToken`, and
-      sjvair.com pages that call the API with the cookie send it too. Not pinned (the user
+      sjvair.com pages that call the API with the cookie send it too (later found: the only
+      such caller is monitor-map's subscribe button, fixed by upgrading it to sdk-js 4.7.0;
+      see `ARCHITECTURE.md` → "CSRF protection"). Not pinned (the user
       is talking with the developer), so those changes land before or with the resticus
       merge. See `ARCHITECTURE.md` → "CSRF protection".
 - [x] **#11 Email alerts and accounts**: email alerts need a verified email plus
@@ -188,7 +191,7 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
    — see below; planned for a new session once the `planning` branch is done).
 2. **Release 1, step 1: Foundations** spec (this repo). Its data layer depends on the
    **sdk-js request-options change** (first item of the step 3 metadata track), so plan
-   that first.
+   that first (built 2026-10-21: sdk-js PR #30, release awaiting approval).
 3. ✅ **AQ levels mapped onto CalHeatScore's 0–4 tiers** (2026-10-14): Good 0, Moderate 1,
    Unhealthy for Sensitive Groups 2, Unhealthy 3, Very Unhealthy and Hazardous 4
    (`ARCHITECTURE.md` → "Shared action tiers"). Heat maps one to one and uses
@@ -557,9 +560,8 @@ which part of a larger item it did.
   returning a list of containing regions (filtered by `type`) with the `within=` geometry
   rules; the name mode is unchanged; update
   `lookupRegionPlace` in sdk-js.
-- **First sdk-js change:** optional `signal`/`init` on every data function plus a global
-  `setRequestDefaults({ headers, credentials })` (additive; `ARCHITECTURE.md` → "SDK request
-  options").
+- **First sdk-js change:** done 2026-10-21 (sdk-js 4.7.0, PR #30; release awaiting
+  approval). See `ARCHITECTURE.md` → "SDK request options".
 - sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`, plus
   `regions/geojson/` and the `buffer` parameter (the region list no longer returns
   geometry). Fix sdk-js

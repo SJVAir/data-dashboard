@@ -104,7 +104,8 @@ unchanged at 4.5.0.
      maps one to one, with its official guidance); AQ levels mapped Good 0 …
      Unhealthy 3, Very Unhealthy and Hazardous 4 (decided 2026-10-14)
    - **first:** sdk-js request options (optional `signal`/`init`, global
-     `setRequestDefaults`), which Foundations' data layer needs
+     `setRequestDefaults`), which Foundations' data layer needs (built 2026-10-21: sdk-js PR
+     #30, release awaiting approval)
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - verify production `school_district` rows and the 3 `custom` forecast-zone regions (the

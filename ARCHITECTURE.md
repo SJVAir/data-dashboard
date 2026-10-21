@@ -656,7 +656,8 @@ check there) so nothing else changes for existing resticus users. Tests cover:
 - **The SDK sends `X-CSRFToken` automatically** on same-origin writes in a browser (from the
   `csrftoken` cookie; see "SDK request options"). Token clients are unaffected.
 - **The only cookie-based API write on sjvair.com today is monitor-map's subscribe
-  button** (`window.USER` has no `api_token`). It is fixed by upgrading monitor-map to
+  button** (`window.USER` on sjvair.com has no `api_token`, so it passes an empty token and relies on
+  the session cookie). It is fixed by upgrading monitor-map to
   sdk-js 4.7.0, so it needs no separate page change.
 - **The resticus fix skips the CSRF check when the request also carries a valid token**,
   so a client that sends both a session cookie and a token is not rejected.
