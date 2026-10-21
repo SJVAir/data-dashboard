@@ -38,8 +38,8 @@ and the copyright holder (Central California Asthma Collaborative).
 - **monitor-map upgraded to sdk-js 4.7.0 (2026-10-21)**: monitor-map PR #124 merged into
   `main` (version 4.3.0, request cancelling; design and plan in
   `docs/superpowers/{specs,plans}/2026-10-21-monitor-map-sdk-4.7*`). Subscribe was checked by
-  hand against local sjvair.com (same-origin build, signed in). **Not yet published to npm**
-  (needs its own approval); the mobile app must bump its `@sjvair/sdk` to `^4.7.0` when it takes
+  hand against local sjvair.com (same-origin build, signed in). **Published to npm as
+  4.3.0 the same day** (GitHub Release v4.3.0, with the user's approval); the mobile app must bump its `@sjvair/sdk` to `^4.7.0` when it takes
   4.3.0 (`DEFERRED.md`). The resticus CSRF fix is now unblocked.
 - **Next, in order:** (1) the resticus CSRF fix plan (include a signed-in subscribe check on
   sjvair.com); (2) spec 2, the data layer.
