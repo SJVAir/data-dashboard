@@ -65,9 +65,9 @@ reuse existing code only if it's exactly what the new design needs.
 ### Related SJVAir projects
 
 - `@sjvair/monitor-map` (sibling repo `../monitor-map`) — SJVAir's interactive map,
-  packaged as an embeddable Svelte library, **now at v4.2.0** (4.0–4.2, October 2026: a new
+  packaged as an embeddable Svelte library, **now at v4.3.0** (4.0–4.2, October 2026: a new
   options toolbar and unified legend, `./core` and `./routes` entry points, a self-fetching
-  detail panel). It is **still one map per page** (singleton `mapManager` and
+  detail panel; 4.3.0, 2026-10-21: `@sjvair/sdk` 4.7.0 and request cancelling). It is **still one map per page** (singleton `mapManager` and
   integrations). This repo no longer depends on it (the v1 Monitors tab that embedded its
   `MapShell` was removed in Foundations spec 1). The new dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
