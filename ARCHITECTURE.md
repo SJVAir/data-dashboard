@@ -667,7 +667,7 @@ pinning with its developer): sjvair.com installs resticus `develop`, so merging 
 there reaches production at the next server deploy. The sjvair.com pages that use the
 cookie and the SDK header must therefore be ready **before or together with** that merge,
 and all of it must land before the dashboard's cookie-based saves ship. **Rollout order:**
-sdk-js 4.7.0 released, then monitor-map's upgrade on its `main`, then the resticus merge.
+sdk-js 4.7.0 released, then monitor-map's upgrade on its `main` (done 2026-10-21: monitor-map 4.3.0, PR #124), then the resticus merge.
 Needs approved plans in resticus, sjvair.com, and sdk-js. **Merging to resticus `develop` needs explicit
 approval** (it's effectively a production deploy while unpinned), as does any resticus release.
 
