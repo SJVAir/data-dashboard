@@ -59,7 +59,6 @@ approved 2026-10-21).
    not a merged partial result. Test in Task 1 (`signal: abort mid-pagination rejects`).
 4. **Header names in different cases** (`authorization` from defaults vs `Authorization` from the
    function): later layer wins, one header sent. Test in Task 1 (`merge: header names are case-insensitive`).
-case-insensitive`).
 5. **An empty-string token** (monitor-map passes `""`): no `Authorization` header at all, not
    `Token `. Test in Task 4 (`auth: empty token sends no Authorization`).
 
