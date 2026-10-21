@@ -144,6 +144,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
+- **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
+  SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
+  that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
+  itself. **Revisit if** the resticus rollout's end-to-end subscribe check finds the cookie
+  missing, or sjvair.com changes its CSRF/session settings. Needs a sjvair.com plan.
 
 ## Documents & saving
 
@@ -213,6 +218,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
+- **monitor-map: cancelling one-off loads.** _Deferred 2026-10-21 (monitor-map SDK 4.7
+  design)._ HMS smoke/fire and collocation sites accept a caller's signal but don't
+  supersede themselves, since nothing re-requests them on user selection. **Revisit when**
+  any of them becomes selection-driven (e.g. a date-picked HMS layer).
 
 ## Analysis & data
 
@@ -376,6 +385,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   endpoints, and the hardcoded PM2.5 scale unless it has already shipped with the
   breakpoint fix. Needs a mobile plan and an app release (explicit approval; publishing
   a GitHub Release there ships to TestFlight and the Play beta track).
+- **Mobile: move `@sjvair/sdk` to `^4.7.0` when taking monitor-map 4.3.0.** _Noted
+  2026-10-21 (monitor-map SDK 4.7 design)._ Mobile depends on the SDK directly (`^4.6.0`)
+  and calls `setOrigin` on its copy. monitor-map 4.3.0 needs `^4.7.0`. Without the bump,
+  npm can nest a second SDK under monitor-map whose requests ignore mobile's origin.
+  **Revisit when** mobile next updates its monitor-map dependency. Needs a mobile plan and
+  an app release (explicit approval).
 - **Mobile app's hardcoded PM2.5 scale.** _Noted 2026-09-28; widened 2026-10-13._ Three
   files hardcode the pre-2024 scale: `src/components/PMGauge.svelte`
   (12.1/35.5/55.5/150.5/250.5), `src/lib/colors.ts` (`pmValueColors`,
@@ -704,6 +719,10 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
+- **monitor-map: `setRequestDefaults`.** _Ruled out 2026-10-21 (monitor-map SDK 4.7
+  design)._ monitor-map passes request options per call and never sets the SDK's page-global
+  defaults, because it runs inside host apps that own those settings. **Reopen if** a host
+  needs monitor-map to set a header the host can't set itself.
 
 ## Dropped
 
