@@ -4,7 +4,7 @@ Last updated: 2026-10-14
 
 ## Start here
 
-**Status (2026-10-20): planning is complete and merged into `main`** (PR #5, 2026-10-19,
+**Status (2026-10-21): Foundations spec 1 is merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
 with the user's approval). A final consistency and build-readiness sweep (2026-10-14) fixed
 the remaining leftovers and settled five build details (relative file references, one
 `place` field per layer, `default-place` kept inside the starter, a CSP scoped to the
@@ -15,8 +15,9 @@ and the copyright holder (Central California Asthma Collaborative).
 - **Waiting on others:** the legal adviser's answers (`DEFERRED.md` → "Open decisions"),
   which only gate the final email-only accounts plan; and whether email alerts get their
   own rollout switch (Release 2 server plan).
-- **Done 2026-10-19/20: the three sjvair.com-side fixes**, each as PRs awaiting merge or
-  release (outcomes under each warning below). sjvair.com work now targets its new
+- **Done 2026-10-19/20: the three sjvair.com-side fixes** (outcomes under each warning
+  below). The sjvair.com PRs (#287, #288, #289) are merged into `develop`; mobile #112 is
+  still open, and its release waits for #287 to reach production. sjvair.com work now targets its new
   `develop` branch during Foundations.
 - **Now (2026-10-20): Foundations is split into five specs**, built as stacked PRs on
   `foundations`: (1) the working core, (2) the data layer, (3) safety and sharing,
@@ -24,9 +25,14 @@ and the copyright holder (Central California Asthma Collaborative).
   `docs/superpowers/specs/2026-10-20-foundations-1-working-core-design.md`; its finish
   line is "create a dashboard, add placeholder widgets, and have it autosave". The sdk-js
   request-options change (needed by spec 2) gets its own sdk-js plan alongside spec 1.
-- **Spec 1 is implemented (2026-10-20)** on the `foundations-1-core` branch, with its
-  finish-line, cross-tab, and accessibility E2E tests. It awaits the user's decision on
-  pushing and opening its PR into `foundations`.
+- **Spec 1 is done: merged into `foundations` as PR #6 (2026-10-21)**, with its
+  finish-line, cross-tab, and accessibility E2E tests green on Chromium, Firefox, and
+  WebKit in CI. PRs into `foundations` now run the full three-engine suite (GitHub can't
+  start a workflow by hand until one exists on `main`). After trying the build, menus
+  changed: a scope's items stay out of nested menus unless marked `bubbles`, so widget
+  menus show no dashboard actions, and Undo / Redo sit in the dashboard's own menu.
+- **Next: the sdk-js request-options plan, then spec 2 (the data layer).** The sdk-js
+  plan needs the user's approval before sdk-js is touched (a sibling project).
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -330,7 +336,7 @@ already assigns stable codes (`sjvapcd-kern-airbasin`, `sjvapcd-tulare-valley`,
 `sjvapcd-sequoia`). Verified locally: the import fits the six reference counties at
 0.99+ IoU, the Kern zone lies inside Kern County, Tulare valley + Sequoia tile Tulare
 County exactly, and `fetch_forecasts` then covers all 9 zones. sjvair.com **#289**
-(into `develop`) makes `fetch_forecasts` log an ERROR for any skipped zone, so a gap like
+(merged into `develop`) makes `fetch_forecasts` log an ERROR for any skipped zone, so a gap like
 this can't stay silent. Each environment needs `import_forecast_zones` run once (done
 locally); production is out of scope (the user's call, 2026-10-20; dropped in
 `DEFERRED.md`).
@@ -362,7 +368,7 @@ approved sjvair.com plan; decided 2026-09-23 to fix independently of the dashboa
   breakpoints are still not fixed.) Tracked in `DEFERRED.md`; it needs its own plan and an app
   release.
 
-**Outcome (2026-10-20):** sjvair.com **#288** (into `develop`) sets PM2.5 Very Unhealthy to
+**Outcome (2026-10-20):** sjvair.com **#288** (merged into `develop`) sets PM2.5 Very Unhealthy to
 125.5 and Hazardous to 225.5 (verified against the 2024 final rule and EPA's AQS
 breakpoint table), and every entry model now uses its shared set from `levels.py`
 instead of an inline copy (the copies were identical, which is how both stayed wrong).
@@ -388,7 +394,7 @@ package release needs explicit per-release approval.
 
 **Release 1, step 1: Foundations** (this repo)
 
-Items marked ✅ were done in spec 1 (2026-10-20, `foundations-1-core`); "spec 1:" notes say
+Items marked ✅ were done in spec 1 (2026-10-20, merged as PR #6 on 2026-10-21); "spec 1:" notes say
 which part of a larger item it did.
 
 - ✅ **First, write `docs/reference/v1-lessons.md`**: what the v1 code and its 78 tests

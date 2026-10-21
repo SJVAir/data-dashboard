@@ -58,8 +58,9 @@ reuse existing code only if it's exactly what the new design needs.
   through the platform adapter (`src/lib/platform/`); `DocumentSession`
   (`src/lib/store/document-session.svelte.ts`) applies changes, keeps undo/redo, autosaves
   after 500 ms, and syncs other tabs over `BroadcastChannel` (`src/lib/store/tab-channel.ts`).
-  On `pagehide` it also writes pending changes to a synchronous journal (`platform.journal`,
-  `localStorage` on the web), replayed when the dashboard next opens.
+  On `pagehide` and when the page is hidden it also writes pending changes to a synchronous
+  journal (`platform.journal`, `localStorage` on the web), replayed when the dashboard next
+  opens.
 
 ### Related SJVAir projects
 
