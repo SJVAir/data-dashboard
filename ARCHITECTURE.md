@@ -653,17 +653,21 @@ check there) so nothing else changes for existing resticus users. Tests cover:
 
 **Supporting changes:**
 
-- **The SDK sends `X-CSRFToken`** (from the `csrftoken` cookie) on session-based calls.
-  Token clients are unaffected.
-- **Update the existing sjvair.com pages that call the API with the cookie** so they send
-  the header.
+- **The SDK sends `X-CSRFToken` automatically** on same-origin writes in a browser (from the
+  `csrftoken` cookie; see "SDK request options"). Token clients are unaffected.
+- **The only cookie-based API write on sjvair.com today is monitor-map's subscribe
+  button** (`window.USER` has no `api_token`). It is fixed by upgrading monitor-map to
+  sdk-js 4.7.0, so it needs no separate page change.
+- **The resticus fix skips the CSRF check when the request also carries a valid token**,
+  so a client that sends both a session cookie and a token is not rejected.
 
 **Ordering, since resticus is not pinned** (decided 2026-09-28; the user is discussing
 pinning with its developer): sjvair.com installs resticus `develop`, so merging the fix
 there reaches production at the next server deploy. The sjvair.com pages that use the
 cookie and the SDK header must therefore be ready **before or together with** that merge,
-and all of it must land before the dashboard's cookie-based saves ship. Needs approved
-plans in resticus, sjvair.com, and sdk-js. **Merging to resticus `develop` needs explicit
+and all of it must land before the dashboard's cookie-based saves ship. **Rollout order:**
+sdk-js 4.7.0 released, then monitor-map's upgrade on its `main`, then the resticus merge.
+Needs approved plans in resticus, sjvair.com, and sdk-js. **Merging to resticus `develop` needs explicit
 approval** (it's effectively a production deploy while unpinned), as does any resticus release.
 
 ### Sign-in flow
@@ -702,18 +706,28 @@ approach is staged:
 
 ## SDK request options
 
-Decided 2026-09-28. `@sjvair/sdk`'s data wrappers build `{url, searchParams}` but pass no
-`init`, so there is no `AbortSignal` (needed for last-requested-wins), no single place to
-set headers (`X-CSRFToken`, a future `Accept-Language`), and no global `credentials`. One
-**additive** sdk-js change fixes this:
+Decided 2026-09-28; built 2026-10-21 (sdk-js 4.7.0, PR
+https://github.com/SJVAir/sdk-js/pull/30; the release awaits the user's approval).
+`@sjvair/sdk`'s data wrappers used to pass no `init`, so there was no `AbortSignal` (needed
+for last-requested-wins), no single place to set headers (`X-CSRFToken`, a future
+`Accept-Language`), and no global `credentials`. One **additive** change fixes this:
 
-- **Every data function accepts optional `signal` and `init`**, passed through to `fetch`.
-- **A global `setRequestDefaults({ headers, credentials })`** (or a request hook) that the
-  dashboard sets once.
-- **Nothing breaks:** all additions are optional (monitor-map, mobile, and existing
-  code are unaffected).
-- It lands in the **first sdk-js plan (the metadata-enablers track)**, since Foundations'
-  data layer builds on it. The CSRF header and i18n readiness use it.
+- **Every fetching function takes a final `options?: RequestOptions`** (`{ signal, init }`),
+  passed through to `fetch` (`getMonitors` names it `requestOptions`). An aborted call
+  rejects with the signal's reason, unchanged (`abort()` gives an `AbortError`).
+- **A global `setRequestDefaults({ headers, credentials, csrf })`** that the dashboard
+  sets once. Headers merge in this order, lowest to highest: the built-in CSRF header,
+  the global defaults, the function's own headers, then the caller's `init.headers`.
+- **CSRF is automatic.** On POST/PUT/PATCH/DELETE in a browser, and only to the page's own
+  origin, the SDK copies the `csrftoken` cookie into an `X-CSRFToken` header. It reads the
+  cookie fresh on every request. The cookie and header names are configurable, and
+  `csrf: false` turns it off.
+- **Account calls take an optional `apiToken`.** The SDK sends `Authorization` only for a
+  non-empty token.
+- **Error causes are scrubbed.** The `Authorization` header, the CSRF header, and the
+  request body (passwords, say) are redacted so they cannot reach error reports.
+- **Nothing breaks:** every addition is optional (monitor-map, mobile, and existing code
+  are unaffected).
 
 ## Data resolution & live refresh
 

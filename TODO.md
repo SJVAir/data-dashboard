@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-10-14
+Last updated: 2026-10-21
 
 ## Start here
 
@@ -31,8 +31,11 @@ and the copyright holder (Central California Asthma Collaborative).
   start a workflow by hand until one exists on `main`). After trying the build, menus
   changed: a scope's items stay out of nested menus unless marked `bubbles`, so widget
   menus show no dashboard actions, and Undo / Redo sit in the dashboard's own menu.
-- **Next: the sdk-js request-options plan, then spec 2 (the data layer).** The sdk-js
-  plan needs the user's approval before sdk-js is touched (a sibling project).
+- **sdk-js request options are built (2026-10-21)**: sdk-js PR #30 is open (version 4.7.0),
+  and its release awaits the user's approval. See `ARCHITECTURE.md` → "SDK request options".
+- **Next, in order:** (1) the sdk-js 4.7.0 release (needs the user's approval); (2) the
+  monitor-map SDK upgrade plan (monitor-map must reach 4.7.0 on `main` before the resticus
+  CSRF fix merges); (3) spec 2, the data layer, which can start once 4.7.0 is released.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -689,8 +692,8 @@ django-resticus plans first)
 
 - **First: the CSRF fix** (`ARCHITECTURE.md` → "CSRF protection"). This covers a
   django-resticus change enforcing CSRF for session-authenticated writes, the sdk-js
-  `X-CSRFToken` header, and updates to sjvair.com pages that call the API with the
-  cookie. Order: the pages and SDK are ready before or with the resticus merge, and all
+  automatic `X-CSRFToken` header (sdk-js 4.7.0), and upgrading monitor-map (the only
+  cookie-based API write today) to it. Order: the pages and SDK are ready before or with the resticus merge, and all
   of it lands before cookie-based saves ship. Merging to resticus `develop` needs the
   user's explicit approval.
 

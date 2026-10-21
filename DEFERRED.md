@@ -137,10 +137,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `monitorSubscriptionSchema.level` only allows `unhealthy_sensitive` and above, but the
   server also accepts `good` and `moderate` (treated as Moderate). **Revisit with** the
   Release 2 alert-rule SDK work. Needs an sdk-js plan and a release.
-- **sdk-js: misleading `AirAlert.level` doc.** _Noted 2026-10-20._ The 4.6.0 doc calls
-  `level` "a key into the levels" for the entry type, but `monitors/meta/` keys level
-  records in uppercase; `level` matches each level's `name`. Docs only. **Revisit with**
-  the next sdk-js release. Needs an sdk-js PR.
+- **sdk-js: CSRF header can follow a cross-origin redirect.** _Deferred 2026-10-21._ The
+  SDK's origin check applies to the initial URL. If a same-origin write got a 307/308
+  redirect to another origin, the request would carry `X-CSRFToken` along (browsers strip
+  only `Authorization`). Contained today: the custom header forces a CORS preflight, so it
+  only reaches a target that explicitly allows it, and the API's writes don't redirect.
+  **Revisit when** the API starts redirecting writes or the dashboard is deployed
+  cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
 
 ## Documents & saving
 
