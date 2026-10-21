@@ -27,3 +27,11 @@ vite.config.ts.timestamp-*
 
 # Local worktrees
 .worktrees/
+
+# Paraglide output
+src/lib/paraglide/
+playwright-report/
+test-results/
+
+# Vitest browser-mode failure screenshots
+.vitest/

@@ -1,12 +1,15 @@
-import { createRouter, searchParams } from "sv-router";
-import MonitorsTab from "./routes/MonitorsTab.svelte";
-import HmsTab from "./routes/HmsTab.svelte";
-import CollocationSitesTab from "./routes/CollocationSitesTab.svelte";
+import { createRouter } from "sv-router";
+import DashboardList from "./routes/DashboardList.svelte";
+import DashboardPage from "./routes/DashboardPage.svelte";
+import Home from "./routes/Home.svelte";
+import NotFound from "./routes/NotFound.svelte";
 
-export const { route, navigate, p, isActive } = createRouter({
-	"/": MonitorsTab,
-	"/hms": HmsTab,
-	"/collocation-sites": CollocationSitesTab
-});
-
-export { searchParams };
+export const { route, navigate, p, isActive } = createRouter(
+	{
+		"/": Home,
+		"/dashboards": DashboardList,
+		"/dashboards/:id": DashboardPage,
+		"*": NotFound
+	},
+	{ base: "/workspace" }
+);

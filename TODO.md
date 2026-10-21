@@ -24,6 +24,9 @@ and the copyright holder (Central California Asthma Collaborative).
   `docs/superpowers/specs/2026-10-20-foundations-1-working-core-design.md`; its finish
   line is "create a dashboard, add placeholder widgets, and have it autosave". The sdk-js
   request-options change (needed by spec 2) gets its own sdk-js plan alongside spec 1.
+- **Spec 1 is implemented (2026-10-20)** on the `foundations-1-core` branch, with its
+  finish-line, cross-tab, and accessibility E2E tests. It awaits the user's decision on
+  pushing and opening its PR into `foundations`.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -385,7 +388,10 @@ package release needs explicit per-release approval.
 
 **Release 1, step 1: Foundations** (this repo)
 
-- **First, write `docs/reference/v1-lessons.md`**: what the v1 code and its 78 tests
+Items marked ✅ were done in spec 1 (2026-10-20, `foundations-1-core`); "spec 1:" notes say
+which part of a larger item it did.
+
+- ✅ **First, write `docs/reference/v1-lessons.md`**: what the v1 code and its 78 tests
   learned about server behavior, as behaviors rather than code. Examples:
   - monthly+ rollups exist only after the period ends
   - region boundaries are large, so they're fetched lazily for selected regions only, with
@@ -399,11 +405,11 @@ package release needs explicit per-release approval.
 
   Harvest the edge cases the tests encode as well.
 
-- Then the fresh start: remove the v1 app shell, sidebar, tab routes, and tab pages.
+- ✅ Then the fresh start: remove the v1 app shell, sidebar, tab routes, and tab pages.
   Reuse existing code only if it's exactly what the new design needs.
 
-- Platform adapter: storage, notifications, file export, background tasks, online status,
-  opt-in geolocation, error reporting,
+- Platform adapter (spec 1: storage, preferences, and identity): storage, notifications,
+  file export, background tasks, online status, opt-in geolocation, error reporting,
   auth mode, and token storage. Preferences (last-opened dashboard, active Collection, the
   starter's chosen place)
   go through it; the v1 `preferences.ts` is removed, not migrated.
@@ -418,16 +424,17 @@ package release needs explicit per-release approval.
 - Dataset adapter registry keyed by catalog id; hide catalog entries with no adapter
   (`ARCHITECTURE.md` → "Metadata as source of truth" → "What a dataset is").
 - `QueryDescriptor` type: one definition, in `ARCHITECTURE.md` → "Widget data selection".
-- A theme-token layer: all colors, fonts, radii, spacing, and motion as CSS variables; no
+- ✅ A theme-token layer: all colors, fonts, radii, spacing, and motion as CSS variables; no
   hardcoded styling values in components.
-- Paraglide JS (English-only) and the shared `format` module, before any new UI. The
+- ✅ Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
   Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
 - The version 1 document body as sketched in `ARCHITECTURE.md` (`DashboardBody`,
   `WidgetInstance`, `DateRangeSpec`, a layer's `place` or `selection`, `default-place`),
   with zod schemas; the spec finalizes field detail.
-- `SavedDocument` types, a migration chain (validated after each upgrade, with the original
-  kept locally for 30 days and permanent fixtures for every past `schemaVersion` run in
+- `SavedDocument` types (spec 1: types, zod schemas, the migration-chain machinery,
+  `applyChange`, undo/redo, the change log, and cross-tab sync), a migration chain
+  (validated after each upgrade, with the original kept locally for 30 days and permanent fixtures for every past `schemaVersion` run in
   CI), `applyChange`, and undo/redo. The `Change`
   format is serializable JSON with explicit `target`s, plus a persisted queue of unsynced
   changes with their base version, and cross-tab sync via `BroadcastChannel`
@@ -464,11 +471,11 @@ package release needs explicit per-release approval.
   rolling ranges to fixed Pacific dates (with a per-item "keep rolling" toggle), and a
   placeholder
   Analysis view ("starter analyses coming soon").
-- Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
+- ✅ Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
-- App shell: top nav, dashboard picker (a dropdown), and the new route table (`ARCHITECTURE.md` →
-  "Routing"), plus `basePath` support for `sjvair.com/workspace/`.
-- CI workflow: lint, type-check, tests, and build on every PR.
+- ✅ App shell: top nav, dashboard picker (a dropdown), and the new route table
+  (`ARCHITECTURE.md` → "Routing"), plus `basePath` support for `sjvair.com/workspace/`.
+- ✅ CI workflow: lint, type-check, tests, and build on every PR.
 - A CI bundle budget (about 200 KB compressed of initial JS), per-widget-type code
   splitting, and an unsupported-browser notice (Chrome/Edge 111+, Safari 16.4+, Firefox 128+).
 - A shared `readableColor` helper (color2k) for text on level colors; outlined swatches;
@@ -478,17 +485,18 @@ package release needs explicit per-release approval.
 - Add an MIT `LICENSE` file (`Copyright (c) 2026 Central California Asthma Collaborative
 (SJVAir)`) (and `"license": "MIT"` in `package.json`), a CI license check
   (permissive only), and generated third-party notices.
-- Test infrastructure (`ARCHITECTURE.md` → "Testing strategy"): Vitest browser mode +
-  `vitest-browser-svelte`, Playwright (Chromium/WebKit/Firefox) with fixture routing,
-  `@axe-core/playwright`, and a dev-stack smoke suite. PRs into `main` run the full suite
-  (three engines plus axe); feature-branch PRs run unit + component + Chromium E2E.
+- Test infrastructure (spec 1: all but the dev-stack smoke suite; `ARCHITECTURE.md` →
+  "Testing strategy"): Vitest browser mode + `vitest-browser-svelte`, Playwright
+  (Chromium/WebKit/Firefox) with fixture routing, `@axe-core/playwright`, and a dev-stack
+  smoke suite. PRs into `main` run the full suite (three engines plus axe); feature-branch
+  PRs run unit + component + Chromium E2E.
 - Installable app: a web app manifest and icons (no service worker in Release 1), plus an
   offline banner from the online/offline events.
 - "Clear my data".
 - Vite dev proxy: `/api` and `/account/` to the local podman sjvair.com, plus a one-time `csrftoken`
   cookie bootstrap (Vite serves the app, so Django's `ensure_csrf_cookie` doesn't run in dev).
-- Autosave (debounced `applyChange` persistence), the "Saved" indicator, and picker
-  actions: new, duplicate, rename, delete with an undo toast. Local soft delete with a
+- Autosave (spec 1: all but "Recently deleted"; debounced `applyChange` persistence), the
+  "Saved" indicator, and picker actions: new, duplicate, rename, delete with an undo toast. Local soft delete with a
   "Recently deleted" list (about 30 days), and `copiedFrom` on local copies (starter, Save as
   copy).
 - Local durability: a `navigator.storage.persist()` request, a storage status note, a

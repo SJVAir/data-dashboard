@@ -1,16 +1,17 @@
 import { mount } from "svelte";
-import { setOrigin } from "@sjvair/sdk/http";
 import "./app.css";
 import App from "./App.svelte";
+import { boot } from "$lib/boot";
+import { createWebPlatform } from "$lib/platform/web/storage";
+import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 
-const origin = import.meta.env.PROD ? import.meta.env.VITE_PROD_URL : import.meta.env.VITE_DEV_URL;
+const target = document.getElementById("app")!;
 
-if (!origin) {
-	throw new Error(
-		`Missing ${import.meta.env.PROD ? "VITE_PROD_URL" : "VITE_DEV_URL"} — copy .env.example to .env and fill in real values.`
-	);
-}
-
-setOrigin(origin);
-
-mount(App, { target: document.getElementById("app")! });
+await boot({
+	target,
+	createPlatform: createWebPlatform,
+	async start(platform) {
+		const app = await initApp(platform);
+		mount(App, { target, context: new Map([[APP_CONTEXT_KEY, app]]) });
+	}
+});

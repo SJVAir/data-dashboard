@@ -1,1 +1,6 @@
 docs/superpowers/
+src/lib/paraglide/
+playwright-report/
+test-results/
+project.inlang/*
+!project.inlang/settings.json
