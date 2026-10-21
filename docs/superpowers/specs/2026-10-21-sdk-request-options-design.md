@@ -180,8 +180,8 @@ as step 1 is done.
 
 ## Settled during the builder check
 
-- **Branch from `origin/main`** in sdk-js (4.6.0 is tagged there; the local `main` is stale at
-  4.5.0).
+- **Sync sdk-js's local `main` with the remote first** (it is stale at 4.5.0; 4.6.0 is
+  tagged on `origin/main`), then branch from it. The user keeps local `main` branches synced.
 - **Error `cause`:** on a failed request, `httpRequest` puts the `init` it sent into
   `error.cause`. Keep the merged `init` there, but replace the values of `Authorization` and
   the CSRF header with `"[redacted]"`, so error reports can't carry either. *(Claude's call.)*
