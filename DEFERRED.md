@@ -218,6 +218,17 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
+- **monitor-map: chart stuck loading after a failed background refresh.** _Noted
+  2026-10-21 (monitor-map 4.3.0 review)._ If a timed (silent) chart refresh supersedes a
+  range change that is still loading and then fails, `DataChart` keeps showing the loading
+  state. This is the same as in 4.2.0, not a regression. **Revisit with** the next DataChart
+  change or the map-sdk rebuild (5.0). The fix is to have the silent refresh take over the
+  `loading` flag. Needs a monitor-map plan.
+- **monitor-map: subscription status load errors are unhandled.** _Noted 2026-10-21
+  (monitor-map 4.3.0 review)._ A failed subscription-status load (not a cancel) still
+  surfaces as an unhandled rejection, as in 4.2.0, with no error state on the button.
+  **Revisit with** the next change to `MonitorSubscriptionManager` or the map-sdk rebuild.
+  Needs a monitor-map plan.
 - **monitor-map: cancelling one-off loads.** _Deferred 2026-10-21 (monitor-map SDK 4.7
   design)._ HMS smoke/fire and collocation sites accept a caller's signal but don't
   supersede themselves, since nothing re-requests them on user selection. **Revisit when**
