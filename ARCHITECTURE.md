@@ -707,8 +707,8 @@ approach is staged:
 
 ## SDK request options
 
-Decided 2026-09-28; built 2026-10-21 (sdk-js 4.7.0, PR
-https://github.com/SJVAir/sdk-js/pull/30; the release awaits the user's approval).
+Decided 2026-09-28; built and released 2026-10-21 as @sjvair/sdk 4.7.0 (PR
+https://github.com/SJVAir/sdk-js/pull/30).
 `@sjvair/sdk`'s data wrappers used to pass no `init`, so there was no `AbortSignal` (needed
 for last-requested-wins), no single place to set headers (`X-CSRFToken`, a future
 `Accept-Language`), and no global `credentials`. One **additive** change fixes this:
