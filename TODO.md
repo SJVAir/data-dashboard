@@ -54,17 +54,18 @@ and the copyright holder (Central California Asthma Collaborative).
   - **The local sjvair.com stack runs the fix (2026-10-22)**, not resticus `develop`: an
     uncommitted `sjvair.com/docker-compose.override.yml` (in `.git/info/exclude`) mounts a
     pinned resticus worktree (`~/workspace/django-resticus/.worktrees/session-csrf`, detached
-    at `5bdc0de`) over the installed package in the web and worker containers. **Remove it**
+    at `49883d4`, the tip of #26's `fix/csrf-follow-ups`, so #25 plus the follow-ups) over the installed package in the web and worker containers. **Remove it**
     (delete the file, recreate the containers, remove the worktree) once #25 is merged into
-    resticus `develop` and the image is rebuilt. If #25 gets new commits, move the worktree
-    to them. Check it's live: `grep -c '^def enforce_csrf'` on the container's
+    resticus `develop` (and #26 too, if it's kept) and the image is rebuilt. If #25 or #26
+    gets new commits, move the worktree to them
+    (`git -C <worktree> checkout --detach fix/csrf-follow-ups`) and restart the containers. Check it's live: `grep -c '^def enforce_csrf'` on the container's
     `site-packages/resticus/auth.py` prints `1`. The mount path is tied to the image's Python
     3.14.
   - **Follow-ups from the review: resticus [#26](https://github.com/dmpayton/django-resticus/pull/26)** (draft, `fix/csrf-follow-ups`
     stacked on `fix/session-csrf`; review and merge after #25): skip the credential lookup
     on safe methods, a non-UTF-8 token is a 401, the authenticator CSRF rule documented, and
     `ApiClient.patch`. 189 resticus tests and the sjvair.com suite pass. The local stack
-    stays pinned on #25's code.
+    runs it (2026-10-22).
   - **Next for it:** sjvair.com #292 merged into `develop` (2026-10-22). #25 is a **draft**,
     with the user's note that it waits until #292 reaches sjvair.com `main`. The resticus
     developer reviews and merges #25; **the user tells them when**. Before that, monitor-map 4.3.0
