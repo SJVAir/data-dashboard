@@ -38,12 +38,6 @@ export function todayPacific(now: Date = new Date()): string {
 	return toKey(new TZDate(now.getTime(), TIME_ZONE));
 }
 
-/** An instant as Pacific wall time with no offset, `YYYY-MM-DD HH:mm:ss` (the API's zone-less form). */
-export function pacificWallTime(instant: Date): string {
-	const t = new TZDate(instant.getTime(), TIME_ZONE);
-	return `${toKey(t)} ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
-}
-
 /** The Sunday that starts the Pacific week containing `date` (`YYYY-MM-DD`). */
 export function startOfPacificWeek(date: string): string {
 	return toKey(startOfWeek(pacificDay(date), { weekStartsOn: WEEK_STARTS_ON }));

@@ -131,7 +131,7 @@ describe("airQualityAdapter.fetch", () => {
 		expect(data.processor).toBeNull();
 	});
 
-	it("raw window is Pacific wall time, for the published series, filtered by entry timestamps", async () => {
+	it("raw window is UTC instants, for the published series, filtered by entry timestamps", async () => {
 		vi.mocked(paginatedApiCall).mockResolvedValue([
 			{ timestamp: "2026-10-21T12:00:05-07:00", value: "7.25" },
 			{ timestamp: "2026-10-21T12:00:00-07:00", value: "6.70" },
@@ -152,8 +152,8 @@ describe("airQualityAdapter.fetch", () => {
 			url: "monitors/m-pa/entries/pm25",
 			searchParams: {
 				page: "1",
-				timestamp__gte: "2026-10-21 12:00:00",
-				timestamp__lt: "2026-10-22 12:00:00",
+				timestamp__gte: "2026-10-21T19:00:00.000Z",
+				timestamp__lt: "2026-10-22T19:00:00.000Z",
 				processor: "PM25_EPA_Calibration"
 			},
 			options: { signal }
@@ -200,8 +200,8 @@ describe("airQualityAdapter.fetch", () => {
 		];
 		expect(config.searchParams).toEqual({
 			page: "1",
-			timestamp__gte: "2026-10-21 12:00:00",
-			timestamp__lt: "2026-10-22 12:00:00"
+			timestamp__gte: "2026-10-21T19:00:00.000Z",
+			timestamp__lt: "2026-10-22T19:00:00.000Z"
 		});
 	});
 
@@ -346,8 +346,8 @@ describe("airQualityAdapter.fetch", () => {
 			url: "monitors/m-bam/entries/pm25",
 			searchParams: {
 				page: "1",
-				timestamp__gte: "2026-10-22 12:00:00",
-				timestamp__lt: "2026-10-22 12:30:00"
+				timestamp__gte: "2026-10-22T19:00:00.000Z",
+				timestamp__lt: "2026-10-22T19:30:00.000Z"
 			},
 			options: { signal }
 		});
@@ -356,6 +356,41 @@ describe("airQualityAdapter.fetch", () => {
 			{ t: Date.parse("2026-10-22T18:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },
 			{ t: Date.parse("2026-10-22T19:00:00Z"), mean: 6, min: 4, max: 8, count: 2, partial: true }
 		]);
+	});
+
+	it("fills the second 1 AM on fall-back night with unambiguous UTC bounds", async () => {
+		// 01:30 PST, the repeated hour: a zone-less 01:00 bound would be ambiguous.
+		const now = new Date("2026-11-01T09:30:00Z");
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
+		vi.mocked(paginatedApiCall).mockResolvedValue([
+			{ timestamp: "2026-11-01T01:10:00-07:00", value: "1" },
+			{ timestamp: "2026-11-01T01:10:00-08:00", value: "3" }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(
+				{ kind: "monitors", ids: ["m-bam"] },
+				"hour",
+				{ kind: "trailing", amount: 1, unit: "day" },
+				{ now }
+			),
+			ctx,
+			signal
+		);
+		const [config] = vi.mocked(paginatedApiCall).mock.calls[0] as [
+			{ searchParams: Record<string, string> }
+		];
+		expect(config.searchParams).toEqual({
+			page: "1",
+			timestamp__gte: "2026-11-01T09:00:00.000Z",
+			timestamp__lt: "2026-11-01T09:30:00.000Z"
+		});
+		// Only the entry in the second 1 AM (PST) fills the open hour.
+		expect(data.series[0].points.at(-1)).toMatchObject({
+			t: Date.parse("2026-11-01T09:00:00Z"),
+			mean: 3,
+			count: 1,
+			partial: true
+		});
 	});
 
 	it("fetches the whole layer from the bulk monitor endpoint with no region", async () => {

@@ -20,7 +20,7 @@ import {
 	getRegionSummariesBulkYearly
 } from "@sjvair/sdk";
 import { paginatedApiCall } from "@sjvair/sdk/http";
-import { TIME_ZONE, pacificWallTime, todayPacific } from "$lib/format";
+import { TIME_ZONE, todayPacific } from "$lib/format";
 import { nextPeriodStart, periodStart, type Period } from "$lib/format/range";
 import { CHUNK_DAYS, splitChunks } from "../chunks";
 import type { Segment } from "../periods";
@@ -182,7 +182,9 @@ function entryValue(value: unknown): number {
  * One monitor's raw entries in `[start, end)` as count-1 points, by chunk. Called through the
  * SDK's HTTP layer because `getMonitorEntries` can't send `processor` (DEFERRED.md): without it the
  * server returns the monitor type's default stage (e.g. `cleaned`), not the published series.
- * Bounds are Pacific wall time, which the server reads as Pacific; entries are still filtered by
+ * Bounds are UTC instants: zone-less bounds are read as Pacific, and one inside the repeated
+ * fall-back hour is ambiguous, which the server drops silently (fetching everything before the
+ * other bound). Entries are still filtered by
  * their own (offset-carrying) timestamps.
  */
 export function rawTasks(
@@ -198,8 +200,8 @@ export function rawTasks(
 	return splitChunks(whole, CHUNK_DAYS.raw).map((chunk) => async () => {
 		const searchParams: Record<string, string> = {
 			page: "1",
-			timestamp__gte: pacificWallTime(chunk.start),
-			timestamp__lt: pacificWallTime(chunk.end),
+			timestamp__gte: chunk.start.toISOString(),
+			timestamp__lt: chunk.end.toISOString(),
 			...(processor ? { processor } : {})
 		};
 		const entries = await paginatedApiCall<{ timestamp: string; value: unknown }>({

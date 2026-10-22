@@ -148,8 +148,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (Foundations spec 2)._ Without either, the server returns the monitor type's default stage
   (`cleaned` for PurpleAir), not the published calibrated series that summaries use. The
   dashboard's air-quality adapter calls the entries endpoint through `@sjvair/sdk/http`
-  (`paginatedApiCall`) meanwhile, with `processor` and Pacific wall-time `timestamp__gte`/
-  `timestamp__lt` bounds. **Revisit when** the sdk-js step 3 work adds `processor`/`stage`
+  (`paginatedApiCall`) meanwhile, with `processor` and UTC ISO `timestamp__gte`/
+  `timestamp__lt` bounds (zone-less bounds are read as Pacific, and an ambiguous one in the
+  fall-back hour is silently dropped by the server, so always send zone-aware bounds). **Revisit when** the sdk-js step 3 work adds `processor`/`stage`
   (and zone-aware bounds); then switch back to the wrapper. Needs an sdk-js plan and a release
   (explicit approval).
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
