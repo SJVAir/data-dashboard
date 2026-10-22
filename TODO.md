@@ -71,7 +71,7 @@ and the copyright holder (Central California Asthma Collaborative).
     developer reviews and merges #25; **the user tells them when**. Before that, monitor-map 4.3.0
     and #292 must be live in production (merge order in `ARCHITECTURE.md` →
     "CSRF protection").
-- **Spec 2 (the data layer) is built on `foundations-2-data` (2026-10-22); PR to come.** Dataset
+- **Spec 2 (the data layer) is built on `foundations-2-data` (2026-10-22); PR [#7](https://github.com/SJVAir/data-dashboard/pull/7) into `foundations`.** Dataset
   adapters, the query client with live polling, resolution and period stitching, the `format`
   module, `readableColor`, and a dev-only data page at `/workspace/dev/data`. Design and plan:
   `docs/superpowers/{specs,plans}/2026-10-22-foundations-2-data-layer*`. Its deferrals are in
