@@ -150,14 +150,16 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
   **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
   the user approves the release): switch to `^4.8.0`.
-- **sdk-js: no way to opt out of day-snapping short entry windows.** _Deferred 2026-10-22
+- **Padding short raw-entry windows until sdk-js has `exact: true`.** _Deferred 2026-10-22
   (Foundations spec 2, PR #7 follow-up)._ `getMonitorEntries` widens two bounds within five
   minutes of each other to whole Pacific days. The air-quality adapter's raw windows can be
   that short (the open hour a few minutes in, or a chunk's tail), so it pads such a window's
   upper bound to five minutes and a millisecond (later than now is allowed) and filters
-  entries to the real window, rather than fetching a whole day. **Revisit if** sdk-js adds an
-  option to send bounds exactly; then drop the padding. Needs an sdk-js plan and a release
-  (explicit approval).
+  entries to the real window, rather than fetching a whole day. The user approved an opt-in
+  `exact: true` option on `getMonitorEntries` (and `getMonitorEntriesCSVUrl`) that sends
+  bounds as given; it is being built on sdk-js PR #32 for 4.8.0-beta.1. **Revisit when**
+  sdk-js 4.8.0-beta.1 (with `exact: true`) is published: pass `exact: true` and remove
+  `MIN_RAW_WINDOW_MS` and the padding.
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
