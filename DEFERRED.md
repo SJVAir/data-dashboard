@@ -144,6 +144,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
+- **sdk-js: `getMonitorEntries` can't send `processor` or `stage`.** _Deferred 2026-10-22
+  (Foundations spec 2)._ Without either, the server returns the monitor type's default stage
+  (`cleaned` for PurpleAir), not the published calibrated series that summaries use. The
+  dashboard's air-quality adapter calls the entries endpoint through `@sjvair/sdk/http`
+  (`paginatedApiCall`) meanwhile, with `processor` and Pacific wall-time `timestamp__gte`/
+  `timestamp__lt` bounds. **Revisit when** the sdk-js step 3 work adds `processor`/`stage`
+  (and zone-aware bounds); then switch back to the wrapper. Needs an sdk-js plan and a release
+  (explicit approval).
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it

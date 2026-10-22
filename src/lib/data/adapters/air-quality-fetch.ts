@@ -1,6 +1,5 @@
 import { TZDate } from "@date-fns/tz";
 import {
-	getMonitorEntries,
 	getMonitorSummariesBulkDaily,
 	getMonitorSummariesBulkHourly,
 	getMonitorSummariesBulkMonthly,
@@ -18,10 +17,10 @@ import {
 	getRegionSummariesBulkMonthly,
 	getRegionSummariesBulkQuarterly,
 	getRegionSummariesBulkSeasonal,
-	getRegionSummariesBulkYearly,
-	type MonitorEntryType
+	getRegionSummariesBulkYearly
 } from "@sjvair/sdk";
-import { TIME_ZONE, todayPacific } from "$lib/format";
+import { paginatedApiCall } from "@sjvair/sdk/http";
+import { TIME_ZONE, pacificWallTime, todayPacific } from "$lib/format";
 import { nextPeriodStart, periodStart, type Period } from "$lib/format/range";
 import { CHUNK_DAYS, splitChunks } from "../chunks";
 import type { Segment } from "../periods";
@@ -42,8 +41,6 @@ type SummaryRow = {
 type Bulk = { id: string; summaries: SummaryRow[] };
 type Options = { signal: AbortSignal };
 type PathConfig = { year?: number; month?: number; day?: number };
-
-const DAY_MS = 86_400_000;
 
 const SINGLE = {
 	hour: getMonitorSummariesHourly,
@@ -182,31 +179,34 @@ function entryValue(value: unknown): number {
 }
 
 /**
- * One monitor's raw entries in `[start, end)` as count-1 points, by chunk. The SDK sends its
- * bounds in the browser's zone and rejects a bound after now, so each window is padded by a day
- * each side, clamped to `now`, and filtered by the entries' own (offset-carrying) timestamps.
+ * One monitor's raw entries in `[start, end)` as count-1 points, by chunk. Called through the
+ * SDK's HTTP layer because `getMonitorEntries` can't send `processor` (DEFERRED.md): without it the
+ * server returns the monitor type's default stage (e.g. `cleaned`), not the published series.
+ * Bounds are Pacific wall time, which the server reads as Pacific; entries are still filtered by
+ * their own (offset-carrying) timestamps.
  */
 export function rawTasks(
 	monitorId: string,
 	entryType: string,
+	processor: string | null,
 	start: Date,
 	end: Date,
-	now: Date,
 	signal: AbortSignal
 ): FetchTask[] {
 	if (start >= end) return [];
 	const whole: Segment = { resolution: "raw", start, end };
 	return splitChunks(whole, CHUNK_DAYS.raw).map((chunk) => async () => {
-		const config = {
-			monitorId,
-			entryType: entryType as MonitorEntryType,
-			timestampGte: new Date(chunk.start.getTime() - DAY_MS),
-			timestampLte: new Date(Math.min(chunk.end.getTime() + DAY_MS, now.getTime()))
+		const searchParams: Record<string, string> = {
+			page: "1",
+			timestamp__gte: pacificWallTime(chunk.start),
+			timestamp__lt: pacificWallTime(chunk.end),
+			...(processor ? { processor } : {})
 		};
-		const entries = (await getMonitorEntries(config, { signal })) as Array<{
-			timestamp: string;
-			value: unknown;
-		}>;
+		const entries = await paginatedApiCall<{ timestamp: string; value: unknown }>({
+			url: `monitors/${monitorId}/entries/${entryType}`,
+			searchParams,
+			options: { signal }
+		});
 		const points: SeriesPoint[] = [];
 		for (const entry of entries) {
 			const t = Date.parse(entry.timestamp);

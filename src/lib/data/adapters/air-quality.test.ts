@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@sjvair/sdk/http", () => ({ paginatedApiCall: vi.fn() }));
 vi.mock("@sjvair/sdk", () => ({
-	getMonitorEntries: vi.fn(),
 	getMonitorSummariesHourly: vi.fn(),
 	getMonitorSummariesDaily: vi.fn(),
 	getMonitorSummariesMonthly: vi.fn(),
@@ -23,13 +23,13 @@ vi.mock("@sjvair/sdk", () => ({
 }));
 
 import {
-	getMonitorEntries,
 	getMonitorSummariesBulkDaily,
 	getMonitorSummariesDaily,
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
 	getRegionSummariesBulkDaily
 } from "@sjvair/sdk";
+import { paginatedApiCall } from "@sjvair/sdk/http";
 import { resolveRange } from "$lib/format/range";
 import type { DateRangeSpec, Resolution } from "../schema";
 import { fixtureMetadata } from "../testing/fixtures";
@@ -131,8 +131,8 @@ describe("airQualityAdapter.fetch", () => {
 		expect(data.processor).toBeNull();
 	});
 
-	it("raw window is padded, clamped to now, and filtered by entry timestamps", async () => {
-		vi.mocked(getMonitorEntries).mockResolvedValue([
+	it("raw window is Pacific wall time, for the published series, filtered by entry timestamps", async () => {
+		vi.mocked(paginatedApiCall).mockResolvedValue([
 			{ timestamp: "2026-10-21T12:00:05-07:00", value: "7.25" },
 			{ timestamp: "2026-10-21T12:00:00-07:00", value: "6.70" },
 			{ timestamp: "2026-10-21T11:59:59-07:00", value: "5.00" },
@@ -148,15 +148,16 @@ describe("airQualityAdapter.fetch", () => {
 			ctx,
 			signal
 		);
-		expect(getMonitorEntries).toHaveBeenCalledExactlyOnceWith(
-			{
-				monitorId: "m-pa",
-				entryType: "pm25",
-				timestampGte: new Date("2026-10-20T19:00:00Z"),
-				timestampLte: NOW
+		expect(paginatedApiCall).toHaveBeenCalledExactlyOnceWith({
+			url: "monitors/m-pa/entries/pm25",
+			searchParams: {
+				page: "1",
+				timestamp__gte: "2026-10-21 12:00:00",
+				timestamp__lt: "2026-10-22 12:00:00",
+				processor: "PM25_EPA_Calibration"
 			},
-			{ signal }
-		);
+			options: { signal }
+		});
 		expect(data.series).toEqual([
 			{
 				place: "monitor:m-pa",
@@ -183,8 +184,29 @@ describe("airQualityAdapter.fetch", () => {
 		expect(data).toMatchObject({ resolution: "raw", fromRaw: false, fetchedAt: NOW.getTime() });
 	});
 
+	it("a BAM monitor's raw request names no processor", async () => {
+		vi.mocked(paginatedApiCall).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-bam"] }, "raw", {
+				kind: "trailing",
+				amount: 24,
+				unit: "hour"
+			}),
+			ctx,
+			signal
+		);
+		const [config] = vi.mocked(paginatedApiCall).mock.calls[0] as [
+			{ searchParams: Record<string, string> }
+		];
+		expect(config.searchParams).toEqual({
+			page: "1",
+			timestamp__gte: "2026-10-21 12:00:00",
+			timestamp__lt: "2026-10-22 12:00:00"
+		});
+	});
+
 	it("downsamples raw entries to Pacific hours, marking the open hour partial", async () => {
-		vi.mocked(getMonitorEntries).mockResolvedValue([
+		vi.mocked(paginatedApiCall).mockResolvedValue([
 			{ timestamp: "2026-10-22T10:10:00-07:00", value: "4" },
 			{ timestamp: "2026-10-22T10:40:00-07:00", value: "8" },
 			{ timestamp: "2026-10-22T11:30:00-07:00", value: "10" }
@@ -302,7 +324,7 @@ describe("airQualityAdapter.fetch", () => {
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
 			row("2026-10-22T11:00:00-07:00", 5, 1)
 		] as never);
-		vi.mocked(getMonitorEntries).mockResolvedValue([
+		vi.mocked(paginatedApiCall).mockResolvedValue([
 			{ timestamp: "2026-10-22T12:10:00-07:00", value: "4" },
 			{ timestamp: "2026-10-22T12:20:00-07:00", value: "8" }
 		] as never);
@@ -320,15 +342,15 @@ describe("airQualityAdapter.fetch", () => {
 			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 10, day: 22 },
 			{ signal }
 		);
-		expect(getMonitorEntries).toHaveBeenCalledExactlyOnceWith(
-			{
-				monitorId: "m-bam",
-				entryType: "pm25",
-				timestampGte: new Date("2026-10-21T19:00:00Z"),
-				timestampLte: now
+		expect(paginatedApiCall).toHaveBeenCalledExactlyOnceWith({
+			url: "monitors/m-bam/entries/pm25",
+			searchParams: {
+				page: "1",
+				timestamp__gte: "2026-10-22 12:00:00",
+				timestamp__lt: "2026-10-22 12:30:00"
 			},
-			{ signal }
-		);
+			options: { signal }
+		});
 		expect(data.fromRaw).toBe(false);
 		expect(data.series[0].points).toEqual([
 			{ t: Date.parse("2026-10-22T18:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },

@@ -88,11 +88,18 @@ async function collect(
 	return maps;
 }
 
-/** Raw entries for each monitor over the range so far. */
-function rawFetch(req: AdapterRequest, places: Place[], signal: AbortSignal) {
+/** Raw entries of each monitor's published series over the range so far. */
+function rawFetch(
+	req: AdapterRequest,
+	places: Place[],
+	processors: Array<string | null>,
+	signal: AbortSignal
+) {
 	const { range, now } = req;
 	const end = new Date(Math.min(range.end.getTime(), now.getTime()));
-	const tasks = places.flatMap((p) => rawTasks(p.id, req.entryType, range.start, end, now, signal));
+	const tasks = places.flatMap((p, i) =>
+		rawTasks(p.id, req.entryType, processors[i], range.start, end, signal)
+	);
 	return collect([tasks], signal).then(([byId]) => byId);
 }
 
@@ -100,10 +107,11 @@ function rawFetch(req: AdapterRequest, places: Place[], signal: AbortSignal) {
 async function rawSeries(
 	req: AdapterRequest,
 	places: Place[],
+	processors: Array<string | null>,
 	signal: AbortSignal
 ): Promise<Series[]> {
 	if (req.target.kind !== "monitors") throw new Error("Raw entries exist only for monitors");
-	const byId = await rawFetch(req, places, signal);
+	const byId = await rawFetch(req, places, processors, signal);
 	const to = req.resolution as Period;
 	const openFrom = req.downsampleFromRaw ? periodStart(req.now, to).getTime() : 0;
 	return Promise.all(
@@ -138,7 +146,9 @@ async function summarySeries(
 
 	const tasksFor = (seg: (typeof segments)[number]): FetchTask[] => {
 		if (seg.resolution === "raw") {
-			return places.flatMap((p) => rawTasks(p.id, entryType, seg.start, seg.end, now, signal));
+			return places.flatMap((p, i) =>
+				rawTasks(p.id, entryType, processors[i], seg.start, seg.end, signal)
+			);
 		}
 		// Monitors one by one, each with its own published series: the bulk monitor endpoint
 		// can't be scoped to monitor ids, so it is used only for the whole layer.
@@ -187,7 +197,7 @@ async function fetchAirQuality(
 		processors.length > 0 && processors.every((p) => p === processors[0]) ? processors[0] : null;
 	const series =
 		req.resolution === "raw" || req.downsampleFromRaw
-			? await rawSeries(req, places, signal)
+			? await rawSeries(req, places, processors, signal)
 			: await summarySeries(req, places, processors, signal);
 	return {
 		series,

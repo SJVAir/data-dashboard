@@ -6,6 +6,7 @@ import {
 	formatNumber,
 	needsZoneLabel,
 	pacificHoursOfDay,
+	pacificWallTime,
 	parseDateKey,
 	startOfPacificWeek,
 	todayPacific
@@ -14,6 +15,10 @@ import {
 describe("format", () => {
 	it("todayPacific uses Pacific, not UTC", () => {
 		expect(todayPacific(new Date("2026-10-21T06:30:00Z"))).toBe("2026-10-20");
+	});
+	it("pacificWallTime gives Pacific wall time without an offset", () => {
+		expect(pacificWallTime(new Date("2026-10-22T19:00:05Z"))).toBe("2026-10-22 12:00:05");
+		expect(pacificWallTime(new Date("2026-01-01T07:59:59Z"))).toBe("2025-12-31 23:59:59");
 	});
 	it("weeks start on Sunday", () => {
 		expect(startOfPacificWeek("2026-10-20")).toBe("2026-10-18");
