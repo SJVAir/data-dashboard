@@ -8,7 +8,8 @@ import type {
 } from "../adapters/registry";
 import type { MetadataSource } from "../metadata";
 import { chooseResolution } from "../resolution";
-import type { DateRangeSpec, Resolution } from "../schema";
+import type { DateRangeSpec, Resolution, TimeSubRange } from "../schema";
+import { filterToSubRange } from "../sub-range";
 import type { QueryData, QueryInput, QueryState, UnavailableReason } from "../types";
 import { keyRange, queryKey, stableJson } from "./key";
 import { startPoller } from "./poller";
@@ -18,6 +19,11 @@ export interface Subscription {
 	update(input: QueryInput): void;
 	/** Whether this subscriber wants its entry polled (on by default). */
 	setPolling(on: boolean): void;
+	/**
+	 * Try again after an error (or an `unavailable` state): refetch the entry, or resolve the
+	 * input again when there is no entry (the error came from resolving it).
+	 */
+	retry(): void;
 	unsubscribe(): void;
 	/** The cache key this subscription is attached to; `null` while resolving or unavailable. */
 	readonly key: string | null;
@@ -84,7 +90,11 @@ type Entry = {
 
 type Sub = {
 	listener: (s: QueryState) => void;
+	/** The last input requested. */
+	input?: QueryInput;
+	/** That input without its `timeSubRange`, which only filters what this subscriber sees. */
 	inputJson?: string;
+	subRange?: TimeSubRange;
 	/** Bumped on every update and on unsubscribe; a resolution pass with an old value is dropped. */
 	seq: number;
 	entry?: Entry;
@@ -175,9 +185,19 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		};
 	}
 
+	/** Hand a subscriber a state, its data filtered to the subscriber's time sub-range. */
+	function deliver(sub: Sub, state: QueryState) {
+		const range = sub.subRange;
+		if (range && state.status !== "unavailable" && state.data) {
+			sub.listener({ ...state, data: filterToSubRange(state.data, range) } as QueryState);
+		} else {
+			sub.listener(state);
+		}
+	}
+
 	function notify(entry: Entry) {
 		const state = entryState(entry);
-		for (const sub of [...entry.subscribers]) sub.listener(state);
+		for (const sub of [...entry.subscribers]) deliver(sub, state);
 		changed();
 	}
 
@@ -261,7 +281,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		if (!entry.controller && (created || isStale(entry, p.request))) {
 			fetchEntry(entry, p.request);
 		} else {
-			sub.listener(entryState(entry));
+			deliver(sub, entryState(entry));
 		}
 		evict();
 		changed();
@@ -283,23 +303,35 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 	}
 
 	function request(sub: Sub, input: QueryInput) {
-		const json = stableJson(input);
-		if (json === sub.inputJson) return;
+		const { timeSubRange, ...fetched } = input;
+		const json = stableJson(fetched);
+		sub.input = input;
+		if (json === sub.inputJson) {
+			// Only the sub-range changed (if anything): filter what is already there again.
+			if (stableJson(timeSubRange) === stableJson(sub.subRange)) return;
+			sub.subRange = timeSubRange;
+			if (sub.entry) deliver(sub, entryState(sub.entry));
+			return;
+		}
 		sub.inputJson = json;
+		sub.subRange = timeSubRange;
 		const seq = ++sub.seq;
 		detach(sub);
 		sub.listener({ status: "loading" });
 
 		const at = now();
 		const live = () => sub.seq === seq && !sub.closed;
-		plan(input, at).then(
+		plan(fetched, at).then(
 			(p) => {
 				if (!live()) return;
 				if ("unavailable" in p) sub.listener({ status: "unavailable", reason: p.unavailable });
 				else attach(sub, p);
 			},
 			(error) => {
-				if (live()) sub.listener({ status: "error", error });
+				if (!live()) return;
+				// Nothing was attached, so the same input must be able to try again.
+				sub.inputJson = undefined;
+				sub.listener({ status: "error", error });
 			}
 		);
 	}
@@ -316,6 +348,15 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 					if (sub.polling === on) return;
 					sub.polling = on;
 					if (sub.entry) changed();
+				},
+				retry() {
+					if (sub.closed) return;
+					if (sub.entry) {
+						client.refetch(sub.entry.key);
+					} else if (sub.input) {
+						sub.inputJson = undefined;
+						request(sub, sub.input);
+					}
 				},
 				unsubscribe() {
 					if (sub.closed) return;

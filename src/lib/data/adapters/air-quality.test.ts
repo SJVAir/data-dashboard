@@ -342,7 +342,7 @@ describe("airQualityAdapter.fetch", () => {
 			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 10, day: 22 },
 			{ signal }
 		);
-		expect(paginatedApiCall).toHaveBeenCalledExactlyOnceWith({
+		expect(paginatedApiCall).toHaveBeenCalledWith({
 			url: "monitors/m-bam/entries/pm25",
 			searchParams: {
 				page: "1",
@@ -351,6 +351,8 @@ describe("airQualityAdapter.fetch", () => {
 			},
 			options: { signal }
 		});
+		// The other call backfills the last completed hour (11:00), which the response has.
+		expect(paginatedApiCall).toHaveBeenCalledTimes(2);
 		expect(data.fromRaw).toBe(false);
 		expect(data.series[0].points).toEqual([
 			{ t: Date.parse("2026-10-22T18:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },
@@ -437,10 +439,11 @@ describe("airQualityAdapter.fetch", () => {
 			{ ...base, year: 2026 },
 			{ signal }
 		);
-		expect(getMonitorSummariesDaily).toHaveBeenCalledExactlyOnceWith(
-			{ ...base, year: 2026, month: 10 },
-			{ signal }
-		);
+		// October's days fill the open month; September's back it up until its rollup exists.
+		expect(vi.mocked(getMonitorSummariesDaily).mock.calls).toEqual([
+			[{ ...base, year: 2026, month: 10 }, { signal }],
+			[{ ...base, year: 2026, month: 9 }, { signal }]
+		]);
 		expect(getMonitorSummariesHourly).toHaveBeenCalledExactlyOnceWith(
 			{ ...base, year: 2026, month: 10, day: 22 },
 			{ signal }
@@ -453,5 +456,148 @@ describe("airQualityAdapter.fetch", () => {
 		]);
 		expect(points[2].count).toBe(72);
 		expect(points[2].mean).toBeCloseTo((10 * 24 + 20 * 24 + 30 * 12 + 40 * 12) / 72);
+	});
+
+	it("backfills a completed hour the hourly response lacks from raw entries", async () => {
+		// 10:20 PDT: the 9:00 hour is over but its rollup runs at 10:45.
+		const now = new Date("2026-10-22T17:20:00Z");
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
+			row("2026-10-22T08:00:00-07:00", 5, 1)
+		] as never);
+		vi.mocked(paginatedApiCall).mockResolvedValue([
+			{ timestamp: "2026-10-22T09:10:00-07:00", value: "2" },
+			{ timestamp: "2026-10-22T09:40:00-07:00", value: "4" },
+			{ timestamp: "2026-10-22T10:05:00-07:00", value: "9" }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(
+				{ kind: "monitors", ids: ["m-bam"] },
+				"hour",
+				{ kind: "trailing", amount: 1, unit: "day" },
+				{ now }
+			),
+			ctx,
+			signal
+		);
+		const calls = vi.mocked(paginatedApiCall).mock.calls as unknown as Array<
+			[{ searchParams: Record<string, string> }]
+		>;
+		const bounds = calls.map(([c]) => [
+			c.searchParams.timestamp__gte,
+			c.searchParams.timestamp__lt
+		]);
+		expect(bounds).toContainEqual(["2026-10-22T16:00:00.000Z", "2026-10-22T17:00:00.000Z"]);
+		expect(data.series[0].points).toEqual([
+			{ t: Date.parse("2026-10-22T15:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },
+			{ t: Date.parse("2026-10-22T16:00:00Z"), mean: 3, min: 2, max: 4, count: 2, partial: false },
+			{ t: Date.parse("2026-10-22T17:00:00Z"), mean: 9, min: 9, max: 9, count: 1, partial: true }
+		]);
+	});
+
+	it("a completed hour in the hourly response wins over its backfill", async () => {
+		const now = new Date("2026-10-22T17:20:00Z");
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
+			row("2026-10-22T09:00:00-07:00", 5, 30)
+		] as never);
+		vi.mocked(paginatedApiCall).mockResolvedValue([
+			{ timestamp: "2026-10-22T09:10:00-07:00", value: "100" }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(
+				{ kind: "monitors", ids: ["m-bam"] },
+				"hour",
+				{ kind: "trailing", amount: 1, unit: "day" },
+				{ now }
+			),
+			ctx,
+			signal
+		);
+		expect(data.series[0].points).toEqual([
+			{ t: Date.parse("2026-10-22T16:00:00Z"), mean: 5, min: 5, max: 5, count: 30, partial: false }
+		]);
+	});
+
+	it("day resolution just after midnight fills yesterday from hourly summaries", async () => {
+		// 00:20 PDT on the 22nd: the daily rollup for the 21st runs around 01:00.
+		const now = new Date("2026-10-22T07:20:00Z");
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
+			row("2026-10-20T00:00:00-07:00", 7, 24)
+		] as never);
+		vi.mocked(getMonitorSummariesHourly).mockImplementation((async (config: { day: number }) =>
+			config.day === 21
+				? [row("2026-10-21T00:00:00-07:00", 10, 10), row("2026-10-21T23:00:00-07:00", 20, 30)]
+				: []) as never);
+		const data = await airQualityAdapter.fetch(
+			request(
+				{ kind: "monitors", ids: ["m-bam"] },
+				"day",
+				{ kind: "to-date", unit: "month" },
+				{ now }
+			),
+			ctx,
+			signal
+		);
+		const points = data.series[0].points;
+		expect(points.map((p) => [p.t, p.partial])).toEqual([
+			[Date.parse("2026-10-20T07:00:00Z"), false],
+			[Date.parse("2026-10-21T07:00:00Z"), false]
+		]);
+		expect(points[1].count).toBe(40);
+		expect(points[1].mean).toBeCloseTo((10 * 10 + 20 * 30) / 40);
+	});
+
+	it("month resolution on the 1st fills last month from daily summaries", async () => {
+		const now = new Date("2026-11-01T07:30:00Z");
+		vi.mocked(getMonitorSummariesMonthly).mockResolvedValue([
+			row("2026-09-01T00:00:00-07:00", 8, 700)
+		] as never);
+		vi.mocked(getMonitorSummariesDaily).mockImplementation((async (config: { month: number }) =>
+			config.month === 10
+				? [row("2026-10-01T00:00:00-07:00", 10, 24), row("2026-10-31T00:00:00-07:00", 20, 24)]
+				: []) as never);
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
+		const data = await airQualityAdapter.fetch(
+			request(
+				{ kind: "monitors", ids: ["m-bam"] },
+				"month",
+				{ kind: "to-date", unit: "year" },
+				{ now }
+			),
+			ctx,
+			signal
+		);
+		const points = data.series[0].points;
+		expect(points.map((p) => [p.t, p.partial, p.count, p.mean])).toEqual([
+			[Date.parse("2026-09-01T07:00:00Z"), false, 700, 8],
+			[Date.parse("2026-10-01T07:00:00Z"), false, 48, 15]
+		]);
+	});
+
+	it("a summary row without a minimum or maximum falls back to its mean", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
+			{ timestamp: "2026-09-02T00:00:00-07:00", mean: 4, minimum: null, maximum: null, count: 2 }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-bam"] }, "day", SEPTEMBER),
+			ctx,
+			signal
+		);
+		expect(data.series[0].points[0]).toMatchObject({ mean: 4, min: 4, max: 4 });
+	});
+
+	it("encodes the monitor id and entry type in the raw entries path", async () => {
+		vi.mocked(paginatedApiCall).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request(
+				{ kind: "monitors", ids: ["a b/c"] },
+				"raw",
+				{ kind: "trailing", amount: 24, unit: "hour" },
+				{ entryType: "pm 25" }
+			),
+			ctx,
+			signal
+		);
+		const [config] = vi.mocked(paginatedApiCall).mock.calls[0] as [{ url: string }];
+		expect(config.url).toBe("monitors/a%20b%2Fc/entries/pm%2025");
 	});
 });

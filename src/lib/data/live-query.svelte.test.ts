@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DatasetAdapter, RegionResolver } from "./adapters/registry";
 import { LiveQuery } from "./live-query.svelte";
 import { createQueryClient } from "./query/client";
-import { fixtureMetadata } from "./testing/fixtures";
+import { FIXTURE_CATALOG, fixtureMetadata } from "./testing/fixtures";
 import type { QueryData, QueryInput } from "./types";
 
 const DATA: QueryData = {
@@ -15,7 +15,7 @@ const DATA: QueryData = {
 
 const regions: RegionResolver = { resolve: async () => "unsupported" };
 
-function setup() {
+function setup(metadata = fixtureMetadata()) {
 	const pending: Array<(d: QueryData) => void> = [];
 	const adapter: DatasetAdapter = {
 		id: "air-quality",
@@ -26,7 +26,7 @@ function setup() {
 		offered: (base) => base,
 		fetch: () => new Promise((resolve) => pending.push(resolve))
 	};
-	const client = createQueryClient({ adapters: [adapter], metadata: fixtureMetadata(), regions });
+	const client = createQueryClient({ adapters: [adapter], metadata, regions });
 	return { client, pending };
 }
 
@@ -71,5 +71,25 @@ describe("LiveQuery", () => {
 		expect(client.entries()[0].polling).toBe(false);
 		q.set(null);
 		expect(client.entries()[0].subscribers).toBe(0);
+	});
+
+	it("retry() re-plans after an error", async () => {
+		let fail = true;
+		const metadata = fixtureMetadata({
+			catalog: async () => {
+				if (fail) throw new Error("catalog down");
+				return FIXTURE_CATALOG;
+			}
+		});
+		const { client } = setup(metadata);
+		const q = new LiveQuery(client, input);
+		await flush();
+		expect(q.state.status).toBe("error");
+
+		fail = false;
+		q.retry();
+		await flush();
+		expect(q.state.status).toBe("loading");
+		expect(client.entries()).toHaveLength(1);
 	});
 });

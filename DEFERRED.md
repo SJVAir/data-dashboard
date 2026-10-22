@@ -150,9 +150,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   dashboard's air-quality adapter calls the entries endpoint through `@sjvair/sdk/http`
   (`paginatedApiCall`) meanwhile, with `processor` and UTC ISO `timestamp__gte`/
   `timestamp__lt` bounds (zone-less bounds are read as Pacific, and an ambiguous one in the
-  fall-back hour is silently dropped by the server, so always send zone-aware bounds). **Revisit when** the sdk-js step 3 work adds `processor`/`stage`
-  (and zone-aware bounds); then switch back to the wrapper. Needs an sdk-js plan and a release
-  (explicit approval).
+  fall-back hour is silently dropped by the server, so always send zone-aware bounds).
+  **Revisit when** the sdk-js step 3 work adds `processor`/`stage` (and zone-aware bounds);
+  then switch back to the wrapper. Needs an sdk-js plan and a release (explicit approval).
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
@@ -362,6 +362,43 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `visibilitychange` and reads `visibilityState`, against the platform-adapter rule; spec 2
   added `platform.activity`. **Revisit when** `DocumentSession` is next changed, or in the
   spec 3/5 platform work: move it onto that capability.
+- **`adapter.target` takes no `AbortSignal`.** _Deferred 2026-10-22 (Foundations spec 2 final
+  review)._ Resolving a layer's target can't be cancelled when its subscriber moves on; today
+  it makes no network calls (the web region resolver answers at once), so nothing is wasted.
+  **Revisit when** step 3's region resolver makes network calls: pass the subscription's
+  signal through.
+- **Updating a subscription to an input with the same key detaches first.** _Deferred
+  2026-10-22 (Foundations spec 2 final review)._ `Subscription.update()` with a different
+  input that resolves to the same cache key (e.g. a selection's ids reordered) shows
+  `loading` for a moment and, if it was the entry's only subscriber with a fetch in flight,
+  aborts and restarts that fetch. **Revisit when** widgets edit selections in place (Release
+  1 step 4) and the flash or the extra fetch shows.
+- **A new subscriber refetches an errored entry at once.** _Deferred 2026-10-22 (Foundations
+  spec 2 final review)._ Attaching to a cache entry whose last fetch failed refetches
+  immediately, skipping the poller's backoff, so widgets opening one after another against a
+  failing server each send a request. **Revisit if** that shows up as load during an outage;
+  the fix is to respect the entry's backoff when attaching.
+- **The idle cache cap counts entries, not bytes.** _Deferred 2026-10-22 (Foundations spec 2
+  final review)._ Up to 200 idle entries stay cached whatever their size, so large raw
+  selections could hold a lot of memory. **Revisit with** step 4's large selections: cap by
+  approximate size (points held) instead.
+- **Midnight race on rolling keys.** _Deferred 2026-10-22 (Foundations spec 2 final review)._
+  A subscriber that attaches across midnight to a rolling entry ("last 7 days") whose fetch
+  started before midnight gets the older dates until the next poll. **Revisit if** a widget
+  shows yesterday's window after midnight for longer than a poll; the fix is to compare the
+  in-flight request's dates when attaching.
+- **A monitor missing from the monitors list gets the uncalibrated series silently.**
+  _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
+  can't name the published processor, so the request names none and the server returns the
+  type's default stage. **Revisit when** step 3's metadata work lands: report the query as
+  `unavailable`, or refresh the monitors list and try again.
+- **The rollup-lag backfill is one level deep and fetched on every poll.** _Deferred
+  2026-10-22 (Foundations spec 2 final review)._ The last completed period is backed up from
+  the next finer level only, so a day backfilled from hourly summaries just after midnight
+  lacks its final hour until that hour's rollup runs (about 00:45), yet reads as complete;
+  and the backfill is fetched with every poll even once the coarse rollup exists. **Revisit
+  when** widgets show daily data live (Release 1 step 4): backfill the backfill's own last
+  period from the next level down, and skip the backfill once the coarse value has arrived.
 
 ## Map plugins
 

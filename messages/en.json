@@ -59,5 +59,13 @@
 	"rename_label": "Name",
 	"rename_save": "Save",
 	"rename_cancel": "Cancel",
-	"time_zone_suffix": "{time} PT"
+	"time_zone_suffix": "{time} PT",
+	"data_unavailable_catalog": "This data isn't available yet.",
+	"data_unavailable_unknown_dataset": "This dataset isn't known.",
+	"data_unavailable_unknown_entry_type": "This measurement isn't known.",
+	"data_unavailable_no_adapter": "This dataset can't be shown yet.",
+	"data_unavailable_no_resolution": "This data isn't offered for this date range.",
+	"data_unavailable_place_unsupported": "This kind of place can't be shown yet.",
+	"data_unavailable_region_unresolved": "This region can't be looked up yet.",
+	"data_unavailable_whole_layer_raw": "Choose a longer date range to show every monitor."
 }

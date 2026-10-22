@@ -145,10 +145,35 @@ describe("startPoller", () => {
 		expect(calls).toHaveLength(2);
 		expect(vi.getTimerCount()).toBe(0);
 
-		// 15:55 PDT is next, 60 minutes on.
+		// The last fetch (12:55 PDT) is hours old: polling again refetches at once.
 		b.setPolling(true);
-		await vi.advanceTimersByTimeAsync(60 * MINUTE);
+		await flush();
 		expect(calls).toHaveLength(3);
+		// Then 16:55 PDT is next, 60 minutes on.
+		await vi.advanceTimersByTimeAsync(59 * MINUTE);
+		expect(calls).toHaveLength(3);
+		await vi.advanceTimersByTimeAsync(1 * MINUTE);
+		expect(calls).toHaveLength(4);
+	});
+
+	it("an entry pollable again is scheduled from its last fetch", async () => {
+		const { client, calls } = setup();
+		const a = client.subscribe(input(WEEK), ignore);
+		await flush();
+		a.unsubscribe();
+
+		// Back 10 minutes later: due at 12:55 as before.
+		await vi.advanceTimersByTimeAsync(10 * MINUTE);
+		const b = client.subscribe(input(WEEK), ignore);
+		await flush();
+		expect(calls).toHaveLength(1);
+		b.unsubscribe();
+
+		// Back 2 hours later, the same day: the cached data is overdue, so it refetches at once.
+		await vi.advanceTimersByTimeAsync(2 * HOUR);
+		client.subscribe(input(WEEK), ignore);
+		await flush();
+		expect(calls).toHaveLength(2);
 	});
 
 	it("paused while hidden", async () => {

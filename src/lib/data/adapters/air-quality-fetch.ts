@@ -71,7 +71,8 @@ const BULK_REGIONS = {
 
 /**
  * Summary rows as points, keeping rows whose period starts in `[from, to)` (a row's timestamp
- * is its Pacific period start). A period still open at `now` is `partial`.
+ * is its Pacific period start). A period still open at `now` is `partial`. A missing minimum or
+ * maximum falls back to the mean.
  */
 function toPoints(rows: SummaryRow[], res: Period, from: Date, to: Date, now: Date) {
 	const points: SeriesPoint[] = [];
@@ -83,8 +84,8 @@ function toPoints(rows: SummaryRow[], res: Period, from: Date, to: Date, now: Da
 		points.push({
 			t,
 			mean: row.mean,
-			min: row.minimum,
-			max: row.maximum,
+			min: Number.isFinite(row.minimum) ? row.minimum : row.mean,
+			max: Number.isFinite(row.maximum) ? row.maximum : row.mean,
 			count: row.count,
 			partial
 		});
@@ -205,7 +206,7 @@ export function rawTasks(
 			...(processor ? { processor } : {})
 		};
 		const entries = await paginatedApiCall<{ timestamp: string; value: unknown }>({
-			url: `monitors/${monitorId}/entries/${entryType}`,
+			url: `monitors/${encodeURIComponent(monitorId)}/entries/${encodeURIComponent(entryType)}`,
 			searchParams,
 			options: { signal }
 		});

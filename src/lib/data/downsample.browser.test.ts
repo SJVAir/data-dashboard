@@ -74,6 +74,22 @@ describe("downsampleInWorker", () => {
 		}
 	});
 
+	it("rejects in-flight calls on a messageerror and serves later calls from a new worker", async () => {
+		await downsampleInWorker(points, "day");
+		const posts = holdPosts();
+		try {
+			const promise = downsampleInWorker(points, "day");
+			promise.catch(() => {});
+			await vi.waitFor(() => expect(posts.held).toHaveLength(1));
+			const [, worker] = posts.held[0];
+			worker.dispatchEvent(new MessageEvent("messageerror"));
+			await expect(promise).rejects.toThrow("Downsample worker sent a message it couldn't read");
+		} finally {
+			posts.restore();
+		}
+		expect(await downsampleInWorker(points, "hour")).toEqual(downsample(points, "hour"));
+	});
+
 	it("rejects at once for an already aborted signal", async () => {
 		await expect(
 			downsampleInWorker(points, "day", undefined, AbortSignal.abort())

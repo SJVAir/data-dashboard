@@ -84,7 +84,9 @@ export function startPoller(
 			if (!s) {
 				s = { due: Infinity, failures: 0, inFlight: e.inFlight };
 				schedules.set(e.key, s);
-				if (!e.inFlight) settle(s, e, at);
+				// Pollable at rest (a cached entry subscribed again, or polling turned back on):
+				// due on the cadence of its last fetch, so data hours old is refetched at once.
+				if (!e.inFlight) settle(s, e, e.failed ? at : (e.fetchedAt ?? at));
 			} else if (e.inFlight) {
 				s.inFlight = true;
 				s.due = Infinity;

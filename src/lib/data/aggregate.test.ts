@@ -78,4 +78,14 @@ describe("aggregate", () => {
 		);
 		expect(out.map((p) => p.t)).toEqual([...out.map((p) => p.t)].sort((a, b) => a - b));
 	});
+
+	it("falls back to the mean for a missing minimum or maximum", () => {
+		const missing = {
+			...pt("2026-09-02T07:00:00Z", 20, 1),
+			min: null as unknown as number,
+			max: NaN
+		};
+		const out = aggregate([pt("2026-09-01T07:00:00Z", 10, 1), missing], "month", NOW);
+		expect(out[0]).toMatchObject({ min: 9, max: 20 });
+	});
 });

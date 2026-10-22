@@ -4,8 +4,9 @@ import type { SeriesPoint } from "./types";
 
 /**
  * Groups points by the Pacific period containing `t`. `mean` is count-weighted, `min`/`max`
- * span the parts, `count` is summed, and zero-count points are skipped. A group is `partial`
- * when its period has not ended by `now` or any input point is partial.
+ * span the parts (a missing one falls back to the part's mean), `count` is summed, and zero-count
+ * points are skipped. A group is `partial` when its period has not ended by `now` or any input
+ * point is partial.
  */
 export function aggregate(
 	points: SeriesPoint[],
@@ -16,18 +17,20 @@ export function aggregate(
 	for (const point of points) {
 		if (point.count === 0) continue;
 		const t = periodStart(new Date(point.t), to).getTime();
+		const min = Number.isFinite(point.min) ? point.min : point.mean;
+		const max = Number.isFinite(point.max) ? point.max : point.mean;
 		const g = groups.get(t);
 		if (!g) {
 			groups.set(t, {
 				sum: point.mean * point.count,
-				p: { ...point, t, partial: point.partial }
+				p: { ...point, t, min, max, partial: point.partial }
 			});
 			continue;
 		}
 		g.sum += point.mean * point.count;
 		g.p.count += point.count;
-		g.p.min = Math.min(g.p.min, point.min);
-		g.p.max = Math.max(g.p.max, point.max);
+		g.p.min = Math.min(g.p.min, min);
+		g.p.max = Math.max(g.p.max, max);
 		g.p.partial ||= point.partial;
 	}
 	return [...groups.entries()]

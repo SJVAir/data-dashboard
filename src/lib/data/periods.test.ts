@@ -35,6 +35,13 @@ describe("planSegments", () => {
 			},
 			{
 				resolution: "day",
+				start: new Date("2026-09-01T07:00:00Z"),
+				end: new Date("2026-10-01T07:00:00Z"),
+				aggregateTo: "month",
+				backfill: true
+			},
+			{
+				resolution: "day",
 				start: new Date("2026-10-01T07:00:00Z"),
 				end: new Date("2026-10-22T07:00:00Z"),
 				aggregateTo: "month"
@@ -59,7 +66,7 @@ describe("planSegments", () => {
 		expect(segs[0].aggregateTo).toBeUndefined();
 	});
 
-	it("hour request exactly on the hour has no raw fill", () => {
+	it("hour request exactly on the hour has no raw fill, only the backfill", () => {
 		const segs = planSegments({
 			resolution: "hour",
 			range: range("2026-10-21T07:00:00Z", "2026-10-23T07:00:00Z"),
@@ -67,7 +74,14 @@ describe("planSegments", () => {
 			offered: ALL
 		});
 		expect(segs).toEqual([
-			{ resolution: "hour", start: new Date("2026-10-21T07:00:00Z"), end: NOW }
+			{ resolution: "hour", start: new Date("2026-10-21T07:00:00Z"), end: NOW },
+			{
+				resolution: "raw",
+				start: new Date("2026-10-22T18:00:00Z"),
+				end: NOW,
+				aggregateTo: "hour",
+				backfill: true
+			}
 		]);
 	});
 
@@ -87,11 +101,106 @@ describe("planSegments", () => {
 			},
 			{
 				resolution: "raw",
+				start: new Date("2026-10-22T18:00:00Z"),
+				end: new Date("2026-10-22T19:00:00Z"),
+				aggregateTo: "hour",
+				backfill: true
+			},
+			{
+				resolution: "raw",
 				start: new Date("2026-10-22T19:00:00Z"),
 				end: now,
 				aggregateTo: "hour"
 			}
 		]);
+	});
+
+	it("backfills the last completed hour from raw at 10:20 PDT", () => {
+		const now = new Date("2026-10-22T17:20:00Z");
+		const segs = planSegments({
+			resolution: "hour",
+			range: range("2026-10-22T07:00:00Z", "2026-10-23T07:00:00Z"),
+			now,
+			offered: ALL
+		});
+		expect(segs.find((s) => s.backfill)).toEqual({
+			resolution: "raw",
+			start: new Date("2026-10-22T16:00:00Z"),
+			end: new Date("2026-10-22T17:00:00Z"),
+			aggregateTo: "hour",
+			backfill: true
+		});
+	});
+
+	it("day resolution just after midnight backfills yesterday from hourly", () => {
+		const now = new Date("2026-10-22T07:20:00Z");
+		const segs = planSegments({
+			resolution: "day",
+			range: range("2026-10-01T07:00:00Z", "2026-11-01T07:00:00Z"),
+			now,
+			offered: ALL
+		});
+		expect(segs).toEqual([
+			{
+				resolution: "day",
+				start: new Date("2026-10-01T07:00:00Z"),
+				end: new Date("2026-10-22T07:00:00Z")
+			},
+			{
+				resolution: "hour",
+				start: new Date("2026-10-21T07:00:00Z"),
+				end: new Date("2026-10-22T07:00:00Z"),
+				aggregateTo: "day",
+				backfill: true
+			},
+			{
+				resolution: "hour",
+				start: new Date("2026-10-22T07:00:00Z"),
+				end: now,
+				aggregateTo: "day"
+			}
+		]);
+	});
+
+	it("month resolution on the 1st backfills last month from daily", () => {
+		const now = new Date("2026-11-01T07:30:00Z");
+		const segs = planSegments({
+			resolution: "month",
+			range: range("2026-01-01T08:00:00Z", "2027-01-01T08:00:00Z"),
+			now,
+			offered: ALL
+		});
+		expect(segs.find((s) => s.backfill)).toEqual({
+			resolution: "day",
+			start: new Date("2026-10-01T07:00:00Z"),
+			end: new Date("2026-11-01T07:00:00Z"),
+			aggregateTo: "month",
+			backfill: true
+		});
+	});
+
+	it("a range ending with the last completed period still gets the backfill", () => {
+		const now = new Date("2026-10-22T07:20:00Z");
+		const segs = planSegments({
+			resolution: "day",
+			range: range("2026-10-15T07:00:00Z", "2026-10-22T07:00:00Z", false),
+			now,
+			offered: ALL
+		});
+		expect(segs.map((s) => [s.resolution, s.backfill, ...iso(s)])).toEqual([
+			["day", undefined, "2026-10-15T07:00:00.000Z", "2026-10-22T07:00:00.000Z"],
+			["hour", true, "2026-10-21T07:00:00.000Z", "2026-10-22T07:00:00.000Z"]
+		]);
+	});
+
+	it("no backfill without a finer offered level (regions at hour)", () => {
+		const segs = planSegments({
+			resolution: "hour",
+			range: range("2026-10-22T07:00:00Z", "2026-10-23T07:00:00Z"),
+			now: new Date("2026-10-22T17:20:00Z"),
+			offered: ["hour", "day", "month"]
+		});
+		expect(segs.some((s) => s.backfill)).toBe(false);
 	});
 
 	it("skips finer levels that are not offered", () => {

@@ -507,4 +507,117 @@ describe("createQueryClient", () => {
 				.sort()
 		).toEqual([keys[1], keys[3]].sort());
 	});
+
+	it("retry re-plans after a resolution step fails, as does updating to the same input", async () => {
+		let failures = 2;
+		const { client, calls } = setup({
+			metadata: fixtureMetadata({
+				catalog: async () => {
+					if (failures-- > 0) throw new Error("catalog down");
+					return FIXTURE_CATALOG;
+				}
+			})
+		});
+		const r = recorder();
+		const sub = client.subscribe(input(), r.listener);
+		await flush();
+		expect(r.last()?.status).toBe("error");
+
+		sub.update(input());
+		await flush();
+		expect(r.last()?.status).toBe("error");
+		expect(failures).toBe(0);
+
+		sub.retry();
+		await flush();
+		expect(calls).toHaveLength(1);
+		expect(r.last()).toEqual({ status: "loading" });
+		expect(sub.key).not.toBeNull();
+	});
+
+	it("retry re-plans an unavailable subscription", async () => {
+		let catalog: "unavailable" | CatalogEntry[] = "unavailable";
+		const { client, calls } = setup({
+			metadata: fixtureMetadata({ catalog: async () => catalog })
+		});
+		const r = recorder();
+		const sub = client.subscribe(input(), r.listener);
+		await flush();
+		expect(r.last()).toEqual({ status: "unavailable", reason: "catalog-unavailable" });
+
+		catalog = FIXTURE_CATALOG;
+		sub.retry();
+		await flush();
+		expect(calls).toHaveLength(1);
+	});
+
+	it("retry refetches a failed entry that is never polled", async () => {
+		const { client, calls } = setup();
+		const r = recorder();
+		const past: QueryInput = {
+			...input(),
+			dateRange: { kind: "custom", start: "2026-01-01", end: "2026-01-07" }
+		};
+		const sub = client.subscribe(past, r.listener);
+		await flush();
+		const error = new Error("boom");
+		calls[0].reject(error);
+		await flush();
+		expect(r.last()).toEqual({ status: "error", error });
+
+		sub.retry();
+		expect(calls).toHaveLength(2);
+		calls[1].resolve(data(2));
+		await flush();
+		expect(r.last()).toEqual({ status: "ready", data: data(2) });
+	});
+
+	describe("timeSubRange", () => {
+		const points = [
+			"2026-10-19T07:00:00Z",
+			"2026-10-20T06:59:00Z",
+			"2026-10-20T07:00:00Z",
+			"2026-10-21T07:00:00Z"
+		].map((iso) => ({
+			t: Date.parse(iso),
+			mean: 1,
+			min: 1,
+			max: 1,
+			count: 1,
+			partial: false
+		}));
+		const full: QueryData = { ...data(1), series: [{ place: "monitor:m-pa", points }] };
+		const times = (s: QueryState | undefined) =>
+			s && s.status === "ready" ? s.data.series[0].points.map((p) => p.t) : undefined;
+
+		it("filters to whole Pacific days without changing the key or the fetch", async () => {
+			const { client, calls } = setup();
+			const plain = client.subscribe(input(), () => {});
+			const r = recorder();
+			const sub = client.subscribe(
+				{ ...input(), timeSubRange: { start: "2026-10-19", end: "2026-10-20" } },
+				r.listener
+			);
+			await flush();
+			expect(calls).toHaveLength(1);
+			expect(sub.key).toBe(plain.key);
+
+			calls[0].resolve(full);
+			await flush();
+			expect(times(r.last())).toEqual(points.slice(0, 3).map((p) => p.t));
+
+			// Changing only the sub-range filters the cached data again: no fetch, same entry.
+			sub.update({
+				...input(),
+				timeSubRange: { start: "2026-10-20T00:00:00-07:00", end: "2026-10-21T00:00:00-07:00" }
+			});
+			await flush();
+			expect(calls).toHaveLength(1);
+			expect(sub.key).toBe(plain.key);
+			expect(times(r.last())).toEqual(points.slice(2).map((p) => p.t));
+
+			sub.update(input());
+			expect(times(r.last())).toEqual(points.map((p) => p.t));
+		});
+	});
 });

@@ -36,6 +36,12 @@ function getWorker(): Promise<Worker> {
 			w.terminate();
 			failAll(new Error(event.message || "Downsample worker failed"));
 		};
+		// A reply that can't be deserialized has lost its id, so no single call can be settled.
+		// A listener, not `onmessageerror`: Chromium's `Worker` has no such property.
+		w.addEventListener("messageerror", () => {
+			w.terminate();
+			failAll(new Error("Downsample worker sent a message it couldn't read"));
+		});
 		return w;
 	});
 	worker.catch((error) => failAll(error));

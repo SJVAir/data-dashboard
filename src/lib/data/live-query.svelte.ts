@@ -7,7 +7,8 @@ import type { QueryInput, QueryState } from "./types";
  * Call `destroy` when the component goes away.
  */
 export class LiveQuery {
-	state = $state<QueryState>({ status: "loading" });
+	/** Not deeply reactive: each change assigns a new state, and the data stays unproxied. */
+	state = $state.raw<QueryState>({ status: "loading" });
 	readonly #client: QueryClient;
 	#sub: Subscription | null = null;
 	#polling = true;
@@ -33,6 +34,11 @@ export class LiveQuery {
 	setPolling(on: boolean): void {
 		this.#polling = on;
 		this.#sub?.setPolling(on);
+	}
+
+	/** Try again after an error (see `Subscription.retry`). */
+	retry(): void {
+		this.#sub?.retry();
 	}
 
 	destroy(): void {

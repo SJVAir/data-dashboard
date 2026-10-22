@@ -127,7 +127,9 @@ async function rawSeries(
 /**
  * Summaries over the range: completed periods at the requested resolution, the open period
  * filled from finer levels and aggregated up (one `now` for both, so a period can't be open in
- * one and closed in the other). A place a response leaves out has no data: an empty series.
+ * one and closed in the other). The last completed period, backfilled from a finer level, is
+ * used only where the coarse response lacks it (its rollup hasn't run yet); it is complete data,
+ * so not partial. A place a response leaves out has no data: an empty series.
  */
 async function summarySeries(
 	req: AdapterRequest,
@@ -159,28 +161,34 @@ async function summarySeries(
 		}
 		return bulkSummaryTasks(entryType, regionIds, seg, now, signal);
 	};
-	const [complete, fill] = await collect(
+	const [complete, fill, backfill] = await collect(
 		[
 			segments.filter((s) => !s.aggregateTo).flatMap(tasksFor),
-			segments.filter((s) => s.aggregateTo).flatMap(tasksFor)
+			segments.filter((s) => s.aggregateTo && !s.backfill).flatMap(tasksFor),
+			segments.filter((s) => s.backfill).flatMap(tasksFor)
 		],
 		signal
 	);
 
+	const to = req.resolution as Period;
 	const all =
 		target.kind === "all"
-			? [...new Set([...complete.keys(), ...fill.keys()])].map((id) => ({
+			? [...new Set([...complete.keys(), ...fill.keys(), ...backfill.keys()])].map((id) => ({
 					place: `monitor:${id}`,
 					id
 				}))
 			: places;
-	return all.map(({ place, id }) => ({
-		place,
-		points: [
-			...(complete.get(id) ?? []),
-			...aggregate(fill.get(id) ?? [], req.resolution as Period, now)
-		].sort((a, b) => a.t - b.t)
-	}));
+	return all.map(({ place, id }) => {
+		const coarse = complete.get(id) ?? [];
+		const have = new Set(coarse.map((p) => p.t));
+		const missing = aggregate(backfill.get(id) ?? [], to, now).filter((p) => !have.has(p.t));
+		return {
+			place,
+			points: [...coarse, ...missing, ...aggregate(fill.get(id) ?? [], to, now)].sort(
+				(a, b) => a.t - b.t
+			)
+		};
+	});
 }
 
 async function fetchAirQuality(

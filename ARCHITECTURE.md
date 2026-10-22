@@ -783,6 +783,14 @@ caching), not per widget.
 - **Incomplete periods are stitched from finer data** — e.g. the current month (no
   monthly rollup until it ends) is computed from daily summaries so far, today from
   hourly. Fixes the "current month shows nothing" problem for every widget.
+- **The last completed period is backfilled too** (2026-10-22, Foundations spec 2). Server
+  rollups lag the period's end: hour H is summarized at about H+1:45 for monitors and H+1:50
+  for regions, daily rollups run around 01:00, and monthly ones on the 1st. So the query
+  also fetches the last completed period from the next finer offered level and uses it only
+  where the coarse response lacks that period (computed client-side, and complete, so not
+  partial); once the server's rollup exists, the coarse value wins. Where no finer level is
+  offered (regions at hour, which have no raw entries) there is no backfill, and that period
+  stays empty until the server task runs. The backfill is one level deep (see `DEFERRED.md`).
 - Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
@@ -805,7 +813,9 @@ caching), not per widget.
   every other resolution polls at the next :55 past the hour in Pacific time, after the
   server's :50 summary task. Errors back off from 30 seconds, doubling up to 30 minutes, and
   reset on success. Polling runs only for ranges that include now and pauses while the page is
-  hidden; on becoming visible, each overdue key gets one catch-up poll. Raw entries are
+  hidden; on becoming visible, each overdue key gets one catch-up poll. A key that becomes
+  pollable again (resubscribed from the cache, or a widget un-minimized) is scheduled from its
+  last fetch, so data that is already overdue is refetched at once. Raw entries are
   requested with the monitor type's published processor and zone-aware UTC bounds, so they
   are on the same (calibrated) series the summaries use.
 - **Minimized widgets refresh only if they have thresholds configured** — so their

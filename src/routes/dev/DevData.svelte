@@ -459,13 +459,7 @@
 					{@render field("Panel B status", stateText(b))}
 					{@render field("Panel B points", pointCount(bData))}
 					{@render field("Panel B fetched", time(bData?.fetchedAt))}
-					<!-- Each LiveQuery proxies its state, so compare the fetch, not object identity. -->
-					{@render field(
-						"Same fetch as panel A",
-						bData !== undefined &&
-							aData?.fetchedAt === bData.fetchedAt &&
-							pointCount(aData) === pointCount(bData)
-					)}
+					{@render field("Same fetch as panel A", bData !== undefined && aData === bData)}
 				</dl>
 			{/if}
 		</section>
