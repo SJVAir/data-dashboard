@@ -63,7 +63,7 @@
 	"dependencies": {
 		"@date-fns/tz": "^1.5.0",
 		"@lucide/svelte": "^1.60.0",
-		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@^4.7.0",
+		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@4.8.0-beta.0",
 		"bits-ui": "^2.19.2",
 		"clsx": "^2.1.1",
 		"color2k": "^2.0.4",
