@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { m } from "$lib/paraglide/messages.js";
 import {
+	formatDate,
 	formatDateTime,
 	formatNumber,
 	needsZoneLabel,
 	pacificHoursOfDay,
+	parseDateKey,
 	startOfPacificWeek,
 	todayPacific
 } from "./index";
@@ -37,5 +40,40 @@ describe("format", () => {
 	});
 	it("formats numbers with the locale", () => {
 		expect(formatNumber(12345.6, { maximumFractionDigits: 1 })).toBe("12,345.6");
+	});
+	it("parseDateKey rejects malformed and impossible dates", () => {
+		for (const bad of ["2026-1-05", "2026-02-30", "20261005", "2026-10-05T00:00", ""]) {
+			expect(() => parseDateKey(bad)).toThrow(RangeError);
+		}
+		expect(parseDateKey("2024-02-29")).toEqual({ y: 2024, m: 2, d: 29 });
+	});
+	it("DST spring-forward day has the right hour starts", () => {
+		const hours = pacificHoursOfDay("2026-03-08");
+		expect(hours).toHaveLength(23);
+		expect(hours.slice(0, 3).map((h) => h.toISOString())).toEqual([
+			"2026-03-08T08:00:00.000Z",
+			"2026-03-08T09:00:00.000Z",
+			"2026-03-08T10:00:00.000Z"
+		]);
+	});
+	it("DST fall-back day repeats 1 AM", () => {
+		const hours = pacificHoursOfDay("2026-11-01");
+		expect(hours).toHaveLength(25);
+		expect(hours.slice(0, 3).map((h) => h.toISOString())).toEqual([
+			"2026-11-01T07:00:00.000Z",
+			"2026-11-01T08:00:00.000Z",
+			"2026-11-01T09:00:00.000Z"
+		]);
+	});
+	it("formatDate shows the Pacific calendar date in any device zone", () => {
+		expect(formatDate("2026-10-22")).toBe("Oct 22, 2026");
+		expect(formatDate(new Date("2026-10-22T05:00:00Z"))).toBe("Oct 21, 2026");
+	});
+	it("formatDateTime appends the PT label from messages", () => {
+		const t = new Date("2026-10-20T19:00:00Z");
+		const bare = formatDateTime(t, { deviceZone: "America/Los_Angeles" });
+		const labelled = formatDateTime(t, { deviceZone: "America/New_York" });
+		expect(labelled).toBe(m.time_zone_suffix({ time: bare }));
+		expect(bare.endsWith(m.time_zone_suffix({ time: "" }).trim())).toBe(false);
 	});
 });

@@ -58,5 +58,6 @@
 	"rename_widget_title": "Rename widget",
 	"rename_label": "Name",
 	"rename_save": "Save",
-	"rename_cancel": "Cancel"
+	"rename_cancel": "Cancel",
+	"time_zone_suffix": "{time} PT"
 }

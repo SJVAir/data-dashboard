@@ -475,11 +475,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Internationalization
 
-- **Format module gaps.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The date-string
-  parsers don't validate `YYYY-MM-DD`; the DST tests check only lengths; `formatDate` is
-  untested; and the " PT" suffix is concatenated English rather than a message. Spec 1
-  formats only a few well-formed dates. **Revisit in** spec 2 (`DateRangeSpec`), which
-  builds date ranges on this module.
 - **Translations and language switching.** _Deferred 2026-09-24; re-checked 2026-10-13._ The
   server now has empty locale catalogs (es, tl, hmn; 395 untranslated entries each) and
   sends SMS in the user's language, but no actual translations exist and there's no
