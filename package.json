@@ -17,6 +17,7 @@
 		"check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "npm run paraglide && vitest run",
 		"test:unit": "npm run paraglide && vitest run --project unit",
+		"test:unit:tz": "npm run paraglide && TZ=America/New_York vitest run --project unit src/lib/format src/lib/data",
 		"test:browser": "npm run paraglide && vitest run --project browser",
 		"test:watch": "vitest",
 		"test:e2e": "playwright test --project=chromium",
