@@ -1,4 +1,10 @@
-import { getMonitorsList, getMonitorsMeta } from "@sjvair/sdk";
+import {
+	getDatasetCatalog,
+	getMonitorsList,
+	getMonitorsMeta,
+	type DatasetCatalog,
+	type Retired
+} from "@sjvair/sdk";
 import type { Resolution } from "./schema";
 
 export type Retirement = { since: string; replacedBy?: string };
@@ -31,6 +37,7 @@ export type Level = { name: string; label: string; color: string; range: [number
 export type MonitorSummary = { id: string; name: string; type: string };
 
 export interface MetadataSource {
+	/** `"unavailable"` when the server has no catalog or it can't be fetched; never rejects except for `signal`'s abort. */
 	catalog(signal?: AbortSignal): Promise<CatalogEntry[] | "unavailable">;
 	/** Ordered by range start; `[]` if none. */
 	levels(entryType: string, signal?: AbortSignal): Promise<Level[]>;
@@ -49,7 +56,7 @@ function abortError(): Error {
 }
 
 /** Resolve with `promise`, or reject early if `signal` aborts (without touching `promise`). */
-function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+export function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
 	if (!signal) return promise;
 	if (signal.aborted) return Promise.reject(abortError());
 	return new Promise<T>((resolve, reject) => {
@@ -77,11 +84,83 @@ function memoize<T>(fetch: () => Promise<T>): (signal?: AbortSignal) => Promise<
 	};
 }
 
+const RESOLUTIONS: readonly Resolution[] = [
+	"raw",
+	"hour",
+	"day",
+	"month",
+	"quarter",
+	"season",
+	"year"
+];
+const KINDS: readonly EntryTypeMeta["kind"][] = ["pollutant", "meteorological", "other"];
+
+function retirement(retired: Retired | null | undefined): Retirement | undefined {
+	if (!retired) return undefined;
+	return retired.replaced_by
+		? { since: retired.since, replacedBy: retired.replaced_by }
+		: { since: retired.since };
+}
+
+/** Copies `value` into `target[key]` unless it's empty (the catalog's "none"). */
+function setIfPresent<T, K extends keyof T>(
+	target: T,
+	key: K,
+	value: T[K] | "" | null | undefined
+) {
+	if (value !== undefined && value !== null && value !== "") target[key] = value as T[K];
+}
+
+/**
+ * The server's dataset catalog in the dashboard's shape. Unknown kinds become `"other"` and
+ * unknown resolutions are dropped (both need client logic); unknown geographies stay as strings.
+ * Empty descriptive strings are left out.
+ */
+export function mapDatasetCatalog(catalog: DatasetCatalog): CatalogEntry[] {
+	return catalog.datasets.map((d) => {
+		const entry: CatalogEntry = {
+			id: d.id,
+			label: d.label,
+			geographies: [...d.geographies],
+			entryTypes: d.entry_types.map((e) => {
+				const type: EntryTypeMeta = {
+					id: e.id,
+					label: e.label,
+					units: e.units,
+					kind: (KINDS as readonly string[]).includes(e.kind)
+						? (e.kind as EntryTypeMeta["kind"])
+						: "other",
+					resolutions: e.resolutions.filter((r): r is Resolution => RESOLUTIONS.includes(r))
+				};
+				setIfPresent(type, "available", e.available);
+				setIfPresent(type, "retired", retirement(e.retired));
+				return type;
+			})
+		};
+		setIfPresent(entry, "description", d.description);
+		setIfPresent(entry, "source", d.source);
+		setIfPresent(entry, "license", d.license);
+		setIfPresent(entry, "metaUrl", d.meta_url);
+		setIfPresent(entry, "retired", retirement(d.retired));
+		return entry;
+	});
+}
+
 export function createWebMetadata(): MetadataSource {
 	const meta = memoize(() => getMonitorsMeta());
 	const list = memoize(() => getMonitorsList());
+	const catalog = memoize(async () => mapDatasetCatalog(await getDatasetCatalog()));
 	return {
-		catalog: async () => "unavailable",
+		async catalog(signal) {
+			try {
+				return await catalog(signal);
+			} catch (error) {
+				// A server without `meta/datasets/` (404) or any other failure: no catalog, and the
+				// memo is cleared so the next call retries. Only the caller's own abort rejects.
+				if (signal?.aborted) throw error;
+				return "unavailable";
+			}
+		},
 		async levels(entryType, signal) {
 			const entry = (await meta(signal)).entries[entryType];
 			const levels = entry?.levels;

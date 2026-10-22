@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@sjvair/sdk", () => ({
+	getDatasetCatalog: vi.fn(),
 	getMonitorsMeta: vi.fn(),
 	getMonitorsList: vi.fn()
 }));
 
-import { getMonitorsList, getMonitorsMeta } from "@sjvair/sdk";
+import { getDatasetCatalog, getMonitorsList, getMonitorsMeta } from "@sjvair/sdk";
 import { createWebMetadata, withCatalog, type CatalogEntry } from "./metadata";
+import { SDK_DATASET_CATALOG } from "./testing/dataset-catalog";
 
 const META = {
 	monitors: {
@@ -33,13 +35,156 @@ beforeEach(() => {
 	vi.resetAllMocks();
 	vi.mocked(getMonitorsMeta).mockResolvedValue(META as never);
 	vi.mocked(getMonitorsList).mockResolvedValue(LIST as never);
+	vi.mocked(getDatasetCatalog).mockResolvedValue(SDK_DATASET_CATALOG);
 });
 
-describe("createWebMetadata", () => {
-	it("reports the catalog as unavailable", async () => {
+/** An error like the SDK's for a failed response. */
+function httpError(status: number): Error {
+	return Object.assign(new Error(`Request failed (${status})`), { status });
+}
+
+describe("createWebMetadata().catalog", () => {
+	it("maps the server's dataset catalog", async () => {
+		const catalog = await createWebMetadata().catalog();
+		expect(catalog).not.toBe("unavailable");
+		const [air, smoke] = catalog as CatalogEntry[];
+		expect(air).toEqual({
+			id: "air-quality",
+			label: "Air Quality",
+			description: "Air quality measurements from SJVAir sensors and partner monitoring networks.",
+			source: "SJVAir sensors, AirNow, AQview, AQLite",
+			geographies: ["monitor", "region"],
+			metaUrl: "/api/2.0/monitors/meta/",
+			entryTypes: [
+				{
+					id: "humidity",
+					label: "Humidity",
+					units: "%",
+					kind: "meteorological",
+					resolutions: ["raw"]
+				},
+				{
+					id: "particulates",
+					label: "Particulates",
+					units: "",
+					kind: "other",
+					resolutions: ["raw"]
+				},
+				{
+					id: "pm100",
+					label: "PM10.0",
+					units: "µg/m³",
+					kind: "pollutant",
+					resolutions: ["raw"],
+					available: false
+				},
+				{
+					id: "pm25",
+					label: "PM2.5",
+					units: "µg/m³",
+					kind: "pollutant",
+					resolutions: ["raw", "hour", "day", "month", "quarter", "season", "year"],
+					available: true
+				}
+			]
+		});
+		expect(smoke).toMatchObject({
+			id: "hms-smoke",
+			license: "Public domain",
+			geographies: ["polygon"]
+		});
+		expect("metaUrl" in smoke).toBe(false);
+	});
+
+	it("keeps unknown geographies, maps unknown kinds to other, and carries retirement", async () => {
+		vi.mocked(getDatasetCatalog).mockResolvedValue({
+			datasets: [
+				{
+					id: "old-sensors",
+					label: "Old sensors",
+					description: "",
+					source: "",
+					license: "",
+					geographies: ["monitor", "watershed"],
+					meta_url: "",
+					entry_types: [
+						{
+							id: "pm25-old",
+							label: "PM2.5 (old)",
+							kind: "particle-count",
+							units: "",
+							resolutions: ["raw", "decade" as never, "day"],
+							retired: { since: "2026-01-01T00:00:00Z", replaced_by: "pm25" }
+						},
+						{
+							id: "gone",
+							label: "Gone",
+							kind: "pollutant",
+							units: "",
+							resolutions: [],
+							retired: { since: "2026-02-01T00:00:00Z", replaced_by: null }
+						}
+					],
+					retired: { since: "2026-03-01T00:00:00Z" }
+				}
+			],
+			summary_rules: { complete_after_period_end: [] }
+		});
+		const [dataset] = (await createWebMetadata().catalog()) as CatalogEntry[];
+		expect(dataset.geographies).toEqual(["monitor", "watershed"]);
+		expect(dataset.retired).toEqual({ since: "2026-03-01T00:00:00Z" });
+		expect(dataset.entryTypes[0]).toMatchObject({
+			kind: "other",
+			resolutions: ["raw", "day"],
+			retired: { since: "2026-01-01T00:00:00Z", replacedBy: "pm25" }
+		});
+		expect(dataset.entryTypes[1].retired).toEqual({ since: "2026-02-01T00:00:00Z" });
+		expect(dataset.description).toBeUndefined();
+	});
+
+	it("fetches the catalog once across several calls", async () => {
+		const md = createWebMetadata();
+		await md.catalog();
+		await md.catalog();
+		expect(getDatasetCatalog).toHaveBeenCalledTimes(1);
+	});
+
+	it("is unavailable when the server has no catalog endpoint (404)", async () => {
+		vi.mocked(getDatasetCatalog).mockRejectedValue(httpError(404));
 		expect(await createWebMetadata().catalog()).toBe("unavailable");
 	});
 
+	it("is unavailable for a response it can't read", async () => {
+		vi.mocked(getDatasetCatalog).mockResolvedValue({ nope: true } as never);
+		expect(await createWebMetadata().catalog()).toBe("unavailable");
+	});
+
+	it("retries after a failure", async () => {
+		vi.mocked(getDatasetCatalog).mockRejectedValueOnce(httpError(503));
+		const md = createWebMetadata();
+		expect(await md.catalog()).toBe("unavailable");
+		expect(await md.catalog()).toHaveLength(2);
+		expect(getDatasetCatalog).toHaveBeenCalledTimes(2);
+	});
+
+	it("rejects only an aborted caller", async () => {
+		let release!: () => void;
+		vi.mocked(getDatasetCatalog).mockImplementationOnce(
+			() => new Promise((resolve) => (release = () => resolve(SDK_DATASET_CATALOG)))
+		);
+		const md = createWebMetadata();
+		const ctrl = new AbortController();
+		const aborted = md.catalog(ctrl.signal);
+		const other = md.catalog();
+		ctrl.abort();
+		await expect(aborted).rejects.toMatchObject({ name: "AbortError" });
+		release();
+		expect(await other).toHaveLength(2);
+		expect(getDatasetCatalog).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("createWebMetadata", () => {
 	it("fetches the meta once across several calls", async () => {
 		const md = createWebMetadata();
 		await md.levels("pm25");
