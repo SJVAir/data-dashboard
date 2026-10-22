@@ -15,6 +15,10 @@ and the copyright holder (Central California Asthma Collaborative).
 - **Waiting on others:** the legal adviser's answers (`DEFERRED.md` → "Open decisions"),
   which only gate the final email-only accounts plan; and whether email alerts get their
   own rollout switch (Release 2 server plan).
+- **Needed from you before go-live:** the license and attribution text for the datasets whose
+  catalog `license` is empty (air-quality, weather, pesticide-use, pesticide-notices,
+  forecasts, calheatscore, calenviroscreen, emissions); decided 2026-10-22 to leave it empty
+  until then. See `DEFERRED.md` → "Open decisions".
 - **Done 2026-10-19/20: the three sjvair.com-side fixes** (outcomes under each warning
   below). The sjvair.com PRs (#287, #288, #289) are merged into `develop`; mobile #112 is
   still open, and its release waits for #287 to reach production. sjvair.com work now targets its new

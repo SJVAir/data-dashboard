@@ -656,6 +656,14 @@ it describes.
 Undecided items that don't block current work but must be answered before the listed
 point.
 
+- **Dataset license and attribution text.** _Decided 2026-10-22 to leave empty for now (user,
+  sjvair.com metadata plan, #293)._ In `meta/datasets/`, every dataset has `license: ""`
+  except NOAA HMS smoke/fire and NASA TEMPO ("Public domain"). The real license and
+  attribution text for air-quality, weather, pesticide-use, pesticide-notices, forecasts,
+  calheatscore, calenviroscreen, and emissions must come from the user and must not be
+  guessed. Meanwhile the dashboard handles an empty `license` gracefully (shows the `source`
+  alone, never a placeholder). **Decide before** dashboard go-live (and before exports or
+  shared pages show attribution).
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
