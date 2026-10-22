@@ -670,7 +670,8 @@ check there) so nothing else changes for existing resticus users. Tests cover:
   Django's test client does (`camp.utils.test.CsrfExemptRequestFactory`).
 - **Built 2026-10-22:** resticus `fix/session-csrf` (also fixes multipart parsing the CSRF
   check exposed: malformed bodies give 400, not 500, and bodies aren't parsed twice or
-  dropped) and sjvair.com `fix/csrf-ready`. Both are pushed; the PRs are not yet opened.
+  dropped) and sjvair.com `fix/csrf-ready`. PRs: resticus
+  [#25](https://github.com/dmpayton/django-resticus/pull/25), sjvair.com [#292](https://github.com/SJVAir/sjvair.com/pull/292).
   Verified on local sjvair.com: signed-in subscribe and unsubscribe pass, a write without
   `X-CSRFToken` gets 403, and token-only writes and admin export work.
 

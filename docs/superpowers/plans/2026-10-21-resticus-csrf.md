@@ -302,7 +302,7 @@ protection"), `DEFERRED.md`, this plan's checkboxes. Memory:
 
 Wait for the user's yes on both texts.
 
-- [ ] **Step 2: Push and open the PRs**
+- [x] **Step 2: Push and open the PRs**
 
 ```bash
 cd ~/workspace/django-resticus && git push -u origin fix/session-csrf
