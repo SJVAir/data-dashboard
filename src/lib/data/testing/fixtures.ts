@@ -18,7 +18,7 @@ export const FIXTURE_CATALOG: CatalogEntry[] = [
 		entryTypes: [
 			pollutant("pm25", "PM2.5", [...ALL], true),
 			pollutant("o3", "Ozone", [...ALL], true),
-			pollutant("pm10", "PM10", ["raw"], false)
+			pollutant("pm100", "PM10", ["raw"], false)
 		],
 		geographies: ["monitor", "region"]
 	}

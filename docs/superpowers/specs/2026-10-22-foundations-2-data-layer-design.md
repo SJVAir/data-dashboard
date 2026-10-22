@@ -205,7 +205,7 @@ The single entry point widgets will use. Per "Data resolution & live refresh".
   offered, it takes the nearest coarser one, or raw with downsampling (below).
 - **Priority:** widget-type pin → the layer's `resolution` override → `"auto"` (the ladder).
 - **Which levels an entry type offers** comes from that entry type's `resolutions` in the
-  catalog (PM2.5, O3, NO2, SO2, CO have summaries; PM10 is raw only). The catalog format
+  catalog (PM2.5, O3, NO2, SO2, CO have summaries; PM10, the server's `pm100`, is raw only). The catalog format
   moved `resolutions` onto each entry type (2026-10-22, from the sjvair.com metadata plan;
   recorded in `ARCHITECTURE.md` → "What a dataset is"). Air-quality entry types also carry
   `available`; the query layer doesn't gate on it (Widget Creation does, in step 4).
@@ -229,7 +229,7 @@ remembered, so the same place isn't refetched every poll.
 
 ### 8. Raw data and worker downsampling
 
-For entry types without summaries (PM10 in spec 2), the layer fetches raw entries (chunked)
+For entry types without summaries (PM10 (`pm100`) in spec 2), the layer fetches raw entries (chunked)
 and downsamples them in a **Web Worker** to the resolution the ladder picked. The result says
 it was computed from raw data (the table and exports show this in step 4).
 

@@ -334,6 +334,34 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   catalog entry's `license` and any export must carry. Nothing is designed in the
   dashboard. **Revisit when** a methane layer or analysis is scoped. Same for the unused
   `VITE_OPENWEATHERMAP_KEY` — remove it if no use appears.
+- **Calibration choice on layers.** _Deferred 2026-10-22 (Foundations spec 2)._ The data
+  layer always uses each monitor type's published series (e.g. EPA-calibrated PM2.5 for
+  PurpleAir) and reports which one it used; `QueryDescriptor` has no processor field. An
+  optional field can be added later without a document migration. **Revisit when**
+  researchers ask for uncalibrated or alternative-calibration data.
+- **sdk-js: raw-entry bounds use the browser's zone.** _Deferred 2026-10-22 (Foundations spec
+  2)._ `getMonitorEntries` formats its `timestamp__gte`/`timestamp__lt` bounds in the
+  browser's zone, which the server reads as Pacific; it affects monitor-map and the mobile
+  app too. The dashboard sends UTC instants through `paginatedApiCall` meanwhile (see the
+  `getMonitorEntries` entry under "Platform & infrastructure"). **Revisit when** the sdk-js
+  step 3 work lands; fix there with `processor`/`stage`. Needs an sdk-js plan and a release
+  (explicit approval).
+- **Refetch keeps the resolution chosen at creation.** _Deferred 2026-10-22 (Foundations spec
+  2)._ A query entry picks its resolution from the range span once, when it is created; a
+  to-date range (e.g. "this month") can grow across a ladder boundary over time without the
+  entry switching. **Revisit when** widgets show to-date ranges (Release 1 step 4).
+- **The query client has no `dispose()`, and its poller is never stopped.** _Deferred
+  2026-10-22 (Foundations spec 2)._ `getQueryClient()` returns one app-wide client, so nothing
+  needed teardown. **Revisit when** HMR or tests recreate clients, or anything creates more
+  than one.
+- **`LiveQuery` has no idle state for a null input.** _Deferred 2026-10-22 (Foundations spec
+  2)._ A widget with nothing to show yet (no place picked) has to avoid constructing the query
+  rather than pass `null`. **Revisit when** building widgets (Release 1 step 4).
+- **`DocumentSession` reads page visibility directly.** _Noted 2026-10-22 (Foundations spec
+  2)._ `src/lib/store/document-session.svelte.ts` (spec 1) still listens to
+  `visibilitychange` and reads `visibilityState`, against the platform-adapter rule; spec 2
+  added `platform.activity`. **Revisit when** `DocumentSession` is next changed, or in the
+  spec 3/5 platform work: move it onto that capability.
 
 ## Map plugins
 
@@ -574,17 +602,6 @@ it describes.
   the v1 tabs are removed in Release 1's Foundations step (a fresh start). HMS
   becomes the smoke & fire map preset (see "Widgets"); collocation becomes the
   low-cost-vs-reference starter analysis (#10). Close when those ship.
-- **Whole-year over-fetch**: _deferred 2026-09-16; addressed by design 2026-09-24_ (automatic
-  resolution + narrow fetches in the data layer — see `ARCHITECTURE.md` → "Data resolution &
-  live refresh"). Close once implemented. The `month` param exists on the
-  summary endpoints but isn't used.
-- **No in-flight request coordination**: _deferred 2026-09-16; addressed by design 2026-09-24_
-  (last-requested wins in the data layer). Close once implemented. Rapid filter changes race,
-  so the last response to finish wins instead of the last request made. This applies to
-  every widget data manager, so solve it once in the data layer or cache.
-- **"Default to current month" can't show monthly data until the month ends**: _noted
-  2026-09-16; addressed by design 2026-09-24_ (incomplete-period stitching). Close once
-  implemented. Monthly rollups only compute after month-end.
 
 ## Open decisions
 

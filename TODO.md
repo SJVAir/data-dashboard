@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-10-21
+Last updated: 2026-10-22
 
 ## Start here
 
@@ -71,7 +71,12 @@ and the copyright holder (Central California Asthma Collaborative).
     developer reviews and merges #25; **the user tells them when**. Before that, monitor-map 4.3.0
     and #292 must be live in production (merge order in `ARCHITECTURE.md` →
     "CSRF protection").
-- **Next:** spec 2, the data layer.
+- **Spec 2 (the data layer) is built on `foundations-2-data` (2026-10-22); PR to come.** Dataset
+  adapters, the query client with live polling, resolution and period stitching, the `format`
+  module, `readableColor`, and a dev-only data page at `/workspace/dev/data`. Design and plan:
+  `docs/superpowers/{specs,plans}/2026-10-22-foundations-2-data-layer*`. Its deferrals are in
+  `DEFERRED.md`.
+- **Next:** spec 3, safety and sharing.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -831,6 +836,12 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 → "Legacy Monitors-tab follow-ups".
 
 ## Done
+
+- [x] **Legacy Monitors-tab items closed by the data layer** (Foundations spec 2, 2026-10-22):
+      "Whole-year over-fetch" (automatic resolution and narrow, chunked fetches), "No in-flight
+      request coordination" (last-requested wins in the query client), and "'Default to current
+      month' can't show monthly data until the month ends" (incomplete periods stitched from
+      finer data). Removed from `DEFERRED.md`.
 
 - [x] **Geometry-free regions list** (was deferred 2026-09-17). Delivered server-side in
       sjvair.com #280: `regions/` no longer returns `boundary.geometry` (only `bbox`), and

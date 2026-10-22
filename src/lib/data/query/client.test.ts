@@ -358,14 +358,14 @@ describe("createQueryClient", () => {
 		const { client, calls } = setup();
 		const r = recorder();
 		client.subscribe(
-			{ ...input(), layer: { dataset: "air-quality", entryType: "pm10" } },
+			{ ...input(), layer: { dataset: "air-quality", entryType: "pm100" } },
 			r.listener
 		);
 		await flush();
 		expect(r.last()).toEqual({ status: "unavailable", reason: "whole-layer-raw" });
 
-		// One monitor's pm10 is downsampled from raw instead.
-		client.subscribe(input("m-pa", "pm10"), () => {});
+		// One monitor's pm100 is downsampled from raw instead.
+		client.subscribe(input("m-pa", "pm100"), () => {});
 		await flush();
 		expect(calls).toHaveLength(1);
 		expect(calls[0].req.resolution).toBe("hour");

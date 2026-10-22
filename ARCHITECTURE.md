@@ -384,6 +384,11 @@ Tauri-ready seams required **from day one**:
   directly** — only through the adapter. Preferences (e.g. last-opened dashboard,
   active Collection, the starter's chosen place) are stored through it. The v1 `src/lib/preferences.ts` is removed
   with the rest of the v1 code, not migrated.
+- **`activity` capability** (built 2026-10-22, Foundations spec 2). `platform.activity` reports
+  whether the app is in front of the person (`visible()` and `onChange(cb)`). On the web it is
+  page visibility; a Tauri build can report visible while the window is in the background so
+  polling continues. The data layer's poller uses it; nothing outside the adapter reads
+  `visibilitychange` for new code.
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
   air-quality data uses an **in-memory cache** shared across widgets, plus the
@@ -796,6 +801,13 @@ caching), not per widget.
   after midnight plus hourly for today's partial value.
 - **One poll per descriptor**, shared across widgets via the cache; **pause while the
   browser tab is hidden**; back off on errors.
+- **Cadence as built** (2026-10-22, Foundations spec 2): raw entries poll every 3 minutes;
+  every other resolution polls at the next :55 past the hour in Pacific time, after the
+  server's :50 summary task. Errors back off from 30 seconds, doubling up to 30 minutes, and
+  reset on success. Polling runs only for ranges that include now and pauses while the page is
+  hidden; on becoming visible, each overdue key gets one catch-up poll. Raw entries are
+  requested with the monitor type's published processor and zone-aware UTC bounds, so they
+  are on the same (calibrated) series the summaries use.
 - **Minimized widgets refresh only if they have thresholds configured** — so their
   taskbar entry can flash when a threshold is crossed (self-monitoring). Minimized
   widgets without thresholds don't poll.
@@ -917,6 +929,11 @@ type DateRangeSpec =
 	| { kind: "custom"; start: string; end: string };
 ```
 
+- **Region places resolve through a `RegionResolver`** (built 2026-10-22, Foundations spec 2):
+  the air-quality adapter turns a region's type and official code into the server's id before
+  fetching. The server's region API doesn't accept official codes yet, so the web resolver
+  reports every region as unresolvable (the layer is "unavailable") until Release 1 step 3
+  adds code lookup; then only the resolver changes.
 - **`timeSubRange` lives on `WidgetDataConfig`** (decided 2026-10-22), next to `dateRange`,
   not on each layer's descriptor: the range is per widget. A layer resolves to a
   `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
@@ -1765,7 +1782,7 @@ type DatasetCatalogEntry = {
 		label: string;
 		kind: "pollutant" | "meteorological" | "other";
 		units: string;
-		// Per entry type, not per dataset (e.g. pm25: raw…year; pm10: raw only).
+		// Per entry type, not per dataset (e.g. pm25: raw…year; pm100 (PM10): raw only).
 		resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
 		available?: boolean; // air-quality entry types: the available-pollutants switch
 		retired?: { since: string; replacedBy?: string };

@@ -217,7 +217,7 @@ describe("airQualityAdapter.fetch", () => {
 				"hour",
 				{ kind: "trailing", amount: 1, unit: "day" },
 				{
-					entryType: "pm10",
+					entryType: "pm100",
 					downsampleFromRaw: true,
 					offered: ["raw"],
 					now: new Date("2026-10-22T18:45:00Z")
