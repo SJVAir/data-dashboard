@@ -30,3 +30,11 @@ export interface DatasetAdapter {
 	offered(base: Resolution[], target: Target): Resolution[];
 	fetch(req: AdapterRequest, ctx: AdapterContext, signal: AbortSignal): Promise<QueryData>;
 }
+
+/**
+ * The web build's resolver. The server's region API doesn't accept official codes yet, so every
+ * region is reported as unresolvable until it does (spec 2, section 9).
+ */
+export function createWebRegionResolver(): RegionResolver {
+	return { resolve: async () => "unsupported" };
+}
