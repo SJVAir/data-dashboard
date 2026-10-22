@@ -58,8 +58,10 @@ type Entry = {
 	key: string;
 	adapter: DatasetAdapter;
 	spec: DateRangeSpec;
-	/** The request last fetched (or being fetched). */
+	/** The latest request started, which may still be in flight or have been aborted. */
 	request: AdapterRequest;
+	/** The request the current `data` (or `error`) came from; set only when a fetch settles. */
+	fetched?: AdapterRequest;
 	subscribers: Set<Sub>;
 	/** Present while a request is in flight. */
 	controller?: AbortController;
@@ -173,6 +175,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			(data) => {
 				if (!current()) return;
 				entry.controller = undefined;
+				entry.fetched = request;
 				entry.data = data;
 				entry.failed = false;
 				entry.error = undefined;
@@ -181,6 +184,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			(error) => {
 				if (!current()) return;
 				entry.controller = undefined;
+				entry.fetched = request;
 				entry.failed = true;
 				entry.error = error;
 				notify(entry);
@@ -190,8 +194,9 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 
 	/** Absent data, a failed fetch, or a rolling range whose dates have moved since the fetch. */
 	function isStale(entry: Entry, request: AdapterRequest): boolean {
-		const fetched = entry.request.range;
+		const fetched = entry.fetched?.range;
 		return (
+			!fetched ||
 			!entry.data ||
 			entry.failed ||
 			fetched.firstDate !== request.range.firstDate ||
@@ -199,13 +204,20 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		);
 	}
 
+	/** Abort an in-flight fetch; the entry again describes the request its data came from. */
+	function abortFetch(entry: Entry) {
+		if (!entry.controller) return;
+		entry.controller.abort();
+		entry.controller = undefined;
+		if (entry.fetched) entry.request = entry.fetched;
+	}
+
 	function evict() {
 		const idle = [...cache.values()].filter((e) => e.subscribers.size === 0);
 		if (idle.length <= maxIdleEntries) return;
 		idle.sort((a, b) => a.lastUsed - b.lastUsed);
 		for (const entry of idle.slice(0, idle.length - maxIdleEntries)) {
-			entry.controller?.abort();
-			entry.controller = undefined;
+			abortFetch(entry);
 			cache.delete(entry.key);
 		}
 	}
@@ -243,10 +255,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		entry.subscribers.delete(sub);
 		if (entry.subscribers.size > 0) return;
 		entry.lastUsed = ++clock;
-		if (entry.controller) {
-			entry.controller.abort();
-			entry.controller = undefined;
-		}
+		abortFetch(entry);
 		// Without data an idle entry is worth nothing (its fetch was aborted or failed).
 		if (!entry.data) cache.delete(entry.key);
 		evict();

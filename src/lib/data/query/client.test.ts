@@ -8,6 +8,7 @@ import type { QueryData, QueryInput, QueryState } from "../types";
 import { createQueryClient } from "./client";
 
 const NOW = new Date("2026-10-22T19:00:00Z");
+const DAY = 86_400_000;
 
 type Call = {
 	req: AdapterRequest;
@@ -49,14 +50,15 @@ const regions: RegionResolver = { resolve: async () => "unsupported" };
 
 function setup(opts: { metadata?: MetadataSource; maxIdleEntries?: number } = {}) {
 	const { adapter, calls } = fakeAdapter();
+	const clock = { now: NOW };
 	const client = createQueryClient({
 		adapters: [adapter],
 		metadata: opts.metadata ?? fixtureMetadata(),
 		regions,
-		now: () => NOW,
+		now: () => clock.now,
 		maxIdleEntries: opts.maxIdleEntries
 	});
-	return { client, calls };
+	return { client, calls, clock };
 }
 
 function input(monitor = "m-pa", entryType = "pm25"): QueryInput {
@@ -214,6 +216,45 @@ describe("createQueryClient", () => {
 		calls[2].resolve(data(2));
 		await flush();
 		expect(r.last()).toEqual({ status: "ready", data: data(2) });
+	});
+
+	it("refetch re-resolves a rolling range with a fresh now", async () => {
+		const { client, calls, clock } = setup();
+		const sub = client.subscribe(input(), () => {});
+		await flush();
+		calls[0].resolve(data(1));
+		await flush();
+
+		const tomorrow = new Date(NOW.getTime() + DAY);
+		clock.now = tomorrow;
+		client.refetch(sub.key!);
+		expect(calls).toHaveLength(2);
+		expect(calls[0].req.range.firstDate).toBe("2026-10-16");
+		expect(calls[1].req.range.firstDate).toBe("2026-10-17");
+		expect(calls[1].req.now).toEqual(tomorrow);
+	});
+
+	it("an aborted refetch leaves the entry stale for the next subscriber", async () => {
+		const { client, calls, clock } = setup();
+		const sub = client.subscribe(input(), () => {});
+		await flush();
+		calls[0].resolve(data(1));
+		await flush();
+
+		clock.now = new Date(NOW.getTime() + DAY);
+		client.refetch(sub.key!);
+		sub.unsubscribe();
+		expect(calls[1].signal.aborted).toBe(true);
+		// The idle entry still describes the request its data came from.
+		expect(client.entries()[0]).toMatchObject({ inFlight: false, fetchedAt: 1 });
+
+		const r = recorder();
+		client.subscribe(input(), r.listener);
+		await flush();
+		expect(calls).toHaveLength(3);
+		expect(calls[2].req.range.firstDate).toBe("2026-10-17");
+		expect(r.last()).toEqual({ status: "loading", data: data(1) });
+		expect(client.entries()[0]).toMatchObject({ inFlight: true, fetchedAt: 1 });
 	});
 
 	it("refetch dedups with a request already in flight", async () => {
