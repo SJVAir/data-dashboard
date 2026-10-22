@@ -81,6 +81,8 @@
 	--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 	--grid-row-height: 4rem;
 	--grid-gap: var(--space-3);
+	--swatch-outline-width: 1px;
+	--swatch-outline-color: var(--foreground);
 }
 
 .dark {

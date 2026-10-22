@@ -23,6 +23,16 @@ specs and plans in `docs/superpowers/{specs,plans}/2026-09-1*`.
   endpoint with the raw `current/` endpoint to tell "no rollups" from "no data". Backfilling
   with the server's `rebuild_summaries` command works, but always scope it by region or
   monitor and date range.
+- **Raw entries default to the monitor type's default stage, not the published series.** With
+  no `processor` or `stage`, `monitors/<id>/entries/<entry_type>` returns e.g. the `cleaned`
+  stage for PurpleAir, while summaries and the map use the default calibration. Measured on the
+  dev server (2026-10-22, one PurpleAir PM2.5 hour): cleaned mean 4.83 vs. the published hourly
+  summary 0.0563 (`PM25_EPA_Oct2021`); raw fetched with `?processor=PM25_EPA_Oct2021` matched
+  the summary exactly. Pass `processor` to get the published series. Send zone-aware bounds
+  (e.g. UTC ISO): zone-less `timestamp__*` values are read as Pacific, and one inside the
+  repeated fall-back hour is ambiguous, so the server silently drops that filter (no 400) and
+  returns everything on the other side of the remaining bound. Also note the server's
+  `pm10` entry type is PM1.0; PM10 is `pm100`.
 - **Bulk summary endpoints omit a region or monitor that has zero matching rows**, rather than
   returning it with an empty list. Treat absence as "no data" and remember it, or the same
   data-less id is refetched on every refresh.

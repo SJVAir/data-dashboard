@@ -1,0 +1,400 @@
+import { rangeSpanDays, resolveRange } from "$lib/format/range";
+import type { ActivitySource } from "$lib/platform/types";
+import type {
+	AdapterContext,
+	AdapterRequest,
+	DatasetAdapter,
+	RegionResolver
+} from "../adapters/registry";
+import type { MetadataSource } from "../metadata";
+import { chooseResolution } from "../resolution";
+import type { DateRangeSpec, Resolution, TimeSubRange } from "../schema";
+import { filterToSubRange } from "../sub-range";
+import type { QueryData, QueryInput, QueryState, UnavailableReason } from "../types";
+import { keyRange, queryKey, stableJson } from "./key";
+import { startPoller } from "./poller";
+
+export interface Subscription {
+	/** Switch this subscription to a new input; the last input requested wins. */
+	update(input: QueryInput): void;
+	/** Whether this subscriber wants its entry polled (on by default). */
+	setPolling(on: boolean): void;
+	/**
+	 * Try again after an error (or an `unavailable` state): refetch the entry, or resolve the
+	 * input again when there is no entry (the error came from resolving it).
+	 */
+	retry(): void;
+	unsubscribe(): void;
+	/** The cache key this subscription is attached to; `null` while resolving or unavailable. */
+	readonly key: string | null;
+}
+
+export type QueryEntryInfo = {
+	key: string;
+	subscribers: number;
+	inFlight: boolean;
+	fetchedAt?: number;
+	includesNow: boolean;
+	resolution: Resolution;
+	/** Whether any subscriber has polling on. */
+	polling: boolean;
+	/** Whether the last fetch that settled failed. */
+	failed: boolean;
+};
+
+export interface QueryClient {
+	subscribe(input: QueryInput, listener: (s: QueryState) => void): Subscription;
+	/** Fetch an entry again with a fresh `now`, unless it is already in flight. */
+	refetch(key: string): void;
+	entries(): QueryEntryInfo[];
+	/**
+	 * Hear about every change to what `entries()` reports (subscribers, polling, a fetch starting
+	 * or settling, eviction). Called synchronously; returns a function that stops listening.
+	 */
+	onChange(listener: () => void): () => void;
+}
+
+export type QueryClientOptions = {
+	adapters: DatasetAdapter[];
+	metadata: MetadataSource;
+	regions: RegionResolver;
+	now?: () => Date;
+	maxIdleEntries?: number;
+	/** When given, entries that include now are polled, paused while not visible. */
+	activity?: ActivitySource;
+};
+
+type Plan = {
+	key: string;
+	adapter: DatasetAdapter;
+	spec: DateRangeSpec;
+	request: AdapterRequest;
+};
+
+type Entry = {
+	key: string;
+	adapter: DatasetAdapter;
+	spec: DateRangeSpec;
+	/** The latest request started, which may still be in flight or have been aborted. */
+	request: AdapterRequest;
+	/** The request the current `data` (or `error`) came from; set only when a fetch settles. */
+	fetched?: AdapterRequest;
+	subscribers: Set<Sub>;
+	/** Present while a request is in flight. */
+	controller?: AbortController;
+	data?: QueryData;
+	failed: boolean;
+	error?: unknown;
+	lastUsed: number;
+};
+
+type Sub = {
+	listener: (s: QueryState) => void;
+	/** The last input requested. */
+	input?: QueryInput;
+	/** That input without its `timeSubRange`, which only filters what this subscriber sees. */
+	inputJson?: string;
+	subRange?: TimeSubRange;
+	/** Bumped on every update and on unsubscribe; a resolution pass with an old value is dropped. */
+	seq: number;
+	entry?: Entry;
+	polling: boolean;
+	closed: boolean;
+};
+
+function entryState(entry: Entry): QueryState {
+	const { data, error } = entry;
+	if (!entry.controller && entry.failed) {
+		return data ? { status: "error", error, data } : { status: "error", error };
+	}
+	if (!entry.controller && data) return { status: "ready", data };
+	return data ? { status: "loading", data } : { status: "loading" };
+}
+
+export function createQueryClient(opts: QueryClientOptions): QueryClient {
+	const adapters = new Map(opts.adapters.map((a) => [a.id, a]));
+	const ctx: AdapterContext = { metadata: opts.metadata, regions: opts.regions };
+	const now = opts.now ?? (() => new Date());
+	const maxIdleEntries = opts.maxIdleEntries ?? 200;
+	const cache = new Map<string, Entry>();
+	const changeListeners = new Set<() => void>();
+	let clock = 0;
+
+	function changed() {
+		for (const listener of [...changeListeners]) listener();
+	}
+
+	async function plan(
+		input: QueryInput,
+		at: Date
+	): Promise<Plan | { unavailable: UnavailableReason }> {
+		const { layer } = input;
+		const catalog = await opts.metadata.catalog();
+		if (catalog === "unavailable") return { unavailable: "catalog-unavailable" };
+		// Retired datasets and entry types still work ("Stable ids and retirement").
+		const dataset = catalog.find((d) => d.id === layer.dataset);
+		if (!dataset) return { unavailable: "unknown-dataset" };
+		const entryType = dataset.entryTypes.find((e) => e.id === layer.entryType);
+		if (!entryType) return { unavailable: "unknown-entry-type" };
+		const adapter = adapters.get(dataset.id);
+		if (!adapter) return { unavailable: "no-adapter" };
+
+		const target = await adapter.target(layer, ctx);
+		if ("unavailable" in target) return target;
+
+		const range = resolveRange(input.dateRange, at);
+		const offered = adapter.offered(entryType.resolutions, target);
+		let choice;
+		try {
+			choice = chooseResolution({
+				spanDays: rangeSpanDays(range),
+				offered,
+				pin: input.pin,
+				override: layer.resolution
+			});
+		} catch (error) {
+			if (!(error instanceof RangeError)) throw error;
+			return { unavailable: target.kind === "all" ? "whole-layer-raw" : "no-resolution" };
+		}
+		if (target.kind === "all" && (choice.resolution === "raw" || choice.downsampleFromRaw)) {
+			return { unavailable: "whole-layer-raw" };
+		}
+
+		const { resolution, downsampleFromRaw } = choice;
+		const key = queryKey({
+			dataset: dataset.id,
+			entryType: entryType.id,
+			target,
+			resolution,
+			downsampleFromRaw,
+			range: keyRange(input.dateRange, range)
+		});
+		return {
+			key,
+			adapter,
+			spec: input.dateRange,
+			request: {
+				entryType: entryType.id,
+				target,
+				resolution,
+				downsampleFromRaw,
+				range,
+				offered,
+				now: at
+			}
+		};
+	}
+
+	/** Hand a subscriber a state, its data filtered to the subscriber's time sub-range. */
+	function deliver(sub: Sub, state: QueryState) {
+		const range = sub.subRange;
+		if (range && state.status !== "unavailable" && state.data) {
+			sub.listener({ ...state, data: filterToSubRange(state.data, range) } as QueryState);
+		} else {
+			sub.listener(state);
+		}
+	}
+
+	function notify(entry: Entry) {
+		const state = entryState(entry);
+		for (const sub of [...entry.subscribers]) deliver(sub, state);
+		changed();
+	}
+
+	function fetchEntry(entry: Entry, request: AdapterRequest) {
+		const controller = new AbortController();
+		entry.controller = controller;
+		entry.request = request;
+		notify(entry);
+		// An aborted or superseded request settles silently: its result is never stored or shown.
+		const current = () => entry.controller === controller && !controller.signal.aborted;
+		(async () => entry.adapter.fetch(request, ctx, controller.signal))().then(
+			(data) => {
+				if (!current()) return;
+				entry.controller = undefined;
+				entry.fetched = request;
+				entry.data = data;
+				entry.failed = false;
+				entry.error = undefined;
+				notify(entry);
+			},
+			(error) => {
+				if (!current()) return;
+				entry.controller = undefined;
+				entry.fetched = request;
+				entry.failed = true;
+				entry.error = error;
+				notify(entry);
+			}
+		);
+	}
+
+	/** Absent data, a failed fetch, or a rolling range whose dates have moved since the fetch. */
+	function isStale(entry: Entry, request: AdapterRequest): boolean {
+		const fetched = entry.fetched?.range;
+		return (
+			!fetched ||
+			!entry.data ||
+			entry.failed ||
+			fetched.firstDate !== request.range.firstDate ||
+			fetched.lastDate !== request.range.lastDate
+		);
+	}
+
+	/** Abort an in-flight fetch; the entry again describes the request its data came from. */
+	function abortFetch(entry: Entry) {
+		if (!entry.controller) return;
+		entry.controller.abort();
+		entry.controller = undefined;
+		if (entry.fetched) entry.request = entry.fetched;
+	}
+
+	function evict() {
+		const idle = [...cache.values()].filter((e) => e.subscribers.size === 0);
+		if (idle.length <= maxIdleEntries) return;
+		idle.sort((a, b) => a.lastUsed - b.lastUsed);
+		for (const entry of idle.slice(0, idle.length - maxIdleEntries)) {
+			abortFetch(entry);
+			cache.delete(entry.key);
+		}
+		changed();
+	}
+
+	function attach(sub: Sub, p: Plan) {
+		let entry = cache.get(p.key);
+		const created = !entry;
+		if (!entry) {
+			entry = {
+				key: p.key,
+				adapter: p.adapter,
+				spec: p.spec,
+				request: p.request,
+				subscribers: new Set(),
+				failed: false,
+				lastUsed: 0
+			};
+			cache.set(p.key, entry);
+		}
+		entry.subscribers.add(sub);
+		entry.lastUsed = ++clock;
+		sub.entry = entry;
+		if (!entry.controller && (created || isStale(entry, p.request))) {
+			fetchEntry(entry, p.request);
+		} else {
+			deliver(sub, entryState(entry));
+		}
+		evict();
+		changed();
+	}
+
+	function detach(sub: Sub) {
+		const entry = sub.entry;
+		if (!entry) return;
+		sub.entry = undefined;
+		entry.subscribers.delete(sub);
+		if (entry.subscribers.size === 0) {
+			entry.lastUsed = ++clock;
+			abortFetch(entry);
+			// Without data an idle entry is worth nothing (its fetch was aborted or failed).
+			if (!entry.data) cache.delete(entry.key);
+			evict();
+		}
+		changed();
+	}
+
+	function request(sub: Sub, input: QueryInput) {
+		const { timeSubRange, ...fetched } = input;
+		const json = stableJson(fetched);
+		sub.input = input;
+		if (json === sub.inputJson) {
+			// Only the sub-range changed (if anything): filter what is already there again.
+			if (stableJson(timeSubRange) === stableJson(sub.subRange)) return;
+			sub.subRange = timeSubRange;
+			if (sub.entry) deliver(sub, entryState(sub.entry));
+			return;
+		}
+		sub.inputJson = json;
+		sub.subRange = timeSubRange;
+		const seq = ++sub.seq;
+		detach(sub);
+		sub.listener({ status: "loading" });
+
+		const at = now();
+		const live = () => sub.seq === seq && !sub.closed;
+		plan(fetched, at).then(
+			(p) => {
+				if (!live()) return;
+				if ("unavailable" in p) sub.listener({ status: "unavailable", reason: p.unavailable });
+				else attach(sub, p);
+			},
+			(error) => {
+				if (!live()) return;
+				// Nothing was attached, so the same input must be able to try again.
+				sub.inputJson = undefined;
+				sub.listener({ status: "error", error });
+			}
+		);
+	}
+
+	const client: QueryClient = {
+		subscribe(input, listener) {
+			const sub: Sub = { listener, seq: 0, polling: true, closed: false };
+			request(sub, input);
+			return {
+				update(next) {
+					if (!sub.closed) request(sub, next);
+				},
+				setPolling(on) {
+					if (sub.polling === on) return;
+					sub.polling = on;
+					if (sub.entry) changed();
+				},
+				retry() {
+					if (sub.closed) return;
+					if (sub.entry) {
+						client.refetch(sub.entry.key);
+					} else if (sub.input) {
+						sub.inputJson = undefined;
+						request(sub, sub.input);
+					}
+				},
+				unsubscribe() {
+					if (sub.closed) return;
+					sub.closed = true;
+					sub.seq++;
+					detach(sub);
+				},
+				get key() {
+					return sub.entry?.key ?? null;
+				}
+			};
+		},
+
+		refetch(key) {
+			const entry = cache.get(key);
+			if (!entry || entry.controller) return;
+			const at = now();
+			fetchEntry(entry, { ...entry.request, range: resolveRange(entry.spec, at), now: at });
+		},
+
+		entries() {
+			return [...cache.values()].map((e) => ({
+				key: e.key,
+				subscribers: e.subscribers.size,
+				inFlight: !!e.controller,
+				fetchedAt: e.data?.fetchedAt,
+				includesNow: e.request.range.includesNow,
+				resolution: e.request.resolution,
+				polling: [...e.subscribers].some((s) => s.polling),
+				failed: e.failed
+			}));
+		},
+
+		onChange(listener) {
+			changeListeners.add(listener);
+			return () => changeListeners.delete(listener);
+		}
+	};
+	if (opts.activity) startPoller(client, opts.activity, { now });
+	return client;
+}

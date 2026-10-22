@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-10-21
+Last updated: 2026-10-22
 
 ## Start here
 
@@ -15,6 +15,10 @@ and the copyright holder (Central California Asthma Collaborative).
 - **Waiting on others:** the legal adviser's answers (`DEFERRED.md` → "Open decisions"),
   which only gate the final email-only accounts plan; and whether email alerts get their
   own rollout switch (Release 2 server plan).
+- **Needed from you before go-live:** the license and attribution text for the datasets whose
+  catalog `license` is empty (air-quality, weather, pesticide-use, pesticide-notices,
+  forecasts, calheatscore, calenviroscreen, emissions); decided 2026-10-22 to leave it empty
+  until then. See `DEFERRED.md` → "Open decisions".
 - **Done 2026-10-19/20: the three sjvair.com-side fixes** (outcomes under each warning
   below). The sjvair.com PRs (#287, #288, #289) are merged into `develop`; mobile #112 is
   still open, and its release waits for #287 to reach production. sjvair.com work now targets its new
@@ -71,7 +75,15 @@ and the copyright holder (Central California Asthma Collaborative).
     developer reviews and merges #25; **the user tells them when**. Before that, monitor-map 4.3.0
     and #292 must be live in production (merge order in `ARCHITECTURE.md` →
     "CSRF protection").
-- **Next:** spec 2, the data layer.
+- **Spec 2 (the data layer) is built on `foundations-2-data` (2026-10-22); PR [#7](https://github.com/SJVAir/data-dashboard/pull/7) into `foundations`.** Dataset
+  adapters, the query client with live polling, resolution and period stitching, the `format`
+  module, `readableColor`, and a dev-only data page at `/workspace/dev/data`. Design and plan:
+  `docs/superpowers/{specs,plans}/2026-10-22-foundations-2-data-layer*`. Its deferrals are in
+  `DEFERRED.md`.
+- **PR #7 now uses @sjvair/sdk 4.8.0-beta.0 (2026-10-22)**: raw entries, the dataset catalog,
+  and region codes go through the SDK's wrappers instead of workarounds (pinned exactly until
+  4.8.0 is released; see `DEFERRED.md`).
+- **Next:** spec 3, safety and sharing.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -831,6 +843,18 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 → "Legacy Monitors-tab follow-ups".
 
 ## Done
+
+- [x] **Data layer on the sdk-js 4.8.0 wrappers** (Foundations spec 2 follow-up, 2026-10-22):
+      "sdk-js: `getMonitorEntries` can't send `processor` or `stage`", "Wire the data layer to
+      the sdk-js 4.8.0 metadata wrappers", and "sdk-js: raw-entry bounds use the browser's
+      zone" are done with @sjvair/sdk 4.8.0-beta.0 (`getMonitorEntries` with `processor` and
+      UTC bounds, `getDatasetCatalog`, `getRegionsByCode`). Removed from `DEFERRED.md`.
+
+- [x] **Legacy Monitors-tab items closed by the data layer** (Foundations spec 2, 2026-10-22):
+      "Whole-year over-fetch" (automatic resolution and narrow, chunked fetches), "No in-flight
+      request coordination" (last-requested wins in the query client), and "'Default to current
+      month' can't show monthly data until the month ends" (incomplete periods stitched from
+      finer data). Removed from `DEFERRED.md`.
 
 - [x] **Geometry-free regions list** (was deferred 2026-09-17). Delivered server-side in
       sjvair.com #280: `regions/` no longer returns `boundary.geometry` (only `bbox`), and

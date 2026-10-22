@@ -1,5 +1,6 @@
 import type { Component } from "svelte";
 import type { MenuProvider } from "$lib/actions/types";
+import type { DateRangeSpec, Resolution } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 
 export type WidgetType = {
@@ -10,12 +11,11 @@ export type WidgetType = {
 	time: "range" | "now" | "none";
 	thresholds: boolean;
 	analyzable: boolean;
-	// Placeholders, finalized in spec 2 / step 4.
-	accepts?: unknown;
-	placePicker?: unknown;
-	resolution?: unknown;
-	dateMethods?: unknown;
-	span?: unknown;
+	accepts?: { datasets?: string[]; maxPollutantLayers?: number };
+	placePicker?: boolean;
+	resolution?: Resolution;
+	dateMethods?: DateRangeSpec["kind"][];
+	span?: { minDays?: number; maxDays?: number };
 	defaultTitle(widget: WidgetInstance): string;
 	menu: MenuProvider;
 	component: Component<{ widget: WidgetInstance }>;
