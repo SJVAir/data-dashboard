@@ -5,14 +5,35 @@ import {
 	type CommitInput,
 	type CommitResult,
 	type LogEntry,
+	type ActivitySource,
 	type Platform,
 	type SpaceId
 } from "./types";
 
 const key = (...parts: (string | number)[]) => parts.join("\u0000");
 
+export type MemoryActivity = ActivitySource & { setVisible(visible: boolean): void };
+
+/** Visibility under test control; starts visible. Listeners hear only real changes. */
+export function createMemoryActivity(): MemoryActivity {
+	let visible = true;
+	const listeners = new Set<(visible: boolean) => void>();
+	return {
+		visible: () => visible,
+		onChange(cb) {
+			listeners.add(cb);
+			return () => listeners.delete(cb);
+		},
+		setVisible(next) {
+			if (next === visible) return;
+			visible = next;
+			for (const cb of [...listeners]) cb(visible);
+		}
+	};
+}
+
 /** In-memory twin of the web storage, for tests. Values are cloned like IndexedDB does. */
-export function createMemoryPlatform(): Platform {
+export function createMemoryPlatform(): Platform & { activity: MemoryActivity } {
 	const docs = new Map<string, { space: SpaceId; doc: unknown }>();
 	const logs = new Map<string, LogEntry[]>();
 	const prefs = new Map<string, unknown>();
@@ -78,6 +99,7 @@ export function createMemoryPlatform(): Platform {
 				journal.delete(key(space, docId, tabId));
 			}
 		},
-		identity: { currentSpace: async () => "anonymous" }
+		identity: { currentSpace: async () => "anonymous" },
+		activity: createMemoryActivity()
 	};
 }

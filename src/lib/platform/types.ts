@@ -50,11 +50,22 @@ export interface IdentitySource {
 	currentSpace(): Promise<SpaceId>;
 }
 
+/**
+ * Whether the app is in front of the person. On the web this is page visibility; a Tauri build
+ * may report visible while the window is in the background, so polling keeps going there.
+ */
+export interface ActivitySource {
+	visible(): boolean;
+	/** Called on every change; returns a function that stops listening. */
+	onChange(cb: (visible: boolean) => void): () => void;
+}
+
 export type Platform = {
 	documents: DocumentStorage;
 	preferences: PreferenceStorage;
 	journal: JournalStorage;
 	identity: IdentitySource;
+	activity: ActivitySource;
 };
 
 export function docVersion(doc: unknown): number {

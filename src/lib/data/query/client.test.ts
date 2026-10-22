@@ -418,7 +418,7 @@ describe("createQueryClient", () => {
 		expect(r.last()).toEqual({ status: "error", error });
 	});
 
-	it("entries report subscribers, flight, and polling", async () => {
+	it("entries report subscribers, flight, polling, and failure", async () => {
 		const { client, calls } = setup();
 		const a = client.subscribe(input(), () => {});
 		const b = client.subscribe(input(), () => {});
@@ -431,7 +431,8 @@ describe("createQueryClient", () => {
 				fetchedAt: undefined,
 				includesNow: true,
 				resolution: "hour",
-				polling: true
+				polling: true,
+				failed: false
 			}
 		]);
 
@@ -445,6 +446,35 @@ describe("createQueryClient", () => {
 		expect(client.entries()[0].polling).toBe(true);
 		a.unsubscribe();
 		expect(client.entries()[0]).toMatchObject({ subscribers: 1, polling: false });
+
+		client.refetch(b.key!);
+		calls[1].reject(new Error("down"));
+		await flush();
+		expect(client.entries()[0]).toMatchObject({ failed: true, fetchedAt: 1 });
+	});
+
+	it("onChange hears subscribers, polling, and fetches starting and settling", async () => {
+		const { client, calls } = setup();
+		let heard = 0;
+		const stop = client.onChange(() => heard++);
+		const a = client.subscribe(input(), () => {});
+		await flush();
+		const afterAttach = heard;
+		expect(afterAttach).toBeGreaterThan(0);
+		calls[0].resolve(data(1));
+		await flush();
+		expect(heard).toBeGreaterThan(afterAttach);
+		const afterSettle = heard;
+		a.setPolling(false);
+		expect(heard).toBeGreaterThan(afterSettle);
+		const afterPolling = heard;
+		a.unsubscribe();
+		expect(heard).toBeGreaterThan(afterPolling);
+		stop();
+		const final = heard;
+		client.subscribe(input(), () => {});
+		await flush();
+		expect(heard).toBe(final);
 	});
 
 	it("idle entries beyond the cap are evicted least recently used", async () => {

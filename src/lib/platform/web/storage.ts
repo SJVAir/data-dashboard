@@ -8,6 +8,7 @@ import {
 	type Platform,
 	type SpaceId
 } from "../types";
+import { createWebActivity } from "./activity";
 import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
 import { createWebJournal } from "./journal";
 
@@ -65,6 +66,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 			}
 		},
 		journal: createWebJournal(),
-		identity: { currentSpace: async () => "anonymous" }
+		identity: { currentSpace: async () => "anonymous" },
+		activity: createWebActivity()
 	};
 }

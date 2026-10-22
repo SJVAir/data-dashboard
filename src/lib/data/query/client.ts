@@ -1,4 +1,5 @@
 import { rangeSpanDays, resolveRange } from "$lib/format/range";
+import type { ActivitySource } from "$lib/platform/types";
 import type {
 	AdapterContext,
 	AdapterRequest,
@@ -10,6 +11,7 @@ import { chooseResolution } from "../resolution";
 import type { DateRangeSpec, Resolution } from "../schema";
 import type { QueryData, QueryInput, QueryState, UnavailableReason } from "../types";
 import { keyRange, queryKey, stableJson } from "./key";
+import { startPoller } from "./poller";
 
 export interface Subscription {
 	/** Switch this subscription to a new input; the last input requested wins. */
@@ -30,6 +32,8 @@ export type QueryEntryInfo = {
 	resolution: Resolution;
 	/** Whether any subscriber has polling on. */
 	polling: boolean;
+	/** Whether the last fetch that settled failed. */
+	failed: boolean;
 };
 
 export interface QueryClient {
@@ -37,6 +41,11 @@ export interface QueryClient {
 	/** Fetch an entry again with a fresh `now`, unless it is already in flight. */
 	refetch(key: string): void;
 	entries(): QueryEntryInfo[];
+	/**
+	 * Hear about every change to what `entries()` reports (subscribers, polling, a fetch starting
+	 * or settling, eviction). Called synchronously; returns a function that stops listening.
+	 */
+	onChange(listener: () => void): () => void;
 }
 
 export type QueryClientOptions = {
@@ -45,6 +54,8 @@ export type QueryClientOptions = {
 	regions: RegionResolver;
 	now?: () => Date;
 	maxIdleEntries?: number;
+	/** When given, entries that include now are polled, paused while not visible. */
+	activity?: ActivitySource;
 };
 
 type Plan = {
@@ -96,7 +107,12 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 	const now = opts.now ?? (() => new Date());
 	const maxIdleEntries = opts.maxIdleEntries ?? 200;
 	const cache = new Map<string, Entry>();
+	const changeListeners = new Set<() => void>();
 	let clock = 0;
+
+	function changed() {
+		for (const listener of [...changeListeners]) listener();
+	}
 
 	async function plan(
 		input: QueryInput,
@@ -162,6 +178,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 	function notify(entry: Entry) {
 		const state = entryState(entry);
 		for (const sub of [...entry.subscribers]) sub.listener(state);
+		changed();
 	}
 
 	function fetchEntry(entry: Entry, request: AdapterRequest) {
@@ -220,6 +237,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			abortFetch(entry);
 			cache.delete(entry.key);
 		}
+		changed();
 	}
 
 	function attach(sub: Sub, p: Plan) {
@@ -246,6 +264,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			sub.listener(entryState(entry));
 		}
 		evict();
+		changed();
 	}
 
 	function detach(sub: Sub) {
@@ -253,12 +272,14 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		if (!entry) return;
 		sub.entry = undefined;
 		entry.subscribers.delete(sub);
-		if (entry.subscribers.size > 0) return;
-		entry.lastUsed = ++clock;
-		abortFetch(entry);
-		// Without data an idle entry is worth nothing (its fetch was aborted or failed).
-		if (!entry.data) cache.delete(entry.key);
-		evict();
+		if (entry.subscribers.size === 0) {
+			entry.lastUsed = ++clock;
+			abortFetch(entry);
+			// Without data an idle entry is worth nothing (its fetch was aborted or failed).
+			if (!entry.data) cache.delete(entry.key);
+			evict();
+		}
+		changed();
 	}
 
 	function request(sub: Sub, input: QueryInput) {
@@ -283,7 +304,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		);
 	}
 
-	return {
+	const client: QueryClient = {
 		subscribe(input, listener) {
 			const sub: Sub = { listener, seq: 0, polling: true, closed: false };
 			request(sub, input);
@@ -292,7 +313,9 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 					if (!sub.closed) request(sub, next);
 				},
 				setPolling(on) {
+					if (sub.polling === on) return;
 					sub.polling = on;
+					if (sub.entry) changed();
 				},
 				unsubscribe() {
 					if (sub.closed) return;
@@ -321,8 +344,16 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 				fetchedAt: e.data?.fetchedAt,
 				includesNow: e.request.range.includesNow,
 				resolution: e.request.resolution,
-				polling: [...e.subscribers].some((s) => s.polling)
+				polling: [...e.subscribers].some((s) => s.polling),
+				failed: e.failed
 			}));
+		},
+
+		onChange(listener) {
+			changeListeners.add(listener);
+			return () => changeListeners.delete(listener);
 		}
 	};
+	if (opts.activity) startPoller(client, opts.activity, { now });
+	return client;
 }
