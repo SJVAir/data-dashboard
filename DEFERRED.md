@@ -213,6 +213,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Map & selection
 
+- **Saving land-use regions by code.** _Deferred 2026-10-22 (sjvair.com metadata plan,
+  decided by the user)._ Land-use codes include the state dataset's `OBJECTID`, which a
+  refresh can renumber, so they are excluded from code lookup and the permanence promise;
+  the dashboard can't save a land-use region as a reference. **Revisit when** someone needs
+  land-use areas in a saved widget or rule; the server first needs a stable code built from
+  fields that survive a refresh.
 - **Greying out places with no data in the place picker.** _Deferred 2026-10-22
   (sjvair.com metadata plan, coverage endpoint)._ Coverage has no bulk mode in Release 1
   (only per dataset and per single place), so the picker can't know which places lack

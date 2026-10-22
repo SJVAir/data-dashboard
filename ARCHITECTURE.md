@@ -1841,6 +1841,13 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
     and any license number at the site finds it. A CDP that becomes a city is retired with
     `replaced_by` pointing to the city. The retired-vs-never-existed lookup for
     **monitors** is not in this round.
+  - **Land-use regions are excluded** from code lookup and the permanence promise for now
+    (decided by the user 2026-10-22, sjvair.com metadata plan). The server builds their
+    codes as `{County}-{jurisdiction}-{OBJECTID}`, and a refresh of the state dataset can
+    renumber `OBJECTID`s, so a saved code could point at a different area.
+    `regions/?type=land_use&external_id=…` returns 400; land-use regions still show
+    `external_id`, documented as not permanent. Every other region type and every location
+    source is covered; 2010-only census tracts stay valid references (see `DEFERRED.md`).
   - Using the server's ids for user documents and codes only for built-in ones was
     decided against (see `DEFERRED.md`).
 - **Retire, don't delete.** Catalog entries and entry types carry `retired` (a date and an
