@@ -72,6 +72,27 @@ describe("WidgetDataConfigSchema", () => {
 		expect(sel("monitors", many.slice(0, LIMITS.SELECTION_MAX))).toBe(true);
 	});
 
+	it("rejects monitor ids and entry types outside a safe character set", () => {
+		const layer = (l: object) => LayerSchema.safeParse({ dataset: "d", ...l }).success;
+		expect(layer({ place: { kind: "monitor", id: "../x" } })).toBe(false);
+		expect(layer({ place: { kind: "monitor", id: "a b" } })).toBe(false);
+		expect(layer({ place: { kind: "monitor", id: "Ab_9-z" } })).toBe(true);
+		expect(layer({ selection: { kind: "monitors", ids: ["ok", "../x"] } })).toBe(false);
+		expect(layer({ entryType: "pm25/../x" })).toBe(false);
+		expect(layer({ entryType: "pm25" })).toBe(true);
+		expect(layer({ selection: { kind: "regions", ids: ["county:06019"] } })).toBe(true);
+	});
+
+	it("region place types follow the selection ids' type rule", () => {
+		const region = (type: string) =>
+			LayerSchema.safeParse({ dataset: "d", place: { kind: "region", type, code: "06019" } })
+				.success;
+		expect(region("county")).toBe(true);
+		expect(region("school_district")).toBe(true);
+		expect(region("a:b")).toBe(false);
+		expect(region("County")).toBe(false);
+	});
+
 	it("accepts a drawn source geometry and rejects one without a type", () => {
 		const base = { kind: "monitors", ids: ["a"] };
 		const withSource = (source: unknown) =>

@@ -53,10 +53,15 @@ export type DateRangeSpec = z.infer<typeof DateRangeSpecSchema>;
 
 const IdSchema = z.string().min(1).max(LIMITS.ID_MAX);
 const CodeSchema = z.string().min(1).max(LIMITS.CODE_MAX);
+/** Monitor ids and entry types go into API paths, so they keep to a safe character set. */
+const SAFE_ID = /^[A-Za-z0-9_-]+$/;
+const SafeIdSchema = IdSchema.regex(SAFE_ID);
+/** A region type, also the part of a selection's `type:code` id before the colon. */
+const REGION_TYPE = /^[a-z0-9_]+$/;
 
 export const PlaceRefSchema = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("monitor"), id: IdSchema }),
-	z.object({ kind: z.literal("region"), type: CodeSchema, code: CodeSchema }),
+	z.object({ kind: z.literal("monitor"), id: SafeIdSchema }),
+	z.object({ kind: z.literal("region"), type: CodeSchema.regex(REGION_TYPE), code: CodeSchema }),
 	z.object({ kind: z.literal("location"), source: CodeSchema, code: CodeSchema }),
 	z.object({
 		kind: z.literal("point"),
@@ -89,6 +94,13 @@ export const SpatialSelectionSchema = z
 				message: "Region ids must look like type:code"
 			});
 		}
+		if (s.kind === "monitors" && !s.ids.every((id) => SAFE_ID.test(id))) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["ids"],
+				message: "Monitor ids may use only letters, digits, _ and -"
+			});
+		}
 	});
 export type SpatialSelection = z.infer<typeof SpatialSelectionSchema>;
 
@@ -118,7 +130,7 @@ export type TimeSubRange = z.infer<typeof TimeSubRangeSchema>;
 export const LayerSchema = z
 	.object({
 		dataset: z.string().min(1).max(LIMITS.ID_MAX),
-		entryType: z.string().min(1).max(LIMITS.ID_MAX).optional(),
+		entryType: SafeIdSchema.optional(),
 		place: PlaceRefSchema.optional(),
 		selection: SpatialSelectionSchema.optional(),
 		resolution: z.union([z.literal("auto"), ResolutionSchema]).optional()
