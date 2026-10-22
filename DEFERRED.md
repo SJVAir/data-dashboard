@@ -151,8 +151,19 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (`paginatedApiCall`) meanwhile, with `processor` and UTC ISO `timestamp__gte`/
   `timestamp__lt` bounds (zone-less bounds are read as Pacific, and an ambiguous one in the
   fall-back hour is silently dropped by the server, so always send zone-aware bounds).
-  **Revisit when** the sdk-js step 3 work adds `processor`/`stage` (and zone-aware bounds);
-  then switch back to the wrapper. Needs an sdk-js plan and a release (explicit approval).
+  **Revisit when** sdk-js 4.8.0 is released (sdk-js #32 adds `processor`/`stage` and UTC
+  bounds); then switch back to the wrapper, as a follow-up commit on data-dashboard #7 if
+  it's still open.
+- **Wire the data layer to the sdk-js 4.8.0 metadata wrappers.** _Deferred 2026-10-22
+  (Foundations spec 2)._ Until the server catalog and code lookups exist, the web metadata
+  source reports the dataset catalog as unavailable, and the web region resolver answers
+  "unsupported", so production queries are unavailable and region places can't resolve.
+  sjvair.com #293 (metadata enablers) and sdk-js #32 add the catalog, coverage,
+  `getRegionsByCode`, and `getLocationsByCode` wrappers. **Revisit when** sdk-js 4.8.0 is
+  released and #293 is live: read the catalog through its wrapper in `createWebMetadata()`,
+  resolve regions with `getRegionsByCode` in the web region resolver (a code missing from
+  the result means unresolved; handle retired flags), and remove the dev page's stand-in
+  catalog if the real one covers it.
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
