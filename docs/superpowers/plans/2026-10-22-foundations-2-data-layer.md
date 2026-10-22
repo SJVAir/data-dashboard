@@ -251,7 +251,7 @@ src/router.ts                                dev-only lazy route (Task 13)
   createWebMetadata(): MetadataSource       // getMonitorsMeta + getMonitorsList, each fetched once and memoized; catalog() → "unavailable"
   withCatalog(base: MetadataSource, catalog: CatalogEntry[]): MetadataSource
   ```
-- Produces in `testing/fixtures.ts`: `FIXTURE_CATALOG` (air-quality with `pm25` and `o3` resolutions `["raw","hour","day","month","quarter","season","year"]`, `pm10` `["raw"]`, all `kind: "pollutant"`, `available: true` except `pm10: false`), `fixtureMetadata(overrides?)` — an in-memory `MetadataSource` with two monitors (`"m-pa"` type `"purpleair"` → processor `"PM25_EPA_Calibration"`; `"m-bam"` type `"bam1022"` → `null`) and pm25 levels `good [0, 9]` `#00e400`, `moderate [9.1, 35.4]` `#ffff00`.
+- Produces in `testing/fixtures.ts`: `FIXTURE_CATALOG` (air-quality with `pm25` and `o3` resolutions `["raw","hour","day","month","quarter","season","year"]`, `pm100` (PM10) `["raw"]`, all `kind: "pollutant"`, `available: true` except `pm100: false`), `fixtureMetadata(overrides?)` — an in-memory `MetadataSource` with two monitors (`"m-pa"` type `"purpleair"` → processor `"PM25_EPA_Calibration"`; `"m-bam"` type `"bam1022"` → `null`) and pm25 levels `good [0, 9]` `#00e400`, `moderate [9.1, 35.4]` `#ffff00`.
 
 - [ ] **Step 1: Write failing tests** `metadata.test.ts` with `vi.mock("@sjvair/sdk")`: catalog is `"unavailable"`; `getMonitorsMeta` is called once across three `levels()` calls; `levels("pm25")` returns levels ordered by range start; `defaultProcessor("purpleair", "pm25")` returns the meta's `default_calibration`, `""` maps to `null`; `monitorType` of an unknown id → `null`; `withCatalog` returns the given catalog and delegates the rest.
 - [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
@@ -274,7 +274,7 @@ Rules, in order:
 4. Else, if `raw` is offered → `{ ideal, downsampleFromRaw: true }`.
 5. Else throw `RangeError` (the query client reports `no-resolution`).
 
-- [ ] **Step 1: Failing tests:** spans `2` → raw, `2.01` → hour, `60` → hour, `61` → day, `730` → day, `731` → month (pm25 offered all); pm10 (`["raw"]`) at 30 days → `{ hour, downsampleFromRaw: true }`; pin `"day"` beats override `"hour"` (`reason: "pin"`); override `"month"` at 3 days → month; offered `["raw","day"]` at 30 days → `day` (nearest coarser).
+- [ ] **Step 1: Failing tests:** spans `2` → raw, `2.01` → hour, `60` → hour, `61` → day, `730` → day, `731` → month (pm25 offered all); pm100 (PM10, `["raw"]`) at 30 days → `{ hour, downsampleFromRaw: true }`; pin `"day"` beats override `"hour"` (`reason: "pin"`); override `"month"` at 3 days → month; offered `["raw","day"]` at 30 days → `day` (nearest coarser).
 - [ ] **Steps 2–4:** run → FAIL, implement, run → PASS. **Step 5: Commit** `"Choose a resolution from the span and offered levels"`.
 
 ---
@@ -463,7 +463,7 @@ Behavior (from the spec's "Settled after the builder check"):
 - Consumes: `createQueryClient`, `LiveQuery`, `airQualityAdapter`, `createWebMetadata`, `withCatalog`, `createWebRegionResolver`, `platform().activity`, `LevelSwatch`, `formatDateTime`, `resolveRange`, `chooseResolution`.
 
 - [ ] **Step 1:** In `router.ts` add `...(import.meta.env.DEV ? { "/dev/data": () => import("./routes/dev/DevData.svelte") } : {})` (sv-router lazy route).
-- [ ] **Step 2:** `dev-catalog.ts`: a `CatalogEntry` for air-quality with `pm25`, `o3` (all resolutions) and `pm10` (`["raw"]`), labels from `monitors/meta/` where possible. Header comment: dev-only stand-in until the server's `meta/datasets/` lands.
+- [ ] **Step 2:** `dev-catalog.ts`: a `CatalogEntry` for air-quality with `pm25`, `o3` (all resolutions) and `pm100` (PM10, `["raw"]`), labels from `monitors/meta/` where possible. Header comment: dev-only stand-in until the server's `meta/datasets/` lands.
 - [ ] **Step 3:** `DevData.svelte` (plain English allowed; layout with existing shadcn primitives and tokens): monitor picker (from `metadata.monitors()`), entry type, a range control covering every `DateRangeSpec` kind, a resolution override; panels showing resolved dates, chosen resolution and reason, the cache key, query status, `processor`, `fromRaw`, a data table (time in Pacific via `formatDateTime`, mean/min/max/count, partial flag, a `LevelSwatch` for the mean's level), poll info (last fetch, next poll, paused), a request log (started/finished/aborted), and a second panel bound to the same input showing that only one request ran.
 - [ ] **Step 4:** `npm run build` then `grep -r "dev/data\|dev-catalog\|DevData" dist/` → no matches.
 - [ ] **Step 5: Manual check against the local stack** (`podman` stack running, `VITE_DEV_URL=http://localhost:8000`, `npm run dev`, open `/workspace/dev/data`). If rollups are missing, run a **scoped** rebuild (always `--monitor <id>` and a date range). Check and note results in the PR:
