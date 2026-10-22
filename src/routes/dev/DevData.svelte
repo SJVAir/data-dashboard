@@ -62,22 +62,29 @@
 	type Setup = {
 		client: QueryClient;
 		catalog: CatalogEntry[];
+		/** Where the catalog came from: the server's `meta/datasets/`, or the dev stand-in. */
+		catalogSource: "server" | "stand-in";
 		metadata: ReturnType<typeof createWebMetadata>;
 	};
 	let setup: Promise<Setup> | undefined;
 
 	/** One client for the page's lifetime in this tab, so its poller isn't started twice. */
 	function loadSetup(): Promise<Setup> {
-		setup ??= loadDevCatalog().then((catalog) => {
-			const metadata = withCatalog(createWebMetadata(), catalog);
+		setup ??= (async () => {
+			const web = createWebMetadata();
+			const served = await web.catalog();
+			// The stand-in only when the server has no catalog (e.g. before meta/datasets/ is live).
+			const catalogSource = served === "unavailable" ? "stand-in" : "server";
+			const catalog = served === "unavailable" ? await loadDevCatalog() : served;
+			const metadata = served === "unavailable" ? withCatalog(web, catalog) : web;
 			const client = createQueryClient({
 				adapters: [loggingAdapter],
 				metadata,
 				regions: createWebRegionResolver(),
 				activity: platform().activity
 			});
-			return { client, catalog, metadata };
-		});
+			return { client, catalog, catalogSource, metadata } satisfies Setup;
+		})();
 		setup.catch(() => (setup = undefined));
 		return setup;
 	}
@@ -156,7 +163,7 @@
 		};
 	});
 
-	const entryTypes = $derived(ready?.catalog[0].entryTypes ?? []);
+	const entryTypes = $derived(ready?.catalog.find((d) => d.id === "air-quality")?.entryTypes ?? []);
 	const entryMeta = $derived(entryTypes.find((e) => e.id === entryType));
 	const monitor = $derived(monitors.find((m) => m.id === monitorId));
 	const shownMonitors = $derived.by(() => {
@@ -320,9 +327,16 @@
 <div class="mx-auto flex max-w-6xl flex-col gap-4 p-4 text-sm">
 	<header class="flex flex-col gap-1">
 		<h1 class="text-xl font-medium">Dev data page</h1>
-		<p class="text-muted-foreground">
-			Dev builds only. Live data through the spec 2 data layer, with a stand-in air-quality catalog.
-		</p>
+		<p class="text-muted-foreground">Dev builds only. Live data through the spec 2 data layer.</p>
+		{#if ready}
+			<p data-field="catalog-source">
+				{#if ready.catalogSource === "server"}
+					Catalog: the server's <code>meta/datasets/</code>.
+				{:else}
+					Catalog: the dev stand-in (the server's <code>meta/datasets/</code> is unavailable).
+				{/if}
+			</p>
+		{/if}
 	</header>
 
 	{#if setupError}

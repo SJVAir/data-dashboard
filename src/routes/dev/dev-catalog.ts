@@ -1,6 +1,6 @@
 /**
- * DEV ONLY. A stand-in air-quality catalog for the hidden dev data page, until the server's
- * `meta/datasets/` endpoint lands. Only the page at `/workspace/dev/data` imports this, and that
+ * DEV ONLY. A stand-in air-quality catalog for the hidden dev data page, used only when the
+ * server's `meta/datasets/` is unavailable (production until sjvair.com #293 is live). Only the page at `/workspace/dev/data` imports this, and that
  * route is registered only in dev builds, so it never ships.
  *
  * Which entry types and resolutions are listed is the stand-in part; labels and units are read
