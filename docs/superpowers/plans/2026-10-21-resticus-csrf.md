@@ -240,8 +240,10 @@ prints `1`, and the site loads.
 
 - [x] **Step 2: Same-origin monitor-map build**
 
-From `~/workspace/sjvair/sjvair.com`: `bash scripts/import-monitor-map.sh local` (clones
-and builds monitor-map `main`, 4.3.0, into `dist/monitor-map`). Expected: it finishes
+Inside the web container: `podman exec -w /app sjvaircom_web_1 invoke import-monitor-map
+--mode local` (clones and builds monitor-map `main`, 4.3.0, into `dist/monitor-map`, with
+the MapTiler key from sjvair.com's `.env`; run on the host, the build has no key and the map
+hangs on load). Expected: it finishes
 without errors; Step 3 proves the build sends `X-CSRFToken`. Don't use the Vite dev server (cross-origin, so cookie calls 401).
 
 - [x] **Step 3: Subscribe and unsubscribe, signed in**
