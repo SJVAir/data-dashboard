@@ -41,8 +41,21 @@ and the copyright holder (Central California Asthma Collaborative).
   hand against local sjvair.com (same-origin build, signed in). **Published to npm as
   4.3.0 the same day** (GitHub Release v4.3.0, with the user's approval); the mobile app must bump its `@sjvair/sdk` to `^4.7.0` when it takes
   4.3.0 (`DEFERRED.md`). The resticus CSRF fix is now unblocked.
-- **Next, in order:** (1) the resticus CSRF fix plan (include a signed-in subscribe check on
-  sjvair.com); (2) spec 2, the data layer.
+- **resticus CSRF fix built and verified (2026-10-21/22); branches pushed, PRs not yet
+  opened.** Design and plan: `docs/superpowers/{specs,plans}/2026-10-21-resticus-csrf*`.
+  - resticus `fix/session-csrf` (on the user's fork `alexandermccormick/django-resticus`;
+    the PR will target `dmpayton/django-resticus:develop`): the CSRF check on the session
+    path, plus two multipart parsing fixes. 186 tests pass.
+  - sjvair.com `fix/csrf-ready` (PR into `develop`): 43 `RequestFactory` tests opt out of
+    CSRF, and the admin Data Export form gets `{% csrf_token %}`. 3521 tests pass, with and
+    without the fix.
+  - Signed-in subscribe check on local sjvair.com (same-origin monitor-map 4.3.0): passed.
+    Without `X-CSRFToken` the write gets 403; token-only writes and admin export work.
+  - **Next for it:** open both PRs (drafts reviewed with the user). The resticus developer
+    reviews and merges; **the user tells them when**. Before that, monitor-map 4.3.0 and
+    the sjvair.com PR must be live in production (merge order in `ARCHITECTURE.md` →
+    "CSRF protection").
+- **Next:** spec 2, the data layer.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -167,7 +180,8 @@ dropdown picker, and the dataset definition. The rest:
       such caller is monitor-map's subscribe button, fixed by upgrading it to sdk-js 4.7.0;
       see `ARCHITECTURE.md` → "CSRF protection"). Not pinned (the user
       is talking with the developer), so those changes land before or with the resticus
-      merge. See `ARCHITECTURE.md` → "CSRF protection".
+      merge. See `ARCHITECTURE.md` → "CSRF protection". **Built and verified 2026-10-22**
+      (resticus `fix/session-csrf`, sjvair.com `fix/csrf-ready`; PRs not yet opened).
 - [x] **#11 Email alerts and accounts**: email alerts need a verified email plus
       one-click unsubscribe. **Email-only accounts in Release 1**: phone optional, a new
       email verification flow, login by either; phone flows keep working for mobile.
@@ -702,7 +716,8 @@ django-resticus plans first)
   automatic `X-CSRFToken` header (sdk-js 4.7.0), and upgrading monitor-map (the only
   cookie-based API write today) to it. Order: the pages and SDK are ready before or with the resticus merge, and all
   of it lands before cookie-based saves ship. Merging to resticus `develop` needs the
-  user's explicit approval.
+  user's explicit approval. **Status 2026-10-22:** built and verified; both branches pushed
+  and PRs not yet opened (see "Start here").
 
 - Reject saves whose `schemaVersion` is lower than the stored document's.
 - Deletion: synced soft delete (`deleted_at`, purged after about 30 days), a "Recently

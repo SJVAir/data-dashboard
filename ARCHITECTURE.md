@@ -660,7 +660,19 @@ check there) so nothing else changes for existing resticus users. Tests cover:
   the session cookie). It is fixed by upgrading monitor-map to
   sdk-js 4.7.0, so it needs no separate page change.
 - **The resticus fix skips the CSRF check when the request also carries a valid token**,
-  so a client that sends both a session cookie and a token is not rejected.
+  so a client that sends both a session cookie and a token is not rejected. As built
+  (2026-10-22), this is generic: the check is skipped when any configured authenticator
+  other than `SessionAuth` (token, basic) accepts the request's own credentials; invalid
+  or malformed credentials count as none. The session user is still the one returned.
+- **A second cookie-based write was found (2026-10-21): the admin Data Export form**, which
+  posts straight to the `entries/export/` API endpoint. sjvair.com's `fix/csrf-ready` adds
+  `{% csrf_token %}` to it, and makes 43 `RequestFactory` API tests opt out of CSRF the way
+  Django's test client does (`camp.utils.test.CsrfExemptRequestFactory`).
+- **Built 2026-10-22:** resticus `fix/session-csrf` (also fixes multipart parsing the CSRF
+  check exposed: malformed bodies give 400, not 500, and bodies aren't parsed twice or
+  dropped) and sjvair.com `fix/csrf-ready`. Both are pushed; the PRs are not yet opened.
+  Verified on local sjvair.com: signed-in subscribe and unsubscribe pass, a write without
+  `X-CSRFToken` gets 403, and token-only writes and admin export work.
 
 **Ordering, since resticus is not pinned** (decided 2026-09-28; the user is discussing
 pinning with its developer): sjvair.com installs resticus `develop`, so merging the fix
@@ -668,7 +680,10 @@ there reaches production at the next server deploy. The sjvair.com pages that us
 cookie and the SDK header must therefore be ready **before or together with** that merge,
 and all of it must land before the dashboard's cookie-based saves ship. **Rollout order:**
 sdk-js 4.7.0 released, then monitor-map's upgrade on its `main` (done 2026-10-21: monitor-map 4.3.0, PR #124), then the resticus merge.
-Needs approved plans in resticus, sjvair.com, and sdk-js. **Merging to resticus `develop` needs explicit
+Needs approved plans in resticus, sjvair.com, and sdk-js. **Before the user tells the
+resticus developer to merge**, sjvair.com's production must already have monitor-map 4.3.0
+(built from monitor-map `main` at deploy) and the `fix/csrf-ready` changes (sjvair.com
+`develop` → `main` → deploy); otherwise subscribe or admin export breaks until they land. **Merging to resticus `develop` needs explicit
 approval** (it's effectively a production deploy while unpinned), as does any resticus release.
 
 ### Sign-in flow

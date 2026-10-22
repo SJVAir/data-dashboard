@@ -149,6 +149,33 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
   itself. **Revisit if** the resticus rollout's end-to-end subscribe check finds the cookie
   missing, or sjvair.com changes its CSRF/session settings. Needs a sjvair.com plan.
+  **Checked 2026-10-22:** the signed-in check on local sjvair.com found the cookie present,
+  so it stays deferred.
+- **resticus: credential lookups on safe methods.** _Deferred 2026-10-22 (resticus CSRF
+  fix review)._ For a session-signed-in request that also sends an `Authorization` header,
+  the fix tries the other authenticators before the CSRF check, even on GETs, where the
+  check does nothing: an extra token query, or a password hash and `user_login_failed`
+  signal for Basic. Rare from browsers. **Revisit if** the resticus developer asks, or such
+  requests show up in practice; the fix is to skip the lookup for safe methods.
+- **resticus: a non-UTF-8 token header gives 500.** _Deferred 2026-10-22 (resticus CSRF fix
+  review)._ `TokenAuth.lookup_user` raises `UnicodeDecodeError` on a non-UTF-8 key. This was
+  already true without a session; with a session it used to be ignored (200). Not a
+  security issue (a cross-site page can't set the header). **Revisit with** the next
+  resticus change; fix by raising `AuthenticationFailed` there.
+- **resticus: CSRF skip trusts any non-session authenticator.** _Deferred 2026-10-22
+  (resticus CSRF fix review)._ A custom authenticator that reads a cookie (e.g. a JWT in a
+  cookie) and doesn't subclass `SessionAuth` would let cookie-only requests skip the CSRF
+  check. sjvair.com uses only `TokenAuth`. **Revisit if** the resticus developer wants it
+  documented, or anyone adds a cookie-based authenticator; a docstring/README note is enough.
+- **resticus: PATCH test goes around `ApiClient`.** _Deferred 2026-10-22 (resticus CSRF fix
+  review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
+  `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
+- **sjvair.com: local monitor-map import has no MapTiler key.** _Deferred 2026-10-22._
+  `scripts/import-monitor-map.sh local` clones monitor-map from GitHub without its `.env`,
+  so the build has no MapTiler key and the map hangs on load (style request 403). Workaround:
+  `npm run build:local` in `../monitor-map` and copy `dist/monitor-map` in. **Revisit when**
+  sjvair.com's dev tooling is next touched (e.g. pass the key through or build from a local
+  path). Needs a sjvair.com plan.
 
 ## Documents & saving
 

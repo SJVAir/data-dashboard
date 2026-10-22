@@ -82,7 +82,7 @@ Tests for 1–4 are in Task 1.
   `post`, `put`, `patch`, `delete` each returning
   `{"username": request.user.username if request.user.is_authenticated else None}`.
 
-- [ ] **Step 1: Set up the branch and a test environment**
+- [x] **Step 1: Set up the branch and a test environment**
 
 ```bash
 cd ~/workspace/django-resticus
@@ -95,7 +95,7 @@ python3 -m venv ~/.cache/resticus-venv
 Expected: the existing suite passes (record the count). If it doesn't pass on a clean
 `develop`, stop and tell the user before going further.
 
-- [ ] **Step 2: Add the `CsrfProbe` test endpoint and write the failing tests**
+- [x] **Step 2: Add the `CsrfProbe` test endpoint and write the failing tests**
 
 `tests/test_csrf.py`, a `TestCase` using `ApiClient(enforce_csrf_checks=True)` (`ApiClient`
 subclasses Django's `Client`, so the keyword passes through). Fixtures: a user `foo`/`bar`
@@ -122,13 +122,13 @@ with a `resticus.Token`. CSRF value: a fixed 32-character alphanumeric secret
 `echo_view` uses the default settings (no authenticators, `LOGIN_REQUIRED: False`), so the
 anonymous case exercises an endpoint that allows anonymous writes.
 
-- [ ] **Step 3: Run the new tests and confirm the right ones fail**
+- [x] **Step 3: Run the new tests and confirm the right ones fail**
 
 Run: `~/.cache/resticus-venv/bin/pytest tests/test_csrf.py -v`
 Expected: the "rejected" / "checks_csrf" / "needs_csrf" tests FAIL (200 instead of 403);
 the "accepted" / "unaffected" / "skips_csrf" tests PASS.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - `resticus/auth.py`: module-level `enforce_csrf(request)`, holding today's
   `SessionAuth.enforce_csrf` body; `SessionAuth.enforce_csrf` calls it. Add it to
@@ -140,12 +140,12 @@ the "accepted" / "unaffected" / "skips_csrf" tests PASS.
   succeed" loop in a small method, `_authenticated_without_session(self, request) -> bool`.
   Don't set `request.authenticator` on this path.
 
-- [ ] **Step 5: Run the whole suite**
+- [x] **Step 5: Run the whole suite**
 
 Run: `~/.cache/resticus-venv/bin/pytest -q`
 Expected: all new tests pass and the existing count from Step 1 still passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add resticus/auth.py resticus/views.py tests/
@@ -189,28 +189,28 @@ podman run --rm --network sjvaircom_sjvair-net --env-file .env.test \
 
 Drop the two `/resticus` lines to run against the image's resticus `develop`.
 
-- [ ] **Step 1: Branch**
+- [x] **Step 1: Branch**
 
 `cd ~/workspace/sjvair/sjvair.com && git status` must be clean on `develop` (the running
 stack mounts this checkout; if it isn't clean, stop and ask). Then
 `git fetch origin && git switch -c fix/csrf-ready origin/develop`.
 
-- [ ] **Step 2: Show the failures (the "failing test")**
+- [x] **Step 2: Show the failures (the "failing test")**
 
 Run `$TEST` with the resticus branch. Expected: failures with 403 `CSRF Failed` in the
 files listed above, and nothing else. Record the failing count and file list; if any
 failure is not a CSRF 403, stop and report it.
 
-- [ ] **Step 3: Add `CsrfExemptRequestFactory` and use it** in each failing file's
+- [x] **Step 3: Add `CsrfExemptRequestFactory` and use it** in each failing file's
   `setUp` in place of `RequestFactory()`. Add `{% csrf_token %}` as the first line inside
   the admin Data Export `<form>`.
 
-- [ ] **Step 4: Run both ways**
+- [x] **Step 4: Run both ways**
 
 `$TEST` with the resticus branch → all pass. `$TEST` without it (resticus `develop`) → all
 pass. Both counts match plain `develop`'s total.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add camp/utils/test/__init__.py camp/api camp/templates/admin/monitors/monitor/change_form.html
@@ -227,7 +227,7 @@ No commits. Record results (with network-panel screenshots or copied request/res
 lines) for the PR descriptions. Do the browser steps with the user, or with Claude in
 Chrome; the user signs in themselves.
 
-- [ ] **Step 1: Install the resticus branch into the running web container**
+- [x] **Step 1: Install the resticus branch into the running web container**
 
 ```bash
 podman exec sjvaircom_web_1 cp -a /usr/local/lib/python3.14/site-packages/resticus /tmp/resticus.develop-backup
@@ -238,13 +238,13 @@ podman restart sjvaircom_web_1
 Expected: `podman exec sjvaircom_web_1 grep -c "def enforce_csrf" /usr/local/lib/python3.14/site-packages/resticus/auth.py`
 prints `1`, and the site loads.
 
-- [ ] **Step 2: Same-origin monitor-map build**
+- [x] **Step 2: Same-origin monitor-map build**
 
 From `~/workspace/sjvair/sjvair.com`: `bash scripts/import-monitor-map.sh local` (clones
 and builds monitor-map `main`, 4.3.0, into `dist/monitor-map`). Expected: it finishes
 without errors; Step 3 proves the build sends `X-CSRFToken`. Don't use the Vite dev server (cross-origin, so cookie calls 401).
 
-- [ ] **Step 3: Subscribe and unsubscribe, signed in**
+- [x] **Step 3: Subscribe and unsubscribe, signed in**
 
 Signed in through `/account/login/`, on the local map page: open a monitor, subscribe, then
 unsubscribe. Expected for each write: request has `X-CSRFToken`, response 200; after a page
@@ -252,25 +252,25 @@ reload the subscription state matches. **If there's no `csrftoken` cookie (so no
 and the write gets 403, stop:** that triggers `DEFERRED.md` → "sjvair.com:
 `ensure_csrf_cookie` on the map page" (its own sjvair.com plan first).
 
-- [ ] **Step 4: Negative check**
+- [x] **Step 4: Negative check**
 
 In the same signed-in tab's console, `fetch` the subscribe URL (resolve with
 `podman exec sjvaircom_web_1 python manage.py shell -c "from django.urls import reverse; print(reverse('api:v2:monitors:alerts:subscribe', kwargs={'monitor_id': '<id>'}))"`)
 with `method: "POST"`, the same body, `credentials: "same-origin"`, and no `X-CSRFToken`.
 Expected: 403 with `CSRF Failed` in the body.
 
-- [ ] **Step 5: Token path**
+- [x] **Step 5: Token path**
 
 Get the signed-in user's token key (`manage.py shell`, the user's `api_token`), then
 `curl -X POST -H "Authorization: Token <key>" -d level=unhealthy <subscribe URL>` with no
 cookie. Expected: 200. Unsubscribe the same way afterwards.
 
-- [ ] **Step 6: Reads and admin export**
+- [x] **Step 6: Reads and admin export**
 
 Map and monitor details load signed in and signed out. Signed in as staff, open a monitor's
 admin page, Data Export, pick a short date range → the export succeeds (no 403).
 
-- [ ] **Step 7: Put the stack back**
+- [x] **Step 7: Put the stack back**
 
 ```bash
 podman exec sjvaircom_web_1 sh -c 'rm -rf /usr/local/lib/python3.14/site-packages/resticus && mv /tmp/resticus.develop-backup /usr/local/lib/python3.14/site-packages/resticus'
@@ -290,7 +290,7 @@ sjvair.com checkout is on `develop`. (`dist/monitor-map` is git-ignored build ou
 protection"), `DEFERRED.md`, this plan's checkboxes. Memory:
 `~/.claude/projects/-home-alex-workspace-sjvair-data-dashboard/memory/data-dashboard-status.md`.
 
-- [ ] **Step 1: Draft both PR descriptions and show them to the user**
+- [x] **Step 1: Draft both PR descriptions and show them to the user**
 
 - resticus (`fix/session-csrf` → `dmpayton/django-resticus:develop`): the gap
   (`csrf_exempt` dispatch + session early return), the fix and the "another authenticator
@@ -313,7 +313,7 @@ gh pr create --base develop --title "…" --body-file …
 
 Expected: two PR URLs. Merge neither.
 
-- [ ] **Step 3: Update data-dashboard docs**
+- [x] **Step 3: Update data-dashboard docs**
 
 - `TODO.md` → "Start here": both PRs open and verified; resticus waits on the user
   telling its developer; the merge-order note (monitor-map 4.3.0 and the sjvair.com PR live
@@ -328,7 +328,7 @@ Expected: two PR URLs. Merge neither.
 
 Run `npm run format` then `npm run lint` in data-dashboard. Expected: clean.
 
-- [ ] **Step 4: Commit (data-dashboard)**
+- [x] **Step 4: Commit (data-dashboard)**
 
 ```bash
 git add TODO.md ARCHITECTURE.md DEFERRED.md docs/superpowers/plans/2026-10-21-resticus-csrf.md
