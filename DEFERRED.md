@@ -213,6 +213,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Map & selection
 
+- **Greying out places with no data in the place picker.** _Deferred 2026-10-22
+  (sjvair.com metadata plan, coverage endpoint)._ Coverage has no bulk mode in Release 1
+  (only per dataset and per single place), so the picker can't know which places lack
+  data. A place without data shows a "no data for this range" state once chosen.
+  **Revisit when** users struggle to find places with data; it would need a bulk coverage
+  mode, probably backed by a precomputed table on the server.
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.

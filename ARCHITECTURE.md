@@ -1828,6 +1828,15 @@ things they point to change (the server removed the `place` region type in Octob
     between environments, so a reference must pick a group's code by a stable rule; and a **CDP that
     incorporates** becomes a `city`, changing its type and code pair (retire the old pair
     with `replacedBy`).
+  - **As planned in the sjvair.com metadata plan (2026-10-22, approved by the user
+    there):** regions and locations gain `retired` (`{ since, replaced_by: { type,
+external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sqids; a
+    retired region comes back flagged; an unknown code is simply absent) and a new
+    `regions/locations/?source=&external_id=`. Retired rows are hidden from listings and
+    search but still resolve by code or sqid. Child-care sites keep their existing code,
+    and any license number at the site finds it. A CDP that becomes a city is retired with
+    `replaced_by` pointing to the city. The retired-vs-never-existed lookup for
+    **monitors** is not in this round.
   - Using the server's ids for user documents and codes only for built-in ones was
     decided against (see `DEFERRED.md`).
 - **Retire, don't delete.** Catalog entries and entry types carry `retired` (a date and an
@@ -1870,6 +1879,14 @@ things they point to change (the server removed the `place` region type in Octob
 2. **Coverage/availability** — first/last data date per dataset and per
    monitor/region × entry type; which summary resolutions are complete (monthly+
    rollups exist only after the period ends).
+   **Decided 2026-10-22 (sjvair.com metadata plan, approved by the user there):**
+   coverage is computed on request and HTTP-cached (no precomputed table or background
+   task). Two modes only: per dataset (first and last date for each catalog dataset), and
+   one place (a monitor or region plus an entry type → first and last date). **No bulk
+   mode**, so the place picker doesn't grey out places without data in Release 1 (see
+   `DEFERRED.md`). "Which summary resolutions are complete" is a fixed rule, not per-place
+   data (monthly and longer summaries exist only after the period ends), stated as static
+   metadata in the catalog; the data layer's incomplete-period filling handles it.
 3. **Non-pollutant scales**: smoke density, fire FRP tiers, CalHeatScore, AQI 0–500,
    temperature thresholds, forecast categories/burn status (labels + colors). Currently
    hardcoded in `monitor-map` and server Sass. **CalHeatScore meta also carries per-score
