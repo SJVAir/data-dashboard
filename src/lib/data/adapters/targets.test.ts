@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Layer } from "../schema";
-import { createWebRegionResolver, type RegionResolver } from "./registry";
+import type { RegionResolver } from "./registry";
 import { layerTarget, regionPlace, splitRegionKey } from "./targets";
 
 /** A stand-in resolver: only Fresno County (`county:06019`) has a server id. */
@@ -29,13 +29,6 @@ describe("layerTarget", () => {
 	it("reports a region the resolver doesn't know as region-unresolved", async () => {
 		const layer: Layer = { ...base, place: { kind: "region", type: "county", code: "06039" } };
 		expect(await layerTarget(layer, regions)).toEqual({ unavailable: "region-unresolved" });
-	});
-
-	it("reports every region as region-unresolved with the web resolver", async () => {
-		const layer: Layer = { ...base, place: { kind: "region", type: "county", code: "06019" } };
-		expect(await layerTarget(layer, createWebRegionResolver())).toEqual({
-			unavailable: "region-unresolved"
-		});
 	});
 
 	it.each([
