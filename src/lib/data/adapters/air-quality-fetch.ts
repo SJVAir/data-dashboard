@@ -1,5 +1,6 @@
 import { TZDate } from "@date-fns/tz";
 import {
+	getMonitorEntries,
 	getMonitorSummariesBulkDaily,
 	getMonitorSummariesBulkHourly,
 	getMonitorSummariesBulkMonthly,
@@ -19,7 +20,6 @@ import {
 	getRegionSummariesBulkSeasonal,
 	getRegionSummariesBulkYearly
 } from "@sjvair/sdk";
-import { paginatedApiCall } from "@sjvair/sdk/http";
 import { TIME_ZONE, todayPacific } from "$lib/format";
 import { nextPeriodStart, periodStart, type Period } from "$lib/format/range";
 import { CHUNK_DAYS, splitChunks } from "../chunks";
@@ -180,12 +180,17 @@ function entryValue(value: unknown): number {
 }
 
 /**
- * One monitor's raw entries in `[start, end)` as count-1 points, by chunk. Called through the
- * SDK's HTTP layer because `getMonitorEntries` can't send `processor` (DEFERRED.md): without it the
- * server returns the monitor type's default stage (e.g. `cleaned`), not the published series.
- * Bounds are UTC instants: zone-less bounds are read as Pacific, and one inside the repeated
- * fall-back hour is ambiguous, which the server drops silently (fetching everything before the
- * other bound). Entries are still filtered by
+ * The SDK widens a window of five minutes or less to whole Pacific days; a window this long (a
+ * millisecond over five minutes) is sent as given.
+ */
+const MIN_RAW_WINDOW_MS = 5 * 60 * 1000 + 1;
+
+/**
+ * One monitor's raw entries in `[start, end)` as count-1 points, by chunk, for the published
+ * series (`processor`, when the monitor's type names one). Bounds go to the SDK as `Date`s, so
+ * they are unambiguous instants even inside the repeated fall-back hour. Its upper bound is
+ * inclusive, so the exclusive end is sent less 1 ms; a shorter window is padded past its end
+ * (later than now is allowed) rather than widened to whole days. Entries are still filtered by
  * their own (offset-carrying) timestamps.
  */
 export function rawTasks(
@@ -199,22 +204,23 @@ export function rawTasks(
 	if (start >= end) return [];
 	const whole: Segment = { resolution: "raw", start, end };
 	return splitChunks(whole, CHUNK_DAYS.raw).map((chunk) => async () => {
-		const searchParams: Record<string, string> = {
-			page: "1",
-			timestamp__gte: chunk.start.toISOString(),
-			timestamp__lt: chunk.end.toISOString(),
-			...(processor ? { processor } : {})
-		};
-		const entries = await paginatedApiCall<{ timestamp: string; value: unknown }>({
-			url: `monitors/${encodeURIComponent(monitorId)}/entries/${encodeURIComponent(entryType)}`,
-			searchParams,
-			options: { signal }
-		});
+		const from = chunk.start.getTime();
+		const to = chunk.end.getTime();
+		const entries = await getMonitorEntries(
+			{
+				monitorId,
+				entryType: entryType as Parameters<typeof getMonitorEntries>[0]["entryType"],
+				...(processor ? { processor } : {}),
+				timestampGte: new Date(from),
+				timestampLte: new Date(Math.max(to - 1, from + MIN_RAW_WINDOW_MS))
+			},
+			{ signal }
+		);
 		const points: SeriesPoint[] = [];
-		for (const entry of entries) {
+		for (const entry of entries as Array<{ timestamp: string; value: unknown }>) {
 			const t = Date.parse(entry.timestamp);
 			const value = entryValue(entry.value);
-			if (!(t >= chunk.start.getTime() && t < chunk.end.getTime())) continue;
+			if (!(t >= from && t < to)) continue;
 			if (!Number.isFinite(value)) continue;
 			points.push({ t, mean: value, min: value, max: value, count: 1, partial: false });
 		}

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@sjvair/sdk/http", () => ({ paginatedApiCall: vi.fn() }));
 vi.mock("@sjvair/sdk", () => ({
+	getMonitorEntries: vi.fn(),
 	getMonitorSummariesHourly: vi.fn(),
 	getMonitorSummariesDaily: vi.fn(),
 	getMonitorSummariesMonthly: vi.fn(),
@@ -23,13 +23,14 @@ vi.mock("@sjvair/sdk", () => ({
 }));
 
 import {
+	getMonitorEntries,
 	getMonitorSummariesBulkDaily,
 	getMonitorSummariesDaily,
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
 	getRegionSummariesBulkDaily
 } from "@sjvair/sdk";
-import { paginatedApiCall } from "@sjvair/sdk/http";
+import { getValidDateRange } from "@sjvair/sdk/datetime";
 import { resolveRange } from "$lib/format/range";
 import type { DateRangeSpec, Resolution } from "../schema";
 import { fixtureMetadata } from "../testing/fixtures";
@@ -131,8 +132,8 @@ describe("airQualityAdapter.fetch", () => {
 		expect(data.processor).toBeNull();
 	});
 
-	it("raw window is UTC instants, for the published series, filtered by entry timestamps", async () => {
-		vi.mocked(paginatedApiCall).mockResolvedValue([
+	it("raw window is Date bounds, for the published series, filtered by entry timestamps", async () => {
+		vi.mocked(getMonitorEntries).mockResolvedValue([
 			{ timestamp: "2026-10-21T12:00:05-07:00", value: "7.25" },
 			{ timestamp: "2026-10-21T12:00:00-07:00", value: "6.70" },
 			{ timestamp: "2026-10-21T11:59:59-07:00", value: "5.00" },
@@ -148,16 +149,17 @@ describe("airQualityAdapter.fetch", () => {
 			ctx,
 			signal
 		);
-		expect(paginatedApiCall).toHaveBeenCalledExactlyOnceWith({
-			url: "monitors/m-pa/entries/pm25",
-			searchParams: {
-				page: "1",
-				timestamp__gte: "2026-10-21T19:00:00.000Z",
-				timestamp__lt: "2026-10-22T19:00:00.000Z",
-				processor: "PM25_EPA_Calibration"
+		// The SDK's upper bound is inclusive, so the exclusive end is sent less 1 ms.
+		expect(getMonitorEntries).toHaveBeenCalledExactlyOnceWith(
+			{
+				monitorId: "m-pa",
+				entryType: "pm25",
+				processor: "PM25_EPA_Calibration",
+				timestampGte: new Date("2026-10-21T19:00:00.000Z"),
+				timestampLte: new Date("2026-10-22T18:59:59.999Z")
 			},
-			options: { signal }
-		});
+			{ signal }
+		);
 		expect(data.series).toEqual([
 			{
 				place: "monitor:m-pa",
@@ -185,7 +187,7 @@ describe("airQualityAdapter.fetch", () => {
 	});
 
 	it("a BAM monitor's raw request names no processor", async () => {
-		vi.mocked(paginatedApiCall).mockResolvedValue([] as never);
+		vi.mocked(getMonitorEntries).mockResolvedValue([] as never);
 		await airQualityAdapter.fetch(
 			request({ kind: "monitors", ids: ["m-bam"] }, "raw", {
 				kind: "trailing",
@@ -195,18 +197,18 @@ describe("airQualityAdapter.fetch", () => {
 			ctx,
 			signal
 		);
-		const [config] = vi.mocked(paginatedApiCall).mock.calls[0] as [
-			{ searchParams: Record<string, string> }
-		];
-		expect(config.searchParams).toEqual({
-			page: "1",
-			timestamp__gte: "2026-10-21T19:00:00.000Z",
-			timestamp__lt: "2026-10-22T19:00:00.000Z"
+		const [config] = vi.mocked(getMonitorEntries).mock.calls[0];
+		expect(config).toEqual({
+			monitorId: "m-bam",
+			entryType: "pm25",
+			timestampGte: new Date("2026-10-21T19:00:00.000Z"),
+			timestampLte: new Date("2026-10-22T18:59:59.999Z")
 		});
+		expect("processor" in config).toBe(false);
 	});
 
 	it("downsamples raw entries to Pacific hours, marking the open hour partial", async () => {
-		vi.mocked(paginatedApiCall).mockResolvedValue([
+		vi.mocked(getMonitorEntries).mockResolvedValue([
 			{ timestamp: "2026-10-22T10:10:00-07:00", value: "4" },
 			{ timestamp: "2026-10-22T10:40:00-07:00", value: "8" },
 			{ timestamp: "2026-10-22T11:30:00-07:00", value: "10" }
@@ -324,7 +326,7 @@ describe("airQualityAdapter.fetch", () => {
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
 			row("2026-10-22T11:00:00-07:00", 5, 1)
 		] as never);
-		vi.mocked(paginatedApiCall).mockResolvedValue([
+		vi.mocked(getMonitorEntries).mockResolvedValue([
 			{ timestamp: "2026-10-22T12:10:00-07:00", value: "4" },
 			{ timestamp: "2026-10-22T12:20:00-07:00", value: "8" }
 		] as never);
@@ -342,17 +344,17 @@ describe("airQualityAdapter.fetch", () => {
 			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 10, day: 22 },
 			{ signal }
 		);
-		expect(paginatedApiCall).toHaveBeenCalledWith({
-			url: "monitors/m-bam/entries/pm25",
-			searchParams: {
-				page: "1",
-				timestamp__gte: "2026-10-22T19:00:00.000Z",
-				timestamp__lt: "2026-10-22T19:30:00.000Z"
+		expect(getMonitorEntries).toHaveBeenCalledWith(
+			{
+				monitorId: "m-bam",
+				entryType: "pm25",
+				timestampGte: new Date("2026-10-22T19:00:00.000Z"),
+				timestampLte: new Date("2026-10-22T19:29:59.999Z")
 			},
-			options: { signal }
-		});
+			{ signal }
+		);
 		// The other call backfills the last completed hour (11:00), which the response has.
-		expect(paginatedApiCall).toHaveBeenCalledTimes(2);
+		expect(getMonitorEntries).toHaveBeenCalledTimes(2);
 		expect(data.fromRaw).toBe(false);
 		expect(data.series[0].points).toEqual([
 			{ t: Date.parse("2026-10-22T18:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },
@@ -360,11 +362,11 @@ describe("airQualityAdapter.fetch", () => {
 		]);
 	});
 
-	it("fills the second 1 AM on fall-back night with unambiguous UTC bounds", async () => {
+	it("fills the second 1 AM on fall-back night with unambiguous Date bounds", async () => {
 		// 01:30 PST, the repeated hour: a zone-less 01:00 bound would be ambiguous.
 		const now = new Date("2026-11-01T09:30:00Z");
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
-		vi.mocked(paginatedApiCall).mockResolvedValue([
+		vi.mocked(getMonitorEntries).mockResolvedValue([
 			{ timestamp: "2026-11-01T01:10:00-07:00", value: "1" },
 			{ timestamp: "2026-11-01T01:10:00-08:00", value: "3" }
 		] as never);
@@ -378,13 +380,10 @@ describe("airQualityAdapter.fetch", () => {
 			ctx,
 			signal
 		);
-		const [config] = vi.mocked(paginatedApiCall).mock.calls[0] as [
-			{ searchParams: Record<string, string> }
-		];
-		expect(config.searchParams).toEqual({
-			page: "1",
-			timestamp__gte: "2026-11-01T09:00:00.000Z",
-			timestamp__lt: "2026-11-01T09:30:00.000Z"
+		const [config] = vi.mocked(getMonitorEntries).mock.calls[0];
+		expect(config).toMatchObject({
+			timestampGte: new Date("2026-11-01T09:00:00.000Z"),
+			timestampLte: new Date("2026-11-01T09:29:59.999Z")
 		});
 		// Only the entry in the second 1 AM (PST) fills the open hour.
 		expect(data.series[0].points.at(-1)).toMatchObject({
@@ -464,7 +463,7 @@ describe("airQualityAdapter.fetch", () => {
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
 			row("2026-10-22T08:00:00-07:00", 5, 1)
 		] as never);
-		vi.mocked(paginatedApiCall).mockResolvedValue([
+		vi.mocked(getMonitorEntries).mockResolvedValue([
 			{ timestamp: "2026-10-22T09:10:00-07:00", value: "2" },
 			{ timestamp: "2026-10-22T09:40:00-07:00", value: "4" },
 			{ timestamp: "2026-10-22T10:05:00-07:00", value: "9" }
@@ -479,14 +478,13 @@ describe("airQualityAdapter.fetch", () => {
 			ctx,
 			signal
 		);
-		const calls = vi.mocked(paginatedApiCall).mock.calls as unknown as Array<
-			[{ searchParams: Record<string, string> }]
-		>;
-		const bounds = calls.map(([c]) => [
-			c.searchParams.timestamp__gte,
-			c.searchParams.timestamp__lt
-		]);
-		expect(bounds).toContainEqual(["2026-10-22T16:00:00.000Z", "2026-10-22T17:00:00.000Z"]);
+		const bounds = vi
+			.mocked(getMonitorEntries)
+			.mock.calls.map(([c]) => [
+				(c.timestampGte as Date).toISOString(),
+				(c.timestampLte as Date).toISOString()
+			]);
+		expect(bounds).toContainEqual(["2026-10-22T16:00:00.000Z", "2026-10-22T16:59:59.999Z"]);
 		expect(data.series[0].points).toEqual([
 			{ t: Date.parse("2026-10-22T15:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },
 			{ t: Date.parse("2026-10-22T16:00:00Z"), mean: 3, min: 2, max: 4, count: 2, partial: false },
@@ -499,7 +497,7 @@ describe("airQualityAdapter.fetch", () => {
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
 			row("2026-10-22T09:00:00-07:00", 5, 30)
 		] as never);
-		vi.mocked(paginatedApiCall).mockResolvedValue([
+		vi.mocked(getMonitorEntries).mockResolvedValue([
 			{ timestamp: "2026-10-22T09:10:00-07:00", value: "100" }
 		] as never);
 		const data = await airQualityAdapter.fetch(
@@ -585,19 +583,42 @@ describe("airQualityAdapter.fetch", () => {
 		expect(data.series[0].points[0]).toMatchObject({ mean: 4, min: 4, max: 4 });
 	});
 
-	it("encodes the monitor id and entry type in the raw entries path", async () => {
-		vi.mocked(paginatedApiCall).mockResolvedValue([] as never);
-		await airQualityAdapter.fetch(
+	it("pads a raw window of five minutes or less so the SDK doesn't widen it to whole days", async () => {
+		// Two minutes into the hour: the open hour's raw fill spans only 19:00 to 19:02.
+		const now = new Date("2026-10-22T19:02:00Z");
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
+		vi.mocked(getMonitorEntries).mockResolvedValue([
+			{ timestamp: "2026-10-22T12:01:00-07:00", value: "4" },
+			{ timestamp: "2026-10-22T12:03:00-07:00", value: "99" }
+		] as never);
+		const data = await airQualityAdapter.fetch(
 			request(
-				{ kind: "monitors", ids: ["a b/c"] },
-				"raw",
-				{ kind: "trailing", amount: 24, unit: "hour" },
-				{ entryType: "pm 25" }
+				{ kind: "monitors", ids: ["m-bam"] },
+				"hour",
+				{ kind: "trailing", amount: 1, unit: "day" },
+				{ now }
 			),
 			ctx,
 			signal
 		);
-		const [config] = vi.mocked(paginatedApiCall).mock.calls[0] as [{ url: string }];
-		expect(config.url).toBe("monitors/a%20b%2Fc/entries/pm%2025");
+		const calls = vi.mocked(getMonitorEntries).mock.calls.map(([c]) => c);
+		const open = calls.find(
+			(c) => (c.timestampGte as Date).toISOString() === "2026-10-22T19:00:00.000Z"
+		);
+		const { gte, lte } = getValidDateRange(open!.timestampGte, open!.timestampLte);
+		expect([gte.toISOString(), lte.toISOString()]).toEqual([
+			"2026-10-22T19:00:00.000Z",
+			"2026-10-22T19:05:00.001Z"
+		]);
+		// Entries past the window's end are still dropped.
+		expect(data.series[0].points.at(-1)).toMatchObject({ mean: 4, count: 1, partial: true });
+	});
+});
+
+describe("@sjvair/sdk date range", () => {
+	it("accepts an upper bound later than now", () => {
+		const gte = new Date(Date.now() - 60 * 60 * 1000);
+		const lte = new Date(Date.now() + 60 * 60 * 1000);
+		expect(getValidDateRange(gte, lte)).toEqual({ gte, lte });
 	});
 });
