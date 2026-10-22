@@ -36,18 +36,28 @@ async function placesOf(
 }
 
 /**
- * The processor of the published series for a single monitor (its type's default calibration),
- * which the single-monitor endpoints need named; bulk endpoints return it by default.
+ * The processor of a monitor's published series (its type's default calibration), which the
+ * single-monitor endpoints need named; bulk endpoints return it by default.
  */
 async function publishedProcessor(
-	req: AdapterRequest,
+	monitorId: string,
+	entryType: string,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<string | null> {
+	const type = await ctx.metadata.monitorType(monitorId, signal);
+	return type === null ? null : ctx.metadata.defaultProcessor(type, entryType, signal);
+}
+
+/** Each place's processor: the published one for monitors; `null` for regions and bulk. */
+function placeProcessors(
+	req: AdapterRequest,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<Array<string | null>> {
 	const { target } = req;
-	if (target.kind !== "monitors" || target.ids.length !== 1) return null;
-	const type = await ctx.metadata.monitorType(target.ids[0], signal);
-	return type === null ? null : ctx.metadata.defaultProcessor(type, req.entryType, signal);
+	if (target.kind !== "monitors") return Promise.resolve([]);
+	return Promise.all(target.ids.map((id) => publishedProcessor(id, req.entryType, ctx, signal)));
 }
 
 /**
@@ -109,12 +119,12 @@ async function rawSeries(
 /**
  * Summaries over the range: completed periods at the requested resolution, the open period
  * filled from finer levels and aggregated up (one `now` for both, so a period can't be open in
- * one and closed in the other). A place a bulk response leaves out has no data: an empty series.
+ * one and closed in the other). A place a response leaves out has no data: an empty series.
  */
 async function summarySeries(
 	req: AdapterRequest,
 	places: Place[],
-	processor: string | null,
+	processors: Array<string | null>,
 	signal: AbortSignal
 ): Promise<Series[]> {
 	const { target, entryType, now } = req;
@@ -124,14 +134,19 @@ async function summarySeries(
 		now,
 		offered: req.offered
 	});
-	const single = target.kind === "monitors" && target.ids.length === 1;
 	const regionIds = target.kind === "regions" ? places.map((p) => p.id) : undefined;
 
 	const tasksFor = (seg: (typeof segments)[number]): FetchTask[] => {
 		if (seg.resolution === "raw") {
 			return places.flatMap((p) => rawTasks(p.id, entryType, seg.start, seg.end, now, signal));
 		}
-		if (single) return monitorSummaryTasks(places[0].id, entryType, processor, seg, now, signal);
+		// Monitors one by one, each with its own published series: the bulk monitor endpoint
+		// can't be scoped to monitor ids, so it is used only for the whole layer.
+		if (target.kind === "monitors") {
+			return places.flatMap((p, i) =>
+				monitorSummaryTasks(p.id, entryType, processors[i], seg, now, signal)
+			);
+		}
 		return bulkSummaryTasks(entryType, regionIds, seg, now, signal);
 	};
 	const [complete, fill] = await collect(
@@ -163,14 +178,17 @@ async function fetchAirQuality(
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
-	const [places, processor] = await Promise.all([
+	const [places, processors] = await Promise.all([
 		placesOf(req.target, ctx, signal),
-		publishedProcessor(req, ctx, signal)
+		placeProcessors(req, ctx, signal)
 	]);
+	// The series used: shared by every selected monitor, or `null` when they differ (or bulk).
+	const processor =
+		processors.length > 0 && processors.every((p) => p === processors[0]) ? processors[0] : null;
 	const series =
 		req.resolution === "raw" || req.downsampleFromRaw
 			? await rawSeries(req, places, signal)
-			: await summarySeries(req, places, processor, signal);
+			: await summarySeries(req, places, processors, signal);
 	return {
 		series,
 		resolution: req.resolution,

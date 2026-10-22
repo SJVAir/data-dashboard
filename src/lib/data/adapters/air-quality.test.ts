@@ -256,23 +256,84 @@ describe("airQualityAdapter.fetch", () => {
 		expect(JSON.stringify(data)).not.toContain("sq2");
 	});
 
-	it("fetches a monitor selection in bulk and keeps only the selected monitors", async () => {
-		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([
-			{ id: "m-other", summaries: [row("2026-09-02T00:00:00-07:00", 1)] },
-			{ id: "m-pa", summaries: [row("2026-09-02T00:00:00-07:00", 2)] }
-		] as never);
+	it("fetches a monitor selection per monitor, each with its published processor", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockImplementation((async (config: {
+			monitorId: string;
+		}) => (config.monitorId === "m-pa" ? [row("2026-09-02T00:00:00-07:00", 2)] : [])) as never);
 		const data = await airQualityAdapter.fetch(
 			request({ kind: "monitors", ids: ["m-pa", "m-bam"] }, "day", SEPTEMBER),
 			ctx,
 			signal
 		);
-		const [config] = vi.mocked(getMonitorSummariesBulkDaily).mock.calls[0];
-		expect(config).toEqual({ entryType: "pm25", start: "2026-09-01", end: "2026-09-30" });
+		expect(getMonitorSummariesBulkDaily).not.toHaveBeenCalled();
+		const configs = vi.mocked(getMonitorSummariesDaily).mock.calls.map(([config]) => config);
+		expect(configs).toEqual([
+			{
+				monitorId: "m-pa",
+				entryType: "pm25",
+				year: 2026,
+				month: 9,
+				processor: "PM25_EPA_Calibration"
+			},
+			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 9 }
+		]);
+		expect("processor" in configs[1]).toBe(false);
 		expect(data.series.map((s) => [s.place, s.points.length])).toEqual([
 			["monitor:m-pa", 1],
 			["monitor:m-bam", 0]
 		]);
+		// The pair uses different series, so no single processor describes the result.
 		expect(data.processor).toBeNull();
+	});
+
+	it("reports a selection's processor when every monitor shares it", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		const metadata = fixtureMetadata({ monitorType: async () => "purpleair" });
+		const data = await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-pa", "m-pa2"] }, "day", SEPTEMBER),
+			{ metadata, regions },
+			signal
+		);
+		expect(data.processor).toBe("PM25_EPA_Calibration");
+	});
+
+	it("fills today's open hour from raw entries at hour resolution", async () => {
+		const now = new Date("2026-10-22T19:30:00Z");
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
+			row("2026-10-22T11:00:00-07:00", 5, 1)
+		] as never);
+		vi.mocked(getMonitorEntries).mockResolvedValue([
+			{ timestamp: "2026-10-22T12:10:00-07:00", value: "4" },
+			{ timestamp: "2026-10-22T12:20:00-07:00", value: "8" }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(
+				{ kind: "monitors", ids: ["m-bam"] },
+				"hour",
+				{ kind: "trailing", amount: 1, unit: "day" },
+				{ now }
+			),
+			ctx,
+			signal
+		);
+		expect(getMonitorSummariesHourly).toHaveBeenCalledExactlyOnceWith(
+			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 10, day: 22 },
+			{ signal }
+		);
+		expect(getMonitorEntries).toHaveBeenCalledExactlyOnceWith(
+			{
+				monitorId: "m-bam",
+				entryType: "pm25",
+				timestampGte: new Date("2026-10-21T19:00:00Z"),
+				timestampLte: now
+			},
+			{ signal }
+		);
+		expect(data.fromRaw).toBe(false);
+		expect(data.series[0].points).toEqual([
+			{ t: Date.parse("2026-10-22T18:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },
+			{ t: Date.parse("2026-10-22T19:00:00Z"), mean: 6, min: 4, max: 8, count: 2, partial: true }
+		]);
 	});
 
 	it("fetches the whole layer from the bulk monitor endpoint with no region", async () => {
