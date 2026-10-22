@@ -1,13 +1,9 @@
 import { TZDate } from "@date-fns/tz";
 import { addDays, startOfWeek, subMonths } from "date-fns";
+import type { DateRangeSpec } from "$lib/data/schema";
 import { TIME_ZONE, WEEK_STARTS_ON, pacificDay, parseDateKey, toKey, todayPacific } from "./index";
 
-// TODO(task 4): the zod schema becomes the source of this type; re-export it from there.
-export type DateRangeSpec =
-	| { kind: "set"; unit: "year" | "month" | "week" | "day"; start: string }
-	| { kind: "to-date"; unit: "year" | "month" | "week" }
-	| { kind: "trailing"; amount: number; unit: "hour" | "day" | "month" }
-	| { kind: "custom"; start: string; end: string };
+export type { DateRangeSpec };
 
 export type ResolvedRange = {
 	/** Inclusive Pacific `YYYY-MM-DD`. */

@@ -899,6 +899,7 @@ type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "yea
 
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
+	timeSubRange?: { start: string; end: string }; // per widget, not per layer
 	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
 };
 
@@ -916,6 +917,9 @@ type DateRangeSpec =
 	| { kind: "custom"; start: string; end: string };
 ```
 
+- **`timeSubRange` lives on `WidgetDataConfig`** (decided 2026-10-22), next to `dateRange`,
+  not on each layer's descriptor: the range is per widget. A layer resolves to a
+  `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
 - **Dates are Pacific calendar dates** (`YYYY-MM-DD`). `"to-date"` and `"trailing"` are the
   two groups of the Rolling method (see "Widget Creation view").
 - **A layer holds one place or a multi-selection** (decided 2026-10-13): `place` takes any
