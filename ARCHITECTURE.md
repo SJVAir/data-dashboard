@@ -941,9 +941,14 @@ type DateRangeSpec =
 
 - **Region places resolve through a `RegionResolver`** (built 2026-10-22, Foundations spec 2):
   the air-quality adapter turns a region's type and official code into the server's id before
-  fetching. The server's region API doesn't accept official codes yet, so the web resolver
-  reports every region as unresolvable (the layer is "unavailable") until Release 1 step 3
-  adds code lookup; then only the resolver changes.
+  fetching. The web resolver looks codes up with `@sjvair/sdk`'s `getRegionsByCode`
+  (2026-10-22, sdk-js 4.8.0-beta.0), batched per type and cached per resolver: a retired
+  region still resolves, a code the server doesn't know leaves the layer "unavailable"
+  (`region-unresolved`), and land-use regions, which have no codes, are unsupported. The
+  web metadata source reads the dataset catalog with `getDatasetCatalog`; a server without
+  `meta/datasets/`, or any failed fetch, gives `catalog-unavailable` (retried on the next
+  query). Production stays unavailable until sjvair.com #293 (which adds the catalog and the
+  code filter on `regions/`) is live there.
 - **`timeSubRange` lives on `WidgetDataConfig`** (decided 2026-10-22), next to `dateRange`,
   not on each layer's descriptor: the range is per widget. A layer resolves to a
   `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.

@@ -80,6 +80,9 @@ and the copyright holder (Central California Asthma Collaborative).
   module, `readableColor`, and a dev-only data page at `/workspace/dev/data`. Design and plan:
   `docs/superpowers/{specs,plans}/2026-10-22-foundations-2-data-layer*`. Its deferrals are in
   `DEFERRED.md`.
+- **PR #7 now uses @sjvair/sdk 4.8.0-beta.0 (2026-10-22)**: raw entries, the dataset catalog,
+  and region codes go through the SDK's wrappers instead of workarounds (pinned exactly until
+  4.8.0 is released; see `DEFERRED.md`).
 - **Next:** spec 3, safety and sharing.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
@@ -840,6 +843,12 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 → "Legacy Monitors-tab follow-ups".
 
 ## Done
+
+- [x] **Data layer on the sdk-js 4.8.0 wrappers** (Foundations spec 2 follow-up, 2026-10-22):
+      "sdk-js: `getMonitorEntries` can't send `processor` or `stage`", "Wire the data layer to
+      the sdk-js 4.8.0 metadata wrappers", and "sdk-js: raw-entry bounds use the browser's
+      zone" are done with @sjvair/sdk 4.8.0-beta.0 (`getMonitorEntries` with `processor` and
+      UTC bounds, `getDatasetCatalog`, `getRegionsByCode`). Removed from `DEFERRED.md`.
 
 - [x] **Legacy Monitors-tab items closed by the data layer** (Foundations spec 2, 2026-10-22):
       "Whole-year over-fetch" (automatic resolution and narrow, chunked fetches), "No in-flight

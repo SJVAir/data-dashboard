@@ -144,26 +144,20 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
-- **sdk-js: `getMonitorEntries` can't send `processor` or `stage`.** _Deferred 2026-10-22
-  (Foundations spec 2)._ Without either, the server returns the monitor type's default stage
-  (`cleaned` for PurpleAir), not the published calibrated series that summaries use. The
-  dashboard's air-quality adapter calls the entries endpoint through `@sjvair/sdk/http`
-  (`paginatedApiCall`) meanwhile, with `processor` and UTC ISO `timestamp__gte`/
-  `timestamp__lt` bounds (zone-less bounds are read as Pacific, and an ambiguous one in the
-  fall-back hour is silently dropped by the server, so always send zone-aware bounds).
-  **Revisit when** sdk-js 4.8.0 is released (sdk-js #32 adds `processor`/`stage` and UTC
-  bounds); then switch back to the wrapper, as a follow-up commit on data-dashboard #7 if
-  it's still open.
-- **Wire the data layer to the sdk-js 4.8.0 metadata wrappers.** _Deferred 2026-10-22
-  (Foundations spec 2)._ Until the server catalog and code lookups exist, the web metadata
-  source reports the dataset catalog as unavailable, and the web region resolver answers
-  "unsupported", so production queries are unavailable and region places can't resolve.
-  sjvair.com #293 (metadata enablers) and sdk-js #32 add the catalog, coverage,
-  `getRegionsByCode`, and `getLocationsByCode` wrappers. **Revisit when** sdk-js 4.8.0 is
-  released and #293 is live: read the catalog through its wrapper in `createWebMetadata()`,
-  resolve regions with `getRegionsByCode` in the web region resolver (a code missing from
-  the result means unresolved; handle retired flags), and remove the dev page's stand-in
-  catalog if the real one covers it.
+- **`@sjvair/sdk` is pinned to the 4.8.0-beta.0 pre-release.** _Deferred 2026-10-22
+  (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
+  `getRegionsByCode`, and `getMonitorEntries` with `processor` and `Date` bounds, which are
+  only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
+  **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
+  the user approves the release): switch to `^4.8.0`.
+- **sdk-js: no way to opt out of day-snapping short entry windows.** _Deferred 2026-10-22
+  (Foundations spec 2, PR #7 follow-up)._ `getMonitorEntries` widens two bounds within five
+  minutes of each other to whole Pacific days. The air-quality adapter's raw windows can be
+  that short (the open hour a few minutes in, or a chunk's tail), so it pads such a window's
+  upper bound to five minutes and a millisecond (later than now is allowed) and filters
+  entries to the real window, rather than fetching a whole day. **Revisit if** sdk-js adds an
+  option to send bounds exactly; then drop the padding. Needs an sdk-js plan and a release
+  (explicit approval).
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
@@ -350,13 +344,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   PurpleAir) and reports which one it used; `QueryDescriptor` has no processor field. An
   optional field can be added later without a document migration. **Revisit when**
   researchers ask for uncalibrated or alternative-calibration data.
-- **sdk-js: raw-entry bounds use the browser's zone.** _Deferred 2026-10-22 (Foundations spec
-  2)._ `getMonitorEntries` formats its `timestamp__gte`/`timestamp__lt` bounds in the
-  browser's zone, which the server reads as Pacific; it affects monitor-map and the mobile
-  app too. The dashboard sends UTC instants through `paginatedApiCall` meanwhile (see the
-  `getMonitorEntries` entry under "Platform & infrastructure"). **Revisit when** the sdk-js
-  step 3 work lands; fix there with `processor`/`stage`. Needs an sdk-js plan and a release
-  (explicit approval).
 - **Refetch keeps the resolution chosen at creation.** _Deferred 2026-10-22 (Foundations spec
   2)._ A query entry picks its resolution from the range span once, when it is created; a
   to-date range (e.g. "this month") can grow across a ladder boundary over time without the
