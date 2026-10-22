@@ -1,4 +1,4 @@
-import { getRegionsByCode } from "@sjvair/sdk";
+import { getRegionsByCode, type RegionType } from "@sjvair/sdk";
 import type { ResolvedRange } from "$lib/format/range";
 import { untilAborted, type MetadataSource } from "../metadata";
 import type { Layer, Resolution } from "../schema";
@@ -32,6 +32,35 @@ export interface DatasetAdapter {
 	fetch(req: AdapterRequest, ctx: AdapterContext, signal: AbortSignal): Promise<QueryData>;
 }
 
+type CodedRegionType = Exclude<RegionType, "land_use">;
+
+/**
+ * The region types `getRegionsByCode` looks up. The SDK exports the list only as a type, so it is
+ * spelled out here; the `Record` makes the compiler flag a type added to or dropped from the SDK.
+ */
+const CODED_REGION_TYPES: Record<CodedRegionType, true> = {
+	county: true,
+	city: true,
+	zipcode: true,
+	tract: true,
+	cdp: true,
+	congressional_district: true,
+	state_assembly: true,
+	state_senate: true,
+	school_district: true,
+	air_district: true,
+	urban_area: true,
+	protected: true,
+	ab617: true,
+	place: true,
+	mtrs: true,
+	custom: true
+};
+
+function isCodedRegionType(type: string): type is CodedRegionType {
+	return Object.hasOwn(CODED_REGION_TYPES, type);
+}
+
 /** The most codes `getRegionsByCode` takes at once. */
 const MAX_CODES = 100;
 
@@ -39,9 +68,11 @@ type Waiter = { resolve: (id: string | null) => void; reject: (error: unknown) =
 
 /**
  * The web build's resolver: official codes to region sqids through `getRegionsByCode`. A retired
- * region still resolves; a code the server doesn't know is `null`; land-use regions have no codes
- * (`"unsupported"`). Codes asked for in the same tick are batched into one request per type, and
- * each code is cached for the resolver's lifetime. A failed lookup rejects and is retried on the
+ * region still resolves; a code the server doesn't know is `null`; land-use regions (which have no
+ * codes) and types the SDK doesn't know are `"unsupported"`, with no request. Codes asked for in
+ * the same tick are batched into one request per type, and each code is cached for the resolver's
+ * lifetime, including an unknown code's `null`: a region added on the server later resolves only
+ * after a reload (a new resolver). A failed lookup rejects and is retried on the
  * next call. The shared request carries no caller's signal, so one caller's abort rejects only
  * that caller.
  */
@@ -56,10 +87,7 @@ export function createWebRegionResolver(): RegionResolver {
 		await Promise.all(
 			batches.map(async (batch) => {
 				try {
-					const regions = await getRegionsByCode(
-						type as Parameters<typeof getRegionsByCode>[0],
-						batch
-					);
+					const regions = await getRegionsByCode(type as CodedRegionType, batch);
 					const ids = new Map(regions.map((r) => [r.external_id, r.id]));
 					for (const code of batch) codes.get(code)!.resolve(ids.get(code) ?? null);
 				} catch (error) {
@@ -80,7 +108,7 @@ export function createWebRegionResolver(): RegionResolver {
 
 	return {
 		resolve(type, code, signal) {
-			if (type === "land_use") return Promise.resolve("unsupported");
+			if (!isCodedRegionType(type)) return Promise.resolve("unsupported");
 			const key = `${type}:${code}`;
 			let id = cache.get(key);
 			if (!id) {

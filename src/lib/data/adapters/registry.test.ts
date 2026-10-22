@@ -50,6 +50,11 @@ describe("createWebRegionResolver", () => {
 		expect(getRegionsByCode).not.toHaveBeenCalled();
 	});
 
+	it("reports a region type the SDK doesn't know as unsupported without a request", async () => {
+		expect(await createWebRegionResolver().resolve("watershed", "18030009")).toBe("unsupported");
+		expect(getRegionsByCode).not.toHaveBeenCalled();
+	});
+
 	it("caches each code for the resolver's lifetime", async () => {
 		const resolver = createWebRegionResolver();
 		await resolver.resolve("county", "06019");
