@@ -170,12 +170,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **resticus: PATCH test goes around `ApiClient`.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF fix
   review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
   `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
-- **sjvair.com: local monitor-map import has no MapTiler key.** _Deferred 2026-10-22._
-  `scripts/import-monitor-map.sh local` clones monitor-map from GitHub without its `.env`,
-  so the build has no MapTiler key and the map hangs on load (style request 403). Workaround:
-  `npm run build:local` in `../monitor-map` and copy `dist/monitor-map` in. **Revisit when**
-  sjvair.com's dev tooling is next touched (e.g. pass the key through or build from a local
-  path). Needs a sjvair.com plan.
 
 ## Documents & saving
 
