@@ -14,6 +14,7 @@ export default defineConfig({
 		enhancedImages(),
 		svelte()
 	],
+	optimizeDeps: { include: ["axe-core"] },
 	resolve: {
 		alias: [{ find: "$lib", replacement: fileURLToPath(new URL("./src/lib", import.meta.url)) }]
 	},
