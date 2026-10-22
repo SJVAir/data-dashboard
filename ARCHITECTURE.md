@@ -2216,7 +2216,11 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        whole host would also permit the site's other scripts there (htmx, admin jQuery,
        monitor-map), which an injection bug could misuse.
     3. **Workers are built inline** (as blob workers), since a worker script cannot be
-       loaded from another origin. `worker-src blob:` already allows this.
+       loaded from another origin. `worker-src blob:` already allows this, and the
+       dashboard's CSP must keep it: the downsampling worker
+       (`src/lib/data/downsample.worker.ts`, imported with `?worker&inline`) is created from
+       a `blob:` URL, so dropping `blob:` from `worker-src` breaks PM10 and other raw-data
+       charts. The build emits no separate worker file.
     4. **The web app manifest, and the later service worker, are served by Django under
        `/workspace/`**, because they must be same-origin. Icons can stay on S3.
     5. **`version.json` is fetched from the static origin** (located relative to the entry
