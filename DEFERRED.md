@@ -151,23 +151,23 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   missing, or sjvair.com changes its CSRF/session settings. Needs a sjvair.com plan.
   **Checked 2026-10-22:** the signed-in check on local sjvair.com found the cookie present,
   so it stays deferred.
-- **resticus: credential lookups on safe methods.** _Deferred 2026-10-22 (resticus CSRF
+- **resticus: credential lookups on safe methods.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF
   fix review)._ For a session-signed-in request that also sends an `Authorization` header,
   the fix tries the other authenticators before the CSRF check, even on GETs, where the
   check does nothing: an extra token query, or a password hash and `user_login_failed`
   signal for Basic. Rare from browsers. **Revisit if** the resticus developer asks, or such
   requests show up in practice; the fix is to skip the lookup for safe methods.
-- **resticus: a non-UTF-8 token header gives 500.** _Deferred 2026-10-22 (resticus CSRF fix
+- **resticus: a non-UTF-8 token header gives 500.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF fix
   review)._ `TokenAuth.lookup_user` raises `UnicodeDecodeError` on a non-UTF-8 key. This was
   already true without a session; with a session it used to be ignored (200). Not a
   security issue (a cross-site page can't set the header). **Revisit with** the next
   resticus change; fix by raising `AuthenticationFailed` there.
-- **resticus: CSRF skip trusts any non-session authenticator.** _Deferred 2026-10-22
+- **resticus: CSRF skip trusts any non-session authenticator.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22
   (resticus CSRF fix review)._ A custom authenticator that reads a cookie (e.g. a JWT in a
   cookie) and doesn't subclass `SessionAuth` would let cookie-only requests skip the CSRF
   check. sjvair.com uses only `TokenAuth`. **Revisit if** the resticus developer wants it
   documented, or anyone adds a cookie-based authenticator; a docstring/README note is enough.
-- **resticus: PATCH test goes around `ApiClient`.** _Deferred 2026-10-22 (resticus CSRF fix
+- **resticus: PATCH test goes around `ApiClient`.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF fix
   review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
   `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
 - **sjvair.com: local monitor-map import has no MapTiler key.** _Deferred 2026-10-22._

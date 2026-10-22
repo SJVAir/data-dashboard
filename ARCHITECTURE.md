@@ -674,6 +674,11 @@ check there) so nothing else changes for existing resticus users. Tests cover:
   [#25](https://github.com/dmpayton/django-resticus/pull/25), sjvair.com [#292](https://github.com/SJVAir/sjvair.com/pull/292).
   Verified on local sjvair.com: signed-in subscribe and unsubscribe pass, a write without
   `X-CSRFToken` gets 403, and token-only writes and admin export work.
+- **Follow-ups (2026-10-22), resticus [#26](https://github.com/dmpayton/django-resticus/pull/26)**,
+  stacked on #25: the credential lookup is skipped for safe methods, a token header that
+  isn't UTF-8 is an invalid token (401), and the rule for custom authenticators is
+  documented: only accept credentials a browser doesn't send on its own; a cookie-reading
+  authenticator subclasses `SessionAuth` and calls `enforce_csrf`.
 
 **Ordering, since resticus is not pinned** (decided 2026-09-28; the user is discussing
 pinning with its developer): sjvair.com installs resticus `develop`, so merging the fix

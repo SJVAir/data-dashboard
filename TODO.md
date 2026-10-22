@@ -60,6 +60,11 @@ and the copyright holder (Central California Asthma Collaborative).
     to them. Check it's live: `grep -c '^def enforce_csrf'` on the container's
     `site-packages/resticus/auth.py` prints `1`. The mount path is tied to the image's Python
     3.14.
+  - **Follow-ups from the review: resticus [#26](https://github.com/dmpayton/django-resticus/pull/26)** (draft, `fix/csrf-follow-ups`
+    stacked on `fix/session-csrf`; review and merge after #25): skip the credential lookup
+    on safe methods, a non-UTF-8 token is a 401, the authenticator CSRF rule documented, and
+    `ApiClient.patch`. 189 resticus tests and the sjvair.com suite pass. The local stack
+    stays pinned on #25's code.
   - **Next for it:** sjvair.com #292 merged into `develop` (2026-10-22). #25 is a **draft**,
     with the user's note that it waits until #292 reaches sjvair.com `main`. The resticus
     developer reviews and merges #25; **the user tells them when**. Before that, monitor-map 4.3.0
