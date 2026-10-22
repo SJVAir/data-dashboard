@@ -766,7 +766,7 @@ caching), not per widget.
 | longer     | Monthly summaries |
 
 - **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
-  server summaries, so the ladder only uses levels the catalog's `resolutions` list:
+  server summaries, so the ladder only uses levels the catalog lists in each entry type's `resolutions`:
   - **Naturally daily data** (HMS smoke/fire, forecasts, CalHeatScore) is fetched as-is
     and aggregated for display (e.g. smoke days per month).
   - **Unsummarized time series** (CIMIS weather, PM10) are fetched raw with a span cap
@@ -1750,7 +1750,8 @@ each one is one Widget Creation accordion:
 ```ts
 type DatasetCatalogEntry = {
 	id: string; // e.g. "air-quality", "weather", "hms-smoke", "hms-fire", "pesticide-use",
-	//          "pesticide-notices", "forecasts", "calheatscore", "calenviroscreen"
+	//          "pesticide-notices", "forecasts", "calheatscore", "calenviroscreen",
+	//          "emissions", "tempo"
 	label: string;
 	description: string;
 	source: string;
@@ -1760,14 +1761,23 @@ type DatasetCatalogEntry = {
 		label: string;
 		kind: "pollutant" | "meteorological" | "other";
 		units: string;
+		// Per entry type, not per dataset (e.g. pm25: raw…year; pm10: raw only).
+		resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
+		available?: boolean; // air-quality entry types: the available-pollutants switch
 		retired?: { since: string; replacedBy?: string };
 	}[];
 	geographies: ("monitor" | "region" | "polygon" | "point" | "tract" | "zip" | "zone")[];
-	resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
-	metaUrl: string; // the domain's own …/meta/ endpoint
+	metaUrl: string; // the domain's own …/meta/ endpoint; "" until that domain has one
 	retired?: { since: string; replacedBy?: string }; // see "Stable ids and retirement"
 };
 ```
+
+**Catalog format changes (2026-10-22, from the sjvair.com metadata plan, approved by the
+user there):** `resolutions` moved from the dataset onto each entry type, with no
+dataset-level field (so clients need no inheritance rule); air-quality entry types carry
+`available`; the catalog lists every server domain, including `emissions` and `tempo` (the
+dashboard hides those without an adapter); and `metaUrl` is empty for domains with no meta
+endpoint yet (all but monitors and regions, until the scale metas land).
 
 - **Air quality is one dataset.** Its entry types are PM2.5, O3, … (`kind: "pollutant"`).
   Monitor vs. region is a **geography choice inside a layer**, not a separate dataset.
@@ -1919,6 +1929,11 @@ per-entry-type `available` flag on `monitors/meta/` — ideally admin-editable s
 it needs no deploy) gates which pollutants the frontend offers in **widgets, analyses,
 and alert rules**. Enabling NO2/SO2/CO later is a metadata change, not a code change. The
 new code never hardcodes pollutants (the v1 `"pm25" | "o3"` goes away with the v1 code).
+**Shape (2026-10-22, sjvair.com metadata plan):** each air-quality entry type in the
+catalog carries `available: boolean`, and `monitors/meta/` gains an `available_pollutants`
+list. The server derives both from its existing `DefaultCalibration` rows (the map's
+"published" switch), so one admin switch turns a pollutant on for the map, widgets,
+analyses, and alerts together.
 Priority: alongside gap #1.
 
 **Cleanup to do alongside** (removing hardcoded duplicates once metadata covers them):

@@ -204,12 +204,11 @@ The single entry point widgets will use. Per "Data resolution & live refresh".
   years day, longer month. It only picks levels the dataset offers; if the ideal level isn't
   offered, it takes the nearest coarser one, or raw with downsampling (below).
 - **Priority:** widget-type pin → the layer's `resolution` override → `"auto"` (the ladder).
-- **Which levels a dataset offers** comes from the catalog's `resolutions`. For air quality the
-  levels also depend on the entry type (PM2.5, O3, NO2, SO2, CO have summaries; PM10 doesn't).
-  Spec 2 needs this per entry type; the planned catalog lists resolutions per dataset only.
-  **This is a catalog-format change** to raise with the metadata session: `resolutions` per
-  entry type (or a per-entry-type override). _My call_ that spec 2 builds against
-  per-entry-type resolutions, and records the change in `ARCHITECTURE.md`.
+- **Which levels an entry type offers** comes from that entry type's `resolutions` in the
+  catalog (PM2.5, O3, NO2, SO2, CO have summaries; PM10 is raw only). The catalog format
+  moved `resolutions` onto each entry type (2026-10-22, from the sjvair.com metadata plan;
+  recorded in `ARCHITECTURE.md` → "What a dataset is"). Air-quality entry types also carry
+  `available`; the query layer doesn't gate on it (Widget Creation does, in step 4).
 - **Span caps and chunking:** long requests are split into chunks the server accepts (summary
   endpoints by year or month; raw entries by about a year, with smaller chunks if the server
   rejects or a chunk is slow). Chunks fetch with limited concurrency and merge in order.
