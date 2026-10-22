@@ -2222,6 +2222,7 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
   silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
   builds (Tauri, standalone).
+  The hosting track sets no `VITE_PROD_URL` (production under `/workspace/` uses the page origin).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Embedding in a host app with its
   own router stays deferred.
