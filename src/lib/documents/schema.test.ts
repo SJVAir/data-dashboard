@@ -78,4 +78,12 @@ describe("normalizeName", () => {
 	it("cuts to 100 characters", () => {
 		expect(normalizeName("a".repeat(150))?.length).toBe(100);
 	});
+	it("never splits an emoji at the cut", () => {
+		const result = normalizeName("a".repeat(99) + "\u{1F44D}\u{1F3FD}");
+		expect(result).toBe("a".repeat(99));
+		expect(result!.length).toBeLessThanOrEqual(100);
+	});
+	it("trims again after the cut", () => {
+		expect(normalizeName("a".repeat(99) + " b")).toBe("a".repeat(99));
+	});
 });

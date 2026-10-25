@@ -184,15 +184,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Documents & saving
 
-- **Name normalization edge cases.** _Deferred 2026-10-20 (Foundations spec 1 review)._
-  `normalizeName` can split a surrogate pair (an emoji, say) at the 100-character cut, and
-  trimming again after the cut is untested. Names that long are rare. **Revisit with** spec
-  3 (the format freeze), or on the first report of a broken character at the end of a name.
-- **Migration chain hardening.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The
-  chain's test hard-codes `to: 1`; that migrations must not mutate their input isn't
-  documented on `Migration.migrate`; and a bare `catch` hides migration bugs as "invalid".
-  There is only one schema version so far. **Revisit with** spec 3 (the format freeze) for
-  the first two, and spec 5 (the error reporter) for the `catch`.
+- **Migration chain hardening.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A bare
+  `catch` in `loadDashboard` (and `upgradeChanges`) hides migration bugs as "invalid".
+  **Revisit with** spec 5 (the error reporter).
 - **DocumentSession durability gaps.** _Deferred 2026-10-20 (Foundations spec 1 review)._
   Edits queued during the starter hand-off are dropped if the hook returns `null` or
   rejects, and aren't journaled while it runs. A failed save is retried only on the next

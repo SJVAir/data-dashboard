@@ -62,8 +62,21 @@ export const DashboardSchema = dashboardSchema(false);
 export const StarterDashboardSchema = dashboardSchema(true);
 export type Dashboard = z.infer<typeof DashboardSchema>;
 
-/** Trim, cut to NAME_MAX, and map empty to null (a generated name). */
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** Cut to at most `max` UTF-16 units, keeping whole grapheme clusters. */
+function cutGraphemes(text: string, max: number): string {
+	if (text.length <= max) return text;
+	let length = 0;
+	for (const { segment } of graphemes.segment(text)) {
+		if (length + segment.length > max) break;
+		length += segment.length;
+	}
+	return text.slice(0, length);
+}
+
+/** Trim, cut to NAME_MAX on a grapheme boundary, and map empty to null (a generated name). */
 export function normalizeName(input: string): string | null {
-	const name = input.trim().slice(0, NAME_MAX).trim();
+	const name = cutGraphemes(input.trim(), NAME_MAX).trim();
 	return name === "" ? null : name;
 }
