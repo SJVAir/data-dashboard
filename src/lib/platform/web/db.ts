@@ -24,8 +24,6 @@ export type OpenOptions = {
 	onBlocked?: () => void;
 	/** Another connection wants a newer layout; called just before this connection closes. */
 	onVersionChange?: () => void;
-	/** The browser closed the connection (storage cleared, disk trouble). */
-	onTerminated?: () => void;
 };
 
 /** Creates each store that's missing, so it is safe to run on a database from any older layout. */
@@ -53,9 +51,6 @@ export async function openWorkspaceDB(
 			// Another connection wants to delete or upgrade the database; let it.
 			options.onVersionChange?.();
 			db.close();
-		},
-		terminated() {
-			options.onTerminated?.();
 		},
 		upgrade: createStores
 	});

@@ -86,13 +86,12 @@ function createWebReset(run: Run): ResetAccess {
 }
 
 export async function createWebPlatform(options: OpenOptions = {}): Promise<Platform> {
-	const connection = createReopening(
-		() => openWorkspaceDB(options),
-		await openWorkspaceDB({
+	const connection = await createReopening((hooks) =>
+		openWorkspaceDB({
 			...options,
 			onVersionChange() {
 				// Another tab is upgrading: this connection closes and must stay closed.
-				connection.stop();
+				hooks.onVersionChange();
 				options.onVersionChange?.();
 			}
 		})
