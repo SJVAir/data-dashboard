@@ -29,9 +29,9 @@ function documentEnvelope(doc: Dashboard, now: Date): Envelope {
 	};
 }
 
-/** The single-document export file's text. */
+/** The single-document export file's text, compact so a near-limit document still re-imports. */
 export function documentFileJson(doc: Dashboard, now: Date): string {
-	return JSON.stringify(documentEnvelope(doc, now), null, 2);
+	return JSON.stringify(documentEnvelope(doc, now));
 }
 
 /** `${base}import#${payload}`, or `{ tooLong: true }` over the link cap. */

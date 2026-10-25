@@ -97,4 +97,32 @@ describe("DashboardIndex", () => {
 		index.dispose();
 		other.dispose();
 	});
+
+	it("createFrom stores the given document, lists it, and posts committed", async () => {
+		const platform = createMemoryPlatform();
+		const hub = createMemoryTabHub();
+		const index = new DashboardIndex({
+			platform,
+			space: SPACE,
+			channel: hub.channel(),
+			tabId: "t1",
+			now: clock()
+		});
+		const watcher = hub.channel();
+		const seen: unknown[] = [];
+		watcher.subscribe((msg) => seen.push(msg));
+		const doc = { ...blankDashboard(new Date()), id: "made", copiedFrom: "elsewhere" };
+		expect(await index.createFrom(doc)).toBe("made");
+		expect(index.items.map((d) => d.id)).toEqual(["made"]);
+		await vi.waitFor(() =>
+			expect(seen).toContainEqual({
+				type: "committed",
+				space: SPACE,
+				docId: "made",
+				version: 0,
+				tabId: "t1"
+			})
+		);
+		await expect(index.createFrom(doc)).rejects.toThrow();
+	});
 });

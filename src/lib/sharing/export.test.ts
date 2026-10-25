@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { MAX_LINK_URL } from "./envelope";
+import { MAX_DOCUMENT_CHARS, MAX_LINK_URL } from "./envelope";
 import { documentFileJson, shareUrl, sharedDocumentOf } from "./export";
-import { makeDoc } from "./fixtures.test-util";
+import { makeDoc, widget } from "./fixtures.test-util";
 import { parseIncoming, parseLinkFragment } from "./incoming";
 
 const now = new Date("2026-10-25T12:00:00Z");
@@ -39,5 +39,28 @@ describe("export", () => {
 		}));
 		expect(await shareUrl("https://example.org/workspace/", doc, now)).toEqual({ tooLong: true });
 		expect(MAX_LINK_URL).toBe(8000);
+	});
+
+	it("documentFileJson is compact, so a document near the limit re-imports", async () => {
+		const title = "x".repeat(100);
+		const sized = (count: number) => {
+			const doc = makeDoc(0);
+			doc.body.widgets = Array.from({ length: count }, (_, i) => widget(i, title));
+			return doc;
+		};
+		const perWidget =
+			documentFileJson(sized(2), now).length - documentFileJson(sized(1), now).length;
+		const base = documentFileJson(sized(0), now).length;
+		// Ids grow a digit now and then, so settle on the count by measuring.
+		let count = Math.floor((MAX_DOCUMENT_CHARS - base) / perWidget);
+		let json = documentFileJson(sized(count), now);
+		while (json.length >= MAX_DOCUMENT_CHARS) {
+			count -= Math.ceil((json.length - MAX_DOCUMENT_CHARS + 1) / (perWidget + 4));
+			json = documentFileJson(sized(count), now);
+		}
+		expect(json.length).toBeLessThan(MAX_DOCUMENT_CHARS);
+		expect(json.length).toBeGreaterThan(MAX_DOCUMENT_CHARS - 4 * perWidget);
+		expect(json).not.toContain("\n");
+		expect(await parseIncoming(json, now)).toMatchObject({ kind: "document", sourceId: "src-1" });
 	});
 });

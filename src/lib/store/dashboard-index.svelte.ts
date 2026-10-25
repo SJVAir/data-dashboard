@@ -110,6 +110,11 @@ export class DashboardIndex {
 		return this.#create(duplicateDashboard(source, this.#now()));
 	}
 
+	/** Stores `doc` (a new, unstored document) as a dashboard and refreshes the list. */
+	createFrom(doc: Dashboard): Promise<string> {
+		return this.#create(doc);
+	}
+
 	dispose(): void {
 		this.#unsubscribe();
 	}

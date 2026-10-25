@@ -9,6 +9,7 @@ export const { route, navigate, p, isActive } = createRouter(
 		"/": Home,
 		"/dashboards": DashboardList,
 		"/dashboards/:id": DashboardPage,
+		"/import": () => import("./routes/Import.svelte"),
 		// The hidden dev data page: dev builds only, loaded on demand, never linked.
 		...(import.meta.env.DEV ? { "/dev/data": () => import("./routes/dev/DevData.svelte") } : {}),
 		"*": NotFound

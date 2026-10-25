@@ -1,8 +1,8 @@
 import { CURRENT_SCHEMA_VERSION } from "$lib/documents/schema";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { encodePayload } from "./codec";
 import { FORMAT, FORMAT_VERSION, MAX_DOCUMENT_CHARS } from "./envelope";
-import { shareUrl } from "./export";
+import { documentFileJson, shareUrl } from "./export";
 import { makeDoc, widget } from "./fixtures.test-util";
 import { parseIncoming, parseLinkFragment } from "./incoming";
 
@@ -149,5 +149,19 @@ describe("parseIncoming: size limit", () => {
 			kind: "error",
 			reason: "too-large"
 		});
+	});
+});
+
+describe("parseIncoming: unexpected failures", () => {
+	it("maps any unexpected throw to invalid", async () => {
+		const text = documentFileJson(makeDoc(), now);
+		const spy = vi.spyOn(crypto.subtle, "digest").mockRejectedValue(new Error("no subtle"));
+		try {
+			expect(await parseIncoming(text, now)).toEqual({ kind: "error", reason: "invalid" });
+			const fragment = encodePayload(text);
+			expect(await parseLinkFragment(fragment, now)).toEqual({ kind: "error", reason: "invalid" });
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });

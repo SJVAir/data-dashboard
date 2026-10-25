@@ -213,6 +213,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   a journal record (until the dashboard is opened). Records are small and rare (only edits
   pending at `pagehide`). **Revisit with** spec 3 (size limits), or if `localStorage` use
   ever grows noticeably.
+- **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
+  Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
+  fragment can expand to a very large transient string before the post-decompression size
+  check (a `RangeError` is caught and shown as an invalid link). **Revisit if** memory
+  spikes are reported, or if a streaming or limited decoder becomes available.
 
 ## Map & selection
 

@@ -21,6 +21,15 @@ const tooLarge: Incoming = { kind: "error", reason: "too-large" };
 
 /** The one import path: size, JSON, envelope, then the load pipeline. Writes nothing. */
 export async function parseIncoming(text: string, now: Date): Promise<Incoming> {
+	try {
+		return await parseEnvelopeText(text, now);
+	} catch {
+		// Anything unexpected (no `crypto.subtle`, a validator fault) is just an unusable input.
+		return invalid;
+	}
+}
+
+async function parseEnvelopeText(text: string, now: Date): Promise<Incoming> {
 	let json: unknown;
 	try {
 		json = JSON.parse(text);

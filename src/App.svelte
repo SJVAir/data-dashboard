@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Router } from "sv-router";
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
+	import ExistingCopyDialog from "$lib/components/dialogs/ExistingCopyDialog.svelte";
 	import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
 	import NoticeBars from "$lib/components/shell/NoticeBars.svelte";
 	import TopNav from "$lib/components/shell/TopNav.svelte";
@@ -29,4 +30,5 @@
 </div>
 <RenameDialog />
 <ConflictDialog />
+<ExistingCopyDialog />
 <Toaster />
