@@ -89,6 +89,38 @@ export interface ActivitySource {
 	onChange(cb: (visible: boolean) => void): () => void;
 }
 
+/** The system clipboard. */
+export interface ClipboardAccess {
+	/** Resolves `false` instead of throwing when the browser refuses. */
+	writeText(text: string): Promise<boolean>;
+}
+
+export type OpenedFile = { name: string; size: number; text(): Promise<string> };
+
+export interface FileAccess {
+	/** Hands the person a file to keep (a download on the web). */
+	save(name: string, contents: string, type: string): void;
+	/** Shows a file picker; resolves `null` when it's cancelled. */
+	open(accept: string): Promise<OpenedFile | null>;
+}
+
+/** Whether the browser promises to keep stored data. */
+export type Protection = "protected" | "unprotected" | "unknown";
+
+export interface PersistenceAccess {
+	persisted(): Promise<Protection>;
+	request(): Promise<Protection>;
+	/** Whether `request()` asks the person (so it should follow a deliberate action). */
+	prompts(): boolean;
+}
+
+export interface ResetAccess {
+	/** Identifies the current data; it changes whenever `clearAll` runs, in any tab. */
+	generation(): string;
+	/** Erases everything stored, in every space. */
+	clearAll(): Promise<void>;
+}
+
 export type Platform = {
 	documents: DocumentStorage;
 	preferences: PreferenceStorage;
@@ -96,6 +128,10 @@ export type Platform = {
 	originals: OriginalStorage;
 	identity: IdentitySource;
 	activity: ActivitySource;
+	clipboard: ClipboardAccess;
+	files: FileAccess;
+	persistence: PersistenceAccess;
+	reset: ResetAccess;
 };
 
 export function docVersion(doc: unknown): number {

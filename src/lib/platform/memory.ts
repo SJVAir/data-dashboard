@@ -9,6 +9,11 @@ import {
 	type KeptOriginal,
 	type LogEntry,
 	type ActivitySource,
+	type ClipboardAccess,
+	type FileAccess,
+	type OpenedFile,
+	type PersistenceAccess,
+	type Protection,
 	type Platform,
 	type SpaceId
 } from "./types";
@@ -35,13 +40,65 @@ export function createMemoryActivity(): MemoryActivity {
 	};
 }
 
+export type MemoryClipboard = ClipboardAccess & { fail(on: boolean): void; last: string | null };
+export type MemoryFiles = FileAccess & {
+	queueOpen(file: OpenedFile | null): void;
+	saved: Array<{ name: string; contents: string; type: string }>;
+};
+export type MemoryPersistence = PersistenceAccess & {
+	set(state: Protection, prompts: boolean): void;
+};
+
+export type MemoryPlatform = Platform & {
+	activity: MemoryActivity;
+	clipboard: MemoryClipboard;
+	files: MemoryFiles;
+	persistence: MemoryPersistence;
+};
+
 /** In-memory twin of the web storage, for tests. Values are cloned like IndexedDB does. */
-export function createMemoryPlatform(): Platform & { activity: MemoryActivity } {
+export function createMemoryPlatform(): MemoryPlatform {
 	const docs = new Map<string, { space: SpaceId; doc: unknown }>();
 	const logs = new Map<string, LogEntry[]>();
 	const prefs = new Map<string, unknown>();
 	const originals = new Map<string, { space: SpaceId; original: KeptOriginal }>();
 	const journal = new Map<string, { space: SpaceId; docId: string; tabId: string; json: string }>();
+
+	let generation = crypto.randomUUID();
+	let failClipboard = false;
+	const clipboard: MemoryClipboard = {
+		last: null,
+		fail(on) {
+			failClipboard = on;
+		},
+		async writeText(text) {
+			if (failClipboard) return false;
+			clipboard.last = text;
+			return true;
+		}
+	};
+	const opens: Array<OpenedFile | null> = [];
+	const files: MemoryFiles = {
+		saved: [],
+		queueOpen: (file) => void opens.push(file),
+		save(name, contents, type) {
+			files.saved.push({ name, contents, type });
+		},
+		async open() {
+			return opens.shift() ?? null;
+		}
+	};
+	let protection: Protection = "unknown";
+	let asks = false;
+	const persistence: MemoryPersistence = {
+		set(state, prompts) {
+			protection = state;
+			asks = prompts;
+		},
+		persisted: async () => protection,
+		request: async () => protection,
+		prompts: () => asks
+	};
 
 	return {
 		documents: {
@@ -133,6 +190,20 @@ export function createMemoryPlatform(): Platform & { activity: MemoryActivity } 
 			}
 		},
 		identity: { currentSpace: async () => "anonymous" },
-		activity: createMemoryActivity()
+		activity: createMemoryActivity(),
+		clipboard,
+		files,
+		persistence,
+		reset: {
+			generation: () => generation,
+			async clearAll() {
+				generation = crypto.randomUUID();
+				docs.clear();
+				logs.clear();
+				prefs.clear();
+				originals.clear();
+				journal.clear();
+			}
+		}
 	};
 }

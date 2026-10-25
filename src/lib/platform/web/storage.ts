@@ -8,9 +8,13 @@ import {
 	type KeptOriginal,
 	type LogEntry,
 	type Platform,
+	type ResetAccess,
 	type SpaceId
 } from "../types";
 import { createWebActivity } from "./activity";
+import { createWebClipboard } from "./clipboard";
+import { createWebFiles } from "./files";
+import { createWebPersistence } from "./persistence";
 import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
 import { createWebJournal } from "./journal";
 
@@ -25,6 +29,55 @@ function strip(row: LogEntry & { space: SpaceId }): LogEntry {
 function unwrap(row: { space: SpaceId } & KeptOriginal): KeptOriginal {
 	const { id, raw, keptAt, fromSchemaVersion } = row;
 	return { id, raw, keptAt, fromSchemaVersion };
+}
+
+const KEY_PREFIX = "sjvair-workspace:";
+const GENERATION_KEY = `${KEY_PREFIX}generation`;
+
+/**
+ * The generation lives in `localStorage` so every tab sees a reset. `clearAll` writes the new one
+ * first, synchronously, so other tabs stop saving before the slower erasing finishes.
+ */
+function createWebReset(db: IDBPDatabase<WorkspaceDB>): ResetAccess {
+	let fallback: string | undefined;
+	return {
+		generation() {
+			try {
+				let value = localStorage.getItem(GENERATION_KEY);
+				if (value === null) {
+					value = crypto.randomUUID();
+					localStorage.setItem(GENERATION_KEY, value);
+				}
+				return value;
+			} catch {
+				return (fallback ??= crypto.randomUUID());
+			}
+		},
+		async clearAll() {
+			const next = crypto.randomUUID();
+			fallback = next;
+			try {
+				localStorage.setItem(GENERATION_KEY, next);
+			} catch {
+				// Blocked storage: this tab still knows the new generation.
+			}
+			const stores = ["documents", "changeLog", "preferences", "originals", "syncQueue"] as const;
+			const tx = db.transaction([...stores], "readwrite");
+			await Promise.all([...stores.map((name) => tx.objectStore(name).clear()), tx.done]);
+			try {
+				const doomed: string[] = [];
+				for (let i = 0; i < localStorage.length; i++) {
+					const key = localStorage.key(i);
+					if (key !== null && key.startsWith(KEY_PREFIX) && key !== GENERATION_KEY) {
+						doomed.push(key);
+					}
+				}
+				for (const key of doomed) localStorage.removeItem(key);
+			} catch {
+				// Blocked storage: there is nothing to remove.
+			}
+		}
+	};
 }
 
 export async function createWebPlatform(options: OpenOptions = {}): Promise<Platform> {
@@ -100,6 +153,10 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		},
 		journal: createWebJournal(),
 		identity: { currentSpace: async () => "anonymous" },
-		activity: createWebActivity()
+		activity: createWebActivity(),
+		clipboard: createWebClipboard(),
+		files: createWebFiles(),
+		persistence: createWebPersistence(),
+		reset: createWebReset(db)
 	};
 }
