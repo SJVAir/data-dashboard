@@ -71,6 +71,7 @@
 	"share_copy": "Copy link",
 	"share_copied": "Link copied",
 	"share_download_instead": "Download file instead",
+	"share_failed": "Couldn't share this dashboard. Please try again.",
 	"share_too_big": "This dashboard is too big to share as a link. Download it as a file and send that instead.",
 	"file_dashboard_stem": "dashboard",
 	"file_backup_stem": "sjvair-dashboards-backup",

@@ -43,3 +43,23 @@ export async function shareUrl(
 	const url = `${base}import#${encodePayload(JSON.stringify(documentEnvelope(doc, now)))}`;
 	return url.length > MAX_LINK_URL ? { tooLong: true } : { url };
 }
+
+/** Fields that belong to this browser's copy and never travel. */
+const LOCAL_ONLY = ["version", "createdAt", "updatedAt", "copiedFrom", "deletedAt"];
+
+/**
+ * A read-only (newer or invalid) document's export file: the stored value as it is, unvalidated,
+ * less the local-only fields, so a browser with a newer version can open it.
+ */
+export function rawDocumentFileJson(raw: unknown, now: Date): string {
+	const stored =
+		typeof raw === "object" && raw !== null ? { ...(raw as Record<string, unknown>) } : {};
+	for (const key of LOCAL_ONLY) delete stored[key];
+	return JSON.stringify({
+		format: FORMAT,
+		type: "document",
+		formatVersion: FORMAT_VERSION,
+		exportedAt: now.toISOString(),
+		documents: [stored]
+	});
+}

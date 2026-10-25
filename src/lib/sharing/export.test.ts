@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_DOCUMENT_CHARS, MAX_LINK_URL } from "./envelope";
-import { documentFileJson, shareUrl, sharedDocumentOf } from "./export";
+import { documentFileJson, rawDocumentFileJson, shareUrl, sharedDocumentOf } from "./export";
 import { makeDoc, widget } from "./fixtures.test-util";
 import { parseIncoming, parseLinkFragment } from "./incoming";
 
@@ -62,5 +62,44 @@ describe("export", () => {
 		expect(json.length).toBeGreaterThan(MAX_DOCUMENT_CHARS - 4 * perWidget);
 		expect(json).not.toContain("\n");
 		expect(await parseIncoming(json, now)).toMatchObject({ kind: "document", sourceId: "src-1" });
+	});
+
+	it("a link of exactly the cap is allowed; one character more is too long", async () => {
+		const doc = makeDoc();
+		const bare = await shareUrl("", doc, now);
+		if (!("url" in bare)) throw new Error("expected a url");
+		const pad = MAX_LINK_URL - bare.url.length;
+		expect(await shareUrl("x".repeat(pad), doc, now)).toEqual({
+			url: "x".repeat(pad) + bare.url
+		});
+		expect(await shareUrl("x".repeat(pad + 1), doc, now)).toEqual({ tooLong: true });
+	});
+
+	it("rawDocumentFileJson keeps unknown fields and drops only the local-only ones", () => {
+		const raw = {
+			kind: "dashboard",
+			schemaVersion: 99,
+			id: "d1",
+			name: null,
+			body: { future: true },
+			extra: { keep: "me" },
+			version: 4,
+			createdAt: "a",
+			updatedAt: "b",
+			copiedFrom: "x",
+			deletedAt: "c"
+		};
+		const envelope = JSON.parse(rawDocumentFileJson(raw, now));
+		expect(envelope.type).toBe("document");
+		expect(envelope.documents).toEqual([
+			{
+				kind: "dashboard",
+				schemaVersion: 99,
+				id: "d1",
+				name: null,
+				body: { future: true },
+				extra: { keep: "me" }
+			}
+		]);
 	});
 });

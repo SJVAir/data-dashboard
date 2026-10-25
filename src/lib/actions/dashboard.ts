@@ -20,13 +20,29 @@ import { navigate } from "../../router";
 import type { MenuProvider } from "./types";
 
 /** The share, export, and import handlers load on first use, keeping `lz-string` out of the entry chunk. */
-function lazySharing() {
-	return loadLazy(() => import("$lib/sharing/actions"));
+type Sharing = typeof import("$lib/sharing/actions");
+
+/**
+ * Runs a sharing handler. A chunk that won't load is `loadLazy`'s reload notice; any other
+ * failure is a toast, not an unhandled rejection.
+ */
+async function runSharing(work: (sharing: Sharing) => Promise<void>, failure: string) {
+	let sharing: Sharing;
+	try {
+		sharing = await loadLazy(() => import("$lib/sharing/actions"));
+	} catch {
+		return;
+	}
+	try {
+		await work(sharing);
+	} catch {
+		toast.error(failure);
+	}
 }
 
 /** Picks a file to import (the "Import…" action and the list's button). */
 export function importDashboardFile(app: AppContext): void {
-	void lazySharing().then((s) => s.importFromFile(app));
+	void runSharing((s) => s.importFromFile(app), m.import_file_invalid());
 }
 
 /** The current dashboard's session when it can be edited. */
@@ -245,7 +261,7 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				group: "share",
 				// The starter and a row's dashboard are shareable; a read-only one is checked when it runs.
 				disabled: id === undefined && !session,
-				run: () => void lazySharing().then((s) => s.shareDashboard(app, id))
+				run: () => void runSharing((s) => s.shareDashboard(app, id), m.share_failed())
 			},
 			{
 				id: "export-dashboard",
@@ -253,7 +269,7 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				icon: Download,
 				group: "share",
 				disabled: id === undefined && !session,
-				run: () => void lazySharing().then((s) => s.exportDashboard(app, id))
+				run: () => void runSharing((s) => s.exportDashboard(app, id), m.share_failed())
 			}
 		];
 	};

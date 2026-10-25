@@ -8,7 +8,7 @@ import { starterDashboard } from "$lib/starter/starter";
 import { currentDashboardName, type AppContext } from "$lib/store/app.svelte";
 import { navigate } from "../../router";
 import { MAX_BACKUP_BYTES } from "./envelope";
-import { documentFileJson, shareUrl } from "./export";
+import { documentFileJson, rawDocumentFileJson, shareUrl } from "./export";
 import { dashboardFileName } from "./file-names";
 import { parseIncoming } from "./incoming";
 import { settleDocument } from "./settle";
@@ -44,22 +44,24 @@ export async function exportDashboard(app: AppContext, id?: string): Promise<voi
 	downloadDocument(target);
 }
 
-function downloadDocument({ doc, name }: Target): void {
+function downloadDocument({ doc, name, readOnly }: Target): void {
 	const now = new Date();
 	platform().files.save(
 		dashboardFileName(name, todayPacific(now)),
-		documentFileJson(doc, now),
+		readOnly ? rawDocumentFileJson(doc, now) : documentFileJson(doc, now),
 		"application/json"
 	);
 }
 
 export async function shareDashboard(app: AppContext, id?: string): Promise<void> {
 	const target = await targetOf(app, id);
-	// A newer or invalid document can't be turned into a link; it can still be exported.
-	if (!target || target.readOnly) return;
-	const result = await shareUrl(location.origin + import.meta.env.BASE_URL, target.doc, new Date());
+	if (!target) return;
+	// A newer or invalid document can't be turned into a link; the file is still offered.
+	const result = target.readOnly
+		? null
+		: await shareUrl(location.origin + import.meta.env.BASE_URL, target.doc, new Date());
 	openShare({
-		url: "url" in result ? result.url : null,
+		url: result && "url" in result ? result.url : null,
 		onDownload: () => downloadDocument(target)
 	});
 }
@@ -89,8 +91,12 @@ export async function importFromFile(app: AppContext): Promise<void> {
 		toast.error(m.import_file_invalid());
 		return;
 	}
-	const settled = await settleDocument(app, incoming);
-	if (!settled) return;
-	await navigate("/dashboards/:id", { params: { id: settled.id } });
-	if (settled.saved) toast(m.import_saved());
+	try {
+		const settled = await settleDocument(app, incoming);
+		if (!settled) return;
+		await navigate("/dashboards/:id", { params: { id: settled.id } });
+		if (settled.saved) toast(m.import_saved());
+	} catch {
+		toast.error(m.import_file_invalid());
+	}
 }

@@ -60,3 +60,22 @@ test("a dashboard too big for a link shows the message and only the download but
 	await dialog.getByRole("button", { name: "Download file instead" }).click();
 	expect(downloaded).toBe(1);
 });
+
+test("Share on a read-only dashboard opens the dialog with the download only", async () => {
+	const memory = createMemoryPlatform();
+	setPlatform(memory);
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const doc = { kind: "dashboard", schemaVersion: 99, id: "d1", name: "Newer", body: {}, extra: 1 };
+	const app = {
+		current: { isStarter: false, session: { readOnly: "newer", doc, flush: async () => {} } },
+		index: { names: new Map() }
+	} as unknown as Parameters<typeof shareDashboard>[0];
+	await render(ShareDialog);
+	await shareDashboard(app);
+	const dialog = page.getByRole("dialog");
+	await expect.element(dialog.getByRole("button", { name: "Download file instead" })).toBeVisible();
+	expect(dialog.getByRole("textbox").elements()).toHaveLength(0);
+	await dialog.getByRole("button", { name: "Download file instead" }).click();
+	expect(memory.files.saved).toHaveLength(1);
+	expect(JSON.parse(memory.files.saved[0].contents).documents[0].extra).toBe(1);
+});
