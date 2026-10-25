@@ -80,7 +80,7 @@ and the copyright holder (Central California Asthma Collaborative).
   module, `readableColor`, and a dev-only data page at `/workspace/dev/data`. Design and plan:
   `docs/superpowers/{specs,plans}/2026-10-22-foundations-2-data-layer*`. Its deferrals are in
   `DEFERRED.md`.
-- **PR #7 now uses @sjvair/sdk 4.8.0-beta.0 (2026-10-22)**: raw entries, the dataset catalog,
+- **PR #7 now uses @sjvair/sdk 4.8.0-beta.1 (2026-10-25)**: raw entries, the dataset catalog,
   and region codes go through the SDK's wrappers instead of workarounds (pinned exactly until
   4.8.0 is released; see `DEFERRED.md`).
 - **Next:** spec 3, safety and sharing.
@@ -843,6 +843,11 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 → "Legacy Monitors-tab follow-ups".
 
 ## Done
+
+- [x] **Short raw-entry windows sent exactly** (Foundations spec 2 follow-up, 2026-10-25):
+      "Padding short raw-entry windows until sdk-js has `exact: true`" is done with
+      @sjvair/sdk 4.8.0-beta.1: the air-quality adapter passes `exact: true` and the window's
+      end less 1 ms, and the `MIN_RAW_WINDOW_MS` padding is gone. Removed from `DEFERRED.md`.
 
 - [x] **Data layer on the sdk-js 4.8.0 wrappers** (Foundations spec 2 follow-up, 2026-10-22):
       "sdk-js: `getMonitorEntries` can't send `processor` or `stage`", "Wire the data layer to

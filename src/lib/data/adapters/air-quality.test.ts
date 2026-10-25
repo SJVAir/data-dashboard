@@ -156,7 +156,8 @@ describe("airQualityAdapter.fetch", () => {
 				entryType: "pm25",
 				processor: "PM25_EPA_Calibration",
 				timestampGte: new Date("2026-10-21T19:00:00.000Z"),
-				timestampLte: new Date("2026-10-22T18:59:59.999Z")
+				timestampLte: new Date("2026-10-22T18:59:59.999Z"),
+				exact: true
 			},
 			{ signal }
 		);
@@ -202,7 +203,8 @@ describe("airQualityAdapter.fetch", () => {
 			monitorId: "m-bam",
 			entryType: "pm25",
 			timestampGte: new Date("2026-10-21T19:00:00.000Z"),
-			timestampLte: new Date("2026-10-22T18:59:59.999Z")
+			timestampLte: new Date("2026-10-22T18:59:59.999Z"),
+			exact: true
 		});
 		expect("processor" in config).toBe(false);
 	});
@@ -349,7 +351,8 @@ describe("airQualityAdapter.fetch", () => {
 				monitorId: "m-bam",
 				entryType: "pm25",
 				timestampGte: new Date("2026-10-22T19:00:00.000Z"),
-				timestampLte: new Date("2026-10-22T19:29:59.999Z")
+				timestampLte: new Date("2026-10-22T19:29:59.999Z"),
+				exact: true
 			},
 			{ signal }
 		);
@@ -383,7 +386,8 @@ describe("airQualityAdapter.fetch", () => {
 		const [config] = vi.mocked(getMonitorEntries).mock.calls[0];
 		expect(config).toMatchObject({
 			timestampGte: new Date("2026-11-01T09:00:00.000Z"),
-			timestampLte: new Date("2026-11-01T09:29:59.999Z")
+			timestampLte: new Date("2026-11-01T09:29:59.999Z"),
+			exact: true
 		});
 		// Only the entry in the second 1 AM (PST) fills the open hour.
 		expect(data.series[0].points.at(-1)).toMatchObject({
@@ -583,7 +587,7 @@ describe("airQualityAdapter.fetch", () => {
 		expect(data.series[0].points[0]).toMatchObject({ mean: 4, min: 4, max: 4 });
 	});
 
-	it("pads a raw window of five minutes or less so the SDK doesn't widen it to whole days", async () => {
+	it("sends a short raw window exactly as given, with `exact: true`", async () => {
 		// Two minutes into the hour: the open hour's raw fill spans only 19:00 to 19:02.
 		const now = new Date("2026-10-22T19:02:00Z");
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
@@ -602,13 +606,18 @@ describe("airQualityAdapter.fetch", () => {
 			signal
 		);
 		const calls = vi.mocked(getMonitorEntries).mock.calls.map(([c]) => c);
+		expect(calls.every((c) => c.exact === true)).toBe(true);
 		const open = calls.find(
 			(c) => (c.timestampGte as Date).toISOString() === "2026-10-22T19:00:00.000Z"
 		);
-		const { gte, lte } = getValidDateRange(open!.timestampGte, open!.timestampLte);
+		expect((open!.timestampLte as Date).toISOString()).toBe("2026-10-22T19:01:59.999Z");
+		// The SDK's own range logic leaves an exact window alone (it widens it otherwise).
+		const { gte, lte } = getValidDateRange(open!.timestampGte, open!.timestampLte, {
+			exact: open!.exact
+		});
 		expect([gte.toISOString(), lte.toISOString()]).toEqual([
 			"2026-10-22T19:00:00.000Z",
-			"2026-10-22T19:05:00.001Z"
+			"2026-10-22T19:01:59.999Z"
 		]);
 		// Entries past the window's end are still dropped.
 		expect(data.series[0].points.at(-1)).toMatchObject({ mean: 4, count: 1, partial: true });

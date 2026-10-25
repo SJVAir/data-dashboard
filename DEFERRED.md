@@ -144,22 +144,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
-- **`@sjvair/sdk` is pinned to the 4.8.0-beta.0 pre-release.** _Deferred 2026-10-22
+- **`@sjvair/sdk` is pinned to the 4.8.0-beta.1 pre-release.** _Deferred 2026-10-22
   (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
-  `getRegionsByCode`, and `getMonitorEntries` with `processor` and `Date` bounds, which are
-  only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
+  `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
+  are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
   **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
   the user approves the release): switch to `^4.8.0`.
-- **Padding short raw-entry windows until sdk-js has `exact: true`.** _Deferred 2026-10-22
-  (Foundations spec 2, PR #7 follow-up)._ `getMonitorEntries` widens two bounds within five
-  minutes of each other to whole Pacific days. The air-quality adapter's raw windows can be
-  that short (the open hour a few minutes in, or a chunk's tail), so it pads such a window's
-  upper bound to five minutes and a millisecond (later than now is allowed) and filters
-  entries to the real window, rather than fetching a whole day. The user approved an opt-in
-  `exact: true` option on `getMonitorEntries` (and `getMonitorEntriesCSVUrl`) that sends
-  bounds as given; it was published in 4.8.0-beta.1 (2026-10-22). **Revisit when** the
-  dashboard moves to 4.8.0-beta.1 (next step on PR #7): pass `exact: true` and remove
-  `MIN_RAW_WINDOW_MS` and the padding.
 - **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
   (decided by the user)._ The user wants the next major sdk-js version to send entry bounds
   unchanged by default, with an opt-in flag for rounding to whole Pacific days; it's recorded
