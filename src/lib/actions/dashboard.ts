@@ -183,7 +183,12 @@ function softDelete(
  */
 export async function restoreDeleted(app: AppContext, id: string): Promise<void> {
 	const session = await app.sessions.get(id, { remember: false });
-	if (!session || session.readOnly || session.doc.deletedAt === undefined) return;
+	if (!session) return;
+	if (session.readOnly) {
+		toast.error(m.deleted_restore_read_only());
+		return;
+	}
+	if (session.doc.deletedAt === undefined) return;
 	session.apply({
 		op: "setField",
 		target: { path: "deletedAt" },

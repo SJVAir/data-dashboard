@@ -116,6 +116,13 @@ export class DashboardIndex {
 	/** "Delete now": removes the dashboard for good, with its journal records and fingerprints. */
 	async remove(id: string): Promise<void> {
 		const { documents, journal } = this.#platform;
+		// Restored (here or in another tab) while the person was confirming: leave it.
+		const stored = await documents.get(this.#space, id);
+		const deletedAt = (stored as { deletedAt?: unknown } | null | undefined)?.deletedAt;
+		if (typeof deletedAt !== "string") {
+			await this.refresh();
+			return;
+		}
 		await documents.remove(this.#space, id);
 		for (const { docId, tabId } of journal.list(this.#space)) {
 			if (docId === id) journal.clear(this.#space, docId, tabId);

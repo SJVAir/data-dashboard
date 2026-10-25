@@ -50,11 +50,13 @@ test("Delete now removes it for good", async ({ page }) => {
 	await deleteCurrent(page, "My dashboard");
 
 	await page.goto("./dashboards#recently-deleted");
-	await page.getByRole("button", { name: "Delete My dashboard now" }).click();
+	await page.getByRole("button", { name: "Delete now: My dashboard" }).click();
 	const dialog = page.getByRole("dialog", { name: "Delete this dashboard now?" });
 	await expect(dialog).toBeVisible();
 	await dialog.getByRole("button", { name: "Delete now" }).click();
 	await expect(dialog).toBeHidden();
+	// The section is gone; focus moves to the page heading, not the body.
+	await expect(page.getByRole("heading", { level: 1, name: "Your dashboards" })).toBeFocused();
 	await expect(page.getByRole("heading", { level: 2, name: "Recently deleted" })).toHaveCount(0);
 
 	await page.reload();

@@ -594,7 +594,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   _Deferred 2026-10-25 (Foundations spec 3, Task 11 review)._ Restoring a backup undeletes
   a stored dashboard that is in Recently deleted through an ordinary edit, and read-only
   sessions (newer or unreadable documents) refuse edits, so such a dashboard is counted as
-  kept and stays deleted. **Revisit if** read-only dashboards become restorable or
+  kept and stays deleted. The Recently deleted list's **Restore** has the same limit: for a
+  read-only dashboard it only shows a toast saying it can't be restored here. **Revisit if** read-only dashboards become restorable or
   undeletable.
 - **Names of copies.** _Deferred 2026-10-20 (Foundations spec 1 review)._ "Save mine as a
   copy" keeps the same name with no rename prompt, and duplicating an unnamed "My dashboard"

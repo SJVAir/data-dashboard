@@ -183,4 +183,13 @@ describe("DashboardIndex", () => {
 		await index.refresh();
 		expect(index.names.get("d")).toBe("New name");
 	});
+
+	it("remove leaves a dashboard that is no longer deleted", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, { ...blankDashboard(clock()()), id: "live" }, "live");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.remove("live");
+		expect(await platform.documents.get(SPACE, "live")).toBeDefined();
+		expect(index.items.map((d) => d.id)).toEqual(["live"]);
+	});
 });

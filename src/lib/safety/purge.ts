@@ -15,6 +15,17 @@ function expired(iso: unknown, now: Date): boolean {
 	return !Number.isNaN(at) && now.getTime() - at > RETENTION_MS;
 }
 
+/** Re-reads the document, which another tab may have restored since it was listed. */
+async function stillDeleted(
+	platform: Platform,
+	space: SpaceId,
+	id: string,
+	now: Date
+): Promise<boolean> {
+	const current = await platform.documents.get(space, id);
+	return isRecord(current) && expired(current.deletedAt, now);
+}
+
 /**
  * Removes what has outlived its retention, when the app opens: dashboards deleted more than 30
  * days ago (with their log, original, journal records, and fingerprints), originals kept that
@@ -25,7 +36,7 @@ export async function purgeExpired(platform: Platform, space: SpaceId, now: Date
 	const stored = new Set<string>();
 	for (const raw of await platform.documents.list(space)) {
 		if (!isRecord(raw) || typeof raw.id !== "string") continue;
-		if (expired(raw.deletedAt, now)) {
+		if (expired(raw.deletedAt, now) && (await stillDeleted(platform, space, raw.id, now))) {
 			await platform.documents.remove(space, raw.id);
 			await forgetDocument(platform, space, raw.id);
 			// Their journal records are cleared below, as the dashboard is no longer stored.

@@ -103,4 +103,19 @@ describe("purgeExpired", () => {
 		expect(await platform.documents.get(SPACE, "old")).toBeUndefined();
 		expect(app.index.deleted).toEqual([]);
 	});
+
+	it("leaves a dashboard another tab restored since it was listed", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, "back", { deletedAt: ago(31) });
+		const get = platform.documents.get.bind(platform.documents);
+		platform.documents.get = async (space, id) => {
+			const found = (await get(space, id)) as Record<string, unknown> | undefined;
+			if (!found) return found;
+			const { deletedAt: _, ...live } = found;
+			void _;
+			return live;
+		};
+		await purgeExpired(platform, SPACE, NOW);
+		expect(await get(SPACE, "back")).toBeDefined();
+	});
 });

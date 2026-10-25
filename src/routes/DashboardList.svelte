@@ -73,7 +73,9 @@
 
 <ContextMenuHost>
 	<div class="mx-auto flex max-w-3xl flex-col gap-4 p-4">
-		<h1 class="text-xl font-medium">{m.dashboards_heading()}</h1>
+		<h1 id="dashboards-heading" tabindex="-1" class="text-xl font-medium outline-none">
+			{m.dashboards_heading()}
+		</h1>
 		{#if app.index.items.length === 0}
 			<p class="text-muted-foreground">{m.no_dashboards()}</p>
 			{@render createButtons()}

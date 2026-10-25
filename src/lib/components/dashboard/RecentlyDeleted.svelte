@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tick } from "svelte";
+	import { toast } from "svelte-sonner";
 	import { restoreDeleted } from "$lib/actions/dashboard";
 	import { confirmAction } from "$lib/components/dialogs/ConfirmDialog.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -24,7 +26,24 @@
 			confirm: m.deleted_delete_now(),
 			destructive: true
 		});
-		if (confirmed) await app.index.remove(id);
+		if (!confirmed) return;
+		const position = app.index.deleted.findIndex((d) => d.id === id);
+		await app.index.remove(id);
+		// The row is gone: focus the next row's Restore, else the heading, else the page's.
+		await tick();
+		// After the dialog has closed and handed focus back (to the button that's now gone).
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		const next = app.index.deleted[position];
+		const target = next
+			? document.querySelector<HTMLElement>(`[data-restore="${CSS.escape(next.id)}"]`)
+			: app.index.deleted.length > 0
+				? heading
+				: document.getElementById("dashboards-heading");
+		target?.focus();
+	}
+
+	function restore(id: string) {
+		restoreDeleted(app, id).catch(() => toast.error(m.deleted_restore_failed()));
 	}
 </script>
 
@@ -49,7 +68,8 @@
 					variant="outline"
 					size="sm"
 					aria-label={m.deleted_restore_named({ name })}
-					onclick={() => void restoreDeleted(app, item.id)}
+					data-restore={item.id}
+					onclick={() => restore(item.id)}
 				>
 					{m.deleted_restore()}
 				</Button>
