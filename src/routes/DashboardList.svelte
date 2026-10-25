@@ -1,10 +1,15 @@
 <script lang="ts">
+	import Download from "@lucide/svelte/icons/download";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FilePlus from "@lucide/svelte/icons/file-plus";
 	import Upload from "@lucide/svelte/icons/upload";
 	import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 	import { onMount } from "svelte";
-	import { dashboardActions, importDashboardFile } from "$lib/actions/dashboard";
+	import {
+		dashboardActions,
+		downloadBackupFile,
+		importDashboardFile
+	} from "$lib/actions/dashboard";
 	import type { MenuProvider } from "$lib/actions/types";
 	import { menuScope } from "$lib/actions/scope";
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
@@ -56,6 +61,12 @@
 			<Upload aria-hidden="true" />
 			{m.import_action()}
 		</Button>
+		{#if app.index.items.length > 0}
+			<Button variant="outline" onclick={() => downloadBackupFile(app)}>
+				<Download aria-hidden="true" />
+				{m.backup_download()}
+			</Button>
+		{/if}
 	</div>
 {/snippet}
 

@@ -8,9 +8,10 @@ import { starterDashboard } from "$lib/starter/starter";
 import { currentDashboardName, type AppContext } from "$lib/store/app.svelte";
 import { navigate } from "../../router";
 import { MAX_BACKUP_BYTES } from "./envelope";
-import { documentFileJson, rawDocumentFileJson, shareUrl } from "./export";
-import { dashboardFileName } from "./file-names";
+import { backupJson, documentFileJson, rawDocumentFileJson, shareUrl } from "./export";
+import { backupFileName, dashboardFileName } from "./file-names";
 import { parseIncoming } from "./incoming";
+import { restoreFromEnvelope, type RestoreSummary } from "./restore";
 import { settleDocument } from "./settle";
 
 type Target = { doc: Dashboard; name: string; readOnly: boolean };
@@ -66,7 +67,23 @@ export async function shareDashboard(app: AppContext, id?: string): Promise<void
 	});
 }
 
-/** Picks a file and imports it: a dashboard becomes a copy (asking about an existing one). */
+/** One toast whose description lists the non-zero outcomes, a whole sentence on each line. */
+function toastRestoreSummary({ restored, kept, readOnly, skipped }: RestoreSummary): void {
+	const lines: string[] = [];
+	if (restored > 0) lines.push(m.restore_restored({ count: restored }));
+	if (kept > 0) lines.push(m.restore_kept({ count: kept }));
+	if (readOnly > 0) lines.push(m.restore_read_only({ count: readOnly }));
+	if (skipped > 0) lines.push(m.restore_skipped({ count: skipped }));
+	toast(m.restore_title(), {
+		description: (lines.length > 0 ? lines : [m.restore_restored({ count: 0 })]).join("\n"),
+		classes: { description: "whitespace-pre-line" }
+	});
+}
+
+/**
+ * Picks a file and imports it: a dashboard becomes a copy (asking about an existing one); a
+ * backup is restored without overwriting anything.
+ */
 export async function importFromFile(app: AppContext): Promise<void> {
 	const file = await platform().files.open(".json,application/json");
 	if (!file) return;
@@ -86,12 +103,12 @@ export async function importFromFile(app: AppContext): Promise<void> {
 		toast.error(incoming.reason === "newer" ? m.import_newer() : m.import_file_invalid());
 		return;
 	}
-	// Restoring a backup arrives with the backup task.
-	if (incoming.kind !== "document") {
-		toast.error(m.import_file_invalid());
-		return;
-	}
 	try {
+		if (incoming.kind === "backup") {
+			toastRestoreSummary(await restoreFromEnvelope(app, incoming.envelope));
+			await navigate("/dashboards");
+			return;
+		}
 		const settled = await settleDocument(app, incoming);
 		if (!settled) return;
 		await navigate("/dashboards/:id", { params: { id: settled.id } });
@@ -99,4 +116,21 @@ export async function importFromFile(app: AppContext): Promise<void> {
 	} catch {
 		toast.error(m.import_file_invalid());
 	}
+}
+
+/** Preference key for the backup reminder (Task 13 defines the rest of its value). */
+const REMINDER_KEY = "backupReminder";
+
+/** Saves a backup file of every dashboard and notes when, for the backup reminder. */
+export async function downloadBackup(app: AppContext): Promise<void> {
+	const now = new Date();
+	const { platform: storage, space } = app;
+	storage.files.save(
+		backupFileName(todayPacific(now)),
+		await backupJson(storage, space, now),
+		"application/json"
+	);
+	const existing = await storage.preferences.get<Record<string, unknown>>(space, REMINDER_KEY);
+	const base = typeof existing === "object" && existing !== null ? existing : {};
+	await storage.preferences.set(space, REMINDER_KEY, { ...base, lastBackupAt: now.toISOString() });
 }

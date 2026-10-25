@@ -92,5 +92,48 @@
 	"data_unavailable_region_unresolved": "This region can't be looked up yet.",
 	"data_unavailable_whole_layer_raw": "Choose a longer date range to show every monitor.",
 	"update_available": "A new version is available.",
-	"update_reload": "Reload"
+	"update_reload": "Reload",
+	"backup_download": "Download a backup",
+	"backup_failed": "Couldn't create the backup. Please try again.",
+	"restore_title": "Backup restored",
+	"restore_restored": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Restored {count} dashboard.",
+				"countPlural=other": "Restored {count} dashboards."
+			}
+		}
+	],
+	"restore_kept": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} was already here and kept as it is.",
+				"countPlural=other": "{count} were already here and kept as they are."
+			}
+		}
+	],
+	"restore_read_only": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} restored read-only.",
+				"countPlural=other": "{count} restored read-only."
+			}
+		}
+	],
+	"restore_skipped": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} couldn't be read.",
+				"countPlural=other": "{count} couldn't be read."
+			}
+		}
+	]
 }

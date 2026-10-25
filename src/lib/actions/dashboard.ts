@@ -45,6 +45,11 @@ export function importDashboardFile(app: AppContext): void {
 	void runSharing((s) => s.importFromFile(app), m.import_file_invalid());
 }
 
+/** Saves a backup of every dashboard (the list's button). */
+export function downloadBackupFile(app: AppContext): void {
+	void runSharing((s) => s.downloadBackup(app), m.backup_failed());
+}
+
 /** The current dashboard's session when it can be edited. */
 function editable(app: AppContext): DocumentSession | null {
 	const session = app.current.session;

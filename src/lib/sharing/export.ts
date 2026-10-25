@@ -1,4 +1,5 @@
 import type { Dashboard } from "$lib/documents/schema";
+import type { Platform, SpaceId } from "$lib/platform/types";
 import { encodePayload } from "./codec";
 import {
 	FORMAT,
@@ -7,6 +8,7 @@ import {
 	type Envelope,
 	type SharedDocument
 } from "./envelope";
+import { fingerprintOf } from "./fingerprints";
 
 /** The shareable fields of a document; local-only fields are left out. */
 export function sharedDocumentOf(doc: Dashboard): SharedDocument {
@@ -62,4 +64,31 @@ export function rawDocumentFileJson(raw: unknown, now: Date): string {
 		exportedAt: now.toISOString(),
 		documents: [stored]
 	});
+}
+
+/**
+ * A backup file's text: every stored dashboard that isn't deleted, exactly as stored (read-only
+ * ones too), plus the local fingerprint of each that has one so "You already have a copy" keeps
+ * working after a restore.
+ */
+export async function backupJson(platform: Platform, space: SpaceId, now: Date): Promise<string> {
+	const documents: unknown[] = [];
+	const fingerprints: Record<string, string> = {};
+	for (const raw of await platform.documents.list(space)) {
+		const stored = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+		if (typeof stored.deletedAt === "string") continue;
+		documents.push(raw);
+		if (typeof stored.id !== "string") continue;
+		const fingerprint = await fingerprintOf(platform, space, stored.id);
+		if (fingerprint !== undefined) fingerprints[stored.id] = fingerprint;
+	}
+	const envelope: Envelope = {
+		format: FORMAT,
+		type: "backup",
+		formatVersion: FORMAT_VERSION,
+		exportedAt: now.toISOString(),
+		documents,
+		...(Object.keys(fingerprints).length > 0 ? { fingerprints } : {})
+	};
+	return JSON.stringify(envelope);
 }
