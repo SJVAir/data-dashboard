@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { StorageProtection } from "$lib/safety/protection.svelte";
 import { purgeExpired } from "$lib/safety/purge";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
@@ -21,6 +22,7 @@ export type AppContext = {
 	tabId: string;
 	channel: TabChannel;
 	index: DashboardIndex;
+	protection: StorageProtection;
 	/** Open sessions by id (one per dashboard in this tab); `STARTER_ID` gives the starter. Opening records the last-opened dashboard unless `remember` is false. */
 	sessions: {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
@@ -73,6 +75,7 @@ class App implements AppContext {
 	current = $state<CurrentDashboard>({ session: null, isStarter: false });
 	resetCount = $state(0);
 	readonly index: DashboardIndex;
+	readonly protection: StorageProtection;
 	readonly sessions: AppContext["sessions"];
 
 	readonly #open = new Map<string, Promise<DocumentSession | null>>();
@@ -87,6 +90,7 @@ class App implements AppContext {
 		readonly options: AppOptions
 	) {
 		this.index = new DashboardIndex({ platform, space, channel, tabId, now: options.now });
+		this.protection = new StorageProtection(platform, space);
 		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
 	}
 
@@ -190,6 +194,13 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 		// Housekeeping: a storage error mustn't keep the app from opening.
 	}
 	await app.index.refresh();
+	await app.protection.refresh();
+	// The first create or edit in this tab (its own message comes back through the echo).
+	const stop = channel.subscribe((msg) => {
+		if (msg.type !== "committed" || msg.tabId !== tabId) return;
+		stop();
+		void app.protection.requestAuto();
+	});
 	return app;
 }
 

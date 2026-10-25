@@ -147,5 +147,15 @@
 				"countPlural=other": "{count} couldn't be read."
 			}
 		}
-	]
+	],
+	"storage_status_label": "Storage status",
+	"storage_note": "Dashboards are stored in this browser.",
+	"storage_note_unprotected": "Your browser may clear them to free up space (Safari does after 7 days without a visit).",
+	"protect_button": "Protect my dashboards",
+	"reminder_text": "Your dashboards are only stored in this browser. Download a backup so you don't lose them.",
+	"reminder_not_now": "Not now",
+	"reminder_off": "Don't remind me again",
+	"save_failed_quota": "This browser is out of storage space, so your latest changes aren't saved yet. Download a backup to keep them.",
+	"save_failed_unavailable": "This browser isn't letting the workspace save right now. Your changes are kept while this page stays open.",
+	"clear_data_button": "Clear my data…"
 }
