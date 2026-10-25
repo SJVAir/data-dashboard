@@ -130,4 +130,20 @@ describe("UndoStack", () => {
 		expect(stack.canUndo).toBe(false);
 		expect(stack.canRedo).toBe(false);
 	});
+
+	it("undo of a replaceDocument restores the earlier content", () => {
+		const stack = new UndoStack();
+		const start = makeDoc();
+		const to = { name: "Restored", body: { widgets: [widget("z")] } };
+		const edited = edit(stack, start, {
+			op: "replaceDocument",
+			target: {},
+			from: { name: start.name, body: start.body },
+			to
+		});
+		expect(edited.body).toEqual(to.body);
+		const undone = stack.takeUndo(edited);
+		expect(undone?.doc).toEqual(start);
+		expect(stack.takeRedo(undone!.doc)?.doc).toEqual(edited);
+	});
 });

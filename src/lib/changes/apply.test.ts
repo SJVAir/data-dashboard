@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { ChangeSchema, type Change } from "./types";
-import { applyChange, ChangeTargetMissing } from "./apply";
+import { appliedChange, applyChange, ChangeTargetMissing } from "./apply";
 
 function widget(id: string, title: string | null = null): WidgetInstance {
 	return { id, type: "placeholder", title, rect: { x: 0, y: 0, w: 6, h: 4 }, data: { layers: [] } };
@@ -219,5 +219,38 @@ describe("ChangeSchema", () => {
 	it("accepts a valid change", () => {
 		const ok = { op: "addWidget", target: { widgetId: "c" }, widget: widget("c"), index: 0 };
 		expect(ChangeSchema.safeParse(ok).success).toBe(true);
+	});
+
+	it("replaceDocument sets name and body, keeps the rest, and inverts to the actual prior content", () => {
+		const doc = makeDoc({ deletedAt: "2026-10-21T00:00:00.000Z" });
+		const to = { name: "Older", body: { widgets: [widget("z", "Zed")] } };
+		const change: Change = {
+			op: "replaceDocument",
+			target: {},
+			from: { name: "stale", body: { widgets: [] } },
+			to
+		};
+		expect(ChangeSchema.safeParse(change).success).toBe(true);
+		const { doc: next, inverse } = applyChange(deepFreeze(doc), change);
+		expect(next).toEqual({ ...doc, name: "Older", body: to.body });
+		expect(inverse).toEqual({
+			op: "replaceDocument",
+			target: {},
+			from: to,
+			to: { name: "Mine", body: doc.body }
+		});
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+		expect(appliedChange(inverse)).toEqual({
+			op: "replaceDocument",
+			target: {},
+			from: { name: "Mine", body: doc.body },
+			to
+		});
+	});
+
+	it("rejects a replaceDocument with an over-long name", () => {
+		const content = { name: "x".repeat(101), body: { widgets: [] } };
+		const change = { op: "replaceDocument", target: {}, from: content, to: content };
+		expect(ChangeSchema.safeParse(change).success).toBe(false);
 	});
 });

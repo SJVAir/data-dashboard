@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NAME_MAX, WidgetInstanceSchema } from "$lib/documents/schema";
+import { DashboardBodySchema, NAME_MAX, WidgetInstanceSchema } from "$lib/documents/schema";
 
 function sameWidgetId(change: { target: { widgetId: string }; widget: { id: string } }) {
 	return change.target.widgetId === change.widget.id;
@@ -57,9 +57,23 @@ const SetFieldSchema = z
 		}
 	});
 
+const DocContentSchema = z.object({
+	name: z.string().max(NAME_MAX).nullable(),
+	body: DashboardBodySchema
+});
+export type DocContent = z.infer<typeof DocContentSchema>;
+
+const ReplaceDocumentSchema = z.object({
+	op: z.literal("replaceDocument"),
+	target: z.object({}),
+	from: DocContentSchema,
+	to: DocContentSchema
+});
+
 export const ChangeSchema = z.discriminatedUnion("op", [
 	AddWidgetSchema,
 	RemoveWidgetSchema,
-	SetFieldSchema
+	SetFieldSchema,
+	ReplaceDocumentSchema
 ]);
 export type Change = z.infer<typeof ChangeSchema>;
