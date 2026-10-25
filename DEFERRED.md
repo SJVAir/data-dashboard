@@ -157,9 +157,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   upper bound to five minutes and a millisecond (later than now is allowed) and filters
   entries to the real window, rather than fetching a whole day. The user approved an opt-in
   `exact: true` option on `getMonitorEntries` (and `getMonitorEntriesCSVUrl`) that sends
-  bounds as given; it is being built on sdk-js PR #32 for 4.8.0-beta.1. **Revisit when**
-  sdk-js 4.8.0-beta.1 (with `exact: true`) is published: pass `exact: true` and remove
+  bounds as given; it was published in 4.8.0-beta.1 (2026-10-22). **Revisit when** the
+  dashboard moves to 4.8.0-beta.1 (next step on PR #7): pass `exact: true` and remove
   `MIN_RAW_WINDOW_MS` and the padding.
+- **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
+  (decided by the user)._ The user wants the next major sdk-js version to send entry bounds
+  unchanged by default, with an opt-in flag for rounding to whole Pacific days; it's recorded
+  in sdk-js's `DEFERRED.md`. **Revisit when** the dashboard upgrades to that major version:
+  remove `exact: true` from the air-quality adapter's `getMonitorEntries` calls.
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
