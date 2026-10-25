@@ -1,10 +1,10 @@
 # TODO / Current Status
 
-Last updated: 2026-10-22
+Last updated: 2026-10-25
 
 ## Start here
 
-**Status (2026-10-21): Foundations spec 1 is merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
+**Status (2026-10-25): Foundations specs 1 and 2 are merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
 with the user's approval). A final consistency and build-readiness sweep (2026-10-14) fixed
 the remaining leftovers and settled five build details (relative file references, one
 `place` field per layer, `default-place` kept inside the starter, a CSP scoped to the
@@ -75,7 +75,7 @@ and the copyright holder (Central California Asthma Collaborative).
     developer reviews and merges #25; **the user tells them when**. Before that, monitor-map 4.3.0
     and #292 must be live in production (merge order in `ARCHITECTURE.md` →
     "CSRF protection").
-- **Spec 2 (the data layer) is built on `foundations-2-data` (2026-10-22); PR [#7](https://github.com/SJVAir/data-dashboard/pull/7) into `foundations`.** Dataset
+- **Spec 2 (the data layer) is done: merged into `foundations` as PR [#7](https://github.com/SJVAir/data-dashboard/pull/7) (2026-10-25).** Dataset
   adapters, the query client with live polling, resolution and period stitching, the `format`
   module, `readableColor`, and a dev-only data page at `/workspace/dev/data`. Design and plan:
   `docs/superpowers/{specs,plans}/2026-10-22-foundations-2-data-layer*`. Its deferrals are in
@@ -83,7 +83,8 @@ and the copyright holder (Central California Asthma Collaborative).
 - **PR #7 now uses @sjvair/sdk 4.8.0-beta.1 (2026-10-25)**: raw entries, the dataset catalog,
   and region codes go through the SDK's wrappers instead of workarounds (pinned exactly until
   4.8.0 is released; see `DEFERRED.md`).
-- **Next:** spec 3, safety and sharing.
+- **Now (2026-10-25): spec 3, safety and sharing, is being designed** (branch
+  `foundations-3-safety` off `foundations`, stacked PR).
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
