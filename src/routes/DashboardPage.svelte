@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from "svelte";
+	import { toast } from "svelte-sonner";
 	import { leaveDeletedDashboard } from "$lib/actions/dashboard";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { m } from "$lib/paraglide/messages.js";
@@ -44,6 +45,14 @@
 		if (!session || typeof session.doc.deletedAt !== "string") return;
 		if (session.doc.id !== untrack(() => route.params.id)) return;
 		void leaveDeletedDashboard(app, session);
+	});
+
+	// Unsaved edits from before an update that couldn't be carried over: say so once.
+	$effect(() => {
+		const session = app.current.session;
+		if (!session || session.droppedEdits === 0) return;
+		toast(m.edits_dropped());
+		session.droppedEdits = 0;
 	});
 
 	$effect(() => {

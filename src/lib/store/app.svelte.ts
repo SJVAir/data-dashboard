@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { placeholderType } from "$lib/widgets/placeholder";
@@ -88,6 +89,15 @@ class App implements AppContext {
 		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
 	}
 
+	/** Given to every session: storage moved to a newer format, or was cleared, elsewhere. */
+	readonly #guards = {
+		onNeedsReload: () => {
+			updateNotice.show("newer-data");
+			this.suspendAll();
+		},
+		onCleared: () => void this.resetAfterClear()
+	};
+
 	async #get(id: string, remember: boolean): Promise<DocumentSession | null> {
 		if (id === STARTER_ID) {
 			if (!this.#open.has(id)) this.#open.set(id, Promise.resolve(this.#starter()));
@@ -99,7 +109,8 @@ class App implements AppContext {
 			opening = DocumentSession.open(this.platform, this.space, id, this.tabId, {
 				channel,
 				debounceMs,
-				now
+				now,
+				...this.#guards
 			});
 			const own = opening;
 			void own.then((session) => {
@@ -143,6 +154,7 @@ class App implements AppContext {
 			channel: this.channel,
 			debounceMs,
 			now,
+			...this.#guards,
 			onCopied: (copy) => {
 				// A hand-off that finished after the data was cleared mustn't come back.
 				if (this.resetCount !== resets) return copy.discard();

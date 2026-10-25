@@ -1,7 +1,7 @@
 import type { DashboardSummary } from "$lib/documents/names";
 import { CURRENT_SCHEMA_VERSION, type Dashboard, type Rect } from "$lib/documents/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
-import { DocumentSession } from "$lib/store/document-session.svelte";
+import { DocumentSession, type DocumentSessionOptions } from "$lib/store/document-session.svelte";
 import type { TabChannel } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
 
@@ -91,7 +91,7 @@ export type StarterSessionOptions = {
 	now?: () => Date;
 	/** Called once the copy is stored, holding the first edit. */
 	onCopied?: (copy: DocumentSession) => void;
-};
+} & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared">;
 
 /**
  * A session showing the starter. Its first edit stores `copyOfStarter`, applies the edit to
@@ -100,12 +100,15 @@ export type StarterSessionOptions = {
  */
 export function starterSession(opts: StarterSessionOptions): DocumentSession {
 	const { platform, space, tabId, channel, debounceMs, now = () => new Date() } = opts;
+	const { onNeedsReload, onCleared } = opts;
 	return new DocumentSession({
 		platform,
 		space,
 		tabId,
 		debounceMs,
 		now,
+		onNeedsReload,
+		onCleared,
 		doc: starterDashboard(),
 		onBeforeFirstEdit: async (change) => {
 			const doc = copyOfStarter(now());
@@ -117,7 +120,17 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 			});
 			if (!created.ok) return null;
 			channel?.post({ type: "committed", space, docId: doc.id, version: 0, tabId });
-			const copy = new DocumentSession({ platform, space, tabId, channel, debounceMs, now, doc });
+			const copy = new DocumentSession({
+				platform,
+				space,
+				tabId,
+				channel,
+				debounceMs,
+				now,
+				doc,
+				onNeedsReload,
+				onCleared
+			});
 			copy.apply(change);
 			opts.onCopied?.(copy);
 			// Not awaited: edits queued on the starter during the hand-off must reach the copy

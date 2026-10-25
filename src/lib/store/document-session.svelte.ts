@@ -3,10 +3,12 @@ import { changesOverlap } from "$lib/changes/overlap";
 import { applyForced, rebase } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
 import { UndoStack } from "$lib/changes/undo";
-import { loadDashboard } from "$lib/documents/load";
+import { loadDashboard, migrations, type Migration } from "$lib/documents/load";
+import { upgradeChanges } from "$lib/documents/migrate-changes";
 import { CURRENT_SCHEMA_VERSION, type Dashboard } from "$lib/documents/schema";
 import type { CommitResult, LogEntry, Platform, SpaceId } from "$lib/platform/types";
-import { JournalRecordSchema, type JournalRecord } from "./journal";
+import { report } from "$lib/safety/report";
+import { JournalRecordSchema, LooseJournalRecordSchema, type JournalRecord } from "./journal";
 import type { TabChannel, TabMessage } from "./tab-channel";
 
 export type SaveStatus = "saved" | "saving" | "error";
@@ -35,6 +37,15 @@ export type DocumentSessionOptions = {
 	 * never stored). It returns the session that took the edit; later edits go there too.
 	 */
 	onBeforeFirstEdit?: (change: Change) => Promise<DocumentSession | null>;
+	/**
+	 * Storage holds a document or log entry from a newer format than this app knows (another
+	 * tab runs a newer version). The session suspends itself right after.
+	 */
+	onNeedsReload?: () => void;
+	/** This browser's data was cleared (by another tab) since the session started. */
+	onCleared?: () => void;
+	/** The migration chain for older stored documents and changes (tests inject one). */
+	chain?: Migration[];
 };
 
 type Listener = { target: EventTarget; type: string; fn: (event: Event) => void };
@@ -44,6 +55,15 @@ type Listener = { target: EventTarget; type: string; fn: (event: Event) => void 
  * when the log no longer reaches back that far.
  */
 type StoredState = { stored: Dashboard; entries: LogEntry[] | null; theirs: Change[] | null };
+
+/** A journal record whose changes may be in an older format (`changes` not yet validated). */
+type ReadRecord = { baseVersion: number; changes: unknown[]; schemaVersion: number };
+
+/**
+ * Where an open conflict's "their" changes start: the version this tab's pending changes were
+ * based on, and (for a replayed journal record) the tab whose own saves aren't "theirs".
+ */
+type ConflictBase = { version: number; ownTab: string | null };
 
 /**
  * One open dashboard. Every edit goes through `apply`/`undo`/`redo`: the document updates at
@@ -66,6 +86,11 @@ type StoredState = { stored: Dashboard; entries: LogEntry[] | null; theirs: Chan
  *
  * `suspend` (storage is about to go away) journals and stops saving; `discard` (storage was
  * cleared) drops everything without saving or journaling.
+ *
+ * Format changes: `open` keeps the stored original before a document is upgraded, and
+ * upgrades older journal records and log entries before replaying them. Data from a newer
+ * format suspends the session (`onNeedsReload`); a changed `platform.reset.generation()` (the
+ * data was cleared) stops it (`onCleared`).
  */
 export class DocumentSession {
 	// Raw: the document is replaced, never mutated, and must stay structured-cloneable.
@@ -75,6 +100,13 @@ export class DocumentSession {
 	conflict = $state.raw<Conflict | null>(null);
 	/** Why the last save failed, until a save succeeds. */
 	errorKind = $state<SaveErrorKind | null>(null);
+	/** A kept original of this dashboard exists (from before a format upgrade). */
+	hasOriginal = $state(false);
+	/**
+	 * Unsaved edits from before a format upgrade that couldn't be carried over at open. The page
+	 * resets it to 0 once it has told the person.
+	 */
+	droppedEdits = $state(0);
 
 	#canUndo = $state(false);
 	#canRedo = $state(false);
@@ -85,6 +117,12 @@ export class DocumentSession {
 	readonly #debounceMs: number;
 	readonly #now: () => Date;
 	readonly #channel: TabChannel | null;
+	readonly #chain: Migration[];
+	/** `platform.reset.generation()` when the session started. */
+	readonly #generation: string;
+	readonly #onNeedsReload: (() => void) | undefined;
+	readonly #onCleared: (() => void) | undefined;
+	#conflictBase: ConflictBase | null = null;
 	#unsubscribe: () => void = () => {};
 	#stopActivity: () => void = () => {};
 	#onBeforeFirstEdit: DocumentSessionOptions["onBeforeFirstEdit"];
@@ -125,6 +163,10 @@ export class DocumentSession {
 		this.#now = opts.now ?? (() => new Date());
 		this.#onBeforeFirstEdit = opts.onBeforeFirstEdit;
 		this.#channel = opts.channel ?? null;
+		this.#chain = opts.chain ?? migrations;
+		this.#generation = opts.platform.reset.generation();
+		this.#onNeedsReload = opts.onNeedsReload;
+		this.#onCleared = opts.onCleared;
 		if (this.#channel) this.#unsubscribe = this.#channel.subscribe((msg) => this.#onMessage(msg));
 
 		if (typeof window !== "undefined") {
@@ -148,25 +190,50 @@ export class DocumentSession {
 		});
 	}
 
-	/** Open a stored dashboard; `null` when `id` isn't stored. */
+	/**
+	 * Open a stored dashboard; `null` when `id` isn't stored. A document stored in an older
+	 * format is upgraded, after keeping the stored original (once per format it came from).
+	 */
 	static async open(
 		platform: Platform,
 		space: SpaceId,
 		id: string,
 		tabId: string,
-		options: Pick<DocumentSessionOptions, "channel" | "debounceMs" | "now"> = {}
+		options: Pick<
+			DocumentSessionOptions,
+			"channel" | "debounceMs" | "now" | "onNeedsReload" | "onCleared" | "chain"
+		> = {}
 	): Promise<DocumentSession | null> {
 		const raw = await platform.documents.get(space, id);
 		if (raw === undefined) return null;
-		const loaded = loadDashboard(raw);
+		const loaded = loadDashboard(raw, options.chain);
 		const common = { ...options, platform, space, tabId };
+		const fromVersion = schemaVersionOf(raw);
+		let session: DocumentSession;
 		if (loaded.status === "ok") {
-			const session = new DocumentSession({ ...common, doc: loaded.doc });
+			if (loaded.upgraded) {
+				const kept = await platform.originals.get(space, id);
+				if (fromVersion !== null && kept?.fromSchemaVersion !== fromVersion) {
+					// A timestamp, not reactive state.
+					// eslint-disable-next-line svelte/prefer-svelte-reactivity
+					const keptAt = (options.now?.() ?? new Date()).toISOString();
+					await platform.originals.put(space, { id, raw, keptAt, fromSchemaVersion: fromVersion });
+				}
+			}
+			session = new DocumentSession({ ...common, doc: loaded.doc });
 			await session.#replayJournal();
-			return session;
+		} else {
+			if (fromVersion !== null && fromVersion < CURRENT_SCHEMA_VERSION) {
+				report(new Error("A stored dashboard couldn't be upgraded"), {
+					docId: id,
+					fromSchemaVersion: fromVersion
+				});
+			}
+			// Read-only: shown as stored, never edited or saved.
+			session = new DocumentSession({ ...common, doc: raw as Dashboard, readOnly: loaded.reason });
 		}
-		// Read-only: shown as stored, never edited or saved.
-		return new DocumentSession({ ...common, doc: raw as Dashboard, readOnly: loaded.reason });
+		session.hasOriginal = (await platform.originals.get(space, id)) !== undefined;
+		return session;
 	}
 
 	get canUndo(): boolean {
@@ -260,7 +327,8 @@ export class DocumentSession {
 	 * For a session with `onBeforeFirstEdit`; otherwise nothing to do (`open` replays).
 	 */
 	replayPending(): Promise<void> {
-		if (this.readOnly || this.#stopped || (!this.#onBeforeFirstEdit && !this.#handoff)) {
+		const handingOff = this.#onBeforeFirstEdit || this.#handoff;
+		if (this.readOnly || this.#stopped || this.#successor || !handingOff) {
 			return Promise.resolve();
 		}
 		const { journal } = this.#platform;
@@ -268,15 +336,15 @@ export class DocumentSession {
 			.readAll(this.#space, this.doc.id)
 			.filter(({ tabId, record }) => {
 				if (tabId === this.#tabId || this.#replayed.includes(tabId)) return false;
-				return !isNewerRecord(record);
+				return !isNewer(record);
 			})
 			.flatMap(({ tabId, record }) => {
-				const parsed = JournalRecordSchema.safeParse(record);
-				if (!parsed.success) {
+				const parsed = readRecord(record);
+				if (!parsed) {
 					journal.clear(this.#space, this.doc.id, tabId);
 					return [];
 				}
-				return [{ tabId, record: parsed.data }];
+				return [{ tabId, record: parsed }];
 			})
 			.sort((a, b) => a.record.writtenAt.localeCompare(b.record.writtenAt));
 		if (records.length === 0) return Promise.resolve();
@@ -284,7 +352,7 @@ export class DocumentSession {
 		for (const change of this.#queued) doc = applyChange(doc, change).doc;
 		for (const { tabId, record } of records) {
 			this.#replayed.push(tabId);
-			for (const change of record.changes) {
+			for (const change of this.#upgradeRecordChanges(record.changes, record.schemaVersion)) {
 				try {
 					doc = applyChange(doc, change).doc;
 					this.#queued.push(change);
@@ -310,7 +378,7 @@ export class DocumentSession {
 		const { stored, theirs } = state;
 		const mine = this.#pending.slice();
 		if (mine.length === 0) {
-			this.conflict = null;
+			this.#settleConflict();
 			this.doc = stored;
 			this.status = "saved";
 			this.errorKind = null;
@@ -320,6 +388,7 @@ export class DocumentSession {
 		if (theirs !== null) {
 			const result = rebase(stored, theirs, mine);
 			if (result.kind === "conflict") {
+				this.#conflictBase ??= { version: this.doc.version, ownTab: null };
 				this.conflict = { pairs: result.pairs };
 				this.#clearTimer();
 				this.status = "error";
@@ -327,27 +396,30 @@ export class DocumentSession {
 			}
 			return this.#adopt(result.doc, result.changes);
 		}
+		// No telling what overlapped any more, so an open conflict no longer stands.
+		this.#settleConflict();
 		const { doc, applied } = applyForced(stored, mine);
 		return this.#adopt(doc, applied);
 	}
 
 	async #resolve(choice: ConflictChoice): Promise<string | null> {
 		if (!this.conflict) return null;
-		const state = await this.#readStored();
+		const base = this.#conflictBase ?? { version: this.doc.version, ownTab: null };
+		const state = await this.#readStored(base.version);
 		if (!state) throw new Error(`Dashboard ${this.doc.id} can't be read`);
 		const { stored } = state;
 		const mine = this.#pending.slice();
 
 		if (choice === "keep-mine") {
 			// Their deletes of widgets I changed are undone, so my changes to them stand.
-			const theirs = state.theirs ?? [];
+			const theirs = this.#theirChanges(state.entries ?? [], base.ownTab);
 			const restores = theirs.flatMap((t): Change[] =>
 				t.op === "removeWidget" && mine.some((m) => changesOverlap(m, t))
 					? [{ op: "addWidget", target: t.target, widget: t.widget, index: t.index }]
 					: []
 			);
 			const { doc, applied } = applyForced(stored, [...restores, ...mine]);
-			this.conflict = null;
+			this.#settleConflict();
 			await this.#adopt(doc, applied);
 			return null;
 		}
@@ -355,7 +427,7 @@ export class DocumentSession {
 		this.#undoStack.clear();
 		this.#syncUndoState();
 		if (choice === "use-other") {
-			this.conflict = null;
+			this.#settleConflict();
 			await this.#adopt(stored, []);
 			return null;
 		}
@@ -369,6 +441,7 @@ export class DocumentSession {
 			createdAt: now,
 			updatedAt: now
 		};
+		if (this.#dataCleared()) return null;
 		const created = await this.#platform.documents.commit(this.#space, {
 			docId: copy.id,
 			baseVersion: null,
@@ -376,29 +449,79 @@ export class DocumentSession {
 			entries: []
 		});
 		if (!created.ok) throw new Error(`Dashboard ${copy.id} already exists`);
-		this.conflict = null;
+		this.#settleConflict();
 		// Edits made while the copy was saved go on top of the stored original.
 		const later = applyForced(stored, this.#pending.slice(mine.length));
 		await this.#adopt(later.doc, later.applied);
 		return copy.id;
 	}
 
-	/** The stored document and, when the log still covers it, the changes since `base`. */
+	/**
+	 * The stored document and, when the log still covers it, the changes since `base` (older
+	 * entries upgraded; ones that can't be carried over left out of `theirs`). `null` when it
+	 * can't be loaded, or comes from a newer format (which suspends the session).
+	 */
 	async #readStored(base = this.doc.version): Promise<StoredState | null> {
 		const raw = await this.#platform.documents.get(this.#space, this.doc.id);
 		if (raw === undefined) return null;
-		const loaded = loadDashboard(raw);
+		if (isNewer(raw)) return this.#needsReload();
+		const loaded = loadDashboard(raw, this.#chain);
 		if (loaded.status !== "ok") return null;
 		const stored = loaded.doc;
 		const log = await this.#platform.documents.readLog(this.#space, stored.id, base);
 		if (log === "trimmed") return { stored, entries: null, theirs: null };
 		// Entries past the stored version were saved after the read; the next catch-up gets them.
 		const entries = log.filter((e) => e.version <= stored.version);
+		if (entries.some(isNewer)) return this.#needsReload();
 		const complete =
 			entries.length === stored.version - base &&
 			entries.every((e, i) => e.version === base + i + 1);
 		if (!complete) return { stored, entries: null, theirs: null };
-		return { stored, entries, theirs: entries.map((e) => e.change) };
+		return { stored, entries, theirs: this.#theirChanges(entries, null) };
+	}
+
+	/** The changes in `entries` not saved by `ownTab`, upgraded to the current format. */
+	#theirChanges(entries: LogEntry[], ownTab: string | null): Change[] {
+		return entries
+			.filter((e) => e.tabId !== ownTab)
+			.flatMap((e) =>
+				e.schemaVersion < CURRENT_SCHEMA_VERSION
+					? upgradeChanges([e.change], e.schemaVersion, this.#chain).changes
+					: [e.change]
+			);
+	}
+
+	/** Upgrade a journal record's changes, counting the ones that can't be carried over. */
+	#upgradeRecordChanges(changes: unknown[], fromVersion: number): Change[] {
+		if (fromVersion === CURRENT_SCHEMA_VERSION) return changes as Change[];
+		const upgraded = upgradeChanges(changes, fromVersion, this.#chain);
+		this.droppedEdits += upgraded.dropped;
+		return upgraded.changes;
+	}
+
+	/** Storage holds data from a newer format: ask for a reload and stop saving. */
+	#needsReload(): null {
+		if (!this.#stopped) this.#onNeedsReload?.();
+		this.suspend();
+		return null;
+	}
+
+	/**
+	 * This browser's data was cleared since the session started: stop saving (and journaling),
+	 * and say so once. Checked before every write.
+	 */
+	#dataCleared(): boolean {
+		if (this.#platform.reset.generation() === this.#generation) return false;
+		if (!this.#stopped) {
+			this.#stop();
+			this.#onCleared?.();
+		}
+		return true;
+	}
+
+	#settleConflict(): void {
+		this.conflict = null;
+		this.#conflictBase = null;
 	}
 
 	/** Show `doc` (based on the stored version) with `pending` on top of it, and save them. */
@@ -479,6 +602,8 @@ export class DocumentSession {
 				this.status = "saved";
 				this.#settleJournal();
 				for (const change of rest) successor.apply(change);
+				// Suspended during the hand-off: the copy must not save either.
+				if (this.#stopped) successor.suspend();
 				return successor;
 			},
 			() => {
@@ -497,6 +622,7 @@ export class DocumentSession {
 			this.status = "error";
 			return;
 		}
+		if (this.#dataCleared()) return;
 		const base = this.doc.version;
 		const version = base + batch.length;
 		const updatedAt = this.#now().toISOString();
@@ -531,7 +657,14 @@ export class DocumentSession {
 		this.errorKind = null;
 
 		if (!result.ok) {
-			await this.catchUp();
+			try {
+				await this.catchUp();
+			} catch {
+				// Storage couldn't be read to catch up: keep everything and try again later.
+				this.status = "error";
+				this.errorKind = "unavailable";
+				this.#scheduleRetry();
+			}
 			return;
 		}
 		// Edits made during the commit stay pending on top of the new stored version.
@@ -556,6 +689,7 @@ export class DocumentSession {
 		// Only one of the two is ever non-empty: a session that hands off applies nothing itself.
 		const changes = [...this.#queued, ...this.#pending];
 		if (this.readOnly || this.#stopped || this.#successor || changes.length === 0) return;
+		if (this.#dataCleared()) return;
 		const record: JournalRecord = {
 			baseVersion: this.doc.version,
 			changes,
@@ -592,18 +726,19 @@ export class DocumentSession {
 		return this.#enqueue(async () => {
 			const { journal } = this.#platform;
 			for (const { tabId, record } of journal.readAll(this.#space, this.doc.id)) {
-				if (tabId === this.#tabId || this.conflict || isNewerRecord(record)) continue;
-				const parsed = JournalRecordSchema.safeParse(record);
-				if (!parsed.success) {
+				if (tabId === this.#tabId || this.conflict || isNewer(record)) continue;
+				const parsed = readRecord(record);
+				if (!parsed) {
 					journal.clear(this.#space, this.doc.id, tabId);
 					continue;
 				}
-				await this.#replayRecord(tabId, parsed.data);
+				await this.#replayRecord(tabId, parsed);
 			}
 		});
 	}
 
-	async #replayRecord(tabId: string, { baseVersion, changes }: JournalRecord): Promise<void> {
+	async #replayRecord(tabId: string, record: ReadRecord): Promise<void> {
+		const { baseVersion, changes } = record;
 		const state = await this.#readStored(baseVersion);
 		if (!state) return;
 		const { stored, entries } = state;
@@ -616,17 +751,21 @@ export class DocumentSession {
 		// The tab's own saves that finished (the page lived long enough) are the start of the
 		// record; only the rest is replayed, against what other tabs stored.
 		const saved = entries.filter((e) => e.tabId === tabId).length;
-		const mine = changes.slice(saved);
+		// Upgraded after the cut: the saved part is counted in the record's own format.
+		const mine = this.#upgradeRecordChanges(changes.slice(saved), record.schemaVersion);
 		if (mine.length === 0) return clear();
-		const theirs = entries.filter((e) => e.tabId !== tabId).map((e) => e.change);
+		const theirs = this.#theirChanges(entries, tabId);
 
 		this.#replayed.push(tabId);
 		const result = rebase(stored, theirs, mine);
 		if (result.kind === "conflict") {
-			// Shown with the replayed changes on top, as a tab with unsaved edits would be.
-			const { doc, applied } = applyForced(stored, mine);
-			this.doc = doc;
-			this.#pending = applied;
+			// Shown with the replayed changes on top, as a tab with unsaved edits would be. They
+			// stay pending as written (not as forced onto the stored document, which drops changes
+			// to widgets the other side deleted), so "keep mine" can still apply them.
+			this.doc = applyForced(stored, mine).doc;
+			this.#pending = mine;
+			// "Keep mine" reads their changes from the record's base, not this tab's.
+			this.#conflictBase = { version: baseVersion, ownTab: tabId };
 			this.conflict = { pairs: result.pairs };
 			this.status = "error";
 			return;
@@ -681,9 +820,26 @@ export class DocumentSession {
 	}
 }
 
-/** A journal record written by a newer version of the app, which this one can't replay. */
-function isNewerRecord(record: unknown): boolean {
-	if (typeof record !== "object" || record === null || !("schemaVersion" in record)) return false;
-	const { schemaVersion } = record;
-	return typeof schemaVersion === "number" && schemaVersion > CURRENT_SCHEMA_VERSION;
+/** The format a stored value (document, log entry, or journal record) was written in. */
+function schemaVersionOf(value: unknown): number | null {
+	if (typeof value !== "object" || value === null || !("schemaVersion" in value)) return null;
+	const { schemaVersion } = value;
+	return typeof schemaVersion === "number" ? schemaVersion : null;
+}
+
+/** Written by a newer version of the app, which this one can't load or replay. */
+function isNewer(value: unknown): boolean {
+	return (schemaVersionOf(value) ?? 0) > CURRENT_SCHEMA_VERSION;
+}
+
+/**
+ * A journal record in the current format (validated), or an older one (its changes validated
+ * once upgraded); `null` when it's neither.
+ */
+function readRecord(record: unknown): (ReadRecord & { writtenAt: string }) | null {
+	const current = JournalRecordSchema.safeParse(record);
+	if (current.success) return current.data;
+	const older = LooseJournalRecordSchema.safeParse(record);
+	if (!older.success || older.data.schemaVersion === CURRENT_SCHEMA_VERSION) return null;
+	return older.data;
 }

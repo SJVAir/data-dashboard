@@ -198,14 +198,15 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   Needs the page to die in a window of a few milliseconds. **Revisit on** a report of lost
   first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
   starter.
-- **Cross-tab sync edge cases.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A
-  catch-up from a trimmed log during a conflict leaves stale conflict pairs. "Keep mine"
-  after a journal-replay conflict can drop edits to widgets the other side deleted (it needs
-  a `#conflictBase`). The "error" status during a conflict looks like "Couldn't save".
-  Untested: save-as-copy with a replay, a catch-up during an in-flight commit, and
-  `pageshow`. All need several tabs editing the same widgets at once. **Revisit with** spec
-  3's durability work, or on the first report of lost edits after a conflict; the status
-  wording in the design pass.
+- **A starter replay can take a live tab's journal record.** _Deferred 2026-10-25
+  (Foundations spec 3, task 7 review)._ `replayPending` replays every other tab's `starter`
+  journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
+  hand-off failed); both tabs then hand the same edits off, making a duplicate copy. Narrow:
+  it needs a storage failure or unlucky timing in the other tab. **Revisit on** a report of
+  duplicate starter copies, or with server sync.
+- **Conflict status wording.** _Deferred 2026-10-20 (Foundations spec 1 review); the other
+  cross-tab sync edge cases were done in spec 3._ The "error" status during a conflict looks
+  like "Couldn't save". **Revisit in** the design pass.
 - **Journal limits and cleanup.** _Deferred 2026-10-20 (Foundations spec 1 review)._ Journal
   records have no explicit size limit; records for dashboards that are never reopened stay
   in `localStorage`; and the dashboards list shows a stale name when a rename exists only in
