@@ -384,6 +384,11 @@ Tauri-ready seams required **from day one**:
   directly** — only through the adapter. Preferences (e.g. last-opened dashboard,
   active Collection, the starter's chosen place) are stored through it. The v1 `src/lib/preferences.ts` is removed
   with the rest of the v1 code, not migrated.
+- **`activity` capability** (built 2026-10-22, Foundations spec 2). `platform.activity` reports
+  whether the app is in front of the person (`visible()` and `onChange(cb)`). On the web it is
+  page visibility; a Tauri build can report visible while the window is in the background so
+  polling continues. The data layer's poller uses it; nothing outside the adapter reads
+  `visibilitychange` for new code.
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
   air-quality data uses an **in-memory cache** shared across widgets, plus the
@@ -766,7 +771,7 @@ caching), not per widget.
 | longer     | Monthly summaries |
 
 - **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
-  server summaries, so the ladder only uses levels the catalog's `resolutions` list:
+  server summaries, so the ladder only uses levels the catalog lists in each entry type's `resolutions`:
   - **Naturally daily data** (HMS smoke/fire, forecasts, CalHeatScore) is fetched as-is
     and aggregated for display (e.g. smoke days per month).
   - **Unsummarized time series** (CIMIS weather, PM10) are fetched raw with a span cap
@@ -778,6 +783,14 @@ caching), not per widget.
 - **Incomplete periods are stitched from finer data** — e.g. the current month (no
   monthly rollup until it ends) is computed from daily summaries so far, today from
   hourly. Fixes the "current month shows nothing" problem for every widget.
+- **The last completed period is backfilled too** (2026-10-22, Foundations spec 2). Server
+  rollups lag the period's end: hour H is summarized at about H+1:45 for monitors and H+1:50
+  for regions, daily rollups run around 01:00, and monthly ones on the 1st. So the query
+  also fetches the last completed period from the next finer offered level and uses it only
+  where the coarse response lacks that period (computed client-side, and complete, so not
+  partial); once the server's rollup exists, the coarse value wins. Where no finer level is
+  offered (regions at hour, which have no raw entries) there is no backfill, and that period
+  stays empty until the server task runs. The backfill is one level deep (see `DEFERRED.md`).
 - Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
@@ -796,6 +809,15 @@ caching), not per widget.
   after midnight plus hourly for today's partial value.
 - **One poll per descriptor**, shared across widgets via the cache; **pause while the
   browser tab is hidden**; back off on errors.
+- **Cadence as built** (2026-10-22, Foundations spec 2): raw entries poll every 3 minutes;
+  every other resolution polls at the next :55 past the hour in Pacific time, after the
+  server's :50 summary task. Errors back off from 30 seconds, doubling up to 30 minutes, and
+  reset on success. Polling runs only for ranges that include now and pauses while the page is
+  hidden; on becoming visible, each overdue key gets one catch-up poll. A key that becomes
+  pollable again (resubscribed from the cache, or a widget un-minimized) is scheduled from its
+  last fetch, so data that is already overdue is refetched at once. Raw entries are
+  requested with the monitor type's published processor and zone-aware UTC bounds, so they
+  are on the same (calibrated) series the summaries use.
 - **Minimized widgets refresh only if they have thresholds configured** — so their
   taskbar entry can flash when a threshold is crossed (self-monitoring). Minimized
   widgets without thresholds don't poll.
@@ -899,6 +921,7 @@ type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "yea
 
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
+	timeSubRange?: { start: string; end: string }; // per widget, not per layer
 	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
 };
 
@@ -916,6 +939,19 @@ type DateRangeSpec =
 	| { kind: "custom"; start: string; end: string };
 ```
 
+- **Region places resolve through a `RegionResolver`** (built 2026-10-22, Foundations spec 2):
+  the air-quality adapter turns a region's type and official code into the server's id before
+  fetching. The web resolver looks codes up with `@sjvair/sdk`'s `getRegionsByCode`
+  (2026-10-22, sdk-js 4.8.0-beta.0), batched per type and cached per resolver: a retired
+  region still resolves, a code the server doesn't know leaves the layer "unavailable"
+  (`region-unresolved`), and land-use regions, which have no codes, are unsupported. The
+  web metadata source reads the dataset catalog with `getDatasetCatalog`; a server without
+  `meta/datasets/`, or any failed fetch, gives `catalog-unavailable` (retried on the next
+  query). Production stays unavailable until sjvair.com #293 (which adds the catalog and the
+  code filter on `regions/`) is live there.
+- **`timeSubRange` lives on `WidgetDataConfig`** (decided 2026-10-22), next to `dateRange`,
+  not on each layer's descriptor: the range is per widget. A layer resolves to a
+  `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
 - **Dates are Pacific calendar dates** (`YYYY-MM-DD`). `"to-date"` and `"trailing"` are the
   two groups of the Rolling method (see "Widget Creation view").
 - **A layer holds one place or a multi-selection** (decided 2026-10-13): `place` takes any
@@ -1750,7 +1786,8 @@ each one is one Widget Creation accordion:
 ```ts
 type DatasetCatalogEntry = {
 	id: string; // e.g. "air-quality", "weather", "hms-smoke", "hms-fire", "pesticide-use",
-	//          "pesticide-notices", "forecasts", "calheatscore", "calenviroscreen"
+	//          "pesticide-notices", "forecasts", "calheatscore", "calenviroscreen",
+	//          "emissions", "tempo"
 	label: string;
 	description: string;
 	source: string;
@@ -1760,14 +1797,23 @@ type DatasetCatalogEntry = {
 		label: string;
 		kind: "pollutant" | "meteorological" | "other";
 		units: string;
+		// Per entry type, not per dataset (e.g. pm25: raw…year; pm100 (PM10): raw only).
+		resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
+		available?: boolean; // air-quality entry types: the available-pollutants switch
 		retired?: { since: string; replacedBy?: string };
 	}[];
 	geographies: ("monitor" | "region" | "polygon" | "point" | "tract" | "zip" | "zone")[];
-	resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
-	metaUrl: string; // the domain's own …/meta/ endpoint
+	metaUrl: string; // the domain's own …/meta/ endpoint; "" until that domain has one
 	retired?: { since: string; replacedBy?: string }; // see "Stable ids and retirement"
 };
 ```
+
+**Catalog format changes (2026-10-22, from the sjvair.com metadata plan, approved by the
+user there):** `resolutions` moved from the dataset onto each entry type, with no
+dataset-level field (so clients need no inheritance rule); air-quality entry types carry
+`available`; the catalog lists every server domain, including `emissions` and `tempo` (the
+dashboard hides those without an adapter); and `metaUrl` is empty for domains with no meta
+endpoint yet (all but monitors and regions, until the scale metas land).
 
 - **Air quality is one dataset.** Its entry types are PM2.5, O3, … (`kind: "pollutant"`).
   Monitor vs. region is a **geography choice inside a layer**, not a separate dataset.
@@ -1818,6 +1864,22 @@ things they point to change (the server removed the `place` region type in Octob
     between environments, so a reference must pick a group's code by a stable rule; and a **CDP that
     incorporates** becomes a `city`, changing its type and code pair (retire the old pair
     with `replacedBy`).
+  - **As planned in the sjvair.com metadata plan (2026-10-22, approved by the user
+    there):** regions and locations gain `retired` (`{ since, replaced_by: { type,
+external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sqids; a
+    retired region comes back flagged; an unknown code is simply absent) and a new
+    `regions/locations/?source=&external_id=`. Retired rows are hidden from listings and
+    search but still resolve by code or sqid. Child-care sites keep their existing code,
+    and any license number at the site finds it. A CDP that becomes a city is retired with
+    `replaced_by` pointing to the city. The retired-vs-never-existed lookup for
+    **monitors** is not in this round.
+  - **Land-use regions are excluded** from code lookup and the permanence promise for now
+    (decided by the user 2026-10-22, sjvair.com metadata plan). The server builds their
+    codes as `{County}-{jurisdiction}-{OBJECTID}`, and a refresh of the state dataset can
+    renumber `OBJECTID`s, so a saved code could point at a different area.
+    `regions/?type=land_use&external_id=…` returns 400; land-use regions still show
+    `external_id`, documented as not permanent. Every other region type and every location
+    source is covered; 2010-only census tracts stay valid references (see `DEFERRED.md`).
   - Using the server's ids for user documents and codes only for built-in ones was
     decided against (see `DEFERRED.md`).
 - **Retire, don't delete.** Catalog entries and entry types carry `retired` (a date and an
@@ -1860,6 +1922,14 @@ things they point to change (the server removed the `place` region type in Octob
 2. **Coverage/availability** — first/last data date per dataset and per
    monitor/region × entry type; which summary resolutions are complete (monthly+
    rollups exist only after the period ends).
+   **Decided 2026-10-22 (sjvair.com metadata plan, approved by the user there):**
+   coverage is computed on request and HTTP-cached (no precomputed table or background
+   task). Two modes only: per dataset (first and last date for each catalog dataset), and
+   one place (a monitor or region plus an entry type → first and last date). **No bulk
+   mode**, so the place picker doesn't grey out places without data in Release 1 (see
+   `DEFERRED.md`). "Which summary resolutions are complete" is a fixed rule, not per-place
+   data (monthly and longer summaries exist only after the period ends), stated as static
+   metadata in the catalog; the data layer's incomplete-period filling handles it.
 3. **Non-pollutant scales**: smoke density, fire FRP tiers, CalHeatScore, AQI 0–500,
    temperature thresholds, forecast categories/burn status (labels + colors). Currently
    hardcoded in `monitor-map` and server Sass. **CalHeatScore meta also carries per-score
@@ -1919,6 +1989,11 @@ per-entry-type `available` flag on `monitors/meta/` — ideally admin-editable s
 it needs no deploy) gates which pollutants the frontend offers in **widgets, analyses,
 and alert rules**. Enabling NO2/SO2/CO later is a metadata change, not a code change. The
 new code never hardcodes pollutants (the v1 `"pm25" | "o3"` goes away with the v1 code).
+**Shape (2026-10-22, sjvair.com metadata plan):** each air-quality entry type in the
+catalog carries `available: boolean`, and `monitors/meta/` gains an `available_pollutants`
+list. The server derives both from its existing `DefaultCalibration` rows (the map's
+"published" switch), so one admin switch turns a pollutant on for the map, widgets,
+analyses, and alerts together.
 Priority: alongside gap #1.
 
 **Cleanup to do alongside** (removing hardcoded duplicates once metadata covers them):
@@ -2173,7 +2248,11 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        whole host would also permit the site's other scripts there (htmx, admin jQuery,
        monitor-map), which an injection bug could misuse.
     3. **Workers are built inline** (as blob workers), since a worker script cannot be
-       loaded from another origin. `worker-src blob:` already allows this.
+       loaded from another origin. `worker-src blob:` already allows this, and the
+       dashboard's CSP must keep it: the downsampling worker
+       (`src/lib/data/downsample.worker.ts`, imported with `?worker&inline`) is created from
+       a `blob:` URL, so dropping `blob:` from `worker-src` breaks PM10 and other raw-data
+       charts. The build emits no separate worker file.
     4. **The web app manifest, and the later service worker, are served by Django under
        `/workspace/`**, because they must be same-origin. Icons can stay on S3.
     5. **`version.json` is fetched from the static origin** (located relative to the entry
@@ -2207,6 +2286,7 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
   silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
   builds (Tauri, standalone).
+  The hosting track sets no `VITE_PROD_URL` (production under `/workspace/` uses the page origin).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Embedding in a host app with its
   own router stays deferred.

@@ -14,6 +14,7 @@ export default defineConfig({
 		enhancedImages(),
 		svelte()
 	],
+	optimizeDeps: { include: ["axe-core"] },
 	resolve: {
 		alias: [{ find: "$lib", replacement: fileURLToPath(new URL("./src/lib", import.meta.url)) }]
 	},
@@ -24,6 +25,7 @@ export default defineConfig({
 				test: {
 					name: "unit",
 					environment: "node",
+					setupFiles: ["src/test/no-network.ts"],
 					include: ["src/**/*.test.ts"],
 					exclude: ["src/**/*.browser.test.ts"]
 				}
@@ -32,6 +34,7 @@ export default defineConfig({
 				extends: true,
 				test: {
 					name: "browser",
+					setupFiles: ["src/test/no-network.ts"],
 					include: ["src/**/*.browser.test.ts"],
 					browser: {
 						enabled: true,

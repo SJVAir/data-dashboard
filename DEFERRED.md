@@ -144,6 +144,17 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
+- **`@sjvair/sdk` is pinned to the 4.8.0-beta.1 pre-release.** _Deferred 2026-10-22
+  (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
+  `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
+  are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
+  **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
+  the user approves the release): switch to `^4.8.0`.
+- **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
+  (decided by the user)._ The user wants the next major sdk-js version to send entry bounds
+  unchanged by default, with an opt-in flag for rounding to whole Pacific days; it's recorded
+  in sdk-js's `DEFERRED.md`. **Revisit when** the dashboard upgrades to that major version:
+  remove `exact: true` from the air-quality adapter's `getMonitorEntries` calls.
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
@@ -213,6 +224,18 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Map & selection
 
+- **Saving land-use regions by code.** _Deferred 2026-10-22 (sjvair.com metadata plan,
+  decided by the user)._ Land-use codes include the state dataset's `OBJECTID`, which a
+  refresh can renumber, so they are excluded from code lookup and the permanence promise;
+  the dashboard can't save a land-use region as a reference. **Revisit when** someone needs
+  land-use areas in a saved widget or rule; the server first needs a stable code built from
+  fields that survive a refresh.
+- **Greying out places with no data in the place picker.** _Deferred 2026-10-22
+  (sjvair.com metadata plan, coverage endpoint)._ Coverage has no bulk mode in Release 1
+  (only per dataset and per single place), so the picker can't know which places lack
+  data. A place without data shows a "no data for this range" state once chosen.
+  **Revisit when** users struggle to find places with data; it would need a bulk coverage
+  mode, probably backed by a precomputed table on the server.
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
@@ -313,6 +336,64 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   catalog entry's `license` and any export must carry. Nothing is designed in the
   dashboard. **Revisit when** a methane layer or analysis is scoped. Same for the unused
   `VITE_OPENWEATHERMAP_KEY` — remove it if no use appears.
+- **Calibration choice on layers.** _Deferred 2026-10-22 (Foundations spec 2)._ The data
+  layer always uses each monitor type's published series (e.g. EPA-calibrated PM2.5 for
+  PurpleAir) and reports which one it used; `QueryDescriptor` has no processor field. An
+  optional field can be added later without a document migration. **Revisit when**
+  researchers ask for uncalibrated or alternative-calibration data.
+- **Refetch keeps the resolution chosen at creation.** _Deferred 2026-10-22 (Foundations spec
+  2)._ A query entry picks its resolution from the range span once, when it is created; a
+  to-date range (e.g. "this month") can grow across a ladder boundary over time without the
+  entry switching. **Revisit when** widgets show to-date ranges (Release 1 step 4).
+- **The query client has no `dispose()`, and its poller is never stopped.** _Deferred
+  2026-10-22 (Foundations spec 2)._ `getQueryClient()` returns one app-wide client, so nothing
+  needed teardown. **Revisit when** HMR or tests recreate clients, or anything creates more
+  than one.
+- **`LiveQuery` has no idle state for a null input.** _Deferred 2026-10-22 (Foundations spec
+  2)._ A widget with nothing to show yet (no place picked) has to avoid constructing the query
+  rather than pass `null`. **Revisit when** building widgets (Release 1 step 4).
+- **`DocumentSession` reads page visibility directly.** _Noted 2026-10-22 (Foundations spec
+  2)._ `src/lib/store/document-session.svelte.ts` (spec 1) still listens to
+  `visibilitychange` and reads `visibilityState`, against the platform-adapter rule; spec 2
+  added `platform.activity`. **Revisit when** `DocumentSession` is next changed, or in the
+  spec 3/5 platform work: move it onto that capability.
+- **`adapter.target` takes no `AbortSignal`.** _Deferred 2026-10-22 (Foundations spec 2 final
+  review)._ Resolving a layer's target can't be cancelled when its subscriber moves on; today
+  it makes no network calls (the web region resolver answers at once), so nothing is wasted.
+  **Revisit when** step 3's region resolver makes network calls: pass the subscription's
+  signal through.
+- **Updating a subscription to an input with the same key detaches first.** _Deferred
+  2026-10-22 (Foundations spec 2 final review)._ `Subscription.update()` with a different
+  input that resolves to the same cache key (e.g. a selection's ids reordered) shows
+  `loading` for a moment and, if it was the entry's only subscriber with a fetch in flight,
+  aborts and restarts that fetch. **Revisit when** widgets edit selections in place (Release
+  1 step 4) and the flash or the extra fetch shows.
+- **A new subscriber refetches an errored entry at once.** _Deferred 2026-10-22 (Foundations
+  spec 2 final review)._ Attaching to a cache entry whose last fetch failed refetches
+  immediately, skipping the poller's backoff, so widgets opening one after another against a
+  failing server each send a request. **Revisit if** that shows up as load during an outage;
+  the fix is to respect the entry's backoff when attaching.
+- **The idle cache cap counts entries, not bytes.** _Deferred 2026-10-22 (Foundations spec 2
+  final review)._ Up to 200 idle entries stay cached whatever their size, so large raw
+  selections could hold a lot of memory. **Revisit with** step 4's large selections: cap by
+  approximate size (points held) instead.
+- **Midnight race on rolling keys.** _Deferred 2026-10-22 (Foundations spec 2 final review)._
+  A subscriber that attaches across midnight to a rolling entry ("last 7 days") whose fetch
+  started before midnight gets the older dates until the next poll. **Revisit if** a widget
+  shows yesterday's window after midnight for longer than a poll; the fix is to compare the
+  in-flight request's dates when attaching.
+- **A monitor missing from the monitors list gets the uncalibrated series silently.**
+  _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
+  can't name the published processor, so the request names none and the server returns the
+  type's default stage. **Revisit when** step 3's metadata work lands: report the query as
+  `unavailable`, or refresh the monitors list and try again.
+- **The rollup-lag backfill is one level deep and fetched on every poll.** _Deferred
+  2026-10-22 (Foundations spec 2 final review)._ The last completed period is backed up from
+  the next finer level only, so a day backfilled from hourly summaries just after midnight
+  lacks its final hour until that hour's rollup runs (about 00:45), yet reads as complete;
+  and the backfill is fetched with every poll even once the coarse rollup exists. **Revisit
+  when** widgets show daily data live (Release 1 step 4): backfill the backfill's own last
+  period from the next level down, and skip the backfill once the coarse value has arrived.
 
 ## Map plugins
 
@@ -475,11 +556,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Internationalization
 
-- **Format module gaps.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The date-string
-  parsers don't validate `YYYY-MM-DD`; the DST tests check only lengths; `formatDate` is
-  untested; and the " PT" suffix is concatenated English rather than a message. Spec 1
-  formats only a few well-formed dates. **Revisit in** spec 2 (`DateRangeSpec`), which
-  builds date ranges on this module.
 - **Translations and language switching.** _Deferred 2026-09-24; re-checked 2026-10-13._ The
   server now has empty locale catalogs (es, tl, hmn; 395 untranslated entries each) and
   sends SMS in the user's language, but no actual translations exist and there's no
@@ -558,23 +634,20 @@ it describes.
   the v1 tabs are removed in Release 1's Foundations step (a fresh start). HMS
   becomes the smoke & fire map preset (see "Widgets"); collocation becomes the
   low-cost-vs-reference starter analysis (#10). Close when those ship.
-- **Whole-year over-fetch**: _deferred 2026-09-16; addressed by design 2026-09-24_ (automatic
-  resolution + narrow fetches in the data layer — see `ARCHITECTURE.md` → "Data resolution &
-  live refresh"). Close once implemented. The `month` param exists on the
-  summary endpoints but isn't used.
-- **No in-flight request coordination**: _deferred 2026-09-16; addressed by design 2026-09-24_
-  (last-requested wins in the data layer). Close once implemented. Rapid filter changes race,
-  so the last response to finish wins instead of the last request made. This applies to
-  every widget data manager, so solve it once in the data layer or cache.
-- **"Default to current month" can't show monthly data until the month ends**: _noted
-  2026-09-16; addressed by design 2026-09-24_ (incomplete-period stitching). Close once
-  implemented. Monthly rollups only compute after month-end.
 
 ## Open decisions
 
 Undecided items that don't block current work but must be answered before the listed
 point.
 
+- **Dataset license and attribution text.** _Decided 2026-10-22 to leave empty for now (user,
+  sjvair.com metadata plan, #293)._ In `meta/datasets/`, every dataset has `license: ""`
+  except NOAA HMS smoke/fire and NASA TEMPO ("Public domain"). The real license and
+  attribution text for air-quality, weather, pesticide-use, pesticide-notices, forecasts,
+  calheatscore, calenviroscreen, and emissions must come from the user and must not be
+  guessed. Meanwhile the dashboard handles an empty `license` gracefully (shows the `source`
+  alone, never a placeholder). **Decide before** dashboard go-live (and before exports or
+  shared pages show attribution).
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
