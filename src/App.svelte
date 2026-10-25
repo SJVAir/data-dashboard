@@ -5,8 +5,19 @@
 	import NoticeBars from "$lib/components/shell/NoticeBars.svelte";
 	import TopNav from "$lib/components/shell/TopNav.svelte";
 	import { Toaster } from "$lib/components/ui/sonner";
+	import { useApp } from "$lib/store/app.svelte";
 	// Imported for its side effect too: it sets up the route table.
-	import "./router";
+	import { navigate } from "./router";
+
+	const app = useApp();
+	let resets = app.resetCount;
+
+	// This browser's data was cleared: start over on the starter, as a first visit would.
+	$effect(() => {
+		if (app.resetCount === resets) return;
+		resets = app.resetCount;
+		void navigate("/", { replace: true });
+	});
 </script>
 
 <div class="flex min-h-dvh flex-col">

@@ -28,8 +28,7 @@ await boot({
 			onBlocked,
 			onVersionChange() {
 				updateNotice.show("storage-upgraded");
-				// `suspendAll` arrives with the safety work in a later task; until then this is a no-op.
-				(app as { suspendAll?: () => void } | undefined)?.suspendAll?.();
+				app?.suspendAll();
 			}
 		}),
 	async start(platform) {

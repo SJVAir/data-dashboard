@@ -220,4 +220,106 @@ describe("starterSession", () => {
 		expect(stored.body.widgets[0].title).toBeNull();
 		expect(stored.copiedFrom).toBe(STARTER_ID);
 	});
+
+	/** A starter whose hand-off hook fails (`null` or rejecting) on its first attempt. */
+	function failingFirst(failure: "null" | "reject") {
+		const platform = createMemoryPlatform();
+		const commit = platform.documents.commit;
+		let release!: () => void;
+		const held = new Promise<void>((resolve) => (release = resolve));
+		let creations = 0;
+		platform.documents.commit = async (space, request) => {
+			if (request.baseVersion === null && creations++ === 0) {
+				await held;
+				if (failure === "reject") throw new Error("disk");
+				return { ok: false, currentVersion: 0 };
+			}
+			return commit(space, request);
+		};
+		const copied: { session?: DocumentSession } = {};
+		const starter = starterSession({
+			platform,
+			space: SPACE,
+			tabId: "tab-1",
+			now: () => NOW,
+			onCopied: (session) => (copied.session = session)
+		});
+		return { platform, starter, copied, release };
+	}
+
+	for (const failure of ["null", "reject"] as const) {
+		it(`edits made during the starter hand-off survive a ${failure} hand-off`, async () => {
+			const { platform, starter, copied, release } = failingFirst(failure);
+			starter.apply(renameWidget("starter-1", "Fresno"));
+			starter.apply(renameWidget("starter-2", "Visalia"));
+			release();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(copied.session).toBeUndefined();
+			if (failure === "reject") expect(starter.status).toBe("error");
+
+			starter.apply(renameWidget("starter-3", "Merced"));
+			await vi.waitFor(() => expect(copied.session).toBeDefined());
+			const copy = copied.session!;
+			await copy.flush();
+			const stored = (await platform.documents.get(SPACE, copy.doc.id)) as Dashboard;
+			expect(stored.body.widgets.map((w) => w.title)).toEqual(["Fresno", "Visalia", "Merced"]);
+			const log = (await platform.documents.readLog(SPACE, copy.doc.id, 0)) as { change: Change }[];
+			expect(log.map((e) => e.change)).toEqual([
+				renameWidget("starter-1", "Fresno"),
+				renameWidget("starter-2", "Visalia"),
+				renameWidget("starter-3", "Merced")
+			]);
+			expect(platform.journal.readAll(SPACE, STARTER_ID)).toEqual([]);
+		});
+	}
+
+	it("pagehide during the starter hand-off journals the queued edits", async () => {
+		const win = new EventTarget();
+		vi.stubGlobal("window", win);
+		try {
+			const platform = createMemoryPlatform();
+			// The copy is never stored: the page goes away mid-hand-off.
+			const commit = platform.documents.commit;
+			platform.documents.commit = () => new Promise(() => {});
+			const starter = starterSession({ platform, space: SPACE, tabId: "gone", now: () => NOW });
+			starter.apply(renameWidget("starter-1", "Fresno"));
+			starter.apply(renameWidget("starter-2", "Visalia"));
+			win.dispatchEvent(new Event("pagehide"));
+			expect(platform.journal.readAll(SPACE, STARTER_ID)).toEqual([
+				{
+					tabId: "gone",
+					record: {
+						baseVersion: 0,
+						changes: [renameWidget("starter-1", "Fresno"), renameWidget("starter-2", "Visalia")],
+						schemaVersion: 1,
+						writtenAt: NOW.toISOString()
+					}
+				}
+			]);
+
+			// The next page load's starter replays them through its own hand-off.
+			platform.documents.commit = commit;
+			const copied: { session?: DocumentSession } = {};
+			const next = starterSession({
+				platform,
+				space: SPACE,
+				tabId: "tab-2",
+				now: () => NOW,
+				onCopied: (session) => (copied.session = session)
+			});
+			await next.replayPending();
+			expect(copied.session).toBeDefined();
+			const copy = copied.session!;
+			await copy.flush();
+			const stored = (await platform.documents.get(SPACE, copy.doc.id)) as Dashboard;
+			expect(stored.copiedFrom).toBe(STARTER_ID);
+			expect(stored.body.widgets.map((w) => w.title)).toEqual(["Fresno", "Visalia", null]);
+			expect(platform.journal.readAll(SPACE, STARTER_ID)).toEqual([]);
+			// Replaying again finds nothing.
+			await next.replayPending();
+			expect(await platform.documents.list(SPACE)).toHaveLength(1);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
 });

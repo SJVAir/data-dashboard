@@ -24,6 +24,15 @@ export type AppContext = {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
 	};
 	current: CurrentDashboard;
+	/** Counts `resetAfterClear` calls; the root component goes to `/` when it changes. */
+	readonly resetCount: number;
+	/** Storage is about to go away: journal every open session's changes and stop saving. */
+	suspendAll(): void;
+	/**
+	 * After this browser's data was cleared: drop every open session without saving, show no
+	 * dashboard, and reload the index. The root component then goes to `/` (the starter).
+	 */
+	resetAfterClear(): Promise<void>;
 };
 
 export type AppOptions = {
@@ -60,10 +69,13 @@ function withLocalEcho(channel: TabChannel): TabChannel {
 
 class App implements AppContext {
 	current = $state<CurrentDashboard>({ session: null, isStarter: false });
+	resetCount = $state(0);
 	readonly index: DashboardIndex;
 	readonly sessions: AppContext["sessions"];
 
 	readonly #open = new Map<string, Promise<DocumentSession | null>>();
+	/** The sessions in `#open` that have finished opening, for synchronous `suspendAll`. */
+	readonly #live = new Map<string, DocumentSession>();
 
 	constructor(
 		readonly platform: Platform,
@@ -89,6 +101,10 @@ class App implements AppContext {
 				debounceMs,
 				now
 			});
+			const own = opening;
+			void own.then((session) => {
+				if (session && this.#open.get(id) === own) this.#live.set(id, session);
+			});
 			this.#open.set(id, opening);
 		}
 		const session = await opening;
@@ -101,9 +117,26 @@ class App implements AppContext {
 		return session;
 	}
 
+	suspendAll(): void {
+		for (const session of this.#live.values()) session.suspend();
+		// Still opening: suspended as soon as they're open.
+		for (const opening of this.#open.values()) void opening.then((session) => session?.suspend());
+	}
+
+	async resetAfterClear(): Promise<void> {
+		for (const session of this.#live.values()) session.discard();
+		for (const opening of this.#open.values()) void opening.then((session) => session?.discard());
+		this.#live.clear();
+		this.#open.clear();
+		this.current = { session: null, isStarter: false };
+		this.resetCount++;
+		await this.index.refresh();
+	}
+
 	#starter(): DocumentSession {
 		const { debounceMs, now } = this.options;
-		return starterSession({
+		const resets = this.resetCount;
+		const starter = starterSession({
 			platform: this.platform,
 			space: this.space,
 			tabId: this.tabId,
@@ -111,15 +144,21 @@ class App implements AppContext {
 			debounceMs,
 			now,
 			onCopied: (copy) => {
+				// A hand-off that finished after the data was cleared mustn't come back.
+				if (this.resetCount !== resets) return copy.discard();
 				const id = copy.doc.id;
 				// The next visit to the starter gets a fresh one.
 				this.#open.delete(STARTER_ID);
+				this.#live.delete(STARTER_ID);
 				this.#open.set(id, Promise.resolve(copy));
+				this.#live.set(id, copy);
 				this.current = { session: copy, isStarter: false };
 				void this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
 				void this.index.refresh();
 			}
 		});
+		this.#live.set(STARTER_ID, starter);
+		return starter;
 	}
 }
 

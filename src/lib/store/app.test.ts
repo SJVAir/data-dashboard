@@ -61,4 +61,40 @@ describe("initApp", () => {
 		await session.flush();
 		await vi.waitFor(() => expect(app.index.names.get(id)).toBe("Home"));
 	});
+
+	it("resetAfterClear discards sessions and empties the index", async () => {
+		const { platform, app } = await setup();
+		const id = await app.index.createBlank();
+		const session = (await app.sessions.get(id))!;
+		app.current = { session, isStarter: false };
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename);
+		await platform.reset.clearAll();
+		const before = app.resetCount;
+
+		await app.resetAfterClear();
+		expect(app.resetCount).toBe(before + 1);
+		expect(app.current).toEqual({ session: null, isStarter: false });
+		expect(app.index.items).toEqual([]);
+		// The discarded session saves and journals nothing.
+		await session.flush();
+		await new Promise((resolve) => setTimeout(resolve, 600));
+		expect(commit).not.toHaveBeenCalled();
+		expect(platform.journal.list(app.space)).toEqual([]);
+		// Opening again starts fresh.
+		expect(await app.sessions.get(id)).toBeNull();
+		expect(await homeTarget(app)).toEqual({ kind: "starter" });
+	});
+
+	it("suspendAll journals every open session and stops their saves", async () => {
+		const { platform, app } = await setup();
+		const id = await app.index.createBlank();
+		const session = (await app.sessions.get(id))!;
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename);
+		app.suspendAll();
+		expect(platform.journal.readAll(app.space, id)).toHaveLength(1);
+		await session.flush();
+		expect(commit).not.toHaveBeenCalled();
+	});
 });

@@ -245,7 +245,7 @@ describe("cross-tab sync", () => {
 		expect(b.status).toBe("saved");
 	});
 
-	it("catches up when the page becomes visible again", async () => {
+	it("catches up when the app becomes visible again", async () => {
 		const platform = createMemoryPlatform();
 		await platform.documents.commit(SPACE, {
 			docId: "d1",
@@ -253,24 +253,18 @@ describe("cross-tab sync", () => {
 			doc: makeDoc(),
 			entries: []
 		});
-		const page = Object.assign(new EventTarget(), { visibilityState: "visible" });
-		const original = globalThis.document;
-		globalThis.document = page as unknown as Document;
-		try {
-			// No channel: the broadcast was missed (the tab was frozen).
-			const b = (await DocumentSession.open(platform, SPACE, "d1", "tab-b"))!;
-			sessions.push(b);
-			const a = (await DocumentSession.open(platform, SPACE, "d1", "tab-a"))!;
-			sessions.push(a);
-			a.apply(rename("Home"));
-			await a.flush();
-			expect(b.doc.name).toBeNull();
+		// No channel: the broadcast was missed (the tab was frozen).
+		const b = (await DocumentSession.open(platform, SPACE, "d1", "tab-b"))!;
+		sessions.push(b);
+		const a = (await DocumentSession.open(platform, SPACE, "d1", "tab-a"))!;
+		sessions.push(a);
+		platform.activity.setVisible(false);
+		a.apply(rename("Home"));
+		await a.flush();
+		expect(b.doc.name).toBeNull();
 
-			page.dispatchEvent(new Event("visibilitychange"));
-			await settle();
-			expect(b.doc.name).toBe("Home");
-		} finally {
-			globalThis.document = original;
-		}
+		platform.activity.setVisible(true);
+		await settle();
+		expect(b.doc.name).toBe("Home");
 	});
 });

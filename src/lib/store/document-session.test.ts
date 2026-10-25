@@ -3,7 +3,7 @@ import type { Change } from "$lib/changes/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform, SpaceId } from "$lib/platform/types";
-import { DocumentSession } from "./document-session.svelte";
+import { DocumentSession, RETRY_DELAYS_MS } from "./document-session.svelte";
 
 const SPACE: SpaceId = "anonymous";
 const NOW = new Date("2026-10-20T12:00:00.000Z");
@@ -149,15 +149,128 @@ describe("DocumentSession", () => {
 		expect(session.status).toBe("saved");
 	});
 
-	it("flushes pending changes when the page becomes hidden", async () => {
-		const doc = Object.assign(new EventTarget(), { visibilityState: "hidden" });
-		vi.stubGlobal("document", doc);
+	it("hidden activity journals and flushes; visible activity catches up", async () => {
 		const { platform, session } = await setup();
 		session.apply(rename("Home"));
+		// Held, as when a mobile browser kills a hidden tab before the save finishes.
+		const commit = platform.documents.commit;
+		let release!: () => void;
+		const held = new Promise<void>((resolve) => (release = resolve));
+		platform.documents.commit = async (...args) => {
+			await held;
+			return commit(...args);
+		};
 
-		doc.dispatchEvent(new Event("visibilitychange"));
+		platform.activity.setVisible(false);
+		expect(platform.journal.readAll(SPACE, "d1")).toHaveLength(1);
+		release();
 		await vi.advanceTimersByTimeAsync(0);
 		expect((await stored(platform)).name).toBe("Home");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+
+		// Another tab saves while this one is hidden; coming back catches up.
+		const other = await DocumentSession.open(platform, SPACE, "d1", "tab-2");
+		other!.apply(title("a", "Map"));
+		await other!.flush();
+		platform.activity.setVisible(true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(session.doc.body.widgets[0].title).toBe("Map");
+		expect(session.doc.version).toBe(2);
+	});
+
+	it("a failed save retries on the backoff timer", async () => {
+		const { platform, session } = await setup();
+		const commit = vi
+			.spyOn(platform.documents, "commit")
+			.mockRejectedValueOnce(new Error("disk"))
+			.mockRejectedValueOnce(new Error("disk"));
+		expect(RETRY_DELAYS_MS).toEqual([1_000, 2_000, 5_000, 15_000, 60_000]);
+		session.apply(rename("Home"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(commit).toHaveBeenCalledTimes(1);
+		expect(session.status).toBe("error");
+		expect(session.errorKind).toBe("unavailable");
+
+		await vi.advanceTimersByTimeAsync(999);
+		expect(commit).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(commit).toHaveBeenCalledTimes(2);
+		expect(session.status).toBe("error");
+
+		await vi.advanceTimersByTimeAsync(2_000);
+		expect(commit).toHaveBeenCalledTimes(3);
+		expect(session.status).toBe("saved");
+		expect(session.errorKind).toBeNull();
+		expect((await stored(platform)).name).toBe("Home");
+
+		// After a success the delay starts over.
+		commit.mockRejectedValueOnce(new Error("disk"));
+		session.apply(title("a", "Map"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(commit).toHaveBeenCalledTimes(4);
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(commit).toHaveBeenCalledTimes(5);
+		expect(session.status).toBe("saved");
+		expect((await stored(platform)).body.widgets[0].title).toBe("Map");
+	});
+
+	it("a quota failure sets errorKind to quota", async () => {
+		const { platform, session } = await setup();
+		vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(
+			new DOMException("full", "QuotaExceededError")
+		);
+		session.apply(rename("Home"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(session.status).toBe("error");
+		expect(session.errorKind).toBe("quota");
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(session.status).toBe("saved");
+		expect(session.errorKind).toBeNull();
+	});
+
+	it("suspend writes the journal and stops saving", async () => {
+		const { platform, session } = await setup();
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename("Home"));
+		session.suspend();
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([
+			{
+				tabId: "tab-1",
+				record: {
+					baseVersion: 0,
+					changes: [rename("Home")],
+					schemaVersion: 1,
+					writtenAt: NOW.toISOString()
+				}
+			}
+		]);
+
+		session.apply(title("a", "Map"));
+		await session.flush();
+		platform.activity.setVisible(false);
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(commit).not.toHaveBeenCalled();
+		expect((await stored(platform)).name).toBeNull();
+		// The journal still holds only what was pending when it was suspended.
+		expect(platform.journal.readAll(SPACE, "d1")[0].record).toMatchObject({
+			changes: [rename("Home")]
+		});
+	});
+
+	it("discard drops pending changes without saving or journaling", async () => {
+		const win = new EventTarget();
+		vi.stubGlobal("window", win);
+		const { platform, session } = await setup();
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename("Home"));
+		session.discard();
+		win.dispatchEvent(new Event("pagehide"));
+		platform.activity.setVisible(false);
+		await session.flush();
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(commit).not.toHaveBeenCalled();
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+		expect((await stored(platform)).name).toBeNull();
 	});
 
 	it("dispose flushes and removes listeners", async () => {
@@ -395,15 +508,13 @@ describe("DocumentSession journal", () => {
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
 	});
 
-	it("the page becoming hidden also writes the pending changes", async () => {
-		const page = Object.assign(new EventTarget(), { visibilityState: "hidden" });
-		vi.stubGlobal("document", page);
+	it("the app becoming hidden also writes the pending changes", async () => {
 		const { platform, session } = await setup();
 		session.apply(title("a", "Ozone"));
 		// The commit is held: mobile browsers may kill a hidden tab before it finishes.
 		platform.documents.commit = () => new Promise(() => {});
 
-		page.dispatchEvent(new Event("visibilitychange"));
+		platform.activity.setVisible(false);
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([
 			{ tabId: "tab-1", record: record([title("a", "Ozone")]) }
 		]);

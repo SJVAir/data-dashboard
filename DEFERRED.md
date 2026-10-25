@@ -187,12 +187,17 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Migration chain hardening.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A bare
   `catch` in `loadDashboard` (and `upgradeChanges`) hides migration bugs as "invalid".
   **Revisit with** spec 5 (the error reporter).
-- **DocumentSession durability gaps.** _Deferred 2026-10-20 (Foundations spec 1 review)._
-  Edits queued during the starter hand-off are dropped if the hook returns `null` or
-  rejects, and aren't journaled while it runs. A failed save is retried only on the next
-  edit or `pagehide` (there's no retry timer). Errors on the commit chain aren't reported.
-  Each needs a storage failure at an unlucky moment. **Revisit with** spec 3 (durability)
-  for the first two, and spec 5 (Sentry) for reporting.
+- **DocumentSession durability gaps.** _Deferred 2026-10-20 (Foundations spec 1 review);
+  the hand-off and retry parts were done in spec 3._ Errors on the commit chain (a failed
+  save, catch-up, or conflict resolution) only set the "error" status; nothing reports
+  them. **Revisit with** spec 5 (Sentry) for reporting.
+- **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
+  task 6)._ If the page goes away mid-hand-off after the copy was stored but before its first
+  save, the next load opens the (unedited) copy, not the starter, so the starter's journal
+  record (its queued edits) is never replayed; it stays until journal cleanup removes it.
+  Needs the page to die in a window of a few milliseconds. **Revisit on** a report of lost
+  first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
+  starter.
 - **Cross-tab sync edge cases.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A
   catch-up from a trimmed log during a conflict leaves stale conflict pairs. "Keep mine"
   after a journal-replay conflict can drop edits to widgets the other side deleted (it needs
@@ -338,11 +343,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **`LiveQuery` has no idle state for a null input.** _Deferred 2026-10-22 (Foundations spec
   2)._ A widget with nothing to show yet (no place picked) has to avoid constructing the query
   rather than pass `null`. **Revisit when** building widgets (Release 1 step 4).
-- **`DocumentSession` reads page visibility directly.** _Noted 2026-10-22 (Foundations spec
-  2)._ `src/lib/store/document-session.svelte.ts` (spec 1) still listens to
-  `visibilitychange` and reads `visibilityState`, against the platform-adapter rule; spec 2
-  added `platform.activity`. **Revisit when** `DocumentSession` is next changed, or in the
-  spec 3/5 platform work: move it onto that capability.
 - **`adapter.target` takes no `AbortSignal`.** _Deferred 2026-10-22 (Foundations spec 2 final
   review)._ Resolving a layer's target can't be cancelled when its subscriber moves on; today
   it makes no network calls (the web region resolver answers at once), so nothing is wasted.
