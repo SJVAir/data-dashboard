@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
 import { STARTER_ID, blankDashboard } from "$lib/starter/starter";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { createMemoryTabHub } from "./tab-channel";
@@ -124,5 +125,62 @@ describe("DashboardIndex", () => {
 			})
 		);
 		await expect(index.createFrom(doc)).rejects.toThrow();
+	});
+
+	it("lists deleted dashboards newest deletion first", async () => {
+		const platform = createMemoryPlatform();
+		const now = clock();
+		for (const [id, deletedAt] of [
+			["a", "2026-10-01T00:00:00.000Z"],
+			["b", "2026-10-03T00:00:00.000Z"],
+			["c", "2026-10-02T00:00:00.000Z"]
+		]) {
+			await store(platform, { ...blankDashboard(now()), id, deletedAt }, id);
+		}
+		await store(platform, { ...blankDashboard(now()), id: "live" }, "live");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		expect(index.deleted.map((d) => d.id)).toEqual(["b", "c", "a"]);
+		expect(index.items.map((d) => d.id)).toEqual(["live"]);
+		expect(index.deletedNames.get("b")).toBe("Untitled dashboard 2");
+	});
+
+	it("remove deletes a dashboard for good, with its journal records and fingerprint", async () => {
+		const platform = createMemoryPlatform();
+		const hub = createMemoryTabHub();
+		const seen = vi.fn();
+		hub.channel().subscribe(seen);
+		const now = clock();
+		await store(
+			platform,
+			{ ...blankDashboard(now()), id: "gone", deletedAt: now().toISOString() },
+			"gone"
+		);
+		platform.journal.write(SPACE, "gone", "t1", { baseVersion: 1 });
+		await rememberCopy(platform, SPACE, "fp", "gone");
+		const index = new DashboardIndex({ platform, space: SPACE, channel: hub.channel() });
+		await index.refresh();
+		await index.remove("gone");
+		expect(await platform.documents.get(SPACE, "gone")).toBeUndefined();
+		expect(platform.journal.list(SPACE)).toEqual([]);
+		expect(await copiesOf(platform, SPACE, "fp")).toEqual([]);
+		expect(index.deleted).toEqual([]);
+		expect(seen).toHaveBeenCalledWith(
+			expect.objectContaining({ type: "committed", docId: "gone" })
+		);
+	});
+
+	it("shows a name that exists only in a journal record", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, { ...blankDashboard(clock()()), id: "d", name: "Old name" }, "d");
+		platform.journal.write(SPACE, "d", "t1", {
+			baseVersion: 1,
+			changes: [{ op: "setField", target: { path: "name" }, from: "Old name", to: "New name" }],
+			schemaVersion: 1,
+			writtenAt: "2026-10-20T12:00:00.000Z"
+		});
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		expect(index.names.get("d")).toBe("New name");
 	});
 });

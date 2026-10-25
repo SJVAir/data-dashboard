@@ -207,12 +207,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Conflict status wording.** _Deferred 2026-10-20 (Foundations spec 1 review); the other
   cross-tab sync edge cases were done in spec 3._ The "error" status during a conflict looks
   like "Couldn't save". **Revisit in** the design pass.
-- **Journal limits and cleanup.** _Deferred 2026-10-20 (Foundations spec 1 review)._ Journal
-  records have no explicit size limit; records for dashboards that are never reopened stay
-  in `localStorage`; and the dashboards list shows a stale name when a rename exists only in
-  a journal record (until the dashboard is opened). Records are small and rare (only edits
-  pending at `pagehide`). **Revisit with** spec 3 (size limits), or if `localStorage` use
-  ever grows noticeably.
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size
@@ -592,12 +586,16 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **Startup failures all read as "storage unavailable".** _Deferred 2026-10-20 (Foundations
   spec 1 review)._ An init failure that isn't a storage failure shows the same message.
   **Revisit with** spec 5 (error reporting).
-- **Save-status and undo-toast timing.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+- **Save-status announcements.** _Deferred 2026-10-20 (Foundations spec 1 review)._
   The saved indicator's `aria-live` region announces "Saving…"/"Saved" on every edit, which
-  is noisy for screen readers. Undo toasts use sonner's 4-second default, after which a
-  dashboard deleted from the picker can't be recovered until "Recently deleted" ships (WCAG
-  2.2.1, Timing Adjustable). **Revisit in** the design pass (the announcements), and with
-  spec 3's "Recently deleted" (or lengthen the toasts sooner).
+  is noisy for screen readers. (The undo-toast half closed with "Recently deleted", which
+  recovers a deleted dashboard after the toast is gone.) **Revisit in** the design pass.
+- **Read-only dashboards in Recently deleted can't be undeleted by a restore.**
+  _Deferred 2026-10-25 (Foundations spec 3, Task 11 review)._ Restoring a backup undeletes
+  a stored dashboard that is in Recently deleted through an ordinary edit, and read-only
+  sessions (newer or unreadable documents) refuse edits, so such a dashboard is counted as
+  kept and stays deleted. **Revisit if** read-only dashboards become restorable or
+  undeletable.
 - **Names of copies.** _Deferred 2026-10-20 (Foundations spec 1 review)._ "Save mine as a
   copy" keeps the same name with no rename prompt, and duplicating an unnamed "My dashboard"
   lists the copy as "Untitled dashboard". **Revisit in** the design pass, or when people

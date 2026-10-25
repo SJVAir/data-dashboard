@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { purgeExpired } from "$lib/safety/purge";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -181,6 +182,13 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	const tabId = options.tabId ?? crypto.randomUUID();
 	const channel = withLocalEcho(options.channel ?? createTabChannel());
 	const app = new App(platform, space, tabId, channel, { ...options, channel });
+	try {
+		// A timestamp, not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		await purgeExpired(platform, space, options.now?.() ?? new Date());
+	} catch {
+		// Housekeeping: a storage error mustn't keep the app from opening.
+	}
 	await app.index.refresh();
 	return app;
 }

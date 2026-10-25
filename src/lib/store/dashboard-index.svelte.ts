@@ -2,6 +2,7 @@ import { loadDashboard } from "$lib/documents/load";
 import { displayNames, type DashboardSummary } from "$lib/documents/names";
 import type { Dashboard } from "$lib/documents/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { forgetDocument } from "$lib/sharing/fingerprints";
 import {
 	STARTER_ID,
 	blankDashboard,
@@ -9,6 +10,7 @@ import {
 	duplicateDashboard,
 	starterDashboard
 } from "$lib/starter/starter";
+import { pendingName } from "./journal";
 import type { TabChannel } from "./tab-channel";
 
 export type DashboardIndexOptions = {
@@ -52,10 +54,15 @@ function pick(doc: Dashboard): DashboardSummary {
 	return { id, name, copiedFrom, createdAt, updatedAt, deletedAt };
 }
 
-/** This space's dashboards (not deleted), newest change first, with their display names. */
+/**
+ * This space's dashboards (not deleted), newest change first, with their display names; and
+ * those in Recently deleted, newest deletion first.
+ */
 export class DashboardIndex {
 	items = $state.raw<DashboardSummary[]>([]);
 	names = $derived(displayNames(this.items, STARTER_ID));
+	deleted = $state.raw<DashboardSummary[]>([]);
+	deletedNames = $derived(displayNames(this.deleted, STARTER_ID));
 
 	readonly #platform: Platform;
 	readonly #space: SpaceId;
@@ -84,10 +91,44 @@ export class DashboardIndex {
 		const generation = ++this.#generation;
 		const raws = await this.#platform.documents.list(this.#space);
 		if (generation !== this.#generation) return;
-		this.items = raws
+		// A rename that exists only in a journal record shows before the dashboard is opened.
+		// A local lookup, not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const pending = new Map<string, Array<{ record: unknown }>>();
+		for (const { docId, record } of this.#platform.journal.list(this.#space)) {
+			pending.set(docId, [...(pending.get(docId) ?? []), { record }]);
+		}
+		const all = raws
 			.map(summarize)
-			.filter((d): d is DashboardSummary => d !== null && d.deletedAt === undefined)
+			.filter((d): d is DashboardSummary => d !== null)
+			.map((d) => {
+				const name = pendingName(pending.get(d.id) ?? []);
+				return name === undefined ? d : { ...d, name };
+			});
+		this.items = all
+			.filter((d) => d.deletedAt === undefined)
 			.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+		this.deleted = all
+			.filter((d) => d.deletedAt !== undefined)
+			.sort((a, b) => Date.parse(b.deletedAt!) - Date.parse(a.deletedAt!));
+	}
+
+	/** "Delete now": removes the dashboard for good, with its journal records and fingerprints. */
+	async remove(id: string): Promise<void> {
+		const { documents, journal } = this.#platform;
+		await documents.remove(this.#space, id);
+		for (const { docId, tabId } of journal.list(this.#space)) {
+			if (docId === id) journal.clear(this.#space, docId, tabId);
+		}
+		await forgetDocument(this.#platform, this.#space, id);
+		this.#channel?.post({
+			type: "committed",
+			space: this.#space,
+			docId: id,
+			version: 0,
+			tabId: this.#tabId
+		});
+		await this.refresh();
 	}
 
 	createBlank(): Promise<string> {

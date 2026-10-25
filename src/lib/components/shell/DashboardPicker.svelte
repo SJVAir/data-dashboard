@@ -65,5 +65,14 @@
 				<a {...props} href={p("/dashboards")}>{m.all_dashboards()}</a>
 			{/snippet}
 		</DropdownMenu.Item>
+		{#if app.index.deleted.length > 0}
+			<DropdownMenu.Item>
+				{#snippet child({ props })}
+					<a {...props} href="{p('/dashboards')}#recently-deleted">
+						{m.deleted_picker({ count: app.index.deleted.length })}
+					</a>
+				{/snippet}
+			</DropdownMenu.Item>
+		{/if}
 	</DropdownMenu.Content>
 </DropdownMenu.Root>

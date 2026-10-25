@@ -177,6 +177,24 @@ function softDelete(
 	});
 }
 
+/**
+ * Brings a dashboard out of Recently deleted (as an ordinary, undoable change that syncs to
+ * other tabs) and opens it.
+ */
+export async function restoreDeleted(app: AppContext, id: string): Promise<void> {
+	const session = await app.sessions.get(id, { remember: false });
+	if (!session || session.readOnly || session.doc.deletedAt === undefined) return;
+	session.apply({
+		op: "setField",
+		target: { path: "deletedAt" },
+		from: session.doc.deletedAt,
+		to: null
+	});
+	await session.flush();
+	await app.index.refresh();
+	await openDashboard(id);
+}
+
 async function deleteDashboard(app: AppContext, id?: string): Promise<void> {
 	const target = await resolveTarget(app, id);
 	if (!target || target.session.readOnly || target.isStarter) return;

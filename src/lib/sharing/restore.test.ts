@@ -102,6 +102,53 @@ describe("restoreFromEnvelope", () => {
 		expect(await app.platform.documents.get(app.space, "huge")).toBeUndefined();
 	});
 
+	it("a restored dashboard never lands in Recently deleted", async () => {
+		const { app } = await setup();
+		const doc = stored("a1", { deletedAt: "2026-10-20T00:00:00.000Z" });
+		const summary = await restoreFromEnvelope(app, backupOf([doc]));
+		expect(summary).toEqual({ restored: 1, kept: 0, readOnly: 0, skipped: 0 });
+		const now = (await app.platform.documents.get(app.space, "a1")) as Dashboard;
+		expect(now.deletedAt).toBeUndefined();
+		expect(app.index.items.map((d) => d.id)).toEqual(["a1"]);
+	});
+
+	it("one storage error counts as skipped and the rest still restore", async () => {
+		const { app } = await setup();
+		const get = app.platform.documents.get.bind(app.platform.documents);
+		app.platform.documents.get = async (space, id) => {
+			if (id === "bad") throw new Error("storage");
+			return get(space, id);
+		};
+		const summary = await restoreFromEnvelope(app, backupOf([stored("bad"), stored("ok")]));
+		expect(summary).toEqual({ restored: 1, kept: 0, readOnly: 0, skipped: 1 });
+		expect(app.index.items.map((d) => d.id)).toEqual(["ok"]);
+	});
+
+	it("refreshes the list even when the last restore fails", async () => {
+		const { app } = await setup();
+		const commit = app.platform.documents.commit.bind(app.platform.documents);
+		app.platform.documents.commit = async (space, input) => {
+			if (input.docId === "bad") throw new Error("storage");
+			return commit(space, input);
+		};
+		await restoreFromEnvelope(app, backupOf([stored("ok"), stored("bad")]));
+		expect(app.index.items.map((d) => d.id)).toEqual(["ok"]);
+	});
+
+	it("a dashboard stored by another tab meanwhile is kept, unchanged", async () => {
+		const { app } = await setup();
+		const theirs = stored("a1", { name: "Other tab's" });
+		const get = app.platform.documents.get.bind(app.platform.documents);
+		app.platform.documents.get = async (space, id) => {
+			const found = await get(space, id);
+			if (id === "a1" && found === undefined) await store(app, theirs, "a1");
+			return found;
+		};
+		const summary = await restoreFromEnvelope(app, backupOf([stored("a1", { name: "Backup's" })]));
+		expect(summary).toEqual({ restored: 0, kept: 1, readOnly: 0, skipped: 0 });
+		expect(await app.platform.documents.get(app.space, "a1")).toEqual(theirs);
+	});
+
 	it("fingerprints are restored", async () => {
 		const { app } = await setup();
 		await restoreFromEnvelope(app, backupOf([stored("a1")], { a1: "fp-1", ghost: "fp-2" }));
