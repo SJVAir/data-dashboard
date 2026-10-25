@@ -2,6 +2,7 @@
 	import { Router } from "sv-router";
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 	import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
+	import NoticeBars from "$lib/components/shell/NoticeBars.svelte";
 	import TopNav from "$lib/components/shell/TopNav.svelte";
 	import { Toaster } from "$lib/components/ui/sonner";
 	// Imported for its side effect too: it sets up the route table.
@@ -10,6 +11,7 @@
 
 <div class="flex min-h-dvh flex-col">
 	<TopNav />
+	<NoticeBars />
 	<main class="flex-1">
 		<Router />
 	</main>

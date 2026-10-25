@@ -67,5 +67,7 @@
 	"data_unavailable_no_resolution": "This data isn't offered for this date range.",
 	"data_unavailable_place_unsupported": "This kind of place can't be shown yet.",
 	"data_unavailable_region_unresolved": "This region can't be looked up yet.",
-	"data_unavailable_whole_layer_raw": "Choose a longer date range to show every monitor."
+	"data_unavailable_whole_layer_raw": "Choose a longer date range to show every monitor.",
+	"update_available": "A new version is available.",
+	"update_reload": "Reload"
 }

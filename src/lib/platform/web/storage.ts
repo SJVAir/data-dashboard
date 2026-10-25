@@ -17,6 +17,7 @@ import { createWebFiles } from "./files";
 import { createWebPersistence } from "./persistence";
 import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
 import { createWebJournal } from "./journal";
+import { createReopening } from "./reopen";
 
 const logRange = (space: SpaceId, docId: string, from = 0) =>
 	IDBKeyRange.bound([space, docId, from], [space, docId, Number.MAX_SAFE_INTEGER]);
@@ -31,6 +32,8 @@ function unwrap(row: { space: SpaceId } & KeptOriginal): KeptOriginal {
 	return { id, raw, keptAt, fromSchemaVersion };
 }
 
+type Run = <T>(operation: (db: IDBPDatabase<WorkspaceDB>) => Promise<T>) => Promise<T>;
+
 const KEY_PREFIX = "sjvair-workspace:";
 const GENERATION_KEY = `${KEY_PREFIX}generation`;
 
@@ -38,7 +41,7 @@ const GENERATION_KEY = `${KEY_PREFIX}generation`;
  * The generation lives in `localStorage` so every tab sees a reset. `clearAll` writes the new one
  * first, synchronously, so other tabs stop saving before the slower erasing finishes.
  */
-function createWebReset(db: IDBPDatabase<WorkspaceDB>): ResetAccess {
+function createWebReset(run: Run): ResetAccess {
 	let fallback: string | undefined;
 	return {
 		generation() {
@@ -62,8 +65,10 @@ function createWebReset(db: IDBPDatabase<WorkspaceDB>): ResetAccess {
 				// Blocked storage: this tab still knows the new generation.
 			}
 			const stores = ["documents", "changeLog", "preferences", "originals", "syncQueue"] as const;
-			const tx = db.transaction([...stores], "readwrite");
-			await Promise.all([...stores.map((name) => tx.objectStore(name).clear()), tx.done]);
+			await run(async (db) => {
+				const tx = db.transaction([...stores], "readwrite");
+				await Promise.all([...stores.map((name) => tx.objectStore(name).clear()), tx.done]);
+			});
 			try {
 				const doomed: string[] = [];
 				for (let i = 0; i < localStorage.length; i++) {
@@ -81,75 +86,99 @@ function createWebReset(db: IDBPDatabase<WorkspaceDB>): ResetAccess {
 }
 
 export async function createWebPlatform(options: OpenOptions = {}): Promise<Platform> {
-	const db: IDBPDatabase<WorkspaceDB> = await openWorkspaceDB(options);
+	const connection = createReopening(
+		() => openWorkspaceDB(options),
+		await openWorkspaceDB({
+			...options,
+			onVersionChange() {
+				// Another tab is upgrading: this connection closes and must stay closed.
+				connection.stop();
+				options.onVersionChange?.();
+			}
+		})
+	);
+	const run: Run = connection.run;
 
 	return {
 		documents: {
-			async list(space) {
-				const rows = await db.getAll("documents", IDBKeyRange.bound([space, ""], [space, "￿"]));
-				return rows.map((r) => r.doc);
-			},
-			async get(space, id) {
-				return (await db.get("documents", [space, id]))?.doc;
-			},
-			async commit(space, input): Promise<CommitResult> {
+			list: (space) =>
+				run(async (db) => {
+					const rows = await db.getAll(
+						"documents",
+						IDBKeyRange.bound([space, ""], [space, "\uffff"])
+					);
+					return rows.map((r) => r.doc);
+				}),
+			get: (space, id) => run(async (db) => (await db.get("documents", [space, id]))?.doc),
+			commit: async (space, input): Promise<CommitResult> => {
 				assertCommitPrecondition(input);
-				const tx = db.transaction(["documents", "changeLog"], "readwrite");
-				const docs = tx.objectStore("documents");
-				const log = tx.objectStore("changeLog");
-				const existing = await docs.get([space, input.docId]);
-				const current = existing ? docVersion(existing.doc) : 0;
-				if (input.baseVersion === null ? existing : !existing || current !== input.baseVersion) {
+				return run(async (db) => {
+					const tx = db.transaction(["documents", "changeLog"], "readwrite");
+					const docs = tx.objectStore("documents");
+					const log = tx.objectStore("changeLog");
+					const existing = await docs.get([space, input.docId]);
+					const current = existing ? docVersion(existing.doc) : 0;
+					if (input.baseVersion === null ? existing : !existing || current !== input.baseVersion) {
+						await tx.done;
+						return { ok: false, currentVersion: current };
+					}
+					await docs.put({ space, id: input.docId, doc: input.doc });
+					for (const entry of input.entries) await log.put({ ...entry, space });
+					const keys = await log.getAllKeys(logRange(space, input.docId));
+					for (const k of keys.slice(0, Math.max(0, keys.length - LOG_LIMIT))) await log.delete(k);
 					await tx.done;
-					return { ok: false, currentVersion: current };
-				}
-				await docs.put({ space, id: input.docId, doc: input.doc });
-				for (const entry of input.entries) await log.put({ ...entry, space });
-				const keys = await log.getAllKeys(logRange(space, input.docId));
-				for (const k of keys.slice(0, Math.max(0, keys.length - LOG_LIMIT))) await log.delete(k);
-				await tx.done;
-				return { ok: true };
+					return { ok: true };
+				});
 			},
-			async readLog(space, docId, afterVersion) {
-				const tx = db.transaction("changeLog", "readonly");
-				const [first] = await tx.store.getAllKeys(logRange(space, docId), 1);
-				if (!logCovers(first?.[2], afterVersion)) return "trimmed";
-				const rows = await tx.store.getAll(logRange(space, docId, afterVersion + 1));
-				return rows.map(strip);
-			},
-			async remove(space, id) {
-				const tx = db.transaction(["documents", "changeLog", "originals"], "readwrite");
-				await Promise.all([
-					tx.objectStore("documents").delete([space, id]),
-					tx.objectStore("changeLog").delete(logRange(space, id)),
-					tx.objectStore("originals").delete([space, id]),
-					tx.done
-				]);
-			}
+			readLog: (space, docId, afterVersion) =>
+				run(async (db) => {
+					const tx = db.transaction("changeLog", "readonly");
+					const [first] = await tx.store.getAllKeys(logRange(space, docId), 1);
+					if (!logCovers(first?.[2], afterVersion)) return "trimmed" as const;
+					const rows = await tx.store.getAll(logRange(space, docId, afterVersion + 1));
+					return rows.map(strip);
+				}),
+			remove: (space, id) =>
+				run(async (db) => {
+					const tx = db.transaction(["documents", "changeLog", "originals"], "readwrite");
+					await Promise.all([
+						tx.objectStore("documents").delete([space, id]),
+						tx.objectStore("changeLog").delete(logRange(space, id)),
+						tx.objectStore("originals").delete([space, id]),
+						tx.done
+					]);
+				})
 		},
 		originals: {
-			async get(space, id) {
-				const row = await db.get("originals", [space, id]);
-				return row === undefined ? undefined : unwrap(row);
-			},
-			async put(space, original) {
-				await db.put("originals", { ...original, space });
-			},
-			async list(space) {
-				const rows = await db.getAll("originals", IDBKeyRange.bound([space, ""], [space, "￿"]));
-				return rows.map(unwrap);
-			},
-			async remove(space, id) {
-				await db.delete("originals", [space, id]);
-			}
+			get: (space, id) =>
+				run(async (db) => {
+					const row = await db.get("originals", [space, id]);
+					return row === undefined ? undefined : unwrap(row);
+				}),
+			put: (space, original) =>
+				run(async (db) => {
+					await db.put("originals", { ...original, space });
+				}),
+			list: (space) =>
+				run(async (db) => {
+					const rows = await db.getAll(
+						"originals",
+						IDBKeyRange.bound([space, ""], [space, "\uffff"])
+					);
+					return rows.map(unwrap);
+				}),
+			remove: (space, id) =>
+				run(async (db) => {
+					await db.delete("originals", [space, id]);
+				})
 		},
 		preferences: {
-			async get<T>(space: SpaceId, key: string) {
-				return (await db.get("preferences", [space, key]))?.value as T | undefined;
-			},
-			async set(space, key, value) {
-				await db.put("preferences", { space, key, value });
-			}
+			get: <T>(space: SpaceId, key: string) =>
+				run(async (db) => (await db.get("preferences", [space, key]))?.value as T | undefined),
+			set: (space, key, value) =>
+				run(async (db) => {
+					await db.put("preferences", { space, key, value });
+				})
 		},
 		journal: createWebJournal(),
 		identity: { currentSpace: async () => "anonymous" },
@@ -157,6 +186,6 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		clipboard: createWebClipboard(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),
-		reset: createWebReset(db)
+		reset: createWebReset(run)
 	};
 }
