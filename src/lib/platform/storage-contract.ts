@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { LOG_LIMIT, type LogEntry, type Platform } from "./types";
+import { CommitPreconditionError, LOG_LIMIT, type LogEntry, type Platform } from "./types";
 
 function entry(docId: string, version: number): LogEntry {
 	return {
@@ -112,6 +112,112 @@ export function runStorageContract(name: string, make: () => Promise<Platform>) 
 			expect(kept).not.toBe("trimmed");
 			expect(kept).toHaveLength(LOG_LIMIT);
 			expect((kept as LogEntry[])[0].version).toBe(21);
+		});
+
+		test("remove deletes the document, its log, and its original", async () => {
+			for (const id of ["a", "b"]) {
+				await p.documents.commit("anonymous", {
+					docId: id,
+					baseVersion: null,
+					doc: doc(id),
+					entries: []
+				});
+				await p.documents.commit("anonymous", {
+					docId: id,
+					baseVersion: 0,
+					doc: doc(id, 1),
+					entries: [entry(id, 1)]
+				});
+				await p.originals.put("anonymous", {
+					id,
+					raw: { id },
+					keptAt: "2026-10-25T00:00:00.000Z",
+					fromSchemaVersion: 1
+				});
+			}
+			await p.documents.remove("anonymous", "a");
+			expect(await p.documents.get("anonymous", "a")).toBeUndefined();
+			expect(await p.documents.readLog("anonymous", "a", 0)).toEqual([]);
+			expect(await p.originals.get("anonymous", "a")).toBeUndefined();
+			expect(await p.documents.get("anonymous", "b")).toEqual(doc("b", 1));
+			expect(await p.documents.readLog("anonymous", "b", 0)).toHaveLength(1);
+			expect(await p.originals.get("anonymous", "b")).toBeDefined();
+			await expect(p.documents.remove("anonymous", "missing")).resolves.toBeUndefined();
+		});
+
+		test("commit on a missing id with a numeric base is refused", async () => {
+			const res = await p.documents.commit("anonymous", {
+				docId: "a",
+				baseVersion: 3,
+				doc: doc("a", 4),
+				entries: [entry("a", 4)]
+			});
+			expect(res).toEqual({ ok: false, currentVersion: 0 });
+			expect(await p.documents.get("anonymous", "a")).toBeUndefined();
+			expect(await p.documents.readLog("anonymous", "a", 0)).toEqual([]);
+		});
+
+		test("readLog for an unknown document is empty", async () => {
+			expect(await p.documents.readLog("anonymous", "nope", 0)).toEqual([]);
+		});
+
+		test("commit rejects entries that don't run contiguously to doc.version", async () => {
+			await p.documents.commit("anonymous", {
+				docId: "a",
+				baseVersion: null,
+				doc: doc("a"),
+				entries: []
+			});
+			await expect(
+				p.documents.commit("anonymous", {
+					docId: "a",
+					baseVersion: 0,
+					doc: doc("a", 3),
+					entries: [entry("a", 1), entry("a", 3)]
+				})
+			).rejects.toBeInstanceOf(CommitPreconditionError);
+			await expect(
+				p.documents.commit("anonymous", {
+					docId: "a",
+					baseVersion: 0,
+					doc: doc("a", 2),
+					entries: [entry("a", 1)]
+				})
+			).rejects.toBeInstanceOf(CommitPreconditionError);
+			expect(await p.documents.get("anonymous", "a")).toEqual(doc("a"));
+			expect(await p.documents.readLog("anonymous", "a", 0)).toEqual([]);
+		});
+
+		test("create with no entries accepts any version", async () => {
+			const res = await p.documents.commit("anonymous", {
+				docId: "a",
+				baseVersion: null,
+				doc: doc("a", 7),
+				entries: []
+			});
+			expect(res).toEqual({ ok: true });
+			expect(await p.documents.get("anonymous", "a")).toEqual(doc("a", 7));
+		});
+
+		test("a duplicate entry version replaces the earlier entry", async () => {
+			// A create may start its log anywhere, so the two creates' logs can overlap only through
+			// the same version; the later write must win in both adapters.
+			await p.documents.commit("anonymous", {
+				docId: "a",
+				baseVersion: null,
+				doc: doc("a", 1),
+				entries: [entry("a", 1)]
+			});
+			await p.documents.remove("anonymous", "a");
+			await p.documents.commit("anonymous", {
+				docId: "a",
+				baseVersion: null,
+				doc: doc("a", 1),
+				entries: [{ ...entry("a", 1), tabId: "tab-2" }]
+			});
+			const log = (await p.documents.readLog("anonymous", "a", 0)) as LogEntry[];
+			expect(log).toHaveLength(1);
+			expect(log[0].tabId).toBe("tab-2");
 		});
 
 		test("spaces are isolated", async () => {

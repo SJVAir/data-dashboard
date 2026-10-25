@@ -193,14 +193,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   documented on `Migration.migrate`; and a bare `catch` hides migration bugs as "invalid".
   There is only one schema version so far. **Revisit with** spec 3 (the format freeze) for
   the first two, and spec 5 (the error reporter) for the `catch`.
-- **IndexedDB adapter robustness.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A
-  connection closed by `blocking` or `terminated` is never reopened, so the UI shows
-  "Couldn't save" until a reload. The commit precondition (`doc.version` equals the last
-  entry's, entries contiguous) isn't enforced, and the memory and IndexedDB adapters diverge
-  on duplicate entry versions. Contract gaps: a commit on a missing id with a numeric base,
-  and `readLog` for an unknown document. The app's callers don't hit these cases
-  today. **Revisit before** any IndexedDB version bump (the reopen), or
-  with spec 3's durability work (the rest).
+- **IndexedDB adapter robustness.** _Deferred 2026-10-20 (Foundations spec 1 review); the
+  commit precondition, duplicate-version and contract gaps were closed in Foundations spec 3
+  (task 1)._ A connection closed by `blocking` or `terminated` is never reopened, so the UI
+  shows "Couldn't save" until a reload. **Revisit before** any IndexedDB version bump (the
+  reopen); Foundations spec 3 task 3 is planned to remove it.
 - **DocumentSession durability gaps.** _Deferred 2026-10-20 (Foundations spec 1 review)._
   Edits queued during the starter hand-off are dropped if the hook returns `null` or
   rejects, and aren't journaled while it runs. A failed save is retried only on the next

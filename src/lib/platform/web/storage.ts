@@ -1,9 +1,11 @@
 import type { IDBPDatabase } from "idb";
 import {
 	LOG_LIMIT,
+	assertCommitPrecondition,
 	docVersion,
 	logCovers,
 	type CommitResult,
+	type KeptOriginal,
 	type LogEntry,
 	type Platform,
 	type SpaceId
@@ -20,6 +22,11 @@ function strip(row: LogEntry & { space: SpaceId }): LogEntry {
 	return { docId, version, change, tabId, schemaVersion };
 }
 
+function unwrap(row: { space: SpaceId } & KeptOriginal): KeptOriginal {
+	const { id, raw, keptAt, fromSchemaVersion } = row;
+	return { id, raw, keptAt, fromSchemaVersion };
+}
+
 export async function createWebPlatform(options: OpenOptions = {}): Promise<Platform> {
 	const db: IDBPDatabase<WorkspaceDB> = await openWorkspaceDB(options);
 
@@ -33,6 +40,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 				return (await db.get("documents", [space, id]))?.doc;
 			},
 			async commit(space, input): Promise<CommitResult> {
+				assertCommitPrecondition(input);
 				const tx = db.transaction(["documents", "changeLog"], "readwrite");
 				const docs = tx.objectStore("documents");
 				const log = tx.objectStore("changeLog");
@@ -55,6 +63,31 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 				if (!logCovers(first?.[2], afterVersion)) return "trimmed";
 				const rows = await tx.store.getAll(logRange(space, docId, afterVersion + 1));
 				return rows.map(strip);
+			},
+			async remove(space, id) {
+				const tx = db.transaction(["documents", "changeLog", "originals"], "readwrite");
+				await Promise.all([
+					tx.objectStore("documents").delete([space, id]),
+					tx.objectStore("changeLog").delete(logRange(space, id)),
+					tx.objectStore("originals").delete([space, id]),
+					tx.done
+				]);
+			}
+		},
+		originals: {
+			async get(space, id) {
+				const row = await db.get("originals", [space, id]);
+				return row === undefined ? undefined : unwrap(row);
+			},
+			async put(space, original) {
+				await db.put("originals", { ...original, space });
+			},
+			async list(space) {
+				const rows = await db.getAll("originals", IDBKeyRange.bound([space, ""], [space, "￿"]));
+				return rows.map(unwrap);
+			},
+			async remove(space, id) {
+				await db.delete("originals", [space, id]);
 			}
 		},
 		preferences: {

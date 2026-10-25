@@ -1,6 +1,7 @@
 import { beforeEach } from "vitest";
 import { deleteDatabase } from "./db";
 import { createWebPlatform } from "./storage";
+import { runCapabilityContract } from "../capability-contract";
 import { runStorageContract } from "../storage-contract";
 
 beforeEach(async () => {
@@ -9,3 +10,4 @@ beforeEach(async () => {
 });
 
 runStorageContract("indexeddb", () => createWebPlatform());
+runCapabilityContract("indexeddb", () => createWebPlatform());
