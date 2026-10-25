@@ -293,6 +293,33 @@ describe("cross-tab sync", () => {
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
 	});
 
+	it("keep mine after a journal-replay conflict survives another save meanwhile", async () => {
+		const { platform, open, a } = await twoTabs();
+		a.apply(removeA());
+		await a.flush();
+		await settle();
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Mine")]));
+
+		const c = await open("tab-c");
+		expect(c.conflict).not.toBeNull();
+		// Tab A saves again while the prompt is up; C catches up and the conflict stands.
+		a.apply(title("b", "X"));
+		await a.flush();
+		await settle();
+		expect(c.conflict).not.toBeNull();
+		expect(platform.journal.readAll(SPACE, "d1")).toHaveLength(1);
+
+		await c.resolveConflict("keep-mine");
+		await settle();
+		const saved = await stored(platform);
+		expect(saved.body.widgets.map((w) => [w.id, w.title])).toEqual([
+			["a", "Mine"],
+			["b", "X"]
+		]);
+		expect(c.doc).toEqual(saved);
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
 	it("save mine as a copy after a journal replay", async () => {
 		const { platform, open, a } = await twoTabs();
 		a.apply(rename("Theirs"));

@@ -101,6 +101,8 @@ export type StarterSessionOptions = {
 export function starterSession(opts: StarterSessionOptions): DocumentSession {
 	const { platform, space, tabId, channel, debounceMs, now = () => new Date() } = opts;
 	const { onNeedsReload, onCleared } = opts;
+	// A tab that missed "Clear my data" mustn't store a copy afterwards.
+	const generation = platform.reset.generation();
 	return new DocumentSession({
 		platform,
 		space,
@@ -111,6 +113,10 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 		onCleared,
 		doc: starterDashboard(),
 		onBeforeFirstEdit: async (change) => {
+			if (platform.reset.generation() !== generation) {
+				onCleared?.();
+				return null;
+			}
 			const doc = copyOfStarter(now());
 			const created = await platform.documents.commit(space, {
 				docId: doc.id,

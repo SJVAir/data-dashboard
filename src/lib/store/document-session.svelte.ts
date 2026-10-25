@@ -210,18 +210,27 @@ export class DocumentSession {
 		const common = { ...options, platform, space, tabId };
 		const fromVersion = schemaVersionOf(raw);
 		let session: DocumentSession;
-		if (loaded.status === "ok") {
-			if (loaded.upgraded) {
-				const kept = await platform.originals.get(space, id);
-				if (fromVersion !== null && kept?.fromSchemaVersion !== fromVersion) {
-					// A timestamp, not reactive state.
-					// eslint-disable-next-line svelte/prefer-svelte-reactivity
-					const keptAt = (options.now?.() ?? new Date()).toISOString();
+		let keptFailed = false;
+		if (loaded.status === "ok" && loaded.upgraded && fromVersion !== null) {
+			const kept = await platform.originals.get(space, id);
+			if (kept?.fromSchemaVersion !== fromVersion) {
+				// A timestamp, not reactive state.
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity
+				const keptAt = (options.now?.() ?? new Date()).toISOString();
+				try {
 					await platform.originals.put(space, { id, raw, keptAt, fromSchemaVersion: fromVersion });
+				} catch (error) {
+					// Nothing is saved in the new format without the original kept: read-only.
+					report(error, { docId: id, fromSchemaVersion: fromVersion });
+					keptFailed = true;
 				}
 			}
+		}
+		if (loaded.status === "ok" && !keptFailed) {
 			session = new DocumentSession({ ...common, doc: loaded.doc });
 			await session.#replayJournal();
+		} else if (loaded.status === "ok") {
+			session = new DocumentSession({ ...common, doc: loaded.doc, readOnly: "invalid" });
 		} else {
 			if (fromVersion !== null && fromVersion < CURRENT_SCHEMA_VERSION) {
 				report(new Error("A stored dashboard couldn't be upgraded"), {
@@ -232,7 +241,8 @@ export class DocumentSession {
 			// Read-only: shown as stored, never edited or saved.
 			session = new DocumentSession({ ...common, doc: raw as Dashboard, readOnly: loaded.reason });
 		}
-		session.hasOriginal = (await platform.originals.get(space, id)) !== undefined;
+		const original = await platform.originals.get(space, id).catch(() => undefined);
+		session.hasOriginal = original !== undefined;
 		return session;
 	}
 
@@ -372,10 +382,14 @@ export class DocumentSession {
 	 * back to this tab's version, the pending changes are replayed without overlap checks.
 	 */
 	protected async catchUp(): Promise<void> {
-		const state = await this.#readStored();
+		// During a conflict, from its base: the changes that caused it must be found again.
+		const conflictBase = this.#conflictBase;
+		const state = await this.#readStored(conflictBase?.version);
 		// From here on nothing awaits until the commit, so `#pending` is complete.
 		if (!state) return this.#keepPending();
-		const { stored, theirs } = state;
+		const { stored, entries } = state;
+		const theirs =
+			conflictBase && entries ? this.#theirChanges(entries, conflictBase.ownTab) : state.theirs;
 		const mine = this.#pending.slice();
 		if (mine.length === 0) {
 			this.#settleConflict();

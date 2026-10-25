@@ -148,6 +148,26 @@ describe("starterSession", () => {
 		expect(await platform.documents.list(SPACE)).toHaveLength(1);
 	});
 
+	it("a first edit after this browser's data was cleared stores no copy", async () => {
+		const platform = createMemoryPlatform();
+		const onCleared = vi.fn();
+		const onCopied = vi.fn();
+		const starter = starterSession({
+			platform,
+			space: SPACE,
+			tabId: "tab-1",
+			now: () => NOW,
+			onCleared,
+			onCopied
+		});
+		// Another tab cleared the data; this one missed the broadcast.
+		await platform.reset.clearAll();
+		starter.apply(renameWidget("starter-1", "Fresno"));
+		await vi.waitFor(() => expect(onCleared).toHaveBeenCalled());
+		expect(onCopied).not.toHaveBeenCalled();
+		expect(await platform.documents.list(SPACE)).toEqual([]);
+	});
+
 	it("the starter stays unchanged", async () => {
 		const { platform, starter } = await setup();
 		expect(starter.doc).toEqual(starterDashboard());

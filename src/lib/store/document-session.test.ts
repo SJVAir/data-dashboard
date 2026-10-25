@@ -870,6 +870,23 @@ describe("DocumentSession format changes", () => {
 		);
 	});
 
+	it("an original that can't be kept opens the upgrade read-only and reports", async () => {
+		const old = { ...makeDoc(), schemaVersion: OLD_SCHEMA_VERSION };
+		const platform = await withStored(old);
+		const failure = new Error("originals unavailable");
+		vi.spyOn(platform.originals, "put").mockRejectedValueOnce(failure);
+		const session = await open(platform, { chain: testChain() });
+		expect(session.readOnly).toBe("invalid");
+		expect(session.hasOriginal).toBe(false);
+		session.apply(rename("Home"));
+		await session.flush();
+		expect(await platform.documents.get(SPACE, "d1")).toEqual(old);
+		expect(report).toHaveBeenCalledWith(
+			failure,
+			expect.objectContaining({ docId: "d1", fromSchemaVersion: OLD_SCHEMA_VERSION })
+		);
+	});
+
 	it("older journal records are upgraded before replay", async () => {
 		const platform = await withStored(makeDoc());
 		platform.journal.write(SPACE, "d1", "gone", {
