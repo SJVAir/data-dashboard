@@ -1,6 +1,6 @@
 import type { DashboardSummary } from "$lib/documents/names";
 import { todayPacific } from "$lib/format";
-import type { Protection } from "$lib/platform/types";
+import type { Platform, Protection, SpaceId } from "$lib/platform/types";
 
 /** Preference key (per space) for the backup reminder's state. */
 export const REMINDER_KEY = "backupReminder";
@@ -13,6 +13,17 @@ export type ReminderPrefs = {
 	/** The person refused the browser's storage-protection prompt. */
 	persistRefused?: boolean;
 };
+
+/** Merges `patch` into the stored reminder state. */
+export async function updateReminderPrefs(
+	platform: Platform,
+	space: SpaceId,
+	patch: ReminderPrefs
+): Promise<void> {
+	const stored = await platform.preferences.get<ReminderPrefs>(space, REMINDER_KEY);
+	const base = typeof stored === "object" && stored !== null ? stored : {};
+	await platform.preferences.set(space, REMINDER_KEY, { ...base, ...patch });
+}
 
 export const REMINDER_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -36,12 +47,18 @@ export function shouldShowReminder(input: {
 	);
 	if (todayPacific(now) <= todayPacific(new Date(first))) return false;
 
-	if (prefs.lastBackupAt) {
-		const backedUp = new Date(prefs.lastBackupAt).getTime();
-		if (!dashboards.some((d) => new Date(d.updatedAt).getTime() > backedUp)) return false;
+	// An unreadable backup time counts as no backup.
+	const backedUp = prefs.lastBackupAt ? new Date(prefs.lastBackupAt).getTime() : NaN;
+	if (
+		!Number.isNaN(backedUp) &&
+		!dashboards.some((d) => new Date(d.updatedAt).getTime() > backedUp)
+	) {
+		return false;
 	}
-	if (prefs.lastShownAt) {
-		if (now.getTime() - new Date(prefs.lastShownAt).getTime() < REMINDER_INTERVAL_MS) return false;
+	if (prefs.lastShownAt !== undefined) {
+		// An unreadable shown time counts as "just now", so a corrupt value can't nag every load.
+		const shown = new Date(prefs.lastShownAt).getTime();
+		if (Number.isNaN(shown) || now.getTime() - shown < REMINDER_INTERVAL_MS) return false;
 	}
 	return true;
 }

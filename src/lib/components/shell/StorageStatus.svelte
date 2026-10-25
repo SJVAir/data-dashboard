@@ -13,7 +13,6 @@
 	const app = useApp();
 	const protection = app.protection;
 	const unprotected = $derived(protection.state !== "protected");
-	const canProtect = $derived(protection.prompts && !protection.refused && unprotected);
 	const hasDashboards = $derived(app.index.items.length > 0);
 </script>
 
@@ -32,7 +31,7 @@
 			{m.backup_download()}
 		</Button>
 	{/if}
-	{#if canProtect}
+	{#if protection.canOffer}
 		<Button variant="outline" size="sm" onclick={() => protection.requestByClick()}>
 			{m.protect_button()}
 		</Button>

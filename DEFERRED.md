@@ -213,6 +213,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   check (a `RangeError` is caught and shown as an invalid link). **Revisit if** memory
   spikes are reported, or if a streaming or limited decoder becomes available.
 
+- **Upgrading `bits-ui` past 2.19.2.** _Deferred 2026-10-25 (Foundations spec 3, Task 13)._
+  `npx shadcn-svelte add popover` bumped `bits-ui` from 2.19.2 to 2.20.2, which broke
+  `src/lib/components/menu/context-menu.browser.test.ts` ("openMenuFor passes its payload to
+  run": the menu item detaches and the click times out). It is held at 2.19.2 (the popover works
+  there). **Revisit when** upgrading `bits-ui` or on the next `shadcn-svelte add`: check that
+  test first.
+
 ## Map & selection
 
 - **Saving land-use regions by code.** _Deferred 2026-10-22 (sjvair.com metadata plan,

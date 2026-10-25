@@ -1,5 +1,5 @@
 import type { Platform, Protection, SpaceId } from "$lib/platform/types";
-import { REMINDER_KEY, type ReminderPrefs } from "./reminder";
+import { REMINDER_KEY, updateReminderPrefs, type ReminderPrefs } from "./reminder";
 
 /**
  * Whether the browser promises to keep this space's data, and the request to make it so.
@@ -11,6 +11,14 @@ export class StorageProtection {
 	ready = $state(false);
 	refused = $state(false);
 	readonly prompts: boolean;
+	/** Where "Protect my dashboards" is offered in the status note: refusal doesn't hide it. */
+	get canOffer(): boolean {
+		return this.prompts && this.state !== "protected";
+	}
+	/** Where it's offered in the reminder bar: a refusal takes it away. */
+	get canOfferInBar(): boolean {
+		return this.canOffer && !this.refused;
+	}
 
 	readonly #platform: Platform;
 	readonly #space: SpaceId;
@@ -48,11 +56,7 @@ export class StorageProtection {
 		if (this.state === "protected") return;
 		this.refused = true;
 		try {
-			const prefs = await this.#platform.preferences.get<ReminderPrefs>(this.#space, REMINDER_KEY);
-			await this.#platform.preferences.set(this.#space, REMINDER_KEY, {
-				...(typeof prefs === "object" && prefs !== null ? prefs : {}),
-				persistRefused: true
-			});
+			await updateReminderPrefs(this.#platform, this.#space, { persistRefused: true });
 		} catch {
 			// Kept for this page load.
 		}

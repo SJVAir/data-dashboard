@@ -4,6 +4,7 @@ import type { Dashboard } from "$lib/documents/schema";
 import { todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { platform } from "$lib/platform";
+import { updateReminderPrefs } from "$lib/safety/reminder";
 import { starterDashboard } from "$lib/starter/starter";
 import { currentDashboardName, type AppContext } from "$lib/store/app.svelte";
 import { navigate } from "../../router";
@@ -118,9 +119,6 @@ export async function importFromFile(app: AppContext): Promise<void> {
 	}
 }
 
-/** Preference key for the backup reminder (Task 13 defines the rest of its value). */
-const REMINDER_KEY = "backupReminder";
-
 /** Saves a backup file of every dashboard and notes when, for the backup reminder. */
 export async function downloadBackup(app: AppContext): Promise<void> {
 	const now = new Date();
@@ -130,7 +128,5 @@ export async function downloadBackup(app: AppContext): Promise<void> {
 		await backupJson(storage, space, now),
 		"application/json"
 	);
-	const existing = await storage.preferences.get<Record<string, unknown>>(space, REMINDER_KEY);
-	const base = typeof existing === "object" && existing !== null ? existing : {};
-	await storage.preferences.set(space, REMINDER_KEY, { ...base, lastBackupAt: now.toISOString() });
+	await updateReminderPrefs(storage, space, { lastBackupAt: now.toISOString() });
 }

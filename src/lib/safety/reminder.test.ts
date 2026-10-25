@@ -54,6 +54,13 @@ describe("shouldShowReminder", () => {
 		const dashboards = [dash(created, "2026-10-11T00:00:00.000Z")];
 		expect(shouldShowReminder({ ...base, prefs, dashboards })).toBe(true);
 	});
+	test("an unreadable lastShownAt counts as just shown", () => {
+		expect(shouldShowReminder({ ...base, prefs: { lastShownAt: "garbage" } })).toBe(false);
+		expect(shouldShowReminder({ ...base, prefs: { lastShownAt: "" } })).toBe(false);
+	});
+	test("an unreadable lastBackupAt counts as no backup", () => {
+		expect(shouldShowReminder({ ...base, prefs: { lastBackupAt: "garbage" } })).toBe(true);
+	});
 	test("at most once every 14 days", () => {
 		const shown = (ms: number) => ({ lastShownAt: new Date(now.getTime() - ms).toISOString() });
 		const ago13 = REMINDER_INTERVAL_MS - 24 * 60 * 60 * 1000;

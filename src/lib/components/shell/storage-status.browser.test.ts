@@ -33,14 +33,16 @@ test("unprotected storage adds the warning and the backup link", async () => {
 	expect(page.getByRole("button", { name: m.protect_button() }).query()).toBeNull();
 });
 
-test("Protect my dashboards shows only where the browser prompts and until refused", async () => {
+test("Protect my dashboards shows only where the browser prompts, and stays after a refusal", async () => {
 	const { app, context } = await setup("unprotected", true);
 	await render(StorageStatus, { context });
 	const button = page.getByRole("button", { name: m.protect_button() });
 	await expect.element(button).toBeVisible();
 	await button.click();
 	await expect.poll(() => app.protection.refused).toBe(true);
-	expect(page.getByRole("button", { name: m.protect_button() }).query()).toBeNull();
+	// Refusing takes it out of the reminder bar only; the note keeps offering it.
+	expect(app.protection.canOfferInBar).toBe(false);
+	await expect.element(page.getByRole("button", { name: m.protect_button() })).toBeVisible();
 });
 
 test("each save error is explained", async () => {

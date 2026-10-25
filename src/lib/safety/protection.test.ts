@@ -50,6 +50,13 @@ describe("StorageProtection", () => {
 		await later.refresh();
 		expect(later.refused).toBe(true);
 	});
+	test("a refusal leaves the status note offer but not the bar's", async () => {
+		const { protection } = setup("unprotected", true);
+		expect(protection.canOffer && protection.canOfferInBar).toBe(true);
+		await protection.requestByClick();
+		expect(protection.canOffer).toBe(true);
+		expect(protection.canOfferInBar).toBe(false);
+	});
 	test("requestByClick does not mark a grant as refused", async () => {
 		const { protection } = setup("protected", true);
 		await protection.requestByClick();

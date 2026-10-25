@@ -2,7 +2,12 @@
 	import { downloadBackupFile } from "$lib/actions/dashboard";
 	import { Button } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";
-	import { REMINDER_KEY, shouldShowReminder, type ReminderPrefs } from "$lib/safety/reminder";
+	import {
+		REMINDER_KEY,
+		shouldShowReminder,
+		updateReminderPrefs,
+		type ReminderPrefs
+	} from "$lib/safety/reminder";
 	import { updateNotice } from "$lib/safety/update-notice.svelte";
 	import { useApp } from "$lib/store/app.svelte";
 	import { isActive } from "../../../router";
@@ -30,7 +35,7 @@
 	}
 
 	async function remember(change: ReminderPrefs) {
-		await app.platform.preferences.set(app.space, REMINDER_KEY, { ...(await prefs()), ...change });
+		await updateReminderPrefs(app.platform, app.space, change);
 	}
 
 	$effect(() => {
@@ -56,10 +61,6 @@
 			}
 		})();
 	});
-
-	const canProtect = $derived(
-		protection.prompts && !protection.refused && protection.state !== "protected"
-	);
 
 	async function turnOff() {
 		reminder = false;
@@ -88,7 +89,7 @@
 	>
 		<span>{m.reminder_text()}</span>
 		<Button size="sm" onclick={() => downloadBackupFile(app)}>{m.backup_download()}</Button>
-		{#if canProtect}
+		{#if protection.canOfferInBar}
 			<Button size="sm" variant="outline" onclick={() => protection.requestByClick()}>
 				{m.protect_button()}
 			</Button>
