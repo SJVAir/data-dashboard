@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { toast } from "svelte-sonner";
-	import { askExistingCopy } from "$lib/components/dialogs/ExistingCopyDialog.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { DashboardSummary } from "$lib/documents/names";
 	import { m } from "$lib/paraglide/messages.js";
@@ -30,14 +29,6 @@
 		const id = await saveCopy(app, incoming);
 		await open(id);
 		toast(m.import_saved());
-	}
-
-	/** Asks about the existing copy; with no answer, the page keeps offering both choices. */
-	async function decide(incoming: Document, existing: DashboardSummary) {
-		view = { kind: "choose", incoming, existing };
-		const choice = await askExistingCopy(existing);
-		if (choice === "open") await open(existing.id);
-		else if (choice === "new") await saveNew(incoming);
 	}
 
 	async function choose(action: "open" | "new") {
@@ -69,8 +60,8 @@
 	});
 
 	async function importFragment(fragment: string) {
-		const [{ parseLinkFragment }, { findExistingCopy }] = await loadLazy(() =>
-			Promise.all([import("$lib/sharing/incoming"), import("$lib/sharing/copy")])
+		const [{ parseLinkFragment }, { settleDocument }] = await loadLazy(() =>
+			Promise.all([import("$lib/sharing/incoming"), import("$lib/sharing/settle")])
 		);
 		const incoming = await parseLinkFragment(fragment, new Date());
 		if (incoming.kind === "error") {
@@ -81,9 +72,13 @@
 			view = { kind: "error", reason: "invalid" };
 			return;
 		}
-		const existing = await findExistingCopy(app, incoming.fingerprint);
-		if (existing) await decide(incoming, existing);
-		else await saveNew(incoming);
+		// With no answer, the page keeps offering both choices.
+		const settled = await settleDocument(app, incoming, (existing) => {
+			view = { kind: "choose", incoming, existing };
+		});
+		if (!settled) return;
+		await open(settled.id);
+		if (settled.saved) toast(m.import_saved());
 	}
 
 	$effect(() => {

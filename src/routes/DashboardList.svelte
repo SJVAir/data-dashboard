@@ -1,9 +1,10 @@
 <script lang="ts">
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FilePlus from "@lucide/svelte/icons/file-plus";
+	import Upload from "@lucide/svelte/icons/upload";
 	import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 	import { onMount } from "svelte";
-	import { dashboardActions } from "$lib/actions/dashboard";
+	import { dashboardActions, importDashboardFile } from "$lib/actions/dashboard";
 	import type { MenuProvider } from "$lib/actions/types";
 	import { menuScope } from "$lib/actions/scope";
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
@@ -28,7 +29,9 @@
 			dashboardActions(
 				app,
 				id
-			)(ctx).filter((item) => item.group === "create" || item.group === "manage");
+			)(ctx).filter(
+				(item) => item.group === "create" || item.group === "manage" || item.group === "share"
+			);
 
 	async function createBlank() {
 		await navigate("/dashboards/:id", { params: { id: await app.index.createBlank() } });
@@ -48,6 +51,10 @@
 		<Button variant="outline" onclick={createFromStarter}>
 			<LayoutTemplate aria-hidden="true" />
 			{m.dashboard_new_from_starter()}
+		</Button>
+		<Button variant="outline" onclick={() => importDashboardFile(app)}>
+			<Upload aria-hidden="true" />
+			{m.import_action()}
 		</Button>
 	</div>
 {/snippet}

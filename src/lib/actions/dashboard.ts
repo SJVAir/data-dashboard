@@ -1,12 +1,16 @@
+import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
 import FilePlus from "@lucide/svelte/icons/file-plus";
 import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
+import Share2 from "@lucide/svelte/icons/share-2";
+import Upload from "@lucide/svelte/icons/upload";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import type { Change } from "$lib/changes/types";
+import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
 import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
@@ -14,6 +18,16 @@ import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { newPlaceholder } from "$lib/widgets/placeholder";
 import { navigate } from "../../router";
 import type { MenuProvider } from "./types";
+
+/** The share, export, and import handlers load on first use, keeping `lz-string` out of the entry chunk. */
+function lazySharing() {
+	return loadLazy(() => import("$lib/sharing/actions"));
+}
+
+/** Picks a file to import (the "Import…" action and the list's button). */
+export function importDashboardFile(app: AppContext): void {
+	void lazySharing().then((s) => s.importFromFile(app));
+}
 
 /** The current dashboard's session when it can be edited. */
 function editable(app: AppContext): DocumentSession | null {
@@ -190,6 +204,13 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				run: () => void app.index.createFromStarter().then((id) => openDashboard(id))
 			},
 			{
+				id: "import",
+				label: m.import_action(),
+				icon: Upload,
+				group: "create",
+				run: () => importDashboardFile(app)
+			},
+			{
 				id: "duplicate-dashboard",
 				label: m.dashboard_duplicate(),
 				icon: Copy,
@@ -216,6 +237,23 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				// The starter is built in; it can't be deleted.
 				disabled: locked || (id === undefined && isStarter),
 				run: () => void deleteDashboard(app, id)
+			},
+			{
+				id: "share-dashboard",
+				label: m.share_action(),
+				icon: Share2,
+				group: "share",
+				// The starter and a row's dashboard are shareable; a read-only one is checked when it runs.
+				disabled: id === undefined && !session,
+				run: () => void lazySharing().then((s) => s.shareDashboard(app, id))
+			},
+			{
+				id: "export-dashboard",
+				label: m.export_action(),
+				icon: Download,
+				group: "share",
+				disabled: id === undefined && !session,
+				run: () => void lazySharing().then((s) => s.exportDashboard(app, id))
 			}
 		];
 	};

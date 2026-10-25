@@ -21,7 +21,11 @@
 	const ctx = $derived<MenuContext | null>(trigger ? { target: trigger, payload: {} } : null);
 	// The registered dashboard actions, less "Add widget" (that belongs on the dashboard).
 	const items = $derived(
-		ctx ? actions(ctx).filter((item) => item.group === "create" || item.group === "manage") : []
+		ctx
+			? actions(ctx).filter(
+					(item) => item.group === "create" || item.group === "manage" || item.group === "share"
+				)
+			: []
 	);
 </script>
 
