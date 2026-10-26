@@ -44,6 +44,12 @@ describe("initialFiles", () => {
 		expect(() => initialFiles(broken, "index.html")).toThrow(/src\/main\.ts/);
 	});
 
+	it("excludes other dynamic imports", () => {
+		for (const file of ["sentry.js", "dialog.js", "dialog.css"]) {
+			expect(files).not.toContain(`workspace/${file}`);
+		}
+	});
+
 	it("counts no file twice", () => {
 		expect(new Set(files).size).toBe(files.length);
 	});
