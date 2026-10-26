@@ -21,6 +21,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   with `cache: "reload"` first); a page loading mid-deploy can hit a missing chunk (the reload
   bar covers it). **Revisit together with** monitor-map's upload, or when the low-end device
   check shows slow loads.
+- **Testing cross-origin static serving before the preview.** _Deferred 2026-10-26 (the
+  user, Foundations spec 5a and the hosting track)._ Locally, the dashboard's static files are
+  served from the page's own origin, as monitor-map's are; nothing stands in for S3. So
+  relative chunk loading from S3, fonts and `version.json` under the bucket's cross-origin
+  rule, and the CSP's `{static}` entry are first exercised in the beta preview on production
+  (CSP report-only, errors to Sentry, beta testers only). This replaces `ARCHITECTURE.md`'s
+  earlier plan of a second-origin E2E smoke run. **Revisit if** the preview shows a
+  cross-origin problem, or before public go-live if the preview hasn't exercised it.
 - **Pre-filling sjvair.com's contact form.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
   preview feedback link opens `/contact/` as it is; the form can't take a topic or message
   from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
@@ -28,7 +36,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   track (which builds "Report this page").
 - **The embedding suite's first run.** _Deferred 2026-10-26 (Foundations spec 5a)._ Spec 5a
   builds the hand-run Playwright suite that checks the real embedding (local sjvair.com
-  template, CSP enforced, static files on a second origin), but it isn't a merge gate: it
+  template, CSP enforced), but it isn't a merge gate: it
   needs the hosting track's local template. **Revisit when** the sjvair.com hosting session's
   local build is ready; record the result in `TODO.md`.
 

@@ -2283,7 +2283,7 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     content-hashed lazy chunks, and `version.json`. **Files find each other by relative
     reference** (decided 2026-10-14): the build resolves every chunk and asset relative to
     the module that loads it (`import.meta.url`), so one build works in local
-    development, the preview, on S3, and in the second-origin test. This replaces
+    development, the preview, and on S3. This replaces
     monitor-map's approach (a `window.__cdnUrl` helper set by an inline script, which the
     no-inline-script rule forbids and which module import order would make fragile).
     Lazily loaded assets keep content-hashed names (only the entry script and stylesheet
@@ -2330,9 +2330,11 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        module) with `cache: "no-store"`
        (allowed by the bucket's cross-origin rule).
     6. **Cross-origin problems only show in production**, because local development serves
-       static files from the same origin. The private preview must use S3-style static
-       serving, the bucket's cross-origin rule must list the preview's origin, and an E2E
-       smoke run serves static files from a second origin.
+       static files from the same origin. **Revised 2026-10-26 (the user):** local setup
+       matches monitor-map's (same origin, nothing standing in for S3), and the preview is on
+       production behind `beta_tools`, so it uses the real S3 serving and the existing
+       cross-origin rule for `www.sjvair.com`. Cross-origin behavior is first exercised
+       there, with the CSP report-only and errors in Sentry (see `DEFERRED.md`).
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.

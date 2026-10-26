@@ -38,8 +38,8 @@ but nothing in 5a reads it.
 7. **Installable**: the web app manifest and icons; and an **offline banner**.
 8. **Local dev against the real server**: the Vite dev proxy, the `csrftoken` bootstrap, and
    a dev-stack smoke suite.
-9. **A local check of the real embedding** against the sjvair.com session's template, with
-   static files on a second origin and the CSP enforced.
+9. **A local check of the real embedding** against the sjvair.com session's template, set up
+   the way monitor-map is (same-origin static files), with the CSP enforced.
 10. **A privacy note and a feedback link.**
 11. **Living with monitor-map's upload process** (no cache headers): the reload button
     refreshes the cached entry files first.
@@ -93,7 +93,7 @@ sides agree.
   `dist/workspace/`, so it is served at `{% static 'workspace/' %}`. The import fails if
   `dist/workspace/` is missing (no skip mode; nothing ships until Release 1 is done).
 - **No separate local build mode.** Files find each other by relative reference and the API
-  uses the page origin, so one build works locally, on S3, and in the second-origin test.
+  uses the page origin, so one build works locally (same origin) and on S3 (cross-origin).
   _(sjvair.com)_ The import's local mode only changes the source (a local checkout path or a
   branch instead of GitHub `main`).
 - **Build-time variables:** `VITE_SENTRY_DSN` (unset = error reporting off).
@@ -394,11 +394,11 @@ How embedding and the CSP are verified before anything is deployed:
 
 1. Build this branch; the sjvair.com session's import (local mode, pointed at this checkout)
    copies `dist/workspace/` into the local sjvair.com stack.
-2. Locally, sjvair.com can serve static files from a **second origin** (an env-driven
-   `STATIC_URL` override such as `http://localhost:8001/static/` plus a small static server
-   sending `Access-Control-Allow-Origin` for the page origin, standing in for S3; requested
-   from the sjvair.com session 2026-10-26, its mechanism), so relative references, the
-   `version.json` fetch, and the CSP's `{static}` are exercised cross-origin.
+2. Static files are served from the local stack's own origin, exactly as monitor-map is set
+   up locally (the user, 2026-10-26: nothing stands in for S3). Cross-origin behavior
+   (relative chunk loading from S3, fonts and `version.json` under the bucket's cross-origin
+   rule, the CSP's `{static}` entry) is first exercised in the beta preview on production,
+   where the CSP is report-only and errors reach Sentry (recorded in `DEFERRED.md`).
 3. The CSP is **enforced** locally.
 4. A Playwright suite in this repo (a separate project, run by hand, like the dev-stack
    smoke) gets past the `beta_tools` gate the way the sjvair.com session's plan provides
@@ -407,9 +407,9 @@ How embedding and the CSP are verified before anything is deployed:
    `WORKSPACE_E2E_IDENTIFIER` and `WORKSPACE_E2E_PASSWORD`; the suite signs in at
    `/account/login/` with the form fields `identifier` and `password`), then opens `http://localhost:8000/workspace/` and checks: the app mounts; no
    `securitypolicyviolation` events and no console CSP errors; a lazy chunk and a font load
-   from the static origin; `version.json` is fetched; a deep URL
+   from the static folder; `version.json` is fetched; a deep URL
    (`/workspace/dashboards/<id>`) and `/workspace` without a slash load without a redirect;
-   `/workspace/manifest.webmanifest` returns the manifest with icon URLs on the static origin;
+   `/workspace/manifest.webmanifest` returns the manifest with icon URLs in the static folder;
    the identity block is present and has no `api_token`; a `csrftoken` cookie is set.
 5. The same suite runs in the sjvair.com session's browser check, so both sides use one
    definition of "embedding works".
@@ -471,7 +471,7 @@ How embedding and the CSP are verified before anything is deployed:
 - All unit, browser, and E2E tests pass on Chromium, Firefox, and WebKit.
 - The embedding suite exists and runs. **It is not a merge gate for 5a** (_my call_): it is
   run, and the result recorded in `TODO.md`, once the sjvair.com session's local template
-  exists, against the local stack with the CSP enforced and static files on a second origin.
+  exists, against the local stack with the CSP enforced.
   Until it has passed, a `DEFERRED.md` entry tracks it (revisit when the hosting track's
   local build is ready).
 - With a test DSN, a forced error reaches Sentry with nothing personal in it (checked by hand

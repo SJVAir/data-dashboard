@@ -553,8 +553,8 @@ which part of a larger item it did.
   static-path helper), lazy assets keep hashed names, `default-place` is resolved at every
   exit from the starter and rejected by validation elsewhere, `span` is checked against a
   range's full unit, and "now" widgets keep their place in their single layer (no
-  `target`). Workers are built inline (static files are cross-origin in production), and an E2E
-  smoke run serves static files from a second origin. Sentry
+  `target`). Workers are built inline (static files are cross-origin in production), (the second-origin
+  E2E smoke run was dropped 2026-10-26; the beta preview exercises cross-origin). Sentry
   through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and the git commit as
   the release and build id.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
