@@ -34,6 +34,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
   page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
   track (which builds "Report this page").
+- **Remove the `@jsr/sjvair__sdk` license exception.** _Deferred 2026-10-26 (Foundations spec
+  5a)._ The license check names `@jsr/sjvair__sdk` as an exception because the JSR build has no
+  license field and no license text, so the third-party notices carry none for it. **Revisit
+  when** sdk-js ships a `LICENSE` file (and a license field in its JSR package): remove the
+  exception and check the notices include its text.
 - **A maskable icon and real app icons.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
   manifest uses sjvair.com's Android Chrome favicons as placeholders, with no `maskable`
   icon. **Revisit with** the design pass.
@@ -648,6 +653,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## UI & UX
 
+- **Product name: "Workspace" or "Dashboard".** _Noted 2026-10-26 (Foundations spec 5a)._ The
+  app's `app_name`, page titles, and the manifest say "SJVAir Workspace", while the template's
+  default `<title>` (hosting contract §3) says "SJVAir Dashboard", and `ARCHITECTURE.md` says the
+  product may be called "SJVAir Dashboard" in the UI. **Revisit when** the user picks one name:
+  then align `messages/en.json`, the template title (a contract change through this repo), and
+  the manifest.
 - **Command palette (Ctrl+K) and per-action keyboard shortcuts** (beyond undo/redo and
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action

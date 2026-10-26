@@ -187,7 +187,7 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env` itsel
 
 ```
 SJVAIR_DEV_SERVER=          # optional, not VITE_-prefixed: dev proxy target for /api/ and /account/ (default http://localhost:8000)
-VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /workspace/ → location.origin)
+VITE_PROD_URL=              # production standalone/Tauri builds only (passed as prodUrl); ignored in dev, never set for the sjvair.com build
 VITE_MAPTILER_KEY=          # MapTiler basemap key (injected into map-sdk; public in the build, so domain-restrict it)
 VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations plugin (public in the build; domain-restrict it)
 VITE_SENTRY_DSN=            # the dashboard's Sentry project DSN (public by design); unset = error reporting off

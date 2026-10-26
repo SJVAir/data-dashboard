@@ -2373,8 +2373,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     the browser's HTTP cache can't hand back the stale entry files, and then reloads. It
     never rejects; if the refresh fails the page reloads anyway. A dev build skips the check.
   - **No `VITE_*` names or values reach the bundle** (spec 5a). `configureSdk({ dev, prodUrl },
-pageOrigin)` takes renamed fields, and the build stops inlining `import.meta.env`
-    objects; `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and
+pageOrigin)` takes only those two fields (renamed), and the build stops inlining
+    `import.meta.env` objects; `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and
     checks the rest of the hosting contract). `npm run check:budget` enforces the initial
     bundle budget.
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
@@ -2410,11 +2410,12 @@ phoneVerified}}`, never the token or phone number); the CSP comes from this repo
     build-manifest file read by the server were considered and decided against (see
     `DEFERRED.md`).
 - **Same-origin API in production:** when served under `/workspace/`, the SDK origin is
-  the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
+  the page's own origin (`setOrigin(location.origin)`), not an env value. This prevents
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
-  silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
-  builds (Tauri, standalone).
-  The hosting track sets no `VITE_PROD_URL` (production under `/workspace/` uses the page origin).
+  silently breaking cookie sign-in. `VITE_PROD_URL` is read only for production
+  standalone or Tauri builds, where it is passed to `configureSdk` as `prodUrl`; it is ignored
+  in dev and never set for the sjvair.com build (production under `/workspace/` uses the page
+  origin).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Embedding in a host app with its
   own router stays deferred.
