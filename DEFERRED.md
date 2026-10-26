@@ -42,11 +42,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **A maskable icon and real app icons.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
   manifest uses sjvair.com's Android Chrome favicons as placeholders, with no `maskable`
   icon. **Revisit with** the design pass.
-- **The embedding suite's first run.** _Deferred 2026-10-26 (Foundations spec 5a)._ Spec 5a
-  builds the hand-run Playwright suite that checks the real embedding (local sjvair.com
-  template, CSP enforced), but it isn't a merge gate: it
-  needs the hosting track's local template. **Revisit when** the sjvair.com hosting session's
-  local build is ready; record the result in `TODO.md`.
 - **A test of the real Sentry envelope.** _Deferred 2026-10-26 (Foundations spec 5a, final
   review)._ The scrubbing is unit-tested on the event the app hands to `@sentry/browser`, but
   nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the

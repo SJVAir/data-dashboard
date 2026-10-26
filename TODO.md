@@ -20,8 +20,11 @@ feedback link. What's left:
   DSN as the Heroku config var `VITE_SENTRY_DSN`, and the project's CSP security endpoint as
   sjvair.com's `WORKSPACE_CSP_REPORT_URI`; in the Sentry project settings, turn on "Prevent storing
   IP addresses" and the server-side data scrubber if not already on.
-- **The embedding suite's first real run**, by the sjvair.com session (sjvair.com PR #295
-  into `develop`). It stays in `DEFERRED.md` until it has run.
+- **The embedding suite passed its first real run (2026-10-26)**, run by the sjvair.com session: 1
+  passed in 3.2s, unchanged. Local stack on sjvair.com `feature/workspace-hosting` b02e249b, CSP
+  enforced, dashboard imported from `foundations-5a-shipping` d44f2bc, signed in as the seeded beta
+  tester. A separate Chrome check showed no console errors on `/workspace/`, the browser's manifest
+  fetch got 200, and both icons were 200 `image/png`.
 - **5b (the sign-in side) is next.**
 - Open the 5a PR into `foundations` after the whole-branch review.
 
