@@ -66,7 +66,7 @@ export default defineConfig(({ command, isPreview }) => ({
 					name: "unit",
 					environment: "node",
 					setupFiles: ["src/test/no-network.ts"],
-					include: ["src/**/*.test.ts", "vite-plugins/**/*.test.ts"],
+					include: ["src/**/*.test.ts", "vite-plugins/**/*.test.ts", "scripts/**/*.test.{ts,mjs}"],
 					exclude: ["src/**/*.browser.test.ts"]
 				}
 			},

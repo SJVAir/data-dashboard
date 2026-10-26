@@ -17,6 +17,7 @@
 		"paraglide": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
 		"build": "npm run paraglide && vite build",
 		"check:build": "node scripts/check-build-output.mjs",
+		"check:budget": "node scripts/check-budget.mjs",
 		"preview": "vite preview",
 		"check": "npm run paraglide && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
