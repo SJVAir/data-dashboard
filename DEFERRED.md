@@ -228,7 +228,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   Concurrent operations that fail together each open their own connection, and an
   `InvalidStateError` from another cause also reopens. **Revisit before** the next IndexedDB version bump.
 - **`DocumentSession` is large (~870 lines).** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The format-upgrade and hand-off helpers
-  could move out. **Revisit with** spec 4.
+  could move out. **Revisit when** a second document kind (Collections, Release 3) needs a
+  session, or sooner if it keeps growing.
 - **An unreadable journal `writtenAt` never expires.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The 30-day purge skips a journal
   record whose `writtenAt` can't be read, so it stays. Records are small and rare.
   **Revisit if** journal storage grows.
@@ -262,8 +263,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   reminder; there are no accounts yet. **Revisit with** spec 5 / server-backed documents.
 - **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
-  is shaped so other kinds can be added without a new format. **Revisit with** spec 4 and the
-  Analysis step.
+  is shaped so other kinds can be added without a new format. **Revisit with** Collections and
+  the Analysis step (Release 3).
 
 ## Map & selection
 
@@ -322,6 +323,24 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   any of them becomes selection-driven (e.g. a date-picked HMS layer).
 
 ## Analysis & data
+
+- **Collections and "Mark for analysis" in Release 1.** _Deferred 2026-10-25 (Foundations
+  spec 4 planning, decided by the user)._ The 2026-09-24 plan shipped a minimal Collections
+  (the store, the drawer, "Mark for analysis" / "Analyze" / "Add to collection ▸", staging
+  that freezes rolling ranges, and a placeholder Analysis view) in Release 1, so IDEA.md's
+  widget actions were complete from the start. But a Release 1 Collection could only be
+  gathered, not used: there are no analyses and no download until Release 3's notebook
+  bundle, and Release 3 still has to decide the Analysis view's layout and how items bind
+  to an analysis, so a drawer built now would likely be redone. Foundations spec 4 is
+  dropped; Collections move to Release 3 step 1. Release 1 widgets keep `analyzable`, and
+  `defaultCollectionId` stays an optional field. **Revisit with** the Release 3 step 1 spec
+  (Collections and the analysis engine), or sooner if people ask to gather data across
+  dashboards before then.
+- **"Download data (CSV)" on every data widget.** _Suggested 2026-10-25 (Foundations spec 4
+  planning), not yet decided._ With Collections in Release 3, the only planned Release 1
+  download is the Data table widget's CSV export. A per-widget download action would cover
+  "get this widget's data out" on every data widget, using the spec 2 data layer.
+  **Decide in** the Release 1 step 4 spec (Widget Creation and the first widget set).
 
 - **Outside health data (HCAI ED visits, CDC PLACES, etc.) and the "smoke → ER visits"
   lag analysis.** _Deferred 2026-09-23 (IDEA.md Q6)._ The server holds no ER,

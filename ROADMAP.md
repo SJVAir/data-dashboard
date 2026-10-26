@@ -46,10 +46,6 @@ unchanged at 4.5.0.
    - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo;
      changes as serializable JSON with explicit targets, a persisted unsynced-change queue
      with its base version, and cross-tab sync via `BroadcastChannel`
-   - **minimal Collections** (decided 2026-09-24): the store, the Collections drawer,
-     "Add to collection ▸", staging that freezes rolling ranges to fixed Pacific dates
-     (with a per-item "keep rolling" toggle), and a placeholder Analysis view that lists a Collection's
-     items with "starter analyses coming soon"
    - autosave (no explicit Save) with a "Saved" indicator; picker actions (new,
      duplicate, rename, delete with an undo toast); local soft delete with a "Recently
      deleted" list (about 30 days), and `copiedFrom` on local copies
@@ -154,8 +150,6 @@ unchanged at 4.5.0.
    - "Can we go outside?"
    - client-side self-monitoring thresholds (in-browser notifications are desktop-only in
      Release 1)
-   - "Mark for analysis" / "Analyze" on every `analyzable` widget, plus the calendar's "selected
-     data" variants, feeding Release 1's Collections
 5. **`map-sdk` and the Map widget** (decided 2026-09-24: split out of monitor-map)
    - `@sjvair/map-sdk` (new repo): instance-scoped core, plugins, `MapView`, optional
      metadata/messages/format providers with defaults,
@@ -253,9 +247,12 @@ unchanged at 4.5.0.
 
 ## Release 3: Analysis
 
-1. **Analysis engine**: `AnalysisSpec`, the full Analysis view (built on Release 1's
-   Collections), and worker-side engine steps (resample, align, lag, aggregate,
-   correlate).
+1. **Collections and the analysis engine** (Collections moved here from Release 1 on
+   2026-10-25): the Collections store and drawer, "Mark for analysis" / "Analyze" /
+   "Add to collection ▸" on every `analyzable` widget (plus the calendar's and map's
+   "selected data" variants), staging that freezes rolling ranges to fixed Pacific dates
+   (with a per-item "keep rolling" toggle), `AnalysisSpec`, the full Analysis view, and
+   worker-side engine steps (resample, align, lag, aggregate, correlate).
 2. **The ten starter analyses.** #7 needs the CalEnviroScreen wrapper and #8 needs the
    CalHeatScore wrapper, both from Release 1 step 3.
 3. **Export-to-notebook bundles**: Python first, then R, then Deno/TypeScript.

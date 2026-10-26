@@ -122,7 +122,7 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 ### Shared widget behavior
 
 - **Title bar** defaults to the dataset name(s) + date range; user-renamable.
-- Every widget with data (`analyzable`; see "Widget-type contract") contributes **"Mark for analysis"** (add its data — or current selection —
+- **From Release 3** (moved from Release 1 on 2026-10-25; see "Collections"), every widget with data (`analyzable`; see "Widget-type contract") contributes **"Mark for analysis"** (add its data — or current selection —
   to a Collection) and **"Analyze"** (add + navigate to Analysis) via the shared action
   list (see "Actions & context menu"). Widgets with a selection (map features/regions,
   calendar day ranges) add "Mark selected data for analysis" / "Analyze selected data"
@@ -1352,9 +1352,10 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
   - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
     (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move… / Resize… (keyboard
-    alternatives), Delete, **Mark for analysis**, **Analyze**, Add to collection ▸.
-  - _Selection (map features/regions, calendar range):_ Mark selected data for
-    analysis, Analyze selected data.
+    alternatives), Delete. From Release 3: **Mark for analysis**, **Analyze**, Add to
+    collection ▸.
+  - _Selection (map features/regions, calendar range), from Release 3:_ Mark selected data
+    for analysis, Analyze selected data.
   - _Map feature:_ e.g. "Analyze this monitor", contributed by map plugins.
 - **Reuse:** the widget "⋯" menu calls the same resolution with that widget as target;
   the future command palette queries global + focused-scope actions.
@@ -1416,11 +1417,14 @@ type Collection = { id: string; name: string; items: CollectionItem[] };
   runs, through the data layer's cache keyed by descriptor (reusing what widgets
   already fetched).
 - Persisted via the platform adapter (IndexedDB on web).
-- **Ships in Release 1** (decided 2026-09-24), ahead of the analysis engine: the store,
-  the drawer, "Mark for analysis" / "Analyze" / "Add to collection ▸" on every `analyzable` widget,
-  and a placeholder Analysis view listing a Collection's items with "starter analyses
-  coming soon" until Release 3. That way IDEA.md's shared widget behavior is complete
-  from the first release.
+- **Ships in Release 3, with the analysis engine** (decided 2026-10-25, replacing the
+  2026-09-24 decision to ship a minimal version in Release 1): the store, the drawer, and
+  "Mark for analysis" / "Analyze" / "Add to collection ▸" on every `analyzable` widget.
+  In Release 1 a Collection could be gathered but not used (no analyses and no download),
+  and Release 3 still has to settle the Analysis view's layout and how items bind to an
+  analysis. Release 1 widgets keep `analyzable` in their type so the actions can be added
+  without touching them, and `DashboardBody.defaultCollectionId` stays optional, so adding
+  Collections needs no format upgrade. See `DEFERRED.md`.
 
 ### Engine: generic core, curated starters as specs
 

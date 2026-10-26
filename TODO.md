@@ -94,8 +94,12 @@ and the copyright holder (Central California Asthma Collaborative).
   `docs/superpowers/{specs,plans}/2026-10-25-foundations-3-safety-sharing*`; its deferrals are
   in `DEFERRED.md` (including a manual check that 8,000-character links survive Google
   Classroom and webmail before the private preview, and `bits-ui` held at 2.19.2).
-- **Next:** spec 4, Collections (the store, the drawer, "Add to collection ▸", staging that
-  freezes date ranges, and the placeholder Analysis view), as a stacked PR on `foundations`.
+- **Spec 4 (Collections) is dropped (2026-10-25).** While planning it, the user moved
+  Collections and "Mark for analysis" / "Analyze" to Release 3, where the analysis engine
+  gives them a purpose; in Release 1 a Collection could be gathered but not used. See
+  `DEFERRED.md` → "Collections and Mark for analysis in Release 1". Foundations is now four
+  specs; spec 5 keeps its number.
+- **Next:** spec 5, shipping readiness, as a stacked PR on `foundations`.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
@@ -539,10 +543,6 @@ which part of a larger item it did.
   hourly, plus a chunk-load-failure reload prompt.
 - Schema validation (zod) plus size limits for every incoming document (file, fragment,
   server) before migration; reject invalid documents cleanly.
-- Minimal Collections: the store, the drawer, "Add to collection ▸", staging that freezes
-  rolling ranges to fixed Pacific dates (with a per-item "keep rolling" toggle), and a
-  placeholder
-  Analysis view ("starter analyses coming soon").
 - ✅ Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
 - ✅ App shell: top nav, dashboard picker (a dropdown), and the new route table
@@ -676,8 +676,6 @@ which part of a larger item it did.
   - Hour × weekday heatmap
   - Forecast strip
   - "Can we go outside?"
-- "Mark for analysis" / "Analyze" actions on every `analyzable` widget, including the calendar's
-  selected-range variants.
 - Client-side self-monitoring thresholds. These need no server work and ship with the
   widgets.
 
@@ -835,7 +833,10 @@ django-resticus plans first)
 
 **Release 3: Analysis**
 
-- The full Analysis view on top of Release 1's Collections, `AnalysisSpec`, and the
+- Collections (moved from Release 1 on 2026-10-25): the store, the drawer, "Mark for
+  analysis" / "Analyze" / "Add to collection ▸" on every `analyzable` widget (including the
+  calendar's and map's selected-data variants), and staging that freezes rolling ranges.
+- The full Analysis view on top of Collections, `AnalysisSpec`, and the
   engine steps (resample, align,
   lag, aggregate, correlate) as pure worker-side functions.
 - The ten starter analyses.
