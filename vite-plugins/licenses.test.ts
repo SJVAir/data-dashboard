@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAllowedLicense, packageRoot } from "./licenses.ts";
+import { cssImportedRoots, isAllowedLicense, packageRoot } from "./licenses.ts";
 
 describe("isAllowedLicense", () => {
 	it("allows permissive licenses", () => {
@@ -37,5 +37,20 @@ describe("packageRoot", () => {
 			"/p/node_modules/a/node_modules/b"
 		);
 		expect(packageRoot("/p/src/x.ts")).toBeUndefined();
+	});
+});
+
+describe("cssImportedRoots", () => {
+	it("finds packages imported by a stylesheet, skipping relative imports", () => {
+		const roots = [
+			...cssImportedRoots(
+				'@import "tailwindcss";\n@import "tw-animate-css";\n@import "./local.css";',
+				process.cwd()
+			)
+		];
+		expect(roots.map((r) => r.split("/node_modules/")[1]).sort()).toEqual([
+			"tailwindcss",
+			"tw-animate-css"
+		]);
 	});
 });

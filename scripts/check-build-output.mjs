@@ -29,6 +29,15 @@ try {
 	problems.push(`${ROOT}/ is missing (run the build first)`);
 }
 
+// Packages inlined into the CSS (not chunk modules) must still appear in the notices.
+try {
+	const notices = readFileSync(join(ROOT, "THIRD-PARTY-NOTICES.txt"), "utf8");
+	for (const name of ["tailwindcss", "tw-animate-css", "@fontsource-variable/inter"]) {
+		if (!notices.includes(`\n${name} `)) problems.push(`${name} is missing from the notices`);
+	}
+} catch {
+	// A missing notices file is reported by the REQUIRED check below.
+}
 for (const name of REQUIRED) {
 	if (!files.includes(name)) problems.push(`missing required file: ${name}`);
 }
