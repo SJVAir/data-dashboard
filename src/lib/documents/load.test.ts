@@ -3,8 +3,9 @@ import { z } from "zod";
 import { report } from "$lib/safety/report";
 import { loadDashboard, type Migration } from "./load";
 
-vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 import { CURRENT_SCHEMA_VERSION } from "./schema";
+
+vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 
 const valid = {
 	kind: "dashboard",

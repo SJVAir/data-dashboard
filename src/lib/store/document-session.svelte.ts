@@ -583,9 +583,7 @@ export class DocumentSession {
 		const result = this.#commits.then(task);
 		this.#commits = result.then(
 			() => {},
-			() => {
-				this.status = "error";
-			}
+			(error) => this.#failed(error, "commit-chain")
 		);
 		return result;
 	}
@@ -594,7 +592,7 @@ export class DocumentSession {
 	 * Show a storage failure and report it (the first of a streak only: retries of the same
 	 * failure would repeat it).
 	 */
-	#failed(error: unknown, operation: "save" | "hand-off"): void {
+	#failed(error: unknown, operation: "save" | "hand-off" | "commit-chain"): void {
 		if (this.#retries === 0) report(error, { operation });
 		this.status = "error";
 		this.errorKind =
@@ -683,6 +681,8 @@ export class DocumentSession {
 			this.#scheduleRetry();
 			return;
 		}
+		// Whether this follows failures (a catch-up failure reports once per streak).
+		const failingBefore = this.#retries > 0;
 		this.#retries = 0;
 		this.errorKind = null;
 
@@ -691,7 +691,7 @@ export class DocumentSession {
 				await this.catchUp();
 			} catch (error) {
 				// Storage couldn't be read to catch up: keep everything and try again later.
-				if (this.#retries === 0) report(error, { operation: "catch-up" });
+				if (!failingBefore) report(error, { operation: "catch-up" });
 				this.status = "error";
 				this.errorKind = "unavailable";
 				this.#scheduleRetry();

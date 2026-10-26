@@ -565,6 +565,39 @@ describe("DocumentSession", () => {
 		expect(session.status).toBe("saved");
 	});
 
+	it("repeated catch-up failures report once", async () => {
+		const { platform } = await setup();
+		const other = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t2" });
+		other.apply(rename("Theirs"));
+		await other.flush();
+
+		const session = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "tab-1" });
+		vi.mocked(report).mockClear();
+		vi.spyOn(platform.documents, "get")
+			.mockRejectedValueOnce(new Error("read failed"))
+			.mockRejectedValueOnce(new Error("read failed"));
+		session.apply(title("a", "Map"));
+		await session.flush();
+		await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0]);
+		expect(session.status).toBe("error");
+		await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[1]);
+		expect(session.status).toBe("saved");
+		expect(report).toHaveBeenCalledTimes(1);
+	});
+
+	it("a failure on the commit chain reports and shows the error", async () => {
+		const { platform, session } = await setup();
+		vi.mocked(report).mockClear();
+		const failure = new Error("resolve failed");
+		vi.spyOn(platform.documents, "get").mockRejectedValueOnce(failure);
+		platform.activity.setVisible(false);
+		platform.activity.setVisible(true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(session.status).toBe("error");
+		expect(session.errorKind).toBe("unavailable");
+		expect(report).toHaveBeenCalledWith(failure, { operation: "commit-chain" });
+	});
+
 	it("open loads a stored dashboard, and returns null for an unknown id", async () => {
 		const { platform } = await setup();
 		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-2");
