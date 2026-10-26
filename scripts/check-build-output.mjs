@@ -65,13 +65,16 @@ const NOT_FETCHED = {
 	"docs.sentry.io": "documentation link in @sentry/browser",
 	"www.sjvair.com": "a link the person follows (navigation, not a fetch)",
 	"example.com": "dummy base for URL parsing in a dependency",
-	"fallback.com": "dummy base for URL parsing in a dependency",
-	x: "dummy base for URL parsing (src/lib/platform/web/errors.ts)",
-	localhost: "dummy base for URL parsing and dev-only checks",
-	"192.168.0.163": "private-address example inside a dependency's validation code"
+	"fallback.com": "dummy base for URL parsing in a dependency"
+};
+// Exact literals (not bare hosts) that are never fetched, so a real request to the same host
+// still fails the scan.
+const NOT_FETCHED_LITERALS = {
+	"http://x": "dummy base for URL parsing (src/lib/platform/web/errors.ts)",
+	"http://localhost/": "dummy base for URL parsing (src/lib/store/app.svelte.ts)"
 };
 const cspListed = new Set(
-	Object.values(JSON.parse(readFileSync("csp-hosts.json", "utf8")))
+	Object.values(JSON.parse(readFileSync(join(ROOT, "..", "..", "csp-hosts.json"), "utf8")))
 		.flat()
 		.flatMap((source) => {
 			try {
@@ -84,10 +87,26 @@ const cspListed = new Set(
 const hosts = new Set();
 for (const file of files.filter((f) => /\.(js|css)$/.test(f))) {
 	const text = readFileSync(join(ROOT, file), "utf8");
-	for (const match of text.matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)) hosts.add(match[1]);
+	// A VITE_* name here means a whole-env object was inlined (it can carry keys and LAN hosts).
+	const envNames = [...new Set(text.match(/VITE_[A-Z_]+/g) ?? [])];
+	if (envNames.length) problems.push(`${file} contains env names: ${envNames.join(", ")}`);
+	// Exact dummy strings are matched whole, ending at the closing quote, so any other use of
+	// the same host (a port, a path) is still scanned as a host.
+	let rest = text;
+	for (const literal of Object.keys(NOT_FETCHED_LITERALS)) {
+		for (const quote of ["`", '"', "'"]) {
+			if (rest.includes(literal + quote)) hosts.add(literal);
+			rest = rest.replaceAll(literal + quote, quote);
+		}
+	}
+	for (const match of rest.matchAll(/(?:https?|wss?):\/\/([A-Za-z0-9.-]+)/g)) {
+		hosts.add(match[1].replace(/\.$/, ""));
+	}
 }
 for (const host of [...hosts].sort()) {
-	const status = cspListed.has(host) ? "listed" : (NOT_FETCHED[host] ?? null);
+	const status = cspListed.has(host)
+		? "listed"
+		: (NOT_FETCHED[host] ?? NOT_FETCHED_LITERALS[host] ?? null);
 	console.log(`  host ${host}: ${status ?? "UNKNOWN"}`);
 	if (status === null)
 		problems.push(`host in built output is neither in csp-hosts.json nor allowlisted: ${host}`);

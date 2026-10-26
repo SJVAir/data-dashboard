@@ -21,12 +21,12 @@ const CONTRACT: Record<string, string[]> = {
 // Hosts that appear in source but are never fetched.
 const NOT_FETCHED = new Set([
 	// A link the person follows (navigation, not a fetch).
-	"www.sjvair.com",
-	// Dummy base for parsing a relative URL with `new URL(path, base)`; nothing is requested.
-	"x",
-	// Dummy base for `new URL(".", base)` when there is no `location`; nothing is requested.
-	"localhost"
+	"www.sjvair.com"
 ]);
+
+// Exact dummy strings used as URL bases, ending at the closing quote so any other use of the same
+// host (a port, a path) is still scanned. Nothing is requested.
+const NOT_FETCHED_LITERALS = ["http://x", "http://localhost/"];
 
 function sourceFiles(dir: string): string[] {
 	return readdirSync(dir).flatMap((name) => {
@@ -57,9 +57,12 @@ describe("csp-hosts.json", () => {
 		);
 		const unlisted: string[] = [];
 		for (const file of sourceFiles("src")) {
-			const text = readFileSync(file, "utf8");
-			for (const match of text.matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)) {
-				const host = match[1];
+			let text = readFileSync(file, "utf8");
+			for (const literal of NOT_FETCHED_LITERALS) {
+				for (const quote of ['"', "'", "`"]) text = text.replaceAll(literal + quote, quote);
+			}
+			for (const match of text.matchAll(/(?:https?|wss?):\/\/([A-Za-z0-9.-]+)/g)) {
+				const host = match[1].replace(/\.$/, "");
 				if (!listed.has(host) && !NOT_FETCHED.has(host)) unlisted.push(`${host} (${file})`);
 			}
 		}

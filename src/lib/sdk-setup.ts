@@ -1,9 +1,9 @@
 import { setOrigin, setRequestDefaults } from "@sjvair/sdk/http";
 
 export interface SdkEnv {
-	DEV: boolean;
-	VITE_DEV_URL?: string;
-	VITE_PROD_URL?: string;
+	dev: boolean;
+	devUrl?: string;
+	prodUrl?: string;
 }
 
 /**
@@ -14,7 +14,7 @@ export interface SdkEnv {
  * In dev, `VITE_DEV_URL` wins, else the page origin (until the dev proxy exists).
  */
 export function configureSdk(env: SdkEnv, pageOrigin: string): string {
-	const override = env.DEV ? env.VITE_DEV_URL : env.VITE_PROD_URL;
+	const override = env.dev ? env.devUrl : env.prodUrl;
 	const origin = override || pageOrigin;
 	setOrigin(origin);
 	setRequestDefaults({ credentials: "same-origin" });

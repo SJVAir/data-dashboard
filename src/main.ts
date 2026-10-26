@@ -11,7 +11,17 @@ import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte
 /** Boots the dashboard into `target`. `staticBase` is the folder holding `app.js`. */
 export async function startApp(opts: { target: HTMLElement; staticBase: URL }): Promise<void> {
 	const { target, staticBase } = opts;
-	configureSdk(import.meta.env, location.origin);
+	// Explicit fields under names without the VITE_ prefix: passing the whole `import.meta.env`
+	// would inline every VITE_* value, and the build check fails on any VITE_ name in the output.
+	// The dev URL is read only in dev so a local .env value never reaches a production build.
+	configureSdk(
+		{
+			dev: import.meta.env.DEV,
+			devUrl: import.meta.env.DEV ? import.meta.env.VITE_DEV_URL : undefined,
+			prodUrl: import.meta.env.VITE_PROD_URL
+		},
+		location.origin
+	);
 
 	// A lazily loaded file from an older deploy is gone: offer a reload instead of an error. The
 	// event isn't cancelled, so the failed `import()` still rejects and its caller can stop.
