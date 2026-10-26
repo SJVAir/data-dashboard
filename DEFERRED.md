@@ -213,6 +213,39 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   check (a `RangeError` is caught and shown as an invalid link). **Revisit if** memory
   spikes are reported, or if a streaming or limited decoder becomes available.
 
+- **`droppedEdits` on the starter is never shown.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Edits that can't be carried over
+  from an older format are counted on the starter session too, but only an opened dashboard's
+  page tells the person. Nothing can be dropped until a format changes. **Revisit at** the
+  first `schemaVersion` bump.
+- **`files.open` can hang where the input's `cancel` event is missing.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Chrome 111–112
+  don't fire `cancel` on a file input, so dismissing the picker there leaves "Import…" waiting
+  forever. **Revisit if** a stuck import is
+  reported.
+- **`clearAll` leaves sibling rejections unhandled.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ When one store's clear fails, the
+  others' later rejections aren't caught. The failure itself is shown ("Couldn't clear").
+  **Revisit with** spec 5 (the error reporter).
+- **IndexedDB reopen isn't memoized, and any `InvalidStateError` triggers it.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
+  Concurrent operations that fail together each open their own connection, and an
+  `InvalidStateError` from another cause also reopens. **Revisit before** the next IndexedDB version bump.
+- **`DocumentSession` is large (~870 lines).** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The format-upgrade and hand-off helpers
+  could move out. **Revisit with** spec 4.
+- **An unreadable journal `writtenAt` never expires.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The 30-day purge skips a journal
+  record whose `writtenAt` can't be read, so it stays. Records are small and rare.
+  **Revisit if** journal storage grows.
+- **`rememberCopy` failing after a restore's commit counts it as skipped.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The
+  dashboard is restored, but the summary says skipped and its fingerprint is missing (so "You
+  already have a copy" won't find it). Low impact. **Revisit with** server sync.
+- **A failed `lastShownAt` write lets the reminder show again next load.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ And
+  `NoticeBars` keeps its own guard around reading the reminder prefs instead of sharing one.
+  **Revisit if** a repeating reminder is reported.
+- **Restored unreadable dashboards are invisible in the list and the Clear count.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A
+  backup's invalid (unreadable) dashboard is restored as stored, but the index lists only
+  loadable ones, so it isn't shown or counted. **Revisit with** the design pass or a "can't
+  open" list.
+- **A failed starter hand-off (storage full) shows no save error on the starter.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The
+  edit stays queued and is retried on the next edit, but the starter's indicator doesn't say
+  saving failed. **Revisit with** spec 5.
+
 - **Upgrading `bits-ui` past 2.19.2.** _Deferred 2026-10-25 (Foundations spec 3, Task 13)._
   `npx shadcn-svelte add popover` bumped `bits-ui` from 2.19.2 to 2.20.2, which broke
   `src/lib/components/menu/context-menu.browser.test.ts` ("openMenuFor passes its payload to
@@ -631,6 +664,17 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   2026-09-24._ IDEA.md: "at minimum via dropdown; ideally via a nicer visual picker".
   Release 1 uses a top-nav dropdown. **Revisit when** people routinely keep more than
   about 5–7 dashboards, or public templates ship and need browsing.
+- **Read-only Share dialog and Download feedback.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ For a read-only dashboard the Share
+  dialog shows the "too big for a link" text (the real reason is that it can't be linked), and
+  Download gives no confirmation. **Revisit in** the design pass.
+- **Wording for a dashboard opened read-only because its original couldn't be kept.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
+  It reuses the "invalid" (can't be opened) wording. **Revisit in** the design pass.
+- **`pendingName` is shown unnormalized in the list.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A name that isn't saved yet is
+  listed as it was typed, not normalized like a saved name. **Revisit in** the design pass.
+- **RestoreVersionDialog closing mid-restore.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ It doesn't block closing while a
+  restore runs, or reset its state on close. **Revisit in** the design pass.
+- **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
+  light mode only. **Revisit in** the design pass.
 
 ## Legacy Monitors-tab follow-ups
 

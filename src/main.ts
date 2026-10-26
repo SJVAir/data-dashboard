@@ -6,16 +6,16 @@ import { configureSdk } from "$lib/sdk-setup";
 import { createWebPlatform } from "$lib/platform/web/storage";
 import { BUILD_ID } from "$lib/safety/build-id";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
-import { startVersionCheck } from "$lib/safety/version-check";
+import { parseBuildId, startVersionCheck } from "$lib/safety/version-check";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 
 const target = document.getElementById("app")!;
 
 configureSdk(import.meta.env, location.origin);
 
-// A lazily loaded file from an older deploy is gone: offer a reload instead of an error.
-window.addEventListener("vite:preloadError", (event) => {
-	event.preventDefault();
+// A lazily loaded file from an older deploy is gone: offer a reload instead of an error. The
+// event isn't cancelled, so the failed `import()` still rejects and its caller can stop.
+window.addEventListener("vite:preloadError", () => {
 	updateNotice.show("chunk-failed");
 });
 
@@ -39,9 +39,7 @@ await boot({
 			buildId: BUILD_ID,
 			notice: updateNotice,
 			fetchBuildId: () =>
-				fetch(new URL("version.json", import.meta.url), { cache: "no-store" })
-					.then((r) => r.json())
-					.then((j) => String(j.buildId))
+				fetch(new URL("version.json", import.meta.url), { cache: "no-store" }).then(parseBuildId)
 		});
 	}
 });

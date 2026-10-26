@@ -9,6 +9,7 @@ import { backupJson } from "./export";
 import { rememberCopy } from "./fingerprints";
 import { makeDoc } from "./fixtures.test-util";
 import { parseIncoming } from "./incoming";
+import { REMINDER_KEY, type ReminderPrefs } from "$lib/safety/reminder";
 import { restoreFromEnvelope } from "./restore";
 
 const now = new Date("2026-10-25T12:00:00Z");
@@ -153,6 +154,27 @@ describe("restoreFromEnvelope", () => {
 		const { app } = await setup();
 		await restoreFromEnvelope(app, backupOf([stored("a1")], { a1: "fp-1", ghost: "fp-2" }));
 		expect((await findExistingCopy(app, "fp-1"))?.id).toBe("a1");
+	});
+});
+
+describe("restoreFromEnvelope ids and the reminder", () => {
+	it("skips ids this app wouldn't give, and the starter's", async () => {
+		const { app } = await setup();
+		const ids = ["a:b", "with space", "x".repeat(65), "", "starter", "ok_id-1"];
+		const summary = await restoreFromEnvelope(app, backupOf(ids.map((id) => stored(id))));
+		expect(summary).toEqual({ restored: 1, kept: 0, readOnly: 0, skipped: 5 });
+		expect((await app.platform.documents.list(app.space)).map((d) => (d as Dashboard).id)).toEqual([
+			"ok_id-1"
+		]);
+	});
+
+	it("a restore that brings dashboards back counts as a backup", async () => {
+		const { app } = await setup();
+		const prefs = () => app.platform.preferences.get<ReminderPrefs>(app.space, REMINDER_KEY);
+		await restoreFromEnvelope(app, backupOf([]));
+		expect((await prefs())?.lastBackupAt).toBeUndefined();
+		await restoreFromEnvelope(app, backupOf([stored("r1")]));
+		expect(typeof (await prefs())?.lastBackupAt).toBe("string");
 	});
 });
 

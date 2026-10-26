@@ -115,6 +115,15 @@ test("Clear my data with two tabs leaves both on the starter and nothing comes b
 	await expect(dialog).toBeVisible();
 	await dialog.getByRole("button", { name: "Clear everything" }).click();
 	await expect(dialog).toBeHidden();
+	// Focus lands on the starter's page, not the body.
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const active = document.activeElement;
+				return active !== document.body && !!document.querySelector("main")?.contains(active);
+			})
+		)
+		.toBe(true);
 
 	for (const tab of [page, other]) {
 		await expect(tab).toHaveURL(/\/workspace\/?$/);

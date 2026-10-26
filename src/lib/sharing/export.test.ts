@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createMemoryPlatform } from "$lib/platform/memory";
+import { initApp } from "$lib/store/app.svelte";
+import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { MAX_DOCUMENT_CHARS, MAX_LINK_URL } from "./envelope";
-import { documentFileJson, rawDocumentFileJson, shareUrl, sharedDocumentOf } from "./export";
+import {
+	backupJson,
+	documentFileJson,
+	rawDocumentFileJson,
+	shareUrl,
+	sharedDocumentOf,
+	unsavedDocuments
+} from "./export";
 import { makeDoc, widget } from "./fixtures.test-util";
 import { parseIncoming, parseLinkFragment } from "./incoming";
 
@@ -101,5 +111,26 @@ describe("export", () => {
 				extra: { keep: "me" }
 			}
 		]);
+	});
+
+	it("a backup carries an open dashboard's edits that couldn't be stored", async () => {
+		const platform = createMemoryPlatform();
+		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+		const id = await app.index.createBlank();
+		const saved = await app.index.createBlank();
+		const session = (await app.sessions.get(id))!;
+		vi.spyOn(platform.documents, "commit").mockRejectedValue(new Error("disk"));
+		session.apply({ op: "setField", target: { path: "name" }, from: null, to: "Unsaved" });
+
+		const unsaved = await unsavedDocuments(app.openSessions());
+		expect([...unsaved.keys()]).toEqual([id]);
+		const backup = JSON.parse(await backupJson(platform, app.space, now, unsaved));
+		const byId = new Map(backup.documents.map((d: { id: string }) => [d.id, d]));
+		expect(byId.get(id)).toMatchObject({ name: "Unsaved" });
+		expect(byId.get(saved)).toMatchObject({ name: null });
+		// Without them, only the stored copy.
+		const stored = JSON.parse(await backupJson(platform, app.space, now));
+		expect(stored.documents.find((d: { id: string }) => d.id === id).name).toBeNull();
+		session.discard();
 	});
 });

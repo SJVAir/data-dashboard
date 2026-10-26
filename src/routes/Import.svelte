@@ -12,8 +12,27 @@
 	type Document = Extract<Incoming, { kind: "document" }>;
 	type View =
 		| { kind: "opening" }
-		| { kind: "error"; reason: "newer" | "invalid" }
+		| { kind: "chunk-failed" }
+		| { kind: "error"; reason: "newer" | "invalid" | "save" }
 		| { kind: "choose"; incoming: Document; existing: DashboardSummary };
+
+	/** A lazy file that won't load: `loadLazy` has shown the reload bar, so the page adds nothing. */
+	class ChunkFailed extends Error {}
+
+	async function lazy<T>(load: () => Promise<T>): Promise<T> {
+		try {
+			return await loadLazy(load);
+		} catch {
+			throw new ChunkFailed();
+		}
+	}
+
+	/** The view for a failure while saving or opening: the reload bar alone, or a save error. */
+	function failed(error: unknown): View {
+		return error instanceof ChunkFailed
+			? { kind: "chunk-failed" }
+			: { kind: "error", reason: "save" };
+	}
 
 	const app = useApp();
 	// Raw: the incoming document goes to storage, which can't clone a state proxy.
@@ -25,7 +44,7 @@
 	}
 
 	async function saveNew(incoming: Document) {
-		const { saveCopy } = await loadLazy(() => import("$lib/sharing/copy"));
+		const { saveCopy } = await lazy(() => import("$lib/sharing/copy"));
 		const id = await saveCopy(app, incoming);
 		await open(id);
 		toast(m.import_saved());
@@ -37,8 +56,8 @@
 		try {
 			if (action === "open") await open(view.existing.id);
 			else await saveNew(view.incoming);
-		} catch {
-			view = { kind: "error", reason: "invalid" };
+		} catch (error) {
+			view = failed(error);
 		} finally {
 			busy = false;
 		}
@@ -53,14 +72,15 @@
 		void (async () => {
 			try {
 				await importFragment(fragment);
-			} catch {
-				view = { kind: "error", reason: "invalid" };
+			} catch (error) {
+				// Decoding never throws, so this is a chunk that won't load or a failed save.
+				view = failed(error);
 			}
 		})();
 	});
 
 	async function importFragment(fragment: string) {
-		const [{ parseLinkFragment }, { settleDocument }] = await loadLazy(() =>
+		const [{ parseLinkFragment }, { settleDocument }] = await lazy(() =>
 			Promise.all([import("$lib/sharing/incoming"), import("$lib/sharing/settle")])
 		);
 		const incoming = await parseLinkFragment(fragment, new Date());
@@ -91,9 +111,15 @@
 		<p role="status">{m.import_opening()}</p>
 	{:else if view.kind === "error"}
 		<h1 class="text-xl font-semibold">
-			{view.reason === "newer" ? m.import_newer() : m.import_link_invalid()}
+			{view.reason === "newer"
+				? m.import_newer()
+				: view.reason === "save"
+					? m.import_save_failed()
+					: m.import_link_invalid()}
 		</h1>
 		<a class="underline" href={p("/dashboards")}>{m.nav_dashboards()}</a>
+	{:else if view.kind === "chunk-failed"}
+		<!-- The reload bar says what to do. -->
 	{:else}
 		<h1 class="text-xl font-semibold">{m.existing_copy_title()}</h1>
 		<div class="flex flex-wrap gap-2">

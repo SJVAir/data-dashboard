@@ -26,20 +26,25 @@ import type { MenuProvider } from "./types";
 type Sharing = typeof import("$lib/sharing/actions");
 
 /**
- * Runs a sharing handler. A chunk that won't load is `loadLazy`'s reload notice; any other
- * failure is a toast, not an unhandled rejection.
+ * Runs a sharing handler; resolves whether it finished. A chunk that won't load is `loadLazy`'s
+ * reload notice; any other failure is a toast, not an unhandled rejection.
  */
-async function runSharing(work: (sharing: Sharing) => Promise<void>, failure: string) {
+async function runSharing(
+	work: (sharing: Sharing) => Promise<void>,
+	failure: string
+): Promise<boolean> {
 	let sharing: Sharing;
 	try {
 		sharing = await loadLazy(() => import("$lib/sharing/actions"));
 	} catch {
-		return;
+		return false;
 	}
 	try {
 		await work(sharing);
+		return true;
 	} catch {
 		toast.error(failure);
+		return false;
 	}
 }
 
@@ -48,9 +53,17 @@ export function importDashboardFile(app: AppContext): void {
 	void runSharing((s) => s.importFromFile(app), m.import_file_invalid());
 }
 
-/** Saves a backup of every dashboard (the list's button). */
-export function downloadBackupFile(app: AppContext): void {
-	void runSharing((s) => s.downloadBackup(app), m.backup_failed());
+/**
+ * Saves a backup of every dashboard; resolves once the file is handed over (`true`) or it
+ * failed (`false`).
+ */
+export function downloadBackupFile(app: AppContext): Promise<boolean> {
+	return runSharing((s) => s.downloadBackup(app), m.backup_failed());
+}
+
+/** Starts loading the sharing handlers ahead of use (a failure shows on use). */
+export function prefetchSharing(): void {
+	import("$lib/sharing/actions").catch(() => {});
 }
 
 /** The current dashboard's session when it can be edited. */

@@ -13,6 +13,16 @@ describe("loadLazy", () => {
 		expect(updateNotice.reason).toBe("chunk-failed");
 	});
 
+	it("treats a load that resolves to nothing as a failure", async () => {
+		await expect(loadLazy(async () => undefined)).rejects.toThrow();
+		expect(updateNotice.reason).toBe("chunk-failed");
+	});
+
+	it("treats a batch with a missing module as a failure", async () => {
+		await expect(loadLazy(async () => [{}, undefined])).rejects.toThrow();
+		expect(updateNotice.reason).toBe("chunk-failed");
+	});
+
 	it("passes a loaded module through without a notice", async () => {
 		await expect(loadLazy(async () => 42)).resolves.toBe(42);
 		expect(updateNotice.reason).toBeNull();

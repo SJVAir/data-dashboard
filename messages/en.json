@@ -73,6 +73,7 @@
 	"import_saved": "Saved a copy to your dashboards",
 	"import_link_invalid": "This link can't be opened.",
 	"import_file_invalid": "This file can't be opened.",
+	"import_save_failed": "Couldn't save a copy in this browser. Please try again.",
 	"import_newer": "This was made with a newer version of the dashboard. Reload to open it.",
 	"share_action": "Share…",
 	"export_action": "Export…",
@@ -176,6 +177,17 @@
 			}
 		}
 	],
+	"clear_body_no_deleted": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This removes {count} dashboard from this browser. It can't be undone.",
+				"countPlural=other": "This removes {count} dashboards from this browser. It can't be undone."
+			}
+		}
+	],
+	"clear_body_empty": "This removes everything the workspace keeps in this browser, such as your settings. It can't be undone.",
 	"clear_backup_first": "Download a backup first",
 	"clear_confirm": "Clear everything",
 	"clear_failed": "Couldn't clear your data. Please try again.",

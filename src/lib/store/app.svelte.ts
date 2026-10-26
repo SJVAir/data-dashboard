@@ -28,6 +28,8 @@ export type AppContext = {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
 	};
 	current: CurrentDashboard;
+	/** The sessions this tab has open (the starter's included). */
+	openSessions(): DocumentSession[];
 	/** Counts `resetAfterClear` calls; the root component goes to `/` when it changes. */
 	readonly resetCount: number;
 	/** Storage is about to go away: journal every open session's changes and stop saving. */
@@ -131,6 +133,10 @@ class App implements AppContext {
 		}
 		if (remember) await this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
 		return session;
+	}
+
+	openSessions(): DocumentSession[] {
+		return [...this.#live.values()];
 	}
 
 	suspendAll(): void {

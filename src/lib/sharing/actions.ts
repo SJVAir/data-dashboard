@@ -9,7 +9,13 @@ import { starterDashboard } from "$lib/starter/starter";
 import { currentDashboardName, type AppContext } from "$lib/store/app.svelte";
 import { navigate } from "../../router";
 import { MAX_BACKUP_BYTES } from "./envelope";
-import { backupJson, documentFileJson, rawDocumentFileJson, shareUrl } from "./export";
+import {
+	backupJson,
+	documentFileJson,
+	rawDocumentFileJson,
+	shareUrl,
+	unsavedDocuments
+} from "./export";
 import { backupFileName, dashboardFileName } from "./file-names";
 import { parseIncoming } from "./incoming";
 import { restoreFromEnvelope, type RestoreSummary } from "./restore";
@@ -119,13 +125,17 @@ export async function importFromFile(app: AppContext): Promise<void> {
 	}
 }
 
-/** Saves a backup file of every dashboard and notes when, for the backup reminder. */
+/**
+ * Saves a backup file of every dashboard (with this tab's edits that couldn't be stored) and
+ * notes when, for the backup reminder.
+ */
 export async function downloadBackup(app: AppContext): Promise<void> {
+	const unsaved = await unsavedDocuments(app.openSessions());
 	const now = new Date();
 	const { platform: storage, space } = app;
 	storage.files.save(
 		backupFileName(todayPacific(now)),
-		await backupJson(storage, space, now),
+		await backupJson(storage, space, now, unsaved),
 		"application/json"
 	);
 	await updateReminderPrefs(storage, space, { lastBackupAt: now.toISOString() });

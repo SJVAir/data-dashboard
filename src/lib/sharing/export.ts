@@ -66,18 +66,43 @@ export function rawDocumentFileJson(raw: unknown, now: Date): string {
 	});
 }
 
+/** What a backup needs from an open session. */
+export type OpenSession = {
+	doc: Dashboard;
+	readOnly: unknown;
+	hasPending: boolean;
+	flush(): Promise<void>;
+};
+
+/**
+ * Stores what the open sessions can, then returns the editable ones whose edits still aren't
+ * stored (saving is failing), by id: a backup carries these in place of the stored copies.
+ */
+export async function unsavedDocuments(sessions: OpenSession[]): Promise<Map<string, Dashboard>> {
+	await Promise.all(sessions.map((session) => session.flush()));
+	return new Map(
+		sessions.filter((s) => !s.readOnly && s.hasPending).map((s) => [s.doc.id, s.doc] as const)
+	);
+}
+
 /**
  * A backup file's text: every stored dashboard that isn't deleted, exactly as stored (read-only
- * ones too), plus the local fingerprint of each that has one so "You already have a copy" keeps
- * working after a restore.
+ * ones too) or, for one in `unsaved`, as it is in this tab, plus the local fingerprint of each
+ * that has one so "You already have a copy" keeps working after a restore.
  */
-export async function backupJson(platform: Platform, space: SpaceId, now: Date): Promise<string> {
+export async function backupJson(
+	platform: Platform,
+	space: SpaceId,
+	now: Date,
+	unsaved: ReadonlyMap<string, Dashboard> = new Map()
+): Promise<string> {
 	const documents: unknown[] = [];
 	const fingerprints: Record<string, string> = {};
 	for (const raw of await platform.documents.list(space)) {
 		const stored = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
-		if (typeof stored.deletedAt === "string") continue;
-		documents.push(raw);
+		const inTab = typeof stored.id === "string" ? unsaved.get(stored.id) : undefined;
+		if (typeof (inTab ?? stored).deletedAt === "string") continue;
+		documents.push(inTab ?? raw);
 		if (typeof stored.id !== "string") continue;
 		const fingerprint = await fingerprintOf(platform, space, stored.id);
 		if (fingerprint !== undefined) fingerprints[stored.id] = fingerprint;

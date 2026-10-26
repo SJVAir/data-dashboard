@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryActivity } from "../platform/memory";
-import { startVersionCheck } from "./version-check";
+import { parseBuildId, startVersionCheck } from "./version-check";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -70,5 +70,22 @@ describe("startVersionCheck", () => {
 		activity.setVisible(true);
 		await vi.advanceTimersByTimeAsync(5000);
 		expect(fetchBuildId).not.toHaveBeenCalled();
+	});
+});
+
+describe("parseBuildId", () => {
+	const response = (ok: boolean, body: unknown) => ({ ok, json: async () => body });
+
+	it("reads a string build id", async () => {
+		await expect(parseBuildId(response(true, { buildId: "abc" }))).resolves.toBe("abc");
+	});
+
+	it("an error status or a body without a string build id is a failed check", async () => {
+		await expect(parseBuildId(response(false, { buildId: "abc" }))).rejects.toThrow();
+		for (const body of [{}, { buildId: 7 }, { buildId: "" }, null, "abc", []]) {
+			await expect(parseBuildId(response(true, body))).rejects.toThrow();
+		}
+		const html = { ok: true, json: () => Promise.reject(new SyntaxError("Unexpected token <")) };
+		await expect(parseBuildId(html)).rejects.toThrow();
 	});
 });

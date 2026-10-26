@@ -11,11 +11,26 @@ export function encodePayload(json: string): string {
 /** The envelope JSON, or `null` for a wrong prefix, an oversized fragment, or bad data. */
 export function decodePayload(fragment: string): string | null {
 	if (fragment.length > MAX_INCOMING_FRAGMENT || !fragment.startsWith(LINK_PREFIX)) return null;
-	// lz-string quietly tolerates stray characters (it turns spaces into "+"), so check strictly.
-	if (!PAYLOAD_ALPHABET.test(fragment.slice(LINK_PREFIX.length))) return null;
+	const payload = payloadOf(fragment.slice(LINK_PREFIX.length));
+	if (payload === null) return null;
 	try {
-		const text = decompressFromEncodedURIComponent(fragment.slice(LINK_PREFIX.length));
+		const text = decompressFromEncodedURIComponent(payload);
 		return text ? text : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * The payload in the link alphabet, percent-decoded once if an app on the way encoded it ("$" as
+ * "%24", "+" as "%2B"); `null` otherwise. lz-string quietly tolerates stray characters (it turns
+ * spaces into "+"), so this checks strictly.
+ */
+function payloadOf(raw: string): string | null {
+	if (PAYLOAD_ALPHABET.test(raw)) return raw;
+	try {
+		const decoded = decodeURIComponent(raw);
+		return PAYLOAD_ALPHABET.test(decoded) ? decoded : null;
 	} catch {
 		return null;
 	}

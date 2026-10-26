@@ -3,8 +3,9 @@ export type OpenHooks = { onVersionChange: () => void };
 /**
  * Holds a connection and runs operations on it. If the browser closed the connection under us
  * (`InvalidStateError`), it opens a new one once and retries; if that fails the error goes to
- * the caller (the session shows "couldn't save"). After the connection reports a version change — another tab is upgrading the
- * database — it never reopens, so the other tab isn't blocked.
+ * the caller (the session shows "couldn't save"). After the connection reports a version
+ * change — another tab is upgrading the database — it never reopens, so the other tab isn't
+ * blocked.
  */
 export async function createReopening<DB>(open: (hooks: OpenHooks) => Promise<DB>) {
 	let stopped = false;

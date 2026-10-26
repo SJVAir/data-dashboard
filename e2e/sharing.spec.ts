@@ -193,3 +193,19 @@ test("a dashboard too big for a link offers only the file", async ({ page }) => 
 	await dialog.getByRole("button", { name: "Download file instead" }).click();
 	expect((await download).suggestedFilename()).toMatch(/^huge-\d{4}-\d{2}-\d{2}\.json$/);
 });
+
+test("a link that can't be saved in this browser says so", async ({ page }) => {
+	// Reads work; every write fails, as with a full disk.
+	await page.addInitScript(() => {
+		const full = () => {
+			throw new DOMException("full", "QuotaExceededError");
+		};
+		IDBObjectStore.prototype.put = full;
+		IDBObjectStore.prototype.add = full;
+	});
+	await page.goto(shareLinkFor(sharedDoc("Unsaved share", ["Alpha"])));
+	await expect(
+		page.getByRole("heading", { name: "Couldn't save a copy in this browser. Please try again." })
+	).toBeVisible();
+	await expect(page.getByText("This link can't be opened.")).toHaveCount(0);
+});

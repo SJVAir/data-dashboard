@@ -19,4 +19,17 @@ describe("codec", () => {
 		expect(decodePayload(LINK_PREFIX + "x".repeat(MAX_INCOMING_FRAGMENT))).toBeNull();
 		expect(decodePayload(LINK_PREFIX + "%%%%")).toBeNull();
 	});
+
+	it("decodes a payload that was percent-encoded on the way, once", () => {
+		const json = JSON.stringify({ a: "héllo ✓", b: "ñandú €" });
+		const payload = encodePayload(json);
+		// "+" (like "$", which the alphabet also allows) is what an app may percent-encode.
+		expect(payload).toContain("+");
+		const encoded = payload.replaceAll("+", "%2B");
+		expect(decodePayload(encoded)).toBe(json);
+		expect(decodePayload(encoded.replace("N4", "%4E%34"))).toBe(json);
+		// Only once: encoded twice it's no longer a payload.
+		expect(decodePayload(encoded.replaceAll("%", "%25"))).toBeNull();
+		expect(decodePayload(LINK_PREFIX + "%E0%A4%A")).toBeNull();
+	});
 });

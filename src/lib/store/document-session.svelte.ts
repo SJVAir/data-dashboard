@@ -90,7 +90,7 @@ type ConflictBase = { version: number; ownTab: string | null };
  * Format changes: `open` keeps the stored original before a document is upgraded, and
  * upgrades older journal records and log entries before replaying them. Data from a newer
  * format suspends the session (`onNeedsReload`); a changed `platform.reset.generation()` (the
- * data was cleared) stops it (`onCleared`).
+ * data was cleared) stops it (`onCleared`), checked before every write and every catch-up.
  */
 export class DocumentSession {
 	// Raw: the document is replaced, never mutated, and must stay structured-cloneable.
@@ -252,6 +252,11 @@ export class DocumentSession {
 
 	get canRedo(): boolean {
 		return this.#canRedo;
+	}
+
+	/** Applied changes aren't stored yet (a save is waiting, running, or failing). */
+	get hasPending(): boolean {
+		return this.#pending.length > 0;
 	}
 
 	/** The session this one's edits land in: itself, or the copy a starter handed off to. */
@@ -562,8 +567,11 @@ export class DocumentSession {
 	}
 
 	#requestCatchUp(): Promise<unknown> {
+		// A tab that missed the "cleared" message mustn't keep showing what was cleared, even
+		// with nothing to save (on a shared computer).
+		if (this.#stopped || this.#successor || this.#dataCleared()) return Promise.resolve();
 		const handingOff = this.#onBeforeFirstEdit || this.#handoff;
-		if (this.readOnly || this.#stopped || this.#successor || handingOff) return Promise.resolve();
+		if (this.readOnly || handingOff) return Promise.resolve();
 		return this.#enqueue(() => this.catchUp());
 	}
 

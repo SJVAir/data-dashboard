@@ -80,3 +80,45 @@ test("restoring twice keeps everything as it is", async ({ page, browser }) => {
 		await other.close();
 	}
 });
+
+test("backup, Clear my data, restore in the same browser brings everything back", async ({
+	page
+}) => {
+	const urls = await makeTwoDashboards(page);
+	const path = test.info().outputPath("backup.json");
+	await downloadBackup(page, path);
+
+	await page.getByRole("button", { name: "Clear my data…" }).click();
+	const dialog = page.getByRole("dialog", { name: "Clear my data?" });
+	await dialog.getByRole("button", { name: "Clear everything" }).click();
+	await expect(dialog).toBeHidden();
+	await page.goto("./dashboards");
+	await expect(page.getByText("You don't have any dashboards yet.")).toBeVisible();
+
+	await importFile(page, path);
+	await expect(page.getByText("Restored 2 dashboards.")).toBeVisible();
+	await expect(page.getByRole("list").getByRole("link")).toHaveCount(2);
+	await page.goto(urls[0]);
+	await expect(page).toHaveURL(urls[0]);
+	await expect(widgetTitles(page).first()).toHaveText("My first widget");
+	await page.goto(urls[1]);
+	await expect(page).toHaveURL(urls[1]);
+	await expect(widgetTitles(page)).toHaveCount(0);
+});
+
+test("the reminder bar goes away once its backup is downloaded", async ({ page }) => {
+	// Storage reads as unprotected in every engine.
+	await page.addInitScript(() => {
+		if (navigator.storage) navigator.storage.persisted = async () => false;
+	});
+	await makeOwnCopy(page);
+	// A later Pacific day, so the dashboard counts as made on an earlier one.
+	await page.clock.setFixedTime(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+	await page.goto("./");
+	const bar = page.getByRole("status").filter({ hasText: /only stored in this browser/ });
+	await expect(bar).toBeVisible();
+	const download = page.waitForEvent("download");
+	await bar.getByRole("button", { name: "Download a backup" }).click();
+	await download;
+	await expect(page.getByText(/only stored in this browser/)).toBeHidden();
+});

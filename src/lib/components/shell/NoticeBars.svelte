@@ -62,6 +62,11 @@
 		})();
 	});
 
+	async function backup() {
+		// Its job is done once the file is on its way.
+		if (await downloadBackupFile(app)) reminder = false;
+	}
+
 	async function turnOff() {
 		reminder = false;
 		try {
@@ -72,31 +77,34 @@
 	}
 </script>
 
-{#if updateNotice.reason}
-	<div
-		role="status"
-		class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
-	>
-		<span>{m.update_available()}</span>
-		<Button size="sm" variant="outline" onclick={reload}>{m.update_reload()}</Button>
-	</div>
-{/if}
+<!-- The live regions stay mounted, so a bar that appears in one is announced. -->
+<div role="status">
+	{#if updateNotice.reason}
+		<div
+			class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
+		>
+			<span>{m.update_available()}</span>
+			<Button size="sm" variant="outline" onclick={reload}>{m.update_reload()}</Button>
+		</div>
+	{/if}
+</div>
 
-{#if reminder && onDashboard && protection.state !== "protected"}
-	<div
-		role="status"
-		class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
-	>
-		<span>{m.reminder_text()}</span>
-		<Button size="sm" onclick={() => downloadBackupFile(app)}>{m.backup_download()}</Button>
-		{#if protection.canOfferInBar}
-			<Button size="sm" variant="outline" onclick={() => protection.requestByClick()}>
-				{m.protect_button()}
+<div role="status">
+	{#if reminder && onDashboard && protection.state !== "protected"}
+		<div
+			class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
+		>
+			<span>{m.reminder_text()}</span>
+			<Button size="sm" onclick={backup}>{m.backup_download()}</Button>
+			{#if protection.canOfferInBar}
+				<Button size="sm" variant="outline" onclick={() => protection.requestByClick()}>
+					{m.protect_button()}
+				</Button>
+			{/if}
+			<Button size="sm" variant="ghost" onclick={() => (reminder = false)}>
+				{m.reminder_not_now()}
 			</Button>
-		{/if}
-		<Button size="sm" variant="ghost" onclick={() => (reminder = false)}>
-			{m.reminder_not_now()}
-		</Button>
-		<Button size="sm" variant="ghost" onclick={turnOff}>{m.reminder_off()}</Button>
-	</div>
-{/if}
+			<Button size="sm" variant="ghost" onclick={turnOff}>{m.reminder_off()}</Button>
+		</div>
+	{/if}
+</div>

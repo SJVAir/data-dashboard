@@ -960,4 +960,21 @@ describe("DocumentSession format changes", () => {
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
 		expect(onCleared).toHaveBeenCalledTimes(1);
 	});
+
+	it("a tab with nothing to save that missed the clear finds out when it's shown again", async () => {
+		for (const doc of [makeDoc(), { ...makeDoc(), schemaVersion: CURRENT_SCHEMA_VERSION + 1 }]) {
+			const platform = await withStored(doc);
+			const onCleared = vi.fn();
+			const session = await open(platform, { onCleared });
+			await platform.reset.clearAll();
+			platform.activity.setVisible(false);
+			platform.activity.setVisible(true);
+			expect(onCleared).toHaveBeenCalledTimes(1);
+			// Once only.
+			platform.activity.setVisible(false);
+			platform.activity.setVisible(true);
+			expect(onCleared).toHaveBeenCalledTimes(1);
+			session.dispose();
+		}
+	});
 });

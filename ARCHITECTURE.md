@@ -1737,8 +1737,13 @@ stay local; built in Foundations spec 3):
   dashboard whose id isn't in this browser comes back with the same id; one already here is
   left alone (a backup never overwrites anything); one in Recently deleted is undeleted
   keeping the browser's version. A summary reports restored, already-here, and unreadable
-  counts. Read-only (newer or invalid) dashboards in a backup are restored as stored, still
-  read-only. Links and Export files refuse newer or invalid documents.
+  counts. A restored dashboard has its `deletedAt` removed (a backup is a snapshot of live
+  dashboards, so a restore never lands one in Recently deleted). Only ids made of letters,
+  digits, `-`, and `_` (up to 64) are restored, and never the starter's; others count as
+  skipped. Restoring any dashboard counts as a backup for the reminder. Read-only (newer or
+  invalid) dashboards in a backup are restored as stored, still read-only. Links and Export
+  files refuse newer or invalid documents; a read-only dashboard's Export file is its stored
+  value as it is (unknown top-level fields kept), less the local-only fields.
 - **"You already have a copy."** If a non-deleted local copy was made from the same
   contents, the app asks first: "Open my copy" or "Make a new copy" (equal prominence). "Same
   contents" is a **local content fingerprint** (a hash of the document's canonical JSON,
@@ -1749,7 +1754,8 @@ stay local; built in Foundations spec 3):
   `{ format: "sjvair-workspace", type: "document" | "backup", formatVersion, exportedAt,
 documents }`, with its own version separate from `schemaVersion`. A shared document carries
   only `kind`, `schemaVersion`, `id`, `name`, and `body`; local-only fields are left out. A
-  backup carries each dashboard exactly as stored (plus its fingerprint). Collections and
+  backup carries each dashboard exactly as stored (plus its fingerprint), or, for an open
+  dashboard whose latest edits couldn't be saved, as it is in the tab. Collections and
   analyses can join without a new format (`DEFERRED.md`).
 - **Links** are `<origin>/workspace/import#1.<lz-string URL-safe payload>` (the fragment is
   never sent to a server). Limits: a link is capped at **8,000 characters** (over it, the
