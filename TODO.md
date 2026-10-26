@@ -100,7 +100,20 @@ and the copyright holder (Central California Asthma Collaborative).
   gives them a purpose; in Release 1 a Collection could be gathered but not used. See
   `DEFERRED.md` → Collections and "Mark for analysis" in Release 1. Foundations is now four
   specs; spec 5 keeps its number.
-- **Next:** spec 5, shipping readiness, as a stacked PR on `foundations`.
+- **Next (planned 2026-10-26):** spec 5, shipping readiness, as a stacked PR on `foundations`,
+  in a session that also **coordinates the hosting track**, planned in a parallel sjvair.com
+  session (branched from `develop`). Start the spec 5 session first. Its design gets a
+  **"Hosting contract"** section (entry file names and static path, the identity
+  `json_script` block's shape with no API token, the CSP host list, where `version.json` and
+  the manifest are served, the `csrftoken` bootstrap); the sjvair.com session plans against
+  it and changes it only through the spec 5 session. Spec 5 is expected to split: the shipping
+  items first, then the sign-in side (which also leans on the server-backed documents track).
+- **The other parallel tracks (recommended 2026-10-26):** server-backed documents during
+  step 2, after spec 5's sign-in side; email-only accounts once the legal adviser answers;
+  the rest of step 3 (metadata enablers) in its own parallel session whenever convenient.
+  Then step 2, the design pass, step 4, step 5, and go-live. **Needed from you:** sjvair.com
+  #292 reaching `main` (unblocks the resticus CSRF merge), the dashboard's Sentry project,
+  Heroku config vars, and the MapTiler/NREL key restrictions.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
