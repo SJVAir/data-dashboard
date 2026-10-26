@@ -2362,7 +2362,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
 phoneVerified}}`, never the token or phone number); the CSP comes from this repo's
     `csp-hosts.json`, report-only for the preview and enforced by a server setting
     (`WORKSPACE_CSP_ENFORCE`) before go-live; the manifest is served by Django at
-    `/workspace/manifest.webmanifest`.
+    `/workspace/manifest.webmanifest`, outside the `beta_tools` gate (browsers fetch it without
+    cookies; it holds nothing private) and `noindex`.
   - Extending the site's base template, serving the dashboard's own `index.html`, and a
     build-manifest file read by the server were considered and decided against (see
     `DEFERRED.md`).

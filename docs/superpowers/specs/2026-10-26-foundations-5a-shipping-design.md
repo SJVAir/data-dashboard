@@ -229,7 +229,11 @@ _(sjvair.com)_:
   Django reads its local copy and serves it at **`/workspace/manifest.webmanifest`** as
   `application/manifest+json`, rewriting each icon's relative `src` (e.g.
   `assets/icon-192-<hash>.png`) to `{% static 'workspace/' %}` plus that path. Icons stay on
-  S3. The `/workspace/*` catch-all must not shadow this URL.
+  S3. The `/workspace/*` catch-all must not shadow this URL. **The manifest is outside the
+  `beta_tools` gate** (decided by the user 2026-10-26, sjvair.com `ad45af79`): browsers fetch
+  `<link rel="manifest">` without cookies, so a gated manifest would 404 even for signed-in
+  testers. It holds nothing private (name, colors, `start_url`, public icon URLs) and is sent
+  with `X-Robots-Tag: noindex`; the page stays gated. No `crossorigin` attribute on the link.
 - The manifest's `start_url` and `scope` are `/workspace/`.
 
 ### 7. The route
