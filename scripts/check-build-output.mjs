@@ -11,8 +11,13 @@ const ALLOWED = [
 	"manifest.webmanifest",
 	"THIRD-PARTY-NOTICES.txt"
 ];
-// Task 9 adds manifest.webmanifest here.
-const REQUIRED = ["app.js", "app.css", "version.json", "THIRD-PARTY-NOTICES.txt"];
+const REQUIRED = [
+	"app.js",
+	"app.css",
+	"version.json",
+	"manifest.webmanifest",
+	"THIRD-PARTY-NOTICES.txt"
+];
 
 function walk(dir) {
 	return readdirSync(dir).flatMap((name) => {

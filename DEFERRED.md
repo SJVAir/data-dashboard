@@ -34,6 +34,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
   page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
   track (which builds "Report this page").
+- **A maskable icon and real app icons.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
+  manifest uses sjvair.com's Android Chrome favicons as placeholders, with no `maskable`
+  icon. **Revisit with** the design pass.
 - **The embedding suite's first run.** _Deferred 2026-10-26 (Foundations spec 5a)._ Spec 5a
   builds the hand-run Playwright suite that checks the real embedding (local sjvair.com
   template, CSP enforced), but it isn't a merge gate: it

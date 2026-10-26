@@ -8,6 +8,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { fileURLToPath, URL } from "node:url";
 import { buildInfo } from "./vite-plugins/build-info.ts";
 import { licenses } from "./vite-plugins/licenses.ts";
+import { webManifest } from "./vite-plugins/web-manifest.ts";
 
 /** The standalone shell (`dist/index.html`) is served for deep routes, so its files need absolute paths. */
 function absoluteShell(): Plugin {
@@ -34,6 +35,7 @@ export default defineConfig(({ command, isPreview }) => ({
 		svelte(),
 		buildInfo(),
 		licenses(),
+		webManifest(),
 		absoluteShell()
 	],
 	build: {
