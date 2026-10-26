@@ -147,12 +147,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   everywhere. **Revisit with** the next sjvair.com test or settings change. Needs an
   approved sjvair.com plan.
 - **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
-  affects what spec 1 ships: Playwright runs with no retries in CI; sharp's install script
-  has no `allowScripts` decision yet; `@inlang/plugin-message-format` has an empty npm
-  `license` field although its `LICENSE` file is MIT, so spec 5's license check must accept
-  it; the `--duration-*` `@theme` aliases are probably inert. **Revisit when** CI first
-  flakes (retries), with spec 5's license check (sharp and the inlang plugin), and in the
-  design pass (the duration aliases).
+  affects what ships: Playwright runs with no retries in CI; the `--duration-*` `@theme`
+  aliases are probably inert. (Resolved in spec 5a: the inlang plugin is a named exception in
+  the license check; sharp's install script is allowed, see the Task 7 commit, because it is
+  dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
+  **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
 - **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
   review)._ The home route shows as `/workspace` (sv-router drops the slash), while Vite's
   base is `/workspace/`. **Revisit in** the hosting track: sjvair.com must serve both forms.

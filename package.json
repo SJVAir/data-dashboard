@@ -3,6 +3,7 @@
 	"description": "SJVAir's data exploration dashboard",
 	"version": "0.1.0",
 	"private": true,
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/SJVAir/data-dashboard"
