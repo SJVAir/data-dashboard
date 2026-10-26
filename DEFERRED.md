@@ -70,6 +70,21 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   refreshes the entry files and reloads. Unknown whether real Safari does the same after a
   real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
   Safari after a missing chunk; if it stays broken, retry the import under a new URL.
+- **The SDK builds zod schemas outside the `jitless` wrapper.** _Deferred 2026-10-26 (Foundations
+  spec 5a, final fix-wave review)._ The dashboard imports zod only through `$lib/zod`, which sets
+  `z.config({ jitless: true })` so zod's eval probe never trips the CSP. `@sjvair/sdk` imports zod
+  itself and builds `z.object` schemas when its modules load. Today that's harmless: production
+  reaches those modules only through the dev-only `/dev/data` route, after `$lib/zod` has run. If a
+  production route ever loads the SDK root before `$lib/zod`, every page load raises a `script-src`
+  eval violation (the E2E CSP fixture catches it only on the routes it exercises). **Revisit when**
+  the data layer first goes into a production route: fix it in sdk-js (build schemas lazily, or
+  set `jitless` there), not with an import-order workaround here.
+- **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
+  review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
+  `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
+  `browser.newContext()` (the sharing and backup specs). And `e2e/csp.spec.ts`'s "eval is blocked"
+  self-test injects an inline script, so it proves the checker works but not that eval is caught.
+  **Revisit when** touching the E2E fixtures or the zod wrapper.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
   follow-ups, none blocking. **Revisit with** the design pass, or when next touching each
   file:
