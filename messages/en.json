@@ -209,7 +209,7 @@
 	"privacy_title": "Your data and privacy",
 	"privacy_local": "Your dashboards and settings are kept in this browser, on this device.",
 	"privacy_server": "They are not sent to SJVAir's server. Showing air quality data asks the server for that data. A share link has the dashboard inside the link itself, so anyone you give the link to can see it.",
-	"privacy_errors": "If something breaks, the app may send an error report. It says what went wrong, which version of the app you have, and what kind of browser you use. It leaves out your dashboards, names, emails, and locations.",
+	"privacy_errors": "If something breaks, the app may send an error report to a separate error-reporting service. It says what went wrong, which version of the app you have, and what kind of browser you use. It leaves out your dashboards, names, emails, and locations.",
 	"privacy_no_tracking": "There is no analytics or tracking.",
 	"privacy_clear": "You can remove everything this app keeps in this browser at any time.",
 	"privacy_notices_link": "Licenses of the software this app uses"

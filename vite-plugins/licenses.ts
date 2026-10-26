@@ -124,10 +124,6 @@ export function formatNotices(packages: Found[]): string {
 	return `Third-party notices\n\nThis build bundles the following packages.\n\n${entries.join("\n")}`;
 }
 
-/**
- * Collects every `node_modules` package with code or CSS in the build, fails the build on a
- * disallowed license, and emits `workspace/THIRD-PARTY-NOTICES.txt` with each license text.
- */
 /** The package root for a bare CSS `@import` specifier, looked up from the importing file. */
 function cssImportRoot(specifier: string, fromDir: string): string | undefined {
 	if (/^(\.|\/|[a-z]+:)/i.test(specifier)) return undefined;
@@ -169,6 +165,10 @@ export function cssImportedRoots(
 	return seen;
 }
 
+/**
+ * Collects every `node_modules` package with code or CSS in the build, fails the build on a
+ * disallowed license, and emits `workspace/THIRD-PARTY-NOTICES.txt` with each license text.
+ */
 export function licenses(): Plugin {
 	const cssRoots = new Set<string>();
 	return {
