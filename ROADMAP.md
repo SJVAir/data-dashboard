@@ -15,6 +15,13 @@ the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notificat
 2026-10-13), with #261 still open; `@sjvair/sdk` is
 unchanged at 4.5.0.
 
+**Where things stand (2026-10-26):** Foundations specs 1, 2, 3, and 5a are merged into the
+`foundations` branch (spec 4 was dropped; Collections moved to Release 3), and **spec 5b, the
+sign-in side, is the last Foundations spec**. The hosting track is built (sjvair.com #295) and
+step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both
+server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile
+4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
+
 ## Done (v1 tab era)
 
 - ~~monitor-map modularization~~: `MapShell`, released in `@sjvair/monitor-map` 3.3.0.
@@ -24,13 +31,17 @@ unchanged at 4.5.0.
 
 ## Now: independent of everything
 
-- **Mobile Alerts screen fix (sjvair.com, sdk-js, mobile).** The screen has never shown a
-  correct level and now shows no alerts at all; fix with a server `level` field, an SDK
-  minor release, and an app release. See `TODO.md`.
+- ~~**Mobile Alerts screen fix (sjvair.com, sdk-js, mobile).**~~ Done: sjvair.com #287 (in
+  production via release #291, 2026-10-22), @sjvair/sdk 4.6.0, and mobile #112 (shipped in
+  4.0.6). The screen had never shown a correct level and then showed no alerts at all; fixed
+  with a server `level` field, an SDK minor release, and an app release. See `TODO.md`.
 - **Missing forecast zones (sjvair.com).** Production has no forecasts for Tulare, Kern, or
-  Sequoia because their 3 `custom` regions aren't loaded. See `TODO.md`.
-- **PM2.5 breakpoint fix (sjvair.com).** `levels.py` is only half-updated to EPA's 2024
-  AQI revision. It is urgent and separate from this project; see `TODO.md`.
+  Sequoia because their 3 `custom` regions aren't loaded. Imported and verified locally, and
+  #289 (logging skipped zones) is in production; the production import itself is out of scope
+  (user, 2026-10-20). See `TODO.md`.
+- ~~**PM2.5 breakpoint fix (sjvair.com).**~~ Done: #288, in production via release #291
+  (2026-10-22). `levels.py` had been only half-updated to EPA's 2024 AQI revision; it was
+  urgent and separate from this project. See `TODO.md`.
 
 ## Release 1: Dashboard
 

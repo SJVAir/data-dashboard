@@ -523,15 +523,18 @@ package release needs explicit per-release approval.
 **Now (independent)**
 
 - ~~sjvair.com PM2.5 breakpoint fix~~ — PR #288 (see the warning above).
-- ~~The mobile Alerts screen fix~~ — PRs #287, sdk-js #29 (4.6.0), mobile #112; the app
-  release waits for #287 on production (see the warning above).
+- ~~The mobile Alerts screen fix~~ — PRs #287, sdk-js #29 (4.6.0), mobile #112; #287 reached
+  production in release #291 and mobile #112 shipped in 4.0.6 (both 2026-10-22).
 - ~~Import the 3 missing `custom` forecast zones~~ — imported and verified locally, PR #289;
   production is out of scope (see the warning above).
 
 **Release 1, step 1: Foundations** (this repo)
 
-Items marked ✅ were done in spec 1 (2026-10-20, merged as PR #6 on 2026-10-21); "spec 1:" notes say
-which part of a larger item it did.
+Items marked ✅ are done. They were built in spec 1 (PR #6, 2026-10-21), spec 2 (PR #7,
+2026-10-25), spec 3 (PR #8, 2026-10-25), or spec 5a (PR #9, 2026-10-26); "spec N:" notes say which
+part of a larger item a spec did. **What's left is spec 5b** (the sign-in parts of the platform
+adapter, local storage spaces, and the identity block) plus pieces that arrive with later steps,
+noted on each item.
 
 - ✅ **First, write `docs/reference/v1-lessons.md`**: what the v1 code and its 78 tests
   learned about server behavior, as behaviors rather than code. Examples:
@@ -550,12 +553,15 @@ which part of a larger item it did.
 - ✅ Then the fresh start: remove the v1 app shell, sidebar, tab routes, and tab pages.
   Reuse existing code only if it's exactly what the new design needs.
 
-- Platform adapter (spec 1: storage, preferences, and identity): storage, notifications,
+- Platform adapter (spec 1: storage, preferences, and identity; spec 3: file export and
+  import, clipboard, persistence, reset; spec 5a: online status and error reporting. Left: auth
+  mode and token storage in 5b; notifications, background tasks, and opt-in geolocation arrive
+  with step 4's thresholds and place picker): storage, notifications,
   file export, background tasks, online status, opt-in geolocation, error reporting,
   auth mode, and token storage. Preferences (last-opened dashboard, active Collection, the
   starter's chosen place)
   go through it; the v1 `preferences.ts` is removed, not migrated.
-- Data layer (in-memory cache shared across widgets; HTTP cache for reloads; documents in
+- ✅ Data layer (spec 2; in-memory cache shared across widgets; HTTP cache for reloads; documents in
   IndexedDB):
   - catalog-driven resolution for unsummarized data (worker downsampling, span caps)
   - automatic resolution selection
@@ -563,34 +569,36 @@ which part of a larger item it did.
   - one poll per descriptor
   - pause when the tab is hidden
   - last-requested-wins
-- Dataset adapter registry keyed by catalog id; hide catalog entries with no adapter
+- ✅ Dataset adapter registry keyed by catalog id (spec 2, with one adapter, air quality; the
+  rest arrive with their widgets in step 4); hide catalog entries with no adapter
   (`ARCHITECTURE.md` → "Metadata as source of truth" → "What a dataset is").
-- `QueryDescriptor` type: one definition, in `ARCHITECTURE.md` → "Widget data selection".
+- ✅ `QueryDescriptor` type (spec 2): one definition, in `ARCHITECTURE.md` → "Widget data selection".
 - ✅ A theme-token layer: all colors, fonts, radii, spacing, and motion as CSS variables; no
   hardcoded styling values in components.
 - ✅ Paraglide JS (English-only) and the shared `format` module, before any new UI. The
   `format` module owns the time-zone rules: Pacific everywhere via `@date-fns/tz`,
   Sunday week start, DST-safe (`ARCHITECTURE.md` → "Time zone & calendar conventions").
-- The version 1 document body as sketched in `ARCHITECTURE.md` (`DashboardBody`,
+- ✅ The version 1 document body (specs 1 and 2) as sketched in `ARCHITECTURE.md` (`DashboardBody`,
   `WidgetInstance`, `DateRangeSpec`, a layer's `place` or `selection`, `default-place`),
   with zod schemas; the spec finalizes field detail.
-- `SavedDocument` types (spec 1: types, zod schemas, the migration-chain machinery,
+- ✅ `SavedDocument` types (spec 3: the kept originals and `migrateChange`; spec 1: types, zod schemas, the migration-chain machinery,
   `applyChange`, undo/redo, the change log, and cross-tab sync), a migration chain
   (validated after each upgrade, with the original kept locally for 30 days and permanent fixtures for every past `schemaVersion` run in
   CI), `applyChange`, and undo/redo. The `Change`
   format is serializable JSON with explicit `target`s, plus a persisted queue of unsynced
   changes with their base version, and cross-tab sync via `BroadcastChannel`
   (`ARCHITECTURE.md` → "Routing, URL state & undo").
-- **Local storage spaces** from the first IndexedDB schema: an anonymous space plus one per
+- **Local storage spaces** (spec 1: the spaces in the IndexedDB schema; the rest is spec 5b) from
+  the first IndexedDB schema: an anonymous space plus one per
   account, keying every document, queued change, and place preference; the one-time
   "add anonymous work to your account" prompt; sign-out removing the account's space;
   an expired session hiding it for 30 days; each space bound to an account id, re-checked
   on tab focus and before each sync; sign-in and sign-out applied across tabs
   (`ARCHITECTURE.md` → "Accounts & anonymous use").
-- The **CSP host reference list**: one checked-in file of the hosts each directive needs,
+- ✅ The **CSP host reference list** (spec 5a): one checked-in file of the hosts each directive needs,
   with a test that fails when code references an unlisted host (sjvair.com's view holds
   the deployed copy), and a listener that reports policy violations.
-- Build output for embedding: fixed-name entry script and stylesheet, hashed lazy chunks
+- Build output for embedding (spec 5a: all but reading identity, which is spec 5b): fixed-name entry script and stylesheet, hashed lazy chunks
   found by relative reference, `version.json`; identity read from the template's JSON data
   block. `index.html` is for local dev and standalone builds only.
   Files find each other by relative reference (`import.meta.url`; no runtime
@@ -601,43 +609,43 @@ which part of a larger item it did.
   The second-origin E2E smoke run was dropped 2026-10-26; the beta preview exercises
   cross-origin. Sentry through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and
   the git commit as the release and build id.
-- Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
+- ✅ Date-range resolution (spec 2; `DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
-- Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
-- Version skew: open newer-`schemaVersion` documents read-only; tag queued changes with
+- ✅ Local save plus Export/Import (spec 3) `.json` and URL-fragment share, with the `/import` route.
+- ✅ Version skew (spec 3): open newer-`schemaVersion` documents read-only; tag queued changes with
   their `schemaVersion` and replay before migrating; a `version.json` check on focus and
   hourly, plus a chunk-load-failure reload prompt.
-- Schema validation (zod) plus size limits for every incoming document (file, fragment,
+- ✅ Schema validation (spec 3; zod) plus size limits for every incoming document (file, fragment,
   server) before migration; reject invalid documents cleanly.
 - ✅ Action/menu registry: pure resolution and merge logic, tested, plus a bits-ui
   `ContextMenu` host. Install shadcn-svelte `context-menu`.
 - ✅ App shell: top nav, dashboard picker (a dropdown), and the new route table
   (`ARCHITECTURE.md` → "Routing"), plus `basePath` support for `sjvair.com/workspace/`.
 - ✅ CI workflow: lint, type-check, tests, and build on every PR.
-- A CI bundle budget (about 200 KB compressed of initial JS), per-widget-type code
+- ✅ A CI bundle budget (spec 5a; about 200 KB compressed of initial JS), per-widget-type code
   splitting, and an unsupported-browser notice (Chrome/Edge 111+, Safari 16.4+, Firefox 128+).
-- A shared `readableColor` helper (color2k) for text on level colors; outlined swatches;
+- ✅ A shared `readableColor` helper (spec 2; color2k) for text on level colors; outlined swatches;
   labels always shown alongside level colors.
-- Error reporting through the platform adapter to Sentry (strict PII scrubbing), an in-app
+- ✅ Error reporting (spec 5a) through the platform adapter to Sentry (strict PII scrubbing), an in-app
   privacy note, and a preview feedback link.
-- Add an MIT `LICENSE` file (`Copyright (c) 2026 Central California Asthma Collaborative
+- ✅ Add an MIT `LICENSE` file (spec 5a) (`Copyright (c) 2026 Central California Asthma Collaborative
 (SJVAir)`) (and `"license": "MIT"` in `package.json`), a CI license check
   (permissive only), and generated third-party notices.
-- Test infrastructure (spec 1: all but the dev-stack smoke suite; `ARCHITECTURE.md` →
+- ✅ Test infrastructure (spec 1; the dev-stack smoke suite in spec 5a; `ARCHITECTURE.md` →
   "Testing strategy"): Vitest browser mode + `vitest-browser-svelte`, Playwright
   (Chromium/WebKit/Firefox) with fixture routing, `@axe-core/playwright`, and a dev-stack
   smoke suite. PRs into `main` run the full suite (three engines plus axe); feature-branch
   PRs run unit + component + Chromium E2E.
-- Installable app: a web app manifest and icons (no service worker in Release 1), plus an
+- ✅ Installable app (spec 5a): a web app manifest and icons (no service worker in Release 1), plus an
   offline banner from the online/offline events.
-- "Clear my data".
-- Vite dev proxy: `/api` and `/account/` to the local podman sjvair.com, plus a one-time `csrftoken`
+- ✅ "Clear my data" (spec 3).
+- ✅ Vite dev proxy (spec 5a): `/api` and `/account/` to the local podman sjvair.com, plus a one-time `csrftoken`
   cookie bootstrap (Vite serves the app, so Django's `ensure_csrf_cookie` doesn't run in dev).
-- Autosave (spec 1: all but "Recently deleted"; debounced `applyChange` persistence), the
+- ✅ Autosave (spec 1; "Recently deleted" in spec 3; debounced `applyChange` persistence), the
   "Saved" indicator, and picker actions: new, duplicate, rename, delete with an undo toast. Local soft delete with a
   "Recently deleted" list (about 30 days), and `copiedFrom` on local copies (starter, Save as
   copy).
-- Local durability: a `navigator.storage.persist()` request, a storage status note, a
+- ✅ Local durability (spec 3): a `navigator.storage.persist()` request, a storage status note, a
   backup nudge, and clear quota and write errors.
 
 **Release 1: design pass** (its own small sub-project, before step 4 and the private preview)
@@ -656,19 +664,23 @@ which part of a larger item it did.
 
 **Release 1, step 3: Metadata enablers** (sjvair.com + sdk-js, in parallel with steps 1–2)
 
-- Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
+Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22; not yet on
+`main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
+@sjvair/sdk 4.8.0 is released only after #293 reaches production, with explicit approval.
+
+- ✅ Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
   hardcoding pollutants.
-- Regions and locations by official code: detail and lookup endpoints accept `type` +
+- ✅ Regions and locations by official code: detail and lookup endpoints accept `type` +
   `external_id` (regions) and `source` + `external_id` (locations) and return them;
   assign codes to the 3 `custom` forecast zones; sdk-js wrappers accept the pair. Handle the two unstable codes: child-care
   sites keyed by a license number that can change, and CDPs that incorporate into cities
   (`ARCHITECTURE.md` → "Stable ids and retirement"). (Checked
   2026-10-14: the region API returns `id` (sqid), name, slug, type, and boundary, but not
   `external_id`.)
-- Stable ids and retirement: a never-reuse rule for ids, `retired` (date, optional
+- ✅ Stable ids and retirement: a never-reuse rule for ids, `retired` (date, optional
   replacement) on catalog entries and entry types, and lookups that distinguish "retired"
   from "never existed" (`ARCHITECTURE.md` → "Stable ids and retirement").
-- In order: the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
+- In order (✅ the catalog and the coverage endpoint; the rest is left): the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
   "What a dataset is"), the coverage endpoint, per-domain scale metas
   (hms, calheatscore with per-score guidance, forecasts, AQI), plus a shared `tier` (0–4;
   CalHeatScore's scale, heat mapped one to one) on every level of every scale (AQ levels: Good 0 … Unhealthy 3,
@@ -761,37 +773,45 @@ which part of a larger item it did.
 
 **Release 1, parallel track: hosting on sjvair.com** (approved sjvair.com plan first)
 
+**Built 2026-10-26:** sjvair.com #295, merged into `develop` (not yet on `main`), implementing
+the Hosting contract in the spec 5a design. Items marked ✅ are done. The S3 upload is exactly
+monitor-map's for now: compression, cache headers, ordered passes, failing the release on an
+upload error, and the post-deploy check are deferred (`DEFERRED.md`), to be solved together
+with monitor-map. What's left is account work: the Heroku config vars listed in #295, the
+Sentry settings, and the key restrictions.
+
 - sjvair.com:
-  - an import script that clones and builds this repo's `main` during the Heroku deploy
+  - ✅ an import script that clones and builds this repo's `main` during the Heroku deploy
     (modeled on `scripts/import-monitor-map.sh`; no pinning)
-  - a **dedicated Django template** for `/workspace/*` that embeds the built dashboard the
+  - ✅ a **dedicated Django template** for `/workspace/*` that embeds the built dashboard the
     way `pages/index.html` embeds the map (`{% static %}` tags, the user in a `json_script`
     block) but does **not** extend `base.html`/`page.html` (so no
     Google Tag Manager/Analytics, Bulma, or site chrome)
-  - `X-Robots-Tag: noindex` on `/workspace/shared/*`, framing protection, and the page
+  - ✅ `X-Robots-Tag: noindex` on `/workspace/shared/*`, framing protection, and the page
     itself uncached
-  - **static files on S3** (the map's pipeline): upload the dashboard's files
+  - **static files on S3** (deferred except the CSP's static folder, which is ✅; the map's pipeline): upload the dashboard's files
     pre-compressed with `Content-Encoding`, hashed chunks long-lived and immutable, entry
     files and `version.json` as `no-cache`; the general sync excludes the dashboard's
     directory, which uploads in ordered passes (chunks, then assets, then entry files);
     the upload command fails the release on error (today it doesn't); a post-deploy
     header check; add the dashboard's
     own static folder (not the whole host) to the CSP; add the preview's origin to the bucket's cross-origin rule
-  - serve the web app manifest from Django under `/workspace/`
-  - a Django catch-all route for `/workspace/*`, decorated with `ensure_csrf_cookie` and not
+  - ✅ serve the web app manifest from Django under `/workspace/`
+  - ✅ a Django catch-all route for `/workspace/*`, decorated with `ensure_csrf_cookie` and not
     forcing trailing slashes
   - confirm no existing CMS page uses `workspace`
 - `VITE_*` keys as Heroku config vars.
-- A CSP on `/workspace/*` from the Django view: report-only first, then enforced, with the
+- ✅ A CSP on `/workspace/*` from the Django view (`WORKSPACE_CSP_ENFORCE`; `csp-hosts.json`
+  mirrored byte for byte): report-only first, then enforced, with the
   host list **kept in sjvair.com beside the view** (matching this repo's reference list)
   (`ARCHITECTURE.md` → "Security baseline").
-- Create the dashboard's own Sentry project in the existing org and set `VITE_SENTRY_DSN`
+- Create the dashboard's own Sentry project in the existing org (✅ done 2026-10-26) and set `VITE_SENTRY_DSN`
   as a Heroku config var. In the project's settings turn on "Prevent storing IP addresses"
   and server-side data scrubbing ("Data Scrubber" and "Use Default Scrubbers"), so anything
   the client-side scrubbing misses is still dropped.
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
-- This repo: router `basePath` `/workspace/`, built files under the static path, and
+- ✅ This repo: router `basePath` `/workspace/`, built files under the static path, and
   `setOrigin(location.origin)` when served
   under `/workspace/` (`VITE_PROD_URL` only for Tauri/standalone builds).
 - Merging to dashboard `main` needs the user's explicit go-ahead (it ships with the next
@@ -822,8 +842,9 @@ django-resticus plans first)
   automatic `X-CSRFToken` header (sdk-js 4.7.0), and upgrading monitor-map (the only
   cookie-based API write today) to it. Order: the pages and SDK are ready before or with the resticus merge, and all
   of it lands before cookie-based saves ship. Merging to resticus `develop` needs the
-  user's explicit approval. **Status 2026-10-22:** built and verified; resticus #25 and
-  sjvair.com #292 open (see "Start here").
+  user's explicit approval. **Status 2026-10-26:** built and verified. sjvair.com #292 is merged
+  into `develop` (not yet on `main`); resticus #25 (draft) and its follow-ups #26 (draft) wait
+  until #292 reaches `main`, and the user tells the resticus developer when to merge.
 
 - Reject saves whose `schemaVersion` is lower than the stored document's.
 - Deletion: synced soft delete (`deleted_at`, purged after about 30 days), a "Recently

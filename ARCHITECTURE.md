@@ -246,8 +246,10 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   - **API shape change:** `account/alerts/` now returns `sqid` and **no longer returns
     `id` or `latest`**. `@sjvair/sdk` 4.5.0's `airAlertSchema` still requires both, and the
     mobile app's Alerts screen reads `alert.latest`. Traced on 2026-10-14: `latest` was
-    only ever an `AlertUpdate` id, so that screen has never shown a correct level and now
-    shows no alerts. A fix is planned independently of this project (see `TODO.md`).
+    only ever an `AlertUpdate` id, so that screen had never shown a correct level and then
+    showed no alerts. **Fixed 2026-10-22**, independently of this project: sjvair.com #287
+    adds `level` (in production via release #291), @sjvair/sdk 4.6.0 adds `sqid` and `level`
+    and deprecates `id` and `latest`, and mobile #112 shipped in 4.0.6 (see `TODO.md`).
   - **Decisions re-confirmed against this baseline on 2026-10-13:** (a) **decided 2026-10-13**: follow the server's escalation-only design
     (see "Notify on" above); (b) **decided 2026-10-13**: no guard rails beyond the server's throttles (quiet hours deferred); (c) **decided 2026-10-13**: see "Channels on the server" below.
 - **Existing SMS subscriptions** (decided 2026-09-28):
@@ -1107,8 +1109,9 @@ but those are a UI and packaging major, **not this split**: a new options toolba
 unified legend (4.0), `./core` and `./routes` entry points (4.1), and a self-fetching
 detail panel with basemap-failure handling (4.2). It is still one map per page, with the
 same singletons, no `createMap`, no `MapView`, and config read from `import.meta.env`.
-Its own `CLAUDE.md` says "mount at most one `MapShell` per app instance". So the plan
-below stands, with the baseline now 4.2.0 and the rebuild becoming monitor-map **5.0**:
+Its own `CLAUDE.md` says "mount at most one `MapShell` per app instance". 4.3.0
+(2026-10-21) only moved it to @sjvair/sdk 4.7.0 and added request cancelling. So the plan
+below stands, with the baseline now 4.3.0 and the rebuild becoming monitor-map **5.0**:
 
 | Package                                                   | Contains                                                                                                                                                                                                                                                   | Used by                                                                              |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -1122,7 +1125,7 @@ clear ownership (general map capabilities → `map-sdk`, monitor-map product dec
 monitor-map (local linking for development; each publish needs explicit approval).
 
 **The core problem being solved is still "one map per page"**, not a lack of
-configurability. As of monitor-map 4.2.0 (unchanged from 3.6.x): `mapManager` (one `map`),
+configurability. As of monitor-map 4.3.0 (unchanged from 3.6.x): `mapManager` (one `map`),
 `integrationsManager`, and `clickManager` are module-level singletons; integrations are exported singleton
 instances (`export const monitorsMapIntegration = new MonitorsMapIntegration()`) that
 talk to `mapManager.map`; `MaptilerConfig.apiKey` is set from `import.meta.env` at
@@ -2165,8 +2168,9 @@ Decided 2026-09-28.
   contributions is on the legal checklist in `DEFERRED.md`), with the brand after it. Every SJVAir repo uses the
   same line: `Copyright (c) 2026 Central California Asthma Collaborative (SJVAir)`. The
   CCAC website's footer says "All Rights Reserved", which must **not** be copied into the
-  license, since the MIT terms grant those rights. Still pending: the `LICENSE` files. `data-dashboard` (now public) and
-  `monitor-map` (on npm) currently have no license, which means "all rights reserved".
+  license, since the MIT terms grant those rights. `data-dashboard` has its `LICENSE` file
+  (spec 5a, below). Still pending: `monitor-map` (on npm) has no license, which means "all
+  rights reserved".
 - **Built 2026-10-26 (Foundations spec 5a):** the `LICENSE` file and `"license": "MIT"` are
   in this repo; the check is a Vite plugin (`vite-plugins/licenses.ts`) that runs inside
   `npm run build`. It walks the modules actually bundled (JS, and packages imported from CSS),
@@ -2457,9 +2461,9 @@ decisions made along the way:
   for `MapShell` with `routerEscapeHatch`/`basePath` (see its `CLAUDE.md`): a host
   page that already has its own router must be able to either mount this app under a
   sub-path (`basePath`) or disable this app's own history/URL manipulation entirely
-  when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
-  currently assumes it owns top-level routing. **`basePath` ships in Release 1** for
-  serving under `/workspace/` (see "Deployment"); the escape-hatch/in-memory mode for
+  when the host is driving navigation. **`basePath` is built** (Foundations spec 1) for
+  serving under `/workspace/` (see "Deployment"); otherwise `src/router.ts` still assumes it
+  owns top-level routing, and the escape-hatch/in-memory mode for
   embedding in a host app with its own router stays deferred (see `DEFERRED.md` → "Embeddable production
   build").
 - **URL state vs. embedding** — decided in "Routing, URL state & undo": when the host

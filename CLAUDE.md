@@ -91,7 +91,7 @@ reuse existing code only if it's exactly what the new design needs.
   (remote `dmpayton/django-resticus`; sjvair.com installs its `develop` branch unpinned).
   The user has access. It gets the CSRF fix; see `ARCHITECTURE.md` → "CSRF protection".
 - `../mobile` — the current SJVAir mobile app (`SJVAir/sjvair-mobile`, Svelte 5 +
-  Capacitor; the Svelte rebuild shipped as 3.0.0 on 2026-09-29, now at 4.0.5, and it replaced the old
+  Capacitor; the Svelte rebuild shipped as 3.0.0 on 2026-09-29, now at 4.0.6, and it replaced the old
   `v3-mobile` working copy). It consumes `@sjvair/monitor-map` `^4.2` through its `/core`
   and `/routes` entry points (using `monitorsManager` as an app-wide data store) and
   authenticates with `Token` headers only. Its `CLAUDE.md` lists off-limits areas (`ios/`,
@@ -135,9 +135,9 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 ## Licensing
 
 This repo is **MIT** (decided 2026-09-28; copyright holder: "Central California Asthma
-Collaborative (SJVAir)", decided 2026-10-14; the `LICENSE` file is added in Foundations), as are `map-sdk` and `monitor-map` once added, matching `sdk-js`. Only add
+Collaborative (SJVAir)", decided 2026-10-14; the `LICENSE` file was added in Foundations spec 5a), as are `map-sdk` and `monitor-map` once added, matching `sdk-js`. Only add
 dependencies with permissive licenses (MIT, BSD, Apache-2.0, ISC; MPL-2.0 only if
-unmodified; OFL-1.1 for fonts only, decided 2026-10-26). CI will check licenses and the build will generate third-party notices. See `ARCHITECTURE.md` → "Licensing".
+unmodified; OFL-1.1 for fonts only, decided 2026-10-26). The build checks licenses and generates third-party notices (`vite-plugins/licenses.ts`). See `ARCHITECTURE.md` → "Licensing".
 
 ## Deferred work — standing rule
 
@@ -169,6 +169,7 @@ Installed:
 | Vitest                             | Unit tests and browser-mode component tests        |
 | `vitest-browser-svelte`            | Rendering components in Vitest browser mode        |
 | Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks |
+| `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)  |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 
@@ -178,7 +179,6 @@ Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 | `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView`, data stores |
 | `terra-draw`                       | Drawn-shape map selection (via a map-sdk plugin)  |
 | A Markdown renderer (raw HTML off) | Safe Notes rendering                              |
-| Sentry browser SDK                 | Scrubbed error reports (via the platform adapter) |
 | JupyterLite + Pyodide              | Separate `/notebooks/` app (Release 3)            |
 
 ## Environment Variables
