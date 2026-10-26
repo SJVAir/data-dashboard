@@ -12,9 +12,14 @@ notices, the bundle budget, the manifest and placeholder icons, the offline bann
 proxy to the local sjvair.com stack, the hand-run embedding suite, and the privacy note and
 feedback link. What's left:
 
-- **You create the dashboard's Sentry project**; then its ingest host goes into
-  `csp-hosts.json` and the sjvair.com copy of the host list, and the DSN into the build's
-  `VITE_SENTRY_DSN`.
+- **Sentry: done 2026-10-26.** The dashboard's Sentry project exists; its ingest host
+  `https://o270131.ingest.us.sentry.io` is in `csp-hosts.json` (sjvair.com told to mirror it). The DSN
+  is in the local `.env` only (git-ignored; E2E builds force it empty). A hand check sent a test error
+  to Sentry (HTTP 200): the email, coordinates, and dashboard id arrived as `[email]`, `[coord]`,
+  `[id]`, the URL as `/dashboards/:id`, `infer_ip: "never"`, no user. Still to do at ship time: the
+  DSN as the Heroku config var `VITE_SENTRY_DSN`, and the project's CSP security endpoint as
+  sjvair.com's `WORKSPACE_CSP_REPORT_URI`; in the Sentry project settings, turn on "Prevent storing
+  IP addresses" and the server-side data scrubber if not already on.
 - **The embedding suite's first real run**, by the sjvair.com session (sjvair.com PR #295
   into `develop`). It stays in `DEFERRED.md` until it has run.
 - **5b (the sign-in side) is next.**

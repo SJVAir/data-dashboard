@@ -113,7 +113,9 @@ for (const file of files.filter((f) => /\.(js|css)$/.test(f))) {
 			rest = rest.replaceAll(literal + quote, quote);
 		}
 	}
-	for (const match of rest.matchAll(/(?:https?|wss?):\/\/([A-Za-z0-9.-]+)/g)) {
+	for (const match of rest.matchAll(
+		/(?:https?|wss?):\/\/(?:[A-Za-z0-9._~%!$&'()*+,;=:-]*@)?([A-Za-z0-9.-]+)/g
+	)) {
 		hosts.add(match[1].replace(/\.$/, ""));
 	}
 }

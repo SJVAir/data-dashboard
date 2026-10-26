@@ -9,7 +9,7 @@ const CONTRACT: Record<string, string[]> = {
 	"style-src": ["'self'", "{static}", "'unsafe-inline'"],
 	"font-src": ["'self'", "{static}"],
 	"img-src": ["'self'", "{static}", "data:", "blob:"],
-	"connect-src": ["'self'", "{static}"],
+	"connect-src": ["'self'", "{static}", "https://o270131.ingest.us.sentry.io"],
 	"worker-src": ["'self'", "blob:"],
 	"manifest-src": ["'self'"],
 	"frame-ancestors": ["'none'"],
@@ -61,7 +61,9 @@ describe("csp-hosts.json", () => {
 			for (const literal of NOT_FETCHED_LITERALS) {
 				for (const quote of ['"', "'", "`"]) text = text.replaceAll(literal + quote, quote);
 			}
-			for (const match of text.matchAll(/(?:https?|wss?):\/\/([A-Za-z0-9.-]+)/g)) {
+			for (const match of text.matchAll(
+				/(?:https?|wss?):\/\/(?:[A-Za-z0-9._~%!$&'()*+,;=:-]*@)?([A-Za-z0-9.-]+)/g
+			)) {
 				const host = match[1].replace(/\.$/, "");
 				if (!listed.has(host) && !NOT_FETCHED.has(host)) unlisted.push(`${host} (${file})`);
 			}

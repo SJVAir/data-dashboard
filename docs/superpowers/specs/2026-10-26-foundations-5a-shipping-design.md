@@ -195,7 +195,7 @@ _(sjvair.com)_:
   | `style-src`       | `'self'` `{static}` `'unsafe-inline'`       |
   | `font-src`        | `'self'` `{static}`                         |
   | `img-src`         | `'self'` `{static}` `data:` `blob:`         |
-  | `connect-src`     | `'self'` `{static}` (+ the Sentry ingest host) |
+  | `connect-src`     | `'self'` `{static}` `https://o270131.ingest.us.sentry.io` |
   | `worker-src`      | `'self'` `blob:`                            |
   | `manifest-src`    | `'self'`                                    |
   | `frame-ancestors` | `'none'`                                    |
@@ -203,11 +203,9 @@ _(sjvair.com)_:
   | `object-src`      | `'none'`                                    |
   | `form-action`     | `'none'`                                    |
 
-  The Sentry ingest host is **left out** (no placeholder, so sjvair.com's header is always
-  valid) until the user creates the dashboard's Sentry project; it is then added to both
-  copies and the sjvair.com session is told. Until then a build with a DSN would have its
-  reports blocked under an enforced CSP, which is why the DSN is only set once the host is
-  listed. MapTiler and NREL are added with the map
+  The Sentry ingest host (`https://o270131.ingest.us.sentry.io`, the dashboard's Sentry
+  project, created by the user) was added on 2026-10-26 to both copies; the sjvair.com session
+  was told. It was left out until then so sjvair.com's header never carried a placeholder. MapTiler and NREL are added with the map
   widget (a change to both copies).
 
 - `'self'` is needed beside `{static}` because local development serves static files from the
