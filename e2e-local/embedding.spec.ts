@@ -20,24 +20,21 @@ test("the dashboard is embedded correctly in the sjvair.com template", async ({
 	const violations: string[] = [];
 	const cspMessages: string[] = [];
 	const fetched: string[] = [];
+	// Reported from every document's listener to Node, so no navigation loses a violation.
+	await page.exposeBinding("reportCspViolation", (_source, detail: string) => {
+		violations.push(detail);
+	});
 	await page.addInitScript(() => {
-		const w = window as unknown as { __cspViolations: string[] };
-		w.__cspViolations = [];
 		document.addEventListener("securitypolicyviolation", (event) => {
-			w.__cspViolations.push(`${event.violatedDirective} ${event.blockedURI}`);
+			(window as unknown as { reportCspViolation: (detail: string) => void }).reportCspViolation(
+				`${event.violatedDirective} ${event.blockedURI}`
+			);
 		});
 	});
 	page.on("console", (message: ConsoleMessage) => {
 		if (/Content Security Policy/i.test(message.text())) cspMessages.push(message.text());
 	});
 	page.on("response", (response) => fetched.push(response.url()));
-	const collectViolations = async () =>
-		violations.push(
-			...(await page.evaluate(
-				() => (window as unknown as { __cspViolations: string[] }).__cspViolations
-			))
-		);
-
 	// Sign in as the seeded beta tester.
 	await page.goto(`${origin}/account/login/`);
 	await page.locator("[name=identifier]").fill(identifier!);
@@ -56,20 +53,23 @@ test("the dashboard is embedded correctly in the sjvair.com template", async ({
 	await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
 	const entry = await page.locator('script[type="module"][src$="app.js"]').getAttribute("src");
 	const staticFolder = new URL(".", new URL(entry!, page.url())).href;
+	// Locally static files are served same-origin at /static/; a build under /workspace/ is wrong.
+	expect(staticFolder).toBe(process.env.WORKSPACE_E2E_STATIC ?? `${origin}/static/workspace/`);
+	expect(new URL(staticFolder).pathname.startsWith("/workspace/")).toBe(false);
 
 	// Create a dashboard, then load it directly.
 	await page.goto("dashboards");
 	await page.getByRole("button", { name: "New blank dashboard" }).click();
 	await expect(page).toHaveURL(/\/workspace\/dashboards\/[0-9a-f-]{36}$/);
 	const dashboardUrl = page.url();
-	await collectViolations();
 
+	// The view itself must set the csrf cookie: drop it (keeping the session) before the last load.
 	for (const url of [dashboardUrl, new URL("/workspace", baseURL).href]) {
+		if (url.endsWith("/workspace")) await page.context().clearCookies({ name: "csrftoken" });
 		const response = await page.goto(url);
 		expect(response!.request().redirectedFrom(), `${url} redirected`).toBeNull();
 		expect(response!.status()).toBe(200);
 		await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
-		await collectViolations();
 	}
 
 	// The version check runs when the tab turns visible; it reads version.json from the static folder.
@@ -82,6 +82,7 @@ test("the dashboard is embedded correctly in the sjvair.com template", async ({
 	expect(fromStatic.some((url) => /\/assets\/.+\.js$/.test(url))).toBe(true);
 	expect(fromStatic.some((url) => /\.(woff2?|ttf|otf)$/.test(url))).toBe(true);
 
+	await page.waitForTimeout(1000);
 	expect(violations).toEqual([]);
 	expect(cspMessages).toEqual([]);
 
@@ -98,7 +99,7 @@ test("the dashboard is embedded correctly in the sjvair.com template", async ({
 	// The identity block carries no secrets.
 	const identity = JSON.parse((await page.locator("#sjvair-identity").textContent())!);
 	expect(identity.v).toBe(1);
-	expect(identity.user).toBeTruthy();
+	expect(typeof identity.user === "object" && identity.user !== null).toBe(true);
 	expect(identity.user).not.toHaveProperty("api_token");
 	expect(identity.user).not.toHaveProperty("phone");
 
