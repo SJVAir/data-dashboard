@@ -4,7 +4,7 @@ Last updated: 2026-10-25
 
 ## Start here
 
-**Status (2026-10-25): Foundations specs 1 and 2 are merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
+**Status (2026-10-25): Foundations specs 1, 2, and 3 are merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
 with the user's approval). A final consistency and build-readiness sweep (2026-10-14) fixed
 the remaining leftovers and settled five build details (relative file references, one
 `place` field per layer, `default-place` kept inside the starter, a CSP scoped to the
@@ -83,12 +83,19 @@ and the copyright holder (Central California Asthma Collaborative).
 - **PR #7 now uses @sjvair/sdk 4.8.0-beta.1 (2026-10-25)**: raw entries, the dataset catalog,
   and region codes go through the SDK's wrappers instead of workarounds (pinned exactly until
   4.8.0 is released; see `DEFERRED.md`).
-- **Now (2026-10-25): spec 3, safety and sharing, is built** on branch `foundations-3-safety`
-  (off `foundations`); PR [#8](https://github.com/SJVAir/data-dashboard/pull/8) into `foundations`. Share links, Export/Import, backups
-  and restore, Recently deleted, Clear my data, the storage note and backup reminder, version
-  skew handling, and kept originals are in, with axe and three-engine E2E coverage. Design:
-  `docs/superpowers/specs/2026-10-25-foundations-3-safety-sharing-design.md`; its deferrals
-  are in `DEFERRED.md`. Next: merge #8 once CI and review pass, then spec 4 (Collections).
+- **Spec 3 (safety and sharing) is done: merged into `foundations` as PR
+  [#8](https://github.com/SJVAir/data-dashboard/pull/8) (2026-10-25).** Share links and
+  `/import` (with "You already have a copy"), Export/Import, backups that restore without
+  overwriting, Recently deleted with a 30-day purge, Clear my data, the storage note with
+  click-to-protect (Firefox) and the backup reminder, version skew handling (`version.json`,
+  chunk failures, old tabs on IndexedDB upgrades, `migrateChange`), kept originals with
+  "Restore an earlier version", and the spec-1 robustness items. 610 unit/browser tests;
+  147/147 E2E on Chromium, Firefox, and WebKit. Design and plan:
+  `docs/superpowers/{specs,plans}/2026-10-25-foundations-3-safety-sharing*`; its deferrals are
+  in `DEFERRED.md` (including a manual check that 8,000-character links survive Google
+  Classroom and webmail before the private preview, and `bits-ui` held at 2.19.2).
+- **Next:** spec 4, Collections (the store, the drawer, "Add to collection ▸", staging that
+  freezes date ranges, and the placeholder Analysis view), as a stacked PR on `foundations`.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
