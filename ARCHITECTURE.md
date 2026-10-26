@@ -622,6 +622,11 @@ files, and server documents.
      the app's own violation reports (below) catch any drift.
    - **The app also reports violations itself:** it listens for the browser's
      policy-violation event and sends it through the scrubbed error reporting.
+   - **No `'unsafe-eval'`, and the E2E suite runs under the contract CSP** (spec 5a final
+     review). Zod's compiled parser probes `new Function`, so every module imports `z` from
+     `$lib/zod`, which sets `jitless` first (ESLint forbids importing `zod` directly). The
+     preview server sends the CSP from `csp-hosts.json`, and an E2E fixture fails any test
+     whose page reports a violation.
 4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
@@ -2372,11 +2377,11 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     button first re-fetches the fixed-name `app.js` and `app.css` with `cache: "reload"`, so
     the browser's HTTP cache can't hand back the stale entry files, and then reloads. It
     never rejects; if the refresh fails the page reloads anyway. A dev build skips the check.
-  - **No `VITE_*` names or values reach the bundle** (spec 5a). `configureSdk({ dev, prodUrl },
-pageOrigin)` takes only those two fields (renamed), and the build stops inlining
-    `import.meta.env` objects; `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and
-    checks the rest of the hosting contract). `npm run check:budget` enforces the initial
-    bundle budget.
+  - **No `VITE_*` names or values reach the bundle** (spec 5a).
+    `configureSdk({ dev, prodUrl }, pageOrigin)` takes only those two fields, under names
+    without the `VITE_` prefix, and the build stops inlining `import.meta.env` objects;
+    `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and checks the rest
+    of the hosting contract). `npm run check:budget` enforces the initial bundle budget.
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.
@@ -2400,8 +2405,11 @@ pageOrigin)` takes only those two fields (renamed), and the build stops inlining
     fixed-name `app.js`, `app.css`, `version.json`, `manifest.webmanifest`, and
     `THIRD-PARTY-NOTICES.txt` at the top level and hashed files under `assets/`; the template
     mounts the app in `<div id="SJVAirDataDashboard">` and passes identity in a `json_script`
-    block `sjvair-identity` (`{"v": 1, "user": null | {id, name, email, emailVerified,
-phoneVerified}}`, never the token or phone number); the CSP comes from this repo's
+    block `sjvair-identity`
+    (`{"v": 1, "user": null | {id, name, email, emailVerified, phoneVerified}}`, never the
+    token or phone number); the template references `app.js` by its exact static URL (no
+    query string, no renamed copy), because hashed chunks import it back as `../app.js` and
+    any other URL runs the bootstrap twice; the CSP comes from this repo's
     `csp-hosts.json`, report-only for the preview and enforced by a server setting
     (`WORKSPACE_CSP_ENFORCE`) before go-live; the manifest is served by Django at
     `/workspace/manifest.webmanifest`, outside the `beta_tools` gate (browsers fetch it without

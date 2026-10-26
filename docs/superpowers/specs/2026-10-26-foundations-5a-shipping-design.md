@@ -148,6 +148,10 @@ _(sjvair.com)_:
   `SJVAirMonitorMap`). `app.js` mounts into it; it doesn't create it.
 - The title is a default; the app sets the title per page from its messages.
 - No `theme-color` meta (the manifest carries it), no other scripts, no inline script.
+- **`app.js` by its exact static URL:** no query string, no renamed or hashed copy. Hashed
+  chunks import the entry back as `../app.js` (it exports Paraglide's `getLocale` and Vite's
+  preload helper), so any other URL loads the module a second time and the bootstrap runs
+  twice. (Added 2026-10-26, final review.)
 - The favicon is sjvair.com's existing one.
 
 ### 4. The identity block

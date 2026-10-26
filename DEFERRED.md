@@ -47,6 +47,38 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   template, CSP enforced), but it isn't a merge gate: it
   needs the hosting track's local template. **Revisit when** the sjvair.com hosting session's
   local build is ready; record the result in `TODO.md`.
+- **A test of the real Sentry envelope.** _Deferred 2026-10-26 (Foundations spec 5a, final
+  review)._ The scrubbing is unit-tested on the event the app hands to `@sentry/browser`, but
+  nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the
+  scrubbed fields). A test with a capturing transport would. **Revisit when** the dashboard's
+  Sentry project exists, together with the hand check of a real report.
+- **The error reports' route list duplicates the router's.** _Deferred 2026-10-26
+  (Foundations spec 5a, final review)._ `routePattern` in `src/lib/errors/scrub.ts` keeps its
+  own copy of the route patterns, so a new route reports as `/other` until it is added there
+  too. **Revisit when** the Widget Creation or Analysis routes are added: derive it from the
+  router, or add a test comparing it to the router's route keys.
+- **CSP violations before IndexedDB opens aren't seen by the app.** _Deferred 2026-10-26
+  (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
+  only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
+  in the app's own reports; the CSP header's `report-uri` still covers them. **Revisit if**
+  the violation reports show gaps.
+- **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
+  follow-ups, none blocking. **Revisit with** the design pass, or when next touching each
+  file:
+  - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
+    share one constant each.
+  - No test covers skipping the entry-file refresh when `BUILD_ID === "dev"`.
+  - The browser-floor test doesn't assert the exact `color-mix()` string it probes.
+  - The host-list logic is duplicated between `csp-hosts.test.ts` and
+    `scripts/check-build-output.mjs`, and the list is flat across directives.
+  - The license collection skips virtual modules (Vite's and rolldown's MIT helpers).
+  - The web manifest's `lightToken` takes the first regex match; scope it to `:root`.
+  - The E2E test loads only `icons[0]`, and the dev manifest route is untested.
+  - The bare `/account/` dev proxy prefix could shadow a future app route.
+  - The embedding suite's "lazy chunk" check doesn't prove the chunk loads lazily.
+  - The feedback link has no new-tab cue (design pass).
+  - `reload.ts`'s `location.reload` and the entry-file refresh are web-only behavior outside
+    the platform adapter (Tauri).
 
 - **Tauri desktop build.** _Deferred 2026-09-23 (IDEA.md Q1)._ The web build comes first
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").

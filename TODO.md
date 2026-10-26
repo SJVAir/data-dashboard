@@ -569,10 +569,10 @@ which part of a larger item it did.
   static-path helper), lazy assets keep hashed names, `default-place` is resolved at every
   exit from the starter and rejected by validation elsewhere, `span` is checked against a
   range's full unit, and "now" widgets keep their place in their single layer (no
-  `target`). Workers are built inline (static files are cross-origin in production), (the second-origin
-  E2E smoke run was dropped 2026-10-26; the beta preview exercises cross-origin). Sentry
-  through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and the git commit as
-  the release and build id.
+  `target`). Workers are built inline, because static files are cross-origin in production.
+  The second-origin E2E smoke run was dropped 2026-10-26; the beta preview exercises
+  cross-origin. Sentry through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and
+  the git commit as the release and build id.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
@@ -758,7 +758,9 @@ which part of a larger item it did.
   host list **kept in sjvair.com beside the view** (matching this repo's reference list)
   (`ARCHITECTURE.md` → "Security baseline").
 - Create the dashboard's own Sentry project in the existing org and set `VITE_SENTRY_DSN`
-  as a Heroku config var.
+  as a Heroku config var. In the project's settings turn on "Prevent storing IP addresses"
+  and server-side data scrubbing ("Data Scrubber" and "Use Default Scrubbers"), so anything
+  the client-side scrubbing misses is still dropped.
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
 - This repo: router `basePath` `/workspace/`, built files under the static path, and
