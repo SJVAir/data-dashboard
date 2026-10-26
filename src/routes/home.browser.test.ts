@@ -12,7 +12,7 @@ test("Home shows the starter when nothing is stored", async () => {
 		.element(screen.getByRole("heading", { name: "Starter dashboard" }))
 		.toBeInTheDocument();
 	expect(app.current.isStarter).toBe(true);
-	expect(document.title).toBe("Starter dashboard · SJVAir Workspace");
+	expect(document.title).toBe("Starter dashboard · SJVAir Dashboard");
 });
 
 test("Home clears the previous dashboard before its target resolves", async () => {

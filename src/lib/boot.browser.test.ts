@@ -15,7 +15,7 @@ test("a failed platform init shows the storage message", async () => {
 		createPlatform: () => Promise.reject(new DOMException("denied", "InvalidStateError")),
 		start: () => Promise.resolve()
 	});
-	expect(el.textContent).toContain("This browser isn't letting the workspace save anything");
+	expect(el.textContent).toContain("This browser isn't letting SJVAir Dashboard save anything");
 	el.remove();
 });
 
@@ -34,7 +34,7 @@ test("a blocked open shows the close-other-tabs message until it opens", async (
 			started = true;
 		}
 	});
-	await expect.poll(() => el.textContent).toContain("close other SJVAir Workspace tabs");
+	await expect.poll(() => el.textContent).toContain("close other SJVAir Dashboard tabs");
 	open();
 	await booting;
 	expect(started).toBe(true);
@@ -51,8 +51,8 @@ test("a failure in start shows the startup message and is reported", async () =>
 		createPlatform: () => Promise.resolve(platform),
 		start: () => Promise.reject(failure)
 	});
-	expect(el.textContent).toContain("Something went wrong while starting the workspace");
-	expect(el.textContent).not.toContain("isn't letting the workspace save");
+	expect(el.textContent).toContain("Something went wrong while starting SJVAir Dashboard");
+	expect(el.textContent).not.toContain("isn't letting SJVAir Dashboard save");
 	expect(platform.errors.reports).toEqual([{ error: failure, context: { operation: "start" } }]);
 	el.remove();
 });

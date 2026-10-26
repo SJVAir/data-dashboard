@@ -8,7 +8,7 @@ import { refreshEntryFiles, reloadPage } from "./lib/safety/reload";
 const target = document.getElementById("SJVAirDataDashboard");
 
 if (!target) {
-	console.error("SJVAir Workspace: no #SJVAirDataDashboard element to mount into.");
+	console.error("SJVAir Dashboard: no #SJVAirDataDashboard element to mount into.");
 } else if (!meetsFloor(globalThis.CSS)) {
 	renderTooOld(target);
 } else {
@@ -16,7 +16,7 @@ if (!target) {
 	import("./main")
 		.then((m) => m.startApp({ target, staticBase }))
 		.catch((error) => {
-			console.error("SJVAir Workspace failed to start.", error);
+			console.error("SJVAir Dashboard failed to start.", error);
 			// A missing chunk (say, mid-deploy) fails here, before main.ts's preload-error
 			// listener exists; without this the page stays blank. The reload first refreshes the
 			// fixed-name entry files, so it doesn't reuse a stale cached `app.js`.

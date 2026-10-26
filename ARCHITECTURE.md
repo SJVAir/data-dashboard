@@ -2249,8 +2249,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
 
 - **Why `/workspace/`:** the base path names the _app_, not one of its resources. The app
   holds Dashboards _and_ Analysis, so `/dashboard/` would either repeat itself
-  (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product can
-  still be called the "SJVAir Dashboard" in the UI; only the URL uses `workspace`.
+  (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product
+  is called **"SJVAir Dashboard"** in the UI (decided 2026-10-26: the app name, page titles,
+  manifest, and messages); only the URL uses `workspace`.
 - **Why not `/explore/` any more:** sjvair.com now has the "Pesticide Data Explorer" at
   `/tools/pesticides/`, with a "Facility Emissions Explorer" to follow, and the server
   calls them "the explorers". An `/explore/` path for a different product would confuse

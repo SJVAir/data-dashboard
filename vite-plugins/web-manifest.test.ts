@@ -17,16 +17,16 @@ describe("oklchToHex", () => {
 
 describe("buildManifest", () => {
 	const manifest = buildManifest({
-		name: "SJVAir Workspace",
-		shortName: "SJVAir Workspace",
+		name: "SJVAir Dashboard",
+		shortName: "SJVAir Dashboard",
 		themeColor: "#171717",
 		backgroundColor: "#ffffff",
 		icons: [{ src: "assets/icon-192-abc.png", sizes: "192x192" }]
 	}) as Record<string, unknown>;
 	it("has the contract fields", () => {
 		expect(manifest).toMatchObject({
-			name: "SJVAir Workspace",
-			short_name: "SJVAir Workspace",
+			name: "SJVAir Dashboard",
+			short_name: "SJVAir Dashboard",
 			start_url: "/workspace/",
 			scope: "/workspace/",
 			display: "standalone",
@@ -56,7 +56,7 @@ describe("webManifest plugin", () => {
 			"assets/icon-192-HASH1234.png",
 			"assets/icon-512-HASH1234.png"
 		]);
-		expect(json.name).toBe("SJVAir Workspace");
+		expect(json.name).toBe("SJVAir Dashboard");
 		expect(json.theme_color).toBe("#171717");
 		expect(json.background_color).toBe("#ffffff");
 	});

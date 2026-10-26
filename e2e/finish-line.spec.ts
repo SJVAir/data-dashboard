@@ -17,7 +17,7 @@ const HINT = "This is the starter dashboard. Any change saves it as your own.";
 test("first visit shows the starter with the hint", async ({ page }) => {
 	await page.goto("./");
 	await expect(dashboardHeading(page, "Starter dashboard")).toBeAttached();
-	await expect(page).toHaveTitle("Starter dashboard · SJVAir Workspace");
+	await expect(page).toHaveTitle("Starter dashboard · SJVAir Dashboard");
 	await expect(page.getByText(HINT)).toBeVisible();
 	await expect(widgetTitles(page)).toHaveText([PLACEHOLDER, PLACEHOLDER, PLACEHOLDER]);
 	await expect(page).toHaveURL(/\/workspace\/?$/);
