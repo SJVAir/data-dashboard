@@ -62,6 +62,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
   in the app's own reports; the CSP header's `report-uri` still covers them. **Revisit if**
   the violation reports show gaps.
+- **WebKit and a failed chunk after reload.** _Deferred 2026-10-26 (Foundations spec 5a,
+  final review)._ In the E2E suite, once Playwright's WebKit fails to import the app chunk
+  (a routed 404 or abort, even with `no-store`), a reload or a fresh navigation in the same
+  page fails the same import again without requesting the file. So the load-failed test checks
+  recovery only on Chromium and Firefox; on WebKit it checks the message and that Reload
+  refreshes the entry files and reloads. Unknown whether real Safari does the same after a
+  real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
+  Safari after a missing chunk; if it stays broken, retry the import under a new URL.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
   follow-ups, none blocking. **Revisit with** the design pass, or when next touching each
   file:

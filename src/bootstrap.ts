@@ -1,5 +1,6 @@
 import "./app.css";
 import { meetsFloor, renderLoadFailed, renderTooOld } from "./lib/browser-floor";
+import { refreshEntryFiles, reloadPage } from "./lib/safety/reload";
 
 // The build entry (`app.js`). Mounts into the host page's element; the page doesn't pass a path,
 // so files are found relative to this module. Keep this file and `browser-floor.ts` in plain
@@ -17,7 +18,10 @@ if (!target) {
 		.catch((error) => {
 			console.error("SJVAir Workspace failed to start.", error);
 			// A missing chunk (say, mid-deploy) fails here, before main.ts's preload-error
-			// listener exists; without this the page stays blank.
-			renderLoadFailed(target, () => location.reload());
+			// listener exists; without this the page stays blank. The reload first refreshes the
+			// fixed-name entry files, so it doesn't reuse a stale cached `app.js`.
+			renderLoadFailed(target, () => {
+				refreshEntryFiles(staticBase).then(reloadPage);
+			});
 		});
 }
