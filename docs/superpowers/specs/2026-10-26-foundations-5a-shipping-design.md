@@ -402,7 +402,7 @@ How embedding and the CSP are verified before anything is deployed:
 3. The CSP is **enforced** locally.
 4. A Playwright suite in this repo (a separate project, run by hand, like the dev-stack
    smoke) gets past the `beta_tools` gate the way the sjvair.com session's plan provides
-   (proposed there, pending the user's approval of that design: a dev-only
+   (approved by the user 2026-10-26 in that design: a dev-only
    `seed_beta_tester` command creates a non-staff "Beta testers" user from
    `WORKSPACE_E2E_IDENTIFIER` and `WORKSPACE_E2E_PASSWORD`; the suite signs in at
    `/account/login/` with the form fields `identifier` and `password`), then opens `http://localhost:8000/workspace/` and checks: the app mounts; no
