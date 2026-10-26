@@ -4,31 +4,55 @@ Last updated: 2026-10-26
 
 ## Start here
 
-**Status (2026-10-26): Foundations spec 5a (shipping readiness) is merged into `foundations`** as
-PR [#9](https://github.com/SJVAir/data-dashboard/pull/9) (14 tasks), and the sjvair.com hosting
-track as sjvair.com PR #295 into `develop`. The product is named "SJVAir Dashboard" (decided
-2026-10-26). **Next: spec 5b, the sign-in side**, in a fresh session. It adds the embedding
-build (bootstrap entry, `version.json`, reload refresh), the browser-floor notice, scrubbed
-Sentry reporting, the CSP host list, the MIT license with a license check and third-party
-notices, the bundle budget, the manifest and placeholder icons, the offline banner, the dev
-proxy to the local sjvair.com stack, the hand-run embedding suite, and the privacy note and
-feedback link. What's left:
+**Next: Foundations spec 5b, the sign-in side, in a fresh session.** It is the second half of
+spec 5 and the last Foundations spec; when it merges, Foundations is done and Release 1 step 2
+(layout engine and windowing) is next.
 
-- **Sentry: done 2026-10-26.** The dashboard's Sentry project exists; its ingest host
-  `https://o270131.ingest.us.sentry.io` is in `csp-hosts.json` (sjvair.com told to mirror it). The DSN
+- **What 5b covers** (from the 5a design, `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md`
+  → "Spec 5 is split"): reading identity from the template's data block, the "add anonymous work
+  to your account" prompt, sign-out, expired sessions, re-checks on focus, cross-tab sign-in, and
+  the "sign in to keep this safe everywhere" line. 5b gets its own spec.
+- **What it depends on:** a sjvair.com session-identity endpoint that omits the API token, and
+  the sdk-js change making `apiToken` optional on account calls (each needs an approved plan in
+  its repo). It also leans on the server-backed documents track, which so far has only the
+  resticus CSRF fix (see below). The 5b spec decides what it builds now and what waits for that
+  track; anything that waits goes into `DEFERRED.md`.
+
+**Needed from you:**
+
+- sjvair.com `develop` reaching `main` (a production deploy, so your call). It carries #292
+  (unblocks the resticus CSRF merge), #293 (metadata enablers, needed before @sjvair/sdk
+  4.8.0), and #295 (hosting; the route stays behind `beta_tools`). #287, #288, and #289
+  already reached `main` in release #291 (2026-10-22).
+- **At ship time:** the Heroku config vars listed in sjvair.com #295, including the DSN as
+  `VITE_SENTRY_DSN` and the Sentry project's CSP security endpoint as `WORKSPACE_CSP_REPORT_URI`.
+- **In the Sentry project's settings:** turn on "Prevent storing IP addresses" and the
+  server-side data scrubber, if not already on.
+- Restrict the MapTiler and NREL keys by domain.
+- Add testers to the "Beta testers" group for the preview.
+- License and attribution text for the 8 datasets with an empty catalog `license` (before
+  go-live; see below).
+
+**Status (2026-10-26): Foundations spec 5a (shipping readiness) is done**, merged into
+`foundations` as PR [#9](https://github.com/SJVAir/data-dashboard/pull/9) (14 tasks), and the
+sjvair.com hosting track as sjvair.com PR #295 into `develop`. 5a built the embedding build
+(bootstrap entry, `version.json`, reload refresh), the browser-floor notice, scrubbed Sentry
+reporting, the CSP host list, the MIT license with a license check and third-party notices, the
+bundle budget, the manifest and placeholder icons, the offline banner, the dev proxy to the local
+sjvair.com stack, the hand-run embedding suite, and the privacy note and feedback link. The
+product is named "SJVAir Dashboard" (decided 2026-10-26).
+
+- **Sentry project created (2026-10-26).** Its ingest host
+  `https://o270131.ingest.us.sentry.io` is in `csp-hosts.json` (mirrored in sjvair.com). The DSN
   is in the local `.env` only (git-ignored; E2E builds force it empty). A hand check sent a test error
   to Sentry (HTTP 200): the email, coordinates, and dashboard id arrived as `[email]`, `[coord]`,
-  `[id]`, the URL as `/dashboards/:id`, `infer_ip: "never"`, no user. Still to do at ship time: the
-  DSN as the Heroku config var `VITE_SENTRY_DSN`, and the project's CSP security endpoint as
-  sjvair.com's `WORKSPACE_CSP_REPORT_URI`; in the Sentry project settings, turn on "Prevent storing
-  IP addresses" and the server-side data scrubber if not already on.
+  `[id]`, the URL as `/dashboards/:id`, `infer_ip: "never"`, no user. The remaining Sentry steps
+  are under "Needed from you".
 - **The embedding suite passed its first real run (2026-10-26)**, run by the sjvair.com session: 1
   passed in 3.2s, unchanged. Local stack on sjvair.com `feature/workspace-hosting` b02e249b, CSP
   enforced, dashboard imported from `foundations-5a-shipping` d44f2bc, signed in as the seeded beta
   tester. A separate Chrome check showed no console errors on `/workspace/`, the browser's manifest
   fetch got 200, and both icons were 200 `image/png`.
-- **5b (the sign-in side) is next.**
-- Open the 5a PR into `foundations` after the whole-branch review.
 
 **Status (2026-10-25): Foundations specs 1, 2, and 3 are merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
 with the user's approval). A final consistency and build-readiness sweep (2026-10-14) fixed
@@ -46,9 +70,9 @@ and the copyright holder (Central California Asthma Collaborative).
   forecasts, calheatscore, calenviroscreen, emissions); decided 2026-10-22 to leave it empty
   until then. See `DEFERRED.md` → "Open decisions".
 - **Done 2026-10-19/20: the three sjvair.com-side fixes** (outcomes under each warning
-  below). The sjvair.com PRs (#287, #288, #289) are merged into `develop`; mobile #112 is
-  still open, and its release waits for #287 to reach production. sjvair.com work now targets its new
-  `develop` branch during Foundations.
+  below). The sjvair.com PRs (#287, #288, #289) reached production in release #291
+  (2026-10-22), and mobile #112 shipped in mobile 4.0.6 the same day. sjvair.com work now
+  targets its new `develop` branch during Foundations.
 - **Now (2026-10-20): Foundations is split into five specs**, built as stacked PRs on
   `foundations`: (1) the working core, (2) the data layer, (3) safety and sharing,
   (4) Collections, (5) shipping readiness, in that order (spec 4 was dropped on 2026-10-25;
@@ -126,28 +150,22 @@ and the copyright holder (Central California Asthma Collaborative).
   gives them a purpose; in Release 1 a Collection could be gathered but not used. See
   `DEFERRED.md` → Collections and "Mark for analysis" in Release 1. Foundations is now four
   specs; spec 5 keeps its number.
-- **Next (planned 2026-10-26):** spec 5, shipping readiness, as a stacked PR on `foundations`,
-  in a session that also **coordinates the hosting track**, planned in a parallel sjvair.com
-  session (branched from `develop`). Start the spec 5 session first. Its design gets a
-  **"Hosting contract"** section (entry file names and static path, the identity
-  `json_script` block's shape with no API token, the CSP host list, where `version.json` and
-  the manifest are served, the `csrftoken` bootstrap); the sjvair.com session plans against
-  it and changes it only through the spec 5 session. Spec 5 is expected to split: the shipping
-  items first, then the sign-in side (which also leans on the server-backed documents track).
-- **Spec 5 is split (2026-10-26): 5a shipping readiness, then 5b the sign-in side.** The 5a
-  design, with the settled **Hosting contract**, is
-  `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` (branch
-  `foundations-5a-shipping`); waiting for the user's approval, then the plan. The sjvair.com
-  hosting session (worktree `sjvair.com/.worktrees/workspace-hosting`, branch
-  `feature/workspace-hosting`) writes its plan once 5a builds `dist/workspace/`; tell it then.
-  Decided along the way: the preview is the `beta_tools` flag; upload exactly as monitor-map
-  (compression and headers deferred); OFL-1.1 allowed for fonts; feedback via `/contact/`.
+- **Spec 5 was run with a coordinated hosting track (planned 2026-10-26, done the same day).**
+  The spec 5 session wrote a **"Hosting contract"** (entry file names and static path, the
+  identity `json_script` block's shape with no API token, the CSP host list, where
+  `version.json` and the manifest are served, the `csrftoken` bootstrap) that a parallel
+  sjvair.com session built against (branched from `develop`).
+- **Spec 5 was split (2026-10-26): 5a shipping readiness (done, PR #9), then 5b the sign-in
+  side (next; see the top of this section).** The 5a design, with the Hosting contract, is
+  `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md`. The sjvair.com side
+  merged as #295 (its worktree is removed). Decided along the way: the preview is the
+  `beta_tools` flag; upload exactly as monitor-map (compression and headers deferred);
+  OFL-1.1 allowed for fonts; feedback via `/contact/`.
 - **The other parallel tracks (recommended 2026-10-26):** server-backed documents during
-  step 2, after spec 5's sign-in side; email-only accounts once the legal adviser answers;
-  the rest of step 3 (metadata enablers) in its own parallel session whenever convenient.
-  Then step 2, the design pass, step 4, step 5, and go-live. **Needed from you:** sjvair.com
-  #292 reaching `main` (unblocks the resticus CSRF merge), the dashboard's Sentry project,
-  Heroku config vars, and the MapTiler/NREL key restrictions.
+  step 2, after spec 5b; email-only accounts once the legal adviser answers; the rest of
+  step 3 (metadata enablers) in its own parallel session whenever convenient. Then step 2,
+  the design pass, step 4, step 5, and go-live. What's needed from you is listed at the top
+  of this section.
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.
