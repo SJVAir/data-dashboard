@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { downloadBackupFile } from "$lib/actions/dashboard";
+	import { openClearData } from "$lib/components/dialogs/ClearDataDialog.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
@@ -37,7 +38,6 @@
 		</Button>
 	{/if}
 	{#if clearable}
-		<!-- Task 14 wires this up. -->
-		<Button variant="outline" size="sm" disabled>{m.clear_data_button()}</Button>
+		<Button variant="outline" size="sm" onclick={openClearData}>{m.clear_data_button()}</Button>
 	{/if}
 </div>

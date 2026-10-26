@@ -556,6 +556,7 @@ export class DocumentSession {
 	}
 
 	#onMessage(msg: TabMessage): void {
+		if (msg.type !== "committed") return;
 		if (msg.space !== this.#space || msg.docId !== this.doc.id || msg.tabId === this.#tabId) return;
 		if (msg.version > this.doc.version) void this.#requestCatchUp();
 	}

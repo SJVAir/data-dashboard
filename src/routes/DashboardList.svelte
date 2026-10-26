@@ -111,7 +111,7 @@
 				{/each}
 			</ul>
 		{/if}
-		<div class="text-sm"><StorageStatus /></div>
+		<div class="text-sm"><StorageStatus clearable /></div>
 		{#if app.index.deleted.length > 0}
 			<RecentlyDeleted />
 		{/if}

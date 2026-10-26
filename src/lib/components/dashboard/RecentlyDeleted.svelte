@@ -20,26 +20,34 @@
 	});
 
 	async function deleteNow(id: string) {
+		let position = -1;
+		let removed!: () => void;
+		const gone = new Promise<void>((resolve) => (removed = resolve));
 		const confirmed = await confirmAction({
 			title: m.deleted_confirm_title(),
 			body: m.deleted_confirm_body(),
 			confirm: m.deleted_delete_now(),
-			destructive: true
+			destructive: true,
+			// Once the row is gone: the next row's Restore, else the heading, else the page's.
+			restoreFocus: async () => {
+				await gone;
+				await tick();
+				const next = app.index.deleted[position];
+				const target = next
+					? document.querySelector<HTMLElement>(`[data-restore="${CSS.escape(next.id)}"]`)
+					: app.index.deleted.length > 0
+						? heading
+						: document.getElementById("dashboards-heading");
+				target?.focus();
+			}
 		});
 		if (!confirmed) return;
-		const position = app.index.deleted.findIndex((d) => d.id === id);
-		await app.index.remove(id);
-		// The row is gone: focus the next row's Restore, else the heading, else the page's.
-		await tick();
-		// After the dialog has closed and handed focus back (to the button that's now gone).
-		await new Promise((resolve) => setTimeout(resolve, 50));
-		const next = app.index.deleted[position];
-		const target = next
-			? document.querySelector<HTMLElement>(`[data-restore="${CSS.escape(next.id)}"]`)
-			: app.index.deleted.length > 0
-				? heading
-				: document.getElementById("dashboards-heading");
-		target?.focus();
+		position = app.index.deleted.findIndex((d) => d.id === id);
+		try {
+			await app.index.remove(id);
+		} finally {
+			removed();
+		}
 	}
 
 	function restore(id: string) {

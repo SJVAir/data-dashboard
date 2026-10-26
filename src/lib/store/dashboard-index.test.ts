@@ -20,6 +20,18 @@ async function store(platform: Platform, doc: unknown, id: string) {
 }
 
 describe("DashboardIndex", () => {
+	it("an overlapped refresh resolves only once the latest one has been applied", async () => {
+		const platform = createMemoryPlatform();
+		const index = new DashboardIndex({ platform, space: SPACE, now: clock() });
+		const doc = blankDashboard(new Date());
+		await store(platform, doc, doc.id);
+		const first = index.refresh();
+		const second = index.refresh();
+		await first;
+		expect(index.items.map((d) => d.id)).toEqual([doc.id]);
+		await second;
+	});
+
 	it("index lists new dashboards and numbers untitled ones", async () => {
 		const platform = createMemoryPlatform();
 		const index = new DashboardIndex({ platform, space: SPACE, now: clock() });

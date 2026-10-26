@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Router } from "sv-router";
+	import ClearDataDialog from "$lib/components/dialogs/ClearDataDialog.svelte";
 	import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 	import ExistingCopyDialog from "$lib/components/dialogs/ExistingCopyDialog.svelte";
@@ -32,6 +33,7 @@
 </div>
 <RenameDialog />
 <ConfirmDialog />
+<ClearDataDialog />
 <ConflictDialog />
 <ExistingCopyDialog />
 <ShareDialog />

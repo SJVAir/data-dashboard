@@ -1,13 +1,16 @@
 import type { SpaceId } from "$lib/platform/types";
 
 /** Sent after a tab stores a change. Only a notification: the change log is the truth. */
-export type TabMessage = {
-	type: "committed";
-	space: SpaceId;
-	docId: string;
-	version: number;
-	tabId: string;
-};
+export type TabMessage =
+	| {
+			type: "committed";
+			space: SpaceId;
+			docId: string;
+			version: number;
+			tabId: string;
+	  }
+	/** Sent after a tab clears all of this browser's data; every other tab starts over. */
+	| { type: "cleared"; generation: string; tabId: string };
 
 export interface TabChannel {
 	post(msg: TabMessage): void;
@@ -21,16 +24,16 @@ const noopChannel: TabChannel = {
 	subscribe: () => () => {}
 };
 
-function isTabMessage(value: unknown): value is TabMessage {
-	const msg = value as Partial<TabMessage> | null;
+export function isTabMessage(value: unknown): value is TabMessage {
+	if (typeof value !== "object" || value === null) return false;
+	const msg = value as Record<string, unknown>;
+	if (typeof msg.tabId !== "string") return false;
+	if (msg.type === "cleared") return typeof msg.generation === "string";
 	return (
-		typeof msg === "object" &&
-		msg !== null &&
 		msg.type === "committed" &&
 		typeof msg.space === "string" &&
 		typeof msg.docId === "string" &&
-		typeof msg.version === "number" &&
-		typeof msg.tabId === "string"
+		typeof msg.version === "number"
 	);
 }
 

@@ -71,6 +71,7 @@ export class DashboardIndex {
 	readonly #now: () => Date;
 	readonly #unsubscribe: () => void;
 	#generation = 0;
+	#latest: Promise<void> = Promise.resolve();
 
 	constructor(opts: DashboardIndexOptions) {
 		this.#platform = opts.platform;
@@ -82,13 +83,26 @@ export class DashboardIndex {
 		this.#now = opts.now ?? (() => new Date());
 		this.#unsubscribe =
 			this.#channel?.subscribe((msg) => {
-				if (msg.space === this.#space) void this.refresh();
+				if (msg.type === "committed" && msg.space === this.#space) void this.refresh();
 			}) ?? (() => {});
 	}
 
-	/** Re-read the stored dashboards. When refreshes overlap, the latest one wins. */
+	/**
+	 * Re-read the stored dashboards. When refreshes overlap, the latest one wins, and every
+	 * caller waits for it: when this resolves, the index shows what was stored at the call.
+	 */
 	async refresh(): Promise<void> {
 		const generation = ++this.#generation;
+		const own = this.#read(generation);
+		this.#latest = own;
+		await own;
+		for (let seen = own; this.#latest !== seen;) {
+			seen = this.#latest;
+			await seen;
+		}
+	}
+
+	async #read(generation: number): Promise<void> {
 		const raws = await this.#platform.documents.list(this.#space);
 		if (generation !== this.#generation) return;
 		// A rename that exists only in a journal record shows before the dashboard is opened.

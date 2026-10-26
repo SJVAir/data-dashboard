@@ -4,6 +4,11 @@
 		body: string;
 		confirm: string;
 		destructive?: boolean;
+		/**
+		 * Where focus goes after the dialog closes on "confirm" (instead of back to the button
+		 * that opened it, which may be gone). May wait for the confirmed work; it runs on close.
+		 */
+		restoreFocus?: () => void | Promise<void>;
 	};
 
 	const ask = $state<{ open: boolean; options: ConfirmOptions | null }>({
@@ -11,8 +16,16 @@
 		options: null
 	});
 	let resolver: ((confirmed: boolean) => void) | null = null;
+	/** Set when the dialog closes on "confirm"; read by the close-autofocus hook. */
+	let restoreAfterClose: (() => void | Promise<void>) | undefined;
 
 	function settle(confirmed: boolean): void {
+		// Already answered (the dialog reports its own closing too).
+		if (!resolver) {
+			ask.open = false;
+			return;
+		}
+		restoreAfterClose = confirmed ? ask.options?.restoreFocus : undefined;
 		ask.open = false;
 		const resolve = resolver;
 		resolver = null;
@@ -40,7 +53,16 @@
 		if (!open) settle(false);
 	}}
 >
-	<Dialog.Content showCloseButton={false}>
+	<Dialog.Content
+		showCloseButton={false}
+		onCloseAutoFocus={(event) => {
+			const restore = restoreAfterClose;
+			restoreAfterClose = undefined;
+			if (!restore) return;
+			event.preventDefault();
+			void restore();
+		}}
+	>
 		{#if ask.options}
 			<Dialog.Header>
 				<Dialog.Title>{ask.options.title}</Dialog.Title>

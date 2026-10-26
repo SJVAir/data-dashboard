@@ -157,5 +157,26 @@
 	"reminder_off": "Don't remind me again",
 	"save_failed_quota": "This browser is out of storage space, so your latest changes aren't saved yet. Download a backup to keep them.",
 	"save_failed_unavailable": "This browser isn't letting the workspace save right now. Your changes are kept while this page stays open.",
-	"clear_data_button": "Clear my data…"
+	"clear_data_button": "Clear my data…",
+	"clear_title": "Clear my data?",
+	"clear_body": [
+		{
+			"declarations": [
+				"input count",
+				"input deleted",
+				"local countPlural = count: plural",
+				"local deletedPlural = deleted: plural"
+			],
+			"selectors": ["countPlural", "deletedPlural"],
+			"match": {
+				"countPlural=one deletedPlural=one": "This removes {count} dashboard from this browser, including {deleted} in Recently deleted. It can't be undone.",
+				"countPlural=one deletedPlural=other": "This removes {count} dashboard from this browser, including {deleted} in Recently deleted. It can't be undone.",
+				"countPlural=other deletedPlural=one": "This removes {count} dashboards from this browser, including {deleted} in Recently deleted. It can't be undone.",
+				"countPlural=other deletedPlural=other": "This removes {count} dashboards from this browser, including {deleted} in Recently deleted. It can't be undone."
+			}
+		}
+	],
+	"clear_backup_first": "Download a backup first",
+	"clear_confirm": "Clear everything",
+	"clear_failed": "Couldn't clear your data. Please try again."
 }

@@ -196,6 +196,10 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	await app.index.refresh();
 	await app.protection.refresh();
 	// The first create or edit in this tab (its own message comes back through the echo).
+	// Another tab cleared this browser's data: drop everything this tab has open.
+	channel.subscribe((msg) => {
+		if (msg.type === "cleared" && msg.tabId !== tabId) void app.resetAfterClear();
+	});
 	const stop = channel.subscribe((msg) => {
 		if (msg.type !== "committed" || msg.tabId !== tabId) return;
 		stop();
