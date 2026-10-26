@@ -33,6 +33,11 @@ npm run test:watch   # Run Vitest in watch mode
 npm run test:e2e     # Playwright E2E on Chromium (builds and serves /workspace/)
 npm run test:e2e:all # Playwright E2E on Chromium, Firefox, and WebKit
 npm run test:e2e:podman # All three engines in the official Playwright image (podman)
+npm run test:dev-stack # Local-only: dev server + sjvair.com podman stack smoke (run `npm run dev` first)
+npm run test:embedding # Local-only embedding suite against the stack (needs WORKSPACE_E2E_IDENTIFIER and
+                        # WORKSPACE_E2E_PASSWORD; optional WORKSPACE_E2E_STATIC = the static folder to expect)
+npm run check:build  # Check dist/workspace/ against the hosting contract (after a build)
+npm run check:budget # Check the initial bundle budget (after a build)
 npm run lint         # Prettier check + ESLint
 npm run format       # Auto-format with Prettier
 ```
@@ -132,7 +137,7 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 This repo is **MIT** (decided 2026-09-28; copyright holder: "Central California Asthma
 Collaborative (SJVAir)", decided 2026-10-14; the `LICENSE` file is added in Foundations), as are `map-sdk` and `monitor-map` once added, matching `sdk-js`. Only add
 dependencies with permissive licenses (MIT, BSD, Apache-2.0, ISC; MPL-2.0 only if
-unmodified). CI will check licenses and the build will generate third-party notices. See `ARCHITECTURE.md` → "Licensing".
+unmodified; OFL-1.1 for fonts only, decided 2026-10-26). CI will check licenses and the build will generate third-party notices. See `ARCHITECTURE.md` → "Licensing".
 
 ## Deferred work — standing rule
 
@@ -181,11 +186,11 @@ Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 Copy `.env.example` to `.env` and fill in real values (never commit `.env` itself):
 
 ```
-VITE_DEV_URL=              # @sjvair/sdk origin in dev (current code; planned: Vite proxy → same-origin)
-VITE_PROD_URL=              # current code; planned: only for Tauri/standalone (under /workspace/ → location.origin)
+SJVAIR_DEV_SERVER=          # optional, not VITE_-prefixed: dev proxy target for /api/ and /account/ (default http://localhost:8000)
+VITE_PROD_URL=              # production standalone/Tauri builds only (passed as prodUrl); ignored in dev, never set for the sjvair.com build
 VITE_MAPTILER_KEY=          # MapTiler basemap key (injected into map-sdk; public in the build, so domain-restrict it)
 VITE_NREL_KEY=               # NREL alt-fuel API, EV-stations plugin (public in the build; domain-restrict it)
-VITE_SENTRY_DSN=            # planned: the dashboard's Sentry project DSN (public by design); unset = error reporting off
+VITE_SENTRY_DSN=            # the dashboard's Sentry project DSN (public by design); unset = error reporting off
 VITE_OPENWEATHERMAP_KEY=    # currently unused anywhere (see DEFERRED.md)
 VITE_CARBONMAPPER_KEY=      # reserved; unused (see DEFERRED.md)
 ```

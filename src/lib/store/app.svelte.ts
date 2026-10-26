@@ -23,6 +23,8 @@ export type AppContext = {
 	channel: TabChannel;
 	index: DashboardIndex;
 	protection: StorageProtection;
+	/** The folder holding `app.js` (and `version.json`). */
+	staticBase: URL;
 	/** Open sessions by id (one per dashboard in this tab); `STARTER_ID` gives the starter. Opening records the last-opened dashboard unless `remember` is false. */
 	sessions: {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
@@ -45,6 +47,8 @@ export type AppOptions = {
 	/** Defaults to the browser's channel between tabs. */
 	channel?: TabChannel;
 	tabId?: string;
+	/** Defaults to the current page's folder. */
+	staticBase?: URL;
 	debounceMs?: number;
 	now?: () => Date;
 };
@@ -79,6 +83,7 @@ class App implements AppContext {
 	readonly index: DashboardIndex;
 	readonly protection: StorageProtection;
 	readonly sessions: AppContext["sessions"];
+	readonly staticBase: URL;
 
 	readonly #open = new Map<string, Promise<DocumentSession | null>>();
 	/** The sessions in `#open` that have finished opening, for synchronous `suspendAll`. */
@@ -93,6 +98,8 @@ class App implements AppContext {
 	) {
 		this.index = new DashboardIndex({ platform, space, channel, tabId, now: options.now });
 		this.protection = new StorageProtection(platform, space);
+		this.staticBase =
+			options.staticBase ?? new URL(".", globalThis.location?.href ?? "http://localhost/");
 		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
 	}
 

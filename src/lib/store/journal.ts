@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "$lib/zod";
 import { ChangeSchema } from "$lib/changes/types";
 import { CURRENT_SCHEMA_VERSION } from "$lib/documents/schema";
 

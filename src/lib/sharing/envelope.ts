@@ -1,5 +1,5 @@
 import type { Dashboard } from "$lib/documents/schema";
-import { z } from "zod";
+import { z } from "$lib/zod";
 
 export const FORMAT = "sjvair-workspace";
 export const FORMAT_VERSION = 1;

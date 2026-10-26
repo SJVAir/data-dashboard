@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { z } from "zod";
+import { describe, expect, it, vi } from "vitest";
+import { z } from "$lib/zod";
+import { report } from "$lib/safety/report";
 import type { Migration } from "./load";
 import { upgradeChanges } from "./migrate-changes";
 import { CURRENT_SCHEMA_VERSION } from "./schema";
+
+vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 
 const START = CURRENT_SCHEMA_VERSION - 2;
 const any = z.unknown();
@@ -32,6 +35,26 @@ function change(to: string) {
 }
 
 describe("upgradeChanges", () => {
+	it("a throwing migration drops the change and reports once", () => {
+		vi.mocked(report).mockClear();
+		const failure = new Error("bug");
+		const throwing = [
+			{
+				...chain[0],
+				migrateChange() {
+					throw failure;
+				}
+			}
+		];
+		const result = upgradeChanges([change("A")], START, throwing);
+		expect(result).toEqual({ changes: [], dropped: 1 });
+		expect(report).toHaveBeenCalledTimes(1);
+		expect(report).toHaveBeenCalledWith(failure, {
+			operation: "migrate",
+			fromSchemaVersion: START
+		});
+	});
+
 	it("passes changes through every step in order", () => {
 		const input = [Object.freeze(change("A"))];
 		const calls: string[] = [];

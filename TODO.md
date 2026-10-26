@@ -1,8 +1,32 @@
 # TODO / Current Status
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 ## Start here
+
+**Status (2026-10-26): Foundations spec 5a (shipping readiness) is built** on the branch
+`foundations-5a-shipping` (14 tasks; not yet PR'd into `foundations`). It adds the embedding
+build (bootstrap entry, `version.json`, reload refresh), the browser-floor notice, scrubbed
+Sentry reporting, the CSP host list, the MIT license with a license check and third-party
+notices, the bundle budget, the manifest and placeholder icons, the offline banner, the dev
+proxy to the local sjvair.com stack, the hand-run embedding suite, and the privacy note and
+feedback link. What's left:
+
+- **Sentry: done 2026-10-26.** The dashboard's Sentry project exists; its ingest host
+  `https://o270131.ingest.us.sentry.io` is in `csp-hosts.json` (sjvair.com told to mirror it). The DSN
+  is in the local `.env` only (git-ignored; E2E builds force it empty). A hand check sent a test error
+  to Sentry (HTTP 200): the email, coordinates, and dashboard id arrived as `[email]`, `[coord]`,
+  `[id]`, the URL as `/dashboards/:id`, `infer_ip: "never"`, no user. Still to do at ship time: the
+  DSN as the Heroku config var `VITE_SENTRY_DSN`, and the project's CSP security endpoint as
+  sjvair.com's `WORKSPACE_CSP_REPORT_URI`; in the Sentry project settings, turn on "Prevent storing
+  IP addresses" and the server-side data scrubber if not already on.
+- **The embedding suite passed its first real run (2026-10-26)**, run by the sjvair.com session: 1
+  passed in 3.2s, unchanged. Local stack on sjvair.com `feature/workspace-hosting` b02e249b, CSP
+  enforced, dashboard imported from `foundations-5a-shipping` d44f2bc, signed in as the seeded beta
+  tester. A separate Chrome check showed no console errors on `/workspace/`, the browser's manifest
+  fetch got 200, and both icons were 200 `image/png`.
+- **5b (the sign-in side) is next.**
+- Open the 5a PR into `foundations` after the whole-branch review.
 
 **Status (2026-10-25): Foundations specs 1, 2, and 3 are merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
 with the user's approval). A final consistency and build-readiness sweep (2026-10-14) fixed
@@ -108,6 +132,14 @@ and the copyright holder (Central California Asthma Collaborative).
   the manifest are served, the `csrftoken` bootstrap); the sjvair.com session plans against
   it and changes it only through the spec 5 session. Spec 5 is expected to split: the shipping
   items first, then the sign-in side (which also leans on the server-backed documents track).
+- **Spec 5 is split (2026-10-26): 5a shipping readiness, then 5b the sign-in side.** The 5a
+  design, with the settled **Hosting contract**, is
+  `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` (branch
+  `foundations-5a-shipping`); waiting for the user's approval, then the plan. The sjvair.com
+  hosting session (worktree `sjvair.com/.worktrees/workspace-hosting`, branch
+  `feature/workspace-hosting`) writes its plan once 5a builds `dist/workspace/`; tell it then.
+  Decided along the way: the preview is the `beta_tools` flag; upload exactly as monitor-map
+  (compression and headers deferred); OFL-1.1 allowed for fonts; feedback via `/contact/`.
 - **The other parallel tracks (recommended 2026-10-26):** server-backed documents during
   step 2, after spec 5's sign-in side; email-only accounts once the legal adviser answers;
   the rest of step 3 (metadata enablers) in its own parallel session whenever convenient.
@@ -545,10 +577,10 @@ which part of a larger item it did.
   static-path helper), lazy assets keep hashed names, `default-place` is resolved at every
   exit from the starter and rejected by validation elsewhere, `span` is checked against a
   range's full unit, and "now" widgets keep their place in their single layer (no
-  `target`). Workers are built inline (static files are cross-origin in production), and an E2E
-  smoke run serves static files from a second origin. Sentry
-  through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and the git commit as
-  the release and build id.
+  `target`). Workers are built inline, because static files are cross-origin in production.
+  The second-origin E2E smoke run was dropped 2026-10-26; the beta preview exercises
+  cross-origin. Sentry through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and
+  the git commit as the release and build id.
 - Date-range resolution (`DateRangeSpec` → Pacific dates) lives with the `format` module;
   see `DEFERRED.md` → "Shared date-range helper home".
 - Local save plus Export/Import `.json` and URL-fragment share, with the `/import` route.
@@ -734,7 +766,9 @@ which part of a larger item it did.
   host list **kept in sjvair.com beside the view** (matching this repo's reference list)
   (`ARCHITECTURE.md` → "Security baseline").
 - Create the dashboard's own Sentry project in the existing org and set `VITE_SENTRY_DSN`
-  as a Heroku config var.
+  as a Heroku config var. In the project's settings turn on "Prevent storing IP addresses"
+  and server-side data scrubbing ("Data Scrubber" and "Use Default Scrubbers"), so anything
+  the client-side scrubbing misses is still dropped.
 - Restrict the MapTiler and NREL keys by domain in each provider's dashboard (sjvair.com,
   plus separate keys or allowed domains for localhost dev and a staging preview).
 - This repo: router `basePath` `/workspace/`, built files under the static path, and

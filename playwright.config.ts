@@ -8,7 +8,9 @@ export default defineConfig({
 		command: "npm run build && npx vite preview --port 4173 --strictPort",
 		url: "http://localhost:4173/workspace/",
 		reuseExistingServer: !process.env.CI,
-		timeout: 120_000
+		timeout: 120_000,
+		// Never report from test builds, even when a local .env sets a DSN (shell env beats .env).
+		env: { VITE_SENTRY_DSN: "" }
 	},
 	use: {
 		baseURL: "http://localhost:4173/workspace/"

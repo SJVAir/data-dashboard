@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { z } from "zod";
+import { describe, expect, it, vi } from "vitest";
+import { z } from "$lib/zod";
+import { report } from "$lib/safety/report";
 import { loadDashboard, type Migration } from "./load";
+
 import { CURRENT_SCHEMA_VERSION } from "./schema";
+
+vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 
 const valid = {
 	kind: "dashboard",
@@ -54,6 +58,26 @@ describe("loadDashboard", () => {
 			const result = loadDashboard(raw);
 			expect(result).toEqual({ status: "read-only", reason: "invalid", raw });
 		}
+	});
+
+	it("a migration that throws is read-only invalid and reported", () => {
+		vi.mocked(report).mockClear();
+		const failure = new Error("bug");
+		const throwing: Migration[] = [
+			{
+				...renameChain[0],
+				migrate() {
+					throw failure;
+				}
+			}
+		];
+		const raw = v0Doc();
+		expect(loadDashboard(raw, throwing)).toEqual({ status: "read-only", reason: "invalid", raw });
+		expect(report).toHaveBeenCalledTimes(1);
+		expect(report).toHaveBeenCalledWith(failure, {
+			operation: "migrate",
+			fromSchemaVersion: OLD
+		});
 	});
 
 	it("runs the chain step by step and validates the result", () => {

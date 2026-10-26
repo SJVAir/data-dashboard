@@ -1,4 +1,5 @@
 import { ChangeSchema, type Change } from "$lib/changes/types";
+import { report } from "$lib/safety/report";
 import { migrations, type Migration } from "./load";
 import { CURRENT_SCHEMA_VERSION } from "./schema";
 
@@ -27,7 +28,9 @@ export function upgradeChanges(
 				current = step.migrateChange(current);
 				version = step.to;
 			}
-		} catch {
+		} catch (error) {
+			// A migration that throws is a bug in the app: the change is dropped, and reported.
+			report(error, { operation: "migrate", fromSchemaVersion: fromVersion });
 			current = null;
 		}
 		const parsed = current === null ? null : ChangeSchema.safeParse(current);

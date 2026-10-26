@@ -26,6 +26,17 @@ export default defineConfig(
 		}
 	},
 	{
+		// `$lib/zod` turns off Zod's eval probe before any schema is built (the CSP has no
+		// 'unsafe-eval'); importing "zod" directly could build a schema first.
+		ignores: ["src/lib/zod.ts"],
+		rules: {
+			"no-restricted-imports": [
+				"error",
+				{ paths: [{ name: "zod", message: 'Import `z` from "$lib/zod" instead.' }] }
+			]
+		}
+	},
+	{
 		files: ["**/*.svelte", "**/*.svelte.ts", "**/*.svelte.js"],
 		languageOptions: {
 			parserOptions: {

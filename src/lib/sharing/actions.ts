@@ -67,7 +67,7 @@ export async function shareDashboard(app: AppContext, id?: string): Promise<void
 	// A newer or invalid document can't be turned into a link; the file is still offered.
 	const result = target.readOnly
 		? null
-		: await shareUrl(location.origin + import.meta.env.BASE_URL, target.doc, new Date());
+		: await shareUrl(`${location.origin}/workspace/`, target.doc, new Date());
 	openShare({
 		url: result && "url" in result ? result.url : null,
 		onDownload: () => downloadDocument(target)

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { z } from "zod";
+import { z } from "$lib/zod";
 import type { Migration } from "$lib/documents/load";
 import { CURRENT_SCHEMA_VERSION, type Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";

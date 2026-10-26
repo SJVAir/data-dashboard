@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
+import { z } from "$lib/zod";
 import type { Change } from "$lib/changes/types";
 import type { Migration } from "$lib/documents/load";
 import { CURRENT_SCHEMA_VERSION, type Dashboard, type WidgetInstance } from "$lib/documents/schema";
@@ -217,6 +217,21 @@ describe("DocumentSession", () => {
 		expect(commit).toHaveBeenCalledTimes(5);
 		expect(session.status).toBe("saved");
 		expect((await stored(platform)).body.widgets[0].title).toBe("Map");
+	});
+
+	it("a failed save reports once, not on every retry", async () => {
+		const { platform, session } = await setup();
+		vi.mocked(report).mockClear();
+		const failure = new Error("disk");
+		vi.spyOn(platform.documents, "commit")
+			.mockRejectedValueOnce(failure)
+			.mockRejectedValueOnce(failure);
+		session.apply(rename("Home"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(session.status).toBe("error");
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(report).toHaveBeenCalledTimes(1);
+		expect(report).toHaveBeenCalledWith(failure, { operation: "save" });
 	});
 
 	it("a quota failure sets errorKind to quota", async () => {
@@ -536,16 +551,51 @@ describe("DocumentSession", () => {
 		await other.flush();
 
 		const session = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "tab-1" });
+		vi.mocked(report).mockClear();
 		vi.spyOn(platform.documents, "get").mockRejectedValueOnce(new Error("read failed"));
 		session.apply(title("a", "Map"));
 		await session.flush();
 		expect(session.status).toBe("error");
 
+		expect(report).toHaveBeenCalledWith(expect.any(Error), { operation: "catch-up" });
 		await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0]);
 		const saved = await stored(platform);
 		expect(saved.name).toBe("Theirs");
 		expect(saved.body.widgets[0].title).toBe("Map");
 		expect(session.status).toBe("saved");
+	});
+
+	it("repeated catch-up failures report once", async () => {
+		const { platform } = await setup();
+		const other = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t2" });
+		other.apply(rename("Theirs"));
+		await other.flush();
+
+		const session = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "tab-1" });
+		vi.mocked(report).mockClear();
+		vi.spyOn(platform.documents, "get")
+			.mockRejectedValueOnce(new Error("read failed"))
+			.mockRejectedValueOnce(new Error("read failed"));
+		session.apply(title("a", "Map"));
+		await session.flush();
+		await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0]);
+		expect(session.status).toBe("error");
+		await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[1]);
+		expect(session.status).toBe("saved");
+		expect(report).toHaveBeenCalledTimes(1);
+	});
+
+	it("a failure on the commit chain reports and shows the error", async () => {
+		const { platform, session } = await setup();
+		vi.mocked(report).mockClear();
+		const failure = new Error("resolve failed");
+		vi.spyOn(platform.documents, "get").mockRejectedValueOnce(failure);
+		platform.activity.setVisible(false);
+		platform.activity.setVisible(true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(session.status).toBe("error");
+		expect(session.errorKind).toBe("unavailable");
+		expect(report).toHaveBeenCalledWith(failure, { operation: "commit-chain" });
 	});
 
 	it("open loads a stored dashboard, and returns null for an unknown id", async () => {
@@ -866,7 +916,7 @@ describe("DocumentSession format changes", () => {
 		expect(await platform.originals.get(SPACE, "d1")).toBeUndefined();
 		expect(report).toHaveBeenCalledWith(
 			expect.any(Error),
-			expect.objectContaining({ docId: "d1", fromSchemaVersion: OLD_SCHEMA_VERSION })
+			expect.objectContaining({ operation: "migrate", fromSchemaVersion: OLD_SCHEMA_VERSION })
 		);
 	});
 
@@ -883,7 +933,7 @@ describe("DocumentSession format changes", () => {
 		expect(await platform.documents.get(SPACE, "d1")).toEqual(old);
 		expect(report).toHaveBeenCalledWith(
 			failure,
-			expect.objectContaining({ docId: "d1", fromSchemaVersion: OLD_SCHEMA_VERSION })
+			expect.objectContaining({ operation: "migrate", fromSchemaVersion: OLD_SCHEMA_VERSION })
 		);
 	});
 

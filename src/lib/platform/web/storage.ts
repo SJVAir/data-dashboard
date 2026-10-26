@@ -12,12 +12,15 @@ import {
 	type SpaceId
 } from "../types";
 import { createWebActivity } from "./activity";
+import { createWebOnline } from "./online";
 import { createWebClipboard } from "./clipboard";
+import { createWebErrors, listenForCspViolations } from "./errors";
 import { createWebFiles } from "./files";
 import { createWebPersistence } from "./persistence";
 import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
 import { createWebJournal } from "./journal";
 import { createReopening } from "./reopen";
+import { BUILD_ID } from "$lib/safety/build-id";
 
 const logRange = (space: SpaceId, docId: string, from = 0) =>
 	IDBKeyRange.bound([space, docId, from], [space, docId, Number.MAX_SAFE_INTEGER]);
@@ -67,7 +70,13 @@ function createWebReset(run: Run): ResetAccess {
 			const stores = ["documents", "changeLog", "preferences", "originals", "syncQueue"] as const;
 			await run(async (db) => {
 				const tx = db.transaction([...stores], "readwrite");
-				await Promise.all([...stores.map((name) => tx.objectStore(name).clear()), tx.done]);
+				// Every promise is settled, so a failing transaction leaves no rejection unhandled.
+				const results = await Promise.allSettled([
+					...stores.map(async (name) => tx.objectStore(name).clear()),
+					tx.done
+				]);
+				const failed = results.find((r) => r.status === "rejected");
+				if (failed) throw failed.reason;
 			});
 			try {
 				const doomed: string[] = [];
@@ -97,6 +106,12 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		})
 	);
 	const run: Run = connection.run;
+	const errors = createWebErrors({
+		dsn: import.meta.env.VITE_SENTRY_DSN,
+		release: BUILD_ID,
+		dev: import.meta.env.DEV
+	});
+	listenForCspViolations(errors, document);
 
 	return {
 		documents: {
@@ -182,9 +197,11 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		journal: createWebJournal(),
 		identity: { currentSpace: async () => "anonymous" },
 		activity: createWebActivity(),
+		online: createWebOnline(window, navigator),
 		clipboard: createWebClipboard(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),
-		reset: createWebReset(run)
+		reset: createWebReset(run),
+		errors
 	};
 }

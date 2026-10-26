@@ -390,6 +390,16 @@ Tauri-ready seams required **from day one**:
   page visibility; a Tauri build can report visible while the window is in the background so
   polling continues. The data layer's poller uses it; nothing outside the adapter reads
   `visibilitychange` for new code.
+- **`errors` capability** (built 2026-10-26, Foundations spec 5a). `platform.errors` is the
+  one way to report a failure: `report(error, context)`. On the web it lazy-loads the Sentry
+  browser SDK only when a DSN is set (`VITE_SENTRY_DSN`) and the first error happens, scrubs
+  every event (no document ids or bodies, no page URLs, names, emails, or coordinates; free
+  text pattern-scrubbed, so messages must not carry names or titles), and reports each
+  failure streak once. Lightweight `error` / `unhandledrejection` listeners and a CSP
+  `securitypolicyviolation` listener forward to it. Without a DSN it is a no-op.
+- **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
+  `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
+  and drives the offline banner. A Tauri build can report real connectivity.
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
   air-quality data uses an **in-memory cache** shared across widgets, plus the
@@ -612,6 +622,11 @@ files, and server documents.
      the app's own violation reports (below) catch any drift.
    - **The app also reports violations itself:** it listens for the browser's
      policy-violation event and sends it through the scrubbed error reporting.
+   - **No `'unsafe-eval'`, and the E2E suite runs under the contract CSP** (spec 5a final
+     review). Zod's compiled parser probes `new Function`, so every module imports `z` from
+     `$lib/zod`, which sets `jitless` first (ESLint forbids importing `zod` directly). The
+     preview server sends the CSP from `csp-hosts.json`, and an E2E fixture fails any test
+     whose page reports a violation.
 4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
@@ -725,11 +740,13 @@ approach is staged:
   `deleteUser`, the phone functions,
   change-password) so a session works everywhere.
   sdk-js change, approved plan first.
-- **Development:** the Vite dev server proxies `/api` (and `/account/`) to the local
-  podman sjvair.com, so dev is same-origin and cookies behave as in production.
+- **Development:** the Vite dev server proxies `/api/` and `/account/` to the local
+  podman sjvair.com (target: `SJVAIR_DEV_SERVER`, not `VITE_`-prefixed, default
+  `http://localhost:8000`), so dev is same-origin and cookies behave as in production.
   Because Vite serves the app itself in dev, Django's `ensure_csrf_cookie` never runs
-  there, so dev bootstraps the `csrftoken` cookie once through the proxy (e.g. a GET to a
-  Django page or a small cookie-setting endpoint). In production, cookie-based saves depend
+  there, so dev bootstraps the `csrftoken` cookie once through the proxy with a GET of
+  `/account/login/` (built 2026-10-26, spec 5a). `npm run test:dev-stack` smoke-tests this
+  against the running stack. In production, cookie-based saves depend
   on the hosting track's `ensure_csrf_cookie`.
 
 ## SDK request options
@@ -2099,6 +2116,9 @@ Decided 2026-09-28.
   128+.** Older browsers see a friendly "Your browser is too old for this app" notice
   that points to sjvair.com's main map. Some school Chromebooks past their update end
   date may fall below this; check with partner schools during the private preview.
+  **The notice is shown by the bootstrap** (`app.js`, plain syntax), which feature-tests the
+  floor (`CSS.registerProperty` for `@property`, and `CSS.supports` for `color-mix()`) before
+  loading the app, so older browsers never parse the app bundle.
   Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
 - **Performance budget, CI-enforced:** about **200 KB compressed** of initial JS for the app
   shell. **Each widget type loads its own code only when used** (the map library only
@@ -2147,8 +2167,18 @@ Decided 2026-09-28.
   CCAC website's footer says "All Rights Reserved", which must **not** be copied into the
   license, since the MIT terms grant those rights. Still pending: the `LICENSE` files. `data-dashboard` (now public) and
   `monitor-map` (on npm) currently have no license, which means "all rights reserved".
+- **Built 2026-10-26 (Foundations spec 5a):** the `LICENSE` file and `"license": "MIT"` are
+  in this repo; the check is a Vite plugin (`vite-plugins/licenses.ts`) that runs inside
+  `npm run build`. It walks the modules actually bundled (JS, and packages imported from CSS),
+  reads each package's `license` and `LICENSE` text, fails the build on anything off the list,
+  and writes `THIRD-PARTY-NOTICES.txt` from the same data. Dev-only tools are not checked.
+  **Named exceptions** (commented in the plugin): `@inlang/plugin-message-format` (empty npm
+  `license` field, MIT `LICENSE` file) and `@jsr/sjvair__sdk` (first-party, MIT per sdk-js's
+  `deno.json`, but the JSR build has no license field). The real fix for the second is a
+  `LICENSE` file in sdk-js (planned below); remove the exception once it ships.
 - **Dependency policy:** bundled dependencies must be permissively licensed: MIT, BSD,
-  Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide). A **CI license check**
+  Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide), and **OFL-1.1 for fonts
+  only** (decided 2026-10-26; the bundled Inter font is OFL-1.1). A **CI license check**
   flags anything else, and the build generates a **third-party notices** file (which
   also covers the JupyterLite/Pyodide notices).
 - Adding the license to `monitor-map` is a sibling-repo change: it goes in its next plan,
@@ -2219,8 +2249,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
 
 - **Why `/workspace/`:** the base path names the _app_, not one of its resources. The app
   holds Dashboards _and_ Analysis, so `/dashboard/` would either repeat itself
-  (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product can
-  still be called the "SJVAir Dashboard" in the UI; only the URL uses `workspace`.
+  (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product
+  is called **"SJVAir Dashboard"** in the UI (decided 2026-10-26: the app name, page titles,
+  manifest, and messages); only the URL uses `workspace`.
 - **Why not `/explore/` any more:** sjvair.com now has the "Pesticide Data Explorer" at
   `/tools/pesticides/`, with a "Facility Emissions Explorer" to follow, and the server
   calls them "the explorers". An `/explore/` path for a different product would confuse
@@ -2279,10 +2310,11 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     windowed layout. The template is a bare shell holding only the dashboard, whose own
     nav links back to sjvair.com.
   - **Build output:** fixed-name entry files (one script, one stylesheet) plus
-    content-hashed lazy chunks, and `version.json`. **Files find each other by relative
+    content-hashed lazy chunks, and `version.json` (at the top level next to `app.js`, built in
+    Foundations spec 5a). **Files find each other by relative
     reference** (decided 2026-10-14): the build resolves every chunk and asset relative to
     the module that loads it (`import.meta.url`), so one build works in local
-    development, the preview, on S3, and in the second-origin test. This replaces
+    development, the preview, and on S3. This replaces
     monitor-map's approach (a `window.__cdnUrl` helper set by an inline script, which the
     no-inline-script rule forbids and which module import order would make fragile).
     Lazily loaded assets keep content-hashed names (only the entry script and stylesheet
@@ -2294,7 +2326,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     from `sjvair-production.s3.amazonaws.com`, with **no compression, no `Cache-Control`**,
     and cross-origin `GET` allowed only for `https://www.sjvair.com`. The dashboard
     therefore needs these accommodations:
-    1. **Compression and cache headers are set at upload.** The dashboard's files go to
+    1. **Compression and cache headers are set at upload.** _Deferred 2026-10-26 by the
+       user: the dashboard is uploaded exactly as monitor-map is for now; see `DEFERRED.md`
+       and spec 5a's reload refresh. The plan below is kept for when it's revisited._ The dashboard's files go to
        S3 pre-compressed with `Content-Encoding`, hashed chunks as long-lived and
        immutable, and the fixed-name entry files and `version.json` as `no-cache`
        (revalidated on each load). Without this the ~200 KB compressed budget means
@@ -2327,9 +2361,28 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        module) with `cache: "no-store"`
        (allowed by the bucket's cross-origin rule).
     6. **Cross-origin problems only show in production**, because local development serves
-       static files from the same origin. The private preview must use S3-style static
-       serving, the bucket's cross-origin rule must list the preview's origin, and an E2E
-       smoke run serves static files from a second origin.
+       static files from the same origin. **Revised 2026-10-26 (the user):** local setup
+       matches monitor-map's (same origin, nothing standing in for S3), and the preview is on
+       production behind `beta_tools`, so it uses the real S3 serving and the existing
+       cross-origin rule for `www.sjvair.com`. Cross-origin behavior is first exercised
+       there, with the CSP report-only and errors in Sentry (see `DEFERRED.md`).
+  - **The bootstrap entry and `startApp(staticBase)`** (built 2026-10-26, spec 5a). `app.js`
+    is `src/bootstrap.ts`, deliberately plain syntax: it finds `#SJVAirDataDashboard`, tests
+    the browser floor (see "Browser support & performance budget"), and only then
+    dynamically imports `src/main.ts` and calls `startApp({ target, staticBase })`.
+    `staticBase` is the entry module's own folder (`new URL(".", import.meta.url)`), so the
+    page passes no path. A browser below the floor gets the "too old" notice instead of a
+    parse error.
+  - **The reload refresh.** When the app finds that `version.json` (fetched from
+    `staticBase`, `cache: "no-store"`) differs from its own build id, the notice's reload
+    button first re-fetches the fixed-name `app.js` and `app.css` with `cache: "reload"`, so
+    the browser's HTTP cache can't hand back the stale entry files, and then reloads. It
+    never rejects; if the refresh fails the page reloads anyway. A dev build skips the check.
+  - **No `VITE_*` names or values reach the bundle** (spec 5a).
+    `configureSdk({ dev, prodUrl }, pageOrigin)` takes only those two fields, under names
+    without the `VITE_` prefix, and the build stops inlining `import.meta.env` objects;
+    `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and checks the rest
+    of the hosting contract). `npm run check:budget` enforces the initial bundle budget.
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.
@@ -2346,15 +2399,32 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     app, which shows "no longer available" from the API's response.
   - **This repo keeps an `index.html` for local development and standalone or Tauri
     builds only.**
+  - **The hosting contract** (settled 2026-10-26 with the sjvair.com hosting session) is
+    recorded in `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` →
+    "Hosting contract", the single source both repos follow; changes go through this repo.
+    In short: `npm ci && npm run build` (Node `>=24 <27`) writes `dist/workspace/` with
+    fixed-name `app.js`, `app.css`, `version.json`, `manifest.webmanifest`, and
+    `THIRD-PARTY-NOTICES.txt` at the top level and hashed files under `assets/`; the template
+    mounts the app in `<div id="SJVAirDataDashboard">` and passes identity in a `json_script`
+    block `sjvair-identity`
+    (`{"v": 1, "user": null | {id, name, email, emailVerified, phoneVerified}}`, never the
+    token or phone number); the template references `app.js` by its exact static URL (no
+    query string, no renamed copy), because hashed chunks import it back as `../app.js` and
+    any other URL runs the bootstrap twice; the CSP comes from this repo's
+    `csp-hosts.json`, report-only for the preview and enforced by a server setting
+    (`WORKSPACE_CSP_ENFORCE`) before go-live; the manifest is served by Django at
+    `/workspace/manifest.webmanifest`, outside the `beta_tools` gate (browsers fetch it without
+    cookies; it holds nothing private) and `noindex`.
   - Extending the site's base template, serving the dashboard's own `index.html`, and a
     build-manifest file read by the server were considered and decided against (see
     `DEFERRED.md`).
 - **Same-origin API in production:** when served under `/workspace/`, the SDK origin is
-  the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
+  the page's own origin (`setOrigin(location.origin)`), not an env value. This prevents
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
-  silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
-  builds (Tauri, standalone).
-  The hosting track sets no `VITE_PROD_URL` (production under `/workspace/` uses the page origin).
+  silently breaking cookie sign-in. `VITE_PROD_URL` is read only for production
+  standalone or Tauri builds, where it is passed to `configureSdk` as `prodUrl`; it is ignored
+  in dev and never set for the sjvair.com build (production under `/workspace/` uses the page
+  origin).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Embedding in a host app with its
   own router stays deferred.
@@ -2362,7 +2432,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
   preview** (a staging Heroku app, a hidden route, or the server's `beta_tools` flag;
   chosen in the hosting-track plan)
-  lets a pilot teacher and a researcher try it and give feedback early.
+  lets a pilot teacher and a researcher try it and give feedback early. **Decided
+  2026-10-26: the `beta_tools` flag on production**, with a "My Dashboard" link under the
+  beta-only "Data Tools" menu (no staging app, so no extra S3 cross-origin origin).
 - **JupyterLite (Release 3)** lives at its own path (e.g. `/notebooks/`), and COOP/COEP
   headers are set only for that path.
 - **CI in this repo** runs lint, type-check, tests, and build on every PR. **Merging to

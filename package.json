@@ -3,15 +3,21 @@
 	"description": "SJVAir's data exploration dashboard",
 	"version": "0.1.0",
 	"private": true,
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/SJVAir/data-dashboard"
 	},
 	"type": "module",
+	"engines": {
+		"node": ">=24 <27"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"paraglide": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
 		"build": "npm run paraglide && vite build",
+		"check:build": "node scripts/check-build-output.mjs",
+		"check:budget": "node scripts/check-budget.mjs",
 		"preview": "vite preview",
 		"check": "npm run paraglide && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
@@ -22,6 +28,8 @@
 		"test:watch": "vitest",
 		"test:e2e": "playwright test --project=chromium",
 		"test:e2e:all": "playwright test",
+		"test:dev-stack": "playwright test -c playwright.local.config.ts --project=dev-stack",
+		"test:embedding": "playwright test -c playwright.local.config.ts --project=embedding",
 		"test:e2e:podman": "bash scripts/e2e-podman.sh",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint ."
@@ -40,6 +48,7 @@
 		"@tailwindcss/vite": "^4.3.3",
 		"@types/node": "^26.5.1",
 		"@vitest/browser-playwright": "^5.0.5",
+		"acorn": "^8.19.0",
 		"axe-core": "4.14.0",
 		"eslint": "^10.10.0",
 		"eslint-config-prettier": "^10.1.8",
@@ -63,6 +72,7 @@
 	"dependencies": {
 		"@date-fns/tz": "^1.5.0",
 		"@lucide/svelte": "^1.60.0",
+		"@sentry/browser": "^11.9.0",
 		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@4.8.0-beta.1",
 		"bits-ui": "^2.19.2",
 		"clsx": "^2.1.1",

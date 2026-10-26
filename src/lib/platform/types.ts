@@ -89,6 +89,13 @@ export interface ActivitySource {
 	onChange(cb: (visible: boolean) => void): () => void;
 }
 
+/** Whether the network is reachable, as far as the platform can tell. */
+export interface OnlineSource {
+	online(): boolean;
+	/** Called on every change; returns a function that stops listening. */
+	onChange(cb: (online: boolean) => void): () => void;
+}
+
 /** The system clipboard. */
 export interface ClipboardAccess {
 	/** Resolves `false` instead of throwing when the browser refuses. */
@@ -121,6 +128,14 @@ export interface ResetAccess {
 	clearAll(): Promise<void>;
 }
 
+/** Non-identifying details sent with an error report; unlisted keys are dropped when sent. */
+export type ReportContext = Record<string, string | number | boolean | null | undefined>;
+
+export interface ErrorReporter {
+	/** Never throws; drops the report if it can't be sent. */
+	report(error: unknown, context?: ReportContext): void;
+}
+
 export type Platform = {
 	documents: DocumentStorage;
 	preferences: PreferenceStorage;
@@ -128,10 +143,12 @@ export type Platform = {
 	originals: OriginalStorage;
 	identity: IdentitySource;
 	activity: ActivitySource;
+	online: OnlineSource;
 	clipboard: ClipboardAccess;
 	files: FileAccess;
 	persistence: PersistenceAccess;
 	reset: ResetAccess;
+	errors: ErrorReporter;
 };
 
 export function docVersion(doc: unknown): number {

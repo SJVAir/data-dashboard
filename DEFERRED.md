@@ -11,6 +11,93 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **Upload compression, cache headers, ordered upload passes, and a post-deploy header
+  check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
+  track and Foundations spec 5a)._ The dashboard is uploaded to S3 exactly as monitor-map is
+  today (one `aws s3 sync`, uncompressed, no `Cache-Control`, no ordering, the sync not
+  failing the release on error), to keep shipping identical to monitor-map. Costs: about 3–4×
+  the bytes on the wire against the 200 KB compressed budget; browsers may heuristically cache
+  the fixed-name `app.js`/`app.css` after a deploy (spec 5a's reload button re-fetches them
+  with `cache: "reload"` first); a page loading mid-deploy can hit a missing chunk (the reload
+  bar covers it). **Revisit together with** monitor-map's upload, or when the low-end device
+  check shows slow loads.
+- **Testing cross-origin static serving before the preview.** _Deferred 2026-10-26 (the
+  user, Foundations spec 5a and the hosting track)._ Locally, the dashboard's static files are
+  served from the page's own origin, as monitor-map's are; nothing stands in for S3. So
+  relative chunk loading from S3, fonts and `version.json` under the bucket's cross-origin
+  rule, and the CSP's `{static}` entry are first exercised in the beta preview on production
+  (CSP report-only, errors to Sentry, beta testers only). This replaces `ARCHITECTURE.md`'s
+  earlier plan of a second-origin E2E smoke run. **Revisit if** the preview shows a
+  cross-origin problem, or before public go-live if the preview hasn't exercised it.
+- **Pre-filling sjvair.com's contact form.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
+  preview feedback link opens `/contact/` as it is; the form can't take a topic or message
+  from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
+  page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
+  track (which builds "Report this page").
+- **Remove the `@jsr/sjvair__sdk` license exception.** _Deferred 2026-10-26 (Foundations spec
+  5a)._ The license check names `@jsr/sjvair__sdk` as an exception because the JSR build has no
+  license field and no license text, so the third-party notices carry none for it. **Revisit
+  when** sdk-js ships a `LICENSE` file (and a license field in its JSR package): remove the
+  exception and check the notices include its text.
+- **A maskable icon and real app icons.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
+  manifest uses sjvair.com's Android Chrome favicons as placeholders, with no `maskable`
+  icon. **Revisit with** the design pass.
+- **A test of the real Sentry envelope.** _Deferred 2026-10-26 (Foundations spec 5a, final
+  review)._ The scrubbing is unit-tested on the event the app hands to `@sentry/browser`, but
+  nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the
+  scrubbed fields). A test with a capturing transport would. **Revisit when** the dashboard's
+  Sentry project exists, together with the hand check of a real report.
+- **The error reports' route list duplicates the router's.** _Deferred 2026-10-26
+  (Foundations spec 5a, final review)._ `routePattern` in `src/lib/errors/scrub.ts` keeps its
+  own copy of the route patterns, so a new route reports as `/other` until it is added there
+  too. **Revisit when** the Widget Creation or Analysis routes are added: derive it from the
+  router, or add a test comparing it to the router's route keys.
+- **CSP violations before IndexedDB opens aren't seen by the app.** _Deferred 2026-10-26
+  (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
+  only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
+  in the app's own reports; the CSP header's `report-uri` still covers them. **Revisit if**
+  the violation reports show gaps.
+- **WebKit and a failed chunk after reload.** _Deferred 2026-10-26 (Foundations spec 5a,
+  final review)._ In the E2E suite, once Playwright's WebKit fails to import the app chunk
+  (a routed 404 or abort, even with `no-store`), a reload or a fresh navigation in the same
+  page fails the same import again without requesting the file. So the load-failed test checks
+  recovery only on Chromium and Firefox; on WebKit it checks the message and that Reload
+  refreshes the entry files and reloads. Unknown whether real Safari does the same after a
+  real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
+  Safari after a missing chunk; if it stays broken, retry the import under a new URL.
+- **The SDK builds zod schemas outside the `jitless` wrapper.** _Deferred 2026-10-26 (Foundations
+  spec 5a, final fix-wave review)._ The dashboard imports zod only through `$lib/zod`, which sets
+  `z.config({ jitless: true })` so zod's eval probe never trips the CSP. `@sjvair/sdk` imports zod
+  itself and builds `z.object` schemas when its modules load. Today that's harmless: production
+  reaches those modules only through the dev-only `/dev/data` route, after `$lib/zod` has run. If a
+  production route ever loads the SDK root before `$lib/zod`, every page load raises a `script-src`
+  eval violation (the E2E CSP fixture catches it only on the routes it exercises). **Revisit when**
+  the data layer first goes into a production route: fix it in sdk-js (build schemas lazily, or
+  set `jitless` there), not with an import-order workaround here.
+- **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
+  review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
+  `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
+  `browser.newContext()` (the sharing and backup specs). And `e2e/csp.spec.ts`'s "eval is blocked"
+  self-test injects an inline script, so it proves the checker works but not that eval is caught.
+  **Revisit when** touching the E2E fixtures or the zod wrapper.
+- **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
+  follow-ups, none blocking. **Revisit with** the design pass, or when next touching each
+  file:
+  - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
+    share one constant each.
+  - No test covers skipping the entry-file refresh when `BUILD_ID === "dev"`.
+  - The browser-floor test doesn't assert the exact `color-mix()` string it probes.
+  - The host-list logic is duplicated between `csp-hosts.test.ts` and
+    `scripts/check-build-output.mjs`, and the list is flat across directives.
+  - The license collection skips virtual modules (Vite's and rolldown's MIT helpers).
+  - The web manifest's `lightToken` takes the first regex match; scope it to `:root`.
+  - The E2E test loads only `icons[0]`, and the dev manifest route is untested.
+  - The bare `/account/` dev proxy prefix could shadow a future app route.
+  - The embedding suite's "lazy chunk" check doesn't prove the chunk loads lazily.
+  - The feedback link has no new-tab cue (design pass).
+  - `reload.ts`'s `location.reload` and the entry-file refresh are web-only behavior outside
+    the platform adapter (Tauri).
+
 - **Tauri desktop build.** _Deferred 2026-09-23 (IDEA.md Q1)._ The web build comes first
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").
   **Revisit when** there is a concrete desktop-only win, such as tray-based background
@@ -118,12 +205,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   everywhere. **Revisit with** the next sjvair.com test or settings change. Needs an
   approved sjvair.com plan.
 - **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
-  affects what spec 1 ships: Playwright runs with no retries in CI; sharp's install script
-  has no `allowScripts` decision yet; `@inlang/plugin-message-format` has an empty npm
-  `license` field although its `LICENSE` file is MIT, so spec 5's license check must accept
-  it; the `--duration-*` `@theme` aliases are probably inert. **Revisit when** CI first
-  flakes (retries), with spec 5's license check (sharp and the inlang plugin), and in the
-  design pass (the duration aliases).
+  affects what ships: Playwright runs with no retries in CI; the `--duration-*` `@theme`
+  aliases are probably inert. (Resolved in spec 5a: the inlang plugin is a named exception in
+  the license check; sharp's install script is allowed, see the Task 7 commit, because it is
+  dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
+  **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
 - **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
   review)._ The home route shows as `/workspace` (sv-router drops the slash), while Vite's
   base is `/workspace/`. **Revisit in** the hosting track: sjvair.com must serve both forms.
@@ -184,13 +270,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Documents & saving
 
-- **Migration chain hardening.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A bare
-  `catch` in `loadDashboard` (and `upgradeChanges`) hides migration bugs as "invalid".
-  **Revisit with** spec 5 (the error reporter).
-- **DocumentSession durability gaps.** _Deferred 2026-10-20 (Foundations spec 1 review);
-  the hand-off and retry parts were done in spec 3._ Errors on the commit chain (a failed
-  save, catch-up, or conflict resolution) only set the "error" status; nothing reports
-  them. **Revisit with** spec 5 (Sentry) for reporting.
 - **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
   task 6)._ If the page goes away mid-hand-off after the copy was stored but before its first
   save, the next load opens the (unedited) copy, not the starter, so the starter's journal
@@ -221,9 +300,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   don't fire `cancel` on a file input, so dismissing the picker there leaves "Import…" waiting
   forever. **Revisit if** a stuck import is
   reported.
-- **`clearAll` leaves sibling rejections unhandled.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ When one store's clear fails, the
-  others' later rejections aren't caught. The failure itself is shown ("Couldn't clear").
-  **Revisit with** spec 5 (the error reporter).
 - **IndexedDB reopen isn't memoized, and any `InvalidStateError` triggers it.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
   Concurrent operations that fail together each open their own connection, and an
   `InvalidStateError` from another cause also reopens. **Revisit before** the next IndexedDB version bump.
@@ -243,9 +319,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   backup's invalid (unreadable) dashboard is restored as stored, but the index lists only
   loadable ones, so it isn't shown or counted. **Revisit with** the design pass or a "can't
   open" list.
-- **A failed starter hand-off (storage full) shows no save error on the starter.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The
-  edit stays queued and is retried on the next edit, but the starter's indicator doesn't say
-  saving failed. **Revisit with** spec 5.
 
 - **Upgrading `bits-ui` past 2.19.2.** _Deferred 2026-10-25 (Foundations spec 3, Task 13)._
   `npx shadcn-svelte add popover` bumped `bits-ui` from 2.19.2 to 2.20.2, which broke
@@ -260,7 +333,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   accounts. **Revisit before** the private preview.
 - **"Sign in to keep this safe everywhere" in the backup reminder.** _Deferred 2026-10-25
   (Foundations spec 3)._ `ARCHITECTURE.md` planned a gentle sign-in line next to the backup
-  reminder; there are no accounts yet. **Revisit with** spec 5 / server-backed documents.
+  reminder; there are no accounts yet. **Revisit with** spec 5b (the sign-in side) / server-backed
+  documents.
 - **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
   is shaped so other kinds can be added without a new format. **Revisit with** Collections and
@@ -654,9 +728,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   global actions (the spec has nav controls be views onto actions). **Revisit in** Release 1
   step 4 (its first checkbox or range input), with the command palette (the actions), and
   before translations ship (IME).
-- **Startup failures all read as "storage unavailable".** _Deferred 2026-10-20 (Foundations
-  spec 1 review)._ An init failure that isn't a storage failure shows the same message.
-  **Revisit with** spec 5 (error reporting).
 - **Save-status announcements.** _Deferred 2026-10-20 (Foundations spec 1 review)._
   The saved indicator's `aria-live` region announces "Saving…"/"Saved" on every edit, which
   is noisy for screen readers. (The undo-toast half closed with "Recently deleted", which
@@ -724,12 +795,6 @@ point.
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Private-preview mechanism**: a staging Heroku app, an unlisted route on sjvair.com, or
-  (new option, 2026-10-13) the server's **waffle `beta_tools` flag**, which already gates
-  `/tools/pesticides/` to flagged "Beta testers" through `BetaToolsMiddleware`. Gating
-  `/workspace/` the same way would give a preview on production with no separate
-  deployment. **Decide in** the Release 1 hosting-track plan (the preview starts around
-  Release 1 step 4).
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.

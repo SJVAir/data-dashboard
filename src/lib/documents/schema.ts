@@ -1,5 +1,5 @@
 import { WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
-import { z } from "zod";
+import { z } from "$lib/zod";
 
 export const CURRENT_SCHEMA_VERSION = 1;
 export const GRID_COLUMNS = 12;

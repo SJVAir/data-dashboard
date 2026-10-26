@@ -1,5 +1,6 @@
 import { m } from "$lib/paraglide/messages.js";
 import { setPlatform } from "$lib/platform";
+import { report } from "$lib/safety/report";
 import type { Platform } from "$lib/platform/types";
 
 export type BootOptions = {
@@ -39,6 +40,7 @@ export async function boot({ target, createPlatform, start }: BootOptions): Prom
 		await start(platform);
 	} catch (error) {
 		console.error(error);
-		showMessage(target, m.storage_unavailable());
+		report(error, { operation: "start" });
+		showMessage(target, m.startup_failed());
 	}
 }

@@ -4,6 +4,7 @@
 	import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 	import ExistingCopyDialog from "$lib/components/dialogs/ExistingCopyDialog.svelte";
+	import PrivacyDialog from "$lib/components/dialogs/PrivacyDialog.svelte";
 	import ShareDialog from "$lib/components/dialogs/ShareDialog.svelte";
 	import RestoreVersionDialog from "$lib/components/dialogs/RestoreVersionDialog.svelte";
 	import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
@@ -38,5 +39,6 @@
 <ConflictDialog />
 <ExistingCopyDialog />
 <ShareDialog />
+<PrivacyDialog />
 <RestoreVersionDialog />
 <Toaster />

@@ -139,7 +139,7 @@ test("a dashboard with the backup reminder", async ({ page }) => {
 });
 
 test("a dashboard with the reload bar", async ({ page }) => {
-	await page.route("**/assets/version.json", (route) =>
+	await page.route("**/workspace/version.json", (route) =>
 		route.fulfill({ contentType: "application/json", body: JSON.stringify({ buildId: "other" }) })
 	);
 	await makeOwnCopy(page);

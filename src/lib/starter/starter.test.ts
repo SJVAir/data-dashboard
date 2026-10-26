@@ -4,6 +4,7 @@ import type { DashboardSummary } from "$lib/documents/names";
 import { DashboardSchema, type Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { SpaceId } from "$lib/platform/types";
+import { report } from "$lib/safety/report";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import {
 	STARTER_ID,
@@ -14,6 +15,8 @@ import {
 	starterDashboard,
 	starterSession
 } from "./starter";
+
+vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 
 const SPACE: SpaceId = "anonymous";
 const NOW = new Date("2026-10-21T12:00:00.000Z");
@@ -275,7 +278,11 @@ describe("starterSession", () => {
 			release();
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(copied.session).toBeUndefined();
-			if (failure === "reject") expect(starter.status).toBe("error");
+			if (failure === "reject") {
+				expect(starter.status).toBe("error");
+				expect(starter.errorKind).toBe("unavailable");
+				expect(report).toHaveBeenCalledWith(expect.any(Error), { operation: "hand-off" });
+			}
 
 			starter.apply(renameWidget("starter-3", "Merced"));
 			await vi.waitFor(() => expect(copied.session).toBeDefined());

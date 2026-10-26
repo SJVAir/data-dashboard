@@ -37,7 +37,7 @@ test("nav shows the app name, picker, saved status, and undo/redo", async () => 
 	const { app } = await setup();
 	await renderNav(app);
 	const nav = page.getByRole("navigation", { name: "Main" });
-	await expect.element(nav.getByText("SJVAir Workspace")).toBeVisible();
+	await expect.element(nav.getByText("SJVAir Dashboard")).toBeVisible();
 	await expect.element(nav.getByRole("link", { name: "Dashboards" })).toBeVisible();
 	await expect.element(nav.getByRole("button", { name: "Untitled dashboard" })).toBeVisible();
 	await expect.element(nav.getByText("Saved")).toBeVisible();

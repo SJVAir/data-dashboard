@@ -1,4 +1,5 @@
-import type { z } from "zod";
+import type { z } from "$lib/zod";
+import { report } from "$lib/safety/report";
 import { CURRENT_SCHEMA_VERSION, DashboardSchema, type Dashboard } from "./schema";
 
 export type Migration = {
@@ -49,7 +50,9 @@ export function loadDashboard(raw: unknown, chain: Migration[] = migrations): Lo
 			version = step.to;
 			upgraded = true;
 		}
-	} catch {
+	} catch (error) {
+		// A migration that throws is a bug in the app, not a bad document.
+		report(error, { operation: "migrate", fromSchemaVersion: readVersion(raw) });
 		return readOnly("invalid", raw);
 	}
 
