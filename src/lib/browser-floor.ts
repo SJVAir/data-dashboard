@@ -17,3 +17,14 @@ export function renderTooOld(target: HTMLElement): void {
 	link.textContent = m.browser_too_old_link();
 	target.replaceChildren(text, link);
 }
+
+/** Shown when the app's own files fail to load (for example mid-deploy); offers a reload. */
+export function renderLoadFailed(target: HTMLElement, reload: () => void): void {
+	const text = document.createElement("p");
+	text.textContent = m.app_load_failed();
+	const button = document.createElement("button");
+	button.type = "button";
+	button.textContent = m.app_load_failed_reload();
+	button.addEventListener("click", reload);
+	target.replaceChildren(text, button);
+}
