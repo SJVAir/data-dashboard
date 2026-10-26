@@ -21,7 +21,11 @@
 	const ctx = $derived<MenuContext | null>(trigger ? { target: trigger, payload: {} } : null);
 	// The registered dashboard actions, less "Add widget" (that belongs on the dashboard).
 	const items = $derived(
-		ctx ? actions(ctx).filter((item) => item.group === "create" || item.group === "manage") : []
+		ctx
+			? actions(ctx).filter(
+					(item) => item.group === "create" || item.group === "manage" || item.group === "share"
+				)
+			: []
 	);
 </script>
 
@@ -61,5 +65,14 @@
 				<a {...props} href={p("/dashboards")}>{m.all_dashboards()}</a>
 			{/snippet}
 		</DropdownMenu.Item>
+		{#if app.index.deleted.length > 0}
+			<DropdownMenu.Item>
+				{#snippet child({ props })}
+					<a {...props} href="{p('/dashboards')}#recently-deleted">
+						{m.deleted_picker({ count: app.index.deleted.length })}
+					</a>
+				{/snippet}
+			</DropdownMenu.Item>
+		{/if}
 	</DropdownMenu.Content>
 </DropdownMenu.Root>

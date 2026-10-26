@@ -1,0 +1,119 @@
+import type { Dashboard } from "$lib/documents/schema";
+import type { Platform, SpaceId } from "$lib/platform/types";
+import { encodePayload } from "./codec";
+import {
+	FORMAT,
+	FORMAT_VERSION,
+	MAX_LINK_URL,
+	type Envelope,
+	type SharedDocument
+} from "./envelope";
+import { fingerprintOf } from "./fingerprints";
+
+/** The shareable fields of a document; local-only fields are left out. */
+export function sharedDocumentOf(doc: Dashboard): SharedDocument {
+	return {
+		kind: doc.kind,
+		schemaVersion: doc.schemaVersion,
+		id: doc.id,
+		name: doc.name,
+		body: doc.body
+	};
+}
+
+function documentEnvelope(doc: Dashboard, now: Date): Envelope {
+	return {
+		format: FORMAT,
+		type: "document",
+		formatVersion: FORMAT_VERSION,
+		exportedAt: now.toISOString(),
+		documents: [sharedDocumentOf(doc)]
+	};
+}
+
+/** The single-document export file's text, compact so a near-limit document still re-imports. */
+export function documentFileJson(doc: Dashboard, now: Date): string {
+	return JSON.stringify(documentEnvelope(doc, now));
+}
+
+/** `${base}import#${payload}`, or `{ tooLong: true }` over the link cap. */
+export async function shareUrl(
+	base: string,
+	doc: Dashboard,
+	now: Date
+): Promise<{ url: string } | { tooLong: true }> {
+	const url = `${base}import#${encodePayload(JSON.stringify(documentEnvelope(doc, now)))}`;
+	return url.length > MAX_LINK_URL ? { tooLong: true } : { url };
+}
+
+/** Fields that belong to this browser's copy and never travel. */
+const LOCAL_ONLY = ["version", "createdAt", "updatedAt", "copiedFrom", "deletedAt"];
+
+/**
+ * A read-only (newer or invalid) document's export file: the stored value as it is, unvalidated,
+ * less the local-only fields, so a browser with a newer version can open it.
+ */
+export function rawDocumentFileJson(raw: unknown, now: Date): string {
+	const stored =
+		typeof raw === "object" && raw !== null ? { ...(raw as Record<string, unknown>) } : {};
+	for (const key of LOCAL_ONLY) delete stored[key];
+	return JSON.stringify({
+		format: FORMAT,
+		type: "document",
+		formatVersion: FORMAT_VERSION,
+		exportedAt: now.toISOString(),
+		documents: [stored]
+	});
+}
+
+/** What a backup needs from an open session. */
+export type OpenSession = {
+	doc: Dashboard;
+	readOnly: unknown;
+	hasPending: boolean;
+	flush(): Promise<void>;
+};
+
+/**
+ * Stores what the open sessions can, then returns the editable ones whose edits still aren't
+ * stored (saving is failing), by id: a backup carries these in place of the stored copies.
+ */
+export async function unsavedDocuments(sessions: OpenSession[]): Promise<Map<string, Dashboard>> {
+	await Promise.all(sessions.map((session) => session.flush()));
+	return new Map(
+		sessions.filter((s) => !s.readOnly && s.hasPending).map((s) => [s.doc.id, s.doc] as const)
+	);
+}
+
+/**
+ * A backup file's text: every stored dashboard that isn't deleted, exactly as stored (read-only
+ * ones too) or, for one in `unsaved`, as it is in this tab, plus the local fingerprint of each
+ * that has one so "You already have a copy" keeps working after a restore.
+ */
+export async function backupJson(
+	platform: Platform,
+	space: SpaceId,
+	now: Date,
+	unsaved: ReadonlyMap<string, Dashboard> = new Map()
+): Promise<string> {
+	const documents: unknown[] = [];
+	const fingerprints: Record<string, string> = {};
+	for (const raw of await platform.documents.list(space)) {
+		const stored = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+		const inTab = typeof stored.id === "string" ? unsaved.get(stored.id) : undefined;
+		if (typeof (inTab ?? stored).deletedAt === "string") continue;
+		documents.push(inTab ?? raw);
+		if (typeof stored.id !== "string") continue;
+		const fingerprint = await fingerprintOf(platform, space, stored.id);
+		if (fingerprint !== undefined) fingerprints[stored.id] = fingerprint;
+	}
+	const envelope: Envelope = {
+		format: FORMAT,
+		type: "backup",
+		formatVersion: FORMAT_VERSION,
+		exportedAt: now.toISOString(),
+		documents,
+		...(Object.keys(fingerprints).length > 0 ? { fingerprints } : {})
+	};
+	return JSON.stringify(envelope);
+}

@@ -5,6 +5,7 @@ import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { playwright } from "@vitest/browser-playwright";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { fileURLToPath, URL } from "node:url";
+import { buildInfo } from "./vite-plugins/build-info.ts";
 
 export default defineConfig({
 	base: "/workspace/",
@@ -12,7 +13,8 @@ export default defineConfig({
 		paraglideVitePlugin({ project: "./project.inlang", outdir: "./src/lib/paraglide" }),
 		tailwindcss(),
 		enhancedImages(),
-		svelte()
+		svelte(),
+		buildInfo()
 	],
 	optimizeDeps: { include: ["axe-core"] },
 	resolve: {

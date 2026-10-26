@@ -69,6 +69,18 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 			}
 			return { doc: { ...doc, deletedAt: change.to }, inverse };
 		}
+		case "replaceDocument": {
+			// The inverse restores what was really there; `change.from` may be stale (rebase).
+			return {
+				doc: { ...doc, name: change.to.name, body: change.to.body },
+				inverse: {
+					op: "replaceDocument",
+					target: {},
+					from: change.to,
+					to: { name: doc.name, body: doc.body }
+				}
+			};
+		}
 	}
 }
 
@@ -84,6 +96,8 @@ export function appliedChange(inverse: Change): Change {
 		case "removeWidget":
 			return { ...inverse, op: "addWidget" };
 		case "setField":
+			return { ...inverse, from: inverse.to, to: inverse.from };
+		case "replaceDocument":
 			return { ...inverse, from: inverse.to, to: inverse.from };
 	}
 }

@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import LZString from "lz-string";
 
 export const PLACEHOLDER = "Placeholder widget";
 export const DASHBOARD_URL = /\/workspace\/dashboards\/[0-9a-f-]{36}$/;
@@ -67,4 +68,35 @@ export async function makeOwnCopy(page: Page, title = "My first widget"): Promis
 	await renameWidget(page, PLACEHOLDER, title);
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expectSaved(page);
+}
+
+/** A placeholder-widget dashboard document as a link or file carries it. */
+export function sharedDoc(name: string, widgetTitles: string[]) {
+	return {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "shared-source-1",
+		name,
+		body: {
+			widgets: widgetTitles.map((title, i) => ({
+				id: `w${i}`,
+				type: "placeholder",
+				title,
+				rect: { x: 0, y: i, w: 6, h: 1 },
+				data: { layers: [] }
+			}))
+		}
+	};
+}
+
+/** The `import#…` path for a shared document, built the way the app builds it (`1.` + lz-string). */
+export function shareLinkFor(doc: unknown): string {
+	const envelope = {
+		format: "sjvair-workspace",
+		type: "document",
+		formatVersion: 1,
+		exportedAt: new Date().toISOString(),
+		documents: [doc]
+	};
+	return `import#1.${LZString.compressToEncodedURIComponent(JSON.stringify(envelope))}`;
 }

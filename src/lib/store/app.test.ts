@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Change } from "$lib/changes/types";
 import { createMemoryPlatform } from "$lib/platform/memory";
+import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID } from "$lib/starter/starter";
 import { getWidgetType } from "$lib/widgets/registry";
 import { LAST_OPENED_KEY, homeTarget, initApp } from "./app.svelte";
@@ -60,5 +61,73 @@ describe("initApp", () => {
 		session.apply(rename);
 		await session.flush();
 		await vi.waitFor(() => expect(app.index.names.get(id)).toBe("Home"));
+	});
+
+	it("resetAfterClear discards sessions and empties the index", async () => {
+		const { platform, app } = await setup();
+		const id = await app.index.createBlank();
+		const session = (await app.sessions.get(id))!;
+		app.current = { session, isStarter: false };
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename);
+		await platform.reset.clearAll();
+		const before = app.resetCount;
+
+		await app.resetAfterClear();
+		expect(app.resetCount).toBe(before + 1);
+		expect(app.current).toEqual({ session: null, isStarter: false });
+		expect(app.index.items).toEqual([]);
+		// The discarded session saves and journals nothing.
+		await session.flush();
+		await new Promise((resolve) => setTimeout(resolve, 600));
+		expect(commit).not.toHaveBeenCalled();
+		expect(platform.journal.list(app.space)).toEqual([]);
+		// Opening again starts fresh.
+		expect(await app.sessions.get(id)).toBeNull();
+		expect(await homeTarget(app)).toEqual({ kind: "starter" });
+	});
+
+	it("suspendAll journals every open session and stops their saves", async () => {
+		const { platform, app } = await setup();
+		const id = await app.index.createBlank();
+		const session = (await app.sessions.get(id))!;
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename);
+		app.suspendAll();
+		expect(platform.journal.readAll(app.space, id)).toHaveLength(1);
+		await session.flush();
+		expect(commit).not.toHaveBeenCalled();
+	});
+
+	it("a session that finds data cleared elsewhere resets the app", async () => {
+		const { platform, app } = await setup();
+		const id = await app.index.createBlank();
+		const session = (await app.sessions.get(id))!;
+		app.current = { session, isStarter: false };
+		const before = app.resetCount;
+		await platform.reset.clearAll();
+		session.apply(rename);
+		await session.flush();
+		await vi.waitFor(() => expect(app.resetCount).toBe(before + 1));
+		expect(app.current).toEqual({ session: null, isStarter: false });
+	});
+
+	it("a session that finds newer data shows the reload notice and suspends every session", async () => {
+		const { platform, app } = await setup();
+		const [a, b] = [await app.index.createBlank(), await app.index.createBlank()];
+		const first = (await app.sessions.get(a))!;
+		const second = (await app.sessions.get(b))!;
+		// A newer version of the app saved the first one.
+		const doc = { ...first.doc, schemaVersion: first.doc.schemaVersion + 1, version: 1 };
+		await platform.documents.commit(app.space, { docId: a, baseVersion: 0, doc, entries: [] });
+		const commit = vi.spyOn(platform.documents, "commit");
+		second.apply(rename);
+		first.apply(rename);
+		await first.flush();
+		expect(updateNotice.reason).toBe("newer-data");
+		await second.flush();
+		// Only the first session's refused commit got through.
+		expect(commit).toHaveBeenCalledTimes(1);
+		expect(platform.journal.readAll(app.space, b)).toHaveLength(1);
 	});
 });

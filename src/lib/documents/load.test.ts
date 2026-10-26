@@ -14,23 +14,25 @@ const valid = {
 	body: { widgets: [] }
 };
 
-const V0Schema = z.object({ schemaVersion: z.literal(0), label: z.string() }).passthrough();
+const OLD = CURRENT_SCHEMA_VERSION - 1;
+const OldSchema = z.object({ schemaVersion: z.literal(OLD), label: z.string() }).passthrough();
 
 function v0Doc() {
 	const { name, ...rest } = valid;
 	void name;
-	return { ...rest, schemaVersion: 0, label: "Old name" };
+	return { ...rest, schemaVersion: OLD, label: "Old name" };
 }
 
 const renameChain: Migration[] = [
 	{
-		from: 0,
-		to: 1,
-		schema: V0Schema,
+		from: OLD,
+		to: CURRENT_SCHEMA_VERSION,
+		schema: OldSchema,
 		migrate(raw) {
 			const { label, ...rest } = raw as Record<string, unknown>;
-			return { ...rest, schemaVersion: 1, name: label };
-		}
+			return { ...rest, schemaVersion: CURRENT_SCHEMA_VERSION, name: label };
+		},
+		migrateChange: (change) => change
 	}
 ];
 
@@ -65,7 +67,9 @@ describe("loadDashboard", () => {
 	});
 
 	it("a migration that produces an invalid document is read-only invalid", () => {
-		const bad: Migration[] = [{ ...renameChain[0], migrate: () => ({ schemaVersion: 1 }) }];
+		const bad: Migration[] = [
+			{ ...renameChain[0], migrate: () => ({ schemaVersion: CURRENT_SCHEMA_VERSION }) }
+		];
 		const raw = v0Doc();
 		expect(loadDashboard(raw, bad)).toEqual({ status: "read-only", reason: "invalid", raw });
 	});

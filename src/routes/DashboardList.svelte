@@ -1,11 +1,19 @@
 <script lang="ts">
+	import Download from "@lucide/svelte/icons/download";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FilePlus from "@lucide/svelte/icons/file-plus";
+	import Upload from "@lucide/svelte/icons/upload";
 	import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 	import { onMount } from "svelte";
-	import { dashboardActions } from "$lib/actions/dashboard";
+	import {
+		dashboardActions,
+		downloadBackupFile,
+		importDashboardFile
+	} from "$lib/actions/dashboard";
 	import type { MenuProvider } from "$lib/actions/types";
 	import { menuScope } from "$lib/actions/scope";
+	import RecentlyDeleted from "$lib/components/dashboard/RecentlyDeleted.svelte";
+	import StorageStatus from "$lib/components/shell/StorageStatus.svelte";
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -28,7 +36,9 @@
 			dashboardActions(
 				app,
 				id
-			)(ctx).filter((item) => item.group === "create" || item.group === "manage");
+			)(ctx).filter(
+				(item) => item.group === "create" || item.group === "manage" || item.group === "share"
+			);
 
 	async function createBlank() {
 		await navigate("/dashboards/:id", { params: { id: await app.index.createBlank() } });
@@ -49,12 +59,24 @@
 			<LayoutTemplate aria-hidden="true" />
 			{m.dashboard_new_from_starter()}
 		</Button>
+		<Button variant="outline" onclick={() => importDashboardFile(app)}>
+			<Upload aria-hidden="true" />
+			{m.import_action()}
+		</Button>
+		{#if app.index.items.length > 0}
+			<Button variant="outline" onclick={() => downloadBackupFile(app)}>
+				<Download aria-hidden="true" />
+				{m.backup_download()}
+			</Button>
+		{/if}
 	</div>
 {/snippet}
 
 <ContextMenuHost>
 	<div class="mx-auto flex max-w-3xl flex-col gap-4 p-4">
-		<h1 class="text-xl font-medium">{m.dashboards_heading()}</h1>
+		<h1 id="dashboards-heading" tabindex="-1" class="text-xl font-medium outline-none">
+			{m.dashboards_heading()}
+		</h1>
 		{#if app.index.items.length === 0}
 			<p class="text-muted-foreground">{m.no_dashboards()}</p>
 			{@render createButtons()}
@@ -88,6 +110,10 @@
 					</li>
 				{/each}
 			</ul>
+		{/if}
+		<div class="text-sm"><StorageStatus clearable /></div>
+		{#if app.index.deleted.length > 0}
+			<RecentlyDeleted />
 		{/if}
 	</div>
 </ContextMenuHost>

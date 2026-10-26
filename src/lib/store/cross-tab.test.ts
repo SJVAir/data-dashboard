@@ -53,6 +53,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const sessions: DocumentSession[] = [];
 afterEach(() => {
 	for (const s of sessions.splice(0)) s.dispose();
+	vi.unstubAllGlobals();
 });
 
 async function twoTabs() {
@@ -72,8 +73,23 @@ async function twoTabs() {
 		sessions.push(s!);
 		return s!;
 	};
-	return { platform, a: await open("tab-a"), b: await open("tab-b") };
+	return { platform, open, a: await open("tab-a"), b: await open("tab-b") };
 }
+
+const removeA = (): Change => ({
+	op: "removeWidget",
+	target: { widgetId: "a" },
+	widget: widget("a", 0),
+	index: 0
+});
+
+/** A record a closed tab left in the journal, on top of version `baseVersion`. */
+const record = (changes: Change[], baseVersion = 0) => ({
+	baseVersion,
+	changes,
+	schemaVersion: 1,
+	writtenAt: "2026-10-20T12:00:00.000Z"
+});
 
 async function stored(platform: Platform, id = "d1"): Promise<Dashboard> {
 	return (await platform.documents.get(SPACE, id)) as Dashboard;
@@ -146,12 +162,6 @@ describe("cross-tab sync", () => {
 
 	it("keep-mine keeps a widget I changed that the other tab deleted", async () => {
 		const { platform, a, b } = await twoTabs();
-		const removeA = (): Change => ({
-			op: "removeWidget",
-			target: { widgetId: "a" },
-			widget: widget("a", 0),
-			index: 0
-		});
 		await concurrent(a, b, [title("a", "Mine")], [removeA(), title("b", "Other")]);
 		expect(b.conflict).not.toBeNull();
 
@@ -245,7 +255,117 @@ describe("cross-tab sync", () => {
 		expect(b.status).toBe("saved");
 	});
 
-	it("catches up when the page becomes visible again", async () => {
+	it("a trimmed catch-up during a conflict clears the conflict and replays mine", async () => {
+		const { platform, a, b } = await twoTabs();
+		await concurrent(a, b, [rename("Mine")], [rename("Theirs")]);
+		expect(b.conflict).not.toBeNull();
+
+		// Tab A saves more than the log keeps, so B's base version is trimmed away.
+		for (let i = 0; i <= LOG_LIMIT; i++) a.apply(title("a", `Title ${i}`));
+		await a.flush();
+		await settle();
+		const saved = await stored(platform);
+		expect(b.conflict).toBeNull();
+		expect(saved.name).toBe("Mine");
+		expect(saved.body.widgets[0].title).toBe(`Title ${LOG_LIMIT}`);
+		expect(b.doc).toEqual(saved);
+		expect(b.status).toBe("saved");
+	});
+
+	it("keep mine after a journal-replay conflict keeps edits to widgets the other side deleted", async () => {
+		const { platform, open, a } = await twoTabs();
+		a.apply(removeA());
+		await a.flush();
+		await settle();
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Mine")]));
+
+		const c = await open("tab-c");
+		expect(c.conflict).not.toBeNull();
+		await c.resolveConflict("keep-mine");
+		await settle();
+		const saved = await stored(platform);
+		expect(saved.body.widgets.map((w) => [w.id, w.title])).toEqual([
+			["a", "Mine"],
+			["b", null]
+		]);
+		expect(c.doc).toEqual(saved);
+		expect(a.doc).toEqual(saved);
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("keep mine after a journal-replay conflict survives another save meanwhile", async () => {
+		const { platform, open, a } = await twoTabs();
+		a.apply(removeA());
+		await a.flush();
+		await settle();
+		platform.journal.write(SPACE, "d1", "gone", record([title("a", "Mine")]));
+
+		const c = await open("tab-c");
+		expect(c.conflict).not.toBeNull();
+		// Tab A saves again while the prompt is up; C catches up and the conflict stands.
+		a.apply(title("b", "X"));
+		await a.flush();
+		await settle();
+		expect(c.conflict).not.toBeNull();
+		expect(platform.journal.readAll(SPACE, "d1")).toHaveLength(1);
+
+		await c.resolveConflict("keep-mine");
+		await settle();
+		const saved = await stored(platform);
+		expect(saved.body.widgets.map((w) => [w.id, w.title])).toEqual([
+			["a", "Mine"],
+			["b", "X"]
+		]);
+		expect(c.doc).toEqual(saved);
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("save mine as a copy after a journal replay", async () => {
+		const { platform, open, a } = await twoTabs();
+		a.apply(rename("Theirs"));
+		await a.flush();
+		await settle();
+		platform.journal.write(SPACE, "d1", "gone", record([rename("Mine")]));
+
+		const c = await open("tab-c");
+		expect(c.conflict).not.toBeNull();
+		const copyId = await c.resolveConflict("save-copy");
+		expect(await stored(platform, copyId!)).toMatchObject({ copiedFrom: "d1", name: "Mine" });
+		const original = await stored(platform);
+		expect(original.name).toBe("Theirs");
+		expect(c.doc).toEqual(original);
+		expect(c.conflict).toBeNull();
+		expect(c.status).toBe("saved");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("a catch-up during an in-flight commit", async () => {
+		const { platform, a, b } = await twoTabs();
+		const commit = platform.documents.commit.bind(platform.documents);
+		// Tab A saves (and broadcasts) while B's commit is in flight.
+		vi.spyOn(platform.documents, "commit").mockImplementationOnce(async (space, input) => {
+			a.apply(rename("Theirs"));
+			await a.flush();
+			return commit(space, input);
+		});
+		b.apply(title("b", "Mine"));
+		await b.flush();
+		await settle();
+
+		const saved = await stored(platform);
+		expect(saved.version).toBe(2);
+		expect(saved.name).toBe("Theirs");
+		expect(saved.body.widgets[1].title).toBe("Mine");
+		for (const s of [a, b]) {
+			expect(s.doc).toEqual(saved);
+			expect(s.status).toBe("saved");
+			expect(s.conflict).toBeNull();
+		}
+	});
+
+	it("pageshow from the back/forward cache flushes and catches up", async () => {
+		const win = new EventTarget();
+		vi.stubGlobal("window", win);
 		const platform = createMemoryPlatform();
 		await platform.documents.commit(SPACE, {
 			docId: "d1",
@@ -253,24 +373,46 @@ describe("cross-tab sync", () => {
 			doc: makeDoc(),
 			entries: []
 		});
-		const page = Object.assign(new EventTarget(), { visibilityState: "visible" });
-		const original = globalThis.document;
-		globalThis.document = page as unknown as Document;
-		try {
-			// No channel: the broadcast was missed (the tab was frozen).
-			const b = (await DocumentSession.open(platform, SPACE, "d1", "tab-b"))!;
-			sessions.push(b);
-			const a = (await DocumentSession.open(platform, SPACE, "d1", "tab-a"))!;
-			sessions.push(a);
-			a.apply(rename("Home"));
-			await a.flush();
-			expect(b.doc.name).toBeNull();
+		// No channel: the tab was frozen in the cache and heard nothing.
+		const b = (await DocumentSession.open(platform, SPACE, "d1", "tab-b", {
+			debounceMs: 60_000
+		}))!;
+		sessions.push(b);
+		const a = (await DocumentSession.open(platform, SPACE, "d1", "tab-a"))!;
+		sessions.push(a);
+		b.apply(title("b", "Mine"));
+		a.apply(rename("Theirs"));
+		await a.flush();
 
-			page.dispatchEvent(new Event("visibilitychange"));
-			await settle();
-			expect(b.doc.name).toBe("Home");
-		} finally {
-			globalThis.document = original;
-		}
+		win.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+		await settle();
+		const saved = await stored(platform);
+		expect(saved.name).toBe("Theirs");
+		expect(saved.body.widgets[1].title).toBe("Mine");
+		expect(b.doc).toEqual(saved);
+		expect(b.status).toBe("saved");
+	});
+
+	it("catches up when the app becomes visible again", async () => {
+		const platform = createMemoryPlatform();
+		await platform.documents.commit(SPACE, {
+			docId: "d1",
+			baseVersion: null,
+			doc: makeDoc(),
+			entries: []
+		});
+		// No channel: the broadcast was missed (the tab was frozen).
+		const b = (await DocumentSession.open(platform, SPACE, "d1", "tab-b"))!;
+		sessions.push(b);
+		const a = (await DocumentSession.open(platform, SPACE, "d1", "tab-a"))!;
+		sessions.push(a);
+		platform.activity.setVisible(false);
+		a.apply(rename("Home"));
+		await a.flush();
+		expect(b.doc.name).toBeNull();
+
+		platform.activity.setVisible(true);
+		await settle();
+		expect(b.doc.name).toBe("Home");
 	});
 });

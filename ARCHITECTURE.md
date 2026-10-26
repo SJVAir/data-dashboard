@@ -1571,6 +1571,17 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
   2. **Queued changes record the `schemaVersion` they were written against.** They are
      synced or replayed **before** a document is migrated, and never applied blindly
      across a format change.
+     **Local amendment (built in Foundations spec 3, decided 2026-10-25):** locally, pending
+     changes (change-log entries and journal records) are upgraded alongside the document
+     instead. Each `Migration` has a required `migrateChange(change)` returning the change
+     rewritten for the next format, or `null` when it can't be carried over; those are not
+     applied, and the person is told some unsaved edits couldn't be applied (the kept original
+     still holds the pre-upgrade document). To keep old tabs from writing old-format data,
+     **every `schemaVersion` bump also bumps the IndexedDB version**
+     (`DB_VERSION = DB_LAYOUT_VERSION + CURRENT_SCHEMA_VERSION - 1`), so the `versionchange`
+     handling stops an old tab saving and shows the reload bar; a tab that reads a newer
+     `schemaVersion` than it knows does the same. So `migrateChange` only runs on records older
+     than the current format, at open. Server-side, rule 2 stands as written.
   3. **The server refuses downgrades:** a save whose `schemaVersion` is lower than the
      stored one is rejected.
   4. **New deploys are detected.** The build emits `version.json`. The app checks it on tab
@@ -1691,18 +1702,68 @@ copy…"** and **"Export…"**. The dashboard picker offers new (blank or from t
 dashboard), duplicate, rename, and delete (with an undo toast).
 
 **Local durability safeguards** (these matter most for anonymous users, whose documents
-stay local):
+stay local; built in Foundations spec 3):
 
-- Request persistent storage (`navigator.storage.persist()`) on the first document
-  create or edit.
-- Show a quiet status ("Dashboards are stored in this browser") with a note when
-  protection isn't granted. Safari always falls in this case: it evicts script-written
-  storage after 7 days without a visit unless the site is installed to the home screen.
-- When documents aren't protected, show a **backup nudge** after meaningful edits
-  ("Download a backup", the `.json` export), plus a gentle "sign in to keep this safe
-  everywhere".
-- Surface quota and write errors clearly; keep the in-memory copy so nothing is lost
-  silently.
+- **Persistent storage.** Where the browser decides silently (Chrome, Edge, Safari),
+  `navigator.storage.persist()` is requested automatically on the first document create or
+  edit. Where requesting shows a browser prompt (**Firefox**), the app never requests on its
+  own: the storage status note and the backup reminder offer **"Protect my dashboards"**, which
+  requests (and so shows the prompt) only when clicked, after the person has read why. Until
+  granted, storage counts as unprotected. Refusing the prompt keeps the button in the status
+  note but removes it from the reminder bar. The two cases are told apart by a **user-agent
+  check** (Firefox) in the platform adapter: no feature check distinguishes them (the
+  Permissions API reports "prompt" in Chrome too).
+- **Storage status note.** A popover from the "Saved" indicator, and on the dashboards list:
+  "Dashboards are stored in this browser." When unprotected, a second line says the browser
+  may clear them (Safari does after 7 days without a visit), with "Download a backup" (and
+  "Protect my dashboards" where it prompts). It never interrupts.
+- **Backup reminder.** A slim bar above the dashboard, never a dialog or toast. Shown only
+  when storage is unprotected, never on the first Pacific day of the space's first dashboard,
+  only when a dashboard changed after the last backup download, and at most once every 14
+  days. Actions: "Download a backup", "Not now" (this page load only), and "Don't remind me
+  again" (off for good, per space). State is kept per space in preferences. The "sign in to
+  keep this safe everywhere" line waits for accounts (`DEFERRED.md`).
+- **Quota and write errors** keep the in-memory document, say plainly that the save failed,
+  and offer "Download a backup"; failed saves retry on a backoff timer.
+- **Recently deleted** (30 days, then purged on app open), **Clear my data** (every space,
+  with other open tabs reset at the same moment and unable to write the old data back), and
+  **kept originals** with "Restore an earlier version" (see "Recovery from a bad upgrade").
+
+**Sharing without a server** (built in Foundations spec 3, decided 2026-10-25):
+
+- **Copy versus restore.** A link or an Export file (one dashboard) is a **copy**: a new id,
+  `copiedFrom` = the source id, then the app opens it (replacing the `/import#…` history
+  entry) with the toast "Saved a copy to your dashboards". A backup file is a **restore**: a
+  dashboard whose id isn't in this browser comes back with the same id; one already here is
+  left alone (a backup never overwrites anything); one in Recently deleted is undeleted
+  keeping the browser's version. A summary reports restored, already-here, and unreadable
+  counts. A restored dashboard has its `deletedAt` removed (a backup is a snapshot of live
+  dashboards, so a restore never lands one in Recently deleted). Only ids made of letters,
+  digits, `-`, and `_` (up to 64) are restored, and never the starter's; others count as
+  skipped. Restoring any dashboard counts as a backup for the reminder. Read-only (newer or
+  invalid) dashboards in a backup are restored as stored, still read-only. Links and Export
+  files refuse newer or invalid documents; a read-only dashboard's Export file is its stored
+  value as it is (unknown top-level fields kept), less the local-only fields.
+- **"You already have a copy."** If a non-deleted local copy was made from the same
+  contents, the app asks first: "Open my copy" or "Make a new copy" (equal prominence). "Same
+  contents" is a **local content fingerprint** (a hash of the document's canonical JSON,
+  kept per space in preferences, never in shares or exports; it travels only as backup-only
+  metadata). A changed dashboard has a new fingerprint, so a fresh link gets a fresh copy
+  with no prompt. A deleted copy doesn't count.
+- **The envelope.** Links, Export files, and backups share one wrapper,
+  `{ format: "sjvair-workspace", type: "document" | "backup", formatVersion, exportedAt,
+documents }`, with its own version separate from `schemaVersion`. A shared document carries
+  only `kind`, `schemaVersion`, `id`, `name`, and `body`; local-only fields are left out. A
+  backup carries each dashboard exactly as stored (plus its fingerprint), or, for an open
+  dashboard whose latest edits couldn't be saved, as it is in the tab. Collections and
+  analyses can join without a new format (`DEFERRED.md`).
+- **Links** are `<origin>/workspace/import#1.<lz-string URL-safe payload>` (the fragment is
+  never sent to a server). Limits: a link is capped at **8,000 characters** (over it, the
+  Share dialog offers the file instead); an incoming fragment at 64,000 characters before
+  decompressing; one document at 1,000,000 characters of JSON (checked again after
+  decompressing); a backup file at 50,000,000 bytes. Everything incoming passes the envelope
+  schema, the size limits, and the full load pipeline before anything is saved.
+  `lz-string` and the share/import code are lazy-loaded, never in the entry chunk.
 
 **Share semantics:**
 

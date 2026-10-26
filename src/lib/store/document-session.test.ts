@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type { Change } from "$lib/changes/types";
-import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import type { Migration } from "$lib/documents/load";
+import { CURRENT_SCHEMA_VERSION, type Dashboard, type WidgetInstance } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
-import type { Platform, SpaceId } from "$lib/platform/types";
-import { DocumentSession } from "./document-session.svelte";
+import type { LogEntry, Platform, SpaceId } from "$lib/platform/types";
+import { report } from "$lib/safety/report";
+import { DocumentSession, RETRY_DELAYS_MS } from "./document-session.svelte";
+
+vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 
 const SPACE: SpaceId = "anonymous";
 const NOW = new Date("2026-10-20T12:00:00.000Z");
@@ -149,15 +154,128 @@ describe("DocumentSession", () => {
 		expect(session.status).toBe("saved");
 	});
 
-	it("flushes pending changes when the page becomes hidden", async () => {
-		const doc = Object.assign(new EventTarget(), { visibilityState: "hidden" });
-		vi.stubGlobal("document", doc);
+	it("hidden activity journals and flushes; visible activity catches up", async () => {
 		const { platform, session } = await setup();
 		session.apply(rename("Home"));
+		// Held, as when a mobile browser kills a hidden tab before the save finishes.
+		const commit = platform.documents.commit;
+		let release!: () => void;
+		const held = new Promise<void>((resolve) => (release = resolve));
+		platform.documents.commit = async (...args) => {
+			await held;
+			return commit(...args);
+		};
 
-		doc.dispatchEvent(new Event("visibilitychange"));
+		platform.activity.setVisible(false);
+		expect(platform.journal.readAll(SPACE, "d1")).toHaveLength(1);
+		release();
 		await vi.advanceTimersByTimeAsync(0);
 		expect((await stored(platform)).name).toBe("Home");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+
+		// Another tab saves while this one is hidden; coming back catches up.
+		const other = await DocumentSession.open(platform, SPACE, "d1", "tab-2");
+		other!.apply(title("a", "Map"));
+		await other!.flush();
+		platform.activity.setVisible(true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(session.doc.body.widgets[0].title).toBe("Map");
+		expect(session.doc.version).toBe(2);
+	});
+
+	it("a failed save retries on the backoff timer", async () => {
+		const { platform, session } = await setup();
+		const commit = vi
+			.spyOn(platform.documents, "commit")
+			.mockRejectedValueOnce(new Error("disk"))
+			.mockRejectedValueOnce(new Error("disk"));
+		expect(RETRY_DELAYS_MS).toEqual([1_000, 2_000, 5_000, 15_000, 60_000]);
+		session.apply(rename("Home"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(commit).toHaveBeenCalledTimes(1);
+		expect(session.status).toBe("error");
+		expect(session.errorKind).toBe("unavailable");
+
+		await vi.advanceTimersByTimeAsync(999);
+		expect(commit).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(commit).toHaveBeenCalledTimes(2);
+		expect(session.status).toBe("error");
+
+		await vi.advanceTimersByTimeAsync(2_000);
+		expect(commit).toHaveBeenCalledTimes(3);
+		expect(session.status).toBe("saved");
+		expect(session.errorKind).toBeNull();
+		expect((await stored(platform)).name).toBe("Home");
+
+		// After a success the delay starts over.
+		commit.mockRejectedValueOnce(new Error("disk"));
+		session.apply(title("a", "Map"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(commit).toHaveBeenCalledTimes(4);
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(commit).toHaveBeenCalledTimes(5);
+		expect(session.status).toBe("saved");
+		expect((await stored(platform)).body.widgets[0].title).toBe("Map");
+	});
+
+	it("a quota failure sets errorKind to quota", async () => {
+		const { platform, session } = await setup();
+		vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(
+			new DOMException("full", "QuotaExceededError")
+		);
+		session.apply(rename("Home"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(session.status).toBe("error");
+		expect(session.errorKind).toBe("quota");
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(session.status).toBe("saved");
+		expect(session.errorKind).toBeNull();
+	});
+
+	it("suspend writes the journal and stops saving", async () => {
+		const { platform, session } = await setup();
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename("Home"));
+		session.suspend();
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([
+			{
+				tabId: "tab-1",
+				record: {
+					baseVersion: 0,
+					changes: [rename("Home")],
+					schemaVersion: 1,
+					writtenAt: NOW.toISOString()
+				}
+			}
+		]);
+
+		session.apply(title("a", "Map"));
+		await session.flush();
+		platform.activity.setVisible(false);
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(commit).not.toHaveBeenCalled();
+		expect((await stored(platform)).name).toBeNull();
+		// The journal still holds only what was pending when it was suspended.
+		expect(platform.journal.readAll(SPACE, "d1")[0].record).toMatchObject({
+			changes: [rename("Home")]
+		});
+	});
+
+	it("discard drops pending changes without saving or journaling", async () => {
+		const win = new EventTarget();
+		vi.stubGlobal("window", win);
+		const { platform, session } = await setup();
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename("Home"));
+		session.discard();
+		win.dispatchEvent(new Event("pagehide"));
+		platform.activity.setVisible(false);
+		await session.flush();
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(commit).not.toHaveBeenCalled();
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+		expect((await stored(platform)).name).toBeNull();
 	});
 
 	it("dispose flushes and removes listeners", async () => {
@@ -332,6 +450,104 @@ describe("DocumentSession", () => {
 		expect(await platform.documents.get(SPACE, "starter")).toBeUndefined();
 	});
 
+	it("a hand-off that succeeds after the starter was suspended suspends the copy", async () => {
+		const { platform } = await setup();
+		const successor = new DocumentSession({
+			platform,
+			space: SPACE,
+			doc: makeDoc(),
+			tabId: "tab-1",
+			now: () => NOW
+		});
+		let finish!: () => void;
+		const starter = new DocumentSession({
+			platform,
+			space: SPACE,
+			doc: { ...makeDoc(), id: "starter" },
+			tabId: "tab-1",
+			now: () => NOW,
+			onBeforeFirstEdit: (change) =>
+				new Promise((resolve) => {
+					finish = () => {
+						successor.apply(change);
+						resolve(successor);
+					};
+				})
+		});
+		starter.apply(rename("Home"));
+		starter.apply(title("a", "Map"));
+		starter.suspend();
+		const commit = vi.spyOn(platform.documents, "commit");
+
+		finish();
+		await vi.advanceTimersByTimeAsync(0);
+		await successor.flush();
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(commit).not.toHaveBeenCalled();
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([
+			{
+				tabId: "tab-1",
+				record: {
+					baseVersion: 0,
+					changes: [rename("Home"), title("a", "Map")],
+					schemaVersion: 1,
+					writtenAt: NOW.toISOString()
+				}
+			}
+		]);
+	});
+
+	it("replayPending does nothing once the hand-off has succeeded", async () => {
+		const { platform } = await setup();
+		const successor = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t" });
+		const hook = vi.fn(async (change: Change) => {
+			successor.apply(change);
+			return successor;
+		});
+		const starter = new DocumentSession({
+			platform,
+			space: SPACE,
+			doc: { ...makeDoc(), id: "starter" },
+			tabId: "tab-1",
+			onBeforeFirstEdit: hook
+		});
+		starter.apply(rename("Home"));
+		await vi.advanceTimersByTimeAsync(0);
+		const left = {
+			baseVersion: 0,
+			changes: [title("a", "Other")],
+			schemaVersion: 1,
+			writtenAt: NOW.toISOString()
+		};
+		platform.journal.write(SPACE, "starter", "tab-2", left);
+
+		await starter.replayPending();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(hook).toHaveBeenCalledTimes(1);
+		expect(successor.doc.body.widgets[0].title).toBeNull();
+		// Left for the starter that owns it.
+		expect(platform.journal.readAll(SPACE, "starter")).toEqual([{ tabId: "tab-2", record: left }]);
+	});
+
+	it("a refused commit whose catch-up can't read storage retries", async () => {
+		const { platform } = await setup();
+		const other = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t2" });
+		other.apply(rename("Theirs"));
+		await other.flush();
+
+		const session = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "tab-1" });
+		vi.spyOn(platform.documents, "get").mockRejectedValueOnce(new Error("read failed"));
+		session.apply(title("a", "Map"));
+		await session.flush();
+		expect(session.status).toBe("error");
+
+		await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0]);
+		const saved = await stored(platform);
+		expect(saved.name).toBe("Theirs");
+		expect(saved.body.widgets[0].title).toBe("Map");
+		expect(session.status).toBe("saved");
+	});
+
 	it("open loads a stored dashboard, and returns null for an unknown id", async () => {
 		const { platform } = await setup();
 		const session = await DocumentSession.open(platform, SPACE, "d1", "tab-2");
@@ -395,15 +611,13 @@ describe("DocumentSession journal", () => {
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
 	});
 
-	it("the page becoming hidden also writes the pending changes", async () => {
-		const page = Object.assign(new EventTarget(), { visibilityState: "hidden" });
-		vi.stubGlobal("document", page);
+	it("the app becoming hidden also writes the pending changes", async () => {
 		const { platform, session } = await setup();
 		session.apply(title("a", "Ozone"));
 		// The commit is held: mobile browsers may kill a hidden tab before it finishes.
 		platform.documents.commit = () => new Promise(() => {});
 
-		page.dispatchEvent(new Event("visibilitychange"));
+		platform.activity.setVisible(false);
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([
 			{ tabId: "tab-1", record: record([title("a", "Ozone")]) }
 		]);
@@ -531,5 +745,236 @@ describe("DocumentSession journal", () => {
 		expect(session!.doc).toEqual(makeDoc());
 		expect((await stored(platform)).version).toBe(0);
 		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+});
+
+const OLD_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION - 1;
+
+/** A test-only step from the previous format: an old `rename` change becomes a `setField`. */
+function testChain(migrate = (raw: object): unknown => raw): Migration[] {
+	return [
+		{
+			from: OLD_SCHEMA_VERSION,
+			to: CURRENT_SCHEMA_VERSION,
+			schema: z.unknown(),
+			migrate: (raw) => migrate({ ...(raw as object), schemaVersion: CURRENT_SCHEMA_VERSION }),
+			migrateChange(change) {
+				const c = change as { op: string; to?: string };
+				if (c.op !== "rename") return change;
+				if (c.to === "drop") return null;
+				return { op: "setField", target: { path: "name" }, from: null, to: c.to };
+			}
+		}
+	];
+}
+
+const oldRename = (to: string) => ({ op: "rename", to });
+
+describe("DocumentSession format changes", () => {
+	const opened: DocumentSession[] = [];
+	afterEach(() => {
+		for (const s of opened.splice(0)) s.dispose();
+		vi.mocked(report).mockClear();
+	});
+
+	async function withStored(doc: unknown) {
+		const platform = createMemoryPlatform();
+		await platform.documents.commit(SPACE, {
+			docId: "d1",
+			baseVersion: null,
+			doc: doc as Dashboard,
+			entries: []
+		});
+		return platform;
+	}
+
+	async function open(
+		platform: Platform,
+		options: Parameters<typeof DocumentSession.open>[4] = {},
+		tabId = "tab-1"
+	) {
+		const session = await DocumentSession.open(platform, SPACE, "d1", tabId, {
+			debounceMs: 60_000,
+			now: () => NOW,
+			...options
+		});
+		opened.push(session!);
+		return session!;
+	}
+
+	/** Another tab's save, stored as written (any format). */
+	async function storeRaw(
+		platform: Platform,
+		doc: Record<string, unknown>,
+		changes: unknown[],
+		schemaVersion: number
+	) {
+		const base = (await stored(platform)).version;
+		const entries = changes.map((change, i) => ({
+			docId: "d1",
+			version: base + i + 1,
+			change,
+			tabId: "other",
+			schemaVersion
+		})) as LogEntry[];
+		await platform.documents.commit(SPACE, {
+			docId: "d1",
+			baseVersion: base,
+			doc: { ...(await stored(platform)), ...doc, version: base + changes.length } as Dashboard,
+			entries
+		});
+	}
+
+	it("opening an upgraded document keeps the original once", async () => {
+		const old = { ...makeDoc(), schemaVersion: OLD_SCHEMA_VERSION };
+		const platform = await withStored(old);
+		const session = await open(platform, { chain: testChain() });
+		expect(session.readOnly).toBe(false);
+		expect(session.doc.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+		expect(session.hasOriginal).toBe(true);
+		const kept = {
+			id: "d1",
+			raw: old,
+			keptAt: NOW.toISOString(),
+			fromSchemaVersion: OLD_SCHEMA_VERSION
+		};
+		expect(await platform.originals.get(SPACE, "d1")).toEqual(kept);
+
+		// Still stored in the old format: opening again keeps the first original.
+		const later = new Date("2026-10-22T00:00:00.000Z");
+		const again = await open(platform, { chain: testChain(), now: () => later }, "tab-2");
+		expect(again.hasOriginal).toBe(true);
+		expect(await platform.originals.get(SPACE, "d1")).toEqual(kept);
+	});
+
+	it("a current document has no original", async () => {
+		const platform = await withStored(makeDoc());
+		const session = await open(platform, { chain: testChain() });
+		expect(session.hasOriginal).toBe(false);
+		expect(await platform.originals.list(SPACE)).toEqual([]);
+	});
+
+	it("an upgrade that fails validation saves nothing and reports", async () => {
+		const old = { ...makeDoc(), schemaVersion: OLD_SCHEMA_VERSION };
+		const platform = await withStored(old);
+		const broken = testChain((raw) => ({ ...raw, body: "broken" }));
+		const session = await open(platform, { chain: broken });
+		expect(session.readOnly).toBe("invalid");
+		session.apply(rename("Home"));
+		await session.flush();
+		expect(await platform.documents.get(SPACE, "d1")).toEqual(old);
+		expect(await platform.originals.get(SPACE, "d1")).toBeUndefined();
+		expect(report).toHaveBeenCalledWith(
+			expect.any(Error),
+			expect.objectContaining({ docId: "d1", fromSchemaVersion: OLD_SCHEMA_VERSION })
+		);
+	});
+
+	it("an original that can't be kept opens the upgrade read-only and reports", async () => {
+		const old = { ...makeDoc(), schemaVersion: OLD_SCHEMA_VERSION };
+		const platform = await withStored(old);
+		const failure = new Error("originals unavailable");
+		vi.spyOn(platform.originals, "put").mockRejectedValueOnce(failure);
+		const session = await open(platform, { chain: testChain() });
+		expect(session.readOnly).toBe("invalid");
+		expect(session.hasOriginal).toBe(false);
+		session.apply(rename("Home"));
+		await session.flush();
+		expect(await platform.documents.get(SPACE, "d1")).toEqual(old);
+		expect(report).toHaveBeenCalledWith(
+			failure,
+			expect.objectContaining({ docId: "d1", fromSchemaVersion: OLD_SCHEMA_VERSION })
+		);
+	});
+
+	it("older journal records are upgraded before replay", async () => {
+		const platform = await withStored(makeDoc());
+		platform.journal.write(SPACE, "d1", "gone", {
+			baseVersion: 0,
+			changes: [oldRename("Mine"), oldRename("drop")],
+			schemaVersion: OLD_SCHEMA_VERSION,
+			writtenAt: NOW.toISOString()
+		});
+		const session = await open(platform, { chain: testChain() });
+		expect(session.doc.name).toBe("Mine");
+		expect(session.droppedEdits).toBe(1);
+		expect((await stored(platform)).name).toBe("Mine");
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+	});
+
+	it("older log entries are upgraded during catch-up", async () => {
+		const platform = await withStored(makeDoc());
+		const session = await open(platform, { chain: testChain() });
+		// An older tab saved after this one opened.
+		await storeRaw(
+			platform,
+			{ schemaVersion: OLD_SCHEMA_VERSION, name: "Theirs" },
+			[oldRename("Theirs"), oldRename("drop")],
+			OLD_SCHEMA_VERSION
+		);
+		session.apply(rename("Mine"));
+		await session.flush();
+		expect(session.conflict?.pairs).toEqual([
+			[rename("Mine"), { op: "setField", target: { path: "name" }, from: null, to: "Theirs" }]
+		]);
+	});
+
+	it.each([
+		["stored document", { schemaVersion: CURRENT_SCHEMA_VERSION + 1 }, CURRENT_SCHEMA_VERSION],
+		["log entry", {}, CURRENT_SCHEMA_VERSION + 1]
+	])("a %s from a newer format suspends and asks for a reload", async (_, doc, entryVersion) => {
+		const platform = await withStored(makeDoc());
+		const onNeedsReload = vi.fn();
+		const session = await open(platform, { onNeedsReload });
+		await storeRaw(platform, doc, [title("a", "Theirs")], entryVersion);
+		const commit = vi.spyOn(platform.documents, "commit");
+		session.apply(rename("Mine"));
+		await session.flush();
+		expect(onNeedsReload).toHaveBeenCalledTimes(1);
+		expect(commit).toHaveBeenCalledTimes(1);
+
+		session.apply(title("a", "Later"));
+		await session.flush();
+		platform.activity.setVisible(false);
+		platform.activity.setVisible(true);
+		await session.flush();
+		expect(commit).toHaveBeenCalledTimes(1);
+		expect(onNeedsReload).toHaveBeenCalledTimes(1);
+		// Journaled for the newer version to replay.
+		expect(platform.journal.readAll(SPACE, "d1")[0].record).toMatchObject({
+			changes: [rename("Mine")]
+		});
+	});
+
+	it("a changed generation stops saving and calls onCleared", async () => {
+		const platform = await withStored(makeDoc());
+		const onCleared = vi.fn();
+		const session = await open(platform, { onCleared });
+		await platform.reset.clearAll();
+		const commit = vi.spyOn(platform.documents, "commit");
+
+		session.apply(rename("Home"));
+		platform.activity.setVisible(false);
+		await session.flush();
+		expect(commit).not.toHaveBeenCalled();
+		expect(platform.journal.readAll(SPACE, "d1")).toEqual([]);
+		expect(onCleared).toHaveBeenCalledTimes(1);
+	});
+
+	it("a tab with nothing to save that missed the clear finds out when it's shown again", async () => {
+		for (const doc of [makeDoc(), { ...makeDoc(), schemaVersion: CURRENT_SCHEMA_VERSION + 1 }]) {
+			const platform = await withStored(doc);
+			const onCleared = vi.fn();
+			const session = await open(platform, { onCleared });
+			await platform.reset.clearAll();
+			platform.activity.setVisible(false);
+			platform.activity.setVisible(true);
+			expect(onCleared).toHaveBeenCalledTimes(1);
+			// Once only.
+			platform.activity.setVisible(false);
+			platform.activity.setVisible(true);
+			expect(onCleared).toHaveBeenCalledTimes(1);
+			session.dispose();
+		}
 	});
 });

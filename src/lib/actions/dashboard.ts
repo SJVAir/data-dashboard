@@ -1,12 +1,19 @@
+import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
 import FilePlus from "@lucide/svelte/icons/file-plus";
 import LayoutTemplate from "@lucide/svelte/icons/layout-template";
+import History from "@lucide/svelte/icons/history";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
+import Share2 from "@lucide/svelte/icons/share-2";
+import Upload from "@lucide/svelte/icons/upload";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
+import { openRestoreVersion } from "$lib/components/dialogs/RestoreVersionDialog.svelte";
+import { restoreOriginal } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
+import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
 import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
@@ -14,6 +21,50 @@ import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { newPlaceholder } from "$lib/widgets/placeholder";
 import { navigate } from "../../router";
 import type { MenuProvider } from "./types";
+
+/** The share, export, and import handlers load on first use, keeping `lz-string` out of the entry chunk. */
+type Sharing = typeof import("$lib/sharing/actions");
+
+/**
+ * Runs a sharing handler; resolves whether it finished. A chunk that won't load is `loadLazy`'s
+ * reload notice; any other failure is a toast, not an unhandled rejection.
+ */
+async function runSharing(
+	work: (sharing: Sharing) => Promise<void>,
+	failure: string
+): Promise<boolean> {
+	let sharing: Sharing;
+	try {
+		sharing = await loadLazy(() => import("$lib/sharing/actions"));
+	} catch {
+		return false;
+	}
+	try {
+		await work(sharing);
+		return true;
+	} catch {
+		toast.error(failure);
+		return false;
+	}
+}
+
+/** Picks a file to import (the "Import…" action and the list's button). */
+export function importDashboardFile(app: AppContext): void {
+	void runSharing((s) => s.importFromFile(app), m.import_file_invalid());
+}
+
+/**
+ * Saves a backup of every dashboard; resolves once the file is handed over (`true`) or it
+ * failed (`false`).
+ */
+export function downloadBackupFile(app: AppContext): Promise<boolean> {
+	return runSharing((s) => s.downloadBackup(app), m.backup_failed());
+}
+
+/** Starts loading the sharing handlers ahead of use (a failure shows on use). */
+export function prefetchSharing(): void {
+	import("$lib/sharing/actions").catch(() => {});
+}
 
 /** The current dashboard's session when it can be edited. */
 function editable(app: AppContext): DocumentSession | null {
@@ -142,6 +193,42 @@ function softDelete(
 	});
 }
 
+/**
+ * Brings a dashboard out of Recently deleted (as an ordinary, undoable change that syncs to
+ * other tabs) and opens it.
+ */
+export async function restoreDeleted(app: AppContext, id: string): Promise<void> {
+	const session = await app.sessions.get(id, { remember: false });
+	if (!session) return;
+	if (session.readOnly) {
+		toast.error(m.deleted_restore_read_only());
+		return;
+	}
+	if (session.doc.deletedAt === undefined) return;
+	session.apply({
+		op: "setField",
+		target: { path: "deletedAt" },
+		from: session.doc.deletedAt,
+		to: null
+	});
+	await session.flush();
+	await app.index.refresh();
+	await openDashboard(id);
+}
+
+/** Opens the Restore dialog for the current dashboard's kept original. */
+async function restoreVersion(app: AppContext): Promise<void> {
+	const session = editable(app);
+	if (!session) return;
+	const original = await app.platform.originals.get(app.space, session.doc.id);
+	if (!original) return;
+	openRestoreVersion(original, async () => {
+		const restored = await restoreOriginal(app, session);
+		if (restored) toast(m.restore_version_done());
+		return restored;
+	});
+}
+
 async function deleteDashboard(app: AppContext, id?: string): Promise<void> {
 	const target = await resolveTarget(app, id);
 	if (!target || target.session.readOnly || target.isStarter) return;
@@ -166,6 +253,8 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 		const { session, isStarter } = app.current;
 		// A row's dashboard isn't open; its actions check when they run.
 		const locked = id === undefined && (!session || session.readOnly !== false);
+		// Only the open dashboard has a kept original to restore, and only when it can be edited.
+		const restorable = id === undefined && session?.hasOriginal === true && !session.readOnly;
 		return [
 			{
 				id: "add-widget",
@@ -190,6 +279,13 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				run: () => void app.index.createFromStarter().then((id) => openDashboard(id))
 			},
 			{
+				id: "import",
+				label: m.import_action(),
+				icon: Upload,
+				group: "create",
+				run: () => importDashboardFile(app)
+			},
+			{
 				id: "duplicate-dashboard",
 				label: m.dashboard_duplicate(),
 				icon: Copy,
@@ -208,6 +304,17 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 					else void resolveTarget(app, id).then((t) => t && renameDashboard(app, () => t.session));
 				}
 			},
+			...(restorable
+				? [
+						{
+							id: "restore-version",
+							label: m.restore_version_action(),
+							icon: History,
+							group: "manage" as const,
+							run: () => void restoreVersion(app)
+						}
+					]
+				: []),
 			{
 				id: "delete-dashboard",
 				label: m.dashboard_delete(),
@@ -216,6 +323,23 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				// The starter is built in; it can't be deleted.
 				disabled: locked || (id === undefined && isStarter),
 				run: () => void deleteDashboard(app, id)
+			},
+			{
+				id: "share-dashboard",
+				label: m.share_action(),
+				icon: Share2,
+				group: "share",
+				// The starter and a row's dashboard are shareable; a read-only one is checked when it runs.
+				disabled: id === undefined && !session,
+				run: () => void runSharing((s) => s.shareDashboard(app, id), m.share_failed())
+			},
+			{
+				id: "export-dashboard",
+				label: m.export_action(),
+				icon: Download,
+				group: "share",
+				disabled: id === undefined && !session,
+				run: () => void runSharing((s) => s.exportDashboard(app, id), m.share_failed())
 			}
 		];
 	};

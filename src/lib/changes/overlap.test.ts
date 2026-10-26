@@ -73,4 +73,13 @@ describe("changesOverlap", () => {
 	it("both sides removing the same widget agree, so they do not overlap", () => {
 		expect(changesOverlap(remove("a"), remove("a"))).toBe(false);
 	});
+
+	it("replaceDocument overlaps every change, on either side, and another replaceDocument", () => {
+		const content = { name: null, body: { widgets: [] } };
+		const replace: Change = { op: "replaceDocument", target: {}, from: content, to: content };
+		for (const other of [add("a"), remove("a"), title("a", "T"), name("N"), replace]) {
+			expect(changesOverlap(replace, other)).toBe(true);
+			expect(changesOverlap(other, replace)).toBe(true);
+		}
+	});
 });

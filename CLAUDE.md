@@ -155,6 +155,7 @@ Installed:
 | Paraglide JS (inlang)              | UI message catalog (English-only today)            |
 | `zod`                              | Validating every incoming document                 |
 | `idb`                              | IndexedDB (inside the platform adapter only)       |
+| `lz-string`                        | URL-fragment document sharing                      |
 | shadcn-svelte / bits-ui            | Accessible UI primitives                           |
 | `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)              |
 | `@lucide/svelte`                   | Icons                                              |
@@ -169,7 +170,6 @@ Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 | Library                            | Purpose                                           |
 | ---------------------------------- | ------------------------------------------------- |
 | `uplot` (direct dependency)        | **All** charts (time-series-first)                |
-| `lz-string`                        | URL-fragment document sharing                     |
 | `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView`, data stores |
 | `terra-draw`                       | Drawn-shape map selection (via a map-sdk plugin)  |
 | A Markdown renderer (raw HTML off) | Safe Notes rendering                              |

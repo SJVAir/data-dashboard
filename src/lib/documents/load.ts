@@ -4,7 +4,13 @@ import { CURRENT_SCHEMA_VERSION, DashboardSchema, type Dashboard } from "./schem
 export type Migration = {
 	from: number;
 	to: number;
+	/** Must not mutate its input. */
 	migrate(raw: unknown): unknown;
+	/**
+	 * Carries one pending change from `from` to `to`; `null` means it can't be carried over.
+	 * Must not mutate its input.
+	 */
+	migrateChange(change: unknown): unknown | null;
 	/** Validates the input version. */
 	schema: z.ZodType;
 };

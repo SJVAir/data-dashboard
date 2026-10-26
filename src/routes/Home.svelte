@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { untrack } from "svelte";
 	import { toast } from "svelte-sonner";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { m } from "$lib/paraglide/messages.js";
@@ -13,26 +13,33 @@
 	/** The starter's session while it's shown here. */
 	let starter: DocumentSession | null = null;
 
-	// `/` shows the starter in place, or moves on to the dashboard it resolves to.
-	onMount(() => {
-		// Until the target resolves, nothing is current: undo must not reach the last page's dashboard.
-		app.current = { session: null, isStarter: false };
-		let active = true;
-		void (async () => {
-			const target = await homeTarget(app);
-			if (!active) return;
-			if (target.kind === "dashboard") {
-				await navigate("/dashboards/:id", { params: { id: target.id }, replace: true });
-				return;
-			}
-			const session = await app.sessions.get(STARTER_ID);
-			if (!active) return;
-			starter = session;
-			app.current = { session, isStarter: true };
-		})();
-		return () => {
-			active = false;
-		};
+	// `/` shows the starter in place, or moves on to the dashboard it resolves to. Runs again
+	// after the data is cleared while `/` is showing.
+	$effect(() => {
+		void app.resetCount;
+		return untrack(() => {
+			// Until the target resolves, nothing is current: undo must not reach the last page's dashboard.
+			app.current = { session: null, isStarter: false };
+			starter = null;
+			let active = true;
+			void (async () => {
+				const target = await homeTarget(app);
+				if (!active) return;
+				if (target.kind === "dashboard") {
+					await navigate("/dashboards/:id", { params: { id: target.id }, replace: true });
+					return;
+				}
+				const session = await app.sessions.get(STARTER_ID);
+				if (!active) return;
+				starter = session;
+				app.current = { session, isStarter: true };
+				// Edits a starter page left mid-hand-off (it went away) are handed off now.
+				void session?.replayPending();
+			})();
+			return () => {
+				active = false;
+			};
+		});
 	});
 
 	// The starter's first edit made a copy and made it current: show it at its own URL.

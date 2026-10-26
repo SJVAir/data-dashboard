@@ -2,6 +2,7 @@ import { loadDashboard } from "$lib/documents/load";
 import { displayNames, type DashboardSummary } from "$lib/documents/names";
 import type { Dashboard } from "$lib/documents/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { forgetDocument } from "$lib/sharing/fingerprints";
 import {
 	STARTER_ID,
 	blankDashboard,
@@ -9,6 +10,7 @@ import {
 	duplicateDashboard,
 	starterDashboard
 } from "$lib/starter/starter";
+import { pendingName } from "./journal";
 import type { TabChannel } from "./tab-channel";
 
 export type DashboardIndexOptions = {
@@ -52,10 +54,15 @@ function pick(doc: Dashboard): DashboardSummary {
 	return { id, name, copiedFrom, createdAt, updatedAt, deletedAt };
 }
 
-/** This space's dashboards (not deleted), newest change first, with their display names. */
+/**
+ * This space's dashboards (not deleted), newest change first, with their display names; and
+ * those in Recently deleted, newest deletion first.
+ */
 export class DashboardIndex {
 	items = $state.raw<DashboardSummary[]>([]);
 	names = $derived(displayNames(this.items, STARTER_ID));
+	deleted = $state.raw<DashboardSummary[]>([]);
+	deletedNames = $derived(displayNames(this.deleted, STARTER_ID));
 
 	readonly #platform: Platform;
 	readonly #space: SpaceId;
@@ -64,6 +71,7 @@ export class DashboardIndex {
 	readonly #now: () => Date;
 	readonly #unsubscribe: () => void;
 	#generation = 0;
+	#latest: Promise<void> = Promise.resolve();
 
 	constructor(opts: DashboardIndexOptions) {
 		this.#platform = opts.platform;
@@ -75,19 +83,73 @@ export class DashboardIndex {
 		this.#now = opts.now ?? (() => new Date());
 		this.#unsubscribe =
 			this.#channel?.subscribe((msg) => {
-				if (msg.space === this.#space) void this.refresh();
+				if (msg.type === "committed" && msg.space === this.#space) void this.refresh();
 			}) ?? (() => {});
 	}
 
-	/** Re-read the stored dashboards. When refreshes overlap, the latest one wins. */
+	/**
+	 * Re-read the stored dashboards. When refreshes overlap, the latest one wins, and every
+	 * caller waits for it: when this resolves, the index shows what was stored at the call.
+	 */
 	async refresh(): Promise<void> {
 		const generation = ++this.#generation;
+		const own = this.#read(generation);
+		this.#latest = own;
+		await own;
+		for (let seen = own; this.#latest !== seen;) {
+			seen = this.#latest;
+			await seen;
+		}
+	}
+
+	async #read(generation: number): Promise<void> {
 		const raws = await this.#platform.documents.list(this.#space);
 		if (generation !== this.#generation) return;
-		this.items = raws
+		// A rename that exists only in a journal record shows before the dashboard is opened.
+		// A local lookup, not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const pending = new Map<string, Array<{ record: unknown }>>();
+		for (const { docId, record } of this.#platform.journal.list(this.#space)) {
+			pending.set(docId, [...(pending.get(docId) ?? []), { record }]);
+		}
+		const all = raws
 			.map(summarize)
-			.filter((d): d is DashboardSummary => d !== null && d.deletedAt === undefined)
+			.filter((d): d is DashboardSummary => d !== null)
+			.map((d) => {
+				const name = pendingName(pending.get(d.id) ?? []);
+				return name === undefined ? d : { ...d, name };
+			});
+		this.items = all
+			.filter((d) => d.deletedAt === undefined)
 			.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+		this.deleted = all
+			.filter((d) => d.deletedAt !== undefined)
+			.sort((a, b) => Date.parse(b.deletedAt!) - Date.parse(a.deletedAt!));
+	}
+
+	/** "Delete now": removes the dashboard for good, with its journal records and fingerprints. */
+	async remove(id: string): Promise<void> {
+		const { documents, journal } = this.#platform;
+		// Restored (here or in another tab) while the person was confirming: leave it.
+		const stored = await documents.get(this.#space, id);
+		const deletedAt = (stored as { deletedAt?: unknown } | null | undefined)?.deletedAt;
+		if (typeof deletedAt !== "string") {
+			await this.refresh();
+			return;
+		}
+		await documents.remove(this.#space, id);
+		for (const { docId, tabId } of journal.list(this.#space)) {
+			if (docId === id) journal.clear(this.#space, docId, tabId);
+		}
+		await forgetDocument(this.#platform, this.#space, id);
+		this.#channel?.post({
+			type: "committed",
+			space: this.#space,
+			docId: id,
+			version: 0,
+			tabId: this.#tabId
+		});
+		await this.refresh();
 	}
 
 	createBlank(): Promise<string> {
@@ -108,6 +170,11 @@ export class DashboardIndex {
 			source = loaded.doc;
 		}
 		return this.#create(duplicateDashboard(source, this.#now()));
+	}
+
+	/** Stores `doc` (a new, unstored document) as a dashboard and refreshes the list. */
+	createFrom(doc: Dashboard): Promise<string> {
+		return this.#create(doc);
 	}
 
 	dispose(): void {

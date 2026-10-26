@@ -1,6 +1,9 @@
 import { getContext, setContext } from "svelte";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { StorageProtection } from "$lib/safety/protection.svelte";
+import { purgeExpired } from "$lib/safety/purge";
+import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { placeholderType } from "$lib/widgets/placeholder";
@@ -19,11 +22,23 @@ export type AppContext = {
 	tabId: string;
 	channel: TabChannel;
 	index: DashboardIndex;
+	protection: StorageProtection;
 	/** Open sessions by id (one per dashboard in this tab); `STARTER_ID` gives the starter. Opening records the last-opened dashboard unless `remember` is false. */
 	sessions: {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
 	};
 	current: CurrentDashboard;
+	/** The sessions this tab has open (the starter's included). */
+	openSessions(): DocumentSession[];
+	/** Counts `resetAfterClear` calls; the root component goes to `/` when it changes. */
+	readonly resetCount: number;
+	/** Storage is about to go away: journal every open session's changes and stop saving. */
+	suspendAll(): void;
+	/**
+	 * After this browser's data was cleared: drop every open session without saving, show no
+	 * dashboard, and reload the index. The root component then goes to `/` (the starter).
+	 */
+	resetAfterClear(): Promise<void>;
 };
 
 export type AppOptions = {
@@ -60,10 +75,14 @@ function withLocalEcho(channel: TabChannel): TabChannel {
 
 class App implements AppContext {
 	current = $state<CurrentDashboard>({ session: null, isStarter: false });
+	resetCount = $state(0);
 	readonly index: DashboardIndex;
+	readonly protection: StorageProtection;
 	readonly sessions: AppContext["sessions"];
 
 	readonly #open = new Map<string, Promise<DocumentSession | null>>();
+	/** The sessions in `#open` that have finished opening, for synchronous `suspendAll`. */
+	readonly #live = new Map<string, DocumentSession>();
 
 	constructor(
 		readonly platform: Platform,
@@ -73,8 +92,18 @@ class App implements AppContext {
 		readonly options: AppOptions
 	) {
 		this.index = new DashboardIndex({ platform, space, channel, tabId, now: options.now });
+		this.protection = new StorageProtection(platform, space);
 		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
 	}
+
+	/** Given to every session: storage moved to a newer format, or was cleared, elsewhere. */
+	readonly #guards = {
+		onNeedsReload: () => {
+			updateNotice.show("newer-data");
+			this.suspendAll();
+		},
+		onCleared: () => void this.resetAfterClear()
+	};
 
 	async #get(id: string, remember: boolean): Promise<DocumentSession | null> {
 		if (id === STARTER_ID) {
@@ -87,7 +116,12 @@ class App implements AppContext {
 			opening = DocumentSession.open(this.platform, this.space, id, this.tabId, {
 				channel,
 				debounceMs,
-				now
+				now,
+				...this.#guards
+			});
+			const own = opening;
+			void own.then((session) => {
+				if (session && this.#open.get(id) === own) this.#live.set(id, session);
 			});
 			this.#open.set(id, opening);
 		}
@@ -101,25 +135,53 @@ class App implements AppContext {
 		return session;
 	}
 
+	openSessions(): DocumentSession[] {
+		return [...this.#live.values()];
+	}
+
+	suspendAll(): void {
+		for (const session of this.#live.values()) session.suspend();
+		// Still opening: suspended as soon as they're open.
+		for (const opening of this.#open.values()) void opening.then((session) => session?.suspend());
+	}
+
+	async resetAfterClear(): Promise<void> {
+		for (const session of this.#live.values()) session.discard();
+		for (const opening of this.#open.values()) void opening.then((session) => session?.discard());
+		this.#live.clear();
+		this.#open.clear();
+		this.current = { session: null, isStarter: false };
+		this.resetCount++;
+		await this.index.refresh();
+	}
+
 	#starter(): DocumentSession {
 		const { debounceMs, now } = this.options;
-		return starterSession({
+		const resets = this.resetCount;
+		const starter = starterSession({
 			platform: this.platform,
 			space: this.space,
 			tabId: this.tabId,
 			channel: this.channel,
 			debounceMs,
 			now,
+			...this.#guards,
 			onCopied: (copy) => {
+				// A hand-off that finished after the data was cleared mustn't come back.
+				if (this.resetCount !== resets) return copy.discard();
 				const id = copy.doc.id;
 				// The next visit to the starter gets a fresh one.
 				this.#open.delete(STARTER_ID);
+				this.#live.delete(STARTER_ID);
 				this.#open.set(id, Promise.resolve(copy));
+				this.#live.set(id, copy);
 				this.current = { session: copy, isStarter: false };
 				void this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
 				void this.index.refresh();
 			}
 		});
+		this.#live.set(STARTER_ID, starter);
+		return starter;
 	}
 }
 
@@ -130,7 +192,25 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	const tabId = options.tabId ?? crypto.randomUUID();
 	const channel = withLocalEcho(options.channel ?? createTabChannel());
 	const app = new App(platform, space, tabId, channel, { ...options, channel });
+	try {
+		// A timestamp, not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		await purgeExpired(platform, space, options.now?.() ?? new Date());
+	} catch {
+		// Housekeeping: a storage error mustn't keep the app from opening.
+	}
 	await app.index.refresh();
+	await app.protection.refresh();
+	// The first create or edit in this tab (its own message comes back through the echo).
+	// Another tab cleared this browser's data: drop everything this tab has open.
+	channel.subscribe((msg) => {
+		if (msg.type === "cleared" && msg.tabId !== tabId) void app.resetAfterClear();
+	});
+	const stop = channel.subscribe((msg) => {
+		if (msg.type !== "committed" || msg.tabId !== tabId) return;
+		stop();
+		void app.protection.requestAuto();
+	});
 	return app;
 }
 
