@@ -29,6 +29,7 @@
 		"test:e2e": "playwright test --project=chromium",
 		"test:e2e:all": "playwright test",
 		"test:dev-stack": "playwright test -c playwright.local.config.ts --project=dev-stack",
+		"test:embedding": "playwright test -c playwright.local.config.ts --project=embedding",
 		"test:e2e:podman": "bash scripts/e2e-podman.sh",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint ."

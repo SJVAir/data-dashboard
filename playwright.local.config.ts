@@ -11,7 +11,12 @@ export default defineConfig({
 			testDir: "e2e-local",
 			testMatch: "dev-stack.spec.ts",
 			use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:5173/workspace/" }
+		},
+		{
+			name: "embedding",
+			testDir: "e2e-local",
+			testMatch: "embedding.spec.ts",
+			use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:8000/workspace/" }
 		}
-		// `embedding` is added in Task 12.
 	]
 });

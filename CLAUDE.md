@@ -34,7 +34,7 @@ npm run test:e2e     # Playwright E2E on Chromium (builds and serves /workspace/
 npm run test:e2e:all # Playwright E2E on Chromium, Firefox, and WebKit
 npm run test:e2e:podman # All three engines in the official Playwright image (podman)
 npm run test:dev-stack # Local-only: dev server + sjvair.com podman stack smoke (run `npm run dev` first)
-npm run test:embedding # Local-only embedding suite against the stack (added in Task 12)
+npm run test:embedding # Local-only embedding suite against the stack
 npm run check:build  # Check dist/workspace/ against the hosting contract (after a build)
 npm run check:budget # Check the initial bundle budget (after a build)
 npm run lint         # Prettier check + ESLint
