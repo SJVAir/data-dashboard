@@ -10,10 +10,12 @@ import {
 	type LogEntry,
 	type ActivitySource,
 	type ClipboardAccess,
+	type ErrorReporter,
 	type FileAccess,
 	type OpenedFile,
 	type PersistenceAccess,
 	type Protection,
+	type ReportContext,
 	type Platform,
 	type SpaceId
 } from "./types";
@@ -49,11 +51,16 @@ export type MemoryPersistence = PersistenceAccess & {
 	set(state: Protection, prompts: boolean): void;
 };
 
+export type MemoryErrors = ErrorReporter & {
+	reports: Array<{ error: unknown; context?: ReportContext }>;
+};
+
 export type MemoryPlatform = Platform & {
 	activity: MemoryActivity;
 	clipboard: MemoryClipboard;
 	files: MemoryFiles;
 	persistence: MemoryPersistence;
+	errors: MemoryErrors;
 };
 
 /** In-memory twin of the web storage, for tests. Values are cloned like IndexedDB does. */
@@ -98,6 +105,13 @@ export function createMemoryPlatform(): MemoryPlatform {
 		persisted: async () => protection,
 		request: async () => protection,
 		prompts: () => asks
+	};
+
+	const errors: MemoryErrors = {
+		reports: [],
+		report(error, context) {
+			errors.reports.push({ error, context });
+		}
 	};
 
 	return {
@@ -194,6 +208,7 @@ export function createMemoryPlatform(): MemoryPlatform {
 		clipboard,
 		files,
 		persistence,
+		errors,
 		reset: {
 			generation: () => generation,
 			async clearAll() {

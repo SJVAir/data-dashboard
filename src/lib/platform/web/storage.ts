@@ -13,11 +13,13 @@ import {
 } from "../types";
 import { createWebActivity } from "./activity";
 import { createWebClipboard } from "./clipboard";
+import { createWebErrors, listenForCspViolations } from "./errors";
 import { createWebFiles } from "./files";
 import { createWebPersistence } from "./persistence";
 import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
 import { createWebJournal } from "./journal";
 import { createReopening } from "./reopen";
+import { BUILD_ID } from "$lib/safety/build-id";
 
 const logRange = (space: SpaceId, docId: string, from = 0) =>
 	IDBKeyRange.bound([space, docId, from], [space, docId, Number.MAX_SAFE_INTEGER]);
@@ -97,6 +99,12 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		})
 	);
 	const run: Run = connection.run;
+	const errors = createWebErrors({
+		dsn: import.meta.env.VITE_SENTRY_DSN,
+		release: BUILD_ID,
+		dev: import.meta.env.DEV
+	});
+	listenForCspViolations(errors, document);
 
 	return {
 		documents: {
@@ -185,6 +193,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		clipboard: createWebClipboard(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),
-		reset: createWebReset(run)
+		reset: createWebReset(run),
+		errors
 	};
 }
