@@ -1,6 +1,7 @@
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { boot } from "$lib/boot";
+import { ensureDevCsrfCookie } from "$lib/dev/csrf-bootstrap";
 import { configureSdk } from "$lib/sdk-setup";
 import { createWebPlatform } from "$lib/platform/web/storage";
 import { BUILD_ID } from "$lib/safety/build-id";
@@ -13,15 +14,16 @@ export async function startApp(opts: { target: HTMLElement; staticBase: URL }): 
 	const { target, staticBase } = opts;
 	// Explicit fields under names without the VITE_ prefix: passing the whole `import.meta.env`
 	// would inline every VITE_* value, and the build check fails on any VITE_ name in the output.
-	// The dev URL is read only in dev so a local .env value never reaches a production build.
 	configureSdk(
-		{
-			dev: import.meta.env.DEV,
-			devUrl: import.meta.env.DEV ? import.meta.env.VITE_DEV_URL : undefined,
-			prodUrl: import.meta.env.VITE_PROD_URL
-		},
+		{ dev: import.meta.env.DEV, prodUrl: import.meta.env.VITE_PROD_URL },
 		location.origin
 	);
+	// Dev only, so it reads `document.cookie` directly instead of going through the platform adapter.
+	await ensureDevCsrfCookie({
+		dev: import.meta.env.DEV,
+		cookie: document.cookie,
+		fetchFn: (input, init) => fetch(input, init)
+	});
 
 	// A lazily loaded file from an older deploy is gone: offer a reload instead of an error. The
 	// event isn't cancelled, so the failed `import()` still rejects and its caller can stop.

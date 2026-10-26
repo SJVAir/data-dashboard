@@ -56,6 +56,21 @@ export default defineConfig(({ command, isPreview }) => ({
 			}
 		}
 	},
+	// Dev only: same-origin `/api/` and `/account/` go to the local sjvair.com stack (the app's own
+	// routes live under `/workspace/`, so nothing clashes). The Host header is kept so Django sees
+	// the dev origin and its CSRF origin check passes.
+	server: {
+		proxy: {
+			"/api/": {
+				target: process.env.SJVAIR_DEV_SERVER ?? "http://localhost:8000",
+				changeOrigin: false
+			},
+			"/account/": {
+				target: process.env.SJVAIR_DEV_SERVER ?? "http://localhost:8000",
+				changeOrigin: false
+			}
+		}
+	},
 	optimizeDeps: { include: ["axe-core"] },
 	resolve: {
 		alias: [{ find: "$lib", replacement: fileURLToPath(new URL("./src/lib", import.meta.url)) }]

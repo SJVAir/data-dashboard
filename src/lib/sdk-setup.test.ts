@@ -13,25 +13,24 @@ describe("configureSdk", () => {
 		vi.clearAllMocks();
 	});
 
-	it("dev with VITE_DEV_URL uses it", () => {
-		const origin = configureSdk(
-			{ dev: true, devUrl: "http://localhost:8000" },
-			"http://localhost:5173"
-		);
-		expect(origin).toBe("http://localhost:8000");
-		expect(setOrigin).toHaveBeenCalledWith("http://localhost:8000");
-	});
-
-	it("dev without VITE_DEV_URL falls back to the page origin", () => {
+	it("dev uses the page origin", () => {
 		const origin = configureSdk({ dev: true }, "http://localhost:5173");
 		expect(origin).toBe("http://localhost:5173");
 		expect(setOrigin).toHaveBeenCalledWith("http://localhost:5173");
 	});
 
-	it("production uses the page origin, ignoring VITE_DEV_URL", () => {
-		const origin = configureSdk({ dev: false, devUrl: "x" }, "https://www.sjvair.com");
+	it("production uses the page origin", () => {
+		const origin = configureSdk({ dev: false }, "https://www.sjvair.com");
 		expect(origin).toBe("https://www.sjvair.com");
 		expect(setOrigin).toHaveBeenCalledWith("https://www.sjvair.com");
+	});
+
+	it("dev ignores VITE_PROD_URL", () => {
+		const origin = configureSdk(
+			{ dev: true, prodUrl: "https://x.example" },
+			"http://localhost:5173"
+		);
+		expect(origin).toBe("http://localhost:5173");
 	});
 
 	it("VITE_PROD_URL overrides in production", () => {
