@@ -8,6 +8,8 @@
 		updateReminderPrefs,
 		type ReminderPrefs
 	} from "$lib/safety/reminder";
+	import { BUILD_ID } from "$lib/safety/build-id";
+	import { refreshEntryFiles, reloadPage } from "$lib/safety/reload";
 	import { updateNotice } from "$lib/safety/update-notice.svelte";
 	import { useApp } from "$lib/store/app.svelte";
 	import { isActive } from "../../../router";
@@ -19,7 +21,9 @@
 		try {
 			await app.current.session?.flush();
 		} finally {
-			location.reload();
+			// The entry files have fixed names, so a cached copy could survive the reload.
+			if (BUILD_ID !== "dev") await refreshEntryFiles(app.staticBase);
+			reloadPage();
 		}
 	}
 

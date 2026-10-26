@@ -32,7 +32,7 @@ export async function startApp(opts: { target: HTMLElement; staticBase: URL }): 
 				}
 			}),
 		async start(platform) {
-			app = await initApp(platform);
+			app = await initApp(platform, { staticBase });
 			mount(App, { target, context: new Map([[APP_CONTEXT_KEY, app]]) });
 			startVersionCheck({
 				activity: platform.activity,
