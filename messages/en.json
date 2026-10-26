@@ -178,5 +178,11 @@
 	],
 	"clear_backup_first": "Download a backup first",
 	"clear_confirm": "Clear everything",
-	"clear_failed": "Couldn't clear your data. Please try again."
+	"clear_failed": "Couldn't clear your data. Please try again.",
+	"restore_version_action": "Restore an earlier version…",
+	"restore_version_title": "Restore an earlier version",
+	"restore_version_item": "Before the update on {date}",
+	"restore_version_confirm": "Restore",
+	"restore_version_failed": "That version can't be opened.",
+	"restore_version_done": "Restored the earlier version. Undo to go back."
 }

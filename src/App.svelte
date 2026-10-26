@@ -5,6 +5,7 @@
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 	import ExistingCopyDialog from "$lib/components/dialogs/ExistingCopyDialog.svelte";
 	import ShareDialog from "$lib/components/dialogs/ShareDialog.svelte";
+	import RestoreVersionDialog from "$lib/components/dialogs/RestoreVersionDialog.svelte";
 	import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
 	import NoticeBars from "$lib/components/shell/NoticeBars.svelte";
 	import TopNav from "$lib/components/shell/TopNav.svelte";
@@ -37,4 +38,5 @@
 <ConflictDialog />
 <ExistingCopyDialog />
 <ShareDialog />
+<RestoreVersionDialog />
 <Toaster />
