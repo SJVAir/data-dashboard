@@ -221,7 +221,7 @@ export class DocumentSession {
 					await platform.originals.put(space, { id, raw, keptAt, fromSchemaVersion: fromVersion });
 				} catch (error) {
 					// Nothing is saved in the new format without the original kept: read-only.
-					report(error, { docId: id, fromSchemaVersion: fromVersion });
+					report(error, { operation: "migrate", fromSchemaVersion: fromVersion });
 					keptFailed = true;
 				}
 			}
@@ -234,7 +234,7 @@ export class DocumentSession {
 		} else {
 			if (fromVersion !== null && fromVersion < CURRENT_SCHEMA_VERSION) {
 				report(new Error("A stored dashboard couldn't be upgraded"), {
-					docId: id,
+					operation: "migrate",
 					fromSchemaVersion: fromVersion
 				});
 			}
@@ -590,6 +590,17 @@ export class DocumentSession {
 		return result;
 	}
 
+	/**
+	 * Show a storage failure and report it (the first of a streak only: retries of the same
+	 * failure would repeat it).
+	 */
+	#failed(error: unknown, operation: "save" | "hand-off"): void {
+		if (this.#retries === 0) report(error, { operation });
+		this.status = "error";
+		this.errorKind =
+			(error as { name?: unknown } | null)?.name === "QuotaExceededError" ? "quota" : "unavailable";
+	}
+
 	#record(doc: Dashboard, applied: Change): void {
 		this.doc = doc;
 		this.#pending.push(applied);
@@ -629,9 +640,9 @@ export class DocumentSession {
 				if (this.#stopped) successor.suspend();
 				return successor;
 			},
-			() => {
+			(error) => {
 				reset();
-				this.status = "error";
+				this.#failed(error, "hand-off");
 				return null;
 			}
 		);
@@ -668,11 +679,7 @@ export class DocumentSession {
 			});
 		} catch (error) {
 			// Keep the in-memory document and its pending changes, and try again later.
-			this.status = "error";
-			this.errorKind =
-				(error as { name?: unknown } | null)?.name === "QuotaExceededError"
-					? "quota"
-					: "unavailable";
+			this.#failed(error, "save");
 			this.#scheduleRetry();
 			return;
 		}
@@ -682,8 +689,9 @@ export class DocumentSession {
 		if (!result.ok) {
 			try {
 				await this.catchUp();
-			} catch {
+			} catch (error) {
 				// Storage couldn't be read to catch up: keep everything and try again later.
+				if (this.#retries === 0) report(error, { operation: "catch-up" });
 				this.status = "error";
 				this.errorKind = "unavailable";
 				this.#scheduleRetry();

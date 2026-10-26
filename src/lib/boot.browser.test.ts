@@ -41,3 +41,18 @@ test("a blocked open shows the close-other-tabs message until it opens", async (
 	expect(el.textContent).toBe("");
 	el.remove();
 });
+
+test("a failure in start shows the startup message and is reported", async () => {
+	const el = target();
+	const platform = createMemoryPlatform();
+	const failure = new Error("boom");
+	await boot({
+		target: el,
+		createPlatform: () => Promise.resolve(platform),
+		start: () => Promise.reject(failure)
+	});
+	expect(el.textContent).toContain("Something went wrong while starting the workspace");
+	expect(el.textContent).not.toContain("isn't letting the workspace save");
+	expect(platform.errors.reports).toEqual([{ error: failure, context: { operation: "start" } }]);
+	el.remove();
+});

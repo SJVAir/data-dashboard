@@ -275,7 +275,10 @@ describe("starterSession", () => {
 			release();
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(copied.session).toBeUndefined();
-			if (failure === "reject") expect(starter.status).toBe("error");
+			if (failure === "reject") {
+				expect(starter.status).toBe("error");
+				expect(starter.errorKind).toBe("unavailable");
+			}
 
 			starter.apply(renameWidget("starter-3", "Merced"));
 			await vi.waitFor(() => expect(copied.session).toBeDefined());

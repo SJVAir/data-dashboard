@@ -219,6 +219,21 @@ describe("DocumentSession", () => {
 		expect((await stored(platform)).body.widgets[0].title).toBe("Map");
 	});
 
+	it("a failed save reports once, not on every retry", async () => {
+		const { platform, session } = await setup();
+		vi.mocked(report).mockClear();
+		const failure = new Error("disk");
+		vi.spyOn(platform.documents, "commit")
+			.mockRejectedValueOnce(failure)
+			.mockRejectedValueOnce(failure);
+		session.apply(rename("Home"));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(session.status).toBe("error");
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(report).toHaveBeenCalledTimes(1);
+		expect(report).toHaveBeenCalledWith(failure, { operation: "save" });
+	});
+
 	it("a quota failure sets errorKind to quota", async () => {
 		const { platform, session } = await setup();
 		vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(
@@ -536,11 +551,13 @@ describe("DocumentSession", () => {
 		await other.flush();
 
 		const session = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "tab-1" });
+		vi.mocked(report).mockClear();
 		vi.spyOn(platform.documents, "get").mockRejectedValueOnce(new Error("read failed"));
 		session.apply(title("a", "Map"));
 		await session.flush();
 		expect(session.status).toBe("error");
 
+		expect(report).toHaveBeenCalledWith(expect.any(Error), { operation: "catch-up" });
 		await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0]);
 		const saved = await stored(platform);
 		expect(saved.name).toBe("Theirs");
@@ -866,7 +883,7 @@ describe("DocumentSession format changes", () => {
 		expect(await platform.originals.get(SPACE, "d1")).toBeUndefined();
 		expect(report).toHaveBeenCalledWith(
 			expect.any(Error),
-			expect.objectContaining({ docId: "d1", fromSchemaVersion: OLD_SCHEMA_VERSION })
+			expect.objectContaining({ operation: "migrate", fromSchemaVersion: OLD_SCHEMA_VERSION })
 		);
 	});
 
@@ -883,7 +900,7 @@ describe("DocumentSession format changes", () => {
 		expect(await platform.documents.get(SPACE, "d1")).toEqual(old);
 		expect(report).toHaveBeenCalledWith(
 			failure,
-			expect.objectContaining({ docId: "d1", fromSchemaVersion: OLD_SCHEMA_VERSION })
+			expect.objectContaining({ operation: "migrate", fromSchemaVersion: OLD_SCHEMA_VERSION })
 		);
 	});
 

@@ -213,13 +213,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Documents & saving
 
-- **Migration chain hardening.** _Deferred 2026-10-20 (Foundations spec 1 review)._ A bare
-  `catch` in `loadDashboard` (and `upgradeChanges`) hides migration bugs as "invalid".
-  **Revisit with** spec 5 (the error reporter).
-- **DocumentSession durability gaps.** _Deferred 2026-10-20 (Foundations spec 1 review);
-  the hand-off and retry parts were done in spec 3._ Errors on the commit chain (a failed
-  save, catch-up, or conflict resolution) only set the "error" status; nothing reports
-  them. **Revisit with** spec 5 (Sentry) for reporting.
 - **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
   task 6)._ If the page goes away mid-hand-off after the copy was stored but before its first
   save, the next load opens the (unedited) copy, not the starter, so the starter's journal
@@ -250,9 +243,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   don't fire `cancel` on a file input, so dismissing the picker there leaves "Import…" waiting
   forever. **Revisit if** a stuck import is
   reported.
-- **`clearAll` leaves sibling rejections unhandled.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ When one store's clear fails, the
-  others' later rejections aren't caught. The failure itself is shown ("Couldn't clear").
-  **Revisit with** spec 5 (the error reporter).
 - **IndexedDB reopen isn't memoized, and any `InvalidStateError` triggers it.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
   Concurrent operations that fail together each open their own connection, and an
   `InvalidStateError` from another cause also reopens. **Revisit before** the next IndexedDB version bump.
@@ -272,9 +262,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   backup's invalid (unreadable) dashboard is restored as stored, but the index lists only
   loadable ones, so it isn't shown or counted. **Revisit with** the design pass or a "can't
   open" list.
-- **A failed starter hand-off (storage full) shows no save error on the starter.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The
-  edit stays queued and is retried on the next edit, but the starter's indicator doesn't say
-  saving failed. **Revisit with** spec 5.
 
 - **Upgrading `bits-ui` past 2.19.2.** _Deferred 2026-10-25 (Foundations spec 3, Task 13)._
   `npx shadcn-svelte add popover` bumped `bits-ui` from 2.19.2 to 2.20.2, which broke
@@ -684,9 +671,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   global actions (the spec has nav controls be views onto actions). **Revisit in** Release 1
   step 4 (its first checkbox or range input), with the command palette (the actions), and
   before translations ship (IME).
-- **Startup failures all read as "storage unavailable".** _Deferred 2026-10-20 (Foundations
-  spec 1 review)._ An init failure that isn't a storage failure shows the same message.
-  **Revisit with** spec 5 (error reporting).
 - **Save-status announcements.** _Deferred 2026-10-20 (Foundations spec 1 review)._
   The saved indicator's `aria-live` region announces "Saving…"/"Saved" on every edit, which
   is noisy for screen readers. (The undo-toast half closed with "Recently deleted", which

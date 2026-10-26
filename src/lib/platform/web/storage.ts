@@ -69,7 +69,13 @@ function createWebReset(run: Run): ResetAccess {
 			const stores = ["documents", "changeLog", "preferences", "originals", "syncQueue"] as const;
 			await run(async (db) => {
 				const tx = db.transaction([...stores], "readwrite");
-				await Promise.all([...stores.map((name) => tx.objectStore(name).clear()), tx.done]);
+				// Every promise is settled, so a failing transaction leaves no rejection unhandled.
+				const results = await Promise.allSettled([
+					...stores.map(async (name) => tx.objectStore(name).clear()),
+					tx.done
+				]);
+				const failed = results.find((r) => r.status === "rejected");
+				if (failed) throw failed.reason;
 			});
 			try {
 				const doomed: string[] = [];

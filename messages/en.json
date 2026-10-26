@@ -24,6 +24,7 @@
 	"shortcut_undo": "Ctrl+Z",
 	"shortcut_redo": "Ctrl+Shift+Z",
 	"storage_unavailable": "This browser isn't letting the workspace save anything, so it can't open. Check that site data is allowed, or try another browser.",
+	"startup_failed": "Something went wrong while starting the workspace. Reloading the page may help.",
 	"storage_blocked": "The workspace is waiting on another of its tabs. Please close other SJVAir Workspace tabs and reload this page.",
 	"add_widget": "Add widget",
 	"dashboard_new_blank": "New blank dashboard",
