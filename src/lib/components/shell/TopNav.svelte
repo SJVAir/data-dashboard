@@ -2,6 +2,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { isActive, p } from "../../../router";
 	import DashboardPicker from "./DashboardPicker.svelte";
+	import HelpMenu from "./HelpMenu.svelte";
 	import SavedIndicator from "./SavedIndicator.svelte";
 	import UndoRedo from "./UndoRedo.svelte";
 </script>
@@ -20,6 +21,7 @@
 		<div class="ml-auto flex items-center gap-2">
 			<SavedIndicator />
 			<UndoRedo />
+			<HelpMenu />
 		</div>
 	</nav>
 </header>
