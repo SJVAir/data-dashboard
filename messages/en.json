@@ -196,5 +196,7 @@
 	"restore_version_item": "Before the update on {date}",
 	"restore_version_confirm": "Restore",
 	"restore_version_failed": "That version can't be opened.",
-	"restore_version_done": "Restored the earlier version. Undo to go back."
+	"restore_version_done": "Restored the earlier version. Undo to go back.",
+	"browser_too_old": "Your browser is too old for this app. Please update it, or use another browser.",
+	"browser_too_old_link": "Go to the SJVAir air quality map"
 }

@@ -1,6 +1,7 @@
 // Checks dist/workspace/ against the hosting contract (spec 5a, "Files in dist/workspace/").
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { parse } from "acorn";
 
 const ROOT = "dist/workspace";
 const ALLOWED = [
@@ -39,6 +40,15 @@ for (const file of files) {
 		problems.push(`outside assets/: ${file}`);
 	} else if (!/-[A-Za-z0-9_-]{8,}\./.test(file)) {
 		problems.push(`no content hash in the name: ${file}`);
+	}
+}
+
+// The bootstrap must stay readable by browsers older than the floor.
+if (files.includes("app.js")) {
+	try {
+		parse(readFileSync(join(ROOT, "app.js"), "utf8"), { ecmaVersion: 2020, sourceType: "module" });
+	} catch (error) {
+		problems.push(`app.js does not parse as ES2020: ${error.message}`);
 	}
 }
 
