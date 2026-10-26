@@ -24,27 +24,24 @@ const manifest = {
 describe("initialFiles", () => {
 	const files = initialFiles(manifest, "index.html");
 
-	it("includes the entry, the app chunk, and static imports", () => {
-		expect(files).toEqual(
-			expect.arrayContaining([
-				"workspace/app.js",
-				"workspace/main.js",
-				"workspace/shared.js",
-				"workspace/ui.js"
-			])
-		);
+	it("includes the entry, the app chunk, static imports, and their css", () => {
+		expect([...files].sort()).toEqual([
+			"workspace/app.css",
+			"workspace/app.js",
+			"workspace/boot.css",
+			"workspace/main.js",
+			"workspace/shared.js",
+			"workspace/ui.css",
+			"workspace/ui.js"
+		]);
 	});
 
-	it("excludes other dynamic imports", () => {
-		expect(files).not.toContain("workspace/sentry.js");
-		expect(files).not.toContain("workspace/dialog.js");
-		expect(files).not.toContain("workspace/dialog.css");
-	});
-
-	it("includes css of included chunks", () => {
-		expect(files).toEqual(
-			expect.arrayContaining(["workspace/boot.css", "workspace/app.css", "workspace/ui.css"])
-		);
+	it("throws when the entry no longer imports the app chunk", () => {
+		const broken = {
+			...manifest,
+			"index.html": { ...manifest["index.html"], dynamicImports: ["src/sentry.ts"] }
+		};
+		expect(() => initialFiles(broken, "index.html")).toThrow(/src\/main\.ts/);
 	});
 
 	it("counts no file twice", () => {

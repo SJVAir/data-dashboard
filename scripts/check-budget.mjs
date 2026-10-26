@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 const BUDGET = 200 * 1024;
+const ENTRY_KEY = "index.html";
 const APP_CHUNK_KEY = "src/main.ts";
 
 /** Files (JS and CSS) loaded before the app is usable, each listed once. */
@@ -21,14 +22,17 @@ export function initialFiles(manifest, entryKey) {
 		for (const imported of chunk.imports ?? []) visit(imported);
 	};
 	visit(entryKey);
-	if (manifest[entryKey].dynamicImports?.includes(APP_CHUNK_KEY)) visit(APP_CHUNK_KEY);
+	if (!manifest[entryKey].dynamicImports?.includes(APP_CHUNK_KEY)) {
+		throw new Error(`${entryKey} does not dynamically import ${APP_CHUNK_KEY}`);
+	}
+	visit(APP_CHUNK_KEY);
 	return [...files];
 }
 
 function main() {
 	const manifest = JSON.parse(readFileSync("dist/.vite/manifest.json", "utf8"));
-	const entryKey = Object.keys(manifest).find((key) => manifest[key].isEntry);
-	if (!entryKey) throw new Error("Manifest has no entry chunk");
+	const entryKey = ENTRY_KEY;
+	if (!manifest[entryKey]?.isEntry) throw new Error(`Manifest has no ${ENTRY_KEY} entry`);
 	let total = 0;
 	for (const file of initialFiles(manifest, entryKey)) {
 		const size = gzipSync(readFileSync(`dist/${file}`), { level: 9 }).length;
