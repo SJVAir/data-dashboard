@@ -159,7 +159,7 @@ specs and plans in `docs/superpowers/{specs,plans}/2026-09-1*`.
 - **Last request wins.** Every refresh (parent list, children, map averages, calendar, fill)
   took a monotonically increasing token and discarded its result if a newer call had started.
   Without that, rapid filter changes let the last response to finish win, not the last request
-  made (`DEFERRED.md` → "No in-flight request coordination").
+  made ("No in-flight request coordination", done in Foundations spec 2; see `TODO.md` → Done).
 - **Memoize fetched summaries so toggling a region fetches only what is new.** Deselecting
   never needs the network. Keys combine pollutant, date range (or month), and region id; stale
   keys are simply never read again, so unbounded growth was not a concern in a session.
@@ -167,7 +167,7 @@ specs and plans in `docs/superpowers/{specs,plans}/2026-09-1*`.
   error. A failed summary fetch clears that view and suggests a narrower range or fewer
   regions, since the likely cause is a request that is too large.
 - **Fetching the whole year for a month view is wasteful.** The `month` parameter exists on
-  the summary endpoints but v1 did not use it (`DEFERRED.md` → "Whole-year over-fetch").
+  the summary endpoints but v1 did not use it ("Whole-year over-fetch", done in Foundations spec 2; see `TODO.md` → Done).
 
 ## Edge cases the tests encode
 

@@ -39,8 +39,9 @@ for basic users, feature-rich for power users.
   rename / delete at its bottom; a visual thumbnail picker is deferred). "Add widget" picks a type
   from the predefined list, then opens Widget Creation to configure its data.
 - **Widget Creation** — configures one widget's data (see below).
-- **Analysis** — Collections, starter and user-defined analyses, notebooks (see
-  "Analysis: Collections & engine", "Notebooks").
+- **Analysis** (Release 3; the nav shows no Analysis entry before then) — Collections,
+  starter and user-defined analyses, notebooks (see "Analysis: Collections & engine",
+  "Notebooks").
 
 These may change if a better structure emerges.
 
@@ -861,6 +862,8 @@ home.
 /import#<lz-compressed document>                 URL-fragment share → opens a copy (fork on open)
 ```
 
+The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
+
 - **Back/forward navigates between places** (dashboards, fullscreen, Widget Creation,
   Analysis) — never between edits.
 - **Ephemeral UI state stays out of the URL** (open accordions, in-progress map
@@ -1053,7 +1056,7 @@ type SpatialSelection = {
 
 - **A. Feature picking** — click a monitor/region to select, shift-click to add;
   selection shows as removable chips in the widget title bar; right-click a feature
-  for feature-scoped context-menu entries ("Analyze this monitor").
+  for feature-scoped context-menu entries (from Release 3, "Analyze this monitor").
 - **B. Region picking**: uses the **shared place picker** (decided 2026-09-28), a non-map
   component built in **Release 1 step 4** that picks monitors, regions (any type in the
   hierarchy), schools and child-care sites, or points (`PlaceRef`), with search, hierarchy browsing, and single or multiple

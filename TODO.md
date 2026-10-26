@@ -25,7 +25,8 @@ and the copyright holder (Central California Asthma Collaborative).
   `develop` branch during Foundations.
 - **Now (2026-10-20): Foundations is split into five specs**, built as stacked PRs on
   `foundations`: (1) the working core, (2) the data layer, (3) safety and sharing,
-  (4) Collections, (5) shipping readiness, in that order. Spec 1 is
+  (4) Collections, (5) shipping readiness, in that order (spec 4 was dropped on 2026-10-25;
+  Collections moved to Release 3, see below). Spec 1 is
   `docs/superpowers/specs/2026-10-20-foundations-1-working-core-design.md`; its finish
   line is "create a dashboard, add placeholder widgets, and have it autosave". The sdk-js
   request-options change (needed by spec 2) got its own sdk-js plan alongside spec 1; it is now
@@ -97,7 +98,7 @@ and the copyright holder (Central California Asthma Collaborative).
 - **Spec 4 (Collections) is dropped (2026-10-25).** While planning it, the user moved
   Collections and "Mark for analysis" / "Analyze" to Release 3, where the analysis engine
   gives them a purpose; in Release 1 a Collection could be gathered but not used. See
-  `DEFERRED.md` → "Collections and Mark for analysis in Release 1". Foundations is now four
+  `DEFERRED.md` → Collections and "Mark for analysis" in Release 1. Foundations is now four
   specs; spec 5 keeps its number.
 - **Next:** spec 5, shipping readiness, as a stacked PR on `foundations`.
 
@@ -241,7 +242,7 @@ sequencing is in `ROADMAP.md`; every deferral is in `DEFERRED.md`.
 A full traceability review against IDEA.md (2026-09-24) fixed the remaining gaps
 and decided nine follow-ups (more were settled later that day: the fresh start and the
 v1-lessons step, the deploy model, the sign-in staging, `analyzable` and the 3-day window,
-the private preview and go-live, and the full test gate on PRs into `main`): minimal Collections in Release 1, autosave with durability
+the private preview and go-live, and the full test gate on PRs into `main`): minimal Collections in Release 1 (moved to Release 3 on 2026-10-25), autosave with durability
 safeguards, server documents in Release 1, dataset accordions as layers, Pacific time,
 hosting under `sjvair.com/workspace/`, an installable app (revised 2026-09-28: manifest only, no service worker), WCAG 2.2 AA, and the
 testing strategy.
