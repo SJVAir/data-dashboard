@@ -132,7 +132,7 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 This repo is **MIT** (decided 2026-09-28; copyright holder: "Central California Asthma
 Collaborative (SJVAir)", decided 2026-10-14; the `LICENSE` file is added in Foundations), as are `map-sdk` and `monitor-map` once added, matching `sdk-js`. Only add
 dependencies with permissive licenses (MIT, BSD, Apache-2.0, ISC; MPL-2.0 only if
-unmodified). CI will check licenses and the build will generate third-party notices. See `ARCHITECTURE.md` → "Licensing".
+unmodified; OFL-1.1 for fonts only, decided 2026-10-26). CI will check licenses and the build will generate third-party notices. See `ARCHITECTURE.md` → "Licensing".
 
 ## Deferred work — standing rule
 

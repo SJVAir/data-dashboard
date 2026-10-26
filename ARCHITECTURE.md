@@ -2148,7 +2148,8 @@ Decided 2026-09-28.
   license, since the MIT terms grant those rights. Still pending: the `LICENSE` files. `data-dashboard` (now public) and
   `monitor-map` (on npm) currently have no license, which means "all rights reserved".
 - **Dependency policy:** bundled dependencies must be permissively licensed: MIT, BSD,
-  Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide). A **CI license check**
+  Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide), and **OFL-1.1 for fonts
+  only** (decided 2026-10-26; the bundled Inter font is OFL-1.1). A **CI license check**
   flags anything else, and the build generates a **third-party notices** file (which
   also covers the JupyterLite/Pyodide notices).
 - Adding the license to `monitor-map` is a sibling-repo change: it goes in its next plan,
@@ -2294,7 +2295,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     from `sjvair-production.s3.amazonaws.com`, with **no compression, no `Cache-Control`**,
     and cross-origin `GET` allowed only for `https://www.sjvair.com`. The dashboard
     therefore needs these accommodations:
-    1. **Compression and cache headers are set at upload.** The dashboard's files go to
+    1. **Compression and cache headers are set at upload.** _Deferred 2026-10-26 by the
+       user: the dashboard is uploaded exactly as monitor-map is for now; see `DEFERRED.md`
+       and spec 5a's reload refresh. The plan below is kept for when it's revisited._ The dashboard's files go to
        S3 pre-compressed with `Content-Encoding`, hashed chunks as long-lived and
        immutable, and the fixed-name entry files and `version.json` as `no-cache`
        (revalidated on each load). Without this the ~200 KB compressed budget means
@@ -2346,6 +2349,18 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     app, which shows "no longer available" from the API's response.
   - **This repo keeps an `index.html` for local development and standalone or Tauri
     builds only.**
+  - **The hosting contract** (settled 2026-10-26 with the sjvair.com hosting session) is
+    recorded in `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` →
+    "Hosting contract", the single source both repos follow; changes go through this repo.
+    In short: `npm ci && npm run build` (Node `>=24 <27`) writes `dist/workspace/` with
+    fixed-name `app.js`, `app.css`, `version.json`, `manifest.webmanifest`, and
+    `THIRD-PARTY-NOTICES.txt` at the top level and hashed files under `assets/`; the template
+    mounts the app in `<div id="SJVAirDataDashboard">` and passes identity in a `json_script`
+    block `sjvair-identity` (`{"v": 1, "user": null | {id, name, email, emailVerified,
+phoneVerified}}`, never the token or phone number); the CSP comes from this repo's
+    `csp-hosts.json`, report-only for the preview and enforced by a server setting
+    (`WORKSPACE_CSP_ENFORCE`) before go-live; the manifest is served by Django at
+    `/workspace/manifest.webmanifest`.
   - Extending the site's base template, serving the dashboard's own `index.html`, and a
     build-manifest file read by the server were considered and decided against (see
     `DEFERRED.md`).
@@ -2362,7 +2377,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
   preview** (a staging Heroku app, a hidden route, or the server's `beta_tools` flag;
   chosen in the hosting-track plan)
-  lets a pilot teacher and a researcher try it and give feedback early.
+  lets a pilot teacher and a researcher try it and give feedback early. **Decided
+  2026-10-26: the `beta_tools` flag on production**, with a "My Dashboard" link under the
+  beta-only "Data Tools" menu (no staging app, so no extra S3 cross-origin origin).
 - **JupyterLite (Release 3)** lives at its own path (e.g. `/notebooks/`), and COOP/COEP
   headers are set only for that path.
 - **CI in this repo** runs lint, type-check, tests, and build on every PR. **Merging to

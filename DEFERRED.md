@@ -11,6 +11,27 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **Upload compression, cache headers, ordered upload passes, and a post-deploy header
+  check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
+  track and Foundations spec 5a)._ The dashboard is uploaded to S3 exactly as monitor-map is
+  today (one `aws s3 sync`, uncompressed, no `Cache-Control`, no ordering, the sync not
+  failing the release on error), to keep shipping identical to monitor-map. Costs: about 3–4×
+  the bytes on the wire against the 200 KB compressed budget; browsers may heuristically cache
+  the fixed-name `app.js`/`app.css` after a deploy (spec 5a's reload button re-fetches them
+  with `cache: "reload"` first); a page loading mid-deploy can hit a missing chunk (the reload
+  bar covers it). **Revisit together with** monitor-map's upload, or when the low-end device
+  check shows slow loads.
+- **Pre-filling sjvair.com's contact form.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
+  preview feedback link opens `/contact/` as it is; the form can't take a topic or message
+  from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
+  page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
+  track (which builds "Report this page").
+- **The embedding suite's first run.** _Deferred 2026-10-26 (Foundations spec 5a)._ Spec 5a
+  builds the hand-run Playwright suite that checks the real embedding (local sjvair.com
+  template, CSP enforced, static files on a second origin), but it isn't a merge gate: it
+  needs the hosting track's local template. **Revisit when** the sjvair.com hosting session's
+  local build is ready; record the result in `TODO.md`.
+
 - **Tauri desktop build.** _Deferred 2026-09-23 (IDEA.md Q1)._ The web build comes first
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").
   **Revisit when** there is a concrete desktop-only win, such as tray-based background
@@ -260,7 +281,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   accounts. **Revisit before** the private preview.
 - **"Sign in to keep this safe everywhere" in the backup reminder.** _Deferred 2026-10-25
   (Foundations spec 3)._ `ARCHITECTURE.md` planned a gentle sign-in line next to the backup
-  reminder; there are no accounts yet. **Revisit with** spec 5 / server-backed documents.
+  reminder; there are no accounts yet. **Revisit with** spec 5b (the sign-in side) / server-backed
+  documents.
 - **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
   is shaped so other kinds can be added without a new format. **Revisit with** Collections and
@@ -724,12 +746,6 @@ point.
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Private-preview mechanism**: a staging Heroku app, an unlisted route on sjvair.com, or
-  (new option, 2026-10-13) the server's **waffle `beta_tools` flag**, which already gates
-  `/tools/pesticides/` to flagged "Beta testers" through `BetaToolsMiddleware`. Gating
-  `/workspace/` the same way would give a preview on production with no separate
-  deployment. **Decide in** the Release 1 hosting-track plan (the preview starts around
-  Release 1 step 4).
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.

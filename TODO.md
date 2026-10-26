@@ -108,6 +108,14 @@ and the copyright holder (Central California Asthma Collaborative).
   the manifest are served, the `csrftoken` bootstrap); the sjvair.com session plans against
   it and changes it only through the spec 5 session. Spec 5 is expected to split: the shipping
   items first, then the sign-in side (which also leans on the server-backed documents track).
+- **Spec 5 is split (2026-10-26): 5a shipping readiness, then 5b the sign-in side.** The 5a
+  design, with the settled **Hosting contract**, is
+  `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` (branch
+  `foundations-5a-shipping`); waiting for the user's approval, then the plan. The sjvair.com
+  hosting session (worktree `sjvair.com/.worktrees/workspace-hosting`, branch
+  `feature/workspace-hosting`) writes its plan once 5a builds `dist/workspace/`; tell it then.
+  Decided along the way: the preview is the `beta_tools` flag; upload exactly as monitor-map
+  (compression and headers deferred); OFL-1.1 allowed for fonts; feedback via `/contact/`.
 - **The other parallel tracks (recommended 2026-10-26):** server-backed documents during
   step 2, after spec 5's sign-in side; email-only accounts once the legal adviser answers;
   the rest of step 3 (metadata enablers) in its own parallel session whenever convenient.
