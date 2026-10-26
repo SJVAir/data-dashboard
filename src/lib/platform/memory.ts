@@ -9,6 +9,7 @@ import {
 	type KeptOriginal,
 	type LogEntry,
 	type ActivitySource,
+	type OnlineSource,
 	type ClipboardAccess,
 	type ErrorReporter,
 	type FileAccess,
@@ -42,6 +43,26 @@ export function createMemoryActivity(): MemoryActivity {
 	};
 }
 
+export type MemoryOnline = OnlineSource & { setOnline(online: boolean): void };
+
+/** Connectivity under test control; starts online. Listeners hear only real changes. */
+export function createMemoryOnline(): MemoryOnline {
+	let online = true;
+	const listeners = new Set<(online: boolean) => void>();
+	return {
+		online: () => online,
+		onChange(cb) {
+			listeners.add(cb);
+			return () => listeners.delete(cb);
+		},
+		setOnline(next) {
+			if (next === online) return;
+			online = next;
+			for (const cb of [...listeners]) cb(online);
+		}
+	};
+}
+
 export type MemoryClipboard = ClipboardAccess & { fail(on: boolean): void; last: string | null };
 export type MemoryFiles = FileAccess & {
 	queueOpen(file: OpenedFile | null): void;
@@ -57,6 +78,7 @@ export type MemoryErrors = ErrorReporter & {
 
 export type MemoryPlatform = Platform & {
 	activity: MemoryActivity;
+	online: MemoryOnline;
 	clipboard: MemoryClipboard;
 	files: MemoryFiles;
 	persistence: MemoryPersistence;
@@ -205,6 +227,7 @@ export function createMemoryPlatform(): MemoryPlatform {
 		},
 		identity: { currentSpace: async () => "anonymous" },
 		activity: createMemoryActivity(),
+		online: createMemoryOnline(),
 		clipboard,
 		files,
 		persistence,

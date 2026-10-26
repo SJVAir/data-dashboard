@@ -105,6 +105,7 @@
 	"data_unavailable_place_unsupported": "This kind of place can't be shown yet.",
 	"data_unavailable_region_unresolved": "This region can't be looked up yet.",
 	"data_unavailable_whole_layer_raw": "Choose a longer date range to show every monitor.",
+	"offline_notice": "You're offline. Data may be out of date.",
 	"update_available": "A new version is available.",
 	"update_reload": "Reload",
 	"backup_download": "Download a backup",

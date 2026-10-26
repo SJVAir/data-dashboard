@@ -12,6 +12,7 @@ import {
 	type SpaceId
 } from "../types";
 import { createWebActivity } from "./activity";
+import { createWebOnline } from "./online";
 import { createWebClipboard } from "./clipboard";
 import { createWebErrors, listenForCspViolations } from "./errors";
 import { createWebFiles } from "./files";
@@ -196,6 +197,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		journal: createWebJournal(),
 		identity: { currentSpace: async () => "anonymous" },
 		activity: createWebActivity(),
+		online: createWebOnline(window, navigator),
 		clipboard: createWebClipboard(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),

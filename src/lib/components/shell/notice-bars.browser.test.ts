@@ -58,3 +58,19 @@ test("reload refreshes the cached entry files before reloading the page", async 
 	await vi.waitFor(() => expect(order).toEqual(["refresh", "reload"]));
 	expect(refreshEntryFiles).toHaveBeenCalledWith(staticBase);
 });
+
+test("the offline bar shows while the platform is offline and hides when it is back", async () => {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1"
+	});
+	await render(NoticeBars, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByText(m.offline_notice())).not.toBeInTheDocument();
+
+	platform.online.setOnline(false);
+	await expect.element(page.getByText(m.offline_notice())).toBeVisible();
+
+	platform.online.setOnline(true);
+	await expect.element(page.getByText(m.offline_notice())).not.toBeInTheDocument();
+});

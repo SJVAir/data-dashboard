@@ -17,6 +17,12 @@
 	const app = useApp();
 	const protection = app.protection;
 
+	let online = $state(app.platform.online.online());
+	$effect(() => {
+		online = app.platform.online.online();
+		return app.platform.online.onChange((next) => (online = next));
+	});
+
 	async function reload() {
 		try {
 			await app.current.session?.flush();
@@ -89,6 +95,16 @@
 		>
 			<span>{m.update_available()}</span>
 			<Button size="sm" variant="outline" onclick={reload}>{m.update_reload()}</Button>
+		</div>
+	{/if}
+</div>
+
+<div role="status">
+	{#if !online}
+		<div
+			class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
+		>
+			<span>{m.offline_notice()}</span>
 		</div>
 	{/if}
 </div>

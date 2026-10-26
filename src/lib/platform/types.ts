@@ -89,6 +89,13 @@ export interface ActivitySource {
 	onChange(cb: (visible: boolean) => void): () => void;
 }
 
+/** Whether the network is reachable, as far as the platform can tell. */
+export interface OnlineSource {
+	online(): boolean;
+	/** Called on every change; returns a function that stops listening. */
+	onChange(cb: (online: boolean) => void): () => void;
+}
+
 /** The system clipboard. */
 export interface ClipboardAccess {
 	/** Resolves `false` instead of throwing when the browser refuses. */
@@ -136,6 +143,7 @@ export type Platform = {
 	originals: OriginalStorage;
 	identity: IdentitySource;
 	activity: ActivitySource;
+	online: OnlineSource;
 	clipboard: ClipboardAccess;
 	files: FileAccess;
 	persistence: PersistenceAccess;
