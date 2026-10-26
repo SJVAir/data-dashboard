@@ -6,7 +6,6 @@ import type { ErrorReporter, ReportContext } from "../types";
 export type SentryLike = {
 	init(options: BrowserOptions): unknown;
 	captureException(error: unknown, hint?: { extra?: ReportContext }): unknown;
-	globalHandlersIntegration(options: { onerror: boolean; onunhandledrejection: boolean }): unknown;
 };
 
 const BUFFER_LIMIT = 10;
@@ -23,8 +22,6 @@ const NO_PERSONAL_DATA: BrowserOptions["dataCollection"] = {
 	frameContextLines: 0
 };
 
-const baseName = (file: string) => file.split(/[?#]/)[0].split("/").pop() ?? "";
-
 function pathOf(url: string | undefined): string {
 	if (url === undefined) return "";
 	try {
@@ -34,10 +31,22 @@ function pathOf(url: string | undefined): string {
 	}
 }
 
+/**
+ * A script's base name (`app-abc.js`). Anything else is the page itself (a stackless error, or code
+ * run from the document), whose path may hold a dashboard id: its route pattern, or `[page]`.
+ */
+function scrubFileName(file: string): string {
+	if (!file.includes("/")) return scrubText(file);
+	const path = pathOf(file);
+	if (/\.m?js$/.test(path)) return scrubText(path.split("/").pop() ?? "");
+	const inWorkspace = path === "/workspace" || path.startsWith("/workspace/");
+	return inWorkspace ? routePattern(path) : "[page]";
+}
+
 function scrubFrame(frame: StackFrame): StackFrame {
 	const { filename, function: fn, lineno, colno, in_app } = frame;
 	const out: StackFrame = {};
-	if (filename !== undefined) out.filename = baseName(filename);
+	if (filename !== undefined) out.filename = scrubFileName(filename);
 	if (fn !== undefined) out.function = fn;
 	if (lineno !== undefined) out.lineno = lineno;
 	if (colno !== undefined) out.colno = colno;
@@ -47,9 +56,9 @@ function scrubFrame(frame: StackFrame): StackFrame {
 
 /**
  * Rebuilds an event from an allowlist of fields: scrubbed messages and exception values, stack
- * frames with base file names only, the route pattern instead of the URL, the user agent (for the
- * browser and OS family), and allowed context keys. Everything else (user, tags, breadcrumbs,
- * request headers, source lines) is left behind.
+ * frames with script base names only, the route pattern instead of the URL, and allowed context
+ * keys. Everything else (user, tags, breadcrumbs, request headers, source lines) is left behind.
+ * Sentry derives the browser and OS family from the sending request's own User-Agent.
  */
 function scrubEvent(event: Event): Event {
 	const out: Event = {
@@ -77,11 +86,7 @@ function scrubEvent(event: Event): Event {
 			}))
 		};
 	}
-	const agent = event.request?.headers?.["User-Agent"];
-	out.request = {
-		url: routePattern(pathOf(event.request?.url ?? globalThis.location?.href)),
-		...(agent === undefined ? {} : { headers: { "User-Agent": agent } })
-	};
+	out.request = { url: routePattern(pathOf(event.request?.url ?? globalThis.location?.href)) };
 	if (event.contexts)
 		out.contexts = scrubContext(event.contexts as ReportContext) as Event["contexts"];
 	if (event.extra) out.extra = scrubContext(event.extra as ReportContext);
@@ -90,15 +95,23 @@ function scrubEvent(event: Event): Event {
 
 /**
  * Error reports to Sentry, loaded on the first report so the SDK stays out of the initial bundle.
- * Without a DSN nothing is sent (development logs to the console instead).
+ * With a DSN, uncaught errors and unhandled rejections on `target` (the window) are reported too.
+ * Without a DSN nothing is sent and nothing listens (development logs to the console instead).
  */
 export function createWebErrors(opts: {
 	dsn: string | undefined;
 	release: string;
 	dev: boolean;
 	loadSentry?: () => Promise<SentryLike>;
+	target?: EventTarget;
 }): ErrorReporter {
-	const { dsn, release, dev, loadSentry = () => import("./sentry") } = opts;
+	const {
+		dsn,
+		release,
+		dev,
+		loadSentry = () => import("./sentry"),
+		target = globalThis.window
+	} = opts;
 	const log = (error: unknown, context?: ReportContext) => {
 		if (dev) console.error(error, context);
 	};
@@ -128,10 +141,9 @@ export function createWebErrors(opts: {
 					// Sentry 11's replacement for `sendDefaultPii: false`: no user fields (so no IP
 					// inference), cookies, headers, bodies, query strings, local variables, or source lines.
 					dataCollection: NO_PERSONAL_DATA,
+					// Uncaught errors come through our own window listeners instead, so the SDK loads
+					// only when one happens.
 					defaultIntegrations: false,
-					integrations: [
-						loaded.globalHandlersIntegration({ onerror: true, onunhandledrejection: true })
-					] as BrowserOptions["integrations"],
 					beforeBreadcrumb: () => null,
 					beforeSend(event: ErrorEvent) {
 						if (sent >= SEND_LIMIT) return null;
@@ -149,7 +161,7 @@ export function createWebErrors(opts: {
 			});
 	};
 
-	return {
+	const reporter: ErrorReporter = {
 		report(error, context) {
 			try {
 				log(error, context);
@@ -162,6 +174,21 @@ export function createWebErrors(opts: {
 			}
 		}
 	};
+
+	// A non-Error value is never stringified: it could be anything, document text included.
+	target?.addEventListener("error", (e) => {
+		const { error } = e as globalThis.ErrorEvent;
+		reporter.report(error instanceof Error ? error : new Error("Uncaught error"), {
+			kind: "uncaught"
+		});
+	});
+	target?.addEventListener("unhandledrejection", (e) => {
+		const { reason } = e as PromiseRejectionEvent;
+		reporter.report(reason instanceof Error ? reason : new Error("Unhandled rejection"), {
+			kind: "unhandledrejection"
+		});
+	});
+	return reporter;
 }
 
 /** The host of a blocked URL, or the keyword the browser gave (`inline`, `eval`, `data`). */

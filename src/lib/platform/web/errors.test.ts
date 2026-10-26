@@ -5,6 +5,9 @@ import { createWebErrors, listenForCspViolations, type SentryLike } from "./erro
 type Options = Parameters<SentryLike["init"]>[0];
 type SentEvent = Record<string, unknown>;
 
+const PAGE_URL =
+	"https://www.sjvair.com/workspace/dashboards/3f2a9c1e-1234-4abc-8def-123456789012?q=1#f";
+
 /** Stands in for `@sentry/browser`: builds a raw event like the SDK would and runs `beforeSend`. */
 function fakeSentry() {
 	let options: Options | undefined;
@@ -15,7 +18,6 @@ function fakeSentry() {
 			options = o;
 			inits.push(o);
 		},
-		globalHandlersIntegration: (o) => ({ name: "GlobalHandlers", options: o }),
 		captureException(error, hint) {
 			const err = error instanceof Error ? error : new Error(String(error));
 			const event = {
@@ -29,6 +31,12 @@ function fakeSentry() {
 							value: err.message,
 							stacktrace: {
 								frames: [
+									{
+										filename: PAGE_URL,
+										function: "onclick",
+										lineno: 1,
+										colno: 1
+									},
 									{
 										filename: "https://sjvair.com/workspace/assets/app-abc.js?doc=ana",
 										abs_path: "https://sjvair.com/workspace/assets/app-abc.js?doc=ana",
@@ -121,9 +129,7 @@ describe("createWebErrors", () => {
 			frameContextLines: 0
 		});
 		expect(init.defaultIntegrations).toBe(false);
-		expect(init.integrations).toEqual([
-			{ name: "GlobalHandlers", options: { onerror: true, onunhandledrejection: true } }
-		]);
+		expect(init.integrations).toBeUndefined();
 		expect(init.tracesSampleRate).toBeUndefined();
 		expect(init.beforeBreadcrumb!({ message: "x" })).toBeNull();
 	});
@@ -210,12 +216,103 @@ describe("createWebErrors", () => {
 			expect(json).not.toContain(secret);
 		}
 		expect(event.extra).toEqual({ operation: "save" });
-		expect(event.request).toEqual({ url: "/dashboards/:id", headers: { "User-Agent": "UA/1" } });
+		expect(event.request).toEqual({ url: "/dashboards/:id" });
 		expect(event.breadcrumbs).toBeUndefined();
 		expect(event.user).toBeUndefined();
-		const frame = (event.exception as { values: { stacktrace: { frames: unknown[] } }[] }).values[0]
-			.stacktrace.frames[0];
-		expect(frame).toEqual({ filename: "app-abc.js", function: "save", lineno: 1, colno: 2 });
+		const frames = (event.exception as { values: { stacktrace: { frames: unknown[] } }[] })
+			.values[0].stacktrace.frames;
+		expect(frames).toEqual([
+			{ filename: "/dashboards/:id", function: "onclick", lineno: 1, colno: 1 },
+			{ filename: "app-abc.js", function: "save", lineno: 1, colno: 2 }
+		]);
+	});
+
+	it("strips personal data in beforeSend itself", async () => {
+		const fake = fakeSentry();
+		const errors = createWebErrors({
+			dsn: "https://k@o.ingest/1",
+			release: "r1",
+			dev: false,
+			loadSentry: async () => fake.sentry
+		});
+		errors.report(new Error("x"));
+		await tick();
+		const beforeSend = fake.inits[0].beforeSend!;
+		const raw = {
+			message: "Failed for ana@example.org",
+			request: { url: PAGE_URL },
+			extra: { docId: "3f2a9c1e-1234-4abc-8def-123456789012" },
+			contexts: { place: { name: "Fresno" }, browser: { name: "Chrome" } },
+			exception: {
+				values: [
+					{
+						type: "Error",
+						value: "boom",
+						stacktrace: { frames: [{ filename: PAGE_URL, lineno: 3 }] }
+					},
+					{
+						type: "Error",
+						value: "elsewhere",
+						stacktrace: { frames: [{ filename: "https://other.example/x/ana" }] }
+					}
+				]
+			}
+		};
+		const out = beforeSend(raw as never, {}) as unknown as SentEvent;
+		const json = JSON.stringify(out);
+		for (const secret of ["ana@example.org", "3f2a9c1e", "docId", "Fresno", "?q=1", "#f", "ana"]) {
+			expect(json).not.toContain(secret);
+		}
+		expect(out.extra).toEqual({});
+		expect(out.contexts).toEqual({});
+		expect(out.request).toEqual({ url: "/dashboards/:id" });
+		const values = (out.exception as { values: { stacktrace: { frames: unknown[] } }[] }).values;
+		expect(values[0].stacktrace.frames).toEqual([{ filename: "/dashboards/:id", lineno: 3 }]);
+		expect(values[1].stacktrace.frames).toEqual([{ filename: "[page]" }]);
+	});
+
+	it("reports uncaught errors and rejections before any report, loading Sentry then", async () => {
+		const fake = fakeSentry();
+		const loadSentry = vi.fn(async () => fake.sentry);
+		const target = new EventTarget();
+		createWebErrors({ dsn: "https://k@o.ingest/1", release: "r1", dev: false, loadSentry, target });
+		expect(loadSentry).not.toHaveBeenCalled();
+
+		target.dispatchEvent(Object.assign(new Event("error"), { error: new Error("uncaught") }));
+		target.dispatchEvent(
+			Object.assign(new Event("unhandledrejection"), { reason: { title: "Ana's class" } })
+		);
+		await tick();
+		expect(loadSentry).toHaveBeenCalledTimes(1);
+		expect(fake.sent.map((e) => [e.message, e.extra])).toEqual([
+			["uncaught", { kind: "uncaught" }],
+			["Unhandled rejection", { kind: "unhandledrejection" }]
+		]);
+	});
+
+	it("counts uncaught errors toward the 20-per-load cap", async () => {
+		const fake = fakeSentry();
+		const target = new EventTarget();
+		createWebErrors({
+			dsn: "https://k@o.ingest/1",
+			release: "r1",
+			dev: false,
+			loadSentry: async () => fake.sentry,
+			target
+		});
+		target.dispatchEvent(Object.assign(new Event("error"), { error: new Error("0") }));
+		await tick();
+		for (let i = 1; i < 25; i++) {
+			target.dispatchEvent(Object.assign(new Event("error"), { error: new Error(String(i)) }));
+		}
+		expect(fake.sent).toHaveLength(20);
+	});
+
+	it("installs no listeners without a DSN", () => {
+		const target = new EventTarget();
+		const add = vi.spyOn(target, "addEventListener");
+		createWebErrors({ dsn: undefined, release: "r1", dev: false, loadSentry: vi.fn(), target });
+		expect(add).not.toHaveBeenCalled();
 	});
 });
 
