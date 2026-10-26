@@ -133,7 +133,7 @@ Vitest (unit + browser mode), Playwright, `@sentry/browser` (new, MIT, lazy-load
   `npm run test:e2e` pass (existing suite plus the new spec); `ls dist/workspace` shows
   `app.js app.css version.json assets`.
 - [ ] **Step 10: Commit** (`Build the embedding output for sjvair.com`).
-- [ ] **Step 11: Tell the sjvair.com session** (SendMessage `sjvair-com-0e`) that
+- [ ] **Step 11: Tell the sjvair.com session** (SendMessage `sjvair-com-39`) that
   `foundations-5a-shipping` builds `dist/workspace/` (with the commit hash, and that the
   manifest and notices arrive in later tasks), and push the branch so it can clone it.
 
