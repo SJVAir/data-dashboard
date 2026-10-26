@@ -4,8 +4,10 @@ Last updated: 2026-10-26
 
 ## Start here
 
-**Status (2026-10-26): Foundations spec 5a (shipping readiness) is built** on the branch
-`foundations-5a-shipping` (14 tasks; not yet PR'd into `foundations`). It adds the embedding
+**Status (2026-10-26): Foundations spec 5a (shipping readiness) is merged into `foundations`** as
+PR [#9](https://github.com/SJVAir/data-dashboard/pull/9) (14 tasks), and the sjvair.com hosting
+track as sjvair.com PR #295 into `develop`. The product is named "SJVAir Dashboard" (decided
+2026-10-26). **Next: spec 5b, the sign-in side**, in a fresh session. It adds the embedding
 build (bootstrap entry, `version.json`, reload refresh), the browser-floor notice, scrubbed
 Sentry reporting, the CSP host list, the MIT license with a license check and third-party
 notices, the bundle budget, the manifest and placeholder icons, the offline banner, the dev
