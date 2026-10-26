@@ -100,7 +100,8 @@ test("a link copied from the Share dialog opens as a copy in a new browser", asy
 	browser,
 	context
 }) => {
-	await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+	// Only Chromium has clipboard permissions to grant; the others allow writes on a click.
+	await context.grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
 	await page.goto(link);
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await chooseMenuItem(page, "Fresno schools", "Share…");

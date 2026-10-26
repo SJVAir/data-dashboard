@@ -25,3 +25,12 @@ test("the real version.json shows nothing", async ({ page }) => {
 	await fetched;
 	await expect(page.getByText("A new version is available.")).toHaveCount(0);
 });
+
+test("a failed lazy chunk shows the reload bar", async ({ page }) => {
+	await page.route(/\/assets\/(actions|incoming)-.*\.js$/, (route) => route.abort());
+	await page.goto("/workspace/");
+	await makeOwnCopy(page, "Chunk widget");
+	await page.getByRole("button", { name: "My dashboard", exact: true }).click();
+	await page.getByRole("menuitem", { name: "Share…" }).click();
+	await expect(page.getByRole("status").getByText("A new version is available.")).toBeVisible();
+});

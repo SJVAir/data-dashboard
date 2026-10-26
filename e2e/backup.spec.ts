@@ -18,7 +18,8 @@ async function makeTwoDashboards(page: Page): Promise<string[]> {
 async function downloadBackup(page: Page, path: string): Promise<void> {
 	await page.goto("./dashboards");
 	const download = page.waitForEvent("download");
-	await page.getByRole("button", { name: "Download a backup" }).click();
+	// The storage note repeats this button where storage is unprotected.
+	await page.getByRole("button", { name: "Download a backup" }).first().click();
 	const file = await download;
 	expect(file.suggestedFilename()).toMatch(/^sjvair-dashboards-backup-\d{4}-\d{2}-\d{2}\.json$/);
 	await file.saveAs(path);

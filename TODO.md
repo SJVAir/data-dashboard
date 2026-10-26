@@ -83,8 +83,12 @@ and the copyright holder (Central California Asthma Collaborative).
 - **PR #7 now uses @sjvair/sdk 4.8.0-beta.1 (2026-10-25)**: raw entries, the dataset catalog,
   and region codes go through the SDK's wrappers instead of workarounds (pinned exactly until
   4.8.0 is released; see `DEFERRED.md`).
-- **Now (2026-10-25): spec 3, safety and sharing, is being designed** (branch
-  `foundations-3-safety` off `foundations`, stacked PR).
+- **Now (2026-10-25): spec 3, safety and sharing, is built** on branch `foundations-3-safety`
+  (off `foundations`); the stacked PR is not yet opened. Share links, Export/Import, backups
+  and restore, Recently deleted, Clear my data, the storage note and backup reminder, version
+  skew handling, and kept originals are in, with axe and three-engine E2E coverage. Design:
+  `docs/superpowers/specs/2026-10-25-foundations-3-safety-sharing-design.md`; its deferrals
+  are in `DEFERRED.md`. Next: open the PR into `foundations`, then spec 4 (Collections).
 
 **All 10 decisions from the 2026-09-29 review are recorded (2026-10-13)**, plus the
 base-path change to `/workspace/`. Nothing from that review is pending.

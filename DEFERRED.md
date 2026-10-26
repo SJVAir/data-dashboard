@@ -220,6 +220,18 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   there). **Revisit when** upgrading `bits-ui` or on the next `shadcn-svelte add`: check that
   test first.
 
+- **Link length in Google Classroom and webmail.** _Deferred 2026-10-25 (Foundations spec 3)._
+  The 8,000-character share-link cap (`MAX_LINK_URL`) is provisional: it needs a manual check
+  that long links survive Google Classroom and a common webmail client, which needs real
+  accounts. **Revisit before** the private preview.
+- **"Sign in to keep this safe everywhere" in the backup reminder.** _Deferred 2026-10-25
+  (Foundations spec 3)._ `ARCHITECTURE.md` planned a gentle sign-in line next to the backup
+  reminder; there are no accounts yet. **Revisit with** spec 5 / server-backed documents.
+- **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
+  (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
+  is shaped so other kinds can be added without a new format. **Revisit with** spec 4 and the
+  Analysis step.
+
 ## Map & selection
 
 - **Saving land-use regions by code.** _Deferred 2026-10-22 (sjvair.com metadata plan,
