@@ -390,6 +390,16 @@ Tauri-ready seams required **from day one**:
   page visibility; a Tauri build can report visible while the window is in the background so
   polling continues. The data layer's poller uses it; nothing outside the adapter reads
   `visibilitychange` for new code.
+- **`errors` capability** (built 2026-10-26, Foundations spec 5a). `platform.errors` is the
+  one way to report a failure: `report(error, context)`. On the web it lazy-loads the Sentry
+  browser SDK only when a DSN is set (`VITE_SENTRY_DSN`) and the first error happens, scrubs
+  every event (no document ids or bodies, no page URLs, names, emails, or coordinates; free
+  text pattern-scrubbed, so messages must not carry names or titles), and reports each
+  failure streak once. Lightweight `error` / `unhandledrejection` listeners and a CSP
+  `securitypolicyviolation` listener forward to it. Without a DSN it is a no-op.
+- **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
+  `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
+  and drives the offline banner. A Tauri build can report real connectivity.
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
   air-quality data uses an **in-memory cache** shared across widgets, plus the
@@ -725,11 +735,13 @@ approach is staged:
   `deleteUser`, the phone functions,
   change-password) so a session works everywhere.
   sdk-js change, approved plan first.
-- **Development:** the Vite dev server proxies `/api` (and `/account/`) to the local
-  podman sjvair.com, so dev is same-origin and cookies behave as in production.
+- **Development:** the Vite dev server proxies `/api/` and `/account/` to the local
+  podman sjvair.com (target: `SJVAIR_DEV_SERVER`, not `VITE_`-prefixed, default
+  `http://localhost:8000`), so dev is same-origin and cookies behave as in production.
   Because Vite serves the app itself in dev, Django's `ensure_csrf_cookie` never runs
-  there, so dev bootstraps the `csrftoken` cookie once through the proxy (e.g. a GET to a
-  Django page or a small cookie-setting endpoint). In production, cookie-based saves depend
+  there, so dev bootstraps the `csrftoken` cookie once through the proxy with a GET of
+  `/account/login/` (built 2026-10-26, spec 5a). `npm run test:dev-stack` smoke-tests this
+  against the running stack. In production, cookie-based saves depend
   on the hosting track's `ensure_csrf_cookie`.
 
 ## SDK request options
@@ -2099,6 +2111,9 @@ Decided 2026-09-28.
   128+.** Older browsers see a friendly "Your browser is too old for this app" notice
   that points to sjvair.com's main map. Some school Chromebooks past their update end
   date may fall below this; check with partner schools during the private preview.
+  **The notice is shown by the bootstrap** (`app.js`, plain syntax), which feature-tests the
+  floor (`CSS.registerProperty` for `@property`, and `CSS.supports` for `color-mix()`) before
+  loading the app, so older browsers never parse the app bundle.
   Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
 - **Performance budget, CI-enforced:** about **200 KB compressed** of initial JS for the app
   shell. **Each widget type loads its own code only when used** (the map library only
@@ -2147,6 +2162,15 @@ Decided 2026-09-28.
   CCAC website's footer says "All Rights Reserved", which must **not** be copied into the
   license, since the MIT terms grant those rights. Still pending: the `LICENSE` files. `data-dashboard` (now public) and
   `monitor-map` (on npm) currently have no license, which means "all rights reserved".
+- **Built 2026-10-26 (Foundations spec 5a):** the `LICENSE` file and `"license": "MIT"` are
+  in this repo; the check is a Vite plugin (`vite-plugins/licenses.ts`) that runs inside
+  `npm run build`. It walks the modules actually bundled (JS, and packages imported from CSS),
+  reads each package's `license` and `LICENSE` text, fails the build on anything off the list,
+  and writes `THIRD-PARTY-NOTICES.txt` from the same data. Dev-only tools are not checked.
+  **Named exceptions** (commented in the plugin): `@inlang/plugin-message-format` (empty npm
+  `license` field, MIT `LICENSE` file) and `@jsr/sjvair__sdk` (first-party, MIT per sdk-js's
+  `deno.json`, but the JSR build has no license field). The real fix for the second is a
+  `LICENSE` file in sdk-js (planned below); remove the exception once it ships.
 - **Dependency policy:** bundled dependencies must be permissively licensed: MIT, BSD,
   Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide), and **OFL-1.1 for fonts
   only** (decided 2026-10-26; the bundled Inter font is OFL-1.1). A **CI license check**
@@ -2280,7 +2304,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     windowed layout. The template is a bare shell holding only the dashboard, whose own
     nav links back to sjvair.com.
   - **Build output:** fixed-name entry files (one script, one stylesheet) plus
-    content-hashed lazy chunks, and `version.json`. **Files find each other by relative
+    content-hashed lazy chunks, and `version.json` (at the top level next to `app.js`, built in
+    Foundations spec 5a). **Files find each other by relative
     reference** (decided 2026-10-14): the build resolves every chunk and asset relative to
     the module that loads it (`import.meta.url`), so one build works in local
     development, the preview, and on S3. This replaces
@@ -2335,6 +2360,23 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        production behind `beta_tools`, so it uses the real S3 serving and the existing
        cross-origin rule for `www.sjvair.com`. Cross-origin behavior is first exercised
        there, with the CSP report-only and errors in Sentry (see `DEFERRED.md`).
+  - **The bootstrap entry and `startApp(staticBase)`** (built 2026-10-26, spec 5a). `app.js`
+    is `src/bootstrap.ts`, deliberately plain syntax: it finds `#SJVAirDataDashboard`, tests
+    the browser floor (see "Browser support & performance budget"), and only then
+    dynamically imports `src/main.ts` and calls `startApp({ target, staticBase })`.
+    `staticBase` is the entry module's own folder (`new URL(".", import.meta.url)`), so the
+    page passes no path. A browser below the floor gets the "too old" notice instead of a
+    parse error.
+  - **The reload refresh.** When the app finds that `version.json` (fetched from
+    `staticBase`, `cache: "no-store"`) differs from its own build id, the notice's reload
+    button first re-fetches the fixed-name `app.js` and `app.css` with `cache: "reload"`, so
+    the browser's HTTP cache can't hand back the stale entry files, and then reloads. It
+    never rejects; if the refresh fails the page reloads anyway. A dev build skips the check.
+  - **No `VITE_*` names or values reach the bundle** (spec 5a). `configureSdk({ dev, prodUrl },
+pageOrigin)` takes renamed fields, and the build stops inlining `import.meta.env`
+    objects; `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and
+    checks the rest of the hosting contract). `npm run check:budget` enforces the initial
+    bundle budget.
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.

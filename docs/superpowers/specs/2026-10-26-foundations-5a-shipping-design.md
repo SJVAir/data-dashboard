@@ -338,7 +338,8 @@ bar (spec 3). _My call; no contract change._
   packages only** (decided by the user 2026-10-26: Inter, via `@fontsource-variable/inter`,
   is OFL-1.1, the standard web-font license; its text goes in the notices). An explicit,
   commented exception list covers `@inlang/plugin-message-format` (empty npm `license`, MIT `LICENSE`
-  file). Dev-only tools aren't bundled and aren't checked. Settles sharp's `allowScripts`
+  file) and `@jsr/sjvair__sdk` (first-party; MIT per sdk-js's `deno.json`, but the JSR build has no
+  license field; goes away once sdk-js has a `LICENSE` file). Dev-only tools aren't bundled and aren't checked. Settles sharp's `allowScripts`
   question in the same change (sharp is dev-only through `@sveltejs/enhanced-img`; decide
   allow or skip, and record it). _Builder's call:_ the tool, which must itself be permissive.
 - **Third-party notices:** the build writes `dist/workspace/THIRD-PARTY-NOTICES.txt` with the

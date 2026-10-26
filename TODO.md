@@ -4,6 +4,22 @@ Last updated: 2026-10-25
 
 ## Start here
 
+**Status (2026-10-26): Foundations spec 5a (shipping readiness) is built** on the branch
+`foundations-5a-shipping` (14 tasks; not yet PR'd into `foundations`). It adds the embedding
+build (bootstrap entry, `version.json`, reload refresh), the browser-floor notice, scrubbed
+Sentry reporting, the CSP host list, the MIT license with a license check and third-party
+notices, the bundle budget, the manifest and placeholder icons, the offline banner, the dev
+proxy to the local sjvair.com stack, the hand-run embedding suite, and the privacy note and
+feedback link. What's left:
+
+- **You create the dashboard's Sentry project**; then its ingest host goes into
+  `csp-hosts.json` and the sjvair.com copy of the host list, and the DSN into the build's
+  `VITE_SENTRY_DSN`.
+- **The embedding suite's first real run**, by the sjvair.com session (sjvair.com PR #295
+  into `develop`). It stays in `DEFERRED.md` until it has run.
+- **5b (the sign-in side) is next.**
+- Open the 5a PR into `foundations` after the whole-branch review.
+
 **Status (2026-10-25): Foundations specs 1, 2, and 3 are merged into `foundations`; planning is complete and merged into `main`** (PR #5, 2026-10-19,
 with the user's approval). A final consistency and build-readiness sweep (2026-10-14) fixed
 the remaining leftovers and settled five build details (relative file references, one
