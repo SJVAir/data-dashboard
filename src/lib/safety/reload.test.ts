@@ -7,15 +7,29 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-test("requests app.js and app.css past the HTTP cache", async () => {
+test("requests app.js and app.css past the HTTP cache, as the page does", async () => {
 	const fetchFn = vi.fn(async () => new Response("ok"));
 	await refreshEntryFiles(base, fetchFn as unknown as typeof fetch);
 	const calls = fetchFn.mock.calls as unknown as [URL, RequestInit][];
-	expect(calls.map(([url]) => String(url)).sort()).toEqual([
-		"https://s.example/static/workspace/app.css",
-		"https://s.example/static/workspace/app.js"
-	]);
-	for (const [, init] of calls) expect(init).toEqual({ cache: "reload" });
+	const byUrl = Object.fromEntries(calls.map(([url, init]) => [String(url), init]));
+	expect(byUrl).toEqual({
+		"https://s.example/static/workspace/app.js": { cache: "reload" },
+		// Matches the stylesheet link's request, so it refreshes the same cache entry.
+		"https://s.example/static/workspace/app.css": {
+			cache: "reload",
+			mode: "no-cors",
+			credentials: "include"
+		}
+	});
+});
+
+test("resolves when fetch throws synchronously", async () => {
+	const fetchFn = vi.fn(() => {
+		throw new TypeError("bad request");
+	});
+	await expect(
+		refreshEntryFiles(base, fetchFn as unknown as typeof fetch)
+	).resolves.toBeUndefined();
 });
 
 test("resolves when fetch rejects", async () => {
