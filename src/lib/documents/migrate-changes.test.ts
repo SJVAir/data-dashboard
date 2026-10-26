@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { z } from "zod";
+import { z } from "$lib/zod";
 import { report } from "$lib/safety/report";
 import type { Migration } from "./load";
 import { upgradeChanges } from "./migrate-changes";

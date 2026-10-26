@@ -5,6 +5,7 @@ import { enhancedImages } from "@sveltejs/enhanced-img";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { playwright } from "@vitest/browser-playwright";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { buildInfo } from "./vite-plugins/build-info.ts";
 import { licenses } from "./vite-plugins/licenses.ts";
@@ -20,6 +21,19 @@ function absoluteShell(): Plugin {
 				ctx.bundle ? html.replaceAll(/(["'])\.\/workspace\//g, "$1/workspace/") : html
 		}
 	};
+}
+
+/**
+ * The contract CSP from `csp-hosts.json`, for the preview server, so the E2E suite runs under it.
+ * The preview serves the static folder from its own origin, so `{static}` adds nothing to 'self'.
+ */
+function contractCsp(): string {
+	const directives: Record<string, string[]> = JSON.parse(
+		readFileSync(new URL("./csp-hosts.json", import.meta.url), "utf8")
+	);
+	return Object.entries(directives)
+		.map(([name, sources]) => [name, ...sources.filter((s) => s !== "{static}")].join(" "))
+		.join("; ");
 }
 
 export default defineConfig(({ command, isPreview }) => ({
@@ -71,6 +85,7 @@ export default defineConfig(({ command, isPreview }) => ({
 			}
 		}
 	},
+	preview: { headers: { "Content-Security-Policy": contractCsp() } },
 	optimizeDeps: { include: ["axe-core"] },
 	resolve: {
 		alias: [{ find: "$lib", replacement: fileURLToPath(new URL("./src/lib", import.meta.url)) }]

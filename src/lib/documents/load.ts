@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import type { z } from "$lib/zod";
 import { report } from "$lib/safety/report";
 import { CURRENT_SCHEMA_VERSION, DashboardSchema, type Dashboard } from "./schema";
 

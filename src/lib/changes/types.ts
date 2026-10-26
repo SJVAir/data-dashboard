@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "$lib/zod";
 import { DashboardBodySchema, NAME_MAX, WidgetInstanceSchema } from "$lib/documents/schema";
 
 function sameWidgetId(change: { target: { widgetId: string }; widget: { id: string } }) {

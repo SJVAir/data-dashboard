@@ -1,5 +1,5 @@
 import { parseDateKey } from "$lib/format";
-import { z } from "zod";
+import { z } from "$lib/zod";
 
 export const LIMITS = {
 	ID_MAX: 64,
