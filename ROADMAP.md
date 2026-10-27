@@ -17,10 +17,12 @@ unchanged at 4.5.0.
 
 **Where things stand (2026-10-27):** Foundations specs 1, 2, 3, and 5a are merged into the
 `foundations` branch (spec 4 was dropped; Collections moved to Release 3), and **spec 5b, the
-sign-in side, the last Foundations spec, is built** on `foundations-5b-sign-in` (PRs pending). The hosting track is built (sjvair.com #295) and
-step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both
-server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile
-4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
+sign-in side, the last Foundations spec, is built** on `foundations-5b-sign-in`, with sjvair.com
+`feature/workspace-sign-in` and sdk-js `feature/session-user-details`; their PRs await the
+user's review. The hosting track is built (sjvair.com #295) and step 3's catalog, codes, and
+coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both server PRs are on sjvair.com
+`develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile 4.0.6,
+@sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
 
 ## Done (v1 tab era)
 

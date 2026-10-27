@@ -167,8 +167,11 @@ files are not what `/api/2.0/account/` serves.
    (on the session path `request.authenticator` is `None`; token requests set it to the
    authenticator), every `UserSerializer` response leaves out `api_token`. That covers
    `UserDetail` (GET, PATCH, DELETE) and `ChangePasswordEndpoint`. `LoginEndpoint` and
-   `RegisterEndpoint` are unchanged: they authenticate by credentials and exist to hand out
-   the token. _Builder's call:_ how the field is left out (a serializer variant, a context
+   `RegisterEndpoint` keep handing out the token to credential `POST`s, which is what they
+   exist for. _Amended in the final review (2026-10-27):_ `LoginEndpoint` also answers a `GET`
+   with the signed-in user, and resticus authenticates that by session, so a session `GET` of
+   `login/` leaves out `api_token` too (a signed-out one is `401`). The check is in the
+   endpoint itself, by method: a credential `POST` also has no token authenticator. _Builder's call:_ how the field is left out (a serializer variant, a context
    flag, or popping the key in the endpoint), as long as it is one shared helper.
    **`is_admin`** (added by `UserSerializer.fixup` for staff) stays in session responses and
    the block, which keeps the shapes the same (_my call_). The dashboard's schema ignores
@@ -273,8 +276,9 @@ out on another sjvair.com page) reach a tab through its focus re-check.
   sjvair.com's login page links to sign-up, so there's no separate "Create account" button
   (_my call_; a new account doesn't return to the dashboard yet, see decision 8).
 - **Signed in:** a circle with the person's initials (from `full_name`; a generic person icon
-  if there's no usable name), with an accessible name like "ML, account menu for Maria Lopez". The visible initials come
-  first in the name so it contains the visible label (WCAG 2.5.3, label in name).
+  if there's no usable name), with an accessible name like "ML, account menu for Maria
+  Lopez". The visible initials come first in the name so it contains the visible label (WCAG
+  2.5.3, label in name).
   It opens a dropdown (bits-ui, like `HelpMenu`):
   - **Greeting**: "Hi, Maria" (first word of `full_name`, _my call_; the whole name if one
     word) and, below it, "Signed in as Maria Lopez". Formatted through Paraglide messages with
@@ -288,7 +292,10 @@ out on another sjvair.com page) reach a tab through its focus re-check.
   between the two.
 - **Phone width:** the button and circle stay visible; the bar already wraps.
 - Theme tokens only, placeholder styling (the design pass comes later). Keyboard and screen
-  reader use work like `HelpMenu`.
+  reader use work like `HelpMenu`. Unlike `HelpMenu`'s, this trigger can vanish while it has
+  focus (Sign out, or a menu-open re-check answering 401), so focus then moves to the Sign in
+  link rather than falling to the page (WCAG 2.4.3; added in the final review). A change from
+  another tab while focus is elsewhere leaves focus alone.
 
 ### 4. Sign out
 

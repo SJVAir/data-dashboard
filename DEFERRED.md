@@ -97,6 +97,46 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   - The feedback link has no new-tab cue (design pass).
   - `reload.ts`'s `location.reload` and the entry-file refresh are web-only behavior outside
     the platform adapter (Tauri).
+- **Spec 5b polish.** _Deferred 2026-10-27 (Foundations spec 5b, task reviews and final
+  review)._ Small follow-ups, none affecting correctness, security, or the token boundary.
+  **Revisit with** the design pass, or when next touching each file:
+  - sjvair.com: v1 `accounts/endpoints.py` imports the session module in its own import
+    block; tidy with the imports.
+  - sjvair.com: the session password-change test juggles old and new passwords across the v1
+    and v2 URLs and is hard to read; split it per version.
+  - sjvair.com: `session_user_data()` round-trips through `json.dumps`/`loads`. Intentional
+    (it matches the API's encoder, so the block equals the `account/` response); revisit only
+    if it shows up in profiling.
+  - sjvair.com: the staff identity-block test doesn't re-check that the page has no token
+    (the signed-in test covers it).
+  - sdk-js: bare `b.api_token;` statements exist only to hold `@ts-expect-error`; and callers
+    passing a value typed as `UpdateUserForm`/`ChangePasswordConfig` (with `api_token?:
+string`) now get the union return type. The mobile app passes a string token, so it's
+    unaffected; revisit if a loosely typed caller appears.
+  - Initials use `toLocaleUpperCase()` with the runtime's default locale; pass the UI locale
+    when translations arrive.
+  - The identity block's tests don't cover non-object JSON (`null`, `1`) or a missing `user`
+    key (the schema already rejects them).
+  - The identity source: a stale in-flight request can answer a forced re-check after the
+    generation bump; an equal identity in `accept()` still bumps the generation; and the memory
+    source reports cause `"recheck"` where the web source says `"load"` for the first answer
+    (nothing depends on the difference).
+  - One browser-test load failure on a first run (Vite re-optimizing dependencies), not
+    reproduced; revisit if it recurs.
+  - `AccountState` passes a received tab identity to `accept()` as validated, not as the
+    parsed (normalized) value; mixes TypeScript private parameters with `#private` fields (as
+    `App` does); and its `dispose()` is never called (the app lives as long as the tab).
+  - Untested: the tab channel's own-echo `tabId` filter, and the signed-out → signed-in toast
+    across tabs.
+  - The account menu's keyboard test steps with `ArrowDown` and sleeps; use focus assertions.
+    Its test user is cast `as never`, which hides type drift.
+  - The menu's greeting labels aren't wrapped in a `DropdownMenu.Group` (design pass).
+  - `returnPath`'s query comes from `serializeSearch(route.search)`, which rebuilds it from an
+    object and collapses repeated keys. No route uses repeated keys; read the browser's real
+    query through the router if one does.
+  - E2E `account.spec.ts`: a redundant `page.goto` after "New blank dashboard", and the
+    logout fixture's glob `**/account/logout/` also matches `/api/2.0/account/logout/`.
+  - `identity.ts`'s `statusOf` has a long inline cast type; name it.
 
 - **Tauri desktop build.** _Deferred 2026-09-23 (IDEA.md Q1)._ The web build comes first
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").
@@ -211,8 +251,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
   **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
 - **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
-  review)._ The home route shows as `/workspace` (sv-router drops the slash), while Vite's
-  base is `/workspace/`. **Revisit in** the hosting track: sjvair.com must serve both forms.
+  review); updated 2026-10-27 (spec 5b final review)._ The home route shows as `/workspace`
+  (sv-router drops the slash), while Vite's base is `/workspace/`. The server half is done:
+  the hosting track's `re_path(r'^workspace(?:/.*)?$')` makes sjvair.com serve both forms (200,
+  no redirect), and the dev-stack test accepts both. Spec 5b's Sign in link sends home back as
+  `/workspace/`. Still open, dev only: reloading home in `npm run dev` (or opening `/workspace`
+  there) shows Vite's base-URL hint page, and the address bar's home URL isn't the canonical
+  `/workspace/`. **Revisit with** the next router change (layout engine and windowing, at the
+  latest): have the router render home as `/workspace/`, or redirect the bare base in dev.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -693,7 +739,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   Release 1, and the adapter's `authMode` is always `"cookie"`. **Revisit when** the first
   token-mode build is planned. It needs in-app sign-in (Release 2) and a "no account UI" or
   token-sign-in state in the shell.
-
 - **Shared-computer guest mode.** _Deferred 2026-09-24._ A mode (e.g. enabled by a
   teacher-distributed `?guest` link) where nothing persists after the tab closes.
   Current approach: per-account local spaces (sign-out removes them), the browser profile

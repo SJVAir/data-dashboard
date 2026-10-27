@@ -478,14 +478,16 @@ a211be6), found already done while designing spec 5b (2026-10-27).
 
 **Session responses carry no `api_token`** (decided 2026-10-27, spec 5b). `GET`, `PATCH`, and
 `DELETE account/` and `PUT account/password/` leave `api_token` out when the request was
-authenticated by session cookie. Token requests (the mobile app) get it as before, and so do
-`account/login` and registration, which exist to hand it out. A signed-out request to
-`account/` is a `401`, not the `500` it was. The SDK rejects a non-2xx JSON call with the
+authenticated by session cookie, and so does `GET account/login/`, which answers a GET with
+the signed-in user (found in the 5b final review: it had returned the token to any
+session-cookie request). Token requests (the mobile app) get it as before, and so do a
+credential `POST account/login/` and registration, which exist to hand it out. A signed-out
+request to `account/` or a GET of `account/login/` is a `401`, not the `500` it was. The SDK rejects a non-2xx JSON call with the
 response status at `error.cause.result.status`; the dashboard reads the status there. The
 dashboard validates the account response with its own schema, so it needs no new SDK release.
 The type side (a `SessionUserDetails` type and overloads on `getUserDetails`, `updateUser`,
-and `changePassword`) is on sdk-js `feature/session-user-details`, a PR into `release/4.8.0`
-(pending review; no beta was cut). Consequences:
+and `changePassword`) is on sdk-js `feature/session-user-details`, for a PR into
+`release/4.8.0` that awaits the user's review (no beta was cut). Consequences:
 
 - Cookies **only work same-origin**. A standalone deployment (e.g. a separate
   subdomain) or a Tauri window (`tauri://`/`http://tauri.localhost` origin) must use
@@ -552,17 +554,19 @@ you:**
   one per account. **Spec 5b (2026-10-27) built none of the account-space behavior below:
   everyone, signed in or not, keeps working in the anonymous space.** The parts marked
   _held for sync_ wait for the server-backed documents track, because without server saves
-  each one promises something false or can lose work (`DEFERRED.md` → "Accounts"). Every local document, queued change, and place preference belongs to
-  exactly one space, and the app only ever shows the current one. Purely cosmetic device
-  settings (e.g. theme) stay with the browser.
-  - **Signing in asks once about anonymous work** (_held for sync_) ("Add the 3 dashboards made on this
-    browser to your account?"). Yes moves them into the account with the same IDs and out
-    of the anonymous space; No leaves them for signed-out use.
-  - **Signing out removes that account's local copies** (_held for sync_) from the browser (they are on the
-    server). If changes haven't synced, the app says so and offers to finish first.
-  - **An expired or browser-session-ended sign-in is not a sign-out** (_held for sync_): the space is hidden
-    but kept, so unsynced work survives, and signing back in as the same person resumes
-    it. A hidden space nobody returns to is removed after 30 days.
+  each one promises something false or can lose work (`DEFERRED.md` → "Accounts"). Every
+  local document, queued change, and place preference belongs to exactly one space, and the
+  app only ever shows the current one. Purely cosmetic device settings (e.g. theme) stay
+  with the browser.
+  - **Signing in asks once about anonymous work** (_held for sync_) ("Add the 3 dashboards
+    made on this browser to your account?"). Yes moves them into the account with the same
+    IDs and out of the anonymous space; No leaves them for signed-out use.
+  - **Signing out removes that account's local copies** (_held for sync_) from the browser
+    (they are on the server). If changes haven't synced, the app says so and offers to
+    finish first.
+  - **An expired or browser-session-ended sign-in is not a sign-out** (_held for sync_): the
+    space is hidden but kept, so unsynced work survives, and signing back in as the same
+    person resumes it. A hidden space nobody returns to is removed after 30 days.
   - **ID collisions become copies.** The server accepts a save to an existing ID only
     from its owner. If an upload hits an ID owned by someone else, the client assigns a
     new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
@@ -2466,8 +2470,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     `v: 1`, since nothing read the block and nothing was released). An unknown `v`, an
     unreadable block, or a `user` that fails validation reads as signed out (the unreadable
     case is reported, scrubbed). The dashboard's `index.html` no longer carries a stand-in
-    block, so dev, E2E, and the standalone build ask `account/` once instead; the template references `app.js` by its exact static URL (no
-    query string, no renamed copy), because hashed chunks import it back as `../app.js` and
+    block, so dev, E2E, and the standalone build ask `account/` once instead; the template
+    references `app.js` by its exact static URL (no query string, no renamed copy), because hashed chunks import it back as `../app.js` and
     any other URL runs the bootstrap twice; the CSP comes from this repo's
     `csp-hosts.json`, report-only for the preview and enforced by a server setting
     (`WORKSPACE_CSP_ENFORCE`) before go-live; the manifest is served by Django at
