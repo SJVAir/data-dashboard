@@ -154,8 +154,13 @@ export type MemoryPlatform = Platform & {
 	errors: MemoryErrors;
 };
 
+export type MemoryPlatformOptions = {
+	/** Defaults to `createMemoryIdentity()` (signed out). */
+	identity?: MemoryIdentity;
+};
+
 /** In-memory twin of the web storage, for tests. Values are cloned like IndexedDB does. */
-export function createMemoryPlatform(): MemoryPlatform {
+export function createMemoryPlatform(options: MemoryPlatformOptions = {}): MemoryPlatform {
 	const docs = new Map<string, { space: SpaceId; doc: unknown }>();
 	const logs = new Map<string, LogEntry[]>();
 	const prefs = new Map<string, unknown>();
@@ -294,7 +299,7 @@ export function createMemoryPlatform(): MemoryPlatform {
 				journal.delete(key(space, docId, tabId));
 			}
 		},
-		identity: createMemoryIdentity(),
+		identity: options.identity ?? createMemoryIdentity(),
 		activity: createMemoryActivity(),
 		online: createMemoryOnline(),
 		clipboard,
