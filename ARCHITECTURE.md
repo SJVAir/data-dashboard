@@ -2406,7 +2406,7 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   - **The hosting contract** (settled 2026-10-26 with the sjvair.com hosting session) is
     recorded in `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` →
     "Hosting contract", the single source both repos follow; changes go through this repo.
-    In short: `npm ci && npm run build` (Node `>=24 <27`) writes `dist/workspace/` with
+    In short: `npm ci && npm run build` (Node `>=26 <27`) writes `dist/workspace/` with
     fixed-name `app.js`, `app.css`, `version.json`, `manifest.webmanifest`, and
     `THIRD-PARTY-NOTICES.txt` at the top level and hashed files under `assets/`; the template
     mounts the app in `<div id="SJVAirDataDashboard">` and passes identity in a `json_script`

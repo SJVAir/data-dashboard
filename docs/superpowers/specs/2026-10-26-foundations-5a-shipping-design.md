@@ -85,9 +85,10 @@ sides agree.
 ### 1. Build interface
 
 - The import runs `npm ci && npm run build` in a clone of this repo.
-- **Node:** `package.json` declares `"engines": { "node": ">=24 <27" }` and the repo gets an
-  `.nvmrc` (`24`). This repo's CI tests on Node 24 and adds a build-only job on Node 26
-  (sjvair.com's container uses 26). _(sjvair.com)_ The import checks `node --version`
+- **Node:** `package.json` declares `"engines": { "node": ">=26 <27" }` and the repo gets an
+  `.nvmrc` (`26`). This repo's CI runs on Node 26, the version sjvair.com's container uses.
+  (Raised from `>=24 <27` on 2026-10-27, when Node 26 became LTS; the separate Node 26
+  build-only job was dropped then as redundant.) _(sjvair.com)_ The import checks `node --version`
   against `engines` and fails early on a mismatch.
 - **Output:** `dist/workspace/`. _(sjvair.com)_ The import copies it to sjvair.com's
   `dist/workspace/`, so it is served at `{% static 'workspace/' %}`. The import fails if
