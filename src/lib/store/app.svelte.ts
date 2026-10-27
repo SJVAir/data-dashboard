@@ -1,4 +1,5 @@
 import { getContext, setContext } from "svelte";
+import { toast } from "svelte-sonner";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { StorageProtection } from "$lib/safety/protection.svelte";
@@ -7,6 +8,7 @@ import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { placeholderType } from "$lib/widgets/placeholder";
+import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { DocumentSession } from "./document-session.svelte";
 import { createTabChannel, type TabChannel, type TabMessage } from "./tab-channel";
@@ -23,6 +25,8 @@ export type AppContext = {
 	channel: TabChannel;
 	index: DashboardIndex;
 	protection: StorageProtection;
+	/** Who is signed in, shared with the other tabs. */
+	account: AccountState;
 	/** The folder holding `app.js` (and `version.json`). */
 	staticBase: URL;
 	/** Open sessions by id (one per dashboard in this tab); `STARTER_ID` gives the starter. Opening records the last-opened dashboard unless `remember` is false. */
@@ -51,6 +55,13 @@ export type AppOptions = {
 	staticBase?: URL;
 	debounceMs?: number;
 	now?: () => Date;
+	/** How account changes are told to the person. Defaults to toasts. */
+	notify?: Notify;
+};
+
+const toastNotify: Notify = {
+	info: (message) => toast(message),
+	error: (message) => toast.error(message)
 };
 
 /**
@@ -82,6 +93,7 @@ class App implements AppContext {
 	resetCount = $state(0);
 	readonly index: DashboardIndex;
 	readonly protection: StorageProtection;
+	readonly account: AccountState;
 	readonly sessions: AppContext["sessions"];
 	readonly staticBase: URL;
 
@@ -98,6 +110,12 @@ class App implements AppContext {
 	) {
 		this.index = new DashboardIndex({ platform, space, channel, tabId, now: options.now });
 		this.protection = new StorageProtection(platform, space);
+		this.account = new AccountState(
+			platform.identity,
+			channel,
+			tabId,
+			options.notify ?? toastNotify
+		);
 		this.staticBase =
 			options.staticBase ?? new URL(".", globalThis.location?.href ?? "http://localhost/");
 		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
@@ -192,13 +210,17 @@ class App implements AppContext {
 	}
 }
 
-/** Set up the app for this tab: the space, the widget types, the tab channel, and the index. */
+/**
+ * Set up the app for this tab: the space, the widget types, the tab channel, who is signed in,
+ * and the index.
+ */
 export async function initApp(platform: Platform, options: AppOptions = {}): Promise<AppContext> {
 	registerWidgetType(placeholderType);
 	const space = await platform.identity.currentSpace();
 	const tabId = options.tabId ?? crypto.randomUUID();
 	const channel = withLocalEcho(options.channel ?? createTabChannel());
 	const app = new App(platform, space, tabId, channel, { ...options, channel });
+	platform.identity.start();
 	try {
 		// A timestamp, not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity

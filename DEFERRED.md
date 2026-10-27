@@ -97,6 +97,46 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   - The feedback link has no new-tab cue (design pass).
   - `reload.ts`'s `location.reload` and the entry-file refresh are web-only behavior outside
     the platform adapter (Tauri).
+- **Spec 5b polish.** _Deferred 2026-10-27 (Foundations spec 5b, task reviews and final
+  review)._ Small follow-ups, none affecting correctness, security, or the token boundary.
+  **Revisit with** the design pass, or when next touching each file:
+  - sjvair.com: v1 `accounts/endpoints.py` imports the session module in its own import
+    block; tidy with the imports.
+  - sjvair.com: the session password-change test juggles old and new passwords across the v1
+    and v2 URLs and is hard to read; split it per version.
+  - sjvair.com: `session_user_data()` round-trips through `json.dumps`/`loads`. Intentional
+    (it matches the API's encoder, so the block equals the `account/` response); revisit only
+    if it shows up in profiling.
+  - sjvair.com: the staff identity-block test doesn't re-check that the page has no token
+    (the signed-in test covers it).
+  - sdk-js: bare `b.api_token;` statements exist only to hold `@ts-expect-error`; and callers
+    passing a value typed as `UpdateUserForm`/`ChangePasswordConfig` (with `api_token?:
+string`) now get the union return type. The mobile app passes a string token, so it's
+    unaffected; revisit if a loosely typed caller appears.
+  - Initials use `toLocaleUpperCase()` with the runtime's default locale; pass the UI locale
+    when translations arrive.
+  - The identity block's tests don't cover non-object JSON (`null`, `1`) or a missing `user`
+    key (the schema already rejects them).
+  - The identity source: a stale in-flight request can answer a forced re-check after the
+    generation bump; an equal identity in `accept()` still bumps the generation; and the memory
+    source reports cause `"recheck"` where the web source says `"load"` for the first answer
+    (nothing depends on the difference).
+  - One browser-test load failure on a first run (Vite re-optimizing dependencies), not
+    reproduced; revisit if it recurs.
+  - `AccountState` passes a received tab identity to `accept()` as validated, not as the
+    parsed (normalized) value; mixes TypeScript private parameters with `#private` fields (as
+    `App` does); and its `dispose()` is never called (the app lives as long as the tab).
+  - Untested: the tab channel's own-echo `tabId` filter, and the signed-out → signed-in toast
+    across tabs.
+  - The account menu's keyboard test steps with `ArrowDown` and sleeps; use focus assertions.
+    Its test user is cast `as never`, which hides type drift.
+  - The menu's greeting labels aren't wrapped in a `DropdownMenu.Group` (design pass).
+  - `returnPath`'s query comes from `serializeSearch(route.search)`, which rebuilds it from an
+    object and collapses repeated keys. No route uses repeated keys; read the browser's real
+    query through the router if one does.
+  - E2E `account.spec.ts`: a redundant `page.goto` after "New blank dashboard", and the
+    logout fixture's glob `**/account/logout/` also matches `/api/2.0/account/logout/`.
+  - `identity.ts`'s `statusOf` has a long inline cast type; name it.
 
 - **Tauri desktop build.** _Deferred 2026-09-23 (IDEA.md Q1)._ The web build comes first
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").
@@ -211,8 +251,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
   **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
 - **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
-  review)._ The home route shows as `/workspace` (sv-router drops the slash), while Vite's
-  base is `/workspace/`. **Revisit in** the hosting track: sjvair.com must serve both forms.
+  review); updated 2026-10-27 (spec 5b final review)._ The home route shows as `/workspace`
+  (sv-router drops the slash), while Vite's base is `/workspace/`. The server half is done:
+  the hosting track's `re_path(r'^workspace(?:/.*)?$')` makes sjvair.com serve both forms (200,
+  no redirect), and the dev-stack test accepts both. Spec 5b's Sign in link sends home back as
+  `/workspace/`. Still open, dev only: reloading home in `npm run dev` (or opening `/workspace`
+  there) shows Vite's base-URL hint page, and the address bar's home URL isn't the canonical
+  `/workspace/`. **Revisit with** the next router change (layout engine and windowing, at the
+  latest): have the router render home as `/workspace/`, or redirect the bare base in dev.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -333,8 +379,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   accounts. **Revisit before** the private preview.
 - **"Sign in to keep this safe everywhere" in the backup reminder.** _Deferred 2026-10-25
   (Foundations spec 3)._ `ARCHITECTURE.md` planned a gentle sign-in line next to the backup
-  reminder; there are no accounts yet. **Revisit with** spec 5b (the sign-in side) / server-backed
-  documents.
+  reminder; there are no accounts yet. _Updated 2026-10-27 (spec 5b):_ sign-in now exists, but
+  without sync the line would be false, so the trigger moved. **Revisit with** the server-backed
+  documents track (when it builds sync).
 - **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
   is shaped so other kinds can be added without a new format. **Revisit with** Collections and
@@ -657,6 +704,41 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Accounts
 
+- **Account-space behavior held for sync.** _Deferred 2026-10-27 (Foundations spec 5b)._ These
+  are designed in `ARCHITECTURE.md` → "Accounts & anonymous use" and stay as designed. 5b
+  built signing in, the account menu, sign-out, and the cross-tab identity, but everyone keeps
+  working in the anonymous space. Each item below either promises something false or can lose
+  work without server-backed documents. **Revisit when** the server-backed documents track
+  starts building sync (5b left the seams: `currentSpace()` and the identity cross-tab
+  message).
+  - The space switch: signed-in work going into a per-account space (`account:<id>`). Without
+    sync an account space exists only in this browser, so a person would expect their
+    dashboards on another device and not find them.
+  - "Add the 3 dashboards made on this browser to your account?", for the same reason.
+  - Sign-out removing that account's local copies "because they are on the server": they
+    aren't yet, so it would delete work.
+  - Hidden spaces on expiry or an account change, and removing a hidden space after 30 days.
+    There are no account spaces to hide yet.
+  - Saves bound to an account (each save names its account; the server refuses a mismatch)
+    and the re-check before each sync. There are no server saves yet.
+  - "Sign in to keep this safe everywhere" in the backup reminder (see its own entry under
+    "Documents & saving").
+- **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
+  (Foundations spec 5b)._ A new account still goes sign-up, the "enter your code" page, then
+  the profile page. During the preview `/workspace/` is behind `beta_tools`, so only people who
+  already have accounts reach it and they use the login page; sign-up from the dashboard is
+  first reachable at go-live. The email-only accounts track rewrites sign-up and verification,
+  so the return trip is designed once there. Passing `next` to sign-up would skip phone
+  verification (`SignupView` sends the person to `next` instead of the code page); doing it
+  right means carrying `next` through sign-up and the code page. The dashboard has no "Create
+  account" button for the same reason. **Revisit with** the email-only accounts track, and
+  **before go-live at the latest**.
+- **Account UI in token-mode builds.** _Deferred 2026-10-27 (Foundations spec 5b)._ In a Tauri
+  build, or a standalone one on another origin (`VITE_PROD_URL`), the cookie re-check can only
+  answer 401 and the relative `/account/login/` link goes nowhere. No such build ships in
+  Release 1, and the adapter's `authMode` is always `"cookie"`. **Revisit when** the first
+  token-mode build is planned. It needs in-app sign-in (Release 2) and a "no account UI" or
+  token-sign-in state in the shell.
 - **Shared-computer guest mode.** _Deferred 2026-09-24._ A mode (e.g. enabled by a
   teacher-distributed `?guest` link) where nothing persists after the tab closes.
   Current approach: per-account local spaces (sign-out removes them), the browser profile

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { m } from "$lib/paraglide/messages.js";
 	import { isActive, p } from "../../../router";
+	import AccountMenu from "./AccountMenu.svelte";
 	import DashboardPicker from "./DashboardPicker.svelte";
 	import HelpMenu from "./HelpMenu.svelte";
 	import SavedIndicator from "./SavedIndicator.svelte";
@@ -22,6 +23,7 @@
 			<SavedIndicator />
 			<UndoRedo />
 			<HelpMenu />
+			<AccountMenu />
 		</div>
 	</nav>
 </header>

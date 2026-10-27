@@ -212,5 +212,21 @@
 	"privacy_errors": "If something breaks, the app may send an error report to a separate error-reporting service. It says what went wrong, which version of the app you have, and what kind of browser you use. It leaves out your dashboards, names, emails, and locations.",
 	"privacy_no_tracking": "There is no analytics or tracking.",
 	"privacy_clear": "You can remove everything this app keeps in this browser at any time.",
-	"privacy_notices_link": "Licenses of the software this app uses"
+	"privacy_notices_link": "Licenses of the software this app uses",
+	"account_signed_out": "Signed out.",
+	"account_sign_out_failed": "Couldn't sign out. Check your connection and try again.",
+	"account_signed_out_elsewhere": "You've been signed out.",
+	"account_signed_in_as_toast": "Signed in as {name}.",
+	"account_signed_in_unnamed_toast": "You're signed in.",
+	"account_switched_to": "Now signed in as {name}.",
+	"account_switched_unnamed": "You're now signed in to a different account.",
+	"account_sign_in": "Sign in",
+	"account_menu_for": "{initials}, account menu for {name}",
+	"account_menu": "Account menu",
+	"account_greeting": "Hi, {name}",
+	"account_greeting_unnamed": "Hi!",
+	"account_signed_in_as": "Signed in as {name}",
+	"account_signed_in_unnamed": "You're signed in",
+	"account_settings": "Account settings",
+	"account_sign_out": "Sign out"
 }

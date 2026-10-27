@@ -15,12 +15,14 @@ the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notificat
 2026-10-13), with #261 still open; `@sjvair/sdk` is
 unchanged at 4.5.0.
 
-**Where things stand (2026-10-26):** Foundations specs 1, 2, 3, and 5a are merged into the
+**Where things stand (2026-10-27):** Foundations specs 1, 2, 3, and 5a are merged into the
 `foundations` branch (spec 4 was dropped; Collections moved to Release 3), and **spec 5b, the
-sign-in side, is the last Foundations spec**. The hosting track is built (sjvair.com #295) and
-step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both
-server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile
-4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
+sign-in side, the last Foundations spec, is built** on `foundations-5b-sign-in`, with sjvair.com
+`feature/workspace-sign-in` and sdk-js `feature/session-user-details`; their PRs await the
+user's review. The hosting track is built (sjvair.com #295) and step 3's catalog, codes, and
+coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both server PRs are on sjvair.com
+`develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile 4.0.6,
+@sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
 
 ## Done (v1 tab era)
 
@@ -215,8 +217,15 @@ server PRs are on sjvair.com `develop`, not yet in production. Current baseline:
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (the server "remember me" change is owned by the
   email-only accounts track); sdk-js
-  makes `apiToken` optional on account calls. Saves carry the account id (refused on a
-  mismatch), and the dashboard reads a session-identity response that omits `api_token`.
+  makes `apiToken` optional on account calls (shipped in 4.7.0). Saves carry the account id
+  (refused on a mismatch). The dashboard reads the session `account/` response, which omits
+  `api_token` (built in spec 5b; no separate endpoint).
+  **Held from spec 5b for this track** (`DEFERRED.md` → "Accounts"): the switch of signed-in
+  work into an account space, the "add your work to your account" prompt, sign-out removing
+  local copies, hidden spaces on expiry or an account change (30-day removal), saves bound to
+  an account with the re-check before each sync, and the backup reminder's "sign in to keep
+  this safe everywhere" line. Also with the email-only accounts track: the return trip to the
+  dashboard after sign-up (before go-live at the latest).
 
 - **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
   a staging Heroku app, a hidden route, or the server's `beta_tools` flag) for a pilot teacher and a researcher, so the
