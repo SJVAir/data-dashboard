@@ -11,11 +11,13 @@ import {
 	type ResetAccess,
 	type SpaceId
 } from "../types";
+import { getUserDetails } from "@sjvair/sdk/account/details";
 import { createWebActivity } from "./activity";
 import { createWebOnline } from "./online";
 import { createWebClipboard } from "./clipboard";
 import { createWebErrors, listenForCspViolations } from "./errors";
 import { createWebFiles } from "./files";
+import { createWebIdentity } from "./identity";
 import { createWebPersistence } from "./persistence";
 import { openWorkspaceDB, type OpenOptions, type WorkspaceDB } from "./db";
 import { createWebJournal } from "./journal";
@@ -112,6 +114,24 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		dev: import.meta.env.DEV
 	});
 	listenForCspViolations(errors, document);
+	const activity = createWebActivity();
+	const online = createWebOnline(window, navigator);
+	const identity = createWebIdentity({
+		blockText: () => document.getElementById("sjvair-identity")?.textContent ?? null,
+		cookie: () => document.cookie,
+		fetchUser: (signal) => getUserDetails(undefined, { signal }),
+		postLogout: (csrfToken) =>
+			fetch("/account/logout/", {
+				method: "POST",
+				credentials: "same-origin",
+				redirect: "manual",
+				headers: { "X-CSRFToken": csrfToken }
+			}),
+		activity,
+		online,
+		errors,
+		now: () => Date.now()
+	});
 
 	return {
 		documents: {
@@ -195,9 +215,9 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 				})
 		},
 		journal: createWebJournal(),
-		identity: { currentSpace: async () => "anonymous" },
-		activity: createWebActivity(),
-		online: createWebOnline(window, navigator),
+		identity,
+		activity,
+		online,
 		clipboard: createWebClipboard(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),

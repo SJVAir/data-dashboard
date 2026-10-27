@@ -1,3 +1,4 @@
+import { sameIdentity, type Identity } from "$lib/account/identity";
 import {
 	JOURNAL_RECORD_MAX,
 	LOG_LIMIT,
@@ -13,6 +14,8 @@ import {
 	type ClipboardAccess,
 	type ErrorReporter,
 	type FileAccess,
+	type IdentityCause,
+	type IdentitySource,
 	type OpenedFile,
 	type PersistenceAccess,
 	type Protection,
@@ -63,6 +66,71 @@ export function createMemoryOnline(): MemoryOnline {
 	};
 }
 
+export type MemoryIdentity = IdentitySource & {
+	/** What the next re-check hears: an identity, or a failed request. */
+	setServer(answer: Identity | "error"): void;
+	setSignOutResult(ok: boolean): void;
+	/** How many re-checks asked the server. */
+	requests: number;
+};
+
+/**
+ * Identity under test control. Unknown until `start()`, which applies `initial` as the load.
+ * Re-checks ignore the throttle and answer with `setServer` (at first, `initial`).
+ */
+export function createMemoryIdentity(initial: Identity = { state: "signed-out" }): MemoryIdentity {
+	let identity: Identity = { state: "unknown" };
+	let server: Identity | "error" = initial;
+	let signOutOk = true;
+	let started = false;
+	const listeners = new Set<(identity: Identity, cause: IdentityCause) => void>();
+	const set = (next: Identity, cause: IdentityCause) => {
+		if (sameIdentity(identity, next)) return;
+		identity = next;
+		for (const cb of [...listeners]) cb(identity, cause);
+	};
+	const source: MemoryIdentity = {
+		requests: 0,
+		setServer(answer) {
+			server = answer;
+		},
+		setSignOutResult(ok) {
+			signOutOk = ok;
+		},
+		currentSpace: async () => "anonymous",
+		authMode: "cookie",
+		current: () => identity,
+		onChange(cb) {
+			listeners.add(cb);
+			return () => listeners.delete(cb);
+		},
+		start() {
+			if (started) return;
+			started = true;
+			set(initial, "load");
+		},
+		async recheck() {
+			source.requests++;
+			if (server !== "error") set(server, "recheck");
+		},
+		accept(next) {
+			if (next.state !== "unknown") set(next, "tab");
+		},
+		async signOut() {
+			if (!signOutOk) {
+				void source.recheck();
+				return false;
+			}
+			server = { state: "signed-out" };
+			set({ state: "signed-out" }, "sign-out");
+			return true;
+		},
+		signInUrl: (returnPath) => `/account/login/?next=${encodeURIComponent(returnPath)}`,
+		accountUrl: () => "/account/"
+	};
+	return source;
+}
+
 export type MemoryClipboard = ClipboardAccess & { fail(on: boolean): void; last: string | null };
 export type MemoryFiles = FileAccess & {
 	queueOpen(file: OpenedFile | null): void;
@@ -77,6 +145,7 @@ export type MemoryErrors = ErrorReporter & {
 };
 
 export type MemoryPlatform = Platform & {
+	identity: MemoryIdentity;
 	activity: MemoryActivity;
 	online: MemoryOnline;
 	clipboard: MemoryClipboard;
@@ -225,7 +294,7 @@ export function createMemoryPlatform(): MemoryPlatform {
 				journal.delete(key(space, docId, tabId));
 			}
 		},
-		identity: { currentSpace: async () => "anonymous" },
+		identity: createMemoryIdentity(),
 		activity: createMemoryActivity(),
 		online: createMemoryOnline(),
 		clipboard,

@@ -1,4 +1,5 @@
 import type { Change } from "$lib/changes/types";
+import type { Identity } from "$lib/account/identity";
 
 export type SpaceId = "anonymous" | `account:${string}`;
 
@@ -75,8 +76,28 @@ export interface JournalStorage {
 	list(space: SpaceId): Array<{ docId: string; tabId: string; record: unknown }>;
 }
 
+/** What told the identity source about a change. */
+export type IdentityCause = "load" | "recheck" | "tab" | "sign-out";
+
+/** Who is signed in. Starts "unknown" until `start()` reads the page or the server answers. */
 export interface IdentitySource {
+	/** Always "anonymous" until sync maps an account to its own space. */
 	currentSpace(): Promise<SpaceId>;
+	readonly authMode: "cookie";
+	current(): Identity;
+	/** Called only when the identity actually changes (`!sameIdentity`). */
+	onChange(cb: (identity: Identity, cause: IdentityCause) => void): () => void;
+	/** Reads the block (or asks the server once) and starts focus/online re-checks. Idempotent. */
+	start(): void;
+	/** Asks the server; `force` skips the 30 s throttle. One request in flight at a time. */
+	recheck(opts?: { force?: boolean }): Promise<void>;
+	/** An identity another tab learned; applies it with cause "tab", no request. */
+	accept(identity: Identity): void;
+	/** POSTs the site's logout; true on success (then signed out, cause "sign-out"). */
+	signOut(): Promise<boolean>;
+	/** `/account/login/?next=` plus the encoded path. */
+	signInUrl(returnPath: string): string;
+	accountUrl(): string;
 }
 
 /**
