@@ -219,5 +219,14 @@
 	"account_signed_in_as_toast": "Signed in as {name}.",
 	"account_signed_in_unnamed_toast": "You're signed in.",
 	"account_switched_to": "Now signed in as {name}.",
-	"account_switched_unnamed": "You're now signed in to a different account."
+	"account_switched_unnamed": "You're now signed in to a different account.",
+	"account_sign_in": "Sign in",
+	"account_menu_for": "Account menu for {name}",
+	"account_menu": "Account menu",
+	"account_greeting": "Hi, {name}",
+	"account_greeting_unnamed": "Hi!",
+	"account_signed_in_as": "Signed in as {name}",
+	"account_signed_in_unnamed": "You're signed in",
+	"account_settings": "Account settings",
+	"account_sign_out": "Sign out"
 }
