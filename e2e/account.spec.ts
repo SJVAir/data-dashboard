@@ -23,7 +23,7 @@ function signIn(page: Page) {
 }
 
 function accountButton(page: Page) {
-	return page.getByRole("button", { name: "Account menu for Maria Lopez" });
+	return page.getByRole("button", { name: "ML, account menu for Maria Lopez" });
 }
 
 /** Sets `document.visibilityState` and fires `visibilitychange`, as switching tabs would. */

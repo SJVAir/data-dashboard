@@ -44,7 +44,7 @@ test("unknown shows neither Sign in nor the account button", async () => {
 
 test("signed in shows initials and a menu that re-checks on open", async () => {
 	const { identity } = await setup(user("Maria Lopez"));
-	const button = page.getByRole("button", { name: "Account menu for Maria Lopez" });
+	const button = page.getByRole("button", { name: "ML, account menu for Maria Lopez" });
 	await expect.element(button).toHaveTextContent("ML");
 	const before = identity.requests;
 	await button.click();
@@ -71,7 +71,7 @@ test("an empty name gives a generic button and greeting", async () => {
 
 test("keyboard: Enter opens, ArrowDown to Sign out, Enter signs out", async () => {
 	const { identity } = await setup(user("Maria Lopez"));
-	const button = page.getByRole("button", { name: "Account menu for Maria Lopez" });
+	const button = page.getByRole("button", { name: "ML, account menu for Maria Lopez" });
 	button.element().focus();
 	await userEvent.keyboard("{Enter}");
 	await expect.element(page.getByRole("menuitem", { name: "Account settings" })).toBeVisible();
@@ -87,7 +87,7 @@ test("keyboard: Enter opens, ArrowDown to Sign out, Enter signs out", async () =
 test("becomes the Sign in link when the identity changes to signed out", async () => {
 	const { identity } = await setup(user("Maria Lopez"));
 	await expect
-		.element(page.getByRole("button", { name: "Account menu for Maria Lopez" }))
+		.element(page.getByRole("button", { name: "ML, account menu for Maria Lopez" }))
 		.toBeVisible();
 	await identity.signOut();
 	await expect.element(page.getByRole("link", { name: "Sign in" })).toBeVisible();

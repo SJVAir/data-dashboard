@@ -42,7 +42,9 @@
 	{@const letters = initials(identity.user.full_name)}
 	<DropdownMenu.Root {onOpenChange}>
 		<DropdownMenu.Trigger
-			aria-label={name ? m.account_menu_for({ name }) : m.account_menu()}
+			aria-label={name && letters
+				? m.account_menu_for({ initials: letters, name })
+				: m.account_menu()}
 			class="border-border bg-muted text-foreground focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-full border text-xs font-semibold focus-visible:ring-2 focus-visible:outline-none"
 		>
 			{#if letters}

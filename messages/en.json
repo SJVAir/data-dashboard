@@ -221,7 +221,7 @@
 	"account_switched_to": "Now signed in as {name}.",
 	"account_switched_unnamed": "You're now signed in to a different account.",
 	"account_sign_in": "Sign in",
-	"account_menu_for": "Account menu for {name}",
+	"account_menu_for": "{initials}, account menu for {name}",
 	"account_menu": "Account menu",
 	"account_greeting": "Hi, {name}",
 	"account_greeting_unnamed": "Hi!",

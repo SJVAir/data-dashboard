@@ -105,7 +105,7 @@ test("the dashboard is embedded correctly in the sjvair.com template", async ({
 	expect(identity.user).toHaveProperty("full_name");
 	expect(identity.user).toHaveProperty("phone_verified");
 	expect(identity.user).not.toHaveProperty("api_token");
-	await expect(page.getByRole("button", { name: /^Account menu for / })).toBeVisible();
+	await expect(page.getByRole("button", { name: /, account menu for / })).toBeVisible();
 
 	const cookies = await page.context().cookies();
 	expect(cookies.some((c) => c.name === "csrftoken")).toBe(true);
