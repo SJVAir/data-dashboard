@@ -6,6 +6,7 @@ import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { returnPath } from "./AccountMenu.svelte";
+import { navigate } from "../../../router";
 import TopNav from "./TopNav.svelte";
 
 const user = (full_name: string): Identity => ({
@@ -90,4 +91,17 @@ test("becomes the Sign in link when the identity changes to signed out", async (
 		.toBeVisible();
 	await identity.signOut();
 	await expect.element(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+});
+
+test("the Sign in href follows client-side navigation", async () => {
+	await setup({ state: "signed-out" });
+	const link = page.getByRole("link", { name: "Sign in" });
+	await navigate("/dashboards");
+	await expect
+		.element(link)
+		.toHaveAttribute("href", `/account/login/?next=${encodeURIComponent("/workspace/dashboards")}`);
+	await navigate("/import");
+	await expect
+		.element(link)
+		.toHaveAttribute("href", `/account/login/?next=${encodeURIComponent("/workspace/import")}`);
 });

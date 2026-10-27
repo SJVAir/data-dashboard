@@ -14,17 +14,18 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { cn } from "$lib/utils";
+	import { serializeSearch } from "sv-router";
+	import { p, route } from "../../../router";
 
 	const app = useApp();
 	const identity = $derived(app.account.identity);
-	const signInHref = $derived(app.platform.identity.signInUrl(returnPath(location)));
-
-	// The page may have moved since this rendered (client-side routing), so refresh on use.
-	function freshSignInHref(event: MouseEvent) {
-		(event.currentTarget as HTMLAnchorElement).href = app.platform.identity.signInUrl(
-			returnPath(location)
-		);
-	}
+	// The router's path and query are reactive and the router adds the base path back, so this
+	// follows client-side navigation and is the path the browser shows (never the fragment).
+	const signInHref = $derived(
+		app.platform.identity.signInUrl(
+			returnPath({ pathname: p(route.pathname), search: serializeSearch(route.search) ?? "" })
+		)
+	);
 
 	function onOpenChange(open: boolean) {
 		if (open) app.account.recheck();
@@ -32,11 +33,7 @@
 </script>
 
 {#if identity.state === "signed-out"}
-	<a
-		href={signInHref}
-		onclick={freshSignInHref}
-		class={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-	>
+	<a href={signInHref} class={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
 		{m.account_sign_in()}
 	</a>
 {:else if identity.state === "signed-in"}
