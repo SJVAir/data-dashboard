@@ -85,8 +85,8 @@ reuse existing code only if it's exactly what the new design needs.
   (with `entry_type`s like pm25/pm10/o3/etc.), `hms` (smoke/fire), `collocation_sites`,
   `pesticides`, `regions`, and `account` (login, subscriptions, air alerts).
 - `../sjvair.com` — the Django server (data, user accounts, alert/notification system).
-  **During Foundations, sjvair.com work branches from and PRs into its `develop` branch**
-  (decided 2026-10-19), not `main`.
+  **During Release 1, sjvair.com work branches from and PRs into its `develop` branch**
+  (decided 2026-10-19 for Foundations, kept for all of Release 1 on 2026-10-27), not `main`.
 - `~/workspace/django-resticus` — the REST framework sjvair.com's API is built on
   (remote `dmpayton/django-resticus`; sjvair.com installs its `develop` branch unpinned).
   The user has access. It gets the CSRF fix; see `ARCHITECTURE.md` → "CSRF protection".
@@ -221,6 +221,9 @@ Decided 2026-09-28.
 - **`main` is not branch-protected** for now (see `DEFERRED.md`).
 - **The `planning` branch was merged into `main` on 2026-10-19** (PR #5), with the user's
   approval, once planning was finished.
+- **Foundations (Release 1, step 1) was merged into `main` on 2026-10-27** (PR #11), with the
+  user's approval. Each Foundations spec was a PR into the `foundations` branch first. Later
+  steps branch from `main` the same way (e.g. a step branch, with stacked spec PRs into it).
 
 ## Code Style
 

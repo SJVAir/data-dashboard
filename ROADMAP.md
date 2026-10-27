@@ -15,11 +15,11 @@ the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notificat
 2026-10-13), with #261 still open; `@sjvair/sdk` is
 unchanged at 4.5.0.
 
-**Where things stand (2026-10-27):** Foundations specs 1, 2, 3, and 5a are merged into the
-`foundations` branch (spec 4 was dropped; Collections moved to Release 3), and **spec 5b, the
-sign-in side, the last Foundations spec, is built** on `foundations-5b-sign-in`, with sjvair.com
-`feature/workspace-sign-in` and sdk-js `feature/session-user-details`; their PRs await the
-user's review. The hosting track is built (sjvair.com #295) and step 3's catalog, codes, and
+**Where things stand (2026-10-27): Foundations (Release 1, step 1) is done and merged into
+`main`** (#11). Specs 1, 2, 3, 5a, and 5b were each merged into `foundations` first (spec 4
+was dropped; Collections moved to Release 3). 5b's server and SDK sides are merged too
+(sjvair.com #296 into `develop`, sdk-js #33 into `release/4.8.0`). **Next: step 2, the layout
+engine and windowing.** The hosting track is built (sjvair.com #295) and step 3's catalog, codes, and
 coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both server PRs are on sjvair.com
 `develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile 4.0.6,
 @sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
@@ -47,7 +47,7 @@ coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both server PRs are o
 
 ## Release 1: Dashboard
 
-1. **Foundations** (this repo)
+1. **Foundations** (this repo). **Done, merged into `main` 2026-10-27 (#11).**
    - platform adapter
    - data layer (in-memory cache plus HTTP caching; documents local-first): automatic
      resolution, incomplete-period

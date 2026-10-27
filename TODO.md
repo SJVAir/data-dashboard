@@ -4,8 +4,9 @@ Last updated: 2026-10-27
 
 ## Start here
 
-**Next: Release 1 step 2, the layout engine and windowing, in a fresh session.** Foundations is
-done: spec 5b, the sign-in side, merged on 2026-10-27 as data-dashboard
+**Next: Release 1 step 2, the layout engine and windowing, in a fresh session, branching from
+`main`.** Foundations is done and merged into `main` (#11, 2026-10-27). Its last spec, 5b, the
+sign-in side, merged the same day as data-dashboard
 [#10](https://github.com/SJVAir/data-dashboard/pull/10) (into `foundations`), with sjvair.com
 #296 (into `develop`) and sdk-js #33 (into `release/4.8.0`; no release cut). Design:
 `docs/superpowers/specs/2026-10-27-foundations-5b-sign-in-design.md`.
@@ -35,7 +36,9 @@ done: spec 5b, the sign-in side, merged on 2026-10-27 as data-dashboard
 - sjvair.com `develop` reaching `main` (a production deploy, so your call). It carries #292
   (unblocks the resticus CSRF merge), #293 (metadata enablers, needed before @sjvair/sdk
   4.8.0), #295 (hosting; the route stays behind `beta_tools`), and #296 (5b's sign-in side).
-  #287, #288, and #289 already reached `main` in release #291 (2026-10-22).
+  #287, #288, and #289 already reached `main` in release #291 (2026-10-22). It's no longer
+  blocked on the dashboard: sjvair.com's build imports dashboard `main`, which now has the
+  embedding build. Once deployed, `/workspace/` is live behind `beta_tools`.
 - **At ship time:** the Heroku config vars listed in sjvair.com #295, including the DSN as
   `VITE_SENTRY_DSN` and the Sentry project's CSP security endpoint as `WORKSPACE_CSP_REPORT_URI`.
 - **In the Sentry project's settings:** turn on "Prevent storing IP addresses" and the

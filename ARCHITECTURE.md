@@ -486,8 +486,8 @@ request to `account/` or a GET of `account/login/` is a `401`, not the `500` it 
 response status at `error.cause.result.status`; the dashboard reads the status there. The
 dashboard validates the account response with its own schema, so it needs no new SDK release.
 The type side (a `SessionUserDetails` type and overloads on `getUserDetails`, `updateUser`,
-and `changePassword`) is on sdk-js `feature/session-user-details`, for a PR into
-`release/4.8.0` that awaits the user's review (no beta was cut). Consequences:
+and `changePassword`) was merged into sdk-js
+`release/4.8.0` (#33, 2026-10-27); no beta or release was cut for it. Consequences:
 
 - Cookies **only work same-origin**. A standalone deployment (e.g. a separate
   subdomain) or a Tauri window (`tauri://`/`http://tauri.localhost` origin) must use
