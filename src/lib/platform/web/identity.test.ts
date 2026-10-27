@@ -15,6 +15,9 @@ const maria: AccountUser = {
 const signedIn = (user: AccountUser = maria): Identity => ({ state: "signed-in", user });
 const block = (user: AccountUser | null) => JSON.stringify({ v: 1, user });
 const httpError = (status: number) => new Error(`HTTP ${status}`, { cause: { status } });
+/** How `@sjvair/sdk` rejects a JSON error response: the status sits under `cause.result`. */
+const sdkError = (status: number) =>
+	new Error(`Request failed`, { cause: { url: "", init: {}, result: { status, body: {} } } });
 
 type Options = {
 	blockText?: string | null;
@@ -142,10 +145,10 @@ describe("createWebIdentity", () => {
 	});
 
 	it("401 and 403 sign out", async () => {
-		for (const status of [401, 403]) {
+		for (const failure of [httpError(401), httpError(403), sdkError(401), sdkError(403)]) {
 			const { source, heard, errors } = setup({
 				fetchUser: async () => {
-					throw httpError(status);
+					throw failure;
 				}
 			});
 			source.start();
@@ -157,7 +160,7 @@ describe("createWebIdentity", () => {
 	});
 
 	it("5xx and network errors change nothing", async () => {
-		for (const failure of [httpError(500), new TypeError("Failed to fetch")]) {
+		for (const failure of [httpError(500), sdkError(500), new TypeError("Failed to fetch")]) {
 			const { source, heard, errors } = setup({
 				fetchUser: async () => {
 					throw failure;

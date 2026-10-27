@@ -21,7 +21,10 @@ export type WebIdentityDeps = {
 	/** The page's `sjvair-identity` block, or null when there is none. */
 	blockText(): string | null;
 	cookie(): string;
-	/** The session account response (rejects with `cause.status` on a non-2xx). */
+	/**
+	 * The session account response. Rejects on a non-2xx with the status at `cause.result.status`
+	 * (the SDK's JSON error) or `cause.status` (a non-JSON response).
+	 */
 	fetchUser(signal: AbortSignal): Promise<unknown>;
 	postLogout(csrfToken: string): Promise<Response>;
 	activity: ActivitySource;
@@ -45,7 +48,9 @@ function readCookie(cookies: string, name: string): string {
 }
 
 function statusOf(error: unknown): unknown {
-	return (error as { cause?: { status?: unknown } } | null)?.cause?.status;
+	const cause = (error as { cause?: { status?: unknown; result?: { status?: unknown } } } | null)
+		?.cause;
+	return cause?.result?.status ?? cause?.status;
 }
 
 /** Rejects once `signal` aborts, so a request that ignores its signal can't hang a re-check. */
