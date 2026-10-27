@@ -1,0 +1,92 @@
+import { accountUserSchema, type Identity } from "$lib/account/identity";
+import type { SpaceId } from "$lib/platform/types";
+
+/** Sent after a tab stores a change. Only a notification: the change log is the truth. */
+export type TabMessage =
+	| {
+			type: "committed";
+			space: SpaceId;
+			docId: string;
+			version: number;
+			tabId: string;
+	  }
+	/** Sent after a tab clears all of this browser's data; every other tab starts over. */
+	| { type: "cleared"; generation: string; tabId: string }
+	/** Sent when a tab learns of a new identity (never "unknown"); other tabs apply it at once. */
+	| { type: "identity"; identity: Identity; tabId: string };
+
+export interface TabChannel {
+	post(msg: TabMessage): void;
+	subscribe(fn: (msg: TabMessage) => void): () => void;
+}
+
+const CHANNEL_NAME = "sjvair-workspace";
+
+const noopChannel: TabChannel = {
+	post() {},
+	subscribe: () => () => {}
+};
+
+export function isTabMessage(value: unknown): value is TabMessage {
+	if (typeof value !== "object" || value === null) return false;
+	const msg = value as Record<string, unknown>;
+	if (typeof msg.tabId !== "string") return false;
+	if (msg.type === "cleared") return typeof msg.generation === "string";
+	if (msg.type === "identity") return isSentIdentity(msg.identity);
+	return (
+		msg.type === "committed" &&
+		typeof msg.space === "string" &&
+		typeof msg.docId === "string" &&
+		typeof msg.version === "number"
+	);
+}
+
+function isSentIdentity(value: unknown): boolean {
+	if (typeof value !== "object" || value === null) return false;
+	const identity = value as Record<string, unknown>;
+	if (identity.state === "signed-out") return true;
+	return identity.state === "signed-in" && accountUserSchema.safeParse(identity.user).success;
+}
+
+/** The browser's channel between tabs of this origin; a no-op where it's unavailable. */
+export function createTabChannel(): TabChannel {
+	if (typeof BroadcastChannel === "undefined") return noopChannel;
+	const channel = new BroadcastChannel(CHANNEL_NAME);
+	return {
+		post: (msg) => channel.postMessage(msg),
+		subscribe(fn) {
+			const listener = (event: MessageEvent) => {
+				if (isTabMessage(event.data)) fn(event.data);
+			};
+			channel.addEventListener("message", listener);
+			return () => channel.removeEventListener("message", listener);
+		}
+	};
+}
+
+/**
+ * In-memory channels for tests. Like `BroadcastChannel`, a message reaches every other
+ * channel from the same hub (not the sender) asynchronously.
+ */
+export function createMemoryTabHub(): { channel(): TabChannel } {
+	const listeners = new Map<TabChannel, Set<(msg: TabMessage) => void>>();
+	return {
+		channel() {
+			const own = new Set<(msg: TabMessage) => void>();
+			const channel: TabChannel = {
+				post(msg) {
+					for (const [other, fns] of listeners) {
+						if (other === channel) continue;
+						for (const fn of fns) queueMicrotask(() => fn(structuredClone(msg)));
+					}
+				},
+				subscribe(fn) {
+					own.add(fn);
+					return () => own.delete(fn);
+				}
+			};
+			listeners.set(channel, own);
+			return channel;
+		}
+	};
+}

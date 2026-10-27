@@ -15,6 +15,15 @@ the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notificat
 2026-10-13), with #261 still open; `@sjvair/sdk` is
 unchanged at 4.5.0.
 
+**Where things stand (2026-10-27):** Foundations specs 1, 2, 3, and 5a are merged into the
+`foundations` branch (spec 4 was dropped; Collections moved to Release 3), and **spec 5b, the
+sign-in side, the last Foundations spec, is built** on `foundations-5b-sign-in`, with sjvair.com
+`feature/workspace-sign-in` and sdk-js `feature/session-user-details`; their PRs await the
+user's review. The hosting track is built (sjvair.com #295) and step 3's catalog, codes, and
+coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both server PRs are on sjvair.com
+`develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile 4.0.6,
+@sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
+
 ## Done (v1 tab era)
 
 - ~~monitor-map modularization~~: `MapShell`, released in `@sjvair/monitor-map` 3.3.0.
@@ -24,13 +33,17 @@ unchanged at 4.5.0.
 
 ## Now: independent of everything
 
-- **Mobile Alerts screen fix (sjvair.com, sdk-js, mobile).** The screen has never shown a
-  correct level and now shows no alerts at all; fix with a server `level` field, an SDK
-  minor release, and an app release. See `TODO.md`.
+- ~~**Mobile Alerts screen fix (sjvair.com, sdk-js, mobile).**~~ Done: sjvair.com #287 (in
+  production via release #291, 2026-10-22), @sjvair/sdk 4.6.0, and mobile #112 (shipped in
+  4.0.6). The screen had never shown a correct level and then showed no alerts at all; fixed
+  with a server `level` field, an SDK minor release, and an app release. See `TODO.md`.
 - **Missing forecast zones (sjvair.com).** Production has no forecasts for Tulare, Kern, or
-  Sequoia because their 3 `custom` regions aren't loaded. See `TODO.md`.
-- **PM2.5 breakpoint fix (sjvair.com).** `levels.py` is only half-updated to EPA's 2024
-  AQI revision. It is urgent and separate from this project; see `TODO.md`.
+  Sequoia because their 3 `custom` regions aren't loaded. Imported and verified locally, and
+  #289 (logging skipped zones) is in production; the production import itself is out of scope
+  (user, 2026-10-20). See `TODO.md`.
+- ~~**PM2.5 breakpoint fix (sjvair.com).**~~ Done: #288, in production via release #291
+  (2026-10-22). `levels.py` had been only half-updated to EPA's 2024 AQI revision; it was
+  urgent and separate from this project. See `TODO.md`.
 
 ## Release 1: Dashboard
 
@@ -46,10 +59,6 @@ unchanged at 4.5.0.
    - `SavedDocument`, `QueryDescriptor`/`DateRangeSpec`, `applyChange`, and undo/redo;
      changes as serializable JSON with explicit targets, a persisted unsynced-change queue
      with its base version, and cross-tab sync via `BroadcastChannel`
-   - **minimal Collections** (decided 2026-09-24): the store, the Collections drawer,
-     "Add to collection ▸", staging that freezes rolling ranges to fixed Pacific dates
-     (with a per-item "keep rolling" toggle), and a placeholder Analysis view that lists a Collection's
-     items with "starter analyses coming soon"
    - autosave (no explicit Save) with a "Saved" indicator; picker actions (new,
      duplicate, rename, delete with an undo toast); local soft delete with a "Recently
      deleted" list (about 30 days), and `copiedFrom` on local copies
@@ -104,7 +113,7 @@ unchanged at 4.5.0.
      maps one to one, with its official guidance); AQ levels mapped Good 0 …
      Unhealthy 3, Very Unhealthy and Hazardous 4 (decided 2026-10-14)
    - **first:** sdk-js request options (optional `signal`/`init`, global
-     `setRequestDefaults`), which Foundations' data layer needs
+     `setRequestDefaults`), which Foundations' data layer needs (released 2026-10-21 as @sjvair/sdk 4.7.0)
    - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - verify production `school_district` rows and the 3 `custom` forecast-zone regions (the
@@ -154,8 +163,6 @@ unchanged at 4.5.0.
    - "Can we go outside?"
    - client-side self-monitoring thresholds (in-browser notifications are desktop-only in
      Release 1)
-   - "Mark for analysis" / "Analyze" on every `analyzable` widget, plus the calendar's "selected
-     data" variants, feeding Release 1's Collections
 5. **`map-sdk` and the Map widget** (decided 2026-09-24: split out of monitor-map)
    - `@sjvair/map-sdk` (new repo): instance-scoped core, plugins, `MapView`, optional
      metadata/messages/format providers with defaults,
@@ -210,8 +217,15 @@ unchanged at 4.5.0.
   stay local, with durability safeguards. Sign-in in Release 1 **redirects** to
   sjvair.com's login/registration pages (the server "remember me" change is owned by the
   email-only accounts track); sdk-js
-  makes `apiToken` optional on account calls. Saves carry the account id (refused on a
-  mismatch), and the dashboard reads a session-identity response that omits `api_token`.
+  makes `apiToken` optional on account calls (shipped in 4.7.0). Saves carry the account id
+  (refused on a mismatch). The dashboard reads the session `account/` response, which omits
+  `api_token` (built in spec 5b; no separate endpoint).
+  **Held from spec 5b for this track** (`DEFERRED.md` → "Accounts"): the switch of signed-in
+  work into an account space, the "add your work to your account" prompt, sign-out removing
+  local copies, hidden spaces on expiry or an account change (30-day removal), saves bound to
+  an account with the re-check before each sync, and the backup reminder's "sign in to keep
+  this safe everywhere" line. Also with the email-only accounts track: the return trip to the
+  dashboard after sign-up (before go-live at the latest).
 
 - **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
   a staging Heroku app, a hidden route, or the server's `beta_tools` flag) for a pilot teacher and a researcher, so the
@@ -253,9 +267,12 @@ unchanged at 4.5.0.
 
 ## Release 3: Analysis
 
-1. **Analysis engine**: `AnalysisSpec`, the full Analysis view (built on Release 1's
-   Collections), and worker-side engine steps (resample, align, lag, aggregate,
-   correlate).
+1. **Collections and the analysis engine** (Collections moved here from Release 1 on
+   2026-10-25): the Collections store and drawer, "Mark for analysis" / "Analyze" /
+   "Add to collection ▸" on every `analyzable` widget (plus the calendar's and map's
+   "selected data" variants), staging that freezes rolling ranges to fixed Pacific dates
+   (with a per-item "keep rolling" toggle), `AnalysisSpec`, the full Analysis view, and
+   worker-side engine steps (resample, align, lag, aggregate, correlate).
 2. **The ten starter analyses.** #7 needs the CalEnviroScreen wrapper and #8 needs the
    CalHeatScore wrapper, both from Release 1 step 3.
 3. **Export-to-notebook bundles**: Python first, then R, then Deno/TypeScript.

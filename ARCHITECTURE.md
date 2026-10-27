@@ -39,8 +39,9 @@ for basic users, feature-rich for power users.
   rename / delete at its bottom; a visual thumbnail picker is deferred). "Add widget" picks a type
   from the predefined list, then opens Widget Creation to configure its data.
 - **Widget Creation** — configures one widget's data (see below).
-- **Analysis** — Collections, starter and user-defined analyses, notebooks (see
-  "Analysis: Collections & engine", "Notebooks").
+- **Analysis** (Release 3; the nav shows no Analysis entry before then) — Collections,
+  starter and user-defined analyses, notebooks (see "Analysis: Collections & engine",
+  "Notebooks").
 
 These may change if a better structure emerges.
 
@@ -122,7 +123,7 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 ### Shared widget behavior
 
 - **Title bar** defaults to the dataset name(s) + date range; user-renamable.
-- Every widget with data (`analyzable`; see "Widget-type contract") contributes **"Mark for analysis"** (add its data — or current selection —
+- **From Release 3** (moved from Release 1 on 2026-10-25; see "Collections"), every widget with data (`analyzable`; see "Widget-type contract") contributes **"Mark for analysis"** (add its data — or current selection —
   to a Collection) and **"Analyze"** (add + navigate to Analysis) via the shared action
   list (see "Actions & context menu"). Widgets with a selection (map features/regions,
   calendar day ranges) add "Mark selected data for analysis" / "Analyze selected data"
@@ -245,8 +246,10 @@ Smoke, heat (CalHeatScore), fire-proximity, and drawn-area targets are deferred 
   - **API shape change:** `account/alerts/` now returns `sqid` and **no longer returns
     `id` or `latest`**. `@sjvair/sdk` 4.5.0's `airAlertSchema` still requires both, and the
     mobile app's Alerts screen reads `alert.latest`. Traced on 2026-10-14: `latest` was
-    only ever an `AlertUpdate` id, so that screen has never shown a correct level and now
-    shows no alerts. A fix is planned independently of this project (see `TODO.md`).
+    only ever an `AlertUpdate` id, so that screen had never shown a correct level and then
+    showed no alerts. **Fixed 2026-10-22**, independently of this project: sjvair.com #287
+    adds `level` (in production via release #291), @sjvair/sdk 4.6.0 adds `sqid` and `level`
+    and deprecates `id` and `latest`, and mobile #112 shipped in 4.0.6 (see `TODO.md`).
   - **Decisions re-confirmed against this baseline on 2026-10-13:** (a) **decided 2026-10-13**: follow the server's escalation-only design
     (see "Notify on" above); (b) **decided 2026-10-13**: no guard rails beyond the server's throttles (quiet hours deferred); (c) **decided 2026-10-13**: see "Channels on the server" below.
 - **Existing SMS subscriptions** (decided 2026-09-28):
@@ -384,6 +387,31 @@ Tauri-ready seams required **from day one**:
   directly** — only through the adapter. Preferences (e.g. last-opened dashboard,
   active Collection, the starter's chosen place) are stored through it. The v1 `src/lib/preferences.ts` is removed
   with the rest of the v1 code, not migrated.
+- **`activity` capability** (built 2026-10-22, Foundations spec 2). `platform.activity` reports
+  whether the app is in front of the person (`visible()` and `onChange(cb)`). On the web it is
+  page visibility; a Tauri build can report visible while the window is in the background so
+  polling continues. The data layer's poller uses it; nothing outside the adapter reads
+  `visibilitychange` for new code.
+- **`errors` capability** (built 2026-10-26, Foundations spec 5a). `platform.errors` is the
+  one way to report a failure: `report(error, context)`. On the web it lazy-loads the Sentry
+  browser SDK only when a DSN is set (`VITE_SENTRY_DSN`) and the first error happens, scrubs
+  every event (no document ids or bodies, no page URLs, names, emails, or coordinates; free
+  text pattern-scrubbed, so messages must not carry names or titles), and reports each
+  failure streak once. Lightweight `error` / `unhandledrejection` listeners and a CSP
+  `securitypolicyviolation` listener forward to it. Without a DSN it is a no-op.
+- **`identity` capability** (built 2026-10-27, Foundations spec 5b). `platform.identity`
+  (the `IdentitySource`) is the one place that knows who is signed in: `current()`,
+  `onChange(cb)`, `recheck()`, `signInUrl(returnPath)`, `signOut()`, and `authMode`
+  (`"cookie"` on the web; nothing else is built). The state is `unknown` (dev or standalone,
+  before the first answer), `signed-out`, or `signed-in` with the validated account. On the web
+  it reads the `sjvair-identity` block on load, or calls `account/` once when there is no
+  block. `currentSpace()` still returns `"anonymous"` for everyone; the place where identity
+  would map to an account space is the seam the server-backed documents track switches on. A
+  Tauri build swaps in its own sign-in dialog and token storage. The API token never reaches
+  the dashboard, and identity data never goes into error reports.
+- **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
+  `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
+  and drives the offline banner. A Tauri build can report real connectivity.
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
   air-quality data uses an **in-memory cache** shared across widgets, plus the
@@ -441,12 +469,25 @@ Release 1 is served from sjvair.com's origin and uses cookie auth (see "Deployme
 How the SDK does it: `account/login` returns `UserDetails` including `api_token`. Some
 authenticated calls (e.g. `getSubscriptions`) take an **optional** `apiToken`: when it
 is passed a `Token` header is sent, and when it is omitted the request relies on the
-browser's same-origin session cookie. Others **require** a token today:
+browser's same-origin session cookie. Until 4.7.0 others **required** a token:
 `getUserDetails`, `updateUser`, `getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`,
-the phone functions, and
-change-password (`sdk-js/lib/account/*`). The
-server (resticus) accepts an existing session for them, so this is an SDK signature
-limitation. Consequences:
+the phone functions, and change-password (`sdk-js/lib/account/*`). The server (resticus)
+accepts an existing session for them, so that was an SDK signature limitation. **The sdk-js
+change making `apiToken` optional on those calls shipped in @sjvair/sdk 4.7.0** (commit
+a211be6), found already done while designing spec 5b (2026-10-27).
+
+**Session responses carry no `api_token`** (decided 2026-10-27, spec 5b). `GET`, `PATCH`, and
+`DELETE account/` and `PUT account/password/` leave `api_token` out when the request was
+authenticated by session cookie, and so does `GET account/login/`, which answers a GET with
+the signed-in user (found in the 5b final review: it had returned the token to any
+session-cookie request). Token requests (the mobile app) get it as before, and so do a
+credential `POST account/login/` and registration, which exist to hand it out. A signed-out
+request to `account/` or a GET of `account/login/` is a `401`, not the `500` it was. The SDK rejects a non-2xx JSON call with the
+response status at `error.cause.result.status`; the dashboard reads the status there. The
+dashboard validates the account response with its own schema, so it needs no new SDK release.
+The type side (a `SessionUserDetails` type and overloads on `getUserDetails`, `updateUser`,
+and `changePassword`) is on sdk-js `feature/session-user-details`, for a PR into
+`release/4.8.0` that awaits the user's review (no beta was cut). Consequences:
 
 - Cookies **only work same-origin**. A standalone deployment (e.g. a separate
   subdomain) or a Tauri window (`tauri://`/`http://tauri.localhost` origin) must use
@@ -510,23 +551,29 @@ you:**
 - **Sign-in is lazy/contextual** — prompted only when needed (e.g. inside the "Create
   alert" flow), never as a gate on first load.
 - **Local storage is split into spaces** (decided 2026-10-13): one anonymous space plus
-  one per account. Every local document, queued change, and place preference belongs to
-  exactly one space, and the app only ever shows the current one. Purely cosmetic device
-  settings (e.g. theme) stay with the browser.
-  - **Signing in asks once about anonymous work** ("Add the 3 dashboards made on this
-    browser to your account?"). Yes moves them into the account with the same IDs and out
-    of the anonymous space; No leaves them for signed-out use.
-  - **Signing out removes that account's local copies** from the browser (they are on the
-    server). If changes haven't synced, the app says so and offers to finish first.
-  - **An expired or browser-session-ended sign-in is not a sign-out:** the space is hidden
-    but kept, so unsynced work survives, and signing back in as the same person resumes
-    it. A hidden space nobody returns to is removed after 30 days.
+  one per account. **Spec 5b (2026-10-27) built none of the account-space behavior below:
+  everyone, signed in or not, keeps working in the anonymous space.** The parts marked
+  _held for sync_ wait for the server-backed documents track, because without server saves
+  each one promises something false or can lose work (`DEFERRED.md` → "Accounts"). Every
+  local document, queued change, and place preference belongs to exactly one space, and the
+  app only ever shows the current one. Purely cosmetic device settings (e.g. theme) stay
+  with the browser.
+  - **Signing in asks once about anonymous work** (_held for sync_) ("Add the 3 dashboards
+    made on this browser to your account?"). Yes moves them into the account with the same
+    IDs and out of the anonymous space; No leaves them for signed-out use.
+  - **Signing out removes that account's local copies** (_held for sync_) from the browser
+    (they are on the server). If changes haven't synced, the app says so and offers to
+    finish first.
+  - **An expired or browser-session-ended sign-in is not a sign-out** (_held for sync_): the
+    space is hidden but kept, so unsynced work survives, and signing back in as the same
+    person resumes it. A hidden space nobody returns to is removed after 30 days.
   - **ID collisions become copies.** The server accepts a save to an existing ID only
     from its owner. If an upload hits an ID owned by someone else, the client assigns a
     new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
   - **Sign-in and sign-out apply to every open tab at once**, through the cross-tab
-    channel.
-  - **Saves are bound to an account** (decided 2026-10-13). In Release 1, sign-in and
+    channel (built in 5b: the tab channel carries an identity message).
+  - **Saves are bound to an account** (decided 2026-10-13; _held for sync_, since there are
+    no server saves yet). In Release 1, sign-in and
     sign-out happen on sjvair.com's pages, so the cookie can change (another person
     signs in, or a session expires) while a tab still holds one person's queued changes.
     - Each account space records its **account id** (the server's stable user id).
@@ -536,14 +583,22 @@ you:**
     - **The app re-checks who is signed in** when a tab regains focus and before each
       sync. If the account changed, it switches spaces (hiding and keeping the previous
       one, as for an expired session) and says so.
-  - **A session-identity response without the API token** (decided 2026-10-13). The
-    existing account response includes the permanent `api_token`, which the mobile app
-    needs but a cookie-authenticated dashboard never does; receiving it would let an
-    injection bug steal a credential that outlives the session. The dashboard gets
-    only the account id, display name, email, and verification status: **on first load
-    from the Django template** (as a non-executing JSON data block, see "Deployment" → "Template embedding"), and
-    for the later re-checks from a session-identity endpoint that omits the token. The
-    existing endpoint and the mobile app are unchanged.
+  - **A session-identity response without the API token** (decided 2026-10-13; revised
+    2026-10-27, spec 5b). The account response includes the permanent `api_token`, which
+    the mobile app needs but a cookie-authenticated dashboard never does; receiving it would
+    let an injection bug steal a credential that outlives the session. There is **no
+    separate session-identity endpoint**: `GET /api/2.0/account/` serves all three callers.
+    Token requests are unchanged (mobile keeps `api_token`); session-cookie requests get the
+    same fields **without `api_token`**; signed out is `401`. Dropping the token for session
+    requests is the protection itself, since a separate endpoint would leave it reachable
+    through `account/`. **The response keeps `phone`** (the shapes stay the same apart from the
+    token). The dashboard gets it **on first load from the Django template** (a non-executing
+    JSON data block, see "Deployment" → "Template embedding"), and for re-checks from
+    `account/` with no token. A re-check answers `200` (signed in), `401` or `403` (signed
+    out), and anything else (network error, timeout, `5xx`, a response that fails validation)
+    changes nothing, so being offline never looks like a sign-out. Re-checks run when the app
+    becomes visible (at most every 30 seconds), when the connection returns, and when the
+    account menu opens. Identities are compared by `id`.
 - **Account deletion is immediate and complete** (decided 2026-10-13). The server already
   deletes an account at once after a password check (the mobile app relies on it), and
   subscriptions and the delivery log go with it. It now also covers everything the
@@ -606,6 +661,11 @@ files, and server documents.
      the app's own violation reports (below) catch any drift.
    - **The app also reports violations itself:** it listens for the browser's
      policy-violation event and sends it through the scrubbed error reporting.
+   - **No `'unsafe-eval'`, and the E2E suite runs under the contract CSP** (spec 5a final
+     review). Zod's compiled parser probes `new Function`, so every module imports `z` from
+     `$lib/zod`, which sets `jitless` first (ESLint forbids importing `zod` directly). The
+     preview server sends the CSP from `csp-hosts.json`, and an E2E fixture fails any test
+     whose page reports a violation.
 4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
@@ -653,17 +713,43 @@ check there) so nothing else changes for existing resticus users. Tests cover:
 
 **Supporting changes:**
 
-- **The SDK sends `X-CSRFToken`** (from the `csrftoken` cookie) on session-based calls.
-  Token clients are unaffected.
-- **Update the existing sjvair.com pages that call the API with the cookie** so they send
-  the header.
+- **The SDK sends `X-CSRFToken` automatically** on same-origin writes in a browser (from the
+  `csrftoken` cookie; see "SDK request options"). Token clients are unaffected.
+- **The only cookie-based API write on sjvair.com today is monitor-map's subscribe
+  button** (`window.USER` on sjvair.com has no `api_token`, so it passes an empty token and relies on
+  the session cookie). It is fixed by upgrading monitor-map to
+  sdk-js 4.7.0, so it needs no separate page change.
+- **The resticus fix skips the CSRF check when the request also carries a valid token**,
+  so a client that sends both a session cookie and a token is not rejected. As built
+  (2026-10-22), this is generic: the check is skipped when any configured authenticator
+  other than `SessionAuth` (token, basic) accepts the request's own credentials; invalid
+  or malformed credentials count as none. The session user is still the one returned.
+- **A second cookie-based write was found (2026-10-21): the admin Data Export form**, which
+  posts straight to the `entries/export/` API endpoint. sjvair.com's `fix/csrf-ready` adds
+  `{% csrf_token %}` to it, and makes 43 `RequestFactory` API tests opt out of CSRF the way
+  Django's test client does (`camp.utils.test.CsrfExemptRequestFactory`).
+- **Built 2026-10-22:** resticus `fix/session-csrf` (also fixes multipart parsing the CSRF
+  check exposed: malformed bodies give 400, not 500, and bodies aren't parsed twice or
+  dropped) and sjvair.com `fix/csrf-ready`. PRs: resticus
+  [#25](https://github.com/dmpayton/django-resticus/pull/25), sjvair.com [#292](https://github.com/SJVAir/sjvair.com/pull/292).
+  Verified on local sjvair.com: signed-in subscribe and unsubscribe pass, a write without
+  `X-CSRFToken` gets 403, and token-only writes and admin export work.
+- **Follow-ups (2026-10-22), resticus [#26](https://github.com/dmpayton/django-resticus/pull/26)**,
+  stacked on #25: the credential lookup is skipped for safe methods, a token header that
+  isn't UTF-8 is an invalid token (401), and the rule for custom authenticators is
+  documented: only accept credentials a browser doesn't send on its own; a cookie-reading
+  authenticator subclasses `SessionAuth` and calls `enforce_csrf`.
 
 **Ordering, since resticus is not pinned** (decided 2026-09-28; the user is discussing
 pinning with its developer): sjvair.com installs resticus `develop`, so merging the fix
 there reaches production at the next server deploy. The sjvair.com pages that use the
 cookie and the SDK header must therefore be ready **before or together with** that merge,
-and all of it must land before the dashboard's cookie-based saves ship. Needs approved
-plans in resticus, sjvair.com, and sdk-js. **Merging to resticus `develop` needs explicit
+and all of it must land before the dashboard's cookie-based saves ship. **Rollout order:**
+sdk-js 4.7.0 released, then monitor-map's upgrade on its `main` (done 2026-10-21: monitor-map 4.3.0, PR #124), then the resticus merge.
+Needs approved plans in resticus, sjvair.com, and sdk-js. **Before the user tells the
+resticus developer to merge**, sjvair.com's production must already have monitor-map 4.3.0
+(built from monitor-map `main` at deploy) and the `fix/csrf-ready` changes (sjvair.com
+`develop` → `main` → deploy); otherwise subscribe or admin export breaks until they land. **Merging to resticus `develop` needs explicit
 approval** (it's effectively a production deploy while unpinned), as does any resticus release.
 
 ### Sign-in flow
@@ -688,32 +774,61 @@ approach is staged:
   limiting and non-enumerating error messages. The same dialog later serves Tauri and
   standalone builds using tokens. The rest of the app only asks "am I signed in?", so
   the switch is contained.
-- **SDK:** make `apiToken` optional on the account calls that require it today
-  (`getUserDetails`, `updateUser`, `getAirAlerts`, `subscribe`/`unsubscribe`,
-  `deleteUser`, the phone functions,
-  change-password) so a session works everywhere.
-  sdk-js change, approved plan first.
-- **Development:** the Vite dev server proxies `/api` (and `/account/`) to the local
-  podman sjvair.com, so dev is same-origin and cookies behave as in production.
+- **SDK:** `apiToken` is optional on the account calls (`getUserDetails`, `updateUser`,
+  `getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`, the phone functions,
+  change-password), so a session works everywhere. Shipped in @sjvair/sdk 4.7.0.
+- **Built in 5b (2026-10-27):** a "Sign in" button and an account menu in the top bar.
+  - **Sign in** links to `/account/login/?next=<pathname + search>` (never the hash). The
+    login page used to drop `next` (its form had no hidden `next` field, so everyone landed
+    on `/`); it now keeps it, for the whole site. `LoginView` still checks it is a same-site
+    URL.
+  - **Sign out is a `POST` to `/account/logout/`**, sent by the platform adapter with
+    `fetch` (same origin, `X-CSRFToken` from the `csrftoken` cookie, the redirect treated as
+    success). Django 5.2's `LogoutView` signs out only on POST, so sjvair.com's own Logout
+    link, which was a GET and returned `405`, became a small POST form. The CSP's
+    `form-action 'none'` rules out a form on the dashboard side. It is not an SDK call; the
+    Release 2 `account/session/` logout will be. On success the identity becomes signed out
+    here and in every open tab, with a "Signed out" toast. On failure the person stays signed
+    in, sees an error toast, and the app re-checks in case it went through.
+  - **A change this tab didn't cause** (expired, signed out elsewhere, another account) shows
+    a toast ("You've been signed out.", "Signed in as …", "Now signed in as …").
+  - **Returning after sign-up is not built.** A new account still goes sign-up → the "enter
+    your code" page → the profile page. Passing `next` to sign-up would skip phone
+    verification (`SignupView` sends the person to `next` instead of the code page). It is
+    designed once, with the email-only accounts track (`DEFERRED.md` → "Accounts").
+- **Development:** the Vite dev server proxies `/api/` and `/account/` to the local
+  podman sjvair.com (target: `SJVAIR_DEV_SERVER`, not `VITE_`-prefixed, default
+  `http://localhost:8000`), so dev is same-origin and cookies behave as in production.
   Because Vite serves the app itself in dev, Django's `ensure_csrf_cookie` never runs
-  there, so dev bootstraps the `csrftoken` cookie once through the proxy (e.g. a GET to a
-  Django page or a small cookie-setting endpoint). In production, cookie-based saves depend
+  there, so dev bootstraps the `csrftoken` cookie once through the proxy with a GET of
+  `/account/login/` (built 2026-10-26, spec 5a). `npm run test:dev-stack` smoke-tests this
+  against the running stack. In production, cookie-based saves depend
   on the hosting track's `ensure_csrf_cookie`.
 
 ## SDK request options
 
-Decided 2026-09-28. `@sjvair/sdk`'s data wrappers build `{url, searchParams}` but pass no
-`init`, so there is no `AbortSignal` (needed for last-requested-wins), no single place to
-set headers (`X-CSRFToken`, a future `Accept-Language`), and no global `credentials`. One
-**additive** sdk-js change fixes this:
+Decided 2026-09-28; built and released 2026-10-21 as @sjvair/sdk 4.7.0 (PR
+https://github.com/SJVAir/sdk-js/pull/30).
+`@sjvair/sdk`'s data wrappers used to pass no `init`, so there was no `AbortSignal` (needed
+for last-requested-wins), no single place to set headers (`X-CSRFToken`, a future
+`Accept-Language`), and no global `credentials`. One **additive** change fixes this:
 
-- **Every data function accepts optional `signal` and `init`**, passed through to `fetch`.
-- **A global `setRequestDefaults({ headers, credentials })`** (or a request hook) that the
-  dashboard sets once.
-- **Nothing breaks:** all additions are optional (monitor-map, mobile, and existing
-  code are unaffected).
-- It lands in the **first sdk-js plan (the metadata-enablers track)**, since Foundations'
-  data layer builds on it. The CSRF header and i18n readiness use it.
+- **Every fetching function takes a final `options?: RequestOptions`** (`{ signal, init }`),
+  passed through to `fetch` (`getMonitors` names it `requestOptions`). An aborted call
+  rejects with the signal's reason, unchanged (`abort()` gives an `AbortError`).
+- **A global `setRequestDefaults({ headers, credentials, csrf })`** that the dashboard
+  sets once. Headers merge in this order, lowest to highest: the built-in CSRF header,
+  the global defaults, the function's own headers, then the caller's `init.headers`.
+- **CSRF is automatic.** On POST/PUT/PATCH/DELETE in a browser, and only to the page's own
+  origin, the SDK copies the `csrftoken` cookie into an `X-CSRFToken` header. It reads the
+  cookie fresh on every request. The cookie and header names are configurable, and
+  `csrf: false` turns it off.
+- **Account calls take an optional `apiToken`.** The SDK sends `Authorization` only for a
+  non-empty token.
+- **Error causes are scrubbed.** The `Authorization` header, the CSRF header, and the
+  request body (passwords, say) are redacted so they cannot reach error reports.
+- **Nothing breaks:** every addition is optional (monitor-map, mobile, and existing code
+  are unaffected).
 
 ## Data resolution & live refresh
 
@@ -730,7 +845,7 @@ caching), not per widget.
 | longer     | Monthly summaries |
 
 - **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
-  server summaries, so the ladder only uses levels the catalog's `resolutions` list:
+  server summaries, so the ladder only uses levels the catalog lists in each entry type's `resolutions`:
   - **Naturally daily data** (HMS smoke/fire, forecasts, CalHeatScore) is fetched as-is
     and aggregated for display (e.g. smoke days per month).
   - **Unsummarized time series** (CIMIS weather, PM10) are fetched raw with a span cap
@@ -742,6 +857,14 @@ caching), not per widget.
 - **Incomplete periods are stitched from finer data** — e.g. the current month (no
   monthly rollup until it ends) is computed from daily summaries so far, today from
   hourly. Fixes the "current month shows nothing" problem for every widget.
+- **The last completed period is backfilled too** (2026-10-22, Foundations spec 2). Server
+  rollups lag the period's end: hour H is summarized at about H+1:45 for monitors and H+1:50
+  for regions, daily rollups run around 01:00, and monthly ones on the 1st. So the query
+  also fetches the last completed period from the next finer offered level and uses it only
+  where the coarse response lacks that period (computed client-side, and complete, so not
+  partial); once the server's rollup exists, the coarse value wins. Where no finer level is
+  offered (regions at hour, which have no raw entries) there is no backfill, and that period
+  stays empty until the server task runs. The backfill is one level deep (see `DEFERRED.md`).
 - Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
@@ -760,6 +883,15 @@ caching), not per widget.
   after midnight plus hourly for today's partial value.
 - **One poll per descriptor**, shared across widgets via the cache; **pause while the
   browser tab is hidden**; back off on errors.
+- **Cadence as built** (2026-10-22, Foundations spec 2): raw entries poll every 3 minutes;
+  every other resolution polls at the next :55 past the hour in Pacific time, after the
+  server's :50 summary task. Errors back off from 30 seconds, doubling up to 30 minutes, and
+  reset on success. Polling runs only for ranges that include now and pauses while the page is
+  hidden; on becoming visible, each overdue key gets one catch-up poll. A key that becomes
+  pollable again (resubscribed from the cache, or a widget un-minimized) is scheduled from its
+  last fetch, so data that is already overdue is refetched at once. Raw entries are
+  requested with the monitor type's published processor and zone-aware UTC bounds, so they
+  are on the same (calibrated) series the summaries use.
 - **Minimized widgets refresh only if they have thresholds configured** — so their
   taskbar entry can flash when a threshold is crossed (self-monitoring). Minimized
   widgets without thresholds don't poll.
@@ -802,6 +934,8 @@ home.
 /shared/:token                                   a server-shared document (read-only + "Make a copy")
 /import#<lz-compressed document>                 URL-fragment share → opens a copy (fork on open)
 ```
+
+The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
 
 - **Back/forward navigates between places** (dashboards, fullscreen, Widget Creation,
   Analysis) — never between edits.
@@ -863,6 +997,7 @@ type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "yea
 
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
+	timeSubRange?: { start: string; end: string }; // per widget, not per layer
 	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
 };
 
@@ -880,6 +1015,19 @@ type DateRangeSpec =
 	| { kind: "custom"; start: string; end: string };
 ```
 
+- **Region places resolve through a `RegionResolver`** (built 2026-10-22, Foundations spec 2):
+  the air-quality adapter turns a region's type and official code into the server's id before
+  fetching. The web resolver looks codes up with `@sjvair/sdk`'s `getRegionsByCode`
+  (2026-10-22, sdk-js 4.8.0-beta.0), batched per type and cached per resolver: a retired
+  region still resolves, a code the server doesn't know leaves the layer "unavailable"
+  (`region-unresolved`), and land-use regions, which have no codes, are unsupported. The
+  web metadata source reads the dataset catalog with `getDatasetCatalog`; a server without
+  `meta/datasets/`, or any failed fetch, gives `catalog-unavailable` (retried on the next
+  query). Production stays unavailable until sjvair.com #293 (which adds the catalog and the
+  code filter on `regions/`) is live there.
+- **`timeSubRange` lives on `WidgetDataConfig`** (decided 2026-10-22), next to `dateRange`,
+  not on each layer's descriptor: the range is per widget. A layer resolves to a
+  `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
 - **Dates are Pacific calendar dates** (`YYYY-MM-DD`). `"to-date"` and `"trailing"` are the
   two groups of the Rolling method (see "Widget Creation view").
 - **A layer holds one place or a multi-selection** (decided 2026-10-13): `place` takes any
@@ -981,7 +1129,7 @@ type SpatialSelection = {
 
 - **A. Feature picking** — click a monitor/region to select, shift-click to add;
   selection shows as removable chips in the widget title bar; right-click a feature
-  for feature-scoped context-menu entries ("Analyze this monitor").
+  for feature-scoped context-menu entries (from Release 3, "Analyze this monitor").
 - **B. Region picking**: uses the **shared place picker** (decided 2026-09-28), a non-map
   component built in **Release 1 step 4** that picks monitors, regions (any type in the
   hierarchy), schools and child-care sites, or points (`PlaceRef`), with search, hierarchy browsing, and single or multiple
@@ -1015,8 +1163,9 @@ but those are a UI and packaging major, **not this split**: a new options toolba
 unified legend (4.0), `./core` and `./routes` entry points (4.1), and a self-fetching
 detail panel with basemap-failure handling (4.2). It is still one map per page, with the
 same singletons, no `createMap`, no `MapView`, and config read from `import.meta.env`.
-Its own `CLAUDE.md` says "mount at most one `MapShell` per app instance". So the plan
-below stands, with the baseline now 4.2.0 and the rebuild becoming monitor-map **5.0**:
+Its own `CLAUDE.md` says "mount at most one `MapShell` per app instance". 4.3.0
+(2026-10-21) only moved it to @sjvair/sdk 4.7.0 and added request cancelling. So the plan
+below stands, with the baseline now 4.3.0 and the rebuild becoming monitor-map **5.0**:
 
 | Package                                                   | Contains                                                                                                                                                                                                                                                   | Used by                                                                              |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -1030,7 +1179,7 @@ clear ownership (general map capabilities → `map-sdk`, monitor-map product dec
 monitor-map (local linking for development; each publish needs explicit approval).
 
 **The core problem being solved is still "one map per page"**, not a lack of
-configurability. As of monitor-map 4.2.0 (unchanged from 3.6.x): `mapManager` (one `map`),
+configurability. As of monitor-map 4.3.0 (unchanged from 3.6.x): `mapManager` (one `map`),
 `integrationsManager`, and `clickManager` are module-level singletons; integrations are exported singleton
 instances (`export const monitorsMapIntegration = new MonitorsMapIntegration()`) that
 talk to `mapManager.map`; `MaptilerConfig.apiKey` is set from `import.meta.env` at
@@ -1245,6 +1394,7 @@ type MenuItem = {
 	shortcut?: string;
 	group: string; // rendered as separated sections
 	disabled?: boolean;
+	bubbles?: boolean; // also shown in nested scopes' menus; off by default
 	children?: MenuItem[]; // nesting / submenus
 	run(ctx: MenuContext): void;
 };
@@ -1264,19 +1414,25 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   feature-scoped items through `MapPlugin.contextMenu` (see "Map SDK").
 - **Merge order: most specific first** — feature → widget → dashboard → global,
   grouped with separators. An inner item with the same `id` overrides the outer one.
+- **Only the innermost scope shows all its items** (decided 2026-10-20). Outer scopes
+  add only items marked `bubbles`, so a widget's menu doesn't list dashboard actions
+  like Add widget or Rename dashboard. Undo / Redo belong to the dashboard's own menu
+  (they act on the whole dashboard's history), not to widget menus.
 - **Rendered with bits-ui's `ContextMenu`** (shadcn-svelte `context-menu`): one
   trigger around the dashboard, items computed on open. Provides submenus, keyboard
   navigation, ARIA roles, and viewport collision handling. Opens via right-click,
   long-press (touch), and Shift+F10 / Menu key (focused element).
 - **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
-  - _Global:_ Undo / Redo, "Clear my data", Sign in / out.
+  - _Global:_ Undo / Redo (in the dashboard's menu, not widgets'), "Clear my data",
+    Sign in / out.
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
   - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
     (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move… / Resize… (keyboard
-    alternatives), Delete, **Mark for analysis**, **Analyze**, Add to collection ▸.
-  - _Selection (map features/regions, calendar range):_ Mark selected data for
-    analysis, Analyze selected data.
+    alternatives), Delete. From Release 3: **Mark for analysis**, **Analyze**, Add to
+    collection ▸.
+  - _Selection (map features/regions, calendar range), from Release 3:_ Mark selected data
+    for analysis, Analyze selected data.
   - _Map feature:_ e.g. "Analyze this monitor", contributed by map plugins.
 - **Reuse:** the widget "⋯" menu calls the same resolution with that widget as target;
   the future command palette queries global + focused-scope actions.
@@ -1338,11 +1494,14 @@ type Collection = { id: string; name: string; items: CollectionItem[] };
   runs, through the data layer's cache keyed by descriptor (reusing what widgets
   already fetched).
 - Persisted via the platform adapter (IndexedDB on web).
-- **Ships in Release 1** (decided 2026-09-24), ahead of the analysis engine: the store,
-  the drawer, "Mark for analysis" / "Analyze" / "Add to collection ▸" on every `analyzable` widget,
-  and a placeholder Analysis view listing a Collection's items with "starter analyses
-  coming soon" until Release 3. That way IDEA.md's shared widget behavior is complete
-  from the first release.
+- **Ships in Release 3, with the analysis engine** (decided 2026-10-25, replacing the
+  2026-09-24 decision to ship a minimal version in Release 1): the store, the drawer, and
+  "Mark for analysis" / "Analyze" / "Add to collection ▸" on every `analyzable` widget.
+  In Release 1 a Collection could be gathered but not used (no analyses and no download),
+  and Release 3 still has to settle the Analysis view's layout and how items bind to an
+  analysis. Release 1 widgets keep `analyzable` in their type so the actions can be added
+  without touching them, and `DashboardBody.defaultCollectionId` stays optional, so adding
+  Collections needs no format upgrade. See `DEFERRED.md`.
 
 ### Engine: generic core, curated starters as specs
 
@@ -1455,7 +1614,7 @@ type SavedDocument<K extends "dashboard" | "collection" | "analysis"> = {
 	kind: K;
 	schemaVersion: number;
 	id: string;
-	name: string;
+	name: string | null; // null = generated from a message key (decided 2026-10-20)
 	copiedFrom?: string; // source document id when this is a copy
 	deletedAt?: string; // local soft delete ("Recently deleted"; purged after ~30 days)
 	body: DocumentBody<K>;
@@ -1493,6 +1652,17 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
   2. **Queued changes record the `schemaVersion` they were written against.** They are
      synced or replayed **before** a document is migrated, and never applied blindly
      across a format change.
+     **Local amendment (built in Foundations spec 3, decided 2026-10-25):** locally, pending
+     changes (change-log entries and journal records) are upgraded alongside the document
+     instead. Each `Migration` has a required `migrateChange(change)` returning the change
+     rewritten for the next format, or `null` when it can't be carried over; those are not
+     applied, and the person is told some unsaved edits couldn't be applied (the kept original
+     still holds the pre-upgrade document). To keep old tabs from writing old-format data,
+     **every `schemaVersion` bump also bumps the IndexedDB version**
+     (`DB_VERSION = DB_LAYOUT_VERSION + CURRENT_SCHEMA_VERSION - 1`), so the `versionchange`
+     handling stops an old tab saving and shows the reload bar; a tab that reads a newer
+     `schemaVersion` than it knows does the same. So `migrateChange` only runs on records older
+     than the current format, at open. Server-side, rule 2 stands as written.
   3. **The server refuses downgrades:** a save whose `schemaVersion` is lower than the
      stored one is rejected.
   4. **New deploys are detected.** The build emits `version.json`. The app checks it on tab
@@ -1613,18 +1783,68 @@ copy…"** and **"Export…"**. The dashboard picker offers new (blank or from t
 dashboard), duplicate, rename, and delete (with an undo toast).
 
 **Local durability safeguards** (these matter most for anonymous users, whose documents
-stay local):
+stay local; built in Foundations spec 3):
 
-- Request persistent storage (`navigator.storage.persist()`) on the first document
-  create or edit.
-- Show a quiet status ("Dashboards are stored in this browser") with a note when
-  protection isn't granted. Safari always falls in this case: it evicts script-written
-  storage after 7 days without a visit unless the site is installed to the home screen.
-- When documents aren't protected, show a **backup nudge** after meaningful edits
-  ("Download a backup", the `.json` export), plus a gentle "sign in to keep this safe
-  everywhere".
-- Surface quota and write errors clearly; keep the in-memory copy so nothing is lost
-  silently.
+- **Persistent storage.** Where the browser decides silently (Chrome, Edge, Safari),
+  `navigator.storage.persist()` is requested automatically on the first document create or
+  edit. Where requesting shows a browser prompt (**Firefox**), the app never requests on its
+  own: the storage status note and the backup reminder offer **"Protect my dashboards"**, which
+  requests (and so shows the prompt) only when clicked, after the person has read why. Until
+  granted, storage counts as unprotected. Refusing the prompt keeps the button in the status
+  note but removes it from the reminder bar. The two cases are told apart by a **user-agent
+  check** (Firefox) in the platform adapter: no feature check distinguishes them (the
+  Permissions API reports "prompt" in Chrome too).
+- **Storage status note.** A popover from the "Saved" indicator, and on the dashboards list:
+  "Dashboards are stored in this browser." When unprotected, a second line says the browser
+  may clear them (Safari does after 7 days without a visit), with "Download a backup" (and
+  "Protect my dashboards" where it prompts). It never interrupts.
+- **Backup reminder.** A slim bar above the dashboard, never a dialog or toast. Shown only
+  when storage is unprotected, never on the first Pacific day of the space's first dashboard,
+  only when a dashboard changed after the last backup download, and at most once every 14
+  days. Actions: "Download a backup", "Not now" (this page load only), and "Don't remind me
+  again" (off for good, per space). State is kept per space in preferences. The "sign in to
+  keep this safe everywhere" line waits for accounts (`DEFERRED.md`).
+- **Quota and write errors** keep the in-memory document, say plainly that the save failed,
+  and offer "Download a backup"; failed saves retry on a backoff timer.
+- **Recently deleted** (30 days, then purged on app open), **Clear my data** (every space,
+  with other open tabs reset at the same moment and unable to write the old data back), and
+  **kept originals** with "Restore an earlier version" (see "Recovery from a bad upgrade").
+
+**Sharing without a server** (built in Foundations spec 3, decided 2026-10-25):
+
+- **Copy versus restore.** A link or an Export file (one dashboard) is a **copy**: a new id,
+  `copiedFrom` = the source id, then the app opens it (replacing the `/import#…` history
+  entry) with the toast "Saved a copy to your dashboards". A backup file is a **restore**: a
+  dashboard whose id isn't in this browser comes back with the same id; one already here is
+  left alone (a backup never overwrites anything); one in Recently deleted is undeleted
+  keeping the browser's version. A summary reports restored, already-here, and unreadable
+  counts. A restored dashboard has its `deletedAt` removed (a backup is a snapshot of live
+  dashboards, so a restore never lands one in Recently deleted). Only ids made of letters,
+  digits, `-`, and `_` (up to 64) are restored, and never the starter's; others count as
+  skipped. Restoring any dashboard counts as a backup for the reminder. Read-only (newer or
+  invalid) dashboards in a backup are restored as stored, still read-only. Links and Export
+  files refuse newer or invalid documents; a read-only dashboard's Export file is its stored
+  value as it is (unknown top-level fields kept), less the local-only fields.
+- **"You already have a copy."** If a non-deleted local copy was made from the same
+  contents, the app asks first: "Open my copy" or "Make a new copy" (equal prominence). "Same
+  contents" is a **local content fingerprint** (a hash of the document's canonical JSON,
+  kept per space in preferences, never in shares or exports; it travels only as backup-only
+  metadata). A changed dashboard has a new fingerprint, so a fresh link gets a fresh copy
+  with no prompt. A deleted copy doesn't count.
+- **The envelope.** Links, Export files, and backups share one wrapper,
+  `{ format: "sjvair-workspace", type: "document" | "backup", formatVersion, exportedAt,
+documents }`, with its own version separate from `schemaVersion`. A shared document carries
+  only `kind`, `schemaVersion`, `id`, `name`, and `body`; local-only fields are left out. A
+  backup carries each dashboard exactly as stored (plus its fingerprint), or, for an open
+  dashboard whose latest edits couldn't be saved, as it is in the tab. Collections and
+  analyses can join without a new format (`DEFERRED.md`).
+- **Links** are `<origin>/workspace/import#1.<lz-string URL-safe payload>` (the fragment is
+  never sent to a server). Limits: a link is capped at **8,000 characters** (over it, the
+  Share dialog offers the file instead); an incoming fragment at 64,000 characters before
+  decompressing; one document at 1,000,000 characters of JSON (checked again after
+  decompressing); a backup file at 50,000,000 bytes. Everything incoming passes the envelope
+  schema, the size limits, and the full load pipeline before anything is saved.
+  `lz-string` and the share/import code are lazy-loaded, never in the entry chunk.
 
 **Share semantics:**
 
@@ -1708,7 +1928,8 @@ each one is one Widget Creation accordion:
 ```ts
 type DatasetCatalogEntry = {
 	id: string; // e.g. "air-quality", "weather", "hms-smoke", "hms-fire", "pesticide-use",
-	//          "pesticide-notices", "forecasts", "calheatscore", "calenviroscreen"
+	//          "pesticide-notices", "forecasts", "calheatscore", "calenviroscreen",
+	//          "emissions", "tempo"
 	label: string;
 	description: string;
 	source: string;
@@ -1718,14 +1939,23 @@ type DatasetCatalogEntry = {
 		label: string;
 		kind: "pollutant" | "meteorological" | "other";
 		units: string;
+		// Per entry type, not per dataset (e.g. pm25: raw…year; pm100 (PM10): raw only).
+		resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
+		available?: boolean; // air-quality entry types: the available-pollutants switch
 		retired?: { since: string; replacedBy?: string };
 	}[];
 	geographies: ("monitor" | "region" | "polygon" | "point" | "tract" | "zip" | "zone")[];
-	resolutions: ("raw" | "hour" | "day" | "month" | "quarter" | "season" | "year")[];
-	metaUrl: string; // the domain's own …/meta/ endpoint
+	metaUrl: string; // the domain's own …/meta/ endpoint; "" until that domain has one
 	retired?: { since: string; replacedBy?: string }; // see "Stable ids and retirement"
 };
 ```
+
+**Catalog format changes (2026-10-22, from the sjvair.com metadata plan, approved by the
+user there):** `resolutions` moved from the dataset onto each entry type, with no
+dataset-level field (so clients need no inheritance rule); air-quality entry types carry
+`available`; the catalog lists every server domain, including `emissions` and `tempo` (the
+dashboard hides those without an adapter); and `metaUrl` is empty for domains with no meta
+endpoint yet (all but monitors and regions, until the scale metas land).
 
 - **Air quality is one dataset.** Its entry types are PM2.5, O3, … (`kind: "pollutant"`).
   Monitor vs. region is a **geography choice inside a layer**, not a separate dataset.
@@ -1776,6 +2006,22 @@ things they point to change (the server removed the `place` region type in Octob
     between environments, so a reference must pick a group's code by a stable rule; and a **CDP that
     incorporates** becomes a `city`, changing its type and code pair (retire the old pair
     with `replacedBy`).
+  - **As planned in the sjvair.com metadata plan (2026-10-22, approved by the user
+    there):** regions and locations gain `retired` (`{ since, replaced_by: { type,
+external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sqids; a
+    retired region comes back flagged; an unknown code is simply absent) and a new
+    `regions/locations/?source=&external_id=`. Retired rows are hidden from listings and
+    search but still resolve by code or sqid. Child-care sites keep their existing code,
+    and any license number at the site finds it. A CDP that becomes a city is retired with
+    `replaced_by` pointing to the city. The retired-vs-never-existed lookup for
+    **monitors** is not in this round.
+  - **Land-use regions are excluded** from code lookup and the permanence promise for now
+    (decided by the user 2026-10-22, sjvair.com metadata plan). The server builds their
+    codes as `{County}-{jurisdiction}-{OBJECTID}`, and a refresh of the state dataset can
+    renumber `OBJECTID`s, so a saved code could point at a different area.
+    `regions/?type=land_use&external_id=…` returns 400; land-use regions still show
+    `external_id`, documented as not permanent. Every other region type and every location
+    source is covered; 2010-only census tracts stay valid references (see `DEFERRED.md`).
   - Using the server's ids for user documents and codes only for built-in ones was
     decided against (see `DEFERRED.md`).
 - **Retire, don't delete.** Catalog entries and entry types carry `retired` (a date and an
@@ -1818,6 +2064,14 @@ things they point to change (the server removed the `place` region type in Octob
 2. **Coverage/availability** — first/last data date per dataset and per
    monitor/region × entry type; which summary resolutions are complete (monthly+
    rollups exist only after the period ends).
+   **Decided 2026-10-22 (sjvair.com metadata plan, approved by the user there):**
+   coverage is computed on request and HTTP-cached (no precomputed table or background
+   task). Two modes only: per dataset (first and last date for each catalog dataset), and
+   one place (a monitor or region plus an entry type → first and last date). **No bulk
+   mode**, so the place picker doesn't grey out places without data in Release 1 (see
+   `DEFERRED.md`). "Which summary resolutions are complete" is a fixed rule, not per-place
+   data (monthly and longer summaries exist only after the period ends), stated as static
+   metadata in the catalog; the data layer's incomplete-period filling handles it.
 3. **Non-pollutant scales**: smoke density, fire FRP tiers, CalHeatScore, AQI 0–500,
    temperature thresholds, forecast categories/burn status (labels + colors). Currently
    hardcoded in `monitor-map` and server Sass. **CalHeatScore meta also carries per-score
@@ -1877,6 +2131,11 @@ per-entry-type `available` flag on `monitors/meta/` — ideally admin-editable s
 it needs no deploy) gates which pollutants the frontend offers in **widgets, analyses,
 and alert rules**. Enabling NO2/SO2/CO later is a metadata change, not a code change. The
 new code never hardcodes pollutants (the v1 `"pm25" | "o3"` goes away with the v1 code).
+**Shape (2026-10-22, sjvair.com metadata plan):** each air-quality entry type in the
+catalog carries `available: boolean`, and `monitors/meta/` gains an `available_pollutants`
+list. The server derives both from its existing `DefaultCalibration` rows (the map's
+"published" switch), so one admin switch turns a pollutant on for the map, widgets,
+analyses, and alerts together.
 Priority: alongside gap #1.
 
 **Cleanup to do alongside** (removing hardcoded duplicates once metadata covers them):
@@ -1893,17 +2152,18 @@ The existing stack stays (IDEA.md: "nothing is being ripped out"); tools are add
 needed. Plain Vite SPA — no SvelteKit, no server runtime — keeping embedding and a Tauri
 wrap simple.
 
-- **Current:** Svelte 5 + TypeScript + Vite, `sv-router`, Tailwind CSS v4,
-  shadcn-svelte (bits-ui), `@lucide/svelte`, `date-fns`, `uplot` (currently only via
-  monitor-map; becomes a direct dependency),
-  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, `@sjvair/monitor-map` (v1 code; replaced by
-  `@sjvair/map-sdk`), Vitest.
-- **Planned additions (decided):** Paraglide JS (i18n-ready messages), `@date-fns/tz` (Pacific-time math), `lz-string`
-  (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw` (drawn-shape selection, via a map-sdk
-  plugin), `zod` (document validation), a Markdown renderer with raw HTML off (Notes), the
-  Sentry browser SDK (via the platform adapter), JupyterLite + Pyodide (separate notebook
-  app), and for testing Playwright,
-  `vitest-browser-svelte`, and `@axe-core/playwright`.
+- **Current** (after Foundations spec 1): Svelte 5 + TypeScript + Vite, `sv-router`,
+  Tailwind CSS v4, shadcn-svelte (bits-ui), `@lucide/svelte`, `svelte-sonner` (toasts),
+  `date-fns`, `@date-fns/tz` (Pacific-time math), Paraglide JS (i18n-ready messages),
+  `zod` (document validation), `idb` (IndexedDB, inside the platform adapter),
+  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, and for testing
+  Vitest (unit and browser mode with `vitest-browser-svelte`), Playwright, and
+  `@axe-core/playwright`.
+- **Planned additions (decided):** `uplot` (a direct dependency, for all charts),
+  `lz-string` (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw`
+  (drawn-shape selection, via a map-sdk plugin), a Markdown renderer with raw HTML off
+  (Notes), the Sentry browser SDK (via the platform adapter), and JupyterLite + Pyodide
+  (separate notebook app).
 
 ## Browser support & performance budget
 
@@ -1913,6 +2173,9 @@ Decided 2026-09-28.
   128+.** Older browsers see a friendly "Your browser is too old for this app" notice
   that points to sjvair.com's main map. Some school Chromebooks past their update end
   date may fall below this; check with partner schools during the private preview.
+  **The notice is shown by the bootstrap** (`app.js`, plain syntax), which feature-tests the
+  floor (`CSS.registerProperty` for `@property`, and `CSS.supports` for `color-mix()`) before
+  loading the app, so older browsers never parse the app bundle.
   Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
 - **Performance budget, CI-enforced:** about **200 KB compressed** of initial JS for the app
   shell. **Each widget type loads its own code only when used** (the map library only
@@ -1959,10 +2222,21 @@ Decided 2026-09-28.
   contributions is on the legal checklist in `DEFERRED.md`), with the brand after it. Every SJVAir repo uses the
   same line: `Copyright (c) 2026 Central California Asthma Collaborative (SJVAir)`. The
   CCAC website's footer says "All Rights Reserved", which must **not** be copied into the
-  license, since the MIT terms grant those rights. Still pending: the `LICENSE` files. `data-dashboard` (now public) and
-  `monitor-map` (on npm) currently have no license, which means "all rights reserved".
+  license, since the MIT terms grant those rights. `data-dashboard` has its `LICENSE` file
+  (spec 5a, below). Still pending: `monitor-map` (on npm) has no license, which means "all
+  rights reserved".
+- **Built 2026-10-26 (Foundations spec 5a):** the `LICENSE` file and `"license": "MIT"` are
+  in this repo; the check is a Vite plugin (`vite-plugins/licenses.ts`) that runs inside
+  `npm run build`. It walks the modules actually bundled (JS, and packages imported from CSS),
+  reads each package's `license` and `LICENSE` text, fails the build on anything off the list,
+  and writes `THIRD-PARTY-NOTICES.txt` from the same data. Dev-only tools are not checked.
+  **Named exceptions** (commented in the plugin): `@inlang/plugin-message-format` (empty npm
+  `license` field, MIT `LICENSE` file) and `@jsr/sjvair__sdk` (first-party, MIT per sdk-js's
+  `deno.json`, but the JSR build has no license field). The real fix for the second is a
+  `LICENSE` file in sdk-js (planned below); remove the exception once it ships.
 - **Dependency policy:** bundled dependencies must be permissively licensed: MIT, BSD,
-  Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide). A **CI license check**
+  Apache-2.0, ISC, or MPL-2.0 when used unmodified (e.g. Pyodide), and **OFL-1.1 for fonts
+  only** (decided 2026-10-26; the bundled Inter font is OFL-1.1). A **CI license check**
   flags anything else, and the build generates a **third-party notices** file (which
   also covers the JupyterLite/Pyodide notices).
 - Adding the license to `monitor-map` is a sibling-repo change: it goes in its next plan,
@@ -2020,8 +2294,10 @@ Decided 2026-09-24.
   catches contract drift.
 - **CI** (decided 2026-09-24): **PRs into `main` run the full suite**: unit, component,
   and three-engine E2E (Chromium, WebKit, Firefox) plus axe. Merging to `main` is
-  effectively a deploy, so this is the pre-production gate. PRs between feature branches
-  run the fast set (unit, component, Chromium E2E).
+  effectively a deploy, so this is the pre-production gate. PRs into the `foundations`
+  integration branch also run the full suite (decided 2026-10-20: GitHub can only start a
+  workflow by hand once it is on `main`). Other PRs between feature branches run the fast
+  set (unit, component, Chromium E2E).
 
 ## Deployment
 
@@ -2031,8 +2307,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
 
 - **Why `/workspace/`:** the base path names the _app_, not one of its resources. The app
   holds Dashboards _and_ Analysis, so `/dashboard/` would either repeat itself
-  (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product can
-  still be called the "SJVAir Dashboard" in the UI; only the URL uses `workspace`.
+  (`/dashboard/dashboards/:id`) or put Analysis under "dashboard". The product
+  is called **"SJVAir Dashboard"** in the UI (decided 2026-10-26: the app name, page titles,
+  manifest, and messages); only the URL uses `workspace`.
 - **Why not `/explore/` any more:** sjvair.com now has the "Pesticide Data Explorer" at
   `/tools/pesticides/`, with a "Facility Emissions Explorer" to follow, and the server
   calls them "the explorers". An `/explore/` path for a different product would confuse
@@ -2091,10 +2368,11 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     windowed layout. The template is a bare shell holding only the dashboard, whose own
     nav links back to sjvair.com.
   - **Build output:** fixed-name entry files (one script, one stylesheet) plus
-    content-hashed lazy chunks, and `version.json`. **Files find each other by relative
+    content-hashed lazy chunks, and `version.json` (at the top level next to `app.js`, built in
+    Foundations spec 5a). **Files find each other by relative
     reference** (decided 2026-10-14): the build resolves every chunk and asset relative to
     the module that loads it (`import.meta.url`), so one build works in local
-    development, the preview, on S3, and in the second-origin test. This replaces
+    development, the preview, and on S3. This replaces
     monitor-map's approach (a `window.__cdnUrl` helper set by an inline script, which the
     no-inline-script rule forbids and which module import order would make fragile).
     Lazily loaded assets keep content-hashed names (only the entry script and stylesheet
@@ -2106,7 +2384,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     from `sjvair-production.s3.amazonaws.com`, with **no compression, no `Cache-Control`**,
     and cross-origin `GET` allowed only for `https://www.sjvair.com`. The dashboard
     therefore needs these accommodations:
-    1. **Compression and cache headers are set at upload.** The dashboard's files go to
+    1. **Compression and cache headers are set at upload.** _Deferred 2026-10-26 by the
+       user: the dashboard is uploaded exactly as monitor-map is for now; see `DEFERRED.md`
+       and spec 5a's reload refresh. The plan below is kept for when it's revisited._ The dashboard's files go to
        S3 pre-compressed with `Content-Encoding`, hashed chunks as long-lived and
        immutable, and the fixed-name entry files and `version.json` as `no-cache`
        (revalidated on each load). Without this the ~200 KB compressed budget means
@@ -2128,16 +2408,39 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
        whole host would also permit the site's other scripts there (htmx, admin jQuery,
        monitor-map), which an injection bug could misuse.
     3. **Workers are built inline** (as blob workers), since a worker script cannot be
-       loaded from another origin. `worker-src blob:` already allows this.
+       loaded from another origin. `worker-src blob:` already allows this, and the
+       dashboard's CSP must keep it: the downsampling worker
+       (`src/lib/data/downsample.worker.ts`, imported with `?worker&inline`) is created from
+       a `blob:` URL, so dropping `blob:` from `worker-src` breaks PM10 and other raw-data
+       charts. The build emits no separate worker file.
     4. **The web app manifest, and the later service worker, are served by Django under
        `/workspace/`**, because they must be same-origin. Icons can stay on S3.
     5. **`version.json` is fetched from the static origin** (located relative to the entry
        module) with `cache: "no-store"`
        (allowed by the bucket's cross-origin rule).
     6. **Cross-origin problems only show in production**, because local development serves
-       static files from the same origin. The private preview must use S3-style static
-       serving, the bucket's cross-origin rule must list the preview's origin, and an E2E
-       smoke run serves static files from a second origin.
+       static files from the same origin. **Revised 2026-10-26 (the user):** local setup
+       matches monitor-map's (same origin, nothing standing in for S3), and the preview is on
+       production behind `beta_tools`, so it uses the real S3 serving and the existing
+       cross-origin rule for `www.sjvair.com`. Cross-origin behavior is first exercised
+       there, with the CSP report-only and errors in Sentry (see `DEFERRED.md`).
+  - **The bootstrap entry and `startApp(staticBase)`** (built 2026-10-26, spec 5a). `app.js`
+    is `src/bootstrap.ts`, deliberately plain syntax: it finds `#SJVAirDataDashboard`, tests
+    the browser floor (see "Browser support & performance budget"), and only then
+    dynamically imports `src/main.ts` and calls `startApp({ target, staticBase })`.
+    `staticBase` is the entry module's own folder (`new URL(".", import.meta.url)`), so the
+    page passes no path. A browser below the floor gets the "too old" notice instead of a
+    parse error.
+  - **The reload refresh.** When the app finds that `version.json` (fetched from
+    `staticBase`, `cache: "no-store"`) differs from its own build id, the notice's reload
+    button first re-fetches the fixed-name `app.js` and `app.css` with `cache: "reload"`, so
+    the browser's HTTP cache can't hand back the stale entry files, and then reloads. It
+    never rejects; if the refresh fails the page reloads anyway. A dev build skips the check.
+  - **No `VITE_*` names or values reach the bundle** (spec 5a).
+    `configureSdk({ dev, prodUrl }, pageOrigin)` takes only those two fields, under names
+    without the `VITE_` prefix, and the build stops inlining `import.meta.env` objects;
+    `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and checks the rest
+    of the hosting contract). `npm run check:budget` enforces the initial bundle budget.
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.
@@ -2154,14 +2457,36 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     app, which shows "no longer available" from the API's response.
   - **This repo keeps an `index.html` for local development and standalone or Tauri
     builds only.**
+  - **The hosting contract** (settled 2026-10-26 with the sjvair.com hosting session) is
+    recorded in `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` →
+    "Hosting contract", the single source both repos follow; changes go through this repo.
+    In short: `npm ci && npm run build` (Node `>=26 <27`) writes `dist/workspace/` with
+    fixed-name `app.js`, `app.css`, `version.json`, `manifest.webmanifest`, and
+    `THIRD-PARTY-NOTICES.txt` at the top level and hashed files under `assets/`; the template
+    mounts the app in `<div id="SJVAirDataDashboard">` and passes identity in a `json_script`
+    block `sjvair-identity`
+    (`{"v": 1, "user": null | <the session account/ response>}`, never the token; revised
+    2026-10-27 by spec 5b, which also dropped the "never the phone number" rule and kept
+    `v: 1`, since nothing read the block and nothing was released). An unknown `v`, an
+    unreadable block, or a `user` that fails validation reads as signed out (the unreadable
+    case is reported, scrubbed). The dashboard's `index.html` no longer carries a stand-in
+    block, so dev, E2E, and the standalone build ask `account/` once instead; the template
+    references `app.js` by its exact static URL (no query string, no renamed copy), because hashed chunks import it back as `../app.js` and
+    any other URL runs the bootstrap twice; the CSP comes from this repo's
+    `csp-hosts.json`, report-only for the preview and enforced by a server setting
+    (`WORKSPACE_CSP_ENFORCE`) before go-live; the manifest is served by Django at
+    `/workspace/manifest.webmanifest`, outside the `beta_tools` gate (browsers fetch it without
+    cookies; it holds nothing private) and `noindex`.
   - Extending the site's base template, serving the dashboard's own `index.html`, and a
     build-manifest file read by the server were considered and decided against (see
     `DEFERRED.md`).
 - **Same-origin API in production:** when served under `/workspace/`, the SDK origin is
-  the page's own origin (`setOrigin(location.origin)`), not `VITE_PROD_URL`. This prevents
+  the page's own origin (`setOrigin(location.origin)`), not an env value. This prevents
   `www.sjvair.com` vs `sjvair.com` mismatches from turning API calls cross-origin and
-  silently breaking cookie sign-in. `VITE_PROD_URL` remains only for non-same-origin
-  builds (Tauri, standalone).
+  silently breaking cookie sign-in. `VITE_PROD_URL` is read only for production
+  standalone or Tauri builds, where it is passed to `configureSdk` as `prodUrl`; it is ignored
+  in dev and never set for the sjvair.com build (production under `/workspace/` uses the page
+  origin).
 - **`basePath` support in `src/router.ts` is pulled into Release 1**: the one piece of the
   deferred embedding work that serving under a path needs. Embedding in a host app with its
   own router stays deferred.
@@ -2169,7 +2494,9 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
   public only when Release 1 is complete, but from about Release 1 step 4 an **unlisted
   preview** (a staging Heroku app, a hidden route, or the server's `beta_tools` flag;
   chosen in the hosting-track plan)
-  lets a pilot teacher and a researcher try it and give feedback early.
+  lets a pilot teacher and a researcher try it and give feedback early. **Decided
+  2026-10-26: the `beta_tools` flag on production**, with a "My Dashboard" link under the
+  beta-only "Data Tools" menu (no staging app, so no extra S3 cross-origin origin).
 - **JupyterLite (Release 3)** lives at its own path (e.g. `/notebooks/`), and COOP/COEP
   headers are set only for that path.
 - **CI in this repo** runs lint, type-check, tests, and build on every PR. **Merging to
@@ -2192,9 +2519,9 @@ decisions made along the way:
   for `MapShell` with `routerEscapeHatch`/`basePath` (see its `CLAUDE.md`): a host
   page that already has its own router must be able to either mount this app under a
   sub-path (`basePath`) or disable this app's own history/URL manipulation entirely
-  when the host is driving navigation. This is **not yet implemented** — `src/router.ts`
-  currently assumes it owns top-level routing. **`basePath` ships in Release 1** for
-  serving under `/workspace/` (see "Deployment"); the escape-hatch/in-memory mode for
+  when the host is driving navigation. **`basePath` is built** (Foundations spec 1) for
+  serving under `/workspace/` (see "Deployment"); otherwise `src/router.ts` still assumes it
+  owns top-level routing, and the escape-hatch/in-memory mode for
   embedding in a host app with its own router stays deferred (see `DEFERRED.md` → "Embeddable production
   build").
 - **URL state vs. embedding** — decided in "Routing, URL state & undo": when the host

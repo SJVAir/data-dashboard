@@ -11,6 +11,133 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **Upload compression, cache headers, ordered upload passes, and a post-deploy header
+  check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
+  track and Foundations spec 5a)._ The dashboard is uploaded to S3 exactly as monitor-map is
+  today (one `aws s3 sync`, uncompressed, no `Cache-Control`, no ordering, the sync not
+  failing the release on error), to keep shipping identical to monitor-map. Costs: about 3–4×
+  the bytes on the wire against the 200 KB compressed budget; browsers may heuristically cache
+  the fixed-name `app.js`/`app.css` after a deploy (spec 5a's reload button re-fetches them
+  with `cache: "reload"` first); a page loading mid-deploy can hit a missing chunk (the reload
+  bar covers it). **Revisit together with** monitor-map's upload, or when the low-end device
+  check shows slow loads.
+- **Testing cross-origin static serving before the preview.** _Deferred 2026-10-26 (the
+  user, Foundations spec 5a and the hosting track)._ Locally, the dashboard's static files are
+  served from the page's own origin, as monitor-map's are; nothing stands in for S3. So
+  relative chunk loading from S3, fonts and `version.json` under the bucket's cross-origin
+  rule, and the CSP's `{static}` entry are first exercised in the beta preview on production
+  (CSP report-only, errors to Sentry, beta testers only). This replaces `ARCHITECTURE.md`'s
+  earlier plan of a second-origin E2E smoke run. **Revisit if** the preview shows a
+  cross-origin problem, or before public go-live if the preview hasn't exercised it.
+- **Pre-filling sjvair.com's contact form.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
+  preview feedback link opens `/contact/` as it is; the form can't take a topic or message
+  from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
+  page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
+  track (which builds "Report this page").
+- **Remove the `@jsr/sjvair__sdk` license exception.** _Deferred 2026-10-26 (Foundations spec
+  5a)._ The license check names `@jsr/sjvair__sdk` as an exception because the JSR build has no
+  license field and no license text, so the third-party notices carry none for it. **Revisit
+  when** sdk-js ships a `LICENSE` file (and a license field in its JSR package): remove the
+  exception and check the notices include its text.
+- **A maskable icon and real app icons.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
+  manifest uses sjvair.com's Android Chrome favicons as placeholders, with no `maskable`
+  icon. **Revisit with** the design pass.
+- **A test of the real Sentry envelope.** _Deferred 2026-10-26 (Foundations spec 5a, final
+  review)._ The scrubbing is unit-tested on the event the app hands to `@sentry/browser`, but
+  nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the
+  scrubbed fields). A test with a capturing transport would. **Revisit when** the dashboard's
+  Sentry project exists, together with the hand check of a real report.
+- **The error reports' route list duplicates the router's.** _Deferred 2026-10-26
+  (Foundations spec 5a, final review)._ `routePattern` in `src/lib/errors/scrub.ts` keeps its
+  own copy of the route patterns, so a new route reports as `/other` until it is added there
+  too. **Revisit when** the Widget Creation or Analysis routes are added: derive it from the
+  router, or add a test comparing it to the router's route keys.
+- **CSP violations before IndexedDB opens aren't seen by the app.** _Deferred 2026-10-26
+  (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
+  only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
+  in the app's own reports; the CSP header's `report-uri` still covers them. **Revisit if**
+  the violation reports show gaps.
+- **WebKit and a failed chunk after reload.** _Deferred 2026-10-26 (Foundations spec 5a,
+  final review)._ In the E2E suite, once Playwright's WebKit fails to import the app chunk
+  (a routed 404 or abort, even with `no-store`), a reload or a fresh navigation in the same
+  page fails the same import again without requesting the file. So the load-failed test checks
+  recovery only on Chromium and Firefox; on WebKit it checks the message and that Reload
+  refreshes the entry files and reloads. Unknown whether real Safari does the same after a
+  real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
+  Safari after a missing chunk; if it stays broken, retry the import under a new URL.
+- **The SDK builds zod schemas outside the `jitless` wrapper.** _Deferred 2026-10-26 (Foundations
+  spec 5a, final fix-wave review)._ The dashboard imports zod only through `$lib/zod`, which sets
+  `z.config({ jitless: true })` so zod's eval probe never trips the CSP. `@sjvair/sdk` imports zod
+  itself and builds `z.object` schemas when its modules load. Today that's harmless: production
+  reaches those modules only through the dev-only `/dev/data` route, after `$lib/zod` has run. If a
+  production route ever loads the SDK root before `$lib/zod`, every page load raises a `script-src`
+  eval violation (the E2E CSP fixture catches it only on the routes it exercises). **Revisit when**
+  the data layer first goes into a production route: fix it in sdk-js (build schemas lazily, or
+  set `jitless` there), not with an import-order workaround here.
+- **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
+  review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
+  `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
+  `browser.newContext()` (the sharing and backup specs). And `e2e/csp.spec.ts`'s "eval is blocked"
+  self-test injects an inline script, so it proves the checker works but not that eval is caught.
+  **Revisit when** touching the E2E fixtures or the zod wrapper.
+- **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
+  follow-ups, none blocking. **Revisit with** the design pass, or when next touching each
+  file:
+  - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
+    share one constant each.
+  - No test covers skipping the entry-file refresh when `BUILD_ID === "dev"`.
+  - The browser-floor test doesn't assert the exact `color-mix()` string it probes.
+  - The host-list logic is duplicated between `csp-hosts.test.ts` and
+    `scripts/check-build-output.mjs`, and the list is flat across directives.
+  - The license collection skips virtual modules (Vite's and rolldown's MIT helpers).
+  - The web manifest's `lightToken` takes the first regex match; scope it to `:root`.
+  - The E2E test loads only `icons[0]`, and the dev manifest route is untested.
+  - The bare `/account/` dev proxy prefix could shadow a future app route.
+  - The embedding suite's "lazy chunk" check doesn't prove the chunk loads lazily.
+  - The feedback link has no new-tab cue (design pass).
+  - `reload.ts`'s `location.reload` and the entry-file refresh are web-only behavior outside
+    the platform adapter (Tauri).
+- **Spec 5b polish.** _Deferred 2026-10-27 (Foundations spec 5b, task reviews and final
+  review)._ Small follow-ups, none affecting correctness, security, or the token boundary.
+  **Revisit with** the design pass, or when next touching each file:
+  - sjvair.com: v1 `accounts/endpoints.py` imports the session module in its own import
+    block; tidy with the imports.
+  - sjvair.com: the session password-change test juggles old and new passwords across the v1
+    and v2 URLs and is hard to read; split it per version.
+  - sjvair.com: `session_user_data()` round-trips through `json.dumps`/`loads`. Intentional
+    (it matches the API's encoder, so the block equals the `account/` response); revisit only
+    if it shows up in profiling.
+  - sjvair.com: the staff identity-block test doesn't re-check that the page has no token
+    (the signed-in test covers it).
+  - sdk-js: bare `b.api_token;` statements exist only to hold `@ts-expect-error`; and callers
+    passing a value typed as `UpdateUserForm`/`ChangePasswordConfig` (with `api_token?:
+string`) now get the union return type. The mobile app passes a string token, so it's
+    unaffected; revisit if a loosely typed caller appears.
+  - Initials use `toLocaleUpperCase()` with the runtime's default locale; pass the UI locale
+    when translations arrive.
+  - The identity block's tests don't cover non-object JSON (`null`, `1`) or a missing `user`
+    key (the schema already rejects them).
+  - The identity source: a stale in-flight request can answer a forced re-check after the
+    generation bump; an equal identity in `accept()` still bumps the generation; and the memory
+    source reports cause `"recheck"` where the web source says `"load"` for the first answer
+    (nothing depends on the difference).
+  - One browser-test load failure on a first run (Vite re-optimizing dependencies), not
+    reproduced; revisit if it recurs.
+  - `AccountState` passes a received tab identity to `accept()` as validated, not as the
+    parsed (normalized) value; mixes TypeScript private parameters with `#private` fields (as
+    `App` does); and its `dispose()` is never called (the app lives as long as the tab).
+  - Untested: the tab channel's own-echo `tabId` filter, and the signed-out → signed-in toast
+    across tabs.
+  - The account menu's keyboard test steps with `ArrowDown` and sleeps; use focus assertions.
+    Its test user is cast `as never`, which hides type drift.
+  - The menu's greeting labels aren't wrapped in a `DropdownMenu.Group` (design pass).
+  - `returnPath`'s query comes from `serializeSearch(route.search)`, which rebuilds it from an
+    object and collapses repeated keys. No route uses repeated keys; read the browser's real
+    query through the router if one does.
+  - E2E `account.spec.ts`: a redundant `page.goto` after "New blank dashboard", and the
+    logout fixture's glob `**/account/logout/` also matches `/api/2.0/account/logout/`.
+  - `identity.ts`'s `statusOf` has a long inline cast type; name it.
+
 - **Tauri desktop build.** _Deferred 2026-09-23 (IDEA.md Q1)._ The web build comes first
   and the app is kept Tauri-ready (see `ARCHITECTURE.md` → "Platform strategy").
   **Revisit when** there is a concrete desktop-only win, such as tray-based background
@@ -104,8 +231,176 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   list for recovery only. **Revisit when** people use restore for everyday undo rather
   than recovery, or ask to compare versions.
 
+- **sjvair.com API v2 archive links point at v1.** _Noted 2026-10-19 (Alerts fix)._ The
+  v2 monthly-archive list builds each file's `url` with `Archive.get_csv_url()`, which
+  reverses the **v1** route (`/api/1.0/.../archive/<year>/<month>/`), and the v2 archive
+  tests (`camp/api/v2/archive/tests.py`) also exercise the v1 routes, so the v2 endpoints
+  are untested. No current client uses archives (the SDK wraps them). **Revisit when**
+  anything starts using monthly archives (e.g. a dashboard download feature), or with the
+  next sjvair.com API cleanup. Needs an approved sjvair.com plan.
+- **sjvair.com test settings depend on the local env.** _Noted 2026-10-19._ Without
+  `TWILIO_AUTH_TOKEN`, 23 Twilio signature tests fail; with `BAM_MIRROR_ENABLED=1` in the
+  local `.env.test`, 2 BAM tests fail (they expect it off by default). `camp/settings/test.py`
+  could pin a dummy token and `BAM_MIRROR_ENABLED = False` so the suite runs the same
+  everywhere. **Revisit with** the next sjvair.com test or settings change. Needs an
+  approved sjvair.com plan.
+- **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
+  affects what ships: Playwright runs with no retries in CI; the `--duration-*` `@theme`
+  aliases are probably inert. (Resolved in spec 5a: the inlang plugin is a named exception in
+  the license check; sharp's install script is allowed, see the Task 7 commit, because it is
+  dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
+  **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
+- **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
+  review); updated 2026-10-27 (spec 5b final review)._ The home route shows as `/workspace`
+  (sv-router drops the slash), while Vite's base is `/workspace/`. The server half is done:
+  the hosting track's `re_path(r'^workspace(?:/.*)?$')` makes sjvair.com serve both forms (200,
+  no redirect), and the dev-stack test accepts both. Spec 5b's Sign in link sends home back as
+  `/workspace/`. Still open, dev only: reloading home in `npm run dev` (or opening `/workspace`
+  there) shows Vite's base-URL hint page, and the address bar's home URL isn't the canonical
+  `/workspace/`. **Revisit with** the next router change (layout engine and windowing, at the
+  latest): have the router render home as `/workspace/`, or redirect the bare base in dev.
+- **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
+  calls return API data without checking it against their Zod schemas, which is how the
+  stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
+  validation would change behavior for every call. **Revisit when** the dashboard's data
+  layer (Foundations) decides where responses are validated. Needs an sdk-js plan and a
+  release (explicit approval).
+- **sdk-js: subscription levels are incomplete.** _Noted 2026-10-19._
+  `monitorSubscriptionSchema.level` only allows `unhealthy_sensitive` and above, but the
+  server also accepts `good` and `moderate` (treated as Moderate). **Revisit with** the
+  Release 2 alert-rule SDK work. Needs an sdk-js plan and a release.
+- **sdk-js: CSRF header can follow a cross-origin redirect.** _Deferred 2026-10-21._ The
+  SDK's origin check applies to the initial URL. If a same-origin write got a 307/308
+  redirect to another origin, the request would carry `X-CSRFToken` along (browsers strip
+  only `Authorization`). Contained today: the custom header forces a CORS preflight, so it
+  only reaches a target that explicitly allows it, and the API's writes don't redirect.
+  **Revisit when** the API starts redirecting writes or the dashboard is deployed
+  cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
+- **`@sjvair/sdk` is pinned to the 4.8.0-beta.1 pre-release.** _Deferred 2026-10-22
+  (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
+  `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
+  are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
+  **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
+  the user approves the release): switch to `^4.8.0`.
+- **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
+  (decided by the user)._ The user wants the next major sdk-js version to send entry bounds
+  unchanged by default, with an opt-in flag for rounding to whole Pacific days; it's recorded
+  in sdk-js's `DEFERRED.md`. **Revisit when** the dashboard upgrades to that major version:
+  remove `exact: true` from the air-quality adapter's `getMonitorEntries` calls.
+- **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
+  SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
+  that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
+  itself. **Revisit if** the resticus rollout's end-to-end subscribe check finds the cookie
+  missing, or sjvair.com changes its CSRF/session settings. Needs a sjvair.com plan.
+  **Checked 2026-10-22:** the signed-in check on local sjvair.com found the cookie present,
+  so it stays deferred.
+- **resticus: credential lookups on safe methods.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF
+  fix review)._ For a session-signed-in request that also sends an `Authorization` header,
+  the fix tries the other authenticators before the CSRF check, even on GETs, where the
+  check does nothing: an extra token query, or a password hash and `user_login_failed`
+  signal for Basic. Rare from browsers. **Revisit if** the resticus developer asks, or such
+  requests show up in practice; the fix is to skip the lookup for safe methods.
+- **resticus: a non-UTF-8 token header gives 500.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF fix
+  review)._ `TokenAuth.lookup_user` raises `UnicodeDecodeError` on a non-UTF-8 key. This was
+  already true without a session; with a session it used to be ignored (200). Not a
+  security issue (a cross-site page can't set the header). **Revisit with** the next
+  resticus change; fix by raising `AuthenticationFailed` there.
+- **resticus: CSRF skip trusts any non-session authenticator.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22
+  (resticus CSRF fix review)._ A custom authenticator that reads a cookie (e.g. a JWT in a
+  cookie) and doesn't subclass `SessionAuth` would let cookie-only requests skip the CSRF
+  check. sjvair.com uses only `TokenAuth`. **Revisit if** the resticus developer wants it
+  documented, or anyone adds a cookie-based authenticator; a docstring/README note is enough.
+- **resticus: PATCH test goes around `ApiClient`.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF fix
+  review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
+  `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
+
+## Documents & saving
+
+- **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
+  task 6)._ If the page goes away mid-hand-off after the copy was stored but before its first
+  save, the next load opens the (unedited) copy, not the starter, so the starter's journal
+  record (its queued edits) is never replayed; it stays until journal cleanup removes it.
+  Needs the page to die in a window of a few milliseconds. **Revisit on** a report of lost
+  first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
+  starter.
+- **A starter replay can take a live tab's journal record.** _Deferred 2026-10-25
+  (Foundations spec 3, task 7 review)._ `replayPending` replays every other tab's `starter`
+  journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
+  hand-off failed); both tabs then hand the same edits off, making a duplicate copy. Narrow:
+  it needs a storage failure or unlucky timing in the other tab. **Revisit on** a report of
+  duplicate starter copies, or with server sync.
+- **Conflict status wording.** _Deferred 2026-10-20 (Foundations spec 1 review); the other
+  cross-tab sync edge cases were done in spec 3._ The "error" status during a conflict looks
+  like "Couldn't save". **Revisit in** the design pass.
+- **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
+  Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
+  fragment can expand to a very large transient string before the post-decompression size
+  check (a `RangeError` is caught and shown as an invalid link). **Revisit if** memory
+  spikes are reported, or if a streaming or limited decoder becomes available.
+
+- **`droppedEdits` on the starter is never shown.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Edits that can't be carried over
+  from an older format are counted on the starter session too, but only an opened dashboard's
+  page tells the person. Nothing can be dropped until a format changes. **Revisit at** the
+  first `schemaVersion` bump.
+- **`files.open` can hang where the input's `cancel` event is missing.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Chrome 111–112
+  don't fire `cancel` on a file input, so dismissing the picker there leaves "Import…" waiting
+  forever. **Revisit if** a stuck import is
+  reported.
+- **IndexedDB reopen isn't memoized, and any `InvalidStateError` triggers it.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
+  Concurrent operations that fail together each open their own connection, and an
+  `InvalidStateError` from another cause also reopens. **Revisit before** the next IndexedDB version bump.
+- **`DocumentSession` is large (~870 lines).** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The format-upgrade and hand-off helpers
+  could move out. **Revisit when** a second document kind (Collections, Release 3) needs a
+  session, or sooner if it keeps growing.
+- **An unreadable journal `writtenAt` never expires.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The 30-day purge skips a journal
+  record whose `writtenAt` can't be read, so it stays. Records are small and rare.
+  **Revisit if** journal storage grows.
+- **`rememberCopy` failing after a restore's commit counts it as skipped.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The
+  dashboard is restored, but the summary says skipped and its fingerprint is missing (so "You
+  already have a copy" won't find it). Low impact. **Revisit with** server sync.
+- **A failed `lastShownAt` write lets the reminder show again next load.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ And
+  `NoticeBars` keeps its own guard around reading the reminder prefs instead of sharing one.
+  **Revisit if** a repeating reminder is reported.
+- **Restored unreadable dashboards are invisible in the list and the Clear count.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A
+  backup's invalid (unreadable) dashboard is restored as stored, but the index lists only
+  loadable ones, so it isn't shown or counted. **Revisit with** the design pass or a "can't
+  open" list.
+
+- **Upgrading `bits-ui` past 2.19.2.** _Deferred 2026-10-25 (Foundations spec 3, Task 13)._
+  `npx shadcn-svelte add popover` bumped `bits-ui` from 2.19.2 to 2.20.2, which broke
+  `src/lib/components/menu/context-menu.browser.test.ts` ("openMenuFor passes its payload to
+  run": the menu item detaches and the click times out). It is held at 2.19.2 (the popover works
+  there). **Revisit when** upgrading `bits-ui` or on the next `shadcn-svelte add`: check that
+  test first.
+
+- **Link length in Google Classroom and webmail.** _Deferred 2026-10-25 (Foundations spec 3)._
+  The 8,000-character share-link cap (`MAX_LINK_URL`) is provisional: it needs a manual check
+  that long links survive Google Classroom and a common webmail client, which needs real
+  accounts. **Revisit before** the private preview.
+- **"Sign in to keep this safe everywhere" in the backup reminder.** _Deferred 2026-10-25
+  (Foundations spec 3)._ `ARCHITECTURE.md` planned a gentle sign-in line next to the backup
+  reminder; there are no accounts yet. _Updated 2026-10-27 (spec 5b):_ sign-in now exists, but
+  without sync the line would be false, so the trigger moved. **Revisit with** the server-backed
+  documents track (when it builds sync).
+- **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
+  (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
+  is shaped so other kinds can be added without a new format. **Revisit with** Collections and
+  the Analysis step (Release 3).
+
 ## Map & selection
 
+- **Saving land-use regions by code.** _Deferred 2026-10-22 (sjvair.com metadata plan,
+  decided by the user)._ Land-use codes include the state dataset's `OBJECTID`, which a
+  refresh can renumber, so they are excluded from code lookup and the permanence promise;
+  the dashboard can't save a land-use region as a reference. **Revisit when** someone needs
+  land-use areas in a saved widget or rule; the server first needs a stable code built from
+  fields that survive a refresh.
+- **Greying out places with no data in the place picker.** _Deferred 2026-10-22
+  (sjvair.com metadata plan, coverage endpoint)._ Coverage has no bulk mode in Release 1
+  (only per dataset and per single place), so the picker can't know which places lack
+  data. A place without data shows a "no data for this range" state once chosen.
+  **Revisit when** users struggle to find places with data; it would need a bulk coverage
+  mode, probably backed by a precomputed table on the server.
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
@@ -132,8 +427,41 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
+- **monitor-map: chart stuck loading after a failed background refresh.** _Noted
+  2026-10-21 (monitor-map 4.3.0 review)._ If a timed (silent) chart refresh supersedes a
+  range change that is still loading and then fails, `DataChart` keeps showing the loading
+  state. This is the same as in 4.2.0, not a regression. **Revisit with** the next DataChart
+  change or the map-sdk rebuild (5.0). The fix is to have the silent refresh take over the
+  `loading` flag. Needs a monitor-map plan.
+- **monitor-map: subscription status load errors are unhandled.** _Noted 2026-10-21
+  (monitor-map 4.3.0 review)._ A failed subscription-status load (not a cancel) still
+  surfaces as an unhandled rejection, as in 4.2.0, with no error state on the button.
+  **Revisit with** the next change to `MonitorSubscriptionManager` or the map-sdk rebuild.
+  Needs a monitor-map plan.
+- **monitor-map: cancelling one-off loads.** _Deferred 2026-10-21 (monitor-map SDK 4.7
+  design)._ HMS smoke/fire and collocation sites accept a caller's signal but don't
+  supersede themselves, since nothing re-requests them on user selection. **Revisit when**
+  any of them becomes selection-driven (e.g. a date-picked HMS layer).
 
 ## Analysis & data
+
+- **Collections and "Mark for analysis" in Release 1.** _Deferred 2026-10-25 (Foundations
+  spec 4 planning, decided by the user)._ The 2026-09-24 plan shipped a minimal Collections
+  (the store, the drawer, "Mark for analysis" / "Analyze" / "Add to collection ▸", staging
+  that freezes rolling ranges, and a placeholder Analysis view) in Release 1, so IDEA.md's
+  widget actions were complete from the start. But a Release 1 Collection could only be
+  gathered, not used: there are no analyses and no download until Release 3's notebook
+  bundle, and Release 3 still has to decide the Analysis view's layout and how items bind
+  to an analysis, so a drawer built now would likely be redone. Foundations spec 4 is
+  dropped; Collections move to Release 3 step 1. Release 1 widgets keep `analyzable`, and
+  `defaultCollectionId` stays an optional field. **Revisit with** the Release 3 step 1 spec
+  (Collections and the analysis engine), or sooner if people ask to gather data across
+  dashboards before then.
+- **"Download data (CSV)" on every data widget.** _Suggested 2026-10-25 (Foundations spec 4
+  planning), not yet decided._ With Collections in Release 3, the only planned Release 1
+  download is the Data table widget's CSV export. A per-widget download action would cover
+  "get this widget's data out" on every data widget, using the spec 2 data layer.
+  **Decide in** the Release 1 step 4 spec (Widget Creation and the first widget set).
 
 - **Outside health data (HCAI ED visits, CDC PLACES, etc.) and the "smoke → ER visits"
   lag analysis.** _Deferred 2026-09-23 (IDEA.md Q6)._ The server holds no ER,
@@ -191,6 +519,59 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   catalog entry's `license` and any export must carry. Nothing is designed in the
   dashboard. **Revisit when** a methane layer or analysis is scoped. Same for the unused
   `VITE_OPENWEATHERMAP_KEY` — remove it if no use appears.
+- **Calibration choice on layers.** _Deferred 2026-10-22 (Foundations spec 2)._ The data
+  layer always uses each monitor type's published series (e.g. EPA-calibrated PM2.5 for
+  PurpleAir) and reports which one it used; `QueryDescriptor` has no processor field. An
+  optional field can be added later without a document migration. **Revisit when**
+  researchers ask for uncalibrated or alternative-calibration data.
+- **Refetch keeps the resolution chosen at creation.** _Deferred 2026-10-22 (Foundations spec
+  2)._ A query entry picks its resolution from the range span once, when it is created; a
+  to-date range (e.g. "this month") can grow across a ladder boundary over time without the
+  entry switching. **Revisit when** widgets show to-date ranges (Release 1 step 4).
+- **The query client has no `dispose()`, and its poller is never stopped.** _Deferred
+  2026-10-22 (Foundations spec 2)._ `getQueryClient()` returns one app-wide client, so nothing
+  needed teardown. **Revisit when** HMR or tests recreate clients, or anything creates more
+  than one.
+- **`LiveQuery` has no idle state for a null input.** _Deferred 2026-10-22 (Foundations spec
+  2)._ A widget with nothing to show yet (no place picked) has to avoid constructing the query
+  rather than pass `null`. **Revisit when** building widgets (Release 1 step 4).
+- **`adapter.target` takes no `AbortSignal`.** _Deferred 2026-10-22 (Foundations spec 2 final
+  review)._ Resolving a layer's target can't be cancelled when its subscriber moves on; today
+  it makes no network calls (the web region resolver answers at once), so nothing is wasted.
+  **Revisit when** step 3's region resolver makes network calls: pass the subscription's
+  signal through.
+- **Updating a subscription to an input with the same key detaches first.** _Deferred
+  2026-10-22 (Foundations spec 2 final review)._ `Subscription.update()` with a different
+  input that resolves to the same cache key (e.g. a selection's ids reordered) shows
+  `loading` for a moment and, if it was the entry's only subscriber with a fetch in flight,
+  aborts and restarts that fetch. **Revisit when** widgets edit selections in place (Release
+  1 step 4) and the flash or the extra fetch shows.
+- **A new subscriber refetches an errored entry at once.** _Deferred 2026-10-22 (Foundations
+  spec 2 final review)._ Attaching to a cache entry whose last fetch failed refetches
+  immediately, skipping the poller's backoff, so widgets opening one after another against a
+  failing server each send a request. **Revisit if** that shows up as load during an outage;
+  the fix is to respect the entry's backoff when attaching.
+- **The idle cache cap counts entries, not bytes.** _Deferred 2026-10-22 (Foundations spec 2
+  final review)._ Up to 200 idle entries stay cached whatever their size, so large raw
+  selections could hold a lot of memory. **Revisit with** step 4's large selections: cap by
+  approximate size (points held) instead.
+- **Midnight race on rolling keys.** _Deferred 2026-10-22 (Foundations spec 2 final review)._
+  A subscriber that attaches across midnight to a rolling entry ("last 7 days") whose fetch
+  started before midnight gets the older dates until the next poll. **Revisit if** a widget
+  shows yesterday's window after midnight for longer than a poll; the fix is to compare the
+  in-flight request's dates when attaching.
+- **A monitor missing from the monitors list gets the uncalibrated series silently.**
+  _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
+  can't name the published processor, so the request names none and the server returns the
+  type's default stage. **Revisit when** step 3's metadata work lands: report the query as
+  `unavailable`, or refresh the monitors list and try again.
+- **The rollup-lag backfill is one level deep and fetched on every poll.** _Deferred
+  2026-10-22 (Foundations spec 2 final review)._ The last completed period is backed up from
+  the next finer level only, so a day backfilled from hourly summaries just after midnight
+  lacks its final hour until that hour's rollup runs (about 00:45), yet reads as complete;
+  and the backfill is fetched with every poll even once the coarse rollup exists. **Revisit
+  when** widgets show daily data live (Release 1 step 4): backfill the backfill's own last
+  period from the next level down, and skip the backfill once the coarse value has arrived.
 
 ## Map plugins
 
@@ -204,6 +585,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Widgets
 
+- **Weak tests in the widget registry and `applyChange`.** _Deferred 2026-10-20 (Foundations
+  spec 1 review)._ Widget-type registration and lookup are untested, and the tests for
+  `applyChange`'s index clamping and for never mutating its input are weak. Both are
+  exercised indirectly by other tests. **Revisit when** a second widget type registers
+  (Release 1 step 4), or `applyChange` gains an operation.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
@@ -290,17 +676,69 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   endpoints, and the hardcoded PM2.5 scale unless it has already shipped with the
   breakpoint fix. Needs a mobile plan and an app release (explicit approval; publishing
   a GitHub Release there ships to TestFlight and the Play beta track).
+- **Mobile: move `@sjvair/sdk` to `^4.7.0` when taking monitor-map 4.3.0.** _Noted
+  2026-10-21 (monitor-map SDK 4.7 design)._ Mobile depends on the SDK directly (`^4.6.0`)
+  and calls `setOrigin` on its copy. monitor-map 4.3.0 needs `^4.7.0`. Without the bump,
+  npm can nest a second SDK under monitor-map whose requests ignore mobile's origin.
+  **Revisit when** mobile next updates its monitor-map dependency. Needs a mobile plan and
+  an app release (explicit approval).
 - **Mobile app's hardcoded PM2.5 scale.** _Noted 2026-09-28; widened 2026-10-13._ Three
   files hardcode the pre-2024 scale: `src/components/PMGauge.svelte`
   (12.1/35.5/55.5/150.5/250.5), `src/lib/colors.ts` (`pmValueColors`,
   `ozoneValueColors`), and `src/components/AirQualityGuidelines.svelte`. Only its Alerts
   and Subscriptions screens read levels from metadata. The sjvair.com breakpoint fix
-  doesn't reach these. **Revisit with** the PM2.5 breakpoint fix (ideally they read
-  metadata levels), or with the mobile migration, whichever comes first. Needs a mobile
-  plan and an app release (explicit approval).
+  doesn't reach these. **Revisit when** the server fix (sjvair.com #288, in `develop`
+  since 2026-10-20) is on its way to production (ideally they read metadata levels), or
+  with the mobile migration, whichever comes first. Needs a mobile plan and an app release
+  (explicit approval).
+
+- **Mobile dev proxy still points at API v1.** _Noted 2026-10-19 (Alerts fix)._
+  `vite.config.ts` proxies only `/api/1.0` to `localhost:8000`, but the app calls
+  `/api/2.0` through the SDK at the full origin from `VITE_DEV_URL`, so the proxy is never
+  used. Harmless leftover. **Revisit with** the next mobile build-tooling change, or the
+  mobile migration. Needs a mobile plan.
+- **Monitors without a county show a bare "County".** _Noted 2026-10-20 (Alerts QA)._ The
+  Alerts and Subscriptions screens render `{monitor.county} County`, so a monitor with no
+  county reads "County". Pre-existing, not caused by the Alerts fix. **Revisit with** the
+  next change to those screens. Needs a mobile plan and an app release.
 
 ## Accounts
 
+- **Account-space behavior held for sync.** _Deferred 2026-10-27 (Foundations spec 5b)._ These
+  are designed in `ARCHITECTURE.md` → "Accounts & anonymous use" and stay as designed. 5b
+  built signing in, the account menu, sign-out, and the cross-tab identity, but everyone keeps
+  working in the anonymous space. Each item below either promises something false or can lose
+  work without server-backed documents. **Revisit when** the server-backed documents track
+  starts building sync (5b left the seams: `currentSpace()` and the identity cross-tab
+  message).
+  - The space switch: signed-in work going into a per-account space (`account:<id>`). Without
+    sync an account space exists only in this browser, so a person would expect their
+    dashboards on another device and not find them.
+  - "Add the 3 dashboards made on this browser to your account?", for the same reason.
+  - Sign-out removing that account's local copies "because they are on the server": they
+    aren't yet, so it would delete work.
+  - Hidden spaces on expiry or an account change, and removing a hidden space after 30 days.
+    There are no account spaces to hide yet.
+  - Saves bound to an account (each save names its account; the server refuses a mismatch)
+    and the re-check before each sync. There are no server saves yet.
+  - "Sign in to keep this safe everywhere" in the backup reminder (see its own entry under
+    "Documents & saving").
+- **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
+  (Foundations spec 5b)._ A new account still goes sign-up, the "enter your code" page, then
+  the profile page. During the preview `/workspace/` is behind `beta_tools`, so only people who
+  already have accounts reach it and they use the login page; sign-up from the dashboard is
+  first reachable at go-live. The email-only accounts track rewrites sign-up and verification,
+  so the return trip is designed once there. Passing `next` to sign-up would skip phone
+  verification (`SignupView` sends the person to `next` instead of the code page); doing it
+  right means carrying `next` through sign-up and the code page. The dashboard has no "Create
+  account" button for the same reason. **Revisit with** the email-only accounts track, and
+  **before go-live at the latest**.
+- **Account UI in token-mode builds.** _Deferred 2026-10-27 (Foundations spec 5b)._ In a Tauri
+  build, or a standalone one on another origin (`VITE_PROD_URL`), the cookie re-check can only
+  answer 401 and the relative `/account/login/` link goes nowhere. No such build ships in
+  Release 1, and the adapter's `authMode` is always `"cookie"`. **Revisit when** the first
+  token-mode build is planned. It needs in-app sign-in (Release 2) and a "no account UI" or
+  token-sign-in state in the shell.
 - **Shared-computer guest mode.** _Deferred 2026-09-24._ A mode (e.g. enabled by a
   teacher-distributed `?guest` link) where nothing persists after the tab closes.
   Current approach: per-account local spaces (sign-out removes them), the browser profile
@@ -359,10 +797,56 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   _Deferred 2026-09-28._ Release 1 sends no analytics, only scrubbed error reports.
   **Revisit when** someone needs usage numbers (e.g. for funding reports or prioritizing
   widgets).
+- **Context menu loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The menu
+  items, context, and dropdown state could be `$state.raw`; the module-singleton dropdown
+  state needs a comment; submenus, disabled items, and separators have no tests; menus have
+  no reduced-motion test; and whether the Windows Menu key opens the menu twice is
+  unverified. Spec 1 menus are flat and short. **Revisit when** a menu first needs a
+  submenu, or in the first Windows testing pass.
+- **Shell keyboard handling.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The
+  text-entry check treats every `input` as text entry; IME composition (`isComposing`) isn't
+  skipped; shortcut labels say Ctrl on macOS; `contenteditable` is untested; and the
+  undo/redo buttons and shortcuts call `session.undo()` directly instead of the registered
+  global actions (the spec has nav controls be views onto actions). **Revisit in** Release 1
+  step 4 (its first checkbox or range input), with the command palette (the actions), and
+  before translations ship (IME).
+- **Save-status announcements.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+  The saved indicator's `aria-live` region announces "Saving…"/"Saved" on every edit, which
+  is noisy for screen readers. (The undo-toast half closed with "Recently deleted", which
+  recovers a deleted dashboard after the toast is gone.) **Revisit in** the design pass.
+- **Read-only dashboards in Recently deleted can't be undeleted by a restore.**
+  _Deferred 2026-10-25 (Foundations spec 3, Task 11 review)._ Restoring a backup undeletes
+  a stored dashboard that is in Recently deleted through an ordinary edit, and read-only
+  sessions (newer or unreadable documents) refuse edits, so such a dashboard is counted as
+  kept and stays deleted. The Recently deleted list's **Restore** has the same limit: for a
+  read-only dashboard it only shows a toast saying it can't be restored here. **Revisit if** read-only dashboards become restorable or
+  undeletable.
+- **Names of copies.** _Deferred 2026-10-20 (Foundations spec 1 review)._ "Save mine as a
+  copy" keeps the same name with no rename prompt, and duplicating an unnamed "My dashboard"
+  lists the copy as "Untitled dashboard". **Revisit in** the design pass, or when people
+  report confusing copies.
+- **Dashboard page and list loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+  The delete action's `deletedAt` comes from `new Date()`, not an injected clock; the
+  previous `document.title` lingers while a session loads; the conflict dialog watches only
+  the current session; list-row sessions are never disposed. Untested: leaving when another
+  tab deletes the dashboard, save-as-copy navigation, the `conflict_failed` toast, and
+  row-duplicate navigation. **Revisit with** the next change to the dashboard page or list,
+  or if many open list-row sessions start to cost memory.
 - **Visual dashboard picker** (thumbnail grid instead of the dropdown). _Deferred
   2026-09-24._ IDEA.md: "at minimum via dropdown; ideally via a nicer visual picker".
   Release 1 uses a top-nav dropdown. **Revisit when** people routinely keep more than
   about 5–7 dashboards, or public templates ship and need browsing.
+- **Read-only Share dialog and Download feedback.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ For a read-only dashboard the Share
+  dialog shows the "too big for a link" text (the real reason is that it can't be linked), and
+  Download gives no confirmation. **Revisit in** the design pass.
+- **Wording for a dashboard opened read-only because its original couldn't be kept.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
+  It reuses the "invalid" (can't be opened) wording. **Revisit in** the design pass.
+- **`pendingName` is shown unnormalized in the list.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A name that isn't saved yet is
+  listed as it was typed, not normalized like a saved name. **Revisit in** the design pass.
+- **RestoreVersionDialog closing mid-restore.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ It doesn't block closing while a
+  restore runs, or reset its state on close. **Revisit in** the design pass.
+- **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
+  light mode only. **Revisit in** the design pass.
 
 ## Legacy Monitors-tab follow-ups
 
@@ -376,32 +860,23 @@ it describes.
   the v1 tabs are removed in Release 1's Foundations step (a fresh start). HMS
   becomes the smoke & fire map preset (see "Widgets"); collocation becomes the
   low-cost-vs-reference starter analysis (#10). Close when those ship.
-- **Whole-year over-fetch**: _deferred 2026-09-16; addressed by design 2026-09-24_ (automatic
-  resolution + narrow fetches in the data layer — see `ARCHITECTURE.md` → "Data resolution &
-  live refresh"). Close once implemented. The `month` param exists on the
-  summary endpoints but isn't used.
-- **No in-flight request coordination**: _deferred 2026-09-16; addressed by design 2026-09-24_
-  (last-requested wins in the data layer). Close once implemented. Rapid filter changes race,
-  so the last response to finish wins instead of the last request made. This applies to
-  every widget data manager, so solve it once in the data layer or cache.
-- **"Default to current month" can't show monthly data until the month ends**: _noted
-  2026-09-16; addressed by design 2026-09-24_ (incomplete-period stitching). Close once
-  implemented. Monthly rollups only compute after month-end.
 
 ## Open decisions
 
 Undecided items that don't block current work but must be answered before the listed
 point.
 
+- **Dataset license and attribution text.** _Decided 2026-10-22 to leave empty for now (user,
+  sjvair.com metadata plan, #293)._ In `meta/datasets/`, every dataset has `license: ""`
+  except NOAA HMS smoke/fire and NASA TEMPO ("Public domain"). The real license and
+  attribution text for air-quality, weather, pesticide-use, pesticide-notices, forecasts,
+  calheatscore, calenviroscreen, and emissions must come from the user and must not be
+  guessed. Meanwhile the dashboard handles an empty `license` gracefully (shows the `source`
+  alone, never a placeholder). **Decide before** dashboard go-live (and before exports or
+  shared pages show attribution).
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Private-preview mechanism**: a staging Heroku app, an unlisted route on sjvair.com, or
-  (new option, 2026-10-13) the server's **waffle `beta_tools` flag**, which already gates
-  `/tools/pesticides/` to flagged "Beta testers" through `BetaToolsMiddleware`. Gating
-  `/workspace/` the same way would give a preview on production with no separate
-  deployment. **Decide in** the Release 1 hosting-track plan (the preview starts around
-  Release 1 step 4).
 - **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
@@ -569,6 +1044,10 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **RTL layout support**: _2026-09-24, i18n_. None of the declared languages need it.
 - **Dashboard-owned Collections**: _2026-09-23, Q6_. Collections are independent and link
   back to their source dashboards only as provenance.
+- **monitor-map: `setRequestDefaults`.** _Ruled out 2026-10-21 (monitor-map SDK 4.7
+  design)._ monitor-map passes request options per call and never sets the SDK's page-global
+  defaults, because it runs inside host apps that own those settings. **Reopen if** a host
+  needs monitor-map to set a header the host can't set itself.
 
 ## Dropped
 
@@ -585,3 +1064,9 @@ Dropped 2026-09-24 with the user's approval (docs review), each overtaken by lat
 - **Migrating old `?range=` bookmark URLs** (deferred 2026-09-16). Not needed: the v1 app
   was never deployed, so there are no public v1 URLs (a redirect step was briefly planned
   and removed on 2026-09-24).
+
+Dropped 2026-10-20 by the user ("we won't deal with production"):
+
+- **Run `import_forecast_zones` on production** (noted 2026-10-20). The three `custom`
+  forecast zones were imported and verified locally (`TODO.md` → the forecast-zones
+  warning); production work is out of scope.
