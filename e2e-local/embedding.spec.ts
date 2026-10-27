@@ -96,12 +96,16 @@ test("the dashboard is embedded correctly in the sjvair.com template", async ({
 		expect(new URL(icon.src, origin).href.startsWith(staticFolder)).toBe(true);
 	}
 
-	// The identity block carries no secrets.
+	// The identity block is the session account response, without the API token, and the top
+	// bar reads it.
 	const identity = JSON.parse((await page.locator("#sjvair-identity").textContent())!);
 	expect(identity.v).toBe(1);
 	expect(typeof identity.user === "object" && identity.user !== null).toBe(true);
+	expect(identity.user).toHaveProperty("id");
+	expect(identity.user).toHaveProperty("full_name");
+	expect(identity.user).toHaveProperty("phone_verified");
 	expect(identity.user).not.toHaveProperty("api_token");
-	expect(identity.user).not.toHaveProperty("phone");
+	await expect(page.getByRole("button", { name: /^Account menu for / })).toBeVisible();
 
 	const cookies = await page.context().cookies();
 	expect(cookies.some((c) => c.name === "csrftoken")).toBe(true);
