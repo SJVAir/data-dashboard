@@ -225,9 +225,9 @@ user's explicit go-ahead (a 4.8.0 beta or 4.8.0 itself).
   never makes someone look signed out. There's also an initial
   "unknown" until the first answer, for the dev/standalone path where there is no block.
 - **`current()`**, **`onChange(cb)`**, and **`recheck()`**.
-- **`signInUrl(returnPath)`** and **`signUpUrl(returnPath)`** (web:
-  `/account/login/?next=…` and `/account/signup/?next=…`), and **`signOut()`** (web: below). A
-  Tauri build later swaps these for its own dialog and token storage.
+- **`signInUrl(returnPath)`** (web: `/account/login/?next=…`) and **`signOut()`** (web: below). A
+  Tauri build later swaps these for its own dialog and token storage. _`signUpUrl` was not
+  built: there is no "Create account" button (see the shell, below)._
 - **`authMode`**: `"cookie"` on the web. Nothing else is built for token mode.
 - **`currentSpace()`** keeps returning `"anonymous"`. The mapping from identity to a space is
   written as a function that returns `"anonymous"` until sync turns it on; that switch is the
@@ -273,7 +273,8 @@ out on another sjvair.com page) reach a tab through its focus re-check.
   sjvair.com's login page links to sign-up, so there's no separate "Create account" button
   (_my call_; a new account doesn't return to the dashboard yet, see decision 8).
 - **Signed in:** a circle with the person's initials (from `full_name`; a generic person icon
-  if there's no usable name), with an accessible name like "Account menu for Maria Lopez".
+  if there's no usable name), with an accessible name like "ML, account menu for Maria Lopez". The visible initials come
+  first in the name so it contains the visible label (WCAG 2.5.3, label in name).
   It opens a dropdown (bits-ui, like `HelpMenu`):
   - **Greeting**: "Hi, Maria" (first word of `full_name`, _my call_; the whole name if one
     word) and, below it, "Signed in as Maria Lopez". Formatted through Paraglide messages with

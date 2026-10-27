@@ -183,6 +183,11 @@ _(sjvair.com)_:
 - 5a does not read it. The later session-identity endpoint (5b / server track) returns the
   same `user` object.
 
+_Update (2026-10-27): spec 5b redefined the block's `user` as the session `account/` response
+(which includes `phone` and leaves out `api_token`) and dropped the "never the phone number"
+rule. It stays `v: 1`. See `docs/superpowers/specs/2026-10-27-foundations-5b-sign-in-design.md`
+(decisions 2 and 3)._
+
 ### 5. The CSP
 
 - **The reference list is `csp-hosts.json` at this repo's root**: a JSON object mapping every

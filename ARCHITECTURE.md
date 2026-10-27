@@ -399,6 +399,16 @@ Tauri-ready seams required **from day one**:
   text pattern-scrubbed, so messages must not carry names or titles), and reports each
   failure streak once. Lightweight `error` / `unhandledrejection` listeners and a CSP
   `securitypolicyviolation` listener forward to it. Without a DSN it is a no-op.
+- **`identity` capability** (built 2026-10-27, Foundations spec 5b). `platform.identity`
+  (the `IdentitySource`) is the one place that knows who is signed in: `current()`,
+  `onChange(cb)`, `recheck()`, `signInUrl(returnPath)`, `signOut()`, and `authMode`
+  (`"cookie"` on the web; nothing else is built). The state is `unknown` (dev or standalone,
+  before the first answer), `signed-out`, or `signed-in` with the validated account. On the web
+  it reads the `sjvair-identity` block on load, or calls `account/` once when there is no
+  block. `currentSpace()` still returns `"anonymous"` for everyone; the place where identity
+  would map to an account space is the seam the server-backed documents track switches on. A
+  Tauri build swaps in its own sign-in dialog and token storage. The API token never reaches
+  the dashboard, and identity data never goes into error reports.
 - **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
   `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
   and drives the offline banner. A Tauri build can report real connectivity.
@@ -459,12 +469,23 @@ Release 1 is served from sjvair.com's origin and uses cookie auth (see "Deployme
 How the SDK does it: `account/login` returns `UserDetails` including `api_token`. Some
 authenticated calls (e.g. `getSubscriptions`) take an **optional** `apiToken`: when it
 is passed a `Token` header is sent, and when it is omitted the request relies on the
-browser's same-origin session cookie. Others **require** a token today:
+browser's same-origin session cookie. Until 4.7.0 others **required** a token:
 `getUserDetails`, `updateUser`, `getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`,
-the phone functions, and
-change-password (`sdk-js/lib/account/*`). The
-server (resticus) accepts an existing session for them, so this is an SDK signature
-limitation. Consequences:
+the phone functions, and change-password (`sdk-js/lib/account/*`). The server (resticus)
+accepts an existing session for them, so that was an SDK signature limitation. **The sdk-js
+change making `apiToken` optional on those calls shipped in @sjvair/sdk 4.7.0** (commit
+a211be6), found already done while designing spec 5b (2026-10-27).
+
+**Session responses carry no `api_token`** (decided 2026-10-27, spec 5b). `GET`, `PATCH`, and
+`DELETE account/` and `PUT account/password/` leave `api_token` out when the request was
+authenticated by session cookie. Token requests (the mobile app) get it as before, and so do
+`account/login` and registration, which exist to hand it out. A signed-out request to
+`account/` is a `401`, not the `500` it was. The SDK rejects a non-2xx JSON call with the
+response status at `error.cause.result.status`; the dashboard reads the status there. The
+dashboard validates the account response with its own schema, so it needs no new SDK release.
+The type side (a `SessionUserDetails` type and overloads on `getUserDetails`, `updateUser`,
+and `changePassword`) is on sdk-js `feature/session-user-details`, a PR into `release/4.8.0`
+(pending review; no beta was cut). Consequences:
 
 - Cookies **only work same-origin**. A standalone deployment (e.g. a separate
   subdomain) or a Tauri window (`tauri://`/`http://tauri.localhost` origin) must use
@@ -528,23 +549,27 @@ you:**
 - **Sign-in is lazy/contextual** — prompted only when needed (e.g. inside the "Create
   alert" flow), never as a gate on first load.
 - **Local storage is split into spaces** (decided 2026-10-13): one anonymous space plus
-  one per account. Every local document, queued change, and place preference belongs to
+  one per account. **Spec 5b (2026-10-27) built none of the account-space behavior below:
+  everyone, signed in or not, keeps working in the anonymous space.** The parts marked
+  _held for sync_ wait for the server-backed documents track, because without server saves
+  each one promises something false or can lose work (`DEFERRED.md` → "Accounts"). Every local document, queued change, and place preference belongs to
   exactly one space, and the app only ever shows the current one. Purely cosmetic device
   settings (e.g. theme) stay with the browser.
-  - **Signing in asks once about anonymous work** ("Add the 3 dashboards made on this
+  - **Signing in asks once about anonymous work** (_held for sync_) ("Add the 3 dashboards made on this
     browser to your account?"). Yes moves them into the account with the same IDs and out
     of the anonymous space; No leaves them for signed-out use.
-  - **Signing out removes that account's local copies** from the browser (they are on the
+  - **Signing out removes that account's local copies** (_held for sync_) from the browser (they are on the
     server). If changes haven't synced, the app says so and offers to finish first.
-  - **An expired or browser-session-ended sign-in is not a sign-out:** the space is hidden
+  - **An expired or browser-session-ended sign-in is not a sign-out** (_held for sync_): the space is hidden
     but kept, so unsynced work survives, and signing back in as the same person resumes
     it. A hidden space nobody returns to is removed after 30 days.
   - **ID collisions become copies.** The server accepts a save to an existing ID only
     from its owner. If an upload hits an ID owned by someone else, the client assigns a
     new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
   - **Sign-in and sign-out apply to every open tab at once**, through the cross-tab
-    channel.
-  - **Saves are bound to an account** (decided 2026-10-13). In Release 1, sign-in and
+    channel (built in 5b: the tab channel carries an identity message).
+  - **Saves are bound to an account** (decided 2026-10-13; _held for sync_, since there are
+    no server saves yet). In Release 1, sign-in and
     sign-out happen on sjvair.com's pages, so the cookie can change (another person
     signs in, or a session expires) while a tab still holds one person's queued changes.
     - Each account space records its **account id** (the server's stable user id).
@@ -554,14 +579,22 @@ you:**
     - **The app re-checks who is signed in** when a tab regains focus and before each
       sync. If the account changed, it switches spaces (hiding and keeping the previous
       one, as for an expired session) and says so.
-  - **A session-identity response without the API token** (decided 2026-10-13). The
-    existing account response includes the permanent `api_token`, which the mobile app
-    needs but a cookie-authenticated dashboard never does; receiving it would let an
-    injection bug steal a credential that outlives the session. The dashboard gets
-    only the account id, display name, email, and verification status: **on first load
-    from the Django template** (as a non-executing JSON data block, see "Deployment" → "Template embedding"), and
-    for the later re-checks from a session-identity endpoint that omits the token. The
-    existing endpoint and the mobile app are unchanged.
+  - **A session-identity response without the API token** (decided 2026-10-13; revised
+    2026-10-27, spec 5b). The account response includes the permanent `api_token`, which
+    the mobile app needs but a cookie-authenticated dashboard never does; receiving it would
+    let an injection bug steal a credential that outlives the session. There is **no
+    separate session-identity endpoint**: `GET /api/2.0/account/` serves all three callers.
+    Token requests are unchanged (mobile keeps `api_token`); session-cookie requests get the
+    same fields **without `api_token`**; signed out is `401`. Dropping the token for session
+    requests is the protection itself, since a separate endpoint would leave it reachable
+    through `account/`. **The response keeps `phone`** (the shapes stay the same apart from the
+    token). The dashboard gets it **on first load from the Django template** (a non-executing
+    JSON data block, see "Deployment" → "Template embedding"), and for re-checks from
+    `account/` with no token. A re-check answers `200` (signed in), `401` or `403` (signed
+    out), and anything else (network error, timeout, `5xx`, a response that fails validation)
+    changes nothing, so being offline never looks like a sign-out. Re-checks run when the app
+    becomes visible (at most every 30 seconds), when the connection returns, and when the
+    account menu opens. Identities are compared by `id`.
 - **Account deletion is immediate and complete** (decided 2026-10-13). The server already
   deletes an account at once after a password check (the mobile app relies on it), and
   subscriptions and the delivery log go with it. It now also covers everything the
@@ -737,11 +770,28 @@ approach is staged:
   limiting and non-enumerating error messages. The same dialog later serves Tauri and
   standalone builds using tokens. The rest of the app only asks "am I signed in?", so
   the switch is contained.
-- **SDK:** make `apiToken` optional on the account calls that require it today
-  (`getUserDetails`, `updateUser`, `getAirAlerts`, `subscribe`/`unsubscribe`,
-  `deleteUser`, the phone functions,
-  change-password) so a session works everywhere.
-  sdk-js change, approved plan first.
+- **SDK:** `apiToken` is optional on the account calls (`getUserDetails`, `updateUser`,
+  `getAirAlerts`, `subscribe`/`unsubscribe`, `deleteUser`, the phone functions,
+  change-password), so a session works everywhere. Shipped in @sjvair/sdk 4.7.0.
+- **Built in 5b (2026-10-27):** a "Sign in" button and an account menu in the top bar.
+  - **Sign in** links to `/account/login/?next=<pathname + search>` (never the hash). The
+    login page used to drop `next` (its form had no hidden `next` field, so everyone landed
+    on `/`); it now keeps it, for the whole site. `LoginView` still checks it is a same-site
+    URL.
+  - **Sign out is a `POST` to `/account/logout/`**, sent by the platform adapter with
+    `fetch` (same origin, `X-CSRFToken` from the `csrftoken` cookie, the redirect treated as
+    success). Django 5.2's `LogoutView` signs out only on POST, so sjvair.com's own Logout
+    link, which was a GET and returned `405`, became a small POST form. The CSP's
+    `form-action 'none'` rules out a form on the dashboard side. It is not an SDK call; the
+    Release 2 `account/session/` logout will be. On success the identity becomes signed out
+    here and in every open tab, with a "Signed out" toast. On failure the person stays signed
+    in, sees an error toast, and the app re-checks in case it went through.
+  - **A change this tab didn't cause** (expired, signed out elsewhere, another account) shows
+    a toast ("You've been signed out.", "Signed in as …", "Now signed in as …").
+  - **Returning after sign-up is not built.** A new account still goes sign-up → the "enter
+    your code" page → the profile page. Passing `next` to sign-up would skip phone
+    verification (`SignupView` sends the person to `next` instead of the code page). It is
+    designed once, with the email-only accounts track (`DEFERRED.md` → "Accounts").
 - **Development:** the Vite dev server proxies `/api/` and `/account/` to the local
   podman sjvair.com (target: `SJVAIR_DEV_SERVER`, not `VITE_`-prefixed, default
   `http://localhost:8000`), so dev is same-origin and cookies behave as in production.
@@ -2411,8 +2461,12 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     `THIRD-PARTY-NOTICES.txt` at the top level and hashed files under `assets/`; the template
     mounts the app in `<div id="SJVAirDataDashboard">` and passes identity in a `json_script`
     block `sjvair-identity`
-    (`{"v": 1, "user": null | {id, name, email, emailVerified, phoneVerified}}`, never the
-    token or phone number); the template references `app.js` by its exact static URL (no
+    (`{"v": 1, "user": null | <the session account/ response>}`, never the token; revised
+    2026-10-27 by spec 5b, which also dropped the "never the phone number" rule and kept
+    `v: 1`, since nothing read the block and nothing was released). An unknown `v`, an
+    unreadable block, or a `user` that fails validation reads as signed out (the unreadable
+    case is reported, scrubbed). The dashboard's `index.html` no longer carries a stand-in
+    block, so dev, E2E, and the standalone build ask `account/` once instead; the template references `app.js` by its exact static URL (no
     query string, no renamed copy), because hashed chunks import it back as `../app.js` and
     any other URL runs the bootstrap twice; the CSP comes from this repo's
     `csp-hosts.json`, report-only for the preview and enforced by a server setting

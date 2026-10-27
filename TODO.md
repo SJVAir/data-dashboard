@@ -1,22 +1,33 @@
 # TODO / Current Status
 
-Last updated: 2026-10-26
+Last updated: 2026-10-27
 
 ## Start here
 
-**Next: Foundations spec 5b, the sign-in side, in a fresh session.** It is the second half of
-spec 5 and the last Foundations spec; when it merges, Foundations is done and Release 1 step 2
-(layout engine and windowing) is next.
+**Next: open the 5b pull requests and run the hand-run embedding check.** Foundations spec 5b,
+the sign-in side, is built on `foundations-5b-sign-in` (stacked on `foundations`), and it is the
+last Foundations spec; when it merges, Foundations is done and Release 1 step 2 (layout engine
+and windowing) is next. Design: `docs/superpowers/specs/2026-10-27-foundations-5b-sign-in-design.md`.
 
-- **What 5b covers** (from the 5a design, `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md`
-  → "Spec 5 is split"): reading identity from the template's data block, the "add anonymous work
-  to your account" prompt, sign-out, expired sessions, re-checks on focus, cross-tab sign-in, and
-  the "sign in to keep this safe everywhere" line. 5b gets its own spec.
-- **What it depends on:** a sjvair.com session-identity endpoint that omits the API token, and
-  the sdk-js change making `apiToken` optional on account calls (each needs an approved plan in
-  its repo). It also leans on the server-backed documents track, which so far has only the
-  resticus CSRF fix (see below). The 5b spec decides what it builds now and what waits for that
-  track; anything that waits goes into `DEFERRED.md`.
+- **What 5b built:** the platform adapter's identity capability (reads the template's
+  `sjvair-identity` block, or `account/` once when there is no block), re-checks on focus
+  (at most every 30 seconds), on coming back online, and when the account menu opens, a cross-tab
+  identity message, a "Sign in" button and account menu in the top bar, sign-out (a POST to
+  `/account/logout/`), and toasts for session changes this tab didn't cause.
+- **Two sibling PRs, both pending:** sjvair.com `feature/workspace-sign-in` into `develop`
+  (session-cookie `account/` responses, v1 and v2, omit `api_token`; signed out is 401;
+  `workspace_identity()` uses `session_user_data()`; the site's Logout link is a POST form; the
+  login page keeps `next`) and sdk-js `feature/session-user-details` into `release/4.8.0` (types
+  only: `SessionUserDetails` and overloads; no beta was cut). The dashboard doesn't wait for the
+  SDK types: it validates the account response with its own schema.
+- **Next steps:** open the data-dashboard PR into `foundations`, then run the hand-run embedding
+  check (Task 11 of the 5b plan) against the local stack on the sjvair.com branch and record the
+  result here.
+- **Held for sync** (in `DEFERRED.md` → "Accounts"): the space switch and the rest of the
+  account-space behavior wait for the server-backed documents track. The sign-up return trip
+  waits for the email-only accounts track (before go-live at the latest).
+- **E2E note:** E2E builds clear `VITE_PROD_URL` (a local `.env` setting had pointed the test build
+  at www.sjvair.com).
 
 **Needed from you:**
 
@@ -32,6 +43,8 @@ spec 5 and the last Foundations spec; when it merges, Foundations is done and Re
 - Add testers to the "Beta testers" group for the preview.
 - License and attribution text for the 8 datasets with an empty catalog `license` (before
   go-live; see below).
+- **Review and merge decisions** on the 5b sjvair.com PR (into `develop`) and the sdk-js PR (into
+  `release/4.8.0`). Nothing is released.
 
 **Status (2026-10-26): Foundations spec 5a (shipping readiness) is done**, merged into
 `foundations` as PR [#9](https://github.com/SJVAir/data-dashboard/pull/9) (14 tasks), and the
