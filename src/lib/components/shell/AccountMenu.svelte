@@ -1,7 +1,15 @@
 <script lang="ts" module>
-	/** Where to come back to after signing in: the path and query, never the fragment. */
+	import { p } from "../../../router";
+
+	/**
+	 * Where to come back to after signing in: the path and query, never the fragment. The router
+	 * shows home as the bare base (`/workspace`); that comes back as `/workspace/`, the form every
+	 * server answers (Vite's dev server shows a hint page for the bare base).
+	 */
 	export function returnPath(loc: { pathname: string; search: string }): string {
-		return loc.pathname + loc.search;
+		const base = p("/").replace(/\/$/, "");
+		const pathname = loc.pathname === base ? `${base}/` : loc.pathname;
+		return pathname + loc.search;
 	}
 </script>
 
@@ -14,8 +22,9 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { cn } from "$lib/utils";
+	import { untrack } from "svelte";
 	import { serializeSearch } from "sv-router";
-	import { p, route } from "../../../router";
+	import { route } from "../../../router";
 
 	const app = useApp();
 	const identity = $derived(app.account.identity);
@@ -30,10 +39,35 @@
 	function onOpenChange(open: boolean) {
 		if (open) app.account.recheck();
 	}
+
+	let trigger = $state<HTMLElement | null>(null);
+	let content = $state<HTMLElement | null>(null);
+	let signInLink = $state<HTMLAnchorElement | null>(null);
+	let focusSignIn = false;
+
+	const hasFocus = (el: HTMLElement | null) => !!el && el.contains(el.ownerDocument.activeElement);
+
+	// Signing out (from the menu, or a menu-open re-check answering 401) removes the trigger or
+	// menu that has focus, which would drop focus to <body> (WCAG 2.4.3). Before that render,
+	// note whether focus is in the account control; if it is, focus Sign in once it renders. A
+	// change from elsewhere (another tab) while focus is elsewhere leaves focus alone.
+	$effect.pre(() => {
+		if (identity.state !== "signed-out") return;
+		focusSignIn = untrack(() => hasFocus(trigger) || hasFocus(content));
+	});
+	$effect(() => {
+		if (!signInLink || !focusSignIn) return;
+		focusSignIn = false;
+		signInLink.focus();
+	});
 </script>
 
 {#if identity.state === "signed-out"}
-	<a href={signInHref} class={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+	<a
+		bind:this={signInLink}
+		href={signInHref}
+		class={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+	>
 		{m.account_sign_in()}
 	</a>
 {:else if identity.state === "signed-in"}
@@ -42,6 +76,7 @@
 	{@const letters = initials(identity.user.full_name)}
 	<DropdownMenu.Root {onOpenChange}>
 		<DropdownMenu.Trigger
+			bind:ref={trigger}
 			aria-label={name && letters
 				? m.account_menu_for({ initials: letters, name })
 				: m.account_menu()}
@@ -53,7 +88,7 @@
 				<UserRound class="size-4" aria-hidden="true" />
 			{/if}
 		</DropdownMenu.Trigger>
-		<DropdownMenu.Content align="end" class="min-w-56">
+		<DropdownMenu.Content bind:ref={content} align="end" class="min-w-56">
 			<DropdownMenu.Label class="text-foreground text-sm font-semibold">
 				{first ? m.account_greeting({ name: first }) : m.account_greeting_unnamed()}
 			</DropdownMenu.Label>

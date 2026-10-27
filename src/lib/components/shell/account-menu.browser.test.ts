@@ -26,13 +26,20 @@ test("signed out shows a Sign in link carrying the current path", async () => {
 	await setup({ state: "signed-out" });
 	const link = page.getByRole("link", { name: "Sign in" });
 	await expect.element(link).toBeVisible();
-	const expected = `/account/login/?next=${encodeURIComponent(location.pathname + location.search)}`;
+	const expected = `/account/login/?next=${encodeURIComponent(returnPath(location))}`;
 	await expect.element(link).toHaveAttribute("href", expected);
 });
 
 test("sign-in link never carries the fragment", () => {
 	expect(returnPath({ pathname: "/workspace/import", search: "" })).toBe("/workspace/import");
 	expect(returnPath({ pathname: "/workspace/a", search: "?x=1" })).toBe("/workspace/a?x=1");
+});
+
+test("home comes back as /workspace/, the form every server answers", () => {
+	expect(returnPath({ pathname: "/workspace", search: "" })).toBe("/workspace/");
+	expect(returnPath({ pathname: "/workspace", search: "?x=1" })).toBe("/workspace/?x=1");
+	expect(returnPath({ pathname: "/workspace/", search: "" })).toBe("/workspace/");
+	expect(returnPath({ pathname: "/workspaces", search: "" })).toBe("/workspaces");
 });
 
 test("unknown shows neither Sign in nor the account button", async () => {
@@ -82,6 +89,27 @@ test("keyboard: Enter opens, ArrowDown to Sign out, Enter signs out", async () =
 	expect(document.activeElement?.textContent).toBe("Sign out");
 	await userEvent.keyboard("{Enter}");
 	await expect.poll(() => identity.current().state).toBe("signed-out");
+	// The trigger that had focus is gone; focus lands on Sign in, not <body> (WCAG 2.4.3).
+	await expect.element(page.getByRole("link", { name: "Sign in" })).toHaveFocus();
+});
+
+test("a menu-open re-check that finds the session gone moves focus to Sign in", async () => {
+	const { identity } = await setup(user("Maria Lopez"));
+	identity.setServer({ state: "signed-out" });
+	const button = page.getByRole("button", { name: "ML, account menu for Maria Lopez" });
+	button.element().focus();
+	await userEvent.keyboard("{Enter}");
+	await expect.poll(() => identity.current().state).toBe("signed-out");
+	await expect.element(page.getByRole("link", { name: "Sign in" })).toHaveFocus();
+});
+
+test("a sign-out while focus is elsewhere leaves focus alone", async () => {
+	const { identity } = await setup(user("Maria Lopez"));
+	const help = page.getByRole("button", { name: "Help" });
+	help.element().focus();
+	await identity.signOut();
+	await expect.element(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+	await expect.element(help).toHaveFocus();
 });
 
 test("becomes the Sign in link when the identity changes to signed out", async () => {
