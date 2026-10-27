@@ -4,10 +4,10 @@ Last updated: 2026-10-27
 
 ## Start here
 
-**Next: push the three 5b branches and open their pull requests for your review.** Foundations
-spec 5b, the sign-in side, is built and hand-checked on `foundations-5b-sign-in` (stacked on
-`foundations`), and it is the last Foundations spec; when it merges, Foundations is done and
-Release 1 step 2 (layout engine and windowing) is next. Design:
+**Next: Release 1 step 2, the layout engine and windowing, in a fresh session.** Foundations is
+done: spec 5b, the sign-in side, merged on 2026-10-27 as data-dashboard
+[#10](https://github.com/SJVAir/data-dashboard/pull/10) (into `foundations`), with sjvair.com
+#296 (into `develop`) and sdk-js #33 (into `release/4.8.0`; no release cut). Design:
 `docs/superpowers/specs/2026-10-27-foundations-5b-sign-in-design.md`.
 
 - **What 5b built:** the platform adapter's identity capability (reads the template's
@@ -15,40 +15,27 @@ Release 1 step 2 (layout engine and windowing) is next. Design:
   (at most every 30 seconds), on coming back online, and when the account menu opens, a cross-tab
   identity message, a "Sign in" button and account menu in the top bar, sign-out (a POST to
   `/account/logout/`), and toasts for session changes this tab didn't cause.
-- **Two sibling branches, each for a PR that awaits your review:** sjvair.com
-  `feature/workspace-sign-in` into `develop` (session-cookie `account/` responses and a
-  session GET of `account/login/`, v1 and v2, omit `api_token`; signed out is 401;
-  `workspace_identity()` uses `session_user_data()`; the site's Logout link is a POST form; the
-  login page keeps `next`) and sdk-js `feature/session-user-details` into `release/4.8.0` (types
-  only: `SessionUserDetails` and overloads; no beta was cut). The dashboard doesn't wait for the
-  SDK types: it validates the account response with its own schema.
-- **Hand-run check (Task 11 of the 5b plan, 2026-10-27), passed.** Against the local stack on
-  sjvair.com `feature/workspace-sign-in` with the dashboard at `f80076c`: the embedding suite
-  1/1 and the dev-stack smoke 2/2. The Chrome extension wasn't connected, so the hand check was
-  scripted in headless Chromium against the real stack: on the dev proxy, signing in from the
-  dashboard returns to the same page with the greeting, Sign out in the menu flips the other tab
-  (with its toast), and the site's Logout form signs out and the dashboard tab's focus re-check
-  says so; embedded on :8000, sign-in returns to `/workspace/`, the greeting shows, sign-out
-  crosses tabs, and there were 0 CSP violations. Its findings (the site Logout button had no
-  hover highlight; signing in from home came back to `/workspace`, which Vite's dev server
-  doesn't serve) are fixed, along with the final review's (`GET account/login/` gave a session
-  the token; focus fell to the page after sign-out).
-- **Next steps:** push the three branches and open their PRs, each awaiting your review and
-  merge: data-dashboard `foundations-5b-sign-in` into `foundations`, sjvair.com
-  `feature/workspace-sign-in` into `develop`, and sdk-js `feature/session-user-details` into
-  `release/4.8.0`.
+- **On the server (sjvair.com #296):** session-cookie `account/` responses and a session GET of
+  `account/login/` (v1 and v2) omit `api_token`; signed out is 401; `workspace_identity()` uses
+  `session_user_data()`; the site's Logout link is a POST form; the login page keeps `next`.
+  **In sdk-js (#33):** types only, `SessionUserDetails` and overloads. The dashboard doesn't
+  wait for an SDK release: it validates the account response with its own schema.
+- **Checked by hand (2026-10-27):** the embedding suite 1/1 and the dev-stack smoke 2/2 against
+  the local stack, plus a scripted headless check of the sign-in round trip, cross-tab sign-out,
+  the site's Logout form, and the focus re-check, with 0 CSP violations.
 - **Held for sync** (in `DEFERRED.md` → "Accounts"): the space switch and the rest of the
   account-space behavior wait for the server-backed documents track. The sign-up return trip
   waits for the email-only accounts track (before go-live at the latest).
-- **E2E note:** E2E builds clear `VITE_PROD_URL` (a local `.env` setting had pointed the test build
-  at www.sjvair.com).
+- **Local-dev notes:** E2E builds clear `VITE_PROD_URL` (a local `.env` setting had pointed the
+  test build at www.sjvair.com). After pulling sjvair.com changes that touch its sass, rebuild
+  the local CSS (`invoke styles` in the web container); compiled CSS isn't in git.
 
 **Needed from you:**
 
 - sjvair.com `develop` reaching `main` (a production deploy, so your call). It carries #292
   (unblocks the resticus CSRF merge), #293 (metadata enablers, needed before @sjvair/sdk
-  4.8.0), and #295 (hosting; the route stays behind `beta_tools`). #287, #288, and #289
-  already reached `main` in release #291 (2026-10-22).
+  4.8.0), #295 (hosting; the route stays behind `beta_tools`), and #296 (5b's sign-in side).
+  #287, #288, and #289 already reached `main` in release #291 (2026-10-22).
 - **At ship time:** the Heroku config vars listed in sjvair.com #295, including the DSN as
   `VITE_SENTRY_DSN` and the Sentry project's CSP security endpoint as `WORKSPACE_CSP_REPORT_URI`.
 - **In the Sentry project's settings:** turn on "Prevent storing IP addresses" and the
@@ -57,9 +44,6 @@ Release 1 step 2 (layout engine and windowing) is next. Design:
 - Add testers to the "Beta testers" group for the preview.
 - License and attribution text for the 8 datasets with an empty catalog `license` (before
   go-live; see below).
-- **Review and merge decisions** on the three 5b PRs once opened: data-dashboard (into
-  `foundations`), sjvair.com (into `develop`), and sdk-js (into `release/4.8.0`). Nothing is
-  released.
 
 **Status (2026-10-26): Foundations spec 5a (shipping readiness) is done**, merged into
 `foundations` as PR [#9](https://github.com/SJVAir/data-dashboard/pull/9) (14 tasks), and the
