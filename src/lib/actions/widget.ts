@@ -10,8 +10,7 @@ import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
-import { placeNew, toItems } from "$lib/layout/engine";
-import { GRID_COLUMNS } from "$lib/layout/config";
+import { placeNewWidget } from "$lib/layout/items";
 import { getWidgetType } from "$lib/widgets/registry";
 import type { MenuProvider } from "./types";
 
@@ -65,7 +64,7 @@ function duplicate(app: AppContext, widgetId: string): void {
 	const copy: WidgetInstance = {
 		...structuredClone(widget),
 		id: crypto.randomUUID(),
-		rect: placeNew(toItems(widgets), { w: widget.rect.w, h: widget.rect.h }, GRID_COLUMNS)
+		rect: placeNewWidget(widgets, { w: widget.rect.w, h: widget.rect.h })
 	};
 	session.apply({
 		op: "addWidget",

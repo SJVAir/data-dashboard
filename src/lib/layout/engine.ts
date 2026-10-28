@@ -5,11 +5,6 @@ export type LayoutItem = { id: string; rect: Rect; minSize: Size };
 /** Always returned in reading order. */
 export type Layout = LayoutItem[];
 
-/** Layout items for widgets; call sites that don't need real minimum sizes get 1 x 1. */
-export function toItems(widgets: { id: string; rect: Rect }[]): LayoutItem[] {
-	return widgets.map((w) => ({ id: w.id, rect: w.rect, minSize: { w: 1, h: 1 } }));
-}
-
 export function rectsOverlap(a: Rect, b: Rect): boolean {
 	return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }

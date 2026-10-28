@@ -202,6 +202,8 @@ describe("moveInOrder", () => {
 	test("moveInOrder property: random layouts move toward the target, never past it", () => {
 		const sizes = (l: LayoutItem[]) =>
 			Object.fromEntries(l.map((i) => [i.id, { w: i.rect.w, h: i.rect.h }]));
+		let hits = 0;
+		let runs = 0;
 		for (const seed of [20261028, 1, 42, 7919, 123456789]) {
 			const rand = lcg(seed);
 			for (let run = 0; run < 400; run++) {
@@ -226,6 +228,8 @@ describe("moveInOrder", () => {
 				}
 				expect(sizes(result), context).toEqual(sizes(layout));
 				const r = order(result).indexOf(id);
+				runs++;
+				if (r === index) hits++;
 				if (index === from) expect(result, context).toEqual(layout);
 				else if (index < from) {
 					expect(r, context).toBeGreaterThanOrEqual(index);
@@ -236,5 +240,7 @@ describe("moveInOrder", () => {
 				}
 			}
 		}
+		// A do-nothing implementation would pass the bounds above; most moves must land exactly.
+		expect(hits / runs).toBeGreaterThanOrEqual(0.98);
 	});
 });
