@@ -20,9 +20,7 @@ export class Flip {
 	play(container: HTMLElement | null, skip: string | null = null): void {
 		const before = this.#before;
 		if (!container || before.size === 0) return;
-		const style = getComputedStyle(container);
-		const duration = parseDuration(style.getPropertyValue("--motion-duration-base"));
-		const easing = style.getPropertyValue("--motion-ease-standard").trim() || "ease";
+		const { duration, easing } = motion(container);
 		for (const [id, el] of items(container)) {
 			this.#running.get(id)?.cancel();
 			this.#running.delete(id);
@@ -43,6 +41,33 @@ export class Flip {
 		}
 		before.clear();
 	}
+}
+
+/**
+ * Slide `el` from `from` (a box measured before it moved, e.g. where a dragged widget was let
+ * go) to where it is now.
+ */
+export function settle(el: HTMLElement, from: DOMRect): Animation | null {
+	if (!el.isConnected) return null;
+	const { duration, easing } = motion(el);
+	if (duration <= 0) return null;
+	const to = el.getBoundingClientRect();
+	const dx = from.left - to.left;
+	const dy = from.top - to.top;
+	if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return null;
+	return el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {
+		duration,
+		easing
+	});
+}
+
+/** The theme's base motion, as read at `el` (0 ms under reduced motion). */
+function motion(el: Element): { duration: number; easing: string } {
+	const style = getComputedStyle(el);
+	return {
+		duration: parseDuration(style.getPropertyValue("--motion-duration-base")),
+		easing: style.getPropertyValue("--motion-ease-standard").trim() || "ease"
+	};
 }
 
 function* items(container: HTMLElement): Generator<[string, HTMLElement]> {

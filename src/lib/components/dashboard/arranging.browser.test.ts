@@ -320,3 +320,229 @@ test("on a phone, resizing speaks only the height", async () => {
 	await press("{Enter}");
 	await expect.poll(() => rectOf(app, "a").h).toBe(2);
 });
+
+// --- Mouse and touchpad ---
+
+afterEach(() => window.scrollTo(0, 0));
+
+function pointer(el: Element, type: string, x: number, y: number, init: PointerEventInit = {}) {
+	const pressed = type !== "pointerup" && type !== "pointercancel";
+	el.dispatchEvent(
+		new PointerEvent(type, {
+			bubbles: true,
+			cancelable: true,
+			composed: true,
+			pointerId: 1,
+			pointerType: "mouse",
+			isPrimary: true,
+			button: type === "pointermove" ? -1 : 0,
+			buttons: pressed ? 1 : 0,
+			clientX: x,
+			clientY: y,
+			...init
+		})
+	);
+}
+
+const frame = (id: string) => page.getByTestId(`widget-${id}`).element() as HTMLElement;
+const handle = (id: string, edge: string) =>
+	frame(id).querySelector(`[data-resize="${edge}"]`) as HTMLElement;
+const center = (el: Element) => {
+	const r = el.getBoundingClientRect();
+	return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+};
+/** One column's pitch (a cell and a gap), from two widgets 6 columns apart. */
+const pitchX = () =>
+	(frame("b").getBoundingClientRect().left - frame("a").getBoundingClientRect().left) / 6;
+const pitchY = () => {
+	const cs = getComputedStyle(frame("a").parentElement!);
+	return parseFloat(cs.gridAutoRows) + parseFloat(cs.rowGap);
+};
+
+/** Press on `el`, move by (dx, dy) in a few steps, and optionally release. */
+async function drag(el: Element, dx: number, dy: number, release = true) {
+	const start = center(el);
+	pointer(el, "pointerdown", start.x, start.y);
+	const steps = 4;
+	for (let i = 1; i <= steps; i++) {
+		pointer(el, "pointermove", start.x + (dx * i) / steps, start.y + (dy * i) / steps);
+		await new Promise((r) => requestAnimationFrame(r));
+	}
+	if (release) pointer(el, "pointerup", start.x + dx, start.y + dy);
+	return { x: start.x + dx, y: start.y + dy };
+}
+
+test("dragging a title bar moves the widget on drop", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	await drag(bar, pitchX() * 6, 0, false);
+	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
+	// Nothing is written until the drop.
+	expect(rectOf(app, "a").x).toBe(0);
+	const end = center(bar);
+	pointer(bar, "pointerup", end.x, end.y);
+	await announced("Dropped Readings at column 7, row 1. 1 other widget moved.");
+	expect(rectOf(app, "a")).toEqual({ x: 6, y: 0, w: 6, h: 4 });
+	expect(rectOf(app, "b").y).toBeGreaterThanOrEqual(4);
+	await expect.element(page.getByTestId("drop-target")).not.toBeInTheDocument();
+	expect(frame("a").style.transform).toBe("");
+
+	// One undo entry.
+	await press("{Control>}z{/Control}");
+	expect(rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 6, h: 4 });
+	expect(session.canUndo).toBe(false);
+});
+
+test("a click on the title bar without moving doesn't start a drag", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	await drag(bar, 3, 0, false);
+	expect(page.getByTestId("drop-target").query()).toBeNull();
+	const end = center(bar);
+	pointer(bar, "pointerup", end.x + 3, end.y);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(page.getByTestId("drop-target").query()).toBeNull();
+	expect(rectOf(app, "a").x).toBe(0);
+	expect(session.canUndo).toBe(false);
+});
+
+test("the ⋯ button isn't a drag handle", async () => {
+	const { app, session } = await seed(halves());
+	const more = page.getByRole("button", { name: "Actions for Readings" });
+	await expect.element(more).toBeVisible();
+	await drag(more.element(), pitchX() * 6, 0);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(page.getByTestId("drop-target").query()).toBeNull();
+	expect(rectOf(app, "a").x).toBe(0);
+	expect(session.canUndo).toBe(false);
+});
+
+test("a touch pointer doesn't start a mouse drag", async () => {
+	const { app } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const start = center(bar);
+	pointer(bar, "pointerdown", start.x, start.y, { pointerType: "touch" });
+	pointer(bar, "pointermove", start.x + pitchX() * 6, start.y, { pointerType: "touch" });
+	await new Promise((r) => setTimeout(r, 50));
+	expect(page.getByTestId("drop-target").query()).toBeNull();
+	pointer(bar, "pointerup", start.x + pitchX() * 6, start.y, { pointerType: "touch" });
+	expect(rectOf(app, "a").x).toBe(0);
+});
+
+test("Escape during a drag cancels", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const end = await drag(bar, pitchX() * 3, 0, false);
+	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
+	await press("{Escape}");
+	await announced("Cancelled. Readings is back where it was.");
+	await expect.element(page.getByTestId("drop-target")).not.toBeInTheDocument();
+	expect(frame("a").style.transform).toBe("");
+	// The release that follows does nothing.
+	pointer(bar, "pointerup", end.x, end.y);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(rectOf(app, "a").x).toBe(0);
+	expect(session.canUndo).toBe(false);
+});
+
+test("pointercancel cancels a drag", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const end = await drag(bar, pitchX() * 3, 0, false);
+	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
+	pointer(bar, "pointercancel", end.x, end.y);
+	await announced("Cancelled. Readings is back where it was.");
+	await expect.element(page.getByTestId("drop-target")).not.toBeInTheDocument();
+	expect(rectOf(app, "a").x).toBe(0);
+	expect(session.canUndo).toBe(false);
+});
+
+test("dragging the right edge resizes; the left edge moves x and w", async () => {
+	const { app } = await seed([
+		widget("a", { x: 3, y: 0, w: 6, h: 4 }, "Readings"),
+		widget("b", { x: 9, y: 0, w: 3, h: 4 }, "Map")
+	]);
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const pitch =
+		(frame("b").getBoundingClientRect().left - frame("a").getBoundingClientRect().left) / 6;
+	await drag(handle("a", "right"), pitch * 2, 0);
+	await expect.poll(() => rectOf(app, "a")).toEqual({ x: 3, y: 0, w: 8, h: 4 });
+	await announced("Dropped Readings at column 4, row 1. 1 other widget moved.");
+
+	await drag(handle("a", "left"), -pitch * 2, 0);
+	await expect.poll(() => rectOf(app, "a")).toEqual({ x: 1, y: 0, w: 10, h: 4 });
+
+	await drag(handle("a", "bottom"), 0, pitchY());
+	await expect.poll(() => rectOf(app, "a")).toEqual({ x: 1, y: 0, w: 10, h: 5 });
+
+	// Clamped to the minimum width (3).
+	await drag(handle("a", "bottom-right"), -pitch * 9, -pitchY());
+	await expect.poll(() => rectOf(app, "a")).toEqual({ x: 1, y: 0, w: 3, h: 4 });
+
+	await drag(handle("a", "bottom-left"), -pitch, 0);
+	await expect.poll(() => rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 4, h: 4 });
+});
+
+test("handles are hidden from assistive tech", async () => {
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const handles = [...frame("a").querySelectorAll<HTMLElement>("[data-resize]")];
+	expect(handles.map((h) => h.dataset.resize).sort()).toEqual([
+		"bottom",
+		"bottom-left",
+		"bottom-right",
+		"left",
+		"right"
+	]);
+	for (const h of handles) {
+		expect(h.closest('[aria-hidden="true"]')).not.toBeNull();
+		expect(h.hasAttribute("tabindex")).toBe(false);
+		expect(h.tabIndex).toBe(-1);
+	}
+});
+
+test("on a phone only the bottom handle is offered, and dragging reorders", async () => {
+	await page.viewport(400, 800);
+	const { app } = await seed([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
+		widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Map"),
+		widget("c", { x: 0, y: 4, w: 6, h: 4 }, "Chart")
+	]);
+	await expect.element(titleBar("Chart")).toBeVisible();
+	const handles = [...frame("a").querySelectorAll<HTMLElement>("[data-resize]")];
+	expect(handles.map((h) => h.dataset.resize)).toEqual(["bottom"]);
+
+	// Chart up by one widget's height: it takes Map's place.
+	const bar = titleBar("Chart").element();
+	await drag(bar, 0, -pitchY() * 4);
+	await announced("Dropped Chart at position 2 of 3.");
+	const order = shownLayout(app.current.session!.doc.body.widgets).map((i) => i.id);
+	expect(order).toEqual(["a", "c", "b"]);
+});
+
+test("dragging near the bottom of the viewport scrolls the page", async () => {
+	await seed(
+		Array.from({ length: 30 }, (_, i) =>
+			widget(`w${i}`, { x: (i % 2) * 6, y: Math.floor(i / 2) * 4, w: 6, h: 4 }, `Widget ${i}`)
+		)
+	);
+	await expect.element(titleBar("Widget 0")).toBeVisible();
+	expect(window.scrollY).toBe(0);
+	const bar = titleBar("Widget 0").element();
+	const start = center(bar);
+	pointer(bar, "pointerdown", start.x, start.y);
+	pointer(bar, "pointermove", start.x, start.y + 10);
+	pointer(bar, "pointermove", start.x, window.innerHeight - 10);
+	await expect.poll(() => window.scrollY).toBeGreaterThan(100);
+	await press("{Escape}");
+	await announced("Cancelled. Widget 0 is back where it was.");
+	const y = window.scrollY;
+	await new Promise((r) => setTimeout(r, 100));
+	// The loop stops with the drag.
+	expect(window.scrollY).toBe(y);
+});

@@ -32,3 +32,8 @@ export function takeAfterMenuClose(): (() => void) | null {
 	afterClose = null;
 	return fn;
 }
+
+/** Drop a pending `afterMenuClose` callback (its host is going away, so it must not run later). */
+export function clearAfterMenuClose(): void {
+	afterClose = null;
+}

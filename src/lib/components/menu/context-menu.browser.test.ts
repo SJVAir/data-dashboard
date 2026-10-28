@@ -83,3 +83,20 @@ test("long-press with touch resolves the target's items", async () => {
 		.element(page.getByRole("menuitem", { name: "Rename" }), { timeout: 5000 })
 		.toBeVisible();
 });
+
+test("a pending afterMenuClose callback doesn't outlive its host", async () => {
+	const { afterMenuClose } = await import("./menu-state.svelte");
+	const { inner, outer } = setup();
+	const stale = vi.fn();
+	const first = await render(Harness, { inner, outer });
+	afterMenuClose(stale);
+	first.unmount();
+
+	await render(Harness, { inner, outer });
+	const more = page.getByRole("button", { name: "More" });
+	await more.click();
+	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).toBeVisible();
+	await userEvent.keyboard("{Escape}");
+	await expect.element(more).toHaveFocus();
+	expect(stale).not.toHaveBeenCalled();
+});

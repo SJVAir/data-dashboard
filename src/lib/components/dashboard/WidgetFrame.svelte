@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from "svelte";
+	import { onDestroy, untrack } from "svelte";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
@@ -14,9 +14,12 @@
 		type ArrangeMode
 	} from "$lib/layout/arrangement.svelte";
 	import { dropText, pickUpText, positionText, sizeText } from "$lib/layout/announcements";
+	import { DRAG_THRESHOLD } from "$lib/layout/config";
+	import { startPointerDrag, type DragKind } from "$lib/layout/pointer-drag";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
+	import ResizeHandles from "./ResizeHandles.svelte";
 
 	let {
 		widget,
@@ -44,6 +47,7 @@
 
 	let more = $state<HTMLButtonElement | null>(null);
 	let bar = $state<HTMLDivElement | null>(null);
+	let section = $state<HTMLElement | null>(null);
 	// `aria-description` (ARIA 1.3) isn't in Svelte's attribute types yet, so it's spread.
 	const hint = $derived({ "aria-description": m.layout_title_bar_hint() });
 
@@ -88,6 +92,8 @@
 		if (event.ctrlKey || event.altKey || event.metaKey) return;
 		const key = event.key;
 		const active = mine();
+		// A pointer drag owns its arrangement (its Escape is handled before this).
+		if (active && active.input !== "keyboard") return;
 		if (!active) {
 			if (key === "Enter" || key === " ") {
 				event.preventDefault();
@@ -119,6 +125,36 @@
 		}
 	}
 
+	// The pointer drag in progress (or waiting for the press to move far enough).
+	let stopDrag: (() => void) | null = null;
+	onDestroy(() => stopDrag?.());
+
+	/** Mouse and pen only here; touch lifts by long-press. */
+	function startDrag(event: PointerEvent, kind: DragKind): void {
+		if (event.button !== 0 || !event.isPrimary || !section) return;
+		if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+		stopDrag?.();
+		const handle = event.currentTarget as Element;
+		stopDrag = startPointerDrag(event, handle, {
+			arrangement,
+			id: widget.id,
+			frame: section,
+			kind,
+			input: "pointer",
+			threshold: DRAG_THRESHOLD,
+			drop,
+			cancel
+		});
+	}
+
+	function onpointerdown(event: PointerEvent): void {
+		// The ⋯ button isn't a drag handle.
+		if ((event.target as Element).closest("button")) return;
+		startDrag(event, { mode: "move" });
+	}
+
+	const dragging = $derived(mine()?.input === "pointer");
+
 	// Moving focus away cancels a keyboard arrangement: Tab, a click elsewhere, or the window
 	// losing focus.
 	function onblur(): void {
@@ -148,7 +184,11 @@
 
 <!-- Not a named region: one landmark per widget would crowd the landmark list. -->
 <section
-	class="bg-card text-card-foreground border-border [grid-column:1/-1] [grid-row:var(--prow)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]"
+	bind:this={section}
+	class={[
+		"group bg-card text-card-foreground border-border relative [grid-column:1/-1] [grid-row:var(--prow)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
+		dragging && "z-10 shadow-lg"
+	]}
 	style:--col="{rect.x + 1} / span {rect.w}"
 	style:--row="{rect.y + 1} / span {rect.h}"
 	style:--prow="{phoneRow + 1} / span {rect.h}"
@@ -160,7 +200,10 @@
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		bind:this={bar}
-		class="border-border focus-visible:ring-ring/50 flex items-center gap-2 border-b py-1 pr-1 pl-3 outline-none focus-visible:ring-3"
+		class={[
+			"border-border focus-visible:ring-ring/50 flex items-center gap-2 border-b py-1 pr-1 pl-3 outline-none select-none focus-visible:ring-3",
+			dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab"
+		]}
 		tabindex="0"
 		role="group"
 		aria-labelledby={titleId}
@@ -168,6 +211,7 @@
 		aria-keyshortcuts="Enter Shift+F10"
 		{onkeydown}
 		{onblur}
+		{onpointerdown}
 	>
 		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
 		<Button
@@ -185,4 +229,9 @@
 			<type.component {widget} />
 		{/if}
 	</div>
+	<ResizeHandles
+		phone={arrangement.columns === 1}
+		shown={dragging && mine()?.mode === "resize"}
+		onstart={(event, edge) => startDrag(event, { mode: "resize", edge })}
+	/>
 </section>

@@ -1,13 +1,16 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+	import { onDestroy, type Snippet } from "svelte";
 	import { resolveMenu } from "$lib/actions/resolve";
 	import type { MenuContext, MenuItem } from "$lib/actions/types";
 	import * as ContextMenu from "$lib/components/ui/context-menu";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import MenuItems from "./MenuItems.svelte";
-	import { dropdown, takeAfterMenuClose } from "./menu-state.svelte";
+	import { clearAfterMenuClose, dropdown, takeAfterMenuClose } from "./menu-state.svelte";
 
 	let { children }: { children: Snippet } = $props();
+
+	// A Move… request left pending by a page that's gone must not take focus on the next one.
+	onDestroy(clearAfterMenuClose);
 
 	let items = $state<MenuItem[]>([]);
 	let ctx = $state<MenuContext | null>(null);
