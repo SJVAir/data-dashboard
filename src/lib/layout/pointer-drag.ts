@@ -17,12 +17,30 @@ export type PointerDragOptions = {
 	frame: HTMLElement;
 	kind: DragKind;
 	input: Exclude<ArrangeInput, "keyboard">;
-	/** How far (px) the pointer must move before the drag starts; 0 starts it at once. */
+	/**
+	 * How far (px) the pointer must move before the drag starts; 0 starts it at once. When
+	 * `lifted`, how far it must move before the drag counts as moved (smaller moves are ignored).
+	 */
 	threshold: number;
+	/**
+	 * The widget is lifted already (a touch long-press, or the next gesture of a touch
+	 * selection): the drag starts at once, continuing this input's arrangement of the widget
+	 * if there is one.
+	 */
+	lifted?: boolean;
 	/** Apply the arrangement and announce it (the frame's keyboard drop does the same). */
 	drop: () => void;
 	/** Cancel the arrangement and announce it. */
 	cancel: () => void;
+	/**
+	 * Called on release in place of `drop` (a touch selection keeps its arrangement until Done);
+	 * `moved` says whether the pointer went past `threshold`.
+	 */
+	release?: (moved: boolean) => void;
+	/** The drag replaced another arrangement in progress (another widget's, or another input's). */
+	replaced?: (id: string) => void;
+	/** Called once when the drag is torn down, however it ends. */
+	onEnd?: () => void;
 };
 
 type Point = { x: number; y: number };
@@ -96,6 +114,8 @@ export function resizedRect(
  * changes, and autoscrolls near the viewport's top and bottom. Release drops; Escape,
  * `pointercancel`, and the window losing focus cancel. Returns a function that abandons the
  * drag (cancelling the arrangement without an announcement), e.g. when the frame goes away.
+ * The drag also ends, unannounced, once the arrangement is no longer its own, and is cancelled
+ * when the window's width changes.
  */
 export function startPointerDrag(
 	event: PointerEvent,
@@ -107,8 +127,11 @@ export function startPointerDrag(
 	let client: Point = { x: event.clientX, y: event.clientY };
 	const startPage = toPage(client);
 	let started = false;
+	/** Whether the drag has moved (past `threshold` when lifted; always once a drag starts otherwise). */
+	let moved = false;
 	let ended = false;
 	let frameRequest = 0;
+	const width = window.innerWidth;
 
 	// Set when the drag starts.
 	let metrics: GridMetrics;
@@ -133,10 +156,21 @@ export function startPointerDrag(
 	function begin(): boolean {
 		const grid = frame.parentElement;
 		if (!grid) return false;
-		arrangement.pickUp(id, kind.mode, input);
+		// Continue this input's arrangement of the widget (a touch selection's next gesture).
+		if (!mine()) {
+			const before = arrangement.active;
+			arrangement.pickUp(id, kind.mode, input);
+			if (before && mine()) opts.replaced?.(before.id);
+		}
 		const item = arrangement.preview?.find((i) => i.id === id);
 		if (!mine() || !item) return false;
 		started = true;
+		if (!opts.lifted) moved = true;
+		// A FLIP or settle animation still running would skew the measurements.
+		for (const animation of frame.getAnimations()) animation.cancel();
+		if (input === "touch") {
+			window.addEventListener("touchmove", preventScroll, { passive: false });
+		}
 		metrics = measureGrid(grid, arrangement.columns);
 		const box = frame.getBoundingClientRect();
 		natural = toPage({ x: box.left, y: box.top });
@@ -198,6 +232,10 @@ export function startPointerDrag(
 	}
 
 	function autoscroll(): void {
+		if (!mine()) {
+			end();
+			return;
+		}
 		const y = client.y;
 		const bottom = window.innerHeight - AUTOSCROLL_EDGE;
 		let step = 0;
@@ -209,11 +247,12 @@ export function startPointerDrag(
 	}
 
 	function finish(how: "drop" | "cancel"): void {
-		const from = kind.mode === "move" ? frame.getBoundingClientRect() : null;
+		const from = kind.mode === "move" && moved ? frame.getBoundingClientRect() : null;
 		end();
 		if (!mine()) return;
-		if (how === "drop") opts.drop();
-		else opts.cancel();
+		if (how === "cancel") opts.cancel();
+		else if (opts.release) opts.release(moved);
+		else opts.drop();
 		// Slide from where it was let go to where it lands (instant under reduced motion).
 		if (from) void tick().then(() => settle(frame, from));
 	}
@@ -228,6 +267,10 @@ export function startPointerDrag(
 				end();
 				return;
 			}
+		} else if (!moved) {
+			const fromStart = Math.hypot(e.clientX - event.clientX, e.clientY - event.clientY);
+			if (fromStart < opts.threshold) return;
+			moved = true;
 		}
 		update();
 	}
@@ -256,6 +299,15 @@ export function startPointerDrag(
 		if (started) update();
 	}
 
+	/** A new width can change the columns and every cell's size, so the drag is cancelled. */
+	function onResize(e: Event): void {
+		if (window.innerWidth !== width) onCancel(e);
+	}
+
+	function preventScroll(e: TouchEvent): void {
+		if (e.cancelable) e.preventDefault();
+	}
+
 	function end(): void {
 		if (ended) return;
 		ended = true;
@@ -265,6 +317,8 @@ export function startPointerDrag(
 		window.removeEventListener("keydown", onKey, true);
 		window.removeEventListener("blur", onCancel);
 		window.removeEventListener("scroll", onScroll);
+		window.removeEventListener("resize", onResize);
+		window.removeEventListener("touchmove", preventScroll);
 		cancelAnimationFrame(frameRequest);
 		frame.style.transform = "";
 		try {
@@ -272,6 +326,7 @@ export function startPointerDrag(
 		} catch {
 			// Already released.
 		}
+		opts.onEnd?.();
 	}
 
 	window.addEventListener("pointermove", onMove, true);
@@ -280,6 +335,8 @@ export function startPointerDrag(
 	window.addEventListener("keydown", onKey, true);
 	window.addEventListener("blur", onCancel);
 	window.addEventListener("scroll", onScroll, { passive: true });
+	window.addEventListener("resize", onResize);
+	if (opts.lifted && !begin()) end();
 
 	return () => {
 		const active = started && !ended && mine();

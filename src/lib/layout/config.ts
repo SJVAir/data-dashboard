@@ -7,3 +7,7 @@ export const DRAG_THRESHOLD = 4;
 export const AUTOSCROLL_EDGE = 40;
 /** The fastest autoscroll, in px per frame (at the very edge). */
 export const AUTOSCROLL_MAX_STEP = 16;
+/** How long (ms) a touch must hold still on a title bar before it lifts the widget. */
+export const LONG_PRESS_DELAY = 500;
+/** How far (px) a touch may wander during the long-press (a farther move is a page swipe). */
+export const LONG_PRESS_TOLERANCE = 8;

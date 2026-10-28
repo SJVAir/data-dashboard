@@ -5,6 +5,7 @@ import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import { handleUndoShortcut } from "$lib/actions/global";
 import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
+import type { Arrangement } from "$lib/layout/arrangement.svelte";
 import { shownLayout } from "$lib/layout/items";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
@@ -31,7 +32,7 @@ function widget(id: string, rect: Rect, title: string | null = null): WidgetInst
 }
 
 /** A stored dashboard holding `widgets` (no undo entries), current and shown in the grid. */
-async function seed(widgets: WidgetInstance[]) {
+async function seed(widgets: WidgetInstance[], onArrangement?: (a: Arrangement) => void) {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
 	const id = await app.index.createBlank();
@@ -44,7 +45,10 @@ async function seed(widgets: WidgetInstance[]) {
 	});
 	const session = (await DocumentSession.open(platform, app.space, id, "t2"))!;
 	app.current = { session, isStarter: false };
-	await render(Harness, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await render(Harness, {
+		props: { onArrangement },
+		context: new Map([[APP_CONTEXT_KEY, app]])
+	});
 	// The page's Ctrl+Z, as App installs it.
 	const onKey = (e: KeyboardEvent) => handleUndoShortcut(app, e);
 	window.addEventListener("keydown", onKey);
@@ -545,4 +549,246 @@ test("dragging near the bottom of the viewport scrolls the page", async () => {
 	await new Promise((r) => setTimeout(r, 100));
 	// The loop stops with the drag.
 	expect(window.scrollY).toBe(y);
+});
+
+// --- Carried from the mouse review ---
+
+const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test("a drag ends as soon as its arrangement is no longer its own", async () => {
+	let arrangement: Arrangement | null = null;
+	await seed(halves(), (a) => (arrangement = a));
+	await expect.element(titleBar("Readings")).toBeVisible();
+	await drag(titleBar("Readings").element(), pitchX() * 2, 0, false);
+	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
+	expect(frame("a").style.transform).not.toBe("");
+	arrangement!.cancel();
+	await nextFrame();
+	await nextFrame();
+	// The autoscroll tick noticed and tore the drag down.
+	expect(frame("a").style.transform).toBe("");
+});
+
+test("a running animation on the frame is cancelled before the drag measures it", async () => {
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const running = frame("a").animate(
+		[{ transform: "translate(200px, 0)" }, { transform: "none" }],
+		{ duration: 10_000 }
+	);
+	await drag(titleBar("Readings").element(), pitchX() * 2, 0, false);
+	expect(running.playState).toBe("idle");
+	await press("{Escape}");
+});
+
+test("resizing the window cancels a drag", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	await drag(titleBar("Readings").element(), pitchX() * 3, 0, false);
+	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
+	await page.viewport(1000, 800);
+	await announced("Cancelled. Readings is back where it was.");
+	await expect.element(page.getByTestId("drop-target")).not.toBeInTheDocument();
+	expect(frame("a").style.transform).toBe("");
+	expect(rectOf(app, "a").x).toBe(0);
+	expect(session.canUndo).toBe(false);
+});
+
+test("a pointer pickup over another widget's keyboard arrangement announces its cancel", async () => {
+	await seed(halves());
+	await focusBar("Readings");
+	await press("{Enter}");
+	await announced(
+		"Picked up Readings. Column 1, row 1. Arrow keys move, Shift and arrow keys resize, Enter drops, Escape cancels."
+	);
+	await drag(handle("b", "bottom"), 0, pitchY(), false);
+	await announced("Cancelled. Readings is back where it was.");
+	await press("{Escape}");
+});
+
+// --- Touch ---
+
+const touch = (el: Element, type: string, x: number, y: number) =>
+	pointer(el, type, x, y, { pointerType: "touch" });
+/** A cancelable touchmove on `el`: whether something prevented it (the page wouldn't scroll). */
+function touchmovePrevented(el: Element): boolean {
+	const event = new TouchEvent("touchmove", { bubbles: true, cancelable: true });
+	el.dispatchEvent(event);
+	return event.defaultPrevented;
+}
+const done = () => page.getByRole("button", { name: "Done" });
+const lifted = () => page.getByTestId("drop-target").query() !== null;
+
+/** Hold a touch on `el` until it lifts (past the 500 ms long-press), without releasing. */
+async function longPress(el: Element) {
+	const at = center(el);
+	touch(el, "pointerdown", at.x, at.y);
+	await wait(600);
+	return at;
+}
+
+/** A touch already down on `el` at `from`: slide by (dx, dy) in a few steps, then release. */
+async function slide(el: Element, from: { x: number; y: number }, dx: number, dy: number) {
+	const steps = 4;
+	for (let i = 1; i <= steps; i++) {
+		touch(el, "pointermove", from.x + (dx * i) / steps, from.y + (dy * i) / steps);
+		await nextFrame();
+	}
+	touch(el, "pointerup", from.x + dx, from.y + dy);
+}
+
+test("a long-press on the title bar lifts the widget; sliding moves it", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	// Page swipes over the title bar still scroll vertically.
+	expect(getComputedStyle(bar).touchAction).toBe("pan-y");
+	const pitch = pitchX();
+	const at = center(bar);
+	touch(bar, "pointerdown", at.x, at.y);
+	await wait(300);
+	expect(lifted()).toBe(false);
+	expect(touchmovePrevented(bar)).toBe(false);
+	await wait(300);
+	expect(lifted()).toBe(true);
+	// While lifted, the page doesn't scroll under the finger.
+	expect(touchmovePrevented(bar)).toBe(true);
+
+	const steps = 4;
+	for (let i = 1; i <= steps; i++) {
+		touch(bar, "pointermove", at.x + (pitch * 6 * i) / steps, at.y);
+		await nextFrame();
+	}
+	// Nothing is written until the release.
+	expect(rectOf(app, "a").x).toBe(0);
+	touch(bar, "pointerup", at.x + pitch * 6, at.y);
+	await announced("Dropped Readings at column 7, row 1. 1 other widget moved.");
+	expect(rectOf(app, "a")).toEqual({ x: 6, y: 0, w: 6, h: 4 });
+	expect(lifted()).toBe(false);
+	expect(touchmovePrevented(bar)).toBe(false);
+	await expect.element(done()).not.toBeInTheDocument();
+
+	await press("{Control>}z{/Control}");
+	expect(rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 6, h: 4 });
+	expect(session.canUndo).toBe(false);
+});
+
+test("a swipe that starts before the long-press doesn't pick up", async () => {
+	const { session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const at = center(bar);
+	touch(bar, "pointerdown", at.x, at.y);
+	await wait(100);
+	touch(bar, "pointermove", at.x, at.y + 12);
+	await wait(600);
+	expect(lifted()).toBe(false);
+	expect(touchmovePrevented(bar)).toBe(false);
+	touch(bar, "pointerup", at.x, at.y + 12);
+	await wait(50);
+	expect(lifted()).toBe(false);
+	expect(session.canUndo).toBe(false);
+});
+
+test("lifting without moving selects with touch handles and Done", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const pitch = pitchX();
+	const bar = titleBar("Readings").element();
+	const at = await longPress(bar);
+	// A finger never holds perfectly still.
+	touch(bar, "pointermove", at.x + 3, at.y + 2);
+	touch(bar, "pointerup", at.x + 3, at.y + 2);
+	await expect.element(done()).toBeVisible();
+	expect(lifted()).toBe(true);
+	// The long-press didn't open the context menu either.
+	await wait(400);
+	expect(page.getByRole("menu").query()).toBeNull();
+
+	const big = (el: Element) => {
+		const r = el.getBoundingClientRect();
+		return r.width >= 44 && r.height >= 44;
+	};
+	expect(big(done().element())).toBe(true);
+	const handles = [...frame("a").querySelectorAll<HTMLElement>("[data-resize]")];
+	expect(handles.map((h) => h.dataset.resize).sort()).toEqual([
+		"bottom",
+		"bottom-left",
+		"bottom-right",
+		"left",
+		"right"
+	]);
+	for (const h of handles) expect(big(h), h.dataset.resize).toBe(true);
+
+	// Resize by the right handle, then move by the title bar (no second long-press): both stay
+	// in the one selection until Done.
+	const right = handle("a", "right");
+	const r = center(right);
+	touch(right, "pointerdown", r.x, r.y);
+	await slide(right, r, pitch * 2, 0);
+	await expect.element(done()).toBeVisible();
+	const b = center(bar);
+	touch(bar, "pointerdown", b.x, b.y);
+	await slide(bar, b, pitch * 2, 0);
+	await expect.element(done()).toBeVisible();
+	expect(rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 6, h: 4 });
+	expect(session.canUndo).toBe(false);
+
+	const d = center(done().element());
+	touch(done().element(), "pointerdown", d.x, d.y);
+	touch(done().element(), "pointerup", d.x, d.y);
+	(done().element() as HTMLElement).click();
+	await announced("Dropped Readings at column 3, row 1. 1 other widget moved.");
+	expect(rectOf(app, "a")).toEqual({ x: 2, y: 0, w: 8, h: 4 });
+	await expect.element(done()).not.toBeInTheDocument();
+	expect(lifted()).toBe(false);
+
+	// One change for the whole selection.
+	await press("{Control>}z{/Control}");
+	expect(rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 6, h: 4 });
+	expect(session.canUndo).toBe(false);
+
+	// Tapping outside the frame finishes too.
+	const again = await longPress(bar);
+	touch(bar, "pointerup", again.x, again.y);
+	await expect.element(done()).toBeVisible();
+	const bottom = handle("a", "bottom");
+	const h = center(bottom);
+	touch(bottom, "pointerdown", h.x, h.y);
+	await slide(bottom, h, 0, pitchY());
+	touch(document.body, "pointerdown", 5, 5);
+	await announced("Dropped Readings at column 1, row 1.");
+	expect(rectOf(app, "a").h).toBe(5);
+	await expect.element(done()).not.toBeInTheDocument();
+});
+
+test("Escape cancels a touch selection", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const at = await longPress(bar);
+	touch(bar, "pointerup", at.x, at.y);
+	await expect.element(done()).toBeVisible();
+	await press("{Escape}");
+	await announced("Cancelled. Readings is back where it was.");
+	await expect.element(done()).not.toBeInTheDocument();
+	expect(lifted()).toBe(false);
+	expect(rectOf(app, "a").x).toBe(0);
+	expect(session.canUndo).toBe(false);
+});
+
+test("on a phone only the bottom handle shows", async () => {
+	await page.viewport(400, 800);
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const at = await longPress(bar);
+	touch(bar, "pointerup", at.x, at.y);
+	await expect.element(done()).toBeVisible();
+	const handles = [...frame("a").querySelectorAll<HTMLElement>("[data-resize]")];
+	expect(handles.map((h) => h.dataset.resize)).toEqual(["bottom"]);
+	const box = handles[0].getBoundingClientRect();
+	expect(box.height).toBeGreaterThanOrEqual(44);
+	await press("{Escape}");
 });

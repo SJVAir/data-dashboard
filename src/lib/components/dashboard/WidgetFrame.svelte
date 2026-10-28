@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
+	import { on } from "svelte/events";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
@@ -14,8 +15,9 @@
 		type ArrangeMode
 	} from "$lib/layout/arrangement.svelte";
 	import { dropText, pickUpText, positionText, sizeText } from "$lib/layout/announcements";
-	import { DRAG_THRESHOLD } from "$lib/layout/config";
-	import { startPointerDrag, type DragKind } from "$lib/layout/pointer-drag";
+	import { DRAG_THRESHOLD, LONG_PRESS_TOLERANCE } from "$lib/layout/config";
+	import { startLongPress } from "$lib/layout/long-press";
+	import { startPointerDrag, type DragKind, type ResizeEdge } from "$lib/layout/pointer-drag";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
@@ -75,6 +77,7 @@
 	}
 
 	function drop(): void {
+		selecting = false;
 		const preview = arrangement.preview;
 		const pushed = arrangement.pushedCount;
 		arrangement.drop();
@@ -82,6 +85,7 @@
 	}
 
 	function cancel(): void {
+		selecting = false;
 		arrangement.cancel();
 		announce(m.layout_cancelled({ title }));
 	}
@@ -127,7 +131,18 @@
 
 	// The pointer drag in progress (or waiting for the press to move far enough).
 	let stopDrag: (() => void) | null = null;
-	onDestroy(() => stopDrag?.());
+	// A touch press waiting to become a long-press.
+	let stopLongPress: (() => void) | null = null;
+	onDestroy(() => {
+		stopLongPress?.();
+		stopDrag?.();
+	});
+
+	/** A drag replaced another arrangement in progress: say that one was cancelled. */
+	function replaced(id: string): void {
+		const other = app.current.session?.editTarget.doc.body.widgets.find((w) => w.id === id);
+		announce(m.layout_cancelled({ title: other ? widgetTitle(other) : title }));
+	}
 
 	/** Mouse and pen only here; touch lifts by long-press. */
 	function startDrag(event: PointerEvent, kind: DragKind): void {
@@ -143,17 +158,105 @@
 			input: "pointer",
 			threshold: DRAG_THRESHOLD,
 			drop,
-			cancel
+			cancel,
+			replaced
+		});
+	}
+
+	// Touch: a long-press on the title bar lifts the widget. Sliding then moves it and the
+	// release drops it; a release without sliding selects it instead, with touch-sized resize
+	// handles and a Done button. While selected, the title bar and handles drag at once, and
+	// everything done in the selection is one change when Done (or a tap outside) finishes it.
+	/** The touch selection's state (true from a still release until it finishes). */
+	let selecting = $state(false);
+	/** A touch gesture is under way (the long-press's drag, or one in the selection). */
+	let gesture = $state(false);
+	const touchActive = $derived(mine()?.input === "touch");
+	const selected = $derived(selecting && touchActive);
+
+	/** Follow a touch on a lifted widget: from the long-press, or a selected widget's gesture. */
+	function touchDrag(event: PointerEvent, handle: Element, kind: DragKind, fromLongPress: boolean) {
+		if (!section) return;
+		stopDrag?.();
+		gesture = true;
+		stopDrag = startPointerDrag(event, handle, {
+			arrangement,
+			id: widget.id,
+			frame: section,
+			kind,
+			input: "touch",
+			lifted: true,
+			threshold: fromLongPress ? LONG_PRESS_TOLERANCE : DRAG_THRESHOLD,
+			drop,
+			cancel,
+			release: (moved) => {
+				if (fromLongPress && moved) drop();
+				else selecting = true;
+			},
+			replaced,
+			onEnd: () => (gesture = false)
+		});
+	}
+
+	function onTouchPress(event: PointerEvent): void {
+		if (!event.isPrimary) return;
+		const handle = event.currentTarget as Element;
+		if (selected) {
+			touchDrag(event, handle, { mode: "move" }, false);
+			return;
+		}
+		stopLongPress?.();
+		stopLongPress = startLongPress(event, (at) => {
+			stopLongPress = null;
+			selecting = false;
+			touchDrag(at, handle, { mode: "move" }, true);
 		});
 	}
 
 	function onpointerdown(event: PointerEvent): void {
 		// The ⋯ button isn't a drag handle.
 		if ((event.target as Element).closest("button")) return;
-		startDrag(event, { mode: "move" });
+		if (event.pointerType === "touch") onTouchPress(event);
+		else startDrag(event, { mode: "move" });
 	}
 
-	const dragging = $derived(mine()?.input === "pointer");
+	function onHandleStart(event: PointerEvent, edge: ResizeEdge): void {
+		const kind: DragKind = { mode: "resize", edge };
+		if (event.pointerType !== "touch") startDrag(event, kind);
+		else if (selected && event.isPrimary) {
+			touchDrag(event, event.currentTarget as Element, kind, false);
+		}
+	}
+
+	// While selected, a tap outside the frame finishes the selection; Escape cancels it.
+	$effect(() => {
+		if (!selected) return;
+		const onDown = (event: PointerEvent) => {
+			if (event.target instanceof Node && section?.contains(event.target)) return;
+			if (mine()?.input === "touch") drop();
+		};
+		const onKey = (event: KeyboardEvent) => {
+			// A gesture's own Escape may have cancelled it already.
+			if (event.key !== "Escape" || mine()?.input !== "touch") return;
+			event.preventDefault();
+			event.stopPropagation();
+			cancel();
+		};
+		window.addEventListener("pointerdown", onDown, true);
+		window.addEventListener("keydown", onKey, true);
+		return () => {
+			window.removeEventListener("pointerdown", onDown, true);
+			window.removeEventListener("keydown", onKey, true);
+		};
+	});
+
+	/** A touch long-press is the drag gesture here, never a menu (native or ours). */
+	function oncontextmenu(event: MouseEvent): void {
+		const touchEvent = event instanceof PointerEvent && event.pointerType === "touch";
+		if (touchEvent || touchActive) event.preventDefault();
+	}
+
+	const dragging = $derived(mine()?.input === "pointer" || (gesture && touchActive));
 
 	// Moving focus away cancels a keyboard arrangement: Tab, a click elsewhere, or the window
 	// losing focus.
@@ -187,13 +290,15 @@
 	bind:this={section}
 	class={[
 		"group bg-card text-card-foreground border-border relative [grid-column:1/-1] [grid-row:var(--prow)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
-		dragging && "z-10 shadow-lg"
+		dragging && "z-10 shadow-lg",
+		touchActive && "ring-ring ring-2"
 	]}
 	style:--col="{rect.x + 1} / span {rect.w}"
 	style:--row="{rect.y + 1} / span {rect.h}"
 	style:--prow="{phoneRow + 1} / span {rect.h}"
 	data-testid="widget-{widget.id}"
 	data-flip-id={widget.id}
+	{@attach (el) => on(el, "contextmenu", oncontextmenu)}
 	{@attach menuScope(provider)}
 >
 	<!-- Focusable: Enter picks the widget up to move it; Shift+F10 / the Menu key opens its menu. -->
@@ -201,8 +306,10 @@
 	<div
 		bind:this={bar}
 		class={[
-			"border-border focus-visible:ring-ring/50 flex items-center gap-2 border-b py-1 pr-1 pl-3 outline-none select-none focus-visible:ring-3",
-			dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab"
+			"border-border focus-visible:ring-ring/50 flex items-center gap-2 border-b py-1 pr-1 pl-3 outline-none select-none [-webkit-touch-callout:none] focus-visible:ring-3",
+			dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab",
+			// Page swipes over the title bar scroll; a lifted widget's next touch drags it.
+			touchActive ? "touch-none" : "touch-pan-y"
 		]}
 		tabindex="0"
 		role="group"
@@ -224,14 +331,30 @@
 			<Ellipsis aria-hidden="true" />
 		</Button>
 	</div>
-	<div class="min-h-0 flex-1">
+	<div class="relative min-h-0 flex-1">
 		{#if type}
 			<type.component {widget} />
 		{/if}
+		{#if selected}
+			<!-- Below the title bar, which still drags the selected widget. -->
+			<ResizeHandles
+				phone={arrangement.columns === 1}
+				shown={true}
+				touch={true}
+				onstart={onHandleStart}
+			/>
+			<div class="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+				<Button class="pointer-events-auto min-h-11 min-w-11 shadow-md" onclick={drop}>
+					{m.layout_done()}
+				</Button>
+			</div>
+		{/if}
 	</div>
-	<ResizeHandles
-		phone={arrangement.columns === 1}
-		shown={dragging && mine()?.mode === "resize"}
-		onstart={(event, edge) => startDrag(event, { mode: "resize", edge })}
-	/>
+	{#if !selected}
+		<ResizeHandles
+			phone={arrangement.columns === 1}
+			shown={dragging && mine()?.mode === "resize"}
+			onstart={onHandleStart}
+		/>
+	{/if}
 </section>
