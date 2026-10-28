@@ -1,7 +1,7 @@
 import { flushSync, tick } from "svelte";
 import type { Rect } from "$lib/documents/schema";
 import type { ArrangeInput, Arrangement } from "./arrangement.svelte";
-import { AUTOSCROLL_EDGE, AUTOSCROLL_MAX_STEP, GRID_COLUMNS } from "./config";
+import { AUTOSCROLL_EDGE, AUTOSCROLL_MAX_STEP, GRID_COLUMNS, MAX_HEIGHT } from "./config";
 import type { Size } from "./engine";
 import { settle } from "./flip";
 import { cellAt, cellWidth, snapDelta, type GridMetrics } from "./geometry";
@@ -85,7 +85,7 @@ export function nearestIndex(others: readonly { rect: Rect }[], row: number): nu
 	return best;
 }
 
-/** A resize from `start` by whole cells, clamped to the minimum size and the grid. */
+/** A resize from `start` by whole cells, clamped to the minimum size, the grid, and `MAX_HEIGHT`. */
 export function resizedRect(
 	start: Rect,
 	minSize: Size,
@@ -103,7 +103,7 @@ export function resizedRect(
 		x = Math.min(Math.max(start.x + d.dx, 0), right - minSize.w);
 		w = right - x;
 	}
-	if (edge.startsWith("bottom")) h = Math.max(start.h + d.dy, minSize.h);
+	if (edge.startsWith("bottom")) h = Math.min(Math.max(start.h + d.dy, minSize.h), MAX_HEIGHT);
 	return { x, y: start.y, w, h };
 }
 

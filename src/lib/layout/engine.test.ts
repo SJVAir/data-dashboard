@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest";
+import { RectSchema } from "$lib/documents/schema";
+import { MAX_HEIGHT, MAX_ROW } from "./config";
 import {
 	diff,
 	move,
@@ -242,5 +244,34 @@ describe("moveInOrder", () => {
 		}
 		// A do-nothing implementation would pass the bounds above; most moves must land exactly.
 		expect(hits / runs).toBeGreaterThanOrEqual(0.98);
+	});
+});
+
+describe("untrusted sizes", () => {
+	test("a rect far down (y = 1e12) or too tall is rejected by the schema", () => {
+		expect(RectSchema.safeParse({ x: 0, y: 1e12, w: 6, h: 4 }).success).toBe(false);
+		expect(RectSchema.safeParse({ x: 0, y: MAX_ROW + 1, w: 6, h: 4 }).success).toBe(false);
+		expect(RectSchema.safeParse({ x: 0, y: MAX_ROW, w: 6, h: 4 }).success).toBe(true);
+		expect(RectSchema.safeParse({ x: 0, y: 0, w: 6, h: MAX_HEIGHT + 1 }).success).toBe(false);
+		expect(RectSchema.safeParse({ x: 0, y: 0, w: 6, h: MAX_HEIGHT }).success).toBe(true);
+	});
+
+	test("tidy compacts a widget a billion rows down at once", () => {
+		const start = performance.now();
+		const out = tidy([item("a", 0, 0, 6, 4), item("b", 0, 1e9, 6, 4), item("c", 6, 1e9, 6, 2)], 12);
+		expect(performance.now() - start).toBeLessThan(50);
+		expect(rects(out)).toEqual({
+			a: { x: 0, y: 0, w: 6, h: 4 },
+			b: { x: 0, y: 4, w: 6, h: 4 },
+			c: { x: 6, y: 0, w: 6, h: 2 }
+		});
+	});
+
+	test("moveInOrder handles a widget of the maximum height", () => {
+		const items = [item("a", 0, 0, 12, MAX_HEIGHT), item("b", 0, MAX_HEIGHT, 12, 4)];
+		const start = performance.now();
+		const out = moveInOrder(items, "b", 0, 12);
+		expect(performance.now() - start).toBeLessThan(500);
+		expect(readingOrder(out).map((i) => i.id)).toEqual(["b", "a"]);
 	});
 });

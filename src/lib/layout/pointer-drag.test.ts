@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { MAX_HEIGHT } from "./config";
 import { nearestIndex, resizedRect } from "./pointer-drag";
 
 const rows = (...hs: number[]) => hs.map((h) => ({ rect: { x: 0, y: 0, w: 12, h } }));
@@ -39,6 +40,10 @@ describe("resizedRect", () => {
 			h: 5
 		});
 		expect(resizedRect(start, min, "left", { dx: 9, dy: 0 }, 12)).toEqual({ ...start, x: 6, w: 3 });
+	});
+	test("the height stops at the maximum", () => {
+		expect(resizedRect(start, min, "bottom", { dx: 0, dy: 500 }, 12).h).toBe(MAX_HEIGHT);
+		expect(resizedRect(start, min, "bottom-left", { dx: 0, dy: 500 }, 1).h).toBe(MAX_HEIGHT);
 	});
 	test("one column changes only the height", () => {
 		expect(resizedRect(start, min, "bottom-right", { dx: 3, dy: 1 }, 1)).toEqual({

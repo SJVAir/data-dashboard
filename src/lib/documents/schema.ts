@@ -1,5 +1,5 @@
 import { WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
-import { GRID_COLUMNS } from "$lib/layout/config";
+import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "$lib/layout/config";
 import { z } from "$lib/zod";
 
 export { GRID_COLUMNS };
@@ -10,9 +10,9 @@ export const NAME_MAX = 100;
 export const RectSchema = z
 	.object({
 		x: z.number().int().min(0),
-		y: z.number().int().min(0),
+		y: z.number().int().min(0).max(MAX_ROW),
 		w: z.number().int().min(1),
-		h: z.number().int().min(1)
+		h: z.number().int().min(1).max(MAX_HEIGHT)
 	})
 	.refine((r) => r.x + r.w <= GRID_COLUMNS, { message: "Rect exceeds the grid width" });
 export type Rect = z.infer<typeof RectSchema>;

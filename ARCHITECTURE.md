@@ -640,6 +640,10 @@ files, and server documents.
 1. **Validate every incoming document**, from a file, URL fragment, or the server, against
    a schema (zod, as in the SDK) and a size limit **before** migration or use. Invalid
    documents are rejected with a clear message and never partly loaded.
+   - **Layout rects are capped** (step 2, spec 2a final review): a widget starts at row
+     `MAX_ROW` (100,000) at most and is `MAX_HEIGHT` (100) rows tall at most, in the schema
+     and when arranging (a drop past the caps applies nothing). The layout engine's work
+     grows with rows, so an uncapped `y` or `h` in a shared document could hang the tab.
 2. **Safe Markdown:** Notes render with **raw HTML off** and a link allowlist (`http`,
    `https`, `mailto`).
 3. **A content security policy on `/workspace/*`**, sent by the Django view: the

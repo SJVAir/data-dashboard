@@ -86,8 +86,11 @@
 		selecting = false;
 		const preview = arrangement.preview;
 		const pushed = arrangement.pushedCount;
-		arrangement.drop();
-		if (preview) announce(dropText(preview, widget.id, phone(), title, pushed));
+		const change = arrangement.drop();
+		if (!preview) return;
+		// Nothing applied (it's where it was, or the layout would pass the row caps).
+		if (!change) announce(m.layout_cancelled({ title }));
+		else announce(dropText(preview, widget.id, phone(), title, pushed));
 	}
 
 	function cancel(): void {
@@ -133,6 +136,19 @@
 			if (result === "at-bottom") announce(m.layout_at_bottom({ title }));
 			else if (preview) announce(positionText(preview, widget.id, phone()));
 		}
+	}
+
+	/**
+	 * A click from a screen reader's browse mode (`detail` 0: no pointer behind it) acts like
+	 * Enter, since browse mode may turn Enter into a click instead of passing the key on.
+	 */
+	function onclick(event: MouseEvent): void {
+		if (event.detail !== 0 || event.target !== event.currentTarget) return;
+		const active = mine();
+		if (active && active.input !== "keyboard") return;
+		event.preventDefault();
+		if (active) drop();
+		else pickUp("move");
 	}
 
 	// The pointer drag in progress (or waiting for the press to move far enough).
@@ -298,11 +314,16 @@
 	}
 	const scrollBlocker = (el: HTMLElement) => on(el, "touchmove", blockScroll, { passive: false });
 
-	/** A touch long-press is the drag gesture here, never a menu (native or ours). */
+	/**
+	 * A touch long-press on the title bar or a touch handle is the drag gesture, never a menu
+	 * (native or ours). The widget's body keeps its native long-press menus.
+	 */
 	function oncontextmenu(event: MouseEvent): void {
 		const touchEvent = event instanceof PointerEvent && event.pointerType === "touch";
 		if (touchEvent || touchActive) event.preventDefault();
 	}
+
+	const noMenu = (el: HTMLElement) => on(el, "contextmenu", oncontextmenu);
 
 	const dragging = $derived(mine()?.input === "pointer" || (gesture && touchActive));
 
@@ -346,7 +367,6 @@
 	style:--prow="{phoneRow + 1} / span {rect.h}"
 	data-testid="widget-{widget.id}"
 	data-flip-id={widget.id}
-	{@attach (el) => on(el, "contextmenu", oncontextmenu)}
 	{@attach menuScope(provider)}
 >
 	<!-- Focusable: Enter picks the widget up to move it; Shift+F10 / the Menu key opens its menu. -->
@@ -367,7 +387,9 @@
 		{onkeydown}
 		{onblur}
 		{onpointerdown}
+		{onclick}
 		{@attach scrollBlocker}
+		{@attach noMenu}
 	>
 		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
 		<Button
@@ -386,7 +408,7 @@
 		{/if}
 		{#if selected}
 			<!-- Below the title bar, which still drags the selected widget. -->
-			<div class="contents" {@attach scrollBlocker}>
+			<div class="contents" {@attach scrollBlocker} {@attach noMenu}>
 				<ResizeHandles
 					phone={arrangement.columns === 1}
 					shown={true}

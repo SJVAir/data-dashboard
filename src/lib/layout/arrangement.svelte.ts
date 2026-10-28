@@ -2,7 +2,7 @@ import { getContext, untrack } from "svelte";
 import type { Change } from "$lib/changes/types";
 import type { Dashboard, Rect } from "$lib/documents/schema";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
-import { GRID_COLUMNS } from "./config";
+import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "./config";
 import { move, moveInOrder, resize, type Layout, type LayoutItem, type Size } from "./engine";
 import { layoutChange, shownLayout } from "./items";
 
@@ -269,7 +269,7 @@ export class Arrangement {
 		const { rect, minSize } = itemOf(preview, id);
 		let { w, h } = rect;
 		if (dir === "up") h = Math.max(h - 1, minSize.h);
-		else if (dir === "down") h += 1;
+		else if (dir === "down") h = Math.min(h + 1, MAX_HEIGHT);
 		else if (this.#columns() === 1) return;
 		else if (dir === "left") w = Math.max(w - 1, minSize.w);
 		else w = Math.min(w + 1, GRID_COLUMNS - rect.x);
@@ -280,7 +280,8 @@ export class Arrangement {
 
 	/**
 	 * Apply the preview as one `setLayout` (built against the document as it is now) and end the
-	 * arrangement. Returns the change, or null when nothing moved (nothing is applied then).
+	 * arrangement. Returns the change, or null when nothing is applied: the widget is where it
+	 * was, or the layout would pass the row caps (`MAX_ROW`, `MAX_HEIGHT`).
 	 */
 	drop(): Change | null {
 		const id = this.#live();
@@ -290,6 +291,12 @@ export class Arrangement {
 		const doc = this.#doc();
 		this.#clear();
 		if (!id || !preview || !session || !doc || target.length === 0) return null;
+		// The widget is where it was: nothing to save, even if tidying would change others (an
+		// undo entry with no visible change would surprise). A real move saves the tidying too.
+		const before = this.#baseLayout(doc).find((i) => i.id === id);
+		if (before && sameRect(before.rect, itemOf(preview, id).rect)) return null;
+		// Never save past the row caps (the schema would reject the document).
+		if (preview.some((i) => i.rect.y > MAX_ROW || i.rect.h > MAX_HEIGHT)) return null;
 		const change = layoutChange(doc.body.widgets, preview);
 		if (!change) return null;
 		session.apply(change);

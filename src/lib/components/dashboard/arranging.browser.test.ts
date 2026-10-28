@@ -6,6 +6,7 @@ import { page, userEvent } from "vitest/browser";
 import { handleUndoShortcut } from "$lib/actions/global";
 import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
+import { MAX_HEIGHT } from "$lib/layout/config";
 import { shownLayout } from "$lib/layout/items";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
@@ -155,6 +156,60 @@ test("Escape cancels", async () => {
 	expect(rectOf(app, "a").x).toBe(0);
 	expect(session.canUndo).toBe(false);
 	expect(document.activeElement).toBe(titleBar("Readings").element());
+});
+
+test("dropping where it was picked up applies nothing and says cancelled", async () => {
+	// B is saved with a gap above it, so the shown (tidied) layout differs from the saved one.
+	const { app, session } = await seed([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
+		widget("b", { x: 0, y: 10, w: 6, h: 4 }, "Map")
+	]);
+	await focusBar("Readings");
+	await press("{Enter}");
+	await press("{ArrowRight}");
+	await press("{ArrowLeft}");
+	await announced("Column 1, row 1.");
+	await press("{Enter}");
+	await announced("Cancelled. Readings is back where it was.");
+	expect(rectOf(app, "b").y).toBe(10);
+	expect(session.canUndo).toBe(false);
+});
+
+test("a drop that would pass the row caps applies nothing and says cancelled", async () => {
+	let arrangement: Arrangement | null = null;
+	const { session } = await seed(halves(), (a) => (arrangement = a));
+	await focusBar("Readings");
+	await press("{Enter}");
+	arrangement!.resizeTo({ x: 0, y: 0, w: 6, h: MAX_HEIGHT + 1 });
+	await press("{Enter}");
+	await announced("Cancelled. Readings is back where it was.");
+	expect(session.canUndo).toBe(false);
+});
+
+test("a screen reader's click (detail 0) on the title bar picks up and drops like Enter", async () => {
+	const { app } = await seed(halves());
+	await focusBar("Readings");
+	const bar = titleBar("Readings").element();
+	const srClick = (el: Element) =>
+		el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 0 }));
+	srClick(bar);
+	await announced(
+		"Picked up Readings. Column 1, row 1. Arrow keys move, Shift and arrow keys resize, Enter drops, Escape cancels."
+	);
+	await press("{ArrowRight}");
+	srClick(bar);
+	await announced("Dropped Readings at column 2, row 1. 1 other widget moved.");
+	expect(rectOf(app, "a").x).toBe(1);
+
+	// A mouse click (detail 1) doesn't, nor a detail-0 click on the ⋯ button.
+	bar.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+	await new Promise((r) => setTimeout(r, 50));
+	expect(page.getByTestId("drop-target").query()).toBeNull();
+	const more = page.getByRole("button", { name: "Actions for Readings" }).element();
+	srClick(more);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(page.getByTestId("drop-target").query()).toBeNull();
+	await userEvent.keyboard("{Escape}");
 });
 
 test("moving focus away cancels", async () => {
@@ -781,6 +836,40 @@ test("lifting without moving selects with touch handles and Done", async () => {
 	await announced("Dropped Readings at column 1, row 1.");
 	expect(rectOf(app, "a").h).toBe(5);
 	await expect.element(done()).not.toBeInTheDocument();
+});
+
+test("a touch long-press menu is cancelled on the title bar and handles, not the body", async () => {
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const contextmenu = (el: Element) => {
+		const r = el.getBoundingClientRect();
+		const event = new PointerEvent("contextmenu", {
+			bubbles: true,
+			cancelable: true,
+			pointerType: "touch",
+			clientX: r.left + 2,
+			clientY: r.top + 2
+		});
+		el.dispatchEvent(event);
+		return event.defaultPrevented;
+	};
+	const body = frame("a").children[1];
+	// A touch press comes first (it keeps the dashboard's own menu from opening).
+	const b = center(body);
+	touch(body, "pointerdown", b.x, b.y);
+	touch(body, "pointerup", b.x, b.y);
+	await nextFrame();
+	expect(contextmenu(titleBar("Readings").element())).toBe(true);
+	expect(contextmenu(body)).toBe(false);
+
+	// While selected, the touch handles cancel it too; the body still doesn't.
+	const bar = titleBar("Readings").element();
+	const at = await longPress(bar);
+	touch(bar, "pointerup", at.x, at.y);
+	await expect.element(done()).toBeVisible();
+	expect(contextmenu(handle("a", "right"))).toBe(true);
+	expect(contextmenu(body)).toBe(false);
+	await press("{Escape}");
 });
 
 test("Escape cancels a touch selection", async () => {

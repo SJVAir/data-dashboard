@@ -11,3 +11,10 @@ export const AUTOSCROLL_MAX_STEP = 16;
 export const LONG_PRESS_DELAY = 500;
 /** How far (px) a touch may wander during the long-press (a farther move is a page swipe). */
 export const LONG_PRESS_TOLERANCE = 8;
+/**
+ * The lowest row a widget may start on. Rects come from untrusted documents, and the layout
+ * engine's work grows with row numbers and heights, so both are capped (schema and engine).
+ */
+export const MAX_ROW = 100_000;
+/** The tallest a widget may be, in rows (see `MAX_ROW`). */
+export const MAX_HEIGHT = 100;

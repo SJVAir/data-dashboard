@@ -48,15 +48,19 @@ export function tidy(items: LayoutItem[], columns: number): Layout {
 		resolved.push({ ...item, rect });
 	}
 
+	// Each widget rises to just below the lowest widget already placed in its columns (they
+	// all end at or above it: they come earlier in reading order and don't overlap it). One
+	// jump, not a row at a time: an untrusted y can be huge.
 	const placed: LayoutItem[] = [];
 	for (const item of readingOrder(resolved)) {
-		let y = item.rect.y;
-		while (y > 0) {
-			const up = { ...item.rect, y: y - 1 };
-			if (placed.some((p) => rectsOverlap(p.rect, up))) break;
-			y--;
+		const { x, w } = item.rect;
+		let floor = 0;
+		for (const p of placed) {
+			if (p.rect.x < x + w && x < p.rect.x + p.rect.w) {
+				floor = Math.max(floor, p.rect.y + p.rect.h);
+			}
 		}
-		placed.push({ ...item, rect: { ...item.rect, y } });
+		placed.push({ ...item, rect: { ...item.rect, y: Math.min(floor, item.rect.y) } });
 	}
 	return readingOrder(placed);
 }

@@ -10,6 +10,7 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import type { SpaceId } from "$lib/platform/types";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { Arrangement } from "./arrangement.svelte";
+import { MAX_HEIGHT } from "./config";
 import * as engine from "./engine";
 
 vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
@@ -118,6 +119,49 @@ describe("Arrangement", () => {
 		arrangement.pickUp("a", "move", "pointer");
 		arrangement.moveTo({ x: 0, y: 0 });
 		expect(arrangement.drop()).toBeNull();
+		expect(session.doc).toBe(doc);
+		expect(session.canUndo).toBe(false);
+	});
+
+	it("a drop that leaves the widget where it was applies nothing, even with tidying to do", async () => {
+		// B is saved with a gap above it; it's shown tidied (at row 4).
+		const { session, arrangement } = await setup([
+			widget("a", { x: 0, y: 0, w: 6, h: 4 }),
+			widget("b", { x: 0, y: 10, w: 6, h: 4 })
+		]);
+		const doc = session.doc;
+		arrangement.pickUp("a", "move", "keyboard");
+		expect(arrangement.step("right")).toBe("moved");
+		expect(arrangement.step("left")).toBe("moved");
+		expect(arrangement.drop()).toBeNull();
+		expect(session.doc).toBe(doc);
+		expect(session.canUndo).toBe(false);
+		expect(arrangement.pendingFocus).toBeNull();
+
+		// A real move still takes the tidying along.
+		arrangement.pickUp("a", "move", "keyboard");
+		arrangement.step("right");
+		expect(arrangement.drop()?.op).toBe("setLayout");
+		expect(savedRects(session).b).toEqual({ x: 0, y: 4, w: 6, h: 4 });
+	});
+
+	it("grow stops at the maximum height", async () => {
+		const { arrangement } = await setup([widget("a", { x: 0, y: 0, w: 6, h: MAX_HEIGHT - 1 })]);
+		arrangement.pickUp("a", "resize", "keyboard");
+		arrangement.grow("down");
+		arrangement.grow("down");
+		arrangement.grow("down");
+		expect(rects(arrangement.preview).a.h).toBe(MAX_HEIGHT);
+	});
+
+	it("a drop whose layout would break the row caps applies nothing", async () => {
+		const { session, arrangement } = await setup(threeWidgets());
+		const doc = session.doc;
+		arrangement.pickUp("a", "resize", "pointer");
+		arrangement.resizeTo({ x: 0, y: 0, w: 6, h: MAX_HEIGHT + 1 });
+		expect(rects(arrangement.preview).a.h).toBe(MAX_HEIGHT + 1);
+		expect(arrangement.drop()).toBeNull();
+		expect(arrangement.active).toBeNull();
 		expect(session.doc).toBe(doc);
 		expect(session.canUndo).toBe(false);
 	});
