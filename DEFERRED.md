@@ -181,6 +181,20 @@ string`) now get the union return type. The mobile app passes a string token, so
   - Promoting fields inside `body` to real database columns (the server stores `body`
     without interpreting it, so it can't query inside documents). **Revisit when** a
     server-side feature needs to query documents (e.g. "dashboards using monitor X").
+  - **Real-time push of document changes** (WebSockets or server-sent events). _Deferred
+    2026-10-28 (sync design)._ Open pages poll about once a minute while visible instead.
+    sjvair.com runs WSGI under gunicorn, so push would need an async server, a Redis channel
+    layer, and new Heroku connection limits; a minute's delay suits teachers, schools, and
+    one person on two devices. **Revisit when** someone needs changes to appear instantly
+    (e.g. live classroom editing), or polling load becomes noticeable.
+  - **Server change-log retention beyond the last 500 versions.** _Deferred 2026-10-28 (sync
+    design)._ A device offline for longer than that can't tell which edits overlapped, so it
+    always gets the three-choice prompt rather than a silent merge. **Revisit if** those
+    prompts are reported.
+  - **Merging colliding layout moves more cleverly.** _Deferred 2026-10-28 (sync design;
+    decided with the user)._ Layout moves never prompt: the last save wins, and step 2's
+    tidy fixes any overlap. Keeping both sides' intent (e.g. per-widget last-writer) isn't
+    attempted. **Revisit if** people report layouts jumping back while tuning on two devices.
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
   sync in Release 1; preferences stay local per device (they're conveniences, and devices
