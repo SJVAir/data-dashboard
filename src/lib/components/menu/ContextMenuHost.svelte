@@ -5,7 +5,7 @@
 	import * as ContextMenu from "$lib/components/ui/context-menu";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import MenuItems from "./MenuItems.svelte";
-	import { dropdown } from "./menu-state.svelte";
+	import { dropdown, takeAfterMenuClose } from "./menu-state.svelte";
 
 	let { children }: { children: Snippet } = $props();
 
@@ -44,6 +44,18 @@
 	}
 
 	const anchor = $derived(dropdown.ctx?.target as HTMLElement | undefined);
+
+	// An item that moves focus itself (Move…, Resize…) does so once its menu has closed.
+	function onCloseAutoFocus(event: Event, fallback?: () => void) {
+		const after = takeAfterMenuClose();
+		if (after) {
+			event.preventDefault();
+			after();
+		} else if (fallback) {
+			event.preventDefault();
+			fallback();
+		}
+	}
 </script>
 
 <ContextMenu.Root>
@@ -55,7 +67,7 @@
 	>
 		{@render children()}
 	</ContextMenu.Trigger>
-	<ContextMenu.Content>
+	<ContextMenu.Content onCloseAutoFocus={(e) => onCloseAutoFocus(e)}>
 		{#if ctx}
 			<MenuItems {items} {ctx} kind="context" />
 		{/if}
@@ -65,10 +77,7 @@
 <DropdownMenu.Root bind:open={dropdown.open}>
 	<DropdownMenu.Content
 		customAnchor={anchor ?? null}
-		onCloseAutoFocus={(e) => {
-			e.preventDefault();
-			anchor?.focus();
-		}}
+		onCloseAutoFocus={(e) => onCloseAutoFocus(e, () => anchor?.focus())}
 	>
 		{#if dropdown.ctx}
 			<MenuItems items={dropdown.items} ctx={dropdown.ctx} kind="dropdown" />

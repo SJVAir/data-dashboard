@@ -133,7 +133,17 @@ test("the live region is polite and announces", async () => {
 	announce("x");
 	await tick();
 	expect(el.textContent).toBe("");
+	// Still empty a frame later: a one-frame gap can be merged and the repeat skipped.
+	await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+	expect(el.textContent).toBe("");
 	await expect.poll(() => el.textContent).toBe("x");
+
+	// A newer message replaces one still waiting.
+	announce("y");
+	announce("z");
+	await expect.poll(() => el.textContent).toBe("z");
+	await new Promise((r) => setTimeout(r, 150));
+	expect(el.textContent).toBe("z");
 });
 
 test("the preview shows while arranging, with the drop target outlined at the active widget's rect", async () => {
@@ -276,12 +286,12 @@ test("the dashboard's own menu has its actions plus Undo and Redo", async () => 
 	}
 });
 
-test("a widget is a named group announcing its menu shortcut, not a region landmark", async () => {
+test("a widget is a named group announcing its shortcuts, not a region landmark", async () => {
 	const { app, session } = await setup();
 	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
 	await renderGrid(app);
 	const group = page.getByRole("group", { name: "Readings" });
-	await expect.element(group).toHaveAttribute("aria-keyshortcuts", "Shift+F10");
+	await expect.element(group).toHaveAttribute("aria-keyshortcuts", "Enter Shift+F10");
 	await expect.element(page.getByRole("region", { name: "Readings" })).not.toBeInTheDocument();
 });
 

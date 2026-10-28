@@ -29,6 +29,13 @@ type Op =
 type Target = readonly Op[];
 
 const NO_TARGET: Target = [];
+
+/**
+ * A focus request carried from a starter's page to its copy's: a drop on the starter hands off
+ * to a copy, and the page then shows the copy with a new grid (and a new `Arrangement`).
+ */
+let carried: { from: DocumentSession; id: string } | null = null;
+
 /** Layouts kept per document layout, by request prefix (a drag revisits cells; moveInOrder costs a few ms). */
 const CACHE_LIMIT = 512;
 
@@ -106,6 +113,11 @@ export class Arrangement {
 	 * then sets this back to null. `pickUp` and `cancel` clear it.
 	 */
 	pendingFocus = $state<string | null>(null);
+	/**
+	 * A pickup asked for by the widget's Move… or Resize… item, once its menu has closed. The
+	 * widget's frame focuses its title bar, then picks it up (by keyboard) and sets this to null.
+	 */
+	pickUpRequest = $state.raw<{ id: string; mode: ArrangeMode } | null>(null);
 
 	readonly #session: () => DocumentSession | null;
 	readonly #columns: () => number;
@@ -130,6 +142,13 @@ export class Arrangement {
 		this.#session = session;
 		this.#columns = columns;
 		this.#onGone = opts.onGone;
+		// A new page for the copy a starter's drop handed off to: focus the moved widget there.
+		const from = carried;
+		carried = null;
+		const now = untrack(session);
+		if (from && now && now !== from.from && from.from.editTarget === now) {
+			this.pendingFocus = from.id;
+		}
 		this.#stop = $effect.root(() => {
 			$effect(() => this.#checkGone());
 		});
@@ -138,6 +157,11 @@ export class Arrangement {
 	get active(): Active | null {
 		const active = this.#active;
 		return active && this.#onGrid(active.id) ? active : null;
+	}
+
+	/** The page's columns now: 1 on a phone, else `GRID_COLUMNS`. */
+	get columns(): number {
+		return this.#columns();
 	}
 
 	get preview(): Layout | null {
@@ -163,7 +187,13 @@ export class Arrangement {
 		if (!this.#onGrid(id)) return;
 		this.#clear();
 		this.pendingFocus = null;
+		this.pickUpRequest = null;
 		this.#active = { id, mode, input };
+	}
+
+	/** Ask the widget's frame to focus its title bar and pick it up by keyboard. */
+	requestPickUp(id: string, mode: ArrangeMode): void {
+		this.pickUpRequest = { id, mode };
 	}
 
 	/** Move the active widget to a cell (engine `move`; widgets in the way are pushed down). */
@@ -264,6 +294,9 @@ export class Arrangement {
 		if (!change) return null;
 		session.apply(change);
 		this.pendingFocus = id;
+		// The document didn't take the change itself: it went to a starter's hand-off, and the
+		// copy shows on a new page.
+		if (session.editTarget.doc === doc) carried = { from: session, id };
 		return change;
 	}
 
@@ -271,6 +304,7 @@ export class Arrangement {
 	cancel(): void {
 		this.#clear();
 		this.pendingFocus = null;
+		this.pickUpRequest = null;
 	}
 
 	dispose(): void {

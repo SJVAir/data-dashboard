@@ -1,18 +1,22 @@
 import Copy from "@lucide/svelte/icons/copy";
+import Move from "@lucide/svelte/icons/move";
 import Pencil from "@lucide/svelte/icons/pencil";
+import Scaling from "@lucide/svelte/icons/scaling";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { ChangeTargetMissing } from "$lib/changes/apply";
 import { replaceIfOverlapping } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
+import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
+import type { Arrangement, ArrangeMode } from "$lib/layout/arrangement.svelte";
 import { placeNewWidget } from "$lib/layout/items";
 import { getWidgetType } from "$lib/widgets/registry";
-import type { MenuProvider } from "./types";
+import type { MenuItem, MenuProvider } from "./types";
 
 /** A widget's display title: its own, else its type's generated one. */
 export function widgetTitle(widget: WidgetInstance): string {
@@ -98,11 +102,50 @@ function remove(app: AppContext, widgetId: string): void {
 	});
 }
 
-/** One widget's actions; provided on its frame and opened by its ⋯ button. */
-export function widgetActions(app: AppContext, widgetId: string): MenuProvider {
+/** The widget's own entry, read when the menu opens (null if it's not in the document). */
+function currentWidget(app: AppContext, widgetId: string): WidgetInstance | null {
+	return app.current.session?.doc.body.widgets.find((w) => w.id === widgetId) ?? null;
+}
+
+/** Move… / Resize…: once the menu has closed, the widget's frame focuses it and picks it up. */
+function arrange(arrangement: Arrangement, widgetId: string, mode: ArrangeMode): void {
+	afterMenuClose(() => arrangement.requestPickUp(widgetId, mode));
+}
+
+/**
+ * One widget's actions; provided on its frame and opened by its ⋯ button. With the page's
+ * `arrangement`, also Move… and Resize… (not offered while the widget is minimized).
+ */
+export function widgetActions(
+	app: AppContext,
+	widgetId: string,
+	arrangement?: Arrangement
+): MenuProvider {
 	return () => {
 		const locked = find(app, widgetId) === null;
+		const layout: MenuItem[] =
+			arrangement && !currentWidget(app, widgetId)?.minimized
+				? [
+						{
+							id: "move-widget",
+							label: m.widget_move(),
+							icon: Move,
+							group: "layout",
+							disabled: locked,
+							run: () => arrange(arrangement, widgetId, "move")
+						},
+						{
+							id: "resize-widget",
+							label: m.widget_resize(),
+							icon: Scaling,
+							group: "layout",
+							disabled: locked,
+							run: () => arrange(arrangement, widgetId, "resize")
+						}
+					]
+				: [];
 		return [
+			...layout,
 			{
 				id: "rename-widget",
 				label: m.widget_rename(),
