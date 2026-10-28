@@ -3,7 +3,7 @@ import type { Change } from "$lib/changes/types";
 import type { Dashboard, Rect } from "$lib/documents/schema";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { GRID_COLUMNS } from "./config";
-import { move, moveInOrder, type Layout, type LayoutItem, type Size } from "./engine";
+import { move, moveInOrder, resize, type Layout, type LayoutItem, type Size } from "./engine";
 import { layoutChange, shownLayout } from "./items";
 
 export type ArrangeMode = "move" | "resize";
@@ -12,14 +12,25 @@ export type ArrangeDirection = "up" | "down" | "left" | "right";
 export type StepResult = "moved" | "at-bottom" | "blocked";
 
 type Active = { id: string; mode: ArrangeMode; input: ArrangeInput };
-/** Where the active widget was asked to go: a desktop cell, or a reading-order index (phone). */
-type Position = { kind: "cell"; x: number; y: number } | { kind: "order"; index: number };
-/** What the active widget was asked to do; `null` parts are unchanged from the document. */
-type Target = { position: Position | null; size: Size | null };
+/**
+ * One request for the active widget, applied to the layout before it: move to a desktop cell,
+ * move to a reading-order index (phone), or resize in place. A cell or index request may carry
+ * a size to take first.
+ */
+type Op =
+	| { kind: "cell"; x: number; y: number; size: Size | null }
+	| { kind: "order"; index: number; size: Size | null }
+	| { kind: "size"; w: number; h: number };
+/**
+ * The requests since pickup, in order. Pointer and touch input replace the list with one
+ * request against the document's layout; each keyboard step appends one against the preview
+ * shown at the time, so every keypress moves one step from what the person sees.
+ */
+type Target = readonly Op[];
 
-const NO_TARGET: Target = { position: null, size: null };
-/** Previews kept per document layout (a drag revisits cells; moveInOrder costs a few ms). */
-const CACHE_LIMIT = 64;
+const NO_TARGET: Target = [];
+/** Layouts kept per document layout, by request prefix (a drag revisits cells; moveInOrder costs a few ms). */
+const CACHE_LIMIT = 512;
 
 export const ARRANGEMENT_KEY = Symbol("arrangement");
 
@@ -28,10 +39,18 @@ export function useArrangement(): Arrangement {
 	return getContext<Arrangement>(ARRANGEMENT_KEY);
 }
 
+function sizeKey(size: Size | null): string {
+	return size ? `${size.w}x${size.h}` : "-";
+}
+
+function opKey(op: Op): string {
+	if (op.kind === "cell") return `@${op.x},${op.y}:${sizeKey(op.size)}`;
+	if (op.kind === "order") return `#${op.index}:${sizeKey(op.size)}`;
+	return `=${op.w}x${op.h}`;
+}
+
 function targetKey(id: string, t: Target): string {
-	const p = t.position;
-	const pos = !p ? "-" : p.kind === "cell" ? `${p.x},${p.y}` : `#${p.index}`;
-	return `${id}|${pos}|${t.size ? `${t.size.w}x${t.size.h}` : "-"}`;
+	return [id, ...t.map(opKey)].join("|");
 }
 
 function sameRect(a: Rect, b: Rect): boolean {
@@ -79,7 +98,13 @@ function nextBelow(layout: Layout, id: string): LayoutItem | undefined {
 export class Arrangement {
 	#active = $state.raw<Active | null>(null);
 	#target = $state.raw<Target>(NO_TARGET);
-	/** The widget whose title bar should take focus once mounted (e.g. after a starter hand-off). */
+	/** The last size asked for (grow or resizeTo), kept by later pointer requests. */
+	#size: Size | null = null;
+	/**
+	 * The widget whose title bar should take focus once mounted, set by every drop that applies
+	 * a change (its title bar may remount, e.g. after a starter hand-off). The page focuses it,
+	 * then sets this back to null. `pickUp` and `cancel` clear it.
+	 */
 	pendingFocus = $state<string | null>(null);
 
 	readonly #session: () => DocumentSession | null;
@@ -137,40 +162,38 @@ export class Arrangement {
 		this.#checkGone();
 		if (!this.#onGrid(id)) return;
 		this.#clear();
+		this.pendingFocus = null;
 		this.#active = { id, mode, input };
 	}
 
 	/** Move the active widget to a cell (engine `move`; widgets in the way are pushed down). */
 	moveTo(to: { x: number; y: number }): void {
 		if (!this.#live()) return;
-		this.#setTarget({ position: { kind: "cell", x: to.x, y: to.y }, size: this.#target.size });
+		this.#setTarget([{ kind: "cell", x: to.x, y: to.y, size: this.#size }]);
 	}
 
 	/** Resize the active widget (clamped to its minimum size and the grid). */
 	resizeTo(rect: Rect): void {
 		if (!this.#live()) return;
-		this.#setTarget({
-			position: { kind: "cell", x: rect.x, y: rect.y },
-			size: { w: rect.w, h: rect.h }
-		});
+		this.#size = { w: rect.w, h: rect.h };
+		this.#setTarget([{ kind: "cell", x: rect.x, y: rect.y, size: this.#size }]);
 	}
 
 	/** Move the active widget to a reading-order index (the phone's reordering). */
 	moveToIndex(index: number): void {
 		if (!this.#live()) return;
-		this.#setTarget({ position: { kind: "order", index }, size: this.#target.size });
+		this.#setTarget([{ kind: "order", index, size: this.#size }]);
 	}
 
 	/**
-	 * A keyboard step. Up, Left, and Right move one cell; Down moves past the next widget below
-	 * in the same columns ("at-bottom" when there is none). On one column, Up/Down move one place
-	 * in reading order and Left/Right are blocked.
+	 * A keyboard step, from the preview as shown. Up, Left, and Right move one cell; Down moves
+	 * past the next widget below in the same columns ("at-bottom" when there is none). On one
+	 * column, Up/Down move one place in reading order and Left/Right are blocked.
 	 */
 	step(dir: ArrangeDirection): StepResult {
 		const id = this.#live();
 		const preview = this.#preview;
 		if (!id || !preview) return "blocked";
-		const size = this.#target.size;
 
 		if (this.#columns() === 1) {
 			if (dir === "left" || dir === "right") return "blocked";
@@ -178,22 +201,19 @@ export class Arrangement {
 			if (dir === "up" && index === 0) return "blocked";
 			if (dir === "down" && index === preview.length - 1) return "at-bottom";
 			const to = index + (dir === "up" ? -1 : 1);
-			return this.#try({ position: { kind: "order", index: to }, size }, (after) =>
+			return this.#try({ kind: "order", index: to, size: null }, (after) =>
 				after.findIndex((i) => i.id === id) !== index ? "moved" : "blocked"
 			);
 		}
 
 		const cur = itemOf(preview, id).rect;
-		// Left/Right keep the asked-for row: gravity may show the widget higher than asked.
-		const position = this.#target.position;
-		const askedY = position?.kind === "cell" ? position.y : cur.y;
 		let cell: { x: number; y: number };
 		if (dir === "left") {
 			if (cur.x === 0) return "blocked";
-			cell = { x: cur.x - 1, y: askedY };
+			cell = { x: cur.x - 1, y: cur.y };
 		} else if (dir === "right") {
 			if (cur.x + cur.w >= GRID_COLUMNS) return "blocked";
-			cell = { x: cur.x + 1, y: askedY };
+			cell = { x: cur.x + 1, y: cur.y };
 		} else if (dir === "up") {
 			if (cur.y === 0) return "blocked";
 			cell = { x: cur.x, y: cur.y - 1 };
@@ -203,7 +223,7 @@ export class Arrangement {
 			if (!below) return "at-bottom";
 			cell = { x: cur.x, y: below.rect.y + below.rect.h };
 		}
-		return this.#try({ position: { kind: "cell", ...cell }, size }, (after) =>
+		return this.#try({ kind: "cell", ...cell, size: null }, (after) =>
 			sameRect(itemOf(after, id).rect, cur) ? "blocked" : "moved"
 		);
 	}
@@ -224,7 +244,8 @@ export class Arrangement {
 		else if (dir === "left") w = Math.max(w - 1, minSize.w);
 		else w = Math.min(w + 1, GRID_COLUMNS - rect.x);
 		if (w === rect.w && h === rect.h) return;
-		this.#setTarget({ position: this.#target.position, size: { w, h } });
+		this.#size = { w, h };
+		this.#setTarget([...this.#target, { kind: "size", w, h }]);
 	}
 
 	/**
@@ -238,7 +259,7 @@ export class Arrangement {
 		const session = this.#session();
 		const doc = this.#doc();
 		this.#clear();
-		if (!id || !preview || !session || !doc || target === NO_TARGET) return null;
+		if (!id || !preview || !session || !doc || target.length === 0) return null;
 		const change = layoutChange(doc.body.widgets, preview);
 		if (!change) return null;
 		session.apply(change);
@@ -249,6 +270,7 @@ export class Arrangement {
 	/** End the arrangement; nothing is applied. */
 	cancel(): void {
 		this.#clear();
+		this.pendingFocus = null;
 	}
 
 	dispose(): void {
@@ -284,6 +306,7 @@ export class Arrangement {
 	#clear(): void {
 		this.#active = null;
 		this.#target = NO_TARGET;
+		this.#size = null;
 		this.#cache.clear();
 		this.#cacheBase = null;
 	}
@@ -294,10 +317,10 @@ export class Arrangement {
 		this.#target = next;
 	}
 
-	/** Set a target; keep it only if `judge` says the preview moved. */
-	#try(next: Target, judge: (after: Layout) => StepResult): StepResult {
+	/** Append a request; keep it only if `judge` says the preview moved. */
+	#try(op: Op, judge: (after: Layout) => StepResult): StepResult {
 		const previous = this.#target;
-		this.#setTarget(next);
+		this.#setTarget([...previous, op]);
 		const after = this.#preview;
 		const result = after ? judge(after) : "blocked";
 		if (result !== "moved") this.#target = previous;
@@ -318,28 +341,39 @@ export class Arrangement {
 		const doc = this.#doc();
 		if (!active || !doc || !this.#onGrid(active.id)) return null;
 		const base = this.#baseLayout(doc);
-		if (target === NO_TARGET) return base;
 		if (this.#cacheBase !== base) {
 			this.#cache.clear();
 			this.#cacheBase = base;
 		}
-		const key = targetKey(active.id, target);
-		let layout = this.#cache.get(key);
-		if (!layout) {
-			layout = previewFor(base, active.id, target);
-			if (this.#cache.size >= CACHE_LIMIT) this.#cache.clear();
-			this.#cache.set(key, layout);
+		// Each request applies to the layout before it; every prefix is cached, so a keypress
+		// or a new pointer cell costs one engine call, and a remote change replays the requests.
+		let layout = base;
+		let key = active.id;
+		for (const op of target) {
+			key += `|${opKey(op)}`;
+			let next = this.#cache.get(key);
+			if (!next) {
+				next = applyOp(layout, active.id, op);
+				if (this.#cache.size >= CACHE_LIMIT) {
+					// Drop the oldest entry (Maps keep insertion order).
+					this.#cache.delete(this.#cache.keys().next().value!);
+				}
+				this.#cache.set(key, next);
+			}
+			layout = next;
 		}
 		return layout;
 	}
 }
 
-function previewFor(base: Layout, id: string, target: Target): Layout {
-	const { size, position } = target;
+function applyOp(layout: Layout, id: string, op: Op): Layout {
+	if (op.kind === "size") {
+		return resize(layout, id, { ...itemOf(layout, id).rect, w: op.w, h: op.h }, GRID_COLUMNS);
+	}
+	const size = op.size;
 	const items = size
-		? base.map((i) => (i.id === id ? { ...i, rect: { ...i.rect, w: size.w, h: size.h } } : i))
-		: base;
-	if (position?.kind === "order") return moveInOrder(items, id, position.index, GRID_COLUMNS);
-	const cell = position ?? itemOf(items, id).rect;
-	return move(items, id, { x: cell.x, y: cell.y }, GRID_COLUMNS);
+		? layout.map((i) => (i.id === id ? { ...i, rect: { ...i.rect, w: size.w, h: size.h } } : i))
+		: layout;
+	if (op.kind === "order") return moveInOrder(items, id, op.index, GRID_COLUMNS);
+	return move(items, id, { x: op.x, y: op.y }, GRID_COLUMNS);
 }

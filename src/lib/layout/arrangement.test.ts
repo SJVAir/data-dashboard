@@ -145,6 +145,115 @@ describe("Arrangement", () => {
 		});
 	});
 
+	const stacked = () => [
+		widget("a", { x: 0, y: 0, w: 12, h: 4 }),
+		widget("b", { x: 0, y: 4, w: 12, h: 4 }),
+		widget("c", { x: 0, y: 8, w: 12, h: 4 })
+	];
+
+	it("each keyboard step moves one place from what's shown: Down, Down, Up", async () => {
+		const { arrangement } = await setup(stacked());
+		arrangement.pickUp("a", "move", "keyboard");
+		expect(arrangement.step("down")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["b", "a", "c"]);
+		expect(arrangement.step("down")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["b", "c", "a"]);
+		expect(arrangement.step("up")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["b", "a", "c"]);
+		expect(arrangement.step("up")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["a", "b", "c"]);
+	});
+
+	it("each keyboard step moves one place from what's shown: Up, Up, Down", async () => {
+		const { arrangement } = await setup(stacked());
+		arrangement.pickUp("c", "move", "keyboard");
+		expect(arrangement.step("up")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["a", "c", "b"]);
+		expect(arrangement.step("up")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["c", "a", "b"]);
+		expect(arrangement.step("down")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["a", "c", "b"]);
+		expect(arrangement.step("down")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["a", "b", "c"]);
+		expect(arrangement.step("down")).toBe("at-bottom");
+	});
+
+	it("keyboard steps across mixed columns", async () => {
+		const { arrangement } = await setup([
+			widget("a", { x: 0, y: 0, w: 6, h: 4 }),
+			widget("b", { x: 6, y: 0, w: 6, h: 4 }),
+			widget("c", { x: 0, y: 4, w: 12, h: 4 }),
+			widget("d", { x: 0, y: 8, w: 6, h: 4 })
+		]);
+		arrangement.pickUp("a", "move", "keyboard");
+		expect(arrangement.step("down")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["b", "c", "a", "d"]);
+		expect(arrangement.step("down")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["b", "c", "d", "a"]);
+		expect(arrangement.step("up")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["b", "c", "a", "d"]);
+		expect(arrangement.step("up")).toBe("moved");
+		expect(rects(arrangement.preview)).toEqual({
+			a: { x: 0, y: 0, w: 6, h: 4 },
+			b: { x: 6, y: 0, w: 6, h: 4 },
+			c: { x: 0, y: 4, w: 12, h: 4 },
+			d: { x: 0, y: 8, w: 6, h: 4 }
+		});
+	});
+
+	it("Left and Right after an Up move from the shown spot", async () => {
+		const { arrangement } = await setup([
+			widget("a", { x: 0, y: 0, w: 6, h: 4 }),
+			widget("b", { x: 0, y: 4, w: 6, h: 4 }),
+			widget("c", { x: 0, y: 8, w: 6, h: 4 })
+		]);
+		arrangement.pickUp("c", "move", "keyboard");
+		expect(arrangement.step("up")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["a", "c", "b"]);
+		expect(arrangement.step("right")).toBe("moved");
+		expect(rects(arrangement.preview)).toEqual({
+			a: { x: 0, y: 0, w: 6, h: 4 },
+			c: { x: 1, y: 4, w: 6, h: 4 },
+			b: { x: 0, y: 8, w: 6, h: 4 }
+		});
+		expect(arrangement.step("left")).toBe("moved");
+		expect(arrangement.step("up")).toBe("moved");
+		expect(order(arrangement.preview)).toEqual(["c", "a", "b"]);
+		expect(arrangement.step("right")).toBe("moved");
+		expect(rects(arrangement.preview)).toEqual({
+			c: { x: 1, y: 0, w: 6, h: 4 },
+			a: { x: 0, y: 4, w: 6, h: 4 },
+			b: { x: 0, y: 8, w: 6, h: 4 }
+		});
+	});
+
+	it("a keyboard step runs the engine once, however often the preview is read", async () => {
+		const { arrangement } = await setup(stacked());
+		arrangement.pickUp("a", "move", "keyboard");
+		arrangement.step("down");
+		arrangement.step("down");
+		void arrangement.preview;
+		const calls = vi.mocked(engine.move).mock.calls.length;
+		arrangement.step("up");
+		void arrangement.preview;
+		void arrangement.pushedCount;
+		void arrangement.preview;
+		expect(engine.move).toHaveBeenCalledTimes(calls + 1);
+	});
+
+	it("pickUp and cancel clear pendingFocus", async () => {
+		const { arrangement } = await setup(threeWidgets());
+		arrangement.pickUp("a", "move", "pointer");
+		arrangement.moveTo({ x: 6, y: 0 });
+		arrangement.drop();
+		expect(arrangement.pendingFocus).toBe("a");
+		arrangement.pickUp("b", "move", "keyboard");
+		expect(arrangement.pendingFocus).toBeNull();
+		arrangement.pendingFocus = "b";
+		arrangement.cancel();
+		expect(arrangement.pendingFocus).toBeNull();
+	});
+
 	it("step right stops at the grid's edge", async () => {
 		const { arrangement } = await setup([widget("a", { x: 6, y: 0, w: 6, h: 4 })]);
 		arrangement.pickUp("a", "move", "keyboard");

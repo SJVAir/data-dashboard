@@ -14,6 +14,13 @@ describe("geometry", () => {
 		expect(cellAt(m, { x: m.left + 5 * 101 + 50, y: m.top + 3 * 76 + 10 })).toEqual({ x: 5, y: 3 });
 	});
 
+	it("cellAt puts the gap after a column in that column", () => {
+		expect(cellAt(m, { x: m.left + 88, y: m.top })).toEqual({ x: 0, y: 0 });
+		expect(cellAt(m, { x: m.left + 89, y: m.top })).toEqual({ x: 0, y: 0 });
+		expect(cellAt(m, { x: m.left + 100, y: m.top })).toEqual({ x: 0, y: 0 });
+		expect(cellAt(m, { x: m.left + 101, y: m.top })).toEqual({ x: 1, y: 0 });
+	});
+
 	it("cellAt clamps negatives to 0 and the last column to 11", () => {
 		expect(cellAt(m, { x: m.left - 300, y: m.top - 50 })).toEqual({ x: 0, y: 0 });
 		expect(cellAt(m, { x: m.left + 5000, y: m.top })).toEqual({ x: 11, y: 0 });
@@ -24,6 +31,11 @@ describe("geometry", () => {
 		expect(snapDelta(m, 50, 37)).toEqual({ dx: 0, dy: 0 });
 		expect(snapDelta(m, 51, 39)).toEqual({ dx: 1, dy: 1 });
 		expect(snapDelta(m, -202, -152)).toEqual({ dx: -2, dy: -2 });
+	});
+
+	it("snapDelta rounds exactly half a cell away from zero both ways", () => {
+		expect(snapDelta(m, 50.5, 38)).toEqual({ dx: 1, dy: 1 });
+		expect(snapDelta(m, -50.5, -38)).toEqual({ dx: -1, dy: -1 });
 	});
 
 	it("rectToPixels spans the cells and the gaps between them", () => {

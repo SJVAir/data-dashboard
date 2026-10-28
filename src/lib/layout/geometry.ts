@@ -32,10 +32,14 @@ export function cellAt(m: GridMetrics, point: { x: number; y: number }): { x: nu
 	return { x: Math.min(Math.max(x, 0), m.columns - 1), y: Math.max(y, 0) };
 }
 
+/** Rounds half away from zero, so a delta and its negation snap alike; never -0. */
+function roundHalfAway(v: number): number {
+	return Math.sign(v) * Math.round(Math.abs(v)) + 0;
+}
+
 /** A pixel delta in whole cells (rounded). */
 export function snapDelta(m: GridMetrics, dx: number, dy: number): { dx: number; dy: number } {
-	// `+ 0` turns -0 into 0.
-	return { dx: Math.round(dx / pitchX(m)) + 0, dy: Math.round(dy / pitchY(m)) + 0 };
+	return { dx: roundHalfAway(dx / pitchX(m)), dy: roundHalfAway(dy / pitchY(m)) };
 }
 
 /** A cell rect's box, gaps between its cells included. */
