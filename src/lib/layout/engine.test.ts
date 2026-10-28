@@ -191,36 +191,50 @@ describe("moveInOrder", () => {
 			item("c", 6, 2, 6, 2),
 			item("d", 0, 4, 12, 2)
 		];
+		// Reachable: exactly there.
 		expect(order(moveInOrder(items, "a", 2, 12))).toEqual(["b", "c", "a", "d"]);
-		const out = order(moveInOrder(items, "d", 2, 12));
-		expect([1, 3]).toContain(out.indexOf("d"));
+		expect(order(moveInOrder(items, "d", 1, 12))).toEqual(["a", "d", "b", "c"]);
+		// Unreachable (between b and c): never past the target, so these stay put.
+		expect(moveInOrder(items, "d", 2, 12)).toEqual(items);
+		expect(moveInOrder(items, "a", 1, 12)).toEqual(items);
 	});
 
-	test("moveInOrder property: random layouts", () => {
-		const rand = lcg(20261028);
-		for (let run = 0; run < 200; run++) {
-			const n = rand(2, 10);
-			const raw: LayoutItem[] = [];
-			for (let i = 0; i < n; i++) {
-				const w = rand(1, 12);
-				raw.push(item(`w${i}`, rand(0, 12 - w), rand(0, 20), w, rand(1, 6)));
-			}
-			const layout = tidy(raw, 12);
-			const id = layout[rand(0, n - 1)].id;
-			const index = rand(0, n - 1);
-			const result = moveInOrder(layout, id, index, 12);
-			const context = JSON.stringify({ run, id, index, layout: rects(layout) });
+	test("moveInOrder property: random layouts move toward the target, never past it", () => {
+		const sizes = (l: LayoutItem[]) =>
+			Object.fromEntries(l.map((i) => [i.id, { w: i.rect.w, h: i.rect.h }]));
+		for (const seed of [20261028, 1, 42, 7919, 123456789]) {
+			const rand = lcg(seed);
+			for (let run = 0; run < 400; run++) {
+				const n = rand(2, 10);
+				const raw: LayoutItem[] = [];
+				for (let i = 0; i < n; i++) {
+					const w = rand(1, 12);
+					raw.push(item(`w${i}`, rand(0, 12 - w), rand(0, 20), w, rand(1, 6)));
+				}
+				const layout = tidy(raw, 12);
+				const id = layout[rand(0, n - 1)].id;
+				const index = rand(0, n - 1);
+				const from = order(layout).indexOf(id);
+				const result = moveInOrder(layout, id, index, 12);
+				const context = JSON.stringify({ seed, run, id, index, layout: rects(layout) });
 
-			expect(tidy(result, 12), context).toEqual(result);
-			for (let i = 0; i < result.length; i++) {
-				for (let j = i + 1; j < result.length; j++) {
-					expect(rectsOverlap(result[i].rect, result[j].rect), context).toBe(false);
+				expect(tidy(result, 12), context).toEqual(result);
+				for (let i = 0; i < result.length; i++) {
+					for (let j = i + 1; j < result.length; j++) {
+						expect(rectsOverlap(result[i].rect, result[j].rect), context).toBe(false);
+					}
+				}
+				expect(sizes(result), context).toEqual(sizes(layout));
+				const r = order(result).indexOf(id);
+				if (index === from) expect(result, context).toEqual(layout);
+				else if (index < from) {
+					expect(r, context).toBeGreaterThanOrEqual(index);
+					expect(r, context).toBeLessThanOrEqual(from);
+				} else {
+					expect(r, context).toBeGreaterThanOrEqual(from);
+					expect(r, context).toBeLessThanOrEqual(index);
 				}
 			}
-			const sizes = (l: LayoutItem[]) =>
-				Object.fromEntries(l.map((i) => [i.id, { w: i.rect.w, h: i.rect.h }]));
-			expect(sizes(result), context).toEqual(sizes(layout));
-			expect(order(result).indexOf(id), context).toBe(index);
 		}
 	});
 });

@@ -131,7 +131,10 @@ export function stepDown(items: LayoutItem[], id: string, columns: number): Layo
 
 /**
  * Move a widget so it sits at `index` in reading order (the phone's one-column reordering, in
- * desktop coordinates). When no cell puts it exactly there, it lands at the nearest index it can.
+ * desktop coordinates). Sizes never change, so some indexes can't be reached: a full-width
+ * widget can't sit between side-by-side widgets that start on the same row and share a height.
+ * Then the widget moves to the reachable index nearest `index` without going past it (between
+ * its current index and `index`), or stays put if none is closer.
  */
 export function moveInOrder(
 	items: LayoutItem[],
@@ -159,14 +162,17 @@ export function moveInOrder(
 	cells.sort((a, b) => distance(a) - distance(b) || a.y - b.y || a.x - b.x);
 
 	// Some positions can't be reached without resizing (a full-width widget can't sit between
-	// widgets that start on the same row); then the nearest reachable position wins.
-	let best: Layout | null = null;
-	let bestOff = Infinity;
+	// widgets that start on the same row); then the reachable index nearest `to` wins, never
+	// past it. Staying put (index `from`) is always reachable.
+	let best = tidy(items, columns);
+	let bestOff = Math.abs(from - to);
+	const [lo, hi] = from < to ? [from, to] : [to, from];
 	for (const cell of [{ x: px, y: py }, ...cells]) {
 		const result = move(items, id, cell, columns);
-		const off = Math.abs(result.findIndex((i) => i.id === id) - to);
-		if (off === 0) return result;
-		if (off < bestOff) [best, bestOff] = [result, off];
+		const r = result.findIndex((i) => i.id === id);
+		if (r === to) return result;
+		if (r >= lo && r <= hi && Math.abs(r - to) < bestOff)
+			[best, bestOff] = [result, Math.abs(r - to)];
 	}
-	return best!;
+	return best;
 }
