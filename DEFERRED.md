@@ -915,7 +915,10 @@ point.
      of data, no profiling, and complete deletion.
   4. **What the privacy policy must say** (California requires one): what stays in the
      browser and what syncs, scrubbed error reports, the text and email providers, the
-     30-day trash and snapshots, and how account deletion works.
+     30-day trash and snapshots, and how account deletion works. _Added 2026-10-28 (sync
+     design):_ **staff don't view the contents of private dashboards** (the admin shows
+     metadata only), shared pages show only the optional display name, and other devices
+     hide a deleted account's copies at once and remove them within 30 days.
   5. **Location and anonymous use.** "Use my location" sends a rounded position to the
      server to find the area, and anonymous error reports are sent. Confirm neither
      counts as collecting personal information from anonymous, possibly under-13, users.

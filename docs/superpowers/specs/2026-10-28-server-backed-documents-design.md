@@ -312,10 +312,12 @@ Spaces are already in the storage layer (`currentSpace()` returns `"anonymous"` 
   a "please reload" refusal; documents stay queued locally until the fixed build loads.
 - **Account deletion** (sjvair.com's account page): deletes documents, trash, snapshots, change
   logs, share links, and the display name, and lists counts with "Download my documents" (one
-  backup file in the existing envelope) first. **Other devices learn the account is gone**: the
-  server keeps the deleted account ids (ids only, no personal data), and a client with a hidden
-  or current account space asks whether those ids are gone and removes their spaces if so
-  **(my call for the mechanism)**.
+  backup file in the existing envelope) first. The server keeps **no record of deleted
+  accounts** (decided with the user, 2026-10-28). **Other devices** can't tell a deleted
+  account from a sign-out (both answer 401), so they treat it like an expired session: the
+  space is hidden at once (no one else on that device can see it) and removed after 30 days.
+  This amends `ARCHITECTURE.md`'s "removed from other devices the next time they contact the
+  server" to "hidden at once, removed within 30 days".
 
 ## The server (spec 1, sjvair.com)
 
@@ -339,7 +341,7 @@ auth works too but isn't used in Release 1.
   fields on `User`; the builder's choice).
 - `BlockedBuild`: build id, note.
 - `PurgedDocument`: document id, owner, purged at (see "Permanently deleted elsewhere").
-- `DeletedAccount`: account id, deleted at.
+  Deleted with the account.
 
 ### Endpoints (proposed shapes)
 
@@ -356,7 +358,6 @@ auth works too but isn't used in Release 1.
 | `GET documents/shared/<token>/` | anyone | the shared document (name, `schemaVersion`, body, version, `updatedAt`, display name), or not found |
 | `GET documents/shared/<token>/changes/?since=N` | anyone | `{ version }` or the new document |
 | `GET` / `PUT documents/profile/` | signed in | the public display name |
-| `POST documents/accounts-gone/` | anyone | which of the given account ids were deleted |
 
 Refusals on save, each with a distinct machine-readable code: stale base (409, with the
 current version, the changes since the base or `null`, and the document), account mismatch
@@ -364,25 +365,42 @@ current version, the changes since the base or `null`, and the document), accoun
 (409, "reload"), body too large (413), over the document-count or storage limit (403), rate
 limited (429). Status codes are the builder's; the codes and payloads are the contract.
 
-### Limits (my calls; adjustable in settings)
+### Limits (adjustable in settings)
 
-- `body`: 1 MB of JSON. A save's `changes`: 2 MB.
-- 500 documents per account, Recently deleted included.
-- 100 MB per account, counting bodies and snapshots.
-- 120 saves per minute per account.
+Documents hold query descriptors, never data: one widget is about 0.5–1.5 KB of JSON, so a
+busy 20-widget dashboard is roughly 10–30 KB.
 
-### Admin
+- **50 dashboards per account**, not counting Recently deleted (deleting one makes room at
+  once; the trash still purges after 30 days). Decided with the user, 2026-10-28.
+- **25 MB per account** for dashboards (bodies, Recently deleted included). Decided with the
+  user, 2026-10-28.
+- **Snapshots don't count toward the 25 MB** and never cause a save to be refused. They have
+  their own cap of 25 MB per account **(my call for the number)**; past it, the oldest are
+  trimmed first. (Counting them could reach ~40 MB for 50 dashboards edited daily.)
+- `body`: 1 MB of JSON. A save's `changes`: 2 MB **(my call)**.
+- 120 saves per minute per account **(my call)**.
 
-`SavedDocument` list with owner, kind, visibility, and sizes; actions: disable a share link,
-block an account from sharing. **Staff don't browse bodies in the list view**; opening one is
-an explicit action (privacy) **(my call)**. `BlockedBuild` editable.
+### Admin: no access to private dashboard contents
+
+Decided with the user, 2026-10-28.
+
+- The `SavedDocument` admin shows **metadata only**: owner, kind, name, visibility, sizes,
+  dates. **No admin page shows a private dashboard's `body`**, snapshots, or change log (no
+  field, no inline, no export action).
+- To review a reported shared page, staff open its share link like anyone else. Actions:
+  disable a share link, block an account from sharing. `BlockedBuild` is editable.
+- If a person needs help with a dashboard, they send an Export file.
+- This guards against casual browsing, not someone with direct database access (as on any
+  site).
+- **The privacy policy says staff don't view private dashboards** (see "Privacy policy").
 
 ### Tests
 
 Owner-only access (someone else's id answers like a missing one), shared responses for each of
 private / revoked / deleted / unknown / disabled being identical, no personal fields in shared
 responses, `no-store` on every document response, the version check, downgrade refusal, the
-account check, limits, purge, snapshots, account deletion removing everything, and CSRF
+account check, limits (snapshots never block a save), purge, snapshots, account deletion
+removing everything, no admin page or action exposing a private `body`, and CSRF
 required for session writes (with the resticus fix).
 
 ## sdk-js
@@ -416,6 +434,16 @@ yes. Per the "fix in the SDK" rule, the dashboard doesn't hand-roll these calls.
 - Exact wording (the design pass revisits it), within the rules above.
 - Whether the shared page polls via `changes` or re-fetches.
 
+## Privacy policy
+
+sjvair.com's privacy policy page is owned by the email-only accounts track, and its contents
+are on the legal checklist (`DEFERRED.md` → "Open decisions" → "Legal confirmation", item 4).
+This track adds to that list: **staff don't view the contents of private dashboards**, shared
+pages show only the optional display name, dashboard limits, the 30-day trash and snapshots,
+and that other devices hide a deleted account's copies at once and remove them within 30
+days. Sync can be built before the policy exists, but it doesn't go to production without it
+(it's part of "everything ready").
+
 ## `ARCHITECTURE.md` updates (made with spec 2)
 
 - "Routing, URL state & undo" → changes: two `setLayout`s never overlap; `setLayout` against
@@ -426,6 +454,11 @@ yes. Per the "fix in the SDK" rule, the dashboard doesn't hand-roll these calls.
   _held for sync_ markers come off as each item ships.
 - Polling (60 seconds while visible) and the permanently-deleted prompt are recorded under
   "Saving & sharing documents".
+- "Recovery from a bad upgrade" item 3: the per-user storage limit no longer includes
+  snapshots (they have their own cap); the limits are 50 dashboards and 25 MB.
+- "Accounts & anonymous use" → account deletion: other devices hide at once and remove within
+  30 days; the server keeps no record of deleted accounts.
+- Staff never see private dashboard contents in the admin.
 
 ## Existing deferrals this track picks up
 
