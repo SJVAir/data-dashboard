@@ -954,8 +954,10 @@ The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
 Ctrl+Shift+Z, plus menu actions via the shared action list), separate from browser
 history. All edits to dashboards, Collections, and analyses go through a single
 **`applyChange(doc, change)`** function producing a new document version plus an
-inverse change — so undo is free by construction and edits are testable. Covers move,
-resize, minimize/restore, add/delete/configure widget, rename, and Collection edits.
+inverse change — so undo is free by construction and edits are testable. Covers every
+change to a saved document: move, resize, add/delete/configure widget, rename, and
+Collection edits, plus minimize/restore. Fullscreen and other view-only state aren't on it
+and never count as an edit (decided 2026-10-28, step 2).
 The stack is per document and per session (not persisted).
 
 **Changes, unsynced edits, and tabs** (decided 2026-09-28):
@@ -1289,8 +1291,10 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
 - **Fullscreen** overlays the dashboard area (not the browser window), animated from
   the widget's grid rect (FLIP-style); the underlying grid layout is untouched.
 - **Minimize** moves the widget to the bottom taskbar (horizontally scrolling when
-  overloaded) and the grid compacts. Restore returns it to its previous rect if free,
-  else the nearest free slot. Minimized/off-screen map widgets release their WebGL
+  overloaded) and the grid compacts. Minimize is saved in the dashboard and is on the undo
+  list; a minimized widget has no spot on the grid. **Restore places it like a newly added
+  widget, at the bottom at its old size** (decided 2026-10-28, step 2; undo right after
+  minimizing puts it back exactly). Minimized/off-screen map widgets release their WebGL
   context (see "Map SDK").
 - **Vertical growth/scrolling.** The dashboard grows downward as widgets are added —
   not horizontally. Reasons: mouse wheels scroll vertically (shift+wheel is obscure,
@@ -1299,9 +1303,16 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   wheel conflicts, map widgets use MapLibre's `cooperativeGestures` (ctrl/⌘+scroll
   zooms the map; plain scroll scrolls the page). "Too crowded" is answered by
   **multiple saved dashboards**, not a bigger canvas.
-- **Responsive.** 12 columns on desktop, fewer on tablet; on phones, a single-column
-  stack auto-derived from the desktop layout's reading order. Only the desktop layout
-  is persisted in a saved dashboard config.
+- **Responsive: two layouts** (decided 2026-10-28, step 2; this replaces "fewer columns on
+  tablet"). The 12-column grid on anything roughly 768 px wide or wider, and on phones a
+  single-column stack derived from the desktop layout's reading order. Only the desktop
+  layout is persisted in a saved dashboard config. Rearranging works on phones and changes the
+  desktop layout (a widget moved above another takes its spot); on a phone only height can be
+  resized. A separate tablet layout is deferred (see `DEFERRED.md`).
+- **Touch** (decided 2026-10-28, step 2): a long-press on the title bar picks a widget up to
+  drag it; lifting without moving leaves it selected with touch-sized resize handles and a
+  "Done" button. The design is in
+  `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
 
 ## Widget catalog
 
@@ -1420,8 +1431,10 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   (they act on the whole dashboard's history), not to widget menus.
 - **Rendered with bits-ui's `ContextMenu`** (shadcn-svelte `context-menu`): one
   trigger around the dashboard, items computed on open. Provides submenus, keyboard
-  navigation, ARIA roles, and viewport collision handling. Opens via right-click,
-  long-press (touch), and Shift+F10 / Menu key (focused element).
+  navigation, ARIA roles, and viewport collision handling. Opens via right-click and
+  Shift+F10 / Menu key (focused element). **On touchscreens it opens from the ⋯ buttons, not
+  long-press** (decided 2026-10-28, step 2: long-press picks up widgets and is the browser's
+  own gesture); the dashboard has its own visible ⋯ button for that reason.
 - **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
   - _Global:_ Undo / Redo (in the dashboard's menu, not widgets'), "Clear my data",
     Sign in / out.

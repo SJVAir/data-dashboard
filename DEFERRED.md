@@ -847,6 +847,21 @@ string`) now get the union return type. The mobile app passes a string token, so
   restore runs, or reset its state on close. **Revisit in** the design pass.
 - **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
   light mode only. **Revisit in** the design pass.
+- **A "present" mode using the browser's own full screen.** _Deferred 2026-10-28 (step 2
+  design)._ Widget fullscreen covers the dashboard area only; the browser's F11 / fullscreen key
+  already gives an edge-to-edge projector view. The Fullscreen API would add a second Esc-to-exit
+  that fights our own focus restore, and needs its own exit control. **Revisit if** teachers in
+  the private preview ask for one-click projector mode.
+- **A separate tablet layout (fewer columns).** _Deferred 2026-10-28 (step 2 design)._ Release 1
+  has two layouts: the 12-column grid from ~768 px up, one column below. A derived 6- or 8-column
+  view would have to translate tablet moves back to 12 columns. Only the desktop layout is saved
+  and the engine takes the column count as input, so adding one later is a display change.
+  **Revisit if** preview users find portrait tablets cramped.
+- **Spot-specific context menus on touchscreens.** _Deferred 2026-10-28 (step 2 design)._ On touch,
+  long-press no longer opens the context menu (it picks up widgets and is the browser's own
+  gesture); the ⋯ buttons open the same menus but have no "point". Items tied to a pressed spot
+  (e.g. "Analyze this monitor" on a map feature) need another touch path, such as the feature's
+  own tap popup. **Revisit with** the map widget (step 5) and Release 3's analysis actions.
 
 ## Legacy Monitors-tab follow-ups
 
@@ -952,7 +967,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Staging copied data instead of query descriptors**: _2026-09-23, Q2_. Descriptors stay
   small, stay current, and keep fetched data out of saved documents.
 - **Persisting tablet/phone layouts separately**: _2026-09-23, Q4_. Only the desktop
-  layout is saved; smaller layouts are derived.
+  layout is saved; smaller layouts are derived. Reconsidered 2026-10-28 (step 2 design) as a
+  saved phone order, and kept ruled out: phones show the desktop reading order, and rearranging
+  on a phone changes the desktop layout.
 - **URL as source of truth for dashboards**: _2026-09-24_. The URL holds location; the
   document holds content.
 - **JupyterLite inside dashboard pages / app-wide cross-origin isolation**: _2026-09-23,
