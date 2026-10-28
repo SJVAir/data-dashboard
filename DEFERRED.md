@@ -869,10 +869,17 @@ string`) now get the union return type. The mobile app passes a string token, so
   `touchmove` listener on title bars and handles is in place to prevent it). **Revisit before**
   `layout` merges into `main`: a hand check on Chrome for Android and Safari on iOS/iPadOS via
   `npm run dev -- --host`.
-- **Drag performance threshold is loose.** _Deferred 2026-10-28 (step 2, spec 2a)._ The check
-  requires p95 under 34 ms at 4x CPU (2x the 16.7 ms baseline). Frame times come in 16.7 ms steps,
-  so it catches only about 2 dropped frames at p95. **Revisit with** the low-end Chromebook check
-  before go-live, or if CI runs it and it flakes.
+- **Drag performance threshold is loose, and its calibration is approximate.** _Deferred
+  2026-10-28 (step 2, spec 2a)._ The check requires p95 under 34 ms at 4x CPU (2x the 16.7 ms
+  baseline). Frame times come in 16.7 ms steps, so it catches only about 2 dropped frames at p95.
+  After it failed on GitHub's runner (p95 50 ms on a CPU about half as fast as the reference
+  desktop), the throttle became calibrated: a fixed piece of JavaScript is timed and the rate set
+  so the page runs at 4x the reference machine's time (`REFERENCE_WORK_MS`, 10.3 ms), and the
+  check runs alone in its own Playwright project. The calibration times JavaScript only, not
+  style, layout, or painting, and the reference value is tied to one machine and Chromium
+  version. **Revisit with** the low-end Chromebook check before go-live, if CI flakes again, or
+  when a Playwright upgrade moves the reference timing (re-measure it as the spec's comment
+  says).
 - **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
   touch is blocked. **Revisit if** pen users report it.
 - **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
