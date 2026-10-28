@@ -22,7 +22,7 @@ export const WidgetInstanceSchema = z.object({
 	type: z.string().min(1),
 	title: z.string().max(NAME_MAX).nullable(),
 	rect: RectSchema,
-	minimized: z.object({ restoreRect: RectSchema }).optional(),
+	minimized: z.object({ order: z.number().int().min(0) }).optional(),
 	data: WidgetDataConfigSchema,
 	options: z.record(z.string(), z.unknown()).optional(),
 	thresholds: z.array(z.unknown()).optional()

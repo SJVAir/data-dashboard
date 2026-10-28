@@ -83,3 +83,28 @@ describe("changesOverlap", () => {
 		}
 	});
 });
+
+describe("changesOverlap with setLayout", () => {
+	const p = (y: number) => ({ rect: { x: 0, y, w: 6, h: 4 }, minimized: null });
+	const layout = (ids: string[], y: number): Change => ({
+		op: "setLayout",
+		target: { widgetIds: ids },
+		from: Object.fromEntries(ids.map((id) => [id, p(0)])),
+		to: Object.fromEntries(ids.map((id) => [id, p(y)]))
+	});
+
+	it("setLayouts sharing an id with different to overlap", () => {
+		expect(changesOverlap(layout(["a", "b"], 4), layout(["b", "c"], 8))).toBe(true);
+	});
+	it("same to doesn't", () => {
+		expect(changesOverlap(layout(["a", "b"], 4), layout(["b", "c"], 4))).toBe(false);
+	});
+	it("disjoint ids don't", () => {
+		expect(changesOverlap(layout(["a"], 4), layout(["b"], 8))).toBe(false);
+	});
+	it("setLayout overlaps removeWidget of a listed id", () => {
+		expect(changesOverlap(layout(["a", "b"], 4), remove("b"))).toBe(true);
+		expect(changesOverlap(remove("b"), layout(["a", "b"], 4))).toBe(true);
+		expect(changesOverlap(layout(["a"], 4), remove("b"))).toBe(false);
+	});
+});

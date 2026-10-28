@@ -254,3 +254,114 @@ describe("ChangeSchema", () => {
 		expect(ChangeSchema.safeParse(change).success).toBe(false);
 	});
 });
+
+describe("setLayout", () => {
+	const r = (x: number, y: number, w = 6, h = 4) => ({ x, y, w, h });
+	const place = (rect: ReturnType<typeof r>, minimized: { order: number } | null = null) => ({
+		rect,
+		minimized
+	});
+	const layout = (from: Record<string, ReturnType<typeof place>>, to = from): Change => ({
+		op: "setLayout",
+		target: { widgetIds: Object.keys(to) },
+		from,
+		to
+	});
+
+	it("requires from and to keys to equal target.widgetIds", () => {
+		const p = place(r(0, 0));
+		const bad = {
+			op: "setLayout",
+			target: { widgetIds: ["a", "b"] },
+			from: { a: p },
+			to: { a: p }
+		};
+		expect(ChangeSchema.safeParse(bad).success).toBe(false);
+		const ok = {
+			op: "setLayout",
+			target: { widgetIds: ["a"] },
+			from: { a: p },
+			to: { a: p }
+		};
+		expect(ChangeSchema.safeParse(ok).success).toBe(true);
+	});
+
+	it("ids must be unique and non-empty", () => {
+		const p = place(r(0, 0));
+		const dup = {
+			op: "setLayout",
+			target: { widgetIds: ["a", "a"] },
+			from: { a: p },
+			to: { a: p }
+		};
+		expect(ChangeSchema.safeParse(dup).success).toBe(false);
+		const none = { op: "setLayout", target: { widgetIds: [] }, from: {}, to: {} };
+		expect(ChangeSchema.safeParse(none).success).toBe(false);
+	});
+
+	it("sets rects and minimized", () => {
+		const doc = makeDoc({
+			body: { widgets: [widget("a"), { ...widget("b"), minimized: { order: 2 } }] }
+		});
+		const change = layout(
+			{ a: place(r(0, 0)), b: place(r(0, 0), { order: 2 }) },
+			{ a: place(r(0, 4)), b: place(r(6, 0)) }
+		);
+		const { doc: next } = applyChange(deepFreeze(doc), change);
+		expect(next.body.widgets[0].rect).toEqual(r(0, 4));
+		expect(next.body.widgets[1].rect).toEqual(r(6, 0));
+		expect("minimized" in next.body.widgets[1]).toBe(false);
+		const min = applyChange(
+			doc,
+			layout({ a: place(r(0, 0)) }, { a: place(r(0, 0), { order: 0 }) })
+		);
+		expect(min.doc.body.widgets[0].minimized).toEqual({ order: 0 });
+	});
+
+	it("its inverse restores the document", () => {
+		const doc = makeDoc({
+			body: { widgets: [widget("a"), { ...widget("b"), minimized: { order: 2 } }] }
+		});
+		const change = layout(
+			{ a: place(r(0, 0)), b: place(r(0, 0), { order: 2 }) },
+			{ a: place(r(0, 4)), b: place(r(6, 0)) }
+		);
+		const { doc: next, inverse } = applyChange(doc, change);
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+	});
+
+	it("the inverse reads from the document, not the change", () => {
+		const doc = makeDoc();
+		const change = layout({ a: place(r(9, 9, 3, 3)) }, { a: place(r(0, 4)) });
+		const { inverse } = applyChange(doc, change);
+		expect(inverse).toEqual({
+			op: "setLayout",
+			target: { widgetIds: ["a"] },
+			from: { a: place(r(0, 4)) },
+			to: { a: place(r(0, 0)) }
+		});
+	});
+
+	it("skips ids that are gone", () => {
+		const doc = makeDoc({ body: { widgets: [widget("a")] } });
+		const change = layout(
+			{ a: place(r(0, 0)), b: place(r(6, 0)) },
+			{ a: place(r(0, 4)), b: place(r(6, 4)) }
+		);
+		const { doc: next, inverse } = applyChange(doc, change);
+		expect(next.body.widgets[0].rect).toEqual(r(0, 4));
+		expect(inverse).toMatchObject({ target: { widgetIds: ["a"] } });
+		expect(Object.keys((inverse as { to: object }).to)).toEqual(["a"]);
+	});
+
+	it("with every id gone throws ChangeTargetMissing", () => {
+		const change = layout({ x: place(r(0, 0)) }, { x: place(r(0, 4)) });
+		expect(() => applyChange(makeDoc(), change)).toThrow(ChangeTargetMissing);
+	});
+
+	it("appliedChange round-trips", () => {
+		const change = layout({ a: place(r(9, 9, 3, 3)) }, { a: place(r(0, 4)) });
+		const { inverse } = applyChange(makeDoc(), change);
+		expect(appliedChange(inverse)).toEqual(layout({ a: place(r(0, 0)) }, { a: place(r(0, 4)) }));
+	});
+});

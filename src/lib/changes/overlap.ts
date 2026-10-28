@@ -15,8 +15,19 @@ export function changesOverlap(a: Change, b: Change): boolean {
 			a.target.widgetId === b.target.widgetId && a.target.path === b.target.path && a.to !== b.to
 		);
 	}
+	if (a.op === "setLayout" && b.op === "setLayout") {
+		return a.target.widgetIds.some(
+			(id) => id in b.to && JSON.stringify(a.to[id]) !== JSON.stringify(b.to[id])
+		);
+	}
 	if (a.op === "removeWidget" && b.op === "removeWidget") return false;
-	if (a.op === "removeWidget") return b.target.widgetId === a.target.widgetId;
-	if (b.op === "removeWidget") return a.target.widgetId === b.target.widgetId;
+	if (a.op === "removeWidget") return touches(b, a.target.widgetId);
+	if (b.op === "removeWidget") return touches(a, b.target.widgetId);
 	return false;
+}
+
+/** Whether a (non-removal) change targets the widget. */
+function touches(change: Change, widgetId: string): boolean {
+	if (change.op === "setLayout") return change.target.widgetIds.includes(widgetId);
+	return "widgetId" in change.target && change.target.widgetId === widgetId;
 }
