@@ -71,9 +71,15 @@
 	}
 
 	function pickUp(mode: ArrangeMode): void {
+		const before = arrangement.active;
 		arrangement.pickUp(widget.id, mode, "keyboard");
 		const preview = arrangement.preview;
-		if (mine() && preview) announce(pickUpText(preview, widget.id, phone(), mode, title));
+		if (!mine() || !preview) return;
+		const text = pickUpText(preview, widget.id, phone(), mode, title);
+		// Another widget's touch or pointer arrangement was replaced: say so first (one
+		// announcement, as a newer one would replace it before it's read).
+		const replacedOne = before && before.id !== widget.id ? cancelledText(before.id) : null;
+		announce(replacedOne ? `${replacedOne} ${text}` : text);
 	}
 
 	function drop(): void {
@@ -138,10 +144,15 @@
 		stopDrag?.();
 	});
 
+	/** What's said when the arrangement of widget `id` is cancelled. */
+	function cancelledText(id: string): string {
+		const other = app.current.session?.editTarget.doc.body.widgets.find((w) => w.id === id);
+		return m.layout_cancelled({ title: other ? widgetTitle(other) : title });
+	}
+
 	/** A drag replaced another arrangement in progress: say that one was cancelled. */
 	function replaced(id: string): void {
-		const other = app.current.session?.editTarget.doc.body.widgets.find((w) => w.id === id);
-		announce(m.layout_cancelled({ title: other ? widgetTitle(other) : title }));
+		announce(cancelledText(id));
 	}
 
 	/** Mouse and pen only here; touch lifts by long-press. */
@@ -228,12 +239,28 @@
 		}
 	}
 
-	// While selected, a tap outside the frame finishes the selection; Escape cancels it.
+	// While selected, a tap outside the frame finishes the selection (a swipe there just
+	// scrolls); Escape, or a new window width (e.g. a rotation), cancels it.
 	$effect(() => {
 		if (!selected) return;
+		const width = window.innerWidth;
+		let tap: { id: number; x: number; y: number } | null = null;
 		const onDown = (event: PointerEvent) => {
-			if (event.target instanceof Node && section?.contains(event.target)) return;
-			if (mine()?.input === "touch") drop();
+			const inside = event.target instanceof Node && section?.contains(event.target);
+			tap = inside || !event.isPrimary ? null : { id: event.pointerId, ...client(event) };
+		};
+		const onMove = (event: PointerEvent) => {
+			if (tap?.id !== event.pointerId) return;
+			if (distance(tap, client(event)) > LONG_PRESS_TOLERANCE) tap = null;
+		};
+		const onUp = (event: PointerEvent) => {
+			const tapped = tap?.id === event.pointerId;
+			tap = null;
+			if (tapped && mine()?.input === "touch") drop();
+		};
+		const onCancel = () => (tap = null);
+		const onResize = () => {
+			if (window.innerWidth !== width && mine()?.input === "touch") cancel();
 		};
 		const onKey = (event: KeyboardEvent) => {
 			// A gesture's own Escape may have cancelled it already.
@@ -242,13 +269,34 @@
 			event.stopPropagation();
 			cancel();
 		};
-		window.addEventListener("pointerdown", onDown, true);
-		window.addEventListener("keydown", onKey, true);
+		const listeners: [string, EventListener][] = [
+			["pointerdown", onDown as EventListener],
+			["pointermove", onMove as EventListener],
+			["pointerup", onUp as EventListener],
+			["pointercancel", onCancel],
+			["keydown", onKey as EventListener]
+		];
+		for (const [type, listener] of listeners) window.addEventListener(type, listener, true);
+		window.addEventListener("resize", onResize);
 		return () => {
-			window.removeEventListener("pointerdown", onDown, true);
-			window.removeEventListener("keydown", onKey, true);
+			for (const [type, l] of listeners) window.removeEventListener(type, l, true);
+			window.removeEventListener("resize", onResize);
 		};
 	});
+
+	const client = (event: PointerEvent) => ({ x: event.clientX, y: event.clientY });
+	const distance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+		Math.hypot(a.x - b.x, a.y - b.y);
+
+	/**
+	 * Keep the page from scrolling under a touch gesture. Attached (non-passive) to the title bar
+	 * and the touch handles from the start: browsers decide at touchstart whether a touch's moves
+	 * can be cancelled, so a listener added at the lift would come too late.
+	 */
+	function blockScroll(event: TouchEvent): void {
+		if (gesture && touchActive && event.cancelable) event.preventDefault();
+	}
+	const scrollBlocker = (el: HTMLElement) => on(el, "touchmove", blockScroll, { passive: false });
 
 	/** A touch long-press is the drag gesture here, never a menu (native or ours). */
 	function oncontextmenu(event: MouseEvent): void {
@@ -319,6 +367,7 @@
 		{onkeydown}
 		{onblur}
 		{onpointerdown}
+		{@attach scrollBlocker}
 	>
 		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
 		<Button
@@ -337,12 +386,14 @@
 		{/if}
 		{#if selected}
 			<!-- Below the title bar, which still drags the selected widget. -->
-			<ResizeHandles
-				phone={arrangement.columns === 1}
-				shown={true}
-				touch={true}
-				onstart={onHandleStart}
-			/>
+			<div class="contents" {@attach scrollBlocker}>
+				<ResizeHandles
+					phone={arrangement.columns === 1}
+					shown={true}
+					touch={true}
+					onstart={onHandleStart}
+				/>
+			</div>
 			<div class="pointer-events-none absolute inset-0 z-10 grid place-items-center">
 				<Button class="pointer-events-auto min-h-11 min-w-11 shadow-md" onclick={drop}>
 					{m.layout_done()}

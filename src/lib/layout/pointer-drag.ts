@@ -168,9 +168,6 @@ export function startPointerDrag(
 		if (!opts.lifted) moved = true;
 		// A FLIP or settle animation still running would skew the measurements.
 		for (const animation of frame.getAnimations()) animation.cancel();
-		if (input === "touch") {
-			window.addEventListener("touchmove", preventScroll, { passive: false });
-		}
 		metrics = measureGrid(grid, arrangement.columns);
 		const box = frame.getBoundingClientRect();
 		natural = toPage({ x: box.left, y: box.top });
@@ -304,10 +301,6 @@ export function startPointerDrag(
 		if (window.innerWidth !== width) onCancel(e);
 	}
 
-	function preventScroll(e: TouchEvent): void {
-		if (e.cancelable) e.preventDefault();
-	}
-
 	function end(): void {
 		if (ended) return;
 		ended = true;
@@ -318,7 +311,6 @@ export function startPointerDrag(
 		window.removeEventListener("blur", onCancel);
 		window.removeEventListener("scroll", onScroll);
 		window.removeEventListener("resize", onResize);
-		window.removeEventListener("touchmove", preventScroll);
 		cancelAnimationFrame(frameRequest);
 		frame.style.transform = "";
 		try {
