@@ -109,7 +109,7 @@
 			if (event.shiftKey) {
 				arrangement.grow(dir);
 				const preview = arrangement.preview;
-				if (preview) announce(sizeText(preview, widget.id));
+				if (preview) announce(sizeText(preview, widget.id, phone()));
 				return;
 			}
 			const result = arrangement.step(dir);
@@ -119,10 +119,10 @@
 		}
 	}
 
-	// Moving focus away from the title bar cancels a keyboard arrangement (switching windows
-	// doesn't).
+	// Moving focus away cancels a keyboard arrangement: Tab, a click elsewhere, or the window
+	// losing focus.
 	function onblur(): void {
-		if (mine()?.input === "keyboard" && document.hasFocus()) cancel();
+		if (mine()?.input === "keyboard") cancel();
 	}
 
 	// After a drop (the element may have moved, or the page been rebuilt for a starter's copy).
@@ -143,6 +143,8 @@
 		});
 	});
 </script>
+
+<svelte:window {onblur} />
 
 <!-- Not a named region: one landmark per widget would crowd the landmark list. -->
 <section

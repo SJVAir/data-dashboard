@@ -111,6 +111,35 @@
 			}
 		}
 	],
+	"layout_height": [
+		{
+			"declarations": [
+				"input height",
+				"input heightValue",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["heightPlural"],
+			"match": {
+				"heightPlural=one": "{height} row tall.",
+				"heightPlural=other": "{height} rows tall."
+			}
+		}
+	],
+	"layout_picked_up_resize_phone": [
+		{
+			"declarations": [
+				"input title",
+				"input height",
+				"input heightValue",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["heightPlural"],
+			"match": {
+				"heightPlural=one": "Resizing {title}: {height} row tall. Shift and up and down arrows resize, Enter drops, Escape cancels.",
+				"heightPlural=other": "Resizing {title}: {height} rows tall. Shift and up and down arrows resize, Enter drops, Escape cancels."
+			}
+		}
+	],
 	"layout_phone_position": "Position {position} of {total}.",
 	"layout_dropped": [
 		{

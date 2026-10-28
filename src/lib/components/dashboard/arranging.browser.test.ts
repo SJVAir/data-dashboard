@@ -286,3 +286,37 @@ test("a keyboard drop on the starter keeps focus through the hand-off", async ()
 		.poll(() => document.activeElement)
 		.toBe(page.getByTestId("widget-starter-1").getByRole("group").element());
 });
+
+test("the window losing focus cancels", async () => {
+	const { app, session } = await seed(halves());
+	await focusBar("Readings");
+	await press("{Enter}");
+	await press("{ArrowRight}");
+	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
+	window.dispatchEvent(new FocusEvent("blur"));
+	await announced("Cancelled. Readings is back where it was.");
+	await expect.element(page.getByTestId("drop-target")).not.toBeInTheDocument();
+	expect(rectOf(app, "a").x).toBe(0);
+	expect(session.canUndo).toBe(false);
+});
+
+test("on a phone, resizing speaks only the height", async () => {
+	await page.viewport(400, 800);
+	const { app } = await seed([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
+		widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Map")
+	]);
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: "Resize…" }).click();
+	await announced(
+		"Resizing Readings: 4 rows tall. Shift and up and down arrows resize, Enter drops, Escape cancels."
+	);
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+	await press("{Shift>}{ArrowDown}{/Shift}");
+	await announced("5 rows tall.");
+	await press("{Shift>}{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}{/Shift}");
+	// Clamps at the minimum height (2).
+	await announced("2 rows tall.");
+	await press("{Enter}");
+	await expect.poll(() => rectOf(app, "a").h).toBe(2);
+});

@@ -28,9 +28,11 @@ function size(layout: Layout, id: string): { w: number; h: number } | null {
 	return layout.find((i) => i.id === id)?.rect ?? null;
 }
 
-export function sizeText(layout: Layout, id: string): string {
+/** On a phone (one column) only the height can change, so only the height is said. */
+export function sizeText(layout: Layout, id: string, phone: boolean): string {
 	const s = size(layout, id);
 	if (!s) return "";
+	if (phone) return m.layout_height({ height: formatNumber(s.h), heightValue: s.h });
 	return m.layout_size({
 		width: formatNumber(s.w),
 		widthValue: s.w,
@@ -55,6 +57,13 @@ export function pickUpText(
 	if (mode === "resize") {
 		const s = size(layout, id);
 		if (!s) return "";
+		if (phone) {
+			return m.layout_picked_up_resize_phone({
+				title,
+				height: formatNumber(s.h),
+				heightValue: s.h
+			});
+		}
 		return m.layout_picked_up_resize({
 			title,
 			width: formatNumber(s.w),
