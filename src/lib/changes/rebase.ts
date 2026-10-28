@@ -1,5 +1,6 @@
 import type { Dashboard } from "$lib/documents/schema";
-import { placeAtBottom, rectsOverlap } from "$lib/widgets/placement";
+import { placeNew, rectsOverlap, toItems } from "$lib/layout/engine";
+import { GRID_COLUMNS } from "$lib/layout/config";
 import type { Change } from "./types";
 import { applyChange, appliedChange, ChangeTargetMissing } from "./apply";
 import { changesOverlap } from "./overlap";
@@ -53,6 +54,6 @@ export function replaceIfOverlapping(doc: Dashboard, change: Change): Change {
 	const widgets = doc.body.widgets;
 	const { rect } = change.widget;
 	if (!widgets.some((w) => rectsOverlap(w.rect, rect))) return change;
-	const placed = placeAtBottom(widgets, { w: rect.w, h: rect.h });
+	const placed = placeNew(toItems(widgets), { w: rect.w, h: rect.h }, GRID_COLUMNS);
 	return { ...change, widget: { ...change.widget, rect: placed } };
 }

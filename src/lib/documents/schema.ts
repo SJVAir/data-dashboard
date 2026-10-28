@@ -1,8 +1,10 @@
 import { WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
+import { GRID_COLUMNS } from "$lib/layout/config";
 import { z } from "$lib/zod";
 
+export { GRID_COLUMNS };
+
 export const CURRENT_SCHEMA_VERSION = 1;
-export const GRID_COLUMNS = 12;
 export const NAME_MAX = 100;
 
 export const RectSchema = z

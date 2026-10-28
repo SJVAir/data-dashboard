@@ -6,7 +6,7 @@
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { readingOrder } from "$lib/widgets/placement";
+	import { readingOrder } from "$lib/layout/engine";
 	import AddWidgetButton from "./AddWidgetButton.svelte";
 	import EmptyState from "./EmptyState.svelte";
 	import StarterHint from "./StarterHint.svelte";

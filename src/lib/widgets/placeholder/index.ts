@@ -1,6 +1,7 @@
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
-import { placeAtBottom } from "../placement";
+import { placeNew, toItems } from "$lib/layout/engine";
+import { GRID_COLUMNS } from "$lib/layout/config";
 import type { WidgetType } from "../registry";
 import Placeholder from "./Placeholder.svelte";
 
@@ -25,7 +26,7 @@ export function newPlaceholder(widgets: WidgetInstance[]): WidgetInstance {
 		id: crypto.randomUUID(),
 		type: PLACEHOLDER_TYPE,
 		title: null,
-		rect: placeAtBottom(widgets, placeholderType.defaultSize),
+		rect: placeNew(toItems(widgets), placeholderType.defaultSize, GRID_COLUMNS),
 		data: { layers: [] }
 	};
 }

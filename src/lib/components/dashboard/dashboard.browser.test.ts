@@ -10,7 +10,7 @@ import { DocumentSession } from "$lib/store/document-session.svelte";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
-import { rectsOverlap } from "$lib/widgets/placement";
+import { rectsOverlap } from "$lib/layout/engine";
 import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
 
