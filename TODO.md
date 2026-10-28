@@ -4,36 +4,9 @@ Last updated: 2026-10-28
 
 ## Start here
 
-**Sync track, spec 1 (server and SDK) is built; both PRs are open for review, not merged:**
-sjvair.com [#297](https://github.com/SJVAir/sjvair.com/pull/297) (`feature/saved-documents`
-into `develop`, 25 commits) and sdk-js [#34](https://github.com/SJVAir/sdk-js/pull/34)
-(`feature/documents` into `release/4.8.0`; no version bump, no prerelease). **Next:** spec 2
-(dashboard sync) needs an sdk-js prerelease with the documents module, which needs your
-explicit yes. Spec 2 starts after step 2 (`layout`) merges, or stacks on it. Locally the
-documents tables were migrated into the dev DB from the worktree; the running stack serves the
-main checkout (`develop`), so serving the API locally means serving the worktree (a second
-container on :8001 was used for the SDK integration test).
+Two tracks run in parallel.
 
-Decisions later specs need:
-
-- Reserved ids `profile`, `export`, and `shared` are refused on save (route collisions). The
-  dashboard's ids are random, so this matters only if ids are ever user-chosen.
-- `SharedDocument` includes `id`, for "Make a copy" (`copiedFrom`), the credit lookup, and
-  "You already have a copy".
-- Share and revoke bump `updated_at` but not `version`, so `listDocuments({since})` can return
-  a document with the same version but a changed `visibility` or `share_token`.
-- After account deletion sjvair.com lands on the login page with "Your account was deleted".
-- The server counts size in Python code points; the dashboard's `MAX_DOCUMENT_CHARS` counts
-  UTF-16 units (JS `.length`), so the server is never stricter than the client.
-- In the SDK every documents error is a `DocumentRefusal` (fallback codes `unauthorized`,
-  `forbidden`, `not_found`, `unknown` when the server gives none); schema mismatches throw
-  `DocumentResponseError`.
-- `GET documents/export/` is a browser download (the backup envelope), not an SDK call. It
-  excludes Recently deleted, and the /account/ page says so.
-- Deferrals from spec 1 are in `DEFERRED.md` ("Platform & infrastructure" and "Documents &
-  saving").
-
-## Previous step
+### Step 2: layout engine and windowing (branch `layout`, main checkout)
 
 **Next: Release 1 step 2, the layout engine and windowing, in a fresh session, branching from
 `main`.** Foundations is done and merged into `main` (#11, 2026-10-27). Its last spec, 5b, the
@@ -379,6 +352,36 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
    **metadata enablers**, **hosting under `/workspace/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
    (Release 2).
+
+### Sync track (branch `sync`, worktree `data-dashboard-sync`)
+
+**Spec 1 (server and SDK) is built; both PRs are open for review, not merged:**
+sjvair.com [#297](https://github.com/SJVAir/sjvair.com/pull/297) (`feature/saved-documents`
+into `develop`, 25 commits) and sdk-js [#34](https://github.com/SJVAir/sdk-js/pull/34)
+(`feature/documents` into `release/4.8.0`; no version bump, no prerelease). **Next:** spec 2
+(dashboard sync) needs an sdk-js prerelease with the documents module, which needs your
+explicit yes. Spec 2 starts after step 2 (`layout`) merges, or stacks on it. Locally the
+documents tables were migrated into the dev DB from the worktree; the running stack serves the
+main checkout (`develop`), so serving the API locally means serving the sjvair.com worktree.
+
+Decisions later specs need:
+
+- Reserved ids `profile`, `export`, and `shared` are refused on save (route collisions). The
+  dashboard's ids are random, so this matters only if ids are ever user-chosen.
+- `SharedDocument` includes `id`, for "Make a copy" (`copiedFrom`), the credit lookup, and
+  "You already have a copy".
+- Share and revoke bump `updated_at` but not `version`, so `listDocuments({since})` can return
+  a document with the same version but a changed `visibility` or `share_token`.
+- After account deletion sjvair.com lands on the login page with "Your account was deleted".
+- The server counts size in Python code points; the dashboard's `MAX_DOCUMENT_CHARS` counts
+  UTF-16 units (JS `.length`), so the server is never stricter than the client.
+- In the SDK every documents error is a `DocumentRefusal` (fallback codes `unauthorized`,
+  `forbidden`, `not_found`, `unknown` when the server gives none); schema mismatches throw
+  `DocumentResponseError`.
+- `GET documents/export/` is a browser download (the backup envelope), not an SDK call. It
+  excludes Recently deleted, and the /account/ page says so.
+- Deferrals from spec 1 are in `DEFERRED.md` ("Platform & infrastructure" and "Documents &
+  saving").
 
 ## Planning session record: IDEA.md (2026-09-23 → 2026-09-24)
 
