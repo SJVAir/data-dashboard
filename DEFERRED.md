@@ -862,6 +862,19 @@ string`) now get the union return type. The mobile app passes a string token, so
   gesture); the ⋯ buttons open the same menus but have no "point". Items tied to a pressed spot
   (e.g. "Analyze this monitor" on a map feature) need another touch path, such as the feature's
   own tap popup. **Revisit with** the map widget (step 5) and Release 3's analysis actions.
+- **Touch arranging checked on real devices.** _Deferred 2026-10-28 (step 2, spec 2a)._ Not done
+  in spec 2a (no device). The tests use synthetic pointer events, which don't exercise real
+  `touch-action`, scroll takeover, iOS timing, or when Android fires `contextmenu`. The named risk
+  is a lifted drag scrolling the page instead of moving the widget (a permanent non-passive
+  `touchmove` listener on title bars and handles is in place to prevent it). **Revisit before**
+  `layout` merges into `main`: a hand check on Chrome for Android and Safari on iOS/iPadOS via
+  `npm run dev -- --host`.
+- **Drag performance threshold is loose.** _Deferred 2026-10-28 (step 2, spec 2a)._ The check
+  requires p95 under 34 ms at 4x CPU (2x the 16.7 ms baseline). Frame times come in 16.7 ms steps,
+  so it catches only about 2 dropped frames at p95. **Revisit with** the low-end Chromebook check
+  before go-live, or if CI runs it and it flakes.
+- **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
+  touch is blocked. **Revisit if** pen users report it.
 
 ## Legacy Monitors-tab follow-ups
 
