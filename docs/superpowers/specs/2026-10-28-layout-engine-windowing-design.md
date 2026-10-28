@@ -52,8 +52,9 @@ It is proven with the placeholder widget, so step 4's widgets drop into finished
    Undo right after minimizing puts it back exactly where it was. A shared copy shows the
    author's minimized widgets in the taskbar (it's the recipient's own copy; restoring is one
    click). Minimizing or restoring on the starter makes the user's copy, like any other edit.
-   Spec 1's `minimized: { restoreRect }` becomes a plain flag (shapes are free before the first
-   release). This replaces the architecture's "restore to the previous rect if free, else the
+   Spec 1's `minimized: { restoreRect }` becomes `minimized: { order }` (shapes are free before
+   the first release); the taskbar keeps the order widgets were minimized in, like a PC
+   taskbar. This replaces the architecture's "restore to the previous rect if free, else the
    nearest free slot" (with gravity, the old spot is almost never free). _History:_ a
    per-browser, view-only minimize was considered first and dropped the same day: it left
    hidden widgets holding grid spots that every rearrangement had to map, which the builder
@@ -121,9 +122,10 @@ It is proven with the placeholder widget, so step 4's widgets drop into finished
 ### What's saved and what's shown
 
 - **Saved:** each widget's desktop `rect` (`x`, `y`, `w`, `h` in grid cells), as today, and
-  `minimized: true` on minimized widgets (replacing `{ restoreRect }`). A minimized widget's
-  `rect` keeps only its size meaningfully; its position is ignored and it takes no part in the
-  grid.
+  `minimized: { order }` on minimized widgets (replacing `{ restoreRect }`; `order` is a
+  non-negative integer, one more than the highest in the document when minimized, so the taskbar
+  keeps the order they were minimized in). A minimized widget's `rect` keeps only its size
+  meaningfully; its position is ignored and it takes no part in the grid.
 - **Shown:** `tidy(saved rects of the widgets that aren't minimized, columns)`. "Tidy" is the
   layout engine's normalizing pass:
   1. Clamp each rect to the grid (x + w ≤ columns) and up to its type's minimum size (an unknown
@@ -165,15 +167,15 @@ Items carry `{ id, rect, minSize }`; only widgets on the grid are items.
 A new change type in `src/lib/changes/types.ts`:
 
 ```ts
-type Placement = { rect: Rect; minimized: boolean };
+type Placement = { rect: Rect; minimized: { order: number } | null };
 { op: "setLayout", target: { widgetIds: string[] }, from: Record<id, Placement>, to: Record<id, Placement> }
 ```
 
 - **Move / resize:** one per drop, keyboard drop, or touch "Done", covering the moved widget and
   every widget whose saved rect changed (pushed widgets and tidy fixes).
-- **Minimize:** the widget's `minimized` goes to true (its rect unchanged), plus any tidy fixes
-  for the rest of the grid.
-- **Restore:** `minimized` goes to false and its rect becomes `placeNew` at its saved size.
+- **Minimize:** the widget's `minimized` gets the next `order` (its rect unchanged), plus any
+  tidy fixes for the rest of the grid.
+- **Restore:** `minimized` goes to null and its rect becomes `placeNew` at its saved size.
 - `applyChange` gives the inverse (swap, with `from` read from the document as it really is,
   like `setField`). One undo puts everything back, including a minimized widget's exact spot.
 - During a drag nothing is applied; the preview is component state. Autosave sees one edit.
@@ -278,8 +280,9 @@ starter is an edit: it goes through the existing hand-off, and the arrangement m
 - **Minimize** (widget ⋯ menu, and a title-bar button) is a `setLayout` edit (decision 2): on
   the undo list, synced to other tabs like any edit, and on the starter it makes the user's copy
   through the existing hand-off (focus moves to the taskbar item after the hand-off).
-- **Taskbar order** is the widgets' order in the document (my call; no separate ordering is
-  stored).
+- **Taskbar order is the order widgets were minimized** (from the user, 2026-10-28, like a PC
+  taskbar): each newly minimized widget appears at the right end. `minimized.order` sorts it;
+  equal numbers (two tabs minimizing at once) break the tie by widget id.
 - **The taskbar** appears only when something is minimized, sticks to the bottom of the
   dashboard area, and scrolls sideways when full. It's a toolbar with a roving tabindex (one
   Tab stop; arrows move between items; Home/End).
