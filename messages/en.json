@@ -68,6 +68,75 @@
 	"widget_delete": "Delete widget",
 	"widget_deleted": "Widget deleted",
 	"widget_unknown_title": "Unknown widget",
+	"widget_move": "Move…",
+	"widget_resize": "Resize…",
+	"layout_picked_up": "Picked up {title}. Column {column}, row {row}. Arrow keys move, Shift and arrow keys resize, Enter drops, Escape cancels.",
+	"layout_picked_up_resize": [
+		{
+			"declarations": [
+				"input width",
+				"input height",
+				"input widthValue",
+				"input heightValue",
+				"local widthPlural = widthValue: plural",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["widthPlural", "heightPlural"],
+			"match": {
+				"widthPlural=one, heightPlural=one": "Resizing {title}: {width} column wide, {height} row tall. Shift and arrow keys resize, Enter drops, Escape cancels.",
+				"widthPlural=one, heightPlural=other": "Resizing {title}: {width} column wide, {height} rows tall. Shift and arrow keys resize, Enter drops, Escape cancels.",
+				"widthPlural=other, heightPlural=one": "Resizing {title}: {width} columns wide, {height} row tall. Shift and arrow keys resize, Enter drops, Escape cancels.",
+				"widthPlural=other, heightPlural=other": "Resizing {title}: {width} columns wide, {height} rows tall. Shift and arrow keys resize, Enter drops, Escape cancels."
+			}
+		}
+	],
+	"layout_picked_up_phone": "Picked up {title}. Position {position} of {total}. Up and down arrows move, Shift and up and down arrows resize, Enter drops, Escape cancels.",
+	"layout_position": "Column {column}, row {row}.",
+	"layout_size": [
+		{
+			"declarations": [
+				"input width",
+				"input height",
+				"input widthValue",
+				"input heightValue",
+				"local widthPlural = widthValue: plural",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["widthPlural", "heightPlural"],
+			"match": {
+				"widthPlural=one, heightPlural=one": "{width} column wide, {height} row tall.",
+				"widthPlural=one, heightPlural=other": "{width} column wide, {height} rows tall.",
+				"widthPlural=other, heightPlural=one": "{width} columns wide, {height} row tall.",
+				"widthPlural=other, heightPlural=other": "{width} columns wide, {height} rows tall."
+			}
+		}
+	],
+	"layout_phone_position": "Position {position} of {total}.",
+	"layout_dropped": [
+		{
+			"declarations": [
+				"input title",
+				"input column",
+				"input row",
+				"input count",
+				"input countValue",
+				"local countExact = countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countExact", "countPlural"],
+			"match": {
+				"countExact=0, countPlural=*": "Dropped {title} at column {column}, row {row}.",
+				"countExact=*, countPlural=one": "Dropped {title} at column {column}, row {row}. {count} other widget moved.",
+				"countExact=*, countPlural=other": "Dropped {title} at column {column}, row {row}. {count} other widgets moved."
+			}
+		}
+	],
+	"layout_dropped_phone": "Dropped {title} at position {position} of {total}.",
+	"layout_cancelled": "Cancelled. {title} is back where it was.",
+	"layout_gone": "{title} was removed in another tab. Move cancelled.",
+	"layout_at_bottom": "{title} is already at the bottom.",
+	"layout_done": "Done",
+	"layout_title_bar_hint": "Press Enter to move",
 	"rename_dashboard_title": "Rename dashboard",
 	"rename_widget_title": "Rename widget",
 	"import_opening": "Opening shared dashboard…",
