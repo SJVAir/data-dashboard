@@ -1,6 +1,6 @@
 import type { Dashboard } from "$lib/documents/schema";
 import { rectsOverlap } from "$lib/layout/engine";
-import { placeNewWidget } from "$lib/layout/items";
+import { gridItems, placeNewWidget } from "$lib/layout/items";
 import type { Change } from "./types";
 import { applyChange, appliedChange, ChangeTargetMissing } from "./apply";
 import { changesOverlap } from "./overlap";
@@ -48,12 +48,15 @@ export function applyForced(
 	return { doc, applied };
 }
 
-/** An added widget whose rect would overlap one already in `doc`, moved to the bottom (same size). */
+/**
+ * An added widget whose rect would overlap a grid widget already in `doc` (minimized ones are
+ * off the grid), moved to the bottom (same size).
+ */
 export function replaceIfOverlapping(doc: Dashboard, change: Change): Change {
 	if (change.op !== "addWidget") return change;
 	const widgets = doc.body.widgets;
 	const { rect } = change.widget;
-	if (!widgets.some((w) => rectsOverlap(w.rect, rect))) return change;
+	if (!gridItems(widgets).some((w) => rectsOverlap(w.rect, rect))) return change;
 	const placed = placeNewWidget(widgets, { w: rect.w, h: rect.h });
 	return { ...change, widget: { ...change.widget, rect: placed } };
 }

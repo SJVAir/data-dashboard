@@ -144,4 +144,11 @@ describe("setLayout and placement in applyForced", () => {
 		const { doc: next } = applyForced(doc, [add(widget("c"))]);
 		expect(next.body.widgets.find((w) => w.id === "c")?.rect).toEqual({ x: 0, y: 4, w: 6, h: 4 });
 	});
+
+	it("an added widget where only a minimized widget's rect is stays put", () => {
+		const hidden = { ...widget("m"), minimized: { order: 0 } };
+		const doc = makeDoc([widget("a", { x: 6, y: 0, w: 6, h: 4 }), hidden]);
+		const { doc: next } = applyForced(doc, [add(widget("c"))]);
+		expect(next.body.widgets.find((w) => w.id === "c")?.rect).toEqual({ x: 0, y: 0, w: 6, h: 4 });
+	});
 });

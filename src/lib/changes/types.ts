@@ -99,7 +99,7 @@ const SetLayoutSchema = z
 		}
 		for (const key of ["from", "to"] as const) {
 			const keys = Object.keys(change[key]);
-			if (keys.length !== ids.length || !ids.every((id) => id in change[key])) {
+			if (keys.length !== ids.length || !ids.every((id) => Object.hasOwn(change[key], id))) {
 				ctx.addIssue({
 					code: "custom",
 					path: [key],

@@ -182,6 +182,19 @@ describe("applyChange", () => {
 	});
 });
 
+describe("setLayout with prototype-named ids", () => {
+	it("doesn't take a placement from the prototype", () => {
+		const doc = makeDoc({ body: { widgets: [widget("toString")] } });
+		const change = {
+			op: "setLayout",
+			target: { widgetIds: ["toString"] },
+			from: {},
+			to: {}
+		} as Change;
+		expect(() => applyChange(doc, change)).toThrow(ChangeTargetMissing);
+	});
+});
+
 describe("ChangeSchema", () => {
 	it("rejects title change without widgetId", () => {
 		const bad = { op: "setField", target: { path: "title" }, from: null, to: "x" };
@@ -214,6 +227,17 @@ describe("ChangeSchema", () => {
 			const bad = { op, target: { widgetId: "x" }, widget: widget("c"), index: 0 };
 			expect(ChangeSchema.safeParse(bad).success).toBe(false);
 		}
+	});
+
+	it("rejects a setLayout whose from/to keys only match through the prototype", () => {
+		const p = { rect: { x: 0, y: 0, w: 6, h: 4 }, minimized: null };
+		const bad = {
+			op: "setLayout",
+			target: { widgetIds: ["toString"] },
+			from: { x: p },
+			to: { x: p }
+		};
+		expect(ChangeSchema.safeParse(bad).success).toBe(false);
 	});
 
 	it("accepts a valid change", () => {

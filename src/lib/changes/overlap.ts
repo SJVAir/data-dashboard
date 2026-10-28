@@ -1,4 +1,4 @@
-import type { Change } from "./types";
+import type { Change, Placement } from "./types";
 
 /**
  * Whether two changes made on different sides touch the same thing, so neither can be
@@ -17,13 +17,24 @@ export function changesOverlap(a: Change, b: Change): boolean {
 	}
 	if (a.op === "setLayout" && b.op === "setLayout") {
 		return a.target.widgetIds.some(
-			(id) => id in b.to && JSON.stringify(a.to[id]) !== JSON.stringify(b.to[id])
+			(id) =>
+				Object.hasOwn(a.to, id) && Object.hasOwn(b.to, id) && !samePlacement(a.to[id], b.to[id])
 		);
 	}
 	if (a.op === "removeWidget" && b.op === "removeWidget") return false;
 	if (a.op === "removeWidget") return touches(b, a.target.widgetId);
 	if (b.op === "removeWidget") return touches(a, b.target.widgetId);
 	return false;
+}
+
+function samePlacement(a: Placement, b: Placement): boolean {
+	return (
+		a.rect.x === b.rect.x &&
+		a.rect.y === b.rect.y &&
+		a.rect.w === b.rect.w &&
+		a.rect.h === b.rect.h &&
+		a.minimized?.order === b.minimized?.order
+	);
 }
 
 /** Whether a (non-removal) change targets the widget. */

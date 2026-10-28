@@ -74,8 +74,8 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 			const from: Record<string, Placement> = {};
 			const to: Record<string, Placement> = {};
 			const next = widgets.map((w) => {
+				if (!change.target.widgetIds.includes(w.id) || !Object.hasOwn(change.to, w.id)) return w;
 				const placement = change.to[w.id];
-				if (!change.target.widgetIds.includes(w.id) || !placement) return w;
 				from[w.id] = { rect: w.rect, minimized: w.minimized ?? null };
 				to[w.id] = placement;
 				const moved = { ...w, rect: placement.rect };
