@@ -336,25 +336,33 @@ incoming `schema_version` < stored → `schema_downgrade`. 7. Write: `version +=
 - [ ] **Step 2–4:** Run (FAIL), implement, run (PASS).
 - [ ] **Step 5: Commit** `Add the documents admin, metadata only`.
 
-### Task 10: Account deletion page on sjvair.com
+### Task 10: Delete account on the `/account/` page
 
 ARCHITECTURE.md puts account deletion on sjvair.com's account page, but today only the API (mobile)
-deletes accounts. This adds the web page; the API path is unchanged and gets documents removed by cascade.
+deletes accounts. This adds a **"Delete account" section to the existing `/account/` profile page**
+(decided with the user, 2026-10-28: no separate page). The API path is unchanged and gets documents
+removed by cascade.
 
 **Files:**
-- Modify: `camp/apps/accounts/{views,urls,forms}.py`, `camp/templates/account/profile.html` (a "Delete account" link)
-- Create: `camp/templates/account/delete.html`
+- Modify: `camp/apps/accounts/{views,urls,forms}.py`, `camp/templates/account/profile.html`
+- Create: `camp/templates/account/_delete-account.html` (the section, included below the profile form)
 - Test: `camp/apps/accounts/test_delete.py`
 
 **Interfaces:**
-- Produces: `/account/delete/` (`account:delete`), `DeleteAccountView` (login required): GET shows counts — dashboards
-  (`saved_documents`, deleted included), active share links (shareable ones), alert subscriptions — a "Download my dashboards" link to
-  `api:v2:documents:export` (shown when there are any), and a password form (reuse `PasswordRequiredActionForm`'s logic);
-  POST with the right password deletes the user, logs out, and redirects home with a message; wrong password re-renders with the error.
-  Wording is plain and lists what goes; Bulma is fine here (sjvair.com's own page).
+- Produces:
+  - `ProfileView.get_context_data` adds `delete_form` (a `DeleteAccountForm`: `password`, plus a required "I understand this can't be
+    undone" checkbox) and `deletion_counts` = `{ dashboards, share_links, subscriptions }` (dashboards = `saved_documents` incl. deleted;
+    share links = shareable ones; subscriptions = alert subscriptions).
+  - The section (its own `<form>`, below the "Update profile" form, visually separate) lists what will be deleted with those counts, a
+    "Download my dashboards" link to `api:v2:documents:export` (only when dashboards > 0), and the two fields with a "Delete my account" button.
+  - `/account/delete/` (`account:delete`), `DeleteAccountView`: **POST only** (GET → redirect to `account:profile`), login required. Valid
+    (right password and the checkbox) → delete the user, log out, redirect home with a "Your account was deleted" message. Invalid →
+    re-render `account/profile.html` with the profile form unchanged and `delete_form` carrying its errors (status 200).
+  - The profile form's own POST never deletes anything. Bulma is fine here (sjvair.com's own page).
 
-- [ ] **Step 1: Write failing tests:** `test_counts_shown`, `test_wrong_password_keeps_account`, `test_delete_removes_documents_and_logs_out`
-  (then `GET documents/shared/<token>/` → not found), `test_signed_out_redirects_to_login`.
+- [ ] **Step 1: Write failing tests:** `test_profile_shows_counts_and_delete_form`, `test_download_link_only_with_dashboards`,
+  `test_wrong_password_keeps_account`, `test_unchecked_confirmation_keeps_account`, `test_delete_removes_documents_and_logs_out`
+  (then `GET documents/shared/<token>/` → not found), `test_get_delete_url_redirects_to_profile`, `test_profile_post_never_deletes`.
 - [ ] **Step 2–4:** Run (FAIL), implement, run (PASS).
 - [ ] **Step 5: Commit** `Add an account deletion page covering saved dashboards`.
 

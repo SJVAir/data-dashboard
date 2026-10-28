@@ -311,7 +311,7 @@ Spaces are already in the storage layer (`currentSpace()` returns `"anonymous"` 
 - **Bad builds:** saves carry `buildId`; a build on the server's block list (admin-managed) gets
   a "please reload" refusal; documents stay queued locally until the fixed build loads.
 - **Account deletion** (sjvair.com's account page; today only the API used by the mobile app
-  deletes accounts, so spec 1 adds the web page): deletes documents, trash, snapshots, change
+  deletes accounts, so spec 1 adds a "Delete account" section to the existing `/account/` page): deletes documents, trash, snapshots, change
   logs, share links, and the display name, and lists counts with "Download my documents" (one
   backup file in the existing envelope) first. The server keeps **no record of deleted
   accounts** (decided with the user, 2026-10-28). **Other devices** can't tell a deleted
