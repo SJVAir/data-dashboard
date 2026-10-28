@@ -76,3 +76,97 @@ export function diff(before: LayoutItem[], after: LayoutItem[]): Record<string, 
 	}
 	return out;
 }
+
+/**
+ * Put `id` at `rect` (clamped to the grid and its minimum size), push every widget it
+ * overlaps down below it (cascading; the placed widget wins), then tidy.
+ */
+function place(items: LayoutItem[], id: string, rect: Rect, columns: number): Layout {
+	const target = items.find((i) => i.id === id);
+	if (!target) return tidy(items, columns);
+	const placed: LayoutItem[] = [clampItem({ ...target, rect }, columns)];
+	for (const other of readingOrder(items.filter((i) => i.id !== id))) {
+		let r = other.rect;
+		let hit = placed.find((p) => rectsOverlap(p.rect, r));
+		while (hit) {
+			r = { ...r, y: hit.rect.y + hit.rect.h };
+			hit = placed.find((p) => rectsOverlap(p.rect, r));
+		}
+		placed.push({ ...other, rect: r });
+	}
+	return tidy(placed, columns);
+}
+
+/** Move a widget to a cell; widgets in the way are pushed down. */
+export function move(
+	items: LayoutItem[],
+	id: string,
+	to: { x: number; y: number },
+	columns: number
+): Layout {
+	const target = items.find((i) => i.id === id);
+	if (!target) return tidy(items, columns);
+	return place(items, id, { ...target.rect, x: to.x, y: to.y }, columns);
+}
+
+/** Resize a widget (clamped to its minimum size and the grid); widgets in the way are pushed down. */
+export function resize(items: LayoutItem[], id: string, rect: Rect, columns: number): Layout {
+	return place(items, id, rect, columns);
+}
+
+/**
+ * Move a widget just past the nearest widget below it whose columns it shares, or `null` when
+ * there is none (it is already at the bottom).
+ */
+export function stepDown(items: LayoutItem[], id: string, columns: number): Layout | null {
+	const target = items.find((i) => i.id === id);
+	if (!target) return null;
+	const { x, y, w } = target.rect;
+	const below = readingOrder(
+		items.filter((i) => i.id !== id && i.rect.y > y && i.rect.x < x + w && x < i.rect.x + i.rect.w)
+	)[0];
+	if (!below) return null;
+	return move(items, id, { x, y: below.rect.y + below.rect.h }, columns);
+}
+
+/**
+ * Move a widget so it sits at `index` in reading order (the phone's one-column reordering, in
+ * desktop coordinates). When no cell puts it exactly there, it lands at the nearest index it can.
+ */
+export function moveInOrder(
+	items: LayoutItem[],
+	id: string,
+	index: number,
+	columns: number
+): Layout {
+	const order = readingOrder(items);
+	const from = order.findIndex((i) => i.id === id);
+	const to = Math.min(Math.max(index, 0), order.length - 1);
+	if (from === -1 || from === to) return tidy(items, columns);
+	const anchor = order[to].rect;
+	const px = anchor.x;
+	const py = from > to ? anchor.y : anchor.y + anchor.h;
+
+	// The anchor's position usually works; when widths differ it can land one place off, so
+	// try the nearest other cells until the widget reads at `to`.
+	const w = Math.min(order[from].rect.w, columns);
+	const bottom = items.reduce((max, i) => Math.max(max, i.rect.y + i.rect.h), 0);
+	const cells: { x: number; y: number }[] = [];
+	for (let y = 0; y <= bottom; y++) {
+		for (let x = 0; x <= columns - w; x++) cells.push({ x, y });
+	}
+	const distance = (c: { x: number; y: number }) => Math.abs(c.y - py) + Math.abs(c.x - px);
+	cells.sort((a, b) => distance(a) - distance(b) || a.y - b.y || a.x - b.x);
+
+	// Some positions can't be reached without resizing (a full-width widget can't sit between
+	// widgets that start on the same row); then the nearest reachable position wins.
+	let best: Layout | null = null;
+	let bestOff = Infinity;
+	for (const cell of [{ x: px, y: py }, ...cells]) {
+		const result = move(items, id, cell, columns);
+		const off = Math.abs(result.findIndex((i) => i.id === id) - to);
+		if (off === 0) return result;
+		if (off < bestOff) [best, bestOff] = [result, off];
+	}
+	return best!;
+}
