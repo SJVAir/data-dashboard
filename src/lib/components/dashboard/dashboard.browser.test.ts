@@ -1,4 +1,5 @@
 import "../../../app.css";
+import { tick } from "svelte";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
@@ -11,6 +12,8 @@ import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
 import { rectsOverlap } from "$lib/layout/engine";
+import { announce } from "$lib/a11y/announcer.svelte";
+import type { Arrangement } from "$lib/layout/arrangement.svelte";
 import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
 
@@ -40,11 +43,19 @@ function add(w: WidgetInstance, index = 0): Change {
 	return { op: "addWidget", target: { widgetId: w.id }, widget: w, index };
 }
 
-function renderGrid(app: AppContext) {
-	return render(Harness, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+function renderGrid(app: AppContext, onArrangement?: (arrangement: Arrangement) => void) {
+	return render(Harness, { props: { onArrangement }, context: new Map([[APP_CONTEXT_KEY, app]]) });
+}
+
+async function renderArranging(app: AppContext) {
+	let arrangement: Arrangement | null = null;
+	const screen = await renderGrid(app, (a) => (arrangement = a));
+	return { screen, arrangement: arrangement! };
 }
 
 const frame = (id: string) => page.getByTestId(`widget-${id}`);
+const domOrder = () =>
+	[...document.querySelectorAll<HTMLElement>("[data-flip-id]")].map((el) => el.dataset.flipId);
 
 test("widgets render at their grid positions", async () => {
 	const { app, session } = await setup();
@@ -68,6 +79,154 @@ test("widgets render at their grid positions", async () => {
 	const bRect = b.getBoundingClientRect();
 	expect(bRect.top).toBeGreaterThan(a.bottom);
 	expect(bRect.height).toBeCloseTo(a.height);
+});
+
+/** Store `widgets` as the document's body directly (no change is applied), then reopen it. */
+async function seed(widgets: WidgetInstance[]) {
+	const { platform, app, id } = await setup();
+	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
+	await platform.documents.commit(app.space, {
+		docId: id,
+		baseVersion: stored.version,
+		doc: { ...stored, body: { widgets } },
+		entries: []
+	});
+	const session = (await DocumentSession.open(platform, app.space, id, "t2"))!;
+	app.current = { session, isStarter: false };
+	return { app, session };
+}
+
+test("an overlapping document shows tidied and writes nothing", async () => {
+	const { app, session } = await seed([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }),
+		widget("b", { x: 0, y: 2, w: 6, h: 4 })
+	]);
+	const version = session.doc.version;
+	await renderGrid(app);
+	await expect.element(frame("b")).toBeVisible();
+	expect(getComputedStyle(frame("b").element()).gridRowStart).toBe("5");
+	expect(getComputedStyle(frame("a").element()).gridRowStart).toBe("1");
+	expect(session.hasPending).toBe(false);
+	expect(session.doc.version).toBe(version);
+	expect(session.doc.body.widgets.find((w) => w.id === "b")!.rect.y).toBe(2);
+});
+
+test("minimized widgets aren't on the grid", async () => {
+	const { app } = await seed([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }),
+		{ ...widget("b", { x: 6, y: 0, w: 6, h: 4 }), minimized: { order: 0 } }
+	]);
+	await renderGrid(app);
+	await expect.element(frame("a")).toBeVisible();
+	await expect.element(frame("b")).not.toBeInTheDocument();
+});
+
+test("the live region is polite and announces", async () => {
+	const { app } = await setup();
+	await renderGrid(app);
+	announce("x");
+	const region = page.getByRole("status").filter({ hasText: /^x$/ });
+	await expect.element(region).toHaveAttribute("aria-live", "polite");
+	const el = region.element();
+
+	// The same text again is cleared first, so it's read again.
+	announce("x");
+	await tick();
+	expect(el.textContent).toBe("");
+	await expect.poll(() => el.textContent).toBe("x");
+});
+
+test("the preview shows while arranging, with the drop target outlined at the active widget's rect", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 })));
+	session.apply(add(widget("b", { x: 0, y: 4, w: 6, h: 4 }), 1));
+	const { arrangement } = await renderArranging(app);
+	await expect.element(frame("b")).toBeVisible();
+	await expect.element(page.getByTestId("drop-target")).not.toBeInTheDocument();
+	const before = frame("b").element().getBoundingClientRect();
+
+	arrangement.pickUp("b", "move", "keyboard");
+	arrangement.moveTo({ x: 0, y: 0 });
+	const target = page.getByTestId("drop-target");
+	await expect.element(target).toBeInTheDocument();
+	await expect.poll(() => getComputedStyle(frame("a").element()).gridRowStart).toBe("5");
+	expect(getComputedStyle(frame("b").element()).gridRowStart).toBe("1");
+	const t = getComputedStyle(target.element());
+	expect([t.gridRowStart, t.gridColumnStart, t.borderStyle]).toEqual(["1", "1", "dashed"]);
+	expect(target.element().getAttribute("aria-hidden")).toBe("true");
+	// The pushed widget animates from where it was; nothing is written yet.
+	expect(frame("a").element().getAnimations().length).toBeGreaterThan(0);
+	expect(session.doc.body.widgets.find((w) => w.id === "b")!.rect.y).toBe(4);
+	// The elements keep their order while arranging (moving one would drop its focus).
+	expect(domOrder()).toEqual(["a", "b"]);
+
+	arrangement.cancel();
+	await expect.element(target).not.toBeInTheDocument();
+	await expect.poll(() => getComputedStyle(frame("b").element()).gridRowStart).toBe("5");
+	await expect.poll(() => frame("b").element().getBoundingClientRect().top).toBeCloseTo(before.top);
+});
+
+test("the active widget's title bar keeps focus while the preview reorders, and a drop reorders the elements", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	session.apply(add(widget("b", { x: 0, y: 4, w: 6, h: 4 }), 1));
+	const { arrangement } = await renderArranging(app);
+	const bar = page.getByRole("group", { name: "Readings" });
+	(bar.element() as HTMLElement).focus();
+	arrangement.pickUp("a", "move", "keyboard");
+	arrangement.moveTo({ x: 0, y: 8 });
+	await expect.poll(() => getComputedStyle(frame("a").element()).gridRowStart).toBe("5");
+	expect(document.activeElement).toBe(bar.element());
+
+	arrangement.drop();
+	await expect.poll(domOrder).toEqual(["b", "a"]);
+	expect(session.doc.body.widgets.find((w) => w.id === "a")!.rect.y).toBe(4);
+});
+
+test("the first render doesn't animate", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 })));
+	session.apply(add(widget("b", { x: 0, y: 4, w: 6, h: 4 }), 1));
+	await renderGrid(app);
+	await expect.element(frame("b")).toBeVisible();
+	expect(frame("a").element().getAnimations()).toHaveLength(0);
+	expect(frame("b").element().getAnimations()).toHaveLength(0);
+});
+
+test("a widget removed while it's picked up announces that the move was cancelled", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	const { arrangement } = await renderArranging(app);
+	await expect.element(frame("a")).toBeVisible();
+	arrangement.pickUp("a", "move", "keyboard");
+	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
+	session.apply({
+		op: "removeWidget",
+		target: { widgetId: "a" },
+		widget: session.doc.body.widgets[0],
+		index: 0
+	});
+	await expect
+		.element(page.getByRole("status").filter({ hasText: "Readings was removed in another tab." }))
+		.toBeInTheDocument();
+	expect(arrangement.active).toBeNull();
+});
+
+test("on a phone the drop target covers the active widget's slot without moving the others", async () => {
+	await page.viewport(400, 800);
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 })));
+	session.apply(add(widget("b", { x: 6, y: 0, w: 6, h: 3 }), 1));
+	const { arrangement } = await renderArranging(app);
+	await expect.element(frame("b")).toBeVisible();
+	const a = frame("a").element().getBoundingClientRect();
+	arrangement.pickUp("b", "move", "touch");
+	const target = page.getByTestId("drop-target");
+	await expect.element(target).toBeInTheDocument();
+	const t = target.element().getBoundingClientRect();
+	const b = frame("b").element().getBoundingClientRect();
+	expect(frame("a").element().getBoundingClientRect().top).toBeCloseTo(a.top);
+	expect([t.top, t.left, t.width, t.height]).toEqual([b.top, b.left, b.width, b.height]);
 });
 
 test("add widget appends a placeholder at the bottom", async () => {

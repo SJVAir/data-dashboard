@@ -5,12 +5,22 @@
 	import { widgetActions, widgetTitle } from "$lib/actions/widget";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import type { WidgetInstance } from "$lib/documents/schema";
+	import type { Rect, WidgetInstance } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
 
-	let { widget }: { widget: WidgetInstance } = $props();
+	let {
+		widget,
+		rect,
+		phoneRow
+	}: {
+		widget: WidgetInstance;
+		/** Where it's shown (the tidied layout or the arrangement's preview), in desktop cells. */
+		rect: Rect;
+		/** Its first row (0-based) in the phone's one-column layout. */
+		phoneRow: number;
+	} = $props();
 
 	const app = useApp();
 	const type = $derived(getWidgetType(widget.type));
@@ -28,11 +38,12 @@
 
 <!-- Not a named region: one landmark per widget would crowd the landmark list. -->
 <section
-	class="bg-card text-card-foreground border-border [grid-row:span_var(--h)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]"
-	style:--col="{widget.rect.x + 1} / span {widget.rect.w}"
-	style:--row="{widget.rect.y + 1} / span {widget.rect.h}"
-	style:--h={widget.rect.h}
+	class="bg-card text-card-foreground border-border [grid-column:1/-1] [grid-row:var(--prow)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]"
+	style:--col="{rect.x + 1} / span {rect.w}"
+	style:--row="{rect.y + 1} / span {rect.h}"
+	style:--prow="{phoneRow + 1} / span {rect.h}"
 	data-testid="widget-{widget.id}"
+	data-flip-id={widget.id}
 	{@attach menuScope(provider)}
 >
 	<!-- Focusable so Shift+F10 / the Menu key opens the widget's menu (step 2 adds keyboard move). -->
