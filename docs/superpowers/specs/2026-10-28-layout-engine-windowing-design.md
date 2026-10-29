@@ -116,6 +116,11 @@ It is proven with the placeholder widget, so step 4's widgets drop into finished
   menu).
 - The `/workspace` trailing-slash entry in `DEFERRED.md` is settled in spec 2b (home renders as
   `/workspace/`).
+- **Per-field `setLayout`** (spec 2b, found while fixing a lost minimize when two tabs edited
+  the same widget): an entry sets only the placement fields (rect, `minimized`) it changes, and
+  overlap is checked per field (see "The change"). The consequence: a drag in one tab and a
+  minimize of the same widget in another now merge silently (the widget is minimized at the
+  dragged rect) where the earlier whole-placement rule showed a conflict dialog.
 
 ## The model
 
@@ -168,7 +173,12 @@ A new change type in `src/lib/changes/types.ts`:
 
 ```ts
 type Placement = { rect: Rect; minimized: { order: number } | null };
-{ op: "setLayout", target: { widgetIds: string[] }, from: Record<id, Placement>, to: Record<id, Placement> }
+{
+  op: "setLayout",
+  target: { widgetIds: string[] },
+  from: Record<id, Placement>,
+  to: Record<id, Placement>
+}
 ```
 
 - **Move / resize:** one per drop, keyboard drop, or touch "Done", covering the moved widget and
@@ -181,11 +191,15 @@ type Placement = { rect: Rect; minimized: { order: number } | null };
 - During a drag nothing is applied; the preview is component state. Autosave sees one edit.
 - **Cross-tab overlap:** a placement has two fields, its rect and `minimized`, and an entry sets
   only the fields whose `from` and `to` differ (applying it leaves the others as the document has
-  them). Two `setLayout`s overlap if they set the same field of the same widget to different
-  values, so one tab's tidy fix (rect only) and another tab's minimize (`minimized` only) of the
-  same widget combine. A `setLayout` overlaps a `removeWidget` of any id it lists. Two tabs moving different widgets
-  don't conflict; if the combined result overlaps, tidy fixes it on screen.
-- `applyForced` ("Keep mine") drops ids that are gone and applies the rest.
+  them); an entry with no `from` for an id sets both. Two `setLayout`s overlap if they set the
+  same field of the same widget to different values, so one tab's tidy fix (rect only) and
+  another tab's minimize (`minimized` only) of the same widget combine. So do a drag in one tab
+  and a minimize of the same widget in another: they merge without a conflict dialog, and the
+  widget ends up minimized at the dragged rect (the earlier whole-placement rule showed a
+  conflict). A `setLayout` overlaps a `removeWidget` of any id it lists. Two tabs moving
+  different widgets don't conflict; if the combined result overlaps, tidy fixes it on screen.
+- `applyForced` ("Keep mine") drops ids that are gone and applies the rest, field by field as
+  above (only the fields each entry changes).
 - The schema check stays (non-negative ints, `x + w ≤ 12`, `w`, `h` ≥ 1). Change validation
   requires `from` and `to` to have the same keys as `target.widgetIds`.
 - Existing users of `placeAtBottom` (Add widget, Duplicate, `replaceIfOverlapping` in rebase)
@@ -348,9 +362,9 @@ page. Remove the entry when done (it's done, not dropped).
 - Component: taskbar roving tabindex, focus after minimize/restore, the fullscreen focus trap
   and Esc.
 - E2E on all three engines: minimize and restore (focus and announcement), undo of a minimize,
-  minimize surviving a reload, minimize on the starter making a copy, fullscreen open/exit by Esc/close/Back, a deep link
-  to a fullscreen widget, a minimized widget, and a missing one, reduced motion, axe on the
-  taskbar and fullscreen states.
+  minimize surviving a reload, minimize on the starter making a copy, fullscreen open/exit by
+  Esc/close/Back, a deep link to a fullscreen widget, a minimized widget, and a missing one,
+  reduced motion, axe on the taskbar and fullscreen states.
 
 ## Accessibility summary (both specs)
 
