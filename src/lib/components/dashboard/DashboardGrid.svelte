@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onDestroy, setContext, untrack } from "svelte";
+	import { on } from "svelte/events";
 	import { MediaQuery } from "svelte/reactivity";
+	import { toast } from "svelte-sonner";
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { dashboardActions } from "$lib/actions/dashboard";
 	import { historyActions } from "$lib/actions/global";
@@ -12,10 +14,20 @@
 	import type { Rect } from "$lib/documents/schema";
 	import { ARRANGEMENT_KEY, Arrangement } from "$lib/layout/arrangement.svelte";
 	import { GRID_COLUMNS, PHONE_QUERY } from "$lib/layout/config";
-	import { Flip } from "$lib/layout/flip";
+	import { Flip, flipRect } from "$lib/layout/flip";
+	import { requestFocus } from "$lib/layout/focus-request.svelte";
+	import {
+		checkDeepLink,
+		exitPlan,
+		FULLSCREEN_PARAM,
+		FULLSCREEN_STATE,
+		fullscreenId
+	} from "$lib/layout/fullscreen";
 	import { shownLayout } from "$lib/layout/items";
 	import { taskbarWidgets } from "$lib/layout/windowing";
+	import { STARTER_ID } from "$lib/starter/starter";
 	import { useApp } from "$lib/store/app.svelte";
+	import { navigate, route } from "../../../router";
 	import AddWidgetButton from "./AddWidgetButton.svelte";
 	import EmptyState from "./EmptyState.svelte";
 	import Taskbar from "./Taskbar.svelte";
@@ -100,31 +112,153 @@
 			flip.play(grid, a && a.input !== "keyboard" ? a.id : null);
 		});
 	});
+
+	// Fullscreen: `?widget=<id>` on this page's own URL. A view, never an edit.
+	const requested = $derived(fullscreenId(route.search));
+	// The session is this page's: the dashboard in the route, or on `/` the starter or its copy.
+	// Until then a previous page's session may still be current, and isn't checked against.
+	const loaded = $derived.by(() => {
+		if (!session) return false;
+		const id = route.params.id;
+		if (id) return session.doc.id === id;
+		return app.current.isStarter || session.doc.copiedFrom === STARTER_ID;
+	});
+	const check = $derived(requested ? checkDeepLink(session, loaded, requested) : null);
+	const shownId = $derived(check === "show" ? requested : null);
+	const shownWidget = $derived(shownId ? byId.get(shownId) : undefined);
+
+	/** This page's path, without the query (so without `widget`). */
+	const here = () => route.pathname as "/";
+
+	function openFullscreen(id: string): void {
+		if (arrangement.active) arrangement.cancel();
+		if (requested === id) return;
+		void navigate(here(), {
+			search: { [FULLSCREEN_PARAM]: id },
+			state: FULLSCREEN_STATE,
+			scrollToTop: false
+		});
+	}
+
+	function exitFullscreen(): void {
+		if (exitPlan(route.state).kind === "back") window.history.back();
+		else void navigate(here(), { replace: true, scrollToTop: false });
+	}
+
+	// A link to a widget that isn't here (or was deleted in another tab): drop `widget` in place,
+	// with a notice. On a read-only page (no widgets shown) it's dropped silently.
+	let dropping: string | null = null;
+	$effect(() => {
+		const result = check;
+		const id = requested;
+		if (result !== "missing" && result !== "read-only") return;
+		untrack(() => {
+			if (dropping === id) return;
+			dropping = id;
+			void navigate(here(), { replace: true, scrollToTop: false }).finally(() => {
+				if (dropping === id) dropping = null;
+			});
+			if (result === "missing") toast(m.fullscreen_widget_missing());
+		});
+	});
+
+	// The dashboard area's top, where a fullscreen widget starts (notice bars can move it, and
+	// the page may be scrolled past the top bar).
+	let root = $state<HTMLElement | null>(null);
+	function measureTop(): void {
+		if (!root) return;
+		const area = root.closest("main") ?? root;
+		root.style.setProperty(
+			"--fullscreen-top",
+			`${Math.max(0, area.getBoundingClientRect().top)}px`
+		);
+	}
+	$effect(() => {
+		if (!shownId || !root) return;
+		const area = root.closest("main") ?? root;
+		const observer = new ResizeObserver(measureTop);
+		for (const el of area.parentElement?.children ?? []) if (el !== area) observer.observe(el);
+		const offs = [on(window, "scroll", measureTop), on(window, "resize", measureTop)];
+		return () => {
+			observer.disconnect();
+			for (const off of offs) off();
+		};
+	});
+
+	const frameOf = (id: string | null) =>
+		id ? (root?.querySelector<HTMLElement>(`[data-flip-id="${CSS.escape(id)}"]`) ?? null) : null;
+
+	// Entering and leaving fullscreen: grow from (or shrink back to) the grid cell, then move
+	// focus to the title bar, or on leaving to the taskbar item of a minimized widget.
+	let lastShown: string | null = null;
+	// Boxes measured before the DOM update and read once after it: not state.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const from = new Map<string, DOMRect>();
+	$effect.pre(() => {
+		const next = shownId;
+		untrack(() => {
+			from.clear();
+			if (next === lastShown) return;
+			for (const id of [lastShown, next]) {
+				const el = frameOf(id);
+				if (id && el) from.set(id, el.getBoundingClientRect());
+			}
+		});
+	});
+	$effect(() => {
+		const next = shownId;
+		untrack(() => {
+			const prev = lastShown;
+			if (next === prev) return;
+			lastShown = next;
+			if (next) measureTop();
+			for (const [id, rect] of from) {
+				const el = frameOf(id);
+				if (el) flipRect(el, rect);
+			}
+			from.clear();
+			if (next) requestFocus({ kind: "title", id: next });
+			else if (prev) {
+				const widget = byId.get(prev);
+				if (widget) requestFocus({ kind: widget.minimized ? "taskbar" : "title", id: prev });
+			}
+		});
+	});
 </script>
 
 {#if session}
 	<ContextMenuHost>
-		<div class="flex min-h-full flex-col gap-4 p-4" {@attach menuScope(actions)}>
+		<div bind:this={root} class="flex min-h-full flex-col gap-4 p-4" {@attach menuScope(actions)}>
 			{#if session.readOnly}
 				<!-- A read-only document may not be valid, so its widgets aren't rendered. -->
 				<p role="status" class="bg-muted rounded-lg px-4 py-2 text-sm">
 					{session.readOnly === "newer" ? m.doc_readonly_newer() : m.doc_readonly_invalid()}
 				</p>
 			{:else}
+				<!-- While a widget is fullscreen, the rest of the dashboard is inert. -->
 				{#if app.current.isStarter}
-					<StarterHint />
+					<div class="contents" inert={!!shownId}><StarterHint /></div>
 				{/if}
 				{#if placed.length === 0}
-					<EmptyState />
-					<!-- Task 6 wires fullscreen. -->
-					<Taskbar widgets={minimized} onfullscreen={() => {}} />
+					<div class="contents" inert={!!shownId}>
+						<EmptyState />
+						<Taskbar widgets={minimized} onfullscreen={openFullscreen} />
+					</div>
 				{:else}
 					<div
 						bind:this={grid}
 						class="grid auto-rows-[var(--grid-row-height)] grid-cols-1 gap-(--grid-gap) md:grid-cols-[repeat(12,minmax(0,1fr))]"
 					>
 						{#each placed as { widget, rect, phoneRow } (widget.id)}
-							<WidgetFrame {widget} {rect} {phoneRow} />
+							<WidgetFrame
+								{widget}
+								{rect}
+								{phoneRow}
+								fullscreen={widget.id === shownId}
+								inert={!!shownId && widget.id !== shownId}
+								onfullscreen={() => openFullscreen(widget.id)}
+								onexit={exitFullscreen}
+							/>
 						{/each}
 						{#if target}
 							<!-- Where the active widget will land: an outline, not a tint. -->
@@ -138,11 +272,23 @@
 							></div>
 						{/if}
 					</div>
-					<div>
+					<div inert={!!shownId}>
 						<AddWidgetButton />
 					</div>
-					<!-- Task 6 wires fullscreen. -->
-					<Taskbar widgets={minimized} onfullscreen={() => {}} />
+					<div class="contents" inert={!!shownId}>
+						<Taskbar widgets={minimized} onfullscreen={openFullscreen} />
+					</div>
+				{/if}
+				{#if shownWidget?.minimized}
+					<!-- A minimized widget has no frame in the grid to lift, so it gets its own. -->
+					<WidgetFrame
+						widget={shownWidget}
+						rect={shownWidget.rect}
+						phoneRow={0}
+						fullscreen={true}
+						onfullscreen={() => {}}
+						onexit={exitFullscreen}
+					/>
 				{/if}
 			{/if}
 		</div>

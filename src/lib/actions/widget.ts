@@ -120,7 +120,9 @@ function arrange(arrangement: Arrangement, widgetId: string, mode: ArrangeMode):
 
 /**
  * One widget's actions; provided on its frame and opened by its ⋯ button. With the page's
- * `arrangement`, also Move… and Resize… (not offered while the widget is minimized).
+ * `arrangement`, also Move… and Resize… (not offered while the widget is minimized). With
+ * `window.fullscreen`, also Fullscreen; `window.inFullscreen` (the frame is fullscreen) leaves
+ * out Move…, Resize…, Minimize, and Fullscreen.
  */
 export function widgetActions(
 	app: AppContext,
@@ -131,7 +133,7 @@ export function widgetActions(
 	return () => {
 		const locked = find(app, widgetId) === null;
 		const layout: MenuItem[] =
-			arrangement && !currentWidget(app, widgetId)?.minimized
+			arrangement && !currentWidget(app, widgetId)?.minimized && !window?.inFullscreen
 				? [
 						{
 							id: "move-widget",
@@ -165,6 +167,11 @@ export function widgetActions(
 					}
 				]
 			: [];
+		const fullscreen = window?.fullscreen;
+		if (fullscreen && !window?.inFullscreen) {
+			// A view, not an edit: never locked, and never makes a starter copy.
+			windowing.push(fullscreenItem(widgetId, fullscreen));
+		}
 		return [
 			...layout,
 			...windowing,
@@ -220,6 +227,17 @@ export function restoreWidget(app: AppContext, widgetId: string): void {
 	requestFocus({ kind: "title", id: widgetId });
 }
 
+/** Fullscreen: opened once the menu has closed, so its focus return can't undo the move. */
+function fullscreenItem(widgetId: string, fullscreen: (id: string) => void): MenuItem {
+	return {
+		id: "fullscreen-widget",
+		label: m.widget_fullscreen(),
+		icon: Maximize2,
+		group: "window",
+		run: () => afterMenuClose(() => fullscreen(widgetId))
+	};
+}
+
 const NOT_IN_TASKBAR = new Set(["move-widget", "resize-widget", "minimize-widget"]);
 
 /** A taskbar item's actions: Restore, Fullscreen, then the common widget actions. */
@@ -238,13 +256,7 @@ export function taskbarActions(
 			disabled: find(app, widgetId) === null,
 			run: () => afterMenuClose(() => restoreWidget(app, widgetId))
 		},
-		{
-			id: "fullscreen-widget",
-			label: m.widget_fullscreen(),
-			icon: Maximize2,
-			group: "window",
-			run: () => fullscreen(widgetId)
-		},
+		fullscreenItem(widgetId, fullscreen),
 		...common(ctx).filter((item) => !NOT_IN_TASKBAR.has(item.id))
 	];
 }

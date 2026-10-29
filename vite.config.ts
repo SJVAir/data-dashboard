@@ -112,7 +112,15 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 						enabled: true,
 						headless: true,
 						provider: playwright(),
-						instances: [{ browser: "chromium" }]
+						instances: [{ browser: "chromium" }],
+						commands: {
+							/** Emulate `prefers-reduced-motion` for the test page (null resets it). */
+							setReducedMotion: async (ctx, reduce: boolean | null) => {
+								await ctx.page.emulateMedia({
+									reducedMotion: reduce === null ? null : reduce ? "reduce" : "no-preference"
+								});
+							}
+						}
 					}
 				}
 			}

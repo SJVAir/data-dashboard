@@ -82,6 +82,10 @@
 	--grid-row-height: 4rem;
 	--grid-gap: var(--space-3);
 	--taskbar-height: 3rem;
+	/* A fullscreen widget: above the grid and taskbar (z-20), below menus, dialogs, and toasts (z-50+). */
+	--z-fullscreen: 40;
+	/* Where a fullscreen widget starts (the top of the dashboard area); measured at runtime. */
+	--fullscreen-top: 0px;
 	--swatch-outline-width: 1px;
 	--swatch-outline-color: var(--foreground);
 }

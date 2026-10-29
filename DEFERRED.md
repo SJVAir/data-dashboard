@@ -647,6 +647,13 @@ string`) now get the union return type. The mobile app passes a string token, so
   `applyChange`'s index clamping and for never mutating its input are weak. Both are
   exercised indirectly by other tests. **Revisit when** a second widget type registers
   (Release 1 step 4), or `applyChange` gains an operation.
+- **Widget state across the starter's first edit in fullscreen.** _Deferred 2026-10-29 (spec
+  2b)._ An edit made while a starter widget is fullscreen hands off to the copy and keeps
+  `?widget`, but the page moves from Home to the copy's dashboard page, so the grid and the
+  fullscreen widget are mounted again once (a widget's own state, such as zoom, resets). Why:
+  keeping the grid mounted across Home → the dashboard page needs a router restructure.
+  **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
+  lost on the starter's first edit.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
