@@ -1,5 +1,6 @@
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import Copy from "@lucide/svelte/icons/copy";
+import Minus from "@lucide/svelte/icons/minus";
 import Maximize2 from "@lucide/svelte/icons/maximize-2";
 import Move from "@lucide/svelte/icons/move";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -124,7 +125,8 @@ function arrange(arrangement: Arrangement, widgetId: string, mode: ArrangeMode):
 export function widgetActions(
 	app: AppContext,
 	widgetId: string,
-	arrangement?: Arrangement
+	arrangement?: Arrangement,
+	window?: { fullscreen?: (id: string) => void; inFullscreen?: boolean }
 ): MenuProvider {
 	return () => {
 		const locked = find(app, widgetId) === null;
@@ -149,8 +151,23 @@ export function widgetActions(
 						}
 					]
 				: [];
+		const minimizable = !currentWidget(app, widgetId)?.minimized && !window?.inFullscreen;
+		const windowing: MenuItem[] = minimizable
+			? [
+					{
+						id: "minimize-widget",
+						label: m.widget_minimize(),
+						icon: Minus,
+						group: "window",
+						disabled: locked,
+						// After the menu closes, so its own focus return can't undo the move.
+						run: () => afterMenuClose(() => minimizeWidget(app, widgetId))
+					}
+				]
+			: [];
 		return [
 			...layout,
+			...windowing,
 			{
 				id: "rename-widget",
 				label: m.widget_rename(),
@@ -219,7 +236,7 @@ export function taskbarActions(
 			icon: ArrowUpFromLine,
 			group: "window",
 			disabled: find(app, widgetId) === null,
-			run: () => restoreWidget(app, widgetId)
+			run: () => afterMenuClose(() => restoreWidget(app, widgetId))
 		},
 		{
 			id: "fullscreen-widget",

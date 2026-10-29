@@ -58,9 +58,16 @@
 		const index = widgets.findIndex((w) => w.id === request.id);
 		if (index === -1) return;
 		untrack(() => {
-			if (!takeFocus({ kind: "taskbar", id: request.id })) return;
+			const button = all()[index * 2];
+			if (!button) return;
 			stop = index * 2;
-			all()[index * 2]?.focus();
+			button.focus();
+			// A starter's hand-off can rebuild the bar right after this. The request is only
+			// spent once the button is still there a frame later; if it was replaced, the
+			// effect runs again for the new one.
+			requestAnimationFrame(() => {
+				if (button.isConnected) takeFocus({ kind: "taskbar", id: request.id });
+			});
 		});
 	});
 </script>
@@ -72,7 +79,7 @@
 		bind:this={bar}
 		role="toolbar"
 		aria-label={m.taskbar_label()}
-		class="bg-card border-border sticky bottom-0 z-20 flex gap-2 overflow-x-auto rounded-lg border p-1"
+		class="bg-card border-border sticky bottom-0 z-20 flex min-h-(--taskbar-height) items-center gap-2 overflow-x-auto rounded-lg border p-1"
 		{onkeydown}
 		{onfocusin}
 	>

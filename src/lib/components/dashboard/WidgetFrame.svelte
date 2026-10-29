@@ -2,10 +2,11 @@
 	import { onDestroy, untrack } from "svelte";
 	import { on } from "svelte/events";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
+	import Minus from "@lucide/svelte/icons/minus";
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
-	import { widgetActions, widgetTitle } from "$lib/actions/widget";
+	import { minimizeWidget, widgetActions, widgetTitle } from "$lib/actions/widget";
 	import { pendingFocusTarget, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -98,6 +99,11 @@
 		selecting = false;
 		arrangement.cancel();
 		announce(m.layout_cancelled({ title }));
+	}
+
+	function minimize(): void {
+		if (mine()) cancel();
+		minimizeWidget(app, widget.id);
 	}
 
 	function onkeydown(event: KeyboardEvent): void {
@@ -371,7 +377,7 @@
 <section
 	bind:this={section}
 	class={[
-		"group bg-card text-card-foreground border-border relative [grid-column:1/-1] [grid-row:var(--prow)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
+		"group bg-card text-card-foreground border-border relative [grid-column:1/-1] [grid-row:var(--prow)] flex min-h-0 scroll-mb-[calc(var(--taskbar-height)+var(--grid-gap))] flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
 		dragging && "z-10 shadow-lg",
 		touchActive && "ring-ring ring-2"
 	]}
@@ -405,6 +411,14 @@
 		{@attach noMenu}
 	>
 		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			aria-label={m.widget_minimize_named({ title })}
+			onclick={minimize}
+		>
+			<Minus aria-hidden="true" />
+		</Button>
 		<Button
 			bind:ref={more}
 			variant="ghost"
