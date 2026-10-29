@@ -113,7 +113,9 @@ sign-in side, merged the same day as data-dashboard
 
 - sjvair.com `develop` reaching `main` (a production deploy, so your call). It carries #292
   (unblocks the resticus CSRF merge), #293 (metadata enablers, needed before @sjvair/sdk
-  4.8.0), #295 (hosting; the route stays behind `beta_tools`), and #296 (5b's sign-in side).
+  4.8.0), #295 (hosting; the route stays behind `beta_tools`), #296 (5b's sign-in side), and
+  #297 (sync spec 1's documents API; its cookie-authenticated writes need resticus #25 in
+  production first).
   #287, #288, and #289 already reached `main` in release #291 (2026-10-22). It's no longer
   blocked on the dashboard: sjvair.com's build imports dashboard `main`, which now has the
   embedding build. Once deployed, `/workspace/` is live behind `beta_tools`.
