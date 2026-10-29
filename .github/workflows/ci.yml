@@ -49,6 +49,7 @@ jobs:
           retention-days: 7
 
   e2e-full:
+    name: e2e-full (${{ matrix.browser }})
     needs: checks
     if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout'
     runs-on: ubuntu-latest
