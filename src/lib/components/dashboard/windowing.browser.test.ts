@@ -198,6 +198,39 @@ test("minimize on the starter makes the copy and focuses the taskbar item", asyn
 	expect(document.activeElement?.closest('[role="toolbar"]')).not.toBeNull();
 });
 
+test("restore on the starter makes the copy and focuses the restored title bar", async () => {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	history.replaceState(null, "", "/workspace/");
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect
+		.element(page.getByText("This is the starter dashboard.", { exact: false }))
+		.toBeVisible();
+	const starter = app.current.session!;
+	// The built-in starter has no minimized widget, so one is minimized in its shown document
+	// (not an edit, so no copy yet).
+	starter.doc = {
+		...starter.doc,
+		body: {
+			widgets: starter.doc.body.widgets.map((w) =>
+				w.id === "starter-1" ? { ...w, minimized: { order: 0 } } : w
+			)
+		}
+	};
+	const restore = page.getByRole("toolbar").getByRole("button", { name: /^Restore / });
+	await expect.element(restore).toBeVisible();
+	const name = (restore.element() as HTMLElement).getAttribute("aria-label")!;
+	const title = name.replace(/^Restore /, "");
+	await restore.click();
+	await expect.poll(() => app.current.session).not.toBe(starter);
+	const copy = app.current.session!;
+	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
+	expect(copy.doc.body.widgets.find((w) => w.id === "starter-1")!.minimized).toBeUndefined();
+	await expect
+		.poll(() => document.activeElement)
+		.toBe(page.getByTestId("widget-starter-1").getByRole("group", { name: title }).element());
+});
+
 test("no Minimize on a read-only dashboard", async () => {
 	const { session } = await seed(halves());
 	session.readOnly = "newer";
