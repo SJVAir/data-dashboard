@@ -5,8 +5,9 @@ import type { Change } from "./types";
  * Whether two changes made on different sides touch the same thing, so neither can be
  * replayed over the other silently: the same field of the same widget (or the same document
  * field; a placement's rect and minimized are separate fields), either side replacing the
- * whole document, or one side removing a widget the other side changed. Both sides removing the same widget, or setting the same field to the same
- * value, agree, so that is not an overlap.
+ * whole document, or one side removing a widget the other side changed. Both sides removing
+ * the same widget, or setting the same field to the same value, agree, so that is not an
+ * overlap.
  */
 export function changesOverlap(a: Change, b: Change): boolean {
 	// Replacing the whole document touches everything, including another replacement.
