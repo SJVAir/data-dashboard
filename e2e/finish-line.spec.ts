@@ -134,7 +134,6 @@ test("new blank dashboard, duplicate (rename dialog opens), delete with undo", a
 
 test("unknown and trimmed paths redirect", async ({ page }) => {
 	await page.goto("./nowhere");
-	// sv-router writes the home path without its trailing slash.
 	await expect(page).toHaveURL(/\/workspace\/$/);
 	await page.goto("./dashboards/abc/widgets");
 	await expect(page).toHaveURL(/\/workspace\/dashboards\/abc$/);
