@@ -46,6 +46,7 @@
 	"deleted_restore_failed": "Couldn't restore the dashboard.",
 	"confirm_cancel": "Cancel",
 	"dashboard_empty": "This dashboard is empty.",
+	"dashboard_all_minimized": "All widgets are minimized.",
 	"dashboard_not_here": "This dashboard isn't saved in this browser.",
 	"page_title_not_here": "Dashboard not found · SJVAir Dashboard",
 	"your_dashboards": "Your dashboards",

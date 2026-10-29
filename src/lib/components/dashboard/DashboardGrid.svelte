@@ -270,7 +270,7 @@
 				{/if}
 				{#if placed.length === 0}
 					<div class="contents" inert={!!shownId}>
-						<EmptyState />
+						<EmptyState allMinimized={minimized.length > 0} />
 						<Taskbar widgets={minimized} onfullscreen={openFullscreen} />
 					</div>
 				{:else}

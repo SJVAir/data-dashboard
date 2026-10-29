@@ -130,6 +130,15 @@ test("its menu has Restore and Fullscreen but not Minimize, Moveâ€¦, or Resizeâ€
 	expect(await items()).not.toContain("Minimize");
 });
 
+test("with every widget minimized, it says so instead of calling the dashboard empty", async () => {
+	await seed([widget("a", { x: 0, y: 0, w: 4, h: 3 }, "Alpha", 0)]);
+	await expect.element(toolbar()).toBeVisible();
+	await expect.element(page.getByText("All widgets are minimized.")).toBeVisible();
+	expect(document.body.textContent).not.toContain("This dashboard is empty.");
+	// Adding a widget is still offered.
+	await expect.element(page.getByRole("button", { name: "Add widget" })).toBeVisible();
+});
+
 test("no taskbar when nothing is minimized", async () => {
 	await seed([widget("g", { x: 0, y: 0, w: 6, h: 4 }, "Grid one")]);
 	await expect.element(page.getByRole("group", { name: "Grid one" })).toBeVisible();
