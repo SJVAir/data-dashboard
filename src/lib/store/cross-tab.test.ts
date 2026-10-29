@@ -262,6 +262,74 @@ describe("cross-tab sync", () => {
 		}
 	});
 
+	it("undo after a per-field merge undoes only my side", async () => {
+		// Untidy rects, so both minimizes carry the same tidy fixes (rect only).
+		const stack = (id: string, y: number): WidgetInstance => ({
+			...widget(id, 0, y),
+			rect: { x: 0, y, w: 6, h: 1 }
+		});
+		const doc = makeDoc();
+		doc.body.widgets = [stack("a", 0), stack("b", 1), stack("c", 2)];
+		const { platform, a, b } = await twoTabs(doc);
+		const theirs = minimizeChange(a.doc.body.widgets, "a")!;
+		const mine = minimizeChange(b.doc.body.widgets, "b")!;
+		await concurrent(a, b, [mine], [theirs]);
+		await settle();
+		expect(b.conflict).toBeNull();
+
+		b.undo();
+		await b.flush();
+		await settle();
+		const saved = await stored(platform);
+		const find = (id: string) => saved.body.widgets.find((w) => w.id === id)!;
+		// Their minimize stays and mine is undone.
+		expect(find("a").minimized).toBeDefined();
+		expect(find("b").minimized).toBeUndefined();
+		// Only the fields my change set go back to what this tab had (undo entries aren't
+		// rebased): my tidy fixes of "a" and "c" become untidy again (the screen tidies them),
+		// while "b" keeps the rect their tidy fix gave it, since my minimize didn't set it.
+		expect(find("a").rect).toEqual({ x: 0, y: 0, w: 6, h: 1 });
+		expect(find("b").rect).toEqual({ x: 0, y: 2, w: 6, h: 2 });
+		expect(find("c").rect).toEqual({ x: 0, y: 2, w: 6, h: 1 });
+		expect(b.conflict).toBeNull();
+		expect(a.doc).toEqual(saved);
+		expect(b.doc).toEqual(saved);
+	});
+
+	it("keep-mine with per-field setLayout entries keeps their other field", async () => {
+		const { platform, a, b } = await twoTabs();
+		// They retitle "a" and move "b"; I retitle "a" too and minimize "b".
+		const moved = { x: 0, y: 4, w: 6, h: 4 };
+		const move: Change = {
+			op: "setLayout",
+			target: { widgetIds: ["b"] },
+			from: { b: { rect: { x: 6, y: 0, w: 6, h: 4 }, minimized: null } },
+			to: { b: { rect: moved, minimized: null } }
+		};
+		const minimize = minimizeChange(b.doc.body.widgets, "b")!;
+		await concurrent(a, b, [title("a", "Mine"), minimize], [title("a", "Theirs"), move]);
+		// Only the titles conflict: the minimize and the move set different fields.
+		expect(b.conflict?.pairs).toEqual([[title("a", "Mine"), title("a", "Theirs")]]);
+
+		expect(await b.resolveConflict("keep-mine")).toBeNull();
+		await settle();
+		const saved = await stored(platform);
+		const w = saved.body.widgets.find((x) => x.id === "b")!;
+		expect(w.minimized).toBeDefined();
+		expect(w.rect).toEqual(moved);
+		expect(saved.body.widgets.find((x) => x.id === "a")!.title).toBe("Mine");
+		expect(b.doc).toEqual(saved);
+		expect(a.doc).toEqual(saved);
+
+		// Undo takes back only my minimize, leaving their move.
+		b.undo();
+		await b.flush();
+		await settle();
+		const after = (await stored(platform)).body.widgets.find((x) => x.id === "b")!;
+		expect(after.minimized).toBeUndefined();
+		expect(after.rect).toEqual(moved);
+	});
+
 	it("a tab behind a trimmed log reloads and replays its own pending changes", async () => {
 		const { platform, a, b } = await twoTabs();
 		b.apply(title("b", "Mine"));
