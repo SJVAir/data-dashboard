@@ -47,7 +47,8 @@ Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
 - Fullscreen is the `?widget=<id>` query parameter on the dashboard URL (`/dashboards/:id` and
   `/workspace/` for the starter), not a separate route. Leaving by history when the widget goes.
 - Focus requests keep focus across page swaps, undo, and fullscreen frames.
-- The dashboard's ⋯ button; `/workspace` redirects to `/workspace/`.
+- The dashboard's ⋯ button; `/workspace` is rewritten to `/workspace/` in place
+  (`history.replaceState`, not a redirect).
 - `setLayout` applies per field (rect, minimized), so two tabs minimizing different widgets at
   once both keep their minimize (found by the E2E).
 - Verified with unit and browser-mode tests and the windowing E2E.
