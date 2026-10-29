@@ -93,6 +93,21 @@ test("Minimize moves the widget to the taskbar, focuses its item, and announces"
 	await expect.element(titleBar("Readings")).toBeVisible();
 });
 
+test("Ctrl+Z after Minimize restores the rect and focuses the title bar", async () => {
+	const { session } = await seed(halves());
+	await page.getByRole("button", { name: "Minimize Readings" }).click();
+	await expect.poll(() => document.activeElement).toBe(item("Readings").element());
+	await userEvent.keyboard("{Control>}z{/Control}");
+	expect(session.doc.body.widgets.find((w) => w.id === "a")!.minimized).toBeUndefined();
+	expect(session.doc.body.widgets.find((w) => w.id === "a")!.rect).toEqual({
+		x: 0,
+		y: 0,
+		w: 6,
+		h: 4
+	});
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+});
+
 test("Minimize from the ⋯ menu does the same", async () => {
 	const { session } = await seed(halves());
 	await page.getByRole("button", { name: "Actions for Readings" }).click();
@@ -155,13 +170,8 @@ test("minimize on the starter makes the copy and focuses the taskbar item", asyn
 test("no Minimize on a read-only dashboard", async () => {
 	const { session } = await seed(halves());
 	session.readOnly = "newer";
-	await page
-		.getByRole("button", { name: "Minimize Readings" })
-		.click({ force: true })
-		.catch(() => {});
-	expect(session.doc.body.widgets.every((w) => !w.minimized)).toBe(true);
-	const button = document.querySelector(
-		'[aria-label="Minimize Readings"]'
-	) as HTMLButtonElement | null;
-	expect(button === null || button.disabled).toBe(true);
+	await expect.element(page.getByText("newer version", { exact: false })).toBeVisible();
+	expect(document.querySelectorAll('[data-testid^="widget-"]').length).toBe(0);
+	expect(document.querySelector('[role="toolbar"]')).toBeNull();
+	expect(document.querySelector('[aria-label^="Minimize"]')).toBeNull();
 });

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from "svelte";
+	import { onDestroy, untrack } from "svelte";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 	import { menuScope } from "$lib/actions/scope";
@@ -7,7 +7,7 @@
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { pendingFocusTarget, takeFocus } from "$lib/layout/focus-request.svelte";
+	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
@@ -46,11 +46,6 @@
 		buttons[next].focus();
 	}
 
-	function onfocusin(event: FocusEvent): void {
-		const at = all().indexOf(event.target as HTMLButtonElement);
-		if (at !== -1) stop = at;
-	}
-
 	// After a minimize: focus that widget's restore button.
 	$effect(() => {
 		const request = pendingFocusTarget();
@@ -58,17 +53,64 @@
 		const index = widgets.findIndex((w) => w.id === request.id);
 		if (index === -1) return;
 		untrack(() => {
-			const button = all()[index * 2];
-			if (!button) return;
+			if (!takeFocus({ kind: "taskbar", id: request.id })) return;
 			stop = index * 2;
-			button.focus();
-			// A starter's hand-off can rebuild the bar right after this. The request is only
-			// spent once the button is still there a frame later; if it was replaced, the
-			// effect runs again for the new one.
-			requestAnimationFrame(() => {
-				if (button.isConnected) takeFocus({ kind: "taskbar", id: request.id });
-			});
+			all()[index * 2]?.focus();
 		});
+	});
+
+	// Where focus was in the bar (null once it moves elsewhere).
+	let held: { id: string; index: number } | null = null;
+
+	function onfocusin(event: FocusEvent): void {
+		const at = all().indexOf(event.target as HTMLButtonElement);
+		if (at === -1) return;
+		stop = at;
+		held = { id: widgets[Math.floor(at / 2)]?.id ?? "", index: Math.floor(at / 2) };
+	}
+
+	function onfocusout(event: FocusEvent): void {
+		const to = event.relatedTarget;
+		if (to instanceof Node && !bar?.contains(to)) held = null;
+	}
+
+	// Focus lost with its element (undo, another tab's restore, a page swap): hand it on.
+	function settle(remaining: string[]): void {
+		if (!held) return;
+		const { id, index } = held;
+		if (remaining.includes(id)) {
+			// The page is being rebuilt (a starter's hand-off): the next bar takes it.
+			requestFocus({ kind: "taskbar", id });
+			return;
+		}
+		held = null;
+		const all = app.current.session?.doc.body.widgets ?? [];
+		const gone = all.find((w) => w.id === id);
+		if (gone && !gone.minimized) requestFocus({ kind: "title", id });
+		else if (remaining.length) {
+			requestFocus({ kind: "taskbar", id: remaining[Math.min(index, remaining.length - 1)] });
+		} else {
+			const first = all.find((w) => !w.minimized);
+			if (first) requestFocus({ kind: "title", id: first.id });
+		}
+	}
+
+	$effect(() => {
+		const ids = widgets.map((w) => w.id);
+		untrack(() => {
+			if (held && !ids.includes(held.id)) settle(ids);
+		});
+	});
+
+	onDestroy(() => settle(widgets.map((w) => w.id)));
+
+	// A press outside the bar means focus isn't ours to hand on.
+	$effect(() => {
+		const onDown = (event: PointerEvent) => {
+			if (!(event.target instanceof Node && bar?.contains(event.target))) held = null;
+		};
+		window.addEventListener("pointerdown", onDown, true);
+		return () => window.removeEventListener("pointerdown", onDown, true);
 	});
 </script>
 
@@ -82,6 +124,7 @@
 		class="bg-card border-border sticky bottom-0 z-20 flex min-h-(--taskbar-height) items-center gap-2 overflow-x-auto rounded-lg border p-1"
 		{onkeydown}
 		{onfocusin}
+		{onfocusout}
 	>
 		{#each widgets as widget, i (widget.id)}
 			{@const title = widgetTitle(widget)}
