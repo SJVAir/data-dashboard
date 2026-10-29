@@ -1227,3 +1227,14 @@ Dropped 2026-10-20 by the user ("we won't deal with production"):
 - **Run `import_forecast_zones` on production** (noted 2026-10-20). The three `custom`
   forecast zones were imported and verified locally (`TODO.md` → the forecast-zones
   warning); production work is out of scope.
+
+Dropped 2026-10-29 by the user (spec 2b review notes, closed as already covered or impossible):
+
+- **Test for restoring a widget wider than the grid.** The document schema caps `w` at 12,
+  the grid's width.
+- **Taskbar tests for dashboard items absent from an item's menu, and no taskbar on
+  read-only.** The taskbar menu test and the read-only tests already cover both.
+- **Test that Back exits starter fullscreen after the `/workspace/` rewrite.** A unit test
+  pins that the history state survives the rewrite, and the E2E covers Back.
+- **Reduced-motion check inspects only the frame's animations; two-tab test's order relies
+  on widget id.** Only the frame animates, and the id tie-break is the spec's rule.
