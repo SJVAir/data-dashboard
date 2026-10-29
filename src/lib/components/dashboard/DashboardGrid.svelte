@@ -302,17 +302,19 @@
 						<Taskbar widgets={minimized} onfullscreen={openFullscreen} />
 					</div>
 				{/if}
-				{#if shownWidget?.minimized}
-					<!-- A minimized widget has no frame in the grid to lift, so it gets its own. -->
+				<!-- A minimized widget has no frame in the grid to lift, so it gets its own. It's an
+				     each item, like the grid's frames, so while the frame is torn down (Chromium fires
+				     blur then, when it has focus) it still has its widget. -->
+				{#each shownWidget?.minimized ? [shownWidget] : [] as lifted (lifted.id)}
 					<WidgetFrame
-						widget={shownWidget}
-						rect={shownWidget.rect}
+						widget={lifted}
+						rect={lifted.rect}
 						phoneRow={0}
 						fullscreen={true}
 						onfullscreen={() => {}}
 						onexit={exitFullscreen}
 					/>
-				{/if}
+				{/each}
 			{/if}
 		</div>
 	</ContextMenuHost>
