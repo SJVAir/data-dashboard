@@ -1,5 +1,11 @@
 # Sync spec 1: server and SDK — Implementation Plan
 
+> **Status: done.** Built 2026-10-28. sjvair.com #297 merged into `develop` on 2026-10-28 and
+> sdk-js #34 into `release/4.8.0` on 2026-10-29. No sdk-js prerelease is cut yet. Plan changes
+> made while building, such as the reserved ids, `SharedDocument.id`, and share/revoke bumping
+> `updated_at`, are listed in `TODO.md` → "Sync track". The steps below are left unchecked as
+> the historical plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** sjvair.com stores signed-in users' dashboards with version-checked saves, a change log,

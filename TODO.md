@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-10-28
+Last updated: 2026-10-29
 
 ## Start here
 
@@ -355,14 +355,21 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
 
 ### Sync track (branch `sync`, worktree `data-dashboard-sync`)
 
-**Spec 1 (server and SDK) is built; both PRs are open for review, not merged:**
-sjvair.com [#297](https://github.com/SJVAir/sjvair.com/pull/297) (`feature/saved-documents`
-into `develop`, 25 commits) and sdk-js [#34](https://github.com/SJVAir/sdk-js/pull/34)
-(`feature/documents` into `release/4.8.0`; no version bump, no prerelease). **Next:** spec 2
-(dashboard sync) needs an sdk-js prerelease with the documents module, which needs your
-explicit yes. Spec 2 starts after step 2 (`layout`) merges, or stacks on it. Locally the
-documents tables were migrated into the dev DB from the worktree; the running stack serves the
-main checkout (`develop`), so serving the API locally means serving the sjvair.com worktree.
+**Spec 1 (server and SDK) is done and merged:** sjvair.com
+[#297](https://github.com/SJVAir/sjvair.com/pull/297) into `develop` (2026-10-28; not in
+production until the user's `develop` → `main` deploy) and sdk-js
+[#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29; no version
+bump, no prerelease cut).
+
+**Next: spec 2 (dashboard sync), after step 2b.** Order (decided 2026-10-29): layout spec 2b →
+`layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design, this
+plan, and this section live only on `sync` until `sync` (docs only) is merged into `main`, which
+needs the user's approval; until then read them from `origin/sync`.
+Spec 2 first needs an sdk-js prerelease from `release/4.8.0` with the documents module (the
+dashboard pins `4.8.0-beta.1` exactly today); cutting it needs the user's explicit yes. Spec 2
+starts with its own plan, from the design's "How it works" and "The dashboard (specs 2–4)".
+Locally, the dev DB already has the `documents` tables; the stack serves the sjvair.com main
+checkout, which needs `develop` pulled to serve the documents API.
 
 Decisions later specs need:
 
