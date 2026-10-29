@@ -441,7 +441,7 @@ test("delete dashboard goes home and its toast's undo brings it back", async () 
 	await expect.element(toastItem).toBeVisible();
 	await expect.poll(() => app.current.isStarter).toBe(true);
 	expect(app.index.items).toHaveLength(0);
-	expect(location.pathname).toMatch(/^\/workspace\/?$/);
+	expect(location.pathname).toBe("/workspace/");
 
 	await toastItem.getByRole("button", { name: "Undo" }).click();
 	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${id}`);
@@ -505,7 +505,7 @@ test("undoing a dashboard's restore leaves it again", async () => {
 	session.undo();
 	expect(typeof session.doc.deletedAt).toBe("string");
 	await expect.poll(() => app.current.isStarter).toBe(true);
-	expect(location.pathname).toMatch(/^\/workspace\/?$/);
+	expect(location.pathname).toBe("/workspace/");
 	expect(app.index.items).toHaveLength(0);
 });
 

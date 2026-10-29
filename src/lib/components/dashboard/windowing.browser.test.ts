@@ -593,6 +593,27 @@ test("an edit in starter fullscreen keeps fullscreen on the copy", async () => {
 	expect(isFullscreen("starter-1")).toBe(false);
 });
 
+test("the bare base is canonicalized, keeping ?widget and the router's history state", async () => {
+	const replace = history.replaceState.bind(history);
+	const seen: { state: unknown; url: unknown }[] = [];
+	history.replaceState = (state, unused, url) => {
+		seen.push({ state, url });
+		replace(state, unused, url);
+	};
+	try {
+		await starterApp("/workspace?widget=starter-1");
+		await expect.poll(() => isFullscreen("starter-1")).toBe(true);
+	} finally {
+		history.replaceState = replace;
+	}
+	expect(location.pathname).toBe("/workspace/");
+	expect(location.search).toBe("?widget=starter-1");
+	const canonical = seen.find((call) => String(call.url) === "/workspace/?widget=starter-1");
+	expect(canonical).toBeTruthy();
+	// The state passed through is the router's own (its history index), not a fresh one.
+	expect(canonical!.state).toMatchObject({ _routerIndex: expect.any(Number) });
+});
+
 test("opening fullscreen never makes a starter copy", async () => {
 	const app = await starterApp("/workspace/");
 	const starter = app.current.session!;
@@ -600,13 +621,11 @@ test("opening fullscreen never makes a starter copy", async () => {
 		.getByRole("button", { name: /^Show .* fullscreen$/ })
 		.click();
 	await expect.poll(() => isFullscreen("starter-1")).toBe(true);
-	// Task 8 makes home `/workspace/`; the router shows it as `/workspace` until then.
-	expect(location.pathname).toMatch(/^\/workspace\/?$/);
+	expect(location.pathname).toBe("/workspace/");
 	expect(location.search).toBe("?widget=starter-1");
 	await userEvent.keyboard("{Escape}");
 	await expect.poll(() => location.search).toBe("");
-	// Task 8 makes home `/workspace/`; the router shows it as `/workspace` until then.
-	expect(location.pathname).toMatch(/^\/workspace\/?$/);
+	expect(location.pathname).toBe("/workspace/");
 	expect(app.current.session).toBe(starter);
 	expect(app.current.isStarter).toBe(true);
 	expect(starter.canUndo).toBe(false);

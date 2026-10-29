@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { m } from "$lib/paraglide/messages.js";
+	import { HOME_HREF } from "$lib/routing";
 	import { isActive, p } from "../../../router";
 	import AccountMenu from "./AccountMenu.svelte";
 	import DashboardPicker from "./DashboardPicker.svelte";
@@ -10,7 +11,7 @@
 
 <header class="border-border bg-background border-b">
 	<nav aria-label={m.nav_label()} class="flex flex-wrap items-center gap-2 px-4 py-2">
-		<a href={p("/")} class="mr-2 font-semibold">{m.app_name()}</a>
+		<a href={HOME_HREF} class="mr-2 font-semibold">{m.app_name()}</a>
 		<a
 			href={p("/dashboards")}
 			aria-current={isActive("/dashboards") ? "page" : undefined}

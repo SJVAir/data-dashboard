@@ -7,6 +7,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import { canonicalHome } from "./src/lib/routing.ts";
 import { buildInfo } from "./vite-plugins/build-info.ts";
 import { licenses } from "./vite-plugins/licenses.ts";
 import { webManifest } from "./vite-plugins/web-manifest.ts";
@@ -19,6 +20,26 @@ function absoluteShell(): Plugin {
 			order: "post",
 			handler: (html, ctx) =>
 				ctx.bundle ? html.replaceAll(/(["'])\.\/workspace\//g, "$1/workspace/") : html
+		}
+	};
+}
+
+/**
+ * Dev only: serve the app for the bare `/workspace` (Vite would show its base-URL hint page).
+ * The middleware is registered directly, so it runs before Vite's own base check.
+ */
+function bareBase(): Plugin {
+	return {
+		name: "sjvair-bare-base",
+		apply: "serve",
+		configureServer(server) {
+			server.middlewares.use((req, _res, next) => {
+				const url = req.url ?? "";
+				const q = url.indexOf("?");
+				const home = canonicalHome(q < 0 ? url : url.slice(0, q));
+				if (home) req.url = home + (q < 0 ? "" : url.slice(q));
+				next();
+			});
 		}
 	};
 }
@@ -64,7 +85,8 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 		buildInfo(),
 		licenses(),
 		webManifest(),
-		absoluteShell()
+		absoluteShell(),
+		bareBase()
 	],
 	build: {
 		target: ["chrome111", "edge111", "safari16.4", "firefox128"],

@@ -266,15 +266,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
   **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
-- **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
-  review); updated 2026-10-27 (spec 5b final review)._ The home route shows as `/workspace`
-  (sv-router drops the slash), while Vite's base is `/workspace/`. The server half is done:
-  the hosting track's `re_path(r'^workspace(?:/.*)?$')` makes sjvair.com serve both forms (200,
-  no redirect), and the dev-stack test accepts both. Spec 5b's Sign in link sends home back as
-  `/workspace/`. Still open, dev only: reloading home in `npm run dev` (or opening `/workspace`
-  there) shows Vite's base-URL hint page, and the address bar's home URL isn't the canonical
-  `/workspace/`. **Revisit with** the next router change (layout engine and windowing, at the
-  latest): have the router render home as `/workspace/`, or redirect the bare base in dev.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding

@@ -126,7 +126,7 @@ test("Clear my data with two tabs leaves both on the starter and nothing comes b
 		.toBe(true);
 
 	for (const tab of [page, other]) {
-		await expect(tab).toHaveURL(/\/workspace\/?$/);
+		await expect(tab).toHaveURL(/\/workspace\/$/);
 		await expect(widgetTitles(tab)).toHaveText([PLACEHOLDER, /./, /./]);
 	}
 	await page.waitForTimeout(1000);
