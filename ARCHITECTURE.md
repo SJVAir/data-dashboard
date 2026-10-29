@@ -2313,7 +2313,8 @@ Decided 2026-09-24.
   and three-engine E2E (Chromium, WebKit, Firefox) plus axe. Merging to `main` is
   effectively a deploy, so this is the pre-production gate. PRs into the `foundations`
   integration branch also run the full suite (decided 2026-10-20: GitHub can only start a
-  workflow by hand once it is on `main`). Other PRs between feature branches run the fast
+  workflow by hand once it is on `main`), and so do PRs into step 2's `layout` branch (added
+  2026-10-29). Other PRs between feature branches run the fast
   set (unit, component, Chromium E2E).
 
 ## Deployment

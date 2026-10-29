@@ -47,7 +47,7 @@ jobs:
 
   e2e-full:
     needs: checks
-    if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations'
+    if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
