@@ -1,5 +1,5 @@
 export const BASE = "/workspace";
-export const HOME_HREF = "/workspace/";
+export const HOME_HREF = `${BASE}/`;
 
 /** The canonical form of a bare base path, else null: "/workspace" → "/workspace/". */
 export function canonicalHome(pathname: string): string | null {
