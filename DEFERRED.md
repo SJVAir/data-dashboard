@@ -651,6 +651,15 @@ string`) now get the union return type. The mobile app passes a string token, so
   (a widget's own state, such as zoom, resets). Why: the widget moves between the grid frame and
   the minimized-fullscreen frame, so it remounts. **Revisit when** a step 4 widget has internal
   state that's visibly lost.
+- **The page behind a fullscreen widget is not fully scroll-locked.** _Deferred 2026-10-29
+  (spec 2b)._ The fullscreen frame uses `overscroll-contain`, so the page behind it can still
+  scroll in some cases. Why: it's cosmetic, and a full scroll lock is fragile across browsers.
+  **Revisit when** people report the background scrolling, especially on iOS Safari.
+- **A no-op `setLayout` entry still counts in overlap detection.** _Deferred 2026-10-29 (spec
+  2b)._ `touches()` in `src/lib/changes/overlap.ts` counts a `setLayout` entry whose fields
+  are unchanged against a concurrent `removeWidget`, so it can raise a rare spurious conflict
+  dialog. Why: it is harmless to correctness and rare. **Revisit when** it's reported, or when
+  sync spec 2 touches overlap detection.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a

@@ -7,13 +7,12 @@ Last updated: 2026-10-29
 **One session at a time works Release 1's tracks in order** (decided 2026-10-29), on the
 `layout` branch until step 2 merges into `main`:
 
-1. **Layout spec 2b (windowing): write its plan next.** Minimize, the taskbar, and fullscreen,
-   from the approved design `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
-   Branch `layout-2b-windowing` from `layout`; PR into `layout`.
-2. **`layout` → `main`**, only after 2b, the two hand checks below, and the user's explicit yes
+1. ~~Layout spec 2b (windowing)~~ **done** (PR into `layout`, 2026-10-29): see "Step 2" below.
+2. **`layout` → `main`**, only after the two hand checks below, and the user's explicit yes
    (merging to `main` is a production deploy once hosting is live).
 3. **Sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. Needs an
-   sdk-js prerelease first (the user's yes). See "Sync track" below.
+   sdk-js prerelease first, one that includes the documents module (the pinned `4.8.0-beta.1`
+   predates it); cutting it needs the user's yes. See "Sync track" below.
 
 **Hand checks needed from the user before `layout` → `main`** (both in `DEFERRED.md`): touch
 arranging on a real phone and tablet (Chrome for Android, Safari on iOS; `npm run dev --
@@ -40,6 +39,19 @@ arranging on a real phone and tablet (Chrome for Android, Safari on iOS; `npm ru
   `chromium-perf`; `npm run test:e2e` runs both Chromium projects.
 - CI: PRs into `layout` run the three-browser suite (`e2e-full`); a PR runs either that or the
   Chromium-only job, never both.
+
+**Spec 2b (windowing) is done** (branch `layout-2b-windowing`, PR into `layout`, 2026-10-29).
+Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
+
+- Minimize and restore changes, undoable; minimized widgets go to the taskbar.
+- Fullscreen is the `?widget=<id>` query parameter on the dashboard URL (`/dashboards/:id` and
+  `/workspace/` for the starter), not a separate route. Leaving by history when the widget goes.
+- Focus requests keep focus across page swaps, undo, and fullscreen frames.
+- The dashboard's ⋯ button; `/workspace` redirects to `/workspace/`.
+- `setLayout` applies per field (rect, minimized), so two tabs minimizing different widgets at
+  once both keep their minimize (found by the E2E).
+- Verified with unit and browser-mode tests and the windowing E2E.
+- Still due before `layout` → `main`: the two hand checks above and the user's explicit yes.
 
 ### Sync track (server-backed documents)
 
