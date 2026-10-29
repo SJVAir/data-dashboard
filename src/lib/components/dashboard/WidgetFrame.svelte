@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
 	import { on } from "svelte/events";
+	import { prefersReducedMotion } from "svelte/motion";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import Maximize2 from "@lucide/svelte/icons/maximize-2";
 	import Minimize2 from "@lucide/svelte/icons/minimize-2";
@@ -417,8 +418,8 @@
 			if (!takeFocus({ kind: "title", id: widget.id })) return;
 			bar!.focus();
 			if (fullscreen) return;
-			const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-			section?.scrollIntoView({ block: "nearest", behavior: reduced ? "instant" : "smooth" });
+			const behavior = prefersReducedMotion.current ? "instant" : "smooth";
+			section?.scrollIntoView({ block: "nearest", behavior });
 		});
 	});
 
