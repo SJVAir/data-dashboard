@@ -251,6 +251,7 @@
 {#if session}
 	<ContextMenuHost>
 		<div bind:this={root} class="flex min-h-full flex-col gap-4 p-4" {@attach menuScope(actions)}>
+			<DashboardHeader inert={!!shownId} />
 			{#if session.readOnly}
 				<!-- A read-only document may not be valid, so its widgets aren't rendered. -->
 				<p role="status" class="bg-muted rounded-lg px-4 py-2 text-sm">
@@ -258,7 +259,6 @@
 				</p>
 			{:else}
 				<!-- While a widget is fullscreen, the rest of the dashboard is inert. -->
-				<DashboardHeader inert={!!shownId} />
 				{#if app.current.isStarter}
 					<div class="contents" inert={!!shownId}><StarterHint /></div>
 				{/if}

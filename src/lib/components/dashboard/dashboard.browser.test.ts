@@ -509,8 +509,11 @@ test("undoing a dashboard's restore leaves it again", async () => {
 	expect(app.index.items).toHaveLength(0);
 });
 
-const menuLabels = async () =>
-	(await page.getByRole("menuitem").all()).map((entry) => entry.element().textContent?.trim());
+const menuState = async () =>
+	(await page.getByRole("menuitem").all()).map((entry) => [
+		entry.element().textContent?.trim(),
+		entry.element().getAttribute("aria-disabled")
+	]);
 const dashboardMore = () => page.getByRole("button", { name: "Dashboard actions" });
 
 test("the dashboard ⋯ opens the dashboard's actions", async () => {
@@ -529,12 +532,17 @@ test("the dashboard ⋯ opens the dashboard's actions", async () => {
 	]) {
 		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
 	}
-	const fromButton = await menuLabels();
+	const fromButton = await menuState();
 	await userEvent.keyboard("{Escape}");
 	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
-	await page.getByTestId("dashboard-header").click({ button: "right" });
+	// Blank grid space: the right half of the grid, away from the widget.
+	const grid = frame("a").element().parentElement!;
+	const box = grid.getBoundingClientRect();
+	await page
+		.elementLocator(grid)
+		.click({ button: "right", position: { x: box.width * 0.9, y: box.height * 0.5 } });
 	await expect.element(page.getByRole("menuitem", { name: /^Add widget/ })).toBeVisible();
-	expect(await menuLabels()).toEqual(fromButton);
+	expect(await menuState()).toEqual(fromButton);
 });
 
 test("it's shown on the starter and on an empty dashboard", async () => {
@@ -568,4 +576,13 @@ test("the dashboard ⋯ is inert while a widget is fullscreen", async () => {
 	await expect.poll(() => location.search).toBe("?widget=a");
 	const more = document.querySelector('[aria-label="Dashboard actions"]')!;
 	await expect.poll(() => more.closest("[inert]")).not.toBeNull();
+});
+
+test("the dashboard ⋯ shows on a read-only dashboard", async () => {
+	const { app, session } = await setup();
+	session.readOnly = "newer";
+	await renderGrid(app);
+	await expect.element(dashboardMore()).toBeVisible();
+	await dashboardMore().click();
+	await expect.element(page.getByRole("menuitem", { name: /^New blank dashboard/ })).toBeVisible();
 });
