@@ -640,6 +640,10 @@ files, and server documents.
 1. **Validate every incoming document**, from a file, URL fragment, or the server, against
    a schema (zod, as in the SDK) and a size limit **before** migration or use. Invalid
    documents are rejected with a clear message and never partly loaded.
+   - **Layout rects are capped** (step 2, spec 2a final review): a widget starts at row
+     `MAX_ROW` (100,000) at most and is `MAX_HEIGHT` (100) rows tall at most, in the schema
+     and when arranging (a drop past the caps applies nothing). The layout engine's work
+     grows with rows, so an uncapped `y` or `h` in a shared document could hang the tab.
 2. **Safe Markdown:** Notes render with **raw HTML off** and a link allowlist (`http`,
    `https`, `mailto`).
 3. **A content security policy on `/workspace/*`**, sent by the Django view: the
@@ -954,8 +958,10 @@ The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
 Ctrl+Shift+Z, plus menu actions via the shared action list), separate from browser
 history. All edits to dashboards, Collections, and analyses go through a single
 **`applyChange(doc, change)`** function producing a new document version plus an
-inverse change — so undo is free by construction and edits are testable. Covers move,
-resize, minimize/restore, add/delete/configure widget, rename, and Collection edits.
+inverse change — so undo is free by construction and edits are testable. Covers every
+change to a saved document: move, resize, add/delete/configure widget, rename, and
+Collection edits, plus minimize/restore. Fullscreen and other view-only state aren't on it
+and never count as an edit (decided 2026-10-28, step 2).
 The stack is per document and per session (not persisted).
 
 **Changes, unsynced edits, and tabs** (decided 2026-09-28):
@@ -1289,8 +1295,10 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
 - **Fullscreen** overlays the dashboard area (not the browser window), animated from
   the widget's grid rect (FLIP-style); the underlying grid layout is untouched.
 - **Minimize** moves the widget to the bottom taskbar (horizontally scrolling when
-  overloaded) and the grid compacts. Restore returns it to its previous rect if free,
-  else the nearest free slot. Minimized/off-screen map widgets release their WebGL
+  overloaded) and the grid compacts. Minimize is saved in the dashboard and is on the undo
+  list; a minimized widget has no spot on the grid. **Restore places it like a newly added
+  widget, at the bottom at its old size** (decided 2026-10-28, step 2; undo right after
+  minimizing puts it back exactly). Minimized/off-screen map widgets release their WebGL
   context (see "Map SDK").
 - **Vertical growth/scrolling.** The dashboard grows downward as widgets are added —
   not horizontally. Reasons: mouse wheels scroll vertically (shift+wheel is obscure,
@@ -1299,9 +1307,16 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   wheel conflicts, map widgets use MapLibre's `cooperativeGestures` (ctrl/⌘+scroll
   zooms the map; plain scroll scrolls the page). "Too crowded" is answered by
   **multiple saved dashboards**, not a bigger canvas.
-- **Responsive.** 12 columns on desktop, fewer on tablet; on phones, a single-column
-  stack auto-derived from the desktop layout's reading order. Only the desktop layout
-  is persisted in a saved dashboard config.
+- **Responsive: two layouts** (decided 2026-10-28, step 2; this replaces "fewer columns on
+  tablet"). The 12-column grid on anything roughly 768 px wide or wider, and on phones a
+  single-column stack derived from the desktop layout's reading order. Only the desktop
+  layout is persisted in a saved dashboard config. Rearranging works on phones and changes the
+  desktop layout (a widget moved above another takes its spot); on a phone only height can be
+  resized. A separate tablet layout is deferred (see `DEFERRED.md`).
+- **Touch** (decided 2026-10-28, step 2): a long-press on the title bar picks a widget up to
+  drag it; lifting without moving leaves it selected with touch-sized resize handles and a
+  "Done" button. The design is in
+  `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
 
 ## Widget catalog
 
@@ -1420,8 +1435,10 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   (they act on the whole dashboard's history), not to widget menus.
 - **Rendered with bits-ui's `ContextMenu`** (shadcn-svelte `context-menu`): one
   trigger around the dashboard, items computed on open. Provides submenus, keyboard
-  navigation, ARIA roles, and viewport collision handling. Opens via right-click,
-  long-press (touch), and Shift+F10 / Menu key (focused element).
+  navigation, ARIA roles, and viewport collision handling. Opens via right-click and
+  Shift+F10 / Menu key (focused element). **On touchscreens it opens from the ⋯ buttons, not
+  long-press** (decided 2026-10-28, step 2: long-press picks up widgets and is the browser's
+  own gesture); the dashboard has its own visible ⋯ button for that reason.
 - **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
   - _Global:_ Undo / Redo (in the dashboard's menu, not widgets'), "Clear my data",
     Sign in / out.
@@ -1631,7 +1648,7 @@ type WidgetInstance = {
 	type: string; // a WidgetType id
 	title: string | null; // null = generated by the type's defaultTitle
 	rect: { x: number; y: number; w: number; h: number }; // desktop grid cells
-	minimized?: { restoreRect: { x: number; y: number; w: number; h: number } };
+	minimized?: { order: number }; // position among minimized widgets (its rect is kept)
 	data: WidgetDataConfig;
 	options?: Record<string, unknown>; // per-type display options, validated by that type's schema
 	thresholds?: SelfMonitorThreshold[]; // only where the type has thresholds: true
@@ -2296,7 +2313,8 @@ Decided 2026-09-24.
   and three-engine E2E (Chromium, WebKit, Firefox) plus axe. Merging to `main` is
   effectively a deploy, so this is the pre-production gate. PRs into the `foundations`
   integration branch also run the full suite (decided 2026-10-20: GitHub can only start a
-  workflow by hand once it is on `main`). Other PRs between feature branches run the fast
+  workflow by hand once it is on `main`), and so do PRs into step 2's `layout` branch (added
+  2026-10-29). A PR runs either the full suite or the Chromium-only E2E job, never both. Other PRs between feature branches run the fast
   set (unit, component, Chromium E2E).
 
 ## Deployment

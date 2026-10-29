@@ -83,3 +83,46 @@ describe("changesOverlap", () => {
 		}
 	});
 });
+
+describe("changesOverlap with setLayout", () => {
+	const p = (y: number) => ({ rect: { x: 0, y, w: 6, h: 4 }, minimized: null });
+	const layout = (ids: string[], y: number): Change => ({
+		op: "setLayout",
+		target: { widgetIds: ids },
+		from: Object.fromEntries(ids.map((id) => [id, p(0)])),
+		to: Object.fromEntries(ids.map((id) => [id, p(y)]))
+	});
+
+	it("setLayouts sharing an id with different to overlap", () => {
+		expect(changesOverlap(layout(["a", "b"], 4), layout(["b", "c"], 8))).toBe(true);
+	});
+	it("same to doesn't", () => {
+		expect(changesOverlap(layout(["a", "b"], 4), layout(["b", "c"], 4))).toBe(false);
+	});
+	it("disjoint ids don't", () => {
+		expect(changesOverlap(layout(["a"], 4), layout(["b"], 8))).toBe(false);
+	});
+	it("setLayout overlaps removeWidget of a listed id", () => {
+		expect(changesOverlap(layout(["a", "b"], 4), remove("b"))).toBe(true);
+		expect(changesOverlap(remove("b"), layout(["a", "b"], 4))).toBe(true);
+		expect(changesOverlap(layout(["a"], 4), remove("b"))).toBe(false);
+	});
+	it("an id only on the prototype of the other side's to doesn't overlap", () => {
+		const a: Change = {
+			op: "setLayout",
+			target: { widgetIds: ["toString"] },
+			from: { toString: p(0) },
+			to: { toString: p(4) }
+		};
+		expect(changesOverlap(a, layout(["x"], 8))).toBe(false);
+	});
+	it("the same placement with keys in another order doesn't overlap", () => {
+		const b: Change = {
+			op: "setLayout",
+			target: { widgetIds: ["a"] },
+			from: { a: p(0) },
+			to: { a: { minimized: null, rect: { h: 4, w: 6, y: 4, x: 0 } } }
+		};
+		expect(changesOverlap(layout(["a"], 4), b)).toBe(false);
+	});
+});

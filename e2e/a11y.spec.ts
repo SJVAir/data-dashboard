@@ -1,10 +1,9 @@
-import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
 	PLACEHOLDER,
 	dashboardHeading,
+	expectNoViolations,
 	makeOwnCopy,
 	openPicker,
 	shareLinkFor,
@@ -12,13 +11,6 @@ import {
 	widgetMenuItem,
 	widgetTitles
 } from "./helpers";
-
-const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-
-async function expectNoViolations(page: Page): Promise<void> {
-	const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-	expect(results.violations).toEqual([]);
-}
 
 // Motion collapses, so menus and dialogs are fully shown when checked.
 test.use({ reducedMotion: "reduce" });
@@ -167,7 +159,8 @@ test("the context menu opens with Shift+F10 on a focused widget title bar", asyn
 	await page.keyboard.press("Shift+F10");
 	const menu = page.getByRole("menu");
 	await expect(menu).toBeVisible();
-	await expect(menu.getByRole("menuitem", { name: "Rename widget…" })).toBeFocused();
+	// The first item (Move…, ahead of Rename widget… since spec 2a) takes focus.
+	await expect(menu.getByRole("menuitem", { name: "Move…" })).toBeFocused();
 	await page.keyboard.press("Escape");
 	await expect(menu).toBeHidden();
 });

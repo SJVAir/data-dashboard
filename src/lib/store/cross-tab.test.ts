@@ -3,7 +3,7 @@ import type { Change } from "$lib/changes/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { LOG_LIMIT, type Platform, type SpaceId } from "$lib/platform/types";
-import { rectsOverlap } from "$lib/widgets/placement";
+import { rectsOverlap } from "$lib/layout/engine";
 import { DocumentSession } from "./document-session.svelte";
 import { createMemoryTabHub } from "./tab-channel";
 

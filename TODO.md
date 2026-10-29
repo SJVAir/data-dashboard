@@ -4,12 +4,86 @@ Last updated: 2026-10-29
 
 ## Start here
 
-Two tracks run in parallel.
+**One session at a time works Release 1's tracks in order** (decided 2026-10-29), on the
+`layout` branch until step 2 merges into `main`:
 
-### Step 2: layout engine and windowing (branch `layout`, main checkout)
+1. **Layout spec 2b (windowing): write its plan next.** Minimize, the taskbar, and fullscreen,
+   from the approved design `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
+   Branch `layout-2b-windowing` from `layout`; PR into `layout`.
+2. **`layout` → `main`**, only after 2b, the two hand checks below, and the user's explicit yes
+   (merging to `main` is a production deploy once hosting is live).
+3. **Sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. Needs an
+   sdk-js prerelease first (the user's yes). See "Sync track" below.
 
-**Next: Release 1 step 2, the layout engine and windowing, in a fresh session, branching from
-`main`.** Foundations is done and merged into `main` (#11, 2026-10-27). Its last spec, 5b, the
+**Hand checks needed from the user before `layout` → `main`** (both in `DEFERRED.md`): touch
+arranging on a real phone and tablet (Chrome for Android, Safari on iOS; `npm run dev --
+--host`), and a screen-reader pass (NVDA, VoiceOver if possible) on keyboard arranging.
+
+### Step 2: layout engine and windowing (branch `layout`)
+
+**Spec 2a (widget arranging) is done and merged into `layout`** (PR
+[#13](https://github.com/SJVAir/data-dashboard/pull/13), 2026-10-29). Plan:
+`docs/superpowers/plans/2026-10-28-layout-2a-arranging.md`.
+
+- Pure layout engine in `src/lib/layout` (tidy, move, resize, stepDown, moveInOrder), with the
+  column count as input; rows capped at 100,000 and heights at 100.
+- The `setLayout` change (one per drop, undoable, cross-tab overlap rules) and
+  `minimized: { order }`.
+- The Arrangement controller: a preview from the current document, never saved until drop.
+- Keyboard pick-up, move, and resize with Move... and Resize..., and polite announcements.
+- Mouse drag with resize handles and autoscroll.
+- Touch long-press, selection with 44 px handles and Done, and no touch long-press context menu.
+- Phone column reordering.
+- E2E on three engines, and a Chromium drag-performance check: 30 widgets at a calibrated 4x CPU
+  slowdown (the throttle is set so a fixed piece of work takes 4x its time on the reference
+  desktop), p95 under 34 ms (measured 16.7 ms). It runs alone in its own Playwright project,
+  `chromium-perf`; `npm run test:e2e` runs both Chromium projects.
+- CI: PRs into `layout` run the three-browser suite (`e2e-full`); a PR runs either that or the
+  Chromium-only job, never both.
+
+### Sync track (server-backed documents)
+
+**Spec 1 (server and SDK) is done and merged:** sjvair.com
+[#297](https://github.com/SJVAir/sjvair.com/pull/297) into `develop` (2026-10-28; not in
+production until the user's `develop` → `main` deploy) and sdk-js
+[#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29; no version
+bump, no prerelease cut).
+
+**Next: spec 2 (dashboard sync), after step 2b.** Order (decided 2026-10-29): layout spec 2b →
+`layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design
+(`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`) and the spec 1 plan came
+into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2.
+Spec 2 first needs an sdk-js prerelease from `release/4.8.0` with the documents module (the
+dashboard pins `4.8.0-beta.1` exactly today); cutting it needs the user's explicit yes. Spec 2
+starts with its own plan, from the design's "How it works" and "The dashboard (specs 2–4)".
+Locally, the dev DB already has the `documents` tables; the stack serves the sjvair.com main
+checkout, which needs `develop` pulled to serve the documents API. The sdk-js documents
+integration test runs with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`,
+`TEST_DOCUMENTS_IDENTIFIER`, and `TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in
+sjvair.com's `.env` works).
+
+Decisions later specs need:
+
+- Reserved ids `profile`, `export`, and `shared` are refused on save (route collisions). The
+  dashboard's ids are random, so this matters only if ids are ever user-chosen.
+- `SharedDocument` includes `id`, for "Make a copy" (`copiedFrom`), the credit lookup, and
+  "You already have a copy".
+- Share and revoke bump `updated_at` but not `version`, so `listDocuments({since})` can return
+  a document with the same version but a changed `visibility` or `share_token`.
+- After account deletion sjvair.com lands on the login page with "Your account was deleted".
+- The server counts size in Python code points; the dashboard's `MAX_DOCUMENT_CHARS` counts
+  UTF-16 units (JS `.length`), so the server is never stricter than the client.
+- In the SDK every documents error is a `DocumentRefusal` (fallback codes `unauthorized`,
+  `forbidden`, `not_found`, `unknown` when the server gives none); schema mismatches throw
+  `DocumentResponseError`.
+- `GET documents/export/` is a browser download (the backup envelope), not an SDK call. It
+  excludes Recently deleted, and the /account/ page says so.
+- Deferrals from spec 1 are in `DEFERRED.md` ("Platform & infrastructure" and "Documents &
+  saving").
+
+### Foundations (Release 1, step 1): history and open items
+
+**Foundations finished 2026-10-27** and is merged into `main` (#11). Its last spec, 5b, the
 sign-in side, merged the same day as data-dashboard
 [#10](https://github.com/SJVAir/data-dashboard/pull/10) (into `foundations`), with sjvair.com
 #296 (into `develop`) and sdk-js #33 (into `release/4.8.0`; no release cut). Design:
@@ -352,43 +426,6 @@ Next steps (each its own spec → plan → implementation, per the brainstorming
    **metadata enablers**, **hosting under `/workspace/`**, **email-only accounts**, and
    **server-backed documents** (CSRF fix first) tracks, plus **server alerting**
    (Release 2).
-
-### Sync track (branch `sync`, worktree `data-dashboard-sync`)
-
-**Spec 1 (server and SDK) is done and merged:** sjvair.com
-[#297](https://github.com/SJVAir/sjvair.com/pull/297) into `develop` (2026-10-28; not in
-production until the user's `develop` → `main` deploy) and sdk-js
-[#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29; no version
-bump, no prerelease cut).
-
-**Next: spec 2 (dashboard sync), after step 2b.** Order (decided 2026-10-29): layout spec 2b →
-`layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design, this
-plan, and this section live only on `sync` until `sync` (docs only) is merged into `main`, which
-needs the user's approval; until then read them from `origin/sync`.
-Spec 2 first needs an sdk-js prerelease from `release/4.8.0` with the documents module (the
-dashboard pins `4.8.0-beta.1` exactly today); cutting it needs the user's explicit yes. Spec 2
-starts with its own plan, from the design's "How it works" and "The dashboard (specs 2–4)".
-Locally, the dev DB already has the `documents` tables; the stack serves the sjvair.com main
-checkout, which needs `develop` pulled to serve the documents API.
-
-Decisions later specs need:
-
-- Reserved ids `profile`, `export`, and `shared` are refused on save (route collisions). The
-  dashboard's ids are random, so this matters only if ids are ever user-chosen.
-- `SharedDocument` includes `id`, for "Make a copy" (`copiedFrom`), the credit lookup, and
-  "You already have a copy".
-- Share and revoke bump `updated_at` but not `version`, so `listDocuments({since})` can return
-  a document with the same version but a changed `visibility` or `share_token`.
-- After account deletion sjvair.com lands on the login page with "Your account was deleted".
-- The server counts size in Python code points; the dashboard's `MAX_DOCUMENT_CHARS` counts
-  UTF-16 units (JS `.length`), so the server is never stricter than the client.
-- In the SDK every documents error is a `DocumentRefusal` (fallback codes `unauthorized`,
-  `forbidden`, `not_found`, `unknown` when the server gives none); schema mismatches throw
-  `DocumentResponseError`.
-- `GET documents/export/` is a browser download (the backup envelope), not an SDK call. It
-  excludes Recently deleted, and the /account/ page says so.
-- Deferrals from spec 1 are in `DEFERRED.md` ("Platform & infrastructure" and "Documents &
-  saving").
 
 ## Planning session record: IDEA.md (2026-09-23 → 2026-09-24)
 

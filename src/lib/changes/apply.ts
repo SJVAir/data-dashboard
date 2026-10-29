@@ -1,5 +1,5 @@
 import type { Dashboard } from "$lib/documents/schema";
-import type { Change } from "./types";
+import type { Change, Placement } from "./types";
 
 /** The change names a widget that is not in the document (or, for add, one that already is). */
 export class ChangeTargetMissing extends Error {
@@ -69,6 +69,27 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 			}
 			return { doc: { ...doc, deletedAt: change.to }, inverse };
 		}
+		case "setLayout": {
+			// Only ids still in the document apply; the inverse restores what was really there.
+			const from: Record<string, Placement> = {};
+			const to: Record<string, Placement> = {};
+			const next = widgets.map((w) => {
+				if (!change.target.widgetIds.includes(w.id) || !Object.hasOwn(change.to, w.id)) return w;
+				const placement = change.to[w.id];
+				from[w.id] = { rect: w.rect, minimized: w.minimized ?? null };
+				to[w.id] = placement;
+				const moved = { ...w, rect: placement.rect };
+				if (placement.minimized) moved.minimized = placement.minimized;
+				else delete moved.minimized;
+				return moved;
+			});
+			const widgetIds = Object.keys(to);
+			if (widgetIds.length === 0) throw new ChangeTargetMissing("No widget in the layout change");
+			return {
+				doc: { ...doc, body: { ...doc.body, widgets: next } },
+				inverse: { op: "setLayout", target: { widgetIds }, from: to, to: from }
+			};
+		}
 		case "replaceDocument": {
 			// The inverse restores what was really there; `change.from` may be stale (rebase).
 			return {
@@ -96,6 +117,8 @@ export function appliedChange(inverse: Change): Change {
 		case "removeWidget":
 			return { ...inverse, op: "addWidget" };
 		case "setField":
+			return { ...inverse, from: inverse.to, to: inverse.from };
+		case "setLayout":
 			return { ...inverse, from: inverse.to, to: inverse.from };
 		case "replaceDocument":
 			return { ...inverse, from: inverse.to, to: inverse.from };

@@ -26,7 +26,7 @@
 		"test:unit:tz": "npm run paraglide && TZ=America/New_York vitest run --project unit src/lib/format src/lib/data",
 		"test:browser": "npm run paraglide && vitest run --project browser",
 		"test:watch": "vitest",
-		"test:e2e": "playwright test --project=chromium",
+		"test:e2e": "playwright test --project=chromium --project=chromium-perf",
 		"test:e2e:all": "playwright test",
 		"test:dev-stack": "playwright test -c playwright.local.config.ts --project=dev-stack",
 		"test:embedding": "playwright test -c playwright.local.config.ts --project=embedding",
