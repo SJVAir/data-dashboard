@@ -29,6 +29,7 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import { navigate, route } from "../../../router";
 	import AddWidgetButton from "./AddWidgetButton.svelte";
+	import DashboardHeader from "./DashboardHeader.svelte";
 	import EmptyState from "./EmptyState.svelte";
 	import Taskbar from "./Taskbar.svelte";
 	import StarterHint from "./StarterHint.svelte";
@@ -257,6 +258,7 @@
 				</p>
 			{:else}
 				<!-- While a widget is fullscreen, the rest of the dashboard is inert. -->
+				<DashboardHeader inert={!!shownId} />
 				{#if app.current.isStarter}
 					<div class="contents" inert={!!shownId}><StarterHint /></div>
 				{/if}

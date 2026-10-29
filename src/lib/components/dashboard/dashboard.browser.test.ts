@@ -508,3 +508,64 @@ test("undoing a dashboard's restore leaves it again", async () => {
 	expect(location.pathname).toMatch(/^\/workspace\/?$/);
 	expect(app.index.items).toHaveLength(0);
 });
+
+const menuLabels = async () =>
+	(await page.getByRole("menuitem").all()).map((entry) => entry.element().textContent?.trim());
+const dashboardMore = () => page.getByRole("button", { name: "Dashboard actions" });
+
+test("the dashboard ⋯ opens the dashboard's actions", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 })));
+	await renderGrid(app);
+	await dashboardMore().click();
+	for (const name of [
+		/^Add widget/,
+		/^Undo/,
+		/^Redo/,
+		/^Rename dashboard…/,
+		/^Duplicate dashboard/,
+		/^Share/,
+		/^Delete dashboard/
+	]) {
+		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
+	}
+	const fromButton = await menuLabels();
+	await userEvent.keyboard("{Escape}");
+	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+	await page.getByTestId("dashboard-header").click({ button: "right" });
+	await expect.element(page.getByRole("menuitem", { name: /^Add widget/ })).toBeVisible();
+	expect(await menuLabels()).toEqual(fromButton);
+});
+
+test("it's shown on the starter and on an empty dashboard", async () => {
+	const { app } = await setup();
+	await renderGrid(app);
+	await expect.element(dashboardMore()).toBeVisible();
+	app.current = { ...app.current, isStarter: true };
+	await expect
+		.element(page.getByText("This is the starter dashboard.", { exact: false }))
+		.toBeVisible();
+	await expect.element(dashboardMore()).toBeVisible();
+});
+
+test("focus returns to it when the menu closes", async () => {
+	const { app } = await setup();
+	await renderGrid(app);
+	await dashboardMore().click();
+	await expect.element(page.getByRole("menuitem", { name: /^Add widget/ })).toBeVisible();
+	await userEvent.keyboard("{Escape}");
+	await expect.element(dashboardMore()).toHaveFocus();
+});
+
+test("the dashboard ⋯ is inert while a widget is fullscreen", async () => {
+	const { app, session, id } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	history.replaceState(null, "", `/workspace/dashboards/${id}`);
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(dashboardMore()).toBeVisible();
+	expect(dashboardMore().element().closest("[inert]")).toBeNull();
+	await page.getByRole("button", { name: "Show Readings fullscreen" }).click();
+	await expect.poll(() => location.search).toBe("?widget=a");
+	const more = document.querySelector('[aria-label="Dashboard actions"]')!;
+	await expect.poll(() => more.closest("[inert]")).not.toBeNull();
+});
