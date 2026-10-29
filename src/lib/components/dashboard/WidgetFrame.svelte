@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
 	import { on } from "svelte/events";
+	import { prefersReducedMotion } from "svelte/motion";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
+	import Maximize2 from "@lucide/svelte/icons/maximize-2";
+	import Minimize2 from "@lucide/svelte/icons/minimize-2";
+	import Minus from "@lucide/svelte/icons/minus";
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
-	import { widgetActions, widgetTitle } from "$lib/actions/widget";
+	import { minimizeWidget, widgetActions, widgetTitle } from "$lib/actions/widget";
+	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { Rect, WidgetInstance } from "$lib/documents/schema";
@@ -26,13 +31,23 @@
 	let {
 		widget,
 		rect,
-		phoneRow
+		phoneRow,
+		fullscreen = false,
+		inert = false,
+		onfullscreen,
+		onexit
 	}: {
 		widget: WidgetInstance;
 		/** Where it's shown (the tidied layout or the arrangement's preview), in desktop cells. */
 		rect: Rect;
 		/** Its first row (0-based) in the phone's one-column layout. */
 		phoneRow: number;
+		/** Lifted over the dashboard area (a view: the layout underneath is unchanged). */
+		fullscreen?: boolean;
+		/** Another widget is fullscreen. */
+		inert?: boolean;
+		onfullscreen: () => void;
+		onexit: () => void;
 	} = $props();
 
 	const app = useApp();
@@ -44,7 +59,11 @@
 	// The type's own items first, then the common widget actions.
 	const provider: MenuProvider = (ctx) => [
 		...(type?.menu(ctx) ?? []),
-		...widgetActions(app, widget.id, arrangement)(ctx)
+		...widgetActions(app, widget.id, arrangement, {
+			fullscreen: () => onfullscreen(),
+			inFullscreen: fullscreen,
+			exit: () => onexit()
+		})(ctx)
 	];
 
 	let more = $state<HTMLButtonElement | null>(null);
@@ -99,9 +118,21 @@
 		announce(m.layout_cancelled({ title }));
 	}
 
+	function minimize(): void {
+		if (mine()) cancel();
+		minimizeWidget(app, widget.id);
+	}
+
+	function openFullscreen(): void {
+		if (mine()) cancel();
+		onfullscreen();
+	}
+
 	function onkeydown(event: KeyboardEvent): void {
 		// Keys pressed on the ⋯ button bubble here too.
 		if (event.target !== event.currentTarget) return;
+		// No pick-up inside fullscreen.
+		if (fullscreen) return;
 		if (event.ctrlKey || event.altKey || event.metaKey) return;
 		const key = event.key;
 		const active = mine();
@@ -143,7 +174,7 @@
 	 * Enter, since browse mode may turn Enter into a click instead of passing the key on.
 	 */
 	function onclick(event: MouseEvent): void {
-		if (event.detail !== 0 || event.target !== event.currentTarget) return;
+		if (fullscreen || event.detail !== 0 || event.target !== event.currentTarget) return;
 		const active = mine();
 		if (active && active.input !== "keyboard") return;
 		event.preventDefault();
@@ -158,7 +189,46 @@
 	onDestroy(() => {
 		stopLongPress?.();
 		stopDrag?.();
+		handOnFocus();
 	});
+
+	// Whether focus is in this frame (false once it moves elsewhere).
+	let held = false;
+
+	function onfocusin(): void {
+		held = true;
+	}
+
+	function onfocusout(event: FocusEvent): void {
+		const to = event.relatedTarget;
+		if (to instanceof Node) held = !!section?.contains(to);
+		// Focus going nowhere: a removal takes the frame off the page by the end of this task, a
+		// plain blur leaves it there.
+		else {
+			queueMicrotask(() => {
+				if (section?.isConnected && document.activeElement === document.body) held = false;
+			});
+		}
+	}
+
+	/**
+	 * Focus lost with the frame (undo of a restore, another tab's minimize, a page swap): hand it
+	 * to the widget's taskbar item, or its title bar on the next page. A fullscreen frame's moves
+	 * are the grid's to handle.
+	 */
+	function handOnFocus(): void {
+		if (!held || fullscreen) return;
+		held = false;
+		const active = document.activeElement;
+		if (active && active !== document.body && !section?.contains(active)) return;
+		const id = widget.id;
+		// After the update: state read during a teardown is the value from before it.
+		queueMicrotask(() => {
+			if (document.activeElement && document.activeElement !== document.body) return;
+			const now = app.current.session?.doc.body.widgets.find((w) => w.id === id);
+			if (now) requestFocus({ kind: now.minimized ? "taskbar" : "title", id });
+		});
+	}
 
 	/** What's said when the arrangement of widget `id` is cancelled. */
 	function cancelledText(id: string): string {
@@ -241,8 +311,8 @@
 	}
 
 	function onpointerdown(event: PointerEvent): void {
-		// The ⋯ button isn't a drag handle.
-		if ((event.target as Element).closest("button")) return;
+		// The ⋯ button isn't a drag handle, and nothing drags inside fullscreen.
+		if (fullscreen || (event.target as Element).closest("button")) return;
 		if (event.pointerType === "touch") onTouchPress(event);
 		else startDrag(event, { mode: "move" });
 	}
@@ -340,28 +410,90 @@
 		arrangement.pendingFocus = null;
 	});
 
+	// After a restore: focus the title bar and bring the widget into view.
+	$effect(() => {
+		const request = pendingFocusTarget();
+		if (!bar || request?.kind !== "title" || request.id !== widget.id) return;
+		untrack(() => {
+			if (!takeFocus({ kind: "title", id: widget.id })) return;
+			bar!.focus();
+			if (fullscreen) return;
+			const behavior = prefersReducedMotion.current ? "instant" : "smooth";
+			section?.scrollIntoView({ block: "nearest", behavior });
+		});
+	});
+
 	// Move… / Resize… from the menu: focus first, then pick up, so the focus move can't cancel it.
 	$effect(() => {
 		const request = arrangement.pickUpRequest;
 		if (!bar || request?.id !== widget.id) return;
 		untrack(() => {
 			arrangement.pickUpRequest = null;
+			if (fullscreen) return;
 			bar!.focus();
 			pickUp(request.mode);
 		});
 	});
+
+	// Fullscreen: Escape exits, unless a menu or dialog took it first. Listened for on the window,
+	// after bits-ui's document listener, which marks an Escape it handles as default-prevented.
+	$effect(() => {
+		if (!fullscreen) return;
+		return on(window, "keydown", (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) return;
+			event.preventDefault();
+			onexit();
+		});
+	});
+
+	/** Fullscreen: Tab and Shift+Tab wrap around the widget's own focusable elements. */
+	function trapTab(event: KeyboardEvent): void {
+		if (!fullscreen || event.key !== "Tab" || !section) return;
+		if (event.ctrlKey || event.altKey || event.metaKey) return;
+		const all = tabbable(section);
+		if (all.length === 0) return;
+		const at = document.activeElement;
+		if (event.shiftKey && at === all[0]) {
+			event.preventDefault();
+			all[all.length - 1].focus();
+		} else if (!event.shiftKey && at === all[all.length - 1]) {
+			event.preventDefault();
+			all[0].focus();
+		}
+	}
+
+	const TABBABLE = "button, [href], input, select, textarea, [tabindex]";
+
+	function tabbable(root: HTMLElement): HTMLElement[] {
+		return Array.from(root.querySelectorAll<HTMLElement>(TABBABLE)).filter(
+			(el) =>
+				el.tabIndex >= 0 &&
+				!(el as HTMLButtonElement).disabled &&
+				!el.closest("[inert]") &&
+				el.getClientRects().length > 0
+		);
+	}
 </script>
 
 <svelte:window {onblur} />
 
 <!-- Not a named region: one landmark per widget would crowd the landmark list. -->
+<!-- Its keydown only keeps Tab inside it while it's fullscreen; its controls are its own. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
 	bind:this={section}
 	class={[
-		"group bg-card text-card-foreground border-border relative [grid-column:1/-1] [grid-row:var(--prow)] flex min-h-0 flex-col overflow-hidden rounded-lg border md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
+		"group bg-card text-card-foreground border-border flex min-h-0 flex-col overflow-hidden border",
+		fullscreen
+			? "fixed inset-x-0 top-(--fullscreen-top) bottom-0 z-(--z-fullscreen) overscroll-contain"
+			: "relative [grid-column:1/-1] [grid-row:var(--prow)] scroll-mb-[calc(var(--taskbar-height)+var(--grid-gap))] rounded-lg md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
 		dragging && "z-10 shadow-lg",
 		touchActive && "ring-ring ring-2"
 	]}
+	{inert}
+	onkeydown={trapTab}
+	{onfocusin}
+	{onfocusout}
 	style:--col="{rect.x + 1} / span {rect.w}"
 	style:--row="{rect.y + 1} / span {rect.h}"
 	style:--prow="{phoneRow + 1} / span {rect.h}"
@@ -375,15 +507,15 @@
 		bind:this={bar}
 		class={[
 			"border-border focus-visible:ring-ring/50 flex items-center gap-2 border-b py-1 pr-1 pl-3 outline-none select-none [-webkit-touch-callout:none] focus-visible:ring-3",
-			dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab",
+			!fullscreen && (dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab"),
 			// Page swipes over the title bar scroll; a lifted widget's next touch drags it.
 			touchActive ? "touch-none" : "touch-pan-y"
 		]}
 		tabindex="0"
 		role="group"
 		aria-labelledby={titleId}
-		{...hint}
-		aria-keyshortcuts="Enter Shift+F10"
+		{...fullscreen ? {} : hint}
+		aria-keyshortcuts={fullscreen ? "Shift+F10" : "Enter Shift+F10"}
 		{onkeydown}
 		{onblur}
 		{onpointerdown}
@@ -392,6 +524,33 @@
 		{@attach noMenu}
 	>
 		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
+		{#if fullscreen}
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				aria-label={m.widget_exit_fullscreen()}
+				onclick={onexit}
+			>
+				<Minimize2 aria-hidden="true" />
+			</Button>
+		{:else}
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				aria-label={m.widget_minimize_named({ title })}
+				onclick={minimize}
+			>
+				<Minus aria-hidden="true" />
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				aria-label={m.widget_fullscreen_named({ title })}
+				onclick={openFullscreen}
+			>
+				<Maximize2 aria-hidden="true" />
+			</Button>
+		{/if}
 		<Button
 			bind:ref={more}
 			variant="ghost"
@@ -404,7 +563,7 @@
 	</div>
 	<div class="relative min-h-0 flex-1">
 		{#if type}
-			<type.component {widget} />
+			<type.component {widget} {fullscreen} />
 		{/if}
 		{#if selected}
 			<!-- Below the title bar, which still drags the selected widget. -->
@@ -423,7 +582,7 @@
 			</div>
 		{/if}
 	</div>
-	{#if !selected}
+	{#if !selected && !fullscreen}
 		<ResizeHandles
 			phone={arrangement.columns === 1}
 			shown={dragging && mine()?.mode === "resize"}

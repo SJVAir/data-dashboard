@@ -125,4 +125,40 @@ describe("changesOverlap with setLayout", () => {
 		};
 		expect(changesOverlap(layout(["a"], 4), b)).toBe(false);
 	});
+
+	describe("rect and minimized are separate fields", () => {
+		const r = (y: number, h = 4) => ({ x: 0, y, w: 6, h });
+		type Spot = { y: number; h?: number; order?: number };
+		const placement = ({ y, h, order }: Spot) => ({
+			rect: r(y, h),
+			minimized: order === undefined ? null : { order }
+		});
+		const entry = (from: Spot, to: Spot): Change => ({
+			op: "setLayout",
+			target: { widgetIds: ["a"] },
+			from: { a: placement(from) },
+			to: { a: placement(to) }
+		});
+		const fix = entry({ y: 0 }, { y: 0, h: 6 });
+		const minimize = entry({ y: 0 }, { y: 0, order: 0 });
+
+		it("a rect-only tidy fix and a minimize of the same widget don't overlap", () => {
+			expect(changesOverlap(fix, minimize)).toBe(false);
+			expect(changesOverlap(minimize, fix)).toBe(false);
+		});
+		it("two rect changes to different rects overlap", () => {
+			expect(changesOverlap(fix, entry({ y: 0 }, { y: 8 }))).toBe(true);
+		});
+		it("two minimizes with different orders overlap", () => {
+			expect(changesOverlap(minimize, entry({ y: 0 }, { y: 0, order: 3 }))).toBe(true);
+		});
+		it("a rect change and a move-and-minimize to another rect overlap", () => {
+			expect(changesOverlap(fix, entry({ y: 0 }, { y: 8, order: 0 }))).toBe(true);
+		});
+		it("an entry that changes nothing overlaps nothing", () => {
+			const none = entry({ y: 0 }, { y: 0 });
+			expect(changesOverlap(none, fix)).toBe(false);
+			expect(changesOverlap(none, minimize)).toBe(false);
+		});
+	});
 });

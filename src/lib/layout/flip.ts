@@ -61,6 +61,31 @@ export function settle(el: HTMLElement, from: DOMRect): Animation | null {
 	});
 }
 
+/**
+ * Grow or shrink `el` from `from` (its box before a change, e.g. its grid cell before it went
+ * fullscreen) to where it is now, with a translate and a scale. Nothing under reduced motion.
+ */
+export function flipRect(el: HTMLElement, from: DOMRect): void {
+	if (!el.isConnected) return;
+	const { duration, easing } = motion(el);
+	if (duration <= 0) return;
+	const to = el.getBoundingClientRect();
+	if (to.width <= 0 || to.height <= 0) return;
+	const dx = from.left - to.left;
+	const dy = from.top - to.top;
+	const sx = from.width / to.width;
+	const sy = from.height / to.height;
+	const still = Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5;
+	if (still && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) return;
+	el.animate(
+		[
+			{ transformOrigin: "0 0", transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
+			{ transformOrigin: "0 0", transform: "none" }
+		],
+		{ duration, easing }
+	);
+}
+
 /** The theme's base motion, as read at `el` (0 ms under reduced motion). */
 function motion(el: Element): { duration: number; easing: string } {
 	const style = getComputedStyle(el);

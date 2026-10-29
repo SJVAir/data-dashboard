@@ -441,7 +441,7 @@ test("delete dashboard goes home and its toast's undo brings it back", async () 
 	await expect.element(toastItem).toBeVisible();
 	await expect.poll(() => app.current.isStarter).toBe(true);
 	expect(app.index.items).toHaveLength(0);
-	expect(location.pathname).toMatch(/^\/workspace\/?$/);
+	expect(location.pathname).toBe("/workspace/");
 
 	await toastItem.getByRole("button", { name: "Undo" }).click();
 	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${id}`);
@@ -505,6 +505,84 @@ test("undoing a dashboard's restore leaves it again", async () => {
 	session.undo();
 	expect(typeof session.doc.deletedAt).toBe("string");
 	await expect.poll(() => app.current.isStarter).toBe(true);
-	expect(location.pathname).toMatch(/^\/workspace\/?$/);
+	expect(location.pathname).toBe("/workspace/");
 	expect(app.index.items).toHaveLength(0);
+});
+
+const menuState = async () =>
+	(await page.getByRole("menuitem").all()).map((entry) => [
+		entry.element().textContent?.trim(),
+		entry.element().getAttribute("aria-disabled")
+	]);
+const dashboardMore = () => page.getByRole("button", { name: "Dashboard actions" });
+
+test("the dashboard ⋯ opens the dashboard's actions", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 })));
+	await renderGrid(app);
+	await dashboardMore().click();
+	for (const name of [
+		/^Add widget/,
+		/^Undo/,
+		/^Redo/,
+		/^Rename dashboard…/,
+		/^Duplicate dashboard/,
+		/^Share/,
+		/^Delete dashboard/
+	]) {
+		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
+	}
+	const fromButton = await menuState();
+	await userEvent.keyboard("{Escape}");
+	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+	// Blank grid space: the right half of the grid, away from the widget.
+	const grid = frame("a").element().parentElement!;
+	const box = grid.getBoundingClientRect();
+	await page
+		.elementLocator(grid)
+		.click({ button: "right", position: { x: box.width * 0.9, y: box.height * 0.5 } });
+	await expect.element(page.getByRole("menuitem", { name: /^Add widget/ })).toBeVisible();
+	expect(await menuState()).toEqual(fromButton);
+});
+
+test("it's shown on the starter and on an empty dashboard", async () => {
+	const { app } = await setup();
+	await renderGrid(app);
+	await expect.element(dashboardMore()).toBeVisible();
+	app.current = { ...app.current, isStarter: true };
+	await expect
+		.element(page.getByText("This is the starter dashboard.", { exact: false }))
+		.toBeVisible();
+	await expect.element(dashboardMore()).toBeVisible();
+});
+
+test("focus returns to it when the menu closes", async () => {
+	const { app } = await setup();
+	await renderGrid(app);
+	await dashboardMore().click();
+	await expect.element(page.getByRole("menuitem", { name: /^Add widget/ })).toBeVisible();
+	await userEvent.keyboard("{Escape}");
+	await expect.element(dashboardMore()).toHaveFocus();
+});
+
+test("the dashboard ⋯ is inert while a widget is fullscreen", async () => {
+	const { app, session, id } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	history.replaceState(null, "", `/workspace/dashboards/${id}`);
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(dashboardMore()).toBeVisible();
+	expect(dashboardMore().element().closest("[inert]")).toBeNull();
+	await page.getByRole("button", { name: "Show Readings fullscreen" }).click();
+	await expect.poll(() => location.search).toBe("?widget=a");
+	const more = document.querySelector('[aria-label="Dashboard actions"]')!;
+	await expect.poll(() => more.closest("[inert]")).not.toBeNull();
+});
+
+test("the dashboard ⋯ shows on a read-only dashboard", async () => {
+	const { app, session } = await setup();
+	session.readOnly = "newer";
+	await renderGrid(app);
+	await expect.element(dashboardMore()).toBeVisible();
+	await dashboardMore().click();
+	await expect.element(page.getByRole("menuitem", { name: /^New blank dashboard/ })).toBeVisible();
 });

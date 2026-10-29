@@ -20,7 +20,7 @@ test("first visit shows the starter with the hint", async ({ page }) => {
 	await expect(page).toHaveTitle("Starter dashboard · SJVAir Dashboard");
 	await expect(page.getByText(HINT)).toBeVisible();
 	await expect(widgetTitles(page)).toHaveText([PLACEHOLDER, PLACEHOLDER, PLACEHOLDER]);
-	await expect(page).toHaveURL(/\/workspace\/?$/);
+	await expect(page).toHaveURL(/\/workspace\/$/);
 });
 
 test("editing the starter makes my own copy", async ({ page }) => {
@@ -134,8 +134,7 @@ test("new blank dashboard, duplicate (rename dialog opens), delete with undo", a
 
 test("unknown and trimmed paths redirect", async ({ page }) => {
 	await page.goto("./nowhere");
-	// sv-router writes the home path without its trailing slash.
-	await expect(page).toHaveURL(/\/workspace\/?$/);
+	await expect(page).toHaveURL(/\/workspace\/$/);
 	await page.goto("./dashboards/abc/widgets");
 	await expect(page).toHaveURL(/\/workspace\/dashboards\/abc$/);
 });

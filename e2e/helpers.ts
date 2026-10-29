@@ -71,6 +71,23 @@ export async function makeOwnCopy(page: Page, title = "My first widget"): Promis
 	await expectSaved(page);
 }
 
+/** The taskbar of minimized widgets. */
+export function taskbar(page: Page): Locator {
+	return page.getByRole("toolbar", { name: "Minimized widgets" });
+}
+
+/** The restore button for the minimized widget titled `title`. */
+export function taskbarItem(page: Page, title: string): Locator {
+	return taskbar(page).getByRole("button", { name: `Restore ${title}`, exact: true });
+}
+
+/** The fullscreen widget's frame (the one with an "Exit fullscreen" button). */
+export function fullscreenFrame(page: Page): Locator {
+	return page
+		.locator("section")
+		.filter({ has: page.getByRole("button", { name: "Exit fullscreen" }) });
+}
+
 type Rect = { x: number; y: number; w: number; h: number };
 
 /**

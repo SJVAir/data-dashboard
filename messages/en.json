@@ -46,6 +46,7 @@
 	"deleted_restore_failed": "Couldn't restore the dashboard.",
 	"confirm_cancel": "Cancel",
 	"dashboard_empty": "This dashboard is empty.",
+	"dashboard_all_minimized": "All widgets are minimized.",
 	"dashboard_not_here": "This dashboard isn't saved in this browser.",
 	"page_title_not_here": "Dashboard not found · SJVAir Dashboard",
 	"your_dashboards": "Your dashboards",
@@ -326,5 +327,18 @@
 	"account_signed_in_as": "Signed in as {name}",
 	"account_signed_in_unnamed": "You're signed in",
 	"account_settings": "Account settings",
-	"account_sign_out": "Sign out"
+	"account_sign_out": "Sign out",
+	"widget_minimize": "Minimize",
+	"widget_minimize_named": "Minimize {title}",
+	"widget_fullscreen": "Fullscreen",
+	"widget_fullscreen_named": "Show {title} fullscreen",
+	"widget_exit_fullscreen": "Exit fullscreen",
+	"widget_restore": "Restore",
+	"taskbar_label": "Minimized widgets",
+	"taskbar_restore_named": "Restore {title}",
+	"widget_minimized": "{title} minimized to taskbar.",
+	"widget_restored": "{title} restored.",
+	"widget_fullscreen_entered": "{title} fullscreen. Press Escape to exit.",
+	"fullscreen_widget_missing": "That widget isn't on this dashboard anymore.",
+	"dashboard_menu": "Dashboard actions"
 }

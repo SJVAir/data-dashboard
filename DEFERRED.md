@@ -266,15 +266,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
   **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
-- **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
-  review); updated 2026-10-27 (spec 5b final review)._ The home route shows as `/workspace`
-  (sv-router drops the slash), while Vite's base is `/workspace/`. The server half is done:
-  the hosting track's `re_path(r'^workspace(?:/.*)?$')` makes sjvair.com serve both forms (200,
-  no redirect), and the dev-stack test accepts both. Spec 5b's Sign in link sends home back as
-  `/workspace/`. Still open, dev only: reloading home in `npm run dev` (or opening `/workspace`
-  there) shows Vite's base-URL hint page, and the address bar's home URL isn't the canonical
-  `/workspace/`. **Revisit with** the next router change (layout engine and windowing, at the
-  latest): have the router render home as `/workspace/`, or redirect the bare base in dev.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -647,6 +638,41 @@ string`) now get the union return type. The mobile app passes a string token, so
   `applyChange`'s index clamping and for never mutating its input are weak. Both are
   exercised indirectly by other tests. **Revisit when** a second widget type registers
   (Release 1 step 4), or `applyChange` gains an operation.
+- **Widget state across the starter's first edit in fullscreen.** _Deferred 2026-10-29 (spec
+  2b)._ An edit made while a starter widget is fullscreen hands off to the copy and keeps
+  `?widget`, but the page moves from Home to the copy's dashboard page, so the grid and the
+  fullscreen widget are mounted again once (a widget's own state, such as zoom, resets). Why:
+  keeping the grid mounted across Home → the dashboard page needs a router restructure.
+  **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
+  lost on the starter's first edit.
+- **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
+  2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
+  between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
+  (a widget's own state, such as zoom, resets). Why: the widget moves between the grid frame and
+  the minimized-fullscreen frame, so it remounts. **Revisit when** a step 4 widget has internal
+  state that's visibly lost.
+- **The page behind a fullscreen widget is not fully scroll-locked.** _Deferred 2026-10-29
+  (spec 2b)._ The fullscreen frame uses `overscroll-contain`, so the page behind it can still
+  scroll in some cases. Why: it's cosmetic, and a full scroll lock is fragile across browsers.
+  **Revisit when** people report the background scrolling, especially on iOS Safari.
+- **A no-op `setLayout` entry still counts in overlap detection.** _Deferred 2026-10-29 (spec
+  2b)._ `touches()` in `src/lib/changes/overlap.ts` counts a `setLayout` entry whose fields
+  are unchanged against a concurrent `removeWidget`, so it can raise a rare spurious conflict
+  dialog. Why: it is harmless to correctness and rare. **Revisit when** it's reported, or when
+  sync spec 2 touches overlap detection.
+- **Fixed sleeps in the "no stray toast" fullscreen tests.** _Deferred 2026-10-29 (spec 2b
+  final review)._ Three tests in `src/lib/components/dashboard/windowing.browser.test.ts` (a
+  deep link that waits for the dashboard, Delete in fullscreen, a deep link on a read-only
+  dashboard) wait a fixed 100 ms before checking that no "isn't on this dashboard" notice
+  appeared. Why: such a wait can only miss a late toast, never fail falsely, and there's no
+  event to wait on for something that shouldn't happen. **Revisit when** one of them is seen to
+  pass while the notice shows up later by hand, or the suite gets a shared "settled" helper.
+- **Focus when another tab deletes the focused widget.** _Deferred 2026-10-29 (spec 2b final
+  fix wave)._ A focused grid widget that leaves the grid by undo or another tab's minimize now
+  hands focus to its taskbar item (or its title bar after a page swap), but one deleted in
+  another tab drops focus to the page, as before. Why: the hand-off has no widget left to
+  target, and choosing a neighbour is a separate design question. **Revisit when** cross-tab
+  editing gets its keyboard and screen-reader pass, or it's reported.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
@@ -1201,3 +1227,14 @@ Dropped 2026-10-20 by the user ("we won't deal with production"):
 - **Run `import_forecast_zones` on production** (noted 2026-10-20). The three `custom`
   forecast zones were imported and verified locally (`TODO.md` → the forecast-zones
   warning); production work is out of scope.
+
+Dropped 2026-10-29 by the user (spec 2b review notes, closed as already covered or impossible):
+
+- **Test for restoring a widget wider than the grid.** The document schema caps `w` at 12,
+  the grid's width.
+- **Taskbar tests for dashboard items absent from an item's menu, and no taskbar on
+  read-only.** The taskbar menu test and the read-only tests already cover both.
+- **Test that Back exits starter fullscreen after the `/workspace/` rewrite.** A unit test
+  pins that the history state survives the rewrite, and the E2E covers Back.
+- **Reduced-motion check inspects only the frame's animations; two-tab test's order relies
+  on widget id.** Only the frame animates, and the id tie-break is the spec's rule.

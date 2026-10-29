@@ -1,9 +1,13 @@
+import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import Copy from "@lucide/svelte/icons/copy";
+import Minus from "@lucide/svelte/icons/minus";
+import Maximize2 from "@lucide/svelte/icons/maximize-2";
 import Move from "@lucide/svelte/icons/move";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Scaling from "@lucide/svelte/icons/scaling";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
+import { announce } from "$lib/a11y/announcer.svelte";
 import { ChangeTargetMissing } from "$lib/changes/apply";
 import { replaceIfOverlapping } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
@@ -14,7 +18,8 @@ import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import type { Arrangement, ArrangeMode } from "$lib/layout/arrangement.svelte";
-import { placeNewWidget } from "$lib/layout/items";
+import { requestFocus } from "$lib/layout/focus-request.svelte";
+import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
 import type { MenuItem, MenuProvider } from "./types";
 
@@ -65,11 +70,9 @@ function duplicate(app: AppContext, widgetId: string): void {
 	if (!found) return;
 	const { session, widget } = found;
 	const widgets = session.doc.body.widgets;
-	const copy: WidgetInstance = {
-		...structuredClone(widget),
-		id: crypto.randomUUID(),
-		rect: placeNewWidget(widgets, { w: widget.rect.w, h: widget.rect.h })
-	};
+	const copy: WidgetInstance = { ...structuredClone(widget), id: crypto.randomUUID() };
+	delete copy.minimized;
+	Object.assign(copy, copyPlacement(widgets, widget));
 	session.apply({
 		op: "addWidget",
 		target: { widgetId: copy.id },
@@ -114,17 +117,21 @@ function arrange(arrangement: Arrangement, widgetId: string, mode: ArrangeMode):
 
 /**
  * One widget's actions; provided on its frame and opened by its ⋯ button. With the page's
- * `arrangement`, also Move… and Resize… (not offered while the widget is minimized).
+ * `arrangement`, also Move… and Resize… (not offered while the widget is minimized). With
+ * `window.fullscreen`, also Fullscreen; `window.inFullscreen` (the frame is fullscreen) leaves
+ * out Move…, Resize…, Minimize, and Fullscreen, and Delete leaves fullscreen (`window.exit`)
+ * before it deletes.
  */
 export function widgetActions(
 	app: AppContext,
 	widgetId: string,
-	arrangement?: Arrangement
+	arrangement?: Arrangement,
+	window?: { fullscreen?: (id: string) => void; inFullscreen?: boolean; exit?: () => void }
 ): MenuProvider {
 	return () => {
 		const locked = find(app, widgetId) === null;
 		const layout: MenuItem[] =
-			arrangement && !currentWidget(app, widgetId)?.minimized
+			arrangement && !currentWidget(app, widgetId)?.minimized && !window?.inFullscreen
 				? [
 						{
 							id: "move-widget",
@@ -144,8 +151,28 @@ export function widgetActions(
 						}
 					]
 				: [];
+		const minimizable = !currentWidget(app, widgetId)?.minimized && !window?.inFullscreen;
+		const windowing: MenuItem[] = minimizable
+			? [
+					{
+						id: "minimize-widget",
+						label: m.widget_minimize(),
+						icon: Minus,
+						group: "window",
+						disabled: locked,
+						// After the menu closes, so its own focus return can't undo the move.
+						run: () => afterMenuClose(() => minimizeWidget(app, widgetId))
+					}
+				]
+			: [];
+		const fullscreen = window?.fullscreen;
+		if (fullscreen && !window?.inFullscreen) {
+			// A view, not an edit: never locked, and never makes a starter copy.
+			windowing.push(fullscreenItem(widgetId, fullscreen));
+		}
 		return [
 			...layout,
+			...windowing,
 			{
 				id: "rename-widget",
 				label: m.widget_rename(),
@@ -168,8 +195,70 @@ export function widgetActions(
 				icon: Trash2,
 				group: "widget",
 				disabled: locked,
-				run: () => remove(app, widgetId)
+				run: () => {
+					// Leaving first means the page knows the widget's going (no missing-widget notice).
+					if (window?.inFullscreen) window.exit?.();
+					remove(app, widgetId);
+				}
 			}
 		];
 	};
+}
+
+/** Minimize to the taskbar; announces and moves focus to its taskbar item. */
+export function minimizeWidget(app: AppContext, widgetId: string): void {
+	const found = find(app, widgetId);
+	if (!found) return;
+	const change = minimizeChange(found.session.doc.body.widgets, widgetId);
+	if (!change) return;
+	const title = widgetTitle(found.widget);
+	found.session.apply(change);
+	announce(m.widget_minimized({ title }));
+	requestFocus({ kind: "taskbar", id: widgetId });
+}
+
+/** Restore from the taskbar; announces and moves focus to its title bar. */
+export function restoreWidget(app: AppContext, widgetId: string): void {
+	const found = find(app, widgetId);
+	if (!found) return;
+	const change = restoreChange(found.session.doc.body.widgets, widgetId);
+	if (!change) return;
+	const title = widgetTitle(found.widget);
+	found.session.apply(change);
+	announce(m.widget_restored({ title }));
+	requestFocus({ kind: "title", id: widgetId });
+}
+
+/** Fullscreen: opened once the menu has closed, so its focus return can't undo the move. */
+function fullscreenItem(widgetId: string, fullscreen: (id: string) => void): MenuItem {
+	return {
+		id: "fullscreen-widget",
+		label: m.widget_fullscreen(),
+		icon: Maximize2,
+		group: "window",
+		run: () => afterMenuClose(() => fullscreen(widgetId))
+	};
+}
+
+const NOT_IN_TASKBAR = new Set(["move-widget", "resize-widget", "minimize-widget"]);
+
+/** A taskbar item's actions: Restore, Fullscreen, then the common widget actions. */
+export function taskbarActions(
+	app: AppContext,
+	widgetId: string,
+	fullscreen: (id: string) => void
+): MenuProvider {
+	const common = widgetActions(app, widgetId);
+	return (ctx) => [
+		{
+			id: "restore-widget",
+			label: m.widget_restore(),
+			icon: ArrowUpFromLine,
+			group: "window",
+			disabled: find(app, widgetId) === null,
+			run: () => afterMenuClose(() => restoreWidget(app, widgetId))
+		},
+		fullscreenItem(widgetId, fullscreen),
+		...common(ctx).filter((item) => !NOT_IN_TASKBAR.has(item.id))
+	];
 }

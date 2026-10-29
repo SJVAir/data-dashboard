@@ -1,7 +1,7 @@
 import type { Rect, WidgetInstance } from "$lib/documents/schema";
 import { getWidgetType } from "$lib/widgets/registry";
 import { GRID_COLUMNS } from "./config";
-import type { Change, Placement } from "$lib/changes/types";
+import type { Placement, SetLayoutChange } from "$lib/changes/types";
 import { diff, placeNew, tidy, type Layout, type LayoutItem, type Size } from "./engine";
 
 /** The placeholder type's minimum size; used for widgets of a type that isn't registered. */
@@ -32,7 +32,7 @@ export function placeNewWidget(widgets: WidgetInstance[], size: Size): Rect {
  * A setLayout for every grid widget whose saved rect differs from `after` (tidy fixes
  * included), or null when nothing differs. Grid widgets are never minimized.
  */
-export function layoutChange(widgets: WidgetInstance[], after: Layout): Change | null {
+export function layoutChange(widgets: WidgetInstance[], after: Layout): SetLayoutChange | null {
 	const changed = diff(gridItems(widgets), after);
 	const ids = Object.keys(changed);
 	if (ids.length === 0) return null;

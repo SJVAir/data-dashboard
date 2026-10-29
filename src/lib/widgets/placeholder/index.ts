@@ -1,3 +1,4 @@
+import SquareDashed from "@lucide/svelte/icons/square-dashed";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { FALLBACK_MIN_SIZE, placeNewWidget } from "$lib/layout/items";
@@ -17,6 +18,7 @@ export const placeholderType: WidgetType = {
 	defaultTitle: () => m.widget_placeholder_title(),
 	// Type-specific items only; the widget frame adds the common widget actions.
 	menu: () => [],
+	icon: SquareDashed,
 	component: Placeholder
 };
 
