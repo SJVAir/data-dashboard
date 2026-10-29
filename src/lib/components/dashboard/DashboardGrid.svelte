@@ -23,6 +23,7 @@
 		FULLSCREEN_STATE,
 		fullscreenId
 	} from "$lib/layout/fullscreen";
+	import { holdFullscreen } from "$lib/layout/fullscreen-view.svelte";
 	import { shownLayout } from "$lib/layout/items";
 	import { taskbarWidgets } from "$lib/layout/windowing";
 	import { STARTER_ID } from "$lib/starter/starter";
@@ -169,17 +170,22 @@
 		});
 	});
 
-	// The dashboard area's top, where a fullscreen widget starts (notice bars can move it, and
-	// the page may be scrolled past the top bar).
+	// Where a fullscreen widget starts: the dashboard area's top (notice bars can move it), or
+	// once the page is scrolled past that, the bottom of the top bar, which stays on screen.
 	let root = $state<HTMLElement | null>(null);
 	function measureTop(): void {
 		if (!root) return;
 		const area = root.closest("main") ?? root;
-		root.style.setProperty(
-			"--fullscreen-top",
-			`${Math.max(0, area.getBoundingClientRect().top)}px`
-		);
+		// Where the bar is (or is about to be) held: its own place, or the viewport's top.
+		const bar = document.querySelector("[data-top-bar]")?.getBoundingClientRect();
+		const barBottom = bar ? Math.max(0, bar.top) + bar.height : 0;
+		const top = Math.max(barBottom, area.getBoundingClientRect().top);
+		root.style.setProperty("--fullscreen-top", `${top}px`);
 	}
+	$effect(() => {
+		if (!shownId) return;
+		return holdFullscreen();
+	});
 	$effect(() => {
 		if (!shownId || !root) return;
 		const area = root.closest("main") ?? root;

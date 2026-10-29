@@ -670,6 +670,44 @@ test("on a phone fullscreen covers the area below the top bar", async () => {
 	expect(box.width).toBeCloseTo(document.documentElement.clientWidth, 0);
 });
 
+const frames = async (n: number) => {
+	for (let i = 0; i < n; i++) await new Promise((resolve) => requestAnimationFrame(resolve));
+};
+
+test("scrolled past the top bar, fullscreen shows the whole bar and starts below it", async () => {
+	await page.viewport(1280, 600);
+	// Tall enough to scroll.
+	await seedApp([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
+		widget("b", { x: 0, y: 4, w: 12, h: 12 }, "Map")
+	]);
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const header = document.querySelector("header")!;
+	const height = header.getBoundingClientRect().height;
+	// Partway past the top bar, with the button still in view, once the page has settled.
+	await frames(2);
+	window.scrollTo(0, Math.round(height / 2));
+	await frames(2);
+	expect(header.getBoundingClientRect().top).toBeLessThan(0);
+	const scrolled = scrollY;
+	// By keyboard: a pointer click first scrolls the button into view (by a pixel here).
+	const show = page.getByRole("button", { name: "Show Readings fullscreen" });
+	(show.element() as HTMLElement).focus({ preventScroll: true });
+	await userEvent.keyboard("{Enter}");
+	await expect.poll(() => isFullscreen("a")).toBe(true);
+	const el = frame("a").element();
+	await settled(el);
+	expect(scrollY).toBe(scrolled);
+	expect(header.getBoundingClientRect().top).toBe(0);
+	expect(el.getBoundingClientRect().top).toBeCloseTo(header.getBoundingClientRect().bottom, 0);
+	// Leaving puts the page back where it was.
+	await expect.poll(() => focusIn("a")).toBe(true);
+	await userEvent.keyboard("{Escape}");
+	await expect.poll(() => isFullscreen("a")).toBe(false);
+	expect(scrollY).toBe(scrolled);
+	expect(header.getBoundingClientRect().top).toBeLessThan(0);
+});
+
 test("reduced motion: no animation", async () => {
 	await seedApp(halves());
 	// With motion, opening animates the frame from its grid box.
