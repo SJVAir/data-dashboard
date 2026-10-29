@@ -58,6 +58,9 @@ test.describe("with reduced motion", () => {
 		await page.keyboard.press("Control+z");
 		await expect(taskbarItem(page, "Alpha")).toHaveCount(0);
 		await expect(widgetTitles(page)).toHaveCount(3);
+		await page.keyboard.press("Control+Shift+z");
+		await expect(taskbarItem(page, "Alpha")).toBeVisible();
+		await expect(widgetTitles(page)).toHaveCount(2);
 	});
 
 	test("a minimize survives a reload", async ({ page }) => {
@@ -81,6 +84,26 @@ test.describe("with reduced motion", () => {
 		await expect(taskbarItem(page, PLACEHOLDER)).toBeFocused();
 	});
 
+	test("a deep link on the starter opens fullscreen and makes no copy", async ({ page }) => {
+		await page.goto("./?widget=starter-1");
+		await expect(fullscreenFrame(page)).toBeVisible();
+		await expect(page).toHaveURL(/\/workspace\/\?widget=starter-1$/);
+		await page.keyboard.press("Escape");
+		await expect(page).toHaveURL(/\/workspace\/$/);
+		await expect(widgetTitles(page)).toHaveCount(3);
+	});
+
+	test("fullscreen does not animate with reduced motion", async ({ page }) => {
+		await openSharedDoc(page, sharedDoc("Motion", ["Alpha", "Beta"]));
+		await page.getByRole("button", { name: "Show Alpha fullscreen" }).click();
+		const frame = fullscreenFrame(page);
+		await expect(frame).toBeVisible();
+		const live = await frame.evaluate(
+			(el) => el.getAnimations().filter((a) => a.playState !== "finished").length
+		);
+		expect(live).toBe(0);
+	});
+
 	// Untidy: each saved rect is below the placeholder's minimum size, so tidy fixes are due.
 	const UNTIDY = sharedDoc("Windowing", ["Alpha", "Beta", "Gamma"]);
 	for (const [label, doc] of [
@@ -99,20 +122,29 @@ test.describe("with reduced motion", () => {
 				other.getByRole("button", { name: "Minimize Beta" }).click()
 			]);
 
-			for (const tab of [page, other]) {
-				await expect(taskbarItem(tab, "Alpha")).toBeVisible();
-				await expect(taskbarItem(tab, "Beta")).toBeVisible();
-				await expect(widgetTitles(tab)).toHaveCount(1);
-				await expect(tab.getByRole("dialog", { name: "Changed in another tab" })).toBeHidden();
-			}
 			const order = async (tab: typeof page) =>
 				(
 					await taskbar(tab)
 						.getByRole("button", { name: /^Restore / })
 						.allTextContents()
 				).map((t) => t.trim());
-			await expect.poll(async () => (await order(page)).join()).toBe((await order(other)).join());
-			expect(await order(page)).toHaveLength(2);
+			// Both took order 0, so the tie breaks by id: Alpha (w0) before Beta (w1).
+			for (const tab of [page, other]) {
+				await expect(taskbarItem(tab, "Alpha")).toBeVisible();
+				await expect(taskbarItem(tab, "Beta")).toBeVisible();
+				await expect(widgetTitles(tab)).toHaveCount(1);
+				await expect.poll(() => order(tab)).toEqual(["Alpha", "Beta"]);
+			}
+			await expectSaved(page);
+			await expectSaved(other);
+			// Settled: no conflict dialog in either tab.
+			for (const tab of [page, other]) {
+				await expect(tab.getByRole("dialog")).toHaveCount(0);
+			}
+			// Both minimizes are stored.
+			await page.reload();
+			await expect.poll(() => order(page)).toEqual(["Alpha", "Beta"]);
+			await expect(widgetTitles(page)).toHaveCount(1);
 		});
 	}
 
@@ -196,8 +228,9 @@ test("fullscreen animates without reduced motion", async ({ page, browserName })
 	test.skip(browserName !== "chromium", "Chromium only");
 	await openSharedDoc(page, sharedDoc("Motion", ["Alpha", "Beta"]));
 	await page.getByRole("button", { name: "Show Alpha fullscreen" }).click();
-	const running = await fullscreenFrame(page).evaluate(
-		(el) => el.getAnimations().filter((a) => a.playState === "running").length
+	// Not yet finished (a just-started animation is "pending" until its first frame).
+	const live = await fullscreenFrame(page).evaluate(
+		(el) => el.getAnimations().filter((a) => a.playState !== "finished").length
 	);
-	expect(running).toBeGreaterThan(0);
+	expect(live).toBeGreaterThan(0);
 });
