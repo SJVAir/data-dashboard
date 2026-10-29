@@ -9,7 +9,7 @@
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
 	import { minimizeWidget, widgetActions, widgetTitle } from "$lib/actions/widget";
-	import { pendingFocusTarget, takeFocus } from "$lib/layout/focus-request.svelte";
+	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { Rect, WidgetInstance } from "$lib/documents/schema";
@@ -188,7 +188,46 @@
 	onDestroy(() => {
 		stopLongPress?.();
 		stopDrag?.();
+		handOnFocus();
 	});
+
+	// Whether focus is in this frame (false once it moves elsewhere).
+	let held = false;
+
+	function onfocusin(): void {
+		held = true;
+	}
+
+	function onfocusout(event: FocusEvent): void {
+		const to = event.relatedTarget;
+		if (to instanceof Node) held = !!section?.contains(to);
+		// Focus going nowhere: a removal takes the frame off the page by the end of this task, a
+		// plain blur leaves it there.
+		else {
+			queueMicrotask(() => {
+				if (section?.isConnected && document.activeElement === document.body) held = false;
+			});
+		}
+	}
+
+	/**
+	 * Focus lost with the frame (undo of a restore, another tab's minimize, a page swap): hand it
+	 * to the widget's taskbar item, or its title bar on the next page. A fullscreen frame's moves
+	 * are the grid's to handle.
+	 */
+	function handOnFocus(): void {
+		if (!held || fullscreen) return;
+		held = false;
+		const active = document.activeElement;
+		if (active && active !== document.body && !section?.contains(active)) return;
+		const id = widget.id;
+		// After the update: state read during a teardown is the value from before it.
+		queueMicrotask(() => {
+			if (document.activeElement && document.activeElement !== document.body) return;
+			const now = app.current.session?.doc.body.widgets.find((w) => w.id === id);
+			if (now) requestFocus({ kind: now.minimized ? "taskbar" : "title", id });
+		});
+	}
 
 	/** What's said when the arrangement of widget `id` is cancelled. */
 	function cancelledText(id: string): string {
@@ -452,6 +491,8 @@
 	]}
 	{inert}
 	onkeydown={trapTab}
+	{onfocusin}
+	{onfocusout}
 	style:--col="{rect.x + 1} / span {rect.w}"
 	style:--row="{rect.y + 1} / span {rect.h}"
 	style:--prow="{phoneRow + 1} / span {rect.h}"

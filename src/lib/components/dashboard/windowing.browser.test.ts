@@ -118,6 +118,17 @@ test("Ctrl+Z after Minimize restores the rect and focuses the title bar", async 
 	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
 });
 
+test("Ctrl+Z after Restore focuses the taskbar item", async () => {
+	const { session } = await seed(halves());
+	await page.getByRole("button", { name: "Minimize Readings" }).click();
+	await expect.poll(() => document.activeElement).toBe(item("Readings").element());
+	await userEvent.keyboard("{Enter}");
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+	await userEvent.keyboard("{Control>}z{/Control}");
+	expect(session.doc.body.widgets.find((w) => w.id === "a")!.minimized).toBeDefined();
+	await expect.poll(() => document.activeElement).toBe(item("Readings").element());
+});
+
 test("a taskbar request isn't re-issued when focus had left the bar", async () => {
 	const { screen } = await seed(halves());
 	await page.getByRole("button", { name: "Minimize Readings" }).click();
@@ -532,6 +543,18 @@ test("minimized in another tab stays fullscreen", async () => {
 	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
 	await userEvent.keyboard("{Escape}");
 	await expect.poll(() => location.search).toBe("");
+	await expect.poll(() => document.activeElement).toBe(item("Readings").element());
+	other.dispose();
+});
+
+test("a focused widget minimized in another tab hands focus to its taskbar item", async () => {
+	const { platform, hub, app, id } = await seedApp(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	(titleBar("Readings").element() as HTMLElement).focus();
+	const other = await otherTab(platform, hub, app, id);
+	other.apply(minimizeChange(other.doc.body.widgets, "a")!);
+	await other.flush();
+	await expect.element(item("Readings")).toBeVisible();
 	await expect.poll(() => document.activeElement).toBe(item("Readings").element());
 	other.dispose();
 });
