@@ -60,7 +60,8 @@
 		...(type?.menu(ctx) ?? []),
 		...widgetActions(app, widget.id, arrangement, {
 			fullscreen: () => onfullscreen(),
-			inFullscreen: fullscreen
+			inFullscreen: fullscreen,
+			exit: () => onexit()
 		})(ctx)
 	];
 
@@ -444,7 +445,7 @@
 	class={[
 		"group bg-card text-card-foreground border-border flex min-h-0 flex-col overflow-hidden border",
 		fullscreen
-			? "fixed inset-x-0 top-(--fullscreen-top) bottom-0 z-(--z-fullscreen)"
+			? "fixed inset-x-0 top-(--fullscreen-top) bottom-0 z-(--z-fullscreen) overscroll-contain"
 			: "relative [grid-column:1/-1] [grid-row:var(--prow)] scroll-mb-[calc(var(--taskbar-height)+var(--grid-gap))] rounded-lg md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
 		dragging && "z-10 shadow-lg",
 		touchActive && "ring-ring ring-2"

@@ -140,24 +140,30 @@
 		});
 	}
 
+	// The `widget` this page is leaving (until the URL drops it), so it's left only once.
+	let leaving: string | null = null;
+	$effect(() => {
+		if (requested !== leaving) leaving = null;
+	});
+
+	/** Back if this page pushed the entry, else replace it without `widget`. */
 	function exitFullscreen(): void {
+		if (!requested || leaving === requested) return;
+		leaving = requested;
 		if (exitPlan(route.state).kind === "back") window.history.back();
 		else void navigate(here(), { replace: true, scrollToTop: false });
 	}
 
-	// A link to a widget that isn't here (or was deleted in another tab): drop `widget` in place,
-	// with a notice. On a read-only page (no widgets shown) it's dropped silently.
-	let dropping: string | null = null;
+	// A link to a widget that isn't here, or one deleted in another tab: leave, with a notice. (This
+	// tab's own Delete leaves first, so it gets only its own toast.) On a read-only page (no widgets
+	// shown) it's dropped silently.
 	$effect(() => {
 		const result = check;
 		const id = requested;
 		if (result !== "missing" && result !== "read-only") return;
 		untrack(() => {
-			if (dropping === id) return;
-			dropping = id;
-			void navigate(here(), { replace: true, scrollToTop: false }).finally(() => {
-				if (dropping === id) dropping = null;
-			});
+			if (leaving === id) return;
+			exitFullscreen();
 			if (result === "missing") toast(m.fullscreen_widget_missing());
 		});
 	});
@@ -191,13 +197,20 @@
 	// Entering and leaving fullscreen: grow from (or shrink back to) the grid cell, then move
 	// focus to the title bar, or on leaving to the taskbar item of a minimized widget.
 	let lastShown: string | null = null;
+	// Whether the shown widget was minimized, and whether focus was in its frame, before an update
+	// (another tab's minimize or restore moves it to the other frame, so it's mounted again).
+	let lastMinimized = false;
+	let focusWasIn = false;
 	// Boxes measured before the DOM update and read once after it: not state.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const from = new Map<string, DOMRect>();
 	$effect.pre(() => {
 		const next = shownId;
+		void shownWidget?.minimized;
 		untrack(() => {
 			from.clear();
+			const el = frameOf(lastShown);
+			focusWasIn = !!el && el.contains(document.activeElement);
 			if (next === lastShown) return;
 			for (const id of [lastShown, next]) {
 				const el = frameOf(id);
@@ -207,9 +220,16 @@
 	});
 	$effect(() => {
 		const next = shownId;
+		const nowMinimized = !!shownWidget?.minimized;
 		untrack(() => {
 			const prev = lastShown;
-			if (next === prev) return;
+			const moved = nowMinimized !== lastMinimized;
+			lastMinimized = nowMinimized;
+			if (next === prev) {
+				// Moved to the other frame: put focus back in it.
+				if (next && moved && focusWasIn) requestFocus({ kind: "title", id: next });
+				return;
+			}
 			lastShown = next;
 			if (next) measureTop();
 			for (const [id, rect] of from) {
@@ -218,7 +238,8 @@
 			}
 			from.clear();
 			if (next) requestFocus({ kind: "title", id: next });
-			else if (prev) {
+			// Not when the route has moved on to another dashboard (it isn't this page's widget).
+			else if (prev && loaded) {
 				const widget = byId.get(prev);
 				if (widget) requestFocus({ kind: widget.minimized ? "taskbar" : "title", id: prev });
 			}

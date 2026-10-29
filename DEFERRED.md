@@ -654,6 +654,12 @@ string`) now get the union return type. The mobile app passes a string token, so
   keeping the grid mounted across Home → the dashboard page needs a router restructure.
   **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
   lost on the starter's first edit.
+- **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
+  2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
+  between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
+  (a widget's own state, such as zoom, resets). Why: the widget moves between the grid frame and
+  the minimized-fullscreen frame, so it remounts. **Revisit when** a step 4 widget has internal
+  state that's visibly lost.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a

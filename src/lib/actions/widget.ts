@@ -122,13 +122,14 @@ function arrange(arrangement: Arrangement, widgetId: string, mode: ArrangeMode):
  * One widget's actions; provided on its frame and opened by its ⋯ button. With the page's
  * `arrangement`, also Move… and Resize… (not offered while the widget is minimized). With
  * `window.fullscreen`, also Fullscreen; `window.inFullscreen` (the frame is fullscreen) leaves
- * out Move…, Resize…, Minimize, and Fullscreen.
+ * out Move…, Resize…, Minimize, and Fullscreen, and Delete leaves fullscreen (`window.exit`)
+ * before it deletes.
  */
 export function widgetActions(
 	app: AppContext,
 	widgetId: string,
 	arrangement?: Arrangement,
-	window?: { fullscreen?: (id: string) => void; inFullscreen?: boolean }
+	window?: { fullscreen?: (id: string) => void; inFullscreen?: boolean; exit?: () => void }
 ): MenuProvider {
 	return () => {
 		const locked = find(app, widgetId) === null;
@@ -197,7 +198,11 @@ export function widgetActions(
 				icon: Trash2,
 				group: "widget",
 				disabled: locked,
-				run: () => remove(app, widgetId)
+				run: () => {
+					// Leaving first means the page knows the widget's going (no missing-widget notice).
+					if (window?.inFullscreen) window.exit?.();
+					remove(app, widgetId);
+				}
 			}
 		];
 	};

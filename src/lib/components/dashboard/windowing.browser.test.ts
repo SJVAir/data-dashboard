@@ -10,8 +10,8 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { pendingFocusTarget } from "$lib/layout/focus-request.svelte";
 import { FULLSCREEN_STATE } from "$lib/layout/fullscreen";
-import { minimizeChange } from "$lib/layout/windowing";
-import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
+import { minimizeChange, restoreChange } from "$lib/layout/windowing";
+import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
 import App from "../../../App.svelte";
@@ -201,11 +201,13 @@ test("no Minimize on a read-only dashboard", async () => {
 /** The app with the router at `url`, over a stored dashboard holding `widgets`. */
 async function seedApp(
 	widgets: WidgetInstance[],
-	url: (id: string) => string = (id) => `/workspace/dashboards/${id}`
+	url: (id: string) => string = (id) => `/workspace/dashboards/${id}`,
+	prepare?: (app: AppContext) => void
 ) {
 	const platform = createMemoryPlatform();
 	const hub = createMemoryTabHub();
 	const app = await initApp(platform, { channel: hub.channel(), tabId: "t1" });
+	prepare?.(app);
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
 	await platform.documents.commit(app.space, {
@@ -428,11 +430,18 @@ async function otherTab(
 	return (await DocumentSession.open(platform, app.space, id, "t9", { channel: hub.channel() }))!;
 }
 
+/** The router's index of the current history entry (a push adds one; a replace keeps it). */
+const entryIndex = () => (history.state as { _routerIndex: number })._routerIndex;
+const toastTexts = () =>
+	Array.from(document.querySelectorAll("[data-sonner-toast]"), (t) => t.textContent ?? "");
+
 test("a fullscreen widget deleted in another tab exits", async () => {
 	const { platform, hub, app, id } = await seedApp(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const before = entryIndex();
 	await openFromButton("Readings");
 	await expect.poll(() => isFullscreen("a")).toBe(true);
-	const length = history.length;
+	expect(entryIndex()).toBe(before + 1);
 	const other = await otherTab(platform, hub, app, id);
 	const w = other.doc.body.widgets[0];
 	other.apply({ op: "removeWidget", target: { widgetId: "a" }, widget: w, index: 0 });
@@ -440,10 +449,70 @@ test("a fullscreen widget deleted in another tab exits", async () => {
 	await expect
 		.element(page.getByText("That widget isn't on this dashboard anymore."))
 		.toBeVisible();
-	expect(location.search).toBe("");
-	expect(history.length).toBe(length);
+	await expect.poll(() => location.search).toBe("");
+	// Back to the entry it was opened from (a replace would leave a second dashboard entry).
+	expect(entryIndex()).toBe(before);
 	expect(frame("b").element().closest("[inert]")).toBeNull();
 	other.dispose();
+});
+
+test("a deep-linked widget deleted in another tab replaces the entry", async () => {
+	const { platform, hub, app, id } = await seedApp(
+		halves(),
+		(id) => `/workspace/dashboards/${id}?widget=a`
+	);
+	await expect.poll(() => isFullscreen("a")).toBe(true);
+	const before = entryIndex();
+	const length = history.length;
+	const other = await otherTab(platform, hub, app, id);
+	const w = other.doc.body.widgets[0];
+	other.apply({ op: "removeWidget", target: { widgetId: "a" }, widget: w, index: 0 });
+	await other.flush();
+	await expect.poll(() => location.search).toBe("");
+	expect(location.pathname).toBe(`/workspace/dashboards/${id}`);
+	expect(entryIndex()).toBe(before);
+	expect(history.length).toBe(length);
+	other.dispose();
+});
+
+test("Delete in fullscreen exits with one toast and no extra history entry", async () => {
+	const { app } = await seedApp(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const before = entryIndex();
+	await openFromButton("Readings");
+	await expect.poll(() => isFullscreen("a")).toBe(true);
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: "Delete widget" }).click();
+	await expect.element(page.getByText("Widget deleted")).toBeVisible();
+	await expect.poll(() => location.search).toBe("");
+	expect(entryIndex()).toBe(before);
+	expect(app.current.session!.doc.body.widgets.map((x) => x.id)).toEqual(["b"]);
+	// Give a stray notice time to appear.
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	// Only Delete's own toast (others may linger from earlier tests).
+	expect(toastTexts().some((t) => t.includes("isn't on this dashboard"))).toBe(false);
+	expect(toastTexts().filter((t) => t.includes("Widget deleted"))).toHaveLength(1);
+	expect(frame("b").element().closest("[inert]")).toBeNull();
+});
+
+test("a deep link on a read-only dashboard drops the parameter silently", async () => {
+	const { id } = await seedApp(
+		halves(),
+		(id) => `/workspace/dashboards/${id}?widget=a`,
+		(app) => {
+			const get = app.sessions.get.bind(app.sessions);
+			app.sessions.get = async (...args) => {
+				const session = await get(...args);
+				if (session) session.readOnly = "newer";
+				return session;
+			};
+		}
+	);
+	await expect.element(page.getByText("newer version", { exact: false })).toBeVisible();
+	await expect.poll(() => location.search).toBe("");
+	expect(location.pathname).toBe(`/workspace/dashboards/${id}`);
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	expect(toastTexts().some((t) => t.includes("isn't on this dashboard"))).toBe(false);
 });
 
 test("minimized in another tab stays fullscreen", async () => {
@@ -459,10 +528,35 @@ test("minimized in another tab stays fullscreen", async () => {
 	await expect.element(item("Readings")).toBeInTheDocument();
 	expect(isFullscreen("a")).toBe(true);
 	expect(location.search).toBe("?widget=a");
-	(titleBar("Readings").element() as HTMLElement).focus();
+	// The widget moved to another frame; focus follows it.
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
 	await userEvent.keyboard("{Escape}");
 	await expect.poll(() => location.search).toBe("");
 	await expect.poll(() => document.activeElement).toBe(item("Readings").element());
+	other.dispose();
+});
+
+test("restored in another tab stays fullscreen, with focus kept", async () => {
+	const { platform, hub, app, id } = await seedApp(
+		[
+			{ ...widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"), minimized: { order: 0 } },
+			widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Map")
+		],
+		(id) => `/workspace/dashboards/${id}?widget=a`
+	);
+	await expect.poll(() => isFullscreen("a")).toBe(true);
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+	const other = await otherTab(platform, hub, app, id);
+	other.apply(restoreChange(other.doc.body.widgets, "a")!);
+	await other.flush();
+	await expect
+		.poll(() => app.current.session!.doc.body.widgets.find((w) => w.id === "a")!.minimized)
+		.toBeUndefined();
+	expect(isFullscreen("a")).toBe(true);
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+	await userEvent.keyboard("{Escape}");
+	await expect.poll(() => location.search).toBe("");
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
 	other.dispose();
 });
 
