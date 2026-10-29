@@ -19,8 +19,7 @@ import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import type { Arrangement, ArrangeMode } from "$lib/layout/arrangement.svelte";
 import { requestFocus } from "$lib/layout/focus-request.svelte";
-import { placeNewWidget } from "$lib/layout/items";
-import { minimizeChange, restoreChange } from "$lib/layout/windowing";
+import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
 import type { MenuItem, MenuProvider } from "./types";
 
@@ -71,11 +70,9 @@ function duplicate(app: AppContext, widgetId: string): void {
 	if (!found) return;
 	const { session, widget } = found;
 	const widgets = session.doc.body.widgets;
-	const copy: WidgetInstance = {
-		...structuredClone(widget),
-		id: crypto.randomUUID(),
-		rect: placeNewWidget(widgets, { w: widget.rect.w, h: widget.rect.h })
-	};
+	const copy: WidgetInstance = { ...structuredClone(widget), id: crypto.randomUUID() };
+	delete copy.minimized;
+	Object.assign(copy, copyPlacement(widgets, widget));
 	session.apply({
 		op: "addWidget",
 		target: { widgetId: copy.id },

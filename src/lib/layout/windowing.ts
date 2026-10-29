@@ -3,13 +3,27 @@ import type { Change, Placement } from "$lib/changes/types";
 import { getWidgetType } from "$lib/widgets/registry";
 import { GRID_COLUMNS } from "./config";
 import { placeNew, tidy } from "./engine";
-import { FALLBACK_MIN_SIZE, gridItems, layoutChange } from "./items";
+import { FALLBACK_MIN_SIZE, gridItems, layoutChange, placeNewWidget } from "./items";
 
 /** The `order` for the next widget to be minimized: one more than the highest, else 0. */
 export function nextMinimizedOrder(widgets: WidgetInstance[]): number {
 	let max = -1;
 	for (const w of widgets) if (w.minimized && w.minimized.order > max) max = w.minimized.order;
 	return max + 1;
+}
+
+/**
+ * Where a duplicate of `widget` goes: a grid widget's copy in the grid's first free place, a
+ * minimized widget's copy minimized too, at the taskbar's right end.
+ */
+export function copyPlacement(
+	widgets: WidgetInstance[],
+	widget: WidgetInstance
+): Pick<WidgetInstance, "rect" | "minimized"> {
+	if (widget.minimized) {
+		return { rect: { ...widget.rect }, minimized: { order: nextMinimizedOrder(widgets) } };
+	}
+	return { rect: placeNewWidget(widgets, { w: widget.rect.w, h: widget.rect.h }) };
 }
 
 /** The minimized widgets in taskbar order: by `order`, ties by id. */

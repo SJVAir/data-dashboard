@@ -5,7 +5,13 @@ import type { Change } from "$lib/changes/types";
 import { CURRENT_SCHEMA_VERSION, type Dashboard, type WidgetInstance } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
-import { minimizeChange, nextMinimizedOrder, restoreChange, taskbarWidgets } from "./windowing";
+import {
+	copyPlacement,
+	minimizeChange,
+	nextMinimizedOrder,
+	restoreChange,
+	taskbarWidgets
+} from "./windowing";
 
 function widget(
 	id: string,
@@ -29,6 +35,25 @@ const tidyDoc = () => [widget("a", 0, 0, 6, 4), widget("b", 6, 0, 6, 4), widget(
 
 type SetLayout = Extract<Change, { op: "setLayout" }>;
 const asLayout = (c: Change | null) => c as SetLayout;
+
+describe("a duplicate's placement", () => {
+	test("a minimized widget's copy stays minimized, at the taskbar's right end", () => {
+		const widgets = [
+			widget("g", 0, 0, 6, 4),
+			widget("a", 0, 0, 4, 3, 0),
+			widget("b", 0, 0, 4, 3, 2)
+		];
+		const copy = copyPlacement(widgets, widgets[1]);
+		expect(copy).toEqual({ rect: { x: 0, y: 0, w: 4, h: 3 }, minimized: { order: 3 } });
+		const all = [...widgets, { ...widgets[1], id: "0-copy", ...copy }];
+		expect(taskbarWidgets(all).map((w) => w.id)).toEqual(["a", "b", "0-copy"]);
+	});
+
+	test("a grid widget's copy goes on the grid, below the rest", () => {
+		const widgets = [widget("g", 0, 0, 6, 4), widget("a", 0, 0, 4, 3, 0)];
+		expect(copyPlacement(widgets, widgets[0])).toEqual({ rect: { x: 0, y: 4, w: 6, h: 4 } });
+	});
+});
 
 describe("minimized order", () => {
 	test("nextMinimizedOrder is one more than the highest", () => {
