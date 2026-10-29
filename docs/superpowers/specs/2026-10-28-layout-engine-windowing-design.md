@@ -300,8 +300,10 @@ starter is an edit: it goes through the existing hand-off, and the arrangement m
 
 ### Fullscreen
 
-- **Route:** `/dashboards/:id/widgets/:widgetId`, deep-linkable; back/forward move between it
+- **Route:** `/dashboards/:id?widget=:widgetId`, deep-linkable; back/forward move between it
   and the dashboard. Opening it from the dashboard pushes a history entry.
+  _Changed 2026-10-29 with the user: a query parameter, so the route component doesn't change and
+  the widget stays mounted with no router restructuring; Back and deep links work the same._
 - **Opening it:** widget ⋯ menu "Fullscreen", a title-bar button, and the taskbar item's menu.
 - **Exiting:** Esc, a close button, or Back. If this session pushed the entry, exiting goes back
   in history (no piling-up entries); if the page was opened on the link directly, exiting
@@ -320,9 +322,8 @@ starter is an edit: it goes through the existing hand-off, and the arrangement m
     edits the document, so it stays minimized).
   - A widget not in the dashboard: go to `/dashboards/:id` (replace) with a short notice.
   - A dashboard that doesn't exist: the existing missing-dashboard handling.
-  - The starter: its fullscreen route is `/dashboards/<starter id>/widgets/:widgetId`, and
-    exiting goes to `/`. The widget route must not redirect the starter to `/` the way
-    `/dashboards/:id` does.
+  - The starter: its fullscreen route is `/?widget=:widgetId`, and exiting goes to `/`. An edit
+    made in starter fullscreen hands off to the copy with `?widget` kept.
 - **Same on phones** (fullscreen covers the dashboard area below the top bar).
 
 ### The dashboard's ⋯ button

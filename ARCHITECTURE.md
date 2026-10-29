@@ -930,7 +930,7 @@ home.
 /dashboards                                      all dashboards (list)
 /dashboards/:id                                  a dashboard
 /dashboards/:id/widgets/new?type=map             Widget Creation for a new widget
-/dashboards/:id/widgets/:widgetId                that widget fullscreen (deep-linkable)
+/dashboards/:id?widget=:widgetId                 that widget fullscreen (deep-linkable)
 /dashboards/:id/widgets/:widgetId/edit           Widget Creation editing an existing widget
 /analysis                                        Analysis home (your Collections)
 /analysis/collections/:id                        a Collection
