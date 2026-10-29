@@ -52,7 +52,7 @@
 		starter = null;
 		// Fullscreen stays open on the copy (a starter widget keeps its id there), and so does the
 		// entry's state, so exiting still goes back if this page pushed the entry.
-		const widget = untrack(() => fullscreenId(route.search));
+		const widget = fullscreenId(location.search);
 		// A plain copy: history entries can't hold the router's reactive state.
 		const state = untrack(() => $state.snapshot(route.state));
 		void navigate("/dashboards/:id", {

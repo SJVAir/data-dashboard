@@ -9,12 +9,12 @@ export const FULLSCREEN_PARAM = "widget";
 /** The history state of an entry this page pushed to open fullscreen. */
 export const FULLSCREEN_STATE = { fullscreen: true } as const;
 
-/** The fullscreen widget's id from the URL's search, or null. */
-export function fullscreenId(search: Record<string, string | number | boolean>): string | null {
-	const value = search[FULLSCREEN_PARAM];
-	// The router turns number-like values into numbers (and "true" into true).
-	if (value === undefined || value === "") return null;
-	return String(value);
+/**
+ * The fullscreen widget's id from the URL's raw query (`location.search`), or null. Read raw: the
+ * router's parsed search turns number-like values into numbers ("007" into 7).
+ */
+export function fullscreenId(search: string): string | null {
+	return new URLSearchParams(search).get(FULLSCREEN_PARAM) || null;
 }
 
 /** `replace`: the same path without `widget`, in place of this entry. */

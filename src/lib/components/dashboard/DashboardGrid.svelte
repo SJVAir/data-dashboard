@@ -116,7 +116,11 @@
 	});
 
 	// Fullscreen: `?widget=<id>` on this page's own URL. A view, never an edit.
-	const requested = $derived(fullscreenId(route.search));
+	const requested = $derived.by(() => {
+		// Read raw from the URL; the router's search is the reactive trigger.
+		void route.search;
+		return fullscreenId(location.search);
+	});
 	// The session is this page's: the dashboard in the route, or on `/` the starter or its copy.
 	// Until then a previous page's session may still be current, and isn't checked against.
 	const loaded = $derived.by(() => {

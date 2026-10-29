@@ -420,6 +420,19 @@ test("a deep link waits for the dashboard to load", async () => {
 	expect(location.search).toBe("?widget=a");
 });
 
+test("a deep link to a number-like widget id opens it", async () => {
+	await seedApp(
+		[
+			widget("007", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
+			widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Map")
+		],
+		(id) => `/workspace/dashboards/${id}?widget=007`
+	);
+	await expect.poll(() => isFullscreen("007")).toBe(true);
+	expect(location.search).toBe("?widget=007");
+	expect(document.body.textContent).not.toContain("isn't on this dashboard");
+});
+
 test("a deep link to a missing widget drops the parameter with a notice", async () => {
 	const { id } = await seedApp(halves(), (id) => `/workspace/dashboards/${id}?widget=zzz`);
 	const length = history.length;

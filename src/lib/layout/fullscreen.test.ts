@@ -18,12 +18,15 @@ function session(widgets: WidgetInstance[], readOnly: false | "newer" = false) {
 	return { doc: { body: { widgets } } as Dashboard, readOnly } as unknown as DocumentSession;
 }
 
-test("fullscreenId reads widget", () => {
-	expect(fullscreenId({ widget: "a" })).toBe("a");
-	expect(fullscreenId({})).toBeNull();
-	expect(fullscreenId({ widget: "" })).toBeNull();
-	// The router turns number-like values into numbers.
-	expect(fullscreenId({ widget: 12 })).toBe("12");
+test("fullscreenId reads widget from the raw query", () => {
+	expect(fullscreenId("?widget=a")).toBe("a");
+	expect(fullscreenId("")).toBeNull();
+	expect(fullscreenId("?widget=")).toBeNull();
+	expect(fullscreenId("?other=1&widget=a%20b")).toBe("a b");
+	// Number- and boolean-like ids come back exactly as written.
+	for (const id of ["007", "1e3", "0x1A", "true", "12"]) {
+		expect(fullscreenId(`?widget=${id}`)).toBe(id);
+	}
 });
 
 test("exitPlan goes back only from an entry we pushed", () => {
