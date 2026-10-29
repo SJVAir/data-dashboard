@@ -136,9 +136,12 @@
 	/** This page's path, without the query (so without `widget`). */
 	const here = () => route.pathname as "/";
 
+	/** Opened here (not a deep link's page load, which isn't announced). */
 	function openFullscreen(id: string): void {
 		if (arrangement.active) arrangement.cancel();
 		if (requested === id) return;
+		const widget = byId.get(id);
+		if (widget) announce(m.widget_fullscreen_entered({ title: widgetTitle(widget) }));
 		void navigate(here(), {
 			search: { [FULLSCREEN_PARAM]: id },
 			state: FULLSCREEN_STATE,

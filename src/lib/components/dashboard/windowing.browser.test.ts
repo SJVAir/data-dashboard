@@ -286,6 +286,12 @@ test("Fullscreen covers the dashboard area and keeps the widget mounted", async 
 	expect(app.current.session!.canUndo).toBe(false);
 });
 
+test("entering fullscreen announces it and how to leave", async () => {
+	await seedApp(halves());
+	await openFromButton("Readings");
+	await expect.poll(liveText).toBe("Readings fullscreen. Press Escape to exit.");
+});
+
 test("Tab is trapped in the fullscreen widget", async () => {
 	await seedApp(halves());
 	await openFromButton("Readings");

@@ -338,6 +338,7 @@
 	"taskbar_restore_named": "Restore {title}",
 	"widget_minimized": "{title} minimized to taskbar.",
 	"widget_restored": "{title} restored.",
+	"widget_fullscreen_entered": "{title} fullscreen. Press Escape to exit.",
 	"fullscreen_widget_missing": "That widget isn't on this dashboard anymore.",
 	"dashboard_menu": "Dashboard actions"
 }
