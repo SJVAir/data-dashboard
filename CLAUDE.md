@@ -22,6 +22,8 @@ Where to look:
 
 ```bash
 npm run dev          # Start development server
+npm run dev:lan      # Dev server over HTTPS on the local network (phone testing; accept the
+                     # self-signed certificate once)
 npm run build        # Production build
 npm run preview      # Preview production build
 npm run check        # Type-check Svelte components

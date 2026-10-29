@@ -14,6 +14,7 @@
 	},
 	"scripts": {
 		"dev": "vite dev",
+		"dev:lan": "DEV_HTTPS=1 vite dev --host",
 		"paraglide": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
 		"build": "npm run paraglide && vite build",
 		"check:build": "node scripts/check-build-output.mjs",
@@ -47,6 +48,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@tailwindcss/vite": "^4.3.3",
 		"@types/node": "^26.5.1",
+		"@vitejs/plugin-basic-ssl": "2.3.0",
 		"@vitest/browser-playwright": "^5.0.5",
 		"acorn": "^8.19.0",
 		"axe-core": "4.14.0",
