@@ -1,5 +1,5 @@
 import { changedFields, sameMinimized, sameRect } from "./placement";
-import type { Change } from "./types";
+import type { Change, SetLayoutChange } from "./types";
 
 /**
  * Whether two changes made on different sides touch the same thing, so neither can be
@@ -26,13 +26,11 @@ export function changesOverlap(a: Change, b: Change): boolean {
 	return false;
 }
 
-type SetLayout = Extract<Change, { op: "setLayout" }>;
-
 /**
  * Whether both sides set the same field of the widget's placement (rect, or minimized) to
  * different values. A tidy fix on one side and a minimize on the other set different fields.
  */
-function placementsOverlap(a: SetLayout, b: SetLayout, id: string): boolean {
+function placementsOverlap(a: SetLayoutChange, b: SetLayoutChange, id: string): boolean {
 	if (!Object.hasOwn(a.to, id) || !Object.hasOwn(b.to, id)) return false;
 	const aSets = changedFields(Object.hasOwn(a.from, id) ? a.from[id] : undefined, a.to[id]);
 	const bSets = changedFields(Object.hasOwn(b.from, id) ? b.from[id] : undefined, b.to[id]);

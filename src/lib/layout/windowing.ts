@@ -42,8 +42,8 @@ export function taskbarWidgets(widgets: WidgetInstance[]): WidgetInstance[] {
  */
 function withTarget(widgets: WidgetInstance[], target: WidgetInstance, to: Placement): Change {
 	const fixes = layoutChange(widgets, tidy(gridItems(widgets), GRID_COLUMNS));
-	const from: Record<string, Placement> = fixes && fixes.op === "setLayout" ? fixes.from : {};
-	const toMap: Record<string, Placement> = fixes && fixes.op === "setLayout" ? fixes.to : {};
+	const from: Record<string, Placement> = fixes?.from ?? {};
+	const toMap: Record<string, Placement> = fixes?.to ?? {};
 	from[target.id] = { rect: target.rect, minimized: target.minimized ?? null };
 	toMap[target.id] = to;
 	return { op: "setLayout", target: { widgetIds: Object.keys(toMap) }, from, to: toMap };

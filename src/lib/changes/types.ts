@@ -117,3 +117,4 @@ export const ChangeSchema = z.discriminatedUnion("op", [
 	ReplaceDocumentSchema
 ]);
 export type Change = z.infer<typeof ChangeSchema>;
+export type SetLayoutChange = Extract<Change, { op: "setLayout" }>;
