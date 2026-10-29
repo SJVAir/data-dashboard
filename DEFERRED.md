@@ -33,7 +33,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   preview feedback link opens `/contact/` as it is; the form can't take a topic or message
   from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
   page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
-  track (which builds "Report this page").
+  track (which builds "Report this page"). _Updated 2026-10-28 (Sync spec 1):_ the server part is
+  done (sjvair.com #297: `/contact/?topic=Report&page=<encoded URL>` for same-host
+  `/workspace/shared/` URLs); spec 3 adds the dashboard link.
 - **Remove the `@jsr/sjvair__sdk` license exception.** _Deferred 2026-10-26 (Foundations spec
   5a)._ The license check names `@jsr/sjvair__sdk` as an exception because the JSR build has no
   license field and no license text, so the third-party notices carry none for it. **Revisit
@@ -181,6 +183,20 @@ string`) now get the union return type. The mobile app passes a string token, so
   - Promoting fields inside `body` to real database columns (the server stores `body`
     without interpreting it, so it can't query inside documents). **Revisit when** a
     server-side feature needs to query documents (e.g. "dashboards using monitor X").
+  - **Real-time push of document changes** (WebSockets or server-sent events). _Deferred
+    2026-10-28 (sync design)._ Open pages poll about once a minute while visible instead.
+    sjvair.com runs WSGI under gunicorn, so push would need an async server, a Redis channel
+    layer, and new Heroku connection limits; a minute's delay suits teachers, schools, and
+    one person on two devices. **Revisit when** someone needs changes to appear instantly
+    (e.g. live classroom editing), or polling load becomes noticeable.
+  - **Server change-log retention beyond the last 500 versions.** _Deferred 2026-10-28 (sync
+    design)._ A device offline for longer than that can't tell which edits overlapped, so it
+    always gets the three-choice prompt rather than a silent merge. **Revisit if** those
+    prompts are reported.
+  - **Merging colliding layout moves more cleverly.** _Deferred 2026-10-28 (sync design;
+    decided with the user)._ Layout moves never prompt: the last save wins, and step 2's
+    tidy fixes any overlap. Keeping both sides' intent (e.g. per-widget last-writer) isn't
+    attempted. **Revisit if** people report layouts jumping back while tuning on two devices.
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
   sync in Release 1; preferences stay local per device (they're conveniences, and devices
@@ -314,6 +330,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
   `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
 
+- **Credentialed CORS from any origin in front of private documents.** _Deferred 2026-10-28
+  (Sync spec 1)._ sjvair.com already sets `CORS_ORIGIN_ALLOW_ALL` with
+  `CORS_ALLOW_CREDENTIALS`, so private documents now sit behind credentialed CORS from any
+  origin. `SameSite=Lax` cookies block cross-site reads, but same-site origins (other
+  `*.sjvair.com` hosts) could read them. Not changed in spec 1: it is site-wide config other
+  clients may rely on. **Revisit before** the sjvair.com `develop` to `main` deploy that
+  carries the documents API (part of "everything ready").
+
 ## Documents & saving
 
 - **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
@@ -386,6 +410,39 @@ string`) now get the union return type. The mobile app passes a string token, so
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
   is shaped so other kinds can be added without a new format. **Revisit with** Collections and
   the Analysis step (Release 3).
+- **Token-auth document saves are capped at 2.5 MB.** _Deferred 2026-10-28 (Sync spec 1)._
+  The larger 16 MiB cap is lifted only for signed-in session PUTs, because resticus reads the
+  body before authenticating and a site-wide raise would let anonymous callers make every
+  endpoint buffer 16 MiB. Token saves keep the site's 2.5 MB request size. **Revisit when**
+  token-mode (standalone or Tauri) sync is built: the pre-read step would need to
+  authenticate tokens too.
+- **Per-account document limits are soft under concurrency.** _Deferred 2026-10-28 (Sync spec
+  1)._ The limits (50 dashboards, 25 MB) use a row lock per document, so simultaneous creates
+  of different ids can overshoot slightly, bounded by the 120 saves per minute limit. A save
+  that doesn't grow storage is always allowed. **Revisit if** overshoot is observed or abuse
+  appears; the fix is to lock per owner.
+- **Server Sentry scrubbing for documents is partial.** _Deferred 2026-10-28 (Sync spec 1)._
+  It drops request data and frame locals only; exception messages and log breadcrumbs are left
+  as they are. No current code puts document content in exception text. **Revisit if** any
+  documents code formats content into exceptions or logs, or when the Sentry IP and scrubber
+  settings are reviewed.
+- **sdk-js `parseBody` matches `Content-Type` exactly.** _Deferred 2026-10-28 (Sync spec 1)._
+  A JSON error with `; charset=...` (from a proxy) gets a fallback refusal code instead of the
+  server's. Pre-existing and SDK-wide. **Revisit if** any server or proxy in front of the API
+  adds a charset.
+- **sdk-js documents schemas use strict enums.** _Deferred 2026-10-28 (Sync spec 1)._
+  `visibility` and the snapshot `reason` are strict, so a new server value would fail
+  validation. **Revisit when** `public` visibility or a new snapshot reason ships.
+- **Share, revoke, and credit load the whole document body.** _Deferred 2026-10-28 (Sync
+  spec 1)._ They only need metadata. **Revisit if** dashboards get large or those endpoints
+  show up in performance work.
+- **Sync spec 1 review leftovers.** _Deferred 2026-10-28 (Sync spec 1)._ Test and style polish
+  with no behavior impact: no test at exactly the 16 MiB request cap; a missing
+  `Content-Length` gets resticus's 400 instead of `too_large`; the rate-limit counter can
+  undercount by one at a key-expiry race; the limit refusal tests don't also assert no
+  snapshot or change rows; a few lines over 100 characters and import-order nits; the CSRF
+  test's token setup could be simpler; no export test with non-ASCII bodies or many
+  documents. **Revisit when** the files are next touched.
 
 ## Map & selection
 
@@ -720,7 +777,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   - Hidden spaces on expiry or an account change, and removing a hidden space after 30 days.
     There are no account spaces to hide yet.
   - Saves bound to an account (each save names its account; the server refuses a mismatch)
-    and the re-check before each sync. There are no server saves yet.
+    and the re-check before each sync. There are no server saves yet. _Updated 2026-10-28 (Sync spec 1):_ the
+    server half is done (sjvair.com #297 refuses an `account_id` mismatch); the dashboard half
+    waits for spec 2.
   - "Sign in to keep this safe everywhere" in the backup reminder (see its own entry under
     "Documents & saving").
 - **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
@@ -968,7 +1027,10 @@ point.
      of data, no profiling, and complete deletion.
   4. **What the privacy policy must say** (California requires one): what stays in the
      browser and what syncs, scrubbed error reports, the text and email providers, the
-     30-day trash and snapshots, and how account deletion works.
+     30-day trash and snapshots, and how account deletion works. _Added 2026-10-28 (sync
+     design):_ **staff don't view the contents of private dashboards** (the admin shows
+     metadata only), shared pages show only the optional display name, and other devices
+     hide a deleted account's copies at once and remove them within 30 days.
   5. **Location and anonymous use.** "Use my location" sends a rounded position to the
      server to find the area, and anonymous error reports are sent. Confirm neither
      counts as collecting personal information from anonymous, possibly under-13, users.

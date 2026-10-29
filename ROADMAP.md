@@ -15,11 +15,14 @@ the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notificat
 2026-10-13), with #261 still open; `@sjvair/sdk` is
 unchanged at 4.5.0.
 
-**Where things stand (2026-10-27): Foundations (Release 1, step 1) is done and merged into
+**Where things stand (2026-10-29): Foundations (Release 1, step 1) is done and merged into
 `main`** (#11). Specs 1, 2, 3, 5a, and 5b were each merged into `foundations` first (spec 4
 was dropped; Collections moved to Release 3). 5b's server and SDK sides are merged too
-(sjvair.com #296 into `develop`, sdk-js #33 into `release/4.8.0`). **Next: step 2, the layout
-engine and windowing.** The hosting track is built (sjvair.com #295) and step 3's catalog, codes, and
+(sjvair.com #296 into `develop`, sdk-js #33 into `release/4.8.0`). **Step 2 (the layout engine
+and windowing) is under way on `layout`:** spec 2a (arranging) is merged into it (#13); spec 2b
+(windowing) is next. **The server-backed documents (sync) track's spec 1 is merged** (sjvair.com
+#297 into `develop`, sdk-js #34 into `release/4.8.0`); its dashboard specs 2–4 follow step 2,
+from `main`. The hosting track is built (sjvair.com #295) and step 3's catalog, codes, and
 coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Both server PRs are on sjvair.com
 `develop`, not yet in production. Current baseline: monitor-map 4.3.0, mobile 4.0.6,
 @sjvair/sdk 4.7.0 (4.8.0 in beta). Details in `TODO.md` → "Start here".
