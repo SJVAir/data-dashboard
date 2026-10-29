@@ -179,8 +179,11 @@ type Placement = { rect: Rect; minimized: { order: number } | null };
 - `applyChange` gives the inverse (swap, with `from` read from the document as it really is,
   like `setField`). One undo puts everything back, including a minimized widget's exact spot.
 - During a drag nothing is applied; the preview is component state. Autosave sees one edit.
-- **Cross-tab overlap:** two `setLayout`s overlap if they share a widget id with different `to`;
-  a `setLayout` overlaps a `removeWidget` of any id it lists. Two tabs moving different widgets
+- **Cross-tab overlap:** a placement has two fields, its rect and `minimized`, and an entry sets
+  only the fields whose `from` and `to` differ (applying it leaves the others as the document has
+  them). Two `setLayout`s overlap if they set the same field of the same widget to different
+  values, so one tab's tidy fix (rect only) and another tab's minimize (`minimized` only) of the
+  same widget combine. A `setLayout` overlaps a `removeWidget` of any id it lists. Two tabs moving different widgets
   don't conflict; if the combined result overlaps, tidy fixes it on screen.
 - `applyForced` ("Keep mine") drops ids that are gone and applies the rest.
 - The schema check stays (non-negative ints, `x + w ≤ 12`, `w`, `h` ≥ 1). Change validation

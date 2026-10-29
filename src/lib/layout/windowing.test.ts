@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { applyChange } from "$lib/changes/apply";
 import { changesOverlap } from "$lib/changes/overlap";
 import type { Change } from "$lib/changes/types";
 import { CURRENT_SCHEMA_VERSION, type Dashboard, type WidgetInstance } from "$lib/documents/schema";
@@ -67,6 +68,29 @@ describe("minimizeChange", () => {
 		const x = minimizeChange(tidyDoc(), "a")!;
 		const y = minimizeChange(tidyDoc(), "b")!;
 		expect(changesOverlap(x, y)).toBe(false);
+	});
+
+	test("minimizes of different widgets in an untidy layout don't overlap, and combine", () => {
+		// Each rect is below the placeholder's minimum size, so both carry tidy fixes for the
+		// other's widget.
+		const untidy = () => [
+			widget("a", 0, 0, 6, 1),
+			widget("b", 0, 1, 6, 1),
+			widget("c", 0, 2, 6, 1)
+		];
+		const x = minimizeChange(untidy(), "a")!;
+		const y = minimizeChange(untidy(), "b")!;
+		expect(changesOverlap(x, y)).toBe(false);
+		expect(changesOverlap(y, x)).toBe(false);
+		const doc = { body: { widgets: untidy() } } as unknown as Dashboard;
+		for (const [first, second] of [
+			[x, y],
+			[y, x]
+		]) {
+			const both = applyChange(applyChange(doc, first).doc, second).doc;
+			const minimized = both.body.widgets.filter((w) => w.minimized).map((w) => w.id);
+			expect(minimized).toEqual(["a", "b"]);
+		}
 	});
 
 	test("minimizing a missing or minimized widget returns null", () => {

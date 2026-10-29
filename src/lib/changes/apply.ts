@@ -1,4 +1,5 @@
 import type { Dashboard } from "$lib/documents/schema";
+import { changedFields } from "./placement";
 import type { Change, Placement } from "./types";
 
 /** The change names a widget that is not in the document (or, for add, one that already is). */
@@ -70,13 +71,23 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 			return { doc: { ...doc, deletedAt: change.to }, inverse };
 		}
 		case "setLayout": {
-			// Only ids still in the document apply; the inverse restores what was really there.
+			// Only ids still in the document apply, and only the fields each entry changes (another
+			// tab may have set the rest). The inverse restores what was really there.
 			const from: Record<string, Placement> = {};
 			const to: Record<string, Placement> = {};
 			const next = widgets.map((w) => {
 				if (!change.target.widgetIds.includes(w.id) || !Object.hasOwn(change.to, w.id)) return w;
-				const placement = change.to[w.id];
-				from[w.id] = { rect: w.rect, minimized: w.minimized ?? null };
+				const requested = change.to[w.id];
+				const sets = changedFields(
+					Object.hasOwn(change.from, w.id) ? change.from[w.id] : undefined,
+					requested
+				);
+				const actual: Placement = { rect: w.rect, minimized: w.minimized ?? null };
+				const placement: Placement = {
+					rect: sets.rect ? requested.rect : actual.rect,
+					minimized: sets.minimized ? requested.minimized : actual.minimized
+				};
+				from[w.id] = actual;
 				to[w.id] = placement;
 				const moved = { ...w, rect: placement.rect };
 				if (placement.minimized) moved.minimized = placement.minimized;

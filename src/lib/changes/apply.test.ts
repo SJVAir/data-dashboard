@@ -383,6 +383,37 @@ describe("setLayout", () => {
 		expect(() => applyChange(makeDoc(), change)).toThrow(ChangeTargetMissing);
 	});
 
+	it("an entry sets only the fields it changes", () => {
+		// Another tab minimized a; this tidy fix (rect only) leaves its minimized alone.
+		const doc = makeDoc({ body: { widgets: [{ ...widget("a"), minimized: { order: 3 } }] } });
+		const fix = layout({ a: place(r(0, 0)) }, { a: place(r(0, 0, 6, 6)) });
+		const fixed = applyChange(deepFreeze(doc), fix).doc.body.widgets[0];
+		expect(fixed.rect).toEqual(r(0, 0, 6, 6));
+		expect(fixed.minimized).toEqual({ order: 3 });
+
+		// Another tab moved b; this minimize (minimized only) leaves its rect alone.
+		const moved = makeDoc({ body: { widgets: [{ ...widget("b"), rect: r(0, 8) }] } });
+		const minimize = layout({ b: place(r(0, 0)) }, { b: place(r(0, 0), { order: 0 }) });
+		const minimized = applyChange(deepFreeze(moved), minimize).doc.body.widgets[0];
+		expect(minimized.rect).toEqual(r(0, 8));
+		expect(minimized.minimized).toEqual({ order: 0 });
+	});
+
+	it("a partial entry's inverse and applied change are exact", () => {
+		const doc = makeDoc({
+			body: { widgets: [{ ...widget("a"), rect: r(0, 8), minimized: { order: 3 } }] }
+		});
+		const fix = layout({ a: place(r(0, 0)) }, { a: place(r(0, 0, 6, 6)) });
+		const { doc: next, inverse } = applyChange(doc, fix);
+		expect(inverse).toEqual(
+			layout({ a: place(r(0, 0, 6, 6), { order: 3 }) }, { a: place(r(0, 8), { order: 3 }) })
+		);
+		expect(appliedChange(inverse)).toEqual(
+			layout({ a: place(r(0, 8), { order: 3 }) }, { a: place(r(0, 0, 6, 6), { order: 3 }) })
+		);
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+	});
+
 	it("appliedChange round-trips", () => {
 		const change = layout({ a: place(r(9, 9, 3, 3)) }, { a: place(r(0, 4)) });
 		const { inverse } = applyChange(makeDoc(), change);

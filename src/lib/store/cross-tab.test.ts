@@ -4,6 +4,7 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { LOG_LIMIT, type Platform, type SpaceId } from "$lib/platform/types";
 import { rectsOverlap } from "$lib/layout/engine";
+import { minimizeChange } from "$lib/layout/windowing";
 import { DocumentSession } from "./document-session.svelte";
 import { createMemoryTabHub } from "./tab-channel";
 
@@ -56,13 +57,13 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-async function twoTabs() {
+async function twoTabs(doc: Dashboard = makeDoc()) {
 	const platform = createMemoryPlatform();
 	const hub = createMemoryTabHub();
 	await platform.documents.commit(SPACE, {
 		docId: "d1",
 		baseVersion: null,
-		doc: makeDoc(),
+		doc,
 		entries: []
 	});
 	const open = async (tabId: string) => {
@@ -235,6 +236,30 @@ describe("cross-tab sync", () => {
 			for (const y of widgets) if (x !== y) expect(rectsOverlap(x.rect, y.rect)).toBe(false);
 		}
 		expect(a.doc).toEqual(b.doc);
+	});
+
+	it("two tabs minimizing different widgets on untidy rects keep both minimizes", async () => {
+		// Each rect is below the placeholder's minimum size, so tidy fixes are due.
+		const stack = (id: string, y: number): WidgetInstance => ({
+			...widget(id, 0, y),
+			rect: { x: 0, y, w: 6, h: 1 }
+		});
+		const doc = makeDoc();
+		doc.body.widgets = [stack("a", 0), stack("b", 1), stack("c", 2)];
+		const { platform, a, b } = await twoTabs(doc);
+		const theirs = minimizeChange(a.doc.body.widgets, "a")!;
+		const mine = minimizeChange(b.doc.body.widgets, "b")!;
+		await concurrent(a, b, [mine], [theirs]);
+		await settle();
+
+		const saved = await stored(platform);
+		const minimized = (d: Dashboard) => d.body.widgets.filter((w) => w.minimized).map((w) => w.id);
+		expect(minimized(saved)).toEqual(["a", "b"]);
+		for (const s of [a, b]) {
+			expect(s.conflict).toBeNull();
+			expect(s.status).toBe("saved");
+			expect(s.doc).toEqual(saved);
+		}
 	});
 
 	it("a tab behind a trimmed log reloads and replays its own pending changes", async () => {

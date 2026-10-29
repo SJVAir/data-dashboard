@@ -81,33 +81,40 @@ test.describe("with reduced motion", () => {
 		await expect(taskbarItem(page, PLACEHOLDER)).toBeFocused();
 	});
 
-	test("two tabs minimizing different widgets", async ({ page }) => {
-		await openSharedDoc(page, DOC);
-		await expectSaved(page);
-		const other = await page.context().newPage();
-		await other.goto(page.url());
-		await expect(widgetTitles(other)).toHaveCount(3);
+	// Untidy: each saved rect is below the placeholder's minimum size, so tidy fixes are due.
+	const UNTIDY = sharedDoc("Windowing", ["Alpha", "Beta", "Gamma"]);
+	for (const [label, doc] of [
+		["tidy", DOC],
+		["untidy", UNTIDY]
+	] as const) {
+		test(`two tabs minimizing different widgets (${label} rects)`, async ({ page }) => {
+			await openSharedDoc(page, doc);
+			await expectSaved(page);
+			const other = await page.context().newPage();
+			await other.goto(page.url());
+			await expect(widgetTitles(other)).toHaveCount(3);
 
-		await Promise.all([
-			page.getByRole("button", { name: "Minimize Alpha" }).click(),
-			other.getByRole("button", { name: "Minimize Beta" }).click()
-		]);
+			await Promise.all([
+				page.getByRole("button", { name: "Minimize Alpha" }).click(),
+				other.getByRole("button", { name: "Minimize Beta" }).click()
+			]);
 
-		for (const tab of [page, other]) {
-			await expect(taskbarItem(tab, "Alpha")).toBeVisible();
-			await expect(taskbarItem(tab, "Beta")).toBeVisible();
-			await expect(widgetTitles(tab)).toHaveCount(1);
-			await expect(tab.getByRole("dialog", { name: "Changed in another tab" })).toBeHidden();
-		}
-		const order = async (tab: typeof page) =>
-			(
-				await taskbar(tab)
-					.getByRole("button", { name: /^Restore / })
-					.allTextContents()
-			).map((t) => t.trim());
-		await expect.poll(async () => (await order(page)).join()).toBe((await order(other)).join());
-		expect(await order(page)).toHaveLength(2);
-	});
+			for (const tab of [page, other]) {
+				await expect(taskbarItem(tab, "Alpha")).toBeVisible();
+				await expect(taskbarItem(tab, "Beta")).toBeVisible();
+				await expect(widgetTitles(tab)).toHaveCount(1);
+				await expect(tab.getByRole("dialog", { name: "Changed in another tab" })).toBeHidden();
+			}
+			const order = async (tab: typeof page) =>
+				(
+					await taskbar(tab)
+						.getByRole("button", { name: /^Restore / })
+						.allTextContents()
+				).map((t) => t.trim());
+			await expect.poll(async () => (await order(page)).join()).toBe((await order(other)).join());
+			expect(await order(page)).toHaveLength(2);
+		});
+	}
 
 	test("fullscreen open and exit by Escape, the close button, and Back", async ({ page }) => {
 		await openSharedDoc(page, DOC);
