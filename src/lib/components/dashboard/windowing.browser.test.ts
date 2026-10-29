@@ -616,6 +616,34 @@ test("an edit in starter fullscreen keeps fullscreen on the copy", async () => {
 	expect(isFullscreen("starter-1")).toBe(false);
 });
 
+test("an edit in starter fullscreen opened here still exits back, adding no entry", async () => {
+	const app = await starterApp("/workspace/");
+	const starter = app.current.session!;
+	const before = entryIndex();
+	await frame("starter-1")
+		.getByRole("button", { name: /^Show .* fullscreen$/ })
+		.click();
+	await expect.poll(() => isFullscreen("starter-1")).toBe(true);
+	expect(entryIndex()).toBe(before + 1);
+	await frame("starter-1")
+		.getByRole("button", { name: /^Actions for/ })
+		.click();
+	await page.getByRole("menuitem", { name: "Rename widget…" }).click();
+	await page.getByLabelText("Name").fill("Renamed");
+	await page.getByRole("button", { name: "Save" }).click();
+	await expect.poll(() => app.current.session).not.toBe(starter);
+	const copy = app.current.session!;
+	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
+	// The hand-off replaced the entry this page pushed, keeping it ours.
+	expect(route.state).toEqual(FULLSCREEN_STATE);
+	await expect.poll(() => focusIn("starter-1")).toBe(true);
+	await userEvent.keyboard("{Escape}");
+	await expect.poll(() => location.search).toBe("");
+	// Exit went back to the entry fullscreen was opened from (now the copy's page).
+	expect(entryIndex()).toBe(before);
+	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
+});
+
 test("the bare base is canonicalized, keeping ?widget and the router's history state", async () => {
 	const replace = history.replaceState.bind(history);
 	const seen: { state: unknown; url: unknown }[] = [];
