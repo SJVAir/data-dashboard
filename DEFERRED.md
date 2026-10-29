@@ -660,6 +660,19 @@ string`) now get the union return type. The mobile app passes a string token, so
   are unchanged against a concurrent `removeWidget`, so it can raise a rare spurious conflict
   dialog. Why: it is harmless to correctness and rare. **Revisit when** it's reported, or when
   sync spec 2 touches overlap detection.
+- **Fixed sleeps in the "no stray toast" fullscreen tests.** _Deferred 2026-10-29 (spec 2b
+  final review)._ Three tests in `src/lib/components/dashboard/windowing.browser.test.ts` (a
+  deep link that waits for the dashboard, Delete in fullscreen, a deep link on a read-only
+  dashboard) wait a fixed 100 ms before checking that no "isn't on this dashboard" notice
+  appeared. Why: such a wait can only miss a late toast, never fail falsely, and there's no
+  event to wait on for something that shouldn't happen. **Revisit when** one of them is seen to
+  pass while the notice shows up later by hand, or the suite gets a shared "settled" helper.
+- **Focus when another tab deletes the focused widget.** _Deferred 2026-10-29 (spec 2b final
+  fix wave)._ A focused grid widget that leaves the grid by undo or another tab's minimize now
+  hands focus to its taskbar item (or its title bar after a page swap), but one deleted in
+  another tab drops focus to the page, as before. Why: the hand-off has no widget left to
+  target, and choosing a neighbour is a separate design question. **Revisit when** cross-tab
+  editing gets its keyboard and screen-reader pass, or it's reported.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
