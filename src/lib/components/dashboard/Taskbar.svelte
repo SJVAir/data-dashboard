@@ -72,12 +72,25 @@
 	function onfocusout(event: FocusEvent): void {
 		const to = event.relatedTarget;
 		if (to instanceof Node && !bar?.contains(to)) held = null;
+		// Focus going nowhere: a removal takes the button off the page by the end of this task, a
+		// plain blur leaves it there.
+		else if (!to) {
+			const button = event.target as Node;
+			queueMicrotask(() => {
+				if (button.isConnected && document.activeElement === document.body) held = null;
+			});
+		}
 	}
 
 	// Focus lost with its element (undo, another tab's restore, a page swap): hand it on.
 	function settle(remaining: string[]): void {
 		if (!held) return;
 		const { id, index } = held;
+		const active = document.activeElement;
+		if (active && active !== document.body && !bar?.contains(active)) {
+			held = null;
+			return;
+		}
 		if (remaining.includes(id)) {
 			// The page is being rebuilt (a starter's hand-off): the next bar takes it.
 			requestFocus({ kind: "taskbar", id });

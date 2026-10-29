@@ -8,6 +8,7 @@ import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
+import { pendingFocusTarget } from "$lib/layout/focus-request.svelte";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
@@ -43,14 +44,14 @@ async function seed(widgets: WidgetInstance[], onArrangement?: (a: Arrangement) 
 	});
 	const session = (await DocumentSession.open(platform, app.space, id, "t2"))!;
 	app.current = { session, isStarter: false };
-	await render(Harness, {
+	const screen = await render(Harness, {
 		props: { onArrangement },
 		context: new Map([[APP_CONTEXT_KEY, app]])
 	});
 	const onKey = (e: KeyboardEvent) => handleUndoShortcut(app, e);
 	window.addEventListener("keydown", onKey);
 	removeUndo = () => window.removeEventListener("keydown", onKey);
-	return { app, session };
+	return { app, session, screen };
 }
 
 const halves = () => [
@@ -106,6 +107,16 @@ test("Ctrl+Z after Minimize restores the rect and focuses the title bar", async 
 		h: 4
 	});
 	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+});
+
+test("a taskbar request isn't re-issued when focus had left the bar", async () => {
+	const { screen } = await seed(halves());
+	await page.getByRole("button", { name: "Minimize Readings" }).click();
+	await expect.poll(() => document.activeElement).toBe(item("Readings").element());
+	(document.activeElement as HTMLElement).blur();
+	await Promise.resolve();
+	await screen.unmount();
+	expect(pendingFocusTarget()).toBeNull();
 });
 
 test("Minimize from the ⋯ menu does the same", async () => {
