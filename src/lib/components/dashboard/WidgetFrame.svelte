@@ -6,6 +6,7 @@
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
 	import { widgetActions, widgetTitle } from "$lib/actions/widget";
+	import { pendingFocusTarget, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { Rect, WidgetInstance } from "$lib/documents/schema";
@@ -338,6 +339,18 @@
 		if (!bar || arrangement.pendingFocus !== widget.id) return;
 		bar.focus();
 		arrangement.pendingFocus = null;
+	});
+
+	// After a restore: focus the title bar and bring the widget into view.
+	$effect(() => {
+		const request = pendingFocusTarget();
+		if (!bar || request?.kind !== "title" || request.id !== widget.id) return;
+		untrack(() => {
+			if (!takeFocus({ kind: "title", id: widget.id })) return;
+			bar!.focus();
+			const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+			section?.scrollIntoView({ block: "nearest", behavior: reduced ? "instant" : "smooth" });
+		});
 	});
 
 	// Move… / Resize… from the menu: focus first, then pick up, so the focus move can't cancel it.

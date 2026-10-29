@@ -1,9 +1,12 @@
+import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import Copy from "@lucide/svelte/icons/copy";
+import Maximize2 from "@lucide/svelte/icons/maximize-2";
 import Move from "@lucide/svelte/icons/move";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Scaling from "@lucide/svelte/icons/scaling";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
+import { announce } from "$lib/a11y/announcer.svelte";
 import { ChangeTargetMissing } from "$lib/changes/apply";
 import { replaceIfOverlapping } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
@@ -14,7 +17,9 @@ import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import type { Arrangement, ArrangeMode } from "$lib/layout/arrangement.svelte";
+import { requestFocus } from "$lib/layout/focus-request.svelte";
 import { placeNewWidget } from "$lib/layout/items";
+import { minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
 import type { MenuItem, MenuProvider } from "./types";
 
@@ -172,4 +177,57 @@ export function widgetActions(
 			}
 		];
 	};
+}
+
+/** Minimize to the taskbar; announces and moves focus to its taskbar item. */
+export function minimizeWidget(app: AppContext, widgetId: string): void {
+	const found = find(app, widgetId);
+	if (!found) return;
+	const change = minimizeChange(found.session.doc.body.widgets, widgetId);
+	if (!change) return;
+	const title = widgetTitle(found.widget);
+	found.session.apply(change);
+	announce(m.widget_minimized({ title }));
+	requestFocus({ kind: "taskbar", id: widgetId });
+}
+
+/** Restore from the taskbar; announces and moves focus to its title bar. */
+export function restoreWidget(app: AppContext, widgetId: string): void {
+	const found = find(app, widgetId);
+	if (!found) return;
+	const change = restoreChange(found.session.doc.body.widgets, widgetId);
+	if (!change) return;
+	const title = widgetTitle(found.widget);
+	found.session.apply(change);
+	announce(m.widget_restored({ title }));
+	requestFocus({ kind: "title", id: widgetId });
+}
+
+const NOT_IN_TASKBAR = new Set(["move-widget", "resize-widget", "minimize-widget"]);
+
+/** A taskbar item's actions: Restore, Fullscreen, then the common widget actions. */
+export function taskbarActions(
+	app: AppContext,
+	widgetId: string,
+	fullscreen: (id: string) => void
+): MenuProvider {
+	const common = widgetActions(app, widgetId);
+	return (ctx) => [
+		{
+			id: "restore-widget",
+			label: m.widget_restore(),
+			icon: ArrowUpFromLine,
+			group: "window",
+			disabled: find(app, widgetId) === null,
+			run: () => restoreWidget(app, widgetId)
+		},
+		{
+			id: "fullscreen-widget",
+			label: m.widget_fullscreen(),
+			icon: Maximize2,
+			group: "window",
+			run: () => fullscreen(widgetId)
+		},
+		...common(ctx).filter((item) => !NOT_IN_TASKBAR.has(item.id))
+	];
 }

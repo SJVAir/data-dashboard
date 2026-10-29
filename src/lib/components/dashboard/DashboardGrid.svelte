@@ -14,9 +14,11 @@
 	import { GRID_COLUMNS, PHONE_QUERY } from "$lib/layout/config";
 	import { Flip } from "$lib/layout/flip";
 	import { shownLayout } from "$lib/layout/items";
+	import { taskbarWidgets } from "$lib/layout/windowing";
 	import { useApp } from "$lib/store/app.svelte";
 	import AddWidgetButton from "./AddWidgetButton.svelte";
 	import EmptyState from "./EmptyState.svelte";
+	import Taskbar from "./Taskbar.svelte";
 	import StarterHint from "./StarterHint.svelte";
 	import WidgetFrame from "./WidgetFrame.svelte";
 
@@ -75,6 +77,7 @@
 			return widget && place ? [{ widget, ...place }] : [];
 		})
 	);
+	const minimized = $derived(editable ? taskbarWidgets(editable.doc.body.widgets) : []);
 	const active = $derived(arrangement.active);
 	const target = $derived(active ? placed.find((p) => p.widget.id === active.id) : undefined);
 
@@ -113,6 +116,8 @@
 				{/if}
 				{#if placed.length === 0}
 					<EmptyState />
+					<!-- Task 6 wires fullscreen. -->
+					<Taskbar widgets={minimized} onfullscreen={() => {}} />
 				{:else}
 					<div
 						bind:this={grid}
@@ -136,6 +141,8 @@
 					<div>
 						<AddWidgetButton />
 					</div>
+					<!-- Task 6 wires fullscreen. -->
+					<Taskbar widgets={minimized} onfullscreen={() => {}} />
 				{/if}
 			{/if}
 		</div>
