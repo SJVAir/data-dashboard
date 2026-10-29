@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Router } from "sv-router";
+	import LiveRegion from "$lib/components/a11y/LiveRegion.svelte";
 	import ClearDataDialog from "$lib/components/dialogs/ClearDataDialog.svelte";
 	import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
@@ -42,3 +43,4 @@
 <PrivacyDialog />
 <RestoreVersionDialog />
 <Toaster />
+<LiveRegion />

@@ -65,21 +65,45 @@ test("focus returns to the ⋯ button after Escape", async () => {
 	await expect.element(more).toHaveFocus();
 });
 
-test("long-press with touch resolves the target's items", async () => {
+test("a touch long-press doesn't open the context menu", async () => {
 	const { inner, outer } = setup();
 	await render(Harness, { inner, outer });
 	const el = page.getByTestId("focusable").element();
 	const rect = el.getBoundingClientRect();
+	const at = { clientX: rect.left + 2, clientY: rect.top + 2 };
+	el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", ...at }));
+	// Past bits-ui's own long-press timer (700 ms), and the `contextmenu` Android raises.
+	await new Promise((r) => setTimeout(r, 900));
 	el.dispatchEvent(
-		new PointerEvent("pointerdown", {
+		new PointerEvent("contextmenu", {
 			bubbles: true,
+			cancelable: true,
 			pointerType: "touch",
-			clientX: rect.left + 2,
-			clientY: rect.top + 2
+			...at
 		})
 	);
-	// bits-ui's own long-press timer opens it; polled generously rather than slept on.
-	await expect
-		.element(page.getByRole("menuitem", { name: "Rename" }), { timeout: 5000 })
-		.toBeVisible();
+	el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", ...at }));
+	await new Promise((r) => setTimeout(r, 100));
+	expect(page.getByRole("menu").query()).toBeNull();
+
+	// A mouse right-click afterwards still opens it.
+	await page.getByTestId("focusable").click({ button: "right" });
+	await expect.element(page.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+});
+
+test("a pending afterMenuClose callback doesn't outlive its host", async () => {
+	const { afterMenuClose } = await import("./menu-state.svelte");
+	const { inner, outer } = setup();
+	const stale = vi.fn();
+	const first = await render(Harness, { inner, outer });
+	afterMenuClose(stale);
+	first.unmount();
+
+	await render(Harness, { inner, outer });
+	const more = page.getByRole("button", { name: "More" });
+	await more.click();
+	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).toBeVisible();
+	await userEvent.keyboard("{Escape}");
+	await expect.element(more).toHaveFocus();
+	expect(stale).not.toHaveBeenCalled();
 });

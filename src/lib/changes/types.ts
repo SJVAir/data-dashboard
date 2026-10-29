@@ -1,5 +1,10 @@
 import { z } from "$lib/zod";
-import { DashboardBodySchema, NAME_MAX, WidgetInstanceSchema } from "$lib/documents/schema";
+import {
+	DashboardBodySchema,
+	NAME_MAX,
+	RectSchema,
+	WidgetInstanceSchema
+} from "$lib/documents/schema";
 
 function sameWidgetId(change: { target: { widgetId: string }; widget: { id: string } }) {
 	return change.target.widgetId === change.widget.id;
@@ -70,10 +75,45 @@ const ReplaceDocumentSchema = z.object({
 	to: DocContentSchema
 });
 
+export const PlacementSchema = z.object({
+	rect: RectSchema,
+	minimized: z.object({ order: z.number().int().min(0) }).nullable()
+});
+export type Placement = z.infer<typeof PlacementSchema>;
+
+const SetLayoutSchema = z
+	.object({
+		op: z.literal("setLayout"),
+		target: z.object({ widgetIds: z.array(z.string().min(1)).min(1) }),
+		from: z.record(z.string(), PlacementSchema),
+		to: z.record(z.string(), PlacementSchema)
+	})
+	.superRefine((change, ctx) => {
+		const ids = change.target.widgetIds;
+		if (new Set(ids).size !== ids.length) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["target", "widgetIds"],
+				message: "Ids must be unique"
+			});
+		}
+		for (const key of ["from", "to"] as const) {
+			const keys = Object.keys(change[key]);
+			if (keys.length !== ids.length || !ids.every((id) => Object.hasOwn(change[key], id))) {
+				ctx.addIssue({
+					code: "custom",
+					path: [key],
+					message: `${key} keys must equal target.widgetIds`
+				});
+			}
+		}
+	});
+
 export const ChangeSchema = z.discriminatedUnion("op", [
 	AddWidgetSchema,
 	RemoveWidgetSchema,
 	SetFieldSchema,
+	SetLayoutSchema,
 	ReplaceDocumentSchema
 ]);
 export type Change = z.infer<typeof ChangeSchema>;

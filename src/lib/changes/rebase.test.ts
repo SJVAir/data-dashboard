@@ -121,3 +121,34 @@ describe("applyForced", () => {
 		expect(applied).toEqual([add(free, 2)]);
 	});
 });
+
+describe("setLayout and placement in applyForced", () => {
+	const p = (y: number) => ({ rect: { x: 0, y, w: 6, h: 4 }, minimized: null });
+
+	it("applyForced drops gone ids from setLayout", () => {
+		const doc = makeDoc([widget("a")]);
+		const change: Change = {
+			op: "setLayout",
+			target: { widgetIds: ["a", "gone"] },
+			from: { a: p(0), gone: p(0) },
+			to: { a: p(4), gone: p(8) }
+		};
+		const { doc: next, applied } = applyForced(doc, [change]);
+		expect(next.body.widgets[0].rect.y).toBe(4);
+		expect(applied).toMatchObject([{ op: "setLayout", target: { widgetIds: ["a"] } }]);
+	});
+
+	it("an added widget overlapping a grid widget goes below the grid widgets only", () => {
+		const hidden = { ...widget("m", { x: 0, y: 20, w: 6, h: 4 }), minimized: { order: 0 } };
+		const doc = makeDoc([widget("a"), hidden]);
+		const { doc: next } = applyForced(doc, [add(widget("c"))]);
+		expect(next.body.widgets.find((w) => w.id === "c")?.rect).toEqual({ x: 0, y: 4, w: 6, h: 4 });
+	});
+
+	it("an added widget where only a minimized widget's rect is stays put", () => {
+		const hidden = { ...widget("m"), minimized: { order: 0 } };
+		const doc = makeDoc([widget("a", { x: 6, y: 0, w: 6, h: 4 }), hidden]);
+		const { doc: next } = applyForced(doc, [add(widget("c"))]);
+		expect(next.body.widgets.find((w) => w.id === "c")?.rect).toEqual({ x: 0, y: 0, w: 6, h: 4 });
+	});
+});

@@ -26,8 +26,11 @@ jobs:
       - run: npm run check:build
       - run: npm run check:budget
 
+  # Chromium only, for PRs that don't run e2e-full (which covers Chromium too). Keep the
+  # condition the exact opposite of e2e-full's.
   e2e-chromium:
     needs: checks
+    if: ${{ !(github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,13 +49,21 @@ jobs:
           retention-days: 7
 
   e2e-full:
+    name: e2e-full (${{ matrix.browser }})
     needs: checks
-    if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations'
+    if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        include:
+          # Chromium also runs the drag performance check (its own project).
+          - browser: chromium
+            projects: --project=chromium --project=chromium-perf
+          - browser: firefox
+            projects: --project=firefox
+          - browser: webkit
+            projects: --project=webkit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,7 +72,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps ${{ matrix.browser }}
-      - run: npx playwright test --project=${{ matrix.browser }}
+      - run: npx playwright test ${{ matrix.projects }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

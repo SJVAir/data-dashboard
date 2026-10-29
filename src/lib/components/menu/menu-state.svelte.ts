@@ -14,3 +14,26 @@ export function openMenuFor(target: Element, payload: Record<string, unknown> = 
 	dropdown.ctx = { target, payload };
 	dropdown.open = true;
 }
+
+/** Run once the open menu has closed, instead of its usual focus return. */
+let afterClose: (() => void) | null = null;
+
+/**
+ * Run `fn` when the open menu closes, in place of returning focus to where it was (for an item
+ * that moves focus itself, such as Move…).
+ */
+export function afterMenuClose(fn: () => void): void {
+	afterClose = fn;
+}
+
+/** For the menu host's close-focus handler: the callback to run instead, if any. */
+export function takeAfterMenuClose(): (() => void) | null {
+	const fn = afterClose;
+	afterClose = null;
+	return fn;
+}
+
+/** Drop a pending `afterMenuClose` callback (its host is going away, so it must not run later). */
+export function clearAfterMenuClose(): void {
+	afterClose = null;
+}

@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page } from "@playwright/test";
 import LZString from "lz-string";
 
@@ -70,8 +71,13 @@ export async function makeOwnCopy(page: Page, title = "My first widget"): Promis
 	await expectSaved(page);
 }
 
-/** A placeholder-widget dashboard document as a link or file carries it. */
-export function sharedDoc(name: string, widgetTitles: string[]) {
+type Rect = { x: number; y: number; w: number; h: number };
+
+/**
+ * A placeholder-widget dashboard document as a link or file carries it. Widget `i` has id `w{i}`
+ * and `rects[i]` (default: stacked in the left half).
+ */
+export function sharedDoc(name: string, widgetTitles: string[], rects?: Rect[]) {
 	return {
 		kind: "dashboard",
 		schemaVersion: 1,
@@ -82,7 +88,7 @@ export function sharedDoc(name: string, widgetTitles: string[]) {
 				id: `w${i}`,
 				type: "placeholder",
 				title,
-				rect: { x: 0, y: i, w: 6, h: 1 },
+				rect: rects?.[i] ?? { x: 0, y: i, w: 6, h: 1 },
 				data: { layers: [] }
 			}))
 		}
@@ -99,4 +105,50 @@ export function shareLinkFor(doc: unknown): string {
 		documents: [doc]
 	};
 	return `import#1.${LZString.compressToEncodedURIComponent(JSON.stringify(envelope))}`;
+}
+
+/** Opens `doc` through a share link (which saves a copy) and waits for its widgets. */
+export async function openSharedDoc(page: Page, doc: ReturnType<typeof sharedDoc>): Promise<void> {
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await expect(widgetTitles(page)).toHaveCount(doc.body.widgets.length);
+}
+
+/** The `index`th widget titled `title`'s title bar (its drag handle; focusable). */
+export function titleBar(page: Page, title: string, index = 0): Locator {
+	return page.getByRole("group", { name: title, exact: true }).nth(index);
+}
+
+/**
+ * Drags the `index`th widget titled `title` by its title bar with the mouse, `dx`, `dy` px, in
+ * steps (pressed near the title, clear of the ⋯ button).
+ */
+export async function dragTitleBar(
+	page: Page,
+	title: string,
+	dx: number,
+	dy: number,
+	index = 0
+): Promise<void> {
+	const box = await titleBar(page, title, index).boundingBox();
+	if (!box) throw new Error(`No title bar for ${title}`);
+	const x = box.x + 24;
+	const y = box.y + box.height / 2;
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	await page.mouse.move(x + dx, y + dy, { steps: 20 });
+	await page.mouse.up();
+}
+
+/** The page's polite live region (where arranging is announced). */
+export function liveRegion(page: Page): Locator {
+	return page.locator("[role=status][aria-live=polite][aria-atomic=true]");
+}
+
+const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+
+/** Fails on any WCAG 2.2 AA violation axe finds on the page. */
+export async function expectNoViolations(page: Page): Promise<void> {
+	const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+	expect(results.violations).toEqual([]);
 }

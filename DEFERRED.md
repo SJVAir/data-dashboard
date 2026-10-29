@@ -862,6 +862,58 @@ string`) now get the union return type. The mobile app passes a string token, so
   gesture); the ⋯ buttons open the same menus but have no "point". Items tied to a pressed spot
   (e.g. "Analyze this monitor" on a map feature) need another touch path, such as the feature's
   own tap popup. **Revisit with** the map widget (step 5) and Release 3's analysis actions.
+- **Touch arranging checked on real devices.** _Deferred 2026-10-28 (step 2, spec 2a)._ Not done
+  in spec 2a (no device). The tests use synthetic pointer events, which don't exercise real
+  `touch-action`, scroll takeover, iOS timing, or when Android fires `contextmenu`. The named risk
+  is a lifted drag scrolling the page instead of moving the widget (a permanent non-passive
+  `touchmove` listener on title bars and handles is in place to prevent it). **Revisit before**
+  `layout` merges into `main`: a hand check on Chrome for Android and Safari on iOS/iPadOS via
+  `npm run dev -- --host`.
+- **Drag performance threshold is loose, and its calibration is approximate.** _Deferred
+  2026-10-28 (step 2, spec 2a)._ The check requires p95 under 34 ms at 4x CPU (2x the 16.7 ms
+  baseline). Frame times come in 16.7 ms steps, so it catches only about 2 dropped frames at p95.
+  After it failed on GitHub's runner (p95 50 ms on a CPU about half as fast as the reference
+  desktop), the throttle became calibrated: a fixed piece of JavaScript is timed and the rate set
+  so the page runs at 4x the reference machine's time (`REFERENCE_WORK_MS`, 10.3 ms), and the
+  check runs alone in its own Playwright project. The calibration times JavaScript only, not
+  style, layout, or painting, and the reference value is tied to one machine and Chromium
+  version. **Revisit with** the low-end Chromebook check before go-live, if CI flakes again, or
+  when a Playwright upgrade moves the reference timing (re-measure it as the spec's comment
+  says).
+- **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
+  touch is blocked. **Revisit if** pen users report it.
+- **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
+  2026-10-28 (step 2, spec 2a final review)._ The title bar is a focusable group, and browse
+  mode may intercept Enter and the arrows before they reach it. A mitigation is in (a click
+  with `detail` 0 on the title bar acts like Enter), but no real screen reader has been tried.
+  **Revisit before** `layout` merges into `main`: a hand check with NVDA (and JAWS if
+  available) on Windows and VoiceOver on macOS/iOS.
+- **Keyboard arrangement request-chain cache can thrash in very long pick-ups.** _Deferred
+  2026-10-28 (step 2, spec 2a final review)._ The preview cache keeps 512 request prefixes;
+  past 512 keyboard steps in one pick-up it evicts the current chain, and each keypress then
+  recomputes every step. Nobody makes 500 moves in one pick-up in practice. **Revisit if**
+  keyboard arranging feels slow on long dashboards; fix by never evicting the current chain or
+  by collapsing the steps into one request.
+- **Spec 2a test-coverage gaps.** _Deferred 2026-10-28 (step 2, spec 2a final review)._ The
+  behavior is in place and covered elsewhere; these tests are missing or loose: a `setLayout`
+  journal / `upgradeChanges` round trip; keyboard replay after a remote change; a pointer move
+  after keyboard steps; no animation on rename, remote save, or viewport switch; listeners
+  released when a frame is destroyed mid-drag; the click test asserting title-bar focus; the
+  Tab test asserting the focus target; the locked/minimized test via the real menu (it builds
+  its own `Arrangement`); a synthetic window blur; the width-change test relying on a viewport
+  resize; E2E `boundingBox` reads right after a reload without a web-first wait, and ±0.5 px
+  tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
+  engine calls with unknown ids; and `items.test` not unregistering its test widget type.
+  **Revisit when** touching each area, or if any of these tests flakes.
+- **Spec 2a robustness loose ends.** _Deferred 2026-10-28 (step 2, spec 2a final review)._ None
+  is a user-facing bug today: a tests-only `onArrangement` prop on `DashboardGrid` and the test
+  harness; the live region is hidden behind bits-ui modals (they `aria-hidden` their siblings);
+  resizing isn't animated; the autoscroll animation frame runs for the whole drag, not only in
+  the edge zone; touches starting on a widget's body or Done during a touch selection can
+  scroll the page; a second drop on the starter before the page switches to its copy doesn't
+  carry focus; the focus ring after touch drops isn't checked by hand; `FALLBACK_MIN_SIZE` is a
+  shared object that isn't frozen; and `stepDown`'s doc comment wording. **Revisit in** the
+  design pass, or in spec 2b where it touches the same code.
 
 ## Legacy Monitors-tab follow-ups
 

@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const PERF = /drag-performance\.spec\.ts$/;
+
 export default defineConfig({
 	testDir: "e2e",
 	forbidOnly: !!process.env.CI,
@@ -18,8 +20,17 @@ export default defineConfig({
 		baseURL: "http://localhost:4173/workspace/"
 	},
 	projects: [
-		{ name: "chromium", use: { ...devices["Desktop Chrome"] } },
-		{ name: "firefox", use: { ...devices["Desktop Firefox"] } },
-		{ name: "webkit", use: { ...devices["Desktop Safari"] } }
+		{ name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: PERF },
+		// The drag performance check runs alone: after the other Chromium tests, one at a time, so
+		// no other test competes for the CPU (CPU throttling is Chromium-only).
+		{
+			name: "chromium-perf",
+			use: { ...devices["Desktop Chrome"] },
+			testMatch: PERF,
+			dependencies: ["chromium"],
+			workers: 1
+		},
+		{ name: "firefox", use: { ...devices["Desktop Firefox"] }, testIgnore: PERF },
+		{ name: "webkit", use: { ...devices["Desktop Safari"] }, testIgnore: PERF }
 	]
 });

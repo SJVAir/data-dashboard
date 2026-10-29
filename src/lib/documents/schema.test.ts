@@ -87,3 +87,25 @@ describe("normalizeName", () => {
 		expect(normalizeName("a".repeat(99) + " b")).toBe("a".repeat(99));
 	});
 });
+
+describe("minimized", () => {
+	const w = {
+		id: "w1",
+		type: "placeholder",
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 4 },
+		data: { layers: [] }
+	};
+
+	it("minimized takes an order", () => {
+		const ok = withWidgets([{ ...w, minimized: { order: 0 } }]);
+		expect(DashboardSchema.safeParse(ok).success).toBe(true);
+		const bad = withWidgets([{ ...w, minimized: { order: -1 } }]);
+		expect(DashboardSchema.safeParse(bad).success).toBe(false);
+	});
+
+	it("the old restoreRect shape is rejected", () => {
+		const old = withWidgets([{ ...w, minimized: { restoreRect: w.rect } }]);
+		expect(DashboardSchema.safeParse(old).success).toBe(false);
+	});
+});

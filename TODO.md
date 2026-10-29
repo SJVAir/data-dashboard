@@ -1,11 +1,29 @@
 # TODO / Current Status
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ## Start here
 
-**Next: Release 1 step 2, the layout engine and windowing, in a fresh session, branching from
-`main`.** Foundations is done and merged into `main` (#11, 2026-10-27). Its last spec, 5b, the
+**Spec 2a (widget arranging) is done on `layout-2a-arranging`** (not pushed yet; PR into `layout`
+pending review). Next: spec 2b (windowing).
+
+- Pure layout engine in `src/lib/layout` (tidy, move, resize, stepDown, moveInOrder), with the
+  column count as input.
+- The `setLayout` change (one per drop, undoable, cross-tab overlap rules) and
+  `minimized: { order }`.
+- The Arrangement controller: a preview from the current document, never saved until drop.
+- Keyboard pick-up, move, and resize with Move... and Resize..., and polite announcements.
+- Mouse drag with resize handles and autoscroll.
+- Touch long-press, selection with 44 px handles and Done, and no touch long-press context menu.
+- Phone column reordering.
+- E2E on three engines (podman: 226 passed, 2 skipped) and a Chromium drag-performance check
+  (4x CPU throttling, 30 widgets: a measured p95 of 16.7 ms, one frame at 60 Hz; the check
+  fails above 34 ms, twice that).
+- Touch on real devices is not yet checked by hand (see `DEFERRED.md`).
+
+**Foundations finished 2026-10-27; step 2 began 2026-10-28.** Foundations is merged into
+`main` (#11, 2026-10-27), and step 2 (the layout engine and windowing) branches from `main`.
+Foundations' last spec, 5b, the
 sign-in side, merged the same day as data-dashboard
 [#10](https://github.com/SJVAir/data-dashboard/pull/10) (into `foundations`), with sjvair.com
 #296 (into `develop`) and sdk-js #33 (into `release/4.8.0`; no release cut). Design:
