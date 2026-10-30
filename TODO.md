@@ -80,18 +80,17 @@ production until the user's `develop` → `main` deploy) and sdk-js
 [#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29; no version
 bump, no prerelease cut).
 
-**Next: spec 2 (dashboard sync), after step 2 reaches `main`.** Order (decided 2026-10-29): layout spec 2b →
-`layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design
+**Next: spec 2 (dashboard sync), after step 2 reaches `main`.** Order (decided 2026-10-29): layout
+spec 2b → `layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design
 (`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`) and the spec 1 plan came
-into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2.
-Spec 2 first needs an sdk-js prerelease from `release/4.8.0` with the documents module (the
-dashboard pins `4.8.0-beta.1` exactly today); cutting it needs the user's explicit yes. Spec 2
-starts with its own plan, from the design's "How it works" and "The dashboard (specs 2–4)".
-Locally, the dev DB already has the `documents` tables; the stack serves the sjvair.com main
-checkout, which needs `develop` pulled to serve the documents API. The sdk-js documents
-integration test runs with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`,
-`TEST_DOCUMENTS_IDENTIFIER`, and `TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in
-sjvair.com's `.env` works).
+into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2. Spec
+2 first needs an sdk-js prerelease from `release/4.8.0` with the documents module (the dashboard
+pins `4.8.0-beta.1` exactly today); cutting it needs the user's explicit yes. Spec 2 starts with its
+own plan, from the design's "How it works" and "The dashboard (specs 2–4)". Locally, the dev DB
+already has the `documents` tables; the stack serves the sjvair.com main checkout, which needs
+`develop` pulled to serve the documents API. The sdk-js documents integration test runs with
+`TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and
+`TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
 
 Decisions later specs need:
 
