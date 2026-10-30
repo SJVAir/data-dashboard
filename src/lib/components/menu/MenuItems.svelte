@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { groupItems } from "$lib/actions/resolve";
-	import type { MenuContext, MenuItem } from "$lib/actions/types";
+	import { isDisabled, type MenuContext, type MenuItem } from "$lib/actions/types";
 	import * as ContextMenu from "$lib/components/ui/context-menu";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import MenuItems from "./MenuItems.svelte";
@@ -19,7 +19,7 @@
 	{#each group as item (item.id)}
 		{#if item.children?.length}
 			<M.Sub>
-				<M.SubTrigger disabled={item.disabled}>
+				<M.SubTrigger disabled={isDisabled(item)}>
 					{#if item.icon}<item.icon />{/if}
 					{item.label}
 				</M.SubTrigger>
@@ -28,7 +28,11 @@
 				</M.SubContent>
 			</M.Sub>
 		{:else}
-			<M.Item disabled={item.disabled} onSelect={() => item.run(ctx)}>
+			<M.Item
+				disabled={isDisabled(item)}
+				closeOnSelect={!item.keepOpen}
+				onSelect={() => item.run(ctx)}
+			>
 				{#if item.icon}<item.icon />{/if}
 				{item.label}
 				{#if item.shortcut}<M.Shortcut>{item.shortcut}</M.Shortcut>{/if}
