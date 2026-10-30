@@ -267,11 +267,64 @@ describe("untrusted sizes", () => {
 		});
 	});
 
+	test("tidy resolves a thousand overlapping widgets quickly", () => {
+		// Imported widgets saved shorter than their type's minimum all overlap (the E2E's shape).
+		const items = Array.from({ length: 1000 }, (_, i) => item(`w${i}`, 0, i, 6, 1, 1, 4));
+		const start = performance.now();
+		const out = tidy(items, 12);
+		expect(performance.now() - start).toBeLessThan(100);
+		expect(out.map((i) => i.rect.y)).toEqual(items.map((_, i) => i * 4));
+	});
+
 	test("moveInOrder handles a widget of the maximum height", () => {
 		const items = [item("a", 0, 0, 12, MAX_HEIGHT), item("b", 0, MAX_HEIGHT, 12, 4)];
 		const start = performance.now();
 		const out = moveInOrder(items, "b", 0, 12);
 		expect(performance.now() - start).toBeLessThan(500);
 		expect(readingOrder(out).map((i) => i.id)).toEqual(["b", "a"]);
+	});
+});
+
+/** The first tidy pass as it was first written: push down past one overlap at a time. */
+function referenceTidy(items: LayoutItem[], columns: number): LayoutItem[] {
+	const clamped = readingOrder(
+		items.map((i) => {
+			const w = Math.min(Math.max(i.rect.w, i.minSize.w, 1), columns);
+			const h = Math.max(i.rect.h, i.minSize.h, 1);
+			const x = Math.min(Math.max(i.rect.x, 0), columns - w);
+			return { ...i, rect: { x, y: Math.max(i.rect.y, 0), w, h } };
+		})
+	);
+	const resolved: LayoutItem[] = [];
+	for (const it of clamped) {
+		let rect = it.rect;
+		let hit = resolved.find((p) => rectsOverlap(p.rect, rect));
+		while (hit) {
+			rect = { ...rect, y: hit.rect.y + hit.rect.h };
+			hit = resolved.find((p) => rectsOverlap(p.rect, rect));
+		}
+		resolved.push({ ...it, rect });
+	}
+	const placed: LayoutItem[] = [];
+	for (const it of readingOrder(resolved)) {
+		const { x, w } = it.rect;
+		let floor = 0;
+		for (const p of placed) {
+			if (p.rect.x < x + w && x < p.rect.x + p.rect.w) floor = Math.max(floor, p.rect.y + p.rect.h);
+		}
+		placed.push({ ...it, rect: { ...it.rect, y: Math.min(floor, it.rect.y) } });
+	}
+	return readingOrder(placed);
+}
+
+describe("tidy property", () => {
+	test("tidy matches the one-overlap-at-a-time algorithm on random layouts", () => {
+		const rand = lcg(20261029);
+		for (let run = 0; run < 500; run++) {
+			const items = Array.from({ length: rand(1, 14) }, (_, i) =>
+				item(`w${i}`, rand(-2, 13), rand(0, 20), rand(1, 13), rand(1, 8), rand(1, 6), rand(1, 5))
+			);
+			expect(tidy(items, 12)).toEqual(referenceTidy(items, 12));
+		}
 	});
 });
