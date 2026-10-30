@@ -766,7 +766,7 @@ noted on each item.
 - Pure layout functions, tested: placement, collision, compaction, minimize/restore, and
   deriving the responsive stack.
 - Drag and resize with edge/corner handles, a taskbar, and fullscreen.
-- WCAG 2.2 AA pieces: keyboard move and resize (plus ⋯ menu actions), live-region
+- WCAG 2.2 AA pieces: keyboard move and resize, Move/Size ⋯ submenus (2.5.7), live-region
   announcements, focus management for fullscreen and the taskbar, and
   `prefers-reduced-motion`.
 

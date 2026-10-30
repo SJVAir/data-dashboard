@@ -1445,9 +1445,9 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
   - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
-    (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move… / Resize… (keyboard
-    alternatives), Delete. From Release 3: **Mark for analysis**, **Analyze**, Add to
-    collection ▸.
+    (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move ▸ / Size ▸
+    (single-click alternatives to dragging), Delete. From Release 3: **Mark for analysis**,
+    **Analyze**, Add to collection ▸.
   - _Selection (map features/regions, calendar range), from Release 3:_ Mark selected data
     for analysis, Analyze selected data.
   - _Map feature:_ e.g. "Analyze this monitor", contributed by map plugins.
@@ -2266,10 +2266,13 @@ Decided 2026-09-28.
 **Target: WCAG 2.2 Level AA from Release 1** (decided 2026-09-24). Applies to all widgets
 and views.
 
-- **Keyboard move and resize** (WCAG 2.5.7, Dragging Movements). Focus a widget's title
-  bar and press Enter to pick it up; arrow keys move it one grid cell, Shift+arrows
-  resize, Enter drops, Esc cancels. The same **"Move…" / "Resize…"** actions appear in
-  the widget ⋯ menu through the shared action list.
+- **Keyboard move and resize** (WCAG 2.1.1, Keyboard). Focus a widget's title bar and press
+  Enter to pick it up; arrow keys move it one grid cell, Shift+arrows resize, Enter drops,
+  Esc cancels.
+- **Move ▸ and Size ▸ submenus** (WCAG 2.5.7, Dragging Movements) in the widget ⋯ menu,
+  through the shared action list: Up, Down, Left, Right, To top, To bottom; Wider, Narrower,
+  Taller, Shorter. One click is one step (one undo step), and the submenu stays open for the
+  next. Keyboard support alone doesn't meet 2.5.7 (W3C technique G219).
 - **Live-region announcements** for layout changes, e.g. "Moved to column 3, row 2" or
   "Widget minimized to taskbar".
 - **Focus management:**

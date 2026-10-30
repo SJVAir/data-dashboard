@@ -298,17 +298,6 @@ describe("Arrangement", () => {
 		expect(arrangement.pendingFocus).toBeNull();
 	});
 
-	it("pickUp and cancel clear a pickup request", async () => {
-		const { arrangement } = await setup(threeWidgets());
-		arrangement.requestPickUp("a", "resize");
-		expect(arrangement.pickUpRequest).toEqual({ id: "a", mode: "resize" });
-		arrangement.pickUp("a", "resize", "keyboard");
-		expect(arrangement.pickUpRequest).toBeNull();
-		arrangement.requestPickUp("b", "move");
-		arrangement.cancel();
-		expect(arrangement.pickUpRequest).toBeNull();
-	});
-
 	it("step right stops at the grid's edge", async () => {
 		const { arrangement } = await setup([widget("a", { x: 6, y: 0, w: 6, h: 4 })]);
 		arrangement.pickUp("a", "move", "keyboard");

@@ -1,24 +1,40 @@
+import ArrowDown from "@lucide/svelte/icons/arrow-down";
+import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
+import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+import ArrowRight from "@lucide/svelte/icons/arrow-right";
+import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
+import ArrowUpToLine from "@lucide/svelte/icons/arrow-up-to-line";
 import Copy from "@lucide/svelte/icons/copy";
+import FoldHorizontal from "@lucide/svelte/icons/fold-horizontal";
+import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import Minus from "@lucide/svelte/icons/minus";
 import Maximize2 from "@lucide/svelte/icons/maximize-2";
 import Move from "@lucide/svelte/icons/move";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Scaling from "@lucide/svelte/icons/scaling";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import UnfoldHorizontal from "@lucide/svelte/icons/unfold-horizontal";
+import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
+import type { Component } from "svelte";
 import { toast } from "svelte-sonner";
 import { announce } from "$lib/a11y/announcer.svelte";
 import { ChangeTargetMissing } from "$lib/changes/apply";
 import { replaceIfOverlapping } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
-import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
+import { afterMenuClose, closeMenus } from "$lib/components/menu/menu-state.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
-import type { Arrangement, ArrangeMode } from "$lib/layout/arrangement.svelte";
+import { movedText, resizedText } from "$lib/layout/announcements";
+import type { Arrangement } from "$lib/layout/arrangement.svelte";
+import { GRID_COLUMNS } from "$lib/layout/config";
+import type { Layout } from "$lib/layout/engine";
 import { requestFocus } from "$lib/layout/focus-request.svelte";
+import { shownLayout } from "$lib/layout/items";
+import { actionLayout, dropChange, sameRect, type LayoutAction } from "$lib/layout/steps";
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
 import type { MenuItem, MenuProvider } from "./types";
@@ -110,16 +126,140 @@ function currentWidget(app: AppContext, widgetId: string): WidgetInstance | null
 	return app.current.session?.doc.body.widgets.find((w) => w.id === widgetId) ?? null;
 }
 
-/** Move… / Resize…: once the menu has closed, the widget's frame focuses it and picks it up. */
-function arrange(arrangement: Arrangement, widgetId: string, mode: ArrangeMode): void {
-	afterMenuClose(() => arrangement.requestPickUp(widgetId, mode));
+/** A Move or Size submenu item's result: the change to apply and the layout it gives. */
+function arranged(
+	app: AppContext,
+	widgetId: string,
+	action: LayoutAction,
+	columns: number
+): { session: DocumentSession; change: Change; before: Layout; after: Layout } | null {
+	const found = find(app, widgetId);
+	if (!found) return null;
+	// Built against the document edits land in, as a keyboard drop is.
+	const widgets = found.session.editTarget.doc.body.widgets;
+	if (!widgets.some((w) => w.id === widgetId && !w.minimized)) return null;
+	const before = shownLayout(widgets, GRID_COLUMNS);
+	const after = actionLayout(before, widgetId, action, columns);
+	const change = after && dropChange(widgets, before, after, widgetId);
+	return change && after ? { session: found.session, change, before, after } : null;
+}
+
+/** Apply a Move or Size submenu item (one `setLayout`, one undo step) and announce it. */
+function arrangeBy(app: AppContext, widgetId: string, action: LayoutAction, columns: number) {
+	const result = arranged(app, widgetId, action, columns);
+	if (!result) return;
+	const { session, change, before, after } = result;
+	const title = widgetTitle(find(app, widgetId)!.widget);
+	const pushed = after.filter((item) => {
+		if (item.id === widgetId) return false;
+		const was = before.find((b) => b.id === item.id);
+		return !was || !sameRect(was.rect, item.rect);
+	}).length;
+	const phone = columns === 1;
+	const doc = session.editTarget.doc;
+	session.apply(change);
+	// The document didn't take the change itself: it went to a starter's hand-off, and the copy
+	// shows on a new page, where this menu's widget is gone. Close the menu (left open, it would
+	// hang off-screen and block the page) and move focus to the widget's title bar on the copy.
+	if (session.editTarget.doc === doc) {
+		afterMenuClose(() => requestFocus({ kind: "title", id: widgetId }));
+		closeMenus();
+		requestFocus({ kind: "title", id: widgetId });
+	}
+	announce(
+		action.kind === "grow"
+			? resizedText(after, widgetId, phone, title)
+			: movedText(after, widgetId, phone, title, pushed)
+	);
+}
+
+/**
+ * The Move and Size submenus: one click per step, as one arrow or Shift+arrow press and a drop
+ * would give (WCAG 2.5.7's single-pointer alternative to dragging). They stay open after a
+ * click, and an item that would change nothing is disabled (read while the menu is open).
+ */
+function layoutSubmenus(app: AppContext, widgetId: string, arrangement: Arrangement): MenuItem[] {
+	// Read when the menu opens: if the page crosses the phone breakpoint while it's open (a
+	// tablet rotating), the items keep the old layout's set and steps until it's reopened.
+	const columns = arrangement.columns;
+	const phone = columns === 1;
+	const item = (id: string, label: string, icon: Component, action: LayoutAction): MenuItem => {
+		// The disabled check runs a layout computation, so it's kept until the document (or
+		// whether it can be edited) changes; the reads below still track both.
+		let memo: { session: unknown; doc: unknown; readOnly: unknown; disabled: boolean } | null =
+			null;
+		return {
+			id,
+			label,
+			icon,
+			group: "layout",
+			keepOpen: true,
+			disabled: () => {
+				const session = app.current.session;
+				const doc = session?.editTarget.doc;
+				const readOnly = session?.readOnly;
+				if (memo?.session === session && memo.doc === doc && memo.readOnly === readOnly) {
+					return memo.disabled;
+				}
+				const disabled = arranged(app, widgetId, action, columns) === null;
+				memo = { session, doc, readOnly, disabled };
+				return disabled;
+			},
+			run: () => arrangeBy(app, widgetId, action, columns)
+		};
+	};
+	const step = (dir: "up" | "down" | "left" | "right") => ({ kind: "step", dir }) as const;
+	const grow = (dir: "up" | "down" | "left" | "right") => ({ kind: "grow", dir }) as const;
+	const moves = [
+		item("move-up", m.widget_move_up(), ArrowUp, step("up")),
+		item("move-down", m.widget_move_down(), ArrowDown, step("down")),
+		...(phone
+			? []
+			: [
+					item("move-left", m.widget_move_left(), ArrowLeft, step("left")),
+					item("move-right", m.widget_move_right(), ArrowRight, step("right"))
+				]),
+		item("move-top", m.widget_move_top(), ArrowUpToLine, { kind: "end", end: "top" }),
+		item("move-bottom", m.widget_move_bottom(), ArrowDownToLine, { kind: "end", end: "bottom" })
+	];
+	const sizes = [
+		...(phone
+			? []
+			: [
+					item("size-wider", m.widget_size_wider(), UnfoldHorizontal, grow("right")),
+					item("size-narrower", m.widget_size_narrower(), FoldHorizontal, grow("left"))
+				]),
+		item("size-taller", m.widget_size_taller(), UnfoldVertical, grow("down")),
+		item("size-shorter", m.widget_size_shorter(), FoldVertical, grow("up"))
+	];
+	const locked = find(app, widgetId) === null;
+	return [
+		{
+			id: "move-widget",
+			label: m.widget_move(),
+			icon: Move,
+			group: "layout",
+			disabled: locked,
+			children: moves,
+			run: () => {}
+		},
+		{
+			id: "size-widget",
+			label: m.widget_size(),
+			icon: Scaling,
+			group: "layout",
+			disabled: locked,
+			children: sizes,
+			run: () => {}
+		}
+	];
 }
 
 /**
  * One widget's actions; provided on its frame and opened by its ⋯ button. With the page's
- * `arrangement`, also Move… and Resize… (not offered while the widget is minimized). With
+ * `arrangement`, also the Move and Size submenus (not offered while the widget is minimized). With
  * `window.fullscreen`, also Fullscreen; `window.inFullscreen` (the frame is fullscreen) leaves
- * out Move…, Resize…, Minimize, and Fullscreen, and Delete leaves fullscreen (`window.exit`)
+ * out Move, Size, Minimize, and Fullscreen, and Delete leaves fullscreen (`window.exit`)
  * before it deletes.
  */
 export function widgetActions(
@@ -132,24 +272,7 @@ export function widgetActions(
 		const locked = find(app, widgetId) === null;
 		const layout: MenuItem[] =
 			arrangement && !currentWidget(app, widgetId)?.minimized && !window?.inFullscreen
-				? [
-						{
-							id: "move-widget",
-							label: m.widget_move(),
-							icon: Move,
-							group: "layout",
-							disabled: locked,
-							run: () => arrange(arrangement, widgetId, "move")
-						},
-						{
-							id: "resize-widget",
-							label: m.widget_resize(),
-							icon: Scaling,
-							group: "layout",
-							disabled: locked,
-							run: () => arrange(arrangement, widgetId, "resize")
-						}
-					]
+				? layoutSubmenus(app, widgetId, arrangement)
 				: [];
 		const minimizable = !currentWidget(app, widgetId)?.minimized && !window?.inFullscreen;
 		const windowing: MenuItem[] = minimizable
@@ -240,7 +363,7 @@ function fullscreenItem(widgetId: string, fullscreen: (id: string) => void): Men
 	};
 }
 
-const NOT_IN_TASKBAR = new Set(["move-widget", "resize-widget", "minimize-widget"]);
+const NOT_IN_TASKBAR = new Set(["move-widget", "size-widget", "minimize-widget"]);
 
 /** A taskbar item's actions: Restore, Fullscreen, then the common widget actions. */
 export function taskbarActions(

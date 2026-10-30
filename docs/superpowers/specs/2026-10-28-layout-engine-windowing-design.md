@@ -121,6 +121,23 @@ It is proven with the placeholder widget, so step 4's widgets drop into finished
   overlap is checked per field (see "The change"). The consequence: a drag in one tab and a
   minimize of the same widget in another now merge silently (the widget is minimized at the
   dragged rect) where the earlier whole-placement rule showed a conflict dialog.
+- **To top / To bottom** (Move submenu): on a phone, first or last in reading order
+  (`moveInOrder`). On the grid, the widget keeps its column and moves to row 0, or to just below
+  the lowest other widget, the way a pointer drag there would (`move`, then gravity settles it).
+  So To bottom is disabled when nothing in its columns is below it.
+- **Size submenu announcements** say only the new size ("Resized Chart to 7 columns wide, 4
+  rows tall."), not how many widgets were pushed; the Move items reuse the drop's wording with
+  "Moved … to" and the pushed count.
+- **The submenus' disabled state** is read live while the menu is open (a function on the menu
+  item), so it updates after each click; each item works out the layout it would give to decide.
+  The result is kept until the document (or whether it can be edited) changes.
+- **Focus off a newly disabled item:** after a click or Enter that disables the item used, focus
+  moves to the next enabled item in the submenu, else the one before (bits-ui would otherwise
+  leave it on the dead item, and ArrowDown would restart from the top).
+- **The key hint** reads "Arrow keys move · Shift+arrows resize · Enter drops · Esc cancels"
+  ("Up and Down move · Shift+Up and Down resize · …" on a phone). It sits at the bottom of the
+  widget's content, over it, in popover colors, without animation. Touch arrangements show no
+  hint.
 
 ## The model
 
@@ -249,9 +266,33 @@ type Placement = { rect: Rect; minimized: { order: number } | null };
   cell, Shift+arrows resize from the right/bottom edge, Enter or Space drops (one `setLayout`),
   Esc cancels and puts everything back, and moving focus away cancels. On a phone, Up/Down move
   one position in the column and Shift+Up/Down change the height.
-- **"Move…" and "Resize…"** in the widget's ⋯ menu start the same mode on that widget (they
-  differ only in the first announcement). They are hidden while the widget is minimized.
+- **A picked-up widget is visibly marked**, whatever the input: a ring and a raised look. Picked
+  up by keyboard, it also shows a short key hint over its content (aria-hidden, since the live
+  region already says the keys; it doesn't change the layout). On a phone the hint names Up and
+  Down.
 - The preview, pushed widgets, and animations are the same as for a pointer drag.
+
+### Move and Size submenus (single clicks or taps)
+
+- The widget's ⋯ menu (and the same right-click / Shift+F10 menu) has a **Move ▸** submenu (Up,
+  Down, Left, Right, To top, To bottom) and a **Size ▸** submenu (Wider, Narrower, Taller,
+  Shorter). On a phone: Up, Down, To top, To bottom, and Taller, Shorter.
+- Each item is **one `setLayout`** (one undo step) with exactly the result of one arrow or
+  Shift+arrow press and a drop (the same engine call, pushing, and tidying). Size items change
+  the right or bottom edge by one, within the widget's minimum size and the grid.
+- **An item that would change nothing is disabled** (Left in column 1, Narrower at the minimum
+  width). The submenu **stays open after a click**, so Right three times moves three columns,
+  and each change is announced ("Moved Chart to column 3, row 2. 1 other widget moved.").
+- **The menu stays put:** the ⋯ dropdown is anchored where its button was when it opened, so a
+  moved widget doesn't carry the menu (and the next click's target) with it.
+- Hidden while the widget is minimized or fullscreen; disabled when the dashboard can't be
+  edited. On the starter the first click makes the user's copy; the menu then closes and focus
+  moves to the widget's title bar on the copy (as a keyboard drop's does).
+- **By keyboard,** if the item just used turns disabled (Right at the grid's edge), focus moves
+  to the next enabled item in the submenu.
+- **Accessibility mapping:** these submenus meet WCAG 2.5.7 (Dragging Movements: a single-pointer
+  way to get every drag's result; W3C technique G219, the action-menu pattern). The title-bar
+  keyboard mode above meets 2.1.1 (Keyboard); keyboard support alone doesn't meet 2.5.7.
 
 ### Announcements
 
@@ -284,8 +325,8 @@ starter is an edit: it goes through the existing hand-off, and the arrangement m
 
 - Unit: the engine (tidy, move, resize, moveInOrder with a property test, placeNew, diff), the
   new change (apply, inverse, overlap, rebase, validation).
-- Component (browser mode): pickup/move/drop/cancel by keyboard; announcements; Move… /
-  Resize… menu items.
+- Component (browser mode): pickup/move/drop/cancel by keyboard; announcements; the Move and
+  Size submenus.
 - E2E on all three engines: mouse drag and resize, keyboard move and resize, undo after a drop,
   reload keeps the layout, phone-width reorder, a touch long-press drag (Playwright touch
   emulation; the real-device check above is by hand), axe on the arranging state.
@@ -305,7 +346,7 @@ starter is an edit: it goes through the existing hand-off, and the arrangement m
   Tab stop; arrows move between items; Home/End).
 - **A taskbar item** shows the widget's title and type icon. Activating it restores the widget.
   Its menu (⋯ / right-click / Shift+F10) has Restore, Fullscreen, and the widget's other actions
-  minus Minimize, Move…, Resize….
+  minus Minimize, Move, and Size.
 - **Focus:** minimizing moves focus to the widget's taskbar item; restoring moves it to the
   widget's title bar. Both are announced ("Chart minimized to taskbar." / "Chart restored.").
 - **Restore** (activating the taskbar item, or its menu) is a `setLayout` edit placing the
@@ -368,10 +409,11 @@ page. Remove the entry when done (it's done, not dropped).
 
 ## Accessibility summary (both specs)
 
-Keyboard move and resize (WCAG 2.5.7) and Move… / Resize…; touch targets over 24 px (2.5.8);
-live-region announcements for every layout change; focus management for minimize, restore,
-and fullscreen (trap, Esc, restore); the taskbar toolbar; `prefers-reduced-motion` on every
-animation; never color alone for the drop target (an outline, not a tint).
+Keyboard move and resize (2.1.1) and the Move and Size submenus (2.5.7); touch targets over
+24 px (2.5.8); live-region announcements for every layout change; focus management for
+minimize, restore, and fullscreen (trap, Esc, restore); the taskbar toolbar;
+`prefers-reduced-motion` on every animation; never color alone for the drop target (an
+outline, not a tint).
 
 ## Changes to the planning docs (same commit as this design)
 

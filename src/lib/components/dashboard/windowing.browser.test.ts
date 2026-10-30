@@ -391,8 +391,8 @@ test("Escape in an open menu closes only the menu", async () => {
 	await expect.poll(() => isFullscreen("a")).toBe(true);
 	await page.getByRole("button", { name: "Actions for Readings" }).click();
 	await expect.element(page.getByRole("menuitem", { name: "Rename widget…" })).toBeVisible();
-	// Inside fullscreen, Move…, Resize…, Minimize, and Fullscreen leave the menu.
-	for (const name of ["Move…", "Resize…", "Minimize", "Fullscreen"]) {
+	// Inside fullscreen, Move, Size, Minimize, and Fullscreen leave the menu.
+	for (const name of ["Move", "Size", "Minimize", "Fullscreen"]) {
 		expect(page.getByRole("menuitem", { name, exact: true }).elements()).toHaveLength(0);
 	}
 	await userEvent.keyboard("{Escape}");

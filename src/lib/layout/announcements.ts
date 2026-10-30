@@ -1,6 +1,5 @@
 import { formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
-import type { ArrangeMode } from "./arrangement.svelte";
 import type { Layout } from "./engine";
 
 /**
@@ -47,31 +46,7 @@ export function positionText(layout: Layout, id: string, phone: boolean): string
 	return at.phone ? m.layout_phone_position(at) : m.layout_position(at);
 }
 
-export function pickUpText(
-	layout: Layout,
-	id: string,
-	phone: boolean,
-	mode: ArrangeMode,
-	title: string
-): string {
-	if (mode === "resize") {
-		const s = size(layout, id);
-		if (!s) return "";
-		if (phone) {
-			return m.layout_picked_up_resize_phone({
-				title,
-				height: formatNumber(s.h),
-				heightValue: s.h
-			});
-		}
-		return m.layout_picked_up_resize({
-			title,
-			width: formatNumber(s.w),
-			widthValue: s.w,
-			height: formatNumber(s.h),
-			heightValue: s.h
-		});
-	}
+export function pickUpText(layout: Layout, id: string, phone: boolean, title: string): string {
 	const at = where(layout, id, phone);
 	if (!at) return "";
 	return at.phone
@@ -96,5 +71,41 @@ export function dropText(
 		row: at.row,
 		count: formatNumber(pushed),
 		countValue: pushed
+	});
+}
+
+/** A Move submenu item's change; `pushed`: how many other widgets it moved. */
+export function movedText(
+	layout: Layout,
+	id: string,
+	phone: boolean,
+	title: string,
+	pushed: number
+): string {
+	const at = where(layout, id, phone);
+	if (!at) return "";
+	if (at.phone) return m.layout_moved_phone({ title, ...at });
+	return m.layout_moved({
+		title,
+		column: at.column,
+		row: at.row,
+		count: formatNumber(pushed),
+		countValue: pushed
+	});
+}
+
+/** A Size submenu item's change (only the height on a phone). */
+export function resizedText(layout: Layout, id: string, phone: boolean, title: string): string {
+	const s = size(layout, id);
+	if (!s) return "";
+	if (phone) {
+		return m.layout_resized_phone({ title, height: formatNumber(s.h), heightValue: s.h });
+	}
+	return m.layout_resized({
+		title,
+		width: formatNumber(s.w),
+		widthValue: s.w,
+		height: formatNumber(s.h),
+		heightValue: s.h
 	});
 }
