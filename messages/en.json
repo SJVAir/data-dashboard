@@ -69,12 +69,23 @@
 	"widget_delete": "Delete widget",
 	"widget_deleted": "Widget deleted",
 	"widget_unknown_title": "Unknown widget",
-	"widget_move": "Move…",
-	"widget_resize": "Resize…",
+	"widget_move": "Move",
+	"widget_move_up": "Up",
+	"widget_move_down": "Down",
+	"widget_move_left": "Left",
+	"widget_move_right": "Right",
+	"widget_move_top": "To top",
+	"widget_move_bottom": "To bottom",
+	"widget_size": "Size",
+	"widget_size_wider": "Wider",
+	"widget_size_narrower": "Narrower",
+	"widget_size_taller": "Taller",
+	"widget_size_shorter": "Shorter",
 	"layout_picked_up": "Picked up {title}. Column {column}, row {row}. Arrow keys move, Shift and arrow keys resize, Enter drops, Escape cancels.",
-	"layout_picked_up_resize": [
+	"layout_resized": [
 		{
 			"declarations": [
+				"input title",
 				"input width",
 				"input height",
 				"input widthValue",
@@ -84,10 +95,10 @@
 			],
 			"selectors": ["widthPlural", "heightPlural"],
 			"match": {
-				"widthPlural=one, heightPlural=one": "Resizing {title}: {width} column wide, {height} row tall. Shift and arrow keys resize, Enter drops, Escape cancels.",
-				"widthPlural=one, heightPlural=other": "Resizing {title}: {width} column wide, {height} rows tall. Shift and arrow keys resize, Enter drops, Escape cancels.",
-				"widthPlural=other, heightPlural=one": "Resizing {title}: {width} columns wide, {height} row tall. Shift and arrow keys resize, Enter drops, Escape cancels.",
-				"widthPlural=other, heightPlural=other": "Resizing {title}: {width} columns wide, {height} rows tall. Shift and arrow keys resize, Enter drops, Escape cancels."
+				"widthPlural=one, heightPlural=one": "Resized {title} to {width} column wide, {height} row tall.",
+				"widthPlural=one, heightPlural=other": "Resized {title} to {width} column wide, {height} rows tall.",
+				"widthPlural=other, heightPlural=one": "Resized {title} to {width} columns wide, {height} row tall.",
+				"widthPlural=other, heightPlural=other": "Resized {title} to {width} columns wide, {height} rows tall."
 			}
 		}
 	],
@@ -126,7 +137,7 @@
 			}
 		}
 	],
-	"layout_picked_up_resize_phone": [
+	"layout_resized_phone": [
 		{
 			"declarations": [
 				"input title",
@@ -136,8 +147,8 @@
 			],
 			"selectors": ["heightPlural"],
 			"match": {
-				"heightPlural=one": "Resizing {title}: {height} row tall. Shift and up and down arrows resize, Enter drops, Escape cancels.",
-				"heightPlural=other": "Resizing {title}: {height} rows tall. Shift and up and down arrows resize, Enter drops, Escape cancels."
+				"heightPlural=one": "Resized {title} to {height} row tall.",
+				"heightPlural=other": "Resized {title} to {height} rows tall."
 			}
 		}
 	],
@@ -161,14 +172,33 @@
 			}
 		}
 	],
+	"layout_moved": [
+		{
+			"declarations": [
+				"input title",
+				"input column",
+				"input row",
+				"input count",
+				"input countValue",
+				"local countExact = countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countExact", "countPlural"],
+			"match": {
+				"countExact=0, countPlural=*": "Moved {title} to column {column}, row {row}.",
+				"countExact=*, countPlural=one": "Moved {title} to column {column}, row {row}. {count} other widget moved.",
+				"countExact=*, countPlural=other": "Moved {title} to column {column}, row {row}. {count} other widgets moved."
+			}
+		}
+	],
 	"layout_dropped_phone": "Dropped {title} at position {position} of {total}.",
+	"layout_moved_phone": "Moved {title} to position {position} of {total}.",
 	"layout_cancelled": "Cancelled. {title} is back where it was.",
 	"layout_gone": "{title} was removed in another tab. Move cancelled.",
 	"layout_at_bottom": "{title} is already at the bottom.",
 	"layout_done": "Done",
 	"layout_keys_hint": "Arrow keys move · Shift+arrows resize · Enter drops · Esc cancels",
 	"layout_keys_hint_phone": "Up and Down move · Shift+Up and Down resize · Enter drops · Esc cancels",
-	"layout_lifted_touch": "Picked up {title}. Drag its title bar to move it or its handles to resize it, then tap Done.",
 	"layout_title_bar_hint": "Press Enter to move",
 	"rename_dashboard_title": "Rename dashboard",
 	"rename_widget_title": "Rename widget",

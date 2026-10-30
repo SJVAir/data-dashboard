@@ -267,60 +267,6 @@ test("phone column: arrows reorder", async () => {
 	expect(rectOf(app, "c")).toEqual({ x: 6, y: 0, w: 6, h: 4 });
 });
 
-test("Move… from the menu picks up with focus on the title bar", async () => {
-	const { app } = await seed(halves());
-	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Move…" }).click();
-	await announced(
-		"Picked up Readings. Column 1, row 1. Arrow keys move, Shift and arrow keys resize, Enter drops, Escape cancels."
-	);
-	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
-	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
-	// Still picked up once the menu's focus has settled.
-	await new Promise((r) => setTimeout(r, 300));
-	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
-	await press("{ArrowRight}");
-	await press("{Enter}");
-	await expect.poll(() => rectOf(app, "a").x).toBe(1);
-});
-
-test("Resize… announces the resize instructions", async () => {
-	await seed(halves());
-	await page.getByRole("heading", { name: "Readings" }).click({ button: "right" });
-	await page.getByRole("menuitem", { name: "Resize…" }).click();
-	await announced(
-		"Resizing Readings: 6 columns wide, 4 rows tall. Shift and arrow keys resize, Enter drops, Escape cancels."
-	);
-	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
-	await new Promise((r) => setTimeout(r, 300));
-	await expect.element(page.getByTestId("drop-target")).toBeInTheDocument();
-});
-
-test("Move… and Resize… are disabled when locked and hidden when minimized", async () => {
-	const { app, session } = await seed([
-		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
-		{ ...widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Map"), minimized: { order: 0 } }
-	]);
-	const { widgetActions } = await import("$lib/actions/widget");
-	const { Arrangement } = await import("$lib/layout/arrangement.svelte");
-	const arrangement = new Arrangement(
-		() => app.current.session,
-		() => 12
-	);
-	const ctx = { target: document.body, payload: {} };
-	const items = (id: string) => widgetActions(app, id, arrangement)(ctx);
-	const item = (id: string, itemId: string) => items(id).find((i) => i.id === itemId);
-	expect(item("a", "move-widget")).toMatchObject({ group: "layout", disabled: false });
-	expect(item("a", "resize-widget")).toMatchObject({ group: "layout", disabled: false });
-	expect(item("b", "move-widget")).toBeUndefined();
-	expect(item("b", "resize-widget")).toBeUndefined();
-
-	session.readOnly = "newer";
-	expect(item("a", "move-widget")?.disabled).toBe(true);
-	expect(item("a", "resize-widget")?.disabled).toBe(true);
-	arrangement.dispose();
-});
-
 test("a keyboard drop on the starter keeps focus through the hand-off", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
@@ -365,12 +311,8 @@ test("on a phone, resizing speaks only the height", async () => {
 		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
 		widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Map")
 	]);
-	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Resize…" }).click();
-	await announced(
-		"Resizing Readings: 4 rows tall. Shift and up and down arrows resize, Enter drops, Escape cancels."
-	);
-	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+	await focusBar("Readings");
+	await press("{Enter}");
 	await press("{Shift>}{ArrowDown}{/Shift}");
 	await announced("5 rows tall.");
 	await press("{Shift>}{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}{/Shift}");
@@ -951,39 +893,18 @@ test("a keyboard pickup over another widget's touch selection announces its canc
 	await press("{Escape}");
 });
 
-// --- Move… and Resize… by mouse and touch ---
+// --- The picked-up outline and key hint ---
 
 const hint = () => page.getByTestId("arrange-hint");
 const pickedUp = (id: string) => frame(id).hasAttribute("data-picked-up");
 
-/** Open a widget's ⋯ menu with a tap: its click comes from a touch pointer. */
-async function tapMenu(name: string) {
-	const more = page.getByRole("button", { name: `Actions for ${name}` }).element();
-	const at = center(more);
-	touch(more, "pointerdown", at.x, at.y);
-	touch(more, "pointerup", at.x, at.y);
-	more.dispatchEvent(
-		new PointerEvent("click", {
-			bubbles: true,
-			cancelable: true,
-			composed: true,
-			detail: 1,
-			pointerType: "touch",
-			clientX: at.x,
-			clientY: at.y
-		})
-	);
-	await expect.element(page.getByRole("menu")).toBeVisible();
-}
-
-test("Move… chosen by mouse marks the widget and shows the key hint", async () => {
+test("a keyboard pickup marks the widget and shows the key hint", async () => {
 	const { app } = await seed(halves());
 	expect(pickedUp("a")).toBe(false);
-	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Move…" }).click();
+	await focusBar("Readings");
+	await press("{Enter}");
 	await expect.poll(() => pickedUp("a")).toBe(true);
 	expect(pickedUp("b")).toBe(false);
-	await expect.element(hint()).toBeVisible();
 	await expect
 		.element(hint())
 		.toHaveTextContent("Arrow keys move · Shift+arrows resize · Enter drops · Esc cancels");
@@ -998,18 +919,17 @@ test("Move… chosen by mouse marks the widget and shows the key hint", async ()
 	expect(hint().query()).toBeNull();
 });
 
-test("Escape or a click elsewhere ends a menu pickup and its marking", async () => {
+test("Escape or a click elsewhere ends the marking", async () => {
 	await seed(halves());
-	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Resize…" }).click();
+	await focusBar("Readings");
+	await press("{Enter}");
 	await expect.element(hint()).toBeVisible();
 	await press("{Escape}");
 	await announced("Cancelled. Readings is back where it was.");
 	expect(pickedUp("a")).toBe(false);
 	expect(hint().query()).toBeNull();
 
-	await page.getByRole("button", { name: "Actions for Readings" }).click();
-	await page.getByRole("menuitem", { name: "Move…" }).click();
+	await press("{Enter}");
 	await expect.element(hint()).toBeVisible();
 	await page.getByRole("heading", { name: "Map" }).click();
 	await announced("Cancelled. Readings is back where it was.");
@@ -1028,7 +948,7 @@ test("a keyboard pickup on a phone hints at up and down", async () => {
 	await press("{Escape}");
 });
 
-test("a touch arrangement shows no key hint", async () => {
+test("a touch arrangement is marked but shows no key hint", async () => {
 	await seed(halves());
 	await expect.element(titleBar("Readings")).toBeVisible();
 	const bar = titleBar("Readings").element();
@@ -1040,54 +960,129 @@ test("a touch arrangement shows no key hint", async () => {
 	await press("{Escape}");
 });
 
-test("Move… from a tapped menu lifts the widget like a long-press", async () => {
+// --- The Move and Size submenus ---
+
+const menuItem = (name: string) => page.getByRole("menuitem", { name, exact: true });
+
+async function openSubmenu(widget: string, submenu: "Move" | "Size", how: "menu" | "right-click") {
+	if (how === "menu") await page.getByRole("button", { name: `Actions for ${widget}` }).click();
+	else await page.getByRole("heading", { name: widget }).click({ button: "right" });
+	await menuItem(submenu).click();
+	await expect.element(page.getByRole("menu").nth(1)).toBeVisible();
+}
+
+test("Move ▸ Right moves one column per click and the menu stays open", async () => {
 	const { app, session } = await seed(halves());
-	await expect.element(titleBar("Readings")).toBeVisible();
-	const pitch = pitchX();
-	await tapMenu("Readings");
-	await page.getByRole("menuitem", { name: "Move…" }).click();
-	await expect.element(done()).toBeVisible();
-	await announced(
-		"Picked up Readings. Drag its title bar to move it or its handles to resize it, then tap Done."
-	);
-	expect(pickedUp("a")).toBe(true);
-	expect(lifted()).toBe(true);
-	expect(hint().query()).toBeNull();
-	// Still lifted once the menu's focus has settled.
-	await wait(300);
-	await expect.element(done()).toBeVisible();
-	// Its next touch drags it at once (no long-press).
-	const bar = titleBar("Readings").element();
-	const b = center(bar);
-	touch(bar, "pointerdown", b.x, b.y);
-	await slide(bar, b, pitch * 2, 0);
-	await expect.element(done()).toBeVisible();
+	await openSubmenu("Readings", "Move", "menu");
+	await menuItem("Right").click();
+	await announced("Moved Readings to column 2, row 1. 1 other widget moved.");
+	expect(rectOf(app, "a").x).toBe(1);
+	await expect.element(menuItem("Right")).toBeVisible();
+	await menuItem("Right").click();
+	await expect.poll(() => rectOf(app, "a").x).toBe(2);
+	await announced("Moved Readings to column 3, row 1.");
+	// Each click is one undo step.
+	await press("{Escape}");
+	await press("{Escape}");
+	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+	await press("{Control>}z{/Control}");
+	expect(rectOf(app, "a").x).toBe(1);
+	await press("{Control>}z{/Control}");
+	expect(rectOf(app, "a").x).toBe(0);
 	expect(session.canUndo).toBe(false);
-	// A tap elsewhere finishes it.
-	touch(document.body, "pointerdown", 5, 5);
-	touch(document.body, "pointerup", 5, 5);
-	await announced("Dropped Readings at column 3, row 1. 1 other widget moved.");
-	expect(rectOf(app, "a").x).toBe(2);
-	await expect.element(done()).not.toBeInTheDocument();
-	expect(pickedUp("a")).toBe(false);
 });
 
-test("Resize… from a tapped menu lifts the widget with its touch handles; Escape cancels", async () => {
-	const { app, session } = await seed(halves());
-	await expect.element(titleBar("Readings")).toBeVisible();
-	const pitch = pitchX();
-	await tapMenu("Readings");
-	await page.getByRole("menuitem", { name: "Resize…" }).click();
-	await expect.element(done()).toBeVisible();
-	const right = handle("a", "right");
-	const r = center(right);
-	touch(right, "pointerdown", r.x, r.y);
-	await slide(right, r, pitch * 2, 0);
-	await expect.element(done()).toBeVisible();
+test("an item is disabled once it would change nothing", async () => {
+	const { app } = await seed([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
+		widget("b", { x: 0, y: 4, w: 6, h: 4 }, "Map")
+	]);
+	await openSubmenu("Readings", "Move", "menu");
+	const disabled = (name: string) => menuItem(name).element().hasAttribute("data-disabled");
+	expect(disabled("Left")).toBe(true);
+	expect(disabled("Up")).toBe(true);
+	expect(disabled("Right")).toBe(false);
+	for (let i = 0; i < 6; i++) await menuItem("Right").click();
+	await expect.poll(() => rectOf(app, "a").x).toBe(6);
+	await expect.poll(() => disabled("Right")).toBe(true);
+	expect(disabled("Left")).toBe(false);
 	await press("{Escape}");
-	await announced("Cancelled. Readings is back where it was.");
-	await expect.element(done()).not.toBeInTheDocument();
-	expect(pickedUp("a")).toBe(false);
-	expect(rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 6, h: 4 });
-	expect(session.canUndo).toBe(false);
+});
+
+test("Size ▸ Wider and Taller resize from the right and bottom edges", async () => {
+	const { app } = await seed(halves());
+	await openSubmenu("Readings", "Size", "menu");
+	await menuItem("Wider").click();
+	await announced("Resized Readings to 7 columns wide, 4 rows tall.");
+	await menuItem("Taller").click();
+	await expect.poll(() => rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 7, h: 5 });
+	await announced("Resized Readings to 7 columns wide, 5 rows tall.");
+	await press("{Escape}");
+});
+
+test("right-click shows the same submenus", async () => {
+	const { app } = await seed(halves());
+	await openSubmenu("Readings", "Move", "right-click");
+	await menuItem("Right").click();
+	await expect.poll(() => rectOf(app, "a").x).toBe(1);
+	await expect.element(menuItem("Right")).toBeVisible();
+	await press("{Escape}");
+	await press("{Escape}");
+	await page.getByRole("heading", { name: "Readings" }).click({ button: "right" });
+	await menuItem("Size").click();
+	await expect.element(menuItem("Wider")).toBeVisible();
+	await press("{Escape}");
+	await press("{Escape}");
+});
+
+test("on a phone, Move has Up, Down, To top, To bottom, and Size only the height", async () => {
+	await page.viewport(400, 800);
+	const { app } = await seed(halves());
+	await openSubmenu("Readings", "Move", "menu");
+	const names = async () =>
+		[...page.getByRole("menu").nth(1).element().querySelectorAll("[role=menuitem]")].map((el) =>
+			el.textContent?.trim()
+		);
+	expect(await names()).toEqual(["Up", "Down", "To top", "To bottom"]);
+	await menuItem("To bottom").click();
+	await announced("Moved Readings to position 2 of 2.");
+	expect(rectOf(app, "a").y).toBeGreaterThan(rectOf(app, "b").y);
+	await press("{Escape}");
+	await press("{Escape}");
+	await openSubmenu("Readings", "Size", "menu");
+	expect(await names()).toEqual(["Taller", "Shorter"]);
+	await press("{Escape}");
+	await press("{Escape}");
+});
+
+test("Move and Size are disabled when read-only and hidden when minimized", async () => {
+	const { app, session } = await seed([
+		widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings"),
+		{ ...widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Map"), minimized: { order: 0 } }
+	]);
+	// Called directly: a read-only dashboard shows no widgets (so no frames or menus), and a
+	// minimized widget has no frame (its taskbar menu leaves them out too).
+	const { widgetActions } = await import("$lib/actions/widget");
+	const { isDisabled } = await import("$lib/actions/types");
+	const { Arrangement } = await import("$lib/layout/arrangement.svelte");
+	const arrangement = new Arrangement(
+		() => app.current.session,
+		() => 12
+	);
+	const ctx = { target: document.body, payload: {} };
+	const item = (id: string, itemId: string) =>
+		widgetActions(app, id, arrangement)(ctx).find((i) => i.id === itemId);
+	expect(isDisabled(item("a", "move-widget")!)).toBe(false);
+	expect(isDisabled(item("a", "size-widget")!)).toBe(false);
+	expect(item("b", "move-widget")).toBeUndefined();
+	expect(item("b", "size-widget")).toBeUndefined();
+
+	const right = item("a", "move-widget")!.children!.find((i) => i.id === "move-right")!;
+	expect(isDisabled(right)).toBe(false);
+	session.readOnly = "newer";
+	expect(isDisabled(item("a", "move-widget")!)).toBe(true);
+	expect(isDisabled(item("a", "size-widget")!)).toBe(true);
+	// An item already shown turns disabled too.
+	expect(isDisabled(right)).toBe(true);
+	arrangement.dispose();
 });

@@ -14,11 +14,7 @@
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { Rect, WidgetInstance } from "$lib/documents/schema";
-	import {
-		useArrangement,
-		type ArrangeDirection,
-		type ArrangeMode
-	} from "$lib/layout/arrangement.svelte";
+	import { useArrangement, type ArrangeDirection } from "$lib/layout/arrangement.svelte";
 	import { dropText, pickUpText, positionText, sizeText } from "$lib/layout/announcements";
 	import { DRAG_THRESHOLD, LONG_PRESS_TOLERANCE } from "$lib/layout/config";
 	import { startLongPress } from "$lib/layout/long-press";
@@ -89,25 +85,14 @@
 		return arrangement.columns === 1;
 	}
 
-	function pickUp(mode: ArrangeMode): void {
+	function pickUp(): void {
 		const before = arrangement.active;
-		arrangement.pickUp(widget.id, mode, "keyboard");
+		arrangement.pickUp(widget.id, "move", "keyboard");
 		const preview = arrangement.preview;
 		if (!mine() || !preview) return;
-		const text = pickUpText(preview, widget.id, phone(), mode, title);
+		const text = pickUpText(preview, widget.id, phone(), title);
 		// Another widget's touch or pointer arrangement was replaced: say so first (one
 		// announcement, as a newer one would replace it before it's read).
-		const replacedOne = before && before.id !== widget.id ? cancelledText(before.id) : null;
-		announce(replacedOne ? `${replacedOne} ${text}` : text);
-	}
-
-	/** Move… or Resize… from a tapped menu: lift and select it, as a still long-press does. */
-	function lift(mode: ArrangeMode): void {
-		const before = arrangement.active;
-		arrangement.pickUp(widget.id, mode, "touch");
-		if (!mine()) return;
-		selecting = true;
-		const text = m.layout_lifted_touch({ title });
 		const replacedOne = before && before.id !== widget.id ? cancelledText(before.id) : null;
 		announce(replacedOne ? `${replacedOne} ${text}` : text);
 	}
@@ -152,7 +137,7 @@
 		if (!active) {
 			if (key === "Enter" || key === " ") {
 				event.preventDefault();
-				pickUp("move");
+				pickUp();
 			}
 			return;
 		}
@@ -190,7 +175,7 @@
 		if (active && active.input !== "keyboard") return;
 		event.preventDefault();
 		if (active) drop();
-		else pickUp("move");
+		else pickUp();
 	}
 
 	// The pointer drag in progress (or waiting for the press to move far enough).
@@ -409,7 +394,7 @@
 	const dragging = $derived(mine()?.input === "pointer" || (gesture && touchActive));
 	/** Picked up by any input: marked by a ring and a raised look. */
 	const pickedUp = $derived(mine() !== null);
-	/** Picked up by keyboard: a hint shows the keys (sighted keyboard and mouse users). */
+	/** Picked up by keyboard: a hint shows the keys. */
 	const keyboardActive = $derived(mine()?.input === "keyboard");
 
 	// Moving focus away cancels a keyboard arrangement: Tab, a click elsewhere, or the window
@@ -435,19 +420,6 @@
 			if (fullscreen) return;
 			const behavior = prefersReducedMotion.current ? "instant" : "smooth";
 			section?.scrollIntoView({ block: "nearest", behavior });
-		});
-	});
-
-	// Move… / Resize… from the menu: focus first, then pick up, so the focus move can't cancel it.
-	$effect(() => {
-		const request = arrangement.pickUpRequest;
-		if (!bar || request?.id !== widget.id) return;
-		untrack(() => {
-			arrangement.pickUpRequest = null;
-			if (fullscreen) return;
-			bar!.focus();
-			if (request.input === "touch") lift(request.mode);
-			else pickUp(request.mode);
 		});
 	});
 
@@ -572,7 +544,7 @@
 			variant="ghost"
 			size="icon-sm"
 			aria-label={m.widget_menu({ title })}
-			onclick={(event) => more && openMenuFor(more, { widgetId: widget.id }, event)}
+			onclick={() => more && openMenuFor(more, { widgetId: widget.id })}
 		>
 			<Ellipsis aria-hidden="true" />
 		</Button>

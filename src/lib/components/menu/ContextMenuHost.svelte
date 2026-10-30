@@ -9,7 +9,7 @@
 
 	let { children }: { children: Snippet } = $props();
 
-	// A Move… request left pending by a page that's gone must not take focus on the next one.
+	// A pending after-close action (e.g. Minimize) from a page that's gone mustn't run on the next.
 	onDestroy(clearAfterMenuClose);
 
 	let items = $state<MenuItem[]>([]);
@@ -60,7 +60,7 @@
 
 	const anchor = $derived(dropdown.ctx?.target as HTMLElement | undefined);
 
-	// An item that moves focus itself (Move…, Resize…) does so once its menu has closed.
+	// An item that moves focus itself (Minimize, Fullscreen) does so once its menu has closed.
 	function onCloseAutoFocus(event: Event, fallback?: () => void) {
 		const after = takeAfterMenuClose();
 		if (after) {

@@ -2,27 +2,26 @@ import { getContext, untrack } from "svelte";
 import type { Change } from "$lib/changes/types";
 import type { Dashboard, Rect } from "$lib/documents/schema";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
-import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "./config";
-import { move, moveInOrder, resize, type Layout, type LayoutItem, type Size } from "./engine";
-import { layoutChange, shownLayout } from "./items";
+import { GRID_COLUMNS } from "./config";
+import type { Layout, Size } from "./engine";
+import { shownLayout } from "./items";
+import {
+	applyOp,
+	dropChange,
+	growSize,
+	sameRect,
+	stepMoved,
+	stepOp,
+	type ArrangeDirection,
+	type Op,
+	type StepResult
+} from "./steps";
 
 export type ArrangeMode = "move" | "resize";
 export type ArrangeInput = "pointer" | "keyboard" | "touch";
-/** How a Move… or Resize… item picks the widget up: by keyboard, or lifted as by a long-press. */
-export type MenuPickUpInput = Exclude<ArrangeInput, "pointer">;
-export type ArrangeDirection = "up" | "down" | "left" | "right";
-export type StepResult = "moved" | "at-bottom" | "blocked";
+export type { ArrangeDirection, StepResult } from "./steps";
 
 type Active = { id: string; mode: ArrangeMode; input: ArrangeInput };
-/**
- * One request for the active widget, applied to the layout before it: move to a desktop cell,
- * move to a reading-order index (phone), or resize in place. A cell or index request may carry
- * a size to take first.
- */
-type Op =
-	| { kind: "cell"; x: number; y: number; size: Size | null }
-	| { kind: "order"; index: number; size: Size | null }
-	| { kind: "size"; w: number; h: number };
 /**
  * The requests since pickup, in order. Pointer and touch input replace the list with one
  * request against the document's layout; each keyboard step appends one against the preview
@@ -62,10 +61,6 @@ function targetKey(id: string, t: Target): string {
 	return [id, ...t.map(opKey)].join("|");
 }
 
-function sameRect(a: Rect, b: Rect): boolean {
-	return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
-}
-
 function sameLayout(a: Layout, b: Layout): boolean {
 	return (
 		a.length === b.length &&
@@ -76,18 +71,6 @@ function sameLayout(a: Layout, b: Layout): boolean {
 				item.minSize.w === b[i].minSize.w &&
 				item.minSize.h === b[i].minSize.h
 		)
-	);
-}
-
-function itemOf(layout: Layout, id: string): LayoutItem {
-	return layout.find((i) => i.id === id)!;
-}
-
-/** The nearest widget below `id` that shares its columns (what moving down passes). */
-function nextBelow(layout: Layout, id: string): LayoutItem | undefined {
-	const { x, y, w } = itemOf(layout, id).rect;
-	return layout.find(
-		(i) => i.id !== id && i.rect.y > y && i.rect.x < x + w && x < i.rect.x + i.rect.w
 	);
 }
 
@@ -115,14 +98,6 @@ export class Arrangement {
 	 * then sets this back to null. `pickUp` and `cancel` clear it.
 	 */
 	pendingFocus = $state<string | null>(null);
-	/**
-	 * A pickup asked for by the widget's Move… or Resize… item, once its menu has closed. The
-	 * widget's frame focuses its title bar, then picks it up (by keyboard, or lifted for touch
-	 * when the menu was opened by a tap) and sets this to null.
-	 */
-	pickUpRequest = $state.raw<{ id: string; mode: ArrangeMode; input: MenuPickUpInput } | null>(
-		null
-	);
 
 	readonly #session: () => DocumentSession | null;
 	readonly #columns: () => number;
@@ -192,13 +167,7 @@ export class Arrangement {
 		if (!this.#onGrid(id)) return;
 		this.#clear();
 		this.pendingFocus = null;
-		this.pickUpRequest = null;
 		this.#active = { id, mode, input };
-	}
-
-	/** Ask the widget's frame to focus its title bar and pick it up with `input`. */
-	requestPickUp(id: string, mode: ArrangeMode, input: MenuPickUpInput): void {
-		this.pickUpRequest = { id, mode, input };
 	}
 
 	/** Move the active widget to a cell (engine `move`; widgets in the way are pushed down). */
@@ -229,38 +198,10 @@ export class Arrangement {
 		const id = this.#live();
 		const preview = this.#preview;
 		if (!id || !preview) return "blocked";
-
-		if (this.#columns() === 1) {
-			if (dir === "left" || dir === "right") return "blocked";
-			const index = preview.findIndex((i) => i.id === id);
-			if (dir === "up" && index === 0) return "blocked";
-			if (dir === "down" && index === preview.length - 1) return "at-bottom";
-			const to = index + (dir === "up" ? -1 : 1);
-			return this.#try({ kind: "order", index: to, size: null }, (after) =>
-				after.findIndex((i) => i.id === id) !== index ? "moved" : "blocked"
-			);
-		}
-
-		const cur = itemOf(preview, id).rect;
-		let cell: { x: number; y: number };
-		if (dir === "left") {
-			if (cur.x === 0) return "blocked";
-			cell = { x: cur.x - 1, y: cur.y };
-		} else if (dir === "right") {
-			if (cur.x + cur.w >= GRID_COLUMNS) return "blocked";
-			cell = { x: cur.x + 1, y: cur.y };
-		} else if (dir === "up") {
-			if (cur.y === 0) return "blocked";
-			cell = { x: cur.x, y: cur.y - 1 };
-		} else {
-			// Moving down one empty cell would snap back up, so Down passes the next widget below.
-			const below = nextBelow(preview, id);
-			if (!below) return "at-bottom";
-			cell = { x: cur.x, y: below.rect.y + below.rect.h };
-		}
-		return this.#try({ kind: "cell", ...cell, size: null }, (after) =>
-			sameRect(itemOf(after, id).rect, cur) ? "blocked" : "moved"
-		);
+		const columns = this.#columns();
+		const op = stepOp(preview, id, dir, columns);
+		if (typeof op === "string") return op;
+		return this.#try(op, (after) => (stepMoved(preview, after, id, columns) ? "moved" : "blocked"));
 	}
 
 	/**
@@ -271,16 +212,10 @@ export class Arrangement {
 		const id = this.#live();
 		const preview = this.#preview;
 		if (!id || !preview) return;
-		const { rect, minSize } = itemOf(preview, id);
-		let { w, h } = rect;
-		if (dir === "up") h = Math.max(h - 1, minSize.h);
-		else if (dir === "down") h = Math.min(h + 1, MAX_HEIGHT);
-		else if (this.#columns() === 1) return;
-		else if (dir === "left") w = Math.max(w - 1, minSize.w);
-		else w = Math.min(w + 1, GRID_COLUMNS - rect.x);
-		if (w === rect.w && h === rect.h) return;
-		this.#size = { w, h };
-		this.#setTarget([...this.#target, { kind: "size", w, h }]);
+		const size = growSize(preview, id, dir, this.#columns());
+		if (!size) return;
+		this.#size = size;
+		this.#setTarget([...this.#target, { kind: "size", ...size }]);
 	}
 
 	/**
@@ -296,13 +231,8 @@ export class Arrangement {
 		const doc = this.#doc();
 		this.#clear();
 		if (!id || !preview || !session || !doc || target.length === 0) return null;
-		// The widget is where it was: nothing to save, even if tidying would change others (an
-		// undo entry with no visible change would surprise). A real move saves the tidying too.
-		const before = this.#baseLayout(doc).find((i) => i.id === id);
-		if (before && sameRect(before.rect, itemOf(preview, id).rect)) return null;
-		// Never save past the row caps (the schema would reject the document).
-		if (preview.some((i) => i.rect.y > MAX_ROW || i.rect.h > MAX_HEIGHT)) return null;
-		const change = layoutChange(doc.body.widgets, preview);
+		// A real move saves the tidying too.
+		const change = dropChange(doc.body.widgets, this.#baseLayout(doc), preview, id);
 		if (!change) return null;
 		session.apply(change);
 		this.pendingFocus = id;
@@ -316,7 +246,6 @@ export class Arrangement {
 	cancel(): void {
 		this.#clear();
 		this.pendingFocus = null;
-		this.pickUpRequest = null;
 	}
 
 	dispose(): void {
@@ -410,16 +339,4 @@ export class Arrangement {
 		}
 		return layout;
 	}
-}
-
-function applyOp(layout: Layout, id: string, op: Op): Layout {
-	if (op.kind === "size") {
-		return resize(layout, id, { ...itemOf(layout, id).rect, w: op.w, h: op.h }, GRID_COLUMNS);
-	}
-	const size = op.size;
-	const items = size
-		? layout.map((i) => (i.id === id ? { ...i, rect: { ...i.rect, w: size.w, h: size.h } } : i))
-		: layout;
-	if (op.kind === "order") return moveInOrder(items, id, op.index, GRID_COLUMNS);
-	return move(items, id, { x: op.x, y: op.y }, GRID_COLUMNS);
 }

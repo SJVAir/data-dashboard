@@ -20,7 +20,7 @@ let afterClose: (() => void) | null = null;
 
 /**
  * Run `fn` when the open menu closes, in place of returning focus to where it was (for an item
- * that moves focus itself, such as Move…).
+ * that moves focus itself, such as Minimize).
  */
 export function afterMenuClose(fn: () => void): void {
 	afterClose = fn;

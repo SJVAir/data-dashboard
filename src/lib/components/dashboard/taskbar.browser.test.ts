@@ -111,7 +111,7 @@ test("activating an item restores it, focuses its title bar, and announces", asy
 	expect(session.canUndo).toBe(false);
 });
 
-test("its menu has Restore and Fullscreen but not Minimize, Move…, or Resize…", async () => {
+test("its menu has Restore and Fullscreen but not Minimize, Move, or Size", async () => {
 	await seed(three());
 	await page.getByRole("button", { name: "Actions for Beta" }).click();
 	const items = async () =>
@@ -120,7 +120,7 @@ test("its menu has Restore and Fullscreen but not Minimize, Move…, or Resize�
 	const list = await items();
 	expect(list).toContain("Fullscreen");
 	expect(list).toContain("Rename widget…");
-	for (const bad of ["Minimize", "Move…", "Resize…"]) expect(list).not.toContain(bad);
+	for (const bad of ["Minimize", "Move", "Size"]) expect(list).not.toContain(bad);
 	await userEvent.keyboard("{Escape}");
 
 	const restore = page.getByRole("button", { name: "Restore Gamma" }).element() as HTMLElement;
