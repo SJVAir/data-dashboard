@@ -15,7 +15,7 @@
 		variant="ghost"
 		size="icon-sm"
 		aria-label={m.dashboard_menu()}
-		onclick={() => more && openMenuFor(more)}
+		onclick={(event) => more && openMenuFor(more, {}, event)}
 	>
 		<Ellipsis aria-hidden="true" />
 	</Button>

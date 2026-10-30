@@ -162,7 +162,7 @@
 					size="icon-sm"
 					tabindex={current === i * 2 + 1 ? 0 : -1}
 					aria-label={m.widget_menu({ title })}
-					onclick={(e) => openMenuFor(e.currentTarget, { widgetId: widget.id })}
+					onclick={(e) => openMenuFor(e.currentTarget, { widgetId: widget.id }, e)}
 				>
 					<Ellipsis aria-hidden="true" />
 				</Button>

@@ -17,6 +17,6 @@
 		<div {@attach menuScope(() => inner)} data-testid="inner">
 			<button data-testid="focusable">Focus me</button>
 		</div>
-		<button bind:this={more} onclick={() => more && openMenuFor(more, payload)}>More</button>
+		<button bind:this={more} onclick={(e) => more && openMenuFor(more, payload, e)}>More</button>
 	</div>
 </ContextMenuHost>

@@ -55,6 +55,16 @@ test("openMenuFor passes its payload to run", async () => {
 	expect(run.mock.calls[0][0].payload).toEqual({ widgetId: "w1" });
 });
 
+test("openMenuFor passes the event that opened it to run", async () => {
+	const run = vi.fn();
+	const outer: MenuItem[] = [{ id: "add", label: "Add widget", group: "d", run }];
+	await render(Harness, { inner: [], outer });
+	await page.getByRole("button", { name: "More" }).click();
+	await page.getByRole("menuitem", { name: "Add widget" }).click();
+	expect(run.mock.calls[0][0].event).toBeInstanceOf(MouseEvent);
+	expect(run.mock.calls[0][0].event.type).toBe("click");
+});
+
 test("focus returns to the ⋯ button after Escape", async () => {
 	const { inner, outer } = setup();
 	await render(Harness, { inner, outer });
