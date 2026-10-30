@@ -8,6 +8,8 @@ import { layoutChange, shownLayout } from "./items";
 
 export type ArrangeMode = "move" | "resize";
 export type ArrangeInput = "pointer" | "keyboard" | "touch";
+/** How a Move… or Resize… item picks the widget up: by keyboard, or lifted as by a long-press. */
+export type MenuPickUpInput = Exclude<ArrangeInput, "pointer">;
 export type ArrangeDirection = "up" | "down" | "left" | "right";
 export type StepResult = "moved" | "at-bottom" | "blocked";
 
@@ -115,9 +117,12 @@ export class Arrangement {
 	pendingFocus = $state<string | null>(null);
 	/**
 	 * A pickup asked for by the widget's Move… or Resize… item, once its menu has closed. The
-	 * widget's frame focuses its title bar, then picks it up (by keyboard) and sets this to null.
+	 * widget's frame focuses its title bar, then picks it up (by keyboard, or lifted for touch
+	 * when the menu was opened by a tap) and sets this to null.
 	 */
-	pickUpRequest = $state.raw<{ id: string; mode: ArrangeMode } | null>(null);
+	pickUpRequest = $state.raw<{ id: string; mode: ArrangeMode; input: MenuPickUpInput } | null>(
+		null
+	);
 
 	readonly #session: () => DocumentSession | null;
 	readonly #columns: () => number;
@@ -191,9 +196,9 @@ export class Arrangement {
 		this.#active = { id, mode, input };
 	}
 
-	/** Ask the widget's frame to focus its title bar and pick it up by keyboard. */
-	requestPickUp(id: string, mode: ArrangeMode): void {
-		this.pickUpRequest = { id, mode };
+	/** Ask the widget's frame to focus its title bar and pick it up with `input`. */
+	requestPickUp(id: string, mode: ArrangeMode, input: MenuPickUpInput): void {
+		this.pickUpRequest = { id, mode, input };
 	}
 
 	/** Move the active widget to a cell (engine `move`; widgets in the way are pushed down). */

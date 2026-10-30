@@ -300,11 +300,11 @@ describe("Arrangement", () => {
 
 	it("pickUp and cancel clear a pickup request", async () => {
 		const { arrangement } = await setup(threeWidgets());
-		arrangement.requestPickUp("a", "resize");
-		expect(arrangement.pickUpRequest).toEqual({ id: "a", mode: "resize" });
+		arrangement.requestPickUp("a", "resize", "touch");
+		expect(arrangement.pickUpRequest).toEqual({ id: "a", mode: "resize", input: "touch" });
 		arrangement.pickUp("a", "resize", "keyboard");
 		expect(arrangement.pickUpRequest).toBeNull();
-		arrangement.requestPickUp("b", "move");
+		arrangement.requestPickUp("b", "move", "keyboard");
 		arrangement.cancel();
 		expect(arrangement.pickUpRequest).toBeNull();
 	});

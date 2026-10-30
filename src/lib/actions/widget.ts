@@ -110,9 +110,19 @@ function currentWidget(app: AppContext, widgetId: string): WidgetInstance | null
 	return app.current.session?.doc.body.widgets.find((w) => w.id === widgetId) ?? null;
 }
 
-/** Move… / Resize…: once the menu has closed, the widget's frame focuses it and picks it up. */
-function arrange(arrangement: Arrangement, widgetId: string, mode: ArrangeMode): void {
-	afterMenuClose(() => arrangement.requestPickUp(widgetId, mode));
+/**
+ * Move… / Resize…: once the menu has closed, the widget's frame focuses it and picks it up. A
+ * menu opened by a tap lifts it for touch (as a long-press does); otherwise it's picked up by
+ * keyboard.
+ */
+function arrange(
+	arrangement: Arrangement,
+	widgetId: string,
+	mode: ArrangeMode,
+	opened: Event | undefined
+): void {
+	const touch = opened instanceof PointerEvent && opened.pointerType === "touch";
+	afterMenuClose(() => arrangement.requestPickUp(widgetId, mode, touch ? "touch" : "keyboard"));
 }
 
 /**
@@ -139,7 +149,7 @@ export function widgetActions(
 							icon: Move,
 							group: "layout",
 							disabled: locked,
-							run: () => arrange(arrangement, widgetId, "move")
+							run: (ctx) => arrange(arrangement, widgetId, "move", ctx.event)
 						},
 						{
 							id: "resize-widget",
@@ -147,7 +157,7 @@ export function widgetActions(
 							icon: Scaling,
 							group: "layout",
 							disabled: locked,
-							run: () => arrange(arrangement, widgetId, "resize")
+							run: (ctx) => arrange(arrangement, widgetId, "resize", ctx.event)
 						}
 					]
 				: [];

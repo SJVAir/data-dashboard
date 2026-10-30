@@ -950,3 +950,144 @@ test("a keyboard pickup over another widget's touch selection announces its canc
 	await expect.element(done()).not.toBeInTheDocument();
 	await press("{Escape}");
 });
+
+// --- Move… and Resize… by mouse and touch ---
+
+const hint = () => page.getByTestId("arrange-hint");
+const pickedUp = (id: string) => frame(id).hasAttribute("data-picked-up");
+
+/** Open a widget's ⋯ menu with a tap: its click comes from a touch pointer. */
+async function tapMenu(name: string) {
+	const more = page.getByRole("button", { name: `Actions for ${name}` }).element();
+	const at = center(more);
+	touch(more, "pointerdown", at.x, at.y);
+	touch(more, "pointerup", at.x, at.y);
+	more.dispatchEvent(
+		new PointerEvent("click", {
+			bubbles: true,
+			cancelable: true,
+			composed: true,
+			detail: 1,
+			pointerType: "touch",
+			clientX: at.x,
+			clientY: at.y
+		})
+	);
+	await expect.element(page.getByRole("menu")).toBeVisible();
+}
+
+test("Move… chosen by mouse marks the widget and shows the key hint", async () => {
+	const { app } = await seed(halves());
+	expect(pickedUp("a")).toBe(false);
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: "Move…" }).click();
+	await expect.poll(() => pickedUp("a")).toBe(true);
+	expect(pickedUp("b")).toBe(false);
+	await expect.element(hint()).toBeVisible();
+	await expect
+		.element(hint())
+		.toHaveTextContent("Arrow keys move · Shift+arrows resize · Enter drops · Esc cancels");
+	// The live region already says the keys.
+	expect(hint().element().closest("[aria-hidden='true']")).not.toBeNull();
+	// An overlay: the frame's layout doesn't change.
+	expect(getComputedStyle(hint().element()).position).toBe("absolute");
+	await press("{ArrowRight}");
+	await press("{Enter}");
+	await expect.poll(() => rectOf(app, "a").x).toBe(1);
+	expect(pickedUp("a")).toBe(false);
+	expect(hint().query()).toBeNull();
+});
+
+test("Escape or a click elsewhere ends a menu pickup and its marking", async () => {
+	await seed(halves());
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: "Resize…" }).click();
+	await expect.element(hint()).toBeVisible();
+	await press("{Escape}");
+	await announced("Cancelled. Readings is back where it was.");
+	expect(pickedUp("a")).toBe(false);
+	expect(hint().query()).toBeNull();
+
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: "Move…" }).click();
+	await expect.element(hint()).toBeVisible();
+	await page.getByRole("heading", { name: "Map" }).click();
+	await announced("Cancelled. Readings is back where it was.");
+	expect(pickedUp("a")).toBe(false);
+	expect(hint().query()).toBeNull();
+});
+
+test("a keyboard pickup on a phone hints at up and down", async () => {
+	await page.viewport(400, 800);
+	await seed(halves());
+	await focusBar("Readings");
+	await press("{Enter}");
+	await expect
+		.element(hint())
+		.toHaveTextContent("Up and Down move · Shift+Up and Down resize · Enter drops · Esc cancels");
+	await press("{Escape}");
+});
+
+test("a touch arrangement shows no key hint", async () => {
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const at = await longPress(bar);
+	touch(bar, "pointerup", at.x, at.y);
+	await expect.element(done()).toBeVisible();
+	expect(pickedUp("a")).toBe(true);
+	expect(hint().query()).toBeNull();
+	await press("{Escape}");
+});
+
+test("Move… from a tapped menu lifts the widget like a long-press", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const pitch = pitchX();
+	await tapMenu("Readings");
+	await page.getByRole("menuitem", { name: "Move…" }).click();
+	await expect.element(done()).toBeVisible();
+	await announced(
+		"Picked up Readings. Drag its title bar to move it or its handles to resize it, then tap Done."
+	);
+	expect(pickedUp("a")).toBe(true);
+	expect(lifted()).toBe(true);
+	expect(hint().query()).toBeNull();
+	// Still lifted once the menu's focus has settled.
+	await wait(300);
+	await expect.element(done()).toBeVisible();
+	// Its next touch drags it at once (no long-press).
+	const bar = titleBar("Readings").element();
+	const b = center(bar);
+	touch(bar, "pointerdown", b.x, b.y);
+	await slide(bar, b, pitch * 2, 0);
+	await expect.element(done()).toBeVisible();
+	expect(session.canUndo).toBe(false);
+	// A tap elsewhere finishes it.
+	touch(document.body, "pointerdown", 5, 5);
+	touch(document.body, "pointerup", 5, 5);
+	await announced("Dropped Readings at column 3, row 1. 1 other widget moved.");
+	expect(rectOf(app, "a").x).toBe(2);
+	await expect.element(done()).not.toBeInTheDocument();
+	expect(pickedUp("a")).toBe(false);
+});
+
+test("Resize… from a tapped menu lifts the widget with its touch handles; Escape cancels", async () => {
+	const { app, session } = await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const pitch = pitchX();
+	await tapMenu("Readings");
+	await page.getByRole("menuitem", { name: "Resize…" }).click();
+	await expect.element(done()).toBeVisible();
+	const right = handle("a", "right");
+	const r = center(right);
+	touch(right, "pointerdown", r.x, r.y);
+	await slide(right, r, pitch * 2, 0);
+	await expect.element(done()).toBeVisible();
+	await press("{Escape}");
+	await announced("Cancelled. Readings is back where it was.");
+	await expect.element(done()).not.toBeInTheDocument();
+	expect(pickedUp("a")).toBe(false);
+	expect(rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 6, h: 4 });
+	expect(session.canUndo).toBe(false);
+});
