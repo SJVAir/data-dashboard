@@ -955,7 +955,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   is a lifted drag scrolling the page instead of moving the widget (a permanent non-passive
   `touchmove` listener on title bars and handles is in place to prevent it). **Revisit before**
   `layout` merges into `main`: a hand check on Chrome for Android and Safari on iOS/iPadOS via
-  `npm run dev -- --host`.
+  `npm run dev:lan` (HTTPS; plain http to a LAN address isn't a secure context, so the app
+  can't start).
 - **Drag performance threshold is loose, and its calibration is approximate.** _Deferred
   2026-10-28 (step 2, spec 2a)._ The check requires p95 under 34 ms at 4x CPU (2x the 16.7 ms
   baseline). Frame times come in 16.7 ms steps, so it catches only about 2 dropped frames at p95.
@@ -974,7 +975,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   mode may intercept Enter and the arrows before they reach it. A mitigation is in (a click
   with `detail` 0 on the title bar acts like Enter), but no real screen reader has been tried.
   **Revisit before** `layout` merges into `main`: a hand check with NVDA (and JAWS if
-  available) on Windows and VoiceOver on macOS/iOS.
+  available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸ and Size ▸
+  submenus (#18) and their announcements.
 - **Keyboard arrangement request-chain cache can thrash in very long pick-ups.** _Deferred
   2026-10-28 (step 2, spec 2a final review)._ The preview cache keeps 512 request prefixes;
   past 512 keyboard steps in one pick-up it evicts the current chain, and each keypress then

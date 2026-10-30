@@ -7,7 +7,8 @@ Last updated: 2026-10-29
 **One session at a time works Release 1's tracks in order** (decided 2026-10-29), on the
 `layout` branch until step 2 merges into `main`:
 
-1. ~~Layout spec 2b (windowing)~~ **done** (PR into `layout`, 2026-10-29): see "Step 2" below.
+1. ~~Layout spec 2b (windowing)~~ **done and merged into `layout`** (#15, 2026-10-29), with
+   follow-ups #16, #17, and #18: see "Step 2" below.
 2. **`layout` → `main`**, only after the two hand checks below, and the user's explicit yes
    (merging to `main` is a production deploy once hosting is live).
 3. **Sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. Needs an
@@ -15,8 +16,11 @@ Last updated: 2026-10-29
    predates it); cutting it needs the user's yes. See "Sync track" below.
 
 **Hand checks needed from the user before `layout` → `main`** (both in `DEFERRED.md`): touch
-arranging on a real phone and tablet (Chrome for Android, Safari on iOS; `npm run dev --
---host`), and a screen-reader pass (NVDA, VoiceOver if possible) on keyboard arranging.
+arranging and windowing on a real phone and tablet (Chrome for Android, Safari on iOS; `npm run
+dev:lan`, then open `https://<this machine's LAN IP>:5173/workspace/` and accept the self-signed
+certificate once; plain http fails on a phone because it isn't a secure context), and a
+screen-reader pass (NVDA, VoiceOver if possible) on keyboard arranging, the Move ▸ and Size ▸
+submenus, and the taskbar. **As of 2026-10-29 evening, these are the next step.**
 
 ### Step 2: layout engine and windowing (branch `layout`)
 
@@ -29,7 +33,8 @@ arranging on a real phone and tablet (Chrome for Android, Safari on iOS; `npm ru
 - The `setLayout` change (one per drop, undoable, cross-tab overlap rules) and
   `minimized: { order }`.
 - The Arrangement controller: a preview from the current document, never saved until drop.
-- Keyboard pick-up, move, and resize with Move... and Resize..., and polite announcements.
+- Keyboard pick-up, move, and resize, and polite announcements. (2a's Move... and Resize... menu
+  items were replaced by the Move ▸ and Size ▸ submenus in #18.)
 - Mouse drag with resize handles and autoscroll.
 - Touch long-press, selection with 44 px handles and Done, and no touch long-press context menu.
 - Phone column reordering.
@@ -40,7 +45,8 @@ arranging on a real phone and tablet (Chrome for Android, Safari on iOS; `npm ru
 - CI: PRs into `layout` run the three-browser suite (`e2e-full`); a PR runs either that or the
   Chromium-only job, never both.
 
-**Spec 2b (windowing) is done** (branch `layout-2b-windowing`, PR into `layout`, 2026-10-29).
+**Spec 2b (windowing) is done and merged into `layout`** (PR
+[#15](https://github.com/SJVAir/data-dashboard/pull/15), 2026-10-29).
 Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
 
 - Minimize and restore changes, undoable; minimized widgets go to the taskbar.
@@ -52,6 +58,18 @@ Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
 - `setLayout` applies per field (rect, minimized), so two tabs minimizing different widgets at
   once both keep their minimize (found by the E2E).
 - Verified with unit and browser-mode tests and the windowing E2E.
+- Follow-ups merged into `layout` (2026-10-29):
+  - [#16](https://github.com/SJVAir/data-dashboard/pull/16): `npm run dev:lan`, an HTTPS dev
+    server on the local network for phone testing.
+  - [#17](https://github.com/SJVAir/data-dashboard/pull/17): `tidy()` resolves overlaps in one
+    pass (1,000 widgets: 467 ms to 22 ms), which fixed the Firefox CI timeout; a property test
+    checks it against the old algorithm.
+  - [#18](https://github.com/SJVAir/data-dashboard/pull/18): the widget menu's Move… and
+    Resize… became Move ▸ (Up, Down, Left, Right, To top, To bottom) and Size ▸ (Wider,
+    Narrower, Taller, Shorter) submenus. Each click is one undoable step, and the submenu
+    stays open. This meets WCAG 2.5.7 (the title-bar keyboard mode covers 2.1.1). It also
+    shows a picked-up outline and key hint in keyboard mode, and the ⋯ menu now sizes to its
+    content.
 - Still due before `layout` → `main`: the two hand checks above and the user's explicit yes.
 
 ### Sync track (server-backed documents)
@@ -62,7 +80,7 @@ production until the user's `develop` → `main` deploy) and sdk-js
 [#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29; no version
 bump, no prerelease cut).
 
-**Next: spec 2 (dashboard sync), after step 2b.** Order (decided 2026-10-29): layout spec 2b →
+**Next: spec 2 (dashboard sync), after step 2 reaches `main`.** Order (decided 2026-10-29): layout spec 2b →
 `layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design
 (`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`) and the spec 1 plan came
 into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2.
