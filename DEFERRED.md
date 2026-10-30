@@ -965,12 +965,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   version. **Revisit with** the low-end Chromebook check before go-live, if CI flakes again, or
   when a Playwright upgrade moves the reference timing (re-measure it as the spec's comment
   says).
-- **Move… and Resize… from a tapped menu on Safari 16.x.** _Deferred 2026-10-29 (step 2,
-  Move…/Resize… fix)._ A tapped ⋯ menu's Move… and Resize… lift the widget for touch only when
-  the menu's opening click is a `PointerEvent` with `pointerType` "touch". Safari before 17
-  sends clicks as plain `MouseEvent`s, so a tap there gets the keyboard mode (with its key
-  hint), which the next tap cancels; the long-press still works. **Revisit if** Safari 16.4–16.x
-  users report it, or drop the item when the supported Safari floor reaches 17.
 - **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
   touch is blocked. **Revisit if** pen users report it.
 - **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
