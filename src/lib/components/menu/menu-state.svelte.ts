@@ -8,17 +8,10 @@ export const dropdown = $state<{ open: boolean; ctx: MenuContext | null; items: 
 	items: []
 });
 
-/**
- * Opens the same menu a right-click on `target` would, in a dropdown anchored to it. `event` is
- * what opened it (e.g. the ⋯ button's click), passed on to the items.
- */
-export function openMenuFor(
-	target: Element,
-	payload: Record<string, unknown> = {},
-	event?: Event
-): void {
-	dropdown.items = resolveMenu(target, { payload, event });
-	dropdown.ctx = { target, payload, event };
+/** Opens the same menu a right-click on `target` would, in a dropdown anchored to it. */
+export function openMenuFor(target: Element, payload: Record<string, unknown> = {}): void {
+	dropdown.items = resolveMenu(target, { payload });
+	dropdown.ctx = { target, payload };
 	dropdown.open = true;
 }
 

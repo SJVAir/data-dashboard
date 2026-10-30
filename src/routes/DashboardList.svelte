@@ -103,7 +103,7 @@
 							variant="ghost"
 							size="icon-sm"
 							aria-label={m.dashboard_row_menu({ name })}
-							onclick={(event) => openMenuFor(event.currentTarget, {}, event)}
+							onclick={(event) => openMenuFor(event.currentTarget)}
 						>
 							<Ellipsis aria-hidden="true" />
 						</Button>
