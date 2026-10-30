@@ -23,7 +23,7 @@ import { ChangeTargetMissing } from "$lib/changes/apply";
 import { replaceIfOverlapping } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
-import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
+import { afterMenuClose, closeMenus } from "$lib/components/menu/menu-state.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
@@ -156,9 +156,16 @@ function arrangeBy(app: AppContext, widgetId: string, action: LayoutAction, colu
 		return !was || !sameRect(was.rect, item.rect);
 	}).length;
 	const phone = columns === 1;
-	// On the starter this first edit makes the person's copy, and the page's grid swap to it
-	// may close the menu; later clicks act on the copy.
+	const doc = session.editTarget.doc;
 	session.apply(change);
+	// The document didn't take the change itself: it went to a starter's hand-off, and the copy
+	// shows on a new page, where this menu's widget is gone. Close the menu (left open, it would
+	// hang off-screen and block the page) and move focus to the widget's title bar on the copy.
+	if (session.editTarget.doc === doc) {
+		afterMenuClose(() => requestFocus({ kind: "title", id: widgetId }));
+		closeMenus();
+		requestFocus({ kind: "title", id: widgetId });
+	}
 	announce(
 		action.kind === "grow"
 			? resizedText(after, widgetId, phone, title)
@@ -172,17 +179,35 @@ function arrangeBy(app: AppContext, widgetId: string, action: LayoutAction, colu
  * click, and an item that would change nothing is disabled (read while the menu is open).
  */
 function layoutSubmenus(app: AppContext, widgetId: string, arrangement: Arrangement): MenuItem[] {
+	// Read when the menu opens: if the page crosses the phone breakpoint while it's open (a
+	// tablet rotating), the items keep the old layout's set and steps until it's reopened.
 	const columns = arrangement.columns;
 	const phone = columns === 1;
-	const item = (id: string, label: string, icon: Component, action: LayoutAction): MenuItem => ({
-		id,
-		label,
-		icon,
-		group: "layout",
-		keepOpen: true,
-		disabled: () => arranged(app, widgetId, action, columns) === null,
-		run: () => arrangeBy(app, widgetId, action, columns)
-	});
+	const item = (id: string, label: string, icon: Component, action: LayoutAction): MenuItem => {
+		// The disabled check runs a layout computation, so it's kept until the document (or
+		// whether it can be edited) changes; the reads below still track both.
+		let memo: { session: unknown; doc: unknown; readOnly: unknown; disabled: boolean } | null =
+			null;
+		return {
+			id,
+			label,
+			icon,
+			group: "layout",
+			keepOpen: true,
+			disabled: () => {
+				const session = app.current.session;
+				const doc = session?.editTarget.doc;
+				const readOnly = session?.readOnly;
+				if (memo?.session === session && memo.doc === doc && memo.readOnly === readOnly) {
+					return memo.disabled;
+				}
+				const disabled = arranged(app, widgetId, action, columns) === null;
+				memo = { session, doc, readOnly, disabled };
+				return disabled;
+			},
+			run: () => arrangeBy(app, widgetId, action, columns)
+		};
+	};
 	const step = (dir: "up" | "down" | "left" | "right") => ({ kind: "step", dir }) as const;
 	const grow = (dir: "up" | "down" | "left" | "right") => ({ kind: "grow", dir }) as const;
 	const moves = [

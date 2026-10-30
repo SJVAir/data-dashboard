@@ -1086,3 +1086,117 @@ test("Move and Size are disabled when read-only and hidden when minimized", asyn
 	expect(isDisabled(right)).toBe(true);
 	arrangement.dispose();
 });
+
+test("the ⋯ menu stays put while the widget moves, so the next click lands on the same item", async () => {
+	const { app } = await seed(halves());
+	await openSubmenu("Readings", "Move", "menu");
+	// Measured once the menus' opening animations have finished.
+	const settled = () =>
+		Promise.all(
+			[...document.querySelectorAll("[role=menu]")].flatMap((menu) =>
+				menu.getAnimations({ subtree: true }).map((a) => a.finished)
+			)
+		);
+	await settled();
+	const before = menuItem("Right").element().getBoundingClientRect();
+	await menuItem("Right").click();
+	await expect.poll(() => rectOf(app, "a").x).toBe(1);
+	// Long enough for the widget's move, a menu reposition, and a submenu's pointer grace.
+	await wait(1100);
+	await settled();
+	expect(document.querySelectorAll("[role=menu]")).toHaveLength(2);
+	const after = menuItem("Right").element().getBoundingClientRect();
+	expect({ x: after.x, y: after.y }).toEqual({ x: before.x, y: before.y });
+	// A click at the same spot hits Right again.
+	const at = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+	const under = document.elementFromPoint(at.x, at.y)!.closest("[role=menuitem]")!;
+	expect(under.textContent?.trim()).toBe("Right");
+	await userEvent.click(under);
+	await expect.poll(() => rectOf(app, "a").x).toBe(2);
+	await press("{Escape}");
+	await press("{Escape}");
+});
+
+/** The starter at /workspace/, in the real App. */
+async function starterApp() {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	history.replaceState(null, "", "/workspace/");
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect
+		.element(page.getByText("This is the starter dashboard.", { exact: false }))
+		.toBeVisible();
+	return { app, starter: app.current.session! };
+}
+
+/** After a menu edit on the starter: the copy is shown, no menu is left, focus is on its title bar. */
+async function expectHandedOff(app: AppContext, starter: DocumentSession) {
+	await expect.poll(() => app.current.session).not.toBe(starter);
+	const copy = app.current.session!;
+	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
+	expect(copy.doc.body.widgets.find((w) => w.id === "starter-1")!.rect.x).toBe(1);
+	await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(0);
+	await expect.poll(() => getComputedStyle(document.body).pointerEvents).not.toBe("none");
+	await expect
+		.poll(() => document.activeElement)
+		.toBe(page.getByTestId("widget-starter-1").getByRole("group").element());
+}
+
+test("Move ▸ Right from the ⋯ menu on the starter closes the menu and keeps focus", async () => {
+	const { app, starter } = await starterApp();
+	await page
+		.getByTestId("widget-starter-1")
+		.getByRole("button", { name: /^Actions for/ })
+		.click();
+	await menuItem("Move").click();
+	await menuItem("Right").click();
+	await expectHandedOff(app, starter);
+});
+
+/** Focus moves down the open submenu until it's on `name`. */
+async function focusItem(name: string) {
+	for (let i = 0; i < 8 && document.activeElement?.textContent?.trim() !== name; i++) {
+		await press("{ArrowDown}");
+	}
+	expect(document.activeElement?.textContent?.trim()).toBe(name);
+}
+
+test("Move ▸ Right from the keyboard menu on the starter closes the menu and keeps focus", async () => {
+	const { app, starter } = await starterApp();
+	const bar = page.getByTestId("widget-starter-1").getByRole("group").element() as HTMLElement;
+	bar.focus();
+	await press("{Shift>}{F10}{/Shift}");
+	await expect.element(menuItem("Move")).toHaveFocus();
+	await press("{ArrowRight}");
+	await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(2);
+	await focusItem("Right");
+	await press("{Enter}");
+	await expectHandedOff(app, starter);
+});
+
+test("the submenu by keyboard: Enter repeats, focus leaves an item that turns disabled", async () => {
+	const { app } = await seed([
+		widget("a", { x: 4, y: 0, w: 6, h: 4 }, "Readings"),
+		widget("b", { x: 0, y: 4, w: 6, h: 4 }, "Map")
+	]);
+	await focusBar("Readings");
+	await press("{Shift>}{F10}{/Shift}");
+	await expect.element(menuItem("Move")).toHaveFocus();
+	await press("{ArrowRight}");
+	await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(2);
+	await focusItem("Right");
+	await press("{Enter}");
+	await expect.poll(() => rectOf(app, "a").x).toBe(5);
+	await press("{Enter}");
+	await expect.poll(() => rectOf(app, "a").x).toBe(6);
+	// Right is now disabled: focus moved on to an enabled item in the open submenu.
+	await expect.poll(() => menuItem("Right").element().hasAttribute("data-disabled")).toBe(true);
+	expect(document.querySelectorAll("[role=menu]")).toHaveLength(2);
+	const focused = document.activeElement!;
+	expect(focused.getAttribute("role")).toBe("menuitem");
+	expect(focused.hasAttribute("data-disabled")).toBe(false);
+	expect(focused.textContent?.trim()).not.toBe("Right");
+	await press("{Escape}");
+	await press("{Escape}");
+	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+});
