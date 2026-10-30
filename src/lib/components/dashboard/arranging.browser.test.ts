@@ -1211,3 +1211,31 @@ test("the ⋯ menu is as wide as its items: no label wraps", async () => {
 	expect(new Set(heights).size, JSON.stringify(heights)).toBe(1);
 	await press("{Escape}");
 });
+
+test("the ⋯ menu follows its button when the window is resized", async () => {
+	await seed(halves());
+	const more = page.getByRole("button", { name: "Actions for Map" });
+	await more.click();
+	await expect.element(menuItem("Delete widget")).toBeVisible();
+	const gap = () => {
+		const button = more.element().getBoundingClientRect();
+		const menu = page.getByRole("menu").element().getBoundingClientRect();
+		return {
+			right: Math.round(button.right - menu.right),
+			below: Math.round(menu.top - button.bottom)
+		};
+	};
+	const animations = () =>
+		Promise.all(
+			page
+				.getByRole("menu")
+				.element()
+				.getAnimations({ subtree: true })
+				.map((a) => a.finished)
+		);
+	await animations();
+	const before = gap();
+	await page.viewport(1000, 800);
+	await expect.poll(gap).toEqual(before);
+	await press("{Escape}");
+});
