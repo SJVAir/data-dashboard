@@ -37,15 +37,21 @@ function clampItem(item: LayoutItem, columns: number): LayoutItem {
 export function tidy(items: LayoutItem[], columns: number): Layout {
 	const clamped = readingOrder(items.map((i) => clampItem(i, columns)));
 
+	// Each widget moves down to the first row, at or below its own, where it overlaps nothing
+	// placed before it. One sorted pass over the widgets sharing its columns, not a rescan per
+	// overlap: imported widgets saved below their minimum height can all overlap at once.
 	const resolved: LayoutItem[] = [];
 	for (const item of clamped) {
-		let rect = item.rect;
-		let hit = resolved.find((p) => rectsOverlap(p.rect, rect));
-		while (hit) {
-			rect = { ...rect, y: hit.rect.y + hit.rect.h };
-			hit = resolved.find((p) => rectsOverlap(p.rect, rect));
+		const { x, w, h } = item.rect;
+		let y = item.rect.y;
+		const blockers = resolved
+			.filter((p) => p.rect.x < x + w && x < p.rect.x + p.rect.w)
+			.sort((a, b) => a.rect.y - b.rect.y);
+		for (const p of blockers) {
+			if (p.rect.y >= y + h) break;
+			if (p.rect.y + p.rect.h > y) y = p.rect.y + p.rect.h;
 		}
-		resolved.push({ ...item, rect });
+		resolved.push({ ...item, rect: { ...item.rect, y } });
 	}
 
 	// Each widget rises to just below the lowest widget already placed in its columns (they

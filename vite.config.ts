@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv, type Plugin } from "vite";
 import tailwindcss from "@tailwindcss/vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { enhancedImages } from "@sveltejs/enhanced-img";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { playwright } from "@vitest/browser-playwright";
@@ -86,7 +87,10 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 		licenses(),
 		webManifest(),
 		absoluteShell(),
-		bareBase()
+		bareBase(),
+		// `npm run dev:lan`: phones on the local network need HTTPS, because over plain http to an
+		// IP address the browser leaves out `crypto.randomUUID` and `crypto.subtle`.
+		...(command === "serve" && !isPreview && process.env.DEV_HTTPS ? [basicSsl()] : [])
 	],
 	build: {
 		target: ["chrome111", "edge111", "safari16.4", "firefox128"],
