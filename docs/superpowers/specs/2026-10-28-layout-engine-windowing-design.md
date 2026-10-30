@@ -121,6 +121,14 @@ It is proven with the placeholder widget, so step 4's widgets drop into finished
   overlap is checked per field (see "The change"). The consequence: a drag in one tab and a
   minimize of the same widget in another now merge silently (the widget is minimized at the
   dragged rect) where the earlier whole-placement rule showed a conflict dialog.
+- **Move… and Resize… on touch** both lift the widget into the same touch selection (its
+  handles resize, its title bar moves), since the selection already offers both. The first
+  announcement says so: "Picked up {title}. Drag its title bar to move it or its handles to
+  resize it, then tap Done." A menu opened by mouse, pen, or keyboard keeps the keyboard mode.
+- **The key hint** reads "Arrow keys move · Shift+arrows resize · Enter drops · Esc cancels"
+  ("Up and Down move · Shift+Up and Down resize · …" on a phone), the same for Move… and
+  Resize…. It sits at the bottom of the widget's content, over it, in popover colors, without
+  animation. Touch arrangements show no hint.
 
 ## The model
 
@@ -251,6 +259,12 @@ type Placement = { rect: Rect; minimized: { order: number } | null };
   one position in the column and Shift+Up/Down change the height.
 - **"Move…" and "Resize…"** in the widget's ⋯ menu start the same mode on that widget (they
   differ only in the first announcement). They are hidden while the widget is minimized.
+  Opened from a touch (the menu came from a tap on ⋯), they instead lift the widget the way a
+  long-press does: it's selected, with its touch handles and Done, and ends the same ways.
+- **A picked-up widget is visibly marked**, whatever the input: a ring and a raised look. Picked
+  up by keyboard, it also shows a short key hint over its content (aria-hidden, since the live
+  region already says the keys; it doesn't change the layout). On a phone the hint names Up and
+  Down.
 - The preview, pushed widgets, and animations are the same as for a pointer drag.
 
 ### Announcements
