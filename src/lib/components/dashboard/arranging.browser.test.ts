@@ -1200,3 +1200,14 @@ test("the submenu by keyboard: Enter repeats, focus leaves an item that turns di
 	await press("{Escape}");
 	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
 });
+
+test("the ⋯ menu is as wide as its items: no label wraps", async () => {
+	await seed(halves());
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await expect.element(menuItem("Delete widget")).toBeVisible();
+	const items = [...page.getByRole("menu").element().querySelectorAll("[role=menuitem]")];
+	const heights = items.map((el) => Math.round(el.getBoundingClientRect().height));
+	// Every item is one line tall, as the single-word "Move" is.
+	expect(new Set(heights).size, JSON.stringify(heights)).toBe(1);
+	await press("{Escape}");
+});
