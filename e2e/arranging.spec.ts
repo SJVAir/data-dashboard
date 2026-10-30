@@ -176,56 +176,42 @@ test("Escape cancels a keyboard move", async ({ page }) => {
 	await expect(page.getByTestId("drop-target")).toHaveCount(0);
 });
 
-test("Move… chosen with the mouse shows the key hint; arrows and Enter move", async ({ page }) => {
+test("Move ▸ Right and Size ▸ Wider by mouse alone, kept after a reload", async ({ page }) => {
 	await openSharedDoc(page, SIDE_BY_SIDE);
 	const before = await box(page, "widget-w0");
+	const item = (name: string) => page.getByRole("menuitem", { name, exact: true });
 	await page.getByRole("button", { name: "Actions for Alpha" }).click();
-	await page.getByRole("menuitem", { name: "Move…" }).click();
-	await expect(liveRegion(page)).toHaveText(/^Picked up Alpha\. Column 1, row 1\./);
-	await expect(page.getByTestId("widget-w0")).toHaveAttribute("data-picked-up", "");
-	await expect(page.getByTestId("arrange-hint")).toBeVisible();
-	await page.keyboard.press("ArrowRight");
-	await expect(liveRegion(page)).toHaveText("Column 2, row 1.");
-	await page.keyboard.press("Enter");
-	await expect(liveRegion(page)).toHaveText(/^Dropped Alpha at column 2, row 1\./);
-	await expect(page.getByTestId("arrange-hint")).toHaveCount(0);
-	await expect(page.getByTestId("widget-w0")).not.toHaveAttribute("data-picked-up");
+	await item("Move").click();
+	await item("Right").click();
+	await expect(liveRegion(page)).toHaveText(/^Moved Alpha to column 2, row 1\./);
+	// The submenu stays open for the next click.
+	await expect(item("Right")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("menu")).toHaveCount(0);
+	await page.getByRole("button", { name: "Actions for Alpha" }).click();
+	await item("Size").click();
+	await item("Wider").click();
+	await expect(liveRegion(page)).toHaveText("Resized Alpha to 7 columns wide, 4 rows tall.");
+	await page.keyboard.press("Escape");
+	await page.keyboard.press("Escape");
 	await expectSaved(page);
 	await page.reload();
 	await expect(titleBar(page, "Alpha")).toBeVisible();
-	await expect.poll(async () => (await box(page, "widget-w0")).x).toBeGreaterThan(before.x + 1);
+	const after = await box(page, "widget-w0");
+	expect(after.x).toBeGreaterThan(before.x + 1);
+	expect(after.width).toBeGreaterThan(before.width + 1);
 });
 
-test("Move… from a tapped ⋯ menu lifts the widget like a long-press", async ({ page }) => {
+test("a keyboard pickup shows the outline and key hint", async ({ page }) => {
 	await openSharedDoc(page, SIDE_BY_SIDE);
-	const more = page.getByRole("button", { name: "Actions for Gamma" });
-	// A tap's click is a touch PointerEvent (dispatched, the same in every engine).
-	await more.evaluate((el) =>
-		el.dispatchEvent(
-			new PointerEvent("click", {
-				bubbles: true,
-				cancelable: true,
-				composed: true,
-				detail: 1,
-				pointerType: "touch"
-			})
-		)
-	);
-	await page.getByRole("menuitem", { name: "Move…" }).click();
-	await expect(liveRegion(page)).toHaveText(
-		"Picked up Gamma. Drag its title bar to move it or its handles to resize it, then tap Done."
-	);
-	const done = page.getByRole("button", { name: "Done" });
-	await expect(done).toBeVisible();
+	await titleBar(page, "Alpha").focus();
+	await page.keyboard.press("Enter");
+	await expect(page.getByTestId("widget-w0")).toHaveAttribute("data-picked-up", "");
+	await expect(page.getByTestId("arrange-hint")).toBeVisible();
+	await page.keyboard.press("Escape");
 	await expect(page.getByTestId("arrange-hint")).toHaveCount(0);
-	// Selected: the next touch drags at once, no long-press.
-	const gamma = await box(page, "widget-w2");
-	const alpha = await box(page, "widget-w0");
-	await touchTitleBar(page, "Gamma", { dy: alpha.y - gamma.y, hold: 0 });
-	await expect(done).toBeVisible();
-	await done.click();
-	await expect(liveRegion(page)).toHaveText(/^Dropped Gamma at column 1, row 1\./);
-	await expect(widgetTitles(page)).toHaveText(["Gamma", "Alpha", "Beta"]);
+	await expect(page.getByTestId("widget-w0")).not.toHaveAttribute("data-picked-up");
 });
 
 test("a drop on the starter makes the copy", async ({ page }) => {

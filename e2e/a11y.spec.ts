@@ -159,8 +159,8 @@ test("the context menu opens with Shift+F10 on a focused widget title bar", asyn
 	await page.keyboard.press("Shift+F10");
 	const menu = page.getByRole("menu");
 	await expect(menu).toBeVisible();
-	// The first item (Move…, ahead of Rename widget… since spec 2a) takes focus.
-	await expect(menu.getByRole("menuitem", { name: "Move…" })).toBeFocused();
+	// The first item (the Move submenu, ahead of Rename widget…) takes focus.
+	await expect(menu.getByRole("menuitem", { name: "Move", exact: true })).toBeFocused();
 	await page.keyboard.press("Escape");
 	await expect(menu).toBeHidden();
 });
