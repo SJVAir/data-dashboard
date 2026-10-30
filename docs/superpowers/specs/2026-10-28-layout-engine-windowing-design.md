@@ -130,6 +130,10 @@ It is proven with the placeholder widget, so step 4's widgets drop into finished
   "Moved … to" and the pushed count.
 - **The submenus' disabled state** is read live while the menu is open (a function on the menu
   item), so it updates after each click; each item works out the layout it would give to decide.
+  The result is kept until the document (or whether it can be edited) changes.
+- **Focus off a newly disabled item:** after a click or Enter that disables the item used, focus
+  moves to the next enabled item in the submenu, else the one before (bits-ui would otherwise
+  leave it on the dead item, and ArrowDown would restart from the top).
 - **The key hint** reads "Arrow keys move · Shift+arrows resize · Enter drops · Esc cancels"
   ("Up and Down move · Shift+Up and Down resize · …" on a phone). It sits at the bottom of the
   widget's content, over it, in popover colors, without animation. Touch arrangements show no
@@ -266,6 +270,7 @@ type Placement = { rect: Rect; minimized: { order: number } | null };
   up by keyboard, it also shows a short key hint over its content (aria-hidden, since the live
   region already says the keys; it doesn't change the layout). On a phone the hint names Up and
   Down.
+- The preview, pushed widgets, and animations are the same as for a pointer drag.
 
 ### Move and Size submenus (single clicks or taps)
 
@@ -278,13 +283,16 @@ type Placement = { rect: Rect; minimized: { order: number } | null };
 - **An item that would change nothing is disabled** (Left in column 1, Narrower at the minimum
   width). The submenu **stays open after a click**, so Right three times moves three columns,
   and each change is announced ("Moved Chart to column 3, row 2. 1 other widget moved.").
+- **The menu stays put:** the ⋯ dropdown is anchored where its button was when it opened, so a
+  moved widget doesn't carry the menu (and the next click's target) with it.
 - Hidden while the widget is minimized or fullscreen; disabled when the dashboard can't be
-  edited. On the starter the first click makes the user's copy, and the page's switch to the
-  copy may close the menu.
+  edited. On the starter the first click makes the user's copy; the menu then closes and focus
+  moves to the widget's title bar on the copy (as a keyboard drop's does).
+- **By keyboard,** if the item just used turns disabled (Right at the grid's edge), focus moves
+  to the next enabled item in the submenu.
 - **Accessibility mapping:** these submenus meet WCAG 2.5.7 (Dragging Movements: a single-pointer
   way to get every drag's result; W3C technique G219, the action-menu pattern). The title-bar
   keyboard mode above meets 2.1.1 (Keyboard); keyboard support alone doesn't meet 2.5.7.
-- The preview, pushed widgets, and animations are the same as for a pointer drag.
 
 ### Announcements
 

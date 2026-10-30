@@ -882,12 +882,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   _Deferred 2026-09-28._ Release 1 sends no analytics, only scrubbed error reports.
   **Revisit when** someone needs usage numbers (e.g. for funding reports or prioritizing
   widgets).
-- **Context menu loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The menu
-  items, context, and dropdown state could be `$state.raw`; the module-singleton dropdown
-  state needs a comment; submenus, disabled items, and separators have no tests; menus have
-  no reduced-motion test; and whether the Windows Menu key opens the menu twice is
-  unverified. Spec 1 menus are flat and short. **Revisit when** a menu first needs a
-  submenu, or in the first Windows testing pass.
+- **Context menu loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review); narrowed
+  2026-10-29 (step 2, the Move and Size submenus)._ Done in that change: the menu items,
+  context, and dropdown state are `$state.raw`, the module-singleton dropdown state has a
+  comment, and submenus, disabled items (live and at their limits), `keepOpen` items, and
+  separators have tests. Still open: menus have no reduced-motion test (the existing one checks
+  a dialog), and whether the Windows Menu key opens the menu twice is unverified (it needs a
+  Windows machine). **Revisit in** the first Windows testing pass, or when menus next get an
+  animation change.
 - **Shell keyboard handling.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The
   text-entry check treats every `input` as text entry; IME composition (`isComposing`) isn't
   skipped; shortcut labels say Ctrl on macOS; `contenteditable` is untested; and the
