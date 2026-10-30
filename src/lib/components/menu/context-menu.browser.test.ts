@@ -107,3 +107,33 @@ test("a pending afterMenuClose callback doesn't outlive its host", async () => {
 	await expect.element(more).toHaveFocus();
 	expect(stale).not.toHaveBeenCalled();
 });
+
+test("each group after the first starts after a separator", async () => {
+	const outer: MenuItem[] = [
+		{ id: "a", label: "A", group: "one", run: vi.fn() },
+		{ id: "b", label: "B", group: "two", run: vi.fn() },
+		{ id: "c", label: "C", group: "two", run: vi.fn() },
+		{ id: "d", label: "D", group: "three", run: vi.fn() }
+	];
+	await render(Harness, { inner: [], outer });
+	await page.getByRole("button", { name: "More" }).click();
+	await expect.element(page.getByRole("menuitem", { name: "D" })).toBeVisible();
+	const order = [...page.getByRole("menu").element().children].map((el) =>
+		el.getAttribute("role") === "separator" ? "|" : el.textContent?.trim()
+	);
+	expect(order).toEqual(["A", "|", "B", "C", "|", "D"]);
+	await userEvent.keyboard("{Escape}");
+});
+
+test("a keepOpen item leaves the menu open", async () => {
+	const run = vi.fn();
+	const outer: MenuItem[] = [{ id: "step", label: "Step", group: "g", keepOpen: true, run }];
+	await render(Harness, { inner: [], outer });
+	await page.getByRole("button", { name: "More" }).click();
+	const step = page.getByRole("menuitem", { name: "Step" });
+	await step.click();
+	await step.click();
+	expect(run).toHaveBeenCalledTimes(2);
+	await expect.element(step).toBeVisible();
+	await userEvent.keyboard("{Escape}");
+});

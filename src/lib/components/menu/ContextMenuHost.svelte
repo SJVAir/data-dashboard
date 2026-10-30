@@ -5,15 +5,23 @@
 	import * as ContextMenu from "$lib/components/ui/context-menu";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import MenuItems from "./MenuItems.svelte";
-	import { clearAfterMenuClose, dropdown, takeAfterMenuClose } from "./menu-state.svelte";
+	import {
+		clearAfterMenuClose,
+		dropdown,
+		registerMenuCloser,
+		takeAfterMenuClose
+	} from "./menu-state.svelte";
 
 	let { children }: { children: Snippet } = $props();
 
 	// A pending after-close action (e.g. Minimize) from a page that's gone mustn't run on the next.
 	onDestroy(clearAfterMenuClose);
 
-	let items = $state<MenuItem[]>([]);
-	let ctx = $state<MenuContext | null>(null);
+	// Raw: the items carry live `disabled` functions, and nothing in them is edited in place.
+	let items = $state.raw<MenuItem[]>([]);
+	let ctx = $state.raw<MenuContext | null>(null);
+	let contextOpen = $state(false);
+	onDestroy(registerMenuCloser(() => (contextOpen = false)));
 
 	// A touch long-press never opens the menu: on the dashboard it lifts a widget, and the ⋯
 	// buttons are the touch path to the same items. bits-ui's trigger opens on a long-press
@@ -58,7 +66,8 @@
 		);
 	}
 
-	const anchor = $derived(dropdown.ctx?.target as HTMLElement | undefined);
+	// Focus returns to the element that opened it; the menu sits at its frozen `anchor`.
+	const opener = $derived(dropdown.ctx?.target as HTMLElement | undefined);
 
 	// An item that moves focus itself (Minimize, Fullscreen) does so once its menu has closed.
 	function onCloseAutoFocus(event: Event, fallback?: () => void) {
@@ -73,7 +82,7 @@
 	}
 </script>
 
-<ContextMenu.Root>
+<ContextMenu.Root bind:open={contextOpen}>
 	<ContextMenu.Trigger
 		class="contents"
 		disabled={touched}
@@ -92,8 +101,8 @@
 
 <DropdownMenu.Root bind:open={dropdown.open}>
 	<DropdownMenu.Content
-		customAnchor={anchor ?? null}
-		onCloseAutoFocus={(e) => onCloseAutoFocus(e, () => anchor?.focus())}
+		customAnchor={dropdown.anchor}
+		onCloseAutoFocus={(e) => onCloseAutoFocus(e, () => opener?.focus())}
 	>
 		{#if dropdown.ctx}
 			<MenuItems items={dropdown.items} ctx={dropdown.ctx} kind="dropdown" />
