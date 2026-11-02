@@ -78,14 +78,19 @@ with the user on 2026-11-02; the rest are my calls, and the user kept them.
    any tab under a per-document lock.
 4. **A device conflict is a hold in the sync record** (so it survives reloads and every tab sees
    it), shown with the existing three-choice `ConflictDialog`.
-5. **"Use the other version" keeps the local version through a new server option.** The SDK's
-   `snapshot` flag only keeps the version a save replaces, and "mine" was never on the server. So
-   a save gains an optional extra snapshot (the local content, kept with reason `conflict`), and
-   "Use the other version" is one save of the server's content that carries it. _Decided with the
-   user, 2026-11-02, over making two saves._ This needs a sjvair.com change (into `develop`) and
-   an sdk-js change, each with its own approved plan, and a new SDK prerelease (the user's yes
-   first). The field name and shape are settled in those plans; this plan calls it
-   `keepSnapshot` (see Task 4) until then.
+5. **"Use the other version" keeps the local version through a new snapshot request.** The
+   SDK's `snapshot` flag only keeps the version a save replaces, and "mine" was never on the
+   server. So the server gains `POST documents/<id>/snapshots/` (body `{ base_version,
+   schema_version, name, body, account_id, build_id }`, all required), which stores the given
+   content as a `conflict` snapshot and leaves the document untouched (no version bump, no log
+   entry). "Use the other version" posts the local content there, then writes the server's
+   version locally; no save at all. _Decided with the user, 2026-11-02: first a server option
+   over making two saves, then (in the sjvair.com session) this separate request over a save
+   field, because a no-op save bumps the version, logs an empty entry, counts toward the rate
+   limit, and re-uploads the body._ It refuses like a save (same codes and payloads; `stale_base`
+   when `base_version` isn't the stored version) and is never refused for snapshot storage. This
+   needs the sjvair.com change (into `develop`), an sdk-js method, and a new SDK prerelease (the
+   user's yes first).
 6. **A lost save answer is recognized:** the record notes the batch in flight; if the server's
    next version is exactly that batch, it counts as saved (no prompt, no duplicate).
 7. **An oversized queue sends one `replaceDocument`** (from the server's content to the local
@@ -291,8 +296,11 @@ case that expected a layout prompt.
   	copiedFrom: string | null; baseVersion: number | null;
   	changes: Array<{ schemaVersion: number; change: unknown }>;
   	accountId: string; buildId: string; snapshot: "conflict" | null;
-  	/** Also keep this content as a `conflict` snapshot (call 5; the wire name comes from the SDK plan). */
-  	keepSnapshot: { name: string | null; body: unknown; schemaVersion: number } | null;
+  };
+  /** Content to keep as a `conflict` snapshot (call 5); the document is untouched. */
+  export type SnapshotInput = {
+  	baseVersion: number; schemaVersion: number; name: string | null; body: unknown;
+  	accountId: string; buildId: string;
   };
   export type StaleBase = { version: number; changes: RemoteChange[] | null; document: RemoteDocument };
   /** A refusal (`code` from the SDK's `RefusalCode`); `staleBase` set for `stale_base`. */
@@ -304,6 +312,7 @@ case that expected a layout prompt.
   	get(id: string): Promise<RemoteDocument>;
   	changes(id: string, since: number): Promise<RemoteChanges>;
   	save(id: string, input: SaveInput): Promise<{ version: number; updatedAt: string }>;
+  	keepSnapshot(id: string, input: SnapshotInput): Promise<void>; // call 5
   }
   ```
   `createSdkRemote(opts?: { init?: RequestInit; signal?: AbortSignal }): RemoteDocuments` maps
@@ -330,7 +339,8 @@ case that expected a layout prompt.
     changes"` (stale and `changes`), `"an id owned elsewhere is id_taken"`, `"a purged id is gone
     and listed in purged"`, `"a blocked build is refused"`, `"over maxDocuments is
     limit_documents"`, `"snapshot: conflict keeps the replaced version"`, `"keepSnapshot keeps the given content as a
-    conflict snapshot"` (moves out of fake-only once the server change is on the stack), `"offline throws
+    conflict snapshot and leaves the version alone"`, `"keepSnapshot on a stale base is
+    stale_base"` (both move out of fake-only once the server change is on the stack), `"offline throws
     RemoteUnavailable"`.
   - In `remote-fake.test.ts`, with the SDK call stubbed to return a malformed body: `"a reported
     response error carries no document body or name"` (the spec's hard rule; assert on the memory
@@ -542,10 +552,10 @@ case that expected a layout prompt.
   - `keep-mine` (hold `conflict`): their `removeWidget`s that overlap mine are re-added (as the
     local keep-mine does), `applyForced(server, restores + mine)`, saved on the server version
     with `snapshot: "conflict"`, written locally, record synced, hold cleared.
-  - `use-other`: one save on the server version that changes nothing (`changes: []`, the server's
-    own content) and carries `keepSnapshot` = the local name, body, and `schemaVersion`, so the
-    server keeps the local version as a `conflict` snapshot; write the server content locally;
-    hold cleared. **Needs the SDK prerelease from call 5:** move the pin to it (and run lint,
+  - `use-other`: `remote.keepSnapshot(id, { baseVersion: server version, ... the local name,
+    body, schemaVersion })`, then write the server content locally (record synced at the server
+    version); hold cleared. A `stale_base` answer means the server moved after the conflict was
+    shown: merge against the new version as any stale answer, then (still conflicting) ask again. **Needs the SDK prerelease from call 5:** move the pin to it (and run lint,
     check, test, build) as this task's first step. If that prerelease isn't out when the other
     tasks are done, build this choice last.
   - `save-copy`: create the local content as a new dashboard (new id, `copiedFrom` = this id,
