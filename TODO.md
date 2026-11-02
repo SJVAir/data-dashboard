@@ -90,11 +90,11 @@ via #21). Order (decided 2026-10-29): layout spec 2b → `layout` → `main` →
 from `main` → specs 3 and 4, which are next. The sync design
 (`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`), the spec 2 plan
 (`docs/superpowers/plans/2026-11-02-sync-2-dashboard.md`), and the calls made while building
-(`ARCHITECTURE.md` → "Saving & sharing documents") are the places to start. Locally, the dev DB already has the `documents`
-tables; the stack serves the sjvair.com main checkout, which needs `develop` pulled to serve the
-documents API. The sdk-js documents integration test runs with `TEST_DOCUMENTS=1` plus
-`TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and `TEST_DOCUMENTS_PASSWORD` (the
-`WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
+(`ARCHITECTURE.md` → "Saving & sharing documents") are the places to start. Locally, the dev
+DB already has the `documents` tables; the stack serves the sjvair.com main checkout, which
+needs `develop` pulled to serve the documents API. The sdk-js documents integration test runs
+with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and
+`TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
 
 **Hand check for spec 2 on the real stack** (needs the stack running on sjvair.com `develop`
 and `npm run dev`; not yet done by the user):
@@ -153,8 +153,8 @@ sign-in side, merged the same day as data-dashboard
   the local stack, plus a scripted headless check of the sign-in round trip, cross-tab sign-out,
   the site's Logout form, and the focus re-check, with 0 CSP violations.
 - **Held for sync** (in `DEFERRED.md` → "Accounts"): the space switch and the rest of the
-  account-space behavior wait for the server-backed documents track. The sign-up return trip
-  waits for the email-only accounts track (before go-live at the latest).
+  account-space behavior (built in sync spec 2; see Done). The sign-up return trip waits for
+  the email-only accounts track (before go-live at the latest).
 - **Local-dev notes:** E2E builds clear `VITE_PROD_URL` (a local `.env` setting had pointed the
   test build at www.sjvair.com). After pulling sjvair.com changes that touch its sass, rebuild
   the local CSS (`invoke styles` in the web container); compiled CSS isn't in git.

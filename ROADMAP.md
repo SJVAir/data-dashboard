@@ -90,8 +90,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/workspace/`
    - browser support floor (Chrome/Edge 111+, Safari 16.4+, Firefox 128+) with an
-     unsupported-browser notice; a CI bundle budget check (about 200 KB initial; warns, doesn't fail) and per-widget code
-     splitting
+     unsupported-browser notice; a CI bundle budget check (about 200 KB initial; warns,
+     doesn't fail) and per-widget code splitting
    - a shared `readableColor` helper, outlined swatches, labels always shown with level colors
    - MIT license, a CI license check (permissive only), third-party notices
    - scrubbed front-end error reporting to Sentry, an in-app privacy note, and a preview

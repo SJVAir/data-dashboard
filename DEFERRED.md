@@ -341,6 +341,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   clients may rely on. **Revisit before** the sjvair.com `develop` to `main` deploy that
   carries the documents API (part of "everything ready").
 
+- **Storage rough edges from sync spec 2.** _Deferred 2026-11-02 (Sync spec 2, Tasks 2 and
+  4)._ The web adapter's `spaces.move` and `spaces.list` may leave a transaction's `done`
+  rejection unhandled (as `commit` can; `clearAll` uses `allSettled`); `spaces.move` awaits
+  each id in turn instead of batching; and the remote's validation error report could carry
+  the failing zod issue paths (never values) to make server drift easier to read. **Revisit
+  if** unhandled-rejection reports show up from storage, moves of many dashboards are slow, or
+  a validation report is hard to act on.
+
 ## Documents & saving
 
 - **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
@@ -477,13 +485,15 @@ string`) now get the union return type. The mobile app passes a string token, so
   answer is lost the hold stays and choosing again saves mine a second time on top of the first
   (an extra `conflict` snapshot; nothing lost). **Revisit if** duplicate snapshots show up in
   "Restore an earlier version".
-- **Other tabs aren't told when a purged dashboard is discarded.** _Deferred 2026-11-02 (Sync
-  spec 2, Task 8)._ "Discard" removes it here and posts `sync` only, as the quiet purge does;
-  another tab's list drops it on its next refresh, and a tab showing it keeps the open session.
-  **Revisit with** Task 9 (the dashboards list and open pages reacting to sync records).
+- **Another tab showing a purged dashboard that was discarded keeps its session.** _Deferred
+  2026-11-02 (Sync spec 2, Task 8; the list part was fixed in the final review: every tab's
+  list now refreshes on `sync`)._ "Discard" removes it here and posts `sync`, as the quiet
+  purge does; a tab that has it open keeps showing it until it navigates, and its later edits
+  store a new local copy. **Revisit if** a discarded dashboard is reported coming back.
 - **One `BroadcastChannel` is left open per remount.** _Deferred 2026-11-02 (sync spec 2,
   Task 14)._ `TabChannel` has no `close()`, so each remount (an account switch) leaves the old
-  app's channel open until the page goes away. They hold no data and a handful is harmless.
+  app's channel open until the page goes away. They hold no document data of their own,
+  though old subscribers may stay referenced; a handful is harmless.
   **Revisit if** tabs that switch accounts many times misbehave, or when the channel gains
   other resources to release.
 - **The E2E documents mock's wire shapes aren't checked against the SDK's response schemas.**
@@ -491,6 +501,59 @@ string`) now get the union return type. The mobile app passes a string token, so
   hand-written JSON, and the SDK doesn't export its response schemas, so a drift between the
   two would show only against the real stack (`npm run test:sync-stack`). **Revisit if** the SDK
   exports its schemas, or a mock drift bug recurs.
+- **Rare two-write gaps when a dashboard moves to a new id.** _Deferred 2026-11-02 (Sync spec
+  2, Tasks 6 and 8; triaged in the final review)._ (1) "Keep as a new dashboard" removes the
+  old id right after posting `moved`; a tab flushing its last edits to the old id in that
+  instant loses them (a few seconds of edits, in a rare race). (2) `finishMoveLocked` commits
+  the carried-over edits and then records `through` in a second write; a storage failure
+  between them carries the same edits over again (a duplicate change, such as a widget added
+  twice). (3) `moveLocked` stores the copy and then the `moved` hold in a second write; a crash
+  between them makes a second copy on the next try. Each needs a storage failure or a tab
+  closing within moments; closing them needs the document, its log, and its sync record in
+  one transaction. **Revisit if** lost edits, duplicate widgets, or duplicate copies are
+  reported after an id collision or "Keep as a new dashboard".
+- **Holds on dashboards that aren't open are never asked about.** _Deferred 2026-11-02 (Sync
+  spec 2; found in the final review)._ The conflict, deleted-elsewhere, and purged dialogs
+  open only for the dashboard on screen, so a hold on a dashboard in Recently deleted or one
+  never opened in this tab is never prompted, and it counts as unsynced when signing out
+  ("Finish saving" can't settle it). Related gaps in the dialogs: a server change while a
+  choice is saved (a stale base) merges or holds again with no sign the dialog's choice
+  didn't apply; "Keep as a new dashboard" is navigated twice (the dialog and the page's
+  `moved` handler, harmless); and settling a purge clears other tabs' journal records for the
+  old id. **Revisit with** spec 3's dashboards-list work, or if people report sign-out asking
+  about dashboards they can't find.
+- **Sync worker edge cases.** _Deferred 2026-11-02 (Sync spec 2, Tasks 6 and 7)._ A local
+  copy in a newer format (saved by a newer build in this browser) can show as synced in the
+  Saved popover, since its log can't be read here; a tab that becomes visible polls at once
+  only if it gets the poll lock (otherwise the poller's next minute); the worker can run two
+  sweeps at start when the poll lock is granted during the first poll; `#refresh` rescans
+  every stored document after each commit (fine at the 50-dashboard limit); and an oversized
+  queue's single `replaceDocument` carries both bodies, so a large dashboard can pass the
+  server's 2 MB limit and be held as too large. **Revisit if** the dashboard limit grows, a
+  newer build is deployed alongside an older one, or a too-large hold is reported for a
+  dashboard under 1 MB.
+- **Test-suite cleanups from sync spec 2.** _Deferred 2026-11-02 (Sync spec 2, Tasks 1–13)._
+  Test-only nits, none a gap in what's checked: an `overlap.test.ts` comment says both
+  `setLayout`s move `a` (the first case shares only `b`); the storage contract's `record()`
+  helper fixes `serverVersion` at 4; the web locks' fallback (no `navigator.locks`) is covered
+  only through the memory platform's contract run of the same queue; the fake server's request
+  label for a list is `list <cursor>`, it models no daily snapshots or snapshot cap, and
+  `SYNC_STACK=1` lifts the network guard for the whole run; a `merge.test.ts` upgrade test
+  mutates the global migrations (pass a chain to `fromRemote`); a `refuseNext` test in
+  resolve hits `changes`, not `keepSnapshot`; `watchSpace` uses `new Date()`, not an injectable
+  clock; the notice-bars test sleeps a fixed 100 ms; the E2E move test pins exact overlapping
+  rects; the E2E sign-out test's request snapshot could race a late shutdown request; and the
+  E2E helpers' `fromWireChanges` uses an `as never` escape, shadows `answer`, and `newDevice`
+  copies only some context options. **Revisit when** a test in that area is next touched or
+  turns flaky.
+- **Code tidy-ups from sync spec 2.** _Deferred 2026-11-02 (Sync spec 2, Tasks 3–11)._
+  Cosmetic only: `createQueueLocks` lives in `web/locks.ts` though the memory platform uses it
+  (move to `platform/locks.ts`); a nested `if` in `overlap.ts` could be one condition; the
+  upload's `confirmed` flag comment says "lost answer only" but it's set after any merge;
+  `hold` (pull.ts) and `setHold` (upload.ts) are duplicates; `worker.svelte.ts` (about 420
+  lines) and `app.svelte.ts` (about 390) could be split; `#onMessage` checks `SYNC_TAB`
+  redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
+  code is next changed.
 
 ## Map & selection
 
@@ -845,16 +908,24 @@ string`) now get the union return type. The mobile app passes a string token, so
 ## Accounts
 
 - **Gaps in "Add the dashboards made on this browser to your account?"** _Deferred 2026-11-02
-  (sync spec 2, Task 10)._ (1) Other open tabs in the account space don't refresh their
-  dashboards list after the move (the index listens only to `committed` messages, and posting
-  fake commits would schedule uploads); they catch up on their next commit or reload, and
-  their own copy of the question finds it already answered. (2) Journal records the browser
-  refused to move (quota) stay in the anonymous space; the move reports how many
-  (`move-to-account`) but doesn't retry them. (3) Anonymous dashboards whose ids the account
-  space already holds aren't offered (the move would replace them), and a space with only
-  Recently deleted dashboards isn't asked (there's nothing to count in the question).
-  **Revisit when** people report a stale list after the move, the error report shows
-  stranded journal records, or the account-space ids start to collide.
+  (sync spec 2, Task 10; other tabs' stale lists were fixed in the final review)._ (1) Journal
+  records the browser refused to move (quota) stay in the anonymous space; the move reports
+  how many (`move-to-account`) but doesn't retry them. (2) Anonymous dashboards whose ids the
+  account space already holds aren't offered (the move would replace them), and a space with
+  only Recently deleted dashboards isn't asked (there's nothing to count in the question).
+  (3) The "Couldn't add the dashboards" toast also shows when the move worked but a step after
+  the answer was stored failed (the upload, say); two tabs answering yes at once both move
+  (by id, so harmlessly); and a failed move of the "You already have a copy" fingerprints
+  leaves them in the anonymous space. **Revisit when** the error report shows stranded
+  journal records or failed fingerprint moves, the toast is reported as wrong, or the
+  account-space ids start to collide.
+- **Sign-out and space-switch rough edges.** _Deferred 2026-11-02 (sync spec 2, Tasks 9 and
+  11)._ Identity messages from other tabs can be missed during a remount (the next re-check
+  heals it); when "Sign out" itself fails the dialog closes and only a toast explains (not
+  covered by a test); an Escape blocked while the dialog is busy drops its request to return
+  focus to Sign in; and the sign-out lock is exclusive, so a second tab signing out at the
+  same moment waits its turn. **Revisit if** people report a tab stuck in the wrong account,
+  a confusing failed sign-out, or lost focus after the dialog.
 - **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
   (Foundations spec 5b)._ A new account still goes sign-up, the "enter your code" page, then
   the profile page. During the preview `/workspace/` is behind `beta_tools`, so only people who
@@ -1044,6 +1115,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   carry focus; the focus ring after touch drops isn't checked by hand; `FALLBACK_MIN_SIZE` is a
   shared object that isn't frozen; and `stepDown`'s doc comment wording. **Revisit in** the
   design pass, or in spec 2b where it touches the same code.
+
+- **The "Only on this device" notice bar's count and link.** _Deferred 2026-11-02 (sync spec 2,
+  Task 12)._ The bar counts refused dashboards in Recently deleted too, and its link to the
+  dashboards list shows on the list page itself. **Revisit with** the design pass, or if the
+  count is reported as wrong.
 
 ## Legacy Monitors-tab follow-ups
 

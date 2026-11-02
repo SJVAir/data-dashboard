@@ -573,9 +573,10 @@ you:**
     new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
   - **Sign-in and sign-out apply to every open tab at once**, through the cross-tab
     channel (built in 5b: the tab channel carries an identity message).
-  - **Saves are bound to an account** (decided 2026-10-13; built in sync spec 2). In Release 1, sign-in and
-    sign-out happen on sjvair.com's pages, so the cookie can change (another person
-    signs in, or a session expires) while a tab still holds one person's queued changes.
+  - **Saves are bound to an account** (decided 2026-10-13; built in sync spec 2). In
+    Release 1, sign-in and sign-out happen on sjvair.com's pages, so the cookie can change
+    (another person signs in, or a session expires) while a tab still holds one person's
+    queued changes.
     - Each account space records its **account id** (the server's stable user id).
     - **Every save names the account it is for, and the server refuses a mismatch**: no
       write happens, and the response says who is signed in. This is the real guard, since
@@ -2267,8 +2268,9 @@ Decided 2026-09-28.
 - **Performance budget, checked in CI as a soft limit:** about **200 KB compressed** of
   initial JS for the app shell. Going over prints a warning (a GitHub Actions annotation in CI)
   and does not fail the build (decided with the user, 2026-11-02: "I'd like it to load quick,
-  but it won't be the end of the world if it's a bit over"). **Each widget type loads its own code only when used** (the map library only
-  with a Map widget, uPlot only with charts, and so on). The budget assumes compressed
+  but it won't be the end of the world if it's a bit over"). **Each widget type loads its
+  own code only when used** (the map library only with a Map widget, uPlot only with charts,
+  and so on). The budget assumes compressed
   delivery, which S3 only gives if files are uploaded pre-compressed (see "Template
   embedding").
 - **A low-end device check before go-live:** Lighthouse with throttled CPU and network,
@@ -2533,7 +2535,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     `configureSdk({ dev, prodUrl }, pageOrigin)` takes only those two fields, under names
     without the `VITE_` prefix, and the build stops inlining `import.meta.env` objects;
     `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and checks the rest
-    of the hosting contract). `npm run check:budget` checks the initial bundle budget and warns when it is over.
+    of the hosting contract). `npm run check:budget` checks the initial bundle budget and
+    warns when it is over.
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.
