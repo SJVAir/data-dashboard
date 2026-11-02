@@ -1,4 +1,5 @@
 import { sameIdentity, type Identity } from "$lib/account/identity";
+import { createQueueLocks } from "./web/locks";
 import type { SyncRecord } from "$lib/sync/types";
 import {
 	JOURNAL_RECORD_MAX,
@@ -365,6 +366,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 		identity: options.identity ?? createMemoryIdentity(),
 		activity: createMemoryActivity(),
 		online: createMemoryOnline(),
+		locks: createQueueLocks(),
 		clipboard,
 		files,
 		persistence,

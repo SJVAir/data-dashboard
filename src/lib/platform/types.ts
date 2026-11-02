@@ -191,6 +191,13 @@ export interface ErrorReporter {
 	report(error: unknown, context?: ReportContext): void;
 }
 
+export interface LockAccess {
+	/** Runs `fn` holding `name` (one holder per browser profile), waiting its turn. */
+	run<T>(name: string, fn: () => Promise<T>): Promise<T>;
+	/** Waits for `name`, calls `onGranted`, and holds it until `signal` aborts. */
+	hold(name: string, signal: AbortSignal, onGranted: () => void): Promise<void>;
+}
+
 export type Platform = {
 	documents: DocumentStorage;
 	preferences: PreferenceStorage;
@@ -201,6 +208,7 @@ export type Platform = {
 	identity: IdentitySource;
 	activity: ActivitySource;
 	online: OnlineSource;
+	locks: LockAccess;
 	clipboard: ClipboardAccess;
 	files: FileAccess;
 	persistence: PersistenceAccess;

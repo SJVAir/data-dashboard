@@ -14,6 +14,7 @@ import {
 } from "../types";
 import { getUserDetails } from "@sjvair/sdk/account/details";
 import { createWebActivity } from "./activity";
+import { createWebLocks } from "./locks";
 import { createWebOnline } from "./online";
 import { createWebClipboard } from "./clipboard";
 import { createWebErrors, listenForCspViolations } from "./errors";
@@ -325,6 +326,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		identity,
 		activity,
 		online,
+		locks: createWebLocks(),
 		clipboard: createWebClipboard(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),
