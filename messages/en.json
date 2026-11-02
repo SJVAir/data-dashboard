@@ -311,6 +311,7 @@
 	],
 	"storage_status_label": "Storage status",
 	"storage_note": "Dashboards are stored in this browser.",
+	"storage_note_account": "Your dashboards are saved to your account. Changes not uploaded yet stay on this device until they are.",
 	"storage_note_unprotected": "Your browser may clear them to free up space (Safari does after 7 days without a visit).",
 	"protect_button": "Protect my dashboards",
 	"reminder_text": "Your dashboards are only stored in this browser. Download a backup so you don't lose them.",

@@ -151,3 +151,16 @@ test("colour is never the only signal: a text label in every state", async () =>
 	session.status = "error";
 	await expect.poll(label).toBe(m.save_failed());
 });
+
+test("in an account the note says the account keeps the dashboards, without the browser's notes", async () => {
+	const { app, platform, worker } = await accountApp();
+	workers.push(worker);
+	platform.persistence.set("unprotected", true);
+	await app.protection.refresh();
+	await render(StorageStatus, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByText(m.storage_note_account())).toBeVisible();
+	expect(page.getByText(m.storage_note()).query()).toBeNull();
+	expect(page.getByText(m.storage_note_unprotected()).query()).toBeNull();
+	expect(page.getByRole("button", { name: m.protect_button() }).query()).toBeNull();
+	expect(page.getByRole("button", { name: m.backup_download() }).query()).toBeNull();
+});

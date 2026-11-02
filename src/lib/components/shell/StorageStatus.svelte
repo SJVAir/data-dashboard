@@ -24,6 +24,8 @@
 	const protection = app.protection;
 	const unprotected = $derived(protection.state !== "protected");
 	const hasDashboards = $derived(app.index.items.length > 0);
+	/** Signed in: the account keeps the dashboards, so the browser's storage notes don't apply. */
+	const local = app.space === "anonymous";
 </script>
 
 <div class="flex flex-col gap-2">
@@ -38,16 +40,16 @@
 	{#if sync?.confirmedAt}
 		<p>{m.sync_confirmed_at({ time: formatDateTime(new Date(sync.confirmedAt)) })}</p>
 	{/if}
-	<p>{m.storage_note()}</p>
-	{#if unprotected && protection.ready}
+	<p>{local ? m.storage_note() : m.storage_note_account()}</p>
+	{#if local && unprotected && protection.ready}
 		<p class="text-muted-foreground">{m.storage_note_unprotected()}</p>
 	{/if}
-	{#if (unprotected && hasDashboards) || errorKind}
+	{#if (local && unprotected && hasDashboards) || errorKind}
 		<Button variant="link" class="h-auto justify-start p-0" onclick={() => downloadBackupFile(app)}>
 			{m.backup_download()}
 		</Button>
 	{/if}
-	{#if protection.canOffer}
+	{#if local && protection.canOffer}
 		<Button variant="outline" size="sm" onclick={() => protection.requestByClick()}>
 			{m.protect_button()}
 		</Button>
