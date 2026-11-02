@@ -77,6 +77,29 @@ export function createTabChannel(): TabChannel {
 }
 
 /**
+ * Also delivers this tab's own posts to this tab's subscribers (a `BroadcastChannel` never
+ * does), so the index and the sync worker see this tab's saves. Sessions ignore their own tab's
+ * messages.
+ */
+export function withLocalEcho(channel: TabChannel): TabChannel {
+	const local = new Set<(msg: TabMessage) => void>();
+	return {
+		post(msg) {
+			channel.post(msg);
+			for (const fn of local) queueMicrotask(() => fn(structuredClone(msg)));
+		},
+		subscribe(fn) {
+			local.add(fn);
+			const unsubscribe = channel.subscribe(fn);
+			return () => {
+				local.delete(fn);
+				unsubscribe();
+			};
+		}
+	};
+}
+
+/**
  * In-memory channels for tests. Like `BroadcastChannel`, a message reaches every other
  * channel from the same hub (not the sender) asynchronously.
  */

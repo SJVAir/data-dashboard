@@ -11,7 +11,7 @@ import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { DocumentSession } from "./document-session.svelte";
-import { createTabChannel, type TabChannel, type TabMessage } from "./tab-channel";
+import { createTabChannel, withLocalEcho, type TabChannel } from "./tab-channel";
 
 /** Preference key: the id of the dashboard opened last in this space. */
 export const LAST_OPENED_KEY = "lastOpened";
@@ -63,30 +63,6 @@ const toastNotify: Notify = {
 	info: (message) => toast(message),
 	error: (message) => toast.error(message)
 };
-
-/**
- * Also delivers this tab's own posts to this tab's subscribers (a `BroadcastChannel` never
- * does), so the index sees this tab's saves. Sessions ignore their own tab's messages.
- */
-function withLocalEcho(channel: TabChannel): TabChannel {
-	// Subscribers, not reactive state.
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity
-	const local = new Set<(msg: TabMessage) => void>();
-	return {
-		post(msg) {
-			channel.post(msg);
-			for (const fn of local) queueMicrotask(() => fn(structuredClone(msg)));
-		},
-		subscribe(fn) {
-			local.add(fn);
-			const unsubscribe = channel.subscribe(fn);
-			return () => {
-				local.delete(fn);
-				unsubscribe();
-			};
-		}
-	};
-}
 
 class App implements AppContext {
 	current = $state<CurrentDashboard>({ session: null, isStarter: false });
