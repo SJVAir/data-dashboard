@@ -38,6 +38,8 @@ npm run test:e2e:podman # All three engines in the official Playwright image (po
 npm run test:dev-stack # Local-only: dev server + sjvair.com podman stack smoke (run `npm run dev` first)
 npm run test:embedding # Local-only embedding suite against the stack (needs WORKSPACE_E2E_IDENTIFIER and
                         # WORKSPACE_E2E_PASSWORD; optional WORKSPACE_E2E_STATIC = the static folder to expect)
+npm run test:sync-stack # Local-only RemoteDocuments contract against the stack (same account env vars;
+                        # optional WORKSPACE_E2E_ORIGIN, default http://localhost:8000)
 npm run check:build  # Check dist/workspace/ against the hosting contract (after a build)
 npm run check:budget # Check the initial bundle budget (after a build)
 npm run lint         # Prettier check + ESLint
