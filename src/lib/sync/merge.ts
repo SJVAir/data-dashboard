@@ -91,7 +91,7 @@ export function mergeRemote(input: {
 	// Never replay over a gap in the server's log.
 	if (theirs === null) return { kind: "conflict", reason: "log-gap" };
 	if (dropped > 0) return { kind: "conflict", reason: "overlap" };
-	if (theirs.some(isDelete) && mine.some((c) => !isDelete(c))) return { kind: "deleted-elsewhere" };
+	if (server.deletedAt && mine.some((c) => !isDelete(c))) return { kind: "deleted-elsewhere" };
 	const result = rebase(server, theirs, mine);
 	if (result.kind === "conflict") return { kind: "conflict", reason: "overlap" };
 	return { kind: "rebased", doc: result.doc };

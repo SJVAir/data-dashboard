@@ -136,7 +136,22 @@ describe("mergeRemote", () => {
 			mine: [deleted("2026-10-23T00:00:00.000Z")]
 		});
 		expect(out.kind).toBe("rebased");
-		if (out.kind === "rebased") expect(out.doc.deletedAt).toBeDefined();
+		if (out.kind === "rebased") expect(out.doc.deletedAt).toBe("2026-10-23T00:00:00.000Z");
+	});
+
+	it("deleted and restored elsewhere, my edit merges", () => {
+		const theirs: Change[] = [
+			deleted("2026-10-22T00:00:00.000Z"),
+			{
+				op: "setField",
+				target: { path: "deletedAt" },
+				from: "2026-10-22T00:00:00.000Z",
+				to: null
+			}
+		];
+		const server = applyAll(makeDoc(), theirs);
+		const out = mergeRemote({ server, theirs, dropped: 0, mine: [title("a", "M")] });
+		expect(out.kind).toBe("rebased");
 	});
 
 	it("a restore here against a delete elsewhere asks", () => {
