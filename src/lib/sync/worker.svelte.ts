@@ -219,7 +219,7 @@ export class SyncWorker {
 		}
 		const run = this.#uploadOnce(docId).finally(() => {
 			this.#running.delete(docId);
-			if (this.#again.delete(docId)) this.#schedule(docId, this.#throttled(docId));
+			if (this.#again.delete(docId)) this.#schedule(docId, this.#commitDelay(docId));
 		});
 		this.#running.set(docId, run);
 		return run;

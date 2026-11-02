@@ -135,6 +135,31 @@ describe("SyncWorker", () => {
 		expect((await setup.fake.get("d1")).body).toEqual((await stored(setup.platform)).body);
 	});
 
+	it("in a hidden tab, a commit made during an upload uploads as soon as it ends", async () => {
+		const { setup, t } = await started();
+		t.activity.setVisible(false);
+		await settle();
+		let release = () => {};
+		const save = setup.fake.save;
+		setup.fake.save = async (id, input) => {
+			await new Promise<void>((resolve) => (release = resolve));
+			setup.fake.save = save;
+			return save(id, input);
+		};
+		await commitIn(setup, t, "One");
+		await settle();
+		// Asked for while the first is running: it goes when that ends, not after the throttle.
+		await commitIn(setup, t, "Two");
+		await settle();
+		release();
+		await settle();
+		expect(saves(setup)).toHaveLength(2);
+		expect(titles({ ...makeDoc(), body: (await setup.fake.get("d1")).body as never })).toEqual([
+			"Two",
+			null
+		]);
+	});
+
 	it("coming online retries", async () => {
 		const { setup, t } = await started();
 		setup.fake.offline = true;
