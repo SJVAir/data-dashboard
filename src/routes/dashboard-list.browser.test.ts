@@ -169,6 +169,19 @@ test("the list marks dashboards only on this device", async () => {
 		expect(
 			page.getByTestId(`dashboard-row-${synced}`).getByText("Only on this device").query()
 		).toBeNull();
+		// The link is named by the dashboard alone; the status describes it.
+		const link = heldRow.getByRole("link").element();
+		expect(link.textContent).not.toContain("Only on this device");
+		const status = document.getElementById(link.getAttribute("aria-describedby") ?? "");
+		expect(status?.textContent).toContain("Only on this device");
+		expect(status?.textContent).toContain(m.sync_refused_limit_documents());
+		await expect.element(heldRow.getByRole("link")).toHaveAccessibleName(/^Untitled dashboard/);
+		await expect
+			.element(heldRow.getByRole("link"))
+			.toHaveAccessibleDescription(`Only on this device ${m.sync_refused_limit_documents()}`);
+		expect(
+			page.getByTestId(`dashboard-row-${synced}`).getByRole("link").element()
+		).not.toHaveAttribute("aria-describedby");
 	} finally {
 		worker.stop();
 	}

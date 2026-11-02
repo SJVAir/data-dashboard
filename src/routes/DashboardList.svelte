@@ -88,30 +88,37 @@
 				{#each app.index.items as item (item.id)}
 					{@const name = app.index.names.get(item.id) ?? ""}
 					{@const sync = app.sync?.states[item.id]}
+					<!-- A refused save leaves it here alone, whatever older copy the account has. -->
+					{@const onlyHere = !!sync && (!sync.onServer || sync.hold?.kind === "refused")}
+					{@const statusId = `dashboard-status-${item.id}`}
 					<li
 						class="flex items-center gap-2 py-1 pr-1 pl-3"
 						data-testid="dashboard-row-{item.id}"
 						{@attach menuScope(rowActions(item.id))}
 					>
-						<a
-							href={p("/dashboards/:id", { params: { id: item.id } })}
-							class="focus-visible:ring-ring/50 flex min-w-0 flex-1 flex-col rounded-md py-1 outline-none focus-visible:ring-3"
-						>
-							<span class="truncate font-medium">{name}</span>
-							<span class="text-muted-foreground text-sm">
-								{m.dashboard_updated({ date: formatDate(new Date(item.updatedAt)) })}
-							</span>
-							<!-- A refused save leaves it here alone, whatever older copy the account has. -->
-							{#if sync && (!sync.onServer || sync.hold?.kind === "refused")}
-								<span class="text-muted-foreground flex items-center gap-1 text-sm">
-									<HardDrive aria-hidden="true" class="size-3.5" />
-									{m.only_on_device()}
+						<div class="flex min-w-0 flex-1 flex-col">
+							<a
+								href={p("/dashboards/:id", { params: { id: item.id } })}
+								aria-describedby={onlyHere ? statusId : undefined}
+								class="focus-visible:ring-ring/50 flex min-w-0 flex-col rounded-md py-1 outline-none focus-visible:ring-3"
+							>
+								<span class="truncate font-medium">{name}</span>
+								<span class="text-muted-foreground text-sm">
+									{m.dashboard_updated({ date: formatDate(new Date(item.updatedAt)) })}
 								</span>
-								{#if sync.hold?.kind === "refused"}
-									<span class="text-destructive text-sm">{refusedMessage(sync.hold.code)}</span>
-								{/if}
+							</a>
+							{#if onlyHere}
+								<div id={statusId} class="flex flex-col pb-1">
+									<span class="text-muted-foreground flex items-center gap-1 text-sm">
+										<HardDrive aria-hidden="true" class="size-3.5" />
+										{m.only_on_device()}
+									</span>
+									{#if sync?.hold?.kind === "refused"}
+										<span class="text-destructive text-sm">{refusedMessage(sync.hold.code)}</span>
+									{/if}
+								</div>
 							{/if}
-						</a>
+						</div>
 						<Button
 							variant="ghost"
 							size="icon-sm"
