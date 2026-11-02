@@ -10,7 +10,7 @@ import { upgradeChanges } from "$lib/documents/migrate-changes";
 import { CURRENT_SCHEMA_VERSION, type Dashboard } from "$lib/documents/schema";
 import type { LogEntry } from "$lib/platform/types";
 import type { SyncContext } from "./context";
-import { sameContent } from "./merge";
+import { canonicalJson, sameContent } from "./merge";
 import { SYNC_TAB, type SyncRecord } from "./types";
 
 /** The most a save's `changes` may hold, as characters of JSON (the server allows 2 MB). */
@@ -81,7 +81,7 @@ function reproduces(from: Dashboard, changes: Change[], to: Dashboard): boolean 
 /** The changes that turn `from` into `to` when their history is unknown. */
 function replacement(from: Dashboard, to: Dashboard): Change[] {
 	const changes: Change[] = [];
-	if (from.name !== to.name || JSON.stringify(from.body) !== JSON.stringify(to.body)) {
+	if (from.name !== to.name || canonicalJson(from.body) !== canonicalJson(to.body)) {
 		changes.push({
 			op: "replaceDocument",
 			target: {},

@@ -7,9 +7,9 @@ import { CURRENT_SCHEMA_VERSION, type Dashboard, type DashboardBody } from "$lib
 import { report } from "$lib/safety/report";
 import { docLock, type SyncContext } from "./context";
 import { MAX_SAVE_CHANGES_CHARS, postSync, readLocal, type LocalState } from "./local";
-import { saveFields } from "./merge";
+import { canonicalJson, saveFields } from "./merge";
 import { moveLocked } from "./move";
-import { canonicalJson, pullIntoLocked } from "./pull";
+import { pullIntoLocked } from "./pull";
 import { RemoteRefusal, RemoteUnavailable, type RemoteDocument, type SaveInput } from "./remote";
 import type { SyncHold, SyncRecord } from "./types";
 

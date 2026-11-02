@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { RETENTION_MS } from "$lib/safety/purge";
-import { saveFields } from "./merge";
-import { SYNC_CURSOR_KEY, canonicalJson, fetchMissing, pollList, pullInto } from "./pull";
+import { canonicalJson, saveFields } from "./merge";
+import { SYNC_CURSOR_KEY, fetchMissing, pollList, pullInto } from "./pull";
 import type { FakeRemote } from "./remote-fake";
 import { SYNC_TAB } from "./types";
 import { uploadDocument } from "./upload";

@@ -3,7 +3,7 @@ import { z } from "$lib/zod";
 import type { Change } from "$lib/changes/types";
 import { migrations } from "$lib/documents/load";
 import type { RefusalCode } from "./remote";
-import { RemoteUnavailable } from "./remote";
+import { RemoteRefusal, RemoteUnavailable } from "./remote";
 import { SYNC_TAB, type SyncHold } from "./types";
 import { MAX_SAVE_CHANGES_CHARS } from "./local";
 import { uploadDocument } from "./upload";
@@ -19,7 +19,8 @@ import {
 	stored,
 	title,
 	titles,
-	user
+	user,
+	widget
 } from "./test-support";
 
 vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
@@ -168,6 +169,45 @@ describe("uploadDocument", () => {
 		expect(server.version).toBe(2);
 		expect(titles({ ...makeDoc(), body: server.body as never })).toEqual(["Later", null]);
 		expect(await platform.sync.get(SPACE, "d2")).toMatchObject({
+			serverVersion: 2,
+			syncedThrough: 1,
+			hold: null
+		});
+	});
+
+	it("a lost create counts as saved when the server returns its keys in another order", async () => {
+		const { platform, fake, ctx } = await setupSync();
+		// Widget options keep the order their keys came in (the rest is rebuilt by the schema).
+		const options = { first: 1, second: 2 };
+		await storeDoc(platform, { ...makeDoc(), body: { widgets: [{ ...widget("a"), options }] } });
+		let lose = true;
+		ctx.remote = {
+			...fake,
+			async save(id, input) {
+				let answer;
+				try {
+					answer = await fake.save(id, input);
+				} catch (error) {
+					// The stale base's document as the server's JSON might hold it.
+					if (error instanceof RemoteRefusal && error.staleBase) {
+						const { document } = error.staleBase;
+						error.staleBase = {
+							...error.staleBase,
+							document: { ...document, body: reverseKeys(document.body) }
+						};
+					}
+					throw error;
+				}
+				if (!lose) return answer;
+				lose = false;
+				throw new RemoteUnavailable();
+			}
+		};
+		expect(await uploadDocument(ctx, "d1")).toBe("retry");
+		// An edit after the lost create: recognized as ours, the create isn't held as a conflict.
+		await edit(platform, [title("a", "Later")]);
+		expect(await uploadDocument(ctx, "d1")).toBe("saved");
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({
 			serverVersion: 2,
 			syncedThrough: 1,
 			hold: null
@@ -357,3 +397,14 @@ describe("uploadDocument", () => {
 		});
 	});
 });
+
+/** `value` with every object's keys in reverse order, as a server's JSON might hold them. */
+function reverseKeys(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(reverseKeys);
+	if (value === null || typeof value !== "object") return value;
+	return Object.fromEntries(
+		Object.entries(value)
+			.reverse()
+			.map(([k, v]) => [k, reverseKeys(v)])
+	);
+}

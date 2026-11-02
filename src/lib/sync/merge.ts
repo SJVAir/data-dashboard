@@ -65,13 +65,25 @@ export function theirChanges(changes: RemoteChange[] | null): {
 	return { changes: kept, dropped };
 }
 
-/** Whether two documents hold the same content (name, body, deletedAt, copiedFrom). */
+/** JSON with object keys sorted, so a server that reorders keys still compares equal. */
+export function canonicalJson(value: unknown): string {
+	return JSON.stringify(value, (_key, v: unknown) =>
+		v !== null && typeof v === "object" && !Array.isArray(v)
+			? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+			: v
+	);
+}
+
+/**
+ * Whether two documents hold the same content (name, body, deletedAt, copiedFrom), whatever
+ * order their keys are in (the server's JSON may reorder them).
+ */
 export function sameContent(a: Dashboard, b: Dashboard): boolean {
 	return (
 		a.name === b.name &&
 		(a.deletedAt ?? null) === (b.deletedAt ?? null) &&
 		(a.copiedFrom ?? null) === (b.copiedFrom ?? null) &&
-		JSON.stringify(a.body) === JSON.stringify(b.body)
+		canonicalJson(a.body) === canonicalJson(b.body)
 	);
 }
 

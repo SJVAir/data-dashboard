@@ -16,7 +16,14 @@ import {
 	writeLocal,
 	type LocalState
 } from "./local";
-import { fromRemote, mergeRemote, remoteRaw, sameContent, theirChanges } from "./merge";
+import {
+	canonicalJson,
+	fromRemote,
+	mergeRemote,
+	remoteRaw,
+	sameContent,
+	theirChanges
+} from "./merge";
 import { RemoteRefusal, type RemoteChange, type RemoteDocument, type RemoteMeta } from "./remote";
 import type { SyncHold, SyncRecord } from "./types";
 
@@ -64,15 +71,6 @@ export async function pullIntoLocked(
 		if (result !== "raced") return result;
 	}
 	return "unchanged";
-}
-
-/** JSON with object keys sorted, so a server that reorders keys still compares equal. */
-export function canonicalJson(value: unknown): string {
-	return JSON.stringify(value, (_key, v: unknown) =>
-		v !== null && typeof v === "object" && !Array.isArray(v)
-			? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
-			: v
-	);
 }
 
 /**

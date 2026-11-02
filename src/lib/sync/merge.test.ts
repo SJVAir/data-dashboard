@@ -240,6 +240,21 @@ describe("theirChanges", () => {
 });
 
 describe("sameContent", () => {
+	it("sameContent ignores the order of keys in the body", () => {
+		const a = makeDoc();
+		const [w] = a.body.widgets;
+		const reordered: WidgetInstance = {
+			data: w.data,
+			rect: { h: w.rect.h, w: w.rect.w, y: w.rect.y, x: w.rect.x },
+			title: w.title,
+			type: w.type,
+			id: w.id
+		};
+		const b = { ...a, body: { widgets: [reordered, ...a.body.widgets.slice(1)] } };
+		expect(JSON.stringify(a.body)).not.toBe(JSON.stringify(b.body));
+		expect(sameContent(a, b)).toBe(true);
+	});
+
 	it("sameContent ignores version and timestamps", () => {
 		const a = makeDoc();
 		const b = { ...makeDoc(), version: 9, updatedAt: "2027-01-01T00:00:00.000Z" };
