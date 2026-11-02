@@ -198,8 +198,20 @@ export interface ErrorReporter {
 export interface LockAccess {
 	/** Runs `fn` holding `name` (one holder per browser profile), waiting its turn. */
 	run<T>(name: string, fn: () => Promise<T>): Promise<T>;
-	/** Waits for `name`, calls `onGranted`, and holds it until `signal` aborts. */
-	hold(name: string, signal: AbortSignal, onGranted: () => void): Promise<void>;
+	/**
+	 * Runs `fn` holding `name` only if nobody holds or waits for it; resolves whether it ran.
+	 */
+	tryRun(name: string, fn: () => Promise<void>): Promise<boolean>;
+	/**
+	 * Waits for `name`, calls `onGranted`, and holds it until `signal` aborts. `shared` holders
+	 * hold it together (still excluding `run` and `tryRun`).
+	 */
+	hold(
+		name: string,
+		signal: AbortSignal,
+		onGranted: () => void,
+		opts?: { shared?: boolean }
+	): Promise<void>;
 	/** Whether anyone in this browser profile holds `name` or is waiting for it. */
 	held(name: string): Promise<boolean>;
 }

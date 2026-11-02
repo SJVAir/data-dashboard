@@ -177,6 +177,36 @@ describe("spaces", () => {
 		expect(await platform.preferences.get(A, HIDDEN_KEY)).toBeUndefined();
 	});
 
+	it("a tab opening a space while it's tidied waits until the removal is done", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		await hideSpace(platform, A, "signed-out", NOW);
+		const log: string[] = [];
+		const tab = new AbortController();
+		let holding: Promise<void> = Promise.resolve();
+		// The tab asks for the space's lock just after the tidy checked it.
+		const get = platform.preferences.get.bind(platform.preferences);
+		platform.preferences.get = (async (space: SpaceId, key: string) => {
+			if (space === A && key === HIDDEN_KEY && log.length === 0) {
+				log.push("checked");
+				holding = platform.locks.hold(spaceLock(A), tab.signal, () => log.push("held"), {
+					shared: true
+				});
+			}
+			return get(space, key);
+		}) as typeof platform.preferences.get;
+		const remove = platform.spaces.remove.bind(platform.spaces);
+		platform.spaces.remove = async (space) => {
+			await remove(space);
+			log.push("removed");
+		};
+		await tidySpaces(platform, "anonymous", NOW);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(log).toEqual(["checked", "removed", "held"]);
+		tab.abort();
+		await holding;
+	});
+
 	it("a space a live tab holds is never tidied", async () => {
 		const platform = createMemoryPlatform();
 		await store(platform, A, "d1");

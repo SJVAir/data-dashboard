@@ -157,6 +157,59 @@ export function runCapabilityContract(name: string, make: () => Promise<Platform
 			expect(await p.locks.held("q")).toBe(false);
 		});
 
+		test("shared holders hold together, and an exclusive one waits for them all", async () => {
+			const a = new AbortController();
+			const b = new AbortController();
+			const log: string[] = [];
+			const heldA = p.locks.hold("s", a.signal, () => log.push("a"), { shared: true });
+			const heldB = p.locks.hold("s", b.signal, () => log.push("b"), { shared: true });
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["a", "b"]);
+			const exclusive = p.locks.run("s", async () => void log.push("run"));
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["a", "b"]);
+			b.abort();
+			await heldB;
+			await exclusive;
+			expect(log).toEqual(["a", "b", "run"]);
+		});
+
+		test("tryRun runs only when nobody holds or waits for the name", async () => {
+			const a = new AbortController();
+			const heldA = p.locks.hold("t", a.signal, () => {}, { shared: true });
+			await new Promise((r) => setTimeout(r, 20));
+			let ran = false;
+			expect(await p.locks.tryRun("t", async () => void (ran = true))).toBe(false);
+			expect(ran).toBe(false);
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(await p.locks.tryRun("t", async () => void (ran = true))).toBe(true);
+			expect(ran).toBe(true);
+
+			// While it runs, a holder waits its turn.
+			const gate = Promise.withResolvers<void>();
+			const log: string[] = [];
+			const running = p.locks.tryRun("t", async () => {
+				log.push("tidy");
+				await gate.promise;
+				log.push("tidied");
+			});
+			await new Promise((r) => setTimeout(r, 20));
+			const b = new AbortController();
+			const heldB = p.locks.hold("t", b.signal, () => log.push("held"), { shared: true });
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["tidy"]);
+			gate.resolve();
+			expect(await running).toBe(true);
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["tidy", "tidied", "held"]);
+			b.abort();
+			await heldB;
+		});
+
 		test("an aborted waiter is never granted", async () => {
 			const a = new AbortController();
 			const b = new AbortController();

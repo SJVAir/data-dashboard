@@ -68,17 +68,20 @@ export async function tidySpaces(
 ): Promise<void> {
 	for (const space of await platform.spaces.list()) {
 		if (space === current || space === "anonymous") continue;
-		if (await platform.locks.held(spaceLock(space))) continue;
-		let hidden = await readHidden(platform, space);
-		if (!hidden) {
-			if (!identityKnown) continue;
-			await hideSpace(platform, space, "signed-out", now);
-			hidden = { at: now.toISOString(), reason: "signed-out" };
-		}
-		const old = now.getTime() - Date.parse(hidden.at) > RETENTION_MS;
-		if (old || (hidden.reason === "signed-out" && !(await hasUnsynced(platform, space)))) {
-			await platform.spaces.remove(space);
-		}
+		// Under the space's lock, taken only if no tab holds or waits for it: a tab opening the
+		// space meanwhile waits until this is done, so nothing it stores is removed.
+		await platform.locks.tryRun(spaceLock(space), async () => {
+			let hidden = await readHidden(platform, space);
+			if (!hidden) {
+				if (!identityKnown) return;
+				await hideSpace(platform, space, "signed-out", now);
+				hidden = { at: now.toISOString(), reason: "signed-out" };
+			}
+			const old = now.getTime() - Date.parse(hidden.at) > RETENTION_MS;
+			if (old || (hidden.reason === "signed-out" && !(await hasUnsynced(platform, space)))) {
+				await platform.spaces.remove(space);
+			}
+		});
 	}
 }
 

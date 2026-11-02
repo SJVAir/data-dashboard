@@ -15,7 +15,7 @@ import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { DocumentSession } from "./document-session.svelte";
-import { spaceLock, tidySpaces, unhideSpace } from "./spaces";
+import { spaceFor, spaceLock, tidySpaces, unhideSpace } from "./spaces";
 import { createTabChannel, withLocalEcho, type TabChannel } from "./tab-channel";
 
 /** Preference key: the id of the dashboard opened last in this space. */
@@ -193,11 +193,20 @@ class App implements AppContext {
 		this.#stops.push(stop);
 	}
 
-	/** Holds the space's lock while open, so another tab's `tidySpaces` leaves the space alone. */
-	holdSpace(): void {
+	/**
+	 * Holds the space's lock (shared with this space's other tabs) while open, so another tab's
+	 * `tidySpaces` leaves the space alone. Resolves once granted: a tidy removing the space
+	 * meanwhile finishes first, so nothing stored after this is removed with it.
+	 */
+	holdSpace(): Promise<void> {
+		let grant = () => {};
+		const granted = new Promise<void>((resolve) => (grant = resolve));
 		this.#holding = this.platform.locks
-			.hold(spaceLock(this.space), this.#lock.signal, () => {})
-			.catch((error) => report(error, { operation: "space-lock" }));
+			.hold(spaceLock(this.space), this.#lock.signal, () => grant(), { shared: true })
+			.catch((error) => report(error, { operation: "space-lock" }))
+			// Never granted (it failed): the app still opens.
+			.finally(() => grant());
+		return granted;
 	}
 
 	/** Loads and starts the account space's sync worker; a failed load leaves it local-only. */
@@ -334,10 +343,13 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	// A timestamp, not reactive state.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const now = options.now?.() ?? new Date();
+	// Before anything is stored in the space.
+	await app.holdSpace();
 	// Its person is back: the space is in use again.
-	app.holdSpace();
 	if (space !== "anonymous") await housekeeping(() => unhideSpace(platform, space));
-	const identityKnown = platform.identity.current().state !== "unknown";
+	// Only an identity known to be this space's may hide other spaces as signed out.
+	const identity = platform.identity.current();
+	const identityKnown = identity.state !== "unknown" && spaceFor(identity) === space;
 	await housekeeping(() => tidySpaces(platform, space, now, { identityKnown }));
 	await housekeeping(() => purgeExpired(platform, space, now));
 	await app.index.refresh();

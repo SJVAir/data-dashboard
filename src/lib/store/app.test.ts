@@ -8,7 +8,7 @@ import { LAST_OPENED_KEY, homeTarget, initApp } from "./app.svelte";
 import { createFakeRemote, type FakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, user } from "$lib/sync/test-support";
 import { loadSyncWorker } from "$lib/sync/load";
-import { spaceLock } from "./spaces";
+import { HIDDEN_KEY, spaceLock } from "./spaces";
 import { createMemoryTabHub } from "./tab-channel";
 
 // The real loader would load the SDK remote; this one gives a worker on the fake server.
@@ -196,6 +196,58 @@ describe("initApp", () => {
 		expect(await platform.locks.held(spaceLock("anonymous"))).toBe(true);
 		await app.close();
 		expect(await platform.locks.held(spaceLock("anonymous"))).toBe(false);
+	});
+
+	it("two tabs of one space both open (the space's lock is shared)", async () => {
+		const platform = createMemoryPlatform();
+		const hub = createMemoryTabHub();
+		const one = await initApp(platform, { channel: hub.channel(), tabId: "t1" });
+		const two = await initApp(platform, { channel: hub.channel(), tabId: "t2" });
+		expect(two.space).toBe("anonymous");
+		await one.close();
+		await two.close();
+	});
+
+	it("opening waits for a tidy removing its space before storing anything", async () => {
+		const platform = createMemoryPlatform();
+		const log: string[] = [];
+		let release = () => {};
+		// Another tab's tidy is removing this space right now.
+		const tidy = platform.locks.tryRun(spaceLock("anonymous"), async () => {
+			log.push("tidy");
+			await new Promise<void>((resolve) => (release = resolve));
+			log.push("tidied");
+		});
+		const opening = initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+		void opening.then(() => log.push("opened"));
+		await new Promise((r) => setTimeout(r, 20));
+		expect(log).toEqual(["tidy"]);
+		release();
+		expect(await tidy).toBe(true);
+		await (await opening).close();
+		expect(log).toEqual(["tidy", "tidied", "opened"]);
+	});
+
+	it("only an identity that matches the opened space hides other spaces", async () => {
+		// The identity changed to another account after the space was chosen.
+		const identity = createMemoryIdentity({ state: "signed-in", user: user("other") });
+		identity.currentSpace = async () => SPACE;
+		const platform = createMemoryPlatform({ identity });
+		const orphan = "account:c" as const;
+		await platform.documents.commit(orphan, {
+			docId: "d3",
+			baseVersion: null,
+			doc: { id: "d3" },
+			entries: []
+		});
+		const app = await initApp(platform, {
+			channel: createMemoryTabHub().channel(),
+			tabId: "t1",
+			loadSync: null
+		});
+		expect(app.space).toBe(SPACE);
+		expect(await platform.preferences.get(orphan, HIDDEN_KEY)).toBeUndefined();
+		await app.close();
 	});
 
 	it("close still flushes the others when one dashboard fails to open", async () => {
