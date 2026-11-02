@@ -5,6 +5,7 @@ import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { saveFields } from "$lib/sync/merge";
+import { answerMoveOffer } from "$lib/sync/move-to-account";
 import { createFakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, makeDoc, storeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
@@ -92,4 +93,33 @@ test("a dashboard fetched by its link gets its display name from the list", asyn
 	await render(DashboardPage, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await expect.poll(() => app.current.session?.doc.id).toBe("d9");
 	await expect.poll(() => document.title).toContain("Untitled dashboard 2");
+});
+
+test("a missing dashboard opens once it arrives (Add to my account)", async () => {
+	const identity = createMemoryIdentity({ state: "signed-in", user: user(ACCOUNT) });
+	const fake = createFakeRemote({ accountId: ACCOUNT });
+	const platform = createMemoryPlatform({ identity });
+	const doc = makeDoc("a1");
+	await platform.documents.commit("anonymous", {
+		docId: "a1",
+		baseVersion: null,
+		doc,
+		entries: []
+	});
+	const app = await initApp(platform, {
+		channel: createMemoryTabHub().channel(),
+		loadSync: async (ctx) => new SyncWorker({ ...ctx, remote: fake })
+	});
+	apps.push(app);
+
+	await navigate("/dashboards/:id", { params: { id: "a1" } });
+	await render(DashboardPage, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	const notHere = page.getByRole("heading", {
+		name: "This dashboard isn't saved in this browser."
+	});
+	await expect.element(notHere).toBeVisible();
+
+	await answerMoveOffer(app, "yes");
+	await expect.poll(() => app.current.session?.doc.id).toBe("a1");
+	await expect.element(notHere).not.toBeInTheDocument();
 });

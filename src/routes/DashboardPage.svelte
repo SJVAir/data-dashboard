@@ -13,8 +13,12 @@
 	let missing = $state(false);
 	const name = $derived(missing ? null : currentDashboardName(app));
 
+	/** Bumped to open the page's dashboard again (it arrived after the page said it's missing). */
+	let reopens = $state(0);
+
 	$effect(() => {
 		const id = route.params.id;
+		void reopens;
 		if (!id) return;
 		// The starter lives at `/`, where its first edit is handled.
 		if (id === STARTER_ID) {
@@ -49,6 +53,15 @@
 		return () => {
 			active = false;
 		};
+	});
+
+	// Stored after the page said it's missing ("Add to my account", a poll, a restore elsewhere):
+	// open it now. Runs on each change to the list only, so a failed reopen doesn't repeat.
+	$effect(() => {
+		const items = app.index.items;
+		untrack(() => {
+			if (missing && items.some((d) => d.id === route.params.id)) reopens++;
+		});
 	});
 
 	// Moved to a new id (its old one was taken on the server): this tab's edits are stored, and
