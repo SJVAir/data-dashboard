@@ -2,14 +2,23 @@
 	import { downloadBackupFile } from "$lib/actions/dashboard";
 	import { openClearData } from "$lib/components/dialogs/ClearDataDialog.svelte";
 	import { Button } from "$lib/components/ui/button";
+	import { formatDateTime } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import type { SaveErrorKind } from "$lib/store/document-session.svelte";
+	import type { DocSyncState } from "$lib/sync/worker.svelte";
+	import { refusedMessage } from "./sync-messages";
 
 	let {
 		errorKind = null,
+		sync = null,
 		clearable = false
-	}: { errorKind?: SaveErrorKind | null; clearable?: boolean } = $props();
+	}: {
+		errorKind?: SaveErrorKind | null;
+		/** The open dashboard's place with the account (account spaces only). */
+		sync?: DocSyncState | null;
+		clearable?: boolean;
+	} = $props();
 
 	const app = useApp();
 	const protection = app.protection;
@@ -22,6 +31,12 @@
 		<p class="text-destructive">
 			{errorKind === "quota" ? m.save_failed_quota() : m.save_failed_unavailable()}
 		</p>
+	{/if}
+	{#if sync?.hold?.kind === "refused"}
+		<p class="text-destructive">{refusedMessage(sync.hold.code)}</p>
+	{/if}
+	{#if sync?.confirmedAt}
+		<p>{m.sync_confirmed_at({ time: formatDateTime(new Date(sync.confirmedAt)) })}</p>
 	{/if}
 	<p>{m.storage_note()}</p>
 	{#if unprotected && protection.ready}

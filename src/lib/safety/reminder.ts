@@ -28,18 +28,21 @@ export async function updateReminderPrefs(
 export const REMINDER_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
- * Whether to show the backup reminder: only when storage isn't protected, never on the first
- * Pacific day of the space's first dashboard, only when something changed since the last
- * backup, and at most once every 14 days.
+ * Whether to show the backup reminder: never in an account space (the account's copy is the
+ * protection), only when storage isn't protected, never on the first Pacific day of the space's
+ * first dashboard, only when something changed since the last backup, and at most once every 14
+ * days.
  */
 export function shouldShowReminder(input: {
+	space: SpaceId;
 	protection: Protection;
 	dashboards: DashboardSummary[];
 	prefs: ReminderPrefs;
 	now: Date;
 }): boolean {
-	const { protection, dashboards, prefs, now } = input;
-	if (protection === "protected" || prefs.off || dashboards.length === 0) return false;
+	const { space, protection, dashboards, prefs, now } = input;
+	if (space !== "anonymous" || protection === "protected" || prefs.off || dashboards.length === 0)
+		return false;
 
 	const first = dashboards.reduce(
 		(a, b) => (b.createdAt < a ? b.createdAt : a),

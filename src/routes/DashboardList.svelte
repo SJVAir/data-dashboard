@@ -2,6 +2,7 @@
 	import Download from "@lucide/svelte/icons/download";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FilePlus from "@lucide/svelte/icons/file-plus";
+	import HardDrive from "@lucide/svelte/icons/hard-drive";
 	import Upload from "@lucide/svelte/icons/upload";
 	import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 	import { onMount } from "svelte";
@@ -14,6 +15,7 @@
 	import { menuScope } from "$lib/actions/scope";
 	import RecentlyDeleted from "$lib/components/dashboard/RecentlyDeleted.svelte";
 	import StorageStatus from "$lib/components/shell/StorageStatus.svelte";
+	import { refusedMessage } from "$lib/components/shell/sync-messages";
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -85,6 +87,7 @@
 			<ul class="border-border divide-border divide-y rounded-lg border">
 				{#each app.index.items as item (item.id)}
 					{@const name = app.index.names.get(item.id) ?? ""}
+					{@const sync = app.sync?.states[item.id]}
 					<li
 						class="flex items-center gap-2 py-1 pr-1 pl-3"
 						data-testid="dashboard-row-{item.id}"
@@ -98,6 +101,16 @@
 							<span class="text-muted-foreground text-sm">
 								{m.dashboard_updated({ date: formatDate(new Date(item.updatedAt)) })}
 							</span>
+							<!-- A refused save leaves it here alone, whatever older copy the account has. -->
+							{#if sync && (!sync.onServer || sync.hold?.kind === "refused")}
+								<span class="text-muted-foreground flex items-center gap-1 text-sm">
+									<HardDrive aria-hidden="true" class="size-3.5" />
+									{m.only_on_device()}
+								</span>
+								{#if sync.hold?.kind === "refused"}
+									<span class="text-destructive text-sm">{refusedMessage(sync.hold.code)}</span>
+								{/if}
+							{/if}
 						</a>
 						<Button
 							variant="ghost"

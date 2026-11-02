@@ -409,6 +409,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   reminder; there are no accounts yet. _Updated 2026-10-27 (spec 5b):_ sign-in now exists, but
   without sync the line would be false, so the trigger moved. **Revisit with** the server-backed
   documents track (when it builds sync).
+  _Done 2026-11-02 (sync spec 2, Task 12): the reminder offers the sign-in link in the anonymous
+  space and no longer shows in an account space (`src/lib/safety/reminder.ts`, `NoticeBars`)._
 - **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
   is shaped so other kinds can be added without a new format. **Revisit with** Collections and
@@ -862,6 +864,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     waits for spec 2.
   - "Sign in to keep this safe everywhere" in the backup reminder (see its own entry under
     "Documents & saving").
+    _Done 2026-11-02 (sync spec 2)._
 - **Gaps in "Add the dashboards made on this browser to your account?"** _Deferred 2026-11-02
   (sync spec 2, Task 10)._ (1) Other open tabs in the account space don't refresh their
   dashboards list after the move (the index listens only to `committed` messages, and posting

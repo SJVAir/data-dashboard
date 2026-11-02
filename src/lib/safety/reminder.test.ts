@@ -11,6 +11,7 @@ function dash(createdAt: string, updatedAt: string = createdAt): DashboardSummar
 const created = "2026-10-01T17:00:00.000Z";
 const now = day("2026-10-20T17:00:00.000Z");
 const base = {
+	space: "anonymous" as const,
 	protection: "unprotected" as const,
 	dashboards: [dash(created)],
 	prefs: {} as ReminderPrefs,
@@ -20,6 +21,9 @@ const base = {
 describe("shouldShowReminder", () => {
 	test("shows for unprotected storage with an unbacked-up dashboard on a later day", () => {
 		expect(shouldShowReminder(base)).toBe(true);
+	});
+	test("never in an account space (the account copy protects it)", () => {
+		expect(shouldShowReminder({ ...base, space: "account:u1" })).toBe(false);
 	});
 	test("not when protected", () => {
 		expect(shouldShowReminder({ ...base, protection: "protected" })).toBe(false);

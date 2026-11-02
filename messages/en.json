@@ -426,5 +426,55 @@
 	"widget_restored": "{title} restored.",
 	"widget_fullscreen_entered": "{title} fullscreen. Press Escape to exit.",
 	"fullscreen_widget_missing": "That widget isn't on this dashboard anymore.",
-	"dashboard_menu": "Dashboard actions"
+	"dashboard_menu": "Dashboard actions",
+	"saved_device": "Saved on this device",
+	"saved_account": "Saved to your account",
+	"sync_confirmed_at": "Last saved to your account {time}",
+	"sync_refused_too_large": "This dashboard is too large to save to your account, so it's only on this device.",
+	"sync_refused_limit_documents": "Your account holds as many dashboards as it can, so this one is only on this device. Deleting one you don't need makes room.",
+	"sync_refused_limit_storage": "Your account is out of storage space, so this dashboard is only on this device.",
+	"sync_refused_invalid": "Your account couldn't accept this dashboard, so it's only on this device.",
+	"only_on_device": "Only on this device",
+	"sync_held_too_large": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "A dashboard is too large to save to your account, so it's only on this device.",
+				"countPlural=other": "{count} dashboards are too large to save to your account, so they're only on this device."
+			}
+		}
+	],
+	"sync_held_limit_documents": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Your account holds as many dashboards as it can, so one is only on this device.",
+				"countPlural=other": "Your account holds as many dashboards as it can, so {count} are only on this device."
+			}
+		}
+	],
+	"sync_held_limit_storage": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Your account is out of storage space, so a dashboard is only on this device.",
+				"countPlural=other": "Your account is out of storage space, so {count} dashboards are only on this device."
+			}
+		}
+	],
+	"sync_held_invalid": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Your account couldn't accept a dashboard, so it's only on this device.",
+				"countPlural=other": "Your account couldn't accept {count} dashboards, so they're only on this device."
+			}
+		}
+	],
+	"sync_held_link": "See your dashboards",
+	"reminder_sign_in": "Sign in to keep this safe everywhere"
 }

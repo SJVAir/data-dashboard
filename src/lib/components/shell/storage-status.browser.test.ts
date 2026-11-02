@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
 import { m } from "$lib/paraglide/messages.js";
@@ -6,8 +6,15 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Protection } from "$lib/platform/types";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { accountApp } from "$lib/sync/test-app";
+import type { SyncWorker } from "$lib/sync/worker.svelte";
 import SavedIndicator from "./SavedIndicator.svelte";
 import StorageStatus from "./StorageStatus.svelte";
+
+const workers: SyncWorker[] = [];
+afterEach(() => {
+	for (const worker of workers.splice(0)) worker.stop();
+});
 
 async function setup(state: Protection, prompts: boolean) {
 	const platform = createMemoryPlatform();
@@ -61,4 +68,86 @@ test("the Saved indicator opens the status popover", async () => {
 	await expect.element(page.getByText("Saved")).toBeVisible();
 	await page.getByRole("button", { name: /Storage status/ }).click();
 	await expect.element(page.getByText(m.storage_note())).toBeVisible();
+});
+
+/** An account-space dashboard open in the indicator, its worker started once `before` ran. */
+async function openInAccount(before: (setup: Awaited<ReturnType<typeof accountApp>>) => void) {
+	const setup = await accountApp();
+	workers.push(setup.worker);
+	const { app, worker } = setup;
+	app.current = { session: (await app.sessions.get("d1"))!, isStarter: false };
+	before(setup);
+	worker.start();
+	await render(SavedIndicator, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	return setup;
+}
+
+test("saved on this device until the account has it", async () => {
+	let release = () => {};
+	const { worker } = await openInAccount(({ fake }) => {
+		// The first upload is still on its way.
+		const save = fake.save;
+		fake.save = async (id, input) => {
+			await new Promise<void>((resolve) => (release = resolve));
+			return save(id, input);
+		};
+	});
+	await expect.poll(() => worker.states.d1?.state).toBe("pending");
+	await expect.element(page.getByText("Saved on this device")).toBeVisible();
+	expect(page.getByText("Saved to your account").query()).toBeNull();
+	release();
+	await expect.element(page.getByText("Saved to your account")).toBeVisible();
+});
+
+test("saved to your account once synced", async () => {
+	const { worker } = await openInAccount(() => {});
+	await expect.poll(() => worker.states.d1?.state).toBe("synced");
+	await expect.element(page.getByText("Saved to your account")).toBeVisible();
+});
+
+test("the anonymous space keeps the plain Saved label", async () => {
+	const { app, context } = await setup("protected", false);
+	const id = await app.index.createBlank();
+	app.current = { session: (await app.sessions.get(id))!, isStarter: false };
+	await render(SavedIndicator, { context });
+	await expect.element(page.getByText("Saved", { exact: true })).toBeVisible();
+	expect(page.getByText("Saved on this device").query()).toBeNull();
+});
+
+test("the popover shows the last confirmed time in Pacific time", async () => {
+	const { worker } = await openInAccount(() => {});
+	await expect.poll(() => worker.states.d1?.state).toBe("synced");
+	await page.getByRole("button", { name: /Storage status/ }).click();
+	// NOW is 12:00 UTC on 2026-11-02: 4:00 AM Pacific (standard time).
+	await expect
+		.element(page.getByText(/Last saved to your account Nov 2, 2026, 4:00/))
+		.toBeVisible();
+});
+
+test("a refused dashboard says why", async () => {
+	const { worker } = await openInAccount(({ refuseSaves }) => {
+		refuseSaves.push({ code: "too_large", status: 413 });
+	});
+	await expect.poll(() => worker.states.d1?.state).toBe("held");
+	await expect.element(page.getByText("Saved on this device")).toBeVisible();
+	await page.getByRole("button", { name: /Storage status/ }).click();
+	await expect.element(page.getByText(m.sync_refused_too_large())).toBeVisible();
+	expect(page.getByText(/Last saved to your account/).query()).toBeNull();
+});
+
+test("colour is never the only signal: a text label in every state", async () => {
+	const { app, worker } = await openInAccount(({ refuseSaves }) => {
+		refuseSaves.push({ code: "too_large", status: 413 });
+	});
+	const session = app.current.session!;
+	const button = page.getByRole("button", { name: /Storage status/ });
+	const label = () => button.element().querySelector("[aria-live]")?.textContent?.trim();
+	await expect.poll(() => worker.states.d1?.state).toBe("held");
+	expect(label()).toBe("Saved on this device");
+	await worker.syncAll();
+	await expect.poll(label).toBe("Saved to your account");
+	session.status = "saving";
+	await expect.poll(label).toBe(m.saving());
+	session.status = "error";
+	await expect.poll(label).toBe(m.save_failed());
 });
