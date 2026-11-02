@@ -1849,9 +1849,11 @@ rest are the builder's calls, and the user kept them.
     uploads until reload.
 12. **"Deleted elsewhere" asks only when the server's document is deleted and this device has
     a change other than a delete.** Two deletes agree.
-13. **Space locks:** each open app holds a Web Lock `sjvair-space:<space>`. Tidying of hidden
-    spaces skips held spaces. The orphan rule (a non-current account space with no hidden
-    marker) runs only when the identity is known.
+13. **Space locks:** each open app holds a shared Web Lock `sjvair-space:<space>`, and waits
+    for it before storing anything. Tidying removes a hidden space only under that lock taken
+    with `ifAvailable`, so it skips held spaces, and a tab opening the space meanwhile waits
+    for the removal. The orphan rule (a non-current account space with no hidden marker) runs
+    only when the identity is known and is the opened space's.
 14. **Permanently deleted elsewhere:** a document the server reports as purged is removed
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
