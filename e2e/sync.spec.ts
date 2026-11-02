@@ -25,6 +25,7 @@ import {
 test.use({ reducedMotion: "reduce", account: maria });
 
 const TITLES = ["Alpha", "Beta", "Gamma"];
+const HOME_URL = /\/workspace\/$/;
 // Alpha and Beta side by side on top, Gamma full width below.
 const PLAN = sharedDoc("Field trip", TITLES, [
 	{ x: 0, y: 0, w: 6, h: 4 },
@@ -345,6 +346,9 @@ test("a shared or reloaded page never shows another account's dashboards", async
 	await page.getByRole("menuitem", { name: "Sign out" }).click();
 	await expect(signInLink(page)).toBeVisible();
 	await expect(signInLink(other)).toBeVisible();
+	// Both tabs land on home in the new space, not on the old space's dashboard.
+	await expect(page).toHaveURL(HOME_URL);
+	await expect(other).toHaveURL(HOME_URL);
 	const asked = documentsServer.fake.requests.length;
 
 	// Both tabs show the anonymous space, now and after a reload of the dashboard's address.
@@ -359,6 +363,25 @@ test("a shared or reloaded page never shows another account's dashboards", async
 	await expect(page.getByText("Field trip")).toHaveCount(0);
 	// Signed out, nothing asks the server for documents.
 	expect(documentsServer.fake.requests.slice(asked)).toEqual([]);
+});
+
+test("signing in while a dashboard is open goes to home in the account", async ({
+	page,
+	accountServer
+}) => {
+	accountServer.set(null);
+	await page.clock.install();
+	await openSharedDoc(page, PLAN);
+	await expectSaved(page);
+	await expect(page).toHaveURL(DASHBOARD_URL);
+
+	// Signed in elsewhere; a re-check on coming back into view notices it.
+	accountServer.set(maria);
+	await page.clock.fastForward(31_000);
+	await setVisibility(page, "hidden");
+	await setVisibility(page, "visible");
+	await expect(accountButton(page)).toBeVisible();
+	await expect(page).toHaveURL(HOME_URL);
 });
 
 test("a dashboard permanently deleted elsewhere while edited offline asks to keep it", async ({

@@ -10,7 +10,7 @@ import { parseBuildId, startVersionCheck } from "$lib/safety/version-check";
 import { m } from "$lib/paraglide/messages.js";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { keepInSpace } from "$lib/store/space-switch";
-import { navigate } from "./router";
+import { HOME_HREF } from "$lib/routing";
 
 /** Boots the dashboard into `target`. `staticBase` is the folder holding `app.js`. */
 export async function startApp(opts: { target: HTMLElement; staticBase: URL }): Promise<void> {
@@ -58,8 +58,9 @@ export async function startApp(opts: { target: HTMLElement; staticBase: URL }): 
 			keepInSpace(first, {
 				open: () => initApp(platform, { staticBase }),
 				mount(next) {
-					// Before mounting, so the new space never opens the old space's dashboard.
-					void navigate("/", { replace: true });
+					// Before mounting, so the new space never opens the old space's dashboard. Set
+					// directly: sv-router's async `navigate` would be aborted by the new router mounting.
+					history.replaceState(null, "", HOME_HREF);
 					show(next);
 				},
 				unmount() {
