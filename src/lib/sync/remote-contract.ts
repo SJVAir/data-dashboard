@@ -212,6 +212,46 @@ export function runRemoteContract(
 			expect(missing.code).toBe("not_found");
 		});
 
+		function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotInput {
+			return {
+				baseVersion: 0,
+				schemaVersion: 1,
+				name: "Mine",
+				body: { widgets: ["mine"] },
+				accountId,
+				buildId: BUILD,
+				...overrides
+			};
+		}
+
+		test("keepSnapshot leaves the document and its version alone", async () => {
+			const id = newId();
+			const { version } = await remote.save(id, input({ body: { widgets: ["theirs"] } }));
+			const before = await remote.get(id);
+			await remote.keepSnapshot(id, snapshotInput({ baseVersion: version }));
+			expect(await remote.get(id)).toEqual(before);
+			expect(await remote.changes(id, version)).toEqual({ version });
+		});
+
+		test("keepSnapshot on a stale base is stale_base", async () => {
+			const id = newId();
+			const version = await build(id, 1);
+			const error = await refusal(
+				remote.keepSnapshot(id, snapshotInput({ baseVersion: version - 1 }))
+			);
+			expect(error.code).toBe("stale_base");
+			expect(error.status).toBe(409);
+			expect(error.staleBase).toEqual({
+				version,
+				changes: [{ version, ...change(1) }],
+				document: expect.objectContaining({ id, version })
+			});
+			if (options.fakeOnly) expect((remote as FakeRemote).snapshots(id)).toEqual([]);
+
+			const missing = await refusal(remote.keepSnapshot(newId(), snapshotInput()));
+			expect(missing.code).toBe("not_found");
+		});
+
 		if (!options.fakeOnly) return;
 
 		// The stack can't set these up from the client.
@@ -220,18 +260,6 @@ export function runRemoteContract(
 			beforeEach(() => {
 				fake = remote as FakeRemote;
 			});
-
-			function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotInput {
-				return {
-					baseVersion: 0,
-					schemaVersion: 1,
-					name: "Mine",
-					body: { widgets: ["mine"] },
-					accountId,
-					buildId: BUILD,
-					...overrides
-				};
-			}
 
 			test("a trimmed log answers null changes", async () => {
 				const id = newId();
@@ -337,25 +365,6 @@ export function runRemoteContract(
 					snapshotInput({ baseVersion: trashed.version, schemaVersion: 1 })
 				);
 				expect(fake.snapshots(id)).toHaveLength(3);
-			});
-
-			test("keepSnapshot on a stale base is stale_base", async () => {
-				const id = newId();
-				const version = await build(id, 1);
-				const error = await refusal(
-					remote.keepSnapshot(id, snapshotInput({ baseVersion: version - 1 }))
-				);
-				expect(error.code).toBe("stale_base");
-				expect(error.status).toBe(409);
-				expect(error.staleBase).toEqual({
-					version,
-					changes: [{ version, ...change(1) }],
-					document: expect.objectContaining({ id, version })
-				});
-				expect(fake.snapshots(id)).toEqual([]);
-
-				const missing = await refusal(remote.keepSnapshot(newId(), snapshotInput()));
-				expect(missing.code).toBe("not_found");
 			});
 
 			test("offline throws RemoteUnavailable", async () => {

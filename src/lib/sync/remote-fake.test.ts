@@ -229,16 +229,68 @@ describe("createSdkRemote", () => {
 		expect(p.errors.reports).toEqual([]);
 	});
 
-	test("keepSnapshot waits for the next SDK release", async () => {
-		const call = createSdkRemote().keepSnapshot("d", {
-			baseVersion: 1,
+	test("keepSnapshot calls createSnapshot with the wire form", async () => {
+		respond(201, {
+			data: {
+				id: 1,
+				version: 3,
+				schema_version: 1,
+				name: "Mine",
+				reason: "conflict",
+				created_at: "2026-11-02T00:00:00Z"
+			}
+		});
+		const input = {
+			baseVersion: 3,
 			schemaVersion: 1,
-			name: null,
-			body: {},
+			name: "Mine",
+			body: { widgets: ["mine"] },
 			accountId: "a",
 			buildId: "b"
+		};
+		await expect(createSdkRemote().keepSnapshot("d", input)).resolves.toBeUndefined();
+		const [url, init] = vi.mocked(fetch).mock.calls[0] as [string | URL | Request, RequestInit];
+		expect(String(url)).toContain("documents/d/snapshots/");
+		expect(init.method).toBe("POST");
+		expect(JSON.parse(init.body as string)).toEqual({
+			base_version: 3,
+			schema_version: 1,
+			name: "Mine",
+			body: { widgets: ["mine"] },
+			account_id: "a",
+			build_id: "b"
 		});
-		await expect(call).rejects.toBeInstanceOf(RemoteUnavailable);
-		await expect(call).rejects.toThrow("keepSnapshot needs @sjvair/sdk 4.8.0-beta.3");
+
+		respond(409, {
+			errors: { detail: [{ code: "stale_base", message: "Stale." }] },
+			data: {
+				version: 4,
+				schema_version: 1,
+				changes: null,
+				document: {
+					id: "d",
+					kind: "dashboard",
+					name: null,
+					schema_version: 1,
+					version: 4,
+					copied_from: null,
+					deleted_at: null,
+					created_at: "2026-11-02T00:00:00Z",
+					updated_at: "2026-11-02T00:01:00Z",
+					visibility: "private",
+					share_token: null,
+					body: {}
+				}
+			}
+		});
+		const error = await createSdkRemote()
+			.keepSnapshot("d", input)
+			.catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(RemoteRefusal);
+		expect(error).toMatchObject({
+			code: "stale_base",
+			status: 409,
+			staleBase: { version: 4, changes: null, document: { id: "d", version: 4 } }
+		});
 	});
 });

@@ -4,6 +4,7 @@
  * abort, a response the SDK can't use) becomes `RemoteUnavailable`.
  */
 import {
+	createSnapshot,
 	DocumentRefusal,
 	DocumentResponseError,
 	getDocument,
@@ -142,10 +143,20 @@ export function createSdkRemote(
 				return { version: result.version, updatedAt: result.updated_at };
 			}),
 
-		// `POST documents/<id>/snapshots/` arrives as the SDK's `createSnapshot(id, form)` in
-		// @sjvair/sdk 4.8.0-beta.3 (not published yet); wire it up when the pin moves.
-		keepSnapshot: async () => {
-			throw new RemoteUnavailable("keepSnapshot needs @sjvair/sdk 4.8.0-beta.3");
-		}
+		keepSnapshot: (id, input) =>
+			call("documents.keepSnapshot", async () => {
+				await createSnapshot(
+					id,
+					{
+						base_version: input.baseVersion,
+						schema_version: input.schemaVersion,
+						name: input.name,
+						body: input.body,
+						account_id: input.accountId,
+						build_id: input.buildId
+					},
+					options
+				);
+			})
 	};
 }
