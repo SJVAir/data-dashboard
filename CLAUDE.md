@@ -223,8 +223,9 @@ Decided 2026-09-28.
 - **`main` is not branch-protected** for now (see `DEFERRED.md`).
 - **The `planning` branch was merged into `main` on 2026-10-19** (PR #5), with the user's
   approval, once planning was finished.
-- **Foundations (Release 1, step 1) was merged into `main` on 2026-10-27** (PR #11), with the
-  user's approval. Each Foundations spec was a PR into the `foundations` branch first. Later
+- **Foundations (Release 1, step 1) was merged into `main` on 2026-10-27** (PR #11), and
+  **step 2 (layout engine and windowing) on 2026-11-02** (PR #21), each with the user's
+  approval. Each Foundations spec was a PR into the `foundations` branch first. Later
   steps branch from `main` the same way (e.g. a step branch, with stacked spec PRs into it).
 
 ## Code Style

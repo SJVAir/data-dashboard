@@ -1,28 +1,30 @@
 # TODO / Current Status
 
-Last updated: 2026-10-29
+Last updated: 2026-11-02
 
 ## Start here
 
-**One session at a time works Release 1's tracks in order** (decided 2026-10-29), on the
-`layout` branch until step 2 merges into `main`:
+**One session at a time works Release 1's tracks in order** (decided 2026-10-29). Step 2 is on
+`main` (2026-11-02), so new work branches from `main`:
 
 1. ~~Layout spec 2b (windowing)~~ **done and merged into `layout`** (#15, 2026-10-29), with
    follow-ups #16, #17, and #18: see "Step 2" below.
-2. **`layout` → `main`**: the user said yes on 2026-11-02 (merging to `main` is a production
-   deploy once hosting is live).
-3. **Sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. Needs an
-   sdk-js prerelease first, one that includes the documents module (the pinned `4.8.0-beta.1`
-   predates it); cutting it needs the user's yes. See "Sync track" below.
+2. ~~`layout` → `main`~~ **done** (PR [#21](https://github.com/SJVAir/data-dashboard/pull/21),
+   merged 2026-11-02 with the user's yes).
+3. **Next: sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. The
+   sdk-js prerelease it needs is out: **@sjvair/sdk 4.8.0-beta.2** (published to JSR 2026-11-02
+   with the user's yes; adds the documents module). Spec 2 starts by moving the dashboard's exact
+   pin from `4.8.0-beta.1` to `4.8.0-beta.2` and writing its plan for the user's review (the
+   user chose to do this in a fresh session). See "Sync track" below.
 
-**Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm
-run dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging,
-selected mode and resize handles, the ⋯ menus and submenus, minimize and fullscreen, and
-reload). **The screen-reader pass is deferred** until after `layout` → `main` (the user's call,
-2026-11-02): NVDA, VoiceOver if possible, on keyboard arranging, the Move ▸ and Size ▸ submenus,
-and the taskbar. It's in `DEFERRED.md`, due before go-live or beta testers.
+**Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
+dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
+mode and resize handles, the ⋯ menus and submenus, minimize and fullscreen, and reload). **The
+screen-reader pass is deferred** past `layout` → `main` (the user's call, 2026-11-02): NVDA,
+VoiceOver if possible, on keyboard arranging, the Move ▸ and Size ▸ submenus, and the taskbar. It's
+in `DEFERRED.md`, due before go-live or beta testers.
 
-### Step 2: layout engine and windowing (branch `layout`)
+### Step 2: layout engine and windowing (done; on `main` via #21, 2026-11-02)
 
 **Spec 2a (widget arranging) is done and merged into `layout`** (PR
 [#13](https://github.com/SJVAir/data-dashboard/pull/13), 2026-10-29). Plan:
@@ -70,28 +72,28 @@ Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
     stays open. This meets WCAG 2.5.7 (the title-bar keyboard mode covers 2.1.1). It also
     shows a picked-up outline and key hint in keyboard mode, and the ⋯ menu now sizes to its
     content.
-- The touch check passed (2026-11-02); the screen-reader check is deferred until after `main`
-  (see above). The user said yes to `layout` → `main` on 2026-11-02.
+- The touch check passed (2026-11-02); the screen-reader check is deferred past `main` (see
+  above). **`layout` merged into `main` as #21 (2026-11-02), with the user's yes.**
 
 ### Sync track (server-backed documents)
 
 **Spec 1 (server and SDK) is done and merged:** sjvair.com
 [#297](https://github.com/SJVAir/sjvair.com/pull/297) into `develop` (2026-10-28; not in
 production until the user's `develop` → `main` deploy) and sdk-js
-[#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29; no version
-bump, no prerelease cut).
+[#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29), published in
+the prerelease **4.8.0-beta.2** (2026-11-02, with the user's yes).
 
-**Next: spec 2 (dashboard sync), after step 2 reaches `main`.** Order (decided 2026-10-29): layout
+**Next: spec 2 (dashboard sync); step 2 is on `main` (#21).** Order (decided 2026-10-29): layout
 spec 2b → `layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design
 (`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`) and the spec 1 plan came
-into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2. Spec
-2 first needs an sdk-js prerelease from `release/4.8.0` with the documents module (the dashboard
-pins `4.8.0-beta.1` exactly today); cutting it needs the user's explicit yes. Spec 2 starts with its
-own plan, from the design's "How it works" and "The dashboard (specs 2–4)". Locally, the dev DB
-already has the `documents` tables; the stack serves the sjvair.com main checkout, which needs
-`develop` pulled to serve the documents API. The sdk-js documents integration test runs with
-`TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and
-`TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
+into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2. The
+sdk-js prerelease with the documents module is out (4.8.0-beta.2, 2026-11-02); spec 2 moves the
+dashboard's exact pin from `4.8.0-beta.1` to it. Spec 2 starts with its own plan, from the design's
+"How it works" and "The dashboard (specs 2–4)". Locally, the dev DB already has the `documents`
+tables; the stack serves the sjvair.com main checkout, which needs `develop` pulled to serve the
+documents API. The sdk-js documents integration test runs with `TEST_DOCUMENTS=1` plus
+`TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and `TEST_DOCUMENTS_PASSWORD` (the
+`WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
 
 Decisions later specs need:
 
