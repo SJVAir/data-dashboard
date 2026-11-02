@@ -1,19 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import type { AccountUser } from "../src/lib/account/identity";
 import { expect, test } from "./fixtures";
-import { DASHBOARD_URL } from "./helpers";
+import { DASHBOARD_URL, maria, setVisibility } from "./helpers";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-
-const maria: AccountUser = {
-	id: "6NKDOOsxRyOUFE4rXMr1nQ",
-	full_name: "Maria Lopez",
-	email: "maria@example.com",
-	phone: null,
-	phone_verified: false,
-	language: "en"
-};
 
 // Motion collapses, so the menu is fully shown when checked.
 test.use({ reducedMotion: "reduce" });
@@ -24,14 +14,6 @@ function signIn(page: Page) {
 
 function accountButton(page: Page) {
 	return page.getByRole("button", { name: "ML, account menu for Maria Lopez" });
-}
-
-/** Sets `document.visibilityState` and fires `visibilitychange`, as switching tabs would. */
-async function setVisibility(page: Page, state: "hidden" | "visible"): Promise<void> {
-	await page.evaluate((value) => {
-		Object.defineProperty(document, "visibilityState", { configurable: true, get: () => value });
-		document.dispatchEvent(new Event("visibilitychange"));
-	}, state);
 }
 
 test("signed out, Sign in returns to the current dashboard", async ({ page }) => {
