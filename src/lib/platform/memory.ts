@@ -1,10 +1,12 @@
 import { sameIdentity, type Identity } from "$lib/account/identity";
+import type { SyncRecord } from "$lib/sync/types";
 import {
 	JOURNAL_RECORD_MAX,
 	LOG_LIMIT,
 	assertCommitPrecondition,
 	docVersion,
 	logCovers,
+	trimFloor,
 	type CommitInput,
 	type CommitResult,
 	type KeptOriginal,
@@ -166,6 +168,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 	const prefs = new Map<string, unknown>();
 	const originals = new Map<string, { space: SpaceId; original: KeptOriginal }>();
 	const journal = new Map<string, { space: SpaceId; docId: string; tabId: string; json: string }>();
+	const records = new Map<string, { space: SpaceId; record: SyncRecord }>();
 
 	let generation = crypto.randomUUID();
 	let failClipboard = false;
@@ -233,11 +236,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 					return { ok: false, currentVersion: existing ? docVersion(existing.doc) : 0 };
 				}
 				docs.set(k, { space, doc: structuredClone(input.doc) });
+				if (input.sync) records.set(k, { space, record: structuredClone(input.sync) });
 				// A later entry replaces an earlier one with the same version, as IndexedDB's put does.
 				const byVersion = new Map((logs.get(k) ?? []).map((e) => [e.version, e]));
 				for (const e of structuredClone(input.entries)) byVersion.set(e.version, e);
 				const log = [...byVersion.values()].sort((a, b) => a.version - b.version);
-				logs.set(k, log.slice(-LOG_LIMIT));
+				const floor = trimFloor(records.get(k)?.record);
+				let drop = 0;
+				while (drop < log.length - LOG_LIMIT && log[drop].version <= floor) drop++;
+				logs.set(k, log.slice(drop));
 				return { ok: true };
 			},
 			async readLog(space, docId, afterVersion) {
@@ -250,6 +257,62 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 				docs.delete(k);
 				logs.delete(k);
 				originals.delete(k);
+				records.delete(k);
+			}
+		},
+		sync: {
+			async get(space, docId) {
+				const found = records.get(key(space, docId));
+				return found === undefined ? undefined : structuredClone(found.record);
+			},
+			async list(space) {
+				return [...records.values()]
+					.filter((r) => r.space === space)
+					.map((r) => structuredClone(r.record));
+			},
+			async put(space, record) {
+				records.set(key(space, record.docId), { space, record: structuredClone(record) });
+			}
+		},
+		spaces: {
+			async list() {
+				const found = new Set<SpaceId>();
+				for (const map of [docs, originals, records, journal]) {
+					for (const v of map.values()) found.add(v.space);
+				}
+				for (const k of prefs.keys()) found.add(k.split("\u0000")[0] as SpaceId);
+				for (const [k, log] of logs) if (log.length > 0) found.add(k.split("\u0000")[0] as SpaceId);
+				return [...found];
+			},
+			async remove(space) {
+				const inSpace = (k: string) => k.startsWith(key(space, ""));
+				for (const map of [docs, logs, prefs, originals, records, journal]) {
+					for (const k of [...map.keys()]) if (inSpace(k)) map.delete(k);
+				}
+			},
+			async move(from, to, ids) {
+				if (from === to) return;
+				for (const id of ids) {
+					const a = key(from, id);
+					const b = key(to, id);
+					for (const map of [docs, logs, originals, records]) map.delete(b);
+					for (const [k, j] of [...journal])
+						if (j.space === to && j.docId === id) journal.delete(k);
+					const doc = docs.get(a);
+					if (doc) docs.set(b, { space: to, doc: doc.doc });
+					const log = logs.get(a);
+					if (log) logs.set(b, log);
+					const original = originals.get(a);
+					if (original) originals.set(b, { space: to, original: original.original });
+					const record = records.get(a);
+					if (record) records.set(b, { space: to, record: record.record });
+					for (const map of [docs, logs, originals, records]) map.delete(a);
+					for (const [k, j] of [...journal]) {
+						if (j.space !== from || j.docId !== id) continue;
+						journal.delete(k);
+						journal.set(key(to, id, j.tabId), { ...j, space: to });
+					}
+				}
 			}
 		},
 		originals: {
@@ -315,6 +378,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 				prefs.clear();
 				originals.clear();
 				journal.clear();
+				records.clear();
 			}
 		}
 	};

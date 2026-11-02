@@ -1,5 +1,6 @@
 import type { Change } from "$lib/changes/types";
 import type { Identity } from "$lib/account/identity";
+import type { SyncRecord } from "$lib/sync/types";
 
 export type SpaceId = "anonymous" | `account:${string}`;
 
@@ -23,6 +24,8 @@ export type CommitInput = {
 	baseVersion: number | null;
 	doc: unknown;
 	entries: LogEntry[];
+	/** Written in the same transaction as the document; only if the commit succeeds. */
+	sync?: SyncRecord;
 };
 
 export type CommitResult = { ok: true } | { ok: false; currentVersion: number };
@@ -42,8 +45,12 @@ export interface DocumentStorage {
 	list(space: SpaceId): Promise<unknown[]>;
 	get(space: SpaceId, id: string): Promise<unknown | undefined>;
 	commit(space: SpaceId, input: CommitInput): Promise<CommitResult>;
+	/**
+	 * A document's log keeps its last `LOG_LIMIT` entries, and never trims an entry after its sync
+	 * record's `syncedThrough` (unconfirmed by the server).
+	 */
 	readLog(space: SpaceId, docId: string, afterVersion: number): Promise<LogEntry[] | "trimmed">;
-	/** Deletes the document, its change log, and its kept original. */
+	/** Deletes the document, its change log, its kept original, and its sync record. */
 	remove(space: SpaceId, id: string): Promise<void>;
 }
 
@@ -74,6 +81,33 @@ export interface JournalStorage {
 	clear(space: SpaceId, docId: string, tabId: string): void;
 	/** Every record in a space, across dashboards. */
 	list(space: SpaceId): Array<{ docId: string; tabId: string; record: unknown }>;
+}
+
+/** Each document's standing with the server, one record per space and document. */
+export interface SyncStateStorage {
+	get(space: SpaceId, docId: string): Promise<SyncRecord | undefined>;
+	list(space: SpaceId): Promise<SyncRecord[]>;
+	put(space: SpaceId, record: SyncRecord): Promise<void>;
+}
+
+export interface SpaceStorage {
+	/** Every space with anything stored (documents, preferences, records, or journal). */
+	list(): Promise<SpaceId[]>;
+	/** Everything in the space: documents, logs, originals, preferences, records, journal. */
+	remove(space: SpaceId): Promise<void>;
+	/**
+	 * Documents with their logs, originals, records, and journal records; ids unchanged. Whatever
+	 * `to` held under those ids is replaced.
+	 */
+	move(from: SpaceId, to: SpaceId, ids: string[]): Promise<void>;
+}
+
+/**
+ * The oldest log version a commit must keep: entries after `syncedThrough` wait for the server.
+ * `undefined` (no record) keeps only the last `LOG_LIMIT`.
+ */
+export function trimFloor(record: SyncRecord | undefined): number {
+	return record === undefined ? Number.MAX_SAFE_INTEGER : record.syncedThrough;
 }
 
 /** What told the identity source about a change. */
@@ -162,6 +196,8 @@ export type Platform = {
 	preferences: PreferenceStorage;
 	journal: JournalStorage;
 	originals: OriginalStorage;
+	sync: SyncStateStorage;
+	spaces: SpaceStorage;
 	identity: IdentitySource;
 	activity: ActivitySource;
 	online: OnlineSource;
