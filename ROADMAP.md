@@ -22,11 +22,12 @@ Collections moved to Release 3). 5b's server and SDK sides are merged too (sjvai
 merged into `main`** (#21, 2026-11-02): specs 2a (arranging, #13) and 2b (windowing, #15), with
 follow-ups #16–#18; the touch check passed, and the screen-reader check is deferred until before
 go-live or beta testers. **The server-backed documents (sync) track's spec 1 is merged** (sjvair.com
-#297 into `develop`, sdk-js #34 into `release/4.8.0`); its dashboard specs 2–4 are next, from `main`
-(spec 2 uses @sjvair/sdk 4.8.0-beta.2, published 2026-11-02). The hosting track is built (sjvair.com
+#297 into `develop`, sdk-js #34 into `release/4.8.0`); **its dashboard spec 2 is built** on
+`sync-dashboard` (PR to come; @sjvair/sdk 4.8.0-beta.3, sjvair.com #298 on `develop`), and specs 3
+and 4 are next, from `main`. The hosting track is built (sjvair.com
 #295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1).
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
-4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.2 is the latest). Details in `TODO.md` →
+4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.3 is the latest). Details in `TODO.md` →
 "Start here".
 
 ## Done (v1 tab era)
@@ -89,7 +90,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    - the top-nav app shell, with `basePath` support in `src/router.ts` for serving under
      `sjvair.com/workspace/`
    - browser support floor (Chrome/Edge 111+, Safari 16.4+, Firefox 128+) with an
-     unsupported-browser notice; a CI bundle budget (about 200 KB initial) and per-widget code
+     unsupported-browser notice; a CI bundle budget check (about 200 KB initial; warns, doesn't fail) and per-widget code
      splitting
    - a shared `readableColor` helper, outlined swatches, labels always shown with level colors
    - MIT license, a CI license check (permissive only), third-party notices
@@ -225,7 +226,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   makes `apiToken` optional on account calls (shipped in 4.7.0). Saves carry the account id
   (refused on a mismatch). The dashboard reads the session `account/` response, which omits
   `api_token` (built in spec 5b; no separate endpoint).
-  **Held from spec 5b for this track** (`DEFERRED.md` → "Accounts"): the switch of signed-in
+  **Held from spec 5b for this track, built in sync spec 2 (2026-11-02):** the switch of signed-in
   work into an account space, the "add your work to your account" prompt, sign-out removing
   local copies, hidden spaces on expiry or an account change (30-day removal), saves bound to
   an account with the re-check before each sync, and the backup reminder's "sign in to keep

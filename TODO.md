@@ -11,11 +11,11 @@ Last updated: 2026-11-02
    follow-ups #16, #17, and #18: see "Step 2" below.
 2. ~~`layout` → `main`~~ **done** (PR [#21](https://github.com/SJVAir/data-dashboard/pull/21),
    merged 2026-11-02 with the user's yes).
-3. **Next: sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. The
-   sdk-js prerelease it needs is out: **@sjvair/sdk 4.8.0-beta.2** (published to JSR 2026-11-02
-   with the user's yes; adds the documents module). Spec 2 starts by moving the dashboard's exact
-   pin from `4.8.0-beta.1` to `4.8.0-beta.2` and writing its plan for the user's review (the
-   user chose to do this in a fresh session). See "Sync track" below.
+3. **Sync spec 2 (dashboard sync) is built on the `sync-dashboard` branch** (PR (to come); merge
+   needs the user's yes), then **sync specs 3 and 4 are next**, branching from `main`. The
+   dashboard pins **@sjvair/sdk 4.8.0-beta.3** (adds `createSnapshot`, sdk-js #35; the documents
+   module came in 4.8.0-beta.2), and sjvair.com #298 adds the snapshots POST on `develop`. See
+   "Sync track" below for the hand checks.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -81,19 +81,36 @@ Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
 [#297](https://github.com/SJVAir/sjvair.com/pull/297) into `develop` (2026-10-28; not in
 production until the user's `develop` → `main` deploy) and sdk-js
 [#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29), published in
-the prerelease **4.8.0-beta.2** (2026-11-02, with the user's yes).
+the prerelease **4.8.0-beta.2** (2026-11-02, with the user's yes). The snapshot request
+(`createSnapshot`) followed in sjvair.com [#298](https://github.com/SJVAir/sjvair.com/pull/298)
+(into `develop`) and sdk-js #35, published as **4.8.0-beta.3**.
 
-**Next: spec 2 (dashboard sync); step 2 is on `main` (#21).** Order (decided 2026-10-29): layout
-spec 2b → `layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design
-(`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`) and the spec 1 plan came
-into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2. The
-sdk-js prerelease with the documents module is out (4.8.0-beta.2, 2026-11-02); spec 2 moves the
-dashboard's exact pin from `4.8.0-beta.1` to it. Spec 2 starts with its own plan, from the design's
-"How it works" and "The dashboard (specs 2–4)". Locally, the dev DB already has the `documents`
+**Spec 2 (dashboard sync) is built on `sync-dashboard`** (PR (to come); step 2 is on `main`
+via #21). Order (decided 2026-10-29): layout spec 2b → `layout` → `main` → sync spec 2, branching
+from `main` → specs 3 and 4, which are next. The sync design
+(`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`), the spec 2 plan
+(`docs/superpowers/plans/2026-11-02-sync-2-dashboard.md`), and the calls made while building
+(`ARCHITECTURE.md` → "Saving & sharing documents") are the places to start. Locally, the dev DB already has the `documents`
 tables; the stack serves the sjvair.com main checkout, which needs `develop` pulled to serve the
 documents API. The sdk-js documents integration test runs with `TEST_DOCUMENTS=1` plus
 `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and `TEST_DOCUMENTS_PASSWORD` (the
 `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
+
+**Hand check for spec 2 on the real stack** (needs the stack running on sjvair.com `develop`
+and `npm run dev`; not yet done by the user):
+
+1. Open two browsers (or a browser and a private window), both at the dev server, signed in as
+   the `WORKSPACE_E2E_*` account.
+2. Edit a dashboard in one: the other shows it within about a minute (polling), and the Saved
+   popover in the first says when the account last confirmed a save.
+3. Set one browser offline in devtools (Network → Offline), edit different widgets on each
+   device, then go back online: both edits merge with no prompt. Edit the same widget's
+   settings on both: the three-choice prompt appears. Two layout moves never prompt.
+4. Delete a dashboard on one device while editing it on the other: the "deleted on another
+   device" prompt appears.
+5. Sign out with unsynced changes: "Sign out anyway" hides the space; signing back in resumes it.
+6. With both env vars set, `npm run test:sync-stack` runs the `RemoteDocuments` contract
+   against the stack.
 
 Decisions later specs need:
 
@@ -1073,6 +1090,14 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 → "Legacy Monitors-tab follow-ups".
 
 ## Done
+
+- [x] **Account-space behavior held for sync, and the backup reminder's sign-in line** (sync
+      spec 2, 2026-11-02): signed-in work lives in `account:<id>` and syncs, the app remounts on
+      a space change, signing in asks once about anonymous work (the gaps are in `DEFERRED.md`),
+      sign-out finishes or hides unsynced work, expired sessions and account changes hide the
+      space (removed after 30 days), saves name their account and the identity is re-checked
+      before each sync, and the backup reminder offers sign-in in the anonymous space. Removed
+      from `DEFERRED.md`.
 
 - [x] **Short raw-entry windows sent exactly** (Foundations spec 2 follow-up, 2026-10-25):
       "Padding short raw-entry windows until sdk-js has `exact: true`" is done with

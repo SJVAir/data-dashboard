@@ -203,7 +203,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     air data. It moves to an internal package built on the public SDK's exports (`httpRequest`,
     `setOrigin`, request defaults), or into this repo while the dashboard stays the only caller;
     where it goes is still open. Until then the dashboard keeps using `@sjvair/sdk/documents`
-    (4.8.0 prereleases; `createSnapshot` arrives in 4.8.0-beta.3). The move changes the
+    (4.8.0 prereleases; `createSnapshot` is in the pinned 4.8.0-beta.3). The move changes the
     dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
     (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 4.8.0 final is tagged, since
     removing it after a stable release has to wait for 5.0; sdk-js's own `DEFERRED.md` ("Before
@@ -355,7 +355,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
   hand-off failed); both tabs then hand the same edits off, making a duplicate copy. Narrow:
   it needs a storage failure or unlucky timing in the other tab. **Revisit on** a report of
-  duplicate starter copies, or with server sync.
+  duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
+  deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
+  two dashboards, which the person can delete or restore.
 - **Conflict status wording.** _Deferred 2026-10-20 (Foundations spec 1 review); the other
   cross-tab sync edge cases were done in spec 3._ The "error" status during a conflict looks
   like "Couldn't save". **Revisit in** the design pass.
@@ -384,7 +386,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   **Revisit if** journal storage grows.
 - **`rememberCopy` failing after a restore's commit counts it as skipped.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The
   dashboard is restored, but the summary says skipped and its fingerprint is missing (so "You
-  already have a copy" won't find it). Low impact. **Revisit with** server sync.
+  already have a copy" won't find it). Low impact. **Revisit with** server sync. _Looked at in
+  sync spec 2, 2026-11-02: still deferred._ Sync doesn't change it; the fingerprint is
+  per browser, so the miss stays local.
 - **A failed `lastShownAt` write lets the reminder show again next load.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ And
   `NoticeBars` keeps its own guard around reading the reminder prefs instead of sharing one.
   **Revisit if** a repeating reminder is reported.
@@ -404,13 +408,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   The 8,000-character share-link cap (`MAX_LINK_URL`) is provisional: it needs a manual check
   that long links survive Google Classroom and a common webmail client, which needs real
   accounts. **Revisit before** the private preview.
-- **"Sign in to keep this safe everywhere" in the backup reminder.** _Deferred 2026-10-25
-  (Foundations spec 3)._ `ARCHITECTURE.md` planned a gentle sign-in line next to the backup
-  reminder; there are no accounts yet. _Updated 2026-10-27 (spec 5b):_ sign-in now exists, but
-  without sync the line would be false, so the trigger moved. **Revisit with** the server-backed
-  documents track (when it builds sync).
-  _Done 2026-11-02 (sync spec 2, Task 12): the reminder offers the sign-in link in the anonymous
-  space and no longer shows in an account space (`src/lib/safety/reminder.ts`, `NoticeBars`)._
 - **Collections and analyses in Share, Export, and backups.** _Deferred 2026-10-25
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
   is shaped so other kinds can be added without a new format. **Revisit with** Collections and
@@ -484,6 +481,16 @@ string`) now get the union return type. The mobile app passes a string token, so
   spec 2, Task 8)._ "Discard" removes it here and posts `sync` only, as the quiet purge does;
   another tab's list drops it on its next refresh, and a tab showing it keeps the open session.
   **Revisit with** Task 9 (the dashboards list and open pages reacting to sync records).
+- **One `BroadcastChannel` is left open per remount.** _Deferred 2026-11-02 (sync spec 2,
+  Task 14)._ `TabChannel` has no `close()`, so each remount (an account switch) leaves the old
+  app's channel open until the page goes away. They hold no data and a handful is harmless.
+  **Revisit if** tabs that switch accounts many times misbehave, or when the channel gains
+  other resources to release.
+- **The E2E documents mock's wire shapes aren't checked against the SDK's response schemas.**
+  _Deferred 2026-11-02 (sync spec 2, Task 14)._ The mock server in the E2E tests answers with
+  hand-written JSON, and the SDK doesn't export its response schemas, so a drift between the
+  two would show only against the real stack (`npm run test:sync-stack`). **Revisit if** the SDK
+  exports its schemas, or a mock drift bug recurs.
 
 ## Map & selection
 
@@ -837,34 +844,6 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Accounts
 
-- **Account-space behavior held for sync.** _Deferred 2026-10-27 (Foundations spec 5b)._ These
-  are designed in `ARCHITECTURE.md` → "Accounts & anonymous use" and stay as designed. 5b
-  built signing in, the account menu, sign-out, and the cross-tab identity, but everyone keeps
-  working in the anonymous space. Each item below either promises something false or can lose
-  work without server-backed documents. **Revisit when** the server-backed documents track
-  starts building sync (5b left the seams: `currentSpace()` and the identity cross-tab
-  message).
-  - The space switch: signed-in work going into a per-account space (`account:<id>`). Without
-    sync an account space exists only in this browser, so a person would expect their
-    dashboards on another device and not find them. _Done 2026-11-02 (sync spec 2): signed-in
-    work lives in `account:<id>` and syncs; the app remounts when the space changes._
-  - "Add the 3 dashboards made on this browser to your account?", for the same reason.
-    _Done 2026-11-02 (sync spec 2): asked once per account per browser
-    (`src/lib/sync/move-to-account.ts`, `MoveToAccountDialog`); see the entry below for what
-    it leaves out._
-  - Sign-out removing that account's local copies "because they are on the server": they
-    aren't yet, so it would delete work.
-  - Hidden spaces on expiry or an account change, and removing a hidden space after 30 days.
-    There are no account spaces to hide yet. _Done 2026-11-02 (sync spec 2):_ an expired
-    session or another account hides the space (`src/lib/store/spaces.ts`), signing back in
-    resumes it, and `tidySpaces` removes hidden ones after 30 days.
-  - Saves bound to an account (each save names its account; the server refuses a mismatch)
-    and the re-check before each sync. There are no server saves yet. _Updated 2026-10-28 (Sync spec 1):_ the
-    server half is done (sjvair.com #297 refuses an `account_id` mismatch); the dashboard half
-    waits for spec 2.
-  - "Sign in to keep this safe everywhere" in the backup reminder (see its own entry under
-    "Documents & saving").
-    _Done 2026-11-02 (sync spec 2)._
 - **Gaps in "Add the dashboards made on this browser to your account?"** _Deferred 2026-11-02
   (sync spec 2, Task 10)._ (1) Other open tabs in the account space don't refresh their
   dashboards list after the move (the index listens only to `committed` messages, and posting
