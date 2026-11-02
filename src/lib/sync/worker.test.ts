@@ -160,6 +160,20 @@ describe("SyncWorker", () => {
 		]);
 	});
 
+	it("a dashboard moved to a new id uploads under it at once", async () => {
+		const { setup, t } = await started();
+		await storeDoc(setup.platform, makeDoc("d2"));
+		setup.fake.ownerOf("d2", "someone-else");
+		t.channel.post({ type: "committed", space: SPACE, docId: "d2", version: 0, tabId: "tab-1" });
+		await settle();
+		const record = await setup.platform.sync.get(SPACE, "d2");
+		const to = record?.hold?.kind === "moved" ? record.hold.to : "";
+		expect(to).not.toBe("");
+		// Not at the next sweep or poll: now.
+		expect(saves(setup, to)).toHaveLength(1);
+		expect((await setup.fake.get(to)).copiedFrom).toBe("d2");
+	});
+
 	it("coming online retries", async () => {
 		const { setup, t } = await started();
 		setup.fake.offline = true;

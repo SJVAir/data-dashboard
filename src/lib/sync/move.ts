@@ -46,6 +46,8 @@ export async function moveLocked(ctx: SyncContext, local: LocalState): Promise<s
 		hold: { kind: "moved", to, through: local.doc.version }
 	});
 	ctx.channel.post({ type: "moved", space, from, to, tabId: ctx.tabId });
+	// As this tab's own commit, so its sync worker uploads the copy now, not at the next sweep.
+	ctx.channel.post({ type: "committed", space, docId: to, version: 0, tabId: ctx.tabId });
 	postSync(ctx, from);
 	return to;
 }
