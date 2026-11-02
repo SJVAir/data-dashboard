@@ -41,4 +41,21 @@ describe("isTabMessage", () => {
 		);
 		expect(isTabMessage({ type: "identity", tabId: "t" })).toBe(false);
 	});
+
+	it("accepts sync and moved messages", () => {
+		expect(isTabMessage({ type: "sync", space: "account:u1", docId: "d", tabId: "t" })).toBe(true);
+		expect(isTabMessage({ type: "sync", space: "account:u1", docId: null, tabId: "t" })).toBe(true);
+		expect(
+			isTabMessage({ type: "moved", space: "account:u1", from: "a", to: "b", tabId: "t" })
+		).toBe(true);
+	});
+
+	it("rejects malformed sync and moved messages", () => {
+		expect(isTabMessage({ type: "sync", docId: "d", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "sync", space: "account:u1", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "sync", space: "account:u1", docId: 3, tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "moved", space: "account:u1", from: "a", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "moved", space: "account:u1", to: "b", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "moved", from: "a", to: "b", tabId: "t" })).toBe(false);
+	});
 });
