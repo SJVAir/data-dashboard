@@ -200,6 +200,8 @@ export interface LockAccess {
 	run<T>(name: string, fn: () => Promise<T>): Promise<T>;
 	/** Waits for `name`, calls `onGranted`, and holds it until `signal` aborts. */
 	hold(name: string, signal: AbortSignal, onGranted: () => void): Promise<void>;
+	/** Whether anyone in this browser profile holds `name` or is waiting for it. */
+	held(name: string): Promise<boolean>;
 }
 
 export type Platform = {

@@ -8,6 +8,7 @@ import { LAST_OPENED_KEY, homeTarget, initApp } from "./app.svelte";
 import { createFakeRemote, type FakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, user } from "$lib/sync/test-support";
 import { loadSyncWorker } from "$lib/sync/load";
+import { spaceLock } from "./spaces";
 import { createMemoryTabHub } from "./tab-channel";
 
 // The real loader would load the SDK remote; this one gives a worker on the fake server.
@@ -188,6 +189,13 @@ describe("initApp", () => {
 		await vi.waitFor(() => expect(updateNotice.reason).toBe("build-blocked"));
 		expect(app.sync?.blocked).toBe(true);
 		await app.close();
+	});
+
+	it("an open app holds its space's lock until it closes", async () => {
+		const { platform, app } = await setup();
+		expect(await platform.locks.held(spaceLock("anonymous"))).toBe(true);
+		await app.close();
+		expect(await platform.locks.held(spaceLock("anonymous"))).toBe(false);
 	});
 
 	it("close still flushes the others when one dashboard fails to open", async () => {

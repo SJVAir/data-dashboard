@@ -111,7 +111,10 @@ export class SyncWorker {
 	/** Uploads everything; resolves the count still unsynced. */
 	async syncAll(): Promise<number> {
 		await this.#sweep(true);
-		return this.unsyncedCount();
+		const states = await this.#readStates();
+		// Fresh for the caller, who may read why some are left (an offline save posts nothing).
+		if (!this.#stopped) this.states = states;
+		return Object.values(states).filter((s) => s.state !== "synced").length;
 	}
 
 	/** Documents with unsynced changes or a hold. */

@@ -62,7 +62,9 @@ export function createQueueLocks(): LockAccess {
 			} finally {
 				release();
 			}
-		}
+		},
+		// A queue is dropped once nobody holds or waits for it.
+		held: async (name) => queues.has(name)
 	};
 }
 
@@ -85,6 +87,10 @@ export function createWebLocks(nav: { locks?: LockManager } = navigator): LockAc
 				if (error instanceof DOMException && error.name === "AbortError") return;
 				throw error;
 			}
+		},
+		async held(name) {
+			const { held = [], pending = [] } = await locks.query();
+			return [...held, ...pending].some((lock) => lock.name === name);
 		}
 	};
 }

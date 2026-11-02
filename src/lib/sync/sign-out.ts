@@ -9,6 +9,7 @@
  * (signing out must work when a lazily loaded file can't be fetched), and the sync worker is
  * reached through `app.sync`.
  */
+import { SIGN_IN_FOCUS, takeFocus } from "$lib/layout/focus-request.svelte";
 import type { AppContext } from "$lib/store/app.svelte";
 import { hideSpace, unhideSpace } from "$lib/store/spaces";
 
@@ -38,6 +39,18 @@ export async function finishThenSignOut(app: AppContext): Promise<boolean> {
 	return true;
 }
 
+/**
+ * Why `finishThenSignOut` left some unsynced: this version may not save (`blocked`), every one
+ * left waits on something a connection won't fix (a refusal or another hold, shown in the
+ * dashboards list: `held`), or some couldn't reach the server (`offline`).
+ */
+export function unsyncedReason(app: AppContext): "blocked" | "held" | "offline" {
+	const sync = app.sync;
+	if (sync?.blocked) return "blocked";
+	const left = Object.values(sync?.states ?? {}).filter((s) => s.state !== "synced");
+	return left.length > 0 && left.every((s) => s.state === "held") ? "held" : "offline";
+}
+
 /** "Sign out anyway": the space is hidden from the next person and kept for 30 days. */
 export async function signOutAnyway(app: AppContext): Promise<void> {
 	await flushAll(app);
@@ -62,4 +75,12 @@ async function signOutNow(app: AppContext): Promise<void> {
 		// Still signed in: the space is in use, not hidden.
 		if (!ok) await unhideSpace(platform, space);
 	}
+}
+
+/**
+ * After a sign-out attempt that left this tab signed in (asked first, or refused): drops the
+ * request for the next app's Sign in link to take focus.
+ */
+export function keepFocusOnlyIfSignedOut(app: AppContext): void {
+	if (app.platform.identity.current().state !== "signed-out") takeFocus(SIGN_IN_FOCUS);
 }

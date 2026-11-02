@@ -34,7 +34,10 @@ async function withAnonymous(count: number) {
 }
 
 async function expectNoAxeViolations() {
-	const results = await axe.run(page.getByRole("dialog").element());
+	// After the open animation: mid-fade, the text's contrast is measured too low.
+	const dialog = page.getByRole("dialog").element();
+	await Promise.all(dialog.getAnimations({ subtree: true }).map((a) => a.finished));
+	const results = await axe.run(dialog);
 	expect(results.violations).toEqual([]);
 }
 

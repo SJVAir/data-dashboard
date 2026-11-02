@@ -7,7 +7,13 @@
 	import { RETENTION_MS } from "$lib/safety/purge";
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
-	import { finishThenSignOut, signOutAnyway } from "$lib/sync/sign-out";
+	import { SIGN_IN_FOCUS, requestFocus } from "$lib/layout/focus-request.svelte";
+	import {
+		finishThenSignOut,
+		keepFocusOnlyIfSignedOut,
+		signOutAnyway,
+		unsyncedReason
+	} from "$lib/sync/sign-out";
 
 	let {
 		open = $bindable(false),
@@ -24,19 +30,32 @@
 	const app = useApp();
 	const days = Math.round(RETENTION_MS / (24 * 60 * 60 * 1000));
 	let busy = $state(false);
-	let stillUnsynced = $state(false);
+	/** Why "Finish saving" left some unsynced (`null`: it hasn't). */
+	let stillUnsynced = $state<ReturnType<typeof unsyncedReason> | null>(null);
+	const reasons = {
+		offline: m.sign_out_still_unsynced,
+		held: m.sign_out_still_held,
+		blocked: m.sign_out_still_blocked
+	};
 
 	$effect(() => {
-		if (open) stillUnsynced = false;
+		if (open) stillUnsynced = null;
 	});
+
+	/** While it signs out, Escape and an outside click leave it open (as Cancel does). */
+	const whileBusy = (event: Event) => {
+		if (busy) event.preventDefault();
+	};
 
 	async function run(action: "finish" | "anyway") {
 		if (busy) return;
 		busy = true;
-		stillUnsynced = false;
+		stillUnsynced = null;
+		// The app remounts once signed out; its Sign in link takes focus then.
+		requestFocus(SIGN_IN_FOCUS);
 		try {
 			if (action === "finish" && !(await finishThenSignOut(app))) {
-				stillUnsynced = true;
+				stillUnsynced = unsyncedReason(app);
 				return;
 			}
 			if (action === "anyway") await signOutAnyway(app);
@@ -46,6 +65,7 @@
 			toast.error(m.sign_out_failed());
 		} finally {
 			busy = false;
+			keepFocusOnlyIfSignedOut(app);
 		}
 	}
 </script>
@@ -53,6 +73,8 @@
 <Dialog.Root bind:open>
 	<Dialog.Content
 		showCloseButton={false}
+		onEscapeKeydown={whileBusy}
+		onInteractOutside={whileBusy}
 		onCloseAutoFocus={(event) => {
 			event.preventDefault();
 			onclosed();
@@ -68,7 +90,7 @@
 			</p>
 		</Dialog.Header>
 		<p role="status" class="text-destructive text-sm empty:hidden">
-			{#if stillUnsynced}{m.sign_out_still_unsynced()}{/if}
+			{#if stillUnsynced}{reasons[stillUnsynced]()}{/if}
 		</p>
 		<Dialog.Footer>
 			<Button

@@ -15,7 +15,7 @@ import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { DocumentSession } from "./document-session.svelte";
-import { tidySpaces, unhideSpace } from "./spaces";
+import { spaceLock, tidySpaces, unhideSpace } from "./spaces";
 import { createTabChannel, withLocalEcho, type TabChannel } from "./tab-channel";
 
 /** Preference key: the id of the dashboard opened last in this space. */
@@ -101,6 +101,9 @@ class App implements AppContext {
 	readonly #live = new Map<string, DocumentSession>();
 	/** Stops this app's channel listeners (`close`). */
 	readonly #stops: Array<() => void> = [];
+	/** Releases the space's lock (`close`). */
+	readonly #lock = new AbortController();
+	#holding: Promise<void> = Promise.resolve();
 	#closed = false;
 
 	constructor(
@@ -190,6 +193,13 @@ class App implements AppContext {
 		this.#stops.push(stop);
 	}
 
+	/** Holds the space's lock while open, so another tab's `tidySpaces` leaves the space alone. */
+	holdSpace(): void {
+		this.#holding = this.platform.locks
+			.hold(spaceLock(this.space), this.#lock.signal, () => {})
+			.catch((error) => report(error, { operation: "space-lock" }));
+	}
+
 	/** Loads and starts the account space's sync worker; a failed load leaves it local-only. */
 	async startSync(load: NonNullable<AppOptions["loadSync"]>): Promise<void> {
 		if (this.space === "anonymous") return;
@@ -229,15 +239,21 @@ class App implements AppContext {
 		this.#open.clear();
 		this.#live.clear();
 		this.current = { session: null, isStarter: false };
-		await Promise.all(
-			sessions.map(async (session) => {
-				try {
-					await session.flush();
-				} finally {
-					session.dispose();
-				}
-			})
-		);
+		try {
+			await Promise.all(
+				sessions.map(async (session) => {
+					try {
+						await session.flush();
+					} finally {
+						session.dispose();
+					}
+				})
+			);
+		} finally {
+			// After the last edits are stored: the next space's tidy may then remove this one.
+			this.#lock.abort();
+			await this.#holding;
+		}
 	}
 
 	suspendAll(): void {
@@ -319,8 +335,10 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const now = options.now?.() ?? new Date();
 	// Its person is back: the space is in use again.
+	app.holdSpace();
 	if (space !== "anonymous") await housekeeping(() => unhideSpace(platform, space));
-	await housekeeping(() => tidySpaces(platform, space, now));
+	const identityKnown = platform.identity.current().state !== "unknown";
+	await housekeeping(() => tidySpaces(platform, space, now, { identityKnown }));
 	await housekeeping(() => purgeExpired(platform, space, now));
 	await app.index.refresh();
 	await app.protection.refresh();

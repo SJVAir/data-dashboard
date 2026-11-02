@@ -411,6 +411,8 @@
 	"sign_out_finish": "Finish saving, then sign out",
 	"sign_out_anyway": "Sign out anyway",
 	"sign_out_still_unsynced": "Some changes couldn't be saved to your account yet. Check your connection and try again.",
+	"sign_out_still_held": "Some dashboards can't be saved to your account. The dashboards list shows why.",
+	"sign_out_still_blocked": "This version of the app can't save to your account. Reload the page, then try again.",
 	"sign_out_failed": "Couldn't sign out. Try again.",
 	"widget_minimize": "Minimize",
 	"widget_minimize_named": "Minimize {title}",

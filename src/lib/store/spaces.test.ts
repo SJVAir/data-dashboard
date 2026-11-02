@@ -3,7 +3,15 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { RETENTION_MS } from "$lib/safety/purge";
 import { blankDashboard } from "$lib/starter/starter";
-import { HIDDEN_KEY, hasUnsynced, hideSpace, spaceFor, tidySpaces, unhideSpace } from "./spaces";
+import {
+	HIDDEN_KEY,
+	hasUnsynced,
+	hideSpace,
+	spaceFor,
+	spaceLock,
+	tidySpaces,
+	unhideSpace
+} from "./spaces";
 
 const A: SpaceId = "account:a";
 const B: SpaceId = "account:b";
@@ -143,7 +151,7 @@ describe("spaces", () => {
 		// Another tab stores its last edits just after: the space is back, with no hidden marker.
 		await store(platform, A, "d1", false);
 		await store(platform, B, "d2");
-		await tidySpaces(platform, "anonymous", NOW);
+		await tidySpaces(platform, "anonymous", NOW, { identityKnown: true });
 		// Unsynced: kept for 30 days, hidden, never left visible to the next person.
 		expect(await platform.documents.get(A, "d1")).toBeDefined();
 		expect(await platform.preferences.get(A, HIDDEN_KEY)).toEqual({
@@ -155,5 +163,40 @@ describe("spaces", () => {
 
 		await tidySpaces(platform, "anonymous", new Date(NOW.getTime() + RETENTION_MS + DAY));
 		expect(await platform.spaces.list()).not.toContain(A);
+	});
+
+	it("an unknown identity never tidies an unhidden account space", async () => {
+		const platform = createMemoryPlatform();
+		// The person is signed in, but this tab's first identity request timed out.
+		await store(platform, A, "d1");
+		await tidySpaces(platform, "anonymous", NOW, { identityKnown: false });
+		expect(await platform.documents.get(A, "d1")).toBeDefined();
+		expect(await platform.preferences.get(A, HIDDEN_KEY)).toBeUndefined();
+		// The default is the safe one.
+		await tidySpaces(platform, "anonymous", NOW);
+		expect(await platform.preferences.get(A, HIDDEN_KEY)).toBeUndefined();
+	});
+
+	it("a space a live tab holds is never tidied", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		await store(platform, B, "d2");
+		await store(platform, "account:c", "d3");
+		await hideSpace(platform, A, "signed-out", NOW);
+		await hideSpace(platform, B, "switched", daysAgo(40));
+		const tab = new AbortController();
+		const holds = [A, B, "account:c" as SpaceId].map((space) =>
+			platform.locks.hold(spaceLock(space), tab.signal, () => {})
+		);
+		await tidySpaces(platform, "anonymous", NOW, { identityKnown: true });
+		expect(await platform.documents.get(A, "d1")).toBeDefined();
+		expect(await platform.documents.get(B, "d2")).toBeDefined();
+		expect(await platform.documents.get("account:c", "d3")).toBeDefined();
+		expect(await platform.preferences.get("account:c", HIDDEN_KEY)).toBeUndefined();
+
+		tab.abort();
+		await Promise.all(holds);
+		await tidySpaces(platform, "anonymous", NOW, { identityKnown: true });
+		expect(await platform.spaces.list()).toEqual([]);
 	});
 });

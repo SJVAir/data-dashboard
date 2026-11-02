@@ -15,15 +15,22 @@
 
 <script lang="ts">
 	import UserRound from "@lucide/svelte/icons/user-round";
+	import { spaceFor } from "$lib/account/identity";
 	import { displayName, greetingName, initials } from "$lib/account/names";
 	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
 	import SignOutDialog from "$lib/components/dialogs/SignOutDialog.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+	import {
+		SIGN_IN_FOCUS,
+		pendingFocusTarget,
+		requestFocus,
+		takeFocus
+	} from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
-	import { beginSignOut } from "$lib/sync/sign-out";
+	import { beginSignOut, keepFocusOnlyIfSignedOut } from "$lib/sync/sign-out";
 	import { cn } from "$lib/utils";
 	import { tick, untrack } from "svelte";
 	import { toast } from "svelte-sonner";
@@ -64,12 +71,21 @@
 		focusSignIn = false;
 		signInLink.focus();
 	});
+	// Signing out here remounts the app in the anonymous space, so this tab's sign-out leaves a
+	// request the new app's Sign in link takes as it renders. The app being left shows Sign in
+	// for a moment too; it isn't in the identity's space, so it leaves the request alone.
+	$effect(() => {
+		if (!signInLink || pendingFocusTarget()?.kind !== SIGN_IN_FOCUS.kind) return;
+		if (spaceFor(identity) !== app.space) return;
+		if (takeFocus(SIGN_IN_FOCUS)) signInLink.focus();
+	});
 
 	/** Changes not yet in the account: the dialog asks what to do (`unsynced` is its count). */
 	let asking = $state(false);
 	let unsynced = $state(0);
 
 	async function signOut() {
+		requestFocus(SIGN_IN_FOCUS);
 		try {
 			const result = await beginSignOut(app);
 			if ("unsynced" in result) {
@@ -79,6 +95,8 @@
 		} catch (error) {
 			report(error, { operation: "sign-out" });
 			toast.error(m.sign_out_failed());
+		} finally {
+			keepFocusOnlyIfSignedOut(app);
 		}
 	}
 

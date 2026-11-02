@@ -1,14 +1,17 @@
 import "../../../app.css";
 import axe from "axe-core";
+import { mount, unmount } from "svelte";
 import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import TopNav from "$lib/components/shell/TopNav.svelte";
 import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory";
-import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
+import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
+import { keepInSpace } from "$lib/store/space-switch";
 import { HIDDEN_KEY } from "$lib/store/spaces";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { createFakeRemote } from "$lib/sync/remote-fake";
+import type { RemoteDocuments } from "$lib/sync/remote";
+import { createFakeRemote, type FakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, makeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 
@@ -17,8 +20,14 @@ afterEach(() => {
 	for (const worker of workers.splice(0)) worker.stop();
 });
 
-/** A signed-in app, offline, holding `count` dashboards never uploaded. */
-async function withUnsynced(count: number) {
+/**
+ * A signed-in app, offline, holding `count` dashboards never uploaded. `remote` wraps the fake
+ * server the worker uses.
+ */
+async function withUnsynced(
+	count: number,
+	remote: (fake: FakeRemote) => RemoteDocuments = (fake) => fake
+) {
 	const identity = createMemoryIdentity({ state: "signed-in", user: user(ACCOUNT) });
 	const platform = createMemoryPlatform({ identity });
 	for (let i = 0; i < count; i++) {
@@ -36,7 +45,7 @@ async function withUnsynced(count: number) {
 		platform,
 		space: SPACE,
 		accountId: ACCOUNT,
-		remote: fake,
+		remote: remote(fake),
 		channel: app.channel,
 		tabId: app.tabId,
 		buildId: "test-build",
@@ -59,7 +68,10 @@ async function chooseSignOut() {
 }
 
 async function expectNoAxeViolations() {
-	const results = await axe.run(page.getByRole("dialog").element());
+	// After the open animation: mid-fade, the text's contrast is measured too low.
+	const dialog = page.getByRole("dialog").element();
+	await Promise.all(dialog.getAnimations({ subtree: true }).map((a) => a.finished));
+	const results = await axe.run(dialog);
 	expect(results.violations).toEqual([]);
 }
 
@@ -139,4 +151,100 @@ test("sign out anyway moves focus to Sign in", async () => {
 	expect(await platform.preferences.get(SPACE, HIDDEN_KEY)).toMatchObject({
 		reason: "signed-out"
 	});
+});
+
+test("Escape and an outside click don't close it while saving", async () => {
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => (release = resolve));
+	const { identity, fake } = await withUnsynced(1, (fake) => ({
+		...fake,
+		async save(id, input) {
+			await held;
+			return fake.save(id, input);
+		}
+	}));
+	await chooseSignOut();
+	const dialog = page.getByRole("dialog");
+	fake.offline = false;
+	await dialog.getByRole("button", { name: "Finish saving, then sign out" }).click();
+	await userEvent.keyboard("{Escape}");
+	await userEvent.click(document.body, { position: { x: 2, y: 2 } });
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	await expect.element(dialog).toBeVisible();
+	release();
+	await expect.poll(() => identity.current().state).toBe("signed-out");
+	await expect.element(dialog).not.toBeInTheDocument();
+});
+
+test("finish saving with a refused dashboard points to the dashboards list", async () => {
+	const { identity, fake } = await withUnsynced(1, (fake) => {
+		fake.offline = false;
+		fake.maxDocuments = 0;
+		return fake;
+	});
+	await expect.poll(() => fake.requests.length).toBeGreaterThan(0);
+	await chooseSignOut();
+	const dialog = page.getByRole("dialog");
+	await dialog.getByRole("button", { name: "Finish saving, then sign out" }).click();
+	await expect
+		.element(
+			dialog.getByText(
+				"Some dashboards can't be saved to your account. The dashboards list shows why."
+			)
+		)
+		.toBeVisible();
+	expect(identity.current().state).toBe("signed-in");
+});
+
+test("finish saving with this version blocked says to reload", async () => {
+	const { identity } = await withUnsynced(1, (fake) => {
+		fake.offline = false;
+		fake.blockedBuilds.add("test-build");
+		return fake;
+	});
+	await chooseSignOut();
+	const dialog = page.getByRole("dialog");
+	await dialog.getByRole("button", { name: "Finish saving, then sign out" }).click();
+	await expect
+		.element(
+			dialog.getByText(
+				"This version of the app can't save to your account. Reload the page, then try again."
+			)
+		)
+		.toBeVisible();
+	expect(identity.current().state).toBe("signed-in");
+});
+
+test("after signing out, focus lands on Sign in in the new app", async () => {
+	// The real loop from main.ts: each switch unmounts the app, opens the new space, and mounts it.
+	const identity = createMemoryIdentity({ state: "signed-in", user: user(ACCOUNT) });
+	const platform = createMemoryPlatform({ identity });
+	const hub = createMemoryTabHub();
+	const open = () => initApp(platform, { channel: hub.channel(), tabId: "t1", loadSync: null });
+	const target = document.body.appendChild(document.createElement("div"));
+	let component: ReturnType<typeof mount> | undefined;
+	const show = (app: AppContext) => {
+		component = mount(TopNav, { target, context: new Map([[APP_CONTEXT_KEY, app]]) });
+	};
+	const first = await open();
+	show(first);
+	const kept = keepInSpace(first, {
+		open,
+		mount: show,
+		unmount: () => {
+			if (component) void unmount(component);
+			component = undefined;
+		}
+	});
+	try {
+		await chooseSignOut();
+		await expect.poll(() => kept.app.space).toBe("anonymous");
+		await expect.poll(() => kept.app !== first).toBe(true);
+		await expect.element(page.getByRole("link", { name: "Sign in" })).toHaveFocus();
+	} finally {
+		kept.stop();
+		if (component) await unmount(component);
+		target.remove();
+		await kept.app.close();
+	}
 });

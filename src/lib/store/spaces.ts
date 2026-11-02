@@ -50,16 +50,28 @@ export async function unhideSpace(platform: Platform, space: SpaceId): Promise<v
 	await platform.preferences.set(space, HIDDEN_KEY, null);
 }
 
+/** The Web Lock each open app holds on its space, so no other tab tidies it away meanwhile. */
+export const spaceLock = (space: SpaceId) => `sjvair-space:${space}`;
+
 /**
- * Removes hidden spaces older than RETENTION_MS, and signed-out ones with nothing unsynced. An
- * account space that isn't `current` and has no marker is hidden now as signed out: another tab
- * stored its last edits into it just after it was removed (removing deletes the marker too).
+ * Removes hidden spaces older than RETENTION_MS, and signed-out ones with nothing unsynced. A
+ * space an open app (in any tab) holds is never touched. With the identity known, an account
+ * space that isn't `current` and has no marker is hidden now as signed out: another tab stored
+ * its last edits into it just after it was removed (removing deletes the marker too). With it
+ * unknown (the first request failed), that space may be the person's own, so it's left alone.
  */
-export async function tidySpaces(platform: Platform, current: SpaceId, now: Date): Promise<void> {
+export async function tidySpaces(
+	platform: Platform,
+	current: SpaceId,
+	now: Date,
+	{ identityKnown = false }: { identityKnown?: boolean } = {}
+): Promise<void> {
 	for (const space of await platform.spaces.list()) {
 		if (space === current || space === "anonymous") continue;
+		if (await platform.locks.held(spaceLock(space))) continue;
 		let hidden = await readHidden(platform, space);
 		if (!hidden) {
+			if (!identityKnown) continue;
 			await hideSpace(platform, space, "signed-out", now);
 			hidden = { at: now.toISOString(), reason: "signed-out" };
 		}

@@ -139,6 +139,24 @@ export function runCapabilityContract(name: string, make: () => Promise<Platform
 			await heldB;
 		});
 
+		test("held tells whether a name is held or waited for", async () => {
+			expect(await p.locks.held("q")).toBe(false);
+			const a = new AbortController();
+			const b = new AbortController();
+			const heldA = p.locks.hold("q", a.signal, () => {});
+			const heldB = p.locks.hold("q", b.signal, () => {});
+			await new Promise((r) => setTimeout(r, 20));
+			expect(await p.locks.held("q")).toBe(true);
+			expect(await p.locks.held("other")).toBe(false);
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(await p.locks.held("q")).toBe(true);
+			b.abort();
+			await heldB;
+			expect(await p.locks.held("q")).toBe(false);
+		});
+
 		test("an aborted waiter is never granted", async () => {
 			const a = new AbortController();
 			const b = new AbortController();
