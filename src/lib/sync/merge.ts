@@ -9,11 +9,8 @@ import { upgradeChanges } from "$lib/documents/migrate-changes";
 import type { Dashboard } from "$lib/documents/schema";
 import type { RemoteChange, RemoteDocument, SaveInput } from "./remote";
 
-/** The server's document as a local one at `localVersion`, upgraded; or why it can't be. */
-export function fromRemote(
-	doc: RemoteDocument,
-	localVersion: number
-): { status: "ok"; doc: Dashboard } | { status: "newer" | "invalid" } {
+/** The server's document in the local shape at `localVersion`, as stored (not validated). */
+export function remoteRaw(doc: RemoteDocument, localVersion: number): Record<string, unknown> {
 	const raw: Record<string, unknown> = {
 		kind: doc.kind,
 		id: doc.id,
@@ -26,7 +23,15 @@ export function fromRemote(
 	};
 	if (doc.deletedAt !== null) raw.deletedAt = doc.deletedAt;
 	if (doc.copiedFrom !== null) raw.copiedFrom = doc.copiedFrom;
-	const loaded = loadDashboard(raw);
+	return raw;
+}
+
+/** The server's document as a local one at `localVersion`, upgraded; or why it can't be. */
+export function fromRemote(
+	doc: RemoteDocument,
+	localVersion: number
+): { status: "ok"; doc: Dashboard } | { status: "newer" | "invalid" } {
+	const loaded = loadDashboard(remoteRaw(doc, localVersion));
 	if (loaded.status === "ok") return { status: "ok", doc: loaded.doc };
 	return { status: loaded.reason };
 }

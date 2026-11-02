@@ -1,13 +1,23 @@
 /**
- * Bringing the server's newer versions into local storage. Task 7 adds polling here.
+ * Bringing the server's newer versions into local storage: merging one document's newer server
+ * version, the list-since poll that finds which documents moved, and fetching missing ones.
  */
 import { applyChange } from "$lib/changes/apply";
 import type { Dashboard } from "$lib/documents/schema";
+import { RETENTION_MS } from "$lib/safety/purge";
 import { report } from "$lib/safety/report";
+import { forgetDocument } from "$lib/sharing/fingerprints";
 import { docLock, type SyncContext } from "./context";
-import { currentChanges, postSync, readLocal, writeLocal, type LocalState } from "./local";
-import { fromRemote, mergeRemote, sameContent, theirChanges } from "./merge";
-import type { RemoteChange, RemoteDocument } from "./remote";
+import {
+	currentChanges,
+	emptyRecord,
+	postSync,
+	readLocal,
+	writeLocal,
+	type LocalState
+} from "./local";
+import { fromRemote, mergeRemote, remoteRaw, sameContent, theirChanges } from "./merge";
+import { RemoteRefusal, type RemoteChange, type RemoteDocument, type RemoteMeta } from "./remote";
 import type { SyncHold, SyncRecord } from "./types";
 
 export type ServerState = {
@@ -47,7 +57,7 @@ export async function pullIntoLocked(
 ): Promise<PullResult> {
 	for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
 		const local = await readLocal(ctx, docId);
-		// A newer local format, or nothing stored: leave it (Task 7 fetches missing ones).
+		// A newer local format, or nothing stored: leave it (`pollList` fetches missing ones).
 		if (typeof local === "string") return "unchanged";
 		const unanswered = inFlight === undefined ? local.record.inFlight : inFlight;
 		const result = await mergeOnce(ctx, local, server, unanswered);
@@ -184,4 +194,122 @@ async function mergeOnce(
 	if (!written) return "raced";
 	postSync(ctx, record.docId);
 	return "merged";
+}
+
+/** Preference key: the cursor the server gave with the last list, for the next poll. */
+export const SYNC_CURSOR_KEY = "syncCursor";
+
+/** A refusal meaning the server has no such document of this account. */
+const absent = (error: unknown) =>
+	error instanceof RemoteRefusal && (error.code === "gone" || error.code === "not_found");
+
+/**
+ * One list-since poll: new documents, moved ones, purged ids. Saves the new cursor only once
+ * every document in the answer was handled, so a failed poll is repeated in full.
+ */
+export async function pollList(ctx: SyncContext): Promise<void> {
+	const { platform, space } = ctx;
+	const since = await platform.preferences.get<string>(space, SYNC_CURSOR_KEY);
+	const list = await ctx.remote.list(since);
+	for (const meta of list.documents) await pollOne(ctx, meta);
+	for (const id of list.purged) await purgedOnServer(ctx, id);
+	await platform.preferences.set(space, SYNC_CURSOR_KEY, list.cursor);
+}
+
+async function pollOne(ctx: SyncContext, meta: RemoteMeta): Promise<void> {
+	const { platform, space } = ctx;
+	try {
+		if ((await platform.documents.get(space, meta.id)) === undefined) {
+			// Deleted long enough ago that Recently deleted would have purged it here.
+			if (
+				meta.deletedAt !== null &&
+				ctx.now().getTime() - Date.parse(meta.deletedAt) > RETENTION_MS
+			) {
+				return;
+			}
+			await storeFromServer(ctx, await ctx.remote.get(meta.id));
+			return;
+		}
+		const record = await platform.sync.get(space, meta.id);
+		// Never uploaded: its upload meets the server's copy (a stale base) and merges then.
+		if (!record || record.serverVersion === null || meta.version <= record.serverVersion) return;
+		const answer = await ctx.remote.changes(meta.id, record.serverVersion);
+		if ("document" in answer) await pullInto(ctx, meta.id, answer);
+	} catch (error) {
+		// Purged since it was listed: the next poll's `purged` says so.
+		if (!absent(error)) throw error;
+	}
+}
+
+/** Fetches a document that isn't stored here; false when the server doesn't have it. */
+export async function fetchMissing(ctx: SyncContext, docId: string): Promise<boolean> {
+	let doc: RemoteDocument;
+	try {
+		doc = await ctx.remote.get(docId);
+	} catch (error) {
+		if (absent(error)) return false;
+		throw error;
+	}
+	return storeFromServer(ctx, doc);
+}
+
+/**
+ * Stores the server's document at local version 0, synced. A newer format is stored as it came
+ * (the app shows it needs an update, as for one a newer build saved here); one that can't be
+ * loaded is reported and left out.
+ */
+async function storeFromServer(ctx: SyncContext, remote: RemoteDocument): Promise<boolean> {
+	const loaded = fromRemote(remote, 0);
+	if (loaded.status === "invalid") {
+		report(new Error("A dashboard from the server couldn't be loaded"), {
+			operation: "sync-fetch"
+		});
+		return false;
+	}
+	const doc = loaded.status === "ok" ? loaded.doc : remoteRaw(remote, 0);
+	const { platform, space } = ctx;
+	await platform.locks.run(docLock(space, remote.id), async () => {
+		// Already here (a tab or another poll stored it first): that copy stands.
+		if ((await platform.documents.get(space, remote.id)) !== undefined) return;
+		await platform.documents.commit(space, {
+			docId: remote.id,
+			baseVersion: null,
+			doc,
+			entries: [],
+			sync: {
+				docId: remote.id,
+				serverVersion: remote.version,
+				syncedThrough: 0,
+				confirmedAt: ctx.now().toISOString(),
+				inFlight: null,
+				hold: null
+			}
+		});
+		postSync(ctx, remote.id);
+	});
+	return true;
+}
+
+/** A document the server purged: removed here, unless it has changes the server never got. */
+async function purgedOnServer(ctx: SyncContext, docId: string): Promise<void> {
+	const { platform, space } = ctx;
+	await platform.locks.run(docLock(space, docId), async () => {
+		const local = await readLocal(ctx, docId);
+		if (local === "missing") return;
+		const record = typeof local === "string" ? await platform.sync.get(space, docId) : local.record;
+		if (record?.hold?.kind === "moved") return;
+		const synced =
+			typeof local !== "string" && record?.serverVersion !== null && local.unsynced.length === 0;
+		if (synced) {
+			await platform.documents.remove(space, docId);
+			await forgetDocument(platform, space, docId);
+		} else if (record?.hold?.kind !== "gone") {
+			await platform.sync.put(space, {
+				...(record ?? emptyRecord(docId)),
+				inFlight: null,
+				hold: { kind: "gone" }
+			});
+		}
+		postSync(ctx, docId);
+	});
 }

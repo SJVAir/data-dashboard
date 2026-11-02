@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocumentSession } from "$lib/store/document-session.svelte";
-import { canonicalJson, pullInto } from "./pull";
+import { RETENTION_MS } from "$lib/safety/purge";
+import { saveFields } from "./merge";
+import { SYNC_CURSOR_KEY, canonicalJson, fetchMissing, pollList, pullInto } from "./pull";
+import type { FakeRemote } from "./remote-fake";
 import { SYNC_TAB } from "./types";
 import { uploadDocument } from "./upload";
 import {
 	SPACE,
+	ACCOUNT,
+	NOW,
 	edit,
+	makeDoc,
 	otherDevice,
 	serverSince,
 	setupSync,
@@ -23,6 +29,20 @@ async function synced() {
 	expect(await uploadDocument(setup.ctx, "d1")).toBe("saved");
 	setup.fake.requests.length = 0;
 	return setup;
+}
+
+/** Another device creates a dashboard on the server. */
+async function createdElsewhere(fake: FakeRemote, id: string, deletedAt: string | null = null) {
+	await fake.save(id, {
+		...saveFields({ ...makeDoc(id), name: `Made elsewhere ${id}` }),
+		deletedAt,
+		baseVersion: null,
+		changes: [],
+		accountId: ACCOUNT,
+		buildId: "other-build",
+		snapshot: null
+	});
+	fake.requests.length = 0;
 }
 
 describe("pullInto", () => {
@@ -190,5 +210,83 @@ describe("pullInto", () => {
 		const sent = [{ schemaVersion: 1, change: { op: "setField", target: { path: "name" } } }];
 		const back = [{ change: { target: { path: "name" }, op: "setField" }, schemaVersion: 1 }];
 		expect(canonicalJson(back)).toBe(canonicalJson(sent));
+	});
+});
+
+describe("pollList", () => {
+	it("a poll pulls only the dashboards that moved and saves the cursor", async () => {
+		const { platform, fake, ctx } = await synced();
+		await storeDoc(platform, makeDoc("d2"));
+		expect(await uploadDocument(ctx, "d2")).toBe("saved");
+		await otherDevice(fake, [title("a", "Theirs")]);
+
+		await pollList(ctx);
+		expect(fake.requests).toEqual(["list", "changes d1 1"]);
+		expect(titles(await stored(platform))).toEqual(["Theirs", null]);
+		const cursor = await platform.preferences.get<string>(SPACE, SYNC_CURSOR_KEY);
+		expect(cursor).toEqual(expect.any(String));
+
+		fake.requests.length = 0;
+		await pollList(ctx);
+		expect(fake.requests).toEqual([`list ${cursor}`]);
+	});
+
+	it("a dashboard made on another device appears", async () => {
+		const { platform, fake, ctx, posted } = await setupSync();
+		await createdElsewhere(fake, "d2");
+		const longAgo = new Date(NOW.getTime() - RETENTION_MS - 1000).toISOString();
+		await createdElsewhere(fake, "d3", longAgo);
+
+		await pollList(ctx);
+		const doc = await stored(platform, "d2");
+		expect(doc).toMatchObject({ id: "d2", name: "Made elsewhere d2", version: 0 });
+		expect(await platform.sync.get(SPACE, "d2")).toEqual({
+			docId: "d2",
+			serverVersion: 1,
+			syncedThrough: 0,
+			confirmedAt: NOW.toISOString(),
+			inFlight: null,
+			hold: null
+		});
+		expect(posted).toContainEqual({ type: "sync", space: SPACE, docId: "d2", tabId: ctx.tabId });
+		// Deleted more than 30 days ago: purged here, so not brought back.
+		expect(await platform.documents.get(SPACE, "d3")).toBeUndefined();
+		// Nothing of it is uploaded back.
+		expect(await uploadDocument(ctx, "d2")).toBe("nothing");
+	});
+
+	it("a purged dashboard with no unsynced changes is removed quietly", async () => {
+		const { platform, fake, ctx, posted } = await synced();
+		await pollList(ctx);
+		fake.purge("d1");
+
+		await pollList(ctx);
+		expect(await platform.documents.get(SPACE, "d1")).toBeUndefined();
+		expect(await platform.sync.get(SPACE, "d1")).toBeUndefined();
+		expect(posted).toContainEqual({ type: "sync", space: SPACE, docId: "d1", tabId: ctx.tabId });
+	});
+
+	it("a purged dashboard with unsynced changes holds gone", async () => {
+		const { platform, fake, ctx } = await synced();
+		await pollList(ctx);
+		const mine = await edit(platform, [title("a", "Mine")]);
+		fake.purge("d1");
+
+		await pollList(ctx);
+		expect(await stored(platform)).toEqual(mine);
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({ hold: { kind: "gone" } });
+	});
+
+	it("fetchMissing creates it, or answers false", async () => {
+		const { platform, fake, ctx } = await setupSync();
+		await createdElsewhere(fake, "d2");
+
+		expect(await fetchMissing(ctx, "d2")).toBe(true);
+		expect(await stored(platform, "d2")).toMatchObject({ id: "d2", version: 0 });
+		expect(await platform.sync.get(SPACE, "d2")).toMatchObject({ serverVersion: 1, hold: null });
+		expect(await fetchMissing(ctx, "nope")).toBe(false);
+		fake.purge("d2");
+		await platform.documents.remove(SPACE, "d2");
+		expect(await fetchMissing(ctx, "d2")).toBe(false);
 	});
 });
