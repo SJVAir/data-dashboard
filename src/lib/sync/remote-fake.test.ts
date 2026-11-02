@@ -45,6 +45,51 @@ describe("createFakeRemote", () => {
 		await expect(fake.list()).rejects.toMatchObject({ code: "unauthorized", status: 401 });
 	});
 
+	test("refuseNext answers the injected refusal once", async () => {
+		const fake = createFakeRemote({ accountId: "a" });
+		fake.refuseNext.push(
+			{ code: "unknown", status: 503 },
+			{ code: "forbidden", status: 403 },
+			{ code: "rate_limited", status: 429 }
+		);
+		await expect(fake.list()).rejects.toMatchObject({ code: "unknown", status: 503 });
+		await expect(fake.get("d")).rejects.toMatchObject({ code: "forbidden", status: 403 });
+		const save = fake.save("d", saveInput("a"));
+		await expect(save).rejects.toBeInstanceOf(RemoteRefusal);
+		await expect(save).rejects.toMatchObject({ code: "rate_limited", status: 429 });
+		expect(fake.refuseNext).toEqual([]);
+		// Injected refusals write nothing, and the next call answers normally.
+		expect(await fake.save("d", saveInput("a"))).toMatchObject({ version: 1 });
+		expect(fake.requests).toEqual(["list", "get d", "save d", "save d"]);
+	});
+
+	test("saves and kept snapshots share the per-minute rate limit", async () => {
+		let at = Date.parse("2026-11-02T18:00:00.000Z");
+		const fake = createFakeRemote({ accountId: "a", savesPerMinute: 2, now: () => new Date(at) });
+		const { version } = await fake.save("d", saveInput("a"));
+		const snapshot = {
+			baseVersion: version,
+			schemaVersion: 1,
+			name: null,
+			body: {},
+			accountId: "a",
+			buildId: "build"
+		};
+		await fake.keepSnapshot("d", snapshot);
+		await expect(fake.keepSnapshot("d", snapshot)).rejects.toMatchObject({
+			code: "rate_limited",
+			status: 429
+		});
+		await expect(fake.save("d", { ...saveInput("a"), baseVersion: version })).rejects.toMatchObject(
+			{ code: "rate_limited", status: 429 }
+		);
+		expect(fake.snapshots("d")).toHaveLength(1);
+		// Reads aren't counted, and the next minute starts over.
+		expect((await fake.get("d")).version).toBe(version);
+		at += 60_000;
+		expect((await fake.save("d", { ...saveInput("a"), baseVersion: version })).version).toBe(2);
+	});
+
 	test("the log keeps only the last logLimit versions", async () => {
 		const fake = createFakeRemote({ accountId: "a", logLimit: 2 });
 		let { version } = await fake.save("d", saveInput("a"));

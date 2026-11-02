@@ -3,7 +3,7 @@
  * (`camp/api/v2/documents/`): the same refusal codes, statuses, and check order. For unit tests
  * and, later, Playwright, so it imports nothing from `$lib` at runtime.
  *
- * Not modelled: the saves-per-minute limit (`rate_limited`), share links, daily snapshots, and
+ * Not modelled: share links, daily snapshots, and
  * the snapshot storage cap.
  */
 import type { RefusalCode } from "@sjvair/sdk/documents";
@@ -29,6 +29,12 @@ export type FakeRemote = RemoteDocuments & {
 	maxDocuments: number;
 	/** One entry per call: `"list"`, `"list <since>"`, `"get <id>"`, `"changes <id> <since>"`, `"save <id>"`, `"keepSnapshot <id>"`. */
 	requests: string[];
+	/**
+	 * Fault injection: each call takes the first entry (in order, one per call) right after it is
+	 * recorded in `requests`, and throws `RemoteRefusal` with that code and status instead of
+	 * answering, e.g. `{ code: "unknown", status: 503 }` or `{ code: "rate_limited", status: 429 }`.
+	 */
+	refuseNext: Array<{ code: RefusalCode; status: number }>;
 	/** Permanently deletes a document, as the trash purge or another device would. */
 	purge(id: string): void;
 	/** Makes `id` belong to another account (creating it there when missing). */
@@ -43,6 +49,8 @@ export type FakeRemoteOptions = {
 	accountId: string;
 	/** Versions of change log kept per document (default 500, like the server). */
 	logLimit?: number;
+	/** Saves and kept snapshots per account per minute before `rate_limited` (default 120). */
+	savesPerMinute?: number;
 	now?: () => Date;
 };
 
@@ -146,6 +154,9 @@ function meta(doc: RemoteDocument): RemoteMeta {
 
 export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 	const logLimit = options.logLimit ?? 500;
+	const savesPerMinute = options.savesPerMinute ?? 120;
+	/** Saves counted per account and minute, like the server's cache counter. */
+	const saveCounts = new Map<string, number>();
 	const now = options.now ?? (() => new Date());
 	const stored = new Map<string, Stored>();
 	const purged = new Map<string, { owner: string; at: string }>();
@@ -153,6 +164,8 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 	/** The signed-in account, after the checks every call shares. */
 	function begin(request: string): string {
 		fake.requests.push(request);
+		const injected = fake.refuseNext.shift();
+		if (injected) throw refuse(injected.code, injected.status);
 		if (fake.offline) throw new RemoteUnavailable();
 		if (fake.signedInAs === null) throw refuse("unauthorized", 401);
 		return fake.signedInAs;
@@ -199,6 +212,11 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 		}
 		if (fake.blockedBuilds.has(input.buildId)) throw refuse("build_blocked", 409);
 		if (input.accountId !== account) throw refuse("account_mismatch", 403);
+		// Saves and kept snapshots share one counter; a refused call still counts, as on the server.
+		const key = `${account} ${Math.floor(now().getTime() / 60_000)}`;
+		const count = (saveCounts.get(key) ?? 0) + 1;
+		saveCounts.set(key, count);
+		if (count > savesPerMinute) throw refuse("rate_limited", 429);
 	}
 
 	function checkLimits(account: string, entry: Stored | undefined, input: SaveInput, size: number) {
@@ -220,6 +238,7 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 		blockedBuilds: new Set(),
 		maxDocuments: 50,
 		requests: [],
+		refuseNext: [],
 
 		async list(since) {
 			const account = begin(since === undefined ? "list" : `list ${since}`);
