@@ -174,6 +174,21 @@ describe("pullInto", () => {
 		expect(await stored(platform)).toEqual(before);
 	});
 
+	it("a pull that raced this device's confirmed upload doesn't conflict with it", async () => {
+		const { platform, fake, ctx } = await synced();
+		await edit(platform, [title("a", "One")]);
+		expect(await uploadDocument(ctx, "d1")).toBe("saved");
+		await edit(platform, [title("a", "Two", "One")]);
+		await otherDevice(fake, [title("b", "Theirs")]);
+		// Asked for before the upload was confirmed: it still lists this device's own save.
+		const stale = await serverSince(fake, 1);
+		expect(stale.changes?.map((c) => c.version)).toEqual([2, 3]);
+
+		expect(await pullInto(ctx, "d1", stale)).toBe("merged");
+		expect(titles(await stored(platform))).toEqual(["Two", "Theirs"]);
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({ serverVersion: 3, hold: null });
+	});
+
 	it("a pull recognizes a save whose answer was lost", async () => {
 		const { platform, fake, ctx } = await synced();
 		await edit(platform, [title("a", "One")]);

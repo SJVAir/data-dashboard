@@ -120,7 +120,10 @@ async function mergeOnce(
 	if (record.hold?.kind === "moved") return "unchanged";
 	if (record.serverVersion !== null && server.version <= record.serverVersion) return "unchanged";
 	const confirmedAt = ctx.now().toISOString();
-	let changes = record.serverVersion === null ? null : server.changes;
+	// Changes this record already includes (a pull that raced this device's confirmed upload)
+	// aren't theirs.
+	const known = record.serverVersion;
+	let changes = known === null ? null : (server.changes?.filter((c) => c.version > known) ?? null);
 
 	const answered = answeredVersion(local, server, inFlight);
 	if (answered !== null && inFlight) {
