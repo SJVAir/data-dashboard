@@ -1,12 +1,14 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv, type Plugin } from "vite";
 import tailwindcss from "@tailwindcss/vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { enhancedImages } from "@sveltejs/enhanced-img";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { playwright } from "@vitest/browser-playwright";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import { canonicalHome } from "./src/lib/routing.ts";
 import { buildInfo } from "./vite-plugins/build-info.ts";
 import { licenses } from "./vite-plugins/licenses.ts";
 import { webManifest } from "./vite-plugins/web-manifest.ts";
@@ -19,6 +21,26 @@ function absoluteShell(): Plugin {
 			order: "post",
 			handler: (html, ctx) =>
 				ctx.bundle ? html.replaceAll(/(["'])\.\/workspace\//g, "$1/workspace/") : html
+		}
+	};
+}
+
+/**
+ * Dev only: serve the app for the bare `/workspace` (Vite would show its base-URL hint page).
+ * The middleware is registered directly, so it runs before Vite's own base check.
+ */
+function bareBase(): Plugin {
+	return {
+		name: "sjvair-bare-base",
+		apply: "serve",
+		configureServer(server) {
+			server.middlewares.use((req, _res, next) => {
+				const url = req.url ?? "";
+				const q = url.indexOf("?");
+				const home = canonicalHome(q < 0 ? url : url.slice(0, q));
+				if (home) req.url = home + (q < 0 ? "" : url.slice(q));
+				next();
+			});
 		}
 	};
 }
@@ -64,7 +86,11 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 		buildInfo(),
 		licenses(),
 		webManifest(),
-		absoluteShell()
+		absoluteShell(),
+		bareBase(),
+		// `npm run dev:lan`: phones on the local network need HTTPS, because over plain http to an
+		// IP address the browser leaves out `crypto.randomUUID` and `crypto.subtle`.
+		...(command === "serve" && !isPreview && process.env.DEV_HTTPS ? [basicSsl()] : [])
 	],
 	build: {
 		target: ["chrome111", "edge111", "safari16.4", "firefox128"],
@@ -112,7 +138,15 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 						enabled: true,
 						headless: true,
 						provider: playwright(),
-						instances: [{ browser: "chromium" }]
+						instances: [{ browser: "chromium" }],
+						commands: {
+							/** Emulate `prefers-reduced-motion` for the test page (null resets it). */
+							setReducedMotion: async (ctx, reduce: boolean | null) => {
+								await ctx.page.emulateMedia({
+									reducedMotion: reduce === null ? null : reduce ? "reduce" : "no-preference"
+								});
+							}
+						}
 					}
 				}
 			}

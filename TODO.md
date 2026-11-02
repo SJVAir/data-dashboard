@@ -1,11 +1,120 @@
 # TODO / Current Status
 
-Last updated: 2026-10-27
+Last updated: 2026-10-29
 
 ## Start here
 
-**Next: Release 1 step 2, the layout engine and windowing, in a fresh session, branching from
-`main`.** Foundations is done and merged into `main` (#11, 2026-10-27). Its last spec, 5b, the
+**One session at a time works Release 1's tracks in order** (decided 2026-10-29), on the
+`layout` branch until step 2 merges into `main`:
+
+1. ~~Layout spec 2b (windowing)~~ **done and merged into `layout`** (#15, 2026-10-29), with
+   follow-ups #16, #17, and #18: see "Step 2" below.
+2. **`layout` → `main`**: the user said yes on 2026-11-02 (merging to `main` is a production
+   deploy once hosting is live).
+3. **Sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. Needs an
+   sdk-js prerelease first, one that includes the documents module (the pinned `4.8.0-beta.1`
+   predates it); cutting it needs the user's yes. See "Sync track" below.
+
+**Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm
+run dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging,
+selected mode and resize handles, the ⋯ menus and submenus, minimize and fullscreen, and
+reload). **The screen-reader pass is deferred** until after `layout` → `main` (the user's call,
+2026-11-02): NVDA, VoiceOver if possible, on keyboard arranging, the Move ▸ and Size ▸ submenus,
+and the taskbar. It's in `DEFERRED.md`, due before go-live or beta testers.
+
+### Step 2: layout engine and windowing (branch `layout`)
+
+**Spec 2a (widget arranging) is done and merged into `layout`** (PR
+[#13](https://github.com/SJVAir/data-dashboard/pull/13), 2026-10-29). Plan:
+`docs/superpowers/plans/2026-10-28-layout-2a-arranging.md`.
+
+- Pure layout engine in `src/lib/layout` (tidy, move, resize, stepDown, moveInOrder), with the
+  column count as input; rows capped at 100,000 and heights at 100.
+- The `setLayout` change (one per drop, undoable, cross-tab overlap rules) and
+  `minimized: { order }`.
+- The Arrangement controller: a preview from the current document, never saved until drop.
+- Keyboard pick-up, move, and resize, and polite announcements. (2a's Move... and Resize... menu
+  items were replaced by the Move ▸ and Size ▸ submenus in #18.)
+- Mouse drag with resize handles and autoscroll.
+- Touch long-press, selection with 44 px handles and Done, and no touch long-press context menu.
+- Phone column reordering.
+- E2E on three engines, and a Chromium drag-performance check: 30 widgets at a calibrated 4x CPU
+  slowdown (the throttle is set so a fixed piece of work takes 4x its time on the reference
+  desktop), p95 under 34 ms (measured 16.7 ms). It runs alone in its own Playwright project,
+  `chromium-perf`; `npm run test:e2e` runs both Chromium projects.
+- CI: PRs into `layout` run the three-browser suite (`e2e-full`); a PR runs either that or the
+  Chromium-only job, never both.
+
+**Spec 2b (windowing) is done and merged into `layout`** (PR
+[#15](https://github.com/SJVAir/data-dashboard/pull/15), 2026-10-29).
+Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
+
+- Minimize and restore changes, undoable; minimized widgets go to the taskbar.
+- Fullscreen is the `?widget=<id>` query parameter on the dashboard URL (`/dashboards/:id` and
+  `/workspace/` for the starter), not a separate route. Leaving by history when the widget goes.
+- Focus requests keep focus across page swaps, undo, and fullscreen frames.
+- The dashboard's ⋯ button; `/workspace` is rewritten to `/workspace/` in place
+  (`history.replaceState`, not a redirect).
+- `setLayout` applies per field (rect, minimized), so two tabs minimizing different widgets at
+  once both keep their minimize (found by the E2E).
+- Verified with unit and browser-mode tests and the windowing E2E.
+- Follow-ups merged into `layout` (2026-10-29):
+  - [#16](https://github.com/SJVAir/data-dashboard/pull/16): `npm run dev:lan`, an HTTPS dev
+    server on the local network for phone testing.
+  - [#17](https://github.com/SJVAir/data-dashboard/pull/17): `tidy()` resolves overlaps in one
+    pass (1,000 widgets: 467 ms to 22 ms), which fixed the Firefox CI timeout; a property test
+    checks it against the old algorithm.
+  - [#18](https://github.com/SJVAir/data-dashboard/pull/18): the widget menu's Move… and
+    Resize… became Move ▸ (Up, Down, Left, Right, To top, To bottom) and Size ▸ (Wider,
+    Narrower, Taller, Shorter) submenus. Each click is one undoable step, and the submenu
+    stays open. This meets WCAG 2.5.7 (the title-bar keyboard mode covers 2.1.1). It also
+    shows a picked-up outline and key hint in keyboard mode, and the ⋯ menu now sizes to its
+    content.
+- The touch check passed (2026-11-02); the screen-reader check is deferred until after `main`
+  (see above). The user said yes to `layout` → `main` on 2026-11-02.
+
+### Sync track (server-backed documents)
+
+**Spec 1 (server and SDK) is done and merged:** sjvair.com
+[#297](https://github.com/SJVAir/sjvair.com/pull/297) into `develop` (2026-10-28; not in
+production until the user's `develop` → `main` deploy) and sdk-js
+[#34](https://github.com/SJVAir/sdk-js/pull/34) into `release/4.8.0` (2026-10-29; no version
+bump, no prerelease cut).
+
+**Next: spec 2 (dashboard sync), after step 2 reaches `main`.** Order (decided 2026-10-29): layout
+spec 2b → `layout` → `main` → sync spec 2, branching from `main` → specs 3 and 4. The sync design
+(`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`) and the spec 1 plan came
+into `layout` from the docs-only `sync` branch (2026-10-29), so they reach `main` with step 2. Spec
+2 first needs an sdk-js prerelease from `release/4.8.0` with the documents module (the dashboard
+pins `4.8.0-beta.1` exactly today); cutting it needs the user's explicit yes. Spec 2 starts with its
+own plan, from the design's "How it works" and "The dashboard (specs 2–4)". Locally, the dev DB
+already has the `documents` tables; the stack serves the sjvair.com main checkout, which needs
+`develop` pulled to serve the documents API. The sdk-js documents integration test runs with
+`TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and
+`TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
+
+Decisions later specs need:
+
+- Reserved ids `profile`, `export`, and `shared` are refused on save (route collisions). The
+  dashboard's ids are random, so this matters only if ids are ever user-chosen.
+- `SharedDocument` includes `id`, for "Make a copy" (`copiedFrom`), the credit lookup, and
+  "You already have a copy".
+- Share and revoke bump `updated_at` but not `version`, so `listDocuments({since})` can return
+  a document with the same version but a changed `visibility` or `share_token`.
+- After account deletion sjvair.com lands on the login page with "Your account was deleted".
+- The server counts size in Python code points; the dashboard's `MAX_DOCUMENT_CHARS` counts
+  UTF-16 units (JS `.length`), so the server is never stricter than the client.
+- In the SDK every documents error is a `DocumentRefusal` (fallback codes `unauthorized`,
+  `forbidden`, `not_found`, `unknown` when the server gives none); schema mismatches throw
+  `DocumentResponseError`.
+- `GET documents/export/` is a browser download (the backup envelope), not an SDK call. It
+  excludes Recently deleted, and the /account/ page says so.
+- Deferrals from spec 1 are in `DEFERRED.md` ("Platform & infrastructure" and "Documents &
+  saving").
+
+### Foundations (Release 1, step 1): history and open items
+
+**Foundations finished 2026-10-27** and is merged into `main` (#11). Its last spec, 5b, the
 sign-in side, merged the same day as data-dashboard
 [#10](https://github.com/SJVAir/data-dashboard/pull/10) (into `foundations`), with sjvair.com
 #296 (into `develop`) and sdk-js #33 (into `release/4.8.0`; no release cut). Design:
@@ -35,7 +144,9 @@ sign-in side, merged the same day as data-dashboard
 
 - sjvair.com `develop` reaching `main` (a production deploy, so your call). It carries #292
   (unblocks the resticus CSRF merge), #293 (metadata enablers, needed before @sjvair/sdk
-  4.8.0), #295 (hosting; the route stays behind `beta_tools`), and #296 (5b's sign-in side).
+  4.8.0), #295 (hosting; the route stays behind `beta_tools`), #296 (5b's sign-in side), and
+  #297 (sync spec 1's documents API; its cookie-authenticated writes need resticus #25 in
+  production first).
   #287, #288, and #289 already reached `main` in release #291 (2026-10-22). It's no longer
   blocked on the dashboard: sjvair.com's build imports dashboard `main`, which now has the
   embedding build. Once deployed, `/workspace/` is live behind `beta_tools`.
@@ -673,7 +784,7 @@ noted on each item.
 - Pure layout functions, tested: placement, collision, compaction, minimize/restore, and
   deriving the responsive stack.
 - Drag and resize with edge/corner handles, a taskbar, and fullscreen.
-- WCAG 2.2 AA pieces: keyboard move and resize (plus ⋯ menu actions), live-region
+- WCAG 2.2 AA pieces: keyboard move and resize, Move/Size ⋯ submenus (2.5.7), live-region
   announcements, focus management for fullscreen and the taskbar, and
   `prefers-reduced-motion`.
 

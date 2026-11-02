@@ -33,7 +33,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   preview feedback link opens `/contact/` as it is; the form can't take a topic or message
   from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
   page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
-  track (which builds "Report this page").
+  track (which builds "Report this page"). _Updated 2026-10-28 (Sync spec 1):_ the server part is
+  done (sjvair.com #297: `/contact/?topic=Report&page=<encoded URL>` for same-host
+  `/workspace/shared/` URLs); spec 3 adds the dashboard link.
 - **Remove the `@jsr/sjvair__sdk` license exception.** _Deferred 2026-10-26 (Foundations spec
   5a)._ The license check names `@jsr/sjvair__sdk` as an exception because the JSR build has no
   license field and no license text, so the third-party notices carry none for it. **Revisit
@@ -181,6 +183,20 @@ string`) now get the union return type. The mobile app passes a string token, so
   - Promoting fields inside `body` to real database columns (the server stores `body`
     without interpreting it, so it can't query inside documents). **Revisit when** a
     server-side feature needs to query documents (e.g. "dashboards using monitor X").
+  - **Real-time push of document changes** (WebSockets or server-sent events). _Deferred
+    2026-10-28 (sync design)._ Open pages poll about once a minute while visible instead.
+    sjvair.com runs WSGI under gunicorn, so push would need an async server, a Redis channel
+    layer, and new Heroku connection limits; a minute's delay suits teachers, schools, and
+    one person on two devices. **Revisit when** someone needs changes to appear instantly
+    (e.g. live classroom editing), or polling load becomes noticeable.
+  - **Server change-log retention beyond the last 500 versions.** _Deferred 2026-10-28 (sync
+    design)._ A device offline for longer than that can't tell which edits overlapped, so it
+    always gets the three-choice prompt rather than a silent merge. **Revisit if** those
+    prompts are reported.
+  - **Merging colliding layout moves more cleverly.** _Deferred 2026-10-28 (sync design;
+    decided with the user)._ Layout moves never prompt: the last save wins, and step 2's
+    tidy fixes any overlap. Keeping both sides' intent (e.g. per-widget last-writer) isn't
+    attempted. **Revisit if** people report layouts jumping back while tuning on two devices.
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
   sync in Release 1; preferences stay local per device (they're conveniences, and devices
@@ -250,15 +266,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
   **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
-- **`/workspace` without a trailing slash.** _Deferred 2026-10-20 (Foundations spec 1
-  review); updated 2026-10-27 (spec 5b final review)._ The home route shows as `/workspace`
-  (sv-router drops the slash), while Vite's base is `/workspace/`. The server half is done:
-  the hosting track's `re_path(r'^workspace(?:/.*)?$')` makes sjvair.com serve both forms (200,
-  no redirect), and the dev-stack test accepts both. Spec 5b's Sign in link sends home back as
-  `/workspace/`. Still open, dev only: reloading home in `npm run dev` (or opening `/workspace`
-  there) shows Vite's base-URL hint page, and the address bar's home URL isn't the canonical
-  `/workspace/`. **Revisit with** the next router change (layout engine and windowing, at the
-  latest): have the router render home as `/workspace/`, or redirect the bare base in dev.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -313,6 +320,14 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **resticus: PATCH test goes around `ApiClient`.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22 (resticus CSRF fix
   review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
   `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
+
+- **Credentialed CORS from any origin in front of private documents.** _Deferred 2026-10-28
+  (Sync spec 1)._ sjvair.com already sets `CORS_ORIGIN_ALLOW_ALL` with
+  `CORS_ALLOW_CREDENTIALS`, so private documents now sit behind credentialed CORS from any
+  origin. `SameSite=Lax` cookies block cross-site reads, but same-site origins (other
+  `*.sjvair.com` hosts) could read them. Not changed in spec 1: it is site-wide config other
+  clients may rely on. **Revisit before** the sjvair.com `develop` to `main` deploy that
+  carries the documents API (part of "everything ready").
 
 ## Documents & saving
 
@@ -386,6 +401,39 @@ string`) now get the union return type. The mobile app passes a string token, so
   (Foundations spec 3)._ Only dashboards can be shared, exported, and backed up; the envelope
   is shaped so other kinds can be added without a new format. **Revisit with** Collections and
   the Analysis step (Release 3).
+- **Token-auth document saves are capped at 2.5 MB.** _Deferred 2026-10-28 (Sync spec 1)._
+  The larger 16 MiB cap is lifted only for signed-in session PUTs, because resticus reads the
+  body before authenticating and a site-wide raise would let anonymous callers make every
+  endpoint buffer 16 MiB. Token saves keep the site's 2.5 MB request size. **Revisit when**
+  token-mode (standalone or Tauri) sync is built: the pre-read step would need to
+  authenticate tokens too.
+- **Per-account document limits are soft under concurrency.** _Deferred 2026-10-28 (Sync spec
+  1)._ The limits (50 dashboards, 25 MB) use a row lock per document, so simultaneous creates
+  of different ids can overshoot slightly, bounded by the 120 saves per minute limit. A save
+  that doesn't grow storage is always allowed. **Revisit if** overshoot is observed or abuse
+  appears; the fix is to lock per owner.
+- **Server Sentry scrubbing for documents is partial.** _Deferred 2026-10-28 (Sync spec 1)._
+  It drops request data and frame locals only; exception messages and log breadcrumbs are left
+  as they are. No current code puts document content in exception text. **Revisit if** any
+  documents code formats content into exceptions or logs, or when the Sentry IP and scrubber
+  settings are reviewed.
+- **sdk-js `parseBody` matches `Content-Type` exactly.** _Deferred 2026-10-28 (Sync spec 1)._
+  A JSON error with `; charset=...` (from a proxy) gets a fallback refusal code instead of the
+  server's. Pre-existing and SDK-wide. **Revisit if** any server or proxy in front of the API
+  adds a charset.
+- **sdk-js documents schemas use strict enums.** _Deferred 2026-10-28 (Sync spec 1)._
+  `visibility` and the snapshot `reason` are strict, so a new server value would fail
+  validation. **Revisit when** `public` visibility or a new snapshot reason ships.
+- **Share, revoke, and credit load the whole document body.** _Deferred 2026-10-28 (Sync
+  spec 1)._ They only need metadata. **Revisit if** dashboards get large or those endpoints
+  show up in performance work.
+- **Sync spec 1 review leftovers.** _Deferred 2026-10-28 (Sync spec 1)._ Test and style polish
+  with no behavior impact: no test at exactly the 16 MiB request cap; a missing
+  `Content-Length` gets resticus's 400 instead of `too_large`; the rate-limit counter can
+  undercount by one at a key-expiry race; the limit refusal tests don't also assert no
+  snapshot or change rows; a few lines over 100 characters and import-order nits; the CSRF
+  test's token setup could be simpler; no export test with non-ASCII bodies or many
+  documents. **Revisit when** the files are next touched.
 
 ## Map & selection
 
@@ -590,6 +638,41 @@ string`) now get the union return type. The mobile app passes a string token, so
   `applyChange`'s index clamping and for never mutating its input are weak. Both are
   exercised indirectly by other tests. **Revisit when** a second widget type registers
   (Release 1 step 4), or `applyChange` gains an operation.
+- **Widget state across the starter's first edit in fullscreen.** _Deferred 2026-10-29 (spec
+  2b)._ An edit made while a starter widget is fullscreen hands off to the copy and keeps
+  `?widget`, but the page moves from Home to the copy's dashboard page, so the grid and the
+  fullscreen widget are mounted again once (a widget's own state, such as zoom, resets). Why:
+  keeping the grid mounted across Home → the dashboard page needs a router restructure.
+  **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
+  lost on the starter's first edit.
+- **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
+  2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
+  between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
+  (a widget's own state, such as zoom, resets). Why: the widget moves between the grid frame and
+  the minimized-fullscreen frame, so it remounts. **Revisit when** a step 4 widget has internal
+  state that's visibly lost.
+- **The page behind a fullscreen widget is not fully scroll-locked.** _Deferred 2026-10-29
+  (spec 2b)._ The fullscreen frame uses `overscroll-contain`, so the page behind it can still
+  scroll in some cases. Why: it's cosmetic, and a full scroll lock is fragile across browsers.
+  **Revisit when** people report the background scrolling, especially on iOS Safari.
+- **A no-op `setLayout` entry still counts in overlap detection.** _Deferred 2026-10-29 (spec
+  2b)._ `touches()` in `src/lib/changes/overlap.ts` counts a `setLayout` entry whose fields
+  are unchanged against a concurrent `removeWidget`, so it can raise a rare spurious conflict
+  dialog. Why: it is harmless to correctness and rare. **Revisit when** it's reported, or when
+  sync spec 2 touches overlap detection.
+- **Fixed sleeps in the "no stray toast" fullscreen tests.** _Deferred 2026-10-29 (spec 2b
+  final review)._ Three tests in `src/lib/components/dashboard/windowing.browser.test.ts` (a
+  deep link that waits for the dashboard, Delete in fullscreen, a deep link on a read-only
+  dashboard) wait a fixed 100 ms before checking that no "isn't on this dashboard" notice
+  appeared. Why: such a wait can only miss a late toast, never fail falsely, and there's no
+  event to wait on for something that shouldn't happen. **Revisit when** one of them is seen to
+  pass while the notice shows up later by hand, or the suite gets a shared "settled" helper.
+- **Focus when another tab deletes the focused widget.** _Deferred 2026-10-29 (spec 2b final
+  fix wave)._ A focused grid widget that leaves the grid by undo or another tab's minimize now
+  hands focus to its taskbar item (or its title bar after a page swap), but one deleted in
+  another tab drops focus to the page, as before. Why: the hand-off has no widget left to
+  target, and choosing a neighbour is a separate design question. **Revisit when** cross-tab
+  editing gets its keyboard and screen-reader pass, or it's reported.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
@@ -720,7 +803,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   - Hidden spaces on expiry or an account change, and removing a hidden space after 30 days.
     There are no account spaces to hide yet.
   - Saves bound to an account (each save names its account; the server refuses a mismatch)
-    and the re-check before each sync. There are no server saves yet.
+    and the re-check before each sync. There are no server saves yet. _Updated 2026-10-28 (Sync spec 1):_ the
+    server half is done (sjvair.com #297 refuses an `account_id` mismatch); the dashboard half
+    waits for spec 2.
   - "Sign in to keep this safe everywhere" in the backup reminder (see its own entry under
     "Documents & saving").
 - **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
@@ -797,12 +882,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   _Deferred 2026-09-28._ Release 1 sends no analytics, only scrubbed error reports.
   **Revisit when** someone needs usage numbers (e.g. for funding reports or prioritizing
   widgets).
-- **Context menu loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The menu
-  items, context, and dropdown state could be `$state.raw`; the module-singleton dropdown
-  state needs a comment; submenus, disabled items, and separators have no tests; menus have
-  no reduced-motion test; and whether the Windows Menu key opens the menu twice is
-  unverified. Spec 1 menus are flat and short. **Revisit when** a menu first needs a
-  submenu, or in the first Windows testing pass.
+- **Context menu loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review); narrowed
+  2026-10-29 (step 2, the Move and Size submenus)._ Done in that change: the menu items,
+  context, and dropdown state are `$state.raw`, the module-singleton dropdown state has a
+  comment, and submenus, disabled items (live and at their limits), `keepOpen` items, and
+  separators have tests. Still open: menus have no reduced-motion test (the existing one checks
+  a dialog), and whether the Windows Menu key opens the menu twice is unverified (it needs a
+  Windows machine). **Revisit in** the first Windows testing pass, or when menus next get an
+  animation change.
 - **Shell keyboard handling.** _Deferred 2026-10-20 (Foundations spec 1 review)._ The
   text-entry check treats every `input` as text entry; IME composition (`isComposing`) isn't
   skipped; shortcut labels say Ctrl on macOS; `contenteditable` is untested; and the
@@ -847,6 +934,69 @@ string`) now get the union return type. The mobile app passes a string token, so
   restore runs, or reset its state on close. **Revisit in** the design pass.
 - **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
   light mode only. **Revisit in** the design pass.
+- **A "present" mode using the browser's own full screen.** _Deferred 2026-10-28 (step 2
+  design)._ Widget fullscreen covers the dashboard area only; the browser's F11 / fullscreen key
+  already gives an edge-to-edge projector view. The Fullscreen API would add a second Esc-to-exit
+  that fights our own focus restore, and needs its own exit control. **Revisit if** teachers in
+  the private preview ask for one-click projector mode.
+- **A separate tablet layout (fewer columns).** _Deferred 2026-10-28 (step 2 design)._ Release 1
+  has two layouts: the 12-column grid from ~768 px up, one column below. A derived 6- or 8-column
+  view would have to translate tablet moves back to 12 columns. Only the desktop layout is saved
+  and the engine takes the column count as input, so adding one later is a display change.
+  **Revisit if** preview users find portrait tablets cramped.
+- **Spot-specific context menus on touchscreens.** _Deferred 2026-10-28 (step 2 design)._ On touch,
+  long-press no longer opens the context menu (it picks up widgets and is the browser's own
+  gesture); the ⋯ buttons open the same menus but have no "point". Items tied to a pressed spot
+  (e.g. "Analyze this monitor" on a map feature) need another touch path, such as the feature's
+  own tap popup. **Revisit with** the map widget (step 5) and Release 3's analysis actions.
+- **Drag performance threshold is loose, and its calibration is approximate.** _Deferred
+  2026-10-28 (step 2, spec 2a)._ The check requires p95 under 34 ms at 4x CPU (2x the 16.7 ms
+  baseline). Frame times come in 16.7 ms steps, so it catches only about 2 dropped frames at p95.
+  After it failed on GitHub's runner (p95 50 ms on a CPU about half as fast as the reference
+  desktop), the throttle became calibrated: a fixed piece of JavaScript is timed and the rate set
+  so the page runs at 4x the reference machine's time (`REFERENCE_WORK_MS`, 10.3 ms), and the
+  check runs alone in its own Playwright project. The calibration times JavaScript only, not
+  style, layout, or painting, and the reference value is tied to one machine and Chromium
+  version. **Revisit with** the low-end Chromebook check before go-live, if CI flakes again, or
+  when a Playwright upgrade moves the reference timing (re-measure it as the spec's comment
+  says).
+- **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
+  touch is blocked. **Revisit if** pen users report it.
+- **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
+  2026-10-28 (step 2, spec 2a final review)._ The title bar is a focusable group, and browse
+  mode may intercept Enter and the arrows before they reach it. A mitigation is in (a click
+  with `detail` 0 on the title bar acts like Enter), but no real screen reader has been tried.
+  On 2026-11-02 the user chose to merge `layout` into `main` first and do this check later
+  (the touch check had passed). **Revisit before** Release 1 goes live (step 6) or beta testers
+  get the dashboard, whichever comes first, or sooner when the user has time: a hand check with
+  NVDA (and JAWS if available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸
+  and Size ▸ submenus (#18), their announcements, and the taskbar.
+- **Keyboard arrangement request-chain cache can thrash in very long pick-ups.** _Deferred
+  2026-10-28 (step 2, spec 2a final review)._ The preview cache keeps 512 request prefixes;
+  past 512 keyboard steps in one pick-up it evicts the current chain, and each keypress then
+  recomputes every step. Nobody makes 500 moves in one pick-up in practice. **Revisit if**
+  keyboard arranging feels slow on long dashboards; fix by never evicting the current chain or
+  by collapsing the steps into one request.
+- **Spec 2a test-coverage gaps.** _Deferred 2026-10-28 (step 2, spec 2a final review)._ The
+  behavior is in place and covered elsewhere; these tests are missing or loose: a `setLayout`
+  journal / `upgradeChanges` round trip; keyboard replay after a remote change; a pointer move
+  after keyboard steps; no animation on rename, remote save, or viewport switch; listeners
+  released when a frame is destroyed mid-drag; the click test asserting title-bar focus; the
+  Tab test asserting the focus target; the locked/minimized test via the real menu (it builds
+  its own `Arrangement`); a synthetic window blur; the width-change test relying on a viewport
+  resize; E2E `boundingBox` reads right after a reload without a web-first wait, and ±0.5 px
+  tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
+  engine calls with unknown ids; and `items.test` not unregistering its test widget type.
+  **Revisit when** touching each area, or if any of these tests flakes.
+- **Spec 2a robustness loose ends.** _Deferred 2026-10-28 (step 2, spec 2a final review)._ None
+  is a user-facing bug today: a tests-only `onArrangement` prop on `DashboardGrid` and the test
+  harness; the live region is hidden behind bits-ui modals (they `aria-hidden` their siblings);
+  resizing isn't animated; the autoscroll animation frame runs for the whole drag, not only in
+  the edge zone; touches starting on a widget's body or Done during a touch selection can
+  scroll the page; a second drop on the starter before the page switches to its copy doesn't
+  carry focus; the focus ring after touch drops isn't checked by hand; `FALLBACK_MIN_SIZE` is a
+  shared object that isn't frozen; and `stepDown`'s doc comment wording. **Revisit in** the
+  design pass, or in spec 2b where it touches the same code.
 
 ## Legacy Monitors-tab follow-ups
 
@@ -901,7 +1051,10 @@ point.
      of data, no profiling, and complete deletion.
   4. **What the privacy policy must say** (California requires one): what stays in the
      browser and what syncs, scrubbed error reports, the text and email providers, the
-     30-day trash and snapshots, and how account deletion works.
+     30-day trash and snapshots, and how account deletion works. _Added 2026-10-28 (sync
+     design):_ **staff don't view the contents of private dashboards** (the admin shows
+     metadata only), shared pages show only the optional display name, and other devices
+     hide a deleted account's copies at once and remove them within 30 days.
   5. **Location and anonymous use.** "Use my location" sends a rounded position to the
      server to find the area, and anonymous error reports are sent. Confirm neither
      counts as collecting personal information from anonymous, possibly under-13, users.
@@ -952,7 +1105,9 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
 - **Staging copied data instead of query descriptors**: _2026-09-23, Q2_. Descriptors stay
   small, stay current, and keep fetched data out of saved documents.
 - **Persisting tablet/phone layouts separately**: _2026-09-23, Q4_. Only the desktop
-  layout is saved; smaller layouts are derived.
+  layout is saved; smaller layouts are derived. Reconsidered 2026-10-28 (step 2 design) as a
+  saved phone order, and kept ruled out: phones show the desktop reading order, and rearranging
+  on a phone changes the desktop layout.
 - **URL as source of truth for dashboards**: _2026-09-24_. The URL holds location; the
   document holds content.
 - **JupyterLite inside dashboard pages / app-wide cross-origin isolation**: _2026-09-23,
@@ -1070,3 +1225,14 @@ Dropped 2026-10-20 by the user ("we won't deal with production"):
 - **Run `import_forecast_zones` on production** (noted 2026-10-20). The three `custom`
   forecast zones were imported and verified locally (`TODO.md` → the forecast-zones
   warning); production work is out of scope.
+
+Dropped 2026-10-29 by the user (spec 2b review notes, closed as already covered or impossible):
+
+- **Test for restoring a widget wider than the grid.** The document schema caps `w` at 12,
+  the grid's width.
+- **Taskbar tests for dashboard items absent from an item's menu, and no taskbar on
+  read-only.** The taskbar menu test and the read-only tests already cover both.
+- **Test that Back exits starter fullscreen after the `/workspace/` rewrite.** A unit test
+  pins that the history state survives the rewrite, and the E2E covers Back.
+- **Reduced-motion check inspects only the frame's animations; two-tab test's order relies
+  on widget id.** Only the frame animates, and the id tie-break is the spec's rule.

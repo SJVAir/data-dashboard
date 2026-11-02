@@ -87,7 +87,7 @@ test("a tampered link shows the error and saves nothing", async ({ page }) => {
 
 test("/import with no link goes home", async ({ page }) => {
 	await page.goto("./import");
-	await expect(page).toHaveURL(/\/workspace\/?$/);
+	await expect(page).toHaveURL(/\/workspace\/$/);
 });
 
 async function chooseMenuItem(page: Page, current: string, item: string) {

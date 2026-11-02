@@ -46,6 +46,7 @@
 	"deleted_restore_failed": "Couldn't restore the dashboard.",
 	"confirm_cancel": "Cancel",
 	"dashboard_empty": "This dashboard is empty.",
+	"dashboard_all_minimized": "All widgets are minimized.",
 	"dashboard_not_here": "This dashboard isn't saved in this browser.",
 	"page_title_not_here": "Dashboard not found · SJVAir Dashboard",
 	"your_dashboards": "Your dashboards",
@@ -68,6 +69,137 @@
 	"widget_delete": "Delete widget",
 	"widget_deleted": "Widget deleted",
 	"widget_unknown_title": "Unknown widget",
+	"widget_move": "Move",
+	"widget_move_up": "Up",
+	"widget_move_down": "Down",
+	"widget_move_left": "Left",
+	"widget_move_right": "Right",
+	"widget_move_top": "To top",
+	"widget_move_bottom": "To bottom",
+	"widget_size": "Size",
+	"widget_size_wider": "Wider",
+	"widget_size_narrower": "Narrower",
+	"widget_size_taller": "Taller",
+	"widget_size_shorter": "Shorter",
+	"layout_picked_up": "Picked up {title}. Column {column}, row {row}. Arrow keys move, Shift and arrow keys resize, Enter drops, Escape cancels.",
+	"layout_resized": [
+		{
+			"declarations": [
+				"input title",
+				"input width",
+				"input height",
+				"input widthValue",
+				"input heightValue",
+				"local widthPlural = widthValue: plural",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["widthPlural", "heightPlural"],
+			"match": {
+				"widthPlural=one, heightPlural=one": "Resized {title} to {width} column wide, {height} row tall.",
+				"widthPlural=one, heightPlural=other": "Resized {title} to {width} column wide, {height} rows tall.",
+				"widthPlural=other, heightPlural=one": "Resized {title} to {width} columns wide, {height} row tall.",
+				"widthPlural=other, heightPlural=other": "Resized {title} to {width} columns wide, {height} rows tall."
+			}
+		}
+	],
+	"layout_picked_up_phone": "Picked up {title}. Position {position} of {total}. Up and down arrows move, Shift and up and down arrows resize, Enter drops, Escape cancels.",
+	"layout_position": "Column {column}, row {row}.",
+	"layout_size": [
+		{
+			"declarations": [
+				"input width",
+				"input height",
+				"input widthValue",
+				"input heightValue",
+				"local widthPlural = widthValue: plural",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["widthPlural", "heightPlural"],
+			"match": {
+				"widthPlural=one, heightPlural=one": "{width} column wide, {height} row tall.",
+				"widthPlural=one, heightPlural=other": "{width} column wide, {height} rows tall.",
+				"widthPlural=other, heightPlural=one": "{width} columns wide, {height} row tall.",
+				"widthPlural=other, heightPlural=other": "{width} columns wide, {height} rows tall."
+			}
+		}
+	],
+	"layout_height": [
+		{
+			"declarations": [
+				"input height",
+				"input heightValue",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["heightPlural"],
+			"match": {
+				"heightPlural=one": "{height} row tall.",
+				"heightPlural=other": "{height} rows tall."
+			}
+		}
+	],
+	"layout_resized_phone": [
+		{
+			"declarations": [
+				"input title",
+				"input height",
+				"input heightValue",
+				"local heightPlural = heightValue: plural"
+			],
+			"selectors": ["heightPlural"],
+			"match": {
+				"heightPlural=one": "Resized {title} to {height} row tall.",
+				"heightPlural=other": "Resized {title} to {height} rows tall."
+			}
+		}
+	],
+	"layout_phone_position": "Position {position} of {total}.",
+	"layout_dropped": [
+		{
+			"declarations": [
+				"input title",
+				"input column",
+				"input row",
+				"input count",
+				"input countValue",
+				"local countExact = countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countExact", "countPlural"],
+			"match": {
+				"countExact=0, countPlural=*": "Dropped {title} at column {column}, row {row}.",
+				"countExact=*, countPlural=one": "Dropped {title} at column {column}, row {row}. {count} other widget moved.",
+				"countExact=*, countPlural=other": "Dropped {title} at column {column}, row {row}. {count} other widgets moved."
+			}
+		}
+	],
+	"layout_moved": [
+		{
+			"declarations": [
+				"input title",
+				"input column",
+				"input row",
+				"input count",
+				"input countValue",
+				"local countExact = countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countExact", "countPlural"],
+			"match": {
+				"countExact=0, countPlural=*": "Moved {title} to column {column}, row {row}.",
+				"countExact=*, countPlural=one": "Moved {title} to column {column}, row {row}. {count} other widget moved.",
+				"countExact=*, countPlural=other": "Moved {title} to column {column}, row {row}. {count} other widgets moved."
+			}
+		}
+	],
+	"layout_dropped_phone": "Dropped {title} at position {position} of {total}.",
+	"layout_moved_phone": "Moved {title} to position {position} of {total}.",
+	"layout_cancelled": "Cancelled. {title} is back where it was.",
+	"layout_gone": "{title} was removed in another tab. Move cancelled.",
+	"layout_at_bottom": "{title} is already at the bottom.",
+	"layout_done": "Done",
+	"layout_keys_hint": "Arrow keys move · Shift+arrows resize · Enter drops · Esc cancels",
+	"layout_keys_hint_phone": "Up and Down move · Shift+Up and Down resize · Enter drops · Esc cancels",
+	"layout_title_bar_hint": "Press Enter to move",
 	"rename_dashboard_title": "Rename dashboard",
 	"rename_widget_title": "Rename widget",
 	"import_opening": "Opening shared dashboard…",
@@ -228,5 +360,18 @@
 	"account_signed_in_as": "Signed in as {name}",
 	"account_signed_in_unnamed": "You're signed in",
 	"account_settings": "Account settings",
-	"account_sign_out": "Sign out"
+	"account_sign_out": "Sign out",
+	"widget_minimize": "Minimize",
+	"widget_minimize_named": "Minimize {title}",
+	"widget_fullscreen": "Fullscreen",
+	"widget_fullscreen_named": "Show {title} fullscreen",
+	"widget_exit_fullscreen": "Exit fullscreen",
+	"widget_restore": "Restore",
+	"taskbar_label": "Minimized widgets",
+	"taskbar_restore_named": "Restore {title}",
+	"widget_minimized": "{title} minimized to taskbar.",
+	"widget_restored": "{title} restored.",
+	"widget_fullscreen_entered": "{title} fullscreen. Press Escape to exit.",
+	"fullscreen_widget_missing": "That widget isn't on this dashboard anymore.",
+	"dashboard_menu": "Dashboard actions"
 }

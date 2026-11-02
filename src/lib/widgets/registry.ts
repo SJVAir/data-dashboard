@@ -18,7 +18,8 @@ export type WidgetType = {
 	span?: { minDays?: number; maxDays?: number };
 	defaultTitle(widget: WidgetInstance): string;
 	menu: MenuProvider;
-	component: Component<{ widget: WidgetInstance }>;
+	icon: Component;
+	component: Component<{ widget: WidgetInstance; fullscreen?: boolean }>;
 };
 
 const types = new Map<string, WidgetType>();

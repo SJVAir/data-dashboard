@@ -1,20 +1,42 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+	import { onDestroy, type Snippet } from "svelte";
 	import { resolveMenu } from "$lib/actions/resolve";
 	import type { MenuContext, MenuItem } from "$lib/actions/types";
 	import * as ContextMenu from "$lib/components/ui/context-menu";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import MenuItems from "./MenuItems.svelte";
-	import { dropdown } from "./menu-state.svelte";
+	import {
+		clearAfterMenuClose,
+		dropdown,
+		registerMenuCloser,
+		takeAfterMenuClose
+	} from "./menu-state.svelte";
 
 	let { children }: { children: Snippet } = $props();
 
-	let items = $state<MenuItem[]>([]);
-	let ctx = $state<MenuContext | null>(null);
+	// A pending after-close action (e.g. Minimize) from a page that's gone mustn't run on the next.
+	onDestroy(clearAfterMenuClose);
 
-	// Touch/pen long-press opens the menu without a `contextmenu` event, so resolve on pointerdown.
+	// Raw: the items carry live `disabled` functions, and nothing in them is edited in place.
+	let items = $state.raw<MenuItem[]>([]);
+	let ctx = $state.raw<MenuContext | null>(null);
+	let contextOpen = $state(false);
+	onDestroy(registerMenuCloser(() => (contextOpen = false)));
+
+	// A touch long-press never opens the menu: on the dashboard it lifts a widget, and the ⋯
+	// buttons are the touch path to the same items. bits-ui's trigger opens on a long-press
+	// timer of its own and on the `contextmenu` Android raises, so it's disabled from a touch's
+	// pointerdown until the next mouse or pen press, or a key press (Shift+F10, the Menu key).
+	let touched = $state(false);
+
 	function onPointerdown(event: PointerEvent) {
-		if (event.pointerType !== "mouse") resolveFor(event);
+		touched = event.pointerType === "touch";
+		// A pen long-press still opens it (no `contextmenu` event first), so resolve now.
+		if (event.pointerType === "pen") resolveFor(event);
+	}
+
+	function onContextmenu(event: MouseEvent) {
+		if (!touched) resolveFor(event);
 	}
 
 	// Resolved before bits-ui's trigger handles the same event, so the content is ready on open.
@@ -29,6 +51,7 @@
 	// Shift+F10 / the Menu key normally raise `contextmenu` on the focused element. Where the
 	// browser doesn't, raise it ourselves so the menu opens at the focused element.
 	function onKeydown(event: KeyboardEvent) {
+		touched = false;
 		const isKey = event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey);
 		if (!isKey || !(event.target instanceof Element)) return;
 		event.preventDefault();
@@ -43,19 +66,33 @@
 		);
 	}
 
-	const anchor = $derived(dropdown.ctx?.target as HTMLElement | undefined);
+	// Focus returns to the element that opened it; the menu sits at its frozen `anchor`.
+	const opener = $derived(dropdown.ctx?.target as HTMLElement | undefined);
+
+	// An item that moves focus itself (Minimize, Fullscreen) does so once its menu has closed.
+	function onCloseAutoFocus(event: Event, fallback?: () => void) {
+		const after = takeAfterMenuClose();
+		if (after) {
+			event.preventDefault();
+			after();
+		} else if (fallback) {
+			event.preventDefault();
+			fallback();
+		}
+	}
 </script>
 
-<ContextMenu.Root>
+<ContextMenu.Root bind:open={contextOpen}>
 	<ContextMenu.Trigger
 		class="contents"
-		oncontextmenucapture={resolveFor}
+		disabled={touched}
+		oncontextmenucapture={onContextmenu}
 		onpointerdowncapture={onPointerdown}
 		onkeydowncapture={onKeydown}
 	>
 		{@render children()}
 	</ContextMenu.Trigger>
-	<ContextMenu.Content>
+	<ContextMenu.Content onCloseAutoFocus={(e) => onCloseAutoFocus(e)}>
 		{#if ctx}
 			<MenuItems {items} {ctx} kind="context" />
 		{/if}
@@ -64,11 +101,8 @@
 
 <DropdownMenu.Root bind:open={dropdown.open}>
 	<DropdownMenu.Content
-		customAnchor={anchor ?? null}
-		onCloseAutoFocus={(e) => {
-			e.preventDefault();
-			anchor?.focus();
-		}}
+		customAnchor={dropdown.anchor}
+		onCloseAutoFocus={(e) => onCloseAutoFocus(e, () => opener?.focus())}
 	>
 		{#if dropdown.ctx}
 			<MenuItems items={dropdown.items} ctx={dropdown.ctx} kind="dropdown" />

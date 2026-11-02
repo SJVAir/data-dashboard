@@ -147,3 +147,25 @@ describe("UndoStack", () => {
 		expect(stack.takeRedo(undone!.doc)?.doc).toEqual(edited);
 	});
 });
+
+describe("UndoStack with setLayout", () => {
+	it("undo of a setLayout after another tab deleted one widget moves the rest back", () => {
+		const stack = new UndoStack();
+		const p = (y: number) => ({ rect: { x: 0, y, w: 6, h: 4 }, minimized: null });
+		const start = makeDoc();
+		const edited = edit(stack, start, {
+			op: "setLayout",
+			target: { widgetIds: ["a", "b"] },
+			from: { a: p(0), b: p(0) },
+			to: { a: p(4), b: p(8) }
+		});
+		const doc = applyChange(edited, {
+			op: "removeWidget",
+			target: { widgetId: "b" },
+			widget: edited.body.widgets[1],
+			index: 1
+		}).doc;
+		const undone = stack.takeUndo(doc);
+		expect(undone?.doc.body.widgets.map((w) => w.rect.y)).toEqual([0]);
+	});
+});

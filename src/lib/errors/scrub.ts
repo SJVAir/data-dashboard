@@ -1,4 +1,5 @@
 import type { ReportContext } from "$lib/platform/types";
+import { BASE } from "$lib/routing";
 
 /** The only context keys an error report may carry; none of them identify a person or place. */
 export const ALLOWED_CONTEXT_KEYS: ReadonlySet<string> = new Set([
@@ -45,8 +46,6 @@ export function scrubContext(c?: ReportContext): ReportContext {
 	}
 	return out;
 }
-
-const BASE = "/workspace";
 
 /**
  * The route a path belongs to, with ids replaced (`/workspace/dashboards/abc` →
