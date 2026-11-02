@@ -3,6 +3,7 @@ import axe from "axe-core";
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
+import { m } from "$lib/paraglide/messages.js";
 import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform } from "$lib/platform/types";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
@@ -50,6 +51,13 @@ test("the question counts dashboards in words", async () => {
 	await expect
 		.element(dialog.getByText("Add the dashboard made on this browser to your account?"))
 		.toBeVisible();
+	await expect
+		.element(
+			dialog.getByText("Your account keeps it and opens it on your other devices.", {
+				exact: false
+			})
+		)
+		.toBeVisible();
 	await expect.element(dialog.getByRole("button", { name: "Add to my account" })).toBeVisible();
 	await expect.element(dialog.getByRole("button", { name: "Keep on this browser" })).toBeVisible();
 	await expectNoAxeViolations();
@@ -59,6 +67,13 @@ test("the question counts dashboards in words", async () => {
 	await render(MoveToAccountDialog, { context: new Map([[APP_CONTEXT_KEY, many.app]]) });
 	await expect
 		.element(dialog.getByText("Add the 3 dashboards made on this browser to your account?"))
+		.toBeVisible();
+	await expect
+		.element(
+			dialog.getByText("Your account keeps them and opens them on your other devices.", {
+				exact: false
+			})
+		)
 		.toBeVisible();
 	await expectNoAxeViolations();
 
@@ -98,4 +113,13 @@ test("not asked in the anonymous space", async () => {
 	await render(MoveToAccountDialog, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await new Promise((resolve) => setTimeout(resolve, 100));
 	expect(page.getByRole("dialog").query()).toBeNull();
+});
+
+test("the failure message counts the dashboards too", () => {
+	expect(m.move_offer_failed({ count: 1 })).toBe(
+		"Couldn't add the dashboard to your account. You'll be asked again next time."
+	);
+	expect(m.move_offer_failed({ count: 2 })).toBe(
+		"Couldn't add the dashboards to your account. You'll be asked again next time."
+	);
 });

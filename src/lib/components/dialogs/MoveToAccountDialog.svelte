@@ -40,7 +40,7 @@
 			await answerMoveOffer(app, choice);
 		} catch (error) {
 			report(error, { operation: "move-to-account" });
-			toast.error(m.move_offer_failed());
+			toast.error(m.move_offer_failed({ count: shown ?? 0 }));
 		}
 	}
 </script>
@@ -55,7 +55,9 @@
 					{m.move_offer_body({ count: formatNumber(shown), countValue: shown })}
 				</Dialog.Description>
 			{/if}
-			<p class="text-muted-foreground text-sm">{m.move_offer_detail()}</p>
+			{#if shown !== null}
+				<p class="text-muted-foreground text-sm">{m.move_offer_detail({ count: shown })}</p>
+			{/if}
 		</Dialog.Header>
 		<Dialog.Footer>
 			<Button variant="outline" onclick={() => answer("no")}>{m.move_offer_no()}</Button>
