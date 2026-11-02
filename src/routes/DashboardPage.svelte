@@ -39,6 +39,19 @@
 		};
 	});
 
+	// Moved to a new id (its old one was taken on the server): this tab's edits are stored, and
+	// carried over by the sync worker, then the page follows it.
+	$effect(() =>
+		app.channel.subscribe((msg) => {
+			if (msg.type !== "moved" || msg.space !== app.space || msg.from !== route.params.id) return;
+			void (async () => {
+				const session = app.current.session;
+				if (session?.doc.id === msg.from) await session.flush();
+				await navigate("/dashboards/:id", { params: { id: msg.to }, replace: true });
+			})();
+		})
+	);
+
 	// Deleted while shown (Delete, or undoing the toast's restore): move on, as Delete does.
 	$effect(() => {
 		const session = app.current.session;

@@ -1,6 +1,5 @@
 import { applyChange, appliedChange } from "$lib/changes/apply";
-import { changesOverlap } from "$lib/changes/overlap";
-import { applyForced, rebase } from "$lib/changes/rebase";
+import { applyForced, keepMineRestores, rebase } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
 import { UndoStack } from "$lib/changes/undo";
 import { loadDashboard, migrations, type Migration } from "$lib/documents/load";
@@ -294,6 +293,12 @@ export class DocumentSession {
 		this.#syncUndoState();
 	}
 
+	/** Empties the undo and redo stacks (after the document was replaced under them). */
+	clearHistory(): void {
+		this.#undoStack.clear();
+		this.#syncUndoState();
+	}
+
 	/** Commit pending changes now. Commits run one at a time, in order. */
 	flush(): Promise<void> {
 		this.#clearTimer();
@@ -432,11 +437,7 @@ export class DocumentSession {
 		if (choice === "keep-mine") {
 			// Their deletes of widgets I changed are undone, so my changes to them stand.
 			const theirs = this.#theirChanges(state.entries ?? [], base.ownTab);
-			const restores = theirs.flatMap((t): Change[] =>
-				t.op === "removeWidget" && mine.some((m) => changesOverlap(m, t))
-					? [{ op: "addWidget", target: t.target, widget: t.widget, index: t.index }]
-					: []
-			);
+			const restores = keepMineRestores(theirs, mine);
 			const { doc, applied } = applyForced(stored, [...restores, ...mine]);
 			this.#settleConflict();
 			await this.#adopt(doc, applied);

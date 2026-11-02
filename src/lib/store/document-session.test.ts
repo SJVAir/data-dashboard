@@ -97,6 +97,19 @@ describe("DocumentSession", () => {
 		expect(session.status).toBe("saved");
 	});
 
+	it("clearHistory empties undo and redo", async () => {
+		const { session } = await setup();
+		session.apply(rename("One"));
+		session.apply(rename("Two"));
+		session.undo();
+		expect(session.canUndo).toBe(true);
+		expect(session.canRedo).toBe(true);
+		session.clearHistory();
+		expect(session.canUndo).toBe(false);
+		expect(session.canRedo).toBe(false);
+		expect(session.doc.name).toBe("One");
+	});
+
 	it("several quick edits commit once with consecutive versions", async () => {
 		const { platform, session } = await setup();
 		const commit = vi.spyOn(platform.documents, "commit");

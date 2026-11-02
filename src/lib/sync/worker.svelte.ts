@@ -14,6 +14,7 @@ import { emptyRecord, readLocal } from "./local";
 import { finishMoves } from "./move";
 import { fetchMissing, pollList } from "./pull";
 import { RemoteRefusal, RemoteUnavailable, type RemoteDocuments } from "./remote";
+import { resolveHold, type RemoteChoice } from "./resolve";
 import { SYNC_TAB, type SyncHold } from "./types";
 import { uploadDocument, type UploadResult } from "./upload";
 
@@ -121,6 +122,18 @@ export class SyncWorker {
 
 	fetchMissing(docId: string): Promise<boolean> {
 		return fetchMissing(this.#ctx, docId);
+	}
+
+	/**
+	 * Settles `docId`'s hold with the person's choice (throws, hold kept, on any refusal), then
+	 * uploads what that left unsynced (a copy, or edits made meanwhile). Resolves the new
+	 * dashboard's id for "save-copy" and "keep-as-new".
+	 */
+	async resolve(docId: string, choice: RemoteChoice): Promise<string | null> {
+		const id = await resolveHold(this.#ctx, docId, choice);
+		this.states = await this.#readStates();
+		void this.#sweep(false);
+		return id;
 	}
 
 	#onMessage(msg: TabMessage): void {

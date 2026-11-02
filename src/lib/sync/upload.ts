@@ -3,14 +3,14 @@
  * confirms the save that holds it (`syncedThrough` moves then); every refusal ends in a result
  * or a hold, and none of them throws (only a local storage failure may).
  */
-import { CURRENT_SCHEMA_VERSION, type DashboardBody } from "$lib/documents/schema";
+import { CURRENT_SCHEMA_VERSION, type Dashboard, type DashboardBody } from "$lib/documents/schema";
 import { report } from "$lib/safety/report";
 import { docLock, type SyncContext } from "./context";
 import { MAX_SAVE_CHANGES_CHARS, postSync, readLocal, type LocalState } from "./local";
 import { saveFields } from "./merge";
 import { moveLocked } from "./move";
 import { canonicalJson, pullIntoLocked } from "./pull";
-import { RemoteRefusal, RemoteUnavailable, type SaveInput } from "./remote";
+import { RemoteRefusal, RemoteUnavailable, type RemoteDocument, type SaveInput } from "./remote";
 import type { SyncHold, SyncRecord } from "./types";
 
 export type UploadResult = "saved" | "nothing" | "held" | "retry" | "signed-out" | "blocked";
@@ -112,20 +112,31 @@ async function stillSignedIn(ctx: SyncContext): Promise<boolean> {
 async function batchChanges(ctx: SyncContext, local: LocalState): Promise<SaveInput["changes"]> {
 	if (local.record.serverVersion === null) return [];
 	const changes = local.unsynced.map((e) => ({ schemaVersion: e.schemaVersion, change: e.change }));
-	if (JSON.stringify(changes).length <= MAX_SAVE_CHANGES_CHARS) return changes;
-	const server = await remoteCall(() => ctx.remote.get(local.doc.id));
-	const { name, body } = local.doc;
+	if (!oversized(changes)) return changes;
+	return replacing(await remoteCall(() => ctx.remote.get(local.doc.id)), local.doc);
+}
+
+/** Whether a save's changes are past `MAX_SAVE_CHANGES_CHARS`. */
+export function oversized(changes: SaveInput["changes"]): boolean {
+	return JSON.stringify(changes).length > MAX_SAVE_CHANGES_CHARS;
+}
+
+/** A save's changes as one `replaceDocument` from the server's content to `doc`'s. */
+export function replacing(
+	server: Pick<RemoteDocument, "name" | "body">,
+	doc: Dashboard
+): SaveInput["changes"] {
 	const from = { name: server.name, body: server.body as DashboardBody };
 	return [
 		{
 			schemaVersion: CURRENT_SCHEMA_VERSION,
-			change: { op: "replaceDocument", target: {}, from, to: { name, body } }
+			change: { op: "replaceDocument", target: {}, from, to: { name: doc.name, body: doc.body } }
 		}
 	];
 }
 
 /** Runs a remote call; anything it throws that isn't a remote failure is reported, then retried. */
-async function remoteCall<T>(call: () => Promise<T>): Promise<T> {
+export async function remoteCall<T>(call: () => Promise<T>): Promise<T> {
 	try {
 		return await call();
 	} catch (error) {

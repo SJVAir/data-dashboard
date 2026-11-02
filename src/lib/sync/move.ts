@@ -55,12 +55,13 @@ export async function finishMoves(ctx: SyncContext): Promise<void> {
 	for (const record of await ctx.platform.sync.list(ctx.space)) {
 		if (record.hold?.kind !== "moved") continue;
 		await ctx.platform.locks.run(docLock(ctx.space, record.docId), () =>
-			finishMove(ctx, record.docId)
+			finishMoveLocked(ctx, record.docId)
 		);
 	}
 }
 
-async function finishMove(ctx: SyncContext, from: string): Promise<void> {
+/** Finishes the move of `from` (if it's held as moved), for a caller holding its doc lock. */
+export async function finishMoveLocked(ctx: SyncContext, from: string): Promise<void> {
 	const { platform, space } = ctx;
 	const record = await platform.sync.get(space, from);
 	if (record?.hold?.kind !== "moved") return;

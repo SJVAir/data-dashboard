@@ -2,6 +2,7 @@ import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import type { SyncWorker } from "$lib/sync/worker.svelte";
 import { StorageProtection } from "$lib/safety/protection.svelte";
 import { purgeExpired } from "$lib/safety/purge";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
@@ -34,6 +35,8 @@ export type AppContext = {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
 	};
 	current: CurrentDashboard;
+	/** This tab's sync worker in an account space (`null`: not syncing). */
+	sync: SyncWorker | null;
 	/** The sessions this tab has open (the starter's included). */
 	openSessions(): DocumentSession[];
 	/** Counts `resetAfterClear` calls; the root component goes to `/` when it changes. */
@@ -66,6 +69,7 @@ const toastNotify: Notify = {
 
 class App implements AppContext {
 	current = $state<CurrentDashboard>({ session: null, isStarter: false });
+	sync = $state.raw<SyncWorker | null>(null);
 	resetCount = $state(0);
 	readonly index: DashboardIndex;
 	readonly protection: StorageProtection;

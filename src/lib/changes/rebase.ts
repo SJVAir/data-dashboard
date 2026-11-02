@@ -49,6 +49,18 @@ export function applyForced(
 }
 
 /**
+ * For "Keep mine": their deletes of widgets mine changed, undone (as `addWidget`s), so mine's
+ * changes to them stand. Applied before mine with `applyForced`.
+ */
+export function keepMineRestores(theirs: Change[], mine: Change[]): Change[] {
+	return theirs.flatMap((t): Change[] =>
+		t.op === "removeWidget" && mine.some((m) => changesOverlap(m, t))
+			? [{ op: "addWidget", target: t.target, widget: t.widget, index: t.index }]
+			: []
+	);
+}
+
+/**
  * An added widget whose rect would overlap a grid widget already in `doc` (minimized ones are
  * off the grid), moved to the bottom (same size).
  */

@@ -464,7 +464,24 @@ string`) now get the union return type. The mobile app passes a string token, so
   the old id that journals edits on `pagehide` after the old document is removed leaves a
   record nothing replays. It needs a tab to miss the `moved` message and close within moments.
   **Revisit with** Task 8's moved-document handling, or on a report of lost edits after an id
-  collision.
+  collision. (Task 8 made an open page flush its edits and follow the `moved` message; journal
+  records written after that are still not carried over.)
+- **"Keep mine" after a server log gap can't undo their widget deletes.** _Deferred 2026-11-02
+  (Sync spec 2, Task 8)._ When the server's log no longer reaches the local base, their changes
+  are unknown, so "Keep mine" replays mine over the server's version without first re-adding
+  widgets they deleted; my edits to those widgets are dropped (the server keeps a snapshot of
+  their version, and the local log keeps mine). Fixing it means sending the local document
+  whole. **Revisit if** a log-gap conflict is reported (it needs 500 server versions while a
+  device is offline).
+- **A lost answer to "Keep mine" or "Restore" saves again on the next try.** _Deferred
+  2026-11-02 (Sync spec 2, Task 8)._ The choice's save isn't recorded as `inFlight`, so if its
+  answer is lost the hold stays and choosing again saves mine a second time on top of the first
+  (an extra `conflict` snapshot; nothing lost). **Revisit if** duplicate snapshots show up in
+  "Restore an earlier version".
+- **Other tabs aren't told when a purged dashboard is discarded.** _Deferred 2026-11-02 (Sync
+  spec 2, Task 8)._ "Discard" removes it here and posts `sync` only, as the quiet purge does;
+  another tab's list drops it on its next refresh, and a tab showing it keeps the open session.
+  **Revisit with** Task 9 (the dashboards list and open pages reacting to sync records).
 
 ## Map & selection
 
