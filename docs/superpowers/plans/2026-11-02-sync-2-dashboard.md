@@ -58,10 +58,14 @@ saves, polling, replay, sign-out.
   place; no version bumps for unreleased shapes. The `syncQueue` store already exists (no
   `DB_LAYOUT_VERSION` bump needed).
 - Every deferral goes into `DEFERRED.md` in the same change, with why and a revisit trigger.
+- **Outside this repo:** "Use the other version" (Task 8) waits on a sjvair.com change into
+  `develop` and an sdk-js change, each with an approved plan, and a new SDK prerelease published
+  only with the user's yes (call 5). Every other task builds on 4.8.0-beta.2.
 
-## Calls made in this plan (check these first)
+## Calls made in this plan
 
-The spec leaves these to the builder or doesn't cover them; each is my call.
+The spec leaves these to the builder or doesn't cover them. Items 2, 5, 8, and 10 were settled
+with the user on 2026-11-02; the rest are my calls, and the user kept them.
 
 1. **Server changes enter local storage as `SYNC_TAB` log entries.** Unsynced = entries after
    `syncedThrough` whose `tabId !== SYNC_TAB`. This keeps the spec's two values and lets open
@@ -69,27 +73,33 @@ The spec leaves these to the builder or doesn't cover them; each is my call.
 2. **One poll per browser lists changes since a cursor** (`listDocuments({ since })`) every 60 s,
    then fetches `changes` only for documents that moved. This replaces one `changes?since=N`
    request per open dashboard. It covers both "an open dashboard" and "the dashboards list" with
-   one small request per minute.
+   one small request per minute. _Decided with the user, 2026-11-02._
 3. **The poller is one visible tab, chosen by a Web Lock** it gives up when hidden. Uploads run in
    any tab under a per-document lock.
 4. **A device conflict is a hold in the sync record** (so it survives reloads and every tab sees
    it), shown with the existing three-choice `ConflictDialog`.
-5. **"Use the other version" makes two saves** so the replaced version is kept as a server
-   snapshot (the hard rule): first the local version with `snapshot: "conflict"`, then the
-   server's content back with `snapshot: "conflict"`. The SDK's `snapshot` flag only keeps the
-   version a save replaces, and "mine" was never on the server.
+5. **"Use the other version" keeps the local version through a new server option.** The SDK's
+   `snapshot` flag only keeps the version a save replaces, and "mine" was never on the server. So
+   a save gains an optional extra snapshot (the local content, kept with reason `conflict`), and
+   "Use the other version" is one save of the server's content that carries it. _Decided with the
+   user, 2026-11-02, over making two saves._ This needs a sjvair.com change (into `develop`) and
+   an sdk-js change, each with its own approved plan, and a new SDK prerelease (the user's yes
+   first). The field name and shape are settled in those plans; this plan calls it
+   `keepSnapshot` (see Task 4) until then.
 6. **A lost save answer is recognized:** the record notes the batch in flight; if the server's
    next version is exactly that batch, it counts as saved (no prompt, no duplicate).
 7. **An oversized queue sends one `replaceDocument`** (from the server's content to the local
    one) instead of uploading in batches; true batching is deferred (it needs intermediate bodies,
    which the local log can't rebuild once server entries are interleaved).
 8. **Switching spaces remounts the app** (flush every session, stop the worker, unmount,
-   `initApp` for the new space, mount, go to `/`).
+   `initApp` for the new space, mount, go to `/`). _Decided with the user, 2026-11-02._
 9. **Account spaces don't purge Recently deleted locally:** the server purges and reports the ids
    in `purged`. "Delete permanently" doesn't exist yet; its server call is spec 4.
 10. **Refusals with no fix in this spec** (`too_large`, `limit_documents`, `limit_storage`,
     `invalid`) hold that document as "Only on this device", retried on the next local commit in
-    the space. The Saved popover says why.
+    the space. The Saved popover says why, and a notice bar stays at the top of the page while any
+    dashboard in the account is held this way. _Decided with the user, 2026-11-02 (the notice bar
+    was their addition)._
 11. **Build blocked** shows a new update-notice reason, `"build-blocked"`, and stops all uploads
     until reload.
 
@@ -281,6 +291,8 @@ case that expected a layout prompt.
   	copiedFrom: string | null; baseVersion: number | null;
   	changes: Array<{ schemaVersion: number; change: unknown }>;
   	accountId: string; buildId: string; snapshot: "conflict" | null;
+  	/** Also keep this content as a `conflict` snapshot (call 5; the wire name comes from the SDK plan). */
+  	keepSnapshot: { name: string | null; body: unknown; schemaVersion: number } | null;
   };
   export type StaleBase = { version: number; changes: RemoteChange[] | null; document: RemoteDocument };
   /** A refusal (`code` from the SDK's `RefusalCode`); `staleBase` set for `stale_base`. */
@@ -317,7 +329,8 @@ case that expected a layout prompt.
   - fake-only (the stack can't set these up from the client): `"a trimmed log answers null
     changes"` (stale and `changes`), `"an id owned elsewhere is id_taken"`, `"a purged id is gone
     and listed in purged"`, `"a blocked build is refused"`, `"over maxDocuments is
-    limit_documents"`, `"snapshot: conflict keeps the replaced version"`, `"offline throws
+    limit_documents"`, `"snapshot: conflict keeps the replaced version"`, `"keepSnapshot keeps the given content as a
+    conflict snapshot"` (moves out of fake-only once the server change is on the stack), `"offline throws
     RemoteUnavailable"`.
   - In `remote-fake.test.ts`, with the SDK call stubbed to return a malformed body: `"a reported
     response error carries no document body or name"` (the spec's hard rule; assert on the memory
@@ -529,9 +542,12 @@ case that expected a layout prompt.
   - `keep-mine` (hold `conflict`): their `removeWidget`s that overlap mine are re-added (as the
     local keep-mine does), `applyForced(server, restores + mine)`, saved on the server version
     with `snapshot: "conflict"`, written locally, record synced, hold cleared.
-  - `use-other`: save the local content (one `replaceDocument` from the server content) with
-    `snapshot: "conflict"`, then save the server content back (one `replaceDocument`) with
-    `snapshot: "conflict"`; write the server content locally; hold cleared.
+  - `use-other`: one save on the server version that changes nothing (`changes: []`, the server's
+    own content) and carries `keepSnapshot` = the local name, body, and `schemaVersion`, so the
+    server keeps the local version as a `conflict` snapshot; write the server content locally;
+    hold cleared. **Needs the SDK prerelease from call 5:** move the pin to it (and run lint,
+    check, test, build) as this task's first step. If that prerelease isn't out when the other
+    tasks are done, build this choice last.
   - `save-copy`: create the local content as a new dashboard (new id, `copiedFrom` = this id,
     version 0, no record, so it uploads as a create); then this document takes the server
     version (as `use-other`, without the snapshots). Returns the copy's id.
@@ -698,12 +714,17 @@ case that expected a layout prompt.
   Pacific), and for a `refused` hold, why (one message per code).
 - The dashboards list marks a dashboard **"Only on this device"** while `onServer` is false (the
   first upload, or a refusal).
+- **A notice bar** (in `NoticeBars.svelte`) shows while any dashboard in the account has a
+  `refused` hold: one sentence per code (with a count when several dashboards share it) and a link
+  to the dashboards list. It goes away by itself once nothing is held. It is not dismissable, since
+  the dashboards affected aren't protected by the account until it's fixed.
 - Backup reminder: never shown in an account space; in the anonymous space it adds **"Sign in to
   keep this safe everywhere"** with a sign-in link (`identity.signInUrl`).
 
 - [ ] **Step 1: Write the failing tests:** `"saved to your account"` / `"saved on this device"`
   labels by state; `"the popover shows the last confirmed time in Pacific time"`; `"a refused
-  dashboard says why"`; `"the list marks dashboards only on this device"`; `"no reminder in an
+  dashboard says why"`; `"the notice bar shows while a dashboard is held and leaves once it
+  uploads"` (and axe on it); `"the list marks dashboards only on this device"`; `"no reminder in an
   account space"`; `"the anonymous reminder offers sign-in"`; colour is never the only signal (a
   text label in every state).
 - [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
