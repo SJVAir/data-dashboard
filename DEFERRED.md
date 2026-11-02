@@ -197,6 +197,18 @@ string`) now get the union return type. The mobile app passes a string token, so
     decided with the user)._ Layout moves never prompt: the last save wins, and step 2's
     tidy fixes any overlap. Keeping both sides' intent (e.g. per-widget last-writer) isn't
     attempted. **Revisit if** people report layouts jumping back while tuning on two devices.
+  - **Moving the documents SDK code out of the public `@sjvair/sdk` before go-live.** _Decided
+    2026-11-02 (the user, in the sdk-js session)._ `@sjvair/sdk/documents` wraps the private
+    `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public
+    air data. It moves to an internal package built on the public SDK's exports (`httpRequest`,
+    `setOrigin`, request defaults), or into this repo while the dashboard stays the only caller;
+    where it goes is still open. Until then the dashboard keeps using `@sjvair/sdk/documents`
+    (4.8.0 prereleases; `createSnapshot` arrives in 4.8.0-beta.3). The move changes the
+    dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
+    (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 4.8.0 final is tagged, since
+    removing it after a stable release has to wait for 5.0; sdk-js's own `DEFERRED.md` ("Before
+    4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 4.8.0 final is being
+    planned, whichever comes first. **Blocks go-live.**
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
   sync in Release 1; preferences stay local per device (they're conveniences, and devices
