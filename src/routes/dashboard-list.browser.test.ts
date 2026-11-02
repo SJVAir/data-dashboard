@@ -11,7 +11,9 @@ import { menuScope } from "$lib/actions/scope";
 import { APP_CONTEXT_KEY, LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { saveFields } from "$lib/sync/merge";
 import { accountApp } from "$lib/sync/test-app";
+import { ACCOUNT, makeDoc } from "$lib/sync/test-support";
 import DashboardList from "./DashboardList.svelte";
 import ListHarness from "./test-harness/ListHarness.svelte";
 
@@ -167,6 +169,27 @@ test("the list marks dashboards only on this device", async () => {
 		expect(
 			page.getByTestId(`dashboard-row-${synced}`).getByText("Only on this device").query()
 		).toBeNull();
+	} finally {
+		worker.stop();
+	}
+});
+
+test("the list shows a dashboard the sync worker stores from the server", async () => {
+	const { app, fake, worker } = await accountApp(["d1"]);
+	try {
+		await fake.save("d9", {
+			...saveFields({ ...makeDoc("d9"), name: "From the laptop" }),
+			baseVersion: null,
+			changes: [],
+			accountId: ACCOUNT,
+			buildId: "other-build",
+			snapshot: null
+		});
+		await render(DashboardList, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+		await expect.element(page.getByTestId("dashboard-row-d1")).toBeVisible();
+		// The first poll stores it here.
+		worker.start();
+		await expect.element(page.getByText("From the laptop")).toBeVisible();
 	} finally {
 		worker.stop();
 	}

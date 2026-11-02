@@ -11,17 +11,23 @@ import {
 	starterDashboard
 } from "$lib/starter/starter";
 import { pendingName } from "./journal";
-import type { TabChannel } from "./tab-channel";
+import type { TabChannel, TabMessage } from "./tab-channel";
 
 export type DashboardIndexOptions = {
 	platform: Platform;
 	space: SpaceId;
-	/** Any `committed` message refreshes the index; creating a dashboard posts one. */
+	/**
+	 * A `committed`, `sync`, or `moved` message for the space refreshes the index: a tab's
+	 * creation posts `committed`; the sync worker adding or removing a document posts `sync`.
+	 */
 	channel?: TabChannel;
 	/** Posted with this index's creations. */
 	tabId?: string;
 	now?: () => Date;
 };
+
+/** The messages after which the stored dashboards may have changed. */
+const REFRESHES: ReadonlySet<TabMessage["type"]> = new Set(["committed", "sync", "moved"]);
 
 const optionalString = (value: unknown): string | undefined =>
 	typeof value === "string" ? value : undefined;
@@ -83,7 +89,8 @@ export class DashboardIndex {
 		this.#now = opts.now ?? (() => new Date());
 		this.#unsubscribe =
 			this.#channel?.subscribe((msg) => {
-				if (msg.type === "committed" && msg.space === this.#space) void this.refresh();
+				if (!REFRESHES.has(msg.type) || !("space" in msg) || msg.space !== this.#space) return;
+				void this.refresh();
 			}) ?? (() => {});
 	}
 

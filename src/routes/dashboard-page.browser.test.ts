@@ -6,7 +6,7 @@ import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { saveFields } from "$lib/sync/merge";
 import { createFakeRemote } from "$lib/sync/remote-fake";
-import { ACCOUNT, SPACE, makeDoc, user } from "$lib/sync/test-support";
+import { ACCOUNT, SPACE, makeDoc, storeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import { navigate } from "../router";
 import DashboardPage from "./DashboardPage.svelte";
@@ -65,4 +65,31 @@ test("a dashboard from another device opens by its link", async () => {
 	await expect
 		.element(page.getByRole("heading", { name: "This dashboard isn't saved in this browser." }))
 		.toBeVisible();
+});
+
+test("a dashboard fetched by its link gets its display name from the list", async () => {
+	const identity = createMemoryIdentity({ state: "signed-in", user: user(ACCOUNT) });
+	const fake = createFakeRemote({ accountId: ACCOUNT });
+	const platform = createMemoryPlatform({ identity });
+	await storeDoc(platform, makeDoc("d1"));
+	const app = await initApp(platform, {
+		channel: createMemoryTabHub().channel(),
+		loadSync: async (ctx) => new SyncWorker({ ...ctx, remote: fake })
+	});
+	apps.push(app);
+	await expect.poll(() => fake.requests.length).toBeGreaterThan(0);
+	// Untitled, made after d1 on another device: the second untitled dashboard.
+	await fake.save("d9", {
+		...saveFields({ ...makeDoc("d9"), createdAt: "2026-11-02T00:00:00.000Z" }),
+		baseVersion: null,
+		changes: [],
+		accountId: ACCOUNT,
+		buildId: "other-build",
+		snapshot: null
+	});
+
+	await navigate("/dashboards/:id", { params: { id: "d9" } });
+	await render(DashboardPage, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.poll(() => app.current.session?.doc.id).toBe("d9");
+	await expect.poll(() => document.title).toContain("Untitled dashboard 2");
 });

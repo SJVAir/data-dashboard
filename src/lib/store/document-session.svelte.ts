@@ -258,6 +258,11 @@ export class DocumentSession {
 		return this.#pending.length > 0;
 	}
 
+	/** A starter that was edited: its first edit started (or finished) the hand-off to a copy. */
+	get edited(): boolean {
+		return this.#queued.length > 0 || this.#handoff !== null || this.#successor !== null;
+	}
+
 	/** The session this one's edits land in: itself, or the copy a starter handed off to. */
 	get editTarget(): DocumentSession {
 		return this.#successor?.editTarget ?? this;

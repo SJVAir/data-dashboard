@@ -5,7 +5,7 @@ import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory
 import type { Platform } from "$lib/platform/types";
 import { COPY_FINGERPRINTS_KEY, copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
 import { initApp } from "$lib/store/app.svelte";
-import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { createMemoryTabHub, type TabMessage } from "$lib/store/tab-channel";
 import type { SyncContext } from "./context";
 import { MOVE_OFFER_KEY, answerMoveOffer, moveOffer } from "./move-to-account";
 import { createFakeRemote, type FakeRemote } from "./remote-fake";
@@ -132,6 +132,18 @@ describe("answerMoveOffer", () => {
 		expect(await worker.unsyncedCount()).toBe(0);
 		expect(await platform.preferences.get(SPACE, MOVE_OFFER_KEY)).toBe("yes");
 		expect(await moveOffer(platform, SPACE)).toBeNull();
+	});
+
+	test("yes tells the other tabs in the account to refresh their lists", async () => {
+		const platform = platformSignedIn();
+		await storeAnonymous(platform, makeDoc("a1"));
+		const { app } = await signedIn(platform);
+		const seen: TabMessage[] = [];
+		app.channel.subscribe((msg) => seen.push(msg));
+
+		await answerMoveOffer(app, "yes");
+
+		expect(seen).toContainEqual({ type: "sync", space: SPACE, docId: null, tabId: "t1" });
 	});
 
 	test("reports journal records the move left behind", async () => {

@@ -57,6 +57,8 @@ export async function answerMoveOffer(app: AppContext, answer: "yes" | "no"): Pr
 			});
 		}
 		await platform.preferences.set(space, MOVE_OFFER_KEY, answer);
+		// Other tabs in the account refresh their lists too.
+		app.channel.post({ type: "sync", space, docId: null, tabId: app.tabId });
 		await app.index.refresh();
 		await app.sync?.syncAll();
 		return;
