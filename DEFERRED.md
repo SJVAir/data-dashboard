@@ -966,9 +966,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   2026-10-28 (step 2, spec 2a final review)._ The title bar is a focusable group, and browse
   mode may intercept Enter and the arrows before they reach it. A mitigation is in (a click
   with `detail` 0 on the title bar acts like Enter), but no real screen reader has been tried.
-  **Revisit before** `layout` merges into `main`: a hand check with NVDA (and JAWS if
-  available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸ and Size ▸
-  submenus (#18) and their announcements.
+  On 2026-11-02 the user chose to merge `layout` into `main` first and do this check later
+  (the touch check had passed). **Revisit before** Release 1 goes live (step 6) or beta testers
+  get the dashboard, whichever comes first, or sooner when the user has time: a hand check with
+  NVDA (and JAWS if available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸
+  and Size ▸ submenus (#18), their announcements, and the taskbar.
 - **Keyboard arrangement request-chain cache can thrash in very long pick-ups.** _Deferred
   2026-10-28 (step 2, spec 2a final review)._ The preview cache keeps 512 request prefixes;
   past 512 keyboard steps in one pick-up it evicts the current chain, and each keypress then
