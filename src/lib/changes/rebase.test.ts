@@ -106,6 +106,42 @@ describe("rebase", () => {
 	});
 });
 
+describe("layout moves in rebase", () => {
+	const move = (id: string, from: Rect, to: Rect): Change => ({
+		op: "setLayout",
+		target: { widgetIds: [id] },
+		from: { [id]: { rect: from, minimized: null } },
+		to: { [id]: { rect: to, minimized: null } }
+	});
+	const home = { x: 0, y: 0, w: 6, h: 4 };
+
+	it("a layout move over theirs: the last save wins", () => {
+		const theirs = [move("a", home, { x: 0, y: 4, w: 6, h: 4 })];
+		const mine = [move("a", home, { x: 6, y: 0, w: 6, h: 4 })];
+		const current = applyAll(makeDoc(), theirs);
+		const result = rebase(current, theirs, mine);
+		expect(result.kind).toBe("clean");
+		if (result.kind !== "clean") return;
+		expect(result.doc.body.widgets.find((w) => w.id === "a")?.rect).toEqual({
+			x: 6,
+			y: 0,
+			w: 6,
+			h: 4
+		});
+	});
+
+	it("a move of a widget they deleted is dropped", () => {
+		const theirs = [remove(widget("a"), 0)];
+		const mine = [move("a", home, { x: 0, y: 4, w: 6, h: 4 })];
+		const current = applyAll(makeDoc(), theirs);
+		const result = rebase(current, theirs, mine);
+		expect(result.kind).toBe("clean");
+		if (result.kind !== "clean") return;
+		expect(result.doc.body.widgets.map((w) => w.id)).toEqual(["b"]);
+		expect(result.changes).toEqual([]);
+	});
+});
+
 describe("applyForced", () => {
 	it("skips missing targets and re-places overlapping adds", () => {
 		const changes = [title("zzz", "Gone"), add(widget("c")), title("a", "Kept")];
