@@ -46,7 +46,12 @@ async function held(mine: Change[], theirs: Change[] | "purge") {
 	identity.currentSpace = async () => SPACE;
 	const platform = createMemoryPlatform({ identity });
 	const fake = createFakeRemote({ accountId: ACCOUNT });
-	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	// The test drives its own worker.
+	const app = await initApp(platform, {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1",
+		loadSync: null
+	});
 	await storeDoc(platform);
 	const ctx: SyncContext = {
 		platform,

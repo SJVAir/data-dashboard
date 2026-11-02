@@ -30,13 +30,18 @@ async function stillDeleted(
  * Removes what has outlived its retention, when the app opens: dashboards deleted more than 30
  * days ago (with their log, original, journal records, and fingerprints), originals kept that
  * long, and journal records that are that old or whose dashboard isn't stored. The starter's
- * journal records (a hand-off cut short) are kept until they're that old.
+ * journal records (a hand-off cut short) are kept until they're that old. An account space keeps
+ * its deleted dashboards: the server purges them and reports the ids, which sync removes.
  */
 export async function purgeExpired(platform: Platform, space: SpaceId, now: Date): Promise<void> {
 	const stored = new Set<string>();
 	for (const raw of await platform.documents.list(space)) {
 		if (!isRecord(raw) || typeof raw.id !== "string") continue;
-		if (expired(raw.deletedAt, now) && (await stillDeleted(platform, space, raw.id, now))) {
+		if (
+			space === "anonymous" &&
+			expired(raw.deletedAt, now) &&
+			(await stillDeleted(platform, space, raw.id, now))
+		) {
 			await platform.documents.remove(space, raw.id);
 			await forgetDocument(platform, space, raw.id);
 			// Their journal records are cleared below, as the dashboard is no longer stored.

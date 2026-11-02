@@ -1,0 +1,137 @@
+import { describe, expect, it } from "vitest";
+import { createMemoryPlatform } from "$lib/platform/memory";
+import type { Platform, SpaceId } from "$lib/platform/types";
+import { RETENTION_MS } from "$lib/safety/purge";
+import { blankDashboard } from "$lib/starter/starter";
+import { HIDDEN_KEY, hasUnsynced, hideSpace, spaceFor, tidySpaces, unhideSpace } from "./spaces";
+
+const A: SpaceId = "account:a";
+const B: SpaceId = "account:b";
+const NOW = new Date("2026-11-30T12:00:00.000Z");
+const DAY = 24 * 60 * 60 * 1000;
+const daysAgo = (days: number) => new Date(NOW.getTime() - days * DAY);
+
+const user = (id: string) => ({
+	id,
+	full_name: "Test",
+	email: null,
+	phone: null,
+	phone_verified: false,
+	language: "en"
+});
+
+/** A dashboard in `space`, synced through its current version unless `synced` is false. */
+async function store(platform: Platform, space: SpaceId, id: string, synced = true) {
+	const doc = { ...blankDashboard(NOW), id };
+	await platform.documents.commit(space, {
+		docId: id,
+		baseVersion: null,
+		doc,
+		entries: [],
+		sync: synced
+			? {
+					docId: id,
+					serverVersion: 1,
+					syncedThrough: doc.version,
+					confirmedAt: NOW.toISOString(),
+					inFlight: null,
+					hold: null
+				}
+			: undefined
+	});
+}
+
+describe("spaces", () => {
+	it("spaceFor maps identities", () => {
+		expect(spaceFor({ state: "unknown" })).toBe("anonymous");
+		expect(spaceFor({ state: "signed-out" })).toBe("anonymous");
+		expect(spaceFor({ state: "signed-in", user: user("42") })).toBe("account:42");
+	});
+
+	it("hiding keeps the first reason", async () => {
+		const platform = createMemoryPlatform();
+		await hideSpace(platform, A, "signed-out", daysAgo(2));
+		await hideSpace(platform, A, "expired", NOW);
+		expect(await platform.preferences.get(A, HIDDEN_KEY)).toEqual({
+			at: daysAgo(2).toISOString(),
+			reason: "signed-out"
+		});
+		await unhideSpace(platform, A);
+		await hideSpace(platform, A, "switched", NOW);
+		expect(await platform.preferences.get(A, HIDDEN_KEY)).toEqual({
+			at: NOW.toISOString(),
+			reason: "switched"
+		});
+	});
+
+	it("hasUnsynced reads the records and the log", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		expect(await hasUnsynced(platform, A)).toBe(false);
+		// Server changes stored here don't count; this tab's do.
+		const doc = (await platform.documents.get(A, "d1")) as { version: number };
+		const change = { op: "setField", target: { path: "name" }, from: null, to: "x" } as const;
+		await platform.documents.commit(A, {
+			docId: "d1",
+			baseVersion: doc.version,
+			doc: { ...doc, version: doc.version + 1 },
+			entries: [{ docId: "d1", version: doc.version + 1, change, tabId: "sync", schemaVersion: 1 }]
+		});
+		expect(await hasUnsynced(platform, A)).toBe(false);
+		await platform.documents.commit(A, {
+			docId: "d1",
+			baseVersion: doc.version + 1,
+			doc: { ...doc, version: doc.version + 2 },
+			entries: [{ docId: "d1", version: doc.version + 2, change, tabId: "t1", schemaVersion: 1 }]
+		});
+		expect(await hasUnsynced(platform, A)).toBe(true);
+
+		await store(platform, B, "never", false);
+		expect(await hasUnsynced(platform, B)).toBe(true);
+	});
+
+	it("tidy removes a signed-out space with nothing unsynced", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		await hideSpace(platform, A, "signed-out", NOW);
+		await tidySpaces(platform, "anonymous", NOW);
+		expect(await platform.spaces.list()).not.toContain(A);
+	});
+
+	it("tidy keeps an unsynced signed-out space until 30 days", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1", false);
+		await hideSpace(platform, A, "signed-out", new Date(NOW.getTime() - RETENTION_MS + DAY));
+		await tidySpaces(platform, "anonymous", NOW);
+		expect(await platform.documents.get(A, "d1")).toBeDefined();
+
+		await tidySpaces(platform, "anonymous", new Date(NOW.getTime() + 2 * DAY));
+		expect(await platform.spaces.list()).not.toContain(A);
+	});
+
+	it("tidy removes any hidden space after 30 days", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		await store(platform, B, "d2", false);
+		await hideSpace(platform, A, "expired", daysAgo(29));
+		await hideSpace(platform, B, "switched", daysAgo(31));
+		await tidySpaces(platform, "anonymous", NOW);
+		// A synced, expired session is kept for its person to come back to.
+		expect(await platform.documents.get(A, "d1")).toBeDefined();
+		expect(await platform.spaces.list()).not.toContain(B);
+	});
+
+	it("tidy never touches the current space or anonymous", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		await store(platform, "anonymous", "d2");
+		await store(platform, B, "d3");
+		await hideSpace(platform, A, "switched", daysAgo(40));
+		await hideSpace(platform, "anonymous", "switched", daysAgo(40));
+		await tidySpaces(platform, A, NOW);
+		expect(await platform.documents.get(A, "d1")).toBeDefined();
+		expect(await platform.documents.get("anonymous", "d2")).toBeDefined();
+		// Not hidden: left alone.
+		expect(await platform.documents.get(B, "d3")).toBeDefined();
+	});
+});

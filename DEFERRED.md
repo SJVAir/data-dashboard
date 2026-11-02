@@ -844,12 +844,15 @@ string`) now get the union return type. The mobile app passes a string token, so
   message).
   - The space switch: signed-in work going into a per-account space (`account:<id>`). Without
     sync an account space exists only in this browser, so a person would expect their
-    dashboards on another device and not find them.
+    dashboards on another device and not find them. _Done 2026-11-02 (sync spec 2): signed-in
+    work lives in `account:<id>` and syncs; the app remounts when the space changes._
   - "Add the 3 dashboards made on this browser to your account?", for the same reason.
   - Sign-out removing that account's local copies "because they are on the server": they
     aren't yet, so it would delete work.
   - Hidden spaces on expiry or an account change, and removing a hidden space after 30 days.
-    There are no account spaces to hide yet.
+    There are no account spaces to hide yet. _Done 2026-11-02 (sync spec 2):_ an expired
+    session or another account hides the space (`src/lib/store/spaces.ts`), signing back in
+    resumes it, and `tidySpaces` removes hidden ones after 30 days.
   - Saves bound to an account (each save names its account; the server refuses a mismatch)
     and the re-check before each sync. There are no server saves yet. _Updated 2026-10-28 (Sync spec 1):_ the
     server half is done (sjvair.com #297 refuses an `account_id` mismatch); the dashboard half

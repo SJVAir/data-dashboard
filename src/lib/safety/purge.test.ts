@@ -56,6 +56,27 @@ describe("purgeExpired", () => {
 		expect(await platform.documents.get(SPACE, "recent")).toBeDefined();
 	});
 
+	it("account spaces keep Recently deleted for the server to purge", async () => {
+		const platform = createMemoryPlatform();
+		const account: SpaceId = "account:u1";
+		const doc = { ...blankDashboard(NOW), id: "old", deletedAt: ago(31) };
+		await platform.documents.commit(account, { docId: "old", baseVersion: null, doc, entries: [] });
+		platform.journal.write(account, "old", "t1", record(ago(1)));
+		await platform.originals.put(account, {
+			id: "kept",
+			raw: {},
+			keptAt: ago(31),
+			fromSchemaVersion: 1
+		});
+
+		await purgeExpired(platform, account, NOW);
+
+		expect(await platform.documents.get(account, "old")).toBeDefined();
+		// Its journal record stays with it; other housekeeping still runs.
+		expect(platform.journal.list(account)).toHaveLength(1);
+		expect(await platform.originals.get(account, "kept")).toBeUndefined();
+	});
+
 	it("removes originals kept 31 days ago only", async () => {
 		const platform = createMemoryPlatform();
 		await store(platform, "a");

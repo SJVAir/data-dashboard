@@ -18,6 +18,8 @@ export type SyncContext = {
 	tabId: string;
 	buildId: string;
 	now: () => Date;
+	/** The server refused this build (the worker's `blocked` is set); the app shows a notice. */
+	onBlocked?: () => void;
 };
 
 /** The Web Lock held while a document is uploaded or merged (not re-entrant). */

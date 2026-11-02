@@ -34,6 +34,13 @@ describe("createMemoryIdentity", () => {
 		expect(heard).toEqual([[signedIn, "load"]]);
 	});
 
+	it("currentSpace follows the identity after start", async () => {
+		const source = createMemoryIdentity(signedIn);
+		expect(await source.currentSpace()).toBe("anonymous");
+		source.start();
+		expect(await source.currentSpace()).toBe(`account:${user.id}`);
+	});
+
 	it("defaults to signed out, and an unknown initial fires nothing", () => {
 		const out = createMemoryIdentity();
 		out.start();

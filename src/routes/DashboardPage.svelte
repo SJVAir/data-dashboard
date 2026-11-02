@@ -9,7 +9,7 @@
 	import { navigate, p, route } from "../router";
 
 	const app = useApp();
-	/** The id isn't stored in this space (or was deleted). */
+	/** The id isn't stored in this space (or was deleted), nor on the server when signed in. */
 	let missing = $state(false);
 	const name = $derived(missing ? null : currentDashboardName(app));
 
@@ -27,13 +27,25 @@
 		if (untrack(() => app.current.session?.doc.id) !== id) {
 			app.current = { session: null, isStarter: false };
 		}
-		void app.sessions.get(id).then((session) => {
+		void (async () => {
+			let session = await app.sessions.get(id);
+			// Signed in: it may be on the server, saved from another device.
+			const sync = app.sync;
+			if (!session && sync && active) {
+				let found = false;
+				try {
+					found = await sync.fetchMissing(id);
+				} catch {
+					// Offline or refused: the "not here" message stands.
+				}
+				if (found && active) session = await app.sessions.get(id);
+			}
 			if (!active) return;
 			// A soft-deleted dashboard is gone until its delete is undone.
 			const deleted = typeof session?.doc.deletedAt === "string";
 			missing = session === null || deleted;
 			app.current = { session: deleted ? null : session, isStarter: false };
-		});
+		})();
 		return () => {
 			active = false;
 		};

@@ -1,13 +1,16 @@
-import { mount } from "svelte";
+import { mount, unmount } from "svelte";
 import App from "./App.svelte";
-import { boot } from "$lib/boot";
+import { boot, showMessage } from "$lib/boot";
 import { ensureDevCsrfCookie } from "$lib/dev/csrf-bootstrap";
 import { configureSdk } from "$lib/sdk-setup";
 import { createWebPlatform } from "$lib/platform/web/storage";
 import { BUILD_ID } from "$lib/safety/build-id";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { parseBuildId, startVersionCheck } from "$lib/safety/version-check";
+import { m } from "$lib/paraglide/messages.js";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
+import { keepInSpace } from "$lib/store/space-switch";
+import { navigate } from "./router";
 
 /** Boots the dashboard into `target`. `staticBase` is the folder holding `app.js`. */
 export async function startApp(opts: { target: HTMLElement; staticBase: URL }): Promise<void> {
@@ -44,8 +47,27 @@ export async function startApp(opts: { target: HTMLElement; staticBase: URL }): 
 				}
 			}),
 		async start(platform) {
-			app = await initApp(platform, { staticBase });
-			mount(App, { target, context: new Map([[APP_CONTEXT_KEY, app]]) });
+			let component: ReturnType<typeof mount> | undefined;
+			const show = (next: AppContext) => {
+				app = next;
+				component = mount(App, { target, context: new Map([[APP_CONTEXT_KEY, next]]) });
+			};
+			const first = await initApp(platform, { staticBase });
+			show(first);
+			// Signed in or out, in any tab: the app is remounted in the new space, at `/`.
+			keepInSpace(first, {
+				open: () => initApp(platform, { staticBase }),
+				mount(next) {
+					// Before mounting, so the new space never opens the old space's dashboard.
+					void navigate("/", { replace: true });
+					show(next);
+				},
+				unmount() {
+					if (component) void unmount(component);
+					component = undefined;
+				},
+				failed: () => showMessage(target, m.startup_failed())
+			});
 			startVersionCheck({
 				activity: platform.activity,
 				buildId: BUILD_ID,

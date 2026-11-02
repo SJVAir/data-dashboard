@@ -115,7 +115,11 @@ export type IdentityCause = "load" | "recheck" | "tab" | "sign-out";
 
 /** Who is signed in. Starts "unknown" until `start()` reads the page or the server answers. */
 export interface IdentitySource {
-	/** Always "anonymous" until sync maps an account to its own space. */
+	/**
+	 * The space for whoever is signed in (`account:<id>`, else "anonymous"). After `start()` it
+	 * waits for the first known identity (the page's block answers at once; otherwise the first
+	 * request, up to its timeout); still unknown gives "anonymous".
+	 */
 	currentSpace(): Promise<SpaceId>;
 	readonly authMode: "cookie";
 	current(): Identity;

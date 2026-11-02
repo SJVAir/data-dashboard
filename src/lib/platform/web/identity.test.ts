@@ -137,6 +137,38 @@ describe("createWebIdentity", () => {
 		expect(heard).toEqual([[signedIn(), "load"]]);
 	});
 
+	it("currentSpace is the block's account at once after start", async () => {
+		const { source } = setup();
+		source.start();
+		expect(await source.currentSpace()).toBe("account:u1");
+		const out = setup({ blockText: block(null) }).source;
+		out.start();
+		expect(await out.currentSpace()).toBe("anonymous");
+	});
+
+	it("currentSpace waits for the first request when there is no block", async () => {
+		let answer!: (value: unknown) => void;
+		const { source } = setup({
+			blockText: null,
+			fetchUser: () => new Promise((resolve) => (answer = resolve))
+		});
+		source.start();
+		const space = source.currentSpace();
+		answer(maria);
+		expect(await space).toBe("account:u1");
+	});
+
+	it("currentSpace is anonymous when the first request fails", async () => {
+		const { source } = setup({
+			blockText: null,
+			fetchUser: async () => {
+				throw httpError(503);
+			}
+		});
+		source.start();
+		expect(await source.currentSpace()).toBe("anonymous");
+	});
+
 	it("drops fields the schema doesn't know", async () => {
 		const { source } = setup({ blockText: null, fetchUser: async () => ({ ...maria, x: 1 }) });
 		source.start();

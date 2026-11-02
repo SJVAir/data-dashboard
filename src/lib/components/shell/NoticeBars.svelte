@@ -93,7 +93,9 @@
 		<div
 			class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
 		>
-			<span>{m.update_available()}</span>
+			<span>
+				{updateNotice.reason === "build-blocked" ? m.update_build_blocked() : m.update_available()}
+			</span>
 			<Button size="sm" variant="outline" onclick={reload}>{m.update_reload()}</Button>
 		</div>
 	{/if}

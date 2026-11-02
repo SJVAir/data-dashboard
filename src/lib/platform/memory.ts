@@ -1,4 +1,4 @@
-import { sameIdentity, type Identity } from "$lib/account/identity";
+import { sameIdentity, spaceFor, type Identity } from "$lib/account/identity";
 import { createQueueLocks } from "./web/locks";
 import type { SyncRecord } from "$lib/sync/types";
 import {
@@ -100,7 +100,7 @@ export function createMemoryIdentity(initial: Identity = { state: "signed-out" }
 		setSignOutResult(ok) {
 			signOutOk = ok;
 		},
-		currentSpace: async () => "anonymous",
+		currentSpace: async () => spaceFor(identity),
 		authMode: "cookie",
 		current: () => identity,
 		onChange(cb) {

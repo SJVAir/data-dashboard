@@ -249,6 +249,7 @@
 	"data_unavailable_whole_layer_raw": "Choose a longer date range to show every monitor.",
 	"offline_notice": "You're offline. Data may be out of date.",
 	"update_available": "A new version is available.",
+	"update_build_blocked": "This version can't save to your account any more. Reload to update.",
 	"update_reload": "Reload",
 	"backup_download": "Download a backup",
 	"backup_failed": "Couldn't create the backup. Please try again.",

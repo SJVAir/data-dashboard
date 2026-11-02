@@ -38,6 +38,17 @@ test("the reload bar appears inside a live region that was already there", async
 	expect(first.textContent).toContain(m.update_available());
 });
 
+test("a blocked build says saving stopped, with Reload", async () => {
+	const app = await initApp(createMemoryPlatform(), {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1"
+	});
+	await render(NoticeBars, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	updateNotice.show("build-blocked");
+	await expect.element(page.getByText(m.update_build_blocked())).toBeVisible();
+	await expect.element(page.getByRole("button", { name: m.update_reload() })).toBeVisible();
+});
+
 test("reload refreshes the cached entry files before reloading the page", async () => {
 	const staticBase = new URL("https://s.example/static/workspace/");
 	const app = await initApp(createMemoryPlatform(), {

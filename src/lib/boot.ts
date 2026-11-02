@@ -11,7 +11,7 @@ export type BootOptions = {
 };
 
 /** A plain message in place of the app (no app code has run, so no components). */
-function showMessage(target: HTMLElement, text: string): void {
+export function showMessage(target: HTMLElement, text: string): void {
 	const p = document.createElement("p");
 	p.className = "text-foreground mx-auto max-w-prose p-4";
 	p.textContent = text;

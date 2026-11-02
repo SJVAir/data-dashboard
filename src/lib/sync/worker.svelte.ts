@@ -39,7 +39,7 @@ export class SyncWorker {
 	states = $state.raw<Record<string, DocSyncState>>({});
 	/** The last request couldn't reach the server (or the platform says it's offline). */
 	offline = $state(false);
-	/** The server refused this build: no uploads until a reload (Task 9 shows the notice). */
+	/** The server refused this build: no uploads until a reload (`ctx.onBlocked` is told). */
 	blocked = $state(false);
 	/** A save found the space's account no longer signed in: no more uploads. */
 	signedOut = $state(false);
@@ -245,6 +245,7 @@ export class SyncWorker {
 				return;
 			}
 			case "blocked":
+				if (!this.blocked) this.#ctx.onBlocked?.();
 				this.blocked = true;
 				this.#cancelUploads();
 				return;
@@ -304,7 +305,7 @@ export class SyncWorker {
 	/** One poll (joining one in progress); the poller then uploads the backlog and waits a minute. */
 	#pollNow(): Promise<void> {
 		if (this.#poll) return this.#poll;
-		// Signed out: nothing more until Task 9 stops this worker.
+		// Signed out: nothing more until the app leaves this space and stops this worker.
 		if (this.signedOut || this.#stopped) return Promise.resolve();
 		if (this.#pollTimer !== null) clearTimeout(this.#pollTimer);
 		this.#pollTimer = null;

@@ -2,9 +2,12 @@ import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import type { SyncContext } from "$lib/sync/context";
 import type { SyncWorker } from "$lib/sync/worker.svelte";
+import { BUILD_ID } from "$lib/safety/build-id";
 import { StorageProtection } from "$lib/safety/protection.svelte";
 import { purgeExpired } from "$lib/safety/purge";
+import { report } from "$lib/safety/report";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -12,6 +15,7 @@ import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { DocumentSession } from "./document-session.svelte";
+import { tidySpaces, unhideSpace } from "./spaces";
 import { createTabChannel, withLocalEcho, type TabChannel } from "./tab-channel";
 
 /** Preference key: the id of the dashboard opened last in this space. */
@@ -39,6 +43,11 @@ export type AppContext = {
 	sync: SyncWorker | null;
 	/** The sessions this tab has open (the starter's included). */
 	openSessions(): DocumentSession[];
+	/**
+	 * Leaving this space (the app is remounted for another): stores and disposes every open
+	 * session, stops the sync worker, and stops following the other tabs.
+	 */
+	close(): Promise<void>;
 	/** Counts `resetAfterClear` calls; the root component goes to `/` when it changes. */
 	readonly resetCount: number;
 	/** Storage is about to go away: journal every open session's changes and stop saving. */
@@ -60,6 +69,16 @@ export type AppOptions = {
 	now?: () => Date;
 	/** How account changes are told to the person. Defaults to toasts. */
 	notify?: Notify;
+	/**
+	 * Gives an account space its sync worker. Defaults to `loadSyncWorker`, loaded only then, so
+	 * the anonymous space never loads the sync code; `null` starts none (tests that drive one).
+	 */
+	loadSync?: ((ctx: Omit<SyncContext, "remote">) => Promise<SyncWorker>) | null;
+};
+
+const loadSync = async (ctx: Omit<SyncContext, "remote">): Promise<SyncWorker> => {
+	const { loadSyncWorker } = await import("$lib/sync/load");
+	return loadSyncWorker(ctx);
 };
 
 const toastNotify: Notify = {
@@ -80,6 +99,9 @@ class App implements AppContext {
 	readonly #open = new Map<string, Promise<DocumentSession | null>>();
 	/** The sessions in `#open` that have finished opening, for synchronous `suspendAll`. */
 	readonly #live = new Map<string, DocumentSession>();
+	/** Stops this app's channel listeners (`close`). */
+	readonly #stops: Array<() => void> = [];
+	#closed = false;
 
 	constructor(
 		readonly platform: Platform,
@@ -111,6 +133,8 @@ class App implements AppContext {
 	};
 
 	async #get(id: string, remember: boolean): Promise<DocumentSession | null> {
+		// Closed: its sessions are gone, and a new one would never be stored or disposed.
+		if (this.#closed) return null;
 		if (id === STARTER_ID) {
 			if (!this.#open.has(id)) this.#open.set(id, Promise.resolve(this.#starter()));
 			return this.#open.get(id)!;
@@ -142,6 +166,71 @@ class App implements AppContext {
 
 	openSessions(): DocumentSession[] {
 		return [...this.#live.values()];
+	}
+
+	/** Follows the other tabs: a clear elsewhere, and this tab's first change. */
+	listen(): void {
+		const { channel, tabId } = this;
+		this.#stops.push(
+			// Another tab cleared this browser's data: drop everything this tab has open.
+			channel.subscribe((msg) => {
+				if (msg.type === "cleared" && msg.tabId !== tabId) void this.resetAfterClear();
+			})
+		);
+		// The first create or edit in this tab (its own message comes back through the echo).
+		const stop = channel.subscribe((msg) => {
+			if (msg.type !== "committed" || msg.tabId !== tabId) return;
+			stop();
+			void this.protection.requestAuto();
+		});
+		this.#stops.push(stop);
+	}
+
+	/** Loads and starts the account space's sync worker; a failed load leaves it local-only. */
+	async startSync(load: NonNullable<AppOptions["loadSync"]>): Promise<void> {
+		if (this.space === "anonymous") return;
+		const now = this.options.now ?? (() => new Date());
+		try {
+			const worker = await load({
+				platform: this.platform,
+				space: this.space,
+				accountId: this.space.slice("account:".length),
+				channel: this.channel,
+				tabId: this.tabId,
+				buildId: BUILD_ID,
+				now,
+				onBlocked: () => updateNotice.show("build-blocked")
+			});
+			if (this.#closed) return;
+			this.sync = worker;
+			worker.start();
+		} catch (error) {
+			// Its dashboards still open and save here; they upload after a reload.
+			report(error, { operation: "sync-load" });
+		}
+	}
+
+	async close(): Promise<void> {
+		this.#closed = true;
+		for (const stop of this.#stops.splice(0)) stop();
+		this.account.dispose();
+		this.index.dispose();
+		// Requests for the space being left stop here; its queue waits in storage.
+		this.sync?.stop();
+		const opened = await Promise.all(this.#open.values());
+		const sessions = [...new Set([...this.#live.values(), ...opened.filter((s) => s !== null)])];
+		this.#open.clear();
+		this.#live.clear();
+		this.current = { session: null, isStarter: false };
+		await Promise.all(
+			sessions.map(async (session) => {
+				try {
+					await session.flush();
+				} finally {
+					session.dispose();
+				}
+			})
+		);
 	}
 
 	suspendAll(): void {
@@ -190,36 +279,38 @@ class App implements AppContext {
 	}
 }
 
+/** A storage error in housekeeping mustn't keep the app from opening. */
+async function housekeeping(task: () => Promise<void>): Promise<void> {
+	try {
+		await task();
+	} catch {
+		// Tried again the next time the app opens.
+	}
+}
+
 /**
- * Set up the app for this tab: the space, the widget types, the tab channel, who is signed in,
- * and the index.
+ * Set up the app for this tab: the space (whoever is signed in), the widget types, the tab
+ * channel, who is signed in, the index, and in an account space its sync worker.
  */
 export async function initApp(platform: Platform, options: AppOptions = {}): Promise<AppContext> {
 	registerWidgetType(placeholderType);
+	// The space is whoever is signed in, known once the identity has started.
+	platform.identity.start();
 	const space = await platform.identity.currentSpace();
 	const tabId = options.tabId ?? crypto.randomUUID();
 	const channel = withLocalEcho(options.channel ?? createTabChannel());
 	const app = new App(platform, space, tabId, channel, { ...options, channel });
-	platform.identity.start();
-	try {
-		// A timestamp, not reactive state.
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		await purgeExpired(platform, space, options.now?.() ?? new Date());
-	} catch {
-		// Housekeeping: a storage error mustn't keep the app from opening.
-	}
+	// A timestamp, not reactive state.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const now = options.now?.() ?? new Date();
+	// Its person is back: the space is in use again.
+	if (space !== "anonymous") await housekeeping(() => unhideSpace(platform, space));
+	await housekeeping(() => tidySpaces(platform, space, now));
+	await housekeeping(() => purgeExpired(platform, space, now));
 	await app.index.refresh();
 	await app.protection.refresh();
-	// The first create or edit in this tab (its own message comes back through the echo).
-	// Another tab cleared this browser's data: drop everything this tab has open.
-	channel.subscribe((msg) => {
-		if (msg.type === "cleared" && msg.tabId !== tabId) void app.resetAfterClear();
-	});
-	const stop = channel.subscribe((msg) => {
-		if (msg.type !== "committed" || msg.tabId !== tabId) return;
-		stop();
-		void app.protection.requestAuto();
-	});
+	app.listen();
+	if (options.loadSync !== null) await app.startSync(options.loadSync ?? loadSync);
 	return app;
 }
 
