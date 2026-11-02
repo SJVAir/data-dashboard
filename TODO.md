@@ -9,18 +9,17 @@ Last updated: 2026-10-29
 
 1. ~~Layout spec 2b (windowing)~~ **done and merged into `layout`** (#15, 2026-10-29), with
    follow-ups #16, #17, and #18: see "Step 2" below.
-2. **`layout` → `main`**, only after the two hand checks below, and the user's explicit yes
+2. **`layout` → `main`**, only after the screen-reader hand check below, and the user's explicit yes
    (merging to `main` is a production deploy once hosting is live).
 3. **Sync spec 2 (dashboard sync)**, branching from `main`, then sync specs 3 and 4. Needs an
    sdk-js prerelease first, one that includes the documents module (the pinned `4.8.0-beta.1`
    predates it); cutting it needs the user's yes. See "Sync track" below.
 
-**Hand checks needed from the user before `layout` → `main`** (both in `DEFERRED.md`): touch
-arranging and windowing on a real phone and tablet (Chrome for Android, Safari on iOS; `npm run
-dev:lan`, then open `https://<this machine's LAN IP>:5173/workspace/` and accept the self-signed
-certificate once; plain http fails on a phone because it isn't a secure context), and a
-screen-reader pass (NVDA, VoiceOver if possible) on keyboard arranging, the Move ▸ and Size ▸
-submenus, and the taskbar. **As of 2026-10-29 evening, these are the next step.**
+**Hand checks before `layout` → `main`:** the touch check on real devices is **done** (the
+user, 2026-11-02, via `npm run dev:lan`, reported good; the checklist covered scrolling vs.
+long-press pick-up, dragging, selected mode and resize handles, the ⋯ menus and submenus,
+minimize and fullscreen, and reload). **Still due:** a screen-reader pass (NVDA, VoiceOver if possible) on keyboard arranging,
+the Move ▸ and Size ▸ submenus, and the taskbar (in `DEFERRED.md`). The user will do it later.
 
 ### Step 2: layout engine and windowing (branch `layout`)
 
@@ -70,7 +69,8 @@ Spec: `docs/superpowers/specs/2026-10-28-layout-engine-windowing-design.md`.
     stays open. This meets WCAG 2.5.7 (the title-bar keyboard mode covers 2.1.1). It also
     shows a picked-up outline and key hint in keyboard mode, and the ⋯ menu now sizes to its
     content.
-- Still due before `layout` → `main`: the two hand checks above and the user's explicit yes.
+- Still due before `layout` → `main`: the screen-reader hand check above and the user's explicit
+  yes (the touch check passed 2026-11-02).
 
 ### Sync track (server-backed documents)
 
