@@ -446,6 +446,25 @@ string`) now get the union return type. The mobile app passes a string token, so
   snapshot or change rows; a few lines over 100 characters and import-order nits; the CSRF
   test's token setup could be simpler; no export test with non-ASCII bodies or many
   documents. **Revisit when** the files are next touched.
+- **Oversized sync queues aren't uploaded in batches.** _Deferred 2026-11-02 (Sync spec 2,
+  Task 6; call 7 of the plan)._ A queue whose changes pass `MAX_SAVE_CHANGES_CHARS` (1.5 M
+  characters) is sent as one `replaceDocument` from the server's copy to the local one, so
+  other devices with unsaved edits to it get a prompt instead of a silent merge. True batching
+  needs the body after each batch, which the local log can't rebuild once server entries are
+  interleaved. **Revisit if** people report prompts after long offline sessions.
+- **A lost save answer is recognized only within one upload.** _Deferred 2026-11-02 (Sync spec
+  2, Task 6)._ The record keeps one `inFlight` batch, and a retry overwrites it with its own
+  before sending; the earlier batch is kept in memory for that retry's stale-base check. If the
+  page closes during that retry and its answer is lost too, the server's copy of the first batch
+  later looks like another device's edit: a conflict prompt, with nothing lost. **Revisit if**
+  spurious conflict prompts are reported after flaky connections; the fix is a list of
+  unanswered batches in the record.
+- **Journal records of a moved document aren't carried over.** _Deferred 2026-11-02 (Sync spec
+  2, Task 6)._ `finishMoves` carries the old id's log entries to the copy, but a tab still on
+  the old id that journals edits on `pagehide` after the old document is removed leaves a
+  record nothing replays. It needs a tab to miss the `moved` message and close within moments.
+  **Revisit with** Task 8's moved-document handling, or on a report of lost edits after an id
+  collision.
 
 ## Map & selection
 
