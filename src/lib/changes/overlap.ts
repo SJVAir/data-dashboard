@@ -4,7 +4,8 @@ import type { Change } from "./types";
  * Whether two changes made on different sides touch the same thing, so neither can be
  * replayed over the other silently: the same field of the same widget (or the same document
  * field; a placement's rect and minimized are separate fields), either side replacing the
- * whole document, or one side removing a widget the other side changed. Both sides removing
+ * whole document, or one side removing a widget the other side changed. Both sides deleting the
+ * dashboard (any times) agree too. Both sides removing
  * the same widget, or setting the same field to the same value, agree, so that is not an
  * overlap. Layout moves (`setLayout`) never overlap each other or a removal.
  */
@@ -12,6 +13,10 @@ export function changesOverlap(a: Change, b: Change): boolean {
 	// Replacing the whole document touches everything, including another replacement.
 	if (a.op === "replaceDocument" || b.op === "replaceDocument") return true;
 	if (a.op === "setField" && b.op === "setField") {
+		// Both sides deleted the dashboard: they agree, whatever the times.
+		if (a.target.path === "deletedAt" && b.target.path === "deletedAt") {
+			if (a.to !== null && b.to !== null) return false;
+		}
 		return (
 			a.target.widgetId === b.target.widgetId && a.target.path === b.target.path && a.to !== b.to
 		);

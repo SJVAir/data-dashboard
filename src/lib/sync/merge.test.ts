@@ -126,7 +126,20 @@ describe("mergeRemote", () => {
 		expect(out).toEqual({ kind: "deleted-elsewhere" });
 	});
 
-	it("deleted elsewhere, mine only restores, merges", () => {
+	it("deleted on both devices merges without asking", () => {
+		const theirs = [deleted("2026-10-22T00:00:00.000Z")];
+		const server = applyAll(makeDoc(), theirs);
+		const out = mergeRemote({
+			server,
+			theirs,
+			dropped: 0,
+			mine: [deleted("2026-10-23T00:00:00.000Z")]
+		});
+		expect(out.kind).toBe("rebased");
+		if (out.kind === "rebased") expect(out.doc.deletedAt).toBeDefined();
+	});
+
+	it("a restore here against a delete elsewhere asks", () => {
 		const theirs = [deleted("2026-10-22T00:00:00.000Z")];
 		const server = applyAll(makeDoc(), theirs);
 		const mine: Change[] = [
@@ -137,11 +150,9 @@ describe("mergeRemote", () => {
 				to: null
 			}
 		];
-		const out = mergeRemote({ server, theirs, dropped: 0, mine });
-		expect(out.kind).not.toBe("deleted-elsewhere");
-		// The restore and the delete both set deletedAt (different values), which rebase calls an
-		// overlap; the point is that it is not the "deleted elsewhere" prompt.
-		expect(out).toEqual({ kind: "conflict", reason: "overlap" });
+		expect(mergeRemote({ server, theirs, dropped: 0, mine })).toEqual({
+			kind: "deleted-elsewhere"
+		});
 	});
 });
 

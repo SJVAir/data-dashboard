@@ -174,3 +174,22 @@ describe("changesOverlap with setLayout", () => {
 		});
 	});
 });
+
+describe("changesOverlap on deletedAt", () => {
+	const del = (from: string | null, to: string | null): Change => ({
+		op: "setField",
+		target: { path: "deletedAt" },
+		from,
+		to
+	});
+	it("two deletes agree even at different times", () => {
+		expect(
+			changesOverlap(del(null, "2026-10-22T00:00:00.000Z"), del(null, "2026-10-23T00:00:00.000Z"))
+		).toBe(false);
+	});
+	it("a delete against a restore still overlaps", () => {
+		expect(
+			changesOverlap(del(null, "2026-10-22T00:00:00.000Z"), del("2026-10-22T00:00:00.000Z", null))
+		).toBe(true);
+	});
+});

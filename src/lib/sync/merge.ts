@@ -76,8 +76,8 @@ export type MergeOutcome =
 	| { kind: "conflict"; reason: "overlap" | "log-gap" }
 	| { kind: "deleted-elsewhere" };
 
-function isDeletedAtChange(change: Change): boolean {
-	return change.op === "setField" && change.target.path === "deletedAt";
+function isDelete(change: Change): boolean {
+	return change.op === "setField" && change.target.path === "deletedAt" && change.to !== null;
 }
 
 export function mergeRemote(input: {
@@ -91,10 +91,7 @@ export function mergeRemote(input: {
 	// Never replay over a gap in the server's log.
 	if (theirs === null) return { kind: "conflict", reason: "log-gap" };
 	if (dropped > 0) return { kind: "conflict", reason: "overlap" };
-	const theyDeleted = theirs.some(
-		(c) => c.op === "setField" && c.target.path === "deletedAt" && c.to !== null
-	);
-	if (theyDeleted && mine.some((c) => !isDeletedAtChange(c))) return { kind: "deleted-elsewhere" };
+	if (theirs.some(isDelete) && mine.some((c) => !isDelete(c))) return { kind: "deleted-elsewhere" };
 	const result = rebase(server, theirs, mine);
 	if (result.kind === "conflict") return { kind: "conflict", reason: "overlap" };
 	return { kind: "rebased", doc: result.doc };
