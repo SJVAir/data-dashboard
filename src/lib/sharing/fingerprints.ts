@@ -63,3 +63,26 @@ export async function forgetDocument(
 	}
 	await write(platform, space, next);
 }
+
+/** Moves the entries of `ids` (documents moved between spaces) from `from`'s table to `to`'s. */
+export async function moveCopies(
+	platform: Platform,
+	from: SpaceId,
+	to: SpaceId,
+	ids: string[]
+): Promise<void> {
+	const moved = new Set(ids);
+	const source = await read(platform, from);
+	const target = await read(platform, to);
+	const left: Table = {};
+	for (const fingerprint of Object.keys(source)) {
+		const all = idsOf(source, fingerprint);
+		const staying = all.filter((id) => !moved.has(id));
+		if (staying.length > 0) left[fingerprint] = staying;
+		const there = idsOf(target, fingerprint);
+		const going = all.filter((id) => moved.has(id) && !there.includes(id));
+		if (going.length > 0) target[fingerprint] = [...there, ...going];
+	}
+	await write(platform, to, target);
+	await write(platform, from, left);
+}

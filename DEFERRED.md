@@ -847,6 +847,9 @@ string`) now get the union return type. The mobile app passes a string token, so
     dashboards on another device and not find them. _Done 2026-11-02 (sync spec 2): signed-in
     work lives in `account:<id>` and syncs; the app remounts when the space changes._
   - "Add the 3 dashboards made on this browser to your account?", for the same reason.
+    _Done 2026-11-02 (sync spec 2): asked once per account per browser
+    (`src/lib/sync/move-to-account.ts`, `MoveToAccountDialog`); see the entry below for what
+    it leaves out._
   - Sign-out removing that account's local copies "because they are on the server": they
     aren't yet, so it would delete work.
   - Hidden spaces on expiry or an account change, and removing a hidden space after 30 days.
@@ -859,6 +862,17 @@ string`) now get the union return type. The mobile app passes a string token, so
     waits for spec 2.
   - "Sign in to keep this safe everywhere" in the backup reminder (see its own entry under
     "Documents & saving").
+- **Gaps in "Add the dashboards made on this browser to your account?"** _Deferred 2026-11-02
+  (sync spec 2, Task 10)._ (1) Other open tabs in the account space don't refresh their
+  dashboards list after the move (the index listens only to `committed` messages, and posting
+  fake commits would schedule uploads); they catch up on their next commit or reload, and
+  their own copy of the question finds it already answered. (2) Journal records the browser
+  refused to move (quota) stay in the anonymous space; the move reports how many
+  (`move-to-account`) but doesn't retry them. (3) Anonymous dashboards whose ids the account
+  space already holds aren't offered (the move would replace them), and a space with only
+  Recently deleted dashboards isn't asked (there's nothing to count in the question).
+  **Revisit when** people report a stale list after the move, the error report shows
+  stranded journal records, or the account-space ids start to collide.
 - **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
   (Foundations spec 5b)._ A new account still goes sign-up, the "enter your code" page, then
   the profile page. During the preview `/workspace/` is behind `beta_tools`, so only people who

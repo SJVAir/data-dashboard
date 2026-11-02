@@ -70,6 +70,21 @@
 	"purged_body": "This dashboard was permanently deleted from your account. Keep your version as a new dashboard, or discard it?",
 	"purged_keep": "Keep as a new dashboard",
 	"purged_discard": "Discard",
+	"move_offer_title": "Dashboards on this browser",
+	"move_offer_body": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Add the dashboard made on this browser to your account?",
+				"countPlural=other": "Add the {count} dashboards made on this browser to your account?"
+			}
+		}
+	],
+	"move_offer_detail": "Your account keeps them and opens them on your other devices. Keep them here to use them when you're signed out.",
+	"move_offer_yes": "Add to my account",
+	"move_offer_no": "Keep on this browser",
+	"move_offer_failed": "Couldn't add the dashboards to your account. You'll be asked again next time.",
 	"edits_dropped": "Some unsaved edits from before the update couldn't be applied.",
 	"starter_hint": "This is the starter dashboard. Any change saves it as your own.",
 	"starter_copied": "Saved as your own dashboard",
