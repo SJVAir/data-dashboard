@@ -183,6 +183,70 @@ describe("SyncWorker", () => {
 		expect(saves(setup)).toHaveLength(1);
 	});
 
+	it("a commit made after hiding uploads at once", async () => {
+		const { setup, t } = await started();
+		await commitIn(setup, t, "One");
+		await settle();
+		expect(saves(setup)).toHaveLength(1);
+
+		t.activity.setVisible(false);
+		await settle();
+		// The session's commit as the tab hid, well within 2 s of the last save.
+		await vi.advanceTimersByTimeAsync(100);
+		await commitIn(setup, t, "Two");
+		await settle();
+		expect(saves(setup)).toHaveLength(2);
+		expect((await setup.fake.get("d1")).body).toEqual((await stored(setup.platform)).body);
+	});
+
+	it("edits while offline don't shorten the backoff", async () => {
+		const { setup, t } = await started();
+		setup.fake.offline = true;
+		// Fail three times: the next retry waits 15 s.
+		await commitIn(setup, t, "One");
+		await settle();
+		await vi.advanceTimersByTimeAsync(1_000);
+		await settle();
+		await vi.advanceTimersByTimeAsync(2_000);
+		await settle();
+		await vi.advanceTimersByTimeAsync(5_000);
+		await settle();
+		expect(saves(setup)).toHaveLength(4);
+
+		for (let i = 0; i < 5; i++) {
+			await vi.advanceTimersByTimeAsync(2_000);
+			await commitIn(setup, t, `Edit ${i}`);
+			await settle();
+		}
+		expect(saves(setup)).toHaveLength(4);
+		await vi.advanceTimersByTimeAsync(5_000);
+		await settle();
+		expect(saves(setup)).toHaveLength(5);
+
+		// Hiding the tab still uploads at once.
+		await commitIn(setup, t, "Hidden");
+		t.activity.setVisible(false);
+		await settle();
+		expect(saves(setup)).toHaveLength(6);
+	});
+
+	it("after signed-out the worker makes no requests", async () => {
+		const { setup, t } = await started();
+		setup.fake.signedInAs = null;
+		await commitIn(setup, t, "One");
+		await settle();
+		expect(t.worker.signedOut).toBe(true);
+
+		setup.fake.requests.length = 0;
+		await commitIn(setup, t, "Two");
+		setup.platform.online.setOnline(false);
+		setup.platform.online.setOnline(true);
+		await settle();
+		await vi.advanceTimersByTimeAsync(180_000);
+		await settle();
+		expect(setup.fake.requests).toEqual([]);
+	});
+
 	it("a hidden tab never polls", async () => {
 		const setup = await setupSync();
 		vi.useFakeTimers({

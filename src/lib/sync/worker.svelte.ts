@@ -56,6 +56,8 @@ export class SyncWorker {
 	#again = new Set<string>();
 	#lastSave = new Map<string, number>();
 	#retries = new Map<string, number>();
+	/** When each document's pending retry is due. */
+	#retryDue = new Map<string, number>();
 	/* eslint-enable svelte/prefer-svelte-reactivity */
 	#lead: AbortController | null = null;
 	#poll: Promise<void> | null = null;
@@ -127,13 +129,25 @@ export class SyncWorker {
 		if (msg.type !== "committed" || msg.tabId !== this.#ctx.tabId || msg.tabId === SYNC_TAB) {
 			return;
 		}
-		this.#schedule(msg.docId, this.#throttled(msg.docId));
+		this.#schedule(msg.docId, this.#commitDelay(msg.docId));
 		// Refused documents are retried on the next local commit in the space (call 10).
 		for (const [docId, s] of Object.entries(this.states)) {
 			if (docId !== msg.docId && s.hold?.kind === "refused") {
-				this.#schedule(docId, this.#throttled(docId));
+				this.#schedule(docId, this.#commitDelay(docId));
 			}
 		}
+	}
+
+	/**
+	 * When a commit's upload goes: at once in a hidden tab (a session commits as the tab hides,
+	 * after `#hidden` ran, and the page may not come back); else after the throttle, and no
+	 * sooner than a pending retry's backoff.
+	 */
+	#commitDelay(docId: string): number {
+		if (!this.#ctx.platform.activity.visible()) return 0;
+		const retry = this.#retryDue.get(docId);
+		const backoff = retry === undefined ? 0 : retry - Date.now();
+		return Math.max(this.#throttled(docId), backoff);
 	}
 
 	// Uploads
@@ -169,6 +183,7 @@ export class SyncWorker {
 	#cancelUploads(): void {
 		for (const { timer } of this.#scheduled.values()) clearTimeout(timer);
 		this.#scheduled.clear();
+		this.#retryDue.clear();
 	}
 
 	/** The tab went to the background: scheduled uploads go now, and polling stops. */
@@ -196,6 +211,7 @@ export class SyncWorker {
 
 	async #uploadOnce(docId: string): Promise<void> {
 		if (!this.#canUpload()) return;
+		this.#retryDue.delete(docId);
 		const startedAt = Date.now();
 		let result: UploadResult;
 		try {
@@ -210,7 +226,9 @@ export class SyncWorker {
 			case "retry": {
 				const tries = this.#retries.get(docId) ?? 0;
 				this.#retries.set(docId, tries + 1);
-				this.#schedule(docId, RETRY_DELAYS_MS[Math.min(tries, RETRY_DELAYS_MS.length - 1)]);
+				const delay = RETRY_DELAYS_MS[Math.min(tries, RETRY_DELAYS_MS.length - 1)];
+				this.#retryDue.set(docId, Date.now() + delay);
+				this.#schedule(docId, delay);
 				return;
 			}
 			case "blocked":
@@ -273,6 +291,8 @@ export class SyncWorker {
 	/** One poll (joining one in progress); the poller then uploads the backlog and waits a minute. */
 	#pollNow(): Promise<void> {
 		if (this.#poll) return this.#poll;
+		// Signed out: nothing more until Task 9 stops this worker.
+		if (this.signedOut || this.#stopped) return Promise.resolve();
 		if (this.#pollTimer !== null) clearTimeout(this.#pollTimer);
 		this.#pollTimer = null;
 		this.#poll = (async () => {
