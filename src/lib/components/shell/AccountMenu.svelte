@@ -17,12 +17,16 @@
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import { displayName, greetingName, initials } from "$lib/account/names";
 	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
+	import SignOutDialog from "$lib/components/dialogs/SignOutDialog.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import { m } from "$lib/paraglide/messages.js";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
+	import { beginSignOut } from "$lib/sync/sign-out";
 	import { cn } from "$lib/utils";
-	import { untrack } from "svelte";
+	import { tick, untrack } from "svelte";
+	import { toast } from "svelte-sonner";
 	import { serializeSearch } from "sv-router";
 	import { route } from "../../../router";
 
@@ -60,6 +64,30 @@
 		focusSignIn = false;
 		signInLink.focus();
 	});
+
+	/** Changes not yet in the account: the dialog asks what to do (`unsynced` is its count). */
+	let asking = $state(false);
+	let unsynced = $state(0);
+
+	async function signOut() {
+		try {
+			const result = await beginSignOut(app);
+			if ("unsynced" in result) {
+				unsynced = result.unsynced;
+				asking = true;
+			}
+		} catch (error) {
+			report(error, { operation: "sign-out" });
+			toast.error(m.sign_out_failed());
+		}
+	}
+
+	// The dialog closed: back to the account menu, or to Sign in once signed out (WCAG 2.4.3).
+	async function afterDialog() {
+		await tick();
+		if (identity.state === "signed-in") trigger?.focus();
+		else if (identity.state === "signed-out") signInLink?.focus();
+	}
 </script>
 
 {#if identity.state === "signed-out"}
@@ -104,9 +132,11 @@
 				{/snippet}
 			</DropdownMenu.Item>
 			<DropdownMenu.Item onSelect={openPrivacy}>{m.privacy_open()}</DropdownMenu.Item>
-			<DropdownMenu.Item onSelect={() => void app.account.signOut()}>
+			<DropdownMenu.Item onSelect={() => void signOut()}>
 				{m.account_sign_out()}
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 {/if}
+
+<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />

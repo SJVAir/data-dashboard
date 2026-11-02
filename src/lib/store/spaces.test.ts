@@ -125,13 +125,35 @@ describe("spaces", () => {
 		const platform = createMemoryPlatform();
 		await store(platform, A, "d1");
 		await store(platform, "anonymous", "d2");
-		await store(platform, B, "d3");
 		await hideSpace(platform, A, "switched", daysAgo(40));
 		await hideSpace(platform, "anonymous", "switched", daysAgo(40));
 		await tidySpaces(platform, A, NOW);
 		expect(await platform.documents.get(A, "d1")).toBeDefined();
 		expect(await platform.documents.get("anonymous", "d2")).toBeDefined();
-		// Not hidden: left alone.
-		expect(await platform.documents.get(B, "d3")).toBeDefined();
+		expect(await platform.preferences.get(A, HIDDEN_KEY)).toMatchObject({ reason: "switched" });
+	});
+
+	it("a space recreated by a late flush after sign-out is tidied, not orphaned", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		await hideSpace(platform, A, "signed-out", NOW);
+		await tidySpaces(platform, "anonymous", NOW);
+		expect(await platform.spaces.list()).not.toContain(A);
+
+		// Another tab stores its last edits just after: the space is back, with no hidden marker.
+		await store(platform, A, "d1", false);
+		await store(platform, B, "d2");
+		await tidySpaces(platform, "anonymous", NOW);
+		// Unsynced: kept for 30 days, hidden, never left visible to the next person.
+		expect(await platform.documents.get(A, "d1")).toBeDefined();
+		expect(await platform.preferences.get(A, HIDDEN_KEY)).toEqual({
+			at: NOW.toISOString(),
+			reason: "signed-out"
+		});
+		// Nothing unsynced: removed at once.
+		expect(await platform.spaces.list()).not.toContain(B);
+
+		await tidySpaces(platform, "anonymous", new Date(NOW.getTime() + RETENTION_MS + DAY));
+		expect(await platform.spaces.list()).not.toContain(A);
 	});
 });

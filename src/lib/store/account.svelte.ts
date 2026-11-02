@@ -55,8 +55,11 @@ export class AccountState {
 		void this.source.recheck({ force: true });
 	}
 
-	async signOut(): Promise<void> {
-		if (!(await this.source.signOut())) this.notify.error(m.account_sign_out_failed());
+	/** Resolves false (and says so) when the sign-out didn't go through. */
+	async signOut(): Promise<boolean> {
+		const ok = await this.source.signOut();
+		if (!ok) this.notify.error(m.account_sign_out_failed());
+		return ok;
 	}
 
 	dispose(): void {

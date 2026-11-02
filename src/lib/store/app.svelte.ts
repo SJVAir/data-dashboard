@@ -149,9 +149,13 @@ class App implements AppContext {
 				...this.#guards
 			});
 			const own = opening;
-			void own.then((session) => {
-				if (session && this.#open.get(id) === own) this.#live.set(id, session);
-			});
+			void own.then(
+				(session) => {
+					if (session && this.#open.get(id) === own) this.#live.set(id, session);
+				},
+				// Told to the caller, who awaits `opening`.
+				() => {}
+			);
 			this.#open.set(id, opening);
 		}
 		const session = await opening;
@@ -217,8 +221,11 @@ class App implements AppContext {
 		this.index.dispose();
 		// Requests for the space being left stop here; its queue waits in storage.
 		this.sync?.stop();
-		const opened = await Promise.all(this.#open.values());
-		const sessions = [...new Set([...this.#live.values(), ...opened.filter((s) => s !== null)])];
+		// One that failed to open (told to its caller) mustn't keep the others from being stored.
+		const opened = (await Promise.allSettled(this.#open.values()))
+			.map((result) => (result.status === "fulfilled" ? result.value : null))
+			.filter((session) => session !== null);
+		const sessions = [...new Set([...this.#live.values(), ...opened])];
 		this.#open.clear();
 		this.#live.clear();
 		this.current = { session: null, isStarter: false };
@@ -236,12 +243,20 @@ class App implements AppContext {
 	suspendAll(): void {
 		for (const session of this.#live.values()) session.suspend();
 		// Still opening: suspended as soon as they're open.
-		for (const opening of this.#open.values()) void opening.then((session) => session?.suspend());
+		for (const opening of this.#open.values())
+			void opening.then(
+				(session) => session?.suspend(),
+				() => {}
+			);
 	}
 
 	async resetAfterClear(): Promise<void> {
 		for (const session of this.#live.values()) session.discard();
-		for (const opening of this.#open.values()) void opening.then((session) => session?.discard());
+		for (const opening of this.#open.values())
+			void opening.then(
+				(session) => session?.discard(),
+				() => {}
+			);
 		this.#live.clear();
 		this.#open.clear();
 		this.current = { session: null, isStarter: false };

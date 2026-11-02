@@ -387,6 +387,31 @@
 	"account_signed_in_unnamed": "You're signed in",
 	"account_settings": "Account settings",
 	"account_sign_out": "Sign out",
+	"sign_out_unsynced_title": "Some changes aren't in your account yet",
+	"sign_out_unsynced_body": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} dashboard has changes not yet saved to your account.",
+				"countPlural=other": "{count} dashboards have changes not yet saved to your account."
+			}
+		}
+	],
+	"sign_out_unsynced_detail": [
+		{
+			"declarations": ["input days", "input daysValue", "local daysPlural = daysValue: plural"],
+			"selectors": ["daysPlural"],
+			"match": {
+				"daysPlural=one": "If you sign out anyway, they stay on this browser for {days} day, hidden from anyone else, and finish saving if you sign back in here before then.",
+				"daysPlural=other": "If you sign out anyway, they stay on this browser for {days} days, hidden from anyone else, and finish saving if you sign back in here before then."
+			}
+		}
+	],
+	"sign_out_finish": "Finish saving, then sign out",
+	"sign_out_anyway": "Sign out anyway",
+	"sign_out_still_unsynced": "Some changes couldn't be saved to your account yet. Check your connection and try again.",
+	"sign_out_failed": "Couldn't sign out. Try again.",
 	"widget_minimize": "Minimize",
 	"widget_minimize_named": "Minimize {title}",
 	"widget_fullscreen": "Fullscreen",

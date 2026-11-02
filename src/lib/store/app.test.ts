@@ -190,6 +190,21 @@ describe("initApp", () => {
 		await app.close();
 	});
 
+	it("close still flushes the others when one dashboard fails to open", async () => {
+		const { platform, app } = await setup();
+		const id = await app.index.createBlank();
+		const session = (await app.sessions.get(id))!;
+		const get = platform.documents.get.bind(platform.documents);
+		platform.documents.get = (space, docId) =>
+			docId === "broken" ? Promise.reject(new Error("unreadable")) : get(space, docId);
+		await expect(app.sessions.get("broken")).rejects.toThrow("unreadable");
+		session.apply(rename);
+
+		await app.close();
+		expect(((await platform.documents.get("anonymous", id)) as { name: string }).name).toBe("Home");
+		expect(app.openSessions()).toEqual([]);
+	});
+
 	it("close stores every open session's edits, then stops listening and syncing", async () => {
 		const { platform, app, fake } = await signedInApp();
 		const id = await app.index.createBlank();

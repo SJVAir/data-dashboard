@@ -50,12 +50,19 @@ export async function unhideSpace(platform: Platform, space: SpaceId): Promise<v
 	await platform.preferences.set(space, HIDDEN_KEY, null);
 }
 
-/** Removes hidden spaces older than RETENTION_MS, and signed-out ones with nothing unsynced. */
+/**
+ * Removes hidden spaces older than RETENTION_MS, and signed-out ones with nothing unsynced. An
+ * account space that isn't `current` and has no marker is hidden now as signed out: another tab
+ * stored its last edits into it just after it was removed (removing deletes the marker too).
+ */
 export async function tidySpaces(platform: Platform, current: SpaceId, now: Date): Promise<void> {
 	for (const space of await platform.spaces.list()) {
 		if (space === current || space === "anonymous") continue;
-		const hidden = await readHidden(platform, space);
-		if (!hidden) continue;
+		let hidden = await readHidden(platform, space);
+		if (!hidden) {
+			await hideSpace(platform, space, "signed-out", now);
+			hidden = { at: now.toISOString(), reason: "signed-out" };
+		}
 		const old = now.getTime() - Date.parse(hidden.at) > RETENTION_MS;
 		if (old || (hidden.reason === "signed-out" && !(await hasUnsynced(platform, space)))) {
 			await platform.spaces.remove(space);
