@@ -86,6 +86,17 @@ async function settle(
 	const base = local.record.serverVersion;
 	const server = await fetchServer(ctx, docId, base);
 	const remote = fromRemote(server.document, local.doc.version);
+	if (remote.status === "newer") {
+		// A newer build saved it: no choice can apply here. Held as newer instead, so the page
+		// shows it read-only until a reload brings that build.
+		await ctx.platform.sync.put(ctx.space, {
+			...local.record,
+			inFlight: null,
+			hold: { kind: "newer", schemaVersion: server.document.schemaVersion }
+		});
+		postSync(ctx, docId);
+		throw new Error(`Dashboard ${docId} is in a newer format on the server`);
+	}
 	if (remote.status !== "ok") throw new Error(`Dashboard ${docId} from the server can't be loaded`);
 	const theirs = remote.doc;
 	const mine = currentChanges(local.unsynced);

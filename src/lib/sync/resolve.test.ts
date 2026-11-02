@@ -89,6 +89,27 @@ describe("resolveHold", () => {
 		expect(await uploadDocument(ctx, "d1")).toBe("nothing");
 	});
 
+	it.each(["keep-mine", "use-other", "save-copy"] as const)(
+		"%s fails for a server version in a newer format, and holds it as newer",
+		async (choice) => {
+			const setup = await held([title("a", "Mine")], [title("a", "Theirs")]);
+			const { platform, fake, ctx, posted } = setup;
+			// A newer build saved it after the conflict was held.
+			await otherDevice(fake, [title("b", "Newer")], "d1", { schemaVersion: 2 });
+
+			await expect(resolveHold(ctx, "d1", choice)).rejects.toThrow(/newer format/);
+			expect(fake.requests.filter((r) => !r.startsWith("changes") && !r.startsWith("get"))).toEqual(
+				[]
+			);
+			expect(await platform.documents.list(SPACE)).toHaveLength(1);
+			const record = await platform.sync.get(SPACE, "d1");
+			expect(record?.hold).toEqual({ kind: "newer", schemaVersion: 2 });
+			// Still unsynced: the queue stays.
+			expect(titles(await stored(platform))).toEqual(["Mine", null]);
+			expect(posted).toContainEqual(expect.objectContaining({ type: "sync", docId: "d1" }));
+		}
+	);
+
 	it("use the other keeps mine as a snapshot", async () => {
 		const setup = await held([title("a", "Mine")], [title("a", "Theirs")]);
 		const { platform, fake, ctx } = setup;

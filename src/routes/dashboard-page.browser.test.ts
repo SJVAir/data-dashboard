@@ -9,6 +9,9 @@ import { answerMoveOffer } from "$lib/sync/move-to-account";
 import { createFakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, makeDoc, storeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
+import { m } from "$lib/paraglide/messages.js";
+import { updateNotice } from "$lib/safety/update-notice.svelte";
+import { accountApp } from "$lib/sync/test-app";
 import { navigate } from "../router";
 import DashboardPage from "./DashboardPage.svelte";
 
@@ -122,4 +125,33 @@ test("a missing dashboard opens once it arrives (Add to my account)", async () =
 	await answerMoveOffer(app, "yes");
 	await expect.poll(() => app.current.session?.doc.id).toBe("a1");
 	await expect.element(notHere).not.toBeInTheDocument();
+});
+
+test("a dashboard a newer build saved to the account opens read-only with Reload to edit", async () => {
+	const { app, platform, worker } = await accountApp(["d1"]);
+	apps.push(app);
+	updateNotice.reason = null;
+	try {
+		worker.start();
+		await expect.poll(() => worker.states.d1?.state).toBe("synced");
+		await navigate("/dashboards/:id", { params: { id: "d1" } });
+		await render(DashboardPage, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+		await expect.poll(() => app.current.session?.doc.id).toBe("d1");
+		const session = app.current.session!;
+		expect(session.readOnly).toBe(false);
+
+		// A save from this tab's queue found the server's copy in a newer format.
+		const record = (await platform.sync.get(SPACE, "d1"))!;
+		await platform.sync.put(SPACE, { ...record, hold: { kind: "newer", schemaVersion: 2 } });
+		app.channel.post({ type: "sync", space: SPACE, docId: "d1", tabId: "other" });
+
+		await expect.poll(() => session.readOnly).toBe("newer");
+		await expect.element(page.getByText(m.doc_readonly_newer())).toBeVisible();
+		expect(updateNotice.reason).toBe("newer-data");
+		// The hold stays for the build that can read it.
+		expect((await platform.sync.get(SPACE, "d1"))?.hold?.kind).toBe("newer");
+	} finally {
+		worker.stop();
+		updateNotice.reason = null;
+	}
 });

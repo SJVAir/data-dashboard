@@ -4,6 +4,7 @@
 	import { leaveDeletedDashboard } from "$lib/actions/dashboard";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { m } from "$lib/paraglide/messages.js";
+	import { updateNotice } from "$lib/safety/update-notice.svelte";
 	import { STARTER_ID } from "$lib/starter/starter";
 	import { currentDashboardName, useApp } from "$lib/store/app.svelte";
 	import { navigate, p, route } from "../router";
@@ -83,6 +84,19 @@
 		if (!session || typeof session.doc.deletedAt !== "string") return;
 		if (session.doc.id !== untrack(() => route.params.id)) return;
 		void leaveDeletedDashboard(app, session);
+	});
+
+	// A newer build saved it to the account: read-only here until a reload brings that build.
+	// Its edits waiting to upload stay queued; this tab's unsaved ones are journaled.
+	$effect(() => {
+		const session = app.current.session;
+		if (!session || session.readOnly) return;
+		if (app.sync?.states[session.doc.id]?.hold?.kind !== "newer") return;
+		untrack(() => {
+			session.suspend();
+			session.readOnly = "newer";
+			updateNotice.show("newer-data");
+		});
 	});
 
 	// Unsaved edits from before an update that couldn't be carried over: say so once.
