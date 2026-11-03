@@ -114,12 +114,11 @@ and `npm run dev`; not yet done by the user):
 6. With both env vars set, `npm run test:sync-stack` runs the `RemoteDocuments` contract
    against the stack.
 
-**Hand check for spec 3 on the real stack: NOT YET DONE** (the builder had no
-`WORKSPACE_E2E_*` credentials, so neither this nor `npm run test:sync-stack` was run). Needs
-the stack on sjvair.com `develop` and `npm run dev`:
+**Hand check for spec 3 on the real stack: steps 2–6 NOT YET DONE.** Needs the stack on
+sjvair.com `develop` and `npm run dev`:
 
-1. Run `npm run test:sync-stack` once (needs `WORKSPACE_E2E_IDENTIFIER` and
-   `WORKSPACE_E2E_PASSWORD`).
+1. ~~Run `npm run test:sync-stack` once~~ **done 2026-11-02**: 20/20 pass on `sync-share-links`
+   (spec 2's contract plus the sharing cases) against the local stack.
 2. Signed in as the `WORKSPACE_E2E_*` account, open a dashboard's Share dialog and create a link.
 3. Open the link in a private window (signed out): the dashboard shows read-only with the "made
    by a user" bar. In devtools, the response headers for the page carry `noindex` and
