@@ -39,7 +39,9 @@
 
 <!-- Only a choice closes it: outside clicks and Escape are ignored. -->
 <Dialog.Root open={!!session?.conflict || device}>
+	<!-- Wider than the default so the three choices fit on one row. -->
 	<Dialog.Content
+		class="sm:max-w-lg"
 		showCloseButton={false}
 		interactOutsideBehavior="ignore"
 		escapeKeydownBehavior="ignore"

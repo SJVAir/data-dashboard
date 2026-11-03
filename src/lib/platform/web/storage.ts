@@ -37,7 +37,9 @@ function strip(row: LogEntry & { space: SpaceId }): LogEntry {
 
 function unwrapRecord(row: { space: SpaceId; id: string } & SyncRecord): SyncRecord {
 	const { docId, serverVersion, syncedThrough, confirmedAt, inFlight, hold } = row;
-	return { docId, serverVersion, syncedThrough, confirmedAt, inFlight, hold };
+	// Records stored before share links have no token.
+	const shareToken = row.shareToken ?? null;
+	return { docId, serverVersion, syncedThrough, confirmedAt, inFlight, hold, shareToken };
 }
 
 /** Every key in `space`: arrays sort after strings and numbers, so `[space, []]` ends it. */

@@ -369,6 +369,42 @@ describe("SyncWorker", () => {
 		);
 	});
 
+	it("states carry the share token", async () => {
+		const setup = await setupSync();
+		await storeDoc(setup.platform);
+		await storeDoc(setup.platform, makeDoc("d2"));
+		const t = tab(setup, "tab-1");
+		t.worker.start();
+		await vi.waitFor(async () => expect(await t.worker.unsyncedCount()).toBe(0));
+
+		const result = await t.worker.share("d1");
+		const token = result.kind === "shared" ? result.token : null;
+		expect(token).toEqual(expect.any(String));
+		await vi.waitFor(() =>
+			expect(t.worker.states).toEqual({
+				d1: expect.objectContaining({ state: "synced", shareToken: token }),
+				d2: expect.objectContaining({ state: "synced", shareToken: null })
+			})
+		);
+
+		await t.worker.unshare("d1");
+		await vi.waitFor(() =>
+			expect(t.worker.states.d1).toEqual(expect.objectContaining({ shareToken: null }))
+		);
+	});
+
+	it("reads and sets the display name", async () => {
+		const setup = await setupSync();
+		const t = tab(setup, "tab-1");
+		expect(await t.worker.displayName()).toBeNull();
+		expect(await t.worker.setDisplayName("  Ms. Rivera's class ")).toBe("Ms. Rivera's class");
+		expect(await t.worker.displayName()).toBe("Ms. Rivera's class");
+		await expect(t.worker.setDisplayName("x".repeat(61))).rejects.toMatchObject({
+			code: "invalid"
+		});
+		expect(await t.worker.setDisplayName(null)).toBeNull();
+	});
+
 	it("a session in the worker's own tab catches up after a pull", async () => {
 		const setup = await setupSync();
 		await storeDoc(setup.platform);

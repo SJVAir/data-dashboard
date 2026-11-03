@@ -1,8 +1,13 @@
 <script module lang="ts">
 	export type ShareOptions = {
-		/** The link, or `null` when the dashboard is too big for one. */
+		/** The copy link, or `null` when the dashboard is too big for one. */
 		url: string | null;
 		onDownload(): void;
+		/**
+		 * The dashboard a live link shares; `null` signed out, for the starter, or for a read-only
+		 * dashboard (the copy link and file only).
+		 */
+		live: { docId: string } | null;
 	};
 
 	const share = $state<{ open: boolean; opts: ShareOptions | null }>({ open: false, opts: null });
@@ -15,63 +20,306 @@
 </script>
 
 <script lang="ts">
+	import { refusedMessage } from "$lib/components/shell/sync-messages";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import { m } from "$lib/paraglide/messages.js";
-	import { platform } from "$lib/platform";
+	import { BASE } from "$lib/routing";
+	import { useApp } from "$lib/store/app.svelte";
+	import { RemoteRefusal, RemoteUnavailable } from "$lib/sync/remote";
+	import type { ShareResult } from "$lib/sync/share";
+	import { tick, untrack } from "svelte";
+	import { serializeSearch } from "sv-router";
+	import { p, route } from "../../../router";
+	import { returnPath } from "../shell/AccountMenu.svelte";
+	import { confirmAction } from "./ConfirmDialog.svelte";
 
-	const inputId = "share-link";
-	let input = $state<HTMLInputElement | null>(null);
-	let copied = $state(false);
+	const app = useApp();
 
+	const copyId = "share-link";
+	const liveId = "share-live-link";
+	const liveHeadingId = "share-live-heading";
+	const copyHeadingId = "share-copy-heading";
+	const nameId = "share-display-name";
+	const nameHelpId = "share-display-name-help";
+	const nameErrorId = "share-display-name-error";
+
+	let copyInput = $state<HTMLInputElement | null>(null);
+	let liveInput = $state<HTMLInputElement | null>(null);
+	let createButton = $state<HTMLButtonElement | null>(null);
+
+	/** "Link copied", "Link turned off", "Name saved", announced in the status region. */
+	let status = $state("");
+	/** What the last Create link or Stop sharing said. */
+	let notes = $state<string[]>([]);
+	let busy = $state(false);
+	let name = $state("");
+	let nameState = $state<"loading" | "ready" | "failed">("loading");
+	let nameError = $state("");
+	let nameBusy = $state(false);
+	let nameLoad = 0;
+
+	const live = $derived(share.opts?.live ?? null);
+	// Signed out meanwhile: the copy link only.
+	const sync = $derived(live ? app.sync : null);
+	const token = $derived(live && sync ? (sync.states[live.docId]?.shareToken ?? null) : null);
+	const liveUrl = $derived(token ? `${location.origin}${BASE}/shared/${token}` : null);
+	const signedOut = $derived(!sync && app.account.identity.state !== "signed-in");
+	// Back to this page after signing in.
+	const signInHref = $derived(
+		app.platform.identity.signInUrl(
+			returnPath({ pathname: p(route.pathname), search: serializeSearch(route.search) ?? "" })
+		)
+	);
+
+	// Each opening starts fresh, and loads the display name when a live link is offered.
 	$effect(() => {
-		if (!share.open) copied = false;
+		const open = share.open;
+		const opts = share.opts;
+		untrack(() => {
+			status = "";
+			notes = [];
+			nameError = "";
+			nameLoad++;
+			if (open && opts?.live && app.sync) void loadName();
+		});
 	});
 
-	async function copy() {
-		const url = share.opts?.url;
-		if (!url) return;
-		copied = await platform().clipboard.writeText(url);
-		// Refused: leave the whole link selected so Ctrl+C works.
-		if (!copied) selectLink();
+	async function loadName() {
+		const load = nameLoad;
+		nameState = "loading";
+		name = "";
+		try {
+			const value = await app.sync!.displayName();
+			if (load !== nameLoad) return;
+			name = value ?? "";
+			nameState = "ready";
+		} catch {
+			if (load === nameLoad) nameState = "failed";
+		}
 	}
 
-	function selectLink() {
+	async function saveName() {
+		if (!sync) return;
+		nameBusy = true;
+		nameError = "";
+		status = "";
+		try {
+			name = (await sync.setDisplayName(name.trim() || null)) ?? "";
+			status = m.share_name_saved();
+		} catch (error) {
+			nameError =
+				error instanceof RemoteRefusal && error.code === "invalid"
+					? m.share_name_refused()
+					: m.share_live_offline();
+		} finally {
+			nameBusy = false;
+		}
+	}
+
+	function notesFor(result: ShareResult): string[] {
+		switch (result.kind) {
+			case "shared":
+				return result.unsynced ? [m.share_live_unsynced()] : [];
+			case "not-on-server": {
+				// Why: the account refused it ("Only on this device"), or it couldn't upload.
+				const why =
+					result.hold?.kind === "refused"
+						? refusedMessage(result.hold.code)
+						: sync?.offline
+							? m.share_live_offline()
+							: null;
+				return why ? [m.share_live_not_on_server(), why] : [m.share_live_not_on_server()];
+			}
+			case "blocked":
+				return [m.share_live_blocked()];
+			case "offline":
+				return [m.share_live_offline()];
+		}
+	}
+
+	async function createLink() {
+		if (!live || !sync) return;
+		busy = true;
+		status = "";
+		notes = [];
+		try {
+			const result = await sync.share(live.docId);
+			notes = notesFor(result);
+			if (result.kind === "shared") {
+				await tick();
+				select(liveInput);
+			}
+		} catch {
+			notes = [m.share_live_failed()];
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function stopSharing() {
+		if (!live || !sync) return;
+		let settled = () => {};
+		const done = new Promise<void>((resolve) => (settled = resolve));
+		const confirmed = await confirmAction({
+			title: m.share_stop_title(),
+			body: m.share_stop_body(),
+			confirm: m.share_stop_confirm(),
+			destructive: true,
+			// The Stop sharing button is gone once the link is off.
+			restoreFocus: async () => {
+				await done;
+				await tick();
+				(createButton ?? liveInput)?.focus();
+			}
+		});
+		if (!confirmed) return;
+		busy = true;
+		status = "";
+		notes = [];
+		try {
+			await sync.unshare(live.docId);
+			status = m.share_stopped();
+		} catch (error) {
+			notes = [error instanceof RemoteUnavailable ? m.share_live_offline() : m.share_live_failed()];
+		} finally {
+			busy = false;
+			settled();
+		}
+	}
+
+	async function copy(url: string | null, input: HTMLInputElement | null) {
+		if (!url) return;
+		status = "";
+		const copied = await app.platform.clipboard.writeText(url);
+		// Refused: leave the whole link selected so Ctrl+C works.
+		if (copied) status = m.share_copied();
+		else select(input);
+	}
+
+	function select(input: HTMLInputElement | null) {
 		input?.focus();
 		input?.select();
 	}
 </script>
 
+{#snippet copyLink()}
+	{#if share.opts?.url}
+		<div class="grid gap-2">
+			<Label for={copyId}>{m.share_link_label()}</Label>
+			<Input id={copyId} bind:ref={copyInput} readonly value={share.opts.url} />
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet copyButtons()}
+	{#if share.opts?.url}
+		<Button onclick={() => copy(share.opts?.url ?? null, copyInput)}>{m.share_copy()}</Button>
+	{/if}
+	<Button variant="outline" onclick={() => share.opts?.onDownload()}>
+		{m.share_download_instead()}
+	</Button>
+{/snippet}
+
 <Dialog.Root bind:open={share.open}>
 	<Dialog.Content
+		class="max-h-[90dvh] overflow-y-auto"
 		onOpenAutoFocus={(event) => {
-			if (!share.opts?.url) return;
+			// The live link when there is one; signed out, the copy link.
+			const input = sync ? (liveUrl ? liveInput : null) : share.opts?.url ? copyInput : null;
+			if (!input) return;
 			event.preventDefault();
-			selectLink();
+			select(input);
 		}}
 	>
 		<Dialog.Header>
 			<Dialog.Title>{m.share_title()}</Dialog.Title>
-			<Dialog.Description>
-				{share.opts?.url ? m.share_note() : m.share_too_big()}
-			</Dialog.Description>
-		</Dialog.Header>
-		{#if share.opts?.url}
-			<div class="grid gap-2">
-				<Label for={inputId}>{m.share_link_label()}</Label>
-				<Input id={inputId} bind:ref={input} readonly value={share.opts.url} />
-			</div>
-		{/if}
-		<p role="status" class="text-muted-foreground text-sm">{copied ? m.share_copied() : ""}</p>
-		<Dialog.Footer>
-			{#if share.opts?.url}
-				<Button onclick={copy}>{m.share_copy()}</Button>
+			{#if !sync}
+				<Dialog.Description>
+					{share.opts?.url ? m.share_note() : m.share_too_big()}
+				</Dialog.Description>
 			{/if}
-			<Button variant="outline" onclick={() => share.opts?.onDownload()}>
-				{m.share_download_instead()}
-			</Button>
-		</Dialog.Footer>
+		</Dialog.Header>
+		{#if sync}
+			<section aria-labelledby={liveHeadingId} class="grid gap-3">
+				<h3 id={liveHeadingId} class="text-base font-semibold">{m.share_live_heading()}</h3>
+				{#if liveUrl}
+					<div class="grid gap-2">
+						<Label for={liveId}>{m.share_live_link_label()}</Label>
+						<Input id={liveId} bind:ref={liveInput} readonly value={liveUrl} />
+					</div>
+				{:else}
+					<p class="text-muted-foreground text-sm">{m.share_live_description()}</p>
+				{/if}
+				<div role="status" class="grid gap-1 text-sm">
+					{#each notes as note (note)}
+						<p>{note}</p>
+					{/each}
+				</div>
+				<div class="flex flex-wrap gap-2">
+					{#if liveUrl}
+						<Button disabled={busy} onclick={() => copy(liveUrl, liveInput)}>
+							{m.share_copy()}
+						</Button>
+						<Button variant="outline" disabled={busy} onclick={stopSharing}>
+							{m.share_live_stop()}
+						</Button>
+					{:else}
+						<Button bind:ref={createButton} disabled={busy} onclick={createLink}>
+							{m.share_live_create()}
+						</Button>
+					{/if}
+				</div>
+				<div class="grid gap-2">
+					<Label for={nameId}>{m.share_name_label()}</Label>
+					<div class="flex flex-wrap gap-2">
+						<Input
+							id={nameId}
+							class="min-w-0 flex-1"
+							bind:value={name}
+							disabled={nameState !== "ready"}
+							aria-invalid={nameError ? true : undefined}
+							aria-describedby={nameError ? `${nameHelpId} ${nameErrorId}` : nameHelpId}
+						/>
+						<Button
+							variant="outline"
+							disabled={nameState !== "ready" || nameBusy}
+							onclick={saveName}
+						>
+							{m.share_name_save()}
+						</Button>
+					</div>
+					<p id={nameHelpId} class="text-muted-foreground text-sm">{m.share_name_help()}</p>
+					{#if nameState === "failed"}
+						<p class="text-sm">{m.share_live_offline()}</p>
+					{/if}
+					<p id={nameErrorId} role="alert" class="text-destructive text-sm">{nameError}</p>
+				</div>
+			</section>
+			<section aria-labelledby={copyHeadingId} class="grid gap-3">
+				<h3 id={copyHeadingId} class="text-base font-semibold">{m.share_copy_heading()}</h3>
+				<p class="text-muted-foreground text-sm">
+					{share.opts?.url ? m.share_note() : m.share_too_big()}
+				</p>
+				{@render copyLink()}
+				<div class="flex flex-wrap gap-2">
+					{@render copyButtons()}
+				</div>
+			</section>
+			<p role="status" class="text-muted-foreground text-sm">{status}</p>
+		{:else}
+			{@render copyLink()}
+			{#if signedOut}
+				<p class="text-sm">
+					<a href={signInHref} class="underline underline-offset-4">{m.share_sign_in()}</a>
+				</p>
+			{/if}
+			<p role="status" class="text-muted-foreground text-sm">{status}</p>
+			<Dialog.Footer>
+				{@render copyButtons()}
+			</Dialog.Footer>
+		{/if}
 	</Dialog.Content>
 </Dialog.Root>

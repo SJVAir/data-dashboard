@@ -16,6 +16,16 @@ export async function findExistingCopy(
 	return app.index.items.find((d) => ids.has(d.id)) ?? null;
 }
 
+/** The live dashboard copied from `sourceId` that changed most recently, if any. */
+export async function findCopyOf(
+	app: AppContext,
+	sourceId: string
+): Promise<DashboardSummary | null> {
+	await app.index.refresh();
+	// The index holds live dashboards only, newest change first.
+	return app.index.items.find((d) => d.copiedFrom === sourceId) ?? null;
+}
+
 /** Stores the shared dashboard as a new one of this person's own; resolves its id. */
 export async function saveCopy(
 	app: AppContext,

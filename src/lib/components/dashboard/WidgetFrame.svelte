@@ -9,7 +9,7 @@
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
-	import { minimizeWidget, widgetActions, widgetTitle } from "$lib/actions/widget";
+	import { minimizeWidget, viewActions, widgetActions, widgetTitle } from "$lib/actions/widget";
 	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -30,6 +30,8 @@
 		phoneRow,
 		fullscreen = false,
 		inert = false,
+		readOnly = false,
+		viewWidgets,
 		onfullscreen,
 		onexit
 	}: {
@@ -42,6 +44,13 @@
 		fullscreen?: boolean;
 		/** Another widget is fullscreen. */
 		inert?: boolean;
+		/**
+		 * A view, not an edit (a dashboard shown in view mode): no arranging, no handles, and no
+		 * actions but Fullscreen.
+		 */
+		readOnly?: boolean;
+		/** In view mode, the shown document's widgets (read in place of the app's session). */
+		viewWidgets?: () => WidgetInstance[];
 		onfullscreen: () => void;
 		onexit: () => void;
 	} = $props();
@@ -52,8 +61,10 @@
 	const title = $derived(widgetTitle(widget));
 	const titleId = $derived(`widget-title-${widget.id}`);
 
-	// The type's own items first, then the common widget actions.
-	const provider: MenuProvider = (ctx) => [
+	// The type's own items first, then the common widget actions. Read-only: Fullscreen only.
+	const provider: MenuProvider = (ctx) =>
+		readOnly ? viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx) : editProvider(ctx);
+	const editProvider: MenuProvider = (ctx) => [
 		...(type?.menu(ctx) ?? []),
 		...widgetActions(app, widget.id, arrangement, {
 			fullscreen: () => onfullscreen(),
@@ -67,6 +78,11 @@
 	let section = $state<HTMLElement | null>(null);
 	// `aria-description` (ARIA 1.3) isn't in Svelte's attribute types yet, so it's spread.
 	const hint = $derived({ "aria-description": m.layout_title_bar_hint() });
+	/** Arranging is offered: not in fullscreen, and not in view mode. */
+	const arrangeable = $derived(!fullscreen && !readOnly);
+	/** The ⋯ menu has something in it (a read-only fullscreen frame's has nothing). */
+	const hasMenu = $derived(!(readOnly && fullscreen));
+	const shortcuts = $derived(arrangeable ? "Enter Shift+F10" : hasMenu ? "Shift+F10" : undefined);
 
 	const ARROWS: Record<string, ArrangeDirection> = {
 		ArrowUp: "up",
@@ -127,8 +143,8 @@
 	function onkeydown(event: KeyboardEvent): void {
 		// Keys pressed on the ⋯ button bubble here too.
 		if (event.target !== event.currentTarget) return;
-		// No pick-up inside fullscreen.
-		if (fullscreen) return;
+		// No pick-up inside fullscreen, or in view mode.
+		if (fullscreen || readOnly) return;
 		if (event.ctrlKey || event.altKey || event.metaKey) return;
 		const key = event.key;
 		const active = mine();
@@ -170,7 +186,8 @@
 	 * Enter, since browse mode may turn Enter into a click instead of passing the key on.
 	 */
 	function onclick(event: MouseEvent): void {
-		if (fullscreen || event.detail !== 0 || event.target !== event.currentTarget) return;
+		if (fullscreen || readOnly) return;
+		if (event.detail !== 0 || event.target !== event.currentTarget) return;
 		const active = mine();
 		if (active && active.input !== "keyboard") return;
 		event.preventDefault();
@@ -221,7 +238,8 @@
 		// After the update: state read during a teardown is the value from before it.
 		queueMicrotask(() => {
 			if (document.activeElement && document.activeElement !== document.body) return;
-			const now = app.current.session?.doc.body.widgets.find((w) => w.id === id);
+			const widgets = viewWidgets ? viewWidgets() : app.current.session?.doc.body.widgets;
+			const now = widgets?.find((w) => w.id === id);
 			if (now) requestFocus({ kind: now.minimized ? "taskbar" : "title", id });
 		});
 	}
@@ -307,8 +325,8 @@
 	}
 
 	function onpointerdown(event: PointerEvent): void {
-		// The ⋯ button isn't a drag handle, and nothing drags inside fullscreen.
-		if (fullscreen || (event.target as Element).closest("button")) return;
+		// The ⋯ button isn't a drag handle, and nothing drags inside fullscreen or in view mode.
+		if (fullscreen || readOnly || (event.target as Element).closest("button")) return;
 		if (event.pointerType === "touch") onTouchPress(event);
 		else startDrag(event, { mode: "move" });
 	}
@@ -489,21 +507,22 @@
 	data-flip-id={widget.id}
 	{@attach menuScope(provider)}
 >
-	<!-- Focusable: Enter picks the widget up to move it; Shift+F10 / the Menu key opens its menu. -->
+	<!-- Focusable: Enter picks the widget up to move it (not in view mode); Shift+F10 / the Menu
+	     key opens its menu. -->
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		bind:this={bar}
 		class={[
 			"border-border focus-visible:ring-ring/50 flex items-center gap-2 border-b py-1 pr-1 pl-3 outline-none select-none [-webkit-touch-callout:none] focus-visible:ring-3",
-			!fullscreen && (dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab"),
+			arrangeable && (dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab"),
 			// Page swipes over the title bar scroll; a lifted widget's next touch drags it.
 			touchActive ? "touch-none" : "touch-pan-y"
 		]}
 		tabindex="0"
 		role="group"
 		aria-labelledby={titleId}
-		{...fullscreen ? {} : hint}
-		aria-keyshortcuts={fullscreen ? "Shift+F10" : "Enter Shift+F10"}
+		{...arrangeable ? hint : {}}
+		aria-keyshortcuts={shortcuts}
 		{onkeydown}
 		{onblur}
 		{onpointerdown}
@@ -522,14 +541,16 @@
 				<Minimize2 aria-hidden="true" />
 			</Button>
 		{:else}
-			<Button
-				variant="ghost"
-				size="icon-sm"
-				aria-label={m.widget_minimize_named({ title })}
-				onclick={minimize}
-			>
-				<Minus aria-hidden="true" />
-			</Button>
+			{#if !readOnly}
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={m.widget_minimize_named({ title })}
+					onclick={minimize}
+				>
+					<Minus aria-hidden="true" />
+				</Button>
+			{/if}
 			<Button
 				variant="ghost"
 				size="icon-sm"
@@ -539,15 +560,17 @@
 				<Maximize2 aria-hidden="true" />
 			</Button>
 		{/if}
-		<Button
-			bind:ref={more}
-			variant="ghost"
-			size="icon-sm"
-			aria-label={m.widget_menu({ title })}
-			onclick={() => more && openMenuFor(more, { widgetId: widget.id })}
-		>
-			<Ellipsis aria-hidden="true" />
-		</Button>
+		{#if hasMenu}
+			<Button
+				bind:ref={more}
+				variant="ghost"
+				size="icon-sm"
+				aria-label={m.widget_menu({ title })}
+				onclick={() => more && openMenuFor(more, { widgetId: widget.id })}
+			>
+				<Ellipsis aria-hidden="true" />
+			</Button>
+		{/if}
 	</div>
 	<div class="relative min-h-0 flex-1">
 		{#if type}
@@ -581,7 +604,7 @@
 			</div>
 		{/if}
 	</div>
-	{#if !selected && !fullscreen}
+	{#if !selected && arrangeable}
 		<ResizeHandles
 			phone={arrangement.columns === 1}
 			shown={dragging && mine()?.mode === "resize"}

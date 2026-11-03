@@ -363,6 +363,18 @@ function fullscreenItem(widgetId: string, fullscreen: (id: string) => void): Men
 	};
 }
 
+/**
+ * A read-only widget's actions (a dashboard shown in view mode): Fullscreen only, and nothing
+ * once it's fullscreen. Nothing here edits, so nothing reads the app's current session.
+ */
+export function viewActions(
+	widgetId: string,
+	fullscreen: (id: string) => void,
+	inFullscreen = false
+): MenuProvider {
+	return () => (inFullscreen ? [] : [fullscreenItem(widgetId, fullscreen)]);
+}
+
 const NOT_IN_TASKBAR = new Set(["move-widget", "size-widget", "minimize-widget"]);
 
 /** A taskbar item's actions: Restore, Fullscreen, then the common widget actions. */

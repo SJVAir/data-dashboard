@@ -100,6 +100,20 @@ test("unsynced: the dialog shows the count", async () => {
 	await expectNoAxeViolations();
 });
 
+test("at desktop width the three buttons sit on one row inside the dialog", async () => {
+	await page.viewport(1280, 800);
+	await withUnsynced(1);
+	await chooseSignOut();
+	const dialog = page.getByRole("dialog", { name: "Some changes aren't in your account yet" });
+	await expect.element(dialog.getByRole("button", { name: "Sign out anyway" })).toBeVisible();
+	const box = dialog.element().getBoundingClientRect();
+	const buttons = [...dialog.element().querySelectorAll("button")].map((b) =>
+		b.getBoundingClientRect()
+	);
+	expect(buttons.filter((b) => b.right > box.right + 0.5)).toEqual([]);
+	expect(new Set(buttons.map((b) => Math.round(b.top))).size).toBe(1);
+});
+
 test("closing the dialog keeps you signed in, with focus back on the account menu", async () => {
 	const { identity, platform } = await withUnsynced(2);
 	await chooseSignOut();

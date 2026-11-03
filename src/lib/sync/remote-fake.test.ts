@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { setOrigin } from "@sjvair/sdk/http";
 import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
-import { RemoteRefusal, RemoteUnavailable, type SaveInput } from "./remote";
+import { RemoteRefusal, RemoteUnavailable, type RemoteDocuments, type SaveInput } from "./remote";
 import { runRemoteContract } from "./remote-contract";
-import { createFakeRemote } from "./remote-fake";
+import { createFakeRemote, type FakeRemote } from "./remote-fake";
 import { createSdkRemote } from "./remote-sdk";
 
 /** A clock that moves a minute every time it is read, so cursors separate saves. */
@@ -13,12 +13,36 @@ function steppingClock(): () => Date {
 	return () => new Date((at += 60_000));
 }
 
+/**
+ * Another caller on `fake`'s server with no session. The fake reads `signedInAs` as each call
+ * starts (before its first await), so each call runs signed out and the session comes back.
+ */
+function signedOutOf(fake: FakeRemote): RemoteDocuments {
+	return new Proxy(fake, {
+		get(target, key) {
+			const value: unknown = Reflect.get(target, key);
+			if (typeof value !== "function") return value;
+			return (...args: unknown[]) => {
+				const was = target.signedInAs;
+				target.signedInAs = null;
+				try {
+					return value.apply(target, args);
+				} finally {
+					target.signedInAs = was;
+				}
+			};
+		}
+	});
+}
+
+let current: FakeRemote;
 runRemoteContract(
 	"fake",
-	async () => ({
-		remote: createFakeRemote({ accountId: "account-1", now: steppingClock() }),
-		accountId: "account-1"
-	}),
+	async () => {
+		current = createFakeRemote({ accountId: "account-1", now: steppingClock() });
+		return { remote: current, accountId: "account-1" };
+	},
+	async () => signedOutOf(current),
 	{ fakeOnly: true }
 );
 
@@ -120,6 +144,21 @@ function saveInput(accountId: string): SaveInput {
 	};
 }
 
+/** Every report as text, errors and their causes included. */
+function reportText(p: MemoryPlatform): string {
+	const seen = new WeakSet<object>();
+	return JSON.stringify(p.errors.reports, (_key, value: unknown) => {
+		if (value instanceof Error) {
+			return { name: value.name, message: value.message, cause: value.cause };
+		}
+		if (typeof value === "object" && value !== null) {
+			if (seen.has(value)) return undefined;
+			seen.add(value);
+		}
+		return value;
+	});
+}
+
 function respond(status: number, body: unknown) {
 	vi.stubGlobal(
 		"fetch",
@@ -156,18 +195,7 @@ describe("createSdkRemote", () => {
 			createSdkRemote().save("d", { ...saveInput("a"), baseVersion: 1 })
 		).rejects.toBeInstanceOf(RemoteUnavailable);
 		expect(p.errors.reports).toHaveLength(2);
-		const seen = new WeakSet<object>();
-		const text = JSON.stringify(p.errors.reports, (_key, value: unknown) => {
-			if (value instanceof Error) {
-				return { name: value.name, message: value.message, cause: value.cause };
-			}
-			if (typeof value === "object" && value !== null) {
-				if (seen.has(value)) return undefined;
-				seen.add(value);
-			}
-			return value;
-		});
-		expect(text).not.toContain("Secret");
+		expect(reportText(p)).not.toContain("Secret");
 	});
 
 	test("a refusal becomes a RemoteRefusal, with the stale base parsed", async () => {
@@ -216,6 +244,93 @@ describe("createSdkRemote", () => {
 				}
 			}
 		});
+	});
+
+	test("a malformed shared response reports no name or body", async () => {
+		// The version isn't a number, so the SDK's schemas refuse it (and `{ version }` too).
+		respond(200, {
+			data: {
+				id: "d",
+				kind: "dashboard",
+				name: "Secret name",
+				schema_version: 1,
+				version: "one",
+				body: { secret: "Secret body" },
+				updated_at: "2026-11-02T00:00:00Z"
+			}
+		});
+		await expect(createSdkRemote().shared("token")).rejects.toBeInstanceOf(RemoteUnavailable);
+		await expect(createSdkRemote().sharedChanges("token", 0)).rejects.toBeInstanceOf(
+			RemoteUnavailable
+		);
+		expect(p.errors.reports.map((r) => r.context)).toEqual([
+			{ operation: "documents.shared" },
+			{ operation: "documents.sharedChanges" }
+		]);
+		expect(reportText(p)).not.toContain("Secret");
+	});
+
+	test("shared calls map the wire form", async () => {
+		const shared = {
+			id: "d",
+			kind: "dashboard",
+			name: "Shared",
+			schema_version: 1,
+			version: 4,
+			body: { widgets: [] },
+			updated_at: "2026-11-02T00:00:00Z",
+			display_name: null
+		};
+		const document = {
+			id: "d",
+			kind: "dashboard",
+			name: "Shared",
+			schemaVersion: 1,
+			version: 4,
+			body: { widgets: [] },
+			updatedAt: "2026-11-02T00:00:00Z",
+			displayName: null
+		};
+		respond(200, { data: shared });
+		expect(await createSdkRemote().shared("t")).toEqual(document);
+		expect(await createSdkRemote().sharedChanges("t", 3)).toEqual({ version: 4, document });
+		respond(200, { data: { version: 4 } });
+		expect(await createSdkRemote().sharedChanges("t", 4)).toEqual({ version: 4 });
+		respond(200, { data: { share_token: "abc" } });
+		expect(await createSdkRemote().share("d")).toBe("abc");
+		respond(200, { data: { name: "Original", display_name: "Ana" } });
+		expect(await createSdkRemote().credit("d")).toEqual({ name: "Original", displayName: "Ana" });
+		respond(200, { data: { display_name: "Ana" } });
+		expect(await createSdkRemote().getProfile()).toEqual({ displayName: "Ana" });
+		expect(await createSdkRemote().setProfile("Ana")).toEqual({ displayName: "Ana" });
+		const [, init] = vi.mocked(fetch).mock.calls.at(-1) as [string, RequestInit];
+		expect(JSON.parse(init.body as string)).toEqual({ display_name: "Ana" });
+		respond(404, { errors: { detail: [{ code: "not_found", message: "Gone." }] } });
+		await expect(createSdkRemote().shared("t")).rejects.toMatchObject({
+			code: "not_found",
+			status: 404
+		});
+	});
+
+	test("share_token is kept only while the visibility is link or public", async () => {
+		const doc = {
+			id: "d",
+			kind: "dashboard",
+			name: null,
+			schema_version: 1,
+			version: 1,
+			copied_from: null,
+			deleted_at: null,
+			created_at: "2026-11-02T00:00:00Z",
+			updated_at: "2026-11-02T00:00:00Z",
+			body: {}
+		};
+		respond(200, { data: { ...doc, visibility: "link", share_token: "abc" } });
+		expect((await createSdkRemote().get("d")).shareToken).toBe("abc");
+		respond(200, { data: { ...doc, visibility: "public", share_token: "abc" } });
+		expect((await createSdkRemote().get("d")).shareToken).toBe("abc");
+		respond(200, { data: { ...doc, visibility: "private", share_token: "abc" } });
+		expect((await createSdkRemote().get("d")).shareToken).toBeNull();
 	});
 
 	test("a network error becomes RemoteUnavailable", async () => {

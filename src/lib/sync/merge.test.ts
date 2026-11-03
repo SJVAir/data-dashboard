@@ -57,6 +57,7 @@ function remoteDoc(overrides: Partial<RemoteDocument> = {}): RemoteDocument {
 		copiedFrom: null,
 		createdAt: "2026-10-20T00:00:00.000Z",
 		updatedAt: "2026-10-21T00:00:00.000Z",
+		shareToken: null,
 		...overrides
 	};
 }

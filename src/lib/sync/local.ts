@@ -30,7 +30,8 @@ export function emptyRecord(docId: string): SyncRecord {
 		syncedThrough: 0,
 		confirmedAt: null,
 		inFlight: null,
-		hold: null
+		hold: null,
+		shareToken: null
 	};
 }
 

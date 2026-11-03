@@ -678,13 +678,13 @@ files, and server documents.
    rate, alongside the body size limit.
 6. **User-made pages are labeled and removable** (decided 2026-10-13). A live share link
    sits on sjvair.com but its title, Notes, and links are the author's, so:
-   - **A "made by a user" bar on every shared page**, always visible and not removable by
-     the author: who shared it (the optional display name, else a generic label) and that
+   - **A "made by a user" bar on every shared page** (built in sync spec 3), always visible and
+     not removable by the author: who shared it (the optional display name, else a generic label) and that
      it is not an official SJVAir page. The data in the widgets is still SJVAir's.
    - **Links in user text are marked as user content:** they open in a new tab with
      `rel="ugc nofollow noopener"`. Shared pages are served `noindex`.
-   - **A "Report this page" link** in that bar, going to sjvair.com's existing contact form
-     with the share link filled in. No separate moderation system.
+   - **A "Report this page" link** (built in sync spec 3) in that bar, going to sjvair.com's
+     existing contact form with the share link filled in. No separate moderation system.
    - **Staff takedown** in the Django admin: disable a share link (it then shows a "no
      longer available" page) and, if needed, block an account from creating shares. The
      author's own document is untouched. Each takedown records who and when.
@@ -925,7 +925,7 @@ reserved-word list is needed. All routes sit under the `/workspace/` base path (
 "Deployment"), e.g. `sjvair.com/workspace/dashboards/:id`. Where a trimmed URL has a
 page, it's the obvious one (e.g. `…/dashboards/:id` → `…/dashboards`, the list). Other
 trimmed paths (e.g. `…/analysis/collections`, `…/shared`) redirect to their section's
-home.
+home (`/shared` redirects to `/`; `/shared/:token` is built, sync spec 3).
 
 ```
 /                                                last-opened dashboard (preference) or the starter
@@ -982,8 +982,10 @@ The stack is per document and per session (not persisted).
   sync. Undo history stays per tab.
 - **Layout moves never prompt** (decided with the user, 2026-10-28; built in sync spec 2,
   2026-11-02). Two `setLayout` changes never overlap, between devices or between tabs: mine is
-  replayed over theirs (the last save wins) and step 2's engine tidies any overlap.
-  `setLayout` against `removeWidget` doesn't prompt either (the delete wins and the move is
+  replayed over theirs (the last save wins) and step 2's engine tidies any overlap. Because a
+  `setLayout` records every widget its move pushed, the later device's arrangement replaces the
+  earlier one's, including the earlier device's own moves (seen in the spec 3 hand check; see
+  `DEFERRED.md` → "Merging colliding layout moves more cleverly"). `setLayout` against `removeWidget` doesn't prompt either (the delete wins and the move is
   dropped). This replaces step 2's rule that two `setLayout`s overlap if they share a widget id
   with a different `to`. Two deletes also agree: two `setField deletedAt` changes that both set
   a time don't overlap.
@@ -1861,6 +1863,31 @@ rest are the builder's calls, and the user kept them.
 15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.3` (exact). The documents code lives in
     `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
     `DEFERRED.md`).
+
+**Live share links (built in sync spec 3, 2026-11-02).** The builder's calls, in the plan
+`docs/superpowers/plans/2026-11-02-sync-3-share-links.md`:
+
+1. **The share token lives in the sync record** (`shareToken`), not in the document: sharing
+   isn't an edit (no undo, no change log, no version bump). Every tab sees it through the
+   existing `sync` message.
+2. **The shared page polls `sharedChanges`**: one tiny `{ version }` answer when nothing
+   changed, every 60 seconds while visible, at once on becoming visible or coming back online.
+3. **Each open shared page polls on its own**, with no cross-tab leader (viewers are mostly
+   signed out, one tab each).
+4. **"You already have a copy" matches by source id** (`copiedFrom === shared.id`), not the
+   content fingerprint the fragment import uses; the existing `ExistingCopyDialog` asks.
+5. **Stop sharing asks first** (`confirmAction`): it breaks a link others use and can't be
+   undone (the next link gets a new token).
+6. **"Report this page" sends the path, not the full URL** (`page=/workspace/shared/<token>`)
+   to sjvair.com's contact page (`src/lib/links.ts`), in a new tab.
+7. **"Based on …" for a duplicate of a dashboard stored here** uses the local name and makes no
+   request; otherwise it asks the server's `credit` once per page load per id, and shows nothing
+   when offline or refused. The starter's id is never looked up.
+8. **The display name has no client-side length limit**; the server's limit (60) is the source
+   of truth, and a refused name shows "That name can't be used".
+9. **A dashboard with unsynced changes still shares** (its last synced version) after one
+   upload attempt; the dialog says so. One that has never reached the server can't share yet,
+   and the dialog says why.
 
 **Staff never see private dashboard contents in the admin** (no page shows a private
 dashboard's body, snapshots, or change log). To review a reported shared page, staff open its

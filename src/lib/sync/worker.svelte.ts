@@ -15,6 +15,7 @@ import { finishMoves } from "./move";
 import { fetchMissing, pollList } from "./pull";
 import { RemoteRefusal, RemoteUnavailable, type RemoteDocuments } from "./remote";
 import { resolveHold, type RemoteChoice } from "./resolve";
+import { shareDocument, unshareDocument, type ShareResult } from "./share";
 import { SYNC_TAB, type SyncHold } from "./types";
 import { uploadDocument, type UploadResult } from "./upload";
 
@@ -23,6 +24,8 @@ export type DocSyncState = {
 	hold: SyncHold | null;
 	confirmedAt: string | null;
 	onServer: boolean;
+	/** The share link's token while it's on, else `null`. */
+	shareToken: string | null;
 };
 
 /** At most one save per document this often while editing. */
@@ -137,6 +140,32 @@ export class SyncWorker {
 		this.states = await this.#readStates();
 		void this.#sweep(false);
 		return id;
+	}
+
+	/**
+	 * Uploads what's pending, then turns `docId`'s share link on (the last synced version, when
+	 * an edit couldn't upload).
+	 */
+	async share(docId: string): Promise<ShareResult> {
+		const result = await shareDocument(this.#ctx, docId);
+		this.states = await this.#readStates();
+		return result;
+	}
+
+	/** Turns `docId`'s share link off; throws `RemoteUnavailable` / `RemoteRefusal` on failure. */
+	async unshare(docId: string): Promise<void> {
+		await unshareDocument(this.#ctx, docId);
+		this.states = await this.#readStates();
+	}
+
+	/** The account's display name on shared dashboards (`null`: none). */
+	async displayName(): Promise<string | null> {
+		return (await this.#ctx.remote.getProfile()).displayName;
+	}
+
+	/** Sets (or, with `null` or blank, clears) the display name; throws `RemoteRefusal("invalid")`. */
+	async setDisplayName(name: string | null): Promise<string | null> {
+		return (await this.#ctx.remote.setProfile(name)).displayName;
 	}
 
 	#onMessage(msg: TabMessage): void {
@@ -387,7 +416,8 @@ export class SyncWorker {
 				state: held ? "held" : unsynced > 0 || record.serverVersion === null ? "pending" : "synced",
 				hold,
 				confirmedAt: record.confirmedAt,
-				onServer: record.serverVersion !== null
+				onServer: record.serverVersion !== null,
+				shareToken: record.shareToken
 			};
 		}
 		return states;
@@ -410,7 +440,14 @@ export class SyncWorker {
 			get: (id) => track(() => remote.get(id)),
 			changes: (id, since) => track(() => remote.changes(id, since)),
 			save: (id, input) => track(() => remote.save(id, input)),
-			keepSnapshot: (id, input) => track(() => remote.keepSnapshot(id, input))
+			keepSnapshot: (id, input) => track(() => remote.keepSnapshot(id, input)),
+			share: (id) => track(() => remote.share(id)),
+			unshare: (id) => track(() => remote.unshare(id)),
+			shared: (token) => track(() => remote.shared(token)),
+			sharedChanges: (token, since) => track(() => remote.sharedChanges(token, since)),
+			credit: (id) => track(() => remote.credit(id)),
+			getProfile: () => track(() => remote.getProfile()),
+			setProfile: (displayName) => track(() => remote.setProfile(displayName))
 		};
 	}
 }

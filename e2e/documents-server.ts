@@ -11,8 +11,10 @@ import {
 	RemoteRefusal,
 	RemoteUnavailable,
 	type RemoteChange,
+	type Profile,
 	type RemoteDocument,
-	type RemoteMeta
+	type RemoteMeta,
+	type SharedRemoteDocument
 } from "../src/lib/sync/remote";
 import type { FakeRemote } from "../src/lib/sync/remote-fake";
 
@@ -32,9 +34,8 @@ function wireMeta(doc: RemoteMeta) {
 		deleted_at: doc.deletedAt,
 		created_at: doc.createdAt,
 		updated_at: doc.updatedAt,
-		// Sharing is spec 3; the fake doesn't model it.
-		visibility: "private",
-		share_token: null
+		visibility: doc.shareToken ? "link" : "private",
+		share_token: doc.shareToken
 	};
 }
 
@@ -74,92 +75,172 @@ function refusalBody(refusal: RemoteRefusal) {
 	return { errors: { detail: [{ code: refusal.code, message: refusal.code }] }, data };
 }
 
-/** The documents endpoint a request is for, or `null` when it isn't one the SDK calls. */
-function endpoint(request: Request) {
-	const url = new URL(request.url());
-	const match = url.pathname.match(
-		/\/api\/2\.0\/documents\/(?:([^/]+)\/(?:(changes|snapshots)\/)?)?$/
-	);
-	if (!match) return null;
-	const [, rawId, sub] = match;
-	return { id: rawId === undefined ? undefined : decodeURIComponent(rawId), sub, url };
+type Answer = { status: number; data: unknown };
+type Call = { request: Request; params: string[]; url: URL };
+type Handler = (fake: FakeRemote, call: Call) => Promise<Answer>;
+
+function ok(data: unknown): Answer {
+	return { status: 200, data };
 }
 
-/** Answers one documents request from the fake, or throws what the fake threw. */
-async function answer(
-	fake: FakeRemote,
-	request: Request
-): Promise<{ status: number; data: unknown }> {
-	const target = endpoint(request);
-	const method = request.method();
-	if (!target) throw new Error("unmatched");
-	const { id, sub, url } = target;
-	const since = url.searchParams.get("since");
-	if (id === undefined && method === "GET") {
-		const list = await fake.list(since ?? undefined);
-		return {
-			status: 200,
-			data: {
+function wireShared(doc: SharedRemoteDocument) {
+	return {
+		id: doc.id,
+		kind: doc.kind,
+		name: doc.name,
+		schema_version: doc.schemaVersion,
+		version: doc.version,
+		body: doc.body,
+		updated_at: doc.updatedAt,
+		display_name: doc.displayName
+	};
+}
+
+/** `?since=` as the fake takes it: a number, or `NaN` when missing (the fake refuses it). */
+function since(url: URL): number {
+	const value = url.searchParams.get("since");
+	return value === null ? NaN : Number(value);
+}
+
+/**
+ * The documents endpoints the SDK calls, as `[method, path after /api/2.0/documents/, handler]`.
+ * Fixed paths come before `<id>/…`, as the server's `urls.py` orders them.
+ */
+const ROUTES: Array<[string, RegExp, Handler]> = [
+	[
+		"GET",
+		/^$/,
+		async (fake, { url }) => {
+			const list = await fake.list(url.searchParams.get("since") ?? undefined);
+			return ok({
 				// The list adds each body's size, which the dashboard doesn't read.
 				documents: list.documents.map((doc) => ({ ...wireMeta(doc), size: 0 })),
 				purged: list.purged,
 				cursor: list.cursor
-			}
-		};
-	}
-	if (id === undefined) throw new Error("unmatched");
-	if (sub === undefined && method === "GET") {
-		return { status: 200, data: wireDocument(await fake.get(id)) };
-	}
-	if (sub === "changes" && method === "GET") {
-		const answer = await fake.changes(id, since === null ? NaN : Number(since));
-		if (!("document" in answer)) return { status: 200, data: { version: answer.version } };
-		return {
-			status: 200,
-			data: {
+			});
+		}
+	],
+	["GET", /^profile\/$/, async (fake) => ok(wireProfile(await fake.getProfile()))],
+	[
+		"PUT",
+		/^profile\/$/,
+		async (fake, { request }) =>
+			ok(wireProfile(await fake.setProfile(request.postDataJSON().display_name)))
+	],
+	[
+		"GET",
+		/^shared\/([^/]+)\/changes\/$/,
+		async (fake, { params: [token], url }) => {
+			const answer = await fake.sharedChanges(token, since(url));
+			// The whole shared document, unwrapped, when it changed.
+			return ok("document" in answer ? wireShared(answer.document) : { version: answer.version });
+		}
+	],
+	[
+		"GET",
+		/^shared\/([^/]+)\/$/,
+		async (fake, { params: [token] }) => ok(wireShared(await fake.shared(token)))
+	],
+	[
+		"POST",
+		/^([^/]+)\/share\/$/,
+		async (fake, { params: [id] }) => ok({ share_token: await fake.share(id) })
+	],
+	[
+		"DELETE",
+		/^([^/]+)\/share\/$/,
+		async (fake, { params: [id] }) => {
+			await fake.unshare(id);
+			return { status: 204, data: undefined };
+		}
+	],
+	[
+		"GET",
+		/^([^/]+)\/credit\/$/,
+		async (fake, { params: [id] }) => {
+			const credit = await fake.credit(id);
+			return ok({ name: credit.name, display_name: credit.displayName });
+		}
+	],
+	[
+		"POST",
+		/^([^/]+)\/snapshots\/$/,
+		async (fake, { params: [id], request }) => {
+			const form = request.postDataJSON();
+			await fake.keepSnapshot(id, {
+				baseVersion: form.base_version,
+				schemaVersion: form.schema_version,
+				name: form.name,
+				body: form.body,
+				accountId: form.account_id,
+				buildId: form.build_id
+			});
+			const kept = fake.snapshots(id).length;
+			return {
+				status: 201,
+				data: {
+					id: kept,
+					version: form.base_version,
+					schema_version: form.schema_version,
+					reason: "conflict",
+					created_at: new Date().toISOString()
+				}
+			};
+		}
+	],
+	[
+		"GET",
+		/^([^/]+)\/changes\/$/,
+		async (fake, { params: [id], url }) => {
+			const answer = await fake.changes(id, since(url));
+			if (!("document" in answer)) return ok({ version: answer.version });
+			return ok({
 				version: answer.version,
 				changes: wireChanges(answer.changes),
 				document: wireDocument(answer.document)
-			}
-		};
-	}
-	if (sub === undefined && method === "PUT") {
-		const form = request.postDataJSON();
-		const result = await fake.save(id, {
-			schemaVersion: form.schema_version,
-			name: form.name,
-			body: form.body,
-			deletedAt: form.deleted_at,
-			copiedFrom: form.copied_from,
-			baseVersion: form.base_version,
-			changes: fromWireChanges(form.changes),
-			accountId: form.account_id,
-			buildId: form.build_id,
-			snapshot: form.snapshot ?? null
-		});
-		return { status: 200, data: { version: result.version, updated_at: result.updatedAt } };
-	}
-	if (sub === "snapshots" && method === "POST") {
-		const form = request.postDataJSON();
-		await fake.keepSnapshot(id, {
-			baseVersion: form.base_version,
-			schemaVersion: form.schema_version,
-			name: form.name,
-			body: form.body,
-			accountId: form.account_id,
-			buildId: form.build_id
-		});
-		const kept = fake.snapshots(id).length;
-		return {
-			status: 201,
-			data: {
-				id: kept,
-				version: form.base_version,
-				schema_version: form.schema_version,
-				reason: "conflict",
-				created_at: new Date().toISOString()
-			}
-		};
+			});
+		}
+	],
+	["GET", /^([^/]+)\/$/, async (fake, { params: [id] }) => ok(wireDocument(await fake.get(id)))],
+	[
+		"PUT",
+		/^([^/]+)\/$/,
+		async (fake, { params: [id], request }) => {
+			const form = request.postDataJSON();
+			const result = await fake.save(id, {
+				schemaVersion: form.schema_version,
+				name: form.name,
+				body: form.body,
+				deletedAt: form.deleted_at,
+				copiedFrom: form.copied_from,
+				baseVersion: form.base_version,
+				changes: fromWireChanges(form.changes),
+				accountId: form.account_id,
+				buildId: form.build_id,
+				snapshot: form.snapshot ?? null
+			});
+			return ok({ version: result.version, updated_at: result.updatedAt });
+		}
+	]
+];
+
+function wireProfile(profile: Profile) {
+	return { display_name: profile.displayName };
+}
+
+const PREFIX = "/api/2.0/documents/";
+
+/** Answers one documents request from the fake, or throws what the fake threw. */
+async function answer(fake: FakeRemote, request: Request): Promise<Answer> {
+	const url = new URL(request.url());
+	const at = url.pathname.indexOf(PREFIX);
+	if (at === -1) throw new Error("unmatched");
+	const path = url.pathname.slice(at + PREFIX.length);
+	const method = request.method();
+	for (const [routeMethod, pattern, handler] of ROUTES) {
+		const match = routeMethod === method ? path.match(pattern) : null;
+		if (match)
+			return handler(fake, { request, url, params: match.slice(1).map(decodeURIComponent) });
 	}
 	throw new Error("unmatched");
 }
@@ -189,7 +270,8 @@ export async function routeDocuments(
 			fake.signedInAs = signedInAs();
 			try {
 				const { status, data } = await answer(fake, request);
-				await route.fulfill({ status, json: { data } });
+				if (status === 204) await route.fulfill({ status });
+				else await route.fulfill({ status, json: { data } });
 			} catch (error) {
 				if (error instanceof RemoteRefusal) {
 					await route.fulfill({ status: error.status, json: refusalBody(error) });

@@ -36,7 +36,11 @@
 	}
 
 	function onContextmenu(event: MouseEvent) {
-		if (!touched) resolveFor(event);
+		if (touched) return;
+		resolveFor(event);
+		// Nothing to offer here (a dashboard in view mode has no actions of its own): leave the
+		// event to the browser, so its own menu shows instead of an empty one.
+		if (items.length === 0) event.stopPropagation();
 	}
 
 	// Resolved before bits-ui's trigger handles the same event, so the content is ready on open.

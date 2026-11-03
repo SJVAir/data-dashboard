@@ -3,8 +3,7 @@
  * (`camp/api/v2/documents/`): the same refusal codes, statuses, and check order. For unit tests
  * and, later, Playwright, so it imports nothing from `$lib` at runtime.
  *
- * Not modelled: share links, daily snapshots, and
- * the snapshot storage cap.
+ * Not modelled: daily snapshots and the snapshot storage cap.
  */
 import type { RefusalCode } from "@sjvair/sdk/documents";
 import {
@@ -15,6 +14,7 @@ import {
 	type RemoteDocuments,
 	type RemoteMeta,
 	type SaveInput,
+	type SharedRemoteDocument,
 	type SnapshotInput,
 	type StaleBase
 } from "./remote";
@@ -27,7 +27,11 @@ export type FakeRemote = RemoteDocuments & {
 	blockedBuilds: Set<string>;
 	/** Live (not trashed) documents per account; 50 like the server. */
 	maxDocuments: number;
-	/** One entry per call: `"list"`, `"list <since>"`, `"get <id>"`, `"changes <id> <since>"`, `"save <id>"`, `"keepSnapshot <id>"`. */
+	/**
+	 * One entry per call: `"list"`, `"list <since>"`, `"get <id>"`, `"changes <id> <since>"`,
+	 * `"save <id>"`, `"keepSnapshot <id>"`, `"share <id>"`, `"unshare <id>"`, `"shared <token>"`,
+	 * `"sharedChanges <token> <since>"`, `"credit <id>"`, `"getProfile"`, `"setProfile"`.
+	 */
 	requests: string[];
 	/**
 	 * Fault injection: each call takes the first entry (in order, one per call) right after it is
@@ -43,6 +47,10 @@ export type FakeRemote = RemoteDocuments & {
 	snapshots(id: string): Array<{ version: number; reason: string; body: unknown }>;
 	/** Drops the document's whole change log, as if it were trimmed long ago. */
 	trimLog(id: string): void;
+	/** Staff turns sharing off for one document: its link stops opening and it can't share. */
+	disableSharing(id: string): void;
+	/** Staff blocks an account from sharing: its links stop opening and it can't share. */
+	blockSharing(accountId: string): void;
 };
 
 export type FakeRemoteOptions = {
@@ -59,6 +67,8 @@ const MAX_BODY = 1_000_000;
 const MAX_CHANGES = 2_000_000;
 const MAX_STORAGE = 25 * 1024 * 1024;
 const CURSOR_OVERLAP_MS = 10_000;
+/** `DocumentProfile.display_name`'s `max_length`. */
+const MAX_DISPLAY_NAME = 60;
 const RESERVED_IDS = new Set(["profile", "export", "shared"]);
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -69,6 +79,8 @@ type Stored = {
 	/** The changes each version's save carried. */
 	log: Map<number, Array<{ schemaVersion: number; change: unknown }>>;
 	snapshots: Array<{ version: number; reason: string; body: unknown }>;
+	/** Staff turned sharing off for this document. */
+	sharingDisabled: boolean;
 };
 
 /** A copy as JSON would carry it (the wire never shares objects). */
@@ -160,15 +172,62 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 	const now = options.now ?? (() => new Date());
 	const stored = new Map<string, Stored>();
 	const purged = new Map<string, { owner: string; at: string }>();
+	/** Display names per account (absent: none set). */
+	const displayNames = new Map<string, string>();
+	/** Accounts staff blocked from sharing. */
+	const blockedSharers = new Set<string>();
 
-	/** The signed-in account, after the checks every call shares. */
-	function begin(request: string): string {
+	/** The signed-in account (or `null`), after the checks every call shares. */
+	function open(request: string): string | null {
 		fake.requests.push(request);
 		const injected = fake.refuseNext.shift();
 		if (injected) throw refuse(injected.code, injected.status);
 		if (fake.offline) throw new RemoteUnavailable();
-		if (fake.signedInAs === null) throw refuse("unauthorized", 401);
 		return fake.signedInAs;
+	}
+
+	/** The signed-in account, after the checks every call shares; signed out is `unauthorized`. */
+	function begin(request: string): string {
+		const account = open(request);
+		if (account === null) throw refuse("unauthorized", 401);
+		return account;
+	}
+
+	/** The caller's document for share/unshare: anything else is `not_found` (never `gone`). */
+	function mine(account: string, id: string): Stored {
+		const entry = stored.get(id);
+		if (!entry || entry.owner !== account) throw refuse("not_found", 404);
+		return entry;
+	}
+
+	function sharingBlocked(entry: Stored): boolean {
+		return entry.sharingDisabled || blockedSharers.has(entry.owner);
+	}
+
+	/** Whether a share link may open the document right now (the server's `shareable`). */
+	function shareable(entry: Stored): boolean {
+		return entry.doc.shareToken !== null && entry.doc.deletedAt === null && !sharingBlocked(entry);
+	}
+
+	/** The document behind a share link; any link that doesn't open is the same `not_found`. */
+	function sharedEntry(token: string): Stored {
+		const entry = [...stored.values()].find((s) => s.doc.shareToken === token);
+		if (!entry || !shareable(entry)) throw refuse("not_found", 404);
+		return entry;
+	}
+
+	function sharedDocument(entry: Stored): SharedRemoteDocument {
+		const { id, kind, name, schemaVersion, version, body, updatedAt } = entry.doc;
+		return wire({
+			id,
+			kind,
+			name,
+			schemaVersion,
+			version,
+			body,
+			updatedAt,
+			displayName: displayNames.get(entry.owner) ?? null
+		});
 	}
 
 	/** The caller's document, or the refusal for one they can't open (`refuse_absent`). */
@@ -337,11 +396,13 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 						deletedAt: null,
 						copiedFrom: null,
 						createdAt: at,
-						updatedAt: at
+						updatedAt: at,
+						shareToken: null
 					},
 					size: 0,
 					log: new Map(),
-					snapshots: []
+					snapshots: [],
+					sharingDisabled: false
 				};
 				stored.set(id, entry);
 			}
@@ -373,6 +434,63 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 			entry.snapshots.push({ version: input.baseVersion, reason: "conflict", body: input.body });
 		},
 
+		async share(id) {
+			const account = begin(`share ${id}`);
+			const entry = mine(account, id);
+			if (entry.doc.deletedAt !== null) throw refuse("not_found", 404);
+			if (sharingBlocked(entry)) throw refuse("sharing_blocked", 403);
+			// Sharing isn't an edit: the version stays, and updatedAt moves so `list(since)` shows it.
+			const shareToken = entry.doc.shareToken ?? crypto.randomUUID();
+			entry.doc = { ...entry.doc, shareToken, updatedAt: now().toISOString() };
+			return shareToken;
+		},
+
+		async unshare(id) {
+			const account = begin(`unshare ${id}`);
+			const entry = mine(account, id);
+			// The token is dropped, so sharing again makes a new one.
+			entry.doc = { ...entry.doc, shareToken: null, updatedAt: now().toISOString() };
+		},
+
+		async shared(token) {
+			open(`shared ${token}`);
+			return sharedDocument(sharedEntry(token));
+		},
+
+		async sharedChanges(token, since) {
+			open(`sharedChanges ${token} ${since}`);
+			// The link first, so a bad since never tells a known token from an unknown one.
+			const entry = sharedEntry(token);
+			if (!isInt(since) || since < 0) throw refuse("invalid", 400);
+			const version = entry.doc.version;
+			if (since === version) return { version };
+			return { version, document: sharedDocument(entry) };
+		},
+
+		async credit(id) {
+			const account = open(`credit ${id}`);
+			const entry = stored.get(id);
+			if (!entry || (entry.owner !== account && !shareable(entry))) {
+				throw refuse("not_found", 404);
+			}
+			return { name: entry.doc.name, displayName: displayNames.get(entry.owner) ?? null };
+		},
+
+		async getProfile() {
+			const account = begin("getProfile");
+			return { displayName: displayNames.get(account) ?? null };
+		},
+
+		async setProfile(displayName) {
+			const account = begin("setProfile");
+			if (displayName !== null && typeof displayName !== "string") throw refuse("invalid", 400);
+			const value = (displayName ?? "").trim() || null;
+			if (value !== null && value.length > MAX_DISPLAY_NAME) throw refuse("invalid", 400);
+			if (value === null) displayNames.delete(account);
+			else displayNames.set(account, value);
+			return { displayName: value };
+		},
+
 		purge(id) {
 			const entry = stored.get(id);
 			if (!entry) return;
@@ -399,11 +517,13 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 					deletedAt: null,
 					copiedFrom: null,
 					createdAt: at,
-					updatedAt: at
+					updatedAt: at,
+					shareToken: null
 				},
 				size: 2,
 				log: new Map([[1, []]]),
-				snapshots: []
+				snapshots: [],
+				sharingDisabled: false
 			});
 		},
 
@@ -413,6 +533,15 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 
 		trimLog(id) {
 			stored.get(id)?.log.clear();
+		},
+
+		disableSharing(id) {
+			const entry = stored.get(id);
+			if (entry) entry.sharingDisabled = true;
+		},
+
+		blockSharing(accountId) {
+			blockedSharers.add(accountId);
 		}
 	};
 	return fake;

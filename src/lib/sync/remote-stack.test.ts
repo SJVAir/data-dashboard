@@ -5,7 +5,8 @@
  *
  * `WORKSPACE_E2E_ORIGIN` sets the server (default http://localhost:8000). It signs in through the
  * site's login form, as sdk-js's documents integration test does, and passes the session cookie
- * and CSRF token through `init` (outside a browser the SDK sends neither itself). The documents
+ * and CSRF token through `init` (outside a browser the SDK sends neither itself); the signed-out
+ * caller the sharing cases use is a remote without them. The documents
  * it creates are trashed and permanently deleted at the end.
  */
 import { describe, test } from "vitest";
@@ -122,6 +123,8 @@ if (ENABLED) {
 			const { options, accountId } = await signedIn();
 			return { remote: createSdkRemote({ init: options.init }), accountId };
 		},
+		// No cookie: outside a browser, nothing else carries a session.
+		async () => createSdkRemote(),
 		{ fakeOnly: false, cleanup }
 	);
 } else {

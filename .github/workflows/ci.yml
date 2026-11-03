@@ -22,6 +22,14 @@ jobs:
       - run: npm run check
       - run: npx playwright install --with-deps chromium
       - run: npm test
+      # Vitest's failure screenshots from browser-mode tests.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: vitest-failure-screenshots
+          path: .vitest/attachments/
+          retention-days: 7
+          if-no-files-found: ignore
       - run: npm run build
       - run: npm run check:build
       - run: npm run check:budget

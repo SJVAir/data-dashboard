@@ -29,13 +29,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (CSP report-only, errors to Sentry, beta testers only). This replaces `ARCHITECTURE.md`'s
   earlier plan of a second-origin E2E smoke run. **Revisit if** the preview shows a
   cross-origin problem, or before public go-live if the preview hasn't exercised it.
-- **Pre-filling sjvair.com's contact form.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
-  preview feedback link opens `/contact/` as it is; the form can't take a topic or message
-  from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
-  page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
-  track (which builds "Report this page"). _Updated 2026-10-28 (Sync spec 1):_ the server part is
-  done (sjvair.com #297: `/contact/?topic=Report&page=<encoded URL>` for same-host
-  `/workspace/shared/` URLs); spec 3 adds the dashboard link.
 - **Remove the `@jsr/sjvair__sdk` license exception.** _Deferred 2026-10-26 (Foundations spec
   5a)._ The license check names `@jsr/sjvair__sdk` as an exception because the JSR build has no
   license field and no license text, so the third-party notices carry none for it. **Revisit
@@ -197,6 +190,68 @@ string`) now get the union return type. The mobile app passes a string token, so
     decided with the user)._ Layout moves never prompt: the last save wins, and step 2's
     tidy fixes any overlap. Keeping both sides' intent (e.g. per-widget last-writer) isn't
     attempted. **Revisit if** people report layouts jumping back while tuning on two devices.
+    _Seen in the spec 3 hand check, 2026-11-02 (the user; reproduced against the stack with two
+    browser contexts); left as designed for now (the user's call)._ What a person sees: both
+    devices offline, device A moves widget 2 down and renames another widget, device B moves
+    widget 3 to the top. After both sync, both show B's whole arrangement: A's rename survives,
+    A's move of widget 2 doesn't, though B never moved widget 2 on purpose. Why: a `setLayout`
+    records the new rect of **every widget the move pushed** (its `to`, and `target.widgetIds`
+    equals `to`'s keys), and nothing in it says which widget the person moved, so replaying B's
+    move over A's puts every pushed widget back where B's grid had it. A rename names one
+    widget, so two renames of different widgets both survive; one device renaming and the
+    other moving also merges fine, in either order. **The likely fix:** have `setLayout` also
+    record the widget(s) the person moved (a new field, set by the arrangement and windowing
+    code that builds it), and when replaying one over theirs, apply only those rects and let
+    step 2's tidy settle the rest, so both devices' deliberate moves survive. It changes the
+    change format and `rebase`/`applyForced` for `setLayout` (sync spec 2's merge rule), so
+    it's its own small branch, not part of a spec.
+  - **A new display name reaches open shared pages only with the dashboard's next edit.**
+    _Deferred 2026-11-02 (sync spec 3 plan)._ An open shared page polls
+    `shared/<token>/changes/?since=N`, which answers just `{ version }` while the version is
+    unchanged, and setting a display name isn't an edit. A fresh load always shows the new name.
+    **Revisit if** an owner reports a stale name on an open page, or with any server change to
+    that endpoint.
+  - **Shared pages don't show their own "Based on …".** _Deferred 2026-11-02 (sync spec 3
+    plan)._ The shared response carries no `copied_from` (by design: it's the owner's data), so
+    a shared copy of a copy shows only the made-by bar. Copies people make still show "Based on
+    …" for the dashboard they copied. **Revisit if** people ask where a shared dashboard came
+    from.
+  - **Each open shared page polls on its own** (no one-tab-per-browser leader as signed-in
+    dashboards have). _Deferred 2026-11-02 (sync spec 3 plan)._ Viewers are mostly signed out on
+    one tab each, and the sync design's cost estimate already counts one request per viewer per
+    minute. **Revisit if** load from shared pages shows up in the server's monitoring.
+  - **An open shared page whose next version is invalid stops polling.** _Deferred 2026-11-02
+    (sync spec 3, while building)._ The page refuses a version that fails validation or is too
+    large, switches to the "can't be opened" view, and stops polling; the owner's fix shows only
+    after a reload. Refusing is the safe side. **Revisit if** an owner reports it, or if the
+    format's validation gets stricter.
+  - **A share made or stopped in one tab can briefly show the old state in another tab of the
+    same account.** _Deferred 2026-11-02 (sync spec 3, while building)._ A list answered just
+    before the change can overwrite the newer state; it heals on the next poll (up to 60 s).
+    **Revisit if** the dialog showing a stale link is reported.
+  - **The starter hand-off can set the current dashboard after the person has left for a shared
+    page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
+    in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
+    timing. **Revisit on a report, or when the hand-off is next changed.**
+  - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
+    unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
+    harmless. **Revisit with** any URL-state cleanup.
+  - **The Share dialog's public-name field stays disabled after a failed load until the dialog
+    is reopened.** _Deferred 2026-11-02 (sync spec 3, final review)._ There is no retry when the
+    connection comes back; reopening the dialog loads it again. **Revisit on a report, or in the
+    design pass.**
+  - **A display-name save that fails for any reason other than an invalid name shows the
+    "Couldn't reach SJVAir" message.** _Deferred 2026-11-02 (sync spec 3, final review)._ Rate
+    limited and signed-out failures are worded as if offline; the wording is a working draft.
+    **Revisit with** the design pass's error wording.
+  - **"Based on …" looked up while offline stays hidden until the next page load.**
+    _Deferred 2026-11-02 (sync spec 3, final review)._ The answer is cached per page load, so a
+    lookup that failed offline is not retried. **Revisit if** people report a missing credit.
+  - **The Help menu's feedback link still opens sjvair.com's contact form with no topic
+    pre-filled.** _Deferred 2026-11-02 (sync spec 3, final review)._ The server pre-fills only
+    the shared-page report. This was part of the removed "Pre-filling sjvair.com's contact form"
+    entry. It needs a small server change to accept a Feedback topic. **Revisit with** the next
+    sjvair.com contact-form change.
   - **Moving the documents SDK code out of the public `@sjvair/sdk` before go-live.** _Decided
     2026-11-02 (the user, in the sdk-js session)._ `@sjvair/sdk/documents` wraps the private
     `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public

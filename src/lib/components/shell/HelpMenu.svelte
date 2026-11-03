@@ -4,9 +4,8 @@
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import { m } from "$lib/paraglide/messages.js";
+	import { CONTACT_URL } from "$lib/links";
 	import { cn } from "$lib/utils";
-
-	const FEEDBACK_URL = "https://www.sjvair.com/contact/";
 </script>
 
 <DropdownMenu.Root>
@@ -20,7 +19,7 @@
 		<DropdownMenu.Item onSelect={openPrivacy}>{m.privacy_open()}</DropdownMenu.Item>
 		<DropdownMenu.Item>
 			{#snippet child({ props })}
-				<a {...props} href={FEEDBACK_URL} target="_blank" rel="noopener">{m.feedback_link()}</a>
+				<a {...props} href={CONTACT_URL} target="_blank" rel="noopener">{m.feedback_link()}</a>
 			{/snippet}
 		</DropdownMenu.Item>
 	</DropdownMenu.Content>

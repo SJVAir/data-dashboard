@@ -13,15 +13,11 @@ Last updated: 2026-11-02
    merged 2026-11-02 with the user's yes).
 3. ~~Sync spec 2 (dashboard sync)~~ **done** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23),
    merged into `main` 2026-11-02 with the user's yes).
-4. **Next: sync specs 3 (live share links) and 4 (recovery).** Decided with the user,
-   2026-11-02: **write both plans at once, in two fresh sessions**, each in its own worktree
-   (`../data-dashboard-sync3` on `sync-3-plan`, `../data-dashboard-sync4` on `sync-4-plan`), for
-   the user's review; then **build spec 3 first and spec 4 on top of it**, one after the other.
-   Both extend the same server layer (`src/lib/sync/remote*.ts`) and E2E mock
-   (`e2e/documents-server.ts`), so building them in parallel would collide. The
-   dashboard pins **@sjvair/sdk 4.8.0-beta.3** (adds `createSnapshot`, sdk-js #35; the documents
-   module came in 4.8.0-beta.2), and sjvair.com #298 adds the snapshots POST on `develop`. See
-   "Sync track" below for the hand checks.
+4. **Sync spec 3 (live share links) is built** on `sync-share-links` and awaiting review and
+   merge (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)). **Next: sync spec 4 (recovery)**, built on top of it once spec 3 merges
+   (both extend `src/lib/sync/remote*.ts` and `e2e/documents-server.ts`, so one after the
+   other). The dashboard pins **@sjvair/sdk 4.8.0-beta.3**. See "Sync track" below for the hand
+   checks.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -102,8 +98,18 @@ needs `develop` pulled to serve the documents API. The sdk-js documents integrat
 with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and
 `TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
 
+**Hand checks for specs 2 and 3: done 2026-11-02**, every step below, against the local stack
+(sjvair.com `develop`) and `npm run dev` on `sync-share-links`: the user by hand (the offline
+layout test), then scripted with Playwright, two separate browser contexts as two devices
+signed in as the `WORKSPACE_E2E_*` account, plus a signed-out context for the shared page. All
+passed. Found along the way: two offline layout moves keep only the later device's arrangement
+(as designed; see `DEFERRED.md` → "Merging colliding layout moves more cleverly"), and the
+"Changed on another device" dialog's text and buttons ran past its right edge at 1400 px wide
+(fixed in #26: the dialog footer wraps, and the conflict and sign-out dialogs are wider).
+Each check, for running again by hand:
+
 **Hand check for spec 2 on the real stack** (needs the stack running on sjvair.com `develop`
-and `npm run dev`; not yet done by the user):
+and `npm run dev`):
 
 1. Open two browsers (or a browser and a private window), both at the dev server, signed in as
    the `WORKSPACE_E2E_*` account.
@@ -117,6 +123,25 @@ and `npm run dev`; not yet done by the user):
 5. Sign out with unsynced changes: "Sign out anyway" hides the space; signing back in resumes it.
 6. With both env vars set, `npm run test:sync-stack` runs the `RemoteDocuments` contract
    against the stack.
+
+**Hand check for spec 3 on the real stack.** Needs the stack on sjvair.com `develop` and
+`npm run dev`:
+
+1. ~~Run `npm run test:sync-stack` once~~ **done 2026-11-02**: 20/20 pass on `sync-share-links`
+   (spec 2's contract plus the sharing cases) against the local stack.
+2. Signed in as the `WORKSPACE_E2E_*` account, open a dashboard's Share dialog and create a link.
+3. Open the link in a private window (signed out): the dashboard shows read-only with the "made
+   by a user" bar. In devtools, the response headers for the page carry `noindex` and
+   `no-store`.
+4. Edit the dashboard in the first window: the private window shows the change within about a
+   minute.
+5. Follow "Report this page": sjvair.com's contact form opens with the topic and page
+   pre-filled.
+6. Stop sharing (confirm), then reload the private window: the one "no longer available" page.
+   Create a link again: it has a new token.
+
+A gap found here goes to the user as a separate sjvair.com plan (on `develop`), not into the
+spec 3 branch.
 
 Decisions later specs need:
 
@@ -1097,6 +1122,12 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02 on
+      `sync-share-links`, PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)): the Share dialog (create, copy, stop with confirmation,
+      display name), the `/shared/:token` page (read-only, "made by a user" bar, 60-second
+      polling, "Make a copy", "Based on …"), and the "Report this page" link. The contact-form
+      pre-fill is done too (sjvair.com #297 plus this link). Removed from `DEFERRED.md`; the new
+      gaps are listed there under "Server-backed saved documents & live share links".
 - [x] **Account-space behavior held for sync, and the backup reminder's sign-in line** (sync
       spec 2, 2026-11-02): signed-in work lives in `account:<id>` and syncs, the app remounts on
       a space change, signing in asks once about anonymous work (the gaps are in `DEFERRED.md`),

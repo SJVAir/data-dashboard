@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { RETENTION_MS } from "$lib/safety/purge";
 import { canonicalJson, saveFields } from "./merge";
+import { emptyRecord } from "./local";
 import { SYNC_CURSOR_KEY, fetchMissing, pollList, pullInto } from "./pull";
 import type { FakeRemote } from "./remote-fake";
 import { SYNC_TAB } from "./types";
@@ -261,7 +262,8 @@ describe("pollList", () => {
 			syncedThrough: 0,
 			confirmedAt: NOW.toISOString(),
 			inFlight: null,
-			hold: null
+			hold: null,
+			shareToken: null
 		});
 		expect(posted).toContainEqual({ type: "sync", space: SPACE, docId: "d2", tabId: ctx.tabId });
 		// Deleted more than 30 days ago: purged here, so not brought back.
@@ -303,5 +305,91 @@ describe("pollList", () => {
 		fake.purge("d2");
 		await platform.documents.remove(SPACE, "d2");
 		expect(await fetchMissing(ctx, "d2")).toBe(false);
+	});
+});
+
+describe("share tokens in the sync record", () => {
+	it("a share made elsewhere reaches this device's record", async () => {
+		const { platform, fake, ctx, posted } = await synced();
+		await pollList(ctx);
+		// Another device of the same account turns the link on.
+		const token = await fake.share("d1");
+		fake.requests.length = 0;
+		posted.length = 0;
+
+		await pollList(ctx);
+		// The version didn't move: nothing to pull.
+		expect(fake.requests.filter((r) => !r.startsWith("list"))).toEqual([]);
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({
+			serverVersion: 1,
+			shareToken: token
+		});
+		expect(posted).toContainEqual({ type: "sync", space: SPACE, docId: "d1", tabId: ctx.tabId });
+	});
+
+	it("a revoke elsewhere clears it", async () => {
+		const { platform, fake, ctx } = await synced();
+		await fake.share("d1");
+		await pollList(ctx);
+		expect((await platform.sync.get(SPACE, "d1"))?.shareToken).toEqual(expect.any(String));
+
+		await fake.unshare("d1");
+		await pollList(ctx);
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({ shareToken: null });
+	});
+
+	it("a dashboard made and shared elsewhere arrives with its token", async () => {
+		const { platform, fake, ctx } = await setupSync();
+		await createdElsewhere(fake, "d2");
+		const token = await fake.share("d2");
+
+		await pollList(ctx);
+		expect(await platform.sync.get(SPACE, "d2")).toMatchObject({ shareToken: token });
+	});
+
+	it("record writes keep the share token", async () => {
+		const { platform, fake, ctx } = await synced();
+		const token = await fake.share("d1");
+		await pollList(ctx);
+
+		await edit(platform, [title("b", "Mine")]);
+		expect(await uploadDocument(ctx, "d1")).toBe("saved");
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({
+			serverVersion: 2,
+			shareToken: token
+		});
+
+		await otherDevice(fake, [title("a", "Theirs")]);
+		await pollList(ctx);
+		expect(titles(await stored(platform))).toEqual(["Theirs", "Mine"]);
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({
+			serverVersion: 3,
+			shareToken: token
+		});
+
+		// A pull straight from the server's state takes the token from it.
+		await fake.unshare("d1");
+		await otherDevice(fake, [title("a", "Again", "Theirs")]);
+		expect(await pullInto(ctx, "d1", await serverSince(fake, 3))).toBe("merged");
+		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({
+			serverVersion: 4,
+			shareToken: null
+		});
+	});
+
+	it("a copy made on id_taken is never shared", async () => {
+		const { platform, fake, ctx } = await setupSync();
+		await storeDoc(platform);
+		await platform.sync.put(SPACE, { ...emptyRecord("d1"), shareToken: "old-token" });
+		fake.ownerOf("d1", "someone-else");
+
+		expect(await uploadDocument(ctx, "d1")).toBe("held");
+		const record = await platform.sync.get(SPACE, "d1");
+		const to = record?.hold?.kind === "moved" ? record.hold.to : "";
+		expect(await uploadDocument(ctx, to)).toBe("saved");
+		expect(await platform.sync.get(SPACE, to)).toMatchObject({
+			serverVersion: 1,
+			shareToken: null
+		});
 	});
 });

@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION="$(node -p "require('@playwright/test/package.json').version")"
 # The image has no git, so the build gets its id from here (a build with an unknown id fails).
-BUILD_ID="${BUILD_ID:-$(git rev-parse HEAD)}"
+export BUILD_ID="${BUILD_ID:-$(git rev-parse HEAD)}"
 exec podman run --rm --ipc=host -e BUILD_ID -e VITE_SENTRY_DSN= \
 	-v "$PWD":/work:Z -v /work/node_modules -w /work \
 	"mcr.microsoft.com/playwright:v${VERSION}-noble" \

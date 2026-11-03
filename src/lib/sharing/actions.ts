@@ -21,7 +21,7 @@ import { parseIncoming } from "./incoming";
 import { restoreFromEnvelope, type RestoreSummary } from "./restore";
 import { settleDocument } from "./settle";
 
-type Target = { doc: Dashboard; name: string; readOnly: boolean };
+type Target = { doc: Dashboard; name: string; readOnly: boolean; isStarter: boolean };
 
 /**
  * What to share or export: the dashboard `id`'s stored document, or the current one (the
@@ -32,18 +32,29 @@ async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 		const { session, isStarter } = app.current;
 		if (!session) return null;
 		if (isStarter)
-			return { doc: starterDashboard(), name: currentDashboardName(app) ?? "", readOnly: false };
+			return {
+				doc: starterDashboard(),
+				name: currentDashboardName(app) ?? "",
+				readOnly: false,
+				isStarter: true
+			};
 		await session.flush();
 		return {
 			doc: session.doc,
 			name: currentDashboardName(app) ?? "",
-			readOnly: !!session.readOnly
+			readOnly: !!session.readOnly,
+			isStarter: false
 		};
 	}
 	const session = await app.sessions.get(id, { remember: false });
 	if (!session) return null;
 	await session.flush();
-	return { doc: session.doc, name: app.index.names.get(id) ?? "", readOnly: !!session.readOnly };
+	return {
+		doc: session.doc,
+		name: app.index.names.get(id) ?? "",
+		readOnly: !!session.readOnly,
+		isStarter: false
+	};
 }
 
 export async function exportDashboard(app: AppContext, id?: string): Promise<void> {
@@ -70,7 +81,9 @@ export async function shareDashboard(app: AppContext, id?: string): Promise<void
 		: await shareUrl(`${location.origin}/workspace/`, target.doc, new Date());
 	openShare({
 		url: result && "url" in result ? result.url : null,
-		onDownload: () => downloadDocument(target)
+		onDownload: () => downloadDocument(target),
+		// A live link needs the account's sync and a dashboard it can read and upload.
+		live: app.sync && !target.isStarter && !target.readOnly ? { docId: target.doc.id } : null
 	});
 }
 
