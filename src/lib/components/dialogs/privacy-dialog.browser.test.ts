@@ -39,6 +39,19 @@ test("shows the title, every paragraph, and the notices link", async () => {
 		.toHaveAttribute("href", "https://s.example/static/workspace/THIRD-PARTY-NOTICES.txt");
 });
 
+test("the server paragraph explains live links and copy links", async () => {
+	const context = await setup();
+	await render(PrivacyDialog, { context });
+	openPrivacy();
+	await expect.element(page.getByRole("dialog").getByText(m.privacy_server())).toBeVisible();
+	expect(m.privacy_server()).toContain(
+		"A live link (when you're signed in) shows the dashboard to anyone with the link until you stop sharing."
+	);
+	expect(m.privacy_server()).toContain(
+		"A copy link has the dashboard inside the link itself, so anyone you give the link to can see it."
+	);
+});
+
 test("the Clear button opens the Clear my data dialog", async () => {
 	const context = await setup();
 	await render(ClearDataDialog, { context });
