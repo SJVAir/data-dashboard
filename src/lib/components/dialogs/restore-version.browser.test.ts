@@ -26,6 +26,7 @@ const loaded =
 		({ versions, accountUnreachable }) satisfies EarlierVersions;
 
 test("the versions are radios with dates in Pacific time", async () => {
+	// The PT label shows only when the device zone isn't Pacific (CI's isn't); format.test.ts covers it.
 	await render(RestoreVersionDialog);
 	openRestoreVersion(loaded([conflict, daily, local], true), vi.fn());
 	const dialog = page.getByRole("dialog");
@@ -34,17 +35,19 @@ test("the versions are radios with dates in Pacific time", async () => {
 	expect(radios.elements()).toHaveLength(3);
 	await expect.element(radios.first()).toBeChecked();
 	await expect
-		.element(dialog.getByRole("radio", { name: /^Nov 1, 2026, 5:00\sPM: set aside/ }))
+		.element(dialog.getByRole("radio", { name: /^Nov 1, 2026, 5:00\sPM( PT)?: set aside/ }))
 		.toBeVisible();
 	await expect
 		.element(
-			dialog.getByRole("radio", { name: /^Nov 1, 2026, 1:30\sAM: before that day's first change/ })
+			dialog.getByRole("radio", {
+				name: /^Nov 1, 2026, 1:30\sAM( PT)?: before that day's first change/
+			})
 		)
 		.toBeVisible();
 	await expect
 		.element(
 			dialog.getByRole("radio", {
-				name: /^Oct 20, 2026, 12:00\sPM: before an app update \(kept on this device\)/
+				name: /^Oct 20, 2026, 12:00\sPM( PT)?: before an app update \(kept on this device\)/
 			})
 		)
 		.toBeVisible();
