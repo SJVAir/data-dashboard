@@ -20,6 +20,7 @@ describe("light tokens", () => {
 		["--destructive", "--card", 4.5],
 		// --ring is sky blue (2.27:1 on white by design); --ring-edge carries the 3:1 boundary.
 		["--ring-edge", "--card", 3],
+		["--ring-edge", "--background", 3],
 		["--chart-1", "--card", 3],
 		["--chart-2", "--card", 3],
 		["--chart-3", "--card", 3],
