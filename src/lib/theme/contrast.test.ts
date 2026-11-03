@@ -1,10 +1,35 @@
 import { readFileSync } from "node:fs";
+import { mix } from "color2k";
 import { describe, expect, it } from "vitest";
+import { oklchToHex } from "../../../vite-plugins/web-manifest";
 import { contrast, readTokens, resolve } from "./tokens";
 
 const css = readFileSync(new URL("../../app.css", import.meta.url), "utf8");
 
 type Pair = [string, string, number];
+
+const hex = (color: string) => (color.startsWith("oklch(") ? oklchToHex(color) : color);
+
+/**
+ * Destructive text on its own tint (`bg-destructive/N`) over a surface: the card, and a dialog
+ * footer (`bg-muted/50` on the card). `alphas` are the tints the button and menu items use in
+ * that mode (rest, hover, focus).
+ */
+function destructiveOnTint(tokens: Record<string, string>, alphas: number[]) {
+	const destructive = hex(resolve(tokens, "--destructive"));
+	const card = hex(resolve(tokens, "--card"));
+	const footer = mix(card, hex(resolve(tokens, "--muted")), 0.5);
+	for (const alpha of alphas) {
+		for (const [name, surface] of [
+			["the card", card],
+			["a dialog footer", footer]
+		]) {
+			it(`--destructive on its ${alpha * 100}% tint over ${name} is at least 4.5:1`, () => {
+				expect(contrast(destructive, mix(surface, destructive, alpha))).toBeGreaterThanOrEqual(4.5);
+			});
+		}
+	}
+}
 
 const shared: Pair[] = [
 	["--foreground", "--background", 4.5],
@@ -40,6 +65,9 @@ describe("dark tokens", () => {
 		});
 	}
 
+	// button.svelte: bg-destructive/10, hover:bg-destructive/15; menu items focus at 15% in dark.
+	destructiveOnTint(tokens, [0.1, 0.15]);
+
 	it("both dark blocks are identical", () => {
 		expect(readTokens(css, "dark-system")).toEqual(readTokens(css, "dark-override"));
 	});
@@ -65,6 +93,9 @@ describe("light tokens", () => {
 			expect(c(fg, bg)).toBeGreaterThanOrEqual(min);
 		});
 	}
+
+	// button.svelte: bg-destructive/10, hover:bg-destructive/15; menu items focus at 10%.
+	destructiveOnTint(tokens, [0.1, 0.15]);
 
 	it("sky blue stays a highlight", () => {
 		expect(c("--highlight", "--card")).toBeLessThan(3);
