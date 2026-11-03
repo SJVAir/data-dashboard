@@ -510,8 +510,13 @@ string`) now get the union return type. The mobile app passes a string token, so
   twice). (3) `moveLocked` stores the copy and then the `moved` hold in a second write; a crash
   between them makes a second copy on the next try. Each needs a storage failure or a tab
   closing within moments; closing them needs the document, its log, and its sync record in
-  one transaction. **Revisit if** lost edits, duplicate widgets, or duplicate copies are
-  reported after an id collision or "Keep as a new dashboard".
+  one transaction. (4) To upload a moved copy at once, `moveLocked` posts a `committed`
+  message; the app also reads that as the tab's first edit and asks the browser to protect
+  storage (Firefox can show a prompt nobody asked for), and the worker retries every refused
+  save. No data is lost; a direct upload request from the worker would avoid both (found in
+  the final fix wave's re-review). **Revisit if** lost edits, duplicate widgets, or duplicate
+  copies are reported after an id collision or "Keep as a new dashboard", or anyone sees an
+  unexpected storage prompt.
 - **Holds on dashboards that aren't open are never asked about.** _Deferred 2026-11-02 (Sync
   spec 2; found in the final review)._ The conflict, deleted-elsewhere, and purged dialogs
   open only for the dashboard on screen, so a hold on a dashboard in Recently deleted or one
