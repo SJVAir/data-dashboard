@@ -539,7 +539,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   2026-11-02 (Sync spec 2, Task 8)._ The choice's save isn't recorded as `inFlight`, so if its
   answer is lost the hold stays and choosing again saves mine a second time on top of the first
   (an extra `conflict` snapshot; nothing lost). **Revisit if** duplicate snapshots show up in
-  "Restore an earlier version".
+  "Restore an earlier version". _Looked at in sync spec 4, still deferred:_ the list now shows
+  any duplicate snapshot, which is the trigger to watch.
 - **Another tab showing a purged dashboard that was discarded keeps its session.** _Deferred
   2026-11-02 (Sync spec 2, Task 8; the list part was fixed in the final review: every tab's
   list now refreshes on `sync`)._ "Discard" removes it here and posts `sync`, as the quiet
@@ -581,7 +582,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   didn't apply; "Keep as a new dashboard" is navigated twice (the dialog and the page's
   `moved` handler, harmless); and settling a purge clears other tabs' journal records for the
   old id. **Revisit with** spec 3's dashboards-list work, or if people report sign-out asking
-  about dashboards they can't find.
+  about dashboards they can't find. _Looked at in sync spec 4, still deferred:_ a held
+  dashboard in Recently deleted answers "Delete now" with `deleted_not_saved`.
 - **Sync worker edge cases.** _Deferred 2026-11-02 (Sync spec 2, Tasks 6 and 7)._ A local
   copy in a newer format (saved by a newer build in this browser) can show as synced in the
   Saved popover, since its log can't be read here; a tab that becomes visible polls at once
@@ -597,7 +599,7 @@ string`) now get the union return type. The mobile app passes a string token, so
   `setLayout`s move `a` (the first case shares only `b`); the storage contract's `record()`
   helper fixes `serverVersion` at 4; the web locks' fallback (no `navigator.locks`) is covered
   only through the memory platform's contract run of the same queue; the fake server's request
-  label for a list is `list <cursor>`, it models no daily snapshots or snapshot cap, and
+  label for a list is `list <cursor>`, it models daily snapshots and their expiry (added in sync spec 4) but not the snapshot cap, and
   `SYNC_STACK=1` lifts the network guard for the whole run; a `merge.test.ts` upgrade test
   mutates the global migrations (pass a chain to `fromRemote`); a `refuseNext` test in
   resolve hits `changes`, not `keepSnapshot`; `watchSpace` uses `new Date()`, not an injectable
@@ -614,6 +616,48 @@ string`) now get the union return type. The mobile app passes a string token, so
   lines) and `app.svelte.ts` (about 390) could be split; `#onMessage` checks `SYNC_TAB`
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
+- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
+  (1) The restore dialog's "can't be loaded right now" shows for any failure to list the
+  account's versions, including a refusal (gone or not found), not just offline; it adds a
+  clearer message per cause. (2) The dialog's loading line is inserted conditionally as a
+  status region (some screen readers may not announce it), and focus stays on Cancel after the
+  list loads. (3) "Delete now" on a local copy that can't be read (newer format or invalid)
+  says "couldn't reach your account", which is misleading, and the "restored on another
+  device" toast uses the error style though it's informational. (4) The initial bundle is
+  about 199.2 KB of the 200 KB soft budget after spec 4 (the restore dialog and Recently
+  deleted changes). (5) After a restore's keep pulls in another device's change (stale base),
+  the restore's `from` is built from the open session's document, which may lag the merged
+  storage for a moment; undoing that restore could then drop the other device's merged-in
+  edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test gaps: the
+  keep's `not_found` refusal (shares the `gone` branch); restoring with the keep skipped
+  (anonymous or never uploaded); the "newer" message reaching the dialog; flush-before-load
+  order; "Delete now" pulling in a real concurrent restore (the test uses a synthetic
+  `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
+  `space-switch` closing the old app first, not by a test). **Revisit** (1) and (3) with the
+  design pass's error wording, (2) in the design pass or the screen-reader check, (4) when the
+  next feature would cross the budget (CI warns), (5) if an undo after a restore is reported to
+  lose an edit, and (6) when next touching those files.
+- **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
+  plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
+  reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
+  purge that could fire later against a copy restored on another device. **Revisit if** people
+  report needing to empty Recently deleted while offline.
+- **Restoring an earlier version needs the account reachable in an account space.** _Deferred
+  2026-11-02 (sync spec 4 plan, call 1)._ The restore first keeps the replaced version as a
+  server snapshot, so it can be undone after a reload; offline (or refused) nothing is restored,
+  even for the local kept original. A queued keep would need a new hold kind. **Revisit if**
+  people report restoring while offline.
+- **The earlier-versions list isn't deduplicated.** _Deferred 2026-11-02 (sync spec 4 plan, call
+  2)._ The local kept original and the server's `schema` snapshot can hold the same content, and
+  both are listed (each labelled with its source and time). Telling them apart reliably would
+  need a content hash on both sides. **Revisit in** the design pass, or on a report of a
+  confusing list.
+- **Unsynced edits in the browser where an account is deleted are lost with it.** _Deferred
+  2026-11-02 (sync spec 4 plan, call 6)._ The dashboard removes the deleted account's space at
+  once, and "Download my documents" on sjvair.com's delete page has only the server's copies, so
+  edits that never reached the server go too. The person chose to delete the account. **Revisit
+  if** anyone reports it; the fix is a dashboard-side "download a backup first" step before the
+  account menu's link to the account page.
 
 ## Map & selection
 

@@ -16,10 +16,10 @@ Last updated: 2026-11-03
 4. ~~Sync spec 3 (live share links)~~ **done** (PR
    [#26](https://github.com/SJVAir/data-dashboard/pull/26), merged into `main` 2026-11-03 with
    the user's yes).
-5. **Next: sync spec 4 (recovery)**, branching from `main` (its plan is on `sync-4-plan`, in the
-   `../data-dashboard-sync4` worktree). It extends the same `src/lib/sync/remote*.ts` and
-   `e2e/documents-server.ts` spec 3 did. The dashboard pins **@sjvair/sdk 4.8.0-beta.3**. See
-   "Sync track" below for the hand checks.
+5. ~~Sync spec 4 (recovery)~~ **built** on `sync-recovery` (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29); merging needs the
+   user's yes). Plan: `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`. Its sjvair.com
+   `deletedAccount` change is a separate small PR into `develop`. The dashboard pins
+   **@sjvair/sdk 4.8.0-beta.3**. See "Sync track" below for the hand checks.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -91,7 +91,7 @@ the prerelease **4.8.0-beta.2** (2026-11-02, with the user's yes). The snapshot 
 
 **Spec 2 (dashboard sync) is done and on `main`** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23), merged
 2026-11-02 with the user's yes). Order (decided 2026-10-29): layout spec 2b → `layout` → `main` → sync spec 2, branching
-from `main` → specs 3 and 4, which are next. The sync design
+from `main` → specs 3 and 4 (both since built). The sync design
 (`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`), the spec 2 plan
 (`docs/superpowers/plans/2026-11-02-sync-2-dashboard.md`), and the calls made while building
 (`ARCHITECTURE.md` → "Saving & sharing documents") are the places to start. Locally, the dev
@@ -103,7 +103,10 @@ with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER
 **Spec 3 (live share links) is done and on `main`** (PR
 [#26](https://github.com/SJVAir/data-dashboard/pull/26), merged 2026-11-03 with the user's yes).
 Plan: `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`; the calls made while building are
-in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links". Spec 4 (recovery) is next.
+in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links".
+
+**Spec 4 (recovery) is built** on `sync-recovery` (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29)). The calls made while building are
+in `ARCHITECTURE.md` → "How the dashboard syncs" → "Recovery".
 
 **Hand checks for specs 2 and 3: done 2026-11-02**, every step below, against the local stack
 (sjvair.com `develop`) and `npm run dev` on `sync-share-links`: the user by hand (the offline
@@ -149,6 +152,28 @@ and `npm run dev`):
 
 A gap found here goes to the user as a separate sjvair.com plan (on `develop`), not into the
 spec 3 branch.
+
+**Hand check for spec 4 on the real stack** (needs the stack on sjvair.com `develop` and
+`npm run dev`):
+
+0. ~~Run `npm run test:sync-stack` once~~ **done 2026-11-03**: 29/29 pass on `sync-recovery`
+   (specs 2 and 3 plus the recovery cases). It found that a signed-out delete with no CSRF token
+   is refused 403 by the CSRF check before the sign-in check; the contract now allows that.
+1. ~~Two browsers signed in as the `WORKSPACE_E2E_*` account. Delete a dashboard on one, restore
+   it (Recently deleted) on the other. Then delete one on the first, choose Delete now, and confirm
+   the other drops it.~~ **done 2026-11-03**, scripted with Playwright (two browser contexts as two
+   devices, `npm run dev` on `sync-recovery`): the restore reached the first device, and after
+   Delete now the server answered `gone` and the other device dropped it.
+2. ~~Edit a dashboard on two different days (or after a schema bump), then use "Restore an earlier
+   version" and pick one from the list.~~ **done 2026-11-03** the same way, on one day: the first
+   save after creating a dashboard makes the day's snapshot, so the list showed it ("before that
+   day's first change"); restoring brought it back, the server kept the replaced version as a
+   `conflict` snapshot, and Undo worked. Restoring a version with no stored name showed the
+   previous name for under a second, until the autosave; fixed the same day (the header now
+   numbers a just-cleared name at once).
+3. With the sjvair.com `deletedAccount` change on `develop`, delete a throwaway account on
+   `/account/`, open `/workspace/` in the same browser, and check (devtools → IndexedDB) that its
+   space is gone.
 
 Decisions later specs need:
 

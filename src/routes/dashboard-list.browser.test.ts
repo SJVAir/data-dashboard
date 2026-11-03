@@ -9,7 +9,7 @@ import { resolveMenu } from "$lib/actions/resolve";
 import { dashboardActions } from "$lib/actions/dashboard";
 import { menuScope } from "$lib/actions/scope";
 import { APP_CONTEXT_KEY, LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
-import type { DocumentSession } from "$lib/store/document-session.svelte";
+import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { saveFields } from "$lib/sync/merge";
 import { accountApp } from "$lib/sync/test-app";
@@ -205,5 +205,36 @@ test("the list shows a dashboard the sync worker stores from the server", async 
 		await expect.element(page.getByText("From the laptop")).toBeVisible();
 	} finally {
 		worker.stop();
+	}
+});
+
+async function restoreItem(app: Awaited<ReturnType<typeof accountApp>>["app"]) {
+	const session = (await DocumentSession.open(app.platform, app.space, "d1", "t1", {}))!;
+	app.current = { session, isStarter: false };
+	return dashboardActions(app)({ target: document.body, payload: {} }).find(
+		(item) => item.id === "restore-version"
+	);
+}
+
+test("Restore an earlier version shows for a synced dashboard without a kept original", async () => {
+	const { app, worker } = await accountApp(["d1"]);
+	try {
+		worker.start();
+		await expect.poll(() => worker.states["d1"]?.onServer).toBe(true);
+		expect(await app.platform.originals.get(app.space, "d1")).toBeUndefined();
+		expect(await restoreItem(app)).toBeDefined();
+	} finally {
+		app.current.session?.dispose();
+		worker.stop();
+	}
+});
+
+test("it doesn't show for a dashboard that never synced and has no kept original", async () => {
+	const { app, worker } = await accountApp(["d1"]);
+	try {
+		expect(worker.states["d1"]?.onServer).not.toBe(true);
+		expect(await restoreItem(app)).toBeUndefined();
+	} finally {
+		app.current.session?.dispose();
 	}
 });

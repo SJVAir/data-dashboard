@@ -77,7 +77,7 @@ describe("resolveHold", () => {
 		// Their delete of the widget I changed is undone, so my change to it stands.
 		expect(await serverTitles(setup)).toEqual(["Mine", "Mine too"]);
 		expect((await fake.get("d1")).version).toBe(3);
-		const snapshots = fake.snapshots("d1");
+		const snapshots = fake.snapshots("d1").filter((s) => s.reason === "conflict");
 		expect(snapshots).toHaveLength(1);
 		expect(snapshots[0]).toMatchObject({ version: 2, reason: "conflict" });
 		expect((snapshots[0].body as Dashboard["body"]).widgets.map((w) => w.title)).toEqual([
@@ -117,7 +117,7 @@ describe("resolveHold", () => {
 
 		expect(fake.requests).toContain("keepSnapshot d1");
 		expect(fake.requests.filter((r) => r === "save d1")).toHaveLength(0);
-		const snapshots = fake.snapshots("d1");
+		const snapshots = fake.snapshots("d1").filter((s) => s.reason === "conflict");
 		expect(snapshots).toHaveLength(1);
 		expect(snapshots[0]).toMatchObject({ version: 2, reason: "conflict" });
 		expect((snapshots[0].body as Dashboard["body"]).widgets.map((w) => w.title)).toEqual([
@@ -145,7 +145,7 @@ describe("resolveHold", () => {
 			kind: "conflict",
 			serverVersion: 3
 		});
-		expect(fake.snapshots("d1")).toHaveLength(0);
+		expect(fake.snapshots("d1").filter((s) => s.reason === "conflict")).toHaveLength(0);
 		expect(titles(await stored(platform))).toEqual(["Mine", null]);
 	});
 
@@ -177,7 +177,7 @@ describe("resolveHold", () => {
 		expect(await platform.sync.get(SPACE, copyId!)).toBeUndefined();
 		expect(titles(await stored(platform))).toEqual(["Theirs", null]);
 		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({ serverVersion: 2, hold: null });
-		expect(fake.snapshots("d1")).toHaveLength(0);
+		expect(fake.snapshots("d1").filter((s) => s.reason === "conflict")).toHaveLength(0);
 
 		expect(await uploadDocument(ctx, copyId!)).toBe("saved");
 		expect((await fake.get(copyId!)).copiedFrom).toBe("d1");
@@ -194,7 +194,7 @@ describe("resolveHold", () => {
 		const server = await fake.get("d1");
 		expect(server).toMatchObject({ version: 3, deletedAt: null });
 		expect(await serverTitles(setup)).toEqual(["Mine", null]);
-		expect(fake.snapshots("d1")).toHaveLength(0);
+		expect(fake.snapshots("d1").filter((s) => s.reason === "conflict")).toHaveLength(0);
 		const local = await stored(platform);
 		expect(local.deletedAt).toBeUndefined();
 		expect(titles(local)).toEqual(["Mine", null]);
@@ -205,7 +205,7 @@ describe("resolveHold", () => {
 		const setup = await held([title("a", "Mine")], [deleteDoc]);
 		const { platform, fake, ctx } = setup;
 		expect(await resolveHold(ctx, "d1", "discard")).toBeNull();
-		expect(fake.snapshots("d1")).toHaveLength(1);
+		expect(fake.snapshots("d1").filter((s) => s.reason === "conflict")).toHaveLength(1);
 		const local = await stored(platform);
 		expect(local.deletedAt).toBe(DELETED_AT);
 		expect(titles(local)).toEqual([null, null]);
@@ -259,7 +259,7 @@ describe("resolveHold", () => {
 
 		expect((await platform.sync.get(SPACE, "d1"))?.hold).toEqual(hold);
 		expect(await stored(platform)).toEqual(before);
-		expect(fake.snapshots("d1")).toHaveLength(0);
+		expect(fake.snapshots("d1").filter((s) => s.reason === "conflict")).toHaveLength(0);
 		// A choice that doesn't fit the hold is refused too.
 		await expect(resolveHold(ctx, "d1", "keep-as-new")).rejects.toThrow();
 		expect((await platform.sync.get(SPACE, "d1"))?.hold).toEqual(hold);

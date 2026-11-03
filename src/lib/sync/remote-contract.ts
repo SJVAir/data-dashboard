@@ -250,7 +250,12 @@ export function runRemoteContract(
 				changes: [{ version, ...change(1) }],
 				document: expect.objectContaining({ id, version })
 			});
-			if (options.fakeOnly) expect((remote as FakeRemote).snapshots(id)).toEqual([]);
+			if (options.fakeOnly) {
+				const conflicts = (remote as FakeRemote)
+					.snapshots(id)
+					.filter((s) => s.reason === "conflict");
+				expect(conflicts).toEqual([]);
+			}
 
 			const missing = await refusal(remote.keepSnapshot(newId(), snapshotInput()));
 			expect(missing.code).toBe("not_found");
@@ -458,6 +463,132 @@ export function runRemoteContract(
 			});
 		});
 
+		describe("recovery", () => {
+			const TRASHED = "2026-11-02T00:00:00.000Z";
+
+			test("the first save of the day keeps the version it replaces", async () => {
+				const id = newId();
+				const { version } = await remote.save(
+					id,
+					input({ name: "Before", body: { widgets: [1] } })
+				);
+				await remote.save(
+					id,
+					input({ baseVersion: version, name: "After", body: { widgets: [2] } })
+				);
+
+				const list = await remote.listSnapshots(id);
+				expect(list).toHaveLength(1);
+				expect(list[0]).toMatchObject({ version, schemaVersion: 1, reason: "daily" });
+				expect(typeof list[0].createdAt).toBe("string");
+				expect(list[0]).not.toHaveProperty("body");
+				const snapshot = await remote.getSnapshot(id, list[0].id);
+				expect(snapshot).toMatchObject({
+					id: list[0].id,
+					version,
+					schemaVersion: 1,
+					name: "Before",
+					body: { widgets: [1] }
+				});
+				expect(typeof snapshot.createdAt).toBe("string");
+			});
+
+			test("a second save the same day keeps no more", async () => {
+				const id = newId();
+				const { version } = await remote.save(id, input());
+				const second = await remote.save(
+					id,
+					input({ baseVersion: version, body: { widgets: [2] } })
+				);
+				await remote.save(id, input({ baseVersion: second.version, body: { widgets: [3] } }));
+				expect(await remote.listSnapshots(id)).toHaveLength(1);
+			});
+
+			test("snapshots are listed newest first", async () => {
+				const id = newId();
+				const { version } = await remote.save(id, input());
+				const second = await remote.save(
+					id,
+					input({ baseVersion: version, body: { widgets: [2] } })
+				);
+				await remote.save(
+					id,
+					input({ baseVersion: second.version, body: { widgets: [3] }, snapshot: "conflict" })
+				);
+
+				const list = await remote.listSnapshots(id);
+				expect(list.map((s) => [s.version, s.reason])).toEqual([
+					[second.version, "conflict"],
+					[version, "daily"]
+				]);
+				expect(list[0].id).toBeGreaterThan(list[1].id);
+			});
+
+			test("getSnapshot of a missing snapshot is not_found", async () => {
+				const id = newId();
+				await remote.save(id, input());
+				const error = await refusal(remote.getSnapshot(id, 2_000_000_000));
+				expect([error.code, error.status]).toEqual(["not_found", 404]);
+			});
+
+			test("delete permanently purges a trashed document", async () => {
+				const id = newId();
+				await remote.save(id, input({ deletedAt: TRASHED }));
+				const { cursor } = await remote.list();
+
+				await remote.deletePermanently(id);
+
+				expect((await refusal(remote.get(id))).code).toBe("gone");
+				expect((await remote.list(cursor)).purged).toContain(id);
+			});
+
+			test("delete permanently refuses a live document", async () => {
+				const id = newId();
+				await remote.save(id, input());
+				const error = await refusal(remote.deletePermanently(id));
+				expect([error.code, error.status]).toEqual(["not_deleted", 409]);
+				expect((await remote.get(id)).id).toBe(id);
+			});
+
+			test("delete permanently of a missing id is not_found", async () => {
+				const error = await refusal(remote.deletePermanently(newId()));
+				expect([error.code, error.status]).toEqual(["not_found", 404]);
+			});
+
+			test("snapshots and delete need sign-in", async () => {
+				const id = newId();
+				await remote.save(id, input());
+				for (const call of [
+					() => signedOut.listSnapshots(id),
+					() => signedOut.getSnapshot(id, 1)
+				]) {
+					const error = await refusal(call());
+					expect([error.code, error.status]).toEqual(["unauthorized", 401]);
+				}
+				// A write with no session and no CSRF token fails the server's CSRF check first (403);
+				// the fake doesn't model CSRF. In a browser the page's token is sent, so it's a 401.
+				await remote.save(id, input({ baseVersion: 1, deletedAt: "2026-11-02T00:00:00.000Z" }));
+				const error = await refusal(signedOut.deletePermanently(id));
+				expect([
+					["unauthorized", 401],
+					["forbidden", 403]
+				]).toContainEqual([error.code, error.status]);
+				expect((await remote.get(id)).deletedAt).not.toBeNull();
+			});
+
+			test("delete permanently ends a shared dashboard's link", async () => {
+				const id = newId();
+				const { version } = await remote.save(id, input());
+				const token = await remote.share(id);
+				await remote.save(id, input({ baseVersion: version, deletedAt: TRASHED }));
+
+				await remote.deletePermanently(id);
+
+				expect((await refusal(signedOut.shared(token))).code).toBe("not_found");
+				expect((await refusal(signedOut.credit(id))).code).toBe("not_found");
+			});
+		});
+
 		if (!options.fakeOnly) return;
 
 		// The stack can't set these up from the client.
@@ -535,6 +666,26 @@ export function runRemoteContract(
 				).toBe(2);
 			});
 
+			test("a conflict snapshot doesn't count as the day's", async () => {
+				const id = newId();
+				const { version } = await remote.save(id, input());
+				const second = await remote.save(
+					id,
+					input({ baseVersion: version, body: { widgets: [2] }, snapshot: "conflict" })
+				);
+				await remote.save(id, input({ baseVersion: second.version, body: { widgets: [3] } }));
+				const list = await remote.listSnapshots(id);
+				expect(list.map((s) => s.reason)).toEqual(["daily", "conflict"]);
+			});
+
+			test("delete permanently of someone else's dashboard is not_found", async () => {
+				const id = newId();
+				fake.ownerOf(id, "account-elsewhere");
+				const error = await refusal(remote.deletePermanently(id));
+				expect([error.code, error.status]).toEqual(["not_found", 404]);
+				expect((await refusal(remote.listSnapshots(id))).code).toBe("not_found");
+			});
+
 			test("snapshot: conflict keeps the replaced version", async () => {
 				const id = newId();
 				const { version } = await remote.save(id, input({ body: { widgets: ["theirs"] } }));
@@ -542,7 +693,7 @@ export function runRemoteContract(
 					id,
 					input({ baseVersion: version, body: { widgets: ["mine"] }, snapshot: "conflict" })
 				);
-				expect(fake.snapshots(id)).toEqual([
+				expect(fake.snapshots(id)).toMatchObject([
 					{ version, reason: "conflict", body: { widgets: ["theirs"] } }
 				]);
 			});
@@ -556,7 +707,7 @@ export function runRemoteContract(
 				await remote.keepSnapshot(id, snapshotInput({ baseVersion: version }));
 
 				expect(fake.requests).toEqual([`keepSnapshot ${id}`]);
-				expect(fake.snapshots(id)).toEqual([
+				expect(fake.snapshots(id)).toMatchObject([
 					{ version, reason: "conflict", body: { widgets: ["mine"] } }
 				]);
 				expect(await remote.get(id)).toEqual(before);
@@ -570,7 +721,7 @@ export function runRemoteContract(
 					id,
 					snapshotInput({ baseVersion: trashed.version, schemaVersion: 1 })
 				);
-				expect(fake.snapshots(id)).toHaveLength(3);
+				expect(fake.snapshots(id).filter((s) => s.reason === "conflict")).toHaveLength(2);
 			});
 
 			test("another account's dashboard can't be shared", async () => {

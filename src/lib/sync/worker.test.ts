@@ -445,4 +445,34 @@ describe("SyncWorker", () => {
 		await settle();
 		expect(polls(setup)).toHaveLength(2);
 	});
+
+	it("the worker's recovery calls run under the document lock", async () => {
+		const setup = await setupSync();
+		await storeDoc(setup.platform);
+		expect(await uploadDocument(setup.ctx, "d1")).toBe("saved");
+		await edit(setup.platform, [title("a", "Mine")]);
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => (release = resolve));
+		const remote = {
+			...setup.fake,
+			keepSnapshot: async (...args: Parameters<typeof setup.fake.keepSnapshot>) => {
+				await gate;
+				return setup.fake.keepSnapshot(...args);
+			}
+		};
+		const t = tab({ ...setup, ctx: { ...setup.ctx, remote } }, "tab-1");
+		setup.fake.requests.length = 0;
+		const keeping = t.worker.keepBeforeRestore("d1");
+		await settle();
+		const uploading = uploadDocument(setup.ctx, "d1");
+		await settle();
+		expect(saves(setup)).toHaveLength(0);
+		release();
+		expect(await keeping).toBe("kept");
+		expect(await uploading).toBe("saved");
+		expect(saves(setup)).toHaveLength(1);
+		expect((await t.worker.versions("d1")).filter((s) => s.reason === "conflict")).toHaveLength(1);
+		const [meta] = await t.worker.versions("d1");
+		expect((await t.worker.version("d1", meta.id)).id).toBe(meta.id);
+	});
 });

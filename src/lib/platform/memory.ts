@@ -81,7 +81,10 @@ export type MemoryIdentity = IdentitySource & {
  * Identity under test control. Unknown until `start()`, which applies `initial` as the load.
  * Re-checks ignore the throttle and answer with `setServer` (at first, `initial`).
  */
-export function createMemoryIdentity(initial: Identity = { state: "signed-out" }): MemoryIdentity {
+export function createMemoryIdentity(
+	initial: Identity = { state: "signed-out" },
+	options: { deletedAccount?: string } = {}
+): MemoryIdentity {
 	let identity: Identity = { state: "unknown" };
 	let server: Identity | "error" = initial;
 	let signOutOk = true;
@@ -101,6 +104,7 @@ export function createMemoryIdentity(initial: Identity = { state: "signed-out" }
 			signOutOk = ok;
 		},
 		currentSpace: async () => spaceFor(identity),
+		deletedAccount: () => options.deletedAccount ?? null,
 		authMode: "cookie",
 		current: () => identity,
 		onChange(cb) {

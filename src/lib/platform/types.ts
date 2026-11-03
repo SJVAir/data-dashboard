@@ -133,6 +133,8 @@ export interface IdentitySource {
 	accept(identity: Identity): void;
 	/** POSTs the site's logout; true on success (then signed out, cause "sign-out"). */
 	signOut(): Promise<boolean>;
+	/** The account id the page says was just deleted in this browser (call 6), else null. */
+	deletedAccount(): string | null;
 	/** `/account/login/?next=` plus the encoded path. */
 	signInUrl(returnPath: string): string;
 	accountUrl(): string;

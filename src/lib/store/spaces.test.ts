@@ -7,6 +7,7 @@ import {
 	HIDDEN_KEY,
 	hasUnsynced,
 	hideSpace,
+	markDeleted,
 	spaceFor,
 	spaceLock,
 	tidySpaces,
@@ -229,5 +230,40 @@ describe("spaces", () => {
 		await Promise.all(holds);
 		await tidySpaces(platform, "anonymous", NOW, { identityKnown: true });
 		expect(await platform.spaces.list()).toEqual([]);
+	});
+
+	it("a deleted space is removed at once, unsynced changes included", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1", false);
+		await markDeleted(platform, A, NOW);
+		expect(await hasUnsynced(platform, A)).toBe(true);
+		await tidySpaces(platform, "anonymous", NOW);
+		expect(await platform.spaces.list()).not.toContain(A);
+	});
+
+	it("markDeleted overrides an expired reason", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1");
+		await hideSpace(platform, A, "expired", daysAgo(3));
+		await markDeleted(platform, A, NOW);
+		expect(await platform.preferences.get(A, HIDDEN_KEY)).toEqual({
+			at: NOW.toISOString(),
+			reason: "deleted"
+		});
+	});
+
+	it("a held deleted space is left until no tab holds it", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, A, "d1", false);
+		await markDeleted(platform, A, NOW);
+		const tab = new AbortController();
+		const holding = platform.locks.hold(spaceLock(A), tab.signal, () => {});
+		await tidySpaces(platform, "anonymous", NOW);
+		expect(await platform.documents.get(A, "d1")).toBeDefined();
+
+		tab.abort();
+		await holding;
+		await tidySpaces(platform, "anonymous", NOW);
+		expect(await platform.spaces.list()).not.toContain(A);
 	});
 });

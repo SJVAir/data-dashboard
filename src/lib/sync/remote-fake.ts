@@ -3,7 +3,7 @@
  * (`camp/api/v2/documents/`): the same refusal codes, statuses, and check order. For unit tests
  * and, later, Playwright, so it imports nothing from `$lib` at runtime.
  *
- * Not modelled: daily snapshots and the snapshot storage cap.
+ * Not modelled: the snapshot storage cap.
  */
 import type { RefusalCode } from "@sjvair/sdk/documents";
 import {
@@ -13,9 +13,12 @@ import {
 	type RemoteDocument,
 	type RemoteDocuments,
 	type RemoteMeta,
+	type RemoteSnapshot,
+	type RemoteSnapshotMeta,
 	type SaveInput,
 	type SharedRemoteDocument,
 	type SnapshotInput,
+	type SnapshotReason,
 	type StaleBase
 } from "./remote";
 
@@ -30,7 +33,8 @@ export type FakeRemote = RemoteDocuments & {
 	/**
 	 * One entry per call: `"list"`, `"list <since>"`, `"get <id>"`, `"changes <id> <since>"`,
 	 * `"save <id>"`, `"keepSnapshot <id>"`, `"share <id>"`, `"unshare <id>"`, `"shared <token>"`,
-	 * `"sharedChanges <token> <since>"`, `"credit <id>"`, `"getProfile"`, `"setProfile"`.
+	 * `"sharedChanges <token> <since>"`, `"credit <id>"`, `"getProfile"`, `"setProfile"`,
+	 * `"listSnapshots <id>"`, `"getSnapshot <id> <n>"`, `"delete <id>"`.
 	 */
 	requests: string[];
 	/**
@@ -43,8 +47,8 @@ export type FakeRemote = RemoteDocuments & {
 	purge(id: string): void;
 	/** Makes `id` belong to another account (creating it there when missing). */
 	ownerOf(id: string, accountId: string): void;
-	/** The document's snapshots, oldest first. */
-	snapshots(id: string): Array<{ version: number; reason: string; body: unknown }>;
+	/** The document's snapshots, oldest first (all of them, whatever their age). */
+	snapshots(id: string): Array<StoredSnapshot>;
 	/** Drops the document's whole change log, as if it were trimmed long ago. */
 	trimLog(id: string): void;
 	/** Staff turns sharing off for one document: its link stops opening and it can't share. */
@@ -70,7 +74,20 @@ const CURSOR_OVERLAP_MS = 10_000;
 /** `DocumentProfile.display_name`'s `max_length`. */
 const MAX_DISPLAY_NAME = 60;
 const RESERVED_IDS = new Set(["profile", "export", "shared"]);
+/** `DOCUMENTS_SNAPSHOT_DAYS`: snapshots older than this are neither listed nor readable. */
+const SNAPSHOT_DAYS = 30;
+const DAY_MS = 86_400_000;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+type StoredSnapshot = {
+	id: number;
+	version: number;
+	schemaVersion: number;
+	name: string | null;
+	reason: SnapshotReason;
+	body: unknown;
+	createdAt: string;
+};
 
 type Stored = {
 	owner: string;
@@ -78,7 +95,7 @@ type Stored = {
 	size: number;
 	/** The changes each version's save carried. */
 	log: Map<number, Array<{ schemaVersion: number; change: unknown }>>;
-	snapshots: Array<{ version: number; reason: string; body: unknown }>;
+	snapshots: StoredSnapshot[];
 	/** Staff turned sharing off for this document. */
 	sharingDisabled: boolean;
 };
@@ -158,6 +175,13 @@ function checkSnapshot(id: string, input: SnapshotInput): boolean {
 	});
 }
 
+const pacificDay = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
+
+/** The Pacific calendar day (`YYYY-MM-DD`) of an ISO moment. */
+function dayOf(moment: string): string {
+	return pacificDay.format(new Date(moment));
+}
+
 function meta(doc: RemoteDocument): RemoteMeta {
 	const copy: Partial<RemoteDocument> = wire(doc);
 	delete copy.body;
@@ -176,6 +200,34 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 	const displayNames = new Map<string, string>();
 	/** Accounts staff blocked from sharing. */
 	const blockedSharers = new Set<string>();
+	/** One counter for every snapshot's id, like the server's table. */
+	let lastSnapshotId = 0;
+
+	/** Keeps `entry`'s current content as a snapshot. */
+	function keep(
+		entry: Stored,
+		reason: SnapshotReason,
+		at: string,
+		content: { version: number; schemaVersion: number; name: string | null; body: unknown }
+	) {
+		entry.snapshots.push({
+			id: ++lastSnapshotId,
+			version: content.version,
+			schemaVersion: content.schemaVersion,
+			name: content.name,
+			reason,
+			body: wire(content.body),
+			createdAt: at
+		});
+	}
+
+	/** The snapshots still kept (30 days), newest first. */
+	function kept(entry: Stored): StoredSnapshot[] {
+		const oldest = now().getTime() - SNAPSHOT_DAYS * DAY_MS;
+		return entry.snapshots
+			.filter((s) => Date.parse(s.createdAt) >= oldest)
+			.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id - a.id);
+	}
 
 	/** The signed-in account (or `null`), after the checks every call shares. */
 	function open(request: string): string | null {
@@ -370,19 +422,16 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 
 			const at = now().toISOString();
 			if (entry) {
-				const reason =
+				const today = dayOf(at);
+				const reason: SnapshotReason | null =
 					input.schemaVersion > entry.doc.schemaVersion
 						? "schema"
 						: input.snapshot === "conflict"
 							? "conflict"
-							: null;
-				if (reason) {
-					entry.snapshots.push({
-						version: entry.doc.version,
-						reason,
-						body: wire(entry.doc.body)
-					});
-				}
+							: entry.snapshots.some((s) => s.reason !== "conflict" && dayOf(s.createdAt) === today)
+								? null
+								: "daily";
+				if (reason) keep(entry, reason, at, entry.doc);
 			} else {
 				entry = {
 					owner: account,
@@ -431,7 +480,46 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 			checkRequest(account, input.body, [], input);
 			const entry = owned(account, id);
 			if (input.baseVersion !== entry.doc.version) throw stale(entry, input.baseVersion);
-			entry.snapshots.push({ version: input.baseVersion, reason: "conflict", body: input.body });
+			keep(entry, "conflict", now().toISOString(), {
+				version: input.baseVersion,
+				schemaVersion: input.schemaVersion,
+				name: input.name,
+				body: input.body
+			});
+		},
+
+		async listSnapshots(id): Promise<RemoteSnapshotMeta[]> {
+			const account = begin(`listSnapshots ${id}`);
+			const entry = owned(account, id);
+			return kept(entry).map((s) => ({
+				id: s.id,
+				version: s.version,
+				schemaVersion: s.schemaVersion,
+				reason: s.reason,
+				createdAt: s.createdAt
+			}));
+		},
+
+		async getSnapshot(id, snapshotId): Promise<RemoteSnapshot> {
+			const account = begin(`getSnapshot ${id} ${snapshotId}`);
+			const entry = owned(account, id);
+			const found = kept(entry).find((s) => s.id === snapshotId);
+			if (!found) throw refuse("not_found", 404);
+			return wire({
+				id: found.id,
+				version: found.version,
+				schemaVersion: found.schemaVersion,
+				name: found.name,
+				body: found.body,
+				createdAt: found.createdAt
+			});
+		},
+
+		async deletePermanently(id) {
+			const account = begin(`delete ${id}`);
+			const entry = owned(account, id);
+			if (entry.doc.deletedAt === null) throw refuse("not_deleted", 409);
+			fake.purge(id);
 		},
 
 		async share(id) {

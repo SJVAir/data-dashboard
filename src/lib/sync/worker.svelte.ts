@@ -13,11 +13,19 @@ import type { SyncContext } from "./context";
 import { emptyRecord, readLocal } from "./local";
 import { finishMoves } from "./move";
 import { fetchMissing, pollList } from "./pull";
-import { RemoteRefusal, RemoteUnavailable, type RemoteDocuments } from "./remote";
+import {
+	RemoteRefusal,
+	RemoteUnavailable,
+	type RemoteDocuments,
+	type RemoteSnapshot,
+	type RemoteSnapshotMeta
+} from "./remote";
 import { resolveHold, type RemoteChoice } from "./resolve";
 import { shareDocument, unshareDocument, type ShareResult } from "./share";
 import { SYNC_TAB, type SyncHold } from "./types";
+import { deletePermanently, type DeleteResult } from "./trash";
 import { uploadDocument, type UploadResult } from "./upload";
+import { keepBeforeRestore, serverVersion, serverVersions } from "./versions";
 
 export type DocSyncState = {
 	state: "synced" | "pending" | "held";
@@ -128,6 +136,34 @@ export class SyncWorker {
 
 	fetchMissing(docId: string): Promise<boolean> {
 		return fetchMissing(this.#ctx, docId);
+	}
+
+	/** The server's snapshots of `docId`, newest first; throws as the remote does. */
+	versions(docId: string): Promise<RemoteSnapshotMeta[]> {
+		return serverVersions(this.#ctx, docId);
+	}
+
+	version(docId: string, snapshotId: number): Promise<RemoteSnapshot> {
+		return serverVersion(this.#ctx, docId, snapshotId);
+	}
+
+	/** Keeps the current local version as a server snapshot before a restore replaces it. */
+	async keepBeforeRestore(docId: string): Promise<"kept" | "not-on-server"> {
+		try {
+			return await keepBeforeRestore(this.#ctx, docId);
+		} finally {
+			// A pull or a `gone` hold may have changed the document's standing.
+			this.states = await this.#readStates();
+		}
+	}
+
+	/** Deletes a dashboard in Recently deleted from the account; the caller removes it locally. */
+	async deletePermanently(docId: string): Promise<DeleteResult> {
+		try {
+			return await deletePermanently(this.#ctx, docId);
+		} finally {
+			this.states = await this.#readStates();
+		}
 	}
 
 	/**
@@ -441,6 +477,9 @@ export class SyncWorker {
 			changes: (id, since) => track(() => remote.changes(id, since)),
 			save: (id, input) => track(() => remote.save(id, input)),
 			keepSnapshot: (id, input) => track(() => remote.keepSnapshot(id, input)),
+			listSnapshots: (id) => track(() => remote.listSnapshots(id)),
+			getSnapshot: (id, snapshotId) => track(() => remote.getSnapshot(id, snapshotId)),
+			deletePermanently: (id) => track(() => remote.deletePermanently(id)),
 			share: (id) => track(() => remote.share(id)),
 			unshare: (id) => track(() => remote.unshare(id)),
 			shared: (token) => track(() => remote.shared(token)),

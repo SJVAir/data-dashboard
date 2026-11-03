@@ -175,17 +175,54 @@ const ROUTES: Array<[string, RegExp, Handler]> = [
 				accountId: form.account_id,
 				buildId: form.build_id
 			});
-			const kept = fake.snapshots(id).length;
+			const row = fake.snapshots(id).at(-1)!;
 			return {
 				status: 201,
 				data: {
-					id: kept,
-					version: form.base_version,
-					schema_version: form.schema_version,
-					reason: "conflict",
-					created_at: new Date().toISOString()
+					id: row.id,
+					version: row.version,
+					schema_version: row.schemaVersion,
+					reason: row.reason,
+					created_at: row.createdAt
 				}
 			};
+		}
+	],
+	[
+		"GET",
+		/^([^/]+)\/snapshots\/$/,
+		async (fake, { params: [id] }) =>
+			ok(
+				(await fake.listSnapshots(id)).map((s) => ({
+					id: s.id,
+					version: s.version,
+					schema_version: s.schemaVersion,
+					reason: s.reason,
+					created_at: s.createdAt
+				}))
+			)
+	],
+	[
+		"GET",
+		/^([^/]+)\/snapshots\/(\d+)\/$/,
+		async (fake, { params: [id, n] }) => {
+			const s = await fake.getSnapshot(id, Number(n));
+			return ok({
+				id: s.id,
+				version: s.version,
+				schema_version: s.schemaVersion,
+				name: s.name,
+				body: s.body,
+				created_at: s.createdAt
+			});
+		}
+	],
+	[
+		"DELETE",
+		/^([^/]+)\/$/,
+		async (fake, { params: [id] }) => {
+			await fake.deletePermanently(id);
+			return { status: 204, data: undefined };
 		}
 	],
 	[

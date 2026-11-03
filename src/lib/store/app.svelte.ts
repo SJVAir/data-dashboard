@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
+import { displayNames } from "$lib/documents/names";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import type { SyncContext } from "$lib/sync/context";
@@ -15,7 +16,7 @@ import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { DocumentSession } from "./document-session.svelte";
-import { spaceFor, spaceLock, tidySpaces, unhideSpace } from "./spaces";
+import { markDeleted, spaceFor, spaceLock, tidySpaces, unhideSpace } from "./spaces";
 import { createTabChannel, withLocalEcho, type TabChannel } from "./tab-channel";
 
 /** Preference key: the id of the dashboard opened last in this space. */
@@ -347,6 +348,14 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	await app.holdSpace();
 	// Its person is back: the space is in use again.
 	if (space !== "anonymous") await housekeeping(() => unhideSpace(platform, space));
+	// The page says an account was just deleted in this browser: its space goes now.
+	const deleted = platform.identity.deletedAccount();
+	if (deleted !== null && `account:${deleted}` !== space) {
+		const gone = `account:${deleted}` as const;
+		await housekeeping(async () => {
+			if ((await platform.spaces.list()).includes(gone)) await markDeleted(platform, gone, now);
+		});
+	}
 	// Only an identity known to be this space's may hide other spaces as signed out.
 	const identity = platform.identity.current();
 	const identityKnown = identity.state !== "unknown" && spaceFor(identity) === space;
@@ -375,7 +384,16 @@ export function currentDashboardName(app: AppContext): string | null {
 	if (isStarter) return m.dashboard_starter();
 	// A read-only "invalid" document is the raw stored value, so check the name's type.
 	const own = typeof session.doc.name === "string" ? session.doc.name : null;
-	return own ?? app.index.names.get(session.doc.id) ?? m.dashboard_untitled();
+	if (own !== null) return own;
+	const id = session.doc.id;
+	// The list holds the stored name, which trails a cleared name until the autosave (a restore
+	// of an unnamed version): number this dashboard as unnamed now.
+	const listed = app.index.items.find((d) => d.id === id);
+	if (listed && listed.name !== null) {
+		const items = app.index.items.map((d) => (d.id === id ? { ...d, name: null } : d));
+		return displayNames(items, STARTER_ID).get(id) ?? m.dashboard_untitled();
+	}
+	return app.index.names.get(id) ?? m.dashboard_untitled();
 }
 
 /** The context key, for `mount(App, { context: new Map([[APP_CONTEXT_KEY, app]]) })`. */

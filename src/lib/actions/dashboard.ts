@@ -11,7 +11,7 @@ import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { openRestoreVersion } from "$lib/components/dialogs/RestoreVersionDialog.svelte";
-import { restoreOriginal } from "$lib/safety/restore-version";
+import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
 import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
@@ -216,17 +216,18 @@ export async function restoreDeleted(app: AppContext, id: string): Promise<void>
 	await openDashboard(id);
 }
 
-/** Opens the Restore dialog for the current dashboard's kept original. */
-async function restoreVersion(app: AppContext): Promise<void> {
+/** Opens the Restore dialog for the current dashboard's earlier versions. */
+function restoreVersion(app: AppContext): void {
 	const session = editable(app);
 	if (!session) return;
-	const original = await app.platform.originals.get(app.space, session.doc.id);
-	if (!original) return;
-	openRestoreVersion(original, async () => {
-		const restored = await restoreOriginal(app, session);
-		if (restored) toast(m.restore_version_done());
-		return restored;
-	});
+	openRestoreVersion(
+		() => listEarlierVersions(app, session),
+		async (version) => {
+			const result = await restoreEarlierVersion(app, session, version);
+			if (result === "restored") toast(m.restore_version_done());
+			return result;
+		}
+	);
 }
 
 async function deleteDashboard(app: AppContext, id?: string): Promise<void> {
@@ -253,8 +254,13 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 		const { session, isStarter } = app.current;
 		// A row's dashboard isn't open; its actions check when they run.
 		const locked = id === undefined && (!session || session.readOnly !== false);
-		// Only the open dashboard has a kept original to restore, and only when it can be edited.
-		const restorable = id === undefined && session?.hasOriginal === true && !session.readOnly;
+		// Only the open dashboard has earlier versions to restore (a kept original, or the
+		// account's snapshots once it has been uploaded), and only when it can be edited.
+		const restorable =
+			id === undefined &&
+			session !== null &&
+			!session.readOnly &&
+			(session.hasOriginal || app.sync?.states[session.doc.id]?.onServer === true);
 		return [
 			{
 				id: "add-widget",
@@ -311,7 +317,7 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 							label: m.restore_version_action(),
 							icon: History,
 							group: "manage" as const,
-							run: () => void restoreVersion(app)
+							run: () => restoreVersion(app)
 						}
 					]
 				: []),

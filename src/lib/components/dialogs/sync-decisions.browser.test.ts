@@ -103,7 +103,7 @@ test("a device conflict opens the three choices", async () => {
 	await expect.element(dialog).not.toBeInTheDocument();
 	const server = await fake.get("d1");
 	expect(titles({ ...makeDoc(), body: server.body as Dashboard["body"] })).toEqual(["Mine", null]);
-	expect(fake.snapshots("d1")).toHaveLength(1);
+	expect(fake.snapshots("d1").filter((s) => s.reason === "conflict")).toHaveLength(1);
 });
 
 /** Elements in the open dialog whose right edge is past the dialog's own. */

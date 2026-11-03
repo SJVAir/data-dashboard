@@ -180,6 +180,8 @@ _(sjvair.com)_:
 - `emailVerified` is `false` until the email-only accounts track adds the field.
 - A later shape bumps `v`; the app treats an unknown `v` or an unreadable block as anonymous
   (5b).
+- The block may also carry `deletedAccount` (a string account id), set once by sjvair.com on the
+  first workspace page after an account deletion. The dashboard ignores it when absent.
 - 5a does not read it. The later session-identity endpoint (5b / server track) returns the
   same `user` object.
 
