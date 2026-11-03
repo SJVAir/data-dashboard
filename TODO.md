@@ -104,7 +104,8 @@ layout test), then scripted with Playwright, two separate browser contexts as tw
 signed in as the `WORKSPACE_E2E_*` account, plus a signed-out context for the shared page. All
 passed. Found along the way: two offline layout moves keep only the later device's arrangement
 (as designed; see `DEFERRED.md` → "Merging colliding layout moves more cleverly"), and the
-"Changed on another device" dialog's text and buttons run past its right edge at 1400 px wide.
+"Changed on another device" dialog's text and buttons ran past its right edge at 1400 px wide
+(fixed in #26: the dialog footer wraps, and the conflict and sign-out dialogs are wider).
 Each check, for running again by hand:
 
 **Hand check for spec 2 on the real stack** (needs the stack running on sjvair.com `develop`
