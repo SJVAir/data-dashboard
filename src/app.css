@@ -3,7 +3,17 @@
 @import "shadcn-svelte/tailwind.css";
 @import "@fontsource-variable/inter";
 
-@custom-variant dark (&:is(.dark *));
+/* Dark applies for System dark (unless forced light) and for the forced-dark attribute. */
+@custom-variant dark {
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme="light"]) & {
+			@slot;
+		}
+	}
+	:root[data-theme="dark"] & {
+		@slot;
+	}
+}
 
 @theme {
 	--breakpoint-xs: 25rem;
@@ -62,6 +72,7 @@
 }
 
 :root {
+	color-scheme: light;
 	--background: oklch(0.971 0.007 247.9);
 	--foreground: oklch(0.257 0.061 257.8);
 	--card: oklch(1 0 0);
@@ -118,30 +129,73 @@
 	--swatch-outline-color: var(--foreground);
 }
 
-.dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
+/* The two dark blocks must stay identical (a test checks): System dark unless forced light, and forced dark. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		color-scheme: dark;
+		--background: oklch(0.199 0.036 257.7);
+		--foreground: oklch(0.946 0.015 251.2);
+		--card: oklch(0.252 0.05 259.4);
+		--card-foreground: oklch(0.946 0.015 251.2);
+		--card-border: oklch(0.33 0.05 256.7);
+		--popover: oklch(0.252 0.05 259.4);
+		--popover-foreground: oklch(0.946 0.015 251.2);
+		--primary: oklch(0.743 0.106 244.3);
+		--primary-foreground: oklch(0.199 0.036 257.7);
+		--secondary: oklch(0.293 0.055 259.3);
+		--secondary-foreground: oklch(0.946 0.015 251.2);
+		--muted: oklch(0.293 0.055 259.3);
+		--muted-foreground: oklch(0.756 0.038 252.2);
+		--accent: oklch(0.293 0.055 259.3);
+		--accent-foreground: oklch(0.946 0.015 251.2);
+		--link: oklch(0.791 0.101 239.5);
+		--highlight-subtle: oklch(0.335 0.062 236.1);
+		--highlight-foreground: oklch(0.93 0.039 225.3);
+		--destructive: oklch(0.709 0.17 26.5);
+		--border: oklch(0.33 0.05 256.7);
+		--input: oklch(0.33 0.05 256.7);
+		--ring-edge: var(--background);
+		--overlay: oklch(0 0 0 / 40%);
+		--shadow-card: 0 1px 2px #0006;
+		--chart-1: oklch(0.781 0.111 261.1);
+		--chart-2: oklch(0.791 0.101 239.5);
+		--chart-3: oklch(0.785 0.133 181.9);
+		--chart-4: oklch(0.869 0.02 252.9);
+		--chart-5: oklch(0.785 0.104 274.7);
+	}
+}
+
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--background: oklch(0.199 0.036 257.7);
+	--foreground: oklch(0.946 0.015 251.2);
+	--card: oklch(0.252 0.05 259.4);
+	--card-foreground: oklch(0.946 0.015 251.2);
+	--card-border: oklch(0.33 0.05 256.7);
+	--popover: oklch(0.252 0.05 259.4);
+	--popover-foreground: oklch(0.946 0.015 251.2);
+	--primary: oklch(0.743 0.106 244.3);
+	--primary-foreground: oklch(0.199 0.036 257.7);
+	--secondary: oklch(0.293 0.055 259.3);
+	--secondary-foreground: oklch(0.946 0.015 251.2);
+	--muted: oklch(0.293 0.055 259.3);
+	--muted-foreground: oklch(0.756 0.038 252.2);
+	--accent: oklch(0.293 0.055 259.3);
+	--accent-foreground: oklch(0.946 0.015 251.2);
+	--link: oklch(0.791 0.101 239.5);
+	--highlight-subtle: oklch(0.335 0.062 236.1);
+	--highlight-foreground: oklch(0.93 0.039 225.3);
+	--destructive: oklch(0.709 0.17 26.5);
+	--border: oklch(0.33 0.05 256.7);
+	--input: oklch(0.33 0.05 256.7);
+	--ring-edge: var(--background);
+	--overlay: oklch(0 0 0 / 40%);
+	--shadow-card: 0 1px 2px #0006;
+	--chart-1: oklch(0.781 0.111 261.1);
+	--chart-2: oklch(0.791 0.101 239.5);
+	--chart-3: oklch(0.785 0.133 181.9);
+	--chart-4: oklch(0.869 0.02 252.9);
+	--chart-5: oklch(0.785 0.104 274.7);
 }
 
 @media (prefers-reduced-motion: reduce) {

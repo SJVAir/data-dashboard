@@ -12,7 +12,7 @@ const SELECTORS: Record<TokenBlock, RegExp> = {
 /** Reads the `--name: value` declarations of one token block from the text of `app.css`. */
 export function readTokens(css: string, block: TokenBlock): Record<string, string> {
 	const start = SELECTORS[block].exec(css);
-	if (!start) return {};
+	if (!start) throw new Error(`Token block "${block}" not found in app.css`);
 	const open = start.index + start[0].length;
 	const end = css.indexOf("}", open);
 	const body = css.slice(open, end === -1 ? undefined : end).replace(/\/\*[\s\S]*?\*\//g, "");
