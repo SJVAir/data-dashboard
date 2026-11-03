@@ -62,7 +62,7 @@ Tokens stay `oklch(L C H)` (the manifest plugin parses `--primary` and `--backgr
 | `--ring` (focus, sky)         | `--highlight`                           | `--highlight`                          |
 | `--ring-edge` (new)           | `--primary`                             | `--background`                         |
 | `--destructive`               | `#b42318` → `oklch(0.5 0.182 29.5)`     | `#f97066` → `oklch(0.709 0.17 26.5)`   |
-| `--chart-1…5`                 | navy `#1c4482`, link `#1f6fae`, teal `#0f766e`, slate `#475569`, pink `#be185d` | `#8fb8ff`, `#7cc4f5`, `#2dd4bf`, `#cbd5e1`, `#f472b6` |
+| `--chart-1…5`                 | navy `#1c4482`, link `#1f6fae`, teal `#0f766e`, slate `#475569`, indigo `#4338ca` | `#8fb8ff`, `#7cc4f5`, `#2dd4bf`, `#cbd5e1`, `#a5b4fc` |
 | `--shadow-card` (new)         | `0 1px 2px #1c448212, 0 4px 14px #1c448214` | `0 1px 2px #0006`                  |
 | `--overlay` (new; dialog backdrop) | `oklch(0.257 0.061 257.8 / 10%)`   | `oklch(0 0 0 / 40%)`                   |
 | `--radius` (cards)            | `0.75rem` (12px)                        |                                        |

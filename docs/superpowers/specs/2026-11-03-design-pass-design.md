@@ -187,7 +187,7 @@ tokens (`--chart-1` … `--chart-5`, replacing today's grays), in both modes:
 
 - **Never a level-color hue** (EPA's, or heat's yellows to reds). Smoke density's levels are
   grays, so slate must stay clearly bluer than them. The direction (my call): navy, link blue,
-  teal, slate, and a magenta-pink. The builder settles exact values, checking them against the
+  teal, slate, and indigo (changed from a magenta-pink on 2026-11-03: its hue sat in the red family, next to fire's crimson `#DC143C` and EPA red). The builder settles exact values, checking them against the
   scale colors in step 3's metadata once it's on `develop`.
 - **At least 3:1 against the card background** in each mode (WCAG 1.4.11; lines are graphics
   people need to read).
