@@ -8,7 +8,8 @@ account's trash: "Delete now" really deletes on the server, and a restore on any
 dashboard back. A deleted account leaves nothing behind in the browser where it was deleted.
 
 **Architecture:** Builds on sync spec 2 (`src/lib/sync/`, `ARCHITECTURE.md` → "How the dashboard
-syncs") and on spec 3, which lands first and extends the same server layer. Each new server call
+syncs") and on spec 3 (live share links, on `main` since PR #26), which extended the same
+server layer. Each new server call
 goes through `RemoteDocuments` (SDK implementation, fake, shared contract, E2E mock). The new
 sync-side logic lives in two small lazy modules, `versions.ts` (list, fetch, and keep snapshots)
 and `trash.ts` (permanent delete). They run under the existing per-document lock, and the
@@ -32,24 +33,28 @@ Recently deleted, and "account gone". (The bad-build block list was built in spe
 
 ## Shared with spec 3
 
-Spec 3 (live share links, `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`) is built
-first. **This plan assumes spec 3's additions are already there.** Rebase onto spec 3 before
-starting. Spec 4 adds, all in **Task 1**:
+Spec 3 (live share links) is on `main` (PR #26, merged 2026-11-03), and this plan was checked
+against its code on 2026-11-03. Spec 4 adds to what spec 3 left, all in **Task 1**:
 
 - `src/lib/sync/remote.ts`: types `SnapshotReason`, `RemoteSnapshotMeta`, `RemoteSnapshot`;
   `RemoteDocuments` gains `listSnapshots`, `getSnapshot`, `deletePermanently`.
 - `remote-sdk.ts` (the three SDK calls), `remote-fake.ts` (snapshot ids and dates, the server's
   daily-snapshot rule, 30-day snapshot expiry, permanent delete with `not_deleted`),
-  `remote-contract.ts` (a "recovery" group), `remote-stack.test.ts` (runs the new cases).
-- `e2e/documents-server.ts`: three rows in spec 3's route table, for `GET <id>/snapshots/`,
+  `remote-contract.ts` (a "recovery" group; `runRemoteContract` already takes a signed-out
+  caller, `makeSignedOut`, and has a "fake only" group after `if (!options.fakeOnly) return;`),
+  `remote-stack.test.ts` (runs the new cases with no change to its setup).
+- `worker.svelte.ts`: the `track`-wrapped remote the worker builds lists every
+  `RemoteDocuments` method by name; add the three new ones there.
+- `e2e/documents-server.ts`: three rows in the `ROUTES` table, for `GET <id>/snapshots/`,
   `GET <id>/snapshots/<n>/`, and `DELETE <id>/`.
 - Any `SyncRecord` literal spec 4 writes sets spec 3's `shareToken` field (or uses
-  `emptyRecord`).
+  `emptyRecord`). Every server call in the new modules goes through `remoteCall(call,
+  operation)` (upload.ts), which since spec 3 takes the operation name its error reports use.
 
 ## Global Constraints
 
-- **Branch:** `sync-recovery`, from `main` once spec 3 is merged, or stacked on spec 3's branch
-  while its PR is open. PR into `main`. Never merge, release, or publish without the user's
+- **Branch:** `sync-recovery`, from `main` (fetch first and check `main` matches
+  `origin/main`). PR into `main`. Never merge, release, or publish without the user's
   explicit yes, each time.
 - **No AI attribution** anywhere: no `Co-Authored-By` trailers, nothing in PR bodies.
 - Code style: tabs, double quotes, no trailing commas, width 100; Svelte 5 runes only; all UI text
@@ -93,17 +98,21 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
    server's `schema` snapshot can hold the same content. Both are listed, each labelled with its
    source, newest first, with date and time (a day can have a `daily` and a `conflict` snapshot).
 3. **Offline, the dialog still lists the local original** and says the account's versions can't
-   be loaded right now. In an account space the menu item shows for every stored, editable
-   dashboard, since snapshots may exist. In the anonymous space it shows only when there's a kept
-   original, as today.
+   be loaded right now. The menu item shows for a stored, editable dashboard that is on the
+   server (the worker's `states[id].onServer`) or has a kept original; a dashboard that never
+   synced has no server versions, so it shows only with a kept original, as in the anonymous
+   space today.
 4. **"Delete now" in an account space needs the server.** It's destructive and rare, so it isn't
    queued offline: it says it couldn't reach the account and leaves the dashboard in Recently
    deleted. A dashboard never uploaded is removed locally with no request. The button keeps its
-   label, "Delete now"; the account-space confirmation says it is removed from every device.
-5. **A delete the server refuses as `not_deleted`** means the server copy isn't in the trash.
-   Either it was restored on another device, or this device's delete hasn't uploaded yet. The
-   client pulls first: if the dashboard is no longer deleted, it stops and says it was restored
-   elsewhere; otherwise it uploads the pending delete and tries `DELETE` once more.
+   label, "Delete now"; the account-space confirmation says it is removed from every device. A
+   shared dashboard's link already stops opening while it's in Recently deleted (spec 3);
+   "Delete now" ends it for good.
+5. **"Delete now" uploads first, like spec 3's Share** (`shareDocument`): it uploads anything
+   pending (so this device's delete reaches the server, merging with whatever another device
+   did), then reads the dashboard again. If it's no longer deleted, another device restored it,
+   and it stops and says so. If it's held, it stops (not saved). Otherwise it sends `DELETE`. A
+   `not_deleted` answer then means a restore landed in between, and it says restored elsewhere.
 6. **Account gone, in the browser where it was deleted:** sjvair.com's delete view leaves the old
    account id in the new signed-out session, and the workspace page passes it once as
    `deletedAccount` in the `sjvair-identity` block. The dashboard marks that space hidden with a
@@ -127,7 +136,8 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
    original and says the account is unreachable"`, `"a failed keep restores nothing"`).
 3. **"Delete now" on a dashboard that another device restored a moment ago.** Expected: nothing is
    deleted anywhere; the dashboard comes back to the list with a message. Pinned in Task 4 (`"a
-   dashboard restored elsewhere is not deleted"`).
+   dashboard restored elsewhere is not deleted"`, and `"a restore between the upload and the
+   delete is not deleted"` for the `not_deleted` race).
 4. **"Delete now" on a dashboard whose delete was made offline and never uploaded.** Expected: the
    delete uploads first, then the server purges it, and other devices drop it quietly on their next
    poll. Pinned in Task 4 (`"an unsynced delete uploads, then purges"`) and Task 6.
@@ -157,7 +167,8 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
 ### Task 1: `RemoteDocuments`: snapshots and permanent delete
 
 **Files:** Modify `src/lib/sync/remote.ts`, `remote-sdk.ts`, `remote-fake.ts`,
-`remote-contract.ts`, `remote-fake.test.ts`, `remote-stack.test.ts`, `e2e/documents-server.ts`.
+`remote-contract.ts`, `remote-fake.test.ts`, `worker.svelte.ts` (the `track`-wrapped remote),
+`e2e/documents-server.ts`. `remote-stack.test.ts` needs no change (it runs the contract as is).
 
 **Interfaces:**
 - Produces (`remote.ts`):
@@ -189,11 +200,13 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
   `listSnapshots` and `getSnapshot` leave out snapshots older than 30 days (by `now()`).
   `deletePermanently`: `owned()` (so `gone` / `not_found`), then `not_deleted` (409) when
   `deletedAt` is null, else the same as `purge(id)`. Request labels: `"listSnapshots <id>"`,
-  `"getSnapshot <id> <n>"`, `"delete <id>"`. Update the header comment (the fake now models daily
-  snapshots and their expiry, but still not the snapshot storage cap).
+  `"getSnapshot <id> <n>"`, `"delete <id>"` (add them to the `requests` doc comment). Update the
+  header comment, which today reads "Not modelled: daily snapshots and the snapshot storage cap."
+  (now only the cap).
 
 - [ ] **Step 1: Write the failing contract cases** in a "recovery" group of
-  `runRemoteContract` (run on the fake and on the stack unless marked):
+  `runRemoteContract`, next to the "sharing" group (run on the fake and on the stack). Cases
+  marked fake-only go in the existing "fake only" group instead:
   - `"the first save of the day keeps the version it replaces"`: create (v1), save (v2) →
     `listSnapshots` has one row, `reason: "daily"`, `version: 1`; `getSnapshot` of it has v1's
     name and body.
@@ -208,12 +221,18 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
     `get` still works.
   - `"delete permanently of someone else's or a missing id is not_found"`.
   - `"getSnapshot of a missing snapshot is not_found"`.
+  - `"snapshots and delete need sign-in"`: through `signedOut`, `listSnapshots`, `getSnapshot`,
+    and `deletePermanently` are each refused `unauthorized` (401).
+  - `"delete permanently ends a shared dashboard's link"`: share, trash, `deletePermanently` →
+    `signedOut.shared(token)` is `not_found`, and so is `credit(id)`.
   - Existing fake tests that compare `fake.snapshots(id)` rows with `toEqual` move to
     `toMatchObject`, and any that counted snapshots filter by `reason: "conflict"` (saves now
     also take daily ones).
 - [ ] **Step 2:** `npx vitest run --project unit src/lib/sync/remote-fake.test.ts` → FAIL.
-- [ ] **Step 3: Implement** in `remote.ts`, `remote-sdk.ts`, `remote-fake.ts`. In
-  `e2e/documents-server.ts`, add rows to spec 3's route table:
+- [ ] **Step 3: Implement** in `remote.ts`, `remote-sdk.ts`, `remote-fake.ts`, and add
+  `listSnapshots`, `getSnapshot`, `deletePermanently` to the worker's `track`-wrapped remote. In
+  `e2e/documents-server.ts`, add rows to `ROUTES` (before the `GET`/`PUT ^([^/]+)\/$` rows, with
+  the other `<id>/…` paths):
   `GET <id>/snapshots/` → `{ data: [{ id, version, schema_version, reason, created_at }] }`;
   `GET <id>/snapshots/<n>/` → `{ data: { id, version, schema_version, name, body, created_at } }`;
   `DELETE <id>/` → `204` (no body). The POST `snapshots/` row answers the fake's new row (real
@@ -251,6 +270,8 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
   Each throws `RemoteUnavailable` / `RemoteRefusal` as the remote does. `keepBeforeRestore`
   sends `baseVersion: record.serverVersion`, the local `name`, `body`, `schemaVersion`, the
   context's `accountId` and `buildId`. A `gone` refusal sets the `gone` hold, as an upload does.
+  Server calls go through `remoteCall` with the operation `"sync-versions"` (list and fetch) or
+  `"sync-keep"` (the keep).
 
 - [ ] **Step 1: Write the failing tests** (`versions.test.ts`, memory platform + fake remote, via
   `setupSync`):
@@ -313,7 +334,7 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
   list when set, `restore_version_none` when the list is empty, and the result's message in the
   existing `role="alert"` paragraph. It closes only on `"restored"` (toast `restore_version_done`).
 - Menu (`dashboardActions`): `restorable` = the open dashboard is stored and editable, and either
-  `app.sync` is set or `session.hasOriginal`.
+  `session.hasOriginal` or `app.sync?.states[id]?.onServer` (call 3).
 - Messages (exact keys; wording is revisited in the design pass): replace `restore_version_item`
   with `restore_version_local` "{date}: before an app update (kept on this device)",
   `restore_version_schema` "{date}: before an app update", `restore_version_daily` "{date}: before
@@ -338,8 +359,9 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
   - Browser test: `"the versions are radios with dates in Pacific time"`; `"Restore applies the
     chosen version and closes"`; `"an empty list says none yet"`; `"a failed restore keeps the
     dialog open with the reason"`; axe on the open dialog.
-  - `dashboard.ts` (existing actions test): `"Restore an earlier version shows in an account space
-    without a kept original"`.
+  - `dashboard.ts` (existing actions test): `"Restore an earlier version shows for a synced
+    dashboard without a kept original"`; `"it doesn't show for a dashboard that never synced and
+    has no kept original"`.
 - [ ] **Step 2:** `npx vitest run src/lib/safety/restore-version
   src/lib/components/dialogs/restore-version` → FAIL.
 - [ ] **Step 3:** Implement; remove `restoreOriginal` and its callers.
@@ -352,8 +374,9 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
 `src/lib/components/dashboard/RecentlyDeleted.svelte` (+ browser test), `messages/en.json`.
 
 **Interfaces:**
-- Consumes: `docLock`, `readLocal`, `uploadDocument`, `pullIntoLocked`, `postSync`,
-  `remote.deletePermanently`, `app.index.remove` (local removal stays there).
+- Consumes: `docLock`, `readLocal`, `uploadDocument`, `remoteCall`, `postSync`,
+  `remote.deletePermanently`, `app.index.remove` (local removal stays there). Modelled on
+  `shareDocument` (`src/lib/sync/share.ts`).
 - Produces:
   ```ts
   // trash.ts
@@ -366,14 +389,14 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
   // SyncWorker gains:
   deletePermanently(docId: string): Promise<DeleteResult>;
   ```
-  Steps: no record or `serverVersion: null` → `"deleted"`. Otherwise `remote.deletePermanently`:
-  success, `gone`, or `not_found` → `"deleted"`. `not_deleted` (call 5) → `changes(id,
-  serverVersion)` and `pullIntoLocked`; the local document no longer deleted →
-  `"restored-elsewhere"`; still deleted → `uploadDocument`, and on `"saved"` one more
-  `deletePermanently` (its own `not_deleted` → `"restored-elsewhere"`), otherwise `"not-saved"`.
+  Steps (call 5): no record or `serverVersion: null` → `"deleted"`, no request. Otherwise
+  `await uploadDocument(ctx, docId)` (any result; it takes the doc lock itself), then, under the
+  doc lock, `readLocal`: the document no longer deleted → `"restored-elsewhere"`; a hold, or
+  unsynced entries left (the upload didn't get through) → `"unreachable"` when the upload
+  answered `"retry"` or `"signed-out"`, else `"not-saved"` (`"held"`, `"blocked"`). Otherwise `remoteCall(() =>
+  ctx.remote.deletePermanently(docId), "sync-delete")`: success, `gone`, or `not_found` →
+  `"deleted"`; `not_deleted` → `"restored-elsewhere"` (the next poll brings it back);
   `RemoteUnavailable`, `rate_limited`, `unknown`, or `unauthorized` → `"unreachable"`.
-  `deletePermanently` takes the doc lock around each server call and local read, not around
-  `uploadDocument` (which takes it itself).
 - `RecentlyDeleted.svelte`: in an account space (`app.sync`), the confirm body is
   `deleted_confirm_body_account`, and after confirming it calls `app.sync.deletePermanently(id)`.
   On `"deleted"` it calls `app.index.remove(id)` as today. Otherwise it shows a toast
@@ -395,6 +418,10 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
   - `"a dashboard restored elsewhere is not deleted"` (Review Focus 3): `otherDevice` clears
     `deletedAt` → `"restored-elsewhere"`; the server copy is live; the local copy is no longer in
     Recently deleted.
+  - `"a restore between the upload and the delete is not deleted"`: `fake.refuseNext` gives
+    the `DELETE` `not_deleted` (409) → `"restored-elsewhere"`, nothing removed locally.
+  - `"a held dashboard is not saved and not deleted"` (a `conflict` hold) → `"not-saved"`, no
+    `"delete <id>"` request.
   - `"already purged counts as deleted"` (`fake.purge` first).
   - `"offline is unreachable and changes nothing"`.
   - `"another device drops a purged dashboard quietly"`: a second memory platform on the same fake
@@ -480,7 +507,9 @@ Item 6 was decided with the user on 2026-11-02. The rest are my calls; check the
 **Files:** Modify `ARCHITECTURE.md`, `DEFERRED.md`, `TODO.md`,
 `docs/superpowers/specs/2026-10-26-foundations-5a-shipping-design.md` ("Hosting contract").
 
-- [ ] **Step 1: `ARCHITECTURE.md`:** under "How the dashboard syncs", add this plan's calls 1–7.
+- [ ] **Step 1: `ARCHITECTURE.md`:** under "How the dashboard syncs", after spec 3's "Live
+  share links (built in sync spec 3, …)" list, add a "Recovery (built in sync spec 4, <date>)"
+  list in the same form: this plan's calls 1–7 and any made while building.
   Item 9 changes from "'Delete permanently' has its server call in spec 4" to how "Delete now"
   works in an account space. "Recovery from a bad upgrade" item 4 says what the list shows and that
   a restore keeps the replaced version on the server first. "Accounts & anonymous use" → account
