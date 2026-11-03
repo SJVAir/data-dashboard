@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
 import { buildManifest, lightToken, oklchToHex, webManifest } from "./web-manifest.ts";
 
 describe("oklchToHex", () => {
@@ -76,5 +77,44 @@ describe("webManifest plugin", () => {
 		expect(json.name).toBe("SJVAir Dashboard");
 		expect(json.theme_color).toBe("#1c4482");
 		expect(json.background_color).toBe("#f2f6fa");
+	});
+});
+
+describe("webManifest dev middleware", () => {
+	type Handler = (
+		req: { url?: string },
+		res: { setHeader: (k: string, v: string) => void; end: (body: unknown) => void },
+		next: () => void
+	) => void;
+	function drive(url: string) {
+		let handler!: Handler;
+		const plugin = webManifest();
+		(plugin.configureServer as (s: unknown) => void)({
+			middlewares: { use: (h: Handler) => (handler = h) }
+		});
+		const headers: Record<string, string> = {};
+		let body: unknown;
+		const next = vi.fn();
+		handler({ url }, { setHeader: (k, v) => (headers[k] = v), end: (b) => (body = b) }, next);
+		return { headers, body, next };
+	}
+	const names = ["icon-192.png", "icon-512.png", "maskable-192.png", "maskable-512.png"];
+
+	it("serves the manifest with all four icons", () => {
+		const { headers, body, next } = drive("/workspace/manifest.webmanifest?x=1");
+		expect(headers["Content-Type"]).toBe("application/manifest+json");
+		const json = JSON.parse(String(body));
+		expect(json.icons.map((i: { src: string }) => i.src)).toEqual(names.map((n) => `icons/${n}`));
+		expect(next).not.toHaveBeenCalled();
+	});
+	for (const name of names) {
+		it(`serves ${name} as image/png`, () => {
+			const { headers, body } = drive(`/workspace/icons/${name}`);
+			expect(headers["Content-Type"]).toBe("image/png");
+			expect(Buffer.compare(body as Buffer, readFileSync(`static-src/icons/${name}`))).toBe(0);
+		});
+	}
+	it("passes unrelated paths on", () => {
+		expect(drive("/workspace/other").next).toHaveBeenCalledOnce();
 	});
 });
