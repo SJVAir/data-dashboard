@@ -1,5 +1,7 @@
-// Enforces the initial bundle budget (spec 5a, "What gets built" section 6): the gzip size of the
+// Checks the initial bundle budget (spec 5a, "What gets built" section 6): the gzip size of the
 // bootstrap entry, the app chunk it dynamically imports, and everything they statically import.
+// The budget is a soft limit (decided with the user, 2026-11-02): going over prints a warning
+// (and a GitHub Actions annotation in CI) but still exits 0.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -29,6 +31,13 @@ export function initialFiles(manifest, entryKey) {
 	return [...files];
 }
 
+/** The warning lines for a total over budget, or none when it is within budget. */
+export function budgetWarnings(total, actions = false) {
+	if (total <= BUDGET) return [];
+	const message = `Initial bundle is over its budget: ${(total / 1024).toFixed(1)} KB gzip, budget ${BUDGET / 1024} KB. This is a soft limit, so the check still passes.`;
+	return actions ? [`::warning title=Bundle budget::${message}`, message] : [message];
+}
+
 function main() {
 	const manifest = JSON.parse(readFileSync("dist/.vite/manifest.json", "utf8"));
 	const entryKey = ENTRY_KEY;
@@ -40,9 +49,8 @@ function main() {
 		console.log(`${(size / 1024).toFixed(1).padStart(7)} KB  ${file}`);
 	}
 	console.log(`${(total / 1024).toFixed(1).padStart(7)} KB  total (budget ${BUDGET / 1024} KB)`);
-	if (total > BUDGET) {
-		console.error("Initial bundle is over budget.");
-		process.exit(1);
+	for (const line of budgetWarnings(total, process.env.GITHUB_ACTIONS === "true")) {
+		console.warn(line);
 	}
 }
 

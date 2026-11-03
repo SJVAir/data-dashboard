@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTabMessage } from "./tab-channel";
+import { createMemoryTabHub, isTabMessage, withLocalEcho } from "./tab-channel";
 
 describe("isTabMessage", () => {
 	it("accepts committed and cleared messages", () => {
@@ -40,5 +40,38 @@ describe("isTabMessage", () => {
 			false
 		);
 		expect(isTabMessage({ type: "identity", tabId: "t" })).toBe(false);
+	});
+
+	it("accepts sync and moved messages", () => {
+		expect(isTabMessage({ type: "sync", space: "account:u1", docId: "d", tabId: "t" })).toBe(true);
+		expect(isTabMessage({ type: "sync", space: "account:u1", docId: null, tabId: "t" })).toBe(true);
+		expect(
+			isTabMessage({ type: "moved", space: "account:u1", from: "a", to: "b", tabId: "t" })
+		).toBe(true);
+	});
+
+	it("rejects malformed sync and moved messages", () => {
+		expect(isTabMessage({ type: "sync", docId: "d", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "sync", space: "account:u1", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "sync", space: "account:u1", docId: 3, tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "moved", space: "account:u1", from: "a", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "moved", space: "account:u1", to: "b", tabId: "t" })).toBe(false);
+		expect(isTabMessage({ type: "moved", from: "a", to: "b", tabId: "t" })).toBe(false);
+	});
+});
+
+describe("withLocalEcho", () => {
+	it("delivers a tab's own posts to its subscribers as well as other tabs", async () => {
+		const hub = createMemoryTabHub();
+		const mine = withLocalEcho(hub.channel());
+		const other = hub.channel();
+		const heardHere: string[] = [];
+		const heardThere: string[] = [];
+		mine.subscribe((msg) => heardHere.push(msg.tabId));
+		other.subscribe((msg) => heardThere.push(msg.tabId));
+		mine.post({ type: "sync", space: "anonymous", docId: null, tabId: "t1" });
+		await Promise.resolve();
+		expect(heardHere).toEqual(["t1"]);
+		expect(heardThere).toEqual(["t1"]);
 	});
 });

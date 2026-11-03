@@ -17,7 +17,11 @@ const user = (full_name: string): Identity => ({
 async function setup(initial: Identity) {
 	const identity = createMemoryIdentity(initial);
 	const platform = createMemoryPlatform({ identity });
-	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	const app = await initApp(platform, {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1",
+		loadSync: null
+	});
 	await render(TopNav, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	return { identity };
 }

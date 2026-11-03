@@ -38,8 +38,10 @@ npm run test:e2e:podman # All three engines in the official Playwright image (po
 npm run test:dev-stack # Local-only: dev server + sjvair.com podman stack smoke (run `npm run dev` first)
 npm run test:embedding # Local-only embedding suite against the stack (needs WORKSPACE_E2E_IDENTIFIER and
                         # WORKSPACE_E2E_PASSWORD; optional WORKSPACE_E2E_STATIC = the static folder to expect)
+npm run test:sync-stack # Local-only RemoteDocuments contract against the stack (same account env vars;
+                        # optional WORKSPACE_E2E_ORIGIN, default http://localhost:8000)
 npm run check:build  # Check dist/workspace/ against the hosting contract (after a build)
-npm run check:budget # Check the initial bundle budget (after a build)
+npm run check:budget # Check the initial bundle budget (after a build); warns when over, never fails
 npm run lint         # Prettier check + ESLint
 npm run format       # Auto-format with Prettier
 ```
@@ -244,8 +246,8 @@ Decided 2026-09-28.
   drag interaction needs a keyboard alternative; animations respect
   `prefers-reduced-motion`.
 - **Supported browsers:** Chrome/Edge 111+, Safari 16.4+, Firefox 128+ (Tailwind v4). Keep the
-  initial bundle around 200 KB compressed and lazy-load each widget type's code (CI enforces
-  this).
+  initial bundle around 200 KB compressed and lazy-load each widget type's code (CI warns
+  when over; a soft limit, decided 2026-11-02).
 - **Never convey meaning by color alone**: always show the level label or tier. Use the
   shared `readableColor` helper for text on level colors, and outline colored swatches.
 - Animations for transitions are encouraged; responsive layouts are required (phones

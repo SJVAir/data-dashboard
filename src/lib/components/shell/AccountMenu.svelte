@@ -15,14 +15,25 @@
 
 <script lang="ts">
 	import UserRound from "@lucide/svelte/icons/user-round";
+	import { spaceFor } from "$lib/account/identity";
 	import { displayName, greetingName, initials } from "$lib/account/names";
 	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
+	import SignOutDialog from "$lib/components/dialogs/SignOutDialog.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+	import {
+		SIGN_IN_FOCUS,
+		pendingFocusTarget,
+		requestFocus,
+		takeFocus
+	} from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
+	import { beginSignOut, keepFocusOnlyIfSignedOut } from "$lib/sync/sign-out";
 	import { cn } from "$lib/utils";
-	import { untrack } from "svelte";
+	import { tick, untrack } from "svelte";
+	import { toast } from "svelte-sonner";
 	import { serializeSearch } from "sv-router";
 	import { route } from "../../../router";
 
@@ -60,6 +71,41 @@
 		focusSignIn = false;
 		signInLink.focus();
 	});
+	// Signing out here remounts the app in the anonymous space, so this tab's sign-out leaves a
+	// request the new app's Sign in link takes as it renders. The app being left shows Sign in
+	// for a moment too; it isn't in the identity's space, so it leaves the request alone.
+	$effect(() => {
+		if (!signInLink || pendingFocusTarget()?.kind !== SIGN_IN_FOCUS.kind) return;
+		if (spaceFor(identity) !== app.space) return;
+		if (takeFocus(SIGN_IN_FOCUS)) signInLink.focus();
+	});
+
+	/** Changes not yet in the account: the dialog asks what to do (`unsynced` is its count). */
+	let asking = $state(false);
+	let unsynced = $state(0);
+
+	async function signOut() {
+		requestFocus(SIGN_IN_FOCUS);
+		try {
+			const result = await beginSignOut(app);
+			if ("unsynced" in result) {
+				unsynced = result.unsynced;
+				asking = true;
+			}
+		} catch (error) {
+			report(error, { operation: "sign-out" });
+			toast.error(m.sign_out_failed());
+		} finally {
+			keepFocusOnlyIfSignedOut(app);
+		}
+	}
+
+	// The dialog closed: back to the account menu, or to Sign in once signed out (WCAG 2.4.3).
+	async function afterDialog() {
+		await tick();
+		if (identity.state === "signed-in") trigger?.focus();
+		else if (identity.state === "signed-out") signInLink?.focus();
+	}
 </script>
 
 {#if identity.state === "signed-out"}
@@ -104,9 +150,11 @@
 				{/snippet}
 			</DropdownMenu.Item>
 			<DropdownMenu.Item onSelect={openPrivacy}>{m.privacy_open()}</DropdownMenu.Item>
-			<DropdownMenu.Item onSelect={() => void app.account.signOut()}>
+			<DropdownMenu.Item onSelect={() => void signOut()}>
 				{m.account_sign_out()}
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 {/if}
+
+<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />

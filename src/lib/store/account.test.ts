@@ -48,7 +48,8 @@ async function openTab(
 		info: (message: string) => toasts.info.push(message),
 		error: (message: string) => toasts.error.push(message)
 	};
-	const app = await initApp(platform, { channel, tabId, notify });
+	// No sync worker: these follow the account, not its dashboards.
+	const app = await initApp(platform, { channel, tabId, notify, loadSync: null });
 	return { app, identity, channel, toasts };
 }
 

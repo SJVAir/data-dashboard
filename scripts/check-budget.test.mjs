@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { initialFiles } from "./check-budget.mjs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { budgetWarnings, initialFiles } from "./check-budget.mjs";
 
 const manifest = {
 	"index.html": {
@@ -52,5 +56,42 @@ describe("initialFiles", () => {
 
 	it("counts no file twice", () => {
 		expect(new Set(files).size).toBe(files.length);
+	});
+});
+
+describe("budgetWarnings", () => {
+	it("is quiet within budget", () => {
+		expect(budgetWarnings(200 * 1024)).toEqual([]);
+	});
+
+	it("warns over budget, with an Actions annotation in CI", () => {
+		expect(budgetWarnings(201 * 1024)).toHaveLength(1);
+		const lines = budgetWarnings(201 * 1024, true);
+		expect(lines[0]).toMatch(/^::warning /);
+		expect(lines).toHaveLength(2);
+	});
+});
+
+describe("check-budget script", () => {
+	it("warns and exits 0 when the bundle is over budget", () => {
+		const dir = mkdtempSync(join(tmpdir(), "budget-"));
+		mkdirSync(join(dir, "dist/.vite"), { recursive: true });
+		const m = {
+			"index.html": { file: "app.js", isEntry: true, dynamicImports: ["src/main.ts"] },
+			"src/main.ts": { file: "main.js" }
+		};
+		writeFileSync(join(dir, "dist/.vite/manifest.json"), JSON.stringify(m));
+		writeFileSync(join(dir, "dist/app.js"), "x");
+		// Random bytes do not compress, so this passes the 200 KB budget.
+		const big = Buffer.from(
+			Array.from({ length: 300 * 1024 }, () => Math.floor(Math.random() * 256))
+		);
+		writeFileSync(join(dir, "dist/main.js"), big);
+		const result = spawnSync("node", [resolve("scripts/check-budget.mjs")], {
+			cwd: dir,
+			encoding: "utf8"
+		});
+		expect(result.status).toBe(0);
+		expect(result.stderr).toMatch(/over its budget/);
 	});
 });

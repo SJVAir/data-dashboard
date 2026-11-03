@@ -1,6 +1,25 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page } from "@playwright/test";
 import LZString from "lz-string";
+import type { AccountUser } from "../src/lib/account/identity";
+
+/** The signed-in person in account specs (`test.use({ account: maria })`). */
+export const maria: AccountUser = {
+	id: "6NKDOOsxRyOUFE4rXMr1nQ",
+	full_name: "Maria Lopez",
+	email: "maria@example.com",
+	phone: null,
+	phone_verified: false,
+	language: "en"
+};
+
+/** Sets `document.visibilityState` and fires `visibilitychange`, as switching tabs would. */
+export async function setVisibility(page: Page, state: "hidden" | "visible"): Promise<void> {
+	await page.evaluate((value) => {
+		Object.defineProperty(document, "visibilityState", { configurable: true, get: () => value });
+		document.dispatchEvent(new Event("visibilitychange"));
+	}, state);
+}
 
 export const PLACEHOLDER = "Placeholder widget";
 export const DASHBOARD_URL = /\/workspace\/dashboards\/[0-9a-f-]{36}$/;

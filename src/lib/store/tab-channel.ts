@@ -13,7 +13,11 @@ export type TabMessage =
 	/** Sent after a tab clears all of this browser's data; every other tab starts over. */
 	| { type: "cleared"; generation: string; tabId: string }
 	/** Sent when a tab learns of a new identity (never "unknown"); other tabs apply it at once. */
-	| { type: "identity"; identity: Identity; tabId: string };
+	| { type: "identity"; identity: Identity; tabId: string }
+	/** Sent after sync records change (`docId: null`: several documents' records). */
+	| { type: "sync"; space: SpaceId; docId: string | null; tabId: string }
+	/** Sent when a document refused as "id taken" was copied to a new id. */
+	| { type: "moved"; space: SpaceId; from: string; to: string; tabId: string };
 
 export interface TabChannel {
 	post(msg: TabMessage): void;
@@ -33,6 +37,14 @@ export function isTabMessage(value: unknown): value is TabMessage {
 	if (typeof msg.tabId !== "string") return false;
 	if (msg.type === "cleared") return typeof msg.generation === "string";
 	if (msg.type === "identity") return isSentIdentity(msg.identity);
+	if (msg.type === "sync") {
+		return typeof msg.space === "string" && (msg.docId === null || typeof msg.docId === "string");
+	}
+	if (msg.type === "moved") {
+		return (
+			typeof msg.space === "string" && typeof msg.from === "string" && typeof msg.to === "string"
+		);
+	}
 	return (
 		msg.type === "committed" &&
 		typeof msg.space === "string" &&
@@ -60,6 +72,29 @@ export function createTabChannel(): TabChannel {
 			};
 			channel.addEventListener("message", listener);
 			return () => channel.removeEventListener("message", listener);
+		}
+	};
+}
+
+/**
+ * Also delivers this tab's own posts to this tab's subscribers (a `BroadcastChannel` never
+ * does), so the index and the sync worker see this tab's saves. Sessions ignore their own tab's
+ * messages.
+ */
+export function withLocalEcho(channel: TabChannel): TabChannel {
+	const local = new Set<(msg: TabMessage) => void>();
+	return {
+		post(msg) {
+			channel.post(msg);
+			for (const fn of local) queueMicrotask(() => fn(structuredClone(msg)));
+		},
+		subscribe(fn) {
+			local.add(fn);
+			const unsubscribe = channel.subscribe(fn);
+			return () => {
+				local.delete(fn);
+				unsubscribe();
+			};
 		}
 	};
 }

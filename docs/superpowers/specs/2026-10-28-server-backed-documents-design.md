@@ -306,6 +306,12 @@ Spaces are already in the storage layer (`currentSpace()` returns `"anonymous"` 
 - **Server snapshots:** the version before each `schemaVersion` change, the version as it stood
   before the first save of each day it changed **(my call for "one per day")**, and the forced
   ones from conflict choices. Kept 30 days.
+  - _Added 2026-11-02 (sjvair.com #298):_ a conflict snapshot can hold a device's content (from
+    "Use the other version") rather than a stored version; its version is the server version it
+    was set aside against. Conflict snapshots don't count as the day's snapshot, so a save after
+    a conflict choice still takes its daily one, and after "Keep mine" a day can have both
+    (decided with the user, 2026-11-02: no schema change). Server design:
+    `sjvair.com/docs/superpowers/specs/2026-11-02-document-snapshot-post-design.md`.
 - **"Restore an earlier version"** lists local kept originals and server snapshots by date.
   Restoring applies a `replaceDocument` change, so it is undoable and syncs like any edit.
 - **Bad builds:** saves carry `buildId`; a build on the server's block list (admin-managed) gets
@@ -355,6 +361,7 @@ auth works too but isn't used in Release 1.
 | `DELETE documents/<id>/` | owner | permanent delete (from Recently deleted) |
 | `POST` / `DELETE documents/<id>/share/` | owner | create or revoke the link |
 | `GET documents/<id>/snapshots/` and `…/snapshots/<n>/` | owner | list; one snapshot's body |
+| `POST documents/<id>/snapshots/` (added 2026-11-02, #298) | owner | keep given content as a `conflict` snapshot; the document is untouched. Body `{ base_version, schema_version, name, body, account_id, build_id }`, all required; 201 answers a list row (`version` = `base_version`). Refuses with the save's codes in the save's order (invalid, too_large, build_blocked, account_mismatch, rate_limited sharing the save counter, gone / not_found, stale_base); never refused for another `schema_version`, a trashed document, or a full snapshot store (oldest trimmed) |
 | `GET documents/<id>/credit/` | owner or link-visible | name and display name for "Based on …" |
 | `GET documents/shared/<token>/` | anyone | the shared document (name, `schemaVersion`, body, version, `updatedAt`, display name), or not found |
 | `GET documents/shared/<token>/changes/?since=N` | anyone | `{ version }` or the new document |

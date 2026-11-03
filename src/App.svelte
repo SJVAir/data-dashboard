@@ -5,7 +5,9 @@
 	import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 	import ExistingCopyDialog from "$lib/components/dialogs/ExistingCopyDialog.svelte";
+	import MoveToAccountDialog from "$lib/components/dialogs/MoveToAccountDialog.svelte";
 	import PrivacyDialog from "$lib/components/dialogs/PrivacyDialog.svelte";
+	import RemoteDecisionDialog from "$lib/components/dialogs/RemoteDecisionDialog.svelte";
 	import ShareDialog from "$lib/components/dialogs/ShareDialog.svelte";
 	import RestoreVersionDialog from "$lib/components/dialogs/RestoreVersionDialog.svelte";
 	import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
@@ -38,6 +40,8 @@
 <ConfirmDialog />
 <ClearDataDialog />
 <ConflictDialog />
+<RemoteDecisionDialog />
+<MoveToAccountDialog />
 <ExistingCopyDialog />
 <ShareDialog />
 <PrivacyDialog />

@@ -357,8 +357,9 @@ bar (spec 3). _My call; no contract change._
 ### 6. Bundle budget and browser floor
 
 - **CI bundle budget:** the initial load (the bootstrap entry, plus the app chunk it imports
-  and everything that chunk imports statically, JS and CSS) must be at most **200 KB compressed** (gzip, measured in CI; brotli would be
-  smaller). The check fails the build over budget and prints the current size. Sentry and other
+  and everything that chunk imports statically, JS and CSS) should be at most **200 KB compressed** (gzip, measured in CI; brotli would be
+  smaller). The check prints the current size and, over budget, warns (it was a failing check until the
+  user made it a soft limit on 2026-11-02). Sentry and other
   lazy chunks are excluded by construction. Measured compressed even though uploads are
   uncompressed for now (the budget tracks the code, and compression is deferred, not dropped).
 - **Build target:** the supported floor (Chrome/Edge 111, Safari 16.4, Firefox 128).

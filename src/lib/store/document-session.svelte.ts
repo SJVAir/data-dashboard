@@ -1,6 +1,5 @@
 import { applyChange, appliedChange } from "$lib/changes/apply";
-import { changesOverlap } from "$lib/changes/overlap";
-import { applyForced, rebase } from "$lib/changes/rebase";
+import { applyForced, keepMineRestores, rebase } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
 import { UndoStack } from "$lib/changes/undo";
 import { loadDashboard, migrations, type Migration } from "$lib/documents/load";
@@ -259,6 +258,11 @@ export class DocumentSession {
 		return this.#pending.length > 0;
 	}
 
+	/** A starter that was edited: its first edit started (or finished) the hand-off to a copy. */
+	get edited(): boolean {
+		return this.#queued.length > 0 || this.#handoff !== null || this.#successor !== null;
+	}
+
 	/** The session this one's edits land in: itself, or the copy a starter handed off to. */
 	get editTarget(): DocumentSession {
 		return this.#successor?.editTarget ?? this;
@@ -291,6 +295,12 @@ export class DocumentSession {
 		if (this.readOnly) return;
 		const result = this.#undoStack.takeRedo(this.doc);
 		if (result) this.#record(result.doc, result.change);
+		this.#syncUndoState();
+	}
+
+	/** Empties the undo and redo stacks (after the document was replaced under them). */
+	clearHistory(): void {
+		this.#undoStack.clear();
 		this.#syncUndoState();
 	}
 
@@ -432,11 +442,7 @@ export class DocumentSession {
 		if (choice === "keep-mine") {
 			// Their deletes of widgets I changed are undone, so my changes to them stand.
 			const theirs = this.#theirChanges(state.entries ?? [], base.ownTab);
-			const restores = theirs.flatMap((t): Change[] =>
-				t.op === "removeWidget" && mine.some((m) => changesOverlap(m, t))
-					? [{ op: "addWidget", target: t.target, widget: t.widget, index: t.index }]
-					: []
-			);
+			const restores = keepMineRestores(theirs, mine);
 			const { doc, applied } = applyForced(stored, [...restores, ...mine]);
 			this.#settleConflict();
 			await this.#adopt(doc, applied);

@@ -111,6 +111,31 @@ describe("DashboardIndex", () => {
 		other.dispose();
 	});
 
+	it("refreshes when the sync worker stores or removes a document (sync, moved)", async () => {
+		const platform = createMemoryPlatform();
+		const hub = createMemoryTabHub();
+		const index = new DashboardIndex({ platform, space: SPACE, channel: hub.channel() });
+		await index.refresh();
+		const worker = hub.channel();
+
+		const doc = blankDashboard(new Date("2026-10-20T12:00:00.000Z"));
+		const id = doc.id;
+		await store(platform, doc, id);
+		worker.post({ type: "sync", space: SPACE, docId: id, tabId: "w" });
+		await vi.waitFor(() => expect(index.items.map((d) => d.id)).toEqual([id]));
+
+		await platform.documents.remove(SPACE, id);
+		worker.post({ type: "moved", space: SPACE, from: id, to: "y", tabId: "w" });
+		await vi.waitFor(() => expect(index.items).toEqual([]));
+
+		// Another space's messages leave this index alone.
+		const refresh = vi.spyOn(index, "refresh");
+		worker.post({ type: "sync", space: "account:other", docId: null, tabId: "w" });
+		await new Promise((r) => setTimeout(r, 0));
+		expect(refresh).not.toHaveBeenCalled();
+		index.dispose();
+	});
+
 	it("createFrom stores the given document, lists it, and posts committed", async () => {
 		const platform = createMemoryPlatform();
 		const hub = createMemoryTabHub();

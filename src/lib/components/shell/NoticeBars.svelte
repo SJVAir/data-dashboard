@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { downloadBackupFile } from "$lib/actions/dashboard";
-	import { Button } from "$lib/components/ui/button";
+	import { Button, buttonVariants } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";
 	import {
 		REMINDER_KEY,
@@ -12,7 +12,10 @@
 	import { refreshEntryFiles, reloadPage } from "$lib/safety/reload";
 	import { updateNotice } from "$lib/safety/update-notice.svelte";
 	import { useApp } from "$lib/store/app.svelte";
-	import { isActive } from "../../../router";
+	import { serializeSearch } from "sv-router";
+	import { isActive, p, route } from "../../../router";
+	import { returnPath } from "./AccountMenu.svelte";
+	import { REFUSAL_CODES, heldMessage, type RefusalCode } from "./sync-messages";
 
 	const app = useApp();
 	const protection = app.protection;
@@ -22,6 +25,25 @@
 		online = app.platform.online.online();
 		return app.platform.online.onChange((next) => (online = next));
 	});
+
+	// Dashboards the account refused, by why; the bar stays until none is held this way.
+	const refusals = $derived.by(() => {
+		const counts: Partial<Record<RefusalCode, number>> = {};
+		for (const s of Object.values(app.sync?.states ?? {})) {
+			if (s.hold?.kind === "refused") counts[s.hold.code] = (counts[s.hold.code] ?? 0) + 1;
+		}
+		return REFUSAL_CODES.flatMap((code) => {
+			const count = counts[code];
+			return count ? [heldMessage(code, count)] : [];
+		});
+	});
+
+	// Back to the page the reminder was shown on, after signing in.
+	const signInHref = $derived(
+		app.platform.identity.signInUrl(
+			returnPath({ pathname: p(route.pathname), search: serializeSearch(route.search) ?? "" })
+		)
+	);
 
 	async function reload() {
 		try {
@@ -57,6 +79,7 @@
 				const stored = await prefs();
 				if (
 					shouldShowReminder({
+						space: app.space,
 						protection: protection.state,
 						dashboards: app.index.items,
 						prefs: stored,
@@ -93,7 +116,9 @@
 		<div
 			class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
 		>
-			<span>{m.update_available()}</span>
+			<span>
+				{updateNotice.reason === "build-blocked" ? m.update_build_blocked() : m.update_available()}
+			</span>
 			<Button size="sm" variant="outline" onclick={reload}>{m.update_reload()}</Button>
 		</div>
 	{/if}
@@ -110,12 +135,32 @@
 </div>
 
 <div role="status">
+	{#if refusals.length > 0}
+		<div
+			class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
+		>
+			{#each refusals as sentence (sentence)}
+				<span>{sentence}</span>
+			{/each}
+			<a href={p("/dashboards")} class={buttonVariants({ size: "sm", variant: "outline" })}>
+				{m.sync_held_link()}
+			</a>
+		</div>
+	{/if}
+</div>
+
+<div role="status">
 	{#if reminder && onDashboard && protection.state !== "protected"}
 		<div
 			class="border-border bg-muted text-foreground flex flex-wrap items-center justify-center gap-3 border-b px-4 py-1 text-sm"
 		>
 			<span>{m.reminder_text()}</span>
 			<Button size="sm" onclick={backup}>{m.backup_download()}</Button>
+			{#if app.account.identity.state === "signed-out"}
+				<a href={signInHref} class={buttonVariants({ size: "sm", variant: "outline" })}>
+					{m.reminder_sign_in()}
+				</a>
+			{/if}
 			{#if protection.canOfferInBar}
 				<Button size="sm" variant="outline" onclick={() => protection.requestByClick()}>
 					{m.protect_button()}

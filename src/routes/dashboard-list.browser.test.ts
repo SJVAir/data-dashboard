@@ -4,12 +4,16 @@ import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
+import { m } from "$lib/paraglide/messages.js";
 import { resolveMenu } from "$lib/actions/resolve";
 import { dashboardActions } from "$lib/actions/dashboard";
 import { menuScope } from "$lib/actions/scope";
 import { APP_CONTEXT_KEY, LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { saveFields } from "$lib/sync/merge";
+import { accountApp } from "$lib/sync/test-app";
+import { ACCOUNT, makeDoc } from "$lib/sync/test-support";
 import DashboardList from "./DashboardList.svelte";
 import ListHarness from "./test-harness/ListHarness.svelte";
 
@@ -141,4 +145,65 @@ test("a row scope inside the page scope leaves one set of manage actions", async
 	}
 	for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
 	outer.remove();
+});
+
+test("the list marks dashboards only on this device", async () => {
+	const { app, refuseSaves, worker } = await accountApp(["d1", "d2"]);
+	try {
+		// The first upload in the sweep is refused; the other reaches the account.
+		refuseSaves.push({ code: "limit_documents", status: 403 });
+		await render(DashboardList, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+		worker.start();
+		await expect
+			.poll(() =>
+				Object.values(worker.states)
+					.map((s) => s.state)
+					.sort()
+			)
+			.toEqual(["held", "synced"]);
+		const held = Object.entries(worker.states).find(([, s]) => s.state === "held")![0];
+		const synced = held === "d1" ? "d2" : "d1";
+		const heldRow = page.getByTestId(`dashboard-row-${held}`);
+		await expect.element(heldRow.getByText("Only on this device")).toBeVisible();
+		await expect.element(heldRow.getByText(m.sync_refused_limit_documents())).toBeVisible();
+		expect(
+			page.getByTestId(`dashboard-row-${synced}`).getByText("Only on this device").query()
+		).toBeNull();
+		// The link is named by the dashboard alone; the status describes it.
+		const link = heldRow.getByRole("link").element();
+		expect(link.textContent).not.toContain("Only on this device");
+		const status = document.getElementById(link.getAttribute("aria-describedby") ?? "");
+		expect(status?.textContent).toContain("Only on this device");
+		expect(status?.textContent).toContain(m.sync_refused_limit_documents());
+		await expect.element(heldRow.getByRole("link")).toHaveAccessibleName(/^Untitled dashboard/);
+		await expect
+			.element(heldRow.getByRole("link"))
+			.toHaveAccessibleDescription(`Only on this device ${m.sync_refused_limit_documents()}`);
+		expect(
+			page.getByTestId(`dashboard-row-${synced}`).getByRole("link").element()
+		).not.toHaveAttribute("aria-describedby");
+	} finally {
+		worker.stop();
+	}
+});
+
+test("the list shows a dashboard the sync worker stores from the server", async () => {
+	const { app, fake, worker } = await accountApp(["d1"]);
+	try {
+		await fake.save("d9", {
+			...saveFields({ ...makeDoc("d9"), name: "From the laptop" }),
+			baseVersion: null,
+			changes: [],
+			accountId: ACCOUNT,
+			buildId: "other-build",
+			snapshot: null
+		});
+		await render(DashboardList, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+		await expect.element(page.getByTestId("dashboard-row-d1")).toBeVisible();
+		// The first poll stores it here.
+		worker.start();
+		await expect.element(page.getByText("From the laptop")).toBeVisible();
+	} finally {
+		worker.stop();
+	}
 });

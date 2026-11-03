@@ -14,10 +14,14 @@
 	/** The starter's session while it's shown here. */
 	let starter: DocumentSession | null = null;
 
+	/** Bumped to resolve `/` again (dashboards arrived while an unedited starter shows). */
+	let resolves = $state(0);
+
 	// `/` shows the starter in place, or moves on to the dashboard it resolves to. Runs again
 	// after the data is cleared while `/` is showing.
 	$effect(() => {
 		void app.resetCount;
+		void resolves;
 		return untrack(() => {
 			// Until the target resolves, nothing is current: undo must not reach the last page's dashboard.
 			app.current = { session: null, isStarter: false };
@@ -41,6 +45,17 @@
 			return () => {
 				active = false;
 			};
+		});
+	});
+
+	// The first dashboards arrived (from the server, on a new device) while the starter shows,
+	// unedited: home resolves to them now.
+	const hasDashboards = $derived(app.index.items.length > 0);
+	$effect(() => {
+		if (!hasDashboards) return;
+		untrack(() => {
+			const { session, isStarter } = app.current;
+			if (starter && isStarter && session === starter && !starter.edited) resolves++;
 		});
 	});
 

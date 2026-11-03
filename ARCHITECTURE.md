@@ -551,20 +551,21 @@ you:**
 - **Sign-in is lazy/contextual** — prompted only when needed (e.g. inside the "Create
   alert" flow), never as a gate on first load.
 - **Local storage is split into spaces** (decided 2026-10-13): one anonymous space plus
-  one per account. **Spec 5b (2026-10-27) built none of the account-space behavior below:
-  everyone, signed in or not, keeps working in the anonymous space.** The parts marked
-  _held for sync_ wait for the server-backed documents track, because without server saves
-  each one promises something false or can lose work (`DEFERRED.md` → "Accounts"). Every
+  one per account. Spec 5b (2026-10-27) built none of the account-space behavior below and
+  marked it _held for sync_ (without server saves each part promised something false or could
+  lose work). **Sync spec 2 (2026-11-02) built all of it**: signed-in work lives in
+  `account:<user id>` and syncs, and the app remounts when the space changes. Every
   local document, queued change, and place preference belongs to exactly one space, and the
   app only ever shows the current one. Purely cosmetic device settings (e.g. theme) stay
   with the browser.
-  - **Signing in asks once about anonymous work** (_held for sync_) ("Add the 3 dashboards
+  - **Signing in asks once about anonymous work** ("Add the 3 dashboards
     made on this browser to your account?"). Yes moves them into the account with the same
     IDs and out of the anonymous space; No leaves them for signed-out use.
-  - **Signing out removes that account's local copies** (_held for sync_) from the browser
-    (they are on the server). If changes haven't synced, the app says so and offers to
-    finish first.
-  - **An expired or browser-session-ended sign-in is not a sign-out** (_held for sync_): the
+  - **Signing out removes that account's local copies** from the browser (they are on the
+    server). If changes haven't synced, the app says so and offers to finish first. **"Sign
+    out anyway" hides the space** (kept 30 days) instead of removing it, so nothing is lost,
+    and signing back in as the same person resumes it.
+  - **An expired or browser-session-ended sign-in is not a sign-out**: the
     space is hidden but kept, so unsynced work survives, and signing back in as the same
     person resumes it. A hidden space nobody returns to is removed after 30 days.
   - **ID collisions become copies.** The server accepts a save to an existing ID only
@@ -572,10 +573,10 @@ you:**
     new ID and uploads a copy with `copied_from` set. Nothing is overwritten.
   - **Sign-in and sign-out apply to every open tab at once**, through the cross-tab
     channel (built in 5b: the tab channel carries an identity message).
-  - **Saves are bound to an account** (decided 2026-10-13; _held for sync_, since there are
-    no server saves yet). In Release 1, sign-in and
-    sign-out happen on sjvair.com's pages, so the cookie can change (another person
-    signs in, or a session expires) while a tab still holds one person's queued changes.
+  - **Saves are bound to an account** (decided 2026-10-13; built in sync spec 2). In
+    Release 1, sign-in and sign-out happen on sjvair.com's pages, so the cookie can change
+    (another person signs in, or a session expires) while a tab still holds one person's
+    queued changes.
     - Each account space records its **account id** (the server's stable user id).
     - **Every save names the account it is for, and the server refuses a mismatch**: no
       write happens, and the response says who is signed in. This is the real guard, since
@@ -611,8 +612,9 @@ you:**
   - **Alert rules, the delivery log, the inbox marker, and the public display name** are
     deleted. Staff takedown records are kept but unlinked from the person. Error reports
     hold no names, emails, or account ids, so there is nothing to delete there.
-  - **Local copies** are removed from this browser immediately, and from other devices
-    the next time they contact the server and learn the account is gone.
+  - **Local copies** are removed from this browser immediately. Other devices hide a
+    deleted account's space at once, when they learn the account is gone, and remove it
+    within 30 days. The server keeps no record of deleted accounts.
   - **A backup is offered first.** The confirmation states what will be deleted (counts
     of documents, share links, and rules) and offers "Download my documents" as one file,
     importable later with or without an account.
@@ -978,6 +980,13 @@ The stack is per document and per session (not persisted).
   broadcast and applied in the others. Local saves are versioned too, and genuine
   same-target edits across tabs go through the **same replay-and-prompt logic** as server
   sync. Undo history stays per tab.
+- **Layout moves never prompt** (decided with the user, 2026-10-28; built in sync spec 2,
+  2026-11-02). Two `setLayout` changes never overlap, between devices or between tabs: mine is
+  replayed over theirs (the last save wins) and step 2's engine tidies any overlap.
+  `setLayout` against `removeWidget` doesn't prompt either (the delete wins and the move is
+  dropped). This replaces step 2's rule that two `setLayout`s overlap if they share a widget id
+  with a different `to`. Two deletes also agree: two `setField deletedAt` changes that both set
+  a time don't overlap.
 
 ## Widget data selection (partial datasets)
 
@@ -1669,6 +1678,12 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
   2. **Queued changes record the `schemaVersion` they were written against.** They are
      synced or replayed **before** a document is migrated, and never applied blindly
      across a format change.
+     **Amendment for the server (built in sync spec 2, 2026-11-02):** the local amendment
+     below covers the server too. Pending changes are upgraded with `migrateChange` when the
+     document opens, and the server's changes are upgraded the same way before they are
+     compared with mine (a change that can't be carried over counts as an overlap, so it
+     prompts). An upgraded document is not pushed until its first real edit, so opening a
+     dashboard on a new build doesn't turn other devices on the old build read-only.
      **Local amendment (built in Foundations spec 3, decided 2026-10-25):** locally, pending
      changes (change-log entries and journal records) are upgraded alongside the document
      instead. Each `Migration` has a required `migrateChange(change)` returning the change
@@ -1696,8 +1711,9 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
      without accounts.
   3. **Keep earlier versions on the server.** For each document: the last version before
      each `schemaVersion` change, plus one snapshot per day it changed, for 30 days. The
-     server-documents plan sets a per-user storage limit that includes them, alongside
-     the document-count and save-rate limits.
+     limits are **50 dashboards** and **25 MB** per account, not counting snapshots (they
+     have their own cap of 25 MB, oldest trimmed first, and never cause a save to be
+     refused), alongside a save-rate limit.
   4. **"Restore an earlier version"** in the document menu: a dated list of the local and
      server snapshots. Restoring makes that version current and keeps the replaced one as
      a snapshot, so a restore can be undone.
@@ -1792,6 +1808,63 @@ share_token` (revocable), `copied_from` (source document id, if a copy), `delete
      - **"Clear my data" only clears this browser**, never server copies. Deleting server
        documents is a separate, explicit action (delete a document, or delete the
        account).
+
+**How the dashboard syncs (built in sync spec 2, 2026-11-02).** The design is in
+`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`; these are the calls
+made while building it. Items 2, 5, 8, and 10 were decided with the user on 2026-11-02; the
+rest are the builder's calls, and the user kept them.
+
+1. **Server changes enter local storage as `SYNC_TAB` log entries** (or as one
+   `replaceDocument` when the local log doesn't reach back far enough). **Unsynced** means the
+   local log entries after `syncedThrough` that aren't `SYNC_TAB` entries. Open tabs use their
+   existing catch-up code unchanged.
+2. **One poll per browser lists changes since a cursor** (`listDocuments({ since })`), every 60
+   seconds from a visible tab, then fetches `changes` only for documents that moved. It covers
+   open dashboards and the dashboards list with one small request a minute. Hidden tabs don't
+   poll; a tab that becomes visible or comes back online polls at once.
+3. **The poller is the one visible tab holding a Web Lock**, which it gives up when hidden.
+   Uploads run in any tab under a per-document lock.
+4. **A device conflict is a hold in the sync record**, so it survives reloads and every tab
+   sees it. It is shown with the existing three-choice `ConflictDialog`.
+5. **"Use the other version" keeps the local version as a separate snapshot request:**
+   `POST documents/<id>/snapshots/` (sjvair.com #298), through `createSnapshot` in
+   `@sjvair/sdk` 4.8.0-beta.3. "Use the other version" and "Discard" after a delete elsewhere
+   keep the local version this way, with no save. (The plan first called for an extra
+   snapshot field on a save.)
+6. **A lost save answer is recognized.** The record notes the batch in flight; if the server's
+   next version is exactly that batch, it counts as saved (no prompt, no duplicate).
+7. **An oversized queue sends one `replaceDocument`** (from the server's content to the local
+   one) instead of uploading in batches. A save's changes are capped at 1.5 M characters on the
+   client; the server refuses bodies over 1 MB and changes over 2 MB.
+8. **Switching spaces remounts the app:** flush every session, stop the worker, unmount,
+   `initApp` for the new space, mount, go to `/`.
+9. **Account spaces don't purge Recently deleted locally.** The server purges and reports the
+   ids in `purged`. "Delete permanently" has its server call in spec 4.
+10. **Refused saves with no fix in this spec** (`too_large`, `limit_documents`,
+    `limit_storage`, `invalid`) hold that document as "Only on this device", retried on the
+    next local commit in the space. The Saved popover says why, and a notice bar that can't be
+    dismissed stays at the top of the page while any dashboard in the account is held this way
+    (the notice bar was the user's addition).
+11. **A blocked build** shows an update notice with the reason `"build-blocked"` and stops all
+    uploads until reload.
+12. **"Deleted elsewhere" asks only when the server's document is deleted and this device has
+    a change other than a delete.** Two deletes agree.
+13. **Space locks:** each open app holds a shared Web Lock `sjvair-space:<space>`, and waits
+    for it before storing anything. Tidying removes a hidden space only under that lock taken
+    with `ifAvailable`, so it skips held spaces, and a tab opening the space meanwhile waits
+    for the removal. The orphan rule (a non-current account space with no hidden marker) runs
+    only when the identity is known and is the opened space's.
+14. **Permanently deleted elsewhere:** a document the server reports as purged is removed
+    quietly when this device has no unsynced changes. With unsynced changes it asks "This
+    dashboard was permanently deleted from your account. Keep your version as a new
+    dashboard, or discard it?" Keep uploads a copy with a new id.
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.3` (exact). The documents code lives in
+    `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
+    `DEFERRED.md`).
+
+**Staff never see private dashboard contents in the admin** (no page shows a private
+dashboard's body, snapshots, or change log). To review a reported shared page, staff open its
+share link like anyone else.
 
 **Saving model (decided 2026-09-24): autosave.** Every `applyChange` persists immediately
 (debounced about 500 ms), with a small "Saved" indicator; undo covers mistakes. There is
@@ -2194,9 +2267,12 @@ Decided 2026-09-28.
   floor (`CSS.registerProperty` for `@property`, and `CSS.supports` for `color-mix()`) before
   loading the app, so older browsers never parse the app bundle.
   Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
-- **Performance budget, CI-enforced:** about **200 KB compressed** of initial JS for the app
-  shell. **Each widget type loads its own code only when used** (the map library only
-  with a Map widget, uPlot only with charts, and so on). The budget assumes compressed
+- **Performance budget, checked in CI as a soft limit:** about **200 KB compressed** of
+  initial JS for the app shell. Going over prints a warning (a GitHub Actions annotation in CI)
+  and does not fail the build (decided with the user, 2026-11-02: "I'd like it to load quick,
+  but it won't be the end of the world if it's a bit over"). **Each widget type loads its
+  own code only when used** (the map library only with a Map widget, uPlot only with charts,
+  and so on). The budget assumes compressed
   delivery, which S3 only gives if files are uploaded pre-compressed (see "Template
   embedding").
 - **A low-end device check before go-live:** Lighthouse with throttled CPU and network,
@@ -2461,7 +2537,8 @@ separate origin. **The base path is `/workspace/`** (decided 2026-10-13, replaci
     `configureSdk({ dev, prodUrl }, pageOrigin)` takes only those two fields, under names
     without the `VITE_` prefix, and the build stops inlining `import.meta.env` objects;
     `npm run check:build` fails on any `VITE_` string in `dist/workspace/` (and checks the rest
-    of the hosting contract). `npm run check:budget` enforces the initial bundle budget.
+    of the hosting contract). `npm run check:budget` checks the initial bundle budget and
+    warns when it is over.
   - **The live host is `www.sjvair.com`** (the bare domain redirects to it). Docs write
     `sjvair.com/workspace/` for short; share links and the same-origin API use
     `location.origin`.

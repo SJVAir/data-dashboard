@@ -1,5 +1,6 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { CURRENT_SCHEMA_VERSION } from "../../documents/schema";
+import type { SyncRecord } from "$lib/sync/types";
 import type { KeptOriginal, LogEntry, SpaceId } from "../types";
 
 export const DB_NAME = "sjvair-workspace";
@@ -15,8 +16,8 @@ export interface WorkspaceDB extends DBSchema {
 	preferences: { key: [SpaceId, string]; value: { space: SpaceId; key: string; value: unknown } };
 	/** Documents as they were before an upgrade or repair. */
 	originals: { key: [SpaceId, string]; value: { space: SpaceId } & KeptOriginal };
-	/** Reserved (unsynced server changes, server-sync track). */
-	syncQueue: { key: [SpaceId, string]; value: { space: SpaceId; id: string } };
+	/** Each document's sync record (`id` is its `docId`). */
+	syncQueue: { key: [SpaceId, string]; value: { space: SpaceId; id: string } & SyncRecord };
 }
 
 export type OpenOptions = {

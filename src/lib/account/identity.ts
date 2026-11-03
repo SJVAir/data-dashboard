@@ -52,3 +52,8 @@ export function sameIdentity(a: Identity, b: Identity): boolean {
 	}
 	return true;
 }
+
+/** The storage space for whoever is signed in: `account:<id>`, else (or unknown) "anonymous". */
+export function spaceFor(identity: Identity): "anonymous" | `account:${string}` {
+	return identity.state === "signed-in" ? `account:${identity.user.id}` : "anonymous";
+}

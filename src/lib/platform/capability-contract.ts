@@ -88,5 +88,142 @@ export function runCapabilityContract(name: string, make: () => Promise<Platform
 		test("generation is stable between calls", () => {
 			expect(p.reset.generation()).toBe(p.reset.generation());
 		});
+
+		test("run is exclusive per name", async () => {
+			const log: string[] = [];
+			const gate = Promise.withResolvers<void>();
+			const first = p.locks.run("a", async () => {
+				log.push("first start");
+				await gate.promise;
+				log.push("first end");
+				return 1;
+			});
+			const second = p.locks.run("a", async () => {
+				log.push("second start");
+				return 2;
+			});
+			const other = await p.locks.run("b", async () => {
+				log.push("other");
+				return 3;
+			});
+			expect(other).toBe(3);
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["first start", "other"]);
+			gate.resolve();
+			expect(await Promise.all([first, second])).toEqual([1, 2]);
+			expect(log).toEqual(["first start", "other", "first end", "second start"]);
+		});
+
+		test("run rethrows and releases", async () => {
+			await expect(
+				p.locks.run("a", async () => {
+					throw new Error("boom");
+				})
+			).rejects.toThrow("boom");
+			expect(await p.locks.run("a", async () => "ok")).toBe("ok");
+		});
+
+		test("hold is granted in turn and released on abort", async () => {
+			const a = new AbortController();
+			const b = new AbortController();
+			const log: string[] = [];
+			const heldA = p.locks.hold("h", a.signal, () => log.push("a"));
+			const heldB = p.locks.hold("h", b.signal, () => log.push("b"));
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["a"]);
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["a", "b"]);
+			b.abort();
+			await heldB;
+		});
+
+		test("held tells whether a name is held or waited for", async () => {
+			expect(await p.locks.held("q")).toBe(false);
+			const a = new AbortController();
+			const b = new AbortController();
+			const heldA = p.locks.hold("q", a.signal, () => {});
+			const heldB = p.locks.hold("q", b.signal, () => {});
+			await new Promise((r) => setTimeout(r, 20));
+			expect(await p.locks.held("q")).toBe(true);
+			expect(await p.locks.held("other")).toBe(false);
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(await p.locks.held("q")).toBe(true);
+			b.abort();
+			await heldB;
+			expect(await p.locks.held("q")).toBe(false);
+		});
+
+		test("shared holders hold together, and an exclusive one waits for them all", async () => {
+			const a = new AbortController();
+			const b = new AbortController();
+			const log: string[] = [];
+			const heldA = p.locks.hold("s", a.signal, () => log.push("a"), { shared: true });
+			const heldB = p.locks.hold("s", b.signal, () => log.push("b"), { shared: true });
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["a", "b"]);
+			const exclusive = p.locks.run("s", async () => void log.push("run"));
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["a", "b"]);
+			b.abort();
+			await heldB;
+			await exclusive;
+			expect(log).toEqual(["a", "b", "run"]);
+		});
+
+		test("tryRun runs only when nobody holds or waits for the name", async () => {
+			const a = new AbortController();
+			const heldA = p.locks.hold("t", a.signal, () => {}, { shared: true });
+			await new Promise((r) => setTimeout(r, 20));
+			let ran = false;
+			expect(await p.locks.tryRun("t", async () => void (ran = true))).toBe(false);
+			expect(ran).toBe(false);
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(await p.locks.tryRun("t", async () => void (ran = true))).toBe(true);
+			expect(ran).toBe(true);
+
+			// While it runs, a holder waits its turn.
+			const gate = Promise.withResolvers<void>();
+			const log: string[] = [];
+			const running = p.locks.tryRun("t", async () => {
+				log.push("tidy");
+				await gate.promise;
+				log.push("tidied");
+			});
+			await new Promise((r) => setTimeout(r, 20));
+			const b = new AbortController();
+			const heldB = p.locks.hold("t", b.signal, () => log.push("held"), { shared: true });
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["tidy"]);
+			gate.resolve();
+			expect(await running).toBe(true);
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["tidy", "tidied", "held"]);
+			b.abort();
+			await heldB;
+		});
+
+		test("an aborted waiter is never granted", async () => {
+			const a = new AbortController();
+			const b = new AbortController();
+			const log: string[] = [];
+			const heldA = p.locks.hold("w", a.signal, () => log.push("a"));
+			const heldB = p.locks.hold("w", b.signal, () => log.push("b"));
+			await new Promise((r) => setTimeout(r, 20));
+			b.abort();
+			await heldB;
+			a.abort();
+			await heldA;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(log).toEqual(["a"]);
+			expect(await p.locks.run("w", async () => "free")).toBe("free");
+		});
 	});
 }

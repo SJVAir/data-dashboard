@@ -1,4 +1,10 @@
-export type UpdateReason = "new-version" | "chunk-failed" | "storage-upgraded" | "newer-data";
+export type UpdateReason =
+	| "new-version"
+	| "chunk-failed"
+	| "storage-upgraded"
+	| "newer-data"
+	/** The server refuses saves from this build: nothing uploads until a reload. */
+	| "build-blocked";
 
 /** Why the person should reload, if they should. Once set it stays until they do. */
 export class UpdateNotice {

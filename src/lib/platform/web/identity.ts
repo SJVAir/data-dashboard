@@ -2,6 +2,7 @@ import {
 	accountUserSchema,
 	parseIdentityBlock,
 	sameIdentity,
+	spaceFor,
 	type Identity
 } from "$lib/account/identity";
 import type {
@@ -124,7 +125,11 @@ export function createWebIdentity(deps: WebIdentityDeps): IdentitySource {
 	}
 
 	return {
-		currentSpace: async () => "anonymous",
+		async currentSpace() {
+			// The first request (no block on the page) times out on its own.
+			if (identity.state === "unknown" && inFlight) await inFlight;
+			return spaceFor(identity);
+		},
 		authMode: "cookie",
 		current: () => identity,
 		onChange(cb) {

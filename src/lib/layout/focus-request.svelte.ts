@@ -2,7 +2,10 @@
  * A pending request to focus an element that may not exist yet (for example after the starter
  * hands off to the user's copy and the page rebuilds). Module-level, so a remounted page sees it.
  */
-export type FocusTarget = { kind: "title" | "taskbar"; id: string };
+export type FocusTarget = { kind: "title" | "taskbar" | "sign-in"; id: string };
+
+/** The account menu's Sign in link, after this tab signs out (the app remounts in between). */
+export const SIGN_IN_FOCUS: FocusTarget = { kind: "sign-in", id: "account" };
 
 let pending = $state<FocusTarget | null>(null);
 
