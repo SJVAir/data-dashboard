@@ -25,7 +25,8 @@ go-live or beta testers. **The server-backed documents (sync) track's spec 1 is 
 #297 into `develop`, sdk-js #34 into `release/4.8.0`); **its dashboard spec 2 is merged into
 `main`** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23), 2026-11-02; @sjvair/sdk 4.8.0-beta.3, sjvair.com #298 on `develop`), and so is
 **spec 3, live share links** (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26),
-2026-11-03); spec 4 (recovery) is next, from `main`. The hosting track is built (sjvair.com
+2026-11-03), and **spec 4, recovery** (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29),
+2026-11-03); its small sjvair.com `deletedAccount` change into `develop` is next. The hosting track is built (sjvair.com
 #295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1).
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
 4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.3 is the latest). Details in `TODO.md` →
@@ -236,8 +237,11 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   **Built in sync spec 3 (2026-11-03):** live share links (create, copy, stop sharing), the
   read-only `/shared/:token` page with the "made by a user" bar and "Report this page" (with
   sjvair.com's contact-form pre-fill, #297), "Make a copy", "Based on …" credits, and the
-  optional public display name. Spec 4 adds the recovery pieces (server snapshots in "Restore
-  an earlier version", synced Recently deleted, "account gone").
+  optional public display name.
+  **Built in sync spec 4 (2026-11-03):** the account's saved versions in "Restore an earlier
+  version" (a restore keeps the replaced version first), Recently deleted synced with "Delete
+  now" deleting from the account on every device, and "account gone" (the deleting browser
+  removes that account's local copies, once sjvair.com sends `deletedAccount`).
 
 - **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
   a staging Heroku app, a hidden route, or the server's `beta_tools` flag) for a pilot teacher and a researcher, so the
