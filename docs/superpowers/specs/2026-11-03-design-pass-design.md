@@ -42,13 +42,15 @@ values (see "Later: the rest of the family").
 - The brand assets the app needs (logo, app icons including a maskable one, data-source logos,
   pollutant icons) copied in.
 - Every existing component restyled through tokens, so nothing still looks like stock shadcn.
+- The wording and small behavior fixes that `DEFERRED.md` parked for the design pass (the user,
+  2026-11-03: fold them in), so the private preview starts from finished UI text.
 
 ## Non-goals
 
 - New widgets, new screens, or changes to how arranging works (default sizes do change; see "Density").
 - Restyling monitor-map, mobile, or sjvair.com (later; see "Later: the rest of the family").
-- Wording changes. Many `DEFERRED.md` entries say "revisit in the design pass" about wording or
-  behavior; see "Existing deferrals" for which ones this pass takes.
+- Sibling-repo tidy-ups that `DEFERRED.md`'s polish lists also tie to the design pass (the
+  sjvair.com and sdk-js items in "Spec 5b polish"). They stay "when next touching" those repos.
 - Livelier motion (numbers counting up, widgets sliding into place). Deferred; see "Motion".
 
 ## Anti-goals (failure even if it works)
@@ -269,7 +271,7 @@ touch handles, as today). Checked with step 2's phone layout.
 
 ## Existing deferrals this pass takes
 
-From `DEFERRED.md`, the entries that are about the look:
+From `DEFERRED.md`. First, the entries about the look:
 
 - "A maskable icon and real app icons" (see "Assets").
 - "Dark-mode `--destructive` contrast isn't covered by axe": the axe checks run in both modes.
@@ -280,12 +282,63 @@ From `DEFERRED.md`, the entries that are about the look:
 - From "Spec 2a robustness loose ends": the focus ring after touch drops, checked by hand as part
   of the focus-ring work.
 
-**Not taken:** the wording and behavior entries that also say "revisit in the design pass"
-(conflict status wording, error wording, names of copies, the read-only Share dialog text,
-Download feedback, the save-status announcements, the restore dialog's behavior, the "Only on this
-device" bar's count, list deduplication, `pendingName`). They aren't about the look. This pass
-re-points their "Revisit" lines to a later wording and polish pass before the private preview,
-recorded in `DEFERRED.md` (see "Open question for the user").
+### Wording and behavior (folded in by the user, 2026-11-03)
+
+These `DEFERRED.md` entries also say "revisit in the design pass". All UI text goes through
+Paraglide messages, as always; the builder writes the new wording, and the user reviews it in the
+PR (the screenshot review shows it in place).
+
+**Wording rules for this pass** (my call): plain words, say what happened and what the person can
+do next; one message per cause (never "Couldn't reach SJVAir" for a problem that isn't the
+connection); no blame; informational notices never use the error style.
+
+- **Conflict status** ("Conflict status wording"): a conflict shows its own status, not the
+  "Couldn't save" error.
+- **Display-name save failures** (in "Server-backed saved documents"): rate-limited and
+  signed-out failures get their own messages instead of the offline one.
+- **The Share dialog's public-name field** (same entry): offers a retry after a failed load, and
+  retries by itself when the connection comes back, instead of staying disabled until reopened.
+- **Sync spec 4 tidy-ups (1)–(3)** ("Code tidy-ups from sync spec 4"): the restore dialog says
+  why the account's versions couldn't be listed (offline vs. gone or not found); its loading line
+  is announced reliably (a status region that's always in the page) and focus moves sensibly when
+  the list arrives; "Delete now" on an unreadable local copy says what actually happened; the
+  "restored on another device" toast uses the informational style. Items (4)–(6) of that entry
+  aren't design-pass items and stay as they are.
+- **Restored unreadable dashboards** ("Restored unreadable dashboards are invisible…"): they're
+  shown in the dashboards list as "can't be opened" entries (with what can be done: download or
+  delete) and counted by "Clear my data".
+- **The earlier-versions list** ("…isn't deduplicated"): entries with the same content show once,
+  labelled with both sources. If comparing content needs data the list doesn't have, the builder
+  says so in the plan; the fallback is clearer labels that explain why two entries look alike.
+- **Save-status announcements** ("Save-status announcements"): screen readers hear problems and
+  recoveries ("Couldn't save", "Saved again"), not "Saving…/Saved" on every edit. The visible
+  indicator is unchanged.
+- **Names of copies** ("Names of copies"): copies get a clear default name (for example "Copy of
+  …", through a message, never stored as generated English beyond the name the person can edit),
+  and "Save mine as a copy" lets the person name it; an unnamed dashboard's copy isn't listed as
+  "Untitled dashboard" while the original says "My dashboard".
+- **The read-only Share dialog and Download** ("Read-only Share dialog and Download feedback"):
+  the dialog gives the real reason a read-only dashboard can't be linked, and Download confirms
+  that the file was saved.
+- **Read-only because the original couldn't be kept** (its own entry): its own wording, not the
+  "can't be opened" text.
+- **`pendingName`** ("`pendingName` is shown unnormalized…"): a name not yet saved is listed
+  normalized, like a saved one.
+- **Closing the restore dialog mid-restore** ("RestoreVersionDialog closing mid-restore"): closing
+  is blocked (or clearly cancels) while a restore runs, and the dialog resets when closed.
+- **The "Only on this device" bar** (its own entry): its count leaves out dashboards in Recently
+  deleted, and its link to the dashboards list is hidden on that list.
+- **Spec 2a robustness loose ends** (its own entry): the focus ring after touch drops (checked by
+  hand); resizing animates like moving (respecting reduced motion); the autoscroll frame runs only
+  in the edge zone; touches that start on a widget's body or Done during a touch selection don't
+  scroll the page; focus after a second drop on the starter; the live region reachable while a
+  bits-ui modal is open; freezing `FALLBACK_MIN_SIZE`; dropping the tests-only `onArrangement`
+  prop; and the `stepDown` comment. Any of these the plan finds bigger than expected can be split
+  out and re-deferred, with the user's agreement.
+
+**Size:** this roughly doubles the pass. The plan should split it into two parts, the look first
+(tokens, dark mode, density, assets, restyling) and then wording and behavior, as two stacked PRs
+or one PR with two reviewable halves (the builder proposes which).
 
 ## Testing
 
@@ -313,8 +366,8 @@ recorded in `DEFERRED.md` (see "Open question for the user").
 - `ARCHITECTURE.md` → "Accessibility": axe in both modes; the contrast test.
 - `TODO.md` → "Release 1: design pass" and the "Start here" table row.
 - `DEFERRED.md`: close the entries this pass finishes, add the new deferrals (livelier motion; the
-  family restyle; the background flash for saved theme overrides), and re-point the wording
-  entries (see above).
+  family restyle; the background flash for saved theme overrides). Every entry listed under
+  "Existing deferrals this pass takes" is closed, or the part left over is kept with its trigger.
 - `TODO.md` → "Release 1, step 4": widget types default to about 3 of 12 columns wide, so a
   laptop shows about four across (this pass's density).
 - `CLAUDE.md` → "Code Style": the token-discipline rule if a lint check enforces it.
@@ -343,11 +396,5 @@ palette", revisit when the dashboard launches.
   System works in CSS alone.
 - The maskable icon's background (white or navy) and how it's produced, with the source committed.
 - Which components need more than token changes, and in what order the plan restyles them.
+- The exact new wording (reviewed by the user in the PR).
 - Whether the token-discipline check is an ESLint rule or a test.
-
-## Open question for the user
-
-- **The wording and behavior deferrals.** This spec leaves them out (see "Existing deferrals this
-  pass takes") and re-points them to a separate wording and polish pass before the private
-  preview. If you'd rather this pass include them, it grows by a dozen small fixes across dialogs
-  and messages.
