@@ -115,22 +115,37 @@ test("picker lists the registered dashboard actions", async () => {
 	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).not.toBeInTheDocument();
 });
 
-test("the current page's link is marked and underlined in the highlight color", async () => {
+/** A token's color, resolved the same way the browser resolves it in a shadow. */
+function tokenColor(token: string): string {
+	const probe = document.createElement("span");
+	probe.style.color = `var(${token})`;
+	document.body.append(probe);
+	const color = getComputedStyle(probe).color;
+	probe.remove();
+	return color;
+}
+
+test("the current page's link is marked and underlined: navy in light, sky in dark", async () => {
 	const { app } = await setup();
 	await navigate("/dashboards");
 	await renderNav(app);
 	const link = page.getByRole("link", { name: "Dashboards" });
 	await expect.element(link).toHaveAttribute("aria-current", "page");
-	// A probe resolves the highlight token the same way the browser resolves the underline.
-	const probe = document.createElement("span");
-	probe.style.color = "var(--highlight)";
-	document.body.append(probe);
-	const highlight = getComputedStyle(probe).color;
-	probe.remove();
-	const underline = getComputedStyle(link.element()).boxShadow;
-	expect(underline).toContain(highlight);
-	expect(underline).toMatch(/0px -2px 0px 0px inset$/);
-	await navigate("/");
+	try {
+		// Light: the navy primary carries the 3:1 cue (sky on white is only 2.27:1).
+		document.documentElement.setAttribute("data-theme", "light");
+		let underline = getComputedStyle(link.element()).boxShadow;
+		expect(underline).toContain(tokenColor("--primary"));
+		expect(underline).toMatch(/0px -2px 0px 0px inset$/);
+		// Dark: sky reads at 7:1 on the dark page.
+		document.documentElement.setAttribute("data-theme", "dark");
+		underline = getComputedStyle(link.element()).boxShadow;
+		expect(underline).toContain(tokenColor("--highlight"));
+		expect(underline).toMatch(/0px -2px 0px 0px inset$/);
+	} finally {
+		document.documentElement.removeAttribute("data-theme");
+		await navigate("/");
+	}
 });
 
 describe("logo", () => {

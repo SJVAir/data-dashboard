@@ -32,7 +32,7 @@
 		<a
 			href={p("/dashboards")}
 			aria-current={isActive("/dashboards") ? "page" : undefined}
-			class="text-foreground hover:text-primary aria-[current=page]:text-primary py-1 text-sm aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
+			class="text-foreground hover:text-primary aria-[current=page]:text-primary py-1 text-sm aria-[current=page]:shadow-[inset_0_-2px_var(--color-primary)] dark:aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
 		>
 			{m.nav_dashboards()}
 		</a>
