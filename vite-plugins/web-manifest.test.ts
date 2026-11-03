@@ -57,7 +57,7 @@ describe("webManifest plugin", () => {
 			"assets/icon-512-HASH1234.png"
 		]);
 		expect(json.name).toBe("SJVAir Dashboard");
-		expect(json.theme_color).toBe("#171717");
-		expect(json.background_color).toBe("#ffffff");
+		expect(json.theme_color).toBe("#1c4482");
+		expect(json.background_color).toBe("#f2f6fa");
 	});
 });
