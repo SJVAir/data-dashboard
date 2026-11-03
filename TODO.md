@@ -178,16 +178,16 @@ spec 3 branch.
    `conflict` snapshot, and Undo worked. Restoring a version with no stored name showed the
    previous name for under a second, until the autosave; fixed the same day (the header now
    numbers a just-cleared name at once).
-3. With the sjvair.com `deletedAccount` change on `develop` and a dashboard build imported into
-   the stack, at `http://localhost:8000/workspace/` (not `npm run dev`: only sjvair.com's template
-   sends the identity block). `/workspace/` is behind `beta_tools`, so a signed-out browser can't
-   open it; the deleted id waits in the session until a page that can show the workspace loads.
-   (a) Create a throwaway account with `beta_tools` (`/batcave/`, or as `seed_beta_tester` does).
-   (b) In one browser, sign in as it, open `/workspace/`, and make a dashboard, so its
-   `account:<id>` space exists in IndexedDB. (c) Delete the account on `/account/`. (d) In the
-   same browser, sign in as the `WORKSPACE_E2E_*` tester and open `/workspace/`: that page carries
-   `deletedAccount`. (e) Check (devtools → IndexedDB) that the throwaway's space is gone and the
-   tester's is still there. It can be scripted with Playwright like checks 1 and 2.
+3. ~~With the sjvair.com `deletedAccount` change and a dashboard build imported into the stack, at
+   `http://localhost:8000/workspace/`: delete a throwaway `beta_tools` account that has a
+   dashboard, sign in as the `WORKSPACE_E2E_*` tester in the same browser, and check its space is
+   gone and the tester's is still there.~~ **done 2026-11-03**, scripted with Playwright (one
+   browser context; the stack serving sjvair.com PR #299's branch, dashboard `main` at `26c40c0`
+   imported): after (b) IndexedDB held only the throwaway's `account:<id>` space. After the
+   delete, the login page said "Your account was deleted". The tester's first `/workspace/` page
+   had `deletedAccount` with the throwaway's id (block keys `v`, `user`, `deletedAccount`). The
+   throwaway's space was then gone from every store and the tester's was there. The next page's
+   block had no `deletedAccount`.
 
 Decisions later specs need:
 
