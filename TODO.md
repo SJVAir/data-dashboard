@@ -156,6 +156,9 @@ spec 3 branch.
 **Hand check for spec 4 on the real stack** (needs the stack on sjvair.com `develop` and
 `npm run dev`):
 
+0. ~~Run `npm run test:sync-stack` once~~ **done 2026-11-03**: 29/29 pass on `sync-recovery`
+   (specs 2 and 3 plus the recovery cases). It found that a signed-out delete with no CSRF token
+   is refused 403 by the CSRF check before the sign-in check; the contract now allows that.
 1. Two browsers signed in as the `WORKSPACE_E2E_*` account. Delete a dashboard on one, restore it
    (Recently deleted) on the other. Then delete one on the first, choose Delete now, and confirm
    the other drops it.

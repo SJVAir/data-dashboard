@@ -633,13 +633,10 @@ string`) now get the union return type. The mobile app passes a string token, so
   (anonymous or never uploaded); the "newer" message reaching the dialog; flush-before-load
   order; "Delete now" pulling in a real concurrent restore (the test uses a synthetic
   `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
-  `space-switch` closing the old app first, not by a test). (7) The real server's answers to
-  the new calls (snapshot order, `not_deleted`, `gone`, and `not_found` for another account's
-  id on DELETE) are checked only by `npm run test:sync-stack`, which needs the account
-  credentials: a check pending with the user. **Revisit** (1) and (3) with the design pass's
-  error wording, (2) in the design pass or the screen-reader check, (4) when the next feature
-  would cross the budget (CI warns), (5) if an undo after a restore is reported to lose an
-  edit, (6) when next touching those files, and (7) before the PR merges.
+  `space-switch` closing the old app first, not by a test). **Revisit** (1) and (3) with the
+  design pass's error wording, (2) in the design pass or the screen-reader check, (4) when the
+  next feature would cross the budget (CI warns), (5) if an undo after a restore is reported to
+  lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
