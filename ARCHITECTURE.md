@@ -612,9 +612,11 @@ you:**
   - **Alert rules, the delivery log, the inbox marker, and the public display name** are
     deleted. Staff takedown records are kept but unlinked from the person. Error reports
     hold no names, emails, or account ids, so there is nothing to delete there.
-  - **Local copies** are removed from this browser immediately. Other devices hide a
+  - **Local copies** are removed from this browser immediately: after a deletion, sjvair.com's
+    first `/workspace/` page carries the old account id once as `deletedAccount` in the
+    identity block, and the dashboard removes that space at once. Other devices hide a
     deleted account's space at once, when they learn the account is gone, and remove it
-    within 30 days. The server keeps no record of deleted accounts.
+    within 30 days (spec 2). The server keeps no record of deleted accounts.
   - **A backup is offered first.** The confirmation states what will be deleted (counts
     of documents, share links, and rules) and offers "Download my documents" as one file,
     importable later with or without an account.
@@ -1717,8 +1719,10 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
      have their own cap of 25 MB, oldest trimmed first, and never cause a save to be
      refused), alongside a save-rate limit.
   4. **"Restore an earlier version"** in the document menu: a dated list of the local and
-     server snapshots. Restoring makes that version current and keeps the replaced one as
-     a snapshot, so a restore can be undone.
+     server snapshots, newest first, each labelled with its source and its date and time, with
+     no merging (the local original and the server's `schema` snapshot can both show). A
+     restore first keeps the replaced version on the server as a snapshot, so it can be undone
+     after a reload; if that keep fails, nothing is restored.
   5. **Bad builds can be blocked.** The app sends its build id (the git commit) with
      every save. Staff can add a build to a server block list; saves from it are refused
      with a "please reload" response, and documents stay in the browser until the fixed
@@ -1841,7 +1845,8 @@ rest are the builder's calls, and the user kept them.
 8. **Switching spaces remounts the app:** flush every session, stop the worker, unmount,
    `initApp` for the new space, mount, go to `/`.
 9. **Account spaces don't purge Recently deleted locally.** The server purges and reports the
-   ids in `purged`. "Delete permanently" has its server call in spec 4.
+   ids in `purged`. "Delete now" in an account space uploads first, then asks the server to
+   purge the dashboard (see "Recovery", below).
 10. **Refused saves with no fix in this spec** (`too_large`, `limit_documents`,
     `limit_storage`, `invalid`) hold that document as "Only on this device", retried on the
     next local commit in the space. The Saved popover says why, and a notice bar that can't be
@@ -1888,6 +1893,41 @@ rest are the builder's calls, and the user kept them.
 9. **A dashboard with unsynced changes still shares** (its last synced version) after one
    upload attempt; the dialog says so. One that has never reached the server can't share yet,
    and the dialog says why.
+
+**Recovery (built in sync spec 4, 2026-11-03).** The builder's calls, in the plan
+`docs/superpowers/plans/2026-11-02-sync-4-recovery.md`:
+
+1. **Restoring keeps the replaced version on the server first.** In an account space, the
+   current local content is kept with `keepSnapshot` (a `conflict` snapshot at the record's
+   `serverVersion`) before the restore applies, so a restore can be undone after a reload. If
+   the keep fails (offline, refused), nothing is restored and the dialog says why. A
+   dashboard never uploaded skips the keep; its local log still holds the replaced version.
+2. **The list shows every earlier version, with no merging.** Each is labelled with its source,
+   newest first, with date and time.
+3. **Offline, the dialog still lists the local original** and says the account's versions
+   can't be loaded right now. The menu item shows for a stored, editable dashboard that is on
+   the server or has a kept original.
+4. **"Delete now" in an account space needs the server.** It isn't queued offline: it says it
+   couldn't reach the account and leaves the dashboard in Recently deleted. A dashboard never
+   uploaded is removed locally with no request. The button keeps its label; the confirmation
+   says it is removed from every device.
+5. **"Delete now" uploads first, like Share:** it uploads anything pending, then reads the
+   dashboard again. If it's no longer deleted, another device restored it and it stops and
+   says so. If it's held, it stops (not saved). Otherwise it sends `DELETE`; a `not_deleted`
+   answer means a restore landed in between.
+6. **Account gone, in the browser where it was deleted:** the `deletedAccount` signal marks that
+   space hidden with the reason `"deleted"`, which `tidySpaces` removes at once, unsynced
+   changes included (decided with the user, 2026-11-02). Other devices keep spec 2's
+   behaviour.
+7. **`markDeleted` overrides an earlier reason**, unlike `hideSpace`; another tab may already
+   have hidden the space as `"expired"`.
+8. **A server snapshot is upgraded with the same loader the local kept original uses**
+   (`loadDashboard` with the migration chain), not the sync merge code, so the restore dialog
+   adds no sync code to the initial bundle.
+9. **On a `not_deleted` answer to "Delete now", the dashboard is pulled in at once**, so it
+   leaves Recently deleted right away; if that pull fails, the next poll brings it back.
+10. **The fake documents server models daily snapshots and their 30-day expiry** (still not the
+    snapshot storage cap).
 
 **Staff never see private dashboard contents in the admin** (no page shows a private
 dashboard's body, snapshots, or change log). To review a reported shared page, staff open its

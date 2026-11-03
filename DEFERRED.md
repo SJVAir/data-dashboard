@@ -539,7 +539,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   2026-11-02 (Sync spec 2, Task 8)._ The choice's save isn't recorded as `inFlight`, so if its
   answer is lost the hold stays and choosing again saves mine a second time on top of the first
   (an extra `conflict` snapshot; nothing lost). **Revisit if** duplicate snapshots show up in
-  "Restore an earlier version".
+  "Restore an earlier version". _Looked at in sync spec 4, still deferred:_ the list now shows
+  any duplicate snapshot, which is the trigger to watch.
 - **Another tab showing a purged dashboard that was discarded keeps its session.** _Deferred
   2026-11-02 (Sync spec 2, Task 8; the list part was fixed in the final review: every tab's
   list now refreshes on `sync`)._ "Discard" removes it here and posts `sync`, as the quiet
@@ -581,7 +582,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   didn't apply; "Keep as a new dashboard" is navigated twice (the dialog and the page's
   `moved` handler, harmless); and settling a purge clears other tabs' journal records for the
   old id. **Revisit with** spec 3's dashboards-list work, or if people report sign-out asking
-  about dashboards they can't find.
+  about dashboards they can't find. _Looked at in sync spec 4, still deferred:_ a held
+  dashboard in Recently deleted answers "Delete now" with `deleted_not_saved`.
 - **Sync worker edge cases.** _Deferred 2026-11-02 (Sync spec 2, Tasks 6 and 7)._ A local
   copy in a newer format (saved by a newer build in this browser) can show as synced in the
   Saved popover, since its log can't be read here; a tab that becomes visible polls at once
@@ -597,7 +599,7 @@ string`) now get the union return type. The mobile app passes a string token, so
   `setLayout`s move `a` (the first case shares only `b`); the storage contract's `record()`
   helper fixes `serverVersion` at 4; the web locks' fallback (no `navigator.locks`) is covered
   only through the memory platform's contract run of the same queue; the fake server's request
-  label for a list is `list <cursor>`, it models no daily snapshots or snapshot cap, and
+  label for a list is `list <cursor>`, it models daily snapshots and their expiry (added in sync spec 4) but not the snapshot cap, and
   `SYNC_STACK=1` lifts the network guard for the whole run; a `merge.test.ts` upgrade test
   mutates the global migrations (pass a chain to `fromRemote`); a `refuseNext` test in
   resolve hits `changes`, not `keepSnapshot`; `watchSpace` uses `new Date()`, not an injectable
@@ -614,6 +616,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   lines) and `app.svelte.ts` (about 390) could be split; `#onMessage` checks `SYNC_TAB`
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
+- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
+  (1) The restore dialog's "can't be loaded right now" shows for any failure to list the
+  account's versions, including a refusal (gone or not found), not just offline; it adds a
+  clearer message per cause. (2) The dialog's loading line is inserted conditionally as a
+  status region (some screen readers may not announce it), and focus stays on Cancel after the
+  list loads. (3) "Delete now" on a local copy that can't be read (newer format or invalid)
+  says "couldn't reach your account", which is misleading, and the "restored on another
+  device" toast uses the error style though it's informational. (4) The initial bundle is
+  about 198.8 KB of the 200 KB soft budget after spec 4 (the restore dialog and Recently
+  deleted changes). **Revisit** (1) and (3) with the design pass's error wording, (2) in the
+  design pass or the screen-reader check, and (4) when the next feature would cross the budget
+  (CI warns).
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending

@@ -16,10 +16,10 @@ Last updated: 2026-11-03
 4. ~~Sync spec 3 (live share links)~~ **done** (PR
    [#26](https://github.com/SJVAir/data-dashboard/pull/26), merged into `main` 2026-11-03 with
    the user's yes).
-5. **Next: sync spec 4 (recovery)**, branching from `main` (its plan is on `sync-4-plan`, in the
-   `../data-dashboard-sync4` worktree). It extends the same `src/lib/sync/remote*.ts` and
-   `e2e/documents-server.ts` spec 3 did. The dashboard pins **@sjvair/sdk 4.8.0-beta.3**. See
-   "Sync track" below for the hand checks.
+5. ~~Sync spec 4 (recovery)~~ **built** on `sync-recovery` (PR to come; merging needs the
+   user's yes). Plan: `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`. Its sjvair.com
+   `deletedAccount` change is a separate small PR into `develop`. The dashboard pins
+   **@sjvair/sdk 4.8.0-beta.3**. See "Sync track" below for the hand checks.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -105,6 +105,9 @@ with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER
 Plan: `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`; the calls made while building are
 in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links". Spec 4 (recovery) is next.
 
+**Spec 4 (recovery) is built** on `sync-recovery` (PR to come). The calls made while building are
+in `ARCHITECTURE.md` → "How the dashboard syncs" → "Recovery".
+
 **Hand checks for specs 2 and 3: done 2026-11-02**, every step below, against the local stack
 (sjvair.com `develop`) and `npm run dev` on `sync-share-links`: the user by hand (the offline
 layout test), then scripted with Playwright, two separate browser contexts as two devices
@@ -149,6 +152,18 @@ and `npm run dev`):
 
 A gap found here goes to the user as a separate sjvair.com plan (on `develop`), not into the
 spec 3 branch.
+
+**Hand check for spec 4 on the real stack** (needs the stack on sjvair.com `develop` and
+`npm run dev`):
+
+1. Two browsers signed in as the `WORKSPACE_E2E_*` account. Delete a dashboard on one, restore it
+   (Recently deleted) on the other. Then delete one on the first, choose Delete now, and confirm
+   the other drops it.
+2. Edit a dashboard on two different days (or after a schema bump), then use "Restore an earlier
+   version" and pick one from the list.
+3. With the sjvair.com `deletedAccount` change on `develop`, delete a throwaway account on
+   `/account/`, open `/workspace/` in the same browser, and check (devtools → IndexedDB) that its
+   space is gone.
 
 Decisions later specs need:
 
