@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 
 ## Start here
 
@@ -13,11 +13,13 @@ Last updated: 2026-11-02
    merged 2026-11-02 with the user's yes).
 3. ~~Sync spec 2 (dashboard sync)~~ **done** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23),
    merged into `main` 2026-11-02 with the user's yes).
-4. **Sync spec 3 (live share links) is built** on `sync-share-links` and awaiting review and
-   merge (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)). **Next: sync spec 4 (recovery)**, built on top of it once spec 3 merges
-   (both extend `src/lib/sync/remote*.ts` and `e2e/documents-server.ts`, so one after the
-   other). The dashboard pins **@sjvair/sdk 4.8.0-beta.3**. See "Sync track" below for the hand
-   checks.
+4. ~~Sync spec 3 (live share links)~~ **done** (PR
+   [#26](https://github.com/SJVAir/data-dashboard/pull/26), merged into `main` 2026-11-03 with
+   the user's yes).
+5. **Next: sync spec 4 (recovery)**, branching from `main` (its plan is on `sync-4-plan`, in the
+   `../data-dashboard-sync4` worktree). It extends the same `src/lib/sync/remote*.ts` and
+   `e2e/documents-server.ts` spec 3 did. The dashboard pins **@sjvair/sdk 4.8.0-beta.3**. See
+   "Sync track" below for the hand checks.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -97,6 +99,11 @@ DB already has the `documents` tables; the stack serves the sjvair.com main chec
 needs `develop` pulled to serve the documents API. The sdk-js documents integration test runs
 with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and
 `TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
+
+**Spec 3 (live share links) is done and on `main`** (PR
+[#26](https://github.com/SJVAir/data-dashboard/pull/26), merged 2026-11-03 with the user's yes).
+Plan: `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`; the calls made while building are
+in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links". Spec 4 (recovery) is next.
 
 **Hand checks for specs 2 and 3: done 2026-11-02**, every step below, against the local stack
 (sjvair.com `develop`) and `npm run dev` on `sync-share-links`: the user by hand (the offline
@@ -1122,8 +1129,8 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
-- [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02 on
-      `sync-share-links`, PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)): the Share dialog (create, copy, stop with confirmation,
+- [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02, merged
+      into `main` 2026-11-03, PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)): the Share dialog (create, copy, stop with confirmation,
       display name), the `/shared/:token` page (read-only, "made by a user" bar, 60-second
       polling, "Make a copy", "Based on …"), and the "Report this page" link. The contact-form
       pre-fill is done too (sjvair.com #297 plus this link). Removed from `DEFERRED.md`; the new
