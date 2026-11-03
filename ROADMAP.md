@@ -23,7 +23,7 @@ merged into `main`** (#21, 2026-11-02): specs 2a (arranging, #13) and 2b (window
 follow-ups #16–#18; the touch check passed, and the screen-reader check is deferred until before
 go-live or beta testers. **The server-backed documents (sync) track's spec 1 is merged** (sjvair.com
 #297 into `develop`, sdk-js #34 into `release/4.8.0`); **its dashboard spec 2 is built** on
-`sync-dashboard` (PR to come; @sjvair/sdk 4.8.0-beta.3, sjvair.com #298 on `develop`), and specs 3
+`sync-dashboard` (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23); @sjvair/sdk 4.8.0-beta.3, sjvair.com #298 on `develop`), and specs 3
 and 4 are next, from `main`. The hosting track is built (sjvair.com
 #295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1).
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
