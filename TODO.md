@@ -20,10 +20,10 @@ Last updated: 2026-11-03
    [#29](https://github.com/SJVAir/data-dashboard/pull/29), merged into `main` 2026-11-03 with
    the user's yes). Plan: `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`. The sync
    track's dashboard specs are all on `main`. The dashboard pins **@sjvair/sdk 4.8.0-beta.3**.
-6. **Next: the sjvair.com `deletedAccount` change** (spec 4's "account gone" signal; a short
-   plan of its own and a PR into `develop`, in a separate session; the plan's "The sjvair.com
-   change" section describes it), then spec 4's hand check 3 (see "Sync track" below). After
-   that, which Release 1 track comes next is the user's call (see `ROADMAP.md`).
+6. ~~The sjvair.com `deletedAccount` change~~ **done** (sjvair.com PR
+   [#299](https://github.com/SJVAir/sjvair.com/pull/299), merged into `develop` 2026-11-03 with
+   the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
+7. **Next:** which Release 1 track comes next is the user's call (see `ROADMAP.md`).
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -112,8 +112,8 @@ in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links".
 **Spec 4 (recovery) is done and on `main`** (PR
 [#29](https://github.com/SJVAir/data-dashboard/pull/29), merged 2026-11-03 with the user's yes).
 The calls made while building are in `ARCHITECTURE.md` → "How the dashboard syncs" → "Recovery".
-Hand checks 1 and 2 passed on the stack; hand check 3 waits for the sjvair.com `deletedAccount`
-change.
+All three hand checks passed on the stack. The "account gone" signal is sjvair.com PR #299
+(`deletedAccount`, merged into `develop` 2026-11-03).
 
 **Hand checks for specs 2 and 3: done 2026-11-02**, every step below, against the local stack
 (sjvair.com `develop`) and `npm run dev` on `sync-share-links`: the user by hand (the offline
