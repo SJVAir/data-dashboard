@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { mode } from "mode-watcher";
+	import { onMount } from "svelte";
 	import { Toaster as Sonner, type ToasterProps as SonnerProps } from "svelte-sonner";
 	import Loader2Icon from "@lucide/svelte/icons/loader-2";
 	import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
@@ -8,10 +8,31 @@
 	import TriangleAlertIcon from "@lucide/svelte/icons/triangle-alert";
 
 	let { ...restProps }: SonnerProps = $props();
+
+	// Toasts follow the page's mode: the `data-theme` override on <html>, else the system scheme.
+	// (Not mode-watcher: it keeps its own choice in localStorage, which throws when storage is
+	// blocked, and never sees the dashboard's override.)
+	let theme = $state<"light" | "dark">("light");
+	onMount(() => {
+		const root = document.documentElement;
+		const system = matchMedia("(prefers-color-scheme: dark)");
+		const update = () => {
+			const forced = root.getAttribute("data-theme");
+			theme = forced === "light" || forced === "dark" ? forced : system.matches ? "dark" : "light";
+		};
+		update();
+		const observer = new MutationObserver(update);
+		observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+		system.addEventListener("change", update);
+		return () => {
+			observer.disconnect();
+			system.removeEventListener("change", update);
+		};
+	});
 </script>
 
 <Sonner
-	theme={mode.current}
+	{theme}
 	class="toaster group"
 	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-card-border); --border-radius: var(--radius);"
 	toastOptions={{
