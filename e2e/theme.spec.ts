@@ -35,19 +35,23 @@ test.describe("system dark, no saved choice", () => {
 	test.use({ colorScheme: "dark" });
 
 	test("the first paint is already dark, before the app mounts", async ({ page }) => {
-		// At DOMContentLoaded the stylesheet and `app.js` have run, but the app (a dynamic import)
-		// hasn't mounted. The body's background paints the page (`<html>` has none of its own).
+		// Measured in the first frame after DOMContentLoaded: the browser doesn't render until the
+		// stylesheet in the head has loaded (WebKit may run `app.js` before it applies), and the
+		// app, a dynamic import, hasn't mounted. The body's background paints the page (`<html>`
+		// has none of its own).
 		await page.addInitScript((expected) => {
 			document.addEventListener("DOMContentLoaded", () => {
-				const probe = document.createElement("i");
-				probe.style.backgroundColor = expected;
-				document.body.append(probe);
-				(window as Probe).__firstPaint = {
-					background: getComputedStyle(document.body).backgroundColor,
-					expected: getComputedStyle(probe).backgroundColor,
-					mounted: !!document.getElementById("SJVAirDataDashboard")?.firstChild
-				};
-				probe.remove();
+				requestAnimationFrame(() => {
+					const probe = document.createElement("i");
+					probe.style.backgroundColor = expected;
+					document.body.append(probe);
+					(window as Probe).__firstPaint = {
+						background: getComputedStyle(document.body).backgroundColor,
+						expected: getComputedStyle(probe).backgroundColor,
+						mounted: !!document.getElementById("SJVAirDataDashboard")?.firstChild
+					};
+					probe.remove();
+				});
 			});
 		}, DARK_BACKGROUND);
 		await page.goto("./");

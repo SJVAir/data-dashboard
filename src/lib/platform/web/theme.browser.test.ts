@@ -2,7 +2,7 @@ import "../../../app.css";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ThemeChoice } from "../types";
 import { createWebDisplay } from "./display";
-import { applyTheme, syncThemeColor, watchSystemTheme } from "./theme";
+import { applyTheme, syncThemeColor, syncThemeColorWhenStyled, watchSystemTheme } from "./theme";
 
 afterEach(() => {
 	document.documentElement.removeAttribute("data-theme");
@@ -41,6 +41,32 @@ describe("syncThemeColor", () => {
 		expect(meta()?.content).toBe(
 			getComputedStyle(document.documentElement).getPropertyValue("--background").trim()
 		);
+	});
+});
+
+describe("syncThemeColorWhenStyled", () => {
+	it("syncs again on load when the stylesheet wasn't applied yet", async () => {
+		// An unstyled document, as when `app.js` runs before `app.css` applies (WebKit).
+		const frame = document.createElement("iframe");
+		document.body.append(frame);
+		try {
+			const doc = frame.contentDocument!;
+			const frameMeta = () => doc.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+			syncThemeColorWhenStyled(doc);
+			expect(frameMeta()).toBeNull();
+			const style = doc.createElement("style");
+			style.textContent = ":root { --background: rgb(1, 2, 3); }";
+			doc.head.append(style);
+			frame.contentWindow!.dispatchEvent(new Event("load"));
+			expect(frameMeta()?.content).toBe("rgb(1, 2, 3)");
+		} finally {
+			frame.remove();
+		}
+	});
+
+	it("syncs at once when the stylesheet is already applied", () => {
+		syncThemeColorWhenStyled(document);
+		expect(meta()?.content).toBeTruthy();
 	});
 });
 

@@ -45,12 +45,15 @@ export function applyTheme(root: HTMLElement, choice: ThemeChoice): void {
 	syncThemeColor(root.ownerDocument);
 }
 
-/** Points `<meta name="theme-color">` (created if absent) at the computed `--background`. */
-export function syncThemeColor(doc: Document): void {
+/**
+ * Points `<meta name="theme-color">` (created if absent) at the computed `--background`. Returns
+ * false when there is none yet (the stylesheet hasn't applied).
+ */
+export function syncThemeColor(doc: Document): boolean {
 	const view = doc.defaultView;
-	if (!view) return;
+	if (!view) return false;
 	const color = view.getComputedStyle(doc.documentElement).getPropertyValue("--background").trim();
-	if (!color) return;
+	if (!color) return false;
 	let meta = doc.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
 	if (!meta) {
 		meta = doc.createElement("meta");
@@ -58,6 +61,25 @@ export function syncThemeColor(doc: Document): void {
 		doc.head.appendChild(meta);
 	}
 	meta.content = color;
+	return true;
+}
+
+/**
+ * Syncs the meta now, or once the page has loaded when the stylesheet isn't applied yet: the
+ * built page links `app.css` after `app.js`, and WebKit runs the module before the stylesheet
+ * applies.
+ */
+export function syncThemeColorWhenStyled(doc: Document): void {
+	if (syncThemeColor(doc)) return;
+	const view = doc.defaultView;
+	if (!view) return;
+	view.addEventListener(
+		"load",
+		function () {
+			syncThemeColor(doc);
+		},
+		{ once: true }
+	);
 }
 
 /** Re-syncs the meta when the system's color scheme changes; returns a function that stops it. */

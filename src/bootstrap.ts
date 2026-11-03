@@ -4,6 +4,7 @@ import {
 	applyTheme,
 	readThemeChoice,
 	safeLocalStorage,
+	syncThemeColorWhenStyled,
 	watchSystemTheme
 } from "./lib/platform/web/theme";
 import { refreshEntryFiles, reloadPage } from "./lib/safety/reload";
@@ -11,10 +12,12 @@ import { refreshEntryFiles, reloadPage } from "./lib/safety/reload";
 // The build entry (`app.js`). Mounts into the host page's element; the page doesn't pass a path,
 // so files are found relative to this module. Keep this file and `browser-floor.ts` in plain
 // syntax so browsers below the floor can still parse them and show the notice.
+
 // Apply the saved theme first, so the first paint is already in the right mode. A theme failure
 // must never block boot.
 try {
 	applyTheme(document.documentElement, readThemeChoice(safeLocalStorage()));
+	syncThemeColorWhenStyled(document);
 	watchSystemTheme(document);
 } catch (error) {
 	console.error("SJVAir Dashboard: could not apply the theme.", error);
