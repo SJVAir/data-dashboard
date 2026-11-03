@@ -114,6 +114,35 @@ describe("createFakeRemote", () => {
 		expect((await fake.save("d", { ...saveInput("a"), baseVersion: version })).version).toBe(2);
 	});
 
+	test("snapshots older than 30 days are gone", async () => {
+		let at = Date.parse("2026-11-02T18:00:00.000Z");
+		const fake = createFakeRemote({ accountId: "a", now: () => new Date(at) });
+		const { version } = await fake.save("d", saveInput("a"));
+		await fake.save("d", { ...saveInput("a"), baseVersion: version });
+		const [meta] = await fake.listSnapshots("d");
+		expect(meta).toBeDefined();
+
+		at += 29 * 86_400_000;
+		expect(await fake.listSnapshots("d")).toHaveLength(1);
+		at += 2 * 86_400_000;
+		expect(await fake.listSnapshots("d")).toEqual([]);
+		await expect(fake.getSnapshot("d", meta.id)).rejects.toMatchObject({ code: "not_found" });
+		expect(fake.snapshots("d")).toHaveLength(1);
+	});
+
+	test("a save on a new Pacific day takes a new daily snapshot", async () => {
+		// 06:00Z is 22:00 the day before in Pacific time; 09:00Z is 01:00 the next day.
+		let at = Date.parse("2026-11-03T06:00:00.000Z");
+		const fake = createFakeRemote({ accountId: "a", now: () => new Date(at) });
+		let { version } = await fake.save("d", saveInput("a"));
+		({ version } = await fake.save("d", { ...saveInput("a"), baseVersion: version }));
+		({ version } = await fake.save("d", { ...saveInput("a"), baseVersion: version }));
+		expect(fake.snapshots("d")).toHaveLength(1);
+		at = Date.parse("2026-11-03T09:00:00.000Z");
+		await fake.save("d", { ...saveInput("a"), baseVersion: version });
+		expect(fake.snapshots("d").map((s) => s.reason)).toEqual(["daily", "daily"]);
+	});
+
 	test("the log keeps only the last logLimit versions", async () => {
 		const fake = createFakeRemote({ accountId: "a", logLimit: 2 });
 		let { version } = await fake.save("d", saveInput("a"));

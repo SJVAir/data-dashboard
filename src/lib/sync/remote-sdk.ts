@@ -6,6 +6,7 @@
 import {
 	createShareLink,
 	createSnapshot,
+	deleteDocument,
 	DocumentRefusal,
 	DocumentResponseError,
 	getDocument,
@@ -13,8 +14,10 @@ import {
 	getDocumentCredit,
 	getDocumentProfile,
 	getSharedDocument,
+	getSnapshot,
 	getSharedDocumentChanges,
 	listDocuments,
+	listSnapshots,
 	revokeShareLink,
 	saveDocument,
 	staleBaseDataSchema,
@@ -34,6 +37,8 @@ import {
 	type RemoteDocument,
 	type RemoteDocuments,
 	type RemoteMeta,
+	type RemoteSnapshot,
+	type RemoteSnapshotMeta,
 	type SharedRemoteDocument
 } from "./remote";
 
@@ -185,6 +190,35 @@ export function createSdkRemote(
 					},
 					options
 				);
+			}),
+
+		listSnapshots: (id) =>
+			call("documents.listSnapshots", async () =>
+				(await listSnapshots(id, options)).map((s): RemoteSnapshotMeta => ({
+					id: s.id,
+					version: s.version,
+					schemaVersion: s.schema_version,
+					reason: s.reason,
+					createdAt: s.created_at
+				}))
+			),
+
+		getSnapshot: (id, snapshotId) =>
+			call("documents.getSnapshot", async (): Promise<RemoteSnapshot> => {
+				const s = await getSnapshot(id, snapshotId, options);
+				return {
+					id: s.id,
+					version: s.version,
+					schemaVersion: s.schema_version,
+					name: s.name,
+					body: s.body,
+					createdAt: s.created_at
+				};
+			}),
+
+		deletePermanently: (id) =>
+			call("documents.deletePermanently", async () => {
+				await deleteDocument(id, options);
 			}),
 
 		share: (id) =>

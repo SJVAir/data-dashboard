@@ -48,6 +48,25 @@ export type SharedRemoteDocument = {
 export type SharedChanges =
 	{ version: number } | { version: number; document: SharedRemoteDocument };
 
+export type SnapshotReason = "schema" | "daily" | "conflict";
+
+export type RemoteSnapshotMeta = {
+	id: number;
+	version: number;
+	schemaVersion: number;
+	reason: SnapshotReason;
+	createdAt: string;
+};
+
+export type RemoteSnapshot = {
+	id: number;
+	version: number;
+	schemaVersion: number;
+	name: string | null;
+	body: unknown;
+	createdAt: string;
+};
+
 /** A copy's "Based on…" credit: the original's name and its owner's display name. */
 export type Credit = { name: string | null; displayName: string | null };
 
@@ -117,6 +136,11 @@ export interface RemoteDocuments {
 	save(id: string, input: SaveInput): Promise<{ version: number; updatedAt: string }>;
 	/** Keeps the given content as a `conflict` snapshot (call 5); the document is untouched. */
 	keepSnapshot(id: string, input: SnapshotInput): Promise<void>;
+	/** The document's snapshots, newest first, without bodies. */
+	listSnapshots(id: string): Promise<RemoteSnapshotMeta[]>;
+	getSnapshot(id: string, snapshotId: number): Promise<RemoteSnapshot>;
+	/** Purges a trashed document; `not_deleted` when it isn't in the trash. */
+	deletePermanently(id: string): Promise<void>;
 	/** Turns the share link on; the token (the same one while it stays shared). */
 	share(id: string): Promise<string>;
 	/** Turns the share link off for good; sharing again makes a new token. */
