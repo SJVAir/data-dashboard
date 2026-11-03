@@ -3,7 +3,7 @@ import type { Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { findExistingCopy, saveCopy } from "./copy";
+import { findCopyOf, findExistingCopy, saveCopy } from "./copy";
 import { fingerprintOf, forgetDocument, rememberCopy, copiesOf } from "./fingerprints";
 import { documentFileJson } from "./export";
 import { makeDoc } from "./fixtures.test-util";
@@ -91,6 +91,35 @@ describe("copies", () => {
 		const other = await initApp(platform, { channel: hub.channel(), tabId: "t2" });
 		const id = await saveCopy(app, await incomingOf(makeDoc()));
 		await expect.poll(() => other.index.items.map((d) => d.id)).toContain(id);
+	});
+});
+
+describe("findCopyOf", () => {
+	it("findCopyOf finds the newest live copy by source id", async () => {
+		const { app } = await setup();
+		expect(await findCopyOf(app, "src-1")).toBeNull();
+		const first = await saveCopy(app, await incomingOf(makeDoc(2)));
+		// Different content from the same source still matches: a live link's content changes.
+		const second = await saveCopy(app, await incomingOf(makeDoc(3)));
+		await saveCopy(app, await incomingOf({ ...makeDoc(), id: "other-source" }));
+		const stored = (await app.platform.documents.get(app.space, first)) as Dashboard;
+		await app.platform.documents.commit(app.space, {
+			docId: first,
+			baseVersion: stored.version,
+			doc: { ...stored, version: 1, updatedAt: "2099-01-01T00:00:00.000Z" },
+			entries: []
+		});
+		expect((await findCopyOf(app, "src-1"))?.id).toBe(first);
+		expect(second).not.toBe(first);
+		expect(await findCopyOf(app, "nope")).toBeNull();
+	});
+
+	it("a trashed copy doesn't count", async () => {
+		const { app } = await setup();
+		const id = await saveCopy(app, await incomingOf(makeDoc()));
+		expect((await findCopyOf(app, "src-1"))?.id).toBe(id);
+		await markDeleted(app, id, "2026-10-26T00:00:00.000Z");
+		expect(await findCopyOf(app, "src-1")).toBeNull();
 	});
 });
 

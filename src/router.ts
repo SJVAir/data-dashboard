@@ -19,6 +19,9 @@ export const { route, navigate, p, isActive } = createRouter(
 		"/dashboards": DashboardList,
 		"/dashboards/:id": DashboardPage,
 		"/import": () => import("./routes/Import.svelte"),
+		"/shared/:token": () => import("./routes/SharedPage.svelte"),
+		// A trimmed share link goes home, as other trimmed paths do.
+		"/shared": NotFound,
 		// The hidden dev data page: dev builds only, loaded on demand, never linked.
 		...(import.meta.env.DEV ? { "/dev/data": () => import("./routes/dev/DevData.svelte") } : {}),
 		"*": NotFound
