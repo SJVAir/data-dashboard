@@ -71,7 +71,9 @@
 </script>
 
 <Dialog.Root bind:open>
+	<!-- Wider than the default so the three buttons fit on one row. -->
 	<Dialog.Content
+		class="sm:max-w-lg"
 		showCloseButton={false}
 		onEscapeKeydown={whileBusy}
 		onInteractOutside={whileBusy}

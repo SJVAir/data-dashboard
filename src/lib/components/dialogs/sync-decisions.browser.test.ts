@@ -106,6 +106,23 @@ test("a device conflict opens the three choices", async () => {
 	expect(fake.snapshots("d1")).toHaveLength(1);
 });
 
+/** Elements in the open dialog whose right edge is past the dialog's own. */
+function spillingPastDialog(): string[] {
+	const dialog = page.getByRole("dialog").element();
+	const right = dialog.getBoundingClientRect().right;
+	return [...dialog.querySelectorAll("p, button, h2")]
+		.filter((el) => el.getBoundingClientRect().right > right + 0.5)
+		.map((el) => el.textContent?.trim() ?? "");
+}
+
+test("at desktop width the conflict dialog's text and buttons stay inside it", async () => {
+	await page.viewport(1400, 1000);
+	const { app } = await held([title("a", "Mine")], [title("a", "Theirs")]);
+	await render(ConflictDialog, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByRole("button", { name: "Save mine as a copy" })).toBeVisible();
+	expect(spillingPastDialog()).toEqual([]);
+});
+
 test("deleted elsewhere offers restore or discard", async () => {
 	const { app, fake } = await held([title("a", "Mine")], [deleteDoc]);
 	await render(RemoteDecisionDialog, { context: new Map([[APP_CONTEXT_KEY, app]]) });
