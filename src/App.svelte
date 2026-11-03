@@ -37,7 +37,6 @@
 	</main>
 </div>
 <RenameDialog />
-<ConfirmDialog />
 <ClearDataDialog />
 <ConflictDialog />
 <RemoteDecisionDialog />
@@ -46,5 +45,8 @@
 <ShareDialog />
 <PrivacyDialog />
 <RestoreVersionDialog />
+<!-- After the other dialogs: dialogs stack in mount order, and a confirm opens over one
+     (Stop sharing asks over the Share dialog). -->
+<ConfirmDialog />
 <Toaster />
 <LiveRegion />
