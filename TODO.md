@@ -914,6 +914,16 @@ Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22
 `main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
 @sjvair/sdk 4.8.0 is released only after #293 reaches production, with explicit approval.
 
+**Second batch status (2026-11-03):** split into specs, scales first. **Spec 1** (scale metas,
+tiers, region hierarchy, stage/processor labels, display hints, forecast and CalHeatScore
+APIs and wrappers) is being brainstormed; draft at sjvair.com
+`docs/superpowers/specs/2026-11-03-metadata-scales-design.md` (not approved). Decided so far:
+smoke tiers, the CalHeatScore correction, heat guidance texts, cross-county browsing (see
+`ARCHITECTURE.md` → "Metadata as source of truth"). Later specs: cache headers, location
+search, `places/lookup/` by coordinates, the remaining wrappers and cleanup. **Pesticide
+metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
+research in `docs/reference/pesticides-explorer-research.md`).
+
 - ✅ Available-pollutants list (PM2.5 + O3 initially), which the new code reads instead of
   hardcoding pollutants.
 - ✅ Regions and locations by official code: detail and lookup endpoints accept `type` +

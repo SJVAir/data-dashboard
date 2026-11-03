@@ -2234,12 +2234,18 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
 3. **Non-pollutant scales**: smoke density, fire FRP tiers, CalHeatScore, AQI 0–500,
    temperature thresholds, forecast categories/burn status (labels + colors). Currently
    hardcoded in `monitor-map` and server Sass. **CalHeatScore meta also carries per-score
-   `guidance`**, since the server stores only 0–4 labels today.
+   `guidance`**, since the server stores only 0–4 labels today. AQI 0–500 is used only by
+   the Valley Air District forecasts (monitors report concentrations, not AQI), so the AQI
+   scale lives in `forecasts/meta/` (2026-11-03, sjvair.com step 3 spec 1 draft).
 
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).
 5. **Region hierarchy** — nesting between region types, counts, which regions have
-   summaries.
+   summaries. **Regions that cross county lines** (locally 39 of 237 ZIPs and 27 of 200
+   school districts; no cities or CDPs) are listed under **every county they meaningfully
+   overlap** when browsing, each naming the other counties it's in (user, 2026-11-03).
+   Today's `within=` (99% containment) would show them under no county. Details in
+   sjvair.com's step 3 spec 1.
 6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
 7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
 
@@ -2249,8 +2255,14 @@ level of every scale.
 
 - **The tier scale is CalHeatScore's own 0–4 scale.** Heat maps one to one (Low 0, Mild 1,
   Moderate 2, High 3, Severe 4), and each tier's meaning comes from CalHeatScore's
-  **official recommended actions**, which are also the heat guidance text stored in
-  `calheatscore/meta/`.
+  **official per-score descriptions** (its interpretation table's "Meaning" column).
+  **Corrected 2026-11-03:** CalHeatScore publishes no per-score recommended actions (only
+  those descriptions, a general stay-cool list, and organization-level steps in its User
+  Guide). So each scale level carries the official text as `description` (credited) and a
+  short SJVAir-written `guidance` line; the heat guidance was drafted from CalHeatScore's
+  stay-cool advice and approved by the user. Guidance is empty for AQ "Good" and heat
+  "Low" (user, 2026-11-03). The shape and texts are in sjvair.com's step 3 spec 1
+  (`docs/superpowers/specs/2026-11-03-metadata-scales-design.md`).
 - **The air-quality mapping** (decided by the user 2026-10-14). Very Unhealthy and
   Hazardous share tier 4; the other levels take one tier each, in order. The mapping is
   kept in server metadata.
@@ -2265,7 +2277,8 @@ level of every scale.
   | Hazardous                      | 4    | Severe            |
 
 - Every other scale in the metadata (including smoke density in Release 1) is mapped onto
-  the same tiers. Trade-off: tier meanings are anchored to CalHeatScore's definitions, and
+  the same tiers. **Smoke density:** Light 1, Medium 2, Heavy 3 (user, 2026-11-03; satellite
+  density isn't a ground-level measure, so none reaches tier 4). Trade-off: tier meanings are anchored to CalHeatScore's definitions, and
   a change there would mean revisiting the mapping (easy, since it's metadata).
 
 - **Heat for areas larger than a ZIP** (decided 2026-09-28): CalHeatScore is per ZIP, so a
