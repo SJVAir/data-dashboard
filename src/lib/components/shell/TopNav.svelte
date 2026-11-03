@@ -1,4 +1,7 @@
 <script lang="ts">
+	import logoCompact from "$lib/assets/logos/sjvair-parts/sjvair-icon.webp?no-inline";
+	import logoWhite from "$lib/assets/logos/sjvair-white.svg?no-inline";
+	import logo from "$lib/assets/logos/sjvair.svg?no-inline";
 	import { fullscreenOpen } from "$lib/layout/fullscreen-view.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { HOME_HREF } from "$lib/routing";
@@ -17,7 +20,15 @@
 	data-top-bar
 >
 	<nav aria-label={m.nav_label()} class="flex flex-wrap items-center gap-2 px-4 py-2">
-		<a href={HOME_HREF} class="text-primary mr-2 font-semibold">{m.app_name()}</a>
+		<a href={HOME_HREF} class="mr-2 flex items-center gap-2">
+			<img data-logo="compact" src={logoCompact} alt="" class="size-8 sm:hidden" />
+			<img data-logo="full" src={logo} alt="" class="hidden h-7 w-auto sm:block dark:sm:hidden" />
+			<img data-logo="white" src={logoWhite} alt="" class="hidden h-7 w-auto dark:sm:block" />
+			<span class="sr-only">{m.app_name()}</span>
+			<span aria-hidden="true" class="text-primary hidden font-medium sm:inline">
+				{m.app_name_product()}
+			</span>
+		</a>
 		<a
 			href={p("/dashboards")}
 			aria-current={isActive("/dashboards") ? "page" : undefined}

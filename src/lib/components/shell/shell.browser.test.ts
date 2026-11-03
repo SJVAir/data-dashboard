@@ -1,5 +1,5 @@
 import "../../../app.css";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import type { Change } from "$lib/changes/types";
@@ -131,4 +131,51 @@ test("the current page's link is marked and underlined in the highlight color", 
 	expect(underline).toContain(highlight);
 	expect(underline).toMatch(/0px -2px 0px 0px inset$/);
 	await navigate("/");
+});
+
+describe("logo", () => {
+	afterEach(async () => {
+		document.documentElement.removeAttribute("data-theme");
+		await page.viewport(1280, 720);
+	});
+
+	const visible = (el: Element) => getComputedStyle(el).display !== "none";
+	const logos = (root: ParentNode) => ({
+		full: root.querySelector<HTMLImageElement>("img[data-logo=full]")!,
+		white: root.querySelector<HTMLImageElement>("img[data-logo=white]")!,
+		compact: root.querySelector<HTMLImageElement>("img[data-logo=compact]")!
+	});
+
+	test("the home link is named by the app name and holds a decorative image", async () => {
+		const { app } = await setup();
+		await renderNav(app);
+		const link = page.getByRole("link", { name: "SJVAir Dashboard" });
+		await expect.element(link).toBeInTheDocument();
+		const el = link.element();
+		for (const img of Object.values(logos(el))) expect(img.getAttribute("alt")).toBe("");
+	});
+
+	test("desktop shows the full logo; dark mode swaps in the white one", async () => {
+		await page.viewport(1280, 720);
+		const { app } = await setup();
+		await renderNav(app);
+		const el = page.getByRole("link", { name: "SJVAir Dashboard" }).element();
+		const l = logos(el);
+		expect(visible(l.full)).toBe(true);
+		expect(visible(l.white)).toBe(false);
+		expect(visible(l.compact)).toBe(false);
+		document.documentElement.setAttribute("data-theme", "dark");
+		expect(visible(l.full)).toBe(false);
+		expect(visible(l.white)).toBe(true);
+	});
+
+	test("a phone shows the compact mark", async () => {
+		await page.viewport(390, 800);
+		const { app } = await setup();
+		await renderNav(app);
+		const l = logos(page.getByRole("link", { name: "SJVAir Dashboard" }).element());
+		expect(visible(l.compact)).toBe(true);
+		expect(visible(l.full)).toBe(false);
+		expect(visible(l.white)).toBe(false);
+	});
 });
