@@ -16,7 +16,7 @@ Last updated: 2026-11-03
 4. ~~Sync spec 3 (live share links)~~ **done** (PR
    [#26](https://github.com/SJVAir/data-dashboard/pull/26), merged into `main` 2026-11-03 with
    the user's yes).
-5. ~~Sync spec 4 (recovery)~~ **built** on `sync-recovery` (PR to come; merging needs the
+5. ~~Sync spec 4 (recovery)~~ **built** on `sync-recovery` (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29); merging needs the
    user's yes). Plan: `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`. Its sjvair.com
    `deletedAccount` change is a separate small PR into `develop`. The dashboard pins
    **@sjvair/sdk 4.8.0-beta.3**. See "Sync track" below for the hand checks.
@@ -105,7 +105,7 @@ with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER
 Plan: `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`; the calls made while building are
 in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links".
 
-**Spec 4 (recovery) is built** on `sync-recovery` (PR to come). The calls made while building are
+**Spec 4 (recovery) is built** on `sync-recovery` (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29)). The calls made while building are
 in `ARCHITECTURE.md` → "How the dashboard syncs" → "Recovery".
 
 **Hand checks for specs 2 and 3: done 2026-11-02**, every step below, against the local stack
