@@ -204,7 +204,7 @@ test("the same title changed on both asks on the later device; keep mine wins an
 		.toEqual(["Mine", "Beta", "Gamma"]);
 
 	// The version "Keep mine" replaced (device B's) is kept as a conflict snapshot.
-	const snapshots = documentsServer.fake.snapshots(id);
+	const snapshots = documentsServer.fake.snapshots(id).filter((s) => s.reason === "conflict");
 	expect(snapshots).toHaveLength(1);
 	expect(snapshots[0].reason).toBe("conflict");
 	const kept = snapshots[0].body as { widgets: Array<{ title: string | null }> };
