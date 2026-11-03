@@ -614,7 +614,7 @@ you:**
     hold no names, emails, or account ids, so there is nothing to delete there.
   - **Local copies** are removed from this browser immediately: after a deletion, sjvair.com's
     first `/workspace/` page carries the old account id once as `deletedAccount` in the
-    identity block, and the dashboard removes that space at once. Other devices hide a
+    identity block, and the dashboard removes that space when it next opens there, once no open tab holds it (tabs still showing it switch away first). Other devices hide a
     deleted account's space at once, when they learn the account is gone, and remove it
     within 30 days (spec 2). The server keeps no record of deleted accounts.
   - **A backup is offered first.** The confirmation states what will be deleted (counts
@@ -1916,7 +1916,7 @@ rest are the builder's calls, and the user kept them.
    says so. If it's held, it stops (not saved). Otherwise it sends `DELETE`; a `not_deleted`
    answer means a restore landed in between.
 6. **Account gone, in the browser where it was deleted:** the `deletedAccount` signal marks that
-   space hidden with the reason `"deleted"`, which `tidySpaces` removes at once, unsynced
+   space hidden with the reason `"deleted"`, which `tidySpaces` removes with no 30-day wait (when the dashboard next opens in that browser and no open tab holds the space; tabs still showing it switch away first), unsynced
    changes included (decided with the user, 2026-11-02). Other devices keep spec 2's
    behaviour.
 7. **`markDeleted` overrides an earlier reason**, unlike `hideSpace`; another tab may already

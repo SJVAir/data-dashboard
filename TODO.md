@@ -91,7 +91,7 @@ the prerelease **4.8.0-beta.2** (2026-11-02, with the user's yes). The snapshot 
 
 **Spec 2 (dashboard sync) is done and on `main`** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23), merged
 2026-11-02 with the user's yes). Order (decided 2026-10-29): layout spec 2b → `layout` → `main` → sync spec 2, branching
-from `main` → specs 3 and 4, which are next. The sync design
+from `main` → specs 3 and 4 (both since built). The sync design
 (`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`), the spec 2 plan
 (`docs/superpowers/plans/2026-11-02-sync-2-dashboard.md`), and the calls made while building
 (`ARCHITECTURE.md` → "Saving & sharing documents") are the places to start. Locally, the dev
@@ -103,7 +103,7 @@ with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER
 **Spec 3 (live share links) is done and on `main`** (PR
 [#26](https://github.com/SJVAir/data-dashboard/pull/26), merged 2026-11-03 with the user's yes).
 Plan: `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`; the calls made while building are
-in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links". Spec 4 (recovery) is next.
+in `ARCHITECTURE.md` → "How the dashboard syncs" → "Live share links".
 
 **Spec 4 (recovery) is built** on `sync-recovery` (PR to come). The calls made while building are
 in `ARCHITECTURE.md` → "How the dashboard syncs" → "Recovery".
