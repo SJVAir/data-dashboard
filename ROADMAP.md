@@ -174,7 +174,10 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
 5. **`map-sdk` and the Map widget** (decided 2026-09-24: split out of monitor-map)
    - `@sjvair/map-sdk` (new repo): instance-scoped core, plugins, `MapView`, optional
      metadata/messages/format providers with defaults,
-     app-level data stores
+     app-level data stores. **Milestone 1 spec approved 2026-11-03** (in the map-sdk repo):
+     what the dashboard needs, with presets for monitors, region fill, HMS smoke and fire,
+     CalHeatScore ZIPs, and forecast zones, published to npm as `0.x`. monitor-map parity is
+     milestone 2, a later spec started with the monitor-map rebuild.
    - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B)

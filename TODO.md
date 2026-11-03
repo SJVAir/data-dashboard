@@ -1058,6 +1058,23 @@ research in `docs/reference/pesticides-explorer-research.md`).
   widget and the monitor-map rebuild validate it) cover the instance-scoped core,
   plugin interface, `MapView`, app-level data stores (`createMonitorsStore()`), and optional
   `metadata` / `messages` / `format` providers with built-in defaults.
+  - **Milestone 1 spec approved by the user 2026-11-03:** map-sdk
+    `docs/superpowers/specs/2026-11-03-map-sdk-design.md` (repo `SJVAir/map-sdk`, local
+    commits only so far). Milestone 1 is what the dashboard needs: general points and shapes
+    plugins plus presets for monitors, region fill, HMS smoke, HMS fire, CalHeatScore ZIPs,
+    and forecast zones; per-plugin, host-owned multi-select; a keyboard feature list; legends,
+    tooltips, and controls on the dashboard's theme tokens; `createMonitorsStore()` (built
+    last); and a demo page against the local stack. Published to **npm** as `0.x`.
+  - **Next:** the milestone 1 implementation plan (map-sdk `docs/superpowers/plans/`).
+  - **Done when** all six presets run on real server data on the demo page. Early `0.x`
+    releases (each with the user's yes) can go out once monitors and region fill work.
+  - **Waits on step 3 batch 2, spec 1** (sjvair.com `feature/metadata-scales`, awaiting the
+    user's approval): the shared `Scale`/`Level` types (with the `opacity` field and the
+    `regions/geojson/` wrapper map-sdk asked for), and the `hms/`, `calheatscore/`, and
+    `forecasts/` metas and wrappers. The presets are built against fixtures until then.
+  - **Milestone 2 (a later map-sdk spec):** monitor-map parity (collocation sites, EV stations,
+    wind, live stores beyond monitors), started with the monitor-map 5.0 rebuild (see
+    `DEFERRED.md`).
 - A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate
   the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.

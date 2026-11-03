@@ -271,8 +271,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   monitor-map's `data-chart/DateRange.ts` uses the browser's local time zone, so it
   conflicts with the Pacific-time rule and can't be reused as-is. This repo's
   `DateRangeSpec` resolution lives with the `format` module in Foundations. **Still open:**
-  whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Decide
-  in** the `map-sdk` spec (Release 1 step 5; also listed under "Open decisions").
+  whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Narrowed
+  2026-11-03 (map-sdk milestone 1 spec):** not `map-sdk`, which handles no date ranges (the
+  dashboard feeds its data in). sdk-js already has Pacific day helpers (`startOfPacificDay`,
+  `addPacificDays`). **Decide in** the monitor-map 5.0 plan, when its `DataChart` is rebuilt
+  (also listed under "Open decisions").
 
 - **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
   sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
@@ -837,13 +840,37 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Map plugins
 
-- **Map plugins for the remaining server datasets.** _Deferred 2026-09-24 (docs review)._
-  First release covers monitors, region fill, HMS smoke/fire, collocation, EV, wind,
-  weather. Deferred: pesticide use and SprayDays notices, CalEnviroScreen tracts,
-  CalHeatScore ZIPs, forecast zones, CEIDARS facilities, TEMPO rasters. The `map-sdk` plugin
-  interface must support points, polygons, choropleths, and rasters so these are
-  additive. **Revisit when** a widget or analysis needs one on a map (pesticide notices
-  likely first, alongside the alerts work).
+- **Map plugins for the remaining server datasets.** _Deferred 2026-09-24 (docs review);
+  updated 2026-11-03 (map-sdk milestone 1 spec)._ map-sdk milestone 1 covers monitors, region
+  fill, HMS smoke and fire, **CalHeatScore ZIPs, and forecast zones** (the user moved the last
+  two in). Collocation, EV, and wind are milestone 2 (below); "weather" in monitor-map is only
+  the detail panel's temperature lookup, not a map layer. Deferred: pesticide use and
+  SprayDays notices, CalEnviroScreen tracts, CEIDARS facilities, TEMPO rasters. Most can run
+  on map-sdk's general points and shapes plugins plus their metadata scale with little or no
+  preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
+  needs one on a map (pesticide notices likely first, alongside the alerts work).
+- **map-sdk milestone 2: monitor-map parity.** _Deferred 2026-11-03 (map-sdk milestone 1 spec,
+  the user's call: the dashboard is the priority)._ Collocation sites, EV stations, wind, live
+  stores beyond monitors (HMS, collocation), and whatever else the 5.0 rebuild needs. EV
+  stations need the NREL key moved into injected config, and their hardcoded ZIP list and
+  labels need a proper home. The live map and mobile keep shipping from monitor-map 4.x
+  meanwhile. **Revisit when** the monitor-map 5.0 rebuild starts; it gets its own map-sdk spec.
+- **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
+  is proprietary ("All rights reserved", only for use with an active MapTiler account), so
+  map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
+  monitor-map keeps wind as its own plugin outside map-sdk, or wind moves to an open data
+  source. **Decide in** the map-sdk milestone 2 spec.
+- **map-sdk raster plugin.** _Deferred 2026-11-03 (map-sdk milestone 1 spec)._ The plugin
+  interface and legends allow rasters, but nothing is built. **Revisit with** TEMPO on a map,
+  or wind if it moves to an open raster source.
+- **Mapping user GeoJSON or CSV files.** _Deferred 2026-11-03 (map-sdk milestone 1 spec, the
+  user's call: "prepare for it")._ map-sdk's data sources accept plain GeoJSON and a
+  host-supplied scale, so only the importer and a "pick a column and colors" step are missing.
+  **Revisit when** users ask to put their own data on a map.
+- **Arrow keys jumping to the nearest map feature.** _Deferred 2026-11-03 (map-sdk milestone 1
+  spec)._ Keyboard and screen-reader users reach features through map-sdk's feature list (one
+  tab stop, features in view). Spatial arrow-key navigation is tricky to get right and the
+  list covers the need. **Revisit if** keyboard users find the list too indirect.
 
 ## Widgets
 
@@ -1385,8 +1412,8 @@ point.
 - **Geographic crosswalk method**: monitor→region, tract (CES), ZIP (CalHeatScore),
   county/MTRS (PUR), and area weighting. **Decide in** the Release 3 step 1 spec (Analysis
   engine).
-- **Shared date-range helper home** (see "Platform & infrastructure"). **Decide in** the
-  `map-sdk` spec (Release 1 step 5).
+- **Shared date-range helper home** (see "Platform & infrastructure"). Not `map-sdk` (its
+  milestone 1 spec, 2026-11-03). **Decide in** the monitor-map 5.0 plan.
 - **JupyterLite app: owner repo and deploy path** (docs review 2026-09-28). Options: a
   separate build in this repo, or a new repo, imported by sjvair.com like the dashboard,
   with a Django view setting COOP/COEP only on `/notebooks/`. **Constraint found

@@ -1344,6 +1344,50 @@ monitor-map's rebuild (2) runs **in parallel, started alongside 3**. Both build 
 pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. mobile (4) is a **separate later track** that
 blocks neither Release 1 nor go-live; it keeps working on monitor-map 4.x until then.
 
+**Milestone 1 spec (approved by the user 2026-11-03)** is in the map-sdk repo,
+`docs/superpowers/specs/2026-11-03-map-sdk-design.md`. It refines the design above:
+
+- **Two milestones.** Milestone 1 is what the dashboard needs. monitor-map parity (collocation
+  sites, EV stations, wind, live stores beyond monitors) is milestone 2, a later map-sdk spec
+  started with the monitor-map 5.0 rebuild. Until then the live map and mobile keep shipping
+  from monitor-map 4.x (the user: the dashboard is the priority).
+- **General plugins by shape kind, plus thin dataset presets.** `pointsPlugin` and
+  `shapesPlugin` (plain or value-filled) give every dataset tooltips, selection, the feature
+  list, and legend data; a raster plugin is allowed for but not built. Milestone 1 presets:
+  **monitors, region fill, HMS smoke, HMS fire, CalHeatScore ZIPs, and forecast zones** (the
+  user added the last two, moving them out of the deferred plugins). Data sources can be plain
+  GeoJSON with a host-supplied scale, so a user GeoJSON or CSV importer can come later with no
+  plugin changes.
+- **Scales use `@sjvair/sdk`'s shared `Scale`/`Level` types** from step 3 batch 2 (keyed by
+  catalog entry-type id, half-open ranges, optional `opacity` for smoke). Presets never fall
+  back to hardcoded values; they show `unavailable` on a server without the meta.
+- **Plugins never fetch.** The dashboard feeds its own data layer's results in as data
+  sources. map-sdk's stores (`createMonitorsStore()`, in a `/stores` entry that can't reach the
+  map engine) are for live data.
+- **`MapContext` outlives the GL map.** `MapView`'s `active={false}` (or unmounting) releases
+  the WebGL context; showing it again rebuilds with the same camera, basemap, plugins, and
+  selections. The core re-runs plugin setup after basemap changes, so plugins never check a
+  style-loading flag.
+- **Selection is per plugin and host-owned,** in the `SpatialSelection` shape (regions as
+  `"type:code"`), with modes none, single, or multiple. Click selects, shift-click (or
+  ⌘/Ctrl-click) adds; on touch a tap toggles in multiple mode. Selected features get a
+  `--highlight` ring plus a check mark.
+- **`MapPlugin.contextMenu` is dropped.** For the context menu's map scope, map-sdk offers
+  synchronous `featuresAt(point)` and `featureForElement(element)` lookups (the latter for
+  feature-list rows, so the Menu key works), and the host builds the items.
+- **Finished on-screen pieces ship with map-sdk,** each over a plain data function: legends,
+  tooltips, a keyboard and screen-reader **feature list** (one tab stop, only features in
+  view, sortable, virtualized; Enter selects, Space toggles; also behind a "List" button), a
+  selection bar, a view summary, and zoom and attribution controls. They use only theme tokens
+  (standard shadcn names plus the design pass's family tokens, each falling back to a standard
+  one) and follow the host's dark mode.
+- **Today's live-map look is kept** (the user), so visitors see no change after the 5.0
+  rebuild.
+- **Published to npm** (not JSR: JSR's npm layer isn't built for `.svelte` files) as `0.x`;
+  `@sjvair/sdk` is a peer dependency so hosts have one copy.
+- **`@maptiler/weather` is proprietary**, so map-sdk can't depend on it; wind is decided in
+  milestone 2 (see `DEFERRED.md`).
+
 ## Dashboard layout mechanics
 
 Decided 2026-09-23 (IDEA.md Open Question #4).
