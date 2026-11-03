@@ -85,8 +85,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   - The host-list logic is duplicated between `csp-hosts.test.ts` and
     `scripts/check-build-output.mjs`, and the list is flat across directives.
   - The license collection skips virtual modules (Vite's and rolldown's MIT helpers).
-  - The web manifest's `lightToken` takes the first regex match; scope it to `:root`.
-  - The E2E test loads only `icons[0]`, and the dev manifest route is untested.
   - The bare `/account/` dev proxy prefix could shadow a future app route.
   - The embedding suite's "lazy chunk" check doesn't prove the chunk loads lazily.
   - The feedback link has no new-tab cue (design pass).

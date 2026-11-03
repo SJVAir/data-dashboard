@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildManifest, oklchToHex, webManifest } from "./web-manifest.ts";
+import { buildManifest, lightToken, oklchToHex, webManifest } from "./web-manifest.ts";
 
 describe("oklchToHex", () => {
 	const near = (actual: string, expected: string) => {
@@ -37,6 +37,13 @@ describe("buildManifest", () => {
 	});
 });
 
+describe("lightToken", () => {
+	it("reads from the light :root block even when a dark block comes first", () => {
+		const css = `:root[data-theme="dark"] { --primary: oklch(0.9 0 0); }\n:root { --primary: oklch(1 0 0); }`;
+		expect(lightToken(css, "--primary")).toBe("#ffffff");
+	});
+});
+
 describe("webManifest plugin", () => {
 	it("emits hashed icons and a manifest pointing at them", () => {
 		const emitted: Array<{ type: string; name?: string; fileName?: string; source?: unknown }> = [];
@@ -54,8 +61,18 @@ describe("webManifest plugin", () => {
 		const json = JSON.parse(String(manifestFile.source));
 		expect(json.icons.map((i: { src: string }) => i.src)).toEqual([
 			"assets/icon-192-HASH1234.png",
-			"assets/icon-512-HASH1234.png"
+			"assets/icon-512-HASH1234.png",
+			"assets/maskable-192-HASH1234.png",
+			"assets/maskable-512-HASH1234.png"
 		]);
+		expect(json.icons.map((i: { sizes: string; purpose: string }) => [i.sizes, i.purpose])).toEqual(
+			[
+				["192x192", "any"],
+				["512x512", "any"],
+				["192x192", "maskable"],
+				["512x512", "maskable"]
+			]
+		);
 		expect(json.name).toBe("SJVAir Dashboard");
 		expect(json.theme_color).toBe("#1c4482");
 		expect(json.background_color).toBe("#f2f6fa");
