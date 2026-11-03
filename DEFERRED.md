@@ -857,6 +857,18 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Widgets
 
+- **Pesticide widgets and `pesticides/meta/`.** _Deferred 2026-11-03 (step 3 second batch,
+  agreed with the user)._ No step 4 widget shows pesticide data, and widgets need more than
+  metadata: the numbers the Pesticides Explorer shows (year-over-year change, month × year
+  grid, top lists, movers, method breakdown, average-county comparison) are computed only
+  for its HTML pages, and the one API place summary returns raw rows (Fresno County 2023:
+  about 1.8 MB, 2.5 s, uncached). Its labels, badges, colors, the "flagged" rule, and health
+  notes are scattered across the server's models, templates, Sass, and JavaScript. The later
+  sjvair.com spec covers `pesticides/meta/`, aggregate endpoints reusing the explorer's
+  cached stats, and the explorer reading the same metadata. Also found: the region summary
+  probably counts a multi-ingredient record's acres once per ingredient (not yet proven
+  with data). Research and widget ideas: `docs/reference/pesticides-explorer-research.md`.
+  **Revisit when** step 3's spec 1 is done, or pesticide widgets are planned.
 - **Weak tests in the widget registry and `applyChange`.** _Deferred 2026-10-20 (Foundations
   spec 1 review)._ Widget-type registration and lookup are untested, and the tests for
   `applyChange`'s index clamping and for never mutating its input are weak. Both are
