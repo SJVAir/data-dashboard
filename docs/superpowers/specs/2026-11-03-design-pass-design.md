@@ -45,7 +45,7 @@ values (see "Later: the rest of the family").
 
 ## Non-goals
 
-- New widgets, new screens, or layout behavior changes.
+- New widgets, new screens, or changes to how arranging works (default sizes do change; see "Density").
 - Restyling monitor-map, mobile, or sjvair.com (later; see "Later: the rest of the family").
 - Wording changes. Many `DEFERRED.md` entries say "revisit in the design pass" about wording or
   behavior; see "Existing deferrals" for which ones this pass takes.
@@ -135,14 +135,17 @@ about four columns of widgets fit, so a dashboard of seven or eight fits on one 
 - Space between cards about **12px**; padding inside cards about **12px**.
 - **13px body text**; widget titles about 12.5–13px semibold; headline numbers about **32px**.
 - Minimums still hold: no text under 12px, and click targets at least 24×24px (WCAG 2.5.8).
-- **This pass changes spacing and text only, not widget widths** (my call, after the builder
-  check). The grid's column count is `GRID_COLUMNS = 12` in `src/lib/layout/config.ts`, and saved
-  dashboards store positions in those columns, so changing it would move every saved widget. The
-  placeholder widget and the starter are 6 columns wide (two across). "About four across" is
-  reached in **step 4**, by giving widget types default widths of about 3 of the 12 columns; it's
-  recorded there as a target. This pass sets `--grid-gap` to the new spacing, leaves
-  `--grid-row-height` (4rem) alone unless the new text sizes need it, and checks that step 2's
-  arranging, touch handles (44px), and phone layout still work.
+- **This pass delivers four across, including widget widths.** Nothing is live, so there are no
+  saved dashboards to protect (the user, 2026-11-03), and layout defaults can change freely. The
+  grid keeps `GRID_COLUMNS = 12` (`src/lib/layout/config.ts`): 3 columns per widget already gives
+  four across. Today the placeholder widget (`src/lib/widgets/placeholder/index.ts`,
+  `defaultSize: { w: 6, h: 4 }`) and the starter (`src/lib/starter/starter.ts`, two widgets of
+  `w: 6`) show two across; this pass makes the placeholder's default width 3 and lays the starter
+  out four across. The builder may also change the column count, `--grid-row-height` (4rem),
+  default heights, or minimum sizes if the new density works better that way; the stored layouts
+  and tests just follow. Step 4's widget types then default to about 3 columns too (recorded in
+  `TODO.md`). This pass sets `--grid-gap` to the new spacing and checks that step 2's arranging,
+  touch handles (44px), and phone layout still work.
 
 ### Type
 
