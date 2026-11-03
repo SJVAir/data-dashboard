@@ -1,3 +1,4 @@
+import "../../../app.css";
 import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
@@ -5,6 +6,7 @@ import type { Change } from "$lib/changes/types";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { navigate } from "../../../router";
 import TopNav from "./TopNav.svelte";
 
 const rename = (to: string): Change => ({
@@ -111,4 +113,22 @@ test("picker lists the registered dashboard actions", async () => {
 		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
 	}
 	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).not.toBeInTheDocument();
+});
+
+test("the current page's link is marked and underlined in the highlight color", async () => {
+	const { app } = await setup();
+	await navigate("/dashboards");
+	await renderNav(app);
+	const link = page.getByRole("link", { name: "Dashboards" });
+	await expect.element(link).toHaveAttribute("aria-current", "page");
+	// A probe resolves the highlight token the same way the browser resolves the underline.
+	const probe = document.createElement("span");
+	probe.style.color = "var(--highlight)";
+	document.body.append(probe);
+	const highlight = getComputedStyle(probe).color;
+	probe.remove();
+	const underline = getComputedStyle(link.element()).boxShadow;
+	expect(underline).toContain(highlight);
+	expect(underline).toMatch(/0px -2px 0px 0px inset$/);
+	await navigate("/");
 });

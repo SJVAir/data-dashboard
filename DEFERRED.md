@@ -125,7 +125,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     across tabs.
   - The account menu's keyboard test steps with `ArrowDown` and sleeps; use focus assertions.
     Its test user is cast `as never`, which hides type drift.
-  - The menu's greeting labels aren't wrapped in a `DropdownMenu.Group` (design pass).
   - `returnPath`'s query comes from `serializeSearch(route.search)`, which rebuilds it from an
     object and collapses repeated keys. No route uses repeated keys; read the browser's real
     query through the router if one does.
@@ -328,11 +327,12 @@ string`) now get the union return type. The mobile app passes a string token, so
   everywhere. **Revisit with** the next sjvair.com test or settings change. Needs an
   approved sjvair.com plan.
 - **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
-  affects what ships: Playwright runs with no retries in CI; the `--duration-*` `@theme`
-  aliases are probably inert. (Resolved in spec 5a: the inlang plugin is a named exception in
+  affects what ships: Playwright runs with no retries in CI. (Resolved in the design pass: the
+  inert `--duration-*` `@theme` aliases became `--transition-duration-*`, so `duration-fast` and
+  `duration-base` work. Resolved in spec 5a: the inlang plugin is a named exception in
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
-  **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
+  **Revisit when** CI first flakes (retries).
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -1178,6 +1178,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   restore runs, or reset its state on close. **Revisit in** the design pass.
 - **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
   light mode only. **Revisit in** the design pass.
+- **No transition when the theme switches.** _Deferred 2026-11-03 (design pass, Task 5)._ The
+  spec lists the theme switch among the motion uses, but switching Light / Dark / System changes
+  colors at once. A color transition on every element would have to be added only for the moment
+  of the switch (or it would also slow hovers and focus), and the switch is rare. **Revisit
+  when** preview testers find the instant switch jarring, or with the livelier-motion item.
 - **A "present" mode using the browser's own full screen.** _Deferred 2026-10-28 (step 2
   design)._ Widget fullscreen covers the dashboard area only; the browser's F11 / fullscreen key
   already gives an edge-to-edge projector view. The Fullscreen API would add a second Esc-to-exit

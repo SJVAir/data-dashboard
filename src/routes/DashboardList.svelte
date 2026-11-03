@@ -84,7 +84,7 @@
 			{@render createButtons()}
 		{:else}
 			{@render createButtons()}
-			<ul class="border-border divide-border divide-y rounded-lg border">
+			<ul class="bg-card border-card-border shadow-card divide-border divide-y rounded-lg border">
 				{#each app.index.items as item (item.id)}
 					{@const name = app.index.names.get(item.id) ?? ""}
 					{@const sync = app.sync?.states[item.id]}
@@ -100,7 +100,7 @@
 							<a
 								href={p("/dashboards/:id", { params: { id: item.id } })}
 								aria-describedby={onlyHere ? statusId : undefined}
-								class="focus-visible:ring-ring/50 flex min-w-0 flex-col rounded-md py-1 outline-none focus-visible:ring-3"
+								class="flex min-w-0 flex-col rounded-(--radius-control) py-1"
 							>
 								<span class="truncate font-medium">{name}</span>
 								<span class="text-muted-foreground text-sm">

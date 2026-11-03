@@ -313,7 +313,8 @@
 			{@render copyLink()}
 			{#if signedOut}
 				<p class="text-sm">
-					<a href={signInHref} class="underline underline-offset-4">{m.share_sign_in()}</a>
+					<a href={signInHref} class="text-link underline underline-offset-4">{m.share_sign_in()}</a
+					>
 				</p>
 			{/if}
 			<p role="status" class="text-muted-foreground text-sm">{status}</p>

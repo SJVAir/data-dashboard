@@ -137,3 +137,13 @@ test("the Sign in href follows client-side navigation", async () => {
 		.element(link)
 		.toHaveAttribute("href", `/account/login/?next=${encodeURIComponent("/workspace/import")}`);
 });
+
+test("the greeting sits in a group", async () => {
+	await setup(user("Maria Lopez"));
+	await page.getByRole("button", { name: "ML, account menu for Maria Lopez" }).click();
+	const greeting = page.getByText("Hi, Maria");
+	await expect.element(greeting).toBeVisible();
+	const group = greeting.element().closest("[role=group]");
+	expect(group).not.toBeNull();
+	expect(group!.textContent).toContain("Signed in as Maria Lopez");
+});

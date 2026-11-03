@@ -13,18 +13,15 @@
 <!-- While a widget is fullscreen it stays on screen (sticky keeps it in the flow, so the page
      doesn't move); the widget starts at its bottom. -->
 <header
-	class={[
-		"border-border bg-background border-b",
-		fullscreenOpen() && "sticky top-0 z-(--z-fullscreen)"
-	]}
+	class={["border-border bg-card border-b", fullscreenOpen() && "sticky top-0 z-(--z-fullscreen)"]}
 	data-top-bar
 >
 	<nav aria-label={m.nav_label()} class="flex flex-wrap items-center gap-2 px-4 py-2">
-		<a href={HOME_HREF} class="mr-2 font-semibold">{m.app_name()}</a>
+		<a href={HOME_HREF} class="text-primary mr-2 font-semibold">{m.app_name()}</a>
 		<a
 			href={p("/dashboards")}
 			aria-current={isActive("/dashboards") ? "page" : undefined}
-			class="text-muted-foreground hover:text-foreground aria-[current=page]:text-foreground text-sm"
+			class="text-foreground hover:text-primary aria-[current=page]:text-primary py-1 text-sm aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
 		>
 			{m.nav_dashboards()}
 		</a>

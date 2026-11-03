@@ -140,7 +140,7 @@
 		bind:this={bar}
 		role="toolbar"
 		aria-label={m.taskbar_label()}
-		class="bg-card border-border sticky bottom-0 z-20 flex min-h-(--taskbar-height) items-center gap-2 overflow-x-auto rounded-lg border p-1"
+		class="bg-card border-card-border shadow-card animate-in fade-in-0 slide-in-from-bottom-2 duration-base ease-standard sticky bottom-0 z-20 flex min-h-(--taskbar-height) items-center gap-2 overflow-x-auto rounded-lg border p-1"
 		{onkeydown}
 		{onfocusin}
 		{onfocusout}
@@ -149,7 +149,7 @@
 			{@const title = widgetTitle(widget)}
 			{@const Icon = getWidgetType(widget.type)?.icon ?? CircleQuestionMark}
 			<div
-				class="border-border flex shrink-0 items-center rounded-md border"
+				class="border-border animate-in fade-in-0 zoom-in-95 duration-fast ease-standard flex shrink-0 items-center rounded-(--radius-control) border"
 				data-testid="taskbar-{widget.id}"
 				{@attach menuScope(
 					readOnly

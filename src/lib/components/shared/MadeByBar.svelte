@@ -14,7 +14,7 @@
 	<p>{displayName ? m.shared_by({ name: displayName }) : m.shared_by_someone()}</p>
 	<p>{m.shared_not_official()}</p>
 	<a
-		class="text-primary underline underline-offset-4"
+		class="text-link underline underline-offset-4"
 		href={reportUrl(token)}
 		target="_blank"
 		rel="noopener">{m.shared_report()}</a

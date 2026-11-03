@@ -74,7 +74,7 @@
 	<h2 bind:this={heading} tabindex="-1" class="text-lg font-medium outline-none">
 		{m.deleted_heading()}
 	</h2>
-	<ul class="border-border divide-border divide-y rounded-lg border">
+	<ul class="bg-card border-card-border shadow-card divide-border divide-y rounded-lg border">
 		{#each app.index.deleted as item (item.id)}
 			{@const name = app.index.deletedNames.get(item.id) ?? ""}
 			<li

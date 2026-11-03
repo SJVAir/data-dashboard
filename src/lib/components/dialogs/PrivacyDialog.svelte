@@ -40,7 +40,12 @@
 			<p>{m.privacy_no_tracking()}</p>
 			<p>{m.privacy_clear()}</p>
 			<p>
-				<a href={noticesUrl} target="_blank" rel="noopener" class="underline underline-offset-4">
+				<a
+					href={noticesUrl}
+					target="_blank"
+					rel="noopener"
+					class="text-link underline underline-offset-4"
+				>
 					{m.privacy_notices_link()}
 				</a>
 			</p>

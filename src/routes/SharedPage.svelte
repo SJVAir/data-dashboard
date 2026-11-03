@@ -123,7 +123,7 @@
 		{#if view.kind === "offline"}
 			<Button variant="outline" onclick={() => shared?.doc.retry()}>{m.shared_try_again()}</Button>
 		{/if}
-		<a href={p("/dashboards")} class="text-primary underline underline-offset-4">
+		<a href={p("/dashboards")} class="text-link underline underline-offset-4">
 			{m.your_dashboards()}
 		</a>
 	</div>

@@ -15,10 +15,19 @@
 	}
 }
 
+/* Inline, so shadow-card reads var(--shadow-card) at use and follows the dark blocks (a plain
+   @theme value is copied into the utility). Tailwind also echoes it into its theme layer, but the
+   unlayered :root and dark blocks below win, so the token keeps its real values. */
+@theme inline {
+	--shadow-card: var(--shadow-card);
+}
+
 @theme {
 	--breakpoint-xs: 25rem;
-	--duration-fast: var(--motion-duration-fast);
-	--duration-base: var(--motion-duration-base);
+	/* Tailwind's duration-* utilities read --transition-duration-*, and ease-* reads --ease-*:
+	   duration-fast, duration-base, and ease-standard follow the motion tokens (and reduced motion). */
+	--transition-duration-fast: var(--motion-duration-fast);
+	--transition-duration-base: var(--motion-duration-base);
 	--ease-standard: var(--motion-ease-standard);
 	--font-sans: "Inter Variable", sans-serif;
 	--color-chart-5: var(--chart-5);
@@ -58,7 +67,6 @@
 	--radius-2xl: calc(var(--radius) * 1.8);
 	--radius-3xl: calc(var(--radius) * 2.2);
 	--radius-4xl: calc(var(--radius) * 2.6);
-	--shadow-card: 0 1px 2px #1c448212, 0 4px 14px #1c448214;
 	--text-xs: 0.75rem;
 	--text-xs--line-height: 1.5;
 	--text-sm: 0.8125rem;
@@ -99,6 +107,7 @@
 	--ring: var(--highlight);
 	--ring-edge: var(--primary);
 	--overlay: oklch(0.257 0.061 257.8 / 10%);
+	--shadow-card: 0 1px 2px #1c448212, 0 4px 14px #1c448214;
 	--chart-1: oklch(0.394 0.114 259.1);
 	--chart-2: oklch(0.527 0.124 247.4);
 	--chart-3: oklch(0.511 0.086 186.4);
@@ -213,9 +222,39 @@
 	}
 }
 
+/* Toasts: svelte-sonner's styles are unlayered, so these repeat its selectors under the toaster
+   (one more attribute) to win. Its own reduced-motion rule and the one above still turn motion off. */
+[data-sonner-toaster] [data-sonner-toast] {
+	transition-duration: var(--motion-duration-base);
+	transition-timing-function: var(--motion-ease-standard);
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+	padding: var(--card-padding);
+	border-color: var(--card-border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-card);
+	font-family: var(--font-sans);
+	font-size: var(--text-sm);
+}
+[data-sonner-toaster] [data-sonner-toast]:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+	box-shadow: 0 0 0 4px var(--ring-edge);
+}
+
 @layer base {
 	* {
-		@apply border-border outline-ring/50;
+		@apply border-border outline-ring;
+	}
+	/* One focus indicator for everything: a 2px sky ring with a 1px --ring-edge on each side (navy
+	   in light, the page color in dark), so it reads on cards and the page in both modes. The edge
+	   is a ring (box-shadow) so it composes with shadow utilities. Items whose focus is managed by
+	   script (tabindex="-1": menu items, headings) show focus their own way and skip the edge. */
+	:focus-visible {
+		@apply outline-2 outline-offset-1;
+	}
+	:focus-visible:not([tabindex="-1"]) {
+		@apply ring-ring-edge ring-4;
 	}
 	body {
 		@apply bg-background text-foreground;

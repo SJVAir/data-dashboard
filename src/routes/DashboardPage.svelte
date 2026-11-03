@@ -116,7 +116,7 @@
 {#if missing}
 	<div class="flex flex-col items-start gap-2 p-4">
 		<h1 class="text-lg font-medium">{m.dashboard_not_here()}</h1>
-		<a href={p("/dashboards")} class="text-primary underline underline-offset-4">
+		<a href={p("/dashboards")} class="text-link underline underline-offset-4">
 			{m.your_dashboards()}
 		</a>
 	</div>

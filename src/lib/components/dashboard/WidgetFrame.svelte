@@ -489,10 +489,10 @@
 <section
 	bind:this={section}
 	class={[
-		"group bg-card text-card-foreground border-border flex min-h-0 flex-col overflow-hidden border",
+		"group bg-card text-card-foreground border-card-border flex min-h-0 flex-col overflow-hidden border",
 		fullscreen
 			? "fixed inset-x-0 top-(--fullscreen-top) bottom-0 z-(--z-fullscreen) overscroll-contain"
-			: "relative [grid-column:1/-1] [grid-row:var(--prow)] scroll-mb-[calc(var(--taskbar-height)+var(--grid-gap))] rounded-lg md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
+			: "shadow-card relative [grid-column:1/-1] [grid-row:var(--prow)] scroll-mb-[calc(var(--taskbar-height)+var(--grid-gap))] rounded-lg md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
 		pickedUp && "ring-ring z-10 shadow-lg ring-2"
 	]}
 	data-picked-up={pickedUp ? "" : undefined}
@@ -513,7 +513,10 @@
 	<div
 		bind:this={bar}
 		class={[
-			"border-border focus-visible:ring-ring/50 flex items-center gap-2 border-b py-1 pr-1 pl-3 outline-none select-none [-webkit-touch-callout:none] focus-visible:ring-3",
+			// The card clips anything outside it, so the focus ring is drawn inside the bar, rounded
+			// like the card's top corners.
+			"border-card-border focus-visible:inset-ring-ring-edge flex items-center gap-2 border-b py-1 pr-1 pl-(--card-padding) select-none [-webkit-touch-callout:none] focus-visible:ring-0 focus-visible:inset-ring-4 focus-visible:-outline-offset-3",
+			!fullscreen && "rounded-t-lg",
 			arrangeable && (dragging ? "cursor-grabbing" : "pointer-fine:cursor-grab"),
 			// Page swipes over the title bar scroll; a lifted widget's next touch drags it.
 			touchActive ? "touch-none" : "touch-pan-y"
@@ -530,7 +533,7 @@
 		{@attach scrollBlocker}
 		{@attach noMenu}
 	>
-		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
+		<h2 id={titleId} class="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h2>
 		{#if fullscreen}
 			<Button
 				variant="ghost"
@@ -572,7 +575,7 @@
 			</Button>
 		{/if}
 	</div>
-	<div class="relative min-h-0 flex-1">
+	<div class="relative min-h-0 flex-1 p-(--card-padding)">
 		{#if type}
 			<type.component {widget} {fullscreen} />
 		{/if}
@@ -580,7 +583,7 @@
 			<!-- Over the content, so the layout doesn't change. Hidden from assistive tech: the
 			     live region already says the keys. -->
 			<div
-				class="bg-popover text-popover-foreground border-border pointer-events-none absolute inset-x-2 bottom-2 z-10 rounded-md border px-2 py-1 text-center text-xs shadow-md"
+				class="bg-popover text-popover-foreground border-card-border shadow-card pointer-events-none absolute inset-x-2 bottom-2 z-10 rounded-(--radius-control) border px-2 py-1 text-center text-xs"
 				aria-hidden="true"
 				data-testid="arrange-hint"
 			>

@@ -117,7 +117,9 @@
 					? m.import_save_failed()
 					: m.import_link_invalid()}
 		</h1>
-		<a class="underline" href={p("/dashboards")}>{m.nav_dashboards()}</a>
+		<a class="text-link underline underline-offset-4" href={p("/dashboards")}
+			>{m.nav_dashboards()}</a
+		>
 	{:else if view.kind === "chunk-failed"}
 		<!-- The reload bar says what to do. -->
 	{:else}
