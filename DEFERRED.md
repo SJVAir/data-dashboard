@@ -29,13 +29,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (CSP report-only, errors to Sentry, beta testers only). This replaces `ARCHITECTURE.md`'s
   earlier plan of a second-origin E2E smoke run. **Revisit if** the preview shows a
   cross-origin problem, or before public go-live if the preview hasn't exercised it.
-- **Pre-filling sjvair.com's contact form.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
-  preview feedback link opens `/contact/` as it is; the form can't take a topic or message
-  from the URL. Pre-filling the topic, and the share link for the shared-page "Report this
-  page" link, needs a small sjvair.com change. **Revisit with** the server-backed documents
-  track (which builds "Report this page"). _Updated 2026-10-28 (Sync spec 1):_ the server part is
-  done (sjvair.com #297: `/contact/?topic=Report&page=<encoded URL>` for same-host
-  `/workspace/shared/` URLs); spec 3 adds the dashboard link.
 - **Remove the `@jsr/sjvair__sdk` license exception.** _Deferred 2026-10-26 (Foundations spec
   5a)._ The license check names `@jsr/sjvair__sdk` as an exception because the JSR build has no
   license field and no license text, so the third-party notices carry none for it. **Revisit
@@ -212,6 +205,22 @@ string`) now get the union return type. The mobile app passes a string token, so
     dashboards have). _Deferred 2026-11-02 (sync spec 3 plan)._ Viewers are mostly signed out on
     one tab each, and the sync design's cost estimate already counts one request per viewer per
     minute. **Revisit if** load from shared pages shows up in the server's monitoring.
+  - **An open shared page whose next version is invalid stops polling.** _Deferred 2026-11-03
+    (sync spec 3, while building)._ The page refuses a version that fails validation or is too
+    large, and keeps the last good one; the owner's fix shows only after a reload. Refusing is
+    the safe side. **Revisit if** an owner reports it, or if the format's validation gets
+    stricter.
+  - **A share made or stopped in one tab can briefly show the old state in another tab of the
+    same account.** _Deferred 2026-11-03 (sync spec 3, while building)._ A list answered just
+    before the change can overwrite the newer state; it heals on the next poll (up to 60 s).
+    **Revisit if** the dialog showing a stale link is reported.
+  - **The starter hand-off can set the current dashboard after the person has left for a shared
+    page.** _Deferred 2026-11-03 (sync spec 3, while building)._ This is the existing `onCopied`
+    in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
+    timing. **Revisit on a report, or when the hand-off is next changed.**
+  - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
+    unavailable.** _Deferred 2026-11-03 (sync spec 3, while building)._ Nothing shows; it is
+    harmless. **Revisit with** any URL-state cleanup.
   - **Moving the documents SDK code out of the public `@sjvair/sdk` before go-live.** _Decided
     2026-11-02 (the user, in the sdk-js session)._ `@sjvair/sdk/documents` wraps the private
     `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public
