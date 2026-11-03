@@ -16,10 +16,13 @@ session, in order. From 2026-11-03, three sessions run at once:
 
 **Docs rules for the other sessions** (only the design pass session edits this checkout):
 
-- Update this repo's docs from your own worktree, never this checkout:
+- **Docs-only changes need no PR** (the user, 2026-11-03): commit them to the branch you're
+  working on, or straight to `main` when the change is docs only. Other sessions still use their
+  own worktree, never this checkout:
   `git -C /home/alex/workspace/sjvair/data-dashboard fetch origin`, then
-  `git -C /home/alex/workspace/sjvair/data-dashboard worktree add .worktrees/docs-<track> -b docs-<track>-<topic> origin/main`,
-  commit there, and open a docs PR into `main` (merging it needs the user's yes).
+  `git -C /home/alex/workspace/sjvair/data-dashboard worktree add .worktrees/docs-<track> origin/main`
+  (detached), commit, and `git push origin HEAD:main`. Fetch and rebase first if `main` moved.
+  Code changes still go through PRs, and merging them still needs the user's yes.
 - Edit only your own track's row above, your own "Work breakdown" section, and the matching
   `ROADMAP.md` item and `ARCHITECTURE.md` section. Add every deferral to `DEFERRED.md` (append
   under the right heading; don't reword others' entries).
