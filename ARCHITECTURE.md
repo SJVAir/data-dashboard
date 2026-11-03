@@ -982,8 +982,10 @@ The stack is per document and per session (not persisted).
   sync. Undo history stays per tab.
 - **Layout moves never prompt** (decided with the user, 2026-10-28; built in sync spec 2,
   2026-11-02). Two `setLayout` changes never overlap, between devices or between tabs: mine is
-  replayed over theirs (the last save wins) and step 2's engine tidies any overlap.
-  `setLayout` against `removeWidget` doesn't prompt either (the delete wins and the move is
+  replayed over theirs (the last save wins) and step 2's engine tidies any overlap. Because a
+  `setLayout` records every widget its move pushed, the later device's arrangement replaces the
+  earlier one's, including the earlier device's own moves (seen in the spec 3 hand check; see
+  `DEFERRED.md` → "Merging colliding layout moves more cleverly"). `setLayout` against `removeWidget` doesn't prompt either (the delete wins and the move is
   dropped). This replaces step 2's rule that two `setLayout`s overlap if they share a widget id
   with a different `to`. Two deletes also agree: two `setField deletedAt` changes that both set
   a time don't overlap.

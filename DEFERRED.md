@@ -190,6 +190,21 @@ string`) now get the union return type. The mobile app passes a string token, so
     decided with the user)._ Layout moves never prompt: the last save wins, and step 2's
     tidy fixes any overlap. Keeping both sides' intent (e.g. per-widget last-writer) isn't
     attempted. **Revisit if** people report layouts jumping back while tuning on two devices.
+    _Seen in the spec 3 hand check, 2026-11-02 (the user; reproduced against the stack with two
+    browser contexts); left as designed for now (the user's call)._ What a person sees: both
+    devices offline, device A moves widget 2 down and renames another widget, device B moves
+    widget 3 to the top. After both sync, both show B's whole arrangement: A's rename survives,
+    A's move of widget 2 doesn't, though B never moved widget 2 on purpose. Why: a `setLayout`
+    records the new rect of **every widget the move pushed** (its `to`, and `target.widgetIds`
+    equals `to`'s keys), and nothing in it says which widget the person moved, so replaying B's
+    move over A's puts every pushed widget back where B's grid had it. A rename names one
+    widget, so two renames of different widgets both survive; one device renaming and the
+    other moving also merges fine, in either order. **The likely fix:** have `setLayout` also
+    record the widget(s) the person moved (a new field, set by the arrangement and windowing
+    code that builds it), and when replaying one over theirs, apply only those rects and let
+    step 2's tidy settle the rest, so both devices' deliberate moves survive. It changes the
+    change format and `rebase`/`applyForced` for `setLayout` (sync spec 2's merge rule), so
+    it's its own small branch, not part of a spec.
   - **A new display name reaches open shared pages only with the dashboard's next edit.**
     _Deferred 2026-11-02 (sync spec 3 plan)._ An open shared page polls
     `shared/<token>/changes/?since=N`, which answers just `{ version }` while the version is
