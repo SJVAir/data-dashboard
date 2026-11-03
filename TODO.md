@@ -4,8 +4,29 @@ Last updated: 2026-11-03
 
 ## Start here
 
-**One session at a time works Release 1's tracks in order** (decided 2026-10-29). Step 2 is on
-`main` (2026-11-02), so new work branches from `main`:
+**One session per repo; tracks in different repos run in parallel** (decided 2026-11-03,
+replacing the 2026-10-29 "one session at a time" rule). Tracks in the same repo still go in one
+session, in order. From 2026-11-03, three sessions run at once:
+
+| Track                                    | Session starts in | Repos it edits                | Its status lives in                          |
+| ---------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** (before step 4)          | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata)      | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** (new repo) | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+
+**Docs rules for the other sessions** (only the design pass session edits this checkout):
+
+- Update this repo's docs from your own worktree, never this checkout:
+  `git -C /home/alex/workspace/sjvair/data-dashboard fetch origin`, then
+  `git -C /home/alex/workspace/sjvair/data-dashboard worktree add .worktrees/docs-<track> -b docs-<track>-<topic> origin/main`,
+  commit there, and open a docs PR into `main` (merging it needs the user's yes).
+- Edit only your own track's row above, your own "Work breakdown" section, and the matching
+  `ROADMAP.md` item and `ARCHITECTURE.md` section. Add every deferral to `DEFERRED.md` (append
+  under the right heading; don't reword others' entries).
+- Re-read a file right before editing it. Another session may have changed it.
+- Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`).
+
+Earlier tracks, in order (new dashboard work branches from `main`):
 
 1. ~~Layout spec 2b (windowing)~~ **done and merged into `layout`** (#15, 2026-10-29), with
    follow-ups #16, #17, and #18: see "Step 2" below.
@@ -23,7 +44,10 @@ Last updated: 2026-11-03
 6. ~~The sjvair.com `deletedAccount` change~~ **done** (sjvair.com PR
    [#299](https://github.com/SJVAir/sjvair.com/pull/299), merged into `develop` 2026-11-03 with
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
-7. **Next:** which Release 1 track comes next is the user's call (see `ROADMAP.md`).
+7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 4 starts once the
+   design pass and step 3's scales, tiers, and wrappers are done (its spec can be drafted
+   during the design pass). Server alerting (Release 2) waits for the sjvair.com session to
+   finish step 3. Email-only accounts wait on the legal adviser.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
