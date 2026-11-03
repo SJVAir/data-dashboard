@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
+import { displayNames } from "$lib/documents/names";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import type { SyncContext } from "$lib/sync/context";
@@ -383,7 +384,16 @@ export function currentDashboardName(app: AppContext): string | null {
 	if (isStarter) return m.dashboard_starter();
 	// A read-only "invalid" document is the raw stored value, so check the name's type.
 	const own = typeof session.doc.name === "string" ? session.doc.name : null;
-	return own ?? app.index.names.get(session.doc.id) ?? m.dashboard_untitled();
+	if (own !== null) return own;
+	const id = session.doc.id;
+	// The list holds the stored name, which trails a cleared name until the autosave (a restore
+	// of an unnamed version): number this dashboard as unnamed now.
+	const listed = app.index.items.find((d) => d.id === id);
+	if (listed && listed.name !== null) {
+		const items = app.index.items.map((d) => (d.id === id ? { ...d, name: null } : d));
+		return displayNames(items, STARTER_ID).get(id) ?? m.dashboard_untitled();
+	}
+	return app.index.names.get(id) ?? m.dashboard_untitled();
 }
 
 /** The context key, for `mount(App, { context: new Map([[APP_CONTEXT_KEY, app]]) })`. */

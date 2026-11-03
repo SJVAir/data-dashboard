@@ -2,7 +2,12 @@ import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
 import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory";
-import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
+import {
+	APP_CONTEXT_KEY,
+	currentDashboardName,
+	initApp,
+	type AppContext
+} from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { saveFields } from "$lib/sync/merge";
 import { answerMoveOffer } from "$lib/sync/move-to-account";
@@ -96,6 +101,29 @@ test("a dashboard fetched by its link gets its display name from the list", asyn
 	await render(DashboardPage, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await expect.poll(() => app.current.session?.doc.id).toBe("d9");
 	await expect.poll(() => document.title).toContain("Untitled dashboard 2");
+});
+
+test("clearing the name shows the generated name at once, before the autosave", async () => {
+	const app = await initApp(createMemoryPlatform(), { channel: createMemoryTabHub().channel() });
+	apps.push(app);
+	await app.index.createBlank();
+	// Untitled names are numbered by creation time, so keep the two apart.
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	const id = await app.index.createBlank();
+	await navigate("/dashboards/:id", { params: { id } });
+	await render(DashboardPage, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.poll(() => app.current.session?.doc.id).toBe(id);
+	const session = app.current.session!;
+	const generated = app.index.names.get(id)!;
+	expect(generated).toBe("Untitled dashboard 2");
+	session.apply({ op: "setField", target: { path: "name" }, from: null, to: "Named" });
+	await session.flush();
+	await expect.poll(() => app.index.names.get(id)).toBe("Named");
+
+	// As a restore of a version with no stored name does: the list still says "Named".
+	session.apply({ op: "setField", target: { path: "name" }, from: "Named", to: null });
+	expect(currentDashboardName(app)).toBe(generated);
+	await expect.poll(() => document.title).toContain(generated);
 });
 
 test("a missing dashboard opens once it arrives (Add to my account)", async () => {

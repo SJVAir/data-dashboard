@@ -169,8 +169,8 @@ spec 3 branch.
    save after creating a dashboard makes the day's snapshot, so the list showed it ("before that
    day's first change"); restoring brought it back, the server kept the replaced version as a
    `conflict` snapshot, and Undo worked. Restoring a version with no stored name showed the
-   previous name for under a second, until the autosave (see `DEFERRED.md` → "Code tidy-ups from
-   sync spec 4", item 7).
+   previous name for under a second, until the autosave; fixed the same day (the header now
+   numbers a just-cleared name at once).
 3. With the sjvair.com `deletedAccount` change on `develop`, delete a throwaway account on
    `/account/`, open `/workspace/` in the same browser, and check (devtools → IndexedDB) that its
    space is gone.
