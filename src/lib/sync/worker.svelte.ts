@@ -13,11 +13,18 @@ import type { SyncContext } from "./context";
 import { emptyRecord, readLocal } from "./local";
 import { finishMoves } from "./move";
 import { fetchMissing, pollList } from "./pull";
-import { RemoteRefusal, RemoteUnavailable, type RemoteDocuments } from "./remote";
+import {
+	RemoteRefusal,
+	RemoteUnavailable,
+	type RemoteDocuments,
+	type RemoteSnapshot,
+	type RemoteSnapshotMeta
+} from "./remote";
 import { resolveHold, type RemoteChoice } from "./resolve";
 import { shareDocument, unshareDocument, type ShareResult } from "./share";
 import { SYNC_TAB, type SyncHold } from "./types";
 import { uploadDocument, type UploadResult } from "./upload";
+import { keepBeforeRestore, serverVersion, serverVersions } from "./versions";
 
 export type DocSyncState = {
 	state: "synced" | "pending" | "held";
@@ -128,6 +135,25 @@ export class SyncWorker {
 
 	fetchMissing(docId: string): Promise<boolean> {
 		return fetchMissing(this.#ctx, docId);
+	}
+
+	/** The server's snapshots of `docId`, newest first; throws as the remote does. */
+	versions(docId: string): Promise<RemoteSnapshotMeta[]> {
+		return serverVersions(this.#ctx, docId);
+	}
+
+	version(docId: string, snapshotId: number): Promise<RemoteSnapshot> {
+		return serverVersion(this.#ctx, docId, snapshotId);
+	}
+
+	/** Keeps the current local version as a server snapshot before a restore replaces it. */
+	async keepBeforeRestore(docId: string): Promise<"kept" | "not-on-server"> {
+		try {
+			return await keepBeforeRestore(this.#ctx, docId);
+		} finally {
+			// A pull or a `gone` hold may have changed the document's standing.
+			this.states = await this.#readStates();
+		}
 	}
 
 	/**
