@@ -13,9 +13,12 @@ Last updated: 2026-11-02
    merged 2026-11-02 with the user's yes).
 3. ~~Sync spec 2 (dashboard sync)~~ **done** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23),
    merged into `main` 2026-11-02 with the user's yes).
-4. **Next: sync specs 3 (live share links) and 4 (recovery)**, each branching from `main`; they
-   don't depend on each other. Each starts with its own plan, from the sync design's "The split"
-   and "How it works", for the user's review (best in a fresh session). The
+4. **Next: sync specs 3 (live share links) and 4 (recovery).** Decided with the user,
+   2026-11-02: **write both plans at once, in two fresh sessions**, each in its own worktree
+   (`../data-dashboard-sync3` on `sync-3-plan`, `../data-dashboard-sync4` on `sync-4-plan`), for
+   the user's review; then **build spec 3 first and spec 4 on top of it**, one after the other.
+   Both extend the same server layer (`src/lib/sync/remote*.ts`) and E2E mock
+   (`e2e/documents-server.ts`), so building them in parallel would collide. The
    dashboard pins **@sjvair/sdk 4.8.0-beta.3** (adds `createSnapshot`, sdk-js #35; the documents
    module came in 4.8.0-beta.2), and sjvair.com #298 adds the snapshots POST on `develop`. See
    "Sync track" below for the hand checks.
