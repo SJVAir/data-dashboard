@@ -159,11 +159,18 @@ spec 3 branch.
 0. ~~Run `npm run test:sync-stack` once~~ **done 2026-11-03**: 29/29 pass on `sync-recovery`
    (specs 2 and 3 plus the recovery cases). It found that a signed-out delete with no CSRF token
    is refused 403 by the CSRF check before the sign-in check; the contract now allows that.
-1. Two browsers signed in as the `WORKSPACE_E2E_*` account. Delete a dashboard on one, restore it
-   (Recently deleted) on the other. Then delete one on the first, choose Delete now, and confirm
-   the other drops it.
-2. Edit a dashboard on two different days (or after a schema bump), then use "Restore an earlier
-   version" and pick one from the list.
+1. ~~Two browsers signed in as the `WORKSPACE_E2E_*` account. Delete a dashboard on one, restore
+   it (Recently deleted) on the other. Then delete one on the first, choose Delete now, and confirm
+   the other drops it.~~ **done 2026-11-03**, scripted with Playwright (two browser contexts as two
+   devices, `npm run dev` on `sync-recovery`): the restore reached the first device, and after
+   Delete now the server answered `gone` and the other device dropped it.
+2. ~~Edit a dashboard on two different days (or after a schema bump), then use "Restore an earlier
+   version" and pick one from the list.~~ **done 2026-11-03** the same way, on one day: the first
+   save after creating a dashboard makes the day's snapshot, so the list showed it ("before that
+   day's first change"); restoring brought it back, the server kept the replaced version as a
+   `conflict` snapshot, and Undo worked. Restoring a version with no stored name showed the
+   previous name for under a second, until the autosave (see `DEFERRED.md` → "Code tidy-ups from
+   sync spec 4", item 7).
 3. With the sjvair.com `deletedAccount` change on `develop`, delete a throwaway account on
    `/account/`, open `/workspace/` in the same browser, and check (devtools → IndexedDB) that its
    space is gone.

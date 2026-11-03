@@ -633,10 +633,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   (anonymous or never uploaded); the "newer" message reaching the dialog; flush-before-load
   order; "Delete now" pulling in a real concurrent restore (the test uses a synthetic
   `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
-  `space-switch` closing the old app first, not by a test). **Revisit** (1) and (3) with the
-  design pass's error wording, (2) in the design pass or the screen-reader check, (4) when the
-  next feature would cross the budget (CI warns), (5) if an undo after a restore is reported to
-  lose an edit, and (6) when next touching those files.
+  `space-switch` closing the old app first, not by a test). (7) Restoring a version with no
+  stored name (a dashboard as first created) shows the previous name in the header and picker
+  for under a second, until the autosave stores the change: an unnamed dashboard's shown name
+  comes from the stored list (seen in the spec 4 hand check, 2026-11-03). **Revisit** (1) and
+  (3) with the design pass's error wording, (2) in the design pass or the screen-reader check,
+  (4) when the next feature would cross the budget (CI warns), (5) if an undo after a restore is
+  reported to lose an edit, (6) when next touching those files, and (7) if it's noticed, or when
+  generated names are next changed.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
