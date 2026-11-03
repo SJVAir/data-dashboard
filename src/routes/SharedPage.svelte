@@ -68,17 +68,21 @@
 				if (choice === "open") await openDashboard(existing.id);
 				if (choice !== "new") return;
 			}
-			const id = await saveCopy(app, {
-				kind: "document",
-				doc,
-				sourceId,
-				fingerprint: await fingerprint(sharedDocumentOf(doc))
-			});
+			let id: string;
+			try {
+				id = await saveCopy(app, {
+					kind: "document",
+					doc,
+					sourceId,
+					fingerprint: await fingerprint(sharedDocumentOf(doc))
+				});
+			} catch {
+				// Not reported: nothing from a shared document goes into an error report.
+				toast(m.import_save_failed());
+				return;
+			}
 			await openDashboard(id);
 			toast(m.import_saved());
-		} catch {
-			// Not reported: nothing from a shared document goes into an error report.
-			toast(m.import_save_failed());
 		} finally {
 			busy = false;
 		}

@@ -28,7 +28,7 @@ export async function shareDocument(ctx: SyncContext, docId: string): Promise<Sh
 		if (record.serverVersion === null) return { kind: "not-on-server", hold: record.hold };
 		let token: string;
 		try {
-			token = await remoteCall(() => ctx.remote.share(docId));
+			token = await remoteCall(() => ctx.remote.share(docId), "sync-share");
 		} catch (error) {
 			if (error instanceof RemoteUnavailable) return { kind: "offline" };
 			if (error instanceof RemoteRefusal) {
@@ -46,7 +46,7 @@ export async function shareDocument(ctx: SyncContext, docId: string): Promise<Sh
 /** Turns the link off; throws `RemoteUnavailable` / `RemoteRefusal` on failure. */
 export function unshareDocument(ctx: SyncContext, docId: string): Promise<void> {
 	return ctx.platform.locks.run(docLock(ctx.space, docId), async () => {
-		await remoteCall(() => ctx.remote.unshare(docId));
+		await remoteCall(() => ctx.remote.unshare(docId), "sync-unshare");
 		const record = await ctx.platform.sync.get(ctx.space, docId);
 		if (record && record.shareToken !== null) {
 			await ctx.platform.sync.put(ctx.space, { ...record, shareToken: null });

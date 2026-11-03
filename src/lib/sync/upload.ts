@@ -136,12 +136,12 @@ export function replacing(
 }
 
 /** Runs a remote call; anything it throws that isn't a remote failure is reported, then retried. */
-export async function remoteCall<T>(call: () => Promise<T>): Promise<T> {
+export async function remoteCall<T>(call: () => Promise<T>, operation = "sync-upload"): Promise<T> {
 	try {
 		return await call();
 	} catch (error) {
 		if (error instanceof RemoteRefusal || error instanceof RemoteUnavailable) throw error;
-		report(error, { operation: "sync-upload" });
+		report(error, { operation });
 		throw new RemoteUnavailable("The remote call failed", { cause: error });
 	}
 }

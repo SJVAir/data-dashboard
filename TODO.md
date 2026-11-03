@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-11-03
+Last updated: 2026-11-02
 
 ## Start here
 
@@ -1113,7 +1113,7 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
-- [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-03 on
+- [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02 on
       `sync-share-links`, PR #___): the Share dialog (create, copy, stop with confirmation,
       display name), the `/shared/:token` page (read-only, "made by a user" bar, 60-second
       polling, "Make a copy", "Based on …"), and the "Report this page" link. The contact-form

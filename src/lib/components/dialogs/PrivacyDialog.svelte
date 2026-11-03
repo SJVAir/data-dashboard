@@ -29,8 +29,13 @@
 			<Dialog.Title>{m.privacy_title()}</Dialog.Title>
 		</Dialog.Header>
 		<div class="grid gap-3 text-sm">
-			<p>{m.privacy_local()}</p>
-			<p>{m.privacy_server()}</p>
+			{#if app.sync}
+				<p>{m.privacy_local_account()}</p>
+				<p>{m.privacy_server_account()}</p>
+			{:else}
+				<p>{m.privacy_local_anonymous()}</p>
+				<p>{m.privacy_server_anonymous()}</p>
+			{/if}
 			<p>{m.privacy_errors()}</p>
 			<p>{m.privacy_no_tracking()}</p>
 			<p>{m.privacy_clear()}</p>

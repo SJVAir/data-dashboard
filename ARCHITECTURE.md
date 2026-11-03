@@ -678,13 +678,13 @@ files, and server documents.
    rate, alongside the body size limit.
 6. **User-made pages are labeled and removable** (decided 2026-10-13). A live share link
    sits on sjvair.com but its title, Notes, and links are the author's, so:
-   - **A "made by a user" bar on every shared page** (built in sync spec 3), always visible and not removable by
-     the author: who shared it (the optional display name, else a generic label) and that
+   - **A "made by a user" bar on every shared page** (built in sync spec 3), always visible and
+     not removable by the author: who shared it (the optional display name, else a generic label) and that
      it is not an official SJVAir page. The data in the widgets is still SJVAir's.
    - **Links in user text are marked as user content:** they open in a new tab with
      `rel="ugc nofollow noopener"`. Shared pages are served `noindex`.
-   - **A "Report this page" link** (built in sync spec 3) in that bar, going to sjvair.com's existing contact form
-     with the share link filled in. No separate moderation system.
+   - **A "Report this page" link** (built in sync spec 3) in that bar, going to sjvair.com's
+     existing contact form with the share link filled in. No separate moderation system.
    - **Staff takedown** in the Django admin: disable a share link (it then shows a "no
      longer available" page) and, if needed, block an account from creating shares. The
      author's own document is untouched. Each takedown records who and when.
@@ -1862,7 +1862,7 @@ rest are the builder's calls, and the user kept them.
     `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
     `DEFERRED.md`).
 
-**Live share links (built in sync spec 3, 2026-11-03).** The builder's calls, in the plan
+**Live share links (built in sync spec 3, 2026-11-02).** The builder's calls, in the plan
 `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`:
 
 1. **The share token lives in the sync record** (`shareToken`), not in the document: sharing

@@ -19,15 +19,15 @@ async function setup() {
 	return new Map([[APP_CONTEXT_KEY, app]]);
 }
 
-test("shows the title, every paragraph, and the notices link", async () => {
+test("signed out: the title, every paragraph, and the notices link", async () => {
 	const context = await setup();
 	await render(PrivacyDialog, { context });
 	openPrivacy();
 	const dialog = page.getByRole("dialog");
 	await expect.element(dialog.getByRole("heading", { name: m.privacy_title() })).toBeVisible();
 	for (const text of [
-		m.privacy_local(),
-		m.privacy_server(),
+		m.privacy_local_anonymous(),
+		m.privacy_server_anonymous(),
 		m.privacy_errors(),
 		m.privacy_no_tracking(),
 		m.privacy_clear()
@@ -37,17 +37,26 @@ test("shows the title, every paragraph, and the notices link", async () => {
 	await expect
 		.element(dialog.getByRole("link", { name: m.privacy_notices_link() }))
 		.toHaveAttribute("href", "https://s.example/static/workspace/THIRD-PARTY-NOTICES.txt");
+	expect(m.privacy_server_anonymous()).toContain("They are not sent to SJVAir's server.");
+	expect(m.privacy_server_anonymous()).not.toContain("live link");
+	expect(dialog.getByText(m.privacy_local_account()).elements()).toHaveLength(0);
 });
 
-test("the server paragraph explains live links and copy links", async () => {
+test("signed in: dashboards are saved to the account and live links are explained", async () => {
 	const context = await setup();
+	const app = context.get(APP_CONTEXT_KEY) as { sync: unknown };
+	app.sync = {};
 	await render(PrivacyDialog, { context });
 	openPrivacy();
-	await expect.element(page.getByRole("dialog").getByText(m.privacy_server())).toBeVisible();
-	expect(m.privacy_server()).toContain(
-		"A live link (when you're signed in) shows the dashboard to anyone with the link until you stop sharing."
+	const dialog = page.getByRole("dialog");
+	await expect.element(dialog.getByText(m.privacy_local_account())).toBeVisible();
+	await expect.element(dialog.getByText(m.privacy_server_account())).toBeVisible();
+	expect(dialog.getByText(m.privacy_local_anonymous()).elements()).toHaveLength(0);
+	expect(m.privacy_local_account()).toContain("your SJVAir account");
+	expect(m.privacy_server_account()).toContain(
+		"A live link shows the dashboard to anyone with the link until you stop sharing."
 	);
-	expect(m.privacy_server()).toContain(
+	expect(m.privacy_server_account()).toContain(
 		"A copy link has the dashboard inside the link itself, so anyone you give the link to can see it."
 	);
 });

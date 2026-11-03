@@ -205,22 +205,38 @@ string`) now get the union return type. The mobile app passes a string token, so
     dashboards have). _Deferred 2026-11-02 (sync spec 3 plan)._ Viewers are mostly signed out on
     one tab each, and the sync design's cost estimate already counts one request per viewer per
     minute. **Revisit if** load from shared pages shows up in the server's monitoring.
-  - **An open shared page whose next version is invalid stops polling.** _Deferred 2026-11-03
+  - **An open shared page whose next version is invalid stops polling.** _Deferred 2026-11-02
     (sync spec 3, while building)._ The page refuses a version that fails validation or is too
-    large, and keeps the last good one; the owner's fix shows only after a reload. Refusing is
-    the safe side. **Revisit if** an owner reports it, or if the format's validation gets
-    stricter.
+    large, switches to the "can't be opened" view, and stops polling; the owner's fix shows only
+    after a reload. Refusing is the safe side. **Revisit if** an owner reports it, or if the
+    format's validation gets stricter.
   - **A share made or stopped in one tab can briefly show the old state in another tab of the
-    same account.** _Deferred 2026-11-03 (sync spec 3, while building)._ A list answered just
+    same account.** _Deferred 2026-11-02 (sync spec 3, while building)._ A list answered just
     before the change can overwrite the newer state; it heals on the next poll (up to 60 s).
     **Revisit if** the dialog showing a stale link is reported.
   - **The starter hand-off can set the current dashboard after the person has left for a shared
-    page.** _Deferred 2026-11-03 (sync spec 3, while building)._ This is the existing `onCopied`
+    page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
     in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
     timing. **Revisit on a report, or when the hand-off is next changed.**
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
-    unavailable.** _Deferred 2026-11-03 (sync spec 3, while building)._ Nothing shows; it is
+    unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
+  - **The Share dialog's public-name field stays disabled after a failed load until the dialog
+    is reopened.** _Deferred 2026-11-02 (sync spec 3, final review)._ There is no retry when the
+    connection comes back; reopening the dialog loads it again. **Revisit on a report, or in the
+    design pass.**
+  - **A display-name save that fails for any reason other than an invalid name shows the
+    "Couldn't reach SJVAir" message.** _Deferred 2026-11-02 (sync spec 3, final review)._ Rate
+    limited and signed-out failures are worded as if offline; the wording is a working draft.
+    **Revisit with** the design pass's error wording.
+  - **"Based on …" looked up while offline stays hidden until the next page load.**
+    _Deferred 2026-11-02 (sync spec 3, final review)._ The answer is cached per page load, so a
+    lookup that failed offline is not retried. **Revisit if** people report a missing credit.
+  - **The Help menu's feedback link still opens sjvair.com's contact form with no topic
+    pre-filled.** _Deferred 2026-11-02 (sync spec 3, final review)._ The server pre-fills only
+    the shared-page report. This was part of the removed "Pre-filling sjvair.com's contact form"
+    entry. It needs a small server change to accept a Feedback topic. **Revisit with** the next
+    sjvair.com contact-form change.
   - **Moving the documents SDK code out of the public `@sjvair/sdk` before go-live.** _Decided
     2026-11-02 (the user, in the sdk-js session)._ `@sjvair/sdk/documents` wraps the private
     `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public
