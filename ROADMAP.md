@@ -23,8 +23,9 @@ merged into `main`** (#21, 2026-11-02): specs 2a (arranging, #13) and 2b (window
 follow-ups #16–#18; the touch check passed, and the screen-reader check is deferred until before
 go-live or beta testers. **The server-backed documents (sync) track's spec 1 is merged** (sjvair.com
 #297 into `develop`, sdk-js #34 into `release/4.8.0`); **its dashboard spec 2 is merged into
-`main`** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23), 2026-11-02; @sjvair/sdk 4.8.0-beta.3, sjvair.com #298 on `develop`), and specs 3
-and 4 are next, from `main`. The hosting track is built (sjvair.com
+`main`** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23), 2026-11-02; @sjvair/sdk 4.8.0-beta.3, sjvair.com #298 on `develop`), and so is
+**spec 3, live share links** (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26),
+2026-11-03); spec 4 (recovery) is next, from `main`. The hosting track is built (sjvair.com
 #295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1).
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
 4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.3 is the latest). Details in `TODO.md` →
@@ -232,6 +233,11 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   an account with the re-check before each sync, and the backup reminder's "sign in to keep
   this safe everywhere" line. Also with the email-only accounts track: the return trip to the
   dashboard after sign-up (before go-live at the latest).
+  **Built in sync spec 3 (2026-11-03):** live share links (create, copy, stop sharing), the
+  read-only `/shared/:token` page with the "made by a user" bar and "Report this page" (with
+  sjvair.com's contact-form pre-fill, #297), "Make a copy", "Based on …" credits, and the
+  optional public display name. Spec 4 adds the recovery pieces (server snapshots in "Restore
+  an earlier version", synced Recently deleted, "account gone").
 
 - **Private preview from about step 4** (decided 2026-09-24). An unlisted preview (e.g.
   a staging Heroku app, a hidden route, or the server's `beta_tools` flag) for a pilot teacher and a researcher, so the

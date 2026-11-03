@@ -227,7 +227,8 @@ Decided 2026-09-28.
   approval, once planning was finished.
 - **Foundations (Release 1, step 1) was merged into `main` on 2026-10-27** (PR #11), and
   **step 2 (layout engine and windowing) on 2026-11-02** (PR #21), and **sync spec 2
-  (dashboard sync) on 2026-11-02** (PR #23), each with the user's approval. Each Foundations spec was a PR into the `foundations` branch first. Later
+  (dashboard sync) on 2026-11-02** (PR #23), and **sync spec 3 (live share links) on
+  2026-11-03** (PR #26), each with the user's approval. Each Foundations spec was a PR into the `foundations` branch first. Later
   steps branch from `main` the same way (e.g. a step branch, with stacked spec PRs into it).
 
 ## Code Style
