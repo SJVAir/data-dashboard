@@ -23,6 +23,7 @@ import {
 import { resolveHold, type RemoteChoice } from "./resolve";
 import { shareDocument, unshareDocument, type ShareResult } from "./share";
 import { SYNC_TAB, type SyncHold } from "./types";
+import { deletePermanently, type DeleteResult } from "./trash";
 import { uploadDocument, type UploadResult } from "./upload";
 import { keepBeforeRestore, serverVersion, serverVersions } from "./versions";
 
@@ -152,6 +153,15 @@ export class SyncWorker {
 			return await keepBeforeRestore(this.#ctx, docId);
 		} finally {
 			// A pull or a `gone` hold may have changed the document's standing.
+			this.states = await this.#readStates();
+		}
+	}
+
+	/** Deletes a dashboard in Recently deleted from the account; the caller removes it locally. */
+	async deletePermanently(docId: string): Promise<DeleteResult> {
+		try {
+			return await deletePermanently(this.#ctx, docId);
+		} finally {
 			this.states = await this.#readStates();
 		}
 	}

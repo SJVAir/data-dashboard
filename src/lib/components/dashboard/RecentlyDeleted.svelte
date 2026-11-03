@@ -25,7 +25,7 @@
 		const gone = new Promise<void>((resolve) => (removed = resolve));
 		const confirmed = await confirmAction({
 			title: m.deleted_confirm_title(),
-			body: m.deleted_confirm_body(),
+			body: app.sync ? m.deleted_confirm_body_account() : m.deleted_confirm_body(),
 			confirm: m.deleted_delete_now(),
 			destructive: true,
 			// Once the row is gone: the next row's Restore, else the heading, else the page's.
@@ -44,7 +44,19 @@
 		if (!confirmed) return;
 		position = app.index.deleted.findIndex((d) => d.id === id);
 		try {
-			await app.index.remove(id);
+			const result = app.sync ? await app.sync.deletePermanently(id) : "deleted";
+			if (result === "deleted") {
+				await app.index.remove(id);
+			} else {
+				toast.error(
+					result === "restored-elsewhere"
+						? m.deleted_restored_elsewhere()
+						: result === "unreachable"
+							? m.deleted_unreachable()
+							: m.deleted_not_saved()
+				);
+				await app.index.refresh();
+			}
 		} finally {
 			removed();
 		}
