@@ -985,6 +985,16 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Mobile app (`../mobile`)
 
+- **Retire the old air-quality `levels` format in `monitors/meta/`.** _Deferred 2026-11-03
+  (sjvair.com step 3 spec 1, the user's call)._ Spec 1 keeps each entry type's existing
+  `levels` dict (uppercase keys, `name`, `range` with "next minus 0.1"), adding only `tier`,
+  and serves the shared-shape `scale` alongside it for the dashboard. Why: installed mobile
+  apps read the old dict through sdk-js for alert levels and subscriptions
+  (`MonitorSubscription.svelte`, `Subscriptions.svelte`, `alert-level.ts`) and can't be
+  forced to update; monitor-map reads it too. Both formats come from the same `LevelSet`,
+  with a test that they agree. **Revisit when** a mobile release reads `scale` and the
+  monitor-map rebuild on map-sdk ships: mark `levels` deprecated, then remove it once older
+  app versions have aged out.
 - **Mobile migration to `map-sdk` and the rebuilt monitor-map (5.0).** _Deferred
   2026-09-28; updated 2026-10-13._ It doesn't block Release 1 or go-live. The mobile app
   is on monitor-map `^4.2.0` and keeps working on 4.x. It depends on
