@@ -69,6 +69,9 @@
 	--radius-4xl: calc(var(--radius) * 2.6);
 	--text-xs: 0.75rem;
 	--text-xs--line-height: 1.5;
+	/* Form fields on small screens: 16px, so iOS Safari doesn't zoom in on focus. */
+	--text-field: 1rem;
+	--text-field--line-height: 1.5;
 	--text-sm: 0.8125rem;
 	--text-sm--line-height: 1.5;
 	--text-base: 0.9375rem;
@@ -220,6 +223,17 @@
 		animation-duration: var(--motion-duration-base) !important;
 		transition-duration: var(--motion-duration-base) !important;
 	}
+}
+
+/* While the theme switches (the theme store adds the class for one base motion), colors fade.
+   Unlayered, so it wins over utilities' own transitions; reduced motion makes it 0 ms. */
+.theme-changing,
+.theme-changing *,
+.theme-changing ::before,
+.theme-changing ::after {
+	transition-property: color, background-color, border-color, outline-color, fill, stroke;
+	transition-duration: var(--motion-duration-base);
+	transition-timing-function: var(--motion-ease-standard);
 }
 
 /* Toasts: svelte-sonner's styles are unlayered, so these repeat its selectors under the toaster

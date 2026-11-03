@@ -1178,11 +1178,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   restore runs, or reset its state on close. **Revisit in** the design pass.
 - **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
   light mode only. **Revisit in** the design pass.
-- **No transition when the theme switches.** _Deferred 2026-11-03 (design pass, Task 5)._ The
-  spec lists the theme switch among the motion uses, but switching Light / Dark / System changes
-  colors at once. A color transition on every element would have to be added only for the moment
-  of the switch (or it would also slow hovers and focus), and the switch is rare. **Revisit
-  when** preview testers find the instant switch jarring, or with the livelier-motion item.
 - **A "present" mode using the browser's own full screen.** _Deferred 2026-10-28 (step 2
   design)._ Widget fullscreen covers the dashboard area only; the browser's F11 / fullscreen key
   already gives an edge-to-edge projector view. The Fullscreen API would add a second Esc-to-exit
