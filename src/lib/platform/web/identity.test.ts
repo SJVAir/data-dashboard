@@ -97,6 +97,17 @@ describe("createWebIdentity", () => {
 		expect(heard).toEqual([[{ state: "signed-out" }, "load"]]);
 	});
 
+	it("deletedAccount is the block's value, else null", () => {
+		const text = JSON.stringify({ v: 1, user: null, deletedAccount: "gone1" });
+		const { source } = setup({ blockText: text });
+		expect(source.deletedAccount()).toBeNull();
+		source.start();
+		expect(source.deletedAccount()).toBe("gone1");
+		const plain = setup({ blockText: block(null) }).source;
+		plain.start();
+		expect(plain.deletedAccount()).toBeNull();
+	});
+
 	it("start is idempotent", () => {
 		const { source, heard, activity, fetchUser, setNow } = setup();
 		source.start();

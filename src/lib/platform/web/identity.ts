@@ -69,6 +69,7 @@ export function createWebIdentity(deps: WebIdentityDeps): IdentitySource {
 	let identity: Identity = { state: "unknown" };
 	const listeners = new Set<(identity: Identity, cause: IdentityCause) => void>();
 	let started = false;
+	let deletedAccount: string | null = null;
 	let lastCheck: number | undefined;
 	let inFlight: Promise<void> | undefined;
 	/** Bumped by anything newer than a request in flight, whose answer is then dropped. */
@@ -145,7 +146,8 @@ export function createWebIdentity(deps: WebIdentityDeps): IdentitySource {
 			} else {
 				// The block is the server's answer as of this page load.
 				lastCheck = deps.now();
-				const { identity: read, unreadable } = parseIdentityBlock(text);
+				const { identity: read, unreadable, deletedAccount: gone } = parseIdentityBlock(text);
+				deletedAccount = gone;
 				if (unreadable) {
 					deps.errors.report(new Error("The identity block is unreadable"), {
 						operation: "identity"
@@ -184,6 +186,7 @@ export function createWebIdentity(deps: WebIdentityDeps): IdentitySource {
 			}
 			return ok;
 		},
+		deletedAccount: () => deletedAccount,
 		signInUrl: (returnPath) => `/account/login/?next=${encodeURIComponent(returnPath)}`,
 		accountUrl: () => "/account/"
 	};

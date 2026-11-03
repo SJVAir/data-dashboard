@@ -14,13 +14,18 @@ describe("parseIdentityBlock", () => {
 	it("reads a null user as signed out", () => {
 		expect(parseIdentityBlock('{"v":1,"user":null}')).toEqual({
 			identity: { state: "signed-out" },
-			unreadable: false
+			unreadable: false,
+			deletedAccount: null
 		});
 	});
 
 	it("reads a valid user as signed in and drops unknown keys", () => {
 		const result = parseIdentityBlock(JSON.stringify({ v: 1, user: { ...user, is_admin: true } }));
-		expect(result).toEqual({ identity: { state: "signed-in", user }, unreadable: false });
+		expect(result).toEqual({
+			identity: { state: "signed-in", user },
+			unreadable: false,
+			deletedAccount: null
+		});
 	});
 
 	it("keeps a script-closing name intact", () => {
@@ -40,14 +45,16 @@ describe("parseIdentityBlock", () => {
 	it("flags an unknown version as unreadable", () => {
 		expect(parseIdentityBlock('{"v":2,"user":null}')).toEqual({
 			identity: { state: "signed-out" },
-			unreadable: true
+			unreadable: true,
+			deletedAccount: null
 		});
 	});
 
 	it("flags non-JSON as unreadable", () => {
 		expect(parseIdentityBlock("nope")).toEqual({
 			identity: { state: "signed-out" },
-			unreadable: true
+			unreadable: true,
+			deletedAccount: null
 		});
 	});
 
@@ -55,7 +62,38 @@ describe("parseIdentityBlock", () => {
 		const rest: Partial<typeof user> = { ...user };
 		delete rest.id;
 		const result = parseIdentityBlock(JSON.stringify({ v: 1, user: rest }));
-		expect(result).toEqual({ identity: { state: "signed-out" }, unreadable: true });
+		expect(result).toEqual({
+			identity: { state: "signed-out" },
+			unreadable: true,
+			deletedAccount: null
+		});
+	});
+});
+
+describe("parseIdentityBlock deletedAccount", () => {
+	it("the block's deletedAccount is read", () => {
+		const result = parseIdentityBlock('{"v":1,"user":null,"deletedAccount":"gone1"}');
+		expect(result).toEqual({
+			identity: { state: "signed-out" },
+			unreadable: false,
+			deletedAccount: "gone1"
+		});
+	});
+
+	it("a block without it reads null", () => {
+		expect(parseIdentityBlock('{"v":1,"user":null}').deletedAccount).toBeNull();
+		expect(parseIdentityBlock("nope").deletedAccount).toBeNull();
+	});
+
+	it("a malformed deletedAccount makes the block unreadable", () => {
+		for (const bad of ['""', "5", "null"]) {
+			const result = parseIdentityBlock(`{"v":1,"user":null,"deletedAccount":${bad}}`);
+			expect(result).toEqual({
+				identity: { state: "signed-out" },
+				unreadable: true,
+				deletedAccount: null
+			});
+		}
 	});
 });
 

@@ -16,12 +16,12 @@ export { spaceFor };
 /** Preference key (in the hidden space itself): why and when it was hidden. */
 export const HIDDEN_KEY = "hidden";
 
-export type Hidden = { at: string; reason: "signed-out" | "expired" | "switched" };
+export type Hidden = { at: string; reason: "signed-out" | "expired" | "switched" | "deleted" };
 
 /** The sync worker's tab id for server changes; `SYNC_TAB` in src/lib/sync/types.ts. */
 const SYNC_TAB = "sync";
 
-const REASONS: ReadonlySet<string> = new Set(["signed-out", "expired", "switched"]);
+const REASONS: ReadonlySet<string> = new Set(["signed-out", "expired", "switched", "deleted"]);
 
 async function readHidden(platform: Platform, space: SpaceId): Promise<Hidden | null> {
 	const value = await platform.preferences.get<unknown>(space, HIDDEN_KEY);
@@ -44,6 +44,12 @@ export async function hideSpace(
 	await platform.preferences.set(space, HIDDEN_KEY, hidden);
 }
 
+/** Marks the space hidden as "deleted" (call 7: overrides any earlier reason). */
+export async function markDeleted(platform: Platform, space: SpaceId, now: Date): Promise<void> {
+	const hidden: Hidden = { at: now.toISOString(), reason: "deleted" };
+	await platform.preferences.set(space, HIDDEN_KEY, hidden);
+}
+
 /** Its person is back: the space is in use again. */
 export async function unhideSpace(platform: Platform, space: SpaceId): Promise<void> {
 	if ((await platform.preferences.get(space, HIDDEN_KEY)) === undefined) return;
@@ -54,7 +60,7 @@ export async function unhideSpace(platform: Platform, space: SpaceId): Promise<v
 export const spaceLock = (space: SpaceId) => `sjvair-space:${space}`;
 
 /**
- * Removes hidden spaces older than RETENTION_MS, and signed-out ones with nothing unsynced. A
+ * Removes deleted-account spaces at once, hidden spaces older than RETENTION_MS, and signed-out ones with nothing unsynced. A
  * space an open app (in any tab) holds is never touched. With the identity known, an account
  * space that isn't `current` and has no marker is hidden now as signed out: another tab stored
  * its last edits into it just after it was removed (removing deletes the marker too). With it
@@ -77,6 +83,7 @@ export async function tidySpaces(
 				await hideSpace(platform, space, "signed-out", now);
 				hidden = { at: now.toISOString(), reason: "signed-out" };
 			}
+			if (hidden.reason === "deleted") return void (await platform.spaces.remove(space));
 			const old = now.getTime() - Date.parse(hidden.at) > RETENTION_MS;
 			if (old || (hidden.reason === "signed-out" && !(await hasUnsynced(platform, space)))) {
 				await platform.spaces.remove(space);

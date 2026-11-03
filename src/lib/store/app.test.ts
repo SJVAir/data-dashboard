@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Change } from "$lib/changes/types";
+import type { Platform, SpaceId } from "$lib/platform/types";
 import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID } from "$lib/starter/starter";
@@ -8,7 +9,8 @@ import { LAST_OPENED_KEY, homeTarget, initApp } from "./app.svelte";
 import { createFakeRemote, type FakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, user } from "$lib/sync/test-support";
 import { loadSyncWorker } from "$lib/sync/load";
-import { HIDDEN_KEY, spaceLock } from "./spaces";
+import { watchSpace } from "./space-switch";
+import { HIDDEN_KEY, spaceLock, tidySpaces } from "./spaces";
 import { createMemoryTabHub } from "./tab-channel";
 
 // The real loader would load the SDK remote; this one gives a worker on the fake server.
@@ -33,7 +35,17 @@ async function signedInApp() {
 	const platform = createMemoryPlatform({ identity });
 	server.fake = createFakeRemote({ accountId: ACCOUNT });
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-	return { platform, app, fake: server.fake };
+	return { platform, app, fake: server.fake, identity };
+}
+
+/** A dashboard never uploaded (no sync record), so unsynced. */
+async function storeIn(platform: Platform, space: SpaceId, id: string) {
+	await platform.documents.commit(space, {
+		docId: id,
+		baseVersion: null,
+		doc: { id },
+		entries: []
+	});
 }
 
 const rename: Change = { op: "setField", target: { path: "name" }, from: null, to: "Home" };
@@ -248,6 +260,88 @@ describe("initApp", () => {
 		expect(app.space).toBe(SPACE);
 		expect(await platform.preferences.get(orphan, HIDDEN_KEY)).toBeUndefined();
 		await app.close();
+	});
+
+	it("opening with a deleted account removes its space", async () => {
+		const identity = createMemoryIdentity({ state: "signed-out" }, { deletedAccount: ACCOUNT });
+		const platform = createMemoryPlatform({ identity });
+		await storeIn(platform, SPACE, "d1");
+		const app = await initApp(platform, {
+			channel: createMemoryTabHub().channel(),
+			tabId: "t1",
+			loadSync: null
+		});
+		expect(app.space).toBe("anonymous");
+		expect(await platform.spaces.list()).not.toContain(SPACE);
+		await app.close();
+	});
+
+	it("an unknown deleted account changes nothing", async () => {
+		const identity = createMemoryIdentity({ state: "signed-out" }, { deletedAccount: "nobody" });
+		const platform = createMemoryPlatform({ identity });
+		await storeIn(platform, SPACE, "d1");
+		const app = await initApp(platform, {
+			channel: createMemoryTabHub().channel(),
+			tabId: "t1",
+			loadSync: null
+		});
+		expect(await platform.spaces.list()).toContain(SPACE);
+		expect(await platform.preferences.get("account:nobody", HIDDEN_KEY)).toBeUndefined();
+		// Hidden by the usual signed-out tidy (it has unsynced changes, so it stays), not deleted.
+		expect(await platform.preferences.get(SPACE, HIDDEN_KEY)).toMatchObject({
+			reason: "signed-out"
+		});
+		await app.close();
+	});
+
+	it("a held space is removed after its tab switches away", async () => {
+		const signedIn = createMemoryIdentity({ state: "signed-in", user: user(ACCOUNT) });
+		const platform = createMemoryPlatform({ identity: signedIn });
+		server.fake = createFakeRemote({ accountId: ACCOUNT });
+		const hub = createMemoryTabHub();
+		const held = await initApp(platform, { channel: hub.channel(), tabId: "t1" });
+		await storeIn(platform, SPACE, "d1");
+
+		// A second tab on the same storage: signed out, told the account was just deleted.
+		const out = createMemoryIdentity({ state: "signed-out" }, { deletedAccount: ACCOUNT });
+		const second = await initApp(
+			{ ...platform, identity: out },
+			{ channel: hub.channel(), tabId: "t2", loadSync: null }
+		);
+		expect(await platform.preferences.get(SPACE, HIDDEN_KEY)).toMatchObject({ reason: "deleted" });
+		// The first tab still holds the space.
+		expect(await platform.spaces.list()).toContain(SPACE);
+
+		// It gets its signed-out re-check and switches away; the next tidy removes the space.
+		await held.close();
+		await second.close();
+		const third = await initApp(
+			{ ...platform, identity: createMemoryIdentity({ state: "signed-out" }) },
+			{ channel: hub.channel(), tabId: "t3", loadSync: null }
+		);
+		expect(await platform.spaces.list()).not.toContain(SPACE);
+		await third.close();
+	});
+
+	it("another device: a deleted account hides the space and keeps it 30 days", async () => {
+		const { platform, app, fake, identity } = await signedInApp();
+		const switched = vi.fn();
+		const stop = watchSpace(app, switched);
+		const id = await app.index.createBlank();
+		await vi.waitFor(() => expect(app.sync?.states[id]?.state).toBe("synced"));
+		// The account was deleted on another device: the server answers unauthorized.
+		fake.signedInAs = null;
+		identity.setServer({ state: "signed-out" });
+		const session = (await app.sessions.get(id))!;
+		session.apply(rename);
+		await session.flush();
+		void app.account.recheck();
+		await vi.waitFor(() => expect(switched).toHaveBeenCalledWith("anonymous"));
+		expect(await platform.preferences.get(SPACE, HIDDEN_KEY)).toMatchObject({ reason: "expired" });
+		stop();
+		await app.close();
+		await tidySpaces(platform, "anonymous", new Date());
+		expect(await platform.spaces.list()).toContain(SPACE);
 	});
 
 	it("close still flushes the others when one dashboard fails to open", async () => {

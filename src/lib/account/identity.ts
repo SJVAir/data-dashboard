@@ -16,24 +16,30 @@ export type Identity =
 
 const blockSchema = z.object({
 	v: z.literal(1),
-	user: accountUserSchema.nullable()
+	user: accountUserSchema.nullable(),
+	deletedAccount: z.string().min(1).optional()
 });
 
 /** Parse the page's `sjvair-identity` JSON block. Never throws. */
-export function parseIdentityBlock(text: string): { identity: Identity; unreadable: boolean } {
+export function parseIdentityBlock(text: string): {
+	identity: Identity;
+	unreadable: boolean;
+	deletedAccount: string | null;
+} {
 	try {
 		const result = blockSchema.safeParse(JSON.parse(text));
 		if (result.success) {
 			const { user } = result.data;
 			return {
 				identity: user ? { state: "signed-in", user } : { state: "signed-out" },
-				unreadable: false
+				unreadable: false,
+				deletedAccount: result.data.deletedAccount ?? null
 			};
 		}
 	} catch {
 		// fall through to unreadable
 	}
-	return { identity: { state: "signed-out" }, unreadable: true };
+	return { identity: { state: "signed-out" }, unreadable: true, deletedAccount: null };
 }
 
 /** Same state and, when signed in, the same account id. */

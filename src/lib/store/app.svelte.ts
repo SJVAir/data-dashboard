@@ -15,7 +15,7 @@ import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { DocumentSession } from "./document-session.svelte";
-import { spaceFor, spaceLock, tidySpaces, unhideSpace } from "./spaces";
+import { markDeleted, spaceFor, spaceLock, tidySpaces, unhideSpace } from "./spaces";
 import { createTabChannel, withLocalEcho, type TabChannel } from "./tab-channel";
 
 /** Preference key: the id of the dashboard opened last in this space. */
@@ -347,6 +347,14 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	await app.holdSpace();
 	// Its person is back: the space is in use again.
 	if (space !== "anonymous") await housekeeping(() => unhideSpace(platform, space));
+	// The page says an account was just deleted in this browser: its space goes now.
+	const deleted = platform.identity.deletedAccount();
+	if (deleted !== null && `account:${deleted}` !== space) {
+		const gone = `account:${deleted}` as const;
+		await housekeeping(async () => {
+			if ((await platform.spaces.list()).includes(gone)) await markDeleted(platform, gone, now);
+		});
+	}
 	// Only an identity known to be this space's may hide other spaces as signed out.
 	const identity = platform.identity.current();
 	const identityKnown = identity.state !== "unknown" && spaceFor(identity) === space;
