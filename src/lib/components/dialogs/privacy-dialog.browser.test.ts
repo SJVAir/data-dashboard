@@ -75,7 +75,9 @@ test("the help menu offers the privacy note and a feedback link", async () => {
 	await render(PrivacyDialog, { context });
 	await render(HelpMenu, { context });
 	await page.getByRole("button", { name: m.help_menu() }).click();
-	const feedback = page.getByRole("menuitem", { name: m.feedback_link() });
+	const feedback = page.getByRole("menuitem", {
+		name: `${m.feedback_link()} ${m.opens_in_new_tab()}`
+	});
 	await expect.element(feedback).toHaveAttribute("href", "https://www.sjvair.com/contact/");
 	await expect.element(feedback).toHaveAttribute("target", "_blank");
 	await expect.element(feedback).toHaveAttribute("rel", "noopener");
