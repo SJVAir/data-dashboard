@@ -3,7 +3,7 @@
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 	import { menuScope } from "$lib/actions/scope";
-	import { restoreWidget, taskbarActions, widgetTitle } from "$lib/actions/widget";
+	import { restoreWidget, taskbarActions, viewActions, widgetTitle } from "$lib/actions/widget";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { WidgetInstance } from "$lib/documents/schema";
@@ -14,11 +14,17 @@
 
 	let {
 		widgets,
-		onfullscreen
+		onfullscreen,
+		readOnly = false,
+		viewWidgets
 	}: {
 		/** The minimized widgets, already in taskbar order. */
 		widgets: WidgetInstance[];
 		onfullscreen: (id: string) => void;
+		/** View mode: an item opens its widget fullscreen instead of restoring it. */
+		readOnly?: boolean;
+		/** In view mode, the shown document's widgets (read in place of the app's session). */
+		viewWidgets?: () => WidgetInstance[];
 	} = $props();
 
 	const app = useApp();
@@ -97,7 +103,7 @@
 			return;
 		}
 		held = null;
-		const all = app.current.session?.doc.body.widgets ?? [];
+		const all = (viewWidgets ? viewWidgets() : app.current.session?.doc.body.widgets) ?? [];
 		const gone = all.find((w) => w.id === id);
 		if (gone && !gone.minimized) requestFocus({ kind: "title", id });
 		else if (remaining.length) {
@@ -145,14 +151,20 @@
 			<div
 				class="border-border flex shrink-0 items-center rounded-md border"
 				data-testid="taskbar-{widget.id}"
-				{@attach menuScope(taskbarActions(app, widget.id, onfullscreen))}
+				{@attach menuScope(
+					readOnly
+						? viewActions(widget.id, onfullscreen)
+						: taskbarActions(app, widget.id, onfullscreen)
+				)}
 			>
 				<Button
 					variant="ghost"
 					size="sm"
 					tabindex={current === i * 2 ? 0 : -1}
-					aria-label={m.taskbar_restore_named({ title })}
-					onclick={() => restoreWidget(app, widget.id)}
+					aria-label={readOnly
+						? m.widget_fullscreen_named({ title })
+						: m.taskbar_restore_named({ title })}
+					onclick={() => (readOnly ? onfullscreen(widget.id) : restoreWidget(app, widget.id))}
 				>
 					<Icon aria-hidden="true" />
 					<span class="max-w-40 truncate">{title}</span>

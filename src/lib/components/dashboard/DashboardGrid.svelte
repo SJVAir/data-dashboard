@@ -11,7 +11,7 @@
 	import { widgetTitle } from "$lib/actions/widget";
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { m } from "$lib/paraglide/messages.js";
-	import type { Rect } from "$lib/documents/schema";
+	import type { Dashboard, Rect } from "$lib/documents/schema";
 	import { ARRANGEMENT_KEY, Arrangement } from "$lib/layout/arrangement.svelte";
 	import { GRID_COLUMNS, PHONE_QUERY } from "$lib/layout/config";
 	import { Flip, flipRect } from "$lib/layout/flip";
@@ -37,8 +37,14 @@
 	import WidgetFrame from "./WidgetFrame.svelte";
 
 	let {
+		view,
 		onArrangement
 	}: {
+		/**
+		 * View mode: show this document read-only (someone else's, on the shared page), ignoring
+		 * the app's current dashboard. Nothing arranges, and the only action is Fullscreen.
+		 */
+		view?: Dashboard;
 		/** Tests only: hands over the grid's arrangement controller once it's made. */
 		onArrangement?: (arrangement: Arrangement) => void;
 	} = $props();
@@ -49,8 +55,13 @@
 	// Not bubbled: a widget's menu lists only its own actions.
 	const actions: MenuProvider = (ctx) => [...dashboard(ctx), ...history(ctx)];
 
-	const session = $derived(app.current.session);
+	// In view mode there's no session: the document is shown, never edited.
+	const session = $derived(view ? null : app.current.session);
 	const editable = $derived(session && !session.readOnly ? session : null);
+	/** The document whose widgets are shown: the view's, or the editable session's. */
+	const doc = $derived(view ?? editable?.doc ?? null);
+	/** The view's widgets, read by its frames and taskbar in place of the app's session. */
+	const viewWidgets = $derived(view ? () => view.body.widgets : undefined);
 
 	const phone = new MediaQuery(PHONE_QUERY);
 	// The active widget's title, kept from pickup on: when it goes, it's no longer in the document.
@@ -66,8 +77,8 @@
 
 	// The shown (tidied) layout, always in desktop coordinates and in reading order, so the
 	// single-column layout and the tab order follow it.
-	const shown = $derived(editable ? shownLayout(editable.doc.body.widgets) : []);
-	const byId = $derived(new Map(editable?.doc.body.widgets.map((w) => [w.id, w]) ?? []));
+	const shown = $derived(doc ? shownLayout(doc.body.widgets) : []);
+	const byId = $derived(new Map(doc?.body.widgets.map((w) => [w.id, w]) ?? []));
 	// Each widget's place: the arrangement's preview while one is in progress, else the shown
 	// layout. On a phone each widget is placed on explicit rows (its height, in the placed
 	// layout's reading order), so the drop target can overlay a slot without moving the others.
@@ -91,7 +102,7 @@
 			return widget && place ? [{ widget, ...place }] : [];
 		})
 	);
-	const minimized = $derived(editable ? taskbarWidgets(editable.doc.body.widgets) : []);
+	const minimized = $derived(doc ? taskbarWidgets(doc.body.widgets) : []);
 	const active = $derived(arrangement.active);
 	const target = $derived(active ? placed.find((p) => p.widget.id === active.id) : undefined);
 
@@ -124,12 +135,17 @@
 	// The session is this page's: the dashboard in the route, or on `/` the starter or its copy.
 	// Until then a previous page's session may still be current, and isn't checked against.
 	const loaded = $derived.by(() => {
+		if (view) return true;
 		if (!session) return false;
 		const id = route.params.id;
 		if (id) return session.doc.id === id;
 		return app.current.isStarter || session.doc.copiedFrom === STARTER_ID;
 	});
-	const check = $derived(requested ? checkDeepLink(session, loaded, requested) : null);
+	const check = $derived(
+		requested
+			? checkDeepLink(view ? { doc: view, readOnly: false } : session, loaded, requested)
+			: null
+	);
 	const shownId = $derived(check === "show" ? requested : null);
 	const shownWidget = $derived(shownId ? byId.get(shownId) : undefined);
 
@@ -261,24 +277,36 @@
 	});
 </script>
 
-{#if session}
+{#if view || session}
 	<ContextMenuHost>
-		<div bind:this={root} class="flex min-h-full flex-col gap-4 p-4" {@attach menuScope(actions)}>
-			<DashboardHeader inert={!!shownId} />
-			{#if session.readOnly}
+		<!-- In view mode the dashboard has no actions (its widgets' Fullscreen is their own). -->
+		<div
+			bind:this={root}
+			class="flex min-h-full flex-col gap-4 p-4"
+			{@attach view ? undefined : menuScope(actions)}
+		>
+			{#if !view}
+				<DashboardHeader inert={!!shownId} />
+			{/if}
+			{#if session?.readOnly}
 				<!-- A read-only document may not be valid, so its widgets aren't rendered. -->
 				<p role="status" class="bg-muted rounded-lg px-4 py-2 text-sm">
 					{session.readOnly === "newer" ? m.doc_readonly_newer() : m.doc_readonly_invalid()}
 				</p>
 			{:else}
 				<!-- While a widget is fullscreen, the rest of the dashboard is inert. -->
-				{#if app.current.isStarter}
+				{#if !view && app.current.isStarter}
 					<div class="contents" inert={!!shownId}><StarterHint /></div>
 				{/if}
 				{#if placed.length === 0}
 					<div class="contents" inert={!!shownId}>
-						<EmptyState allMinimized={minimized.length > 0} />
-						<Taskbar widgets={minimized} onfullscreen={openFullscreen} />
+						<EmptyState allMinimized={minimized.length > 0} readOnly={!!view} />
+						<Taskbar
+							widgets={minimized}
+							onfullscreen={openFullscreen}
+							readOnly={!!view}
+							{viewWidgets}
+						/>
 					</div>
 				{:else}
 					<div
@@ -292,6 +320,8 @@
 								{phoneRow}
 								fullscreen={widget.id === shownId}
 								inert={!!shownId && widget.id !== shownId}
+								readOnly={!!view}
+								{viewWidgets}
 								onfullscreen={() => openFullscreen(widget.id)}
 								onexit={exitFullscreen}
 							/>
@@ -308,11 +338,18 @@
 							></div>
 						{/if}
 					</div>
-					<div inert={!!shownId}>
-						<AddWidgetButton />
-					</div>
+					{#if !view}
+						<div inert={!!shownId}>
+							<AddWidgetButton />
+						</div>
+					{/if}
 					<div class="contents" inert={!!shownId}>
-						<Taskbar widgets={minimized} onfullscreen={openFullscreen} />
+						<Taskbar
+							widgets={minimized}
+							onfullscreen={openFullscreen}
+							readOnly={!!view}
+							{viewWidgets}
+						/>
 					</div>
 				{/if}
 				<!-- A minimized widget has no frame in the grid to lift, so it gets its own. It's an
@@ -324,6 +361,8 @@
 						rect={lifted.rect}
 						phoneRow={0}
 						fullscreen={true}
+						readOnly={!!view}
+						{viewWidgets}
 						onfullscreen={() => {}}
 						onexit={exitFullscreen}
 					/>
