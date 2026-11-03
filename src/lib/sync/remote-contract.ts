@@ -560,12 +560,20 @@ export function runRemoteContract(
 				await remote.save(id, input());
 				for (const call of [
 					() => signedOut.listSnapshots(id),
-					() => signedOut.getSnapshot(id, 1),
-					() => signedOut.deletePermanently(id)
+					() => signedOut.getSnapshot(id, 1)
 				]) {
 					const error = await refusal(call());
 					expect([error.code, error.status]).toEqual(["unauthorized", 401]);
 				}
+				// A write with no session and no CSRF token fails the server's CSRF check first (403);
+				// the fake doesn't model CSRF. In a browser the page's token is sent, so it's a 401.
+				await remote.save(id, input({ baseVersion: 1, deletedAt: "2026-11-02T00:00:00.000Z" }));
+				const error = await refusal(signedOut.deletePermanently(id));
+				expect([
+					["unauthorized", 401],
+					["forbidden", 403]
+				]).toContainEqual([error.code, error.status]);
+				expect((await remote.get(id)).deletedAt).not.toBeNull();
 			});
 
 			test("delete permanently ends a shared dashboard's link", async () => {
