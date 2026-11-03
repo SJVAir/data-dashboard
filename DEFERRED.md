@@ -197,6 +197,21 @@ string`) now get the union return type. The mobile app passes a string token, so
     decided with the user)._ Layout moves never prompt: the last save wins, and step 2's
     tidy fixes any overlap. Keeping both sides' intent (e.g. per-widget last-writer) isn't
     attempted. **Revisit if** people report layouts jumping back while tuning on two devices.
+  - **A new display name reaches open shared pages only with the dashboard's next edit.**
+    _Deferred 2026-11-02 (sync spec 3 plan)._ An open shared page polls
+    `shared/<token>/changes/?since=N`, which answers just `{ version }` while the version is
+    unchanged, and setting a display name isn't an edit. A fresh load always shows the new name.
+    **Revisit if** an owner reports a stale name on an open page, or with any server change to
+    that endpoint.
+  - **Shared pages don't show their own "Based on …".** _Deferred 2026-11-02 (sync spec 3
+    plan)._ The shared response carries no `copied_from` (by design: it's the owner's data), so
+    a shared copy of a copy shows only the made-by bar. Copies people make still show "Based on
+    …" for the dashboard they copied. **Revisit if** people ask where a shared dashboard came
+    from.
+  - **Each open shared page polls on its own** (no one-tab-per-browser leader as signed-in
+    dashboards have). _Deferred 2026-11-02 (sync spec 3 plan)._ Viewers are mostly signed out on
+    one tab each, and the sync design's cost estimate already counts one request per viewer per
+    minute. **Revisit if** load from shared pages shows up in the server's monitoring.
   - **Moving the documents SDK code out of the public `@sjvair/sdk` before go-live.** _Decided
     2026-11-02 (the user, in the sdk-js session)._ `@sjvair/sdk/documents` wraps the private
     `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public
