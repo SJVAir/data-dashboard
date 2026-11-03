@@ -299,19 +299,25 @@ test("touch: a long-press without sliding selects, and Done finishes", async ({ 
 	await expect(widgetTitles(page)).toHaveText(["Alpha", "Beta", "Gamma"]);
 });
 
-test("axe: picked-up state", async ({ page }) => {
-	await openSharedDoc(page, SIDE_BY_SIDE);
-	await titleBar(page, "Alpha").focus();
-	await page.keyboard.press("Enter");
-	await page.keyboard.press("ArrowRight");
-	await expect(liveRegion(page)).toHaveText("Column 2, row 1.");
-	await expect(page.getByTestId("drop-target")).toBeAttached();
-	await expectNoViolations(page);
-});
+for (const colorScheme of ["light", "dark"] as const) {
+	test.describe(`${colorScheme} mode`, () => {
+		test.use({ colorScheme });
 
-test("axe: a touch selection", async ({ page }) => {
-	await openSharedDoc(page, STACKED);
-	await touchTitleBar(page, "Gamma");
-	await expect(page.getByRole("button", { name: "Done" })).toBeVisible();
-	await expectNoViolations(page);
-});
+		test("axe: picked-up state", async ({ page }) => {
+			await openSharedDoc(page, SIDE_BY_SIDE);
+			await titleBar(page, "Alpha").focus();
+			await page.keyboard.press("Enter");
+			await page.keyboard.press("ArrowRight");
+			await expect(liveRegion(page)).toHaveText("Column 2, row 1.");
+			await expect(page.getByTestId("drop-target")).toBeAttached();
+			await expectNoViolations(page);
+		});
+
+		test("axe: a touch selection", async ({ page }) => {
+			await openSharedDoc(page, STACKED);
+			await touchTitleBar(page, "Gamma");
+			await expect(page.getByRole("button", { name: "Done" })).toBeVisible();
+			await expectNoViolations(page);
+		});
+	});
+}
