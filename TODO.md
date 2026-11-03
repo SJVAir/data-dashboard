@@ -11,8 +11,11 @@ Last updated: 2026-11-02
    follow-ups #16, #17, and #18: see "Step 2" below.
 2. ~~`layout` → `main`~~ **done** (PR [#21](https://github.com/SJVAir/data-dashboard/pull/21),
    merged 2026-11-02 with the user's yes).
-3. **Sync spec 2 (dashboard sync) is built on the `sync-dashboard` branch** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23); merge
-   needs the user's yes), then **sync specs 3 and 4 are next**, branching from `main`. The
+3. ~~Sync spec 2 (dashboard sync)~~ **done** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23),
+   merged into `main` 2026-11-02 with the user's yes).
+4. **Next: sync specs 3 (live share links) and 4 (recovery)**, each branching from `main`; they
+   don't depend on each other. Each starts with its own plan, from the sync design's "The split"
+   and "How it works", for the user's review (best in a fresh session). The
    dashboard pins **@sjvair/sdk 4.8.0-beta.3** (adds `createSnapshot`, sdk-js #35; the documents
    module came in 4.8.0-beta.2), and sjvair.com #298 adds the snapshots POST on `develop`. See
    "Sync track" below for the hand checks.
@@ -85,8 +88,8 @@ the prerelease **4.8.0-beta.2** (2026-11-02, with the user's yes). The snapshot 
 (`createSnapshot`) followed in sjvair.com [#298](https://github.com/SJVAir/sjvair.com/pull/298)
 (into `develop`) and sdk-js #35, published as **4.8.0-beta.3**.
 
-**Spec 2 (dashboard sync) is built on `sync-dashboard`** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23); step 2 is on `main`
-via #21). Order (decided 2026-10-29): layout spec 2b → `layout` → `main` → sync spec 2, branching
+**Spec 2 (dashboard sync) is done and on `main`** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23), merged
+2026-11-02 with the user's yes). Order (decided 2026-10-29): layout spec 2b → `layout` → `main` → sync spec 2, branching
 from `main` → specs 3 and 4, which are next. The sync design
 (`docs/superpowers/specs/2026-10-28-server-backed-documents-design.md`), the spec 2 plan
 (`docs/superpowers/plans/2026-11-02-sync-2-dashboard.md`), and the calls made while building
