@@ -116,7 +116,7 @@ function spillingPastDialog(): string[] {
 }
 
 test("at desktop width the conflict dialog's text and buttons stay inside it", async () => {
-	await page.viewport(1400, 1000);
+	await page.viewport(1280, 800);
 	const { app } = await held([title("a", "Mine")], [title("a", "Theirs")]);
 	await render(ConflictDialog, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await expect.element(page.getByRole("button", { name: "Save mine as a copy" })).toBeVisible();

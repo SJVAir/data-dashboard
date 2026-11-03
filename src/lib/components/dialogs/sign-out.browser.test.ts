@@ -101,7 +101,7 @@ test("unsynced: the dialog shows the count", async () => {
 });
 
 test("at desktop width the three buttons sit on one row inside the dialog", async () => {
-	await page.viewport(1400, 1000);
+	await page.viewport(1280, 800);
 	await withUnsynced(1);
 	await chooseSignOut();
 	const dialog = page.getByRole("dialog", { name: "Some changes aren't in your account yet" });
