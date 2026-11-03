@@ -1,4 +1,5 @@
 /** Deleting a dashboard from Recently deleted for good, on the server and then locally. */
+import { report } from "$lib/safety/report";
 import { docLock, type SyncContext } from "./context";
 import { postSync, readLocal } from "./local";
 import { pullIntoLocked } from "./pull";
@@ -13,7 +14,9 @@ export type DeleteResult = "deleted" | "restored-elsewhere" | "unreachable" | "n
  */
 export async function deletePermanently(ctx: SyncContext, docId: string): Promise<DeleteResult> {
 	const first = await ctx.platform.sync.get(ctx.space, docId);
-	if (!first || first.serverVersion === null) return "deleted";
+	if (!first) return "deleted";
+	// Never uploaded: nothing on the server. With a first create sent and unanswered, it may be.
+	if (first.serverVersion === null && first.inFlight === null) return "deleted";
 	// The trashing itself may not be on the server yet: the server refuses to purge a live one.
 	const uploaded = await uploadDocument(ctx, docId);
 	return ctx.platform.locks.run(docLock(ctx.space, docId), async () => {
@@ -48,7 +51,9 @@ async function pullRestored(ctx: SyncContext, docId: string, base: number | null
 		const answer = await remoteCall(() => ctx.remote.changes(docId, base), "sync-delete");
 		if ("document" in answer) await pullIntoLocked(ctx, docId, answer);
 		postSync(ctx, docId);
-	} catch {
-		// Offline or refused: the next poll brings it back.
+	} catch (error) {
+		// Offline or refused: the next poll brings it back. Anything else is a bug: report it.
+		if (error instanceof RemoteUnavailable || error instanceof RemoteRefusal) return;
+		report(error, { operation: "sync-delete" });
 	}
 }

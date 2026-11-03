@@ -60,8 +60,8 @@ export async function unhideSpace(platform: Platform, space: SpaceId): Promise<v
 export const spaceLock = (space: SpaceId) => `sjvair-space:${space}`;
 
 /**
- * Removes deleted-account spaces at once, hidden spaces older than RETENTION_MS, and signed-out ones with nothing unsynced. A
- * space an open app (in any tab) holds is never touched. With the identity known, an account
+ * Removes deleted-account spaces at once, hidden spaces older than RETENTION_MS, and
+ * signed-out ones with nothing unsynced. A space an open app (in any tab) holds is never touched. With the identity known, an account
  * space that isn't `current` and has no marker is hidden now as signed out: another tab stored
  * its last edits into it just after it was removed (removing deletes the marker too). With it
  * unknown (the first request failed), that space may be the person's own, so it's left alone.

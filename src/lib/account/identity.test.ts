@@ -85,12 +85,12 @@ describe("parseIdentityBlock deletedAccount", () => {
 		expect(parseIdentityBlock("nope").deletedAccount).toBeNull();
 	});
 
-	it("a malformed deletedAccount makes the block unreadable", () => {
+	it("a malformed deletedAccount is ignored and the block still reads", () => {
 		for (const bad of ['""', "5", "null"]) {
 			const result = parseIdentityBlock(`{"v":1,"user":null,"deletedAccount":${bad}}`);
 			expect(result).toEqual({
 				identity: { state: "signed-out" },
-				unreadable: true,
+				unreadable: false,
 				deletedAccount: null
 			});
 		}

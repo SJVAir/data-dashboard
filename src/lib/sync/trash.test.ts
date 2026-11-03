@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Change } from "$lib/changes/types";
 import { createMemoryIdentity, createMemoryPlatform } from "$lib/platform/memory";
+import { report } from "$lib/safety/report";
 import { pollList } from "./pull";
+import { RemoteUnavailable } from "./remote";
 import { deletePermanently } from "./trash";
 import { uploadDocument } from "./upload";
 import {
@@ -50,6 +52,44 @@ describe("deletePermanently", () => {
 		await edit(platform, [trash]);
 		expect(await deletePermanently(ctx, "d1")).toBe("deleted");
 		expect(fake.requests).toEqual([]);
+	});
+
+	it("a first create whose answer was lost is still purged on the server", async () => {
+		const { ctx, fake, platform } = await setupSync();
+		await storeDoc(platform);
+		await edit(platform, [trash]);
+		let lose = true;
+		ctx.remote = {
+			...fake,
+			async save(id, input) {
+				const answer = await fake.save(id, input);
+				if (!lose) return answer;
+				lose = false;
+				throw new RemoteUnavailable();
+			}
+		};
+		expect(await uploadDocument(ctx, "d1")).toBe("retry");
+		const record = (await platform.sync.get(SPACE, "d1"))!;
+		expect(record.serverVersion).toBeNull();
+		expect(record.inFlight).not.toBeNull();
+		fake.requests.length = 0;
+		expect(await deletePermanently(ctx, "d1")).toBe("deleted");
+		expect(fake.requests).toContain("delete d1");
+		await expect(fake.get("d1")).rejects.toMatchObject({ code: "gone" });
+	});
+
+	it("a failed pull after a not_deleted answer is reported when it isn't a remote failure", async () => {
+		const { ctx, fake } = await trashed();
+		fake.refuseNext.push({ code: "not_deleted", status: 409 });
+		const boom = new Error("boom");
+		ctx.remote = {
+			...fake,
+			async changes() {
+				throw boom;
+			}
+		};
+		expect(await deletePermanently(ctx, "d1")).toBe("restored-elsewhere");
+		expect(report).toHaveBeenCalledWith(boom, { operation: "sync-delete" });
 	});
 
 	it("an unsynced delete uploads, then purges", async () => {

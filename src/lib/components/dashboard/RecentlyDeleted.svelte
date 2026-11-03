@@ -57,6 +57,9 @@
 				);
 				await app.index.refresh();
 			}
+		} catch {
+			toast.error(m.deleted_unreachable());
+			await app.index.refresh();
 		} finally {
 			removed();
 		}

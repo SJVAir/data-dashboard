@@ -5,6 +5,7 @@ import { CURRENT_SCHEMA_VERSION, type Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
+import { MAX_DOCUMENT_CHARS } from "$lib/sharing/envelope";
 import { uploadDocument } from "$lib/sync/upload";
 import { NOW, SPACE, makeDoc, setupSync, storeDoc, title, widget } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
@@ -230,6 +231,29 @@ describe("restoreEarlierVersion", () => {
 			reason: "schema"
 		});
 		expect(result).toBe("newer");
+		expect(JSON.stringify(session.doc)).toBe(before);
+		session.dispose();
+	});
+
+	it("an oversized snapshot is unreadable", async () => {
+		const { app, session, worker } = await account();
+		vi.spyOn(worker, "version").mockResolvedValue({
+			id: 1,
+			version: 1,
+			reason: "conflict",
+			schemaVersion: CURRENT_SCHEMA_VERSION,
+			name: "Huge",
+			body: { widgets: [widget("z")], pad: "x".repeat(MAX_DOCUMENT_CHARS) },
+			createdAt: NOW.toISOString()
+		} as never);
+		const before = JSON.stringify(session.doc);
+		const result = await restoreEarlierVersion(app, session, {
+			source: "server",
+			at: NOW.toISOString(),
+			id: 1,
+			reason: "conflict"
+		});
+		expect(result).toBe("unreadable");
 		expect(JSON.stringify(session.doc)).toBe(before);
 		session.dispose();
 	});

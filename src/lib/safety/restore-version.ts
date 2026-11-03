@@ -1,3 +1,4 @@
+import { MAX_DOCUMENT_CHARS } from "$lib/sharing/envelope";
 import { loadDashboard, migrations, type Migration } from "$lib/documents/load";
 import type { Dashboard } from "$lib/documents/schema";
 import type { AppContext } from "$lib/store/app.svelte";
@@ -38,6 +39,15 @@ export type RestoreResult = "restored" | "unreadable" | "newer" | "unreachable" 
 
 type Content = { name: string | null; body: Dashboard["body"] };
 
+/** Same limit as an imported document: serialized size over MAX_DOCUMENT_CHARS (or unserializable). */
+function tooLarge(raw: unknown): boolean {
+	try {
+		return JSON.stringify(raw).length > MAX_DOCUMENT_CHARS;
+	} catch {
+		return true;
+	}
+}
+
 /** The chosen version's name and body, upgraded to the current format; or why it can't be. */
 async function loadContent(
 	app: AppContext,
@@ -71,6 +81,7 @@ async function loadContent(
 			return "unreachable";
 		}
 	}
+	if (tooLarge(raw)) return "unreadable";
 	const loaded = loadDashboard(raw, chain);
 	if (loaded.status === "ok") return { name: loaded.doc.name, body: loaded.doc.body };
 	return loaded.reason === "newer" ? "newer" : "unreadable";

@@ -1,5 +1,5 @@
 import "../../../app.css";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
@@ -79,6 +79,21 @@ test("a successful delete removes the row and the server copy", async () => {
 		await page.getByRole("dialog").getByRole("button", { name: "Delete now" }).click();
 		await expect.poll(() => app.index.deleted.length).toBe(0);
 		await expect(fake.get("d1")).rejects.toMatchObject({ code: "gone" });
+	} finally {
+		worker.stop();
+	}
+});
+
+test("an unexpected failure keeps the row and says it couldn't reach the account", async () => {
+	const { app, worker } = await trashedApp();
+	try {
+		vi.spyOn(worker, "deletePermanently").mockRejectedValue(new Error("boom"));
+		await render(Harness, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+		await page.getByRole("button", { name: /Delete now: / }).click();
+		await page.getByRole("dialog").getByRole("button", { name: "Delete now" }).click();
+		await expect.element(page.getByText(m.deleted_unreachable())).toBeVisible();
+		await expect.element(page.getByTestId("deleted-row-d1")).toBeVisible();
+		expect(app.index.deleted.map((d) => d.id)).toEqual(["d1"]);
 	} finally {
 		worker.stop();
 	}

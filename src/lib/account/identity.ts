@@ -17,7 +17,8 @@ export type Identity =
 const blockSchema = z.object({
 	v: z.literal(1),
 	user: accountUserSchema.nullable(),
-	deletedAccount: z.string().min(1).optional()
+	// A malformed value is ignored; the rest of the block still reads.
+	deletedAccount: z.string().min(1).optional().catch(undefined)
 });
 
 /** Parse the page's `sjvair-identity` JSON block. Never throws. */
