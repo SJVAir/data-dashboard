@@ -49,7 +49,8 @@ describe("uploadDocument", () => {
 			syncedThrough: 0,
 			confirmedAt: NOW.toISOString(),
 			inFlight: null,
-			hold: null
+			hold: null,
+			shareToken: null
 		});
 		expect(posted).toContainEqual({ type: "sync", space: SPACE, docId: "d1", tabId: ctx.tabId });
 	});
@@ -390,7 +391,8 @@ describe("uploadDocument", () => {
 				syncedThrough: 0,
 				confirmedAt: NOW.toISOString(),
 				inFlight: null,
-				hold: null
+				hold: null,
+				shareToken: null
 			});
 			expect(await uploadDocument(ctx, "d1")).toBe("nothing");
 			expect(fake.requests).toEqual([]);

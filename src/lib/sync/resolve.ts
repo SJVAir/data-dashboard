@@ -107,7 +107,7 @@ async function settle(
 				const restores = keepMineRestores(theirChanges(server.changes).changes ?? [], mine);
 				const { doc, applied } = applyForced(theirs, [...restores, ...mine]);
 				const saved = await saveOver(ctx, server, doc, applied, "conflict");
-				await commitSettled(ctx, local, doc, saved);
+				await commitSettled(ctx, local, doc, saved, server.document.shareToken);
 				return null;
 			}
 			case "restore": {
@@ -119,7 +119,7 @@ async function settle(
 				};
 				const { doc, applied } = applyForced(theirs, [restore, ...mine]);
 				const saved = await saveOver(ctx, server, doc, applied, null);
-				await commitSettled(ctx, local, doc, saved);
+				await commitSettled(ctx, local, doc, saved, server.document.shareToken);
 				return null;
 			}
 			case "use-other":
@@ -134,12 +134,12 @@ async function settle(
 						buildId: ctx.buildId
 					})
 				);
-				await commitSettled(ctx, local, theirs, server.version);
+				await commitSettled(ctx, local, theirs, server.version, server.document.shareToken);
 				return null;
 			}
 			case "save-copy": {
 				const copyId = await createCopy(ctx, local.doc);
-				await commitSettled(ctx, local, theirs, server.version);
+				await commitSettled(ctx, local, theirs, server.version, server.document.shareToken);
 				return copyId;
 			}
 			default:
@@ -218,14 +218,15 @@ async function createCopy(ctx: SyncContext, doc: Dashboard): Promise<string> {
 }
 
 /**
- * Writes `doc` (the server's `serverVersion`) here, synced, with the hold cleared. Edits a tab
- * committed after `read` stay unsynced, on top of it.
+ * Writes `doc` (the server's `serverVersion`, shared as `shareToken`) here, synced, with the hold
+ * cleared. Edits a tab committed after `read` stay unsynced, on top of it.
  */
 async function commitSettled(
 	ctx: SyncContext,
 	read: LocalState,
 	doc: Dashboard,
-	serverVersion: number
+	serverVersion: number,
+	shareToken: string | null
 ): Promise<void> {
 	const confirmedAt = ctx.now().toISOString();
 	for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -240,7 +241,8 @@ async function commitSettled(
 			syncedThrough: later.length === 0 ? version : read.doc.version,
 			confirmedAt,
 			inFlight: null,
-			hold: null
+			hold: null,
+			shareToken
 		}));
 		if (written) return;
 	}

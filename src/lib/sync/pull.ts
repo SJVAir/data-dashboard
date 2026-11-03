@@ -137,7 +137,7 @@ async function mergeOnce(
 		const unsynced = local.unsynced.filter((e) => e.version > inFlight.throughVersion);
 		local = { ...local, record, unsynced };
 		if (answered === server.version) {
-			await ctx.platform.sync.put(ctx.space, record);
+			await ctx.platform.sync.put(ctx.space, { ...record, shareToken: server.document.shareToken });
 			postSync(ctx, record.docId);
 			return "merged";
 		}
@@ -166,7 +166,8 @@ async function mergeOnce(
 		serverVersion: server.version,
 		confirmedAt,
 		inFlight: null,
-		hold: null
+		hold: null,
+		shareToken: server.document.shareToken
 	};
 	let written: boolean;
 	switch (out.kind) {
@@ -233,13 +234,27 @@ async function pollOne(ctx: SyncContext, meta: RemoteMeta): Promise<void> {
 		}
 		const record = await platform.sync.get(space, meta.id);
 		// Never uploaded: its upload meets the server's copy (a stale base) and merges then.
-		if (!record || record.serverVersion === null || meta.version <= record.serverVersion) return;
+		if (!record || record.serverVersion === null) return;
+		// Shared or unshared elsewhere: not an edit, so the version may not have moved.
+		if (meta.shareToken !== record.shareToken) await takeShareToken(ctx, meta);
+		if (meta.version <= record.serverVersion) return;
 		const answer = await ctx.remote.changes(meta.id, record.serverVersion);
 		if ("document" in answer) await pullInto(ctx, meta.id, answer);
 	} catch (error) {
 		// Purged since it was listed: the next poll's `purged` says so.
 		if (!absent(error)) throw error;
 	}
+}
+
+/** Writes the listed share token into the document's record, under the doc lock. */
+function takeShareToken(ctx: SyncContext, meta: RemoteMeta): Promise<void> {
+	const { platform, space } = ctx;
+	return platform.locks.run(docLock(space, meta.id), async () => {
+		const record = await platform.sync.get(space, meta.id);
+		if (!record || record.shareToken === meta.shareToken) return;
+		await platform.sync.put(space, { ...record, shareToken: meta.shareToken });
+		postSync(ctx, meta.id);
+	});
 }
 
 /** Fetches a document that isn't stored here; false when the server doesn't have it. */
@@ -283,7 +298,8 @@ async function storeFromServer(ctx: SyncContext, remote: RemoteDocument): Promis
 				syncedThrough: 0,
 				confirmedAt: ctx.now().toISOString(),
 				inFlight: null,
-				hold: null
+				hold: null,
+				shareToken: remote.shareToken
 			}
 		});
 		postSync(ctx, remote.id);

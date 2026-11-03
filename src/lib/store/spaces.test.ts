@@ -43,7 +43,8 @@ async function store(platform: Platform, space: SpaceId, id: string, synced = tr
 					syncedThrough: doc.version,
 					confirmedAt: NOW.toISOString(),
 					inFlight: null,
-					hold: null
+					hold: null,
+					shareToken: null
 				}
 			: undefined
 	});

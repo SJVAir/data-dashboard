@@ -22,4 +22,10 @@ export type SyncRecord = {
 	/** The batch sent and not yet answered; `changes` is its JSON, for the lost-answer check. */
 	inFlight: { baseVersion: number | null; throughVersion: number; changes: string } | null;
 	hold: SyncHold | null;
+	/**
+	 * The share link's token while the server shares it, else `null`. Sharing isn't an edit:
+	 * records built from a server document take it from there, every other write keeps it, and
+	 * a copy (a new id) starts without one.
+	 */
+	shareToken: string | null;
 };
