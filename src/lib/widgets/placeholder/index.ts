@@ -11,7 +11,7 @@ export const placeholderType: WidgetType = {
 	type: PLACEHOLDER_TYPE,
 	label: () => m.widget_placeholder_title(),
 	minSize: FALLBACK_MIN_SIZE,
-	defaultSize: { w: 6, h: 4 },
+	defaultSize: { w: 3, h: 4 },
 	time: "none",
 	thresholds: false,
 	analyzable: false,

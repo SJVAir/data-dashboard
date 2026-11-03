@@ -4,6 +4,7 @@ import type { DashboardSummary } from "$lib/documents/names";
 import { DashboardSchema, type Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { SpaceId } from "$lib/platform/types";
+import { newPlaceholder } from "$lib/widgets/placeholder";
 import { report } from "$lib/safety/report";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import {
@@ -45,10 +46,14 @@ describe("starter dashboard", () => {
 		expect(starter.name).toBeNull();
 		expect(starter.version).toBe(0);
 		expect(starter.body.widgets.map((w) => [w.id, w.type, w.title, w.rect])).toEqual([
-			["starter-1", "placeholder", null, { x: 0, y: 0, w: 6, h: 4 }],
-			["starter-2", "placeholder", null, { x: 6, y: 0, w: 6, h: 4 }],
-			["starter-3", "placeholder", null, { x: 0, y: 4, w: 12, h: 4 }]
+			["starter-1", "placeholder", null, { x: 0, y: 0, w: 3, h: 4 }],
+			["starter-2", "placeholder", null, { x: 3, y: 0, w: 3, h: 4 }],
+			["starter-3", "placeholder", null, { x: 6, y: 0, w: 6, h: 4 }]
 		]);
+	});
+
+	it("a new placeholder is three columns wide", () => {
+		expect(newPlaceholder([]).rect.w).toBe(3);
 	});
 
 	it("returns a fresh object each time", () => {

@@ -131,7 +131,7 @@
 	--motion-duration-base: 200ms;
 	--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 	--grid-row-height: 4rem;
-	--grid-gap: var(--space-3);
+	--grid-gap: 0.75rem;
 	--taskbar-height: 3rem;
 	/* A fullscreen widget: above the grid and taskbar (z-20), below menus, dialogs, and toasts (z-50+). */
 	--z-fullscreen: 40;
