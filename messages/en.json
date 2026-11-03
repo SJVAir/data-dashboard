@@ -530,5 +530,9 @@
 		}
 	],
 	"sync_held_link": "See your dashboards",
-	"reminder_sign_in": "Sign in to keep this safe everywhere"
+	"reminder_sign_in": "Sign in to keep this safe everywhere",
+	"based_on_named_by": "Based on {name} by {displayName}",
+	"based_on_named": "Based on {name}",
+	"based_on_shared_by": "Based on a shared dashboard by {displayName}",
+	"based_on_shared": "Based on a shared dashboard"
 }
