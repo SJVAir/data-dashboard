@@ -13,7 +13,9 @@ import {
 	type KeptOriginal,
 	type LogEntry,
 	type ActivitySource,
+	type DisplayPreferences,
 	type OnlineSource,
+	type ThemeChoice,
 	type ClipboardAccess,
 	type ErrorReporter,
 	type FileAccess,
@@ -45,6 +47,23 @@ export function createMemoryActivity(): MemoryActivity {
 			if (next === visible) return;
 			visible = next;
 			for (const cb of [...listeners]) cb(visible);
+		}
+	};
+}
+
+/** The theme choice held in memory; setting notifies listeners. */
+export function createMemoryDisplay(): DisplayPreferences {
+	let theme: ThemeChoice = "system";
+	const listeners = new Set<(choice: ThemeChoice) => void>();
+	return {
+		theme: () => theme,
+		setTheme(choice) {
+			theme = choice;
+			for (const cb of [...listeners]) cb(choice);
+		},
+		onThemeChange(cb) {
+			listeners.add(cb);
+			return () => void listeners.delete(cb);
 		}
 	};
 }
@@ -370,6 +389,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 		identity: options.identity ?? createMemoryIdentity(),
 		activity: createMemoryActivity(),
 		online: createMemoryOnline(),
+		display: createMemoryDisplay(),
 		locks: createQueueLocks(),
 		clipboard,
 		files,
