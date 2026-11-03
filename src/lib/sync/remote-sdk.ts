@@ -4,17 +4,26 @@
  * abort, a response the SDK can't use) becomes `RemoteUnavailable`.
  */
 import {
+	createShareLink,
 	createSnapshot,
 	DocumentRefusal,
 	DocumentResponseError,
 	getDocument,
 	getDocumentChanges,
+	getDocumentCredit,
+	getDocumentProfile,
+	getSharedDocument,
+	getSharedDocumentChanges,
 	listDocuments,
+	revokeShareLink,
 	saveDocument,
 	staleBaseDataSchema,
+	updateDocumentProfile,
 	type ChangeEntry,
+	type DocumentProfile,
 	type RefusalCode,
-	type SavedDocument
+	type SavedDocument,
+	type SharedDocument
 } from "@sjvair/sdk/documents";
 import type { RequestOptions } from "@sjvair/sdk/http";
 import { report } from "$lib/safety/report";
@@ -24,7 +33,8 @@ import {
 	type RemoteChange,
 	type RemoteDocument,
 	type RemoteDocuments,
-	type RemoteMeta
+	type RemoteMeta,
+	type SharedRemoteDocument
 } from "./remote";
 
 function toMeta(doc: Omit<SavedDocument, "body">): RemoteMeta {
@@ -37,12 +47,30 @@ function toMeta(doc: Omit<SavedDocument, "body">): RemoteMeta {
 		deletedAt: doc.deleted_at,
 		copiedFrom: doc.copied_from,
 		createdAt: doc.created_at,
-		updatedAt: doc.updated_at
+		updatedAt: doc.updated_at,
+		shareToken: doc.visibility === "private" ? null : doc.share_token
 	};
 }
 
 function toDocument(doc: SavedDocument): RemoteDocument {
 	return { ...toMeta(doc), body: doc.body };
+}
+
+function toShared(doc: SharedDocument): SharedRemoteDocument {
+	return {
+		id: doc.id,
+		kind: doc.kind,
+		name: doc.name,
+		schemaVersion: doc.schema_version,
+		version: doc.version,
+		body: doc.body,
+		updatedAt: doc.updated_at,
+		displayName: doc.display_name
+	};
+}
+
+function toProfile(profile: DocumentProfile) {
+	return { displayName: profile.display_name };
 }
 
 function toChanges(changes: ChangeEntry[] | null): RemoteChange[] | null {
@@ -157,6 +185,39 @@ export function createSdkRemote(
 					},
 					options
 				);
-			})
+			}),
+
+		share: (id) =>
+			call("documents.share", async () => (await createShareLink(id, options)).share_token),
+
+		unshare: (id) =>
+			call("documents.unshare", async () => {
+				await revokeShareLink(id, options);
+			}),
+
+		shared: (token) =>
+			call("documents.shared", async () => toShared(await getSharedDocument(token, options))),
+
+		sharedChanges: (token, since) =>
+			call("documents.sharedChanges", async () => {
+				// The SDK answers `{ version }` or the whole shared document, with no wrapper.
+				const answer = await getSharedDocumentChanges(token, since, options);
+				if (!("body" in answer)) return { version: answer.version };
+				return { version: answer.version, document: toShared(answer) };
+			}),
+
+		credit: (id) =>
+			call("documents.credit", async () => {
+				const credit = await getDocumentCredit(id, options);
+				return { name: credit.name, displayName: credit.display_name };
+			}),
+
+		getProfile: () =>
+			call("documents.getProfile", async () => toProfile(await getDocumentProfile(options))),
+
+		setProfile: (displayName) =>
+			call("documents.setProfile", async () =>
+				toProfile(await updateDocumentProfile({ display_name: displayName }, options))
+			)
 	};
 }

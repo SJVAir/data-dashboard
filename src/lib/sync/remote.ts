@@ -20,6 +20,8 @@ export type RemoteDocument = {
 	copiedFrom: string | null;
 	createdAt: string;
 	updatedAt: string;
+	/** The share link's token while the document is shared (`link` or `public`), else `null`. */
+	shareToken: string | null;
 };
 
 export type RemoteMeta = Omit<RemoteDocument, "body">;
@@ -29,6 +31,28 @@ export type RemoteChange = { version: number; schemaVersion: number; change: unk
 export type RemoteChanges =
 	| { version: number }
 	| { version: number; changes: RemoteChange[] | null; document: RemoteDocument };
+
+/** What a share link shows: nothing about the owner but their optional display name. */
+export type SharedRemoteDocument = {
+	id: string;
+	kind: string;
+	name: string | null;
+	schemaVersion: number;
+	version: number;
+	body: unknown;
+	updatedAt: string;
+	displayName: string | null;
+};
+
+/** `{ version }` when `since` is current; else the whole shared document. */
+export type SharedChanges =
+	{ version: number } | { version: number; document: SharedRemoteDocument };
+
+/** A copy's "Based on…" credit: the original's name and its owner's display name. */
+export type Credit = { name: string | null; displayName: string | null };
+
+/** The signed-in account's public display name for shared dashboards. */
+export type Profile = { displayName: string | null };
 
 export type SaveInput = {
 	schemaVersion: number;
@@ -93,4 +117,17 @@ export interface RemoteDocuments {
 	save(id: string, input: SaveInput): Promise<{ version: number; updatedAt: string }>;
 	/** Keeps the given content as a `conflict` snapshot (call 5); the document is untouched. */
 	keepSnapshot(id: string, input: SnapshotInput): Promise<void>;
+	/** Turns the share link on; the token (the same one while it stays shared). */
+	share(id: string): Promise<string>;
+	/** Turns the share link off for good; sharing again makes a new token. */
+	unshare(id: string): Promise<void>;
+	/** The shared document behind a token; no sign-in needed. Any dead link is `not_found`. */
+	shared(token: string): Promise<SharedRemoteDocument>;
+	/** `{ version }` when `since` is current, else the shared document; no sign-in needed. */
+	sharedChanges(token: string, since: number): Promise<SharedChanges>;
+	/** The credit for a copy's original: open to its owner, or to anyone while it's shared. */
+	credit(id: string): Promise<Credit>;
+	getProfile(): Promise<Profile>;
+	/** Sets the display name (the server trims it; `""` or `null` clears it). */
+	setProfile(displayName: string | null): Promise<Profile>;
 }

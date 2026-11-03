@@ -410,7 +410,14 @@ export class SyncWorker {
 			get: (id) => track(() => remote.get(id)),
 			changes: (id, since) => track(() => remote.changes(id, since)),
 			save: (id, input) => track(() => remote.save(id, input)),
-			keepSnapshot: (id, input) => track(() => remote.keepSnapshot(id, input))
+			keepSnapshot: (id, input) => track(() => remote.keepSnapshot(id, input)),
+			share: (id) => track(() => remote.share(id)),
+			unshare: (id) => track(() => remote.unshare(id)),
+			shared: (token) => track(() => remote.shared(token)),
+			sharedChanges: (token, since) => track(() => remote.sharedChanges(token, since)),
+			credit: (id) => track(() => remote.credit(id)),
+			getProfile: () => track(() => remote.getProfile()),
+			setProfile: (displayName) => track(() => remote.setProfile(displayName))
 		};
 	}
 }
