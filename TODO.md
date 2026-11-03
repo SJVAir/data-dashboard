@@ -98,8 +98,17 @@ needs `develop` pulled to serve the documents API. The sdk-js documents integrat
 with `TEST_DOCUMENTS=1` plus `TEST_DOCUMENTS_ORIGIN`, `TEST_DOCUMENTS_IDENTIFIER`, and
 `TEST_DOCUMENTS_PASSWORD` (the `WORKSPACE_E2E_*` account in sjvair.com's `.env` works).
 
+**Hand checks for specs 2 and 3: done 2026-11-02**, every step below, against the local stack
+(sjvair.com `develop`) and `npm run dev` on `sync-share-links`: the user by hand (the offline
+layout test), then scripted with Playwright, two separate browser contexts as two devices
+signed in as the `WORKSPACE_E2E_*` account, plus a signed-out context for the shared page. All
+passed. Found along the way: two offline layout moves keep only the later device's arrangement
+(as designed; see `DEFERRED.md` → "Merging colliding layout moves more cleverly"), and the
+"Changed on another device" dialog's text and buttons run past its right edge at 1400 px wide.
+Each check, for running again by hand:
+
 **Hand check for spec 2 on the real stack** (needs the stack running on sjvair.com `develop`
-and `npm run dev`; not yet done by the user):
+and `npm run dev`):
 
 1. Open two browsers (or a browser and a private window), both at the dev server, signed in as
    the `WORKSPACE_E2E_*` account.
@@ -114,8 +123,8 @@ and `npm run dev`; not yet done by the user):
 6. With both env vars set, `npm run test:sync-stack` runs the `RemoteDocuments` contract
    against the stack.
 
-**Hand check for spec 3 on the real stack: steps 2–6 NOT YET DONE.** Needs the stack on
-sjvair.com `develop` and `npm run dev`:
+**Hand check for spec 3 on the real stack.** Needs the stack on sjvair.com `develop` and
+`npm run dev`:
 
 1. ~~Run `npm run test:sync-stack` once~~ **done 2026-11-02**: 20/20 pass on `sync-share-links`
    (spec 2's contract plus the sharing cases) against the local stack.
