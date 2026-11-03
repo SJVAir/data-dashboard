@@ -8,11 +8,11 @@ Last updated: 2026-11-03
 replacing the 2026-10-29 "one session at a time" rule). Tracks in the same repo still go in one
 session, in order. From 2026-11-03, three sessions run at once:
 
-| Track                                    | Session starts in | Repos it edits                | Its status lives in                          |
-| ---------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** (before step 4)          | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata)      | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** (new repo) | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| Track                                                      | Session starts in | Repos it edits                | Its status lives in                          |
+| ---------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** (before step 4; part 1 built, part 2 next) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata)                        | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** (new repo)                   | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 
 **Docs rules for the other sessions** (only the design pass session edits this checkout):
 
@@ -899,8 +899,24 @@ noted on each item.
 
 **Release 1: design pass** (its own small sub-project, before step 4 and the private preview)
 
-- Palette (from sjvair.com's pages, around the fixed EPA level colors), typography,
-  spacing, motion, and component styling, applied as theme-token values.
+Spec: `docs/superpowers/specs/2026-11-03-design-pass-design.md`. Plan:
+`docs/superpowers/plans/2026-11-03-design-pass.md`. Two stacked PRs: PR 1 (`design-pass` into
+`main`, the look) and PR 2 (`design-pass-wording` into `design-pass`, wording and behavior).
+Merging either needs the user's yes.
+
+- ✅ **Part 1, the look** (built 2026-11-03 on `design-pass`, Tasks 1–10; not yet merged): the
+  light and dark token sets with a contrast test; a synchronous `display` capability in the
+  platform adapter, applied in `bootstrap.ts` before the app mounts; the Light / Dark / Match my
+  device switch in the Help menu (with the new-tab cue on the feedback link); the restyled
+  primitives and shell (cards, focus ring, top bar with the SJVAir logo); four-across density
+  (the placeholder widget defaults to 3 columns, and the starter is laid out to match);
+  copied brand assets and SJVAir app icons with a maskable icon; the token-discipline test;
+  and axe in both modes, with a theme E2E spec. The toaster no longer uses `mode-watcher` (it
+  read its own `localStorage` key, so blocked storage stopped the app from starting). See
+  `ARCHITECTURE.md` → "Theme & style".
+- **Part 2, wording and behavior** (Tasks 11–21, branch `design-pass-wording`): next.
+- After PR 1: tell the `map-sdk` session the final token names (`ARCHITECTURE.md` →
+  "Theme & style" → "The family palette").
 
 **Release 1, step 2: Layout engine and windowing**
 
@@ -970,6 +986,8 @@ research in `docs/reference/pesticides-explorer-research.md`).
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
+- **Widget types default to about 3 of 12 columns wide**, so a laptop shows about four across
+  (the design pass's density). Placeholder already does.
 - Each widget type declares its allowed date methods and span (`dateMethods`, `span`);
   Widget Creation hides what doesn't apply.
 - **Retired or missing references** in every widget type: the "stopped reporting" note,
@@ -1205,6 +1223,14 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **Design pass, part 1: the look** (built 2026-11-03 on `design-pass`; PR 1 into `main`
+      not yet opened): light and dark tokens, the theme switch, restyled primitives and shell,
+      four-across density, brand assets and app icons. Removed from `DEFERRED.md`: the maskable
+      icon and real app icons; dark-mode `--destructive` contrast (axe now runs in both modes,
+      and the contrast test covers destructive text on its tint); the `--duration-*` aliases;
+      from "Spec 5a polish", the feedback link's new-tab cue, scoping `lightToken` to `:root`, and
+      the icon-route and dev-manifest tests; from "Spec 5b polish", the greeting group. The focus
+      ring after touch drops stays in "Spec 2a robustness loose ends" for a phone hand check.
 - [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02, merged
       into `main` 2026-11-03, PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)): the Share dialog (create, copy, stop with confirmation,
       display name), the `/shared/:token` page (read-only, "made by a user" bar, 60-second

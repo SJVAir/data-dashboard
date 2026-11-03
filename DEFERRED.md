@@ -34,9 +34,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   license field and no license text, so the third-party notices carry none for it. **Revisit
   when** sdk-js ships a `LICENSE` file (and a license field in its JSR package): remove the
   exception and check the notices include its text.
-- **A maskable icon and real app icons.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
-  manifest uses sjvair.com's Android Chrome favicons as placeholders, with no `maskable`
-  icon. **Revisit with** the design pass.
 - **A test of the real Sentry envelope.** _Deferred 2026-10-26 (Foundations spec 5a, final
   review)._ The scrubbing is unit-tested on the event the app hands to `@sentry/browser`, but
   nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the
@@ -87,7 +84,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   - The license collection skips virtual modules (Vite's and rolldown's MIT helpers).
   - The bare `/account/` dev proxy prefix could shadow a future app route.
   - The embedding suite's "lazy chunk" check doesn't prove the chunk loads lazily.
-  - The feedback link has no new-tab cue (design pass).
   - `reload.ts`'s `location.reload` and the entry-file refresh are web-only behavior outside
     the platform adapter (Tauri).
 - **Spec 5b polish.** _Deferred 2026-10-27 (Foundations spec 5b, task reviews and final
@@ -1174,8 +1170,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   listed as it was typed, not normalized like a saved name. **Revisit in** the design pass.
 - **RestoreVersionDialog closing mid-restore.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ It doesn't block closing while a
   restore runs, or reset its state on close. **Revisit in** the design pass.
-- **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
-  light mode only. **Revisit in** the design pass.
 - **A "present" mode using the browser's own full screen.** _Deferred 2026-10-28 (step 2
   design)._ Widget fullscreen covers the dashboard area only; the browser's F11 / fullscreen key
   already gives an edge-to-edge projector view. The Fullscreen API would add a second Esc-to-exit
@@ -1236,14 +1230,59 @@ string`) now get the union return type. The mobile app passes a string token, so
   resizing isn't animated; the autoscroll animation frame runs for the whole drag, not only in
   the edge zone; touches starting on a widget's body or Done during a touch selection can
   scroll the page; a second drop on the starter before the page switches to its copy doesn't
-  carry focus; the focus ring after touch drops isn't checked by hand; `FALLBACK_MIN_SIZE` is a
-  shared object that isn't frozen; and `stepDown`'s doc comment wording. **Revisit in** the
-  design pass, or in spec 2b where it touches the same code.
+  carry focus; the focus ring after touch drops isn't checked by hand (the design pass couldn't
+  script it: synthetic touch events don't change `:focus-visible`, so it needs a real phone);
+  `FALLBACK_MIN_SIZE` is a shared object that isn't frozen; and `stepDown`'s doc comment
+  wording. **Revisit when** touching each area; check the focus ring on a phone in the next
+  hand check or the private preview.
 
 - **The "Only on this device" notice bar's count and link.** _Deferred 2026-11-02 (sync spec 2,
   Task 12)._ The bar counts refused dashboards in Recently deleted too, and its link to the
   dashboards list shows on the list page itself. **Revisit with** the design pass, or if the
   count is reported as wrong.
+
+- **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
+  for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.
+  Numbers counting up and widgets sliding into place were left out to start simple; the tokens
+  make them easy to add. **Revisit after** preview testers have used the app.
+- **Restyle monitor-map, mobile, and map-sdk's defaults to the family palette.** _Deferred
+  2026-11-03 (design pass spec)._ The design pass's palette is meant for every SJVAir app, but
+  restyling the others now would change live apps before the dashboard has proven the look.
+  Token names stay shadcn's (plus `--link`, `--highlight*`, `--card-border`, `--shadow-card`,
+  `--radius-control`, `--chart-1…5`, `--overlay`), so each app can copy the token blocks.
+  `map-sdk`'s legends and tooltips use the same names now and inherit the dashboard's theme.
+  **Revisit when** the dashboard launches. Each repo needs its own approved plan.
+- **The page background can flash for a saved theme override.** _Deferred 2026-11-03 (design pass
+  spec)._ System mode is CSS only and never flashes. A saved Light or Dark that differs from the
+  system is applied by `app.js`, which sjvair.com's template loads as a deferred module, so the
+  browser can paint the page background once in the other mode first. The app itself always
+  renders in the right mode. Ruling it out needs sjvair.com's template to render the theme on the
+  server (for example from a cookie), which needs a plan in that repo. **Revisit if** people
+  notice the flash.
+- **The token-discipline check reads one line at a time.** _Deferred 2026-11-03 (design pass,
+  Task 9)._ `src/lib/theme/token-discipline.test.ts` finds a hex color only when it shares a
+  line with `class=` or `style=`, so it misses a `style` attribute split over several lines and
+  hex constants in `.ts` files. Today none exist; the check stays simple. **Revisit if** a
+  hardcoded color slips through review, or before the family restyle copies the check.
+- **The theme store applies the theme through web code.** _Deferred 2026-11-03 (design pass,
+  Task 4)._ `src/lib/store/theme.svelte.ts` imports `applyTheme` from
+  `$lib/platform/web/theme` directly, outside the adapter boundary. Fine on the web; a Tauri
+  build would want applying to live in `platform.display`. **Revisit when** the Tauri build
+  starts, or if a second place needs theme state (then the store also moves to app context).
+- **Design pass, part 1 polish.** _Deferred 2026-11-03 (design pass, task reviews)._ Small
+  follow-ups, none affecting correctness or accessibility. **Revisit with** step 4, or when next
+  touching each file:
+  - The `secondary` button variant is still the old blue-gray fill; the spec's secondary look
+    lives in `outline`. Pick one when step 4 needs secondary buttons.
+  - A picked-up widget's `shadow-lg` is Tailwind's default black, not a token.
+  - "Sign in" is an outline button; the mockup showed a link.
+  - All three logo images are in the DOM (two hidden by breakpoint or mode), so a browser may
+    fetch the hidden ones.
+  - The theme's color fade can cut its last frame (the class is removed on a timer).
+  - A `storage` event with a null key (another tab cleared storage) doesn't reset the theme.
+  - `readTokens` and the manifest's `lightToken` stop at the first `}` (nested blocks would
+    truncate); `scripts/make-icons.mjs` needs `../mobile`'s art and uses `sharp` without
+    declaring it.
 
 ## Legacy Monitors-tab follow-ups
 

@@ -133,20 +133,57 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 ### Theme & style
 
 - **Theme tokens from Foundations; design pass before the widgets** (decided 2026-09-28).
-  Foundations builds on shadcn-svelte defaults, but **only through a theme layer**: all
-  colors, fonts, radii, spacing, and motion timings are CSS variables, and components never
-  hardcode them. A **design pass is its own small sub-project, scheduled before Release 1
-  step 4** (at the latest before the private preview). It covers the palette (drawn from
-  sjvair.com's pages, working around the fixed EPA level colors), typography, spacing,
-  motion, and component styling. Applying it mostly means swapping token values.
+  All colors, fonts, radii, spacing, and motion timings are CSS variables (`src/app.css`), and
+  components never hardcode them. `src/lib/theme/token-discipline.test.ts` fails on raw palette
+  classes and hex colors in components.
+- **The look (design pass, part 1, built 2026-11-03).** Spec:
+  `docs/superpowers/specs/2026-11-03-design-pass-design.md`. The user chose "A with C's cards":
+  - **Colors.** Brand navy (`--primary`, from the logo) for primary buttons and page titles;
+    sky blue (`--highlight`, from the logo) for highlights, selected states, and the focus ring
+    only, never text and never a control's only boundary; link blue (`--link`, sjvair.com's) for
+    underlined links. Blue-tinted grays replace shadcn's neutral grays. Destructive is a UI red,
+    always with text or an icon. UI states never use the health-level hues (EPA, heat, smoke,
+    fire, forecasts). Level colors still come from server metadata, not tokens.
+  - **Shape.** Cards (widgets, menus, popovers, dialogs) are white with 12px corners
+    (`--radius`), a 1px `--card-border`, and a soft blue-tinted `--shadow-card`. Buttons and
+    inputs have 8px corners (`--radius-control`). The top bar shows the SJVAir logo with
+    "Dashboard"; the current page's link has navy text and an underline (navy in light, sky in
+    dark, so it reaches 3:1).
+  - **Density: "in between, closer to packed".** About 12px gaps and card padding (`--grid-gap`,
+    `--card-padding`); widgets default to 3 of 12 columns, so a laptop shows about four across.
+  - **Type.** Inter, on a scale around 13px: `text-xs` 12, `text-sm` 13 (body), `text-base` 15,
+    `text-lg` 18 (page titles), `text-3xl` 32 (headline numbers). Form fields use 16px below the
+    `md` breakpoint so iOS doesn't zoom on focus. Numbers that line up use tabular figures
+    (`tabular-nums`); step 4 applies it to readings, tables, and axes.
+  - **Focus.** One indicator everywhere: a 2px sky ring with a 1px `--ring-edge` (navy in light,
+    the page color in dark). A focused invalid field shows this ring, not the destructive one.
+  - **Motion: quick and subtle.** `--motion-duration-fast` (120ms), `--motion-duration-base`
+    (200ms), and `--motion-ease-standard`, used through `duration-fast`, `duration-base`, and
+    `ease-standard`. Colors fade for one base duration only while the theme changes. Reduced
+    motion turns all of it off.
+  - **Chart series.** `--chart-1` … `--chart-5`: navy, link blue, teal, slate, indigo. Never a
+    level hue, at least 3:1 on cards in both modes, and never the only difference (step 4 adds a
+    dash pattern or marker per series).
+- **Dark mode with a switch.** The default follows the system (`prefers-color-scheme`, in CSS
+  alone, so no flash). The Help menu's **Light / Dark / Match my device** radio group overrides
+  it per device, not per account. An override sets `data-theme` on `<html>`; `bootstrap.ts`
+  applies a saved one before the app mounts. Tailwind's `dark:` variant covers both cases. Dark
+  is a deep navy-slate page with slightly lighter cards; navy lifts to a lighter blue. Toasts
+  follow the same mode. The app sets a `theme-color` meta from the computed `--background`; the
+  web manifest stays light. A saved override that differs from the system can flash the page
+  background before `app.js` runs (see `DEFERRED.md`).
+- **The family palette.** Token names stay shadcn's plus a few new ones (`--link`,
+  `--highlight*`, `--card-border`, `--shadow-card`, `--radius-control`, `--chart-1…5`,
+  `--overlay`), so monitor-map, mobile, and `map-sdk` can adopt the palette by copying the token
+  blocks. `map-sdk`'s legends and tooltips use the same names and inherit the host's theme. The
+  restyle of the other apps waits for launch (see `DEFERRED.md`).
 - **Tailwind CSS + shadcn-svelte** for components. **Never Bulma** (the server uses it;
   this project never will).
-- No SJVAir ecosystem theme exists yet; colors and style direction may be derived from
-  the server's existing pages/templates (the design pass is scheduled; see above).
 - Modern component/layout practice; **animations for transitions encouraged**. Tone:
   clean, not messy — but not plain, boring, or corporate. Use layout patterns users
   already know.
-- **Responsive required** — phones aren't the primary target but must work.
+- **Responsive required** — phones aren't the primary target but must work. On phones the top
+  bar uses the compact logo.
 
 ### Charting
 
@@ -409,6 +446,14 @@ Tauri-ready seams required **from day one**:
   would map to an account space is the seam the server-backed documents track switches on. A
   Tauri build swaps in its own sign-in dialog and token storage. The API token never reaches
   the dashboard, and identity data never goes into error reports.
+- **`display` capability** (built 2026-11-03, design pass). `platform.display` holds the
+  per-device theme choice (`"light"`, `"dark"`, or `"system"`): `theme()`, `setTheme(choice)`,
+  and `onThemeChange(cb)`. Unlike the async, per-space `PreferenceStorage`, it is synchronous,
+  because the choice must be read before the first render. On the web it is one
+  `localStorage` key (`sjvair-workspace:theme`); other tabs hear changes through the `storage`
+  event. Blocked or full storage reads as `"system"` and makes saving a no-op, so the switch
+  still works for the page. A memory version backs the tests; a Tauri build can keep the choice
+  in its own settings.
 - **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
   `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
   and drives the offline banner. A Tauri build can report real connectivity.
@@ -2449,6 +2494,12 @@ and views.
     `format`/theme module (mobile already uses it). No `text_color` metadata field.
   - axe checks and manual passes cover these states (e.g. a yellow-level tile, the
     calendar).
+
+- **Both modes are checked** (design pass, 2026-11-03). The axe checks (`e2e/a11y.spec.ts` and
+  the per-feature ones) run in light and dark. `src/lib/theme/contrast.test.ts` checks the token
+  pairs that matter in both modes: text and muted text on the page and cards, links, primary
+  button text, the focus ring, chart series on cards, and destructive text (also on its own
+  tint). A level swatch on a dark card keeps its outline and label (a component test).
 
 - Every data widget has a non-visual fallback: the **Data table** widget serves chart/map
   data; maps and charts expose their data as summary text or link to a table view.
