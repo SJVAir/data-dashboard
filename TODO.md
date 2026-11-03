@@ -14,7 +14,7 @@ Last updated: 2026-11-02
 3. ~~Sync spec 2 (dashboard sync)~~ **done** (PR [#23](https://github.com/SJVAir/data-dashboard/pull/23),
    merged into `main` 2026-11-02 with the user's yes).
 4. **Sync spec 3 (live share links) is built** on `sync-share-links` and awaiting review and
-   merge (PR #___). **Next: sync spec 4 (recovery)**, built on top of it once spec 3 merges
+   merge (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)). **Next: sync spec 4 (recovery)**, built on top of it once spec 3 merges
    (both extend `src/lib/sync/remote*.ts` and `e2e/documents-server.ts`, so one after the
    other). The dashboard pins **@sjvair/sdk 4.8.0-beta.3**. See "Sync track" below for the hand
    checks.
@@ -1113,7 +1113,7 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 ## Done
 
 - [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02 on
-      `sync-share-links`, PR #___): the Share dialog (create, copy, stop with confirmation,
+      `sync-share-links`, PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)): the Share dialog (create, copy, stop with confirmation,
       display name), the `/shared/:token` page (read-only, "made by a user" bar, 60-second
       polling, "Make a copy", "Based on …"), and the "Report this page" link. The contact-form
       pre-fill is done too (sjvair.com #297 plus this link). Removed from `DEFERRED.md`; the new
