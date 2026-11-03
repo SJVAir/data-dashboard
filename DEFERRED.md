@@ -614,6 +614,27 @@ string`) now get the union return type. The mobile app passes a string token, so
   lines) and `app.svelte.ts` (about 390) could be split; `#onMessage` checks `SYNC_TAB`
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
+- **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
+  plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
+  reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
+  purge that could fire later against a copy restored on another device. **Revisit if** people
+  report needing to empty Recently deleted while offline.
+- **Restoring an earlier version needs the account reachable in an account space.** _Deferred
+  2026-11-02 (sync spec 4 plan, call 1)._ The restore first keeps the replaced version as a
+  server snapshot, so it can be undone after a reload; offline (or refused) nothing is restored,
+  even for the local kept original. A queued keep would need a new hold kind. **Revisit if**
+  people report restoring while offline.
+- **The earlier-versions list isn't deduplicated.** _Deferred 2026-11-02 (sync spec 4 plan, call
+  2)._ The local kept original and the server's `schema` snapshot can hold the same content, and
+  both are listed (each labelled with its source and time). Telling them apart reliably would
+  need a content hash on both sides. **Revisit in** the design pass, or on a report of a
+  confusing list.
+- **Unsynced edits in the browser where an account is deleted are lost with it.** _Deferred
+  2026-11-02 (sync spec 4 plan, call 6)._ The dashboard removes the deleted account's space at
+  once, and "Download my documents" on sjvair.com's delete page has only the server's copies, so
+  edits that never reached the server go too. The person chose to delete the account. **Revisit
+  if** anyone reports it; the fix is a dashboard-side "download a backup first" step before the
+  account menu's link to the account page.
 
 ## Map & selection
 
