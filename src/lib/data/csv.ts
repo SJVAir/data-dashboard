@@ -1,5 +1,6 @@
 import { TZDate } from "@date-fns/tz";
 import { toast } from "svelte-sonner";
+import { SvelteMap } from "svelte/reactivity";
 import { TIME_ZONE } from "$lib/format";
 import { nextPeriodStart, resolveRange } from "$lib/format/range";
 import type { WidgetInstance } from "$lib/documents/schema";
@@ -8,10 +9,10 @@ import type { FileAccess } from "$lib/platform/types";
 import { dataFileName } from "$lib/sharing/file-names";
 import { report } from "$lib/safety/report";
 import { chartInput, entryMeta } from "$lib/widgets/shared/input";
-import { getWidgetType } from "$lib/widgets/registry";
 import { getMetadata, getQueryClient } from "./index";
+import { LIMITS } from "./schema";
 import type { Subscription } from "./query/client";
-import type { QueryData, QueryInput, QueryState } from "./types";
+import { byPlaceOrder, type QueryData, type QueryInput, type QueryState } from "./types";
 
 export const CSV_COLUMNS = [
 	"period_start",
@@ -75,9 +76,7 @@ function placeParts(key: string): { kind: string; id: string } {
 export function toCsv(data: QueryData, meta: EntryInfo): string {
 	const names = new Map(data.places.map((p) => [p.place, p.name]));
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
-	const series = [...data.series].sort(
-		(a, b) => (order.get(a.place) ?? Infinity) - (order.get(b.place) ?? Infinity)
-	);
+	const series = [...data.series].sort(byPlaceOrder(order));
 	const lines: string[] = [CSV_COLUMNS.join(",")];
 	for (const s of series) {
 		const { kind, id } = placeParts(s.place);
@@ -129,8 +128,10 @@ function firstSettled(input: QueryInput): Promise<QueryState> {
 }
 
 /**
- * Runs the widget's own query once (no polling), then saves exactly what it shows as CSV through
- * the platform. Throws if there is nothing to download or the data can't be loaded.
+ * Runs the widget's query once (no polling), with every place of its selection (not only the
+ * ones it has room to show), then saves it as CSV through the platform. The file name's dates
+ * are the range as of when the data was fetched. Throws if there is nothing to download or the
+ * data can't be loaded.
  */
 export async function downloadWidgetCsv(
 	widget: WidgetInstance,
@@ -138,8 +139,7 @@ export async function downloadWidgetCsv(
 ): Promise<void> {
 	const catalog = await getMetadata().catalog();
 	if (catalog === "unavailable") throw new Error("The catalog is unavailable");
-	const maxPlaces = getWidgetType(widget.type)?.accepts?.maxPlaces ?? 10;
-	const { layer, input } = chartInput(widget.data, catalog, maxPlaces);
+	const { layer, input } = chartInput(widget.data, catalog, LIMITS.SELECTION_MAX);
 	const info = entryMeta(catalog, layer);
 	if (!input || !info) throw new Error("The widget has no data to download");
 	const state = await firstSettled(input);
@@ -151,7 +151,7 @@ export async function downloadWidgetCsv(
 		unit: info.entryType.units
 	};
 	const { data } = state;
-	const range = resolveRange(input.dateRange, new Date());
+	const range = resolveRange(input.dateRange, new Date(data.fetchedAt));
 	const placeLabel =
 		data.places.length === 1
 			? data.places[0].name
@@ -168,15 +168,35 @@ export async function downloadWidgetCsv(
 	);
 }
 
-/** `downloadWidgetCsv` for the UI: a failure is reported and shown as a toast. */
-export async function saveWidgetCsv(
-	widget: WidgetInstance,
-	save: FileAccess["save"]
-): Promise<void> {
-	try {
-		await downloadWidgetCsv(widget, save);
-	} catch (error) {
-		report(error);
-		toast.error(m.widget_download_csv_failed());
-	}
+/** Downloads in progress, by widget id. */
+const pending = new SvelteMap<string, Promise<void>>();
+
+/** Whether the widget's CSV is being prepared (reactive). */
+export function csvPending(widgetId: string): boolean {
+	return pending.has(widgetId);
+}
+
+/**
+ * `downloadWidgetCsv` for the UI: a toast says the data is being prepared, and a failure is
+ * reported and shown as a toast. While one is in progress for the widget, another call returns
+ * that one, so a double click saves once.
+ */
+export function saveWidgetCsv(widget: WidgetInstance, save: FileAccess["save"]): Promise<void> {
+	const running = pending.get(widget.id);
+	if (running) return running;
+	const job = downloadWidgetCsv(widget, save);
+	toast.promise(job, {
+		loading: m.widget_download_csv_pending(),
+		error: (error: unknown) => {
+			report(error);
+			return m.widget_download_csv_failed();
+		}
+	});
+	const done = job
+		.catch(() => {})
+		.finally(() => {
+			if (pending.get(widget.id) === done) pending.delete(widget.id);
+		});
+	pending.set(widget.id, done);
+	return done;
 }

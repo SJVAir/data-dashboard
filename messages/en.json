@@ -328,6 +328,7 @@
 	"file_places": "{count} places",
 	"widget_download_csv": "Download data (CSV)",
 	"widget_download_csv_failed": "The data couldn't be downloaded. Try again.",
+	"widget_download_csv_pending": "Preparing your data…",
 	"table_download_csv": "Download CSV",
 	"existing_copy_title": "You already have a copy of this dashboard",
 	"existing_copy_changed": "Last changed {date}",

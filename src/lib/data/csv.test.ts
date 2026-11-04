@@ -141,6 +141,25 @@ describe("toCsv", () => {
 		expect(row[CSV_COLUMNS.indexOf("max")]).toBe("1000000000000000000000");
 	});
 
+	it("puts places the request doesn't list last, in a stable order", () => {
+		const text = toCsv(
+			data({
+				series: [
+					{ place: "monitor:x", points: [point("2026-11-01T07:00:00Z")] },
+					{ place: "monitor:y", points: [point("2026-11-01T07:00:00Z")] },
+					{ place: "monitor:a", points: [point("2026-11-01T07:00:00Z")] }
+				],
+				places: [{ place: "monitor:a", name: "A" }]
+			}),
+			META
+		);
+		expect(
+			parse(text)
+				.slice(1)
+				.map((r) => r[3])
+		).toEqual(["a", "x", "y"]);
+	});
+
 	it("orders rows by place (request order) then time", () => {
 		const d = data({
 			series: [

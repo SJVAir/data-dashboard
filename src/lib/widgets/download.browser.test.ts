@@ -7,7 +7,7 @@ import Harness from "$lib/components/dashboard/test-harness/Harness.svelte";
 import type { AdapterRequest, RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
-import { fixtureMetadata } from "$lib/data/testing/fixtures";
+import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -130,4 +130,64 @@ test("a minimized data widget's taskbar menu has Download data (CSV)", async () 
 	await page.getByRole("menuitem", { name: m.widget_download_csv() }).click();
 	await expect.poll(() => platform.files.saved.length).toBe(1);
 	expect(platform.files.saved[0].type).toBe("text/csv");
+});
+
+test("the CSV has every place, past the widget's on-screen cap", async () => {
+	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
+	const platform = await show([
+		{ ...chartWidget(ids, { title: "Readings" }), rect: { x: 0, y: 0, w: 6, h: 8 } }
+	]);
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await page.getByRole("menuitem", { name: m.widget_download_csv() }).click();
+	await expect.poll(() => platform.files.saved.length).toBe(1);
+	const rows = platform.files.saved[0].contents.trim().split("\r\n").slice(1);
+	expect(new Set(rows.map((r) => r.split(",")[3]))).toEqual(new Set(ids));
+	expect(platform.files.saved[0].name).toContain("pm25-7-places-");
+});
+
+test("the file name's dates come from when the data was fetched", async () => {
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				fetch: async (req, ctx, signal) => ({
+					...(await base.fetch(req, ctx, signal)),
+					// Noon Pacific, January 15, 2026.
+					fetchedAt: Date.UTC(2026, 0, 15, 20)
+				})
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const platform = await show([
+		{ ...chartWidget(["m1"]), type: "data-table", rect: { x: 0, y: 0, w: 6, h: 8 } }
+	]);
+	await page.getByRole("button", { name: m.table_download_csv() }).click();
+	await expect.poll(() => platform.files.saved.length).toBe(1);
+	expect(platform.files.saved[0].name).toBe("pm25-monitor-m1-2025-12-17-to-2026-01-15.csv");
+});
+
+test("while the CSV is prepared the button is disabled, a toast says so, and it saves once", async () => {
+	const platform = await show([
+		{ ...chartWidget(["m1"]), type: "data-table", rect: { x: 0, y: 0, w: 6, h: 8 } }
+	]);
+	const button = page.getByRole("button", { name: m.table_download_csv() });
+	await expect.element(button).toBeEnabled();
+	// The download reads the catalog again: hold it until the checks below are done.
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => (release = resolve));
+	fake.metadata = fixtureMetadata({ catalog: () => gate.then(() => FIXTURE_CATALOG) });
+	const el = button.element() as HTMLButtonElement;
+	// A double click: both land before the page can update.
+	el.click();
+	el.click();
+	await expect.element(button).toBeDisabled();
+	await expect.element(page.getByText(m.widget_download_csv_pending())).toBeVisible();
+	release();
+	await expect.poll(() => platform.files.saved.length).toBe(1);
+	await expect.element(button).toBeEnabled();
+	await new Promise((r) => setTimeout(r, 100));
+	expect(platform.files.saved).toHaveLength(1);
 });

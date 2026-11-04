@@ -3,7 +3,7 @@
 	import ArrowUp from "@lucide/svelte/icons/arrow-up";
 	import Download from "@lucide/svelte/icons/download";
 	import { Button } from "$lib/components/ui/button";
-	import { saveWidgetCsv } from "$lib/data/csv";
+	import { csvPending, saveWidgetCsv } from "$lib/data/csv";
 	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { levelFor } from "$lib/data/metadata";
@@ -92,6 +92,7 @@
 						<Button
 							variant="ghost"
 							size="sm"
+							disabled={csvPending(widget.id)}
 							onclick={() =>
 								void saveWidgetCsv(widget, (name, contents, type) =>
 									app.platform.files.save(name, contents, type)
