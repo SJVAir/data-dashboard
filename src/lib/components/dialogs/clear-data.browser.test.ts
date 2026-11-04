@@ -59,3 +59,19 @@ test("the body reads naturally with no dashboards, or none deleted", async () =>
 	session.dispose();
 	view.unmount();
 });
+
+test("the count includes dashboards that can't be opened", async () => {
+	const { app, context } = await setup();
+	await app.platform.documents.commit(app.space, {
+		docId: "bad",
+		baseVersion: null,
+		doc: { kind: "dashboard", schemaVersion: 1, id: "bad" } as never,
+		entries: []
+	});
+	await app.index.refresh();
+	await render(ClearDataDialog, { context });
+	openClearData();
+	await expect
+		.element(page.getByRole("dialog").getByText(m.clear_body_no_deleted({ count: 1 })))
+		.toBeVisible();
+});

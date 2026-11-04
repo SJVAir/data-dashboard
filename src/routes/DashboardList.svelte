@@ -3,6 +3,7 @@
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FilePlus from "@lucide/svelte/icons/file-plus";
 	import HardDrive from "@lucide/svelte/icons/hard-drive";
+	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import Upload from "@lucide/svelte/icons/upload";
 	import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 	import { onMount } from "svelte";
@@ -19,7 +20,12 @@
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import { formatDate } from "$lib/format";
+	import { confirmAction } from "$lib/components/dialogs/ConfirmDialog.svelte";
+	import { formatDate, todayPacific } from "$lib/format";
+	import { platform } from "$lib/platform";
+	import { dashboardFileName } from "$lib/sharing/file-names";
+	import { rawDocumentFileJson } from "$lib/sharing/export";
+	import { toast } from "svelte-sonner";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { navigate, p } from "../router";
@@ -41,6 +47,33 @@
 			)(ctx).filter(
 				(item) => item.group === "create" || item.group === "manage" || item.group === "share"
 			);
+
+	async function downloadUnreadable(id: string) {
+		const raw = await app.platform.documents.get(app.space, id);
+		if (raw === undefined) return;
+		const now = new Date();
+		platform().files.save(
+			dashboardFileName(m.dashboard_unreadable(), todayPacific(now)),
+			rawDocumentFileJson(raw, now),
+			"application/json"
+		);
+	}
+
+	async function deleteUnreadable(id: string) {
+		const confirmed = await confirmAction({
+			title: m.dashboard_unreadable_confirm_title(),
+			body: m.dashboard_unreadable_confirm_body(),
+			confirm: m.dashboard_unreadable_delete(),
+			destructive: true,
+			restoreFocus: () => document.getElementById("dashboards-heading")?.focus()
+		});
+		if (!confirmed) return;
+		try {
+			await app.index.removeUnreadable(id);
+		} catch {
+			toast.error(m.dashboard_unreadable_delete_failed());
+		}
+	}
 
 	async function createBlank() {
 		await navigate("/dashboards/:id", { params: { id: await app.index.createBlank() } });
@@ -83,7 +116,7 @@
 		>
 			{m.dashboards_heading()}
 		</h1>
-		{#if app.index.items.length === 0}
+		{#if app.index.items.length === 0 && app.index.unreadable.length === 0}
 			<p class="text-muted-foreground">{m.no_dashboards()}</p>
 			{@render createButtons()}
 		{:else}
@@ -130,6 +163,22 @@
 							onclick={(event) => openMenuFor(event.currentTarget)}
 						>
 							<Ellipsis aria-hidden="true" />
+						</Button>
+					</li>
+				{/each}
+				{#each app.index.unreadable as item (item.id)}
+					<li class="flex items-center gap-2 py-1 pr-1 pl-3" data-testid="dashboard-row-{item.id}">
+						<div class="flex min-w-0 flex-1 flex-col py-1">
+							<span class="truncate font-medium">{m.dashboard_unreadable()}</span>
+							<span class="text-muted-foreground text-sm">{m.dashboard_unreadable_hint()}</span>
+						</div>
+						<Button variant="ghost" size="sm" onclick={() => downloadUnreadable(item.id)}>
+							<Download aria-hidden="true" />
+							{m.dashboard_unreadable_download()}
+						</Button>
+						<Button variant="ghost" size="sm" onclick={() => deleteUnreadable(item.id)}>
+							<Trash2 aria-hidden="true" />
+							{m.dashboard_unreadable_delete()}
 						</Button>
 					</li>
 				{/each}

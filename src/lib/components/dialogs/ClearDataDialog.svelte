@@ -25,7 +25,7 @@
 	let cleared = false;
 	// Dashboards the dialog says it removes: the live ones and those in Recently deleted.
 	const deleted = $derived(app.index.deleted.length);
-	const count = $derived(app.index.items.length + deleted);
+	const count = $derived(app.index.storedCount);
 
 	// Loaded ahead, so "Download a backup first" starts at once.
 	$effect(() => {

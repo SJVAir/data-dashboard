@@ -84,6 +84,34 @@ describe("DashboardIndex", () => {
 		await index.refresh();
 		expect(index.items.map((d) => d.id).sort()).toEqual(["newer", "ok"]);
 		expect(index.names.get("newer")).toBe("Future");
+		expect(index.unreadable).toEqual([{ id: "bad" }]);
+		expect(index.storedCount).toBe(3);
+	});
+
+	it("counts documents without an id but can't list them", async () => {
+		const platform = createMemoryPlatform();
+		const now = clock();
+		await store(platform, { ...blankDashboard(now()), id: "ok" }, "ok");
+		await store(platform, { name: "No id" }, "noid");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		expect(index.unreadable).toEqual([]);
+		expect(index.storedCount).toBe(2);
+	});
+
+	it("removeUnreadable deletes only an unreadable document", async () => {
+		const platform = createMemoryPlatform();
+		const now = clock();
+		await store(platform, { kind: "dashboard", schemaVersion: 1, id: "bad" }, "bad");
+		await store(platform, { ...blankDashboard(now()), id: "ok" }, "ok");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		await index.removeUnreadable("ok");
+		expect(await platform.documents.get(SPACE, "ok")).toBeDefined();
+		await index.removeUnreadable("bad");
+		expect(await platform.documents.get(SPACE, "bad")).toBeUndefined();
+		expect(index.unreadable).toEqual([]);
+		expect(index.storedCount).toBe(1);
 	});
 
 	it("duplicate copies the name and sets copiedFrom", async () => {

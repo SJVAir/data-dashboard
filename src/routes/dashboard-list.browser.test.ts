@@ -2,6 +2,7 @@ import "../app.css";
 import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
+import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
 import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { m } from "$lib/paraglide/messages.js";
@@ -47,6 +48,30 @@ test("list shows dashboards by display name, newest first", async () => {
 	await expect
 		.element(page.getByRole("button", { name: "Actions for Untitled dashboard 2" }))
 		.toBeVisible();
+});
+
+test("a dashboard that can't be opened is listed with Download and Delete", async () => {
+	const app = await setup();
+	await app.platform.documents.commit(app.space, {
+		docId: "bad",
+		baseVersion: null,
+		doc: { kind: "dashboard", schemaVersion: 1, id: "bad" } as never,
+		entries: []
+	});
+	await app.index.refresh();
+	await render(DashboardList, {
+		context: new Map([[APP_CONTEXT_KEY, app]])
+	});
+	const row = page.getByTestId("dashboard-row-bad");
+	await expect.element(row.getByText("A dashboard that can't be opened")).toBeVisible();
+	expect(row.getByRole("link").elements()).toHaveLength(0);
+	await expect.element(row.getByRole("button", { name: "Download" })).toBeVisible();
+	await row.getByRole("button", { name: "Delete" }).click();
+	await render(ConfirmDialog);
+	await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+	await vi.waitFor(async () =>
+		expect(await app.platform.documents.get(app.space, "bad")).toBeUndefined()
+	);
 });
 
 test("row menu deletes that dashboard", async () => {
