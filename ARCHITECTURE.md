@@ -1155,6 +1155,31 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   - **Server and SDK work (step 3):** a name search for locations, ideally an endpoint
     outside the `pesticides/` namespace since schools are used for air quality too; SDK
     wrappers; and a check that production has the school data loaded (`import_schools`).
+    **Built in spec 3** (sjvair.com #302, sdk-js #39; open for review, 2026-11-04):
+    - `GET regions/locations/search/?q=&type=&region_type=&region=` →
+      `{ data: [location rows], more }`. Each row is the `regions/locations/` row (code pair,
+      name, type, address, `city_name`, ZIP, point, linked regions as
+      `{ type, external_id, name }`), so a picked row and a reopened one look the same.
+    - **Matching:** part of a name, small typos (`linclon`), and a town typed with the name
+      (`lincoln visalia`, `visalia lincoln`). A town matches either the mailing city or the
+      linked city/CDP.
+    - **Order:** exact name, then name starts with the text, then a word starts with it,
+      then name + town, then substring or typo only; ties by mailing city, then name.
+    - **Size:** 10 rows, stretched to 15 while the following rows repeat the 10th's name
+      (all 13 "Lincoln Elementary" rows show). `more` is set when anything is left out, for
+      "keep typing to narrow it down".
+    - **Filters:** `type` is a comma list; `region_type` + `region` take a code for
+      county, city, cdp, zipcode or school_district.
+    - **Rows:** current sites only; a child-care center's several licenses are one row.
+      Names are shown as the state publishes them (child-care names are often all caps).
+    - **Labels** come from `regions/meta/` → `location_types` (`{ type, label, source }`).
+    - **Requests:** `q` under 2 characters is empty, with no request from the SDK. 200s are
+      cached by the browser for an hour.
+    - **SDK:** `searchLocations({ q, type?, region?, ...requestOptions })` →
+      `{ results, more }`. `getPesticideLocations` wraps `pesticides/locations/` (its point
+      form puts coordinates in the URL, so it is only for public points like a school).
+    - **Resolving a saved location:** stays on `regions/locations/?source=&external_id=` /
+      `getLocationsByCode`, retired ones included.
 - **Missing: lookup by coordinates or monitor.** Needed for "Use my location" and for
   mapping a monitor to its ZIP (CalHeatScore) or forecast zone. **Extend
   `regions/places/lookup/`** (no new endpoint) to accept rounded coordinates (`lat`/`lon` in a **POST body**; see "Location

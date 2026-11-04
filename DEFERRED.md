@@ -1408,6 +1408,17 @@ string`) now get the union return type. The mobile app passes a string token, so
     message there is a nested ternary, carried focus stays set if the page never switches
     (guarded, pre-existing), and no test covers a cancelled resize animating back under
     reduced motion (the zero-duration guard covers it).
+- **Tidying child-care names in the place picker.** _Deferred 2026-11-04 (sjvair.com step 3
+  spec 3, the user's call)._ The state's child-care list stores names and cities in capitals,
+  some cut off (`BCSD/ROOSEVELT ELEMENTARY PRE-KINDERGAR`), and the location search returns
+  them as published. A rule-based tidy (title case plus an acronym list) would get acronyms
+  and names like McKinley wrong, which looks worse than the state's own capitals, and can't
+  restore cut-off names. **Revisit if** parents or partners find the capitals confusing in
+  the picker.
+- **Accent-insensitive location search.** _Deferred 2026-11-04 (sjvair.com step 3 spec 3)._
+  No school or child-care name in the data has an accent today, so `ninos` vs `Niños`
+  doesn't come up. **Revisit when** an import brings in accented names (Postgres `unaccent`
+  is the likely fix).
 
 ## Legacy Monitors-tab follow-ups
 

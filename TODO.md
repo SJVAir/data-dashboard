@@ -16,7 +16,7 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
 | Track                                                                                                                    | Session starts in | Repos it edits                | Its status lives in                          |
 | ------------------------------------------------------------------------------------------------------------------------ | ----------------- | ----------------------------- | -------------------------------------------- |
 | **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                               | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata) — spec 2 merged; spec 3 (location search) in progress (2026-11-04)                   | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 3, second batch** (metadata) — spec 2 merged; spec 3 (location search) PRs #302, sdk #39 open                     | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
 | **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1)                                            | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 | **Step 4: Widget Creation and non-map widgets** — 6 stacked specs into `step-4`; spec 1 approved, plan next (2026-11-04) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
@@ -966,8 +966,9 @@ built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are i
 [#38](https://github.com/SJVAir/sdk-js/pull/38) into `release/4.8.0` (both 2026-11-04, with the
 user's yes); not yet in production. Both are in **@sjvair/sdk 4.8.0-beta.5** (published 2026-11-04 with the
 user's yes); step 4 can pin it. Spec at sjvair.com
-`docs/superpowers/specs/2026-11-03-summary-cache-and-place-lookup-design.md`. Later specs: location
-search, the remaining wrappers and cleanup. **Pesticide
+`docs/superpowers/specs/2026-11-03-summary-cache-and-place-lookup-design.md`. **Spec 3 (location
+search, 2026-11-04) has PRs open:** sjvair.com #302 and sdk-js #39 (below). Later specs: the
+remaining wrappers and cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
 research in `docs/reference/pesticides-explorer-research.md`).
 
@@ -1001,9 +1002,15 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ (spec 2, sjvair.com #301, merged into `develop`) Summary rollups moved to Pacific time
   (they ran on UTC, so each landed a period late and seasons covered the wrong months). Needs
   a catch-up run after deploy (see the PR's deploy notes).
-- Location (schools, child care) support: a name search endpoint (ideally outside
-  `pesticides/`), sdk-js wrappers for it and `pesticides/locations/`, and a check that
-  production has `import_schools` data.
+- (spec 3, PRs open, not merged: sjvair.com [#302](https://github.com/SJVAir/sjvair.com/pull/302)
+  into `develop`, sdk-js [#39](https://github.com/SJVAir/sdk-js/pull/39) into `release/4.8.0`;
+  no beta yet) Location (schools, child care) name search: `regions/locations/search/?q=`
+  (typo-tolerant, a town can be typed, ≤10 rows stretched to 15 on a name tie, `more`),
+  region names on location rows, `location_types` labels in `regions/meta/`, and sdk-js
+  `searchLocations` and `getPesticideLocations`. What it does is in `ARCHITECTURE.md` →
+  "Schools and child care are places". The production `import_schools` check stays the
+  user's call (production checks are out of scope). Spec at sjvair.com
+  `docs/superpowers/specs/2026-11-04-location-search-design.md`.
 - ✅ (spec 2, sjvair.com #301 and sdk-js #38, merged) Extend
   `regions/places/lookup/` to accept coordinates (rounded, **in a POST body**; scrub
   `lat`/`lon` from Sentry, Scout, and logs) or `?monitor=` (plus `type=`),
