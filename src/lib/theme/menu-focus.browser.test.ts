@@ -55,6 +55,9 @@ async function helpMenu() {
 
 describe.each(["light", "dark"] as const)("keyboard focus in menus (%s)", (scheme) => {
 	afterEach(async () => {
+		// Close the menu first: a portaled menu left open would catch the next test's keys.
+		await userEvent.keyboard("{Escape}");
+		await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull();
 		document.documentElement.removeAttribute("data-theme");
 		await commands.setColorScheme(null);
 	});
