@@ -390,8 +390,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   Checklist for that day:
   - **Released together** (the user, 2026-11-04: the updated mobile app and sjvair.com `develop` are released the same day, with map-sdk on the latest sdk-js, monitor-map rebuilt on map-sdk, and mobile on that monitor-map, all done before `develop` is released; mobile auto-updates, most likely overnight, the day a release is published): map-sdk on the latest @sjvair/sdk 5.0 beta, monitor-map 5.0
     rebuilt on map-sdk, and a mobile release on monitor-map 5.0 must all be ready first. SDK 5.0
-    has no fallbacks for older servers, so the new mobile build needs the deployed server; the
-    order on the day (deploy, then publish the mobile release) is for the user to confirm.
+    has no fallbacks for older servers, so the new mobile build needs the deployed server; on the
+    day, **deploy `develop` first, then publish the mobile release** (the user, 2026-11-04).
     The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
     hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
     (tooltips, legend, clusters, charts, subscription manager), mobile
