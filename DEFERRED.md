@@ -392,6 +392,13 @@ string`) now get the union return type. The mobile app passes a string token, so
     rebuilt on map-sdk, and a mobile release on monitor-map 5.0 must all be ready first. SDK 5.0
     has no fallbacks for older servers, so the new mobile build needs the deployed server; the
     order on the day (deploy, then publish the mobile release) is for the user to confirm.
+    The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
+    hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
+    (tooltips, legend, clusters, charts, subscription manager), mobile
+    (`MonitorSubscription.svelte`, `Subscriptions.svelte`, `alert-level.ts`), map-sdk's legacy
+    fallback (`src/lib/data/metadata.ts`), and sdk-js (schema, the `levels` getter,
+    `asIter.levels`, fixtures; how is the user's call). The dashboard reads `scale`; its e2e
+    fixtures still contain `levels`.
   - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
     credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
