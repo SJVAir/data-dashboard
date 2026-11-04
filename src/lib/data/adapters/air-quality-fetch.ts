@@ -22,7 +22,7 @@ import {
 } from "@sjvair/sdk";
 import { TIME_ZONE, todayPacific } from "$lib/format";
 import { nextPeriodStart, periodStart, type Period } from "$lib/format/range";
-import { CHUNK_DAYS, splitChunks } from "../chunks";
+import { CHUNK_DAYS, calendarUnits, splitChunks, type Unit } from "../chunks";
 import type { Segment } from "../periods";
 import type { SeriesPoint } from "../types";
 
@@ -97,28 +97,31 @@ function pacific(instant: Date): TZDate {
 	return new TZDate(instant.getTime(), TIME_ZONE);
 }
 
-/**
- * The URL paths a single-monitor summary call takes for `[from, to)`: hourly by month (or one
- * day), daily by year (or one month), monthly, quarterly and seasonal by year, yearly in one call.
- */
-function pathConfigs(res: Period, from: Date, to: Date): PathConfig[] {
-	if (res === "year") return [{}];
+/** Whether `[from, to)` sits inside one Pacific day. */
+function withinOneDay(from: Date, to: Date): boolean {
 	const first = pacific(from);
 	const last = pacific(new Date(to.getTime() - 1));
-	const [y1, m1, d1] = [first.getFullYear(), first.getMonth() + 1, first.getDate()];
-	const [y2, m2, d2] = [last.getFullYear(), last.getMonth() + 1, last.getDate()];
-	const sameMonth = y1 === y2 && m1 === m2;
-	if (res === "hour" && sameMonth && d1 === d2) return [{ year: y1, month: m1, day: d1 }];
-	if (res === "day" && sameMonth) return [{ year: y1, month: m1 }];
-	const configs: PathConfig[] = [];
-	if (res === "hour") {
-		for (let y = y1, m = m1; y < y2 || (y === y2 && m <= m2); m === 12 ? (y++, (m = 1)) : m++) {
-			configs.push({ year: y, month: m });
-		}
-	} else {
-		for (let y = y1; y <= y2; y++) configs.push({ year: y });
+	return (
+		first.getFullYear() === last.getFullYear() &&
+		first.getMonth() === last.getMonth() &&
+		first.getDate() === last.getDate()
+	);
+}
+
+/**
+ * The URL path a single-monitor summary call takes for one unit: hourly and daily by month,
+ * monthly, quarterly and seasonal by year, yearly in one call. A segment inside one Pacific day
+ * (the open hour fill) uses the day path for hourly.
+ */
+function pathConfig(res: Period, unit: Unit): PathConfig {
+	if (res === "year") return {};
+	const first = pacific(unit.start);
+	const year = first.getFullYear();
+	if (res === "hour" && withinOneDay(unit.start, unit.end)) {
+		return { year, month: first.getMonth() + 1, day: first.getDate() };
 	}
-	return configs;
+	if (res === "hour" || res === "day") return { year, month: first.getMonth() + 1 };
+	return { year };
 }
 
 /** One monitor's summaries for a segment, through the single-monitor endpoints. */
@@ -133,15 +136,20 @@ export function monitorSummaryTasks(
 	const res = seg.resolution as Period;
 	const from = periodStart(seg.start, res);
 	if (from >= seg.end) return [];
-	return pathConfigs(res, from, seg.end).map((path) => async () => {
-		const config = { monitorId, entryType, ...path, ...(processor ? { processor } : {}) };
+	return calendarUnits({ ...seg, start: from }).map((unit) => async () => {
+		const config = {
+			monitorId,
+			entryType,
+			...pathConfig(res, unit),
+			...(processor ? { processor } : {})
+		};
 		const rows = await SINGLE[res](config, { signal });
-		return [{ id: monitorId, points: toPoints(rows, res, from, seg.end, now) }];
+		return [{ id: monitorId, points: toPoints(rows, res, unit.start, unit.end, now) }];
 	});
 }
 
 /**
- * Summaries for many places through a bulk endpoint, split into spans the server accepts.
+ * Summaries for many places through a bulk endpoint, one request per whole calendar unit.
  * Monitors come back with each type's published series; `regionIds` (sqids) picks the region
  * endpoint, otherwise every published monitor is returned.
  */
@@ -155,19 +163,25 @@ export function bulkSummaryTasks(
 	const res = seg.resolution as Period;
 	const from = periodStart(seg.start, res);
 	if (from >= seg.end) return [];
-	return splitChunks({ ...seg, start: from }, CHUNK_DAYS[res]).map((chunk) => async () => {
-		// `start` and `end` are inclusive Pacific dates.
+	const whole = { ...seg, start: from };
+	// A segment inside one day (the open hour fill) asks for just that day, not its month.
+	const units =
+		res === "hour" && withinOneDay(from, seg.end)
+			? [{ fetchStart: from, fetchEnd: seg.end, start: from, end: seg.end }]
+			: calendarUnits(whole);
+	return units.map((unit) => async () => {
+		// `start` and `end` are inclusive Pacific dates of the whole unit.
 		const dates = {
 			entryType,
-			start: todayPacific(chunk.start),
-			end: todayPacific(new Date(chunk.end.getTime() - 1))
+			start: todayPacific(unit.fetchStart),
+			end: todayPacific(new Date(unit.fetchEnd.getTime() - 1))
 		};
 		const places = regionIds
 			? await BULK_REGIONS[res]({ ...dates, region: regionIds }, { signal })
 			: await BULK_MONITORS[res](dates, { signal });
 		return places.map((p) => ({
 			id: p.id,
-			points: toPoints(p.summaries, res, chunk.start, chunk.end, now)
+			points: toPoints(p.summaries, res, unit.start, unit.end, now)
 		}));
 	});
 }

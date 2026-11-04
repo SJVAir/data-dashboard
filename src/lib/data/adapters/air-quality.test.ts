@@ -108,6 +108,81 @@ describe("airQualityAdapter.offered", () => {
 	});
 });
 
+describe("airQualityAdapter.fetch calendar-aligned requests", () => {
+	const LAST_30: DateRangeSpec = { kind: "trailing", amount: 30, unit: "day" };
+	const COUNTY = { kind: "regions", keys: ["county:06019"] } as Target;
+	const bulkCalls = () =>
+		vi.mocked(getRegionSummariesBulkDaily).mock.calls.map(([config]) => config);
+
+	it("asks for the same whole-October URL on consecutive days", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		const runAt = async (iso: string) => {
+			vi.mocked(getRegionSummariesBulkDaily).mockClear();
+			const now = new Date(iso);
+			await airQualityAdapter.fetch(
+				request(COUNTY, "day", LAST_30, { now, offered: ["day"] }),
+				ctx,
+				signal
+			);
+			return bulkCalls();
+		};
+		const first = await runAt("2026-11-04T20:00:00Z");
+		const second = await runAt("2026-11-05T20:00:00Z");
+		const october = { entryType: "pm25", start: "2026-10-01", end: "2026-10-31", region: ["sq1"] };
+		expect(first[0]).toEqual(october);
+		expect(second[0]).toEqual(october);
+	});
+
+	it("asks for November whole and December on 1 December", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { now: new Date("2026-12-01T17:00:00Z"), offered: ["day"] }),
+			ctx,
+			signal
+		);
+		expect(bulkCalls().map((c) => [c.start, c.end])).toEqual([
+			["2026-11-01", "2026-11-30"],
+			["2026-12-01", "2026-12-31"]
+		]);
+	});
+
+	it("a single monitor's daily query goes per month, never per year", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-bam"] }, "day", LAST_30, {
+				now: new Date("2026-11-04T20:00:00Z"),
+				offered: ["day"]
+			}),
+			ctx,
+			signal
+		);
+		const configs = vi.mocked(getMonitorSummariesDaily).mock.calls.map(([c]) => c);
+		expect(configs).toEqual([
+			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 10 },
+			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 11 }
+		]);
+	});
+
+	it("drops rows outside the clipped range", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{
+				id: "sq1",
+				summaries: [
+					row("2026-10-01T00:00:00-07:00", 1),
+					row("2026-10-20T00:00:00-07:00", 2),
+					row("2026-11-20T00:00:00-08:00", 3)
+				]
+			}
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { now: new Date("2026-11-04T20:00:00Z"), offered: ["day"] }),
+			ctx,
+			signal
+		);
+		expect(data.series[0].points.map((p) => p.mean)).toEqual([2]);
+	});
+});
+
 describe("airQualityAdapter.fetch", () => {
 	it("lists each requested place with its name and a region's retirement", async () => {
 		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
