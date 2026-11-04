@@ -1090,6 +1090,13 @@ string`) now get the union return type. The mobile app passes a string token, so
   documents to Automerge's format, plus reworking `schemaVersion` upgrades as CRDT
   changes.
 
+- **A sign-out component test fails now and then under load.** _Noted 2026-11-03 (design pass,
+  Task 10)._ `sign-out.browser.test.ts` → "finish saving offline stays signed in and says so"
+  failed in 2 of 4 full `npm run test` runs with `AbortError: The user aborted a request.`, and
+  passed every time on its own. It doesn't touch the design pass's changes beyond restyled
+  primitives; whether it flaked before is unknown. **Revisit if** it fails in CI, or when next
+  touching sign-out or the sync worker.
+
 ## Internationalization
 
 - **Translations and language switching.** _Deferred 2026-09-24; re-checked 2026-10-13._ The
