@@ -244,9 +244,9 @@ string`) now get the union return type. The mobile app passes a string token, so
     where it goes is still open. Until then the dashboard keeps using `@sjvair/sdk/documents`
     (4.8.0 prereleases; `createSnapshot` is in the pinned 4.8.0-beta.3). The move changes the
     dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
-    (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 4.8.0 final is tagged, since
-    removing it after a stable release has to wait for 5.0; sdk-js's own `DEFERRED.md` ("Before
-    4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 4.8.0 final is being
+    (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 5.0.0 final is tagged (the next stable release, renamed from 4.8.0 on 2026-11-04), since
+    removing it after a stable release has to wait for 6.0; sdk-js's own `DEFERRED.md` ("Before
+    4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 5.0.0 final is being
     planned, whichever comes first. **Blocks go-live.**
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
@@ -342,8 +342,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
   `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
   are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
-  **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
-  the user approves the release): switch to `^4.8.0`.
+  The pin now follows the 5.0.0 betas (the next stable release was renamed from 4.8.0 on
+  2026-11-04). **Revisit when** sdk-js 5.0.0 is released (after sjvair.com `develop` reaches
+  production and the user approves the release): switch to `^5.0.0`.
 - **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
   (decided by the user)._ The user wants the next major sdk-js version to send entry bounds
   unchanged by default, with an opt-in flag for rounding to whole Pacific days; it's recorded
@@ -398,14 +399,14 @@ string`) now get the union return type. The mobile app passes a string token, so
     adds to it. Use the rollup tasks with a scope, one monitor and one region first, then the
     wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
     "Deploy notes"; never unscoped bulk commands).
-  - **Client updates for the SDK call changes (sdk-js #40):** monitor-map (pins `^4.7.0`, which
-    accepts 4.8.0) calls `getHMSSmoke({ signal })`/`getHMSFire({ signal })`; they become
+  - **Client updates for the SDK call changes (sdk-js #40):** monitor-map (pins `^4.7.0`; the release is 5.0.0, so it
+    can't pick it up by accident) calls `getHMSSmoke({ signal })`/`getHMSFire({ signal })`; they become
     `getHMSSmoke(undefined, { signal })`/`getHMSFire(undefined, { signal })` when it moves to
-    the new SDK, before that SDK is used there. TypeScript flags the old call; plain JS would
+    SDK 5.0, which it and mobile (`^4.6.0`) must do before `develop` goes live. TypeScript flags the old call; plain JS would
     silently drop the signal. `getRegionDetails(id, options)` also became
     `getRegionDetails(id, query, options)` (no external callers found).
-  - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 4.8.0
-    final can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04).
+  - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 5.0.0
+    final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04).
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
