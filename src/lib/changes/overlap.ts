@@ -1,4 +1,5 @@
 import type { Change } from "./types";
+import { canonicalJson } from "$lib/sharing/fingerprint";
 
 /**
  * Whether two changes made on different sides touch the same thing, so neither can be
@@ -20,6 +21,10 @@ export function changesOverlap(a: Change, b: Change): boolean {
 		return (
 			a.target.widgetId === b.target.widgetId && a.target.path === b.target.path && a.to !== b.to
 		);
+	}
+	// Two data replacements of one widget overlap unless they agree (same resulting data).
+	if (a.op === "setWidgetData" && b.op === "setWidgetData") {
+		return a.target.widgetId === b.target.widgetId && canonicalJson(a.to) !== canonicalJson(b.to);
 	}
 	// Layout moves never overlap another move or a removal: the last save wins, and a move of
 	// a removed widget is dropped when replayed.

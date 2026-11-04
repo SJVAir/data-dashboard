@@ -930,11 +930,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   probably counts a multi-ingredient record's acres once per ingredient (not yet proven
   with data). Research and widget ideas: `docs/reference/pesticides-explorer-research.md`.
   **Revisit when** step 3's spec 1 is done, or pesticide widgets are planned.
-- **Weak tests in the widget registry and `applyChange`.** _Deferred 2026-10-20 (Foundations
-  spec 1 review)._ Widget-type registration and lookup are untested, and the tests for
-  `applyChange`'s index clamping and for never mutating its input are weak. Both are
-  exercised indirectly by other tests. **Revisit when** a second widget type registers
-  (Release 1 step 4), or `applyChange` gains an operation.
+- **Weak tests in the widget registry.** _Deferred 2026-10-20 (Foundations spec 1 review)._
+  Widget-type registration and lookup are untested; they are exercised indirectly by other
+  tests. (The `applyChange` half, index clamping and never mutating input, was strengthened with
+  `setWidgetData` in step 4 spec 1, task 8.) **Revisit when** a second widget type registers
+  (Release 1 step 4).
 - **Widget state across the starter's first edit in fullscreen.** _Deferred 2026-10-29 (spec
   2b)._ An edit made while a starter widget is fullscreen hands off to the copy and keeps
   `?widget`, but the page moves from Home to the copy's dashboard page, so the grid and the

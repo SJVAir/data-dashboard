@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import type { WidgetDataConfig } from "$lib/data/schema";
 import { ChangeSchema, type Change } from "./types";
 import { appliedChange, applyChange, ChangeTargetMissing } from "./apply";
 
@@ -20,6 +21,18 @@ function makeDoc(overrides: Partial<Dashboard> = {}): Dashboard {
 		...overrides
 	};
 }
+
+const emptyData: WidgetDataConfig = { layers: [] };
+const otherData: WidgetDataConfig = {
+	dateRange: { kind: "trailing", amount: 7, unit: "day" },
+	layers: [
+		{
+			dataset: "air-quality",
+			entryType: "pm25",
+			place: { kind: "region", type: "county", code: "06019" }
+		}
+	]
+};
 
 function deepFreeze<T>(value: T): T {
 	if (value && typeof value === "object") {
@@ -140,14 +153,94 @@ describe("applyChange", () => {
 
 	it("does not mutate input", () => {
 		const doc = deepFreeze(makeDoc());
+		const snapshot = structuredClone(doc);
 		const changes: Change[] = [
 			{ op: "addWidget", target: { widgetId: "c" }, widget: widget("c"), index: 0 },
 			{ op: "removeWidget", target: { widgetId: "a" }, widget: widget("a"), index: 0 },
 			{ op: "setField", target: { widgetId: "a", path: "title" }, from: null, to: "T" },
 			{ op: "setField", target: { path: "name" }, from: "Mine", to: "N" },
-			{ op: "setField", target: { path: "deletedAt" }, from: null, to: "2026-10-20T01:00:00.000Z" }
+			{ op: "setField", target: { path: "deletedAt" }, from: null, to: "2026-10-20T01:00:00.000Z" },
+			{ op: "setWidgetData", target: { widgetId: "a" }, from: emptyData, to: otherData },
+			{
+				op: "setLayout",
+				target: { widgetIds: ["a"] },
+				from: { a: { rect: { x: 0, y: 0, w: 6, h: 4 }, minimized: null } },
+				to: { a: { rect: { x: 1, y: 1, w: 6, h: 4 }, minimized: null } }
+			},
+			{
+				op: "replaceDocument",
+				target: {},
+				from: { name: "Mine", body: doc.body },
+				to: { name: "X", body: { widgets: [] } }
+			}
 		];
-		for (const change of changes) expect(() => applyChange(doc, deepFreeze(change))).not.toThrow();
+		for (const change of changes) {
+			const result = applyChange(doc, deepFreeze(structuredClone(change)));
+			expect(result.doc).not.toEqual(doc);
+			expect(doc).toEqual(snapshot);
+		}
+	});
+
+	it("addWidget clamps an index past the end and records the clamped index", () => {
+		const doc = makeDoc();
+		const { doc: next, inverse } = applyChange(doc, {
+			op: "addWidget",
+			target: { widgetId: "c" },
+			widget: widget("c"),
+			index: 99
+		});
+		expect(next.body.widgets.map((x) => x.id)).toEqual(["a", "b", "c"]);
+		expect(inverse).toMatchObject({ op: "removeWidget", index: 2 });
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+		const atStart = applyChange(doc, {
+			op: "addWidget",
+			target: { widgetId: "c" },
+			widget: widget("c"),
+			index: 0
+		});
+		expect(atStart.doc.body.widgets.map((x) => x.id)).toEqual(["c", "a", "b"]);
+		expect(atStart.inverse).toMatchObject({ index: 0 });
+	});
+
+	it("setWidgetData replaces only that widget's data and inverts to the actual prior data", () => {
+		const doc = makeDoc();
+		const change: Change = {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: otherData,
+			to: otherData
+		};
+		const { doc: next, inverse } = applyChange(doc, change);
+		expect(next.body.widgets[0].data).toEqual(otherData);
+		expect(next.body.widgets[1]).toBe(doc.body.widgets[1]);
+		expect(next.body.widgets[0].title).toBe(doc.body.widgets[0].title);
+		// `from` was stale: the inverse restores what was really there.
+		expect(inverse).toEqual({ ...change, from: otherData, to: emptyData });
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+		expect(appliedChange(inverse)).toEqual({ ...change, from: emptyData, to: otherData });
+	});
+
+	it("setWidgetData throws ChangeTargetMissing for a missing widget", () => {
+		expect(() =>
+			applyChange(makeDoc(), {
+				op: "setWidgetData",
+				target: { widgetId: "zzz" },
+				from: emptyData,
+				to: otherData
+			})
+		).toThrow(ChangeTargetMissing);
+	});
+
+	it("ChangeSchema validates setWidgetData data", () => {
+		const good = {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: emptyData,
+			to: otherData
+		};
+		expect(ChangeSchema.safeParse(good).success).toBe(true);
+		expect(ChangeSchema.safeParse({ ...good, to: { layers: "no" } }).success).toBe(false);
+		expect(ChangeSchema.safeParse({ ...good, target: { widgetId: "" } }).success).toBe(false);
 	});
 
 	it("throws ChangeTargetMissing for unknown widgetId", () => {

@@ -168,4 +168,23 @@ describe("UndoStack with setLayout", () => {
 		const undone = stack.takeUndo(doc);
 		expect(undone?.doc.body.widgets.map((w) => w.rect.y)).toEqual([0]);
 	});
+
+	it("undoes and redoes a setWidgetData", () => {
+		const stack = new UndoStack();
+		const to = {
+			dateRange: { kind: "trailing" as const, amount: 7, unit: "day" as const },
+			layers: []
+		};
+		let doc = edit(stack, makeDoc(), {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: { layers: [] },
+			to
+		});
+		expect(doc.body.widgets[0].data).toEqual(to);
+		doc = stack.takeUndo(doc)!.doc;
+		expect(doc.body.widgets[0].data).toEqual({ layers: [] });
+		doc = stack.takeRedo(doc)!.doc;
+		expect(doc.body.widgets[0].data).toEqual(to);
+	});
 });

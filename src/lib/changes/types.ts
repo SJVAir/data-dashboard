@@ -1,4 +1,5 @@
 import { z } from "$lib/zod";
+import { WidgetDataConfigSchema } from "$lib/data/schema";
 import {
 	DashboardBodySchema,
 	NAME_MAX,
@@ -62,6 +63,13 @@ const SetFieldSchema = z
 		}
 	});
 
+const SetWidgetDataSchema = z.object({
+	op: z.literal("setWidgetData"),
+	target: z.object({ widgetId: z.string().min(1) }),
+	from: WidgetDataConfigSchema,
+	to: WidgetDataConfigSchema
+});
+
 const DocContentSchema = z.object({
 	name: z.string().max(NAME_MAX).nullable(),
 	body: DashboardBodySchema
@@ -113,6 +121,7 @@ export const ChangeSchema = z.discriminatedUnion("op", [
 	AddWidgetSchema,
 	RemoveWidgetSchema,
 	SetFieldSchema,
+	SetWidgetDataSchema,
 	SetLayoutSchema,
 	ReplaceDocumentSchema
 ]);
