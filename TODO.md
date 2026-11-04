@@ -6,13 +6,19 @@ Last updated: 2026-11-04
 
 **One session per repo; tracks in different repos run in parallel** (decided 2026-11-03,
 replacing the 2026-10-29 "one session at a time" rule). Tracks in the same repo still go in one
-session, in order. From 2026-11-03, three sessions run at once:
+session, in order. From 2026-11-03, three sessions run at once. **Exception (the user,
+2026-11-04):** step 4 is built in its own data-dashboard session, while a second data-dashboard
+session coordinates (the server sessions, the cross-track docs, decisions for the user) so step
+4 keeps its context for building. Step 4 edits its own sections from its branches; the
+coordinator edits the table below, other tracks' sections, and the `DEFERRED.md` deploy entry
+from a worktree off `origin/main`. Server sessions message the coordinator.
 
-| Track                                                                         | Session starts in | Repos it edits                | Its status lives in                          |
-| ----------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                    | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata) — spec 2 PRs open (2026-11-04)            | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1) | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| Track                                                                                                  | Session starts in | Repos it edits                | Its status lives in                          |
+| ------------------------------------------------------------------------------------------------------ | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                             | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata) — spec 2 merged; spec 3 (location search) in progress (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1)                          | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| **Step 4: Widget Creation and non-map widgets** — starting (2026-11-04)                                | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
