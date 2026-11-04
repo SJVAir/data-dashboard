@@ -1038,6 +1038,8 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    fix, and the initial bundle trimmed to 195.9 KB (from 213.9 KB). SDK pinned exactly to
    4.8.0-beta.6. Stack check (Fresno County, after a scoped rebuild of 2026-10-01 → 11-04):
    cache headers right, the chart spans the whole range with gaps where local data is missing.
+   Its `ARCHITECTURE.md` and `DEFERRED.md` changes are on `step-4` and reach `main` when
+   `step-4` merges.
 2. The **shared place picker** — **next**, in a fresh session (prompt: `prompt-spec-2.txt` at the
    top of the checkout, untracked). Branch `step-4-spec-2` from `step-4`; its first commit pins
    `@sjvair/sdk` exactly to `5.0.0-beta.2` and drops `exact`. sjvair.com's location name search
