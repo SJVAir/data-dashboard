@@ -16,6 +16,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 			license: "",
 			geographies: ["monitor", "region"],
 			meta_url: "/api/2.0/monitors/meta/",
+			places_url: "/api/2.0/monitors/places/",
 			entry_types: [
 				{
 					id: "humidity",
@@ -62,6 +63,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 			license: "Public domain",
 			geographies: ["polygon"],
 			meta_url: "",
+			places_url: "",
 			entry_types: [
 				{
 					id: "smoke-density",

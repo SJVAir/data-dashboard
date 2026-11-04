@@ -107,6 +107,7 @@ describe("createWebMetadata().catalog", () => {
 					license: "",
 					geographies: ["monitor", "watershed"],
 					meta_url: "",
+					places_url: "",
 					entry_types: [
 						{
 							id: "pm25-old",
