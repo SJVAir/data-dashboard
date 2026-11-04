@@ -1,9 +1,16 @@
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { Level } from "$lib/data/metadata";
-import { formatNumber, formatTick, TIME_ZONE } from "$lib/format";
+import { formatTick, TIME_ZONE } from "$lib/format";
+import { valueTickLabels } from "./axis";
 import { drawBands, valueAxisMax } from "./bands";
-import { seriesShape, seriesStyle, type AlignedSeries, type SeriesStyle } from "./series";
+import {
+	seriesShape,
+	seriesStyle,
+	type AlignedSeries,
+	type SeriesStyle,
+	type XRange
+} from "./series";
 import { drawMarkers, drawSticks, type Project } from "./sticks";
 
 const HOUR_MS = 3_600_000;
@@ -46,13 +53,38 @@ function tickUnit(incr: number): "hour" | "day" | "month" | "year" {
 	return "year";
 }
 
-export type ChartInput = {
+/** What can change without rebuilding the chart (the place count must stay the same). */
+export type ChartData = {
 	aligned: AlignedSeries;
-	levels: Level[];
-	unit: string;
 	/** Draw each day's worst hour (single place only; the caller decides). */
 	sticks: boolean;
+	/** The time axis's extent; the data's own extent when not given. */
+	xRange?: XRange;
+	/** Where the value axis starts (the catalog's `y_min`); else at 0 or the lowest value. */
+	yMin?: number | null;
 };
+
+export type ChartInput = ChartData & { levels: Level[]; unit: string };
+
+export type TimeChart = {
+	u: uPlot;
+	/** Shows new data in the same chart, with the same number of places. */
+	update(next: ChartData): void;
+};
+
+function plotData(aligned: AlignedSeries): uPlot.AlignedData {
+	return [aligned.xs, ...aligned.points.map((row) => row.map((p) => (p ? p.mean : null)))];
+}
+
+/** The value axis's extent: from `yMin` (lowered to the data if needed) or 0, up past the data. */
+function valueRange(data: ChartData, levels: Level[]): [number, number] {
+	const values = data.aligned.points.flatMap((row) =>
+		row.flatMap((p) => (p ? [p.mean, p.worstHour?.value ?? p.mean] : []))
+	);
+	const dataMax = values.length ? Math.max(...values) : null;
+	const dataMin = values.length ? Math.min(...values) : 0;
+	return [Math.min(data.yMin ?? 0, dataMin), valueAxisMax(levels, dataMax)];
+}
 
 export type ChartEvents = {
 	/** The x index under the cursor, or null when it leaves. */
@@ -67,33 +99,23 @@ export function createTimeChart(
 	input: ChartInput,
 	size: { width: number; height: number },
 	events: ChartEvents
-): uPlot {
-	const { aligned, levels, unit } = input;
-	const count = aligned.places.length;
+): TimeChart {
+	const { levels, unit } = input;
+	let current: ChartData = input;
+	let yRange = valueRange(current, levels);
+	const count = current.aligned.places.length;
 	let theme = readTheme(target, count);
 	const font = getComputedStyle(target).getPropertyValue("--font-sans").trim() || "sans-serif";
 	const ratio = () => uPlot.pxRatio;
 
-	const values = aligned.points.flatMap((row) =>
-		row.flatMap((p) => (p ? [p.mean, p.worstHour?.value ?? p.mean] : []))
-	);
-	const dataMax = values.length ? Math.max(...values) : null;
-	const dataMin = values.length ? Math.min(...values) : 0;
-	const yMax = valueAxisMax(levels, dataMax);
-	const yMin = Math.min(0, dataMin);
-
 	const project = (u: uPlot): Project => ({
-		x: (i) => u.valToPos(aligned.xs[i], "x", true),
+		x: (i) => u.valToPos(current.aligned.xs[i], "x", true),
 		y: (v) => u.valToPos(v, "y", true)
 	});
 
 	const axisFont = `${AXIS_FONT_SIZE}px ${font}`;
-	const data: uPlot.AlignedData = [
-		aligned.xs,
-		...aligned.points.map((row) => row.map((p) => (p ? p.mean : null)))
-	];
 
-	return new uPlot(
+	const u = new uPlot(
 		{
 			width: size.width,
 			height: size.height,
@@ -112,8 +134,16 @@ export function createTimeChart(
 				}
 			},
 			scales: {
-				x: { time: true },
-				y: { range: () => [yMin, yMax] }
+				x: {
+					time: true,
+					// The whole date range, widened only if the data somehow lies outside it.
+					range: (_u, dataMin, dataMax) => {
+						const r = current.xRange;
+						if (!r || !(r.max > r.min)) return [dataMin, dataMax];
+						return [Math.min(r.min, dataMin ?? r.min), Math.max(r.max, dataMax ?? r.max)];
+					}
+				},
+				y: { range: () => yRange }
 			},
 			axes: [
 				{
@@ -132,12 +162,12 @@ export function createTimeChart(
 					stroke: () => theme.muted,
 					grid: { stroke: () => theme.border, width: 1 },
 					ticks: { show: false },
-					values: (_u, splits) => splits.map((v) => formatNumber(v))
+					values: (_u, splits, _ai, _space, incr) => valueTickLabels(splits, incr)
 				}
 			],
 			series: [
 				{},
-				...aligned.places.map((place, i) => ({
+				...current.aligned.places.map((place, i) => ({
 					label: place,
 					stroke: () => theme.series[i].color,
 					width: 2,
@@ -166,7 +196,8 @@ export function createTimeChart(
 						// No clip: the value axis always holds the data, and a dot at either end of the
 						// time axis should show whole.
 						const { width } = u.bbox;
-						const sticks = input.sticks
+						const { aligned } = current;
+						const sticks = current.sticks
 							? drawSticks(u.ctx, aligned.points[0], at, {
 									color: theme.series[0].color,
 									opacity: theme.stickOpacity,
@@ -195,9 +226,19 @@ export function createTimeChart(
 				setCursor: [(u) => events.onCursor(u.cursor.idx ?? null)]
 			}
 		},
-		data,
+		plotData(current.aligned),
 		target
 	);
+
+	return {
+		u,
+		update(next) {
+			current = next;
+			yRange = valueRange(next, levels);
+			// Applied at once (not on uPlot's next microtask), so the caller can place the cursor after.
+			u.batch(() => u.setData(plotData(next.aligned)));
+		}
+	};
 }
 
 /** Moves the chart's cursor to index `idx` (as if hovered), for keyboard stepping. */

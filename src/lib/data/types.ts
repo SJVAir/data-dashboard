@@ -21,6 +21,18 @@ export type SeriesPoint = {
  */
 export type Series = { place: string; points: SeriesPoint[] };
 
+/** Orders by `order`'s index; places it doesn't list come last, keeping their order. */
+export function byPlaceOrder(order: Map<string, number>) {
+	return (a: { place: string }, b: { place: string }): number => {
+		const x = order.get(a.place);
+		const y = order.get(b.place);
+		if (x === undefined || y === undefined) {
+			return x === undefined ? (y === undefined ? 0 : 1) : -1;
+		}
+		return x - y;
+	};
+}
+
 /** A requested place's display name and, for a retired region, its retirement. */
 export type PlaceInfo = {
 	/** Same key as `Series.place`. */

@@ -8,7 +8,16 @@ function pollutant(
 	resolutions: EntryTypeMeta["resolutions"],
 	available: boolean
 ): EntryTypeMeta {
-	return { id, label, units: "µg/m³", kind: "pollutant", resolutions, available };
+	return {
+		id,
+		label,
+		units: "µg/m³",
+		kind: "pollutant",
+		resolutions,
+		precision: null,
+		yMin: null,
+		available
+	};
 }
 
 export const FIXTURE_CATALOG: CatalogEntry[] = [

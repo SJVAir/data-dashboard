@@ -6,7 +6,7 @@ import { render } from "vitest-browser-svelte";
 import type { AdapterRequest, RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
-import { fixtureMetadata } from "$lib/data/testing/fixtures";
+import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -145,6 +145,33 @@ test("the worst hour column shows the value and its hour range", async () => {
 	expect(cell.textContent).toContain("14");
 	expect(cell.textContent).toMatch(/\d.*[–-].*\d/);
 	await expect.element(screen.getByRole("columnheader", { name: /Worst hour/ })).toBeVisible();
+});
+
+test("values, worst hour, lowest and highest show with the catalog's precision", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () =>
+			FIXTURE_CATALOG.map((d) => ({
+				...d,
+				entryTypes: d.entryTypes.map((e) => ({ ...e, precision: 1 }))
+			}))
+	});
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	await show(tableWidget(["m1"]));
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	frame.style.width = "800px";
+	await expect.poll(() => frame.querySelectorAll("thead th").length).toBe(5);
+	// Newest first: mean 7, worst hour 14, lowest 7, highest 7.
+	const cells = [...frame.querySelectorAll("tbody tr")[0].querySelectorAll("td")].map(
+		(td) => td.textContent ?? ""
+	);
+	expect(cells[0]).toContain("7.0");
+	expect(cells[1]).toContain("14.0");
+	expect(cells[2].trim()).toBe("7.0");
+	expect(cells[3].trim()).toBe("7.0");
 });
 
 test("the caption notes raw-computed data", async () => {

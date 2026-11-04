@@ -8,6 +8,7 @@ import {
 	formatNumber,
 	formatPeriod,
 	formatTick,
+	formatValue,
 	needsZoneLabel,
 	pacificHoursOfDay,
 	parseDateKey,
@@ -44,6 +45,12 @@ describe("format", () => {
 	});
 	it("formats numbers with the locale", () => {
 		expect(formatNumber(12345.6, { maximumFractionDigits: 1 })).toBe("12,345.6");
+	});
+	it("formats a value with exactly the catalog's precision, or the default without one", () => {
+		expect(formatValue(15.94, 1)).toBe("15.9");
+		expect(formatValue(16, 1)).toBe("16.0");
+		expect(formatValue(15.94, 0)).toBe("16");
+		expect(formatValue(15.94, null)).toBe("15.94");
 	});
 	it("parseDateKey rejects malformed and impossible dates", () => {
 		for (const bad of ["2026-1-05", "2026-02-30", "20261005", "2026-10-05T00:00", ""]) {

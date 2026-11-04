@@ -3,7 +3,7 @@
 	import { levelFor, type Level } from "$lib/data/metadata";
 	import type { SeriesPoint } from "$lib/data/types";
 	import type { Resolution } from "$lib/data/schema";
-	import { formatHourRange, formatNumber, formatPeriod } from "$lib/format";
+	import { formatHourRange, formatPeriod, formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 
 	/** The hovered or keyboard-selected period: its date, each place's value and level. */
@@ -12,7 +12,8 @@
 		resolution,
 		entries,
 		levels,
-		unit
+		unit,
+		precision = null
 	}: {
 		t: number;
 		resolution: Resolution;
@@ -20,9 +21,11 @@
 		entries: { name: string | null; point: SeriesPoint | null }[];
 		levels: Level[];
 		unit: string;
+		/** Decimals for values (the catalog's display precision); null: the default format. */
+		precision?: number | null;
 	} = $props();
 
-	const value = (v: number) => m.chart_value({ value: formatNumber(v), unit });
+	const value = (v: number) => m.chart_value({ value: formatValue(v, precision), unit });
 </script>
 
 <p class="font-semibold">{formatPeriod(new Date(t), resolution)}</p>

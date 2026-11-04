@@ -339,7 +339,15 @@ describe("createQueryClient", () => {
 			id: "smoke",
 			label: "Smoke",
 			entryTypes: [
-				{ id: "density", label: "Density", units: "", kind: "other", resolutions: ["day"] }
+				{
+					id: "density",
+					label: "Density",
+					units: "",
+					kind: "other",
+					resolutions: ["day"],
+					precision: null,
+					yMin: null
+				}
 			],
 			geographies: []
 		};
@@ -382,7 +390,15 @@ describe("createQueryClient", () => {
 			id: "air-quality",
 			label: "Air quality",
 			entryTypes: [
-				{ id: "co", label: "CO", units: "ppm", kind: "pollutant", resolutions: ["hour"] }
+				{
+					id: "co",
+					label: "CO",
+					units: "ppm",
+					kind: "pollutant",
+					resolutions: ["hour"],
+					precision: null,
+					yMin: null
+				}
 			],
 			geographies: []
 		};

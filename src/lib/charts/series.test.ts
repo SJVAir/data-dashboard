@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { QueryData, SeriesPoint } from "$lib/data/types";
-import { alignSeries, seriesStyle } from "./series";
+import { alignSeries, chartXRange, seriesStyle } from "./series";
 
 function fakeCss(): CSSStyleDeclaration {
 	const vars: Record<string, string> = {
@@ -110,5 +110,76 @@ describe("alignSeries", () => {
 			points: [point(day(1), 1)]
 		}));
 		expect(alignSeries(query(series, "day")).places).toEqual(["a", "b", "c", "d", "e"]);
+	});
+
+	it("fills null periods across the whole range, before the first and after the last point", () => {
+		const data = query([{ place: "a", points: [point(day(3), 3), point(day(4), 4)] }], "day");
+		const aligned = alignSeries(data, { min: day(1), max: day(6) });
+		expect(aligned.xs).toEqual([day(1), day(2), day(3), day(4), day(5), day(6)]);
+		expect(aligned.points[0].map((p) => p?.mean ?? null)).toEqual([null, null, 3, 4, null, null]);
+	});
+
+	it("doesn't gap-fill raw data across the range", () => {
+		const t0 = day(1);
+		const data = query([{ place: "a", points: [point(t0 + 60_000, 1)] }], "raw");
+		expect(alignSeries(data, { min: t0, max: day(2) }).xs).toEqual([t0 + 60_000]);
+	});
+
+	it("keeps unknown places after known ones, in a stable order", () => {
+		const data = query(
+			[
+				{ place: "x", points: [point(day(1), 1)] },
+				{ place: "y", points: [point(day(1), 2)] },
+				{ place: "a", points: [point(day(1), 3)] }
+			],
+			"day"
+		);
+		data.places = [{ place: "a", name: "A" }];
+		expect(alignSeries(data).places).toEqual(["a", "x", "y"]);
+	});
+});
+
+describe("chartXRange", () => {
+	// 2026-10-10 15:30 Pacific (PDT).
+	const now = new Date(Date.UTC(2026, 9, 10, 22, 30));
+
+	it("spans a trailing range from its first day to today's period", () => {
+		const range = chartXRange({ kind: "trailing", amount: 30, unit: "day" }, undefined, "day", now);
+		expect(range).toEqual({ min: Date.UTC(2026, 8, 11, 7), max: day(10) });
+	});
+
+	it("ends an hourly view at the current hour", () => {
+		const range = chartXRange({ kind: "trailing", amount: 7, unit: "day" }, undefined, "hour", now);
+		expect(range).toEqual({ min: day(4), max: Date.UTC(2026, 9, 10, 22) });
+	});
+
+	it("ends a past range at its last period", () => {
+		const range = chartXRange(
+			{ kind: "custom", start: "2026-01-01", end: "2026-03-31" },
+			undefined,
+			"month",
+			now
+		);
+		expect(range).toEqual({ min: Date.UTC(2026, 0, 1, 8), max: Date.UTC(2026, 2, 1, 8) });
+	});
+
+	it("narrows to the time sub-range", () => {
+		const range = chartXRange(
+			{ kind: "trailing", amount: 30, unit: "day" },
+			{ start: "2026-10-02", end: "2026-10-05" },
+			"day",
+			now
+		);
+		expect(range).toEqual({ min: day(2), max: day(5) });
+	});
+
+	it("is undefined for a range entirely in the future", () => {
+		const range = chartXRange(
+			{ kind: "custom", start: "2026-12-01", end: "2026-12-31" },
+			undefined,
+			"day",
+			now
+		);
+		expect(range).toBeUndefined();
 	});
 });

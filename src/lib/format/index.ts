@@ -128,6 +128,23 @@ export function formatNumber(
 	return new Intl.NumberFormat(locale, opts).format(n);
 }
 
+/**
+ * A measured value with exactly `precision` decimals (the catalog's display precision), or as
+ * `formatNumber` shows it when the catalog gives none.
+ */
+export function formatValue(
+	n: number,
+	precision: number | null | undefined,
+	locale: string = LOCALE
+): string {
+	if (precision === null || precision === undefined) return formatNumber(n, undefined, locale);
+	return formatNumber(
+		n,
+		{ minimumFractionDigits: precision, maximumFractionDigits: precision },
+		locale
+	);
+}
+
 /** A Pacific hour span such as "3 – 4 PM"; the PT label is appended only outside Pacific. */
 export function formatHourRange(
 	start: Date,

@@ -15,6 +15,10 @@ export type EntryTypeMeta = {
 	units: string;
 	kind: "pollutant" | "meteorological" | "other";
 	resolutions: Resolution[];
+	/** Decimal places to show a value with (the catalog's `display.precision`); null: unspecified. */
+	precision: number | null;
+	/** Where a chart's value axis starts (the catalog's `display.y_min`); null: unspecified. */
+	yMin: number | null;
 	available?: boolean;
 	retired?: Retirement;
 };
@@ -145,7 +149,9 @@ export function mapDatasetCatalog(catalog: DatasetCatalog): CatalogEntry[] {
 					kind: (KINDS as readonly string[]).includes(e.kind)
 						? (e.kind as EntryTypeMeta["kind"])
 						: "other",
-					resolutions: e.resolutions.filter((r): r is Resolution => RESOLUTIONS.includes(r))
+					resolutions: e.resolutions.filter((r): r is Resolution => RESOLUTIONS.includes(r)),
+					precision: e.display.precision,
+					yMin: e.display.y_min
 				};
 				setIfPresent(type, "available", e.available);
 				setIfPresent(type, "retired", retirement(e.retired));

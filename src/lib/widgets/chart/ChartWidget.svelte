@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { chartXRange } from "$lib/charts/series";
 	import TimeChart from "$lib/charts/TimeChart.svelte";
+	import type { QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
@@ -11,6 +13,18 @@
 
 	const MAX_PLACES = chartType.accepts?.maxPlaces ?? 5;
 	const w = new DataWidget(() => widget, MAX_PLACES);
+
+	/** The widget's whole date range (and sub-range), up to when the data was fetched. */
+	function xRange(data: QueryData) {
+		const input = w.picked.input;
+		if (!input) return undefined;
+		return chartXRange(
+			input.dateRange,
+			input.timeSubRange,
+			data.resolution,
+			new Date(data.fetchedAt)
+		);
+	}
 </script>
 
 <div class="flex h-full flex-col">
@@ -27,6 +41,9 @@
 					levels={w.levelList}
 					unit={w.meta?.entryType.units ?? ""}
 					placeNames={new Map(data.places.map((p) => [p.place, p.name]))}
+					xRange={xRange(data)}
+					precision={w.meta?.entryType.precision ?? null}
+					yMin={w.meta?.entryType.yMin ?? null}
 				/>
 			{/snippet}
 		</WidgetState>

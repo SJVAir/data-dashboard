@@ -1,11 +1,13 @@
 import "../../../app.css";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
-import { fixtureMetadata } from "$lib/data/testing/fixtures";
+import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
+import { formatPeriod } from "$lib/format";
+import { periodStart, resolveRange } from "$lib/format/range";
 import type { AdapterRequest } from "$lib/data/adapters/registry";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
@@ -152,4 +154,65 @@ test("the title waits for ready data, so a new range never pairs with the old pl
 	expect(generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
 	release();
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 2 places · Last 90 days");
+});
+
+test("the time axis spans the whole date range, not just the days with data", async () => {
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				// Data only for the last four days of the range.
+				fetch: async (req, ctx, signal) => {
+					const data = await base.fetch(req, ctx, signal);
+					const end = req.range.end.getTime();
+					const days = [4, 3, 2, 1].map((k) =>
+						periodStart(new Date(end - k * 86_400_000 + 3_600_000), "day").getTime()
+					);
+					data.series = data.series.map((s) => ({
+						...s,
+						points: days.map((t, i) => ({ ...s.points[0], t, mean: 5 + i }))
+					}));
+					return data;
+				}
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	await show(chartWidget(["m1"]));
+	await expect.poll(() => frame.querySelector(".u-over")).not.toBeNull();
+	const over = frame.querySelector(".u-over") as HTMLElement;
+	await userEvent.hover(page.elementLocator(over), {
+		position: { x: 1, y: over.getBoundingClientRect().height / 2 }
+	});
+	const first = resolveRange({ kind: "trailing", amount: 30, unit: "day" }, new Date()).start;
+	const readout = () => frame.querySelector("[aria-live='polite']")?.textContent ?? "";
+	await expect.poll(readout).toContain(formatPeriod(first, "day"));
+	expect(readout()).toContain(m.chart_no_data());
+});
+
+test("values show with the catalog's precision", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () =>
+			FIXTURE_CATALOG.map((d) => ({
+				...d,
+				entryTypes: d.entryTypes.map((e) => ({ ...e, precision: 1 }))
+			}))
+	});
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const screen = await show(chartWidget(["m1"]));
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	// The fake's first value is 5: one decimal reads "5.0".
+	await expect
+		.poll(() => frame.querySelector("[aria-live='polite']")?.textContent ?? "")
+		.toContain("5.0 µg/m³");
 });

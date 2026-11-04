@@ -105,11 +105,11 @@ afterEach(() => {
 	document.documentElement.removeAttribute("data-theme");
 });
 
-async function renderChart(data: QueryData) {
+async function renderChart(data: QueryData, extra: { precision?: number | null } = {}) {
 	const names = new Map(data.places.map((p) => [p.place, p.name]));
 	const screen = await render(TimeChart, {
 		target: frame,
-		props: { data, levels: LEVELS, unit: "µg/m³", placeNames: names }
+		props: { data, levels: LEVELS, unit: "µg/m³", placeNames: names, ...extra }
 	});
 	const chart = screen.getByRole("group", { name: /Fresno County|Monitor A/ });
 	await expect.element(chart).toBeVisible();
@@ -150,6 +150,35 @@ test("hovering a day shows its date, value with unit, level, and worst hour", as
 	expect(text).toContain("23.4 µg/m³");
 	expect(text).toContain("Moderate");
 	expect(text).toMatch(/Worst hour 33\.4 µg\/m³, 3\s*–\s*4\sPM( PT)?/);
+});
+
+test("the readout shows values with the catalog's precision", async () => {
+	await renderChart(oneplace(), { precision: 1 });
+	await hoverDay(5);
+	await expect.poll(() => readout().textContent).toContain("Oct 5, 2026");
+	const text = readout().textContent!;
+	expect(text).toContain("40.0 µg/m³");
+	expect(text).toMatch(/Worst hour 50\.0 µg\/m³/);
+});
+
+test("new data keeps the chart and the keyboard's place in it", async () => {
+	const { screen, chart } = await renderChart(oneplace());
+	const canvas = frame.querySelector("canvas");
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await userEvent.keyboard("{ArrowRight}");
+	await userEvent.keyboard("{ArrowRight}");
+	await expect.poll(() => readout().textContent).toContain("Oct 3, 2026");
+	// The next poll: today's value has grown, and day 3 was revised.
+	const next = oneplace();
+	next.series[0].points = daily({ ...MEANS, 3: 24.5, 10: 21 }, true, 10);
+	await screen.rerender({ data: next });
+	await expect.poll(() => readout().textContent).toContain("24.5 µg/m³");
+	expect(readout().textContent).toContain("Oct 3, 2026");
+	expect(frame.querySelector("canvas")).toBe(canvas);
+	expect(document.activeElement).toBe(chart.element());
+	await userEvent.keyboard("{ArrowRight}");
+	await expect.poll(() => readout().textContent).toContain("Oct 5, 2026");
 });
 
 test("arrow keys step through points, skipping gaps, and End jumps to the last", async () => {

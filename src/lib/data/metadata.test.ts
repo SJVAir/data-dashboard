@@ -92,14 +92,18 @@ describe("createWebMetadata().catalog", () => {
 					label: "Humidity",
 					units: "%",
 					kind: "meteorological",
-					resolutions: ["raw"]
+					resolutions: ["raw"],
+					precision: null,
+					yMin: null
 				},
 				{
 					id: "particulates",
 					label: "Particulates",
 					units: "",
 					kind: "other",
-					resolutions: ["raw"]
+					resolutions: ["raw"],
+					precision: null,
+					yMin: null
 				},
 				{
 					id: "pm100",
@@ -107,6 +111,8 @@ describe("createWebMetadata().catalog", () => {
 					units: "µg/m³",
 					kind: "pollutant",
 					resolutions: ["raw"],
+					precision: null,
+					yMin: null,
 					available: false
 				},
 				{
@@ -115,6 +121,8 @@ describe("createWebMetadata().catalog", () => {
 					units: "µg/m³",
 					kind: "pollutant",
 					resolutions: ["raw", "hour", "day", "month", "quarter", "season", "year"],
+					precision: null,
+					yMin: null,
 					available: true
 				}
 			]
@@ -146,7 +154,7 @@ describe("createWebMetadata().catalog", () => {
 							kind: "particle-count",
 							units: "",
 							resolutions: ["raw", "decade" as never, "day"],
-							display: { precision: null, chart: null, y_min: null },
+							display: { precision: 1, chart: "line", y_min: 0 },
 							retired: { since: "2026-01-01T00:00:00Z", replaced_by: "pm25" }
 						},
 						{
@@ -170,8 +178,11 @@ describe("createWebMetadata().catalog", () => {
 		expect(dataset.entryTypes[0]).toMatchObject({
 			kind: "other",
 			resolutions: ["raw", "day"],
+			precision: 1,
+			yMin: 0,
 			retired: { since: "2026-01-01T00:00:00Z", replacedBy: "pm25" }
 		});
+		expect(dataset.entryTypes[1]).toMatchObject({ precision: null, yMin: null });
 		expect(dataset.entryTypes[1].retired).toEqual({ since: "2026-02-01T00:00:00Z" });
 		expect(dataset.description).toBeUndefined();
 	});

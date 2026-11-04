@@ -9,7 +9,7 @@
 	import { levelFor } from "$lib/data/metadata";
 	import type { QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatHourRange, formatNumber, formatPeriod } from "$lib/format";
+	import { formatHourRange, formatNumber, formatPeriod, formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -58,7 +58,8 @@
 
 	const unit = $derived(w.meta?.entryType.units ?? "");
 	const levelList = $derived(w.levelList);
-	const num = (v: number) => formatNumber(v);
+	/** Values with the catalog's display precision (the CSV keeps every digit). */
+	const num = (v: number) => formatValue(v, w.meta?.entryType.precision);
 
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */
 	function extras(data: QueryData): { worst: boolean; minmax: boolean } {
