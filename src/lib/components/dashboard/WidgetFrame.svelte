@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, untrack } from "svelte";
+	import { onDestroy, setContext, untrack } from "svelte";
 	import { on } from "svelte/events";
 	import { prefersReducedMotion } from "svelte/motion";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
@@ -9,7 +9,13 @@
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
-	import { minimizeWidget, viewActions, widgetActions, widgetTitle } from "$lib/actions/widget";
+	import {
+		minimizeWidget,
+		removeWidget,
+		viewActions,
+		widgetActions,
+		widgetTitle
+	} from "$lib/actions/widget";
 	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -31,6 +37,7 @@
 		loadedWidget,
 		type WidgetModule
 	} from "$lib/widgets/registry";
+	import { REMOVE_WIDGET_KEY } from "$lib/widgets/shared/context";
 	import WidgetSkeleton from "$lib/widgets/shared/WidgetSkeleton.svelte";
 	import ResizeHandles from "./ResizeHandles.svelte";
 
@@ -66,6 +73,11 @@
 	} = $props();
 
 	const app = useApp();
+	// A widget's own Remove (the "no longer available" card) takes the menu Delete's path.
+	setContext(REMOVE_WIDGET_KEY, () => {
+		if (fullscreen) onexit();
+		removeWidget(app, widget.id);
+	});
 	const arrangement = useArrangement();
 	const type = $derived(getWidgetType(widget.type));
 	const title = $derived(widgetTitle(widget));

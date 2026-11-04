@@ -55,10 +55,7 @@ async function seed() {
 	return { app, session };
 }
 
-async function show(
-	state: QueryState,
-	extra: { places?: PlaceInfo[]; retired?: { name: string; since: string } } = {}
-) {
+async function show(state: QueryState, extra: { retired?: { name: string; since: string } } = {}) {
 	const { app, session } = await seed();
 	const onretry = vi.fn();
 	const screen = await render(StateHarness, {
@@ -186,4 +183,26 @@ test("a retired dataset shows its note over the data", async () => {
 			)
 		)
 		.toBeInTheDocument();
+});
+
+test("several retired places share one Switch button", async () => {
+	const retiredTo = (n: string) => ({
+		place: `region:tract:${n}`,
+		name: `Tract ${n}`,
+		retired: { since: "2024-03-05", replacedBy: { type: "tract", code: `${n}0` } }
+	});
+	const { screen } = await show({
+		status: "ready",
+		data: data({ places: [retiredTo("1"), retiredTo("2")] })
+	});
+	await expect.element(screen.getByTestId("content")).toBeInTheDocument();
+	expect(page.getByRole("button", { name: m.widget_state_switch() }).elements()).toHaveLength(1);
+});
+
+test("stale data with no points is empty while loading or in error", async () => {
+	const loading = await show({ status: "loading", data: data({ empty: true }) });
+	await expect.element(loading.screen.getByText(m.widget_state_empty())).toBeInTheDocument();
+	await loading.screen.unmount();
+	const error = await show({ status: "error", error: 1, data: data({ empty: true }) });
+	await expect.element(error.screen.getByText(m.widget_state_empty())).toBeInTheDocument();
 });

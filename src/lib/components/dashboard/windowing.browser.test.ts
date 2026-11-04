@@ -13,7 +13,8 @@ import { FULLSCREEN_STATE } from "$lib/layout/fullscreen";
 import { minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
+import { PLACEHOLDER_TYPE, placeholderType } from "$lib/widgets/placeholder";
+import { registerWidgetType } from "$lib/widgets/registry";
 import App from "../../../App.svelte";
 import { navigate, route } from "../../../router";
 import Harness from "./test-harness/Harness.svelte";
@@ -556,6 +557,34 @@ test("Delete in fullscreen exits with one toast and no extra history entry", asy
 	expect(toastTexts().some((t) => t.includes("isn't on this dashboard"))).toBe(false);
 	expect(toastTexts().filter((t) => t.includes("Widget deleted"))).toHaveLength(1);
 	expect(frame("b").element().closest("[inert]")).toBeNull();
+});
+
+test("Remove on the no-longer-available card in fullscreen exits first", async () => {
+	registerWidgetType({
+		...placeholderType,
+		type: "gone-test",
+		label: () => "Gone",
+		load: () =>
+			import("$lib/widgets/shared/test-harness/GoneWidget.svelte").then((mod) => ({
+				component: mod.default
+			}))
+	});
+	const gone: WidgetInstance = {
+		id: "g",
+		type: "gone-test",
+		title: "Gone one",
+		rect: { x: 0, y: 4, w: 6, h: 4 },
+		data: { layers: [] }
+	};
+	const { app } = await seedApp([...halves(), gone]);
+	await expect.element(titleBar("Gone one")).toBeVisible();
+	await page.getByRole("button", { name: "Show Gone one fullscreen" }).click();
+	await expect.poll(() => location.search).toBe("?widget=g");
+	await page.getByRole("button", { name: "Remove" }).click();
+	await expect.poll(() => location.search).toBe("");
+	expect(app.current.session!.doc.body.widgets.map((x) => x.id)).toEqual(["a", "b"]);
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	expect(toastTexts().some((t) => t.includes("isn't on this dashboard"))).toBe(false);
 });
 
 test("a deep link on a read-only dashboard drops the parameter silently", async () => {

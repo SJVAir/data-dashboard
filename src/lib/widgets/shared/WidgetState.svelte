@@ -1,27 +1,25 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+	import { getContext, type Snippet } from "svelte";
 	import { removeWidget } from "$lib/actions/widget";
 	import { Button } from "$lib/components/ui/button";
 	import type { WidgetDataConfig } from "$lib/data/schema";
-	import type { PlaceInfo, QueryData, QueryState } from "$lib/data/types";
+	import type { QueryData, QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatDate } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
+	import { REMOVE_WIDGET_KEY } from "./context";
 	import { withReplacements } from "./retired";
 	import WidgetSkeleton from "./WidgetSkeleton.svelte";
 
 	let {
 		state,
-		places,
 		widget,
 		retired,
 		onretry,
 		children
 	}: {
 		state: QueryState;
-		/** The requested places, for a note before data arrives (data brings its own). */
-		places?: PlaceInfo[];
 		widget: WidgetInstance;
 		/** The catalog's retirement of the dataset or entry type the widget reads, with its name. */
 		retired?: { name: string; since: string };
@@ -30,6 +28,8 @@
 	} = $props();
 
 	const app = useApp();
+	const remove =
+		getContext<(() => void) | undefined>(REMOVE_WIDGET_KEY) ?? (() => removeWidget(app, widget.id));
 
 	const UNAVAILABLE = {
 		"catalog-unavailable": () => m.widget_state_unavailable_catalog_unavailable(),
@@ -47,13 +47,15 @@
 	}
 
 	const data = $derived<QueryData | undefined>("data" in state ? state.data : undefined);
-	const allPlaces = $derived(data?.places ?? places ?? []);
+	const allPlaces = $derived(data?.places ?? []);
 	const retiredPlaces = $derived(allPlaces.filter((p) => p.retired));
 	const replacement = $derived<WidgetDataConfig | null>(withReplacements(widget.data, allPlaces));
-	const empty = $derived(
-		state.status === "ready" && state.data.series.every((s) => !s.points.length)
-	);
+	const empty = $derived(!!data && data.series.every((s) => !s.points.length));
 	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
+	/** The one note that carries Switch (it applies every replacement together). */
+	const switchOn = $derived(
+		replacement && editable ? retiredPlaces.find((p) => p.retired?.replacedBy)?.place : undefined
+	);
 
 	function switchToReplacement(): void {
 		const session = app.current.session;
@@ -98,7 +100,7 @@
 		{/snippet}
 		{@render note(
 			m.widget_state_place_retired({ place: p.name, date: sinceText(p.retired!.since) }),
-			p.retired!.replacedBy && replacement && editable ? switchButton : undefined
+			p.place === switchOn ? switchButton : undefined
 		)}
 	{/each}
 {/snippet}
@@ -111,7 +113,7 @@
 			<p class="text-sm font-medium">{m.widget_state_gone_title()}</p>
 			<p class="text-muted-foreground text-sm">{m.widget_state_gone_body()}</p>
 			{#if editable}
-				<Button size="sm" variant="outline" onclick={() => removeWidget(app, widget.id)}>
+				<Button size="sm" variant="outline" onclick={remove}>
 					{m.widget_state_remove()}
 				</Button>
 			{/if}
