@@ -73,6 +73,37 @@ export function formatDate(date: string | Date, locale: string = LOCALE): string
 	}).format(instant);
 }
 
+/** Pacific noon of a calendar date, as a plain `Date` (safely inside the day for formatting). */
+function noon(date: string): Date {
+	return new Date(pacificDay(date, 12).getTime());
+}
+
+/** A calendar month (any `YYYY-MM-DD` in it) shown as "October 2026". */
+export function formatMonth(date: string, locale: string = LOCALE): string {
+	return new Intl.DateTimeFormat(locale, {
+		timeZone: TIME_ZONE,
+		year: "numeric",
+		month: "long"
+	}).format(noon(date));
+}
+
+/** A calendar year (any `YYYY-MM-DD` in it) shown as "2026". */
+export function formatYear(date: string, locale: string = LOCALE): string {
+	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, year: "numeric" }).format(
+		noon(date)
+	);
+}
+
+/** Two calendar dates as one span, shared parts once: "Oct 1 – 14, 2026". */
+export function formatDateRange(start: string, end: string, locale: string = LOCALE): string {
+	return new Intl.DateTimeFormat(locale, {
+		timeZone: TIME_ZONE,
+		year: "numeric",
+		month: "short",
+		day: "numeric"
+	}).formatRange(noon(start), noon(end));
+}
+
 /** An instant shown in Pacific time; the PT label is appended only when the device zone differs. */
 export function formatDateTime(
 	instant: Date,

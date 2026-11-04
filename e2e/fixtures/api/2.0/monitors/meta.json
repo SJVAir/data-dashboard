@@ -1,0 +1,265 @@
+{
+	"data": {
+		"default_pollutant": "pm25",
+		"available_pollutants": ["pm25"],
+		"monitors": {
+			"airnow": {
+				"label": "AirNow",
+				"type": "airnow",
+				"expected_interval": "1 hour",
+				"entries": {
+					"pm25": {
+						"sensors": null,
+						"published": true,
+						"allowed_stages": ["raw", "cleaned", "calibrated"],
+						"default_stage": "cleaned",
+						"default_calibration": "PM25_FEM_Cleaner",
+						"processors": {
+							"raw": ["PM25_FEM_Cleaner"]
+						}
+					}
+				}
+			},
+			"purpleair": {
+				"label": "PurpleAir",
+				"type": "purpleair",
+				"expected_interval": "2 min",
+				"entries": {
+					"pm25": {
+						"sensors": ["a", "b"],
+						"published": true,
+						"allowed_stages": ["raw", "corrected", "cleaned", "calibrated"],
+						"default_stage": "cleaned",
+						"default_calibration": "PM25_EPA_Oct2021",
+						"processors": {
+							"raw": ["PM25_LCS_Correction"],
+							"corrected": ["PM25_LCS_Cleaning"],
+							"cleaned": [
+								"PM25_EPA_Oct2021",
+								"PM25_MultivariateLinearRegression",
+								"PM25_UnivariateLinearRegression"
+							]
+						}
+					}
+				}
+			}
+		},
+		"entries": {
+			"pm25": {
+				"label": "PM2.5",
+				"type": "pm25",
+				"units": "µg/m³",
+				"epa_aqs_code": 88101,
+				"levels": {
+					"GOOD": {
+						"name": "good",
+						"label": "Good",
+						"color": "#00e400",
+						"range": [0.0, 9.0],
+						"guidance": null,
+						"tier": 0
+					},
+					"MODERATE": {
+						"name": "moderate",
+						"label": "Moderate",
+						"color": "#ffff00",
+						"range": [9.1, 35.4],
+						"guidance": "Highly sensitive groups should stay indoors and avoid outdoor activities.",
+						"tier": 1
+					},
+					"UNHEALTHY_SENSITIVE": {
+						"name": "unhealthy_sensitive",
+						"label": "Unhealthy for Sensitive Groups",
+						"color": "#ff7e00",
+						"range": [35.5, 55.4],
+						"guidance": "Sensitive groups should stay indoors and avoid outdoor activities.",
+						"tier": 2
+					},
+					"UNHEALTHY": {
+						"name": "unhealthy",
+						"label": "Unhealthy",
+						"color": "#ff0000",
+						"range": [55.5, 125.4],
+						"guidance": "Everyone should reduce prolonged or heavy exertion.",
+						"tier": 3
+					},
+					"VERY_UNHEALTHY": {
+						"name": "very_unhealthy",
+						"label": "Very Unhealthy",
+						"color": "#8f3f97",
+						"range": [125.5, 225.4],
+						"guidance": "Everyone should avoid prolonged or heavy exertion.",
+						"tier": 4
+					},
+					"HAZARDOUS": {
+						"name": "hazardous",
+						"label": "Hazardous",
+						"color": "#7e0023",
+						"range": [225.5, 99999],
+						"guidance": "Everyone should stay indoors and avoid physical outdoor activities.",
+						"tier": 4
+					}
+				},
+				"scale": {
+					"id": "pm25",
+					"label": "PM2.5",
+					"units": "µg/m³",
+					"kind": "range",
+					"source": {
+						"name": "US EPA AirNow, AQI Basics",
+						"url": "https://www.airnow.gov/aqi/aqi-basics/"
+					},
+					"levels": [
+						{
+							"key": "good",
+							"label": "Good",
+							"color": "#00e400",
+							"tier": 0,
+							"description": "Air quality is satisfactory, and air pollution poses little or no risk.",
+							"guidance": "",
+							"min": 0.0,
+							"max": 9.1,
+							"value": null,
+							"opacity": null
+						},
+						{
+							"key": "moderate",
+							"label": "Moderate",
+							"color": "#ffff00",
+							"tier": 1,
+							"description": "Air quality is acceptable. However, there may be a risk for some people, particularly those who are unusually sensitive to air pollution.",
+							"guidance": "Highly sensitive groups should stay indoors and avoid outdoor activities.",
+							"min": 9.1,
+							"max": 35.5,
+							"value": null,
+							"opacity": null
+						},
+						{
+							"key": "unhealthy_sensitive",
+							"label": "Unhealthy for Sensitive Groups",
+							"color": "#ff7e00",
+							"tier": 2,
+							"description": "Members of sensitive groups may experience health effects. The general public is less likely to be affected.",
+							"guidance": "Sensitive groups should stay indoors and avoid outdoor activities.",
+							"min": 35.5,
+							"max": 55.5,
+							"value": null,
+							"opacity": null
+						},
+						{
+							"key": "unhealthy",
+							"label": "Unhealthy",
+							"color": "#ff0000",
+							"tier": 3,
+							"description": "Some members of the general public may experience health effects; members of sensitive groups may experience more serious health effects.",
+							"guidance": "Everyone should reduce prolonged or heavy exertion.",
+							"min": 55.5,
+							"max": 125.5,
+							"value": null,
+							"opacity": null
+						},
+						{
+							"key": "very_unhealthy",
+							"label": "Very Unhealthy",
+							"color": "#8f3f97",
+							"tier": 4,
+							"description": "Health alert: The risk of health effects is increased for everyone.",
+							"guidance": "Everyone should avoid prolonged or heavy exertion.",
+							"min": 125.5,
+							"max": 225.5,
+							"value": null,
+							"opacity": null
+						},
+						{
+							"key": "hazardous",
+							"label": "Hazardous",
+							"color": "#7e0023",
+							"tier": 4,
+							"description": "Health warning of emergency conditions: everyone is more likely to be affected.",
+							"guidance": "Everyone should stay indoors and avoid physical outdoor activities.",
+							"min": 225.5,
+							"max": null,
+							"value": null,
+							"opacity": null
+						}
+					]
+				},
+				"fields": ["timestamp", "sensor", "stage", "processor", "value"]
+			}
+		},
+		"stages": {
+			"raw": {
+				"key": "raw",
+				"label": "Raw",
+				"description": "The reading exactly as the monitor or its data provider reported it, before any adjustment."
+			},
+			"corrected": {
+				"key": "corrected",
+				"label": "Corrected",
+				"description": "Raw readings from a monitor's two sensors checked against each other and combined into one value."
+			},
+			"cleaned": {
+				"key": "cleaned",
+				"label": "Cleaned",
+				"description": "Readings with obvious errors removed or smoothed, such as impossible values and short spikes."
+			},
+			"calibrated": {
+				"key": "calibrated",
+				"label": "Calibrated",
+				"description": "Readings adjusted to better match reference-grade instruments, or aggregated or computed by the data provider."
+			}
+		},
+		"processors": {
+			"AQLiteRawCleaner": {
+				"key": "AQLiteRawCleaner",
+				"label": "Ozone range and warm-up check",
+				"description": "Discards impossible ozone readings and readings taken in the 20 minutes after the sensor restarts, while it warms up."
+			},
+			"AirGradientHumidity": {
+				"key": "AirGradientHumidity",
+				"label": "Humidity correction",
+				"description": "Corrects AirGradient and PurpleAir relative humidity readings using AirGradient's published equation, capped at 100 percent."
+			},
+			"AirGradientTemperature": {
+				"key": "AirGradientTemperature",
+				"label": "Temperature correction",
+				"description": "Corrects AirGradient and PurpleAir outdoor temperature readings using AirGradient's published equation; indoor monitors are skipped."
+			},
+			"O3_VOZBox": {
+				"key": "O3_VOZBox",
+				"label": "VOZBox ozone calibration",
+				"description": "Adjusts raw VOZBox ozone using a fit that accounts for temperature and humidity."
+			},
+			"PM25_EPA_Oct2021": {
+				"key": "PM25_EPA_Oct2021",
+				"label": "EPA correction (Oct 2021)",
+				"description": "Adjusts low-cost sensor PM2.5 using humidity, following the EPA's October 2021 PurpleAir correction for the Fire and Smoke Map."
+			},
+			"PM25_FEM_Cleaner": {
+				"key": "PM25_FEM_Cleaner",
+				"label": "Range check for reference monitors",
+				"description": "Discards impossible PM2.5 readings from reference-grade monitors and sets small negative values to zero."
+			},
+			"PM25_LCS_Cleaning": {
+				"key": "PM25_LCS_Cleaning",
+				"label": "Spike cleaning",
+				"description": "Replaces a sudden one-reading jump in PM2.5 with the higher of the neighboring readings when it far exceeds them."
+			},
+			"PM25_LCS_Correction": {
+				"key": "PM25_LCS_Correction",
+				"label": "Two-sensor check and blend",
+				"description": "Compares a monitor's two PM2.5 sensors, drops bad or stuck readings, and averages them when they agree (or uses the lower one when they don't)."
+			},
+			"PM25_MultivariateLinearRegression": {
+				"key": "PM25_MultivariateLinearRegression",
+				"label": "Linear calibration (with weather)",
+				"description": "Adjusts low-cost sensor PM2.5 using a fit to a reference monitor that also accounts for temperature and humidity."
+			},
+			"PM25_UnivariateLinearRegression": {
+				"key": "PM25_UnivariateLinearRegression",
+				"label": "Linear calibration (PM2.5 only)",
+				"description": "Adjusts low-cost sensor PM2.5 with a straight-line fit built by comparing nearby sensors to a reference monitor."
+			}
+		}
+	}
+}

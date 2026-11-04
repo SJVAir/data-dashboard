@@ -1,0 +1,36 @@
+{
+	"data": {
+		"datasets": [
+			{
+				"id": "air-quality",
+				"label": "Air Quality",
+				"description": "Air quality measurements from SJVAir sensors and partner monitoring networks.",
+				"source": "SJVAir sensors, AirNow, AQview, AQLite",
+				"license": "",
+				"geographies": ["monitor", "region"],
+				"meta_url": "/api/2.0/monitors/meta/",
+				"places_url": "/api/2.0/monitors/?dataset=air-quality",
+				"entry_types": [
+					{
+						"id": "pm25",
+						"label": "PM2.5",
+						"kind": "pollutant",
+						"units": "µg/m³",
+						"resolutions": ["raw", "hour", "day", "month", "quarter", "season", "year"],
+						"display": {
+							"precision": 1,
+							"chart": "line",
+							"y_min": 0
+						},
+						"retired": null,
+						"available": true
+					}
+				],
+				"retired": null
+			}
+		],
+		"summary_rules": {
+			"complete_after_period_end": ["month", "quarter", "season", "year"]
+		}
+	}
+}

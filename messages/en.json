@@ -628,5 +628,68 @@
 	"chart_series_quarter": "Quarterly average",
 	"chart_series_season": "Seasonal average",
 	"chart_series_year": "Yearly average",
-	"chart_series_worst_hour": "Worst hour"
+	"chart_series_worst_hour": "Worst hour",
+	"widget_chart_title": "Chart",
+	"range_set_week": "Week of {date}",
+	"range_to_date_year": "This year so far",
+	"range_to_date_month": "This month so far",
+	"range_to_date_week": "This week so far",
+	"range_trailing_hour": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Last hour",
+				"countPlural=other": "Last {count} hours"
+			}
+		}
+	],
+	"range_trailing_day": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Today",
+				"countPlural=other": "Last {count} days"
+			}
+		}
+	],
+	"range_trailing_month": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Past month",
+				"countPlural=other": "Last {count} months"
+			}
+		}
+	],
+	"widget_title_place": "{entry} · {place} · {range}",
+	"widget_title_places": [
+		{
+			"declarations": [
+				"input entry",
+				"input count",
+				"input countValue",
+				"input range",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{entry} · {count} place · {range}",
+				"countPlural=other": "{entry} · {count} places · {range}"
+			}
+		}
+	],
+	"widget_title_no_place": "{entry} · {range}",
+	"chart_hidden_places": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} more place isn't shown.",
+				"countPlural=other": "{count} more places aren't shown."
+			}
+		}
+	]
 }
