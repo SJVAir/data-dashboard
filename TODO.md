@@ -1081,7 +1081,41 @@ research in `docs/reference/pesticides-explorer-research.md`).
   8. **Removing `levels` from the SDK** (the user, 2026-11-04; the server side is the
      hardcoded-value cleanup, spec 5): the `monitors/meta/` schema's `levels` field, the `levels`
      getter, `asIter.levels`, and the fixtures in `lib/monitors`. For 5.0, in a beta that pairs
-     with spec 5's server change. Taken by sdk-js-8c (2026-11-04); **waiting on spec 5's server spec** (the user's call: decide which beta once that spec is written). Server answers so far (sjvair-com-c9): `levels` goes away entirely; the same server PR adds a school activity guidelines block to `monitors/meta/` that the SDK must add in the same beta; alert/subscription level names equal the scale level keys, but not every key is in every pollutant's scale. Callers that must change: monitor-map and mobile (migrate to `scale`), map-sdk (delete the legacy fallback in `metadata.ts`), and the dashboard's e2e `monitors/meta.json` fixture.
+     with spec 5's server change. **Parked (the user, 2026-11-04): decide which beta once spec
+     5's server spec is written**; sjvair-com-c9 will say when. Nothing is written or built yet
+     (no SDK spec, branch or notes file); sdk-js-8c brainstormed it with the user only up to the
+     timing question. What a fresh sdk-js session needs:
+     - **SDK scope, beyond the four parts above (sdk-js-8c's guesses, not yet put to the
+       user):** `SJVAirEntryLevel` and `sjvairEntryLevelMetaSchema` are used only by `levels`,
+       and `EntriesMeta.asIter` holds only `levels`, so all three likely go too (no fallbacks).
+       The `mod.ts` module example (`asIter.levels.find(...)` for subscriptions) and the
+       `lib/account/air-alerts.ts` comment that points to "the levels" need rewriting to use
+       `scale`.
+     - **sjvair-com-c9's answers (2026-11-04):** the `levels` key is removed from each
+       `entries.<type>` (not set to null). The same server PR adds a school activity guidelines
+       block to `monitors/meta/` (recess / PE / athletics / events, plain text per level, keyed
+       by scale level key, with a source credit; PM2.5-only so far, and its name and shape are
+       being settled by data-dashboard-0d and c9). The SDK must add it in the same beta, and step
+       4 wants a typed accessor next to `scale`. Spec 5 also changes the forecast API: `color`
+       becomes the AQI scale's discrete color (was a blended gradient), `aqi_category` its
+       label (was "Out of Range" above 500), and an `aqi_level` key may be added (open); sdk-js's
+       forecast schema is the only reader, so check those fields' types and docs in the same
+       beta.
+     - **Level names:** subscription and alert `level` values equal the scale level keys (one
+       list: good, moderate, unhealthy_sensitive, unhealthy, very_unhealthy, hazardous,
+       very_hazardous), but not every key is in every pollutant's scale: O3 has no `moderate`,
+       PM2.5 and SO2 have no `very_hazardous`, SO2 has no `hazardous`. Alert levels always
+       resolve; a subscription's level is validated only against the full list, so a lookup in
+       one pollutant's scale needs a not-found path.
+     - **Caller audit (read-only, 2026-11-04):** monitor-map uses `asIter.levels` and
+       `SJVAirEntryLevel` widely (tooltips, cluster tooltip and renderer, icon manager,
+       legend, chart colors, detail panel, subscription manager, `monitors.svelte.ts`) and must
+       migrate to `entryType(...).scale`. Mobile uses them in `MonitorSubscription.svelte`,
+       `Subscriptions.svelte`, `Alerts.svelte` and `alert-level.ts`, and must migrate the same way.
+       map-sdk's legacy fallback in `src/lib/data/metadata.ts` (~129–131, `scaleFromLegacyLevels`
+       from `entry.levels`) **won't type-check** once the SDK types drop `levels`, so map-sdk
+       must delete it when it pins that beta. The dashboard's e2e fixture
+       `e2e/fixtures/api/2.0/monitors/meta.json` (on `step-4-spec-1`) still has `levels`.
 
   Testing notes: the local DB has no CalEnviroScreen rows (the CES live tests skip), and two
   sessions running sjvair.com's pytest at once drop each other's `test_sjvair` database; give
