@@ -1027,14 +1027,21 @@ research in `docs/reference/pesticides-explorer-research.md`).
 **Split into six specs (agreed with the user 2026-11-04)**, each its own spec → plan → stacked PR
 into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes:
 
-1. **Widget groundwork, Chart, and Data table** — **built 2026-11-04** (branch `step-4-spec-1`,
-   PR into `step-4` pending review): spec
-   `docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`. Includes
-   the SDK bump (now 4.8.0-beta.6), the new resolution rule, the worst hour, "Download data
-   (CSV)" on every data widget, shared widget states, Duplicate, and the initial bundle trimmed
-   to 195.9 KB (from 213.9 KB). Stack check against Fresno County: request headers right, local
-   summaries too gappy for a full 30-day view.
-2. The shared place picker (second, so sjvair.com's location name search is likely out).
+1. **Widget groundwork, Chart, and Data table** — **merged into `step-4` 2026-11-04**
+   ([#36](https://github.com/SJVAir/data-dashboard/pull/36), with the user's yes): spec
+   `docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`, plan
+   `docs/superpowers/plans/2026-11-04-step-4-spec-1-groundwork-chart-table.md`. Built: the Chart
+   and Data table widgets (default 3×6, min 3×4), "Download data (CSV)" on every data widget,
+   shared widget states, lazily loaded widget types with an Add widget menu (until the Data
+   Explorer), a `setWidgetData` change, the new resolution rule in Pacific calendar days, whole
+   calendar-month requests (past months cache for a day), the worst hourly average, the backfill
+   fix, and the initial bundle trimmed to 195.9 KB (from 213.9 KB). SDK pinned exactly to
+   4.8.0-beta.6. Stack check (Fresno County, after a scoped rebuild of 2026-10-01 → 11-04):
+   cache headers right, the chart spans the whole range with gaps where local data is missing.
+2. The **shared place picker** — **next**, in a fresh session (prompt: `prompt-spec-2.txt` at the
+   top of the checkout, untracked). Branch `step-4-spec-2` from `step-4`; its first commit pins
+   `@sjvair/sdk` exactly to `5.0.0-beta.2` and drops `exact`. sjvair.com's location name search
+   (#302) and the SDK's `searchLocations` are out.
 3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
    how to show it, then Add to dashboard or Download CSV).
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
