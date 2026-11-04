@@ -1345,7 +1345,8 @@ pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. mobile (
 blocks neither Release 1 nor go-live; it keeps working on monitor-map 4.x until then.
 
 **Milestone 1 spec (approved by the user 2026-11-03)** is in the map-sdk repo,
-`docs/superpowers/specs/2026-11-03-map-sdk-design.md`. It refines the design above:
+`docs/superpowers/specs/2026-11-03-map-sdk-design.md`; milestone 1 is built and merged
+(map-sdk #1, 2026-11-04). It refines the design above:
 
 - **Two milestones.** Milestone 1 is what the dashboard needs. monitor-map parity (collocation
   sites, EV stations, wind, live stores beyond monitors) is milestone 2, a later map-sdk spec

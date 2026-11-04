@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 
 ## Start here
 
@@ -8,11 +8,11 @@ Last updated: 2026-11-03
 replacing the 2026-10-29 "one session at a time" rule). Tracks in the same repo still go in one
 session, in order. From 2026-11-03, three sessions run at once:
 
-| Track                                                      | Session starts in | Repos it edits                | Its status lives in                          |
-| ---------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata)                        | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** (new repo)                   | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| Track                                                                         | Session starts in | Repos it edits                | Its status lives in                          |
+| ----------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                    | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata)                                           | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1) | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
@@ -1059,19 +1059,22 @@ research in `docs/reference/pesticides-explorer-research.md`).
   plugin interface, `MapView`, app-level data stores (`createMonitorsStore()`), and optional
   `metadata` / `messages` / `format` providers with built-in defaults.
   - **Milestone 1 spec approved by the user 2026-11-03:** map-sdk
-    `docs/superpowers/specs/2026-11-03-map-sdk-design.md` (repo `SJVAir/map-sdk`, local
-    commits only so far). Milestone 1 is what the dashboard needs: general points and shapes
+    `docs/superpowers/specs/2026-11-03-map-sdk-design.md` (repo `SJVAir/map-sdk`). Milestone 1 is what the dashboard needs: general points and shapes
     plugins plus presets for monitors, region fill, HMS smoke, HMS fire, CalHeatScore ZIPs,
     and forecast zones; per-plugin, host-owned multi-select; a keyboard feature list; legends,
     tooltips, and controls on the dashboard's theme tokens; `createMonitorsStore()` (built
     last); and a demo page against the local stack. Published to **npm** as `0.x`.
-  - **Next:** the milestone 1 implementation plan (map-sdk `docs/superpowers/plans/`).
-  - **Done when** all six presets run on real server data on the demo page. Early `0.x`
-    releases (each with the user's yes) can go out once monitors and region fill work.
-  - **Waits on step 3 batch 2, spec 1** (sjvair.com `feature/metadata-scales`, awaiting the
-    user's approval): the shared `Scale`/`Level` types (with the `opacity` field and the
-    `regions/geojson/` wrapper map-sdk asked for), and the `hms/`, `calheatscore/`, and
-    `forecasts/` metas and wrappers. The presets are built against fixtures until then.
+  - **✅ Milestone 1 built and merged 2026-11-04** ([map-sdk #1](https://github.com/SJVAir/map-sdk/pull/1)),
+    from the plan `docs/superpowers/plans/2026-11-03-map-sdk-milestone-1.md`. All six presets
+    run on real server data on the demo page (light and dark), against `@sjvair/sdk`
+    4.8.0-beta.4. CI is green: 487 unit, client, and browser tests, and e2e on Chromium,
+    Firefox, and WebKit. Deferrals from the build are in `DEFERRED.md` → "Map plugins".
+  - **Not published yet.** The first `0.1.0` prerelease needs the npm trusted publisher set up
+    for `@sjvair/map-sdk` (repository `SJVAir/map-sdk`, workflow `release.yml`), then the
+    user's yes for that release.
+  - **Waiting on sdk-js (step 3, spec 2), not blocking:** `getHMSSmoke`/`getHMSFire` by date,
+    and `getRegionsGeoJSON` batching over 100 codes. The demo works around both until then.
+  - **Next:** the dashboard's Map widget on map-sdk (below), once step 4 is far enough along.
   - **Milestone 2 (a later map-sdk spec):** monitor-map parity (collocation sites, EV stations,
     wind, live stores beyond monitors), started with the monitor-map 5.0 rebuild (see
     `DEFERRED.md`).

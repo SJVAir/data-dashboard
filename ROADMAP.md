@@ -27,7 +27,7 @@ go-live or beta testers. **The server-backed documents (sync) track's spec 1 is 
 **spec 3, live share links** (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26),
 2026-11-03), and **spec 4, recovery** (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29),
 2026-11-03; its sjvair.com `deletedAccount` change is #299 on `develop`). The hosting track is built (sjvair.com
-#295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is merged too (sjvair.com #300 into `develop`, @sjvair/sdk 4.8.0-beta.4); spec 2 is next in a new sjvair.com session. **The design pass is done and merged into `main`** (2026-11-04: [#33](https://github.com/SJVAir/data-dashboard/pull/33) the look, [#34](https://github.com/SJVAir/data-dashboard/pull/34) wording and behavior), so **step 4 is next** in this repo. `map-sdk` exists (`SJVAir/map-sdk`; design approved, milestone 1 planned and in progress).
+#295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is merged too (sjvair.com #300 into `develop`, @sjvair/sdk 4.8.0-beta.4); spec 2 is next in a new sjvair.com session. **The design pass is done and merged into `main`** (2026-11-04: [#33](https://github.com/SJVAir/data-dashboard/pull/33) the look, [#34](https://github.com/SJVAir/data-dashboard/pull/34) wording and behavior), so **step 4 is next** in this repo. `map-sdk` milestone 1 is merged (`SJVAir/map-sdk` #1, 2026-11-04; not yet published), so the Map widget can build on it.
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
 4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.4 is the latest, the dashboard pins beta.3 until step 4). Details in `TODO.md` →
 "Start here".
@@ -179,7 +179,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      app-level data stores. **Milestone 1 spec approved 2026-11-03** (in the map-sdk repo):
      what the dashboard needs, with presets for monitors, region fill, HMS smoke and fire,
      CalHeatScore ZIPs, and forecast zones, published to npm as `0.x`. monitor-map parity is
-     milestone 2, a later spec started with the monitor-map rebuild.
+     milestone 2, a later spec started with the monitor-map rebuild. **Milestone 1 merged
+     2026-11-04** ([map-sdk #1](https://github.com/SJVAir/map-sdk/pull/1)); not yet published.
    - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B)
