@@ -920,7 +920,9 @@ Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22
 **Second batch status (2026-11-03):** split into specs, scales first. **Spec 1 is built**
 (scale metas, tiers, region hierarchy, stage/processor labels, display hints, forecast and
 CalHeatScore APIs and wrappers, and the `regions/geojson/` wrapper moved in for `map-sdk`):
-✅ below. The sjvair.com and sdk-js PRs are open, not merged; waiting on an approved SDK beta.
+✅ below. Merged: sjvair.com [#300](https://github.com/SJVAir/sjvair.com/pull/300) into `develop`
+(not yet on `main` or production) and sdk-js [#37](https://github.com/SJVAir/sdk-js/pull/37) into `release/4.8.0`, published as
+**@sjvair/sdk 4.8.0-beta.4** (2026-11-03, with the user's yes). The dashboard bumps its pin with step 4.
 Spec at sjvair.com `docs/superpowers/specs/2026-11-03-metadata-scales-design.md`; what it
 built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are in `DEFERRED.md`
 (burn-status value, production deploy step, region count caching). Later specs: cache headers, location
