@@ -47,10 +47,11 @@ Earlier tracks, in order (new dashboard work branches from `main`):
 6. ~~The sjvair.com `deletedAccount` change~~ **done** (sjvair.com PR
    [#299](https://github.com/SJVAir/sjvair.com/pull/299), merged into `develop` 2026-11-03 with
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
-7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 4 starts once the
-   design pass and step 3's scales, tiers, and wrappers are done (its spec can be drafted
-   during the design pass). Server alerting (Release 2) waits for the sjvair.com session to
-   finish step 3. Email-only accounts wait on the legal adviser.
+7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 3's scales, tiers,
+   and wrappers are done (sjvair.com #300 on `develop`, @sjvair/sdk 4.8.0-beta.4), so step 4
+   waits only on the design pass (PR 1 #33 open; Part 2 in progress); its spec can be drafted
+   meanwhile. Server alerting (Release 2) waits for the sjvair.com session to finish step 3.
+   Email-only accounts wait on the legal adviser.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
