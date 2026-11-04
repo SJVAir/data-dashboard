@@ -753,6 +753,12 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Analysis & data
 
+- **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
+  spec 4 final review, graded minor)._ Since sjvair.com #303, an empty `date` counts as no date
+  filter, so `hms/smoke/?date=` alone now gets the today default (before, it returned every
+  row). That was a deliberate call, but no test pins it. **Revisit when** someone next touches
+  `camp/api/v2/hms/` (add the test to `DateRangeTestsMixin`).
+
 - **`calenviroscreen/meta/`.** _Deferred 2026-11-04 (step 3 spec 4, the coordinator and the
   user)._ The sdk-js CalEnviroScreen wrapper takes the version (`4.0`/`5.0`) as a required
   argument and returns raw indicator fields, because no metadata describes them: the catalog's

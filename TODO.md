@@ -1042,8 +1042,9 @@ research in `docs/reference/pesticides-explorer-research.md`).
   rules; the name mode is unchanged; `lookupRegionPlace` in sdk-js updated.
 - **First sdk-js change:** done; released 2026-10-21 as @sjvair/sdk 4.7.0. See `ARCHITECTURE.md` → "SDK request options".
 - ✅ (spec 1, merged; in 4.8.0-beta.4) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
-  `place/`), `getHMSMeta`, and `regions/geojson/`. The rest is **spec 4 (SDK quick batch), in
-  review** (sjvair.com #303, sdk-js #40; neither merged): `getHMSSmoke`/`getHMSFire` by `date`
+  `place/`), `getHMSMeta`, and `regions/geojson/`. ✅ The rest is **spec 4 (SDK quick batch),
+  merged** (sjvair.com #303 into `develop`, sdk-js #40 into `release/5.0.0`; in
+  @sjvair/sdk 5.0.0-beta.1): `getHMSSmoke`/`getHMSFire` by `date`
   or `start`/`end` range (with a server fix: ranges were ignored without `date`), plus
   `region_id` and `density`; `getRegionsGeoJSON`, `getRegionsByCode` and `getLocationsByCode`
   batch lists over 100 codes; a `calenviroscreen/` module (region list with `within_mode`, and

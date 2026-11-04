@@ -122,7 +122,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      Unhealthy 3, Very Unhealthy and Hazardous 4 (decided 2026-10-14)
    - **first:** sdk-js request options (optional `signal`/`init`, global
      `setRequestDefaults`), which Foundations' data layer needs (released 2026-10-21 as @sjvair/sdk 4.7.0)
-   - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
+   - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen (done: forecasts and
+     CalHeatScore in spec 1, CalEnviroScreen in spec 4; @sjvair/sdk 5.0.0-beta.1)
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - verify production `school_district` rows and the 3 `custom` forecast-zone regions (the
      other 6 zones are counties); import if missing
