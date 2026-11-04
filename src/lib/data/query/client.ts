@@ -1,4 +1,4 @@
-import { rangeSpanDays, resolveRange } from "$lib/format/range";
+import { calendarSpanDays, resolveRange } from "$lib/format/range";
 import type { ActivitySource } from "$lib/platform/types";
 import type {
 	AdapterContext,
@@ -148,7 +148,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		let choice;
 		try {
 			choice = chooseResolution({
-				spanDays: rangeSpanDays(range),
+				spanDays: calendarSpanDays(input.dateRange, range),
 				offered,
 				pin: input.pin,
 				override: layer.resolution
@@ -166,7 +166,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			input.worstHour === true &&
 			resolution === "day" &&
 			!downsampleFromRaw &&
-			rangeSpanDays(range) <= WORST_HOUR_MAX_DAYS &&
+			calendarSpanDays(input.dateRange, range) <= WORST_HOUR_MAX_DAYS &&
 			((target.kind === "monitors" && target.ids.length === 1) ||
 				(target.kind === "regions" && target.keys.length === 1));
 		const key = queryKey({

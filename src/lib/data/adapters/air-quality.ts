@@ -277,8 +277,9 @@ async function summarySeriesWithWorstHour(
 		summarySeries(req, places, processors, signal),
 		summarySeries(hourlyReq, places, processors, signal)
 	]);
-	return daily.map((series, i) => {
-		const worst = worstHours(hourly[i]?.points ?? []);
+	const hourlyByPlace = new Map(hourly.map((s) => [s.place, s.points]));
+	return daily.map((series) => {
+		const worst = worstHours(hourlyByPlace.get(series.place) ?? []);
 		return {
 			place: series.place,
 			points: series.points.map((p) => {

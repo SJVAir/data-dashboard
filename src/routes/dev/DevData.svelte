@@ -105,7 +105,7 @@
 	import { DateRangeSpecSchema, type DateRangeSpec, type Resolution } from "$lib/data/schema";
 	import type { QueryData, QueryInput, QueryState } from "$lib/data/types";
 	import { formatDateTime, formatNumber, todayPacific } from "$lib/format";
-	import { rangeSpanDays, resolveRange } from "$lib/format/range";
+	import { calendarSpanDays, resolveRange } from "$lib/format/range";
 
 	const RESOLUTIONS: Resolution[] = ["raw", "hour", "day", "month", "quarter", "season", "year"];
 
@@ -185,11 +185,12 @@
 			kind: "monitors",
 			ids: [monitorId]
 		});
+		const spanDays = calendarSpanDays(specCheck.data, range);
 		try {
-			const choice = chooseResolution({ spanDays: rangeSpanDays(range), offered, override });
-			return { range, offered, choice, error: null };
+			const choice = chooseResolution({ spanDays, offered, override });
+			return { range, spanDays, offered, choice, error: null };
 		} catch (error) {
-			return { range, offered, choice: null, error: String(error) };
+			return { range, spanDays, offered, choice: null, error: String(error) };
 		}
 	});
 
@@ -424,7 +425,7 @@
 						{@render field("Last date", plan.range.lastDate)}
 						{@render field("Start", formatDateTime(plan.range.start))}
 						{@render field("End (exclusive)", formatDateTime(plan.range.end))}
-						{@render field("Span (days)", num(rangeSpanDays(plan.range)))}
+						{@render field("Span (days)", num(plan.spanDays))}
 						{@render field("Rolling", plan.range.rolling)}
 						{@render field("Includes now", plan.range.includesNow)}
 						{@render field("Offered", plan.offered.join(", "))}

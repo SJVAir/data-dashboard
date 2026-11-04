@@ -878,7 +878,11 @@ describe("airQualityAdapter.fetch worstHour", () => {
 		const starts = vi
 			.mocked(getRegionSummariesBulkHourly)
 			.mock.calls.map(([config]) => config.start);
-		expect(starts).toEqual(expect.arrayContaining(["2026-09-01", "2026-10-01"]));
+		// The open day's own fill adds single-day calls; the rest are whole months.
+		expect(starts.filter((d) => String(d).endsWith("-01")).sort()).toEqual([
+			"2026-09-01",
+			"2026-10-01"
+		]);
 	});
 
 	it("makes no hourly calls without worstHour", async () => {

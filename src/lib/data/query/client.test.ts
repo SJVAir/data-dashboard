@@ -628,7 +628,7 @@ describe("createQueryClient", () => {
 			const calls: Call[] = [];
 			const adapter: DatasetAdapter = {
 				id: "air-quality",
-				target: (layer) => layerTarget(layer, regions),
+				target: (layer, ctx) => layerTarget(layer, ctx.regions),
 				offered: (base) => base,
 				fetch(req, _ctx, signal) {
 					return new Promise((resolve, reject) => calls.push({ req, signal, resolve, reject }));
@@ -679,6 +679,66 @@ describe("createQueryClient", () => {
 			const off = await run(two, DAYS(30));
 			expect(on.req.worstHour).toBe(false);
 			expect(on.key).toBe(off.key);
+		});
+
+		it("is kept for a 92-day range containing the 25-hour day", async () => {
+			const fall = new Date("2026-11-05T20:00:00Z");
+			const { adapter, calls } = multiAdapter();
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions,
+				now: () => fall
+			});
+			client.subscribe(
+				{
+					layer: { dataset: "air-quality", entryType: "pm25", ...ONE },
+					dateRange: DAYS(92),
+					worstHour: true
+				},
+				() => {}
+			);
+			await flush();
+			expect(calls[0].req.worstHour).toBe(true);
+		});
+
+		it("is kept for a single region", async () => {
+			const region: Partial<Layer> = { place: { kind: "region", type: "county", code: "06019" } };
+			const { adapter, calls } = multiAdapter();
+			const resolving: RegionResolver = { resolve: async () => ({ id: "sq1", name: "Fresno" }) };
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions: resolving,
+				now: () => NOW
+			});
+			client.subscribe(
+				{
+					layer: { dataset: "air-quality", entryType: "pm25", ...region },
+					dateRange: DAYS(30),
+					worstHour: true
+				},
+				() => {}
+			);
+			await flush();
+			expect(calls[0].req.worstHour).toBe(true);
+		});
+
+		it("chooses hourly for 7 days across the fall-back day", async () => {
+			const fall = new Date("2026-11-02T20:00:00Z");
+			const { adapter, calls } = multiAdapter();
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions,
+				now: () => fall
+			});
+			client.subscribe(
+				{ layer: { dataset: "air-quality", entryType: "pm25", ...ONE }, dateRange: DAYS(7) },
+				() => {}
+			);
+			await flush();
+			expect(calls[0].req.resolution).toBe("hour");
 		});
 
 		it("is dropped, with the same key, for a 93-day range", async () => {
