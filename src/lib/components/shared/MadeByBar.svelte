@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { reportUrl } from "$lib/shared/report";
 
@@ -17,6 +18,7 @@
 		class="text-link underline underline-offset-4"
 		href={reportUrl(token)}
 		target="_blank"
-		rel="noopener">{m.shared_report()}</a
+		rel="noopener"
+		>{m.shared_report()}<ExternalLinkCue class="ms-1 inline size-3.5 align-baseline" /></a
 	>
 </aside>

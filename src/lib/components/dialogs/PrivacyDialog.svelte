@@ -8,6 +8,7 @@
 </script>
 
 <script lang="ts">
+	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { m } from "$lib/paraglide/messages.js";
@@ -47,6 +48,7 @@
 					class="text-link underline underline-offset-4"
 				>
 					{m.privacy_notices_link()}
+					<ExternalLinkCue class="inline size-3.5 align-baseline" />
 				</a>
 			</p>
 		</div>

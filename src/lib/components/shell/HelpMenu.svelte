@@ -1,10 +1,10 @@
 <script lang="ts">
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
-	import ExternalLink from "@lucide/svelte/icons/external-link";
 	import Monitor from "@lucide/svelte/icons/monitor";
 	import Moon from "@lucide/svelte/icons/moon";
 	import Sun from "@lucide/svelte/icons/sun";
 	import { onDestroy } from "svelte";
+	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
@@ -53,8 +53,7 @@
 			{#snippet child({ props })}
 				<a {...props} href={CONTACT_URL} target="_blank" rel="noopener">
 					{m.feedback_link()}
-					<ExternalLink aria-hidden="true" />
-					<span class="sr-only">{m.opens_in_new_tab()}</span>
+					<ExternalLinkCue />
 				</a>
 			{/snippet}
 		</DropdownMenu.Item>

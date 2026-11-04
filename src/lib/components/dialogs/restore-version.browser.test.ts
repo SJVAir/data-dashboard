@@ -122,11 +122,12 @@ test("a status region is always present and holds the loading text while loading
 	let release: (v: EarlierVersions) => void = () => {};
 	openRestoreVersion(() => new Promise<EarlierVersions>((r) => (release = r)), vi.fn());
 	const dialog = page.getByRole("dialog");
-	const status = dialog.getByRole("status");
+	// The first status is the list's; the last is the dialog's region for announcements.
+	const status = dialog.getByRole("status").first();
 	await expect.element(status).toHaveTextContent("Loading earlier versions…");
 	release({ versions: [daily], account: "ok" });
 	await expect.element(dialog.getByRole("radio").first()).toBeVisible();
-	await expect.poll(() => dialog.getByRole("status").element().textContent).toBe("");
+	await expect.poll(() => status.element().textContent).toBe("");
 });
 
 test("focus moves to the first radio when the list arrives", async () => {

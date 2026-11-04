@@ -104,7 +104,7 @@ test("Copy writes the link and announces it in a live region", async () => {
 		.toBeInTheDocument();
 	await dialog().getByRole("button", { name: "Copy link" }).click();
 	expect(memory.clipboard.last).toBe(URL_TEXT);
-	await expect.element(dialog().getByRole("status")).toHaveTextContent("Link copied");
+	await expect.element(dialog().getByRole("status").first()).toHaveTextContent("Link copied");
 });
 
 test("when copying is refused, the field is focused with the whole link selected", async () => {
@@ -117,7 +117,7 @@ test("when copying is refused, the field is focused with the whole link selected
 	const el = field.element() as HTMLInputElement;
 	expect(el.selectionStart).toBe(0);
 	expect(el.selectionEnd).toBe(URL_TEXT.length);
-	await expect.element(dialog().getByRole("status")).toHaveTextContent("");
+	await expect.element(dialog().getByRole("status").first()).toHaveTextContent("");
 	expect(dialog().getByText("Link copied").elements()).toHaveLength(0);
 });
 
