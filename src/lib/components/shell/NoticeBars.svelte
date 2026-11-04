@@ -29,7 +29,9 @@
 	// Dashboards the account refused, by why; the bar stays until none is held this way.
 	const refusals = $derived.by(() => {
 		const counts: Partial<Record<RefusalCode, number>> = {};
-		for (const s of Object.values(app.sync?.states ?? {})) {
+		const gone = new Set(app.index.deleted.map((d) => d.id));
+		for (const [id, s] of Object.entries(app.sync?.states ?? {})) {
+			if (gone.has(id)) continue;
 			if (s.hold?.kind === "refused") counts[s.hold.code] = (counts[s.hold.code] ?? 0) + 1;
 		}
 		return REFUSAL_CODES.flatMap((code) => {
@@ -142,9 +144,11 @@
 			{#each refusals as sentence (sentence)}
 				<span>{sentence}</span>
 			{/each}
-			<a href={p("/dashboards")} class={buttonVariants({ size: "sm", variant: "outline" })}>
-				{m.sync_held_link()}
-			</a>
+			{#if !isActive("/dashboards")}
+				<a href={p("/dashboards")} class={buttonVariants({ size: "sm", variant: "outline" })}>
+					{m.sync_held_link()}
+				</a>
+			{/if}
 		</div>
 	{/if}
 </div>

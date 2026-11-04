@@ -9,8 +9,10 @@ import { refreshEntryFiles, reloadPage } from "$lib/safety/reload";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { NOW } from "$lib/sync/test-support";
 import { accountApp } from "$lib/sync/test-app";
 import type { SyncWorker } from "$lib/sync/worker.svelte";
+import { navigate } from "../../../router";
 import NoticeBars from "./NoticeBars.svelte";
 
 vi.mock("$lib/safety/build-id", () => ({ BUILD_ID: "abc123" }));
@@ -21,7 +23,8 @@ vi.mock("$lib/safety/reload", () => ({
 
 const originalUrl = location.href;
 const workers: SyncWorker[] = [];
-afterEach(() => {
+afterEach(async () => {
+	await navigate("/");
 	updateNotice.reason = null;
 	history.replaceState(null, "", originalUrl);
 	for (const worker of workers.splice(0)) worker.stop();
@@ -127,6 +130,55 @@ test("the notice bar shows while a dashboard is held and leaves once it uploads"
 	await worker.syncAll();
 	await expect.poll(() => worker.states.d1?.state).toBe("synced");
 	await expect.element(link).not.toBeInTheDocument();
+});
+
+test("a refused hold on a deleted dashboard isn't counted", async () => {
+	const { app, worker, refuseSaves } = await accountApp(["d1", "d2"]);
+	workers.push(worker);
+	refuseSaves.push({ code: "too_large", status: 413 }, { code: "too_large", status: 413 });
+	await render(NoticeBars, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	worker.start();
+	await expect
+		.poll(() => Object.values(worker.states).filter((s) => s.state === "held").length)
+		.toBe(2);
+	await expect
+		.element(
+			page.getByText(
+				"2 dashboards are too large to save to your account, so they're only on this device."
+			)
+		)
+		.toBeVisible();
+	const summary = (id: string) => ({
+		id,
+		name: null,
+		createdAt: NOW.toISOString(),
+		updatedAt: NOW.toISOString(),
+		deletedAt: NOW.toISOString()
+	});
+	app.index.deleted = [summary("d1")];
+	await expect
+		.element(
+			page.getByText(
+				"A dashboard is too large to save to your account, so it's only on this device."
+			)
+		)
+		.toBeVisible();
+	app.index.deleted = [summary("d1"), summary("d2")];
+	await expect
+		.element(page.getByRole("link", { name: m.sync_held_link() }))
+		.not.toBeInTheDocument();
+	expect(page.getByText("too large to save", { exact: false }).query()).toBeNull();
+});
+
+test("on the dashboards list the held bar has no link to it", async () => {
+	const { app, worker, refuseSaves } = await accountApp(["d1"]);
+	workers.push(worker);
+	refuseSaves.push({ code: "too_large", status: 413 });
+	await navigate("/dashboards");
+	await render(NoticeBars, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	worker.start();
+	await expect.element(page.getByText("too large to save", { exact: false })).toBeVisible();
+	expect(page.getByRole("link", { name: m.sync_held_link() }).query()).toBeNull();
 });
 
 test("a blocked build shows no held notice", async () => {
