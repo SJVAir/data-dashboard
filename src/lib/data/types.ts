@@ -9,6 +9,8 @@ export type SeriesPoint = {
 	max: number;
 	count: number;
 	partial: boolean;
+	/** A daily point's highest hourly mean and that hour's start (epoch ms); see `worstHours`. */
+	worstHour?: { t: number; value: number };
 };
 
 /**
@@ -66,5 +68,10 @@ export type QueryInput = {
 	layer: Layer;
 	dateRange: DateRangeSpec;
 	pin?: Resolution;
+	/**
+	 * Asks for each day's worst hourly average; honored only for one place on a daily view of at
+	 * most `WORST_HOUR_MAX_DAYS` days, and ignored otherwise (it doesn't change the cache key then).
+	 */
+	worstHour?: boolean;
 	timeSubRange?: TimeSubRange;
 };

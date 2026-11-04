@@ -69,6 +69,7 @@ function request(
 		downsampleFromRaw?: boolean;
 		offered?: Resolution[];
 		now?: Date;
+		worstHour?: boolean;
 	} = {}
 ): AdapterRequest {
 	const now = opts.now ?? NOW;
@@ -79,6 +80,7 @@ function request(
 		downsampleFromRaw: opts.downsampleFromRaw ?? false,
 		range: resolveRange(spec, now),
 		offered: opts.offered ?? ALL,
+		worstHour: opts.worstHour ?? false,
 		now
 	};
 }
@@ -841,5 +843,68 @@ describe("@sjvair/sdk date range", () => {
 		const gte = new Date(Date.now() - 60 * 60 * 1000);
 		const lte = new Date(Date.now() + 60 * 60 * 1000);
 		expect(getValidDateRange(gte, lte)).toEqual({ gte, lte });
+	});
+});
+
+describe("airQualityAdapter.fetch worstHour", () => {
+	const LAST_30: DateRangeSpec = { kind: "trailing", amount: 30, unit: "day" };
+	const COUNTY = { kind: "regions", keys: ["county:06019"] } as Target;
+	const HOUR = 3_600_000;
+
+	it("attaches each day's worst hourly average; the mean stays the daily one", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{ id: "sq1", summaries: [row("2026-10-05T00:00:00-07:00", 10, 24)] }
+		] as never);
+		vi.mocked(getRegionSummariesBulkHourly).mockResolvedValue([
+			{
+				id: "sq1",
+				summaries: [
+					row("2026-10-05T03:00:00-07:00", 8, 30),
+					row("2026-10-05T14:00:00-07:00", 31, 30),
+					row("2026-10-05T15:00:00-07:00", 12, 30)
+				]
+			}
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { worstHour: true, offered: ["hour", "day"] }),
+			ctx,
+			signal
+		);
+		const day = Date.parse("2026-10-05T07:00:00Z");
+		const point = data.series[0].points.find((p) => p.t === day)!;
+		expect(point.mean).toBe(10);
+		expect(point.worstHour).toEqual({ t: day + 14 * HOUR, value: 31 });
+		// Hourly calls are by whole month.
+		const starts = vi
+			.mocked(getRegionSummariesBulkHourly)
+			.mock.calls.map(([config]) => config.start);
+		expect(starts).toEqual(expect.arrayContaining(["2026-09-01", "2026-10-01"]));
+	});
+
+	it("makes no hourly calls without worstHour", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		vi.mocked(getRegionSummariesBulkHourly).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { offered: ["hour", "day"] }),
+			ctx,
+			signal
+		);
+		// Only the open day's fill asks for hours; nothing covers September.
+		const starts = vi
+			.mocked(getRegionSummariesBulkHourly)
+			.mock.calls.map(([config]) => config.start);
+		expect(starts).not.toContain("2026-09-01");
+	});
+
+	it("fails the whole query when the hourly fetch fails", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		vi.mocked(getRegionSummariesBulkHourly).mockRejectedValue(new Error("boom"));
+		await expect(
+			airQualityAdapter.fetch(
+				request(COUNTY, "day", LAST_30, { worstHour: true, offered: ["hour", "day"] }),
+				ctx,
+				signal
+			)
+		).rejects.toThrow("boom");
 	});
 });

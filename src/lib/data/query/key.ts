@@ -44,6 +44,13 @@ export function queryKey(parts: {
 	resolution: Resolution;
 	downsampleFromRaw: boolean;
 	range: KeyRange;
+	/** Left out of the key unless true. */
+	worstHour?: boolean;
 }): string {
-	return stableJson({ ...parts, target: sortedTarget(parts.target) });
+	const { worstHour, ...rest } = parts;
+	return stableJson({
+		...rest,
+		...(worstHour && { worstHour: true }),
+		target: sortedTarget(parts.target)
+	});
 }

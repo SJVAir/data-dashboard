@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { resolveRange } from "$lib/format/range";
 import type { AdapterRequest, DatasetAdapter, RegionResolver } from "../adapters/registry";
 import type { CatalogEntry, MetadataSource } from "../metadata";
-import type { Resolution } from "../schema";
+import type { Layer, Resolution } from "../schema";
+import { layerTarget } from "../adapters/targets";
 import { FIXTURE_CATALOG, fixtureMetadata } from "../testing/fixtures";
 import type { QueryData, QueryInput, QueryState } from "../types";
 import { createQueryClient } from "./client";
@@ -619,6 +620,81 @@ describe("createQueryClient", () => {
 
 			sub.update(input());
 			expect(times(r.last())).toEqual(points.map((p) => p.t));
+		});
+	});
+
+	describe("worstHour", () => {
+		function multiAdapter() {
+			const calls: Call[] = [];
+			const adapter: DatasetAdapter = {
+				id: "air-quality",
+				target: (layer) => layerTarget(layer, regions),
+				offered: (base) => base,
+				fetch(req, _ctx, signal) {
+					return new Promise((resolve, reject) => calls.push({ req, signal, resolve, reject }));
+				}
+			};
+			return { adapter, calls };
+		}
+
+		async function run(
+			where: Partial<Layer>,
+			dateRange: QueryInput["dateRange"],
+			worstHour?: boolean
+		) {
+			const { adapter, calls } = multiAdapter();
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions,
+				now: () => NOW
+			});
+			const sub = client.subscribe(
+				{
+					layer: { dataset: "air-quality", entryType: "pm25", ...where },
+					dateRange,
+					worstHour
+				},
+				() => {}
+			);
+			await flush();
+			return { key: sub.key, req: calls[0].req };
+		}
+
+		const ONE: Partial<Layer> = { place: { kind: "monitor", id: "m-pa" } };
+		const DAYS = (n: number) => ({ kind: "trailing", amount: n, unit: "day" }) as const;
+
+		it("is set for one place on a daily view of at most 92 days", async () => {
+			const on = await run(ONE, DAYS(30), true);
+			const off = await run(ONE, DAYS(30));
+			expect(on.req.resolution).toBe("day");
+			expect(on.req.worstHour).toBe(true);
+			expect(off.req.worstHour).toBe(false);
+			expect(on.key).not.toBe(off.key);
+		});
+
+		it("is dropped, with the same key, for two places", async () => {
+			const two: Partial<Layer> = { selection: { kind: "monitors", ids: ["m-pa", "m-pb"] } };
+			const on = await run(two, DAYS(30), true);
+			const off = await run(two, DAYS(30));
+			expect(on.req.worstHour).toBe(false);
+			expect(on.key).toBe(off.key);
+		});
+
+		it("is dropped, with the same key, for a 93-day range", async () => {
+			const on = await run(ONE, DAYS(93), true);
+			const off = await run(ONE, DAYS(93));
+			expect(on.req.resolution).toBe("day");
+			expect(on.req.worstHour).toBe(false);
+			expect(on.key).toBe(off.key);
+		});
+
+		it("is dropped, with the same key, at hourly resolution", async () => {
+			const on = await run(ONE, DAYS(7), true);
+			const off = await run(ONE, DAYS(7));
+			expect(on.req.resolution).toBe("hour");
+			expect(on.req.worstHour).toBe(false);
+			expect(on.key).toBe(off.key);
 		});
 	});
 });

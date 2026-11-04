@@ -11,6 +11,7 @@ import { chooseResolution } from "../resolution";
 import type { DateRangeSpec, Resolution, TimeSubRange } from "../schema";
 import { filterToSubRange } from "../sub-range";
 import type { QueryData, QueryInput, QueryState, UnavailableReason } from "../types";
+import { WORST_HOUR_MAX_DAYS } from "../worst-hour";
 import { keyRange, queryKey, stableJson } from "./key";
 import { startPoller } from "./poller";
 
@@ -161,13 +162,21 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		}
 
 		const { resolution, downsampleFromRaw } = choice;
+		const worstHour =
+			input.worstHour === true &&
+			resolution === "day" &&
+			!downsampleFromRaw &&
+			rangeSpanDays(range) <= WORST_HOUR_MAX_DAYS &&
+			((target.kind === "monitors" && target.ids.length === 1) ||
+				(target.kind === "regions" && target.keys.length === 1));
 		const key = queryKey({
 			dataset: dataset.id,
 			entryType: entryType.id,
 			target,
 			resolution,
 			downsampleFromRaw,
-			range: keyRange(input.dateRange, range)
+			range: keyRange(input.dateRange, range),
+			worstHour
 		});
 		return {
 			key,
@@ -178,6 +187,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 				target,
 				resolution,
 				downsampleFromRaw,
+				worstHour,
 				range,
 				offered,
 				now: at

@@ -3,6 +3,7 @@ import { aggregate } from "../aggregate";
 import { runLimited } from "../chunks";
 import { downsampleInWorker } from "../downsample-client";
 import { finerLevel, planSegments, type Segment } from "../periods";
+import { worstHours } from "../worst-hour";
 import type { PlaceInfo, QueryData, Series, SeriesPoint, Target } from "../types";
 import {
 	bulkSummaryTasks,
@@ -253,6 +254,41 @@ async function summarySeries(
 	});
 }
 
+/**
+ * Daily summaries, each day point also carrying its worst hourly average when asked: the same
+ * query run again at hour resolution (a failure fails the whole query, never partial data).
+ */
+async function summarySeriesWithWorstHour(
+	req: AdapterRequest,
+	places: Place[],
+	processors: Array<string | null>,
+	signal: AbortSignal
+): Promise<Series[]> {
+	if (!req.worstHour || req.resolution !== "day") {
+		return summarySeries(req, places, processors, signal);
+	}
+	const hourlyReq: AdapterRequest = {
+		...req,
+		resolution: "hour",
+		worstHour: false,
+		offered: req.offered.filter((r) => r === "raw" || r === "hour")
+	};
+	const [daily, hourly] = await Promise.all([
+		summarySeries(req, places, processors, signal),
+		summarySeries(hourlyReq, places, processors, signal)
+	]);
+	return daily.map((series, i) => {
+		const worst = worstHours(hourly[i]?.points ?? []);
+		return {
+			place: series.place,
+			points: series.points.map((p) => {
+				const w = worst.get(p.t);
+				return w ? { ...p, worstHour: w } : p;
+			})
+		};
+	});
+}
+
 async function fetchAirQuality(
 	req: AdapterRequest,
 	ctx: AdapterContext,
@@ -268,7 +304,7 @@ async function fetchAirQuality(
 	const series =
 		req.resolution === "raw" || req.downsampleFromRaw
 			? await rawSeries(req, places, processors, signal)
-			: await summarySeries(req, places, processors, signal);
+			: await summarySeriesWithWorstHour(req, places, processors, signal);
 	let placeInfo = info;
 	if (req.target.kind === "all") {
 		const monitors = await ctx.metadata.monitors(signal);
