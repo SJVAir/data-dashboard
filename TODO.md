@@ -953,10 +953,11 @@ CalHeatScore APIs and wrappers, and the `regions/geojson/` wrapper moved in for 
 **@sjvair/sdk 4.8.0-beta.4** (2026-11-03, with the user's yes). The dashboard bumps its pin with step 4.
 Spec at sjvair.com `docs/superpowers/specs/2026-11-03-metadata-scales-design.md`; what it
 built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are in `DEFERRED.md`
-(burn-status value, production deploy step, region count caching). **Spec 2 (2026-11-04) is built
-and its PRs are open, awaiting review:** sjvair.com [#301](https://github.com/SJVAir/sjvair.com/pull/301)
-and sdk-js [#38](https://github.com/SJVAir/sdk-js/pull/38); not yet merged. No beta beyond
-4.8.0-beta.4 is cut yet (a beta needs the user's yes). Spec at sjvair.com
+(burn-status value, production deploy step, region count caching). **Spec 2 (2026-11-04) is merged:** sjvair.com
+[#301](https://github.com/SJVAir/sjvair.com/pull/301) into `develop` and sdk-js
+[#38](https://github.com/SJVAir/sdk-js/pull/38) into `release/4.8.0` (both 2026-11-04, with the
+user's yes); not yet in production. No beta beyond 4.8.0-beta.4 is cut yet (a beta needs the
+user's yes). Spec at sjvair.com
 `docs/superpowers/specs/2026-11-03-summary-cache-and-place-lookup-design.md`. Later specs: location
 search, the remaining wrappers and cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
@@ -981,21 +982,21 @@ research in `docs/reference/pesticides-explorer-research.md`).
   every level of every scale (AQ levels: Good 0 … Unhealthy 3, Very Unhealthy and Hazardous
   4), region hierarchy (`count`, `parents`, `within_mode=overlaps`), choice lists (stage and
   processor labels), and display hints.
-- ✅ (spec 2, sjvair.com #301 open, awaiting review) HTTP cache headers (Cache-Control/ETag) on
+- ✅ (spec 2, sjvair.com #301, merged into `develop`) HTTP cache headers (Cache-Control/ETag) on
   the summary endpoints: **required**, since the browser's HTTP cache is the dashboard's
   persistent data cache (long on completed periods, short on the current one). Built as
   `private, max-age=86400` once settled, `max-age=60` otherwise, with ETag/304 (see
   `ARCHITECTURE.md` → "Data resolution & live refresh").
-- ✅ (spec 2, sjvair.com #301 open, awaiting review) Weather stations are listable:
+- ✅ (spec 2, sjvair.com #301, merged into `develop`) Weather stations are listable:
   `MONITOR_OPT_IN_TYPES` (`cimis` → `weather`), `monitors/?dataset=weather`, the catalog's
-  `places_url`, and sdk-js `getMonitorsList({ dataset })` (sdk-js #38, awaiting review).
-- ✅ (spec 2, sjvair.com #301 open, awaiting review) Summary rollups moved to Pacific time
+  `places_url`, and sdk-js `getMonitorsList({ dataset })` (sdk-js #38, merged into `release/4.8.0`).
+- ✅ (spec 2, sjvair.com #301, merged into `develop`) Summary rollups moved to Pacific time
   (they ran on UTC, so each landed a period late and seasons covered the wrong months). Needs
   a catch-up run after deploy (see the PR's deploy notes).
 - Location (schools, child care) support: a name search endpoint (ideally outside
   `pesticides/`), sdk-js wrappers for it and `pesticides/locations/`, and a check that
   production has `import_schools` data.
-- ✅ (spec 2, sjvair.com #301 and sdk-js #38 open, awaiting review) Extend
+- ✅ (spec 2, sjvair.com #301 and sdk-js #38, merged) Extend
   `regions/places/lookup/` to accept coordinates (rounded, **in a POST body**; scrub
   `lat`/`lon` from Sentry, Scout, and logs) or `?monitor=` (plus `type=`),
   returning a list of containing regions (filtered by `type`) with the `within=` geometry

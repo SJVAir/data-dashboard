@@ -132,7 +132,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      regions), plus the SDK wrapper update
    - HTTP cache headers on the summary endpoints (built 2026-11-04, with the lookup, a
      weather-station listing, and the Pacific-time rollup fix: sjvair.com #301 and sdk-js #38,
-     open for review; not yet merged)
+     merged 2026-11-04; not yet in production)
    - hardcoded-value cleanup in sjvair.com, and fixing sdk-js `api-urls.md`
 
 - ~~**Design pass**~~ **done** (merged into `main` 2026-11-04, #33 and #34; decided 2026-09-28 as
