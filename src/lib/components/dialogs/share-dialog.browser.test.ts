@@ -377,6 +377,26 @@ test("a name refused for another reason says something went wrong", async () => 
 	await expect.element(dialog().getByText("Something went wrong. Please try again.")).toBeVisible();
 });
 
+test("an opening without a live link has no name field, even after a failed load", async () => {
+	const { fake, memory } = await signedIn();
+	fake.offline = true;
+	openLive();
+	await expect.element(dialog().getByRole("button", { name: "Try again" })).toBeVisible();
+	openShare({ url: URL_TEXT, linkUnavailable: null, onDownload() {}, live: null });
+	await expect
+		.element(dialog().getByRole("button", { name: "Download file instead" }))
+		.toBeVisible();
+	fake.offline = false;
+	memory.online.setOnline(false);
+	memory.online.setOnline(true);
+	expect(
+		dialog()
+			.getByRole("textbox", { name: /Your name/ })
+			.elements()
+	).toHaveLength(0);
+	expect(dialog().getByRole("button", { name: "Try again" }).elements()).toHaveLength(0);
+});
+
 test("a name that failed to load can be retried", async () => {
 	const { fake } = await signedIn();
 	await fake.setProfile("Ms. Lopez");
