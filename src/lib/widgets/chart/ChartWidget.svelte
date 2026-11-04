@@ -81,8 +81,10 @@
 	}
 
 	$effect(() => {
-		const data = "data" in query.state ? query.state.data : undefined;
-		if (!data || !meta) return;
+		// Only from ready data: while a new input loads, the old places would pair with the new range.
+		const s = query.state;
+		if (s.status !== "ready" || !meta) return;
+		const data = s.data;
 		setGeneratedTitle(
 			widget.id,
 			dataTitle({

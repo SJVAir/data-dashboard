@@ -21,13 +21,11 @@
 	const entries = $derived(names.length === 1 ? [average] : names);
 </script>
 
-<ul
-	aria-label={m.chart_series_key()}
-	class="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs"
->
+<!-- Its items join the parent's wrapping flow (`display: contents`), next to the level key. -->
+<ul role="list" aria-label={m.chart_series_key()} class="contents">
 	{#each entries as name, i (i)}
 		{@const style = seriesShape(i)}
-		<li class="inline-flex items-center gap-1.5">
+		<li class="text-muted-foreground inline-flex items-center gap-1">
 			<svg
 				data-series-sample
 				data-marker={style.marker}
@@ -63,7 +61,7 @@
 		</li>
 	{/each}
 	{#if sticks}
-		<li class="inline-flex items-center gap-1.5">
+		<li class="text-muted-foreground inline-flex items-center gap-1">
 			<svg aria-hidden="true" width="8" height="12" viewBox="0 0 8 12" style:color="var(--chart-1)">
 				<line
 					x1="4"

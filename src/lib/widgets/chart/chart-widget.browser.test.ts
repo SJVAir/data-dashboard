@@ -2,12 +2,11 @@ import "../../../app.css";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
-import type { DatasetAdapter, RegionResolver } from "$lib/data/adapters/registry";
+import type { RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { AdapterRequest } from "$lib/data/adapters/registry";
-import type { QueryData } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -15,6 +14,7 @@ import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { generatedTitle } from "../titles.svelte";
 import ChartWidget from "./ChartWidget.svelte";
+import { chartWidget, fakeAdapter } from "./test-harness/fake-data";
 
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,
@@ -25,50 +25,19 @@ vi.mock("$lib/data", () => ({
 	getMetadata: () => fake.metadata!
 }));
 
-const DAY = 86_400_000;
 let requests: AdapterRequest[];
 let frame: HTMLDivElement;
-
-/** Three daily points per requested monitor, named "Monitor <id>". */
-const adapter: DatasetAdapter = {
-	id: "air-quality",
-	async target(layer) {
-		if (layer.selection) return { kind: "monitors", ids: [...layer.selection.ids] };
-		if (layer.place?.kind === "monitor") return { kind: "monitors", ids: [layer.place.id] };
-		return { unavailable: "place-unsupported" };
-	},
-	offered: (base) => base,
-	async fetch(req): Promise<QueryData> {
-		requests.push(req);
-		const ids = req.target.kind === "monitors" ? req.target.ids : [];
-		const start = req.range.start.getTime();
-		return {
-			series: ids.map((id, n) => ({
-				place: `monitor:${id}`,
-				points: [0, 1, 2].map((i) => ({
-					t: start + i * DAY,
-					mean: 5 + i + n,
-					min: 5 + i + n,
-					max: 5 + i + n,
-					count: 24,
-					partial: false
-				}))
-			})),
-			places: ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` })),
-			resolution: req.resolution,
-			fromRaw: false,
-			processor: null,
-			fetchedAt: Date.now()
-		};
-	}
-};
 
 beforeEach(async () => {
 	await page.viewport(1280, 800);
 	requests = [];
 	fake.metadata = fixtureMetadata();
 	const regions: RegionResolver = { resolve: async () => "unsupported" };
-	fake.client = createQueryClient({ adapters: [adapter], metadata: fake.metadata, regions });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests)],
+		metadata: fake.metadata,
+		regions
+	});
 	frame = document.createElement("div");
 	frame.style.width = "640px";
 	frame.style.height = "480px";
@@ -76,24 +45,6 @@ beforeEach(async () => {
 });
 
 afterEach(() => frame.remove());
-
-function chartWidget(ids: string[], extra: Partial<WidgetInstance> = {}): WidgetInstance {
-	return {
-		id: crypto.randomUUID(),
-		type: "chart",
-		title: null,
-		rect: { x: 0, y: 0, w: 3, h: 4 },
-		data: {
-			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [
-				ids.length === 1
-					? { dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: ids[0] } }
-					: { dataset: "air-quality", entryType: "pm25", selection: { kind: "monitors", ids } }
-			]
-		},
-		...extra
-	};
-}
 
 async function show(widget: WidgetInstance) {
 	const app = await initApp(createMemoryPlatform(), {
@@ -156,8 +107,11 @@ test("no data shows the empty state, never an unnamed chart", async () => {
 	fake.client = createQueryClient({
 		adapters: [
 			{
-				...adapter,
-				fetch: async (req) => ({ ...(await adapter.fetch(req, null!, null!)), series: [] })
+				...fakeAdapter(requests),
+				fetch: async (req) => ({
+					...(await fakeAdapter(requests).fetch(req, null!, null!)),
+					series: []
+				})
 			}
 		],
 		metadata: fake.metadata!,
@@ -166,4 +120,36 @@ test("no data shows the empty state, never an unnamed chart", async () => {
 	const screen = await show(chartWidget(["m1"]));
 	await expect.element(screen.getByText(m.widget_state_empty())).toBeVisible();
 	expect(frame.querySelector("[role=group]")).toBeNull();
+});
+
+test("the title waits for ready data, so a new range never pairs with the old places", async () => {
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => (release = resolve));
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				// The first request answers at once; later ones wait for the gate.
+				fetch: async (req, ctx, signal) => {
+					if (requests.length > 0) await gate;
+					return base.fetch(req, ctx, signal);
+				}
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	const screen = await show(widget);
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
+
+	const next = chartWidget(["m1", "m2"], { id: widget.id });
+	next.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };
+	await screen.rerender({ widget: next });
+	await expect.poll(() => fake.client!.entries().some((e) => e.inFlight)).toBe(true);
+	// Loading the new input: the title is still the old one, not "Monitor m1 · Last 90 days".
+	expect(generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
+	release();
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 2 places · Last 90 days");
 });

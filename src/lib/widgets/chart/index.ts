@@ -1,5 +1,4 @@
 import ChartLine from "@lucide/svelte/icons/chart-line";
-import { FALLBACK_MIN_SIZE } from "$lib/layout/items";
 import { m } from "$lib/paraglide/messages.js";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "../defaults";
 import type { WidgetType } from "../registry";
@@ -11,8 +10,8 @@ export const chartType: WidgetType = {
 	type: CHART_TYPE,
 	label: () => m.widget_chart_title(),
 	icon: ChartLine,
-	minSize: FALLBACK_MIN_SIZE,
-	defaultSize: { w: 3, h: 4 },
+	minSize: { w: 3, h: 4 },
+	defaultSize: { w: 3, h: 6 },
 	time: "range",
 	thresholds: false,
 	analyzable: true,

@@ -123,7 +123,7 @@
 	aria-label={m.chart_label({ places: formatList(names) })}
 	aria-describedby={hintId}
 	data-sticks={drawnSticks}
-	class="flex h-full min-h-0 flex-col gap-2 rounded-sm"
+	class="flex h-full min-h-0 flex-col gap-1.5 rounded-sm"
 	{onkeydown}
 >
 	<p id={hintId} class="sr-only">{m.chart_keyboard_hint()}</p>
@@ -152,6 +152,9 @@
 			{/if}
 		</div>
 	</div>
-	<SeriesKey {names} resolution={data.resolution} sticks={sticks && drawnSticks > 0} />
-	<LevelKey {levels} />
+	<!-- The series key and the level key share one compact wrapping flow under the plot. -->
+	<div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
+		<SeriesKey {names} resolution={data.resolution} sticks={sticks && drawnSticks > 0} />
+		<LevelKey {levels} />
+	</div>
 </div>

@@ -2,6 +2,7 @@ import { TZDate } from "@date-fns/tz";
 import type { BrowserContext } from "@playwright/test";
 
 const TIME_ZONE = "America/Los_Angeles";
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SUMMARIES = /\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\/(hourly|daily)\/$/;
 
 /** A made-up but steady reading for the period starting at `t`, so reloads show the same data. */
@@ -42,6 +43,11 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 			const ids = url.searchParams.getAll(param).flatMap((v) => v.split(","));
 			const start = url.searchParams.get("start") ?? "";
 			const end = url.searchParams.get("end") ?? start;
+			// A malformed date would make the period loop run forever: fail the request instead.
+			if (!DATE.test(start) || !DATE.test(end)) {
+				await route.fulfill({ status: 400, json: { detail: "start and end must be dates" } });
+				return;
+			}
 			const hourly = resolution === "hourly";
 			const summaries = periods(start, end, hourly).map((p) => {
 				const mean = reading(p.getTime());
