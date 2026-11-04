@@ -617,8 +617,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
 - **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
-  (4) The initial bundle is about 199.2 KB of the 200 KB soft budget after spec 4 (the restore
-  dialog and Recently deleted changes). (5) After a restore's keep pulls in another device's
+  (4) The initial bundle is about 205.5 KB gzip after the design pass, over the 200 KB soft
+  budget (199.2 KB after spec 4; the restyle and Part 2's announcer, restore dialog, unreadable
+  list, and resize animation added the rest). (5) After a restore's keep pulls in another device's
   change (stale base), the restore's `from` is built from the open session's document, which may
   lag the merged storage for a moment; undoing that restore could then drop the other device's
   merged-in edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test
@@ -628,7 +629,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   synthetic `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
   `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error wording, the
   loading line and focus, and the "Delete now" wording) were done in the design pass, part 2._
-  **Revisit** (4) when the next feature would cross the budget (CI warns), (5) if an undo after a
+  **Revisit** (4) before step 4 adds widget code (trim the initial bundle, or the user raises the
+  budget), (5) if an undo after a
   restore is reported to lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
@@ -1195,7 +1197,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   once, from the dialog's own live region (tested only against Chromium's `aria-modal` pruning).
 - **An announcement still being read when its dialog closes is cut off.** _Deferred 2026-11-03
   (design pass Task 19 review)._ A message belongs to the topmost dialog's live region and is
-  dropped when that dialog closes (moving it to the page's region would read it again). An
+  dropped when that dialog starts closing (moving it to the page's region would read it again;
+  a message sent after that waits and is read from the page's region once the dialog is gone). An
   announcement or toast made in the same 100 ms as another also replaces it. **Revisit if** the
   screen-reader check above finds messages lost this way.
 - **The e2e `liveRegion()` helper assumes one live region.** _Deferred 2026-11-03 (design pass
@@ -1301,21 +1304,18 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **Design pass, part 2 polish.** _Deferred 2026-11-03 (design pass, Tasks 11-20 reviews)._ Small
   follow-ups, none affecting correctness for people today. **Revisit when** next touching each
   file, or if one is reported:
-  - `SavedIndicator` doesn't reset its remembered previous state when the open dashboard
-    switches, so moving from a dashboard in error or conflict to a healthy one announces "Saved
-    again". It also has no test for the conflict-hold branch, and its test casts a conflict with
-    `{} as never`.
-  - An `onlyInDialog` toast or announcement fired just before a dialog registers (one handler
-    that opens a dialog and shows a toast) is dropped, because the dialog check happens at the
-    call. A message set during a dialog's 120 ms close animation goes to that dialog and is also
-    dropped. `e2e/sharing.spec.ts` (the assertion near line 112) was loosened to filter and
-    check visibility because of this.
+  - The `SavedIndicator` tests cast a local conflict with `{} as never`.
   - The scan that finds `LiveRegion` uses in tests can pair a self-closing component with a later
     closing tag (pre-existing).
   - The Share dialog's carry-over test checks for absence right after `setOnline(true)` without a
     settle step, so a late request could slip past it. `linkUnavailable` is inferred from "no
     url" rather than from the result kind of `shareUrl`, and the download confirmation has no
-    timeout.
+    timeout. `share_downloaded` ("Your file is downloading.") also shows when a native save
+    dialog is cancelled, since the download call doesn't say; revisit with the Tauri build's
+    file-save adapter.
+  - `dashboard_unreadable_confirm_body` slots a detail into a parenthesized phrase ("Deleting
+    removes this dashboard ({detail}) from this browser only."), which some languages can't
+    keep; revisit when translations start ("Translations and language switching").
   - The Recently deleted list has no explicit focus target in its empty or load-failed states,
     and an empty `{#if loading}` branch holds only a comment. The "missing" delete result has no
     unit test at the `deletePermanently` level (a `documents.get` stub returning nothing would

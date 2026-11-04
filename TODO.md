@@ -49,9 +49,9 @@ Earlier tracks, in order (new dashboard work branches from `main`):
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
 7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 3's scales, tiers,
    and wrappers are done (sjvair.com #300 on `develop`, @sjvair/sdk 4.8.0-beta.4), so step 4
-   waits only on the design pass (PR 1 #33 open; Part 2 built, PR 2 pending review); its spec can be drafted
-   meanwhile. Server alerting (Release 2) waits for the sjvair.com session to finish step 3.
-   Email-only accounts wait on the legal adviser.
+   waits only on the design pass (PR 1 #33 open; Part 2 built, PR 2 pending review); its spec
+   can be drafted meanwhile. Server alerting (Release 2) waits for the sjvair.com session to
+   finish step 3. Email-only accounts wait on the legal adviser.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -1253,7 +1253,9 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
       tidy-ups (1)-(3); restored unreadable dashboards (now listed); the earlier-versions
       duplicate; save-status announcements; names of copies; read-only Share and Download;
       read-only "unkept" wording; `pendingName`; the restore dialog closing mid-restore; spec 2a
-      robustness loose ends (the phone focus-ring check stays); the "Only on this device" bar.
+      robustness loose ends (the phone focus-ring check stays); the "Only on this device" bar;
+      and, from the final review, the save indicator's reset on switching dashboards (with its
+      device-conflict test) and messages lost as a dialog opens or closes.
 - [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02, merged
       into `main` 2026-11-03, PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)): the Share dialog (create, copy, stop with confirmation,
       display name), the `/shared/:token` page (read-only, "made by a user" bar, 60-second
