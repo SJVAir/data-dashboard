@@ -365,6 +365,18 @@ test("a name refused for rate or sign-in says why", async () => {
 		.toBeVisible();
 });
 
+test("a name refused for another reason says something went wrong", async () => {
+	const { fake } = await signedIn();
+	openLive();
+	const field = dialog().getByRole("textbox", {
+		name: "Your name on shared dashboards (optional)"
+	});
+	await expect.element(field).toBeEnabled();
+	fake.refuseNext.push({ code: "forbidden", status: 403 });
+	await dialog().getByRole("button", { name: "Save name" }).click();
+	await expect.element(dialog().getByText("Something went wrong. Please try again.")).toBeVisible();
+});
+
 test("a name that failed to load can be retried", async () => {
 	const { fake } = await signedIn();
 	await fake.setProfile("Ms. Lopez");

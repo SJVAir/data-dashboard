@@ -92,6 +92,7 @@
 			notes = [];
 			nameError = "";
 			nameLoad++;
+			nameState = "loading";
 			if (open && opts?.live && app.sync) void loadName();
 		});
 	});
@@ -124,7 +125,7 @@
 			if (error.code === "rate_limited") return m.share_name_rate_limited();
 			if (error.code === "unauthorized") return m.share_name_signed_out();
 		}
-		return m.share_live_offline();
+		return error instanceof RemoteUnavailable ? m.share_live_offline() : m.share_live_failed();
 	}
 
 	function download() {
