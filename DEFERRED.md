@@ -405,6 +405,64 @@ string`) now get the union return type. The mobile app passes a string token, so
     adds to it. Use the rollup tasks with a scope, one monitor and one region first, then the
     wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
     "Deploy notes"; never unscoped bulk commands).
+  - **Summaries repair (sjvair.com #305):** findings 2 and 3 of the 2026-11-03 rollup report.
+    Production has backfill rows stamped an hour early (some correctly stamped months,
+    quarters, seasons and years also hold one extra row), seasons starting May 1 from the old
+    schedule, and hourly region rows skipped since about September. #305 fixes the code and
+    adds `repair_summaries` (always scoped, `--dry-run` first) and the daily
+    `check_summary_integrity`. Nothing runs on production before that day. In order:
+    1. **Before the deploy, read-only checks:**
+       - the summaries worker logs: when `hourly_region_summaries` starts against its :50
+         schedule, and when the hour's last `summarize_monitor_hour` finishes. This confirms
+         finding 3's cause;
+       - `heroku ps`: whether `huey_summaries_worker` is scaled, and `HUEY_SUMMARIES_WORKERS`;
+       - Sentry: errors from `summarize_region_hour`;
+       - Redis: memory and eviction policy;
+       - `backfill_summaries status`: no job running. Don't start a backfill on production
+         before the deploy; it's what wrote the hour-early rows.
+    2. **Deploy**, inside #301's window above.
+    3. **Explain the large queries on production** (`heroku run python manage.py shell`, plain
+       `.explain()` only). Check the weekly monitor-hours query and the region-hours query in
+       `repair.missing_region_hours`, and `check_summary_integrity`'s 400-day `DISTINCT`. Local
+       tables were too small to prove their plans; each should use the `(resolution,
+timestamp)` index or the unique index's leading columns, not a full scan.
+    4. **Size it:**
+       - `check_summary_integrity.call_local()` gives the network-wide misaligned count and
+         yesterday's skipped region hours, and logs its run time;
+       - then `repair_summaries <first summary date> <deploy date> --monitor <pk> --region
+<pk> --region-hours --dry-run` for one monitor and one county (Fresno, `r6phe`). The
+         first summary date is the earliest non-hourly row, or the old backfill's `--from`.
+       - The dry run prints the spans it widens to, what it will delete and re-roll, and the
+         rows it leaves in place. Record those counts.
+    5. **Repair that one scope** (same command without `--dry-run`). **Check after** with the
+       report's requests:
+       - `monitors/<id>/summaries/pm25/monthly/2025/` returns Jan–Dec 2025, each at 00:00;
+       - `yearly/` and the seasonal rows start at Pacific midnight, and no row starts May 1;
+       - Fresno's `hourly/2026/11/2/` has 24 rows and `daily/2026/10/` has 31.
+       - A second run should report 0 misaligned.
+    6. **Wider, with a yes:** after a blast-radius check (the dry-run totals), run it per
+       monitor type (`--monitor-type purpleair`, …) and per region type (`--region-type
+county`, then the other types the dashboard reads), each with `--dry-run` first.
+       - The repair re-rolls every finished period in its range, so it also does #301's
+         catch-up for that scope. Still confirm October monthly, Q3 quarterly and Jun–Aug 2026.
+       - Run it promptly after the deploy, before the dashboard's monthly and region widgets
+         go live: settled periods are cached 24 hours in browsers. While one resolution of
+         one kind is being repaired, its misaligned rows are briefly absent.
+    7. **The next day:** `check_summary_integrity` logs no error, and there are no "started …
+       after its :50 run" warnings.
+
+    Known leftovers: an hour where every monitor's health score is 0 correctly gets no region
+    row, and `--region-hours` keeps listing it. Retired regions need `--region <pk>`, since
+    `--region-type` covers current regions only. Misaligned rows of unfinished periods (such
+    as the current year's) are deleted and come back at the scheduled rollup.
+
+    **How the list grows until the deploy:**
+    - Skipped region hours: about every hour the old code's region job starts late.
+    - #301's late months, quarters and seasons: each period the old schedule misses.
+    - Misaligned seasons: two more from the old schedule (Aug–Oct written on Nov 30, Nov–Jan
+      on Feb 28).
+    - Hour-early rows don't grow, unless someone runs a backfill.
+
   - **Client updates for the SDK call changes (sdk-js #40):** monitor-map (pins `^4.7.0`; the release is 5.0.0, so it
     can't pick it up by accident) calls `getHMSSmoke({ signal })`/`getHMSFire({ signal })`; they become
     `getHMSSmoke(undefined, { signal })`/`getHMSFire(undefined, { signal })` when it moves to
@@ -416,7 +474,8 @@ string`) now get the union return type. The mobile app passes a string token, so
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
-  summaries, misaligned seasons, under "Analysis & data") should land before or with it.
+  summaries, misaligned seasons, under "Analysis & data") is sjvair.com #305 (open into
+  `develop`); it should be merged before this deploy, and its repair steps are above.
 
 - **Credentialed CORS from any origin in front of private documents.** _Deferred 2026-10-28
   (Sync spec 1)._ sjvair.com already sets `CORS_ORIGIN_ALLOW_ALL` with
@@ -904,16 +963,23 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
   `docs/superpowers/reports/2026-11-03-summary-rollups.md`)._ Not fixed by the Pacific
-  schedule change; it needs its own investigation. **Revisit with** the summaries follow-up
-  investigation, and before step 4 widgets show monthly data.
+  schedule change. **Cause found** (2026-11-04): the backfill job stepped its UTC-reloaded
+  cursor by 24-hour days, so standard-time days, months, seasons and years landed at 23:00 the
+  day before. Fixed in sjvair.com #305 (open into `develop`). Production's rows are repaired by
+  `repair_summaries` at the deploy (steps in the deploy entry above). **Revisit when** #305 is
+  deployed and the repair has run; local winter rows from a backfill may show the same stamps
+  until then.
 - **Region summaries are mostly missing on production.** _Deferred 2026-11-04 (summary cache
-  and place lookup; finding 3 of the same report)._ Production has almost no hourly or daily
-  region rows, so the region catch-up after the deploy has little to roll up. **Revisit with**
-  the same investigation, and before region-summary widgets ship.
+  and place lookup; finding 3 of the same report)._ **Cause found** (2026-11-04): the hourly
+  region job took its hour from when it ran. Queued behind the monitor tasks, a start after the
+  top of the hour summarized an hour with no monitor rows yet and wrote nothing. Fixed in #305.
+  The production worker logs that would confirm it, and the refill, are in the deploy entry.
+  **Revisit when** #305 is deployed and the region hours are refilled, before region-summary
+  widgets ship.
 - **Misaligned seasonal rows already in production.** _Deferred 2026-11-04 (summary cache and
   place lookup)._ The old UTC schedule wrote seasonal windows starting in May (for example
-  `2026-05-01`); the Pacific fix only affects new runs and doesn't repair them. **Revisit
-  with** the same investigation.
+  `2026-05-01`); the Pacific fix only affects new runs. `repair_summaries` (#305) deletes them
+  and rebuilds the real seasons at the deploy. **Revisit when** that repair has run.
 - **Hidden monitors' summaries are readable by anyone with the id.** _Deferred 2026-11-04
   (summary cache and place lookup; predates this work)._ **Revisit when** "hidden" gets a
   defined read policy.
