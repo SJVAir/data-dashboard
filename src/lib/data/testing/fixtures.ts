@@ -24,9 +24,22 @@ export const FIXTURE_CATALOG: CatalogEntry[] = [
 	}
 ];
 
+function level(
+	key: string,
+	label: string,
+	color: string,
+	tier: number,
+	min: number,
+	max: number | null
+): Level {
+	return { key, label, color, opacity: 1, tier, min, max };
+}
+
 const FIXTURE_LEVELS: Level[] = [
-	{ name: "good", label: "Good", color: "#00e400", range: [0, 9] },
-	{ name: "moderate", label: "Moderate", color: "#ffff00", range: [9.1, 35.4] }
+	level("good", "Good", "#00e400", 0, 0, 9),
+	level("moderate", "Moderate", "#ffff00", 1, 9, 35.4),
+	level("unhealthy-sensitive", "Unhealthy for Sensitive Groups", "#ff7e00", 2, 35.4, 55.4),
+	level("unhealthy", "Unhealthy", "#ff0000", 3, 55.4, null)
 ];
 
 const FIXTURE_MONITORS = [

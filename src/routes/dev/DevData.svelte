@@ -98,7 +98,7 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import { LiveQuery } from "$lib/data/live-query.svelte";
-	import type { Level, MonitorSummary } from "$lib/data/metadata";
+	import { levelFor, type Level, type MonitorSummary } from "$lib/data/metadata";
 	import type { QueryEntryInfo } from "$lib/data/query/client";
 	import { backoffDelay, nextPollDelay } from "$lib/data/query/poller";
 	import { chooseResolution } from "$lib/data/resolution";
@@ -296,9 +296,7 @@
 	});
 
 	function levelOf(value: number): Level | undefined {
-		let found: Level | undefined;
-		for (const level of levels) if (value >= level.range[0]) found = level;
-		return found;
+		return levelFor(levels, value);
 	}
 
 	const num = (n: number) => formatNumber(n, { maximumFractionDigits: 2 });
@@ -559,7 +557,10 @@
 										<td>{point.count}</td>
 										<td>{point.partial ? "partial" : ""}</td>
 										<td>
-											{#if level}<LevelSwatch color={level.color} label={level.label} />{/if}
+											{#if level}<LevelSwatch
+													color={level.color ?? "transparent"}
+													label={level.label}
+												/>{/if}
 										</td>
 									</tr>
 								{/each}

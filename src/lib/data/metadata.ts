@@ -32,14 +32,29 @@ export type CatalogEntry = {
 	retired?: Retirement;
 };
 
-export type Level = { name: string; label: string; color: string; range: [number, number] };
+export type Level = {
+	key: string;
+	label: string;
+	color: string | null;
+	opacity: number | null;
+	tier: number | null;
+	/** A missing min is 0. */
+	min: number;
+	/** `null` is an open top. */
+	max: number | null;
+};
+
+/** The level whose `[min, max)` holds `value` (the last level's `max` may be open). */
+export function levelFor(levels: Level[], value: number): Level | undefined {
+	return levels.find((l) => value >= l.min && (l.max === null || value < l.max));
+}
 
 export type MonitorSummary = { id: string; name: string; type: string };
 
 export interface MetadataSource {
 	/** `"unavailable"` when the server has no catalog or it can't be fetched; never rejects except for `signal`'s abort. */
 	catalog(signal?: AbortSignal): Promise<CatalogEntry[] | "unavailable">;
-	/** Ordered by range start; `[]` if none. */
+	/** From the entry type's scale, ordered by min; `[]` if no scale. */
 	levels(entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/** The meta's `default_calibration`; `""` and unknown map to `null`. */
 	defaultProcessor(
@@ -163,16 +178,19 @@ export function createWebMetadata(): MetadataSource {
 		},
 		async levels(entryType, signal) {
 			const entry = (await meta(signal)).entries[entryType];
-			const levels = entry?.levels;
+			const levels = entry?.scale?.levels;
 			if (!levels) return [];
-			return Object.values(levels)
+			return levels
 				.map((l) => ({
-					name: l.name,
+					key: l.key,
 					label: l.label,
 					color: l.color,
-					range: [l.range[0], l.range[1]] as [number, number]
+					opacity: l.opacity,
+					tier: l.tier,
+					min: l.min ?? 0,
+					max: l.max
 				}))
-				.sort((a, b) => a.range[0] - b.range[0]);
+				.sort((a, b) => a.min - b.min);
 		},
 		async defaultProcessor(monitorType, entryType, signal) {
 			const monitor = (await meta(signal)).monitors[monitorType];
