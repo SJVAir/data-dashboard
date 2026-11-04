@@ -3,7 +3,11 @@ import { m } from "$lib/paraglide/messages.js";
 import {
 	formatDate,
 	formatDateTime,
+	formatHourRange,
+	formatList,
 	formatNumber,
+	formatPeriod,
+	formatTick,
 	needsZoneLabel,
 	pacificHoursOfDay,
 	parseDateKey,
@@ -75,5 +79,33 @@ describe("format", () => {
 		const labelled = formatDateTime(t, { deviceZone: "America/New_York" });
 		expect(labelled).toBe(m.time_zone_suffix({ time: bare }));
 		expect(bare.endsWith(m.time_zone_suffix({ time: "" }).trim())).toBe(false);
+	});
+	it("formatHourRange shows a Pacific hour span", () => {
+		const start = new Date("2026-10-20T22:00:00Z");
+		const end = new Date("2026-10-20T23:00:00Z");
+		expect(formatHourRange(start, end, { deviceZone: "America/Los_Angeles" })).toMatch(
+			/^3\s*–\s*4\sPM$/
+		);
+		expect(formatHourRange(start, end, { deviceZone: "America/New_York" })).toMatch(/PM PT$/);
+	});
+	it("formatPeriod labels a period start by its resolution", () => {
+		const t = new Date("2026-10-01T07:00:00Z");
+		expect(formatPeriod(t, "day")).toBe("Oct 1, 2026");
+		expect(formatPeriod(t, "month")).toBe("Oct 2026");
+		expect(formatPeriod(new Date("2026-01-01T08:00:00Z"), "year")).toBe("2026");
+		expect(formatPeriod(t, "hour", { deviceZone: "America/Los_Angeles" })).toBe(
+			formatDateTime(t, { deviceZone: "America/Los_Angeles" })
+		);
+	});
+	it("formatTick uses Pacific time at each tick unit", () => {
+		const t = new Date("2026-10-01T07:00:00Z");
+		expect(formatTick(t, "day")).toBe("Oct 1");
+		expect(formatTick(t, "month")).toBe("Oct");
+		expect(formatTick(t, "year")).toBe("2026");
+		expect(formatTick(new Date("2026-10-01T22:00:00Z"), "hour")).toBe("3 PM");
+	});
+	it("formatList joins names as a sentence list", () => {
+		expect(formatList(["A"])).toBe("A");
+		expect(formatList(["A", "B", "C"])).toBe("A, B, and C");
 	});
 });

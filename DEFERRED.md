@@ -1002,6 +1002,16 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
     timeline).
   - **Monitor health**: QA/QC scores and sensor agreement (research).
+- **Chart axis numbers aren't tabular figures.** _Deferred 2026-11-04 (step 4 spec 1, Task 11)._
+  uPlot draws its axes on a canvas, and canvas text can't turn on font features, so Inter's
+  tabular figures (`tnum`) aren't used there; value-axis labels are right-aligned, so they still
+  line up at the right. The readout, keys, and table are HTML and use `tabular-nums`. **Revisit
+  if** the axes look uneven in testing (then draw the axis labels as HTML, or bundle a font face
+  with tabular digits as the default).
+- **A fifth place's partial dot isn't hollow.** _Deferred 2026-11-04 (step 4 spec 1, Task 11)._
+  The fifth series' marker is a cross, which has no fill to leave out, so its partial (today so
+  far) point looks like any other; the readout still says it's incomplete. **Revisit if** five-
+  place charts are common, or when the series markers are reviewed.
 
 ## Alerts
 
@@ -1319,9 +1329,10 @@ string`) now get the union return type. The mobile app passes a string token, so
   (design pass, Task 20 review)._ The widget being resized animates its width and height for
   `--motion-duration-base` (200 ms), so its content reflows rather than being stretched. A
   widget that redraws on a `ResizeObserver` (uPlot charts, map-sdk's `MapView`) would redraw on
-  every frame of it. Placeholders don't redraw, so nothing does today. **Revisit when** uPlot or
-  map widgets land: throttle their redraw to the animation's end, or switch to scale with
-  counter-scaled content for those types.
+  every frame of it. Placeholders don't redraw, so nothing does today. **Charts are done**
+  (step 4 spec 1, Task 11: the shared `TimeChart` waits for the frame's animations to finish
+  before it redraws). **Revisit when** map widgets land: throttle their redraw the same way, or
+  switch to scale with counter-scaled content.
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.

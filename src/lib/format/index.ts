@@ -96,3 +96,53 @@ export function formatNumber(
 ): string {
 	return new Intl.NumberFormat(locale, opts).format(n);
 }
+
+/** A Pacific hour span such as "3 – 4 PM"; the PT label is appended only outside Pacific. */
+export function formatHourRange(
+	start: Date,
+	end: Date,
+	opts: { deviceZone?: string; locale?: string } = {}
+): string {
+	const text = new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+		timeZone: TIME_ZONE,
+		hour: "numeric"
+	}).formatRange(start, end);
+	return needsZoneLabel(opts.deviceZone) ? m.time_zone_suffix({ time: text }) : text;
+}
+
+/** The label for the period starting at `start`, at a data resolution (`raw` is an instant). */
+export function formatPeriod(
+	start: Date,
+	resolution: "raw" | "hour" | "day" | "month" | "quarter" | "season" | "year",
+	opts: { deviceZone?: string; locale?: string } = {}
+): string {
+	if (resolution === "raw" || resolution === "hour") return formatDateTime(start, opts);
+	if (resolution === "day") return formatDate(start, opts.locale);
+	return new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+		timeZone: TIME_ZONE,
+		year: "numeric",
+		...(resolution === "year" ? {} : { month: "short" })
+	}).format(start);
+}
+
+/** A compact axis tick in Pacific time: "3 PM", "Oct 1", "Oct", or "2026". */
+export function formatTick(
+	instant: Date,
+	unit: "hour" | "day" | "month" | "year",
+	locale: string = LOCALE
+): string {
+	const options: Intl.DateTimeFormatOptions =
+		unit === "hour"
+			? { hour: "numeric" }
+			: unit === "day"
+				? { month: "short", day: "numeric" }
+				: unit === "month"
+					? { month: "short" }
+					: { year: "numeric" };
+	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, ...options }).format(instant);
+}
+
+/** Names joined as a sentence list ("A, B, and C"). */
+export function formatList(items: string[], locale: string = LOCALE): string {
+	return new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(items);
+}

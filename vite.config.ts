@@ -112,7 +112,7 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 	},
 	server: { proxy: devProxy(mode) },
 	preview: { headers: { "Content-Security-Policy": contractCsp() } },
-	optimizeDeps: { include: ["axe-core"] },
+	optimizeDeps: { include: ["axe-core", "uplot"] },
 	resolve: {
 		alias: [{ find: "$lib", replacement: fileURLToPath(new URL("./src/lib", import.meta.url)) }]
 	},
