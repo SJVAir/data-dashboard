@@ -11,6 +11,7 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { MOVE_OFFER_KEY } from "$lib/sync/move-to-account";
 import { ACCOUNT, SPACE, makeDoc, user } from "$lib/sync/test-support";
 import MoveToAccountDialog from "./MoveToAccountDialog.svelte";
+import { animationsSettled } from "../../../test/animations";
 
 /** A signed-in app whose browser holds `count` signed-out dashboards. */
 async function withAnonymous(count: number) {
@@ -37,7 +38,7 @@ async function withAnonymous(count: number) {
 async function expectNoAxeViolations() {
 	// After the open animation: mid-fade, the text's contrast is measured too low.
 	const dialog = page.getByRole("dialog").element();
-	await Promise.all(dialog.getAnimations({ subtree: true }).map((a) => a.finished));
+	await animationsSettled(dialog);
 	const results = await axe.run(dialog);
 	expect(results.violations).toEqual([]);
 }

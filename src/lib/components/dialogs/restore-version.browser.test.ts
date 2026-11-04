@@ -5,6 +5,7 @@ import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
 import type { EarlierVersion, EarlierVersions } from "$lib/safety/restore-version";
 import RestoreVersionDialog, { openRestoreVersion } from "./RestoreVersionDialog.svelte";
+import { animationsSettled } from "../../../test/animations";
 
 const local: EarlierVersion = { source: "local", at: "2026-10-20T19:00:00.000Z" };
 const daily: EarlierVersion = {
@@ -96,7 +97,7 @@ test("the open dialog has no axe violations", async () => {
 	const dialog = page.getByRole("dialog");
 	await expect.element(dialog.getByRole("radio").first()).toBeVisible();
 	const el = dialog.element();
-	await Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished));
+	await animationsSettled(el);
 	const results = await axe.run(el);
 	expect(results.violations).toEqual([]);
 });

@@ -15,6 +15,7 @@ import { uploadDocument } from "$lib/sync/upload";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import ConfirmDialog from "./ConfirmDialog.svelte";
 import ShareDialog, { openShare } from "./ShareDialog.svelte";
+import { animationsSettled } from "../../../test/animations";
 
 const URL_TEXT = "http://localhost/workspace/import#1.abcdef";
 
@@ -78,7 +79,7 @@ const copySection = () => dialog().getByRole("region", { name: "Send a copy inst
 async function expectNoAxeViolations() {
 	// After the open animation: mid-fade, the text's contrast is measured too low.
 	const el = dialog().element();
-	await Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished));
+	await animationsSettled(el);
 	const results = await axe.run(el);
 	expect(results.violations).toEqual([]);
 }
