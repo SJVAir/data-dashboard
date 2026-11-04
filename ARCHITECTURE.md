@@ -2114,7 +2114,7 @@ user there):** `resolutions` moved from the dataset onto each entry type, with n
 dataset-level field (so clients need no inheritance rule); air-quality entry types carry
 `available`; the catalog lists every server domain, including `emissions` and `tempo` (the
 dashboard hides those without an adapter); and `metaUrl` is empty for domains with no meta
-endpoint yet (all but monitors and regions, until the scale metas land).
+endpoint yet (since 2026-11-03 only `emissions`, `tempo`, and the pesticide domains lack one).
 
 - **Air quality is one dataset.** Its entry types are PM2.5, O3, … (`kind: "pollutant"`).
   Monitor vs. region is a **geography choice inside a layer**, not a separate dataset.
@@ -2236,18 +2236,34 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    hardcoded in `monitor-map` and server Sass. **CalHeatScore meta also carries per-score
    `guidance`**, since the server stores only 0–4 labels today. AQI 0–500 is used only by
    the Valley Air District forecasts (monitors report concentrations, not AQI), so the AQI
-   scale lives in `forecasts/meta/` (2026-11-03, sjvair.com step 3 spec 1 draft).
+   scale lives in `forecasts/meta/`. **Built (2026-11-03, step 3 spec 1; PRs open):**
+   `calheatscore/meta/`, `hms/meta/` (smoke density with `opacity`, fire FRP), and
+   `forecasts/meta/` (AQI, the `burn-status` entry type, and the zones with their regions)
+   return scales keyed by catalog entry-type id; `monitors/meta/` adds a `scale` per entry
+   type (its old `levels` dict stays for mobile).
+
+   **Scale shape:** `{id, label, units, kind: "range" | "category", source, levels[]}`; a level
+   is `{key, label, color, opacity, tier, description, guidance, min, max, value}`. Ranges are
+   half-open (`min <= value < max`) with a `null` top `max`; categories use `value`. `tier` is
+   0–4 or `null` (no severity). `description` is the official wording (credited by `source`),
+   `guidance` is SJVAir's own. Level `key`s are permanent.
 
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).
 5. **Region hierarchy** — nesting between region types, counts, which regions have
-   summaries. **Regions that cross county lines** (locally 39 of 237 ZIPs and 27 of 200
+   summaries. **Built (2026-11-03):** `regions/meta/` types carry `count`, `parents`,
+   `referenceable` (false for land use), and `browsable` (false for MTRS and land use). **Regions that cross county lines** (locally 39 of 237 ZIPs and 27 of 200
    school districts; no cities or CDPs) are listed under **every county they meaningfully
    overlap** when browsing, each naming the other counties it's in (user, 2026-11-03).
-   Today's `within=` (99% containment) would show them under no county. Details in
-   sjvair.com's step 3 spec 1.
+   Today's `within=` (99% containment) would show them under no county. Built as
+   `regions/?within=…&within_mode=overlaps` (also the geojson variant): it keeps regions with
+   at least 1% of their own area inside the parents and adds `also_in`; the default
+   `contained` mode is unchanged. Details in sjvair.com's step 3 spec 1.
 6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
+   **Built:** `monitors/meta/` carries `stages` and `processors` labels (pesticide lists stay
+   with the pesticide spec).
 7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
+   **Built:** each catalog entry type has `display: {precision, chart, y_min}`.
 
 **Shared action tiers** (decided 2026-09-28). Scales with different step counts and names
 (6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every
@@ -2284,11 +2300,17 @@ level of every scale.
 - **Heat for areas larger than a ZIP** (decided 2026-09-28): CalHeatScore is per ZIP, so a
   county, city, or similar target uses the **highest heat score among its ZIPs**, labeled
   (e.g. "Heat: High (highest in Fresno County today)"). That's the safe choice for activity
-  advice. A point or ZIP target uses that exact ZIP.
+  advice. A point or ZIP target uses that exact ZIP. **Built as `calheatscore/place/`
+  (2026-11-03):** takes `?region_type=&region=` (code) or `?monitor=` and returns the highest
+  score per date among the ZIPs with at least 1% of their own area inside the region (a
+  monitor uses the ZIP it touches); ties go to the lowest ZIP code.
 - **Forecasts for areas that aren't a forecast zone:** use the containing zone, found
   through the forecasts app's zone list (exposed in forecasts metadata), not a region
   type. Note that forecast zones are **county regions for 6 of 9 zones** (incl. Fresno) and `custom` regions (missing on production as of 2026-10-14) for Tulare (Valley portion), Kern (SJV Air Basin portion), and Sequoia National Park and Forest (`forecasts/tasks.py` `ZONE_TO_REGION`). An area spanning zones uses the zone containing its
-  center, labeled.
+  center, labeled. **Built as `forecasts/place/` (2026-11-03):** same parameters; the rule
+  order is county, zone, center (point-on-surface or monitor), then largest overlap (the zone
+  needs at least 1% of the place's area). The response names the `rule` and returns one
+  latest-issued forecast per date. Both place endpoints cache answers 24 hours.
 - **"Can we go outside?"** leads with the **higher-tier condition's guidance** and lists
   both conditions beneath it; ties show both guidance texts. Only tier numbers are
   compared, and all wording is server metadata. With no heat data (uncovered ZIP, or not

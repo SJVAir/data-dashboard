@@ -404,6 +404,23 @@ string`) now get the union return type. The mobile app passes a string token, so
   if** unhandled-rejection reports show up from storage, moves of many dashboards are slow, or
   a validation report is hard to act on.
 
+- **"No Burning For All" burn status.** _Deferred 2026-11-03 (step 3 spec 1)._ The forecast
+  feed's exact `status` string for it is unconfirmed, so the `burn-status` scale has no level
+  for it. The server stores unknown values as received and logs them. **Revisit when** the
+  ingest log shows the new value: add the level in sjvair.com `camp/apps/forecasts/scales.py`.
+
+- **Production deploy step for the place endpoints.** _Deferred 2026-11-03 (step 3 spec 1)._
+  `forecasts/place/` caches its zone answers for 24 hours, so a place resolved before the 3
+  `custom` forecast zones exist keeps its answer after they are imported. Run
+  `import_forecast_zones` before deploying, or clear the `forecast_zone_for:` cache keys
+  after the import. **Revisit when** shipping sjvair.com `develop` to production (with the
+  "everything ready" deploy above).
+
+- **Region meta counts are cached for 1 hour with no invalidation.** _Deferred 2026-11-03
+  (step 3 spec 1)._ `regions/meta/` `count` can lag an import by up to an hour. **Revisit if**
+  an import flow needs the new counts immediately (then invalidate the key from the import
+  commands).
+
 ## Documents & saving
 
 - **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
