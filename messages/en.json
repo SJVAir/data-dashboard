@@ -456,6 +456,7 @@
 	"restore_version_account_unavailable": "Versions saved in your account can't be loaded right now. Try again later.",
 	"restore_version_load_failed": "Earlier versions couldn't be loaded. Close this and try again.",
 	"restore_version_unreachable": "Couldn't reach your account, so nothing was restored. Check your connection and try again.",
+	"restore_version_unavailable": "Your account couldn't complete the restore right now, so nothing was restored. Try again later.",
 	"restore_version_newer": "That version was saved by a newer version of the app. Reload to restore it.",
 	"restore_version_confirm": "Restore",
 	"restore_version_failed": "That version can't be opened.",

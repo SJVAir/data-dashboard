@@ -293,3 +293,18 @@ test("an empty list picks one line by the account's status", async () => {
 		await expect.element(dialog).not.toBeInTheDocument();
 	}
 });
+
+test("a restore the account refused for another reason doesn't say to check the connection", async () => {
+	await render(RestoreVersionDialog);
+	openRestoreVersion(loaded([daily]), async () => "unavailable");
+	const dialog = page.getByRole("dialog");
+	await dialog.getByRole("button", { name: "Restore", exact: true }).click();
+	await expect
+		.element(
+			dialog.getByText(
+				"Your account couldn't complete the restore right now, so nothing was restored. Try again later."
+			)
+		)
+		.toBeVisible();
+	expect(dialog.getByText(/connection/).elements()).toHaveLength(0);
+});

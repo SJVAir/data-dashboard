@@ -60,7 +60,17 @@ export async function listEarlierVersions(
 	return { versions, account };
 }
 
-export type RestoreResult = "restored" | "unreadable" | "newer" | "unreachable" | "read-only";
+/**
+ * `unreachable`: the account couldn't be reached (the connection); `unavailable`: it refused or
+ * failed for another reason.
+ */
+export type RestoreResult =
+	"restored" | "unreadable" | "newer" | "unreachable" | "unavailable" | "read-only";
+
+/** Why an account call failed, in restore terms: the connection, or anything else. */
+function accountFailure(error: unknown): "unreachable" | "unavailable" {
+	return error instanceof RemoteUnavailable ? "unreachable" : "unavailable";
+}
 
 type Content = { name: string | null; body: Dashboard["body"] };
 
@@ -79,7 +89,7 @@ async function loadContent(
 	session: DocumentSession,
 	version: EarlierVersion,
 	chain: Migration[]
-): Promise<Content | "unreadable" | "newer" | "unreachable"> {
+): Promise<Content | "unreadable" | "newer" | "unreachable" | "unavailable"> {
 	let raw: unknown;
 	if (version.source === "local") {
 		const original = await app.platform.originals.get(app.space, session.doc.id);
@@ -102,8 +112,8 @@ async function loadContent(
 				version: doc.version,
 				...(doc.copiedFrom ? { copiedFrom: doc.copiedFrom } : {})
 			};
-		} catch {
-			return "unreachable";
+		} catch (error) {
+			return accountFailure(error);
 		}
 	}
 	if (tooLarge(raw)) return "unreadable";
@@ -129,8 +139,8 @@ export async function restoreEarlierVersion(
 	if (app.sync) {
 		try {
 			await app.sync.keepBeforeRestore(session.doc.id);
-		} catch {
-			return "unreachable";
+		} catch (error) {
+			return accountFailure(error);
 		}
 	}
 	session.apply({

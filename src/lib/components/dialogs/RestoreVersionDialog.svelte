@@ -134,6 +134,8 @@
 				return m.restore_version_newer();
 			case "unreachable":
 				return m.restore_version_unreachable();
+			case "unavailable":
+				return m.restore_version_unavailable();
 			default:
 				return m.restore_version_failed();
 		}

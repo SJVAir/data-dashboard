@@ -294,6 +294,23 @@ describe("restoreEarlierVersion", () => {
 		session.dispose();
 	});
 
+	it("a keep or fetch refused for another reason is unavailable, not unreachable", async () => {
+		const { app, session, seed, fake } = await account();
+		const id = await seed("Earlier");
+		const before = JSON.stringify(session.doc);
+		const version = { source: "server", at: NOW.toISOString(), id, reason: "conflict" } as const;
+		fake.refuseNext.push({ code: "rate_limited", status: 429 });
+		expect(await restoreEarlierVersion(app, session, version)).toBe("unavailable");
+		const keep = app.sync!.keepBeforeRestore.bind(app.sync);
+		app.sync!.keepBeforeRestore = async () => {
+			throw new RemoteRefusal("forbidden", 403);
+		};
+		expect(await restoreEarlierVersion(app, session, version)).toBe("unavailable");
+		app.sync!.keepBeforeRestore = keep;
+		expect(JSON.stringify(session.doc)).toBe(before);
+		session.dispose();
+	});
+
 	it("restores the local original, keeping the current version on the server", async () => {
 		const { app, session, platform, fake } = await account();
 		await platform.originals.put(SPACE, {
