@@ -326,7 +326,7 @@
 
 <div class="mx-auto flex max-w-6xl flex-col gap-4 p-4 text-sm">
 	<header class="flex flex-col gap-1">
-		<h1 class="text-xl font-medium">Dev data page</h1>
+		<h1 class="text-primary text-lg font-semibold">Dev data page</h1>
 		<p class="text-muted-foreground">Dev builds only. Live data through the spec 2 data layer.</p>
 		{#if ready}
 			<p data-field="catalog-source">

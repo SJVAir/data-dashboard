@@ -71,7 +71,7 @@
 </script>
 
 <section id="recently-deleted" class="flex flex-col gap-2">
-	<h2 bind:this={heading} tabindex="-1" class="text-lg font-medium outline-none">
+	<h2 bind:this={heading} tabindex="-1" class="text-base font-semibold outline-none">
 		{m.deleted_heading()}
 	</h2>
 	<ul class="bg-card border-card-border shadow-card divide-border divide-y rounded-lg border">

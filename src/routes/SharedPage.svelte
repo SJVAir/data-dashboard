@@ -113,13 +113,13 @@
 {:else if view.kind === "shown" && shared}
 	<MadeByBar displayName={view.displayName} token={shared.token} />
 	<div class="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
-		<h1 class="text-lg font-medium">{view.doc.name ?? m.shared_untitled()}</h1>
+		<h1 class="text-primary text-lg font-semibold">{view.doc.name ?? m.shared_untitled()}</h1>
 		<Button variant="outline" disabled={busy} onclick={makeCopy}>{m.shared_make_copy()}</Button>
 	</div>
 	<DashboardGrid view={view.doc} />
 {:else}
 	<div class="flex flex-col items-start gap-2 p-4">
-		<h1 class="text-lg font-medium">{message}</h1>
+		<h1 class="text-primary text-lg font-semibold">{message}</h1>
 		{#if view.kind === "offline"}
 			<Button variant="outline" onclick={() => shared?.doc.retry()}>{m.shared_try_again()}</Button>
 		{/if}
