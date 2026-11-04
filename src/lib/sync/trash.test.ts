@@ -139,6 +139,31 @@ describe("deletePermanently", () => {
 		expect(await deletePermanently(ctx, "d1")).toBe("deleted");
 	});
 
+	/** Replaces the stored copy with one `mangle` changes, as a newer or damaged one would be. */
+	async function mangled(mangle: (doc: Record<string, unknown>) => void) {
+		const setup = await trashed();
+		const doc = { ...(await stored(setup.platform)) } as Record<string, unknown>;
+		mangle(doc);
+		await setup.platform.documents.commit(SPACE, {
+			docId: "d1",
+			baseVersion: doc.version as number,
+			doc: { ...doc, version: (doc.version as number) + 1 } as never,
+			entries: []
+		});
+		return setup;
+	}
+
+	it("a copy this device can't read is unreadable, not unreachable", async () => {
+		const { ctx, fake } = await mangled((doc) => delete doc.schemaVersion);
+		expect(await deletePermanently(ctx, "d1")).toBe("unreadable");
+		expect(fake.requests).not.toContain("delete d1");
+	});
+
+	it("a copy from a newer version of the app is newer, not unreachable", async () => {
+		const { ctx } = await mangled((doc) => (doc.schemaVersion = 999));
+		expect(await deletePermanently(ctx, "d1")).toBe("newer");
+	});
+
 	it("offline is unreachable and changes nothing", async () => {
 		const { ctx, fake, platform } = await trashed();
 		fake.offline = true;
