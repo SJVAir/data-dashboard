@@ -298,8 +298,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    "selected data" variants), staging that freezes rolling ranges to fixed Pacific dates
    (with a per-item "keep rolling" toggle), `AnalysisSpec`, the full Analysis view, and
    worker-side engine steps (resample, align, lag, aggregate, correlate).
-2. **The ten starter analyses.** #7 needs the CalEnviroScreen wrapper and #8 needs the
-   CalHeatScore wrapper, both from Release 1 step 3.
+2. **The ten starter analyses.** #7 and #8 use the CalEnviroScreen and CalHeatScore
+   wrappers (both done in Release 1 step 3); #7 still needs `calenviroscreen/meta/` (see
+   `DEFERRED.md`).
 3. **Export-to-notebook bundles**: Python first, then R, then Deno/TypeScript.
 4. **JupyterLite app**: Pyodide only, bundled for offline use, a separate static app.
 
