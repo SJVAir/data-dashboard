@@ -1125,8 +1125,10 @@ research in `docs/reference/pesticides-explorer-research.md`).
   - **Not published yet.** The first `0.1.0` prerelease needs the npm trusted publisher set up
     for `@sjvair/map-sdk` (repository `SJVAir/map-sdk`, workflow `release.yml`), then the
     user's yes for that release.
-  - **Waiting on sdk-js (step 3, spec 2), not blocking:** `getHMSSmoke`/`getHMSFire` by date,
-    and `getRegionsGeoJSON` batching over 100 codes. The demo works around both until then.
+  - **Now in @sjvair/sdk `5.0.0-beta.1`** (step 3 spec 4, 2026-11-04): `getHMSSmoke`/`getHMSFire`
+    by `date` or `start`/`end` (now `(query?, options?)`), and `getRegionsGeoJSON` batching over
+    100 codes. map-sdk still pins `4.8.0-beta.4`; moving it to the 5.0.0 beta (and dropping the
+    demo's own chunking and direct HMS calls) is a map-sdk change for its next session.
   - **Next:** the dashboard's Map widget on map-sdk (below), once step 4 is far enough along.
   - **Milestone 2 (a later map-sdk spec):** monitor-map parity (collocation sites, EV stations,
     wind, live stores beyond monitors), started with the monitor-map 5.0 rebuild (see

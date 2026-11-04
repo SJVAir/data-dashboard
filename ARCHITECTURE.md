@@ -1137,7 +1137,7 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   `regions/?within=` (repeatable) for a parent region's children. Since October 2026 the
   region **list returns only `bbox`, not boundary geometry**; geometry comes from
   `regions/geojson/?type=` or region detail, and `regions/<id>/?buffer=1|3|5` returns a
-  buffered boundary. Neither has an SDK wrapper yet.
+  buffered boundary (the allowed distances are listed in `regions/meta/` `buffers`). Both are wrapped: `getRegionsGeoJSON` (4.8.0-beta.4; it batches code lists over the server's 100-code cap since 5.0.0-beta.1) and `getRegionDetails(id, { buffer })` (5.0.0-beta.1).
 - **Schools and child care are places** (decided 2026-10-13). The server's `Location`
   model (public school, private school, child care; added by sjvair.com PR #275) holds a
   name, address, point, and **direct links to its county, city, ZIP, and school
