@@ -871,6 +871,23 @@ string`) now get the union return type. The mobile app passes a string token, so
   spec)._ Keyboard and screen-reader users reach features through map-sdk's feature list (one
   tab stop, features in view). Spatial arrow-key navigation is tricky to get right and the
   list covers the need. **Revisit if** keyboard users find the list too indirect.
+- **Globe projection and space background in map-sdk.** _Deferred 2026-11-03 (map-sdk
+  milestone 1 build)._ map-sdk maps use the flat (Mercator) projection with no starfield
+  background. monitor-map's globe view and Milky Way background aren't needed by the dashboard,
+  and the milestone 1 plan didn't list them. See also "Globe-projection zoom precision" under
+  "Map & selection". **Revisit with** map-sdk milestone 2 (the monitor-map 5.0 rebuild), as a
+  projection option on `createMap()`.
+- **The "(1-hour avg)" note in map-sdk's monitor tooltip.** _Deferred 2026-11-03 (map-sdk
+  milestone 1 build)._ monitor-map's tooltip labels readings "(1-hour avg)"; map-sdk's shows the
+  reading and "Last updated …" but not the note. Writing it would hardcode the averaging window,
+  which has to come from metadata, and the server's meta doesn't give one yet. **Revisit when**
+  the server's monitors meta or dataset catalog gives an averaging window per entry type, or with
+  milestone 2's parity pass, whichever comes first.
+- **"hms-fire icon could not be loaded" warning in map-sdk's e2e tests.** _Found 2026-11-03
+  (map-sdk milestone 1 build)._ The demo's browser tests log this MapLibre warning; fires still
+  draw with their level icons, and the cause hasn't been traced (most likely the map asks for
+  the icon before the plugin has added it). **Revisit when** someone next works on the fire
+  plugin, or sooner if fire icons go missing on a map.
 
 ## Widgets
 
