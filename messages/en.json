@@ -594,5 +594,22 @@
 	"based_on_named_by": "Based on {name} by {displayName}",
 	"based_on_named": "Based on {name}",
 	"based_on_shared_by": "Based on a shared dashboard by {displayName}",
-	"based_on_shared": "Based on a shared dashboard"
+	"based_on_shared": "Based on a shared dashboard",
+	"widget_state_idle": "Choose a place to show data.",
+	"widget_state_empty": "No data for this range.",
+	"widget_state_error": "Couldn't load this data.",
+	"widget_state_retry": "Retry",
+	"widget_state_remove": "Remove",
+	"widget_state_switch": "Switch to the replacement",
+	"widget_state_gone_title": "This place is no longer available.",
+	"widget_state_gone_body": "The widget can't show data for it anymore.",
+	"widget_state_place_retired": "{place} stopped reporting on {date}.",
+	"widget_state_dataset_retired": "{dataset} stopped updating on {date}.",
+	"widget_state_unavailable_catalog_unavailable": "The list of datasets couldn't be loaded.",
+	"widget_state_unavailable_unknown_dataset": "This dataset isn't available.",
+	"widget_state_unavailable_unknown_entry_type": "This measurement isn't available.",
+	"widget_state_unavailable_no_adapter": "This dataset can't be shown in this widget yet.",
+	"widget_state_unavailable_no_resolution": "This dataset has no data at a level of detail that fits this range.",
+	"widget_state_unavailable_place_unsupported": "This dataset has no data for that kind of place.",
+	"widget_state_unavailable_whole_layer_raw": "Too much data to show for this range. Choose a longer range or fewer places."
 }

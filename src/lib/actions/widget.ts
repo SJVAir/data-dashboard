@@ -105,7 +105,8 @@ function duplicate(app: AppContext, widgetId: string): void {
 	});
 }
 
-function remove(app: AppContext, widgetId: string): void {
+/** Deletes the widget in one undo step, with an Undo toast. */
+export function removeWidget(app: AppContext, widgetId: string): void {
 	const found = find(app, widgetId);
 	if (!found) return;
 	const { session, widget, index } = found;
@@ -329,7 +330,7 @@ export function widgetActions(
 				run: () => {
 					// Leaving first means the page knows the widget's going (no missing-widget notice).
 					if (window?.inFullscreen) window.exit?.();
-					remove(app, widgetId);
+					removeWidget(app, widgetId);
 				}
 			}
 		];

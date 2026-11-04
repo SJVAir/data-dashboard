@@ -31,6 +31,7 @@
 		loadedWidget,
 		type WidgetModule
 	} from "$lib/widgets/registry";
+	import WidgetSkeleton from "$lib/widgets/shared/WidgetSkeleton.svelte";
 	import ResizeHandles from "./ResizeHandles.svelte";
 
 	let {
@@ -603,9 +604,7 @@
 			{:else}
 				<!-- The type's code loads the first time one of its widgets is shown. -->
 				{#await loadWidget(type)}
-					<p class="text-muted-foreground flex h-full items-center justify-center text-sm">
-						{m.widget_loading()}
-					</p>
+					<WidgetSkeleton />
 				{:then mod}
 					{@render body(mod)}
 				{:catch}
