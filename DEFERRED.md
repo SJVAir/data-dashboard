@@ -991,6 +991,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   place lookup)._ The old UTC schedule wrote seasonal windows starting in May (for example
   `2026-05-01`); the Pacific fix only affects new runs. `repair_summaries` (#305) deletes them
   and rebuilds the real seasons at the deploy. **Revisit when** that repair has run.
+- **`schedule.hour_for_run` docstring overstates the integrity check.** _Deferred 2026-11-04
+  (summary-rollup follow-up, sjvair.com #305)._ It implies `check_summary_integrity` catches a
+  late run, but when both hourly jobs (monitors and regions) are an hour late together the check
+  doesn't flag it. Docs only; the behavior is as designed. **Revisit when** someone next edits
+  `camp/apps/summaries/schedule.py`.
 - **Hidden monitors' summaries are readable by anyone with the id.** _Deferred 2026-11-04
   (summary cache and place lookup; predates this work)._ **Revisit when** "hidden" gets a
   defined read policy.
