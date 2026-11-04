@@ -37,6 +37,11 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
   user, 2026-11-04). Keep the data-dashboard coordinator informed, unprompted, of anything
   relevant to these docs or to other sessions: the user's decisions and corrections, status
   changes, PRs opened or merged, and signature or response-shape changes.
+- **Local data is incomplete** (the user, 2026-11-04): the local sjvair.com stack only runs during
+  work hours, about 8 hours a day, and missed scheduled jobs aren't run later. Ingests, health
+  checks and summary rollups have gaps, and catch-ups or rebuilds can compute rows before the data
+  they depend on exists. Before calling a local gap, spike or odd row a bug, rule that out; only
+  the code or production evidence proves a server bug.
 - **When something doesn't feel right, ask the user** (the user, 2026-11-04: "We have
   communication issues sometimes, and that's fine when it happens, as long as we keep
   communicating. It's ok to ask questions."). Don't guess silently, and don't write rules into
