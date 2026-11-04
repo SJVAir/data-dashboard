@@ -965,7 +965,10 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ (spec 1, merged; in 4.8.0-beta.4) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
   `place/`), `getHMSMeta`, and `regions/geojson/`. Left: the `calenviroscreen/` wrapper, the
   `buffer` parameter (the region list no longer returns geometry), and the rest of the
-  `api-urls.md` fixes (partly done).
+  `api-urls.md` fixes (partly done). Also from the `map-sdk` demo (2026-11-03): `getHMSSmoke`/`getHMSFire` take a
+  `date` or `start`/`end` range (the server already filters `date`, `date__gte`, `date__lte`)
+  plus request options, and `getRegionsGeoJSON` batches `external_id` lists over the server's
+  100-code cap and merges the FeatureCollections (like `fetchAllBulkPages`).
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
 
