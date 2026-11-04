@@ -47,10 +47,11 @@ Earlier tracks, in order (new dashboard work branches from `main`):
 6. ~~The sjvair.com `deletedAccount` change~~ **done** (sjvair.com PR
    [#299](https://github.com/SJVAir/sjvair.com/pull/299), merged into `develop` 2026-11-03 with
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
-7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 4 starts once the
-   design pass and step 3's scales, tiers, and wrappers are done (its spec can be drafted
-   during the design pass). Server alerting (Release 2) waits for the sjvair.com session to
-   finish step 3. Email-only accounts wait on the legal adviser.
+7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 3's scales, tiers,
+   and wrappers are done (sjvair.com #300 on `develop`, @sjvair/sdk 4.8.0-beta.4), so step 4
+   waits only on the design pass (PR 1 #33 open; Part 2 in progress); its spec can be drafted
+   meanwhile. Server alerting (Release 2) waits for the sjvair.com session to finish step 3.
+   Email-only accounts wait on the legal adviser.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
 dev:lan`, reported good; the checklist covered scrolling vs. long-press pick-up, dragging, selected
@@ -932,12 +933,14 @@ Merging either needs the user's yes.
 
 Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22; not yet on
 `main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
-@sjvair/sdk 4.8.0 is released only after #293 reaches production, with explicit approval.
+@sjvair/sdk 4.8.0 is released only after #293 and #300 reach production, with explicit approval.
 
 **Second batch status (2026-11-03):** split into specs, scales first. **Spec 1 is built**
 (scale metas, tiers, region hierarchy, stage/processor labels, display hints, forecast and
 CalHeatScore APIs and wrappers, and the `regions/geojson/` wrapper moved in for `map-sdk`):
-✅ below. The sjvair.com and sdk-js PRs are open, not merged; waiting on an approved SDK beta.
+✅ below. Merged: sjvair.com [#300](https://github.com/SJVAir/sjvair.com/pull/300) into `develop`
+(not yet on `main` or production) and sdk-js [#37](https://github.com/SJVAir/sdk-js/pull/37) into `release/4.8.0`, published as
+**@sjvair/sdk 4.8.0-beta.4** (2026-11-03, with the user's yes). The dashboard bumps its pin with step 4.
 Spec at sjvair.com `docs/superpowers/specs/2026-11-03-metadata-scales-design.md`; what it
 built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are in `DEFERRED.md`
 (burn-status value, production deploy step, region count caching). Later specs: cache headers, location
@@ -959,7 +962,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   from "never existed" (`ARCHITECTURE.md` → "Stable ids and retirement").
 - ✅ The `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of
   truth" → "What a dataset is") and the coverage endpoint.
-- ✅ (spec 1, PRs open) Per-domain scale metas (hms, calheatscore with per-score guidance,
+- ✅ (spec 1, merged; in 4.8.0-beta.4) Per-domain scale metas (hms, calheatscore with per-score guidance,
   forecasts, AQI), a shared `tier` (0–4; CalHeatScore's scale, heat mapped one to one) on
   every level of every scale (AQ levels: Good 0 … Unhealthy 3, Very Unhealthy and Hazardous
   4), region hierarchy (`count`, `parents`, `within_mode=overlaps`), choice lists (stage and
@@ -976,10 +979,13 @@ research in `docs/reference/pesticides-explorer-research.md`).
   rules; the name mode is unchanged; update
   `lookupRegionPlace` in sdk-js.
 - **First sdk-js change:** done; released 2026-10-21 as @sjvair/sdk 4.7.0. See `ARCHITECTURE.md` → "SDK request options".
-- ✅ (spec 1, PRs open) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
+- ✅ (spec 1, merged; in 4.8.0-beta.4) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
   `place/`), `getHMSMeta`, and `regions/geojson/`. Left: the `calenviroscreen/` wrapper, the
   `buffer` parameter (the region list no longer returns geometry), and the rest of the
-  `api-urls.md` fixes (partly done).
+  `api-urls.md` fixes (partly done). Also from the `map-sdk` demo (2026-11-03): `getHMSSmoke`/`getHMSFire` take a
+  `date` or `start`/`end` range (the server already filters `date`, `date__gte`, `date__lte`)
+  plus request options, and `getRegionsGeoJSON` batches `external_id` lists over the server's
+  100-code cap and merges the FeatureCollections (like `fetchAllBulkPages`).
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
 
