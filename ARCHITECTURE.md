@@ -920,7 +920,8 @@ caching), not per widget.
   hourly. Fixes the "current month shows nothing" problem for every widget.
 - **The last completed period is backfilled too** (2026-10-22, Foundations spec 2). Server
   rollups lag the period's end: hour H is summarized at about H+1:45 for monitors and H+1:50
-  for regions, daily rollups run around 01:00, and monthly ones on the 1st. So the query
+  for regions, daily rollups run at about 01:10 Pacific, monthly ones on the 1st at about
+  01:25, and yearly ones at about 02:05 (all on Pacific time since 2026-11-04). So the query
   also fetches the last completed period from the next finer offered level and uses it only
   where the coarse response lacks that period (computed client-side, and complete, so not
   partial); once the server's rollup exists, the coarse value wins. Where no finer level is
@@ -961,6 +962,16 @@ caching), not per widget.
   the server sends a long `Cache-Control`; open periods get a short one. The server's
   summary cache headers are therefore a **Release 1 requirement** (metadata enablers,
   step 3), not an optional follow-up.
+  - **The cache rule** (built in spec 2, sjvair.com #301): a period that has **settled**
+    answers `Cache-Control: private, max-age=86400`; anything that includes now, or whose
+    rollup is still due, answers `private, max-age=60`. Every 200 carries an `ETag` and
+    answers `If-None-Match` with a 304; errors are `no-cache`. A period settles at its end
+    plus a margin that covers its rollup time (hour 2 h, day 3 h, month, quarter and season
+    4 h, year 5 h), computed in Pacific time; the table is `camp/apps/summaries/schedule.py`
+    in sjvair.com. Rollups land at about 01:00-02:05 Pacific after the period ends.
+  - **Stable URLs:** the browser reuses its cache only for the same URL, so the data layer
+    requests settled periods with stable URLs (fixed start and end) separately from the live
+    tail. One request spanning "up to now" changes URL every time and never hits the cache.
 - In-flight requests are superseded by newer ones for the same widget
   (last-requested wins, not last-to-finish).
 
@@ -1151,8 +1162,17 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   plus `type=`. **Response shape:** in coordinate or monitor mode it always returns a
   **list** of containing regions (only the given `type` when `type=` is set). The existing
   name mode keeps its current single-region response. It uses the same geometry rules as `within=`, and builds on the
-  existing `Monitor.regions()` query. The SDK wrapper gains the parameters. This is
-  Release 1 step 3 work.
+  existing `Monitor.regions()` query. The SDK wrapper gains the parameters. **Built in
+  spec 2 (sjvair.com #301, sdk-js #38; open for review):** `POST {lat, lon, type?}` or
+  `GET ?monitor=&type=`; `type` is a comma list or an array; with no `type` every type but
+  `land_use` and `mtrs` is returned (asking for `land_use` is a 400, `mtrs` is allowed); the
+  server rounds coordinates to 3 decimals itself; coordinates in a query string are refused
+  (400); a hidden or unknown monitor is a 404, while CIMIS stations resolve. Answers are
+  cached 24 hours. `lookupRegionPlace` takes `{ lat, lon, type? }` or `{ monitor, type? }`.
+  - **Weather stations** are listed through the catalog's Weather `places_url`
+    (`getMonitorsList({ dataset: "weather" })`, i.e. `monitors/?dataset=weather`); CIMIS
+    stays out of the default monitor list. Nearest-station matching is computed in the
+    browser from that list.
 - **What a point shows for air quality** (decided 2026-09-28): the **smallest containing
   region with summaries for the pollutant**, tried in the order ZIP → city → county via the
   coordinate lookup. Region averages use the server's monitor weighting, so they're
@@ -1167,7 +1187,8 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     account.
   - **Server lookups always send a rounded point** (3 decimals, about 100 m; enough for
     ZIP, zone, and region), in a **POST body** rather than URL parameters, so router logs
-    never see coordinates. **The server scrubs `lat`/`lon`** from Sentry, Scout, and
+    never see coordinates. The SDK rounds, and the server rounds again; the server refuses
+    coordinates in a query string (a 400, though the router log still sees that request). **The server scrubs `lat`/`lon`** from Sentry, Scout, and
     application logs.
   - **Sharing, copies made from a share, and exporting default to the resolved region**
     (the owner's own copies, e.g. the starter copy or "Save as copy", keep the exact point) (e.g. "ZIP 93721"),
@@ -2219,7 +2240,8 @@ endpoint yet (since 2026-11-03 only `calenviroscreen`, `emissions`, `tempo`, and
   `kind: "pollutant"`, and the available-pollutants list filters which pollutants
   appear.
 - **Weather (CIMIS) is its own dataset**, even though the server stores it as monitor
-  entries: to users it's a different thing, and it isn't a pollutant.
+  entries: to users it's a different thing, and it isn't a pollutant. Its stations are
+  listed via the catalog's `places_url` (`getMonitorsList({ dataset: "weather" })`).
 - **Where "no code changes" ends:** new entry types, levels, labels, or colors inside a
   known dataset need **metadata only** (e.g. enabling NO2). A **new domain** (e.g. TEMPO)
   needs a client **dataset adapter** (fetch and shape), plus a map plugin if it's shown on

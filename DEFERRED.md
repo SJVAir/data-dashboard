@@ -838,6 +838,27 @@ string`) now get the union return type. The mobile app passes a string token, so
   when** widgets show daily data live (Release 1 step 4): backfill the backfill's own last
   period from the next level down, and skip the backfill once the coarse value has arrived.
 
+- **Summary period starts in standard time are stamped an hour early on production.**
+  _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
+  `docs/superpowers/reports/2026-11-03-summary-rollups.md`)._ Not fixed by the Pacific
+  schedule change; it needs its own investigation. **Revisit with** the summaries follow-up
+  investigation, and before step 4 widgets show monthly data.
+- **Region summaries are mostly missing on production.** _Deferred 2026-11-04 (summary cache
+  and place lookup; finding 3 of the same report)._ Production has almost no hourly or daily
+  region rows, so the region catch-up after the deploy has little to roll up. **Revisit with**
+  the same investigation, and before region-summary widgets ship.
+- **Misaligned seasonal rows already in production.** _Deferred 2026-11-04 (summary cache and
+  place lookup)._ The old UTC schedule wrote seasonal windows starting in May (for example
+  `2026-05-01`); the Pacific fix only affects new runs and doesn't repair them. **Revisit
+  with** the same investigation.
+- **Hidden monitors' summaries are readable by anyone with the id.** _Deferred 2026-11-04
+  (summary cache and place lookup; predates this work)._ **Revisit when** "hidden" gets a
+  defined read policy.
+- **`regions/places/lookup/` answers are cached 24 hours.** _Deferred 2026-11-04 (summary
+  cache and place lookup)._ After a boundary re-import, cached answers stay stale until they
+  expire (like spec 1's place endpoints). **Revisit if** an import flow needs fresh answers:
+  invalidate the keys from the import commands.
+
 ## Map plugins
 
 - **Map plugins for the remaining server datasets.** _Deferred 2026-09-24 (docs review);
