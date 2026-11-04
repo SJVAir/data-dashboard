@@ -376,6 +376,35 @@ string`) now get the union return type. The mobile app passes a string token, so
   review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
   `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
 
+- **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
+  _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
+  done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
+  lands on `develop` for Release 1). A production deploy, so it needs the user's explicit yes.
+  Checklist for that day:
+  - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
+    credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
+    `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
+    `forecast_zone_for:` cache keys after (see "Production deploy step for the place
+    endpoints" below).
+  - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
+    01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
+    `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
+    once after.
+  - **Summary catch-up, promptly after:** settled periods are cached 24 hours, so an empty
+    answer fetched before the catch-up sticks. Until the deploy, production keeps the old UTC
+    schedule, which rolls up each month, quarter and season one period late, so recompute the
+    missing list from the deploy date: as of 2026-11-04 it was October 2026 monthly, Q3 2026
+    quarterly, and maybe the Jun–Aug 2026 season; every later period the old schedule misses
+    adds to it. Use the rollup tasks with a scope, one monitor and one region first, then the
+    wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
+    "Deploy notes"; never unscoped bulk commands).
+  - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 4.8.0
+    final can be cut (with the user's yes) once #293 is in production.
+
+  **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
+  sooner. Related: the summaries follow-up (standard-time period starts, missing region
+  summaries, misaligned seasons, under "Analysis & data") should land before or with it.
+
 - **Credentialed CORS from any origin in front of private documents.** _Deferred 2026-10-28
   (Sync spec 1)._ sjvair.com already sets `CORS_ORIGIN_ALLOW_ALL` with
   `CORS_ALLOW_CREDENTIALS`, so private documents now sit behind credentialed CORS from any

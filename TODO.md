@@ -267,7 +267,9 @@ sign-in side, merged the same day as data-dashboard
 
 **Needed from you:**
 
-- sjvair.com `develop` reaching `main` (a production deploy, so your call). It carries #292
+- sjvair.com `develop` reaching `main` (a production deploy, so your call). **Held until the
+  data dashboard is done** (the user, 2026-11-04); the day-of checklist (deploy window, summary
+  catch-up) is in `DEFERRED.md` → "Production deploy of sjvair.com `develop` → `main`". It carries #292
   (unblocks the resticus CSRF merge), #293 (metadata enablers, needed before @sjvair/sdk
   4.8.0), #295 (hosting; the route stays behind `beta_tools`), #296 (5b's sign-in side), and
   #297 (sync spec 1's documents API; its cookie-authenticated writes need resticus #25 in
