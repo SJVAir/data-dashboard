@@ -6,6 +6,8 @@
 	"dashboard_untitled_numbered": "Untitled dashboard {number}",
 	"dashboard_my": "My dashboard",
 	"dashboard_my_numbered": "My dashboard {number}",
+	"dashboard_copy_of": "Copy of {name}",
+	"dashboard_copy_of_numbered": "Copy of {name} {number}",
 	"dashboard_starter": "Starter dashboard",
 	"doc_readonly_newer": "This dashboard was saved by a newer version. Reload to edit.",
 	"doc_readonly_invalid": "This dashboard couldn't be read, so it's open read-only.",

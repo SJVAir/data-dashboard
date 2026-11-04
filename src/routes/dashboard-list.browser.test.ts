@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
+import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
 import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { m } from "$lib/paraglide/messages.js";
@@ -139,6 +140,26 @@ test("conflict dialog choices call resolveConflict", async () => {
 		"use-other",
 		"save-copy"
 	]);
+});
+
+test("saving mine as a copy opens the copy with the rename dialog", async () => {
+	const app = await setup();
+	const copyId = await app.index.createBlank();
+	const resolveConflict = vi.fn<(choice: string) => Promise<string | null>>(async () => copyId);
+	app.current = {
+		session: { conflict: { pairs: [] }, resolveConflict } as unknown as DocumentSession,
+		isStarter: false
+	};
+	await render(RenameDialog);
+	await render(ConflictDialog, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await page.getByRole("button", { name: "Save mine as a copy" }).click();
+	await expect.element(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
+	// Leave no dialog open for the tests after this one.
+	app.current = { session: null, isStarter: false };
+	await userEvent.keyboard("{Escape}");
+	await expect
+		.element(page.getByRole("dialog", { name: "Rename dashboard" }))
+		.not.toBeInTheDocument();
 });
 
 test("conflict dialog can't be dismissed without a choice", async () => {

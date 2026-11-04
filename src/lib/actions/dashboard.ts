@@ -126,6 +126,11 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	if (!target.isStarter) await target.session.flush();
 	const copyId = await app.index.duplicate(target.isStarter ? STARTER_ID : target.session.doc.id);
 	await openDashboard(copyId);
+	await nameOpenedCopy(app, copyId);
+}
+
+/** Asks what to call a copy that was just opened (Duplicate and "Save mine as a copy"). */
+export async function nameOpenedCopy(app: AppContext, copyId: string): Promise<void> {
 	const copy = await app.sessions.get(copyId);
 	if (copy) renameDashboard(app, () => copy);
 }

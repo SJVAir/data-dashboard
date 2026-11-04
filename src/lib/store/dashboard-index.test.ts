@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Dashboard } from "$lib/documents/schema";
+import { normalizeName, type Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
@@ -247,6 +247,22 @@ describe("DashboardIndex", () => {
 		const index = new DashboardIndex({ platform, space: SPACE });
 		await index.refresh();
 		expect(index.names.get("d")).toBe("New name");
+	});
+
+	it("lists a journal-only name the way it will be saved", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, { ...blankDashboard(clock()()), id: "d", name: "Old name" }, "d");
+		platform.journal.write(SPACE, "d", "t1", {
+			baseVersion: 1,
+			changes: [
+				{ op: "setField", target: { path: "name" }, from: "Old name", to: "  Field   trip  " }
+			],
+			schemaVersion: 1,
+			writtenAt: "2026-10-20T12:00:00.000Z"
+		});
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		expect(index.names.get("d")).toBe(normalizeName("  Field   trip  "));
 	});
 
 	it("remove leaves a dashboard that is no longer deleted", async () => {
