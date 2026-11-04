@@ -971,8 +971,13 @@ search) is merged** (2026-11-04, with the user's yes): sjvair.com #302 into `dev
 #39 into `release/4.8.0`, not yet in production; published as **@sjvair/sdk 4.8.0-beta.6**
 (2026-11-04, with the user's yes). It needs a server with #302 (`getRegionsMeta` requires
 `location_types`), which local `develop` now has. sdk-js `CLAUDE.md` now says the SDK keeps no
-fallbacks for older server responses (the user, 2026-11-04), and #39 removed the 4.8.0-beta ones. Later specs: the
-remaining wrappers and cleanup. **Pesticide
+fallbacks for older server responses (the user, 2026-11-04), and #39 removed the 4.8.0-beta ones. **Spec 4 (SDK quick
+batch) is in review:** sjvair.com [#303](https://github.com/SJVAir/sjvair.com/pull/303) into
+`develop` and sdk-js [#40](https://github.com/SJVAir/sdk-js/pull/40) into `release/4.8.0`,
+both open; #40 needs #303 merged (its live `regions/meta` test needs `buffers`). Spec and plan
+at sjvair.com `docs/superpowers/specs/2026-11-04-sdk-quick-batch-design.md` and
+`docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (branch `docs/sdk-quick-batch-spec`).
+Later specs: the cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
 research in `docs/reference/pesticides-explorer-research.md`).
 
@@ -1022,12 +1027,14 @@ research in `docs/reference/pesticides-explorer-research.md`).
   rules; the name mode is unchanged; `lookupRegionPlace` in sdk-js updated.
 - **First sdk-js change:** done; released 2026-10-21 as @sjvair/sdk 4.7.0. See `ARCHITECTURE.md` → "SDK request options".
 - ✅ (spec 1, merged; in 4.8.0-beta.4) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
-  `place/`), `getHMSMeta`, and `regions/geojson/`. Left: the `calenviroscreen/` wrapper, the
-  `buffer` parameter (the region list no longer returns geometry), and the rest of the
-  `api-urls.md` fixes (partly done). Also from the `map-sdk` demo (2026-11-03): `getHMSSmoke`/`getHMSFire` take a
-  `date` or `start`/`end` range (the server already filters `date`, `date__gte`, `date__lte`)
-  plus request options, and `getRegionsGeoJSON` batches `external_id` lists over the server's
-  100-code cap and merges the FeatureCollections (like `fetchAllBulkPages`).
+  `place/`), `getHMSMeta`, and `regions/geojson/`. The rest is **spec 4 (SDK quick batch), in
+  review** (sjvair.com #303, sdk-js #40; neither merged): `getHMSSmoke`/`getHMSFire` by `date`
+  or `start`/`end` range (with a server fix: ranges were ignored without `date`), plus
+  `region_id` and `density`; `getRegionsGeoJSON`, `getRegionsByCode` and `getLocationsByCode`
+  batch lists over 100 codes; a `calenviroscreen/` module (region list with `within_mode`, and
+  tract detail); `getRegionDetails` `buffer` with the choices in `regions/meta/` `buffers`; and
+  the `api-urls.md` fixes. Breaking for 4.7.0 callers: `getHMSSmoke`, `getHMSFire` and
+  `getRegionDetails` take a query before `options` (the user, 2026-11-04).
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions

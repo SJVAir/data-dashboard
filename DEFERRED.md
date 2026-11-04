@@ -398,6 +398,12 @@ string`) now get the union return type. The mobile app passes a string token, so
     adds to it. Use the rollup tasks with a scope, one monitor and one region first, then the
     wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
     "Deploy notes"; never unscoped bulk commands).
+  - **Client updates for the SDK call changes (sdk-js #40):** monitor-map (pins `^4.7.0`, which
+    accepts 4.8.0) calls `getHMSSmoke({ signal })`/`getHMSFire({ signal })`; they become
+    `getHMSSmoke(undefined, { signal })`/`getHMSFire(undefined, { signal })` when it moves to
+    the new SDK, before that SDK is used there. TypeScript flags the old call; plain JS would
+    silently drop the signal. `getRegionDetails(id, options)` also became
+    `getRegionDetails(id, query, options)` (no external callers found).
   - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 4.8.0
     final can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04).
 
@@ -683,6 +689,13 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Map & selection
 
+- **Region GeoJSON lookups beyond about 10 requests.** _Deferred 2026-11-04 (step 3 spec 4,
+  the user)._ `getRegionsGeoJSON` (and the by-code lookups) send one request per 100 codes,
+  concurrently; all 2020 tracts (~980) is about 10. A whole area doesn't need codes at all
+  (`within` is one request). **Revisit when** a map regularly needs more than about 10
+  requests, or the server slows under them: a POST lookup with codes in the body, or a higher
+  cap for simplified shapes.
+
 - **Saving land-use regions by code.** _Deferred 2026-10-22 (sjvair.com metadata plan,
   decided by the user)._ Land-use codes include the state dataset's `OBJECTID`, which a
   refresh can renumber, so they are excluded from code lookup and the permanence promise;
@@ -738,6 +751,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   any of them becomes selection-driven (e.g. a date-picked HMS layer).
 
 ## Analysis & data
+
+- **`calenviroscreen/meta/`.** _Deferred 2026-11-04 (step 3 spec 4, the coordinator and the
+  user)._ The sdk-js CalEnviroScreen wrapper takes the version (`4.0`/`5.0`) as a required
+  argument and returns raw indicator fields, because no metadata describes them: the catalog's
+  `calenviroscreen` entry has an empty `meta_url` on purpose. Clients need the indicator
+  labels, units and the versions on offer from the server rather than hardcoding CES field
+  names or picking a version. Needs sjvair.com work (the endpoint) and an sdk-js wrapper.
+  **Revisit before** Release 3 starter analysis #7 or any CES display.
 
 - **Collections and "Mark for analysis" in Release 1.** _Deferred 2026-10-25 (Foundations
   spec 4 planning, decided by the user)._ The 2026-09-24 plan shipped a minimal Collections
