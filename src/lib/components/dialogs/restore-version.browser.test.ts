@@ -146,6 +146,8 @@ test("Escape and Cancel don't close the dialog while a restore runs", async () =
 	await expect.element(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
 	await userEvent.keyboard("{Escape}");
 	await expect.element(dialog).toBeInTheDocument();
+	await dialog.getByRole("button", { name: "Close" }).click({ force: true });
+	await expect.element(dialog).toBeInTheDocument();
 	finish("restored");
 	await expect.element(dialog).not.toBeInTheDocument();
 });

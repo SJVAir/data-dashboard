@@ -138,6 +138,12 @@ export class SyncWorker {
 		return fetchMissing(this.#ctx, docId);
 	}
 
+	/** Whether `docId` is in the account: false when never uploaded, or its first upload is unanswered. */
+	async isInAccount(docId: string): Promise<boolean> {
+		const record = await this.#ctx.platform.sync.get(this.#ctx.space, docId);
+		return record !== null && record !== undefined && record.serverVersion !== null;
+	}
+
 	/** The server's snapshots of `docId`, newest first; throws as the remote does. */
 	versions(docId: string): Promise<RemoteSnapshotMeta[]> {
 		return serverVersions(this.#ctx, docId);

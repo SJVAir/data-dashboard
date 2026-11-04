@@ -32,7 +32,7 @@ export async function listEarlierVersions(
 	const rawVersion = (original?.raw as { version?: unknown } | null | undefined)?.version;
 	let alsoInAccount = false;
 	let account: AccountStatus = "none";
-	if (app.sync) {
+	if (app.sync && (await app.sync.isInAccount(id))) {
 		account = "ok";
 		try {
 			for (const s of await app.sync.versions(id)) {

@@ -128,6 +128,7 @@ describe("listEarlierVersions", () => {
 		const { app, session } = await account();
 		for (const code of ["gone", "not_found"] as const) {
 			const sync = {
+				isInAccount: async () => true,
 				versions: async () => {
 					throw new RemoteRefusal(code, 404);
 				}
@@ -138,12 +139,35 @@ describe("listEarlierVersions", () => {
 		const down = {
 			...app,
 			sync: {
+				isInAccount: async () => true,
 				versions: async () => {
 					throw new RemoteUnavailable();
 				}
 			}
 		} as unknown as AppContext;
 		expect((await listEarlierVersions(down, session)).account).toBe("offline");
+		session.dispose();
+	});
+
+	it("never uploaded, or a first upload in flight, is none and asks no server", async () => {
+		const { app, session, platform } = await account();
+		const record = (await platform.sync.get(SPACE, "d1"))!;
+		const versions = vi.fn();
+		const run = async () => {
+			const real = app.sync as unknown as { isInAccount(id: string): Promise<boolean> };
+			const sync = { isInAccount: (id: string) => real.isInAccount(id), versions };
+			return (await listEarlierVersions({ ...app, sync } as unknown as AppContext, session))
+				.account;
+		};
+		await platform.sync.put(SPACE, { ...record, serverVersion: null, inFlight: null });
+		expect(await run()).toBe("none");
+		await platform.sync.put(SPACE, {
+			...record,
+			serverVersion: null,
+			inFlight: { baseVersion: null, throughVersion: 1, changes: "[]" }
+		});
+		expect(await run()).toBe("none");
+		expect(versions).not.toHaveBeenCalled();
 		session.dispose();
 	});
 
@@ -163,6 +187,7 @@ describe("listEarlierVersions", () => {
 			createdAt: "2026-10-01T00:00:01.000Z"
 		});
 		const sync = {
+			isInAccount: async () => true,
 			versions: async () => [
 				meta(1, "schema", 7, OLD),
 				meta(2, "schema", 8, OLD),
