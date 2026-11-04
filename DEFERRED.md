@@ -410,7 +410,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     `getHMSSmoke(undefined, { signal })`/`getHMSFire(undefined, { signal })` when it moves to
     SDK 5.0, which it and mobile (`^4.6.0`) must do before `develop` goes live. TypeScript flags the old call; plain JS would
     silently drop the signal. `getRegionDetails(id, options)` also became
-    `getRegionDetails(id, query, options)` (no external callers found).
+    `getRegionDetails(id, query, options)` (no external callers found). SDK 5.0 also makes entry bounds exact by default (sdk-js-8c's spec, 2026-11-04, likely `5.0.0-beta.2`): monitor-map's `getMonitorEntries`/`getMonitorEntriesCSVUrl` calls need no code change (only a today–today request in the first 5 minutes after Pacific midnight gets a near-empty window; it could pass `wholeDays: true` for that), and mobile has no calls, so both just need the 5.0 bump.
   - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 5.0.0
     final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04).
 
