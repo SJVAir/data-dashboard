@@ -1387,8 +1387,10 @@ needs an approved plan in its repo:
 
 **Dependencies** (decided 2026-09-28): the dashboard's critical path is only 1 → 3.
 monitor-map's rebuild (2) runs **in parallel, started alongside 3**. Both build against
-pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. mobile (4) is a **separate later track** that
-blocks neither Release 1 nor go-live; it keeps working on monitor-map 4.x until then.
+pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. **Changed 2026-11-04 (the
+user):** mobile (4) is no longer a separate later track. map-sdk on the latest sdk-js, monitor-map
+5.0 and mobile on it must all be done before sjvair.com `develop` is released, and the mobile
+release ships the same day (see `DEFERRED.md` → the deploy entry).
 
 **Milestone 1 spec (approved by the user 2026-11-03)** is in the map-sdk repo,
 `docs/superpowers/specs/2026-11-03-map-sdk-design.md`; milestone 1 is built and merged

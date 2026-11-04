@@ -193,8 +193,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      widget and the monitor-map rebuild both build against pre-1.0 `map-sdk`, and 1.0 is
      cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
      with approval.
-   - **Separate later track, not blocking Release 1 or go-live:** the mobile migration
-     (see `DEFERRED.md`).
+   - **On the go-live path (changed 2026-11-04, the user):** the monitor-map 5.0 rebuild and the
+     mobile migration onto it must be done before sjvair.com `develop` is released, and the
+     mobile release ships the same day (see `DEFERRED.md`).
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
@@ -262,7 +263,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    widget joins once step 5 lands. **The `sjvair.com/workspace/` route goes live when Release 1 is
    complete.** Until then the route stays disabled or hidden (except for the private
    preview), so work in progress on `main` isn't public. Merges still need explicit
-   approval. Before go-live: a low-end device performance check.
+   approval. Before go-live: a low-end device performance check, and monitor-map 5.0 plus the
+   mobile release on it ready to ship the same day as sjvair.com `develop` (the user, 2026-11-04).
 
 ## Release 2: Alerts
 

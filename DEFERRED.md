@@ -388,6 +388,10 @@ string`) now get the union return type. The mobile app passes a string token, so
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
   lands on `develop` for Release 1). A production deploy, so it needs the user's explicit yes.
   Checklist for that day:
+  - **Released together** (the user, 2026-11-04: the updated mobile app and sjvair.com `develop` are released the same day, with map-sdk on the latest sdk-js, monitor-map rebuilt on map-sdk, and mobile on that monitor-map, all done before `develop` is released; mobile auto-updates, most likely overnight, the day a release is published): map-sdk on the latest @sjvair/sdk 5.0 beta, monitor-map 5.0
+    rebuilt on map-sdk, and a mobile release on monitor-map 5.0 must all be ready first. SDK 5.0
+    has no fallbacks for older servers, so the new mobile build needs the deployed server; the
+    order on the day (deploy, then publish the mobile release) is for the user to confirm.
   - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
     credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
@@ -1004,7 +1008,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   stores beyond monitors (HMS, collocation), and whatever else the 5.0 rebuild needs. EV
   stations need the NREL key moved into injected config, and their hardcoded ZIP list and
   labels need a proper home. The live map and mobile keep shipping from monitor-map 4.x
-  meanwhile. **Revisit when** the monitor-map 5.0 rebuild starts; it gets its own map-sdk spec.
+  meanwhile. The rebuild is now on the go-live path (the mobile entry under "Mobile app", the
+  user, 2026-11-04). **Revisit when** the monitor-map 5.0 rebuild starts; it gets its own map-sdk spec.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1180,11 +1185,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   monitor-map rebuild on map-sdk ships: mark `levels` deprecated, then remove it once older
   app versions have aged out.
 - **Mobile migration to `map-sdk` and the rebuilt monitor-map (5.0).** _Deferred
-  2026-09-28; updated 2026-10-13._ It doesn't block Release 1 or go-live. The mobile app
+  2026-09-28; updated 2026-10-13; **now on the go-live path** (the user, 2026-11-04: the updated mobile app and sjvair.com `develop` are released the same day, with map-sdk on the latest sdk-js, monitor-map rebuilt on map-sdk, and mobile on that monitor-map, all done before `develop` is released; mobile auto-updates, most likely overnight, the day a release is published)._ It no longer waits: it
+  must be done before sjvair.com `develop` is deployed (see the deploy entry). The mobile app
   is on monitor-map `^4.2.0` and keeps working on 4.x. It depends on
   `@sjvair/monitor-map/core` (`monitorsManager` as an app-wide store,
   `provideMonitorMapRouter`) and `/routes` (`monitorMapRoutes`), which the rebuild must
-  keep. **Revisit when** the mobile team wants the new stores or features. Bundle the
+  keep. **Revisit when** the monitor-map 5.0 rebuild is far enough along to migrate onto. Bundle the
   other mobile follow-ups into the same effort where timing allows: the new alert-rule
   endpoints, and the hardcoded PM2.5 scale unless it has already shipped with the
   breakpoint fix. Needs a mobile plan and an app release (explicit approval; publishing
