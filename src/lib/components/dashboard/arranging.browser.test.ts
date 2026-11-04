@@ -15,6 +15,7 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
 import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
+import { animationsSettled } from "../../../test/animations";
 
 const originalUrl = location.href;
 let removeUndo: (() => void) | null = null;
@@ -1301,11 +1302,7 @@ test("the ⋯ menu stays put while the widget moves, so the next click lands on 
 	await openSubmenu("Readings", "Move", "menu");
 	// Measured once the menus' opening animations have finished.
 	const settled = () =>
-		Promise.all(
-			[...document.querySelectorAll("[role=menu]")].flatMap((menu) =>
-				menu.getAnimations({ subtree: true }).map((a) => a.finished)
-			)
-		);
+		Promise.all([...document.querySelectorAll("[role=menu]")].map(animationsSettled));
 	await settled();
 	const before = menuItem("Right").element().getBoundingClientRect();
 	await menuItem("Right").click();
@@ -1434,14 +1431,7 @@ test("the ⋯ menu follows its button when the window is resized", async () => {
 			below: Math.round(menu.top - button.bottom)
 		};
 	};
-	const animations = () =>
-		Promise.all(
-			page
-				.getByRole("menu")
-				.element()
-				.getAnimations({ subtree: true })
-				.map((a) => a.finished)
-		);
+	const animations = () => animationsSettled(page.getByRole("menu").element());
 	await animations();
 	const before = gap();
 	await page.viewport(1000, 800);

@@ -8,6 +8,7 @@ import { ANNOUNCE_GAP_MS } from "$lib/a11y/announcer.svelte";
 import type { EarlierVersion, EarlierVersions } from "$lib/safety/restore-version";
 import RestoreVersionDialog, { openRestoreVersion } from "./RestoreVersionDialog.svelte";
 import AnnounceHarness from "./test-harness/AnnounceHarness.svelte";
+import { animationsSettled } from "../../../test/animations";
 
 declare module "vitest/browser" {
 	interface BrowserCommands {
@@ -218,7 +219,7 @@ test("the open dialog has no axe violations", async () => {
 	const dialog = page.getByRole("dialog");
 	await expect.element(dialog.getByRole("radio").first()).toBeVisible();
 	const el = dialog.element();
-	await Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished));
+	await animationsSettled(el);
 	const results = await axe.run(el);
 	expect(results.violations).toEqual([]);
 });

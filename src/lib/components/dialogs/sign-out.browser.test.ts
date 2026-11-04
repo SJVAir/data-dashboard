@@ -14,6 +14,7 @@ import type { RemoteDocuments } from "$lib/sync/remote";
 import { createFakeRemote, type FakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, makeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
+import { animationsSettled } from "../../../test/animations";
 
 const workers: SyncWorker[] = [];
 afterEach(() => {
@@ -70,7 +71,7 @@ async function chooseSignOut() {
 async function expectNoAxeViolations() {
 	// After the open animation: mid-fade, the text's contrast is measured too low.
 	const dialog = page.getByRole("dialog").element();
-	await Promise.all(dialog.getAnimations({ subtree: true }).map((a) => a.finished));
+	await animationsSettled(dialog);
 	const results = await axe.run(dialog);
 	expect(results.violations).toEqual([]);
 }
