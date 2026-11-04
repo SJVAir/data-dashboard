@@ -27,6 +27,11 @@ const FINER: Record<Resolution, Resolution[]> = {
 	year: ["month", "day", "hour"]
 };
 
+/** The next finer offered level below `level`, or `null` (one level down only). */
+export function finerLevel(level: Resolution, offered: Resolution[]): Resolution | null {
+	return FINER[level].find((r) => offered.includes(r)) ?? null;
+}
+
 /**
  * Splits a range into fetchable segments. Server rollups for a period exist only after it
  * ends, so completed periods come from one segment of the requested resolution and the open

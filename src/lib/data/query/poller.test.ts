@@ -51,6 +51,7 @@ function setup() {
 			if (mode.fail) throw new Error("server down");
 			const data: QueryData = {
 				series: [],
+				places: [],
 				resolution: req.resolution,
 				fromRaw: false,
 				processor: null,

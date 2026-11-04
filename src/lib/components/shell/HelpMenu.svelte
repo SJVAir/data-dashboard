@@ -5,7 +5,7 @@
 	import Sun from "@lucide/svelte/icons/sun";
 	import { onDestroy } from "svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
-	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
+	import { openPrivacy } from "$lib/components/dialogs/lazy.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import { m } from "$lib/paraglide/messages.js";

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { toast } from "svelte-sonner";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
-	import { askExistingCopy } from "$lib/components/dialogs/ExistingCopyDialog.svelte";
+	import { askExistingCopy } from "$lib/components/dialogs/lazy.svelte";
 	import MadeByBar from "$lib/components/shared/MadeByBar.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";

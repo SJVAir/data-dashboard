@@ -14,7 +14,8 @@ import { ACCOUNT, SPACE, edit, storeDoc, title, user } from "$lib/sync/test-supp
 import { uploadDocument } from "$lib/sync/upload";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import ConfirmDialog from "./ConfirmDialog.svelte";
-import ShareDialog, { openShare } from "./ShareDialog.svelte";
+import ShareDialog from "./ShareDialog.svelte";
+import { openShare } from "./lazy.svelte";
 import { animationsSettled } from "../../../test/animations";
 
 const URL_TEXT = "http://localhost/workspace/import#1.abcdef";

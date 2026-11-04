@@ -11,9 +11,9 @@ function rank(resolution: Resolution): number {
 }
 
 function ladder(spanDays: number): Resolution {
-	if (spanDays <= 2) return "raw";
-	if (spanDays <= 60) return "hour";
-	if (spanDays <= 730) return "day";
+	if (spanDays <= 3) return "raw";
+	if (spanDays <= 7) return "hour";
+	if (spanDays <= 365) return "day";
 	return "month";
 }
 

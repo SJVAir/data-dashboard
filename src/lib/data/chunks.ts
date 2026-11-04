@@ -1,23 +1,52 @@
 import { TZDate } from "@date-fns/tz";
 import { TIME_ZONE } from "$lib/format";
 import type { Segment } from "./periods";
-import type { Resolution } from "./schema";
 
 /**
- * Largest span per request, in days. Source: the server's bulk summaries form
- * (../sjvair.com/camp/api/v2/summaries/forms.py) caps hourly at 31 days and daily at 366;
- * it sets no cap for monthly and coarser, so those are generous stand-ins. Raw uses the
- * hourly figure.
+ * Largest raw-entry span per request, in days. Source: the server's bulk summaries form
+ * (../sjvair.com/camp/api/v2/summaries/forms.py) caps hourly at 31 days. Summaries are
+ * requested by whole calendar unit instead (see `calendarUnits`).
  */
-export const CHUNK_DAYS: Record<Resolution, number> = {
-	raw: 31,
-	hour: 31,
-	day: 366,
-	month: 1830,
-	quarter: 1830,
-	season: 1830,
-	year: 3660
-};
+export const CHUNK_DAYS = { raw: 31 } as const;
+
+/** One request's worth of a segment: the whole calendar unit and the part inside the segment. */
+export type Unit = { fetchStart: Date; fetchEnd: Date; start: Date; end: Date };
+
+/**
+ * Whole Pacific calendar units overlapping `seg`: `fetch*` is the whole unit, `start`/`end` the
+ * part inside `seg`. A unit is a month for raw/hour/day, a year for month/quarter/season, and
+ * one unit spanning everything for year. Whole past units give URLs that never change, so the
+ * server can cache them for a day.
+ */
+export function calendarUnits(seg: Segment): Unit[] {
+	if (seg.resolution === "year") {
+		return [{ fetchStart: seg.start, fetchEnd: seg.end, start: seg.start, end: seg.end }];
+	}
+	const byYear =
+		seg.resolution === "month" || seg.resolution === "quarter" || seg.resolution === "season";
+	const first = new TZDate(seg.start.getTime(), TIME_ZONE);
+	const units: Unit[] = [];
+	let y = first.getFullYear();
+	let m = byYear ? 0 : first.getMonth();
+	for (;;) {
+		const fetchStart = new Date(new TZDate(y, m, 1, 0, 0, 0, 0, TIME_ZONE).getTime());
+		if (fetchStart >= seg.end) break;
+		const fetchEnd = new Date(
+			new TZDate(byYear ? y + 1 : y, byYear ? 0 : m + 1, 1, 0, 0, 0, 0, TIME_ZONE).getTime()
+		);
+		units.push({
+			fetchStart,
+			fetchEnd,
+			start: new Date(Math.max(fetchStart.getTime(), seg.start.getTime())),
+			end: new Date(Math.min(fetchEnd.getTime(), seg.end.getTime()))
+		});
+		if (byYear || m === 11) {
+			y++;
+			m = 0;
+		} else m++;
+	}
+	return units;
+}
 
 /** Splits a segment into consecutive pieces of at most `maxDays` Pacific calendar days. */
 export function splitChunks(seg: Segment, maxDays: number): Segment[] {

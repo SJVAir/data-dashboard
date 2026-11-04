@@ -28,7 +28,8 @@ import {
 	getMonitorSummariesDaily,
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
-	getRegionSummariesBulkDaily
+	getRegionSummariesBulkDaily,
+	getRegionSummariesBulkHourly
 } from "@sjvair/sdk";
 import { getValidDateRange } from "@sjvair/sdk/datetime";
 import { resolveRange } from "$lib/format/range";
@@ -43,8 +44,18 @@ const ALL: Resolution[] = ["raw", "hour", "day", "month", "quarter", "season", "
 
 /** A stand-in resolver for two California counties. */
 const regions: RegionResolver = {
-	resolve: async (type, code) =>
-		type === "county" ? ({ "06019": "sq1", "06039": "sq2" } as Record<string, string>)[code] : null
+	resolve: async (type, code) => {
+		if (type !== "county") return null;
+		if (code === "06019") return { id: "sq1", name: "Fresno County" };
+		if (code === "06039") {
+			return {
+				id: "sq2",
+				name: "Madera County",
+				retired: { since: "2026-01-01", replacedBy: { type: "county", code: "06019" } }
+			};
+		}
+		return null;
+	}
 };
 
 const ctx: AdapterContext = { metadata: fixtureMetadata(), regions };
@@ -58,6 +69,7 @@ function request(
 		downsampleFromRaw?: boolean;
 		offered?: Resolution[];
 		now?: Date;
+		worstHour?: boolean;
 	} = {}
 ): AdapterRequest {
 	const now = opts.now ?? NOW;
@@ -68,6 +80,7 @@ function request(
 		downsampleFromRaw: opts.downsampleFromRaw ?? false,
 		range: resolveRange(spec, now),
 		offered: opts.offered ?? ALL,
+		worstHour: opts.worstHour ?? false,
 		now
 	};
 }
@@ -98,7 +111,109 @@ describe("airQualityAdapter.offered", () => {
 	});
 });
 
+describe("airQualityAdapter.fetch calendar-aligned requests", () => {
+	const LAST_30: DateRangeSpec = { kind: "trailing", amount: 30, unit: "day" };
+	const COUNTY = { kind: "regions", keys: ["county:06019"] } as Target;
+	const bulkCalls = () =>
+		vi.mocked(getRegionSummariesBulkDaily).mock.calls.map(([config]) => config);
+
+	it("asks for the same whole-October URL on consecutive days", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		const runAt = async (iso: string) => {
+			vi.mocked(getRegionSummariesBulkDaily).mockClear();
+			const now = new Date(iso);
+			await airQualityAdapter.fetch(
+				request(COUNTY, "day", LAST_30, { now, offered: ["day"] }),
+				ctx,
+				signal
+			);
+			return bulkCalls();
+		};
+		const first = await runAt("2026-11-04T20:00:00Z");
+		const second = await runAt("2026-11-05T20:00:00Z");
+		const october = { entryType: "pm25", start: "2026-10-01", end: "2026-10-31", region: ["sq1"] };
+		expect(first[0]).toEqual(october);
+		expect(second[0]).toEqual(october);
+	});
+
+	it("asks for November whole and December on 1 December", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { now: new Date("2026-12-01T17:00:00Z"), offered: ["day"] }),
+			ctx,
+			signal
+		);
+		expect(bulkCalls().map((c) => [c.start, c.end])).toEqual([
+			["2026-11-01", "2026-11-30"],
+			["2026-12-01", "2026-12-31"]
+		]);
+	});
+
+	it("a single monitor's daily query goes per month, never per year", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-bam"] }, "day", LAST_30, {
+				now: new Date("2026-11-04T20:00:00Z"),
+				offered: ["day"]
+			}),
+			ctx,
+			signal
+		);
+		const configs = vi.mocked(getMonitorSummariesDaily).mock.calls.map(([c]) => c);
+		expect(configs).toEqual([
+			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 10 },
+			{ monitorId: "m-bam", entryType: "pm25", year: 2026, month: 11 }
+		]);
+	});
+
+	it("drops rows outside the clipped range", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{
+				id: "sq1",
+				summaries: [
+					row("2026-10-01T00:00:00-07:00", 1),
+					row("2026-10-20T00:00:00-07:00", 2),
+					row("2026-11-20T00:00:00-08:00", 3)
+				]
+			}
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { now: new Date("2026-11-04T20:00:00Z"), offered: ["day"] }),
+			ctx,
+			signal
+		);
+		expect(data.series[0].points.map((p) => p.mean)).toEqual([2]);
+	});
+});
+
 describe("airQualityAdapter.fetch", () => {
+	it("lists each requested place with its name and a region's retirement", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		const byRegion = await airQualityAdapter.fetch(
+			request({ kind: "regions", keys: ["county:06039", "county:06019"] }, "day", SEPTEMBER),
+			ctx,
+			signal
+		);
+		expect(byRegion.places).toEqual([
+			{
+				place: "region:county:06039",
+				name: "Madera County",
+				retired: { since: "2026-01-01", replacedBy: { type: "county", code: "06019" } }
+			},
+			{ place: "region:county:06019", name: "Fresno County" }
+		]);
+		const byMonitor = await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-pa", "m-unknown"] }, "day", SEPTEMBER),
+			ctx,
+			signal
+		);
+		expect(byMonitor.places).toEqual([
+			{ place: "monitor:m-pa", name: "Purple Air" },
+			{ place: "monitor:m-unknown", name: "m-unknown" }
+		]);
+	});
+
 	it("a PurpleAir monitor's daily summaries ask for the published processor", async () => {
 		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
 		const data = await airQualityAdapter.fetch(
@@ -356,8 +471,8 @@ describe("airQualityAdapter.fetch", () => {
 			},
 			{ signal }
 		);
-		// The other call backfills the last completed hour (11:00), which the response has.
-		expect(getMonitorEntries).toHaveBeenCalledTimes(2);
+		// The response has the last completed hour (11:00), so it isn't backfilled.
+		expect(getMonitorEntries).toHaveBeenCalledTimes(1);
 		expect(data.fromRaw).toBe(false);
 		expect(data.series[0].points).toEqual([
 			{ t: Date.parse("2026-10-22T18:00:00Z"), mean: 5, min: 5, max: 5, count: 1, partial: false },
@@ -442,10 +557,9 @@ describe("airQualityAdapter.fetch", () => {
 			{ ...base, year: 2026 },
 			{ signal }
 		);
-		// October's days fill the open month; September's back it up until its rollup exists.
+		// October's days fill the open month; September's monthly row exists, so no backfill.
 		expect(vi.mocked(getMonitorSummariesDaily).mock.calls).toEqual([
-			[{ ...base, year: 2026, month: 10 }, { signal }],
-			[{ ...base, year: 2026, month: 9 }, { signal }]
+			[{ ...base, year: 2026, month: 10 }, { signal }]
 		]);
 		expect(getMonitorSummariesHourly).toHaveBeenCalledExactlyOnceWith(
 			{ ...base, year: 2026, month: 10, day: 22 },
@@ -624,10 +738,177 @@ describe("airQualityAdapter.fetch", () => {
 	});
 });
 
+describe("airQualityAdapter.fetch rollup-lag backfill", () => {
+	// 12:00 PDT on the 22nd: yesterday is the last completed day.
+	const now = new Date("2026-10-22T19:00:00Z");
+	const LAST_5: DateRangeSpec = { kind: "trailing", amount: 5, unit: "day" };
+	const DAILY = [row("2026-10-20T00:00:00-07:00", 7, 24), row("2026-10-21T00:00:00-07:00", 8, 24)];
+	const MON = { kind: "monitors", ids: ["m-bam"] } as Target;
+	const hoursOfYesterday = (call: [{ day?: number }, unknown]) => call[0].day === 21;
+
+	it("makes no hourly backfill call once the daily rollup has yesterday", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue(DAILY as never);
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
+		vi.mocked(getMonitorEntries).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(request(MON, "day", LAST_5, { now }), ctx, signal);
+		const calls = vi.mocked(getMonitorSummariesHourly).mock.calls as never as Array<
+			[{ day?: number }, unknown]
+		>;
+		expect(calls.some(hoursOfYesterday)).toBe(false);
+	});
+
+	it("backfills yesterday's 23:00 hour from raw entries and counts it", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([DAILY[0]] as never);
+		vi.mocked(getMonitorSummariesHourly).mockImplementation((async (config: { day: number }) =>
+			config.day === 21 ? [row("2026-10-21T22:00:00-07:00", 10, 10)] : []) as never);
+		vi.mocked(getMonitorEntries).mockImplementation((async (config: { timestampGte: Date }) =>
+			config.timestampGte.toISOString() === "2026-10-22T06:00:00.000Z"
+				? [
+						{ timestamp: "2026-10-21T23:10:00-07:00", value: "20" },
+						{ timestamp: "2026-10-21T23:40:00-07:00", value: "40" }
+					]
+				: []) as never);
+		const data = await airQualityAdapter.fetch(request(MON, "day", LAST_5, { now }), ctx, signal);
+		const yesterday = data.series[0].points.find((p) => p.t === Date.parse("2026-10-21T07:00:00Z"));
+		expect(yesterday).toMatchObject({ count: 12, partial: false });
+		expect(yesterday!.mean).toBeCloseTo((10 * 10 + 30 * 2) / 12);
+	});
+
+	it("skips the raw fetch when the hourly backfill already has the last hour", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([DAILY[0]] as never);
+		vi.mocked(getMonitorSummariesHourly).mockImplementation((async (config: { day: number }) =>
+			config.day === 21 ? [row("2026-10-21T23:00:00-07:00", 10, 10)] : []) as never);
+		vi.mocked(getMonitorEntries).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(request(MON, "day", LAST_5, { now }), ctx, signal);
+		const starts = vi
+			.mocked(getMonitorEntries)
+			.mock.calls.map(([c]) => (c.timestampGte as Date).toISOString());
+		expect(starts).not.toContain("2026-10-22T06:00:00.000Z");
+	});
+
+	it("builds a region's backfilled day from the hours there are", async () => {
+		const REGION = { kind: "regions", keys: ["county:06019"] } as Target;
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{ id: "sq1", summaries: [DAILY[0]] }
+		] as never);
+		const hourly = vi.mocked(getRegionSummariesBulkHourly);
+		hourly.mockResolvedValue([
+			{
+				id: "sq1",
+				summaries: [
+					row("2026-10-21T10:00:00-07:00", 10, 4),
+					row("2026-10-21T11:00:00-07:00", 20, 4)
+				]
+			}
+		] as never);
+		const offered: Resolution[] = ["hour", "day"];
+		const data = await airQualityAdapter.fetch(
+			request(REGION, "day", LAST_5, { now, offered }),
+			ctx,
+			signal
+		);
+		const yesterday = data.series[0].points.find((p) => p.t === Date.parse("2026-10-21T07:00:00Z"));
+		expect(yesterday).toMatchObject({ count: 8, mean: 15, partial: false });
+		expect(getMonitorEntries).not.toHaveBeenCalled();
+	});
+
+	it("bulk backfill uses rows only for the regions that lack the day", async () => {
+		const BOTH = { kind: "regions", keys: ["county:06019", "county:06039"] } as Target;
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{ id: "sq1", summaries: [DAILY[1]] },
+			{ id: "sq2", summaries: [] }
+		] as never);
+		vi.mocked(getRegionSummariesBulkHourly).mockResolvedValue([
+			{ id: "sq1", summaries: [row("2026-10-21T10:00:00-07:00", 99, 4)] },
+			{ id: "sq2", summaries: [row("2026-10-21T10:00:00-07:00", 5, 4)] }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(BOTH, "day", LAST_5, { now, offered: ["hour", "day"] }),
+			ctx,
+			signal
+		);
+		const yesterdayCalls = vi
+			.mocked(getRegionSummariesBulkHourly)
+			.mock.calls.filter(([c]) => c.end === "2026-10-21");
+		expect(yesterdayCalls).toHaveLength(1);
+		const day = (i: number) =>
+			data.series[i].points.find((p) => p.t === Date.parse("2026-10-21T07:00:00Z"));
+		expect(day(0)).toMatchObject({ mean: 8, count: 24 });
+		expect(day(1)).toMatchObject({ mean: 5, count: 4 });
+	});
+});
+
 describe("@sjvair/sdk date range", () => {
 	it("accepts an upper bound later than now", () => {
 		const gte = new Date(Date.now() - 60 * 60 * 1000);
 		const lte = new Date(Date.now() + 60 * 60 * 1000);
 		expect(getValidDateRange(gte, lte)).toEqual({ gte, lte });
+	});
+});
+
+describe("airQualityAdapter.fetch worstHour", () => {
+	const LAST_30: DateRangeSpec = { kind: "trailing", amount: 30, unit: "day" };
+	const COUNTY = { kind: "regions", keys: ["county:06019"] } as Target;
+	const HOUR = 3_600_000;
+
+	it("attaches each day's worst hourly average; the mean stays the daily one", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{ id: "sq1", summaries: [row("2026-10-05T00:00:00-07:00", 10, 24)] }
+		] as never);
+		vi.mocked(getRegionSummariesBulkHourly).mockResolvedValue([
+			{
+				id: "sq1",
+				summaries: [
+					row("2026-10-05T03:00:00-07:00", 8, 30),
+					row("2026-10-05T14:00:00-07:00", 31, 30),
+					row("2026-10-05T15:00:00-07:00", 12, 30)
+				]
+			}
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { worstHour: true, offered: ["hour", "day"] }),
+			ctx,
+			signal
+		);
+		const day = Date.parse("2026-10-05T07:00:00Z");
+		const point = data.series[0].points.find((p) => p.t === day)!;
+		expect(point.mean).toBe(10);
+		expect(point.worstHour).toEqual({ t: day + 14 * HOUR, value: 31 });
+		// Hourly calls are by whole month.
+		const starts = vi
+			.mocked(getRegionSummariesBulkHourly)
+			.mock.calls.map(([config]) => config.start);
+		// The open day's own fill adds single-day calls; the rest are whole months.
+		expect(starts.filter((d) => String(d).endsWith("-01")).sort()).toEqual([
+			"2026-09-01",
+			"2026-10-01"
+		]);
+	});
+
+	it("makes no hourly calls without worstHour", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		vi.mocked(getRegionSummariesBulkHourly).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(
+			request(COUNTY, "day", LAST_30, { offered: ["hour", "day"] }),
+			ctx,
+			signal
+		);
+		// Only the open day's fill asks for hours; nothing covers September.
+		const starts = vi
+			.mocked(getRegionSummariesBulkHourly)
+			.mock.calls.map(([config]) => config.start);
+		expect(starts).not.toContain("2026-09-01");
+	});
+
+	it("fails the whole query when the hourly fetch fails", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		vi.mocked(getRegionSummariesBulkHourly).mockRejectedValue(new Error("boom"));
+		await expect(
+			airQualityAdapter.fetch(
+				request(COUNTY, "day", LAST_30, { worstHour: true, offered: ["hour", "day"] }),
+				ctx,
+				signal
+			)
+		).rejects.toThrow("boom");
 	});
 });

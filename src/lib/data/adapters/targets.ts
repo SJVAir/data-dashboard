@@ -1,6 +1,6 @@
 import type { Layer } from "../schema";
 import type { Target, UnavailableReason } from "../types";
-import type { RegionResolver } from "./registry";
+import type { RegionResolver, ResolvedRegion } from "./registry";
 
 /** Splits a region key (`<type>:<code>`, the document's region reference) into its parts. */
 export function splitRegionKey(key: string): { type: string; code: string } {
@@ -13,17 +13,17 @@ export function regionPlace(key: string): string {
 	return `region:${key}`;
 }
 
-/** The server id for each region key, or `null` for one the resolver can't look up. */
+/** The resolved region for each key, or `null` for one the resolver can't look up. */
 export async function resolveRegionKeys(
 	keys: string[],
 	regions: RegionResolver,
 	signal?: AbortSignal
-): Promise<Array<string | null>> {
+): Promise<Array<ResolvedRegion | null>> {
 	return Promise.all(
 		keys.map(async (key) => {
 			const { type, code } = splitRegionKey(key);
-			const id = await regions.resolve(type, code, signal);
-			return id === "unsupported" ? null : id;
+			const found = await regions.resolve(type, code, signal);
+			return found === "unsupported" ? null : found;
 		})
 	);
 }
@@ -50,7 +50,7 @@ export async function layerTarget(
 	} else {
 		return { kind: "all" };
 	}
-	const ids = await resolveRegionKeys(keys, regions, signal);
-	if (ids.some((id) => id === null)) return { unavailable: "region-unresolved" };
+	const found = await resolveRegionKeys(keys, regions, signal);
+	if (found.some((r) => r === null)) return { unavailable: "region-unresolved" };
 	return { kind: "regions", keys };
 }

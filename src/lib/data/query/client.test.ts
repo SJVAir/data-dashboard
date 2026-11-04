@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { resolveRange } from "$lib/format/range";
 import type { AdapterRequest, DatasetAdapter, RegionResolver } from "../adapters/registry";
 import type { CatalogEntry, MetadataSource } from "../metadata";
-import type { Resolution } from "../schema";
+import type { Layer, Resolution } from "../schema";
+import { layerTarget } from "../adapters/targets";
 import { FIXTURE_CATALOG, fixtureMetadata } from "../testing/fixtures";
 import type { QueryData, QueryInput, QueryState } from "../types";
 import { createQueryClient } from "./client";
@@ -20,6 +21,7 @@ type Call = {
 function data(tag: number): QueryData {
 	return {
 		series: [{ place: `monitor:${tag}`, points: [] }],
+		places: [],
 		resolution: "hour",
 		fromRaw: false,
 		processor: null,
@@ -48,7 +50,9 @@ function fakeAdapter(id = "air-quality") {
 
 const regions: RegionResolver = { resolve: async () => "unsupported" };
 
-function setup(opts: { metadata?: MetadataSource; maxIdleEntries?: number } = {}) {
+function setup(
+	opts: { metadata?: MetadataSource; maxIdleEntries?: number; maxIdlePoints?: number } = {}
+) {
 	const { adapter, calls } = fakeAdapter();
 	const clock = { now: NOW };
 	const client = createQueryClient({
@@ -56,7 +60,8 @@ function setup(opts: { metadata?: MetadataSource; maxIdleEntries?: number } = {}
 		metadata: opts.metadata ?? fixtureMetadata(),
 		regions,
 		now: () => clock.now,
-		maxIdleEntries: opts.maxIdleEntries
+		maxIdleEntries: opts.maxIdleEntries,
+		maxIdlePoints: opts.maxIdlePoints
 	});
 	return { client, calls, clock };
 }
@@ -334,7 +339,15 @@ describe("createQueryClient", () => {
 			id: "smoke",
 			label: "Smoke",
 			entryTypes: [
-				{ id: "density", label: "Density", units: "", kind: "other", resolutions: ["day"] }
+				{
+					id: "density",
+					label: "Density",
+					units: "",
+					kind: "other",
+					resolutions: ["day"],
+					precision: null,
+					yMin: null
+				}
 			],
 			geographies: []
 		};
@@ -377,7 +390,15 @@ describe("createQueryClient", () => {
 			id: "air-quality",
 			label: "Air quality",
 			entryTypes: [
-				{ id: "co", label: "CO", units: "ppm", kind: "pollutant", resolutions: ["hour"] }
+				{
+					id: "co",
+					label: "CO",
+					units: "ppm",
+					kind: "pollutant",
+					resolutions: ["hour"],
+					precision: null,
+					yMin: null
+				}
 			],
 			geographies: []
 		};
@@ -508,6 +529,61 @@ describe("createQueryClient", () => {
 		).toEqual([keys[1], keys[3]].sort());
 	});
 
+	it("idle entries are evicted oldest first once their points exceed the cap", async () => {
+		const { client, calls } = setup({ maxIdlePoints: 5 });
+		const withPoints = (n: number): QueryData => ({
+			...data(n),
+			series: [
+				{
+					place: "monitor:x",
+					points: Array.from({ length: n }, (_, i) => ({ t: i, v: i })) as never
+				}
+			]
+		});
+		const keys: string[] = [];
+		async function visit(monitor: string, n: number) {
+			const sub = client.subscribe(input(monitor), () => {});
+			await flush();
+			calls.at(-1)!.resolve(withPoints(n));
+			await flush();
+			keys.push(sub.key!);
+			sub.unsubscribe();
+		}
+		await visit("m-1", 3);
+		await visit("m-2", 2);
+		expect(client.entries()).toHaveLength(2);
+		await visit("m-3", 2);
+		expect(client.entries().map((e) => e.key)).toEqual([keys[1], keys[2]]);
+	});
+
+	it("refetch picks the resolution again for a to-date range", async () => {
+		const { client, calls, clock } = setup();
+		const toDate: QueryInput = {
+			...input(),
+			dateRange: { kind: "to-date", unit: "week" }
+		};
+		// 2026-10-26 is a Monday (weeks start Sunday): two days, so raw.
+		clock.now = new Date("2026-10-27T19:00:00Z");
+		const rec = recorder();
+		const sub = client.subscribe(toDate, rec.listener);
+		await flush();
+		expect(calls[0].req.resolution).toBe("raw");
+		calls[0].resolve(data(1));
+		await flush();
+		const first = sub.key;
+
+		// Thursday: four days, so hourly.
+		clock.now = new Date("2026-10-29T19:00:00Z");
+		client.refetch(first!);
+		await flush();
+		expect(calls).toHaveLength(2);
+		expect(calls[1].req.resolution).toBe("hour");
+		calls[1].resolve(data(2));
+		await flush();
+		expect(sub.key).not.toBe(first);
+		expect(rec.last()?.status).toBe("ready");
+	});
+
 	it("retry re-plans after a resolution step fails, as does updating to the same input", async () => {
 		let failures = 2;
 		const { client, calls } = setup({
@@ -618,6 +694,141 @@ describe("createQueryClient", () => {
 
 			sub.update(input());
 			expect(times(r.last())).toEqual(points.map((p) => p.t));
+		});
+	});
+
+	describe("worstHour", () => {
+		function multiAdapter() {
+			const calls: Call[] = [];
+			const adapter: DatasetAdapter = {
+				id: "air-quality",
+				target: (layer, ctx) => layerTarget(layer, ctx.regions),
+				offered: (base) => base,
+				fetch(req, _ctx, signal) {
+					return new Promise((resolve, reject) => calls.push({ req, signal, resolve, reject }));
+				}
+			};
+			return { adapter, calls };
+		}
+
+		async function run(
+			where: Partial<Layer>,
+			dateRange: QueryInput["dateRange"],
+			worstHour?: boolean
+		) {
+			const { adapter, calls } = multiAdapter();
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions,
+				now: () => NOW
+			});
+			const sub = client.subscribe(
+				{
+					layer: { dataset: "air-quality", entryType: "pm25", ...where },
+					dateRange,
+					worstHour
+				},
+				() => {}
+			);
+			await flush();
+			return { key: sub.key, req: calls[0].req };
+		}
+
+		const ONE: Partial<Layer> = { place: { kind: "monitor", id: "m-pa" } };
+		const DAYS = (n: number) => ({ kind: "trailing", amount: n, unit: "day" }) as const;
+
+		it("is set for one place on a daily view of at most 92 days", async () => {
+			const on = await run(ONE, DAYS(30), true);
+			const off = await run(ONE, DAYS(30));
+			expect(on.req.resolution).toBe("day");
+			expect(on.req.worstHour).toBe(true);
+			expect(off.req.worstHour).toBe(false);
+			expect(on.key).not.toBe(off.key);
+		});
+
+		it("is dropped, with the same key, for two places", async () => {
+			const two: Partial<Layer> = { selection: { kind: "monitors", ids: ["m-pa", "m-pb"] } };
+			const on = await run(two, DAYS(30), true);
+			const off = await run(two, DAYS(30));
+			expect(on.req.worstHour).toBe(false);
+			expect(on.key).toBe(off.key);
+		});
+
+		it("is kept for a 92-day range containing the 25-hour day", async () => {
+			const fall = new Date("2026-11-05T20:00:00Z");
+			const { adapter, calls } = multiAdapter();
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions,
+				now: () => fall
+			});
+			client.subscribe(
+				{
+					layer: { dataset: "air-quality", entryType: "pm25", ...ONE },
+					dateRange: DAYS(92),
+					worstHour: true
+				},
+				() => {}
+			);
+			await flush();
+			expect(calls[0].req.worstHour).toBe(true);
+		});
+
+		it("is kept for a single region", async () => {
+			const region: Partial<Layer> = { place: { kind: "region", type: "county", code: "06019" } };
+			const { adapter, calls } = multiAdapter();
+			const resolving: RegionResolver = { resolve: async () => ({ id: "sq1", name: "Fresno" }) };
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions: resolving,
+				now: () => NOW
+			});
+			client.subscribe(
+				{
+					layer: { dataset: "air-quality", entryType: "pm25", ...region },
+					dateRange: DAYS(30),
+					worstHour: true
+				},
+				() => {}
+			);
+			await flush();
+			expect(calls[0].req.worstHour).toBe(true);
+		});
+
+		it("chooses hourly for 7 days across the fall-back day", async () => {
+			const fall = new Date("2026-11-02T20:00:00Z");
+			const { adapter, calls } = multiAdapter();
+			const client = createQueryClient({
+				adapters: [adapter],
+				metadata: fixtureMetadata(),
+				regions,
+				now: () => fall
+			});
+			client.subscribe(
+				{ layer: { dataset: "air-quality", entryType: "pm25", ...ONE }, dateRange: DAYS(7) },
+				() => {}
+			);
+			await flush();
+			expect(calls[0].req.resolution).toBe("hour");
+		});
+
+		it("is dropped, with the same key, for a 93-day range", async () => {
+			const on = await run(ONE, DAYS(93), true);
+			const off = await run(ONE, DAYS(93));
+			expect(on.req.resolution).toBe("day");
+			expect(on.req.worstHour).toBe(false);
+			expect(on.key).toBe(off.key);
+		});
+
+		it("is dropped, with the same key, at hourly resolution", async () => {
+			const on = await run(ONE, DAYS(7), true);
+			const off = await run(ONE, DAYS(7));
+			expect(on.req.resolution).toBe("hour");
+			expect(on.req.worstHour).toBe(false);
+			expect(on.key).toBe(off.key);
 		});
 	});
 });

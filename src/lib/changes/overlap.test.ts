@@ -19,6 +19,12 @@ const title = (widgetId: string, to: string): Change => ({
 	from: null,
 	to
 });
+const data = (widgetId: string, amount: number): Change => ({
+	op: "setWidgetData",
+	target: { widgetId },
+	from: { layers: [] },
+	to: { dateRange: { kind: "trailing", amount, unit: "day" }, layers: [] }
+});
 const name = (to: string): Change => ({ op: "setField", target: { path: "name" }, from: null, to });
 const remove = (id: string): Change => ({
 	op: "removeWidget",
@@ -191,5 +197,21 @@ describe("changesOverlap on deletedAt", () => {
 		expect(
 			changesOverlap(del(null, "2026-10-22T00:00:00.000Z"), del("2026-10-22T00:00:00.000Z", null))
 		).toBe(true);
+	});
+
+	it("setWidgetData overlaps a removal of the same widget, not another widget's", () => {
+		expect(changesOverlap(data("a", 7), remove("a"))).toBe(true);
+		expect(changesOverlap(remove("a"), data("a", 7))).toBe(true);
+		expect(changesOverlap(data("a", 7), remove("b"))).toBe(false);
+	});
+
+	it("setWidgetData overlaps another on the same widget unless they agree", () => {
+		expect(changesOverlap(data("a", 7), data("a", 14))).toBe(true);
+		expect(changesOverlap(data("a", 7), data("a", 7))).toBe(false);
+		expect(changesOverlap(data("a", 7), data("b", 14))).toBe(false);
+	});
+
+	it("setWidgetData and a title edit of the same widget do not overlap", () => {
+		expect(changesOverlap(data("a", 7), title("a", "T"))).toBe(false);
 	});
 });

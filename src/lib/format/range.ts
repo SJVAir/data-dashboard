@@ -118,6 +118,17 @@ export function rangeSpanDays(r: ResolvedRange): number {
 	return (r.end.getTime() - r.start.getTime()) / MS_PER_DAY;
 }
 
+/**
+ * Length of the range in whole Pacific calendar days (a DST day counts as one), the measure the
+ * resolution rule and the worst-hour limit use. A trailing-hours range is elapsed hours / 24.
+ */
+export function calendarSpanDays(spec: DateRangeSpec, r: ResolvedRange): number {
+	if (spec.kind === "trailing" && spec.unit === "hour") return rangeSpanDays(r);
+	const a = parseDateKey(r.firstDate);
+	const b = parseDateKey(r.lastDate);
+	return Math.round((Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d)) / MS_PER_DAY) + 1;
+}
+
 /** Turns any spec into the fixed custom dates it resolves to right now. */
 export function freezeRange(
 	spec: DateRangeSpec,

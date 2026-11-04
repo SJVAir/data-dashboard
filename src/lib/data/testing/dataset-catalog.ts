@@ -16,6 +16,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 			license: "",
 			geographies: ["monitor", "region"],
 			meta_url: "/api/2.0/monitors/meta/",
+			places_url: "/api/2.0/monitors/places/",
 			entry_types: [
 				{
 					id: "humidity",
@@ -23,6 +24,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "meteorological",
 					units: "%",
 					resolutions: ["raw"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				},
 				{
@@ -31,6 +33,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "other",
 					units: "",
 					resolutions: ["raw"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				},
 				{
@@ -39,6 +42,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "pollutant",
 					units: "µg/m³",
 					resolutions: ["raw"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null,
 					available: false
 				},
@@ -48,6 +52,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "pollutant",
 					units: "µg/m³",
 					resolutions: [...ALL],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null,
 					available: true
 				}
@@ -62,6 +67,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 			license: "Public domain",
 			geographies: ["polygon"],
 			meta_url: "",
+			places_url: "",
 			entry_types: [
 				{
 					id: "smoke-density",
@@ -69,6 +75,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "other",
 					units: "",
 					resolutions: ["day"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				}
 			],

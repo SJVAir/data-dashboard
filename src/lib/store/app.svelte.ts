@@ -12,6 +12,8 @@ import { report } from "$lib/safety/report";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { registerWidgetType } from "$lib/widgets/registry";
+import { chartType } from "$lib/widgets/chart";
+import { dataTableType } from "$lib/widgets/table";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
@@ -335,6 +337,8 @@ async function housekeeping(task: () => Promise<void>): Promise<void> {
  */
 export async function initApp(platform: Platform, options: AppOptions = {}): Promise<AppContext> {
 	registerWidgetType(placeholderType);
+	registerWidgetType(chartType);
+	registerWidgetType(dataTableType);
 	// The space is whoever is signed in, known once the identity has started.
 	platform.identity.start();
 	const space = await platform.identity.currentSpace();

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, untrack } from "svelte";
+	import { onDestroy, setContext, untrack } from "svelte";
 	import { on } from "svelte/events";
 	import { prefersReducedMotion } from "svelte/motion";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
@@ -9,7 +9,14 @@
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
-	import { minimizeWidget, viewActions, widgetActions, widgetTitle } from "$lib/actions/widget";
+	import {
+		minimizeWidget,
+		removeWidget,
+		viewActions,
+		downloadItems,
+		widgetActions,
+		widgetTitle
+	} from "$lib/actions/widget";
 	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -25,7 +32,14 @@
 	} from "$lib/layout/pointer-drag.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { getWidgetType } from "$lib/widgets/registry";
+	import {
+		getWidgetType,
+		loadWidget,
+		loadedWidget,
+		type WidgetModule
+	} from "$lib/widgets/registry";
+	import { REMOVE_WIDGET_KEY } from "$lib/widgets/shared/context";
+	import WidgetSkeleton from "$lib/widgets/shared/WidgetSkeleton.svelte";
 	import ResizeHandles from "./ResizeHandles.svelte";
 
 	let {
@@ -60,6 +74,11 @@
 	} = $props();
 
 	const app = useApp();
+	// A widget's own Remove (the "no longer available" card) takes the menu Delete's path.
+	setContext(REMOVE_WIDGET_KEY, () => {
+		if (fullscreen) onexit();
+		removeWidget(app, widget.id);
+	});
 	const arrangement = useArrangement();
 	const type = $derived(getWidgetType(widget.type));
 	const title = $derived(widgetTitle(widget));
@@ -67,9 +86,15 @@
 
 	// The type's own items first, then the common widget actions. Read-only: Fullscreen only.
 	const provider: MenuProvider = (ctx) =>
-		readOnly ? viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx) : editProvider(ctx);
+		readOnly
+			? [
+					...downloadItems(app, () => widget),
+					...viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx)
+				]
+			: editProvider(ctx);
 	const editProvider: MenuProvider = (ctx) => [
 		...(type?.menu(ctx) ?? []),
+		...downloadItems(app, () => widget),
 		...widgetActions(app, widget.id, arrangement, {
 			fullscreen: () => onfullscreen(),
 			inFullscreen: fullscreen,
@@ -85,7 +110,7 @@
 	/** Arranging is offered: not in fullscreen, and not in view mode. */
 	const arrangeable = $derived(!fullscreen && !readOnly);
 	/** The ⋯ menu has something in it (a read-only fullscreen frame's has nothing). */
-	const hasMenu = $derived(!(readOnly && fullscreen));
+	const hasMenu = $derived(!(readOnly && fullscreen && !type?.downloadable));
 	const shortcuts = $derived(arrangeable ? "Enter Shift+F10" : hasMenu ? "Shift+F10" : undefined);
 
 	const ARROWS: Record<string, ArrangeDirection> = {
@@ -588,8 +613,25 @@
 	</div>
 	<!-- During a touch selection, touches on the body (and its handles and Done) don't scroll. -->
 	<div class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}>
+		{#snippet body(mod: WidgetModule)}
+			<mod.component {widget} {fullscreen} />
+		{/snippet}
 		{#if type}
-			<type.component {widget} {fullscreen} />
+			{@const loaded = loadedWidget(type)}
+			{#if loaded}
+				{@render body(loaded)}
+			{:else}
+				<!-- The type's code loads the first time one of its widgets is shown. -->
+				{#await loadWidget(type)}
+					<WidgetSkeleton />
+				{:then mod}
+					{@render body(mod)}
+				{:catch}
+					<p class="text-muted-foreground flex h-full items-center justify-center text-sm">
+						{m.widget_load_failed()}
+					</p>
+				{/await}
+			{/if}
 		{/if}
 		{#if keyboardActive && !fullscreen}
 			<!-- Over the content, so the layout doesn't change. Hidden from assistive tech: the

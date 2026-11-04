@@ -1,6 +1,5 @@
 import { createRouter } from "sv-router";
 import { BASE, canonicalHome } from "./lib/routing";
-import DashboardList from "./routes/DashboardList.svelte";
 import DashboardPage from "./routes/DashboardPage.svelte";
 import Home from "./routes/Home.svelte";
 import NotFound from "./routes/NotFound.svelte";
@@ -16,7 +15,8 @@ export const { route, navigate, p, isActive } = createRouter(
 			}
 		},
 		"/": Home,
-		"/dashboards": DashboardList,
+		// The list is a page away from any dashboard, so it loads on demand.
+		"/dashboards": () => import("./routes/DashboardList.svelte"),
 		"/dashboards/:id": DashboardPage,
 		"/import": () => import("./routes/Import.svelte"),
 		"/shared/:token": () => import("./routes/SharedPage.svelte"),

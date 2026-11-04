@@ -5,7 +5,8 @@ import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import ClearDataDialog, { openClearData } from "./ClearDataDialog.svelte";
+import ClearDataDialog from "./ClearDataDialog.svelte";
+import { openClearData } from "./lazy.svelte";
 
 const backup = vi.hoisted(() => ({ finish: () => {} }));
 

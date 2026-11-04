@@ -1,6 +1,8 @@
 import { expect, test } from "./fixtures";
 import {
+	CHART_TITLE,
 	DASHBOARD_URL,
+	addWidget,
 	PLACEHOLDER,
 	dashboardHeading,
 	expectSaved,
@@ -41,12 +43,15 @@ test("editing the starter makes my own copy", async ({ page }) => {
 test("add widgets, rename, reload, everything is still there", async ({ page }) => {
 	await page.goto("./");
 	await expect(widgetTitles(page)).toHaveCount(3);
-	await page.getByRole("button", { name: "Add widget", exact: true }).click();
+	await addWidget(page);
 	await expect(page).toHaveURL(DASHBOARD_URL);
-	await page.getByRole("button", { name: "Add widget", exact: true }).click();
+	await addWidget(page);
 	await expect(widgetTitles(page)).toHaveCount(5);
+	// Each Chart draws its data and titles itself from it.
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toHaveCount(2);
+	await expect(widgetTitles(page).nth(4)).toHaveText(CHART_TITLE);
 
-	await renameWidget(page, PLACEHOLDER, "Ozone trend", 4);
+	await renameWidget(page, CHART_TITLE, "Ozone trend", 1);
 	await openPicker(page, "My dashboard");
 	await page.getByRole("menuitem", { name: "Rename dashboard…" }).click();
 	await saveRename(page, "Fresno school");
@@ -61,7 +66,7 @@ test("add widgets, rename, reload, everything is still there", async ({ page }) 
 		PLACEHOLDER,
 		PLACEHOLDER,
 		PLACEHOLDER,
-		PLACEHOLDER,
+		CHART_TITLE,
 		"Ozone trend"
 	]);
 	await expect(nav(page).getByRole("button", { name: "Fresno school" })).toBeVisible();
@@ -81,7 +86,8 @@ test("edit then immediate reload keeps the edit", async ({ page }) => {
 test("undo and redo with the keyboard and buttons", async ({ page }) => {
 	await page.goto("./");
 	await expect(widgetTitles(page)).toHaveCount(3);
-	await page.getByRole("button", { name: "Add widget", exact: true }).click();
+	// Adding a widget is one undo step.
+	await addWidget(page);
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(widgetTitles(page)).toHaveCount(4);
 

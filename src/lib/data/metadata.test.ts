@@ -7,8 +7,36 @@ vi.mock("@sjvair/sdk", () => ({
 }));
 
 import { getDatasetCatalog, getMonitorsList, getMonitorsMeta } from "@sjvair/sdk";
-import { createWebMetadata, withCatalog, type CatalogEntry } from "./metadata";
+import {
+	createWebMetadata,
+	levelFor,
+	withCatalog,
+	type CatalogEntry,
+	type Level
+} from "./metadata";
 import { SDK_DATASET_CATALOG } from "./testing/dataset-catalog";
+
+function lvl(
+	key: string,
+	label: string,
+	color: string,
+	tier: number,
+	min: number | null,
+	max: number | null
+) {
+	return {
+		key,
+		label,
+		color,
+		opacity: 0.8,
+		tier,
+		description: "",
+		guidance: "",
+		min,
+		max,
+		value: null
+	};
+}
 
 const META = {
 	monitors: {
@@ -17,12 +45,15 @@ const META = {
 	},
 	entries: {
 		pm25: {
-			levels: {
-				MODERATE: { name: "moderate", label: "Moderate", color: "#ffff00", range: [9.1, 35.4] },
-				GOOD: { name: "good", label: "Good", color: "#00e400", range: [0, 9] }
+			scale: {
+				levels: [
+					lvl("moderate", "Moderate", "#ffff00", 1, 9, 35.4),
+					lvl("good", "Good", "#00e400", 0, null, 9),
+					lvl("unhealthy", "Unhealthy", "#ff0000", 3, 35.4, null)
+				]
 			}
 		},
-		humidity: { levels: null }
+		humidity: { scale: null }
 	}
 };
 
@@ -61,14 +92,18 @@ describe("createWebMetadata().catalog", () => {
 					label: "Humidity",
 					units: "%",
 					kind: "meteorological",
-					resolutions: ["raw"]
+					resolutions: ["raw"],
+					precision: null,
+					yMin: null
 				},
 				{
 					id: "particulates",
 					label: "Particulates",
 					units: "",
 					kind: "other",
-					resolutions: ["raw"]
+					resolutions: ["raw"],
+					precision: null,
+					yMin: null
 				},
 				{
 					id: "pm100",
@@ -76,6 +111,8 @@ describe("createWebMetadata().catalog", () => {
 					units: "µg/m³",
 					kind: "pollutant",
 					resolutions: ["raw"],
+					precision: null,
+					yMin: null,
 					available: false
 				},
 				{
@@ -84,6 +121,8 @@ describe("createWebMetadata().catalog", () => {
 					units: "µg/m³",
 					kind: "pollutant",
 					resolutions: ["raw", "hour", "day", "month", "quarter", "season", "year"],
+					precision: null,
+					yMin: null,
 					available: true
 				}
 			]
@@ -107,6 +146,7 @@ describe("createWebMetadata().catalog", () => {
 					license: "",
 					geographies: ["monitor", "watershed"],
 					meta_url: "",
+					places_url: "",
 					entry_types: [
 						{
 							id: "pm25-old",
@@ -114,6 +154,7 @@ describe("createWebMetadata().catalog", () => {
 							kind: "particle-count",
 							units: "",
 							resolutions: ["raw", "decade" as never, "day"],
+							display: { precision: 1, chart: "line", y_min: 0 },
 							retired: { since: "2026-01-01T00:00:00Z", replaced_by: "pm25" }
 						},
 						{
@@ -122,6 +163,7 @@ describe("createWebMetadata().catalog", () => {
 							kind: "pollutant",
 							units: "",
 							resolutions: [],
+							display: { precision: null, chart: null, y_min: null },
 							retired: { since: "2026-02-01T00:00:00Z", replaced_by: null }
 						}
 					],
@@ -136,8 +178,11 @@ describe("createWebMetadata().catalog", () => {
 		expect(dataset.entryTypes[0]).toMatchObject({
 			kind: "other",
 			resolutions: ["raw", "day"],
+			precision: 1,
+			yMin: 0,
 			retired: { since: "2026-01-01T00:00:00Z", replacedBy: "pm25" }
 		});
+		expect(dataset.entryTypes[1]).toMatchObject({ precision: null, yMin: null });
 		expect(dataset.entryTypes[1].retired).toEqual({ since: "2026-02-01T00:00:00Z" });
 		expect(dataset.description).toBeUndefined();
 	});
@@ -193,11 +238,20 @@ describe("createWebMetadata", () => {
 		expect(getMonitorsMeta).toHaveBeenCalledTimes(1);
 	});
 
-	it("orders levels by range start and maps null levels to []", async () => {
+	it("reads levels from the scale, ordered by min, a missing min as 0", async () => {
 		const md = createWebMetadata();
 		const levels = await md.levels("pm25");
-		expect(levels.map((l) => l.name)).toEqual(["good", "moderate"]);
-		expect(levels[0]).toEqual({ name: "good", label: "Good", color: "#00e400", range: [0, 9] });
+		expect(levels.map((l) => l.key)).toEqual(["good", "moderate", "unhealthy"]);
+		expect(levels[0]).toEqual({
+			key: "good",
+			label: "Good",
+			color: "#00e400",
+			opacity: 0.8,
+			tier: 0,
+			min: 0,
+			max: 9
+		});
+		expect(levels[2].max).toBeNull();
 		expect(await md.levels("humidity")).toEqual([]);
 		expect(await md.levels("nope")).toEqual([]);
 	});
@@ -225,7 +279,7 @@ describe("createWebMetadata", () => {
 		vi.mocked(getMonitorsMeta).mockRejectedValueOnce(new Error("boom"));
 		const md = createWebMetadata();
 		await expect(md.levels("pm25")).rejects.toThrow("boom");
-		expect((await md.levels("pm25")).length).toBe(2);
+		expect((await md.levels("pm25")).length).toBe(3);
 		expect(getMonitorsMeta).toHaveBeenCalledTimes(2);
 	});
 
@@ -241,7 +295,7 @@ describe("createWebMetadata", () => {
 		ctrl.abort();
 		await expect(aborted).rejects.toMatchObject({ name: "AbortError" });
 		release();
-		expect((await other).length).toBe(2);
+		expect((await other).length).toBe(3);
 		expect(getMonitorsMeta).toHaveBeenCalledTimes(1);
 	});
 
@@ -262,9 +316,30 @@ describe("withCatalog", () => {
 	it("returns the given catalog and delegates the rest", async () => {
 		const md = withCatalog(createWebMetadata(), catalog);
 		expect(await md.catalog()).toBe(catalog);
-		expect((await md.levels("pm25")).length).toBe(2);
+		expect((await md.levels("pm25")).length).toBe(3);
 		expect(await md.defaultProcessor("purpleair", "pm25")).toBe("PM25_EPA_Calibration");
 		expect(await md.monitorType("m-bam")).toBe("bam1022");
 		expect((await md.monitors()).length).toBe(2);
+	});
+});
+
+describe("levelFor", () => {
+	const levels: Level[] = [
+		{ key: "a", label: "A", color: null, opacity: null, tier: 0, min: 0, max: 9 },
+		{ key: "b", label: "B", color: null, opacity: null, tier: 1, min: 9, max: 35.4 },
+		{ key: "c", label: "C", color: null, opacity: null, tier: 2, min: 35.4, max: null }
+	];
+
+	it("finds the level holding the value in [min, max)", () => {
+		expect(levelFor(levels, 0)?.key).toBe("a");
+		expect(levelFor(levels, 8.9)?.key).toBe("a");
+		expect(levelFor(levels, 9)?.key).toBe("b");
+		expect(levelFor(levels, 35.4)?.key).toBe("c");
+		expect(levelFor(levels, 9999)?.key).toBe("c");
+	});
+
+	it("is undefined below the first level", () => {
+		expect(levelFor(levels, -1)).toBeUndefined();
+		expect(levelFor([], 5)).toBeUndefined();
 	});
 });

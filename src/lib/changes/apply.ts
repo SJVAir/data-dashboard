@@ -70,6 +70,16 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 			}
 			return { doc: { ...doc, deletedAt: change.to }, inverse };
 		}
+		case "setWidgetData": {
+			// The inverse restores what was really there; `change.from` may be stale (rebase).
+			const index = widgets.findIndex((w) => w.id === change.target.widgetId);
+			if (index === -1) throw new ChangeTargetMissing(`No widget ${change.target.widgetId}`);
+			const next = widgets.map((w, i) => (i === index ? { ...w, data: change.to } : w));
+			return {
+				doc: { ...doc, body: { ...doc.body, widgets: next } },
+				inverse: { ...change, from: change.to, to: widgets[index].data }
+			};
+		}
 		case "setLayout": {
 			// Only ids still in the document apply, and only the fields each entry changes (another
 			// tab may have set the rest). The inverse restores what was really there.
@@ -128,6 +138,8 @@ export function appliedChange(inverse: Change): Change {
 		case "removeWidget":
 			return { ...inverse, op: "addWidget" };
 		case "setField":
+			return { ...inverse, from: inverse.to, to: inverse.from };
+		case "setWidgetData":
 			return { ...inverse, from: inverse.to, to: inverse.from };
 		case "setLayout":
 			return { ...inverse, from: inverse.to, to: inverse.from };

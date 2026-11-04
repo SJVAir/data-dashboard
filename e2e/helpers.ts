@@ -57,6 +57,15 @@ export async function widgetMenuItem(
 	await page.getByRole("menuitem", { name: item }).click();
 }
 
+/** A new Chart's generated title (its data: Fresno County PM2.5, from the API fixtures). */
+export const CHART_TITLE = "PM2.5 · Fresno County · Last 30 days";
+
+/** Adds a widget through "Add widget" ▸ `type`. */
+export async function addWidget(page: Page, type = "Chart"): Promise<void> {
+	await page.getByRole("button", { name: "Add widget" }).click();
+	await page.getByRole("menuitem", { name: type, exact: true }).click();
+}
+
 /** Fills the open rename dialog with `value` and saves. */
 export async function saveRename(page: Page, value: string): Promise<void> {
 	const dialog = page.getByRole("dialog");

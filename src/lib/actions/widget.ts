@@ -5,6 +5,7 @@ import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import ArrowUpToLine from "@lucide/svelte/icons/arrow-up-to-line";
+import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
 import FoldHorizontal from "@lucide/svelte/icons/fold-horizontal";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
@@ -26,6 +27,7 @@ import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { afterMenuClose, closeMenus } from "$lib/components/menu/menu-state.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
+import { report } from "$lib/safety/report";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { movedText, resizedText } from "$lib/layout/announcements";
@@ -37,13 +39,22 @@ import { shownLayout } from "$lib/layout/items";
 import { actionLayout, dropChange, sameRect, type LayoutAction } from "$lib/layout/steps";
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
+import { generatedTitle } from "$lib/widgets/titles.svelte";
 import type { MenuItem, MenuProvider } from "./types";
 
-/** A widget's display title: its own, else its type's generated one. */
-export function widgetTitle(widget: WidgetInstance): string {
+/**
+ * A widget's generated title: the one its component worked out once loaded, else its type's
+ * label.
+ */
+function generated(widget: WidgetInstance): string {
 	return (
-		widget.title ?? getWidgetType(widget.type)?.defaultTitle(widget) ?? m.widget_unknown_title()
+		generatedTitle(widget.id) ?? getWidgetType(widget.type)?.label() ?? m.widget_unknown_title()
 	);
+}
+
+/** A widget's display title: its own, else its generated one. */
+export function widgetTitle(widget: WidgetInstance): string {
+	return widget.title ?? generated(widget);
 }
 
 /** The editable current session and the widget in it, read when an action runs. */
@@ -62,11 +73,10 @@ function rename(app: AppContext, widgetId: string): void {
 	const found = find(app, widgetId);
 	if (!found) return;
 	const { widget } = found;
-	const generated = getWidgetType(widget.type)?.defaultTitle(widget) ?? m.widget_unknown_title();
 	openRename({
 		title: m.rename_widget_title(),
 		initial: widget.title ?? "",
-		placeholder: generated,
+		placeholder: generated(widget),
 		onSave(value) {
 			// Re-read: the starter may have handed off to its copy meanwhile.
 			const current = find(app, widgetId);
@@ -97,7 +107,8 @@ function duplicate(app: AppContext, widgetId: string): void {
 	});
 }
 
-function remove(app: AppContext, widgetId: string): void {
+/** Deletes the widget in one undo step, with an Undo toast. */
+export function removeWidget(app: AppContext, widgetId: string): void {
 	const found = find(app, widgetId);
 	if (!found) return;
 	const { session, widget, index } = found;
@@ -321,11 +332,42 @@ export function widgetActions(
 				run: () => {
 					// Leaving first means the page knows the widget's going (no missing-widget notice).
 					if (window?.inFullscreen) window.exit?.();
-					remove(app, widgetId);
+					removeWidget(app, widgetId);
 				}
 			}
 		];
 	};
+}
+
+/**
+ * "Download data (CSV)" for a widget whose type is `downloadable` (none otherwise). The data
+ * layer comes with a dynamic import, so it stays out of the initial bundle. `widget` is read
+ * when the item runs. Not an edit: offered on a read-only dashboard too.
+ */
+export function downloadItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
+	const current = widget();
+	if (!current || !getWidgetType(current.type)?.downloadable) return [];
+	return [
+		{
+			id: "download-csv",
+			label: m.widget_download_csv(),
+			icon: Download,
+			group: "data",
+			run: () => {
+				const latest = widget();
+				if (!latest) return;
+				const files = app.platform.files;
+				void import("$lib/data/csv").then(
+					(csv) =>
+						csv.saveWidgetCsv(latest, (name, contents, type) => files.save(name, contents, type)),
+					(error: unknown) => {
+						report(error);
+						toast.error(m.widget_download_csv_failed());
+					}
+				);
+			}
+		}
+	];
 }
 
 /** Minimize to the taskbar; announces and moves focus to its taskbar item. */

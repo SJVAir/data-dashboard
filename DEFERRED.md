@@ -11,6 +11,25 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **Initial bundle: the hand-kept `BARRELED` list and further trims.** _Deferred 2026-11-04
+  (step 4 spec 1, Task 15)._ The build keeps the app chunk's modules in one file
+  (`appGroup()` in `vite.config.ts`), found by walking the static imports from `src/main.ts`.
+  Packages reached through a barrel (today date-fns' index and Paraglide's `m`) are listed by
+  hand in `BARRELED` and left to the bundler, since the walk reaches all of them but only the
+  used ones are bundled; a new barrel-imported package used only by lazy code would otherwise
+  land in the initial bundle. Further trims found but not needed to get under budget (195.7 KB
+  after Task 15): Conflict and Remote decision as on-demand dialogs (about 1.5 KB), mounting
+  the toaster at idle (about 8 KB), and `zod/mini` in place of classic zod (whose
+  `toJSONSchema` processors add about 8.5 KB; a bigger change). **Revisit when**
+  `check:budget` jumps after adding a package (check whether it needs a `BARRELED` entry), or
+  when the budget is next over.
+- **The initial bundle over 200 KB again.** _Trimmed 2026-11-04 (step 4 spec 1)_, this once:
+  from 213.9 KB gzip (the design pass plus the SDK bump and the widget groundwork) to 195.9 KB,
+  by loading rarely used dialogs and the dashboards list on demand and keeping uPlot, the data
+  layer, and each widget type's code out of the initial bundle. The budget is a soft limit
+  (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
+  decide then, trim or raise the budget, rather than trimming every time).
+
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
   track and Foundations spec 5a)._ The dashboard is uploaded to S3 exactly as monitor-map is
@@ -242,8 +261,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     air data. It moves to an internal package built on the public SDK's exports (`httpRequest`,
     `setOrigin`, request defaults), or into this repo while the dashboard stays the only caller;
     where it goes is still open. Until then the dashboard keeps using `@sjvair/sdk/documents`
-    (4.8.0 prereleases; `createSnapshot` is in the pinned 4.8.0-beta.3). The move changes the
-    dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
+    (4.8.0 prereleases; `createSnapshot` is in them; the pin is now 4.8.0-beta.6). The move
+    changes the dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
     (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 4.8.0 final is tagged, since
     removing it after a stable release has to wait for 5.0; sdk-js's own `DEFERRED.md` ("Before
     4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 4.8.0 final is being
@@ -338,10 +357,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
-- **`@sjvair/sdk` is pinned to the 4.8.0-beta.1 pre-release.** _Deferred 2026-10-22
+- **`@sjvair/sdk` is pinned to a 4.8.0 pre-release (now 4.8.0-beta.6).** _Deferred 2026-10-22
   (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
   `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
-  are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
+  are only in the 4.8.0 pre-releases; it is pinned exactly because a caret range skips
+  pre-releases.
   **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
   the user approves the release): switch to `^4.8.0`.
 - **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
@@ -648,22 +668,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   lines) and `app.svelte.ts` (about 390) could be split; `#onMessage` checks `SYNC_TAB`
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
-- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
-  (4) The initial bundle is about 205.5 KB gzip after the design pass, over the 200 KB soft
-  budget (199.2 KB after spec 4; the restyle and Part 2's announcer, restore dialog, unreadable
-  list, and resize animation added the rest). (5) After a restore's keep pulls in another device's
-  change (stale base), the restore's `from` is built from the open session's document, which may
-  lag the merged storage for a moment; undoing that restore could then drop the other device's
-  merged-in edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test
-  gaps: the keep's `not_found` refusal (shares the `gone` branch); restoring with the keep
-  skipped (anonymous or never uploaded); the "newer" message reaching the dialog;
-  flush-before-load order; "Delete now" pulling in a real concurrent restore (the test uses a
-  synthetic `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
-  `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error wording, the
-  loading line and focus, and the "Delete now" wording) were done in the design pass, part 2._
-  **Revisit** (4) before step 4 adds widget code (trim the initial bundle, or the user raises the
-  budget), (5) if an undo after a
-  restore is reported to lose an edit, and (6) when next touching those files.
+- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._ (5) After a
+  restore's keep pulls in another device's change (stale base), the restore's `from` is built from
+  the open session's document, which may lag the merged storage for a moment; undoing that restore
+  could then drop the other device's merged-in edit, which stays recoverable from the conflict
+  snapshot just kept. Rare. (6) Test gaps: the keep's `not_found` refusal (shares the `gone`
+  branch); restoring with the keep skipped (anonymous or never uploaded); the "newer" message
+  reaching the dialog; flush-before-load order; "Delete now" pulling in a real concurrent restore
+  (the test uses a synthetic `not_deleted`); the two-tab "switches away" half of the account-gone
+  flow (pinned by `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error
+  wording, the loading line and focus, and the "Delete now" wording) were done in the design pass,
+  part 2; item (4), the initial bundle over budget, was done in step 4 spec 1._ **Revisit** (5) if
+  an undo after a restore is reported to lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
@@ -751,12 +767,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   `defaultCollectionId` stays an optional field. **Revisit with** the Release 3 step 1 spec
   (Collections and the analysis engine), or sooner if people ask to gather data across
   dashboards before then.
-- **"Download data (CSV)" on every data widget.** _Suggested 2026-10-25 (Foundations spec 4
-  planning), not yet decided._ With Collections in Release 3, the only planned Release 1
-  download is the Data table widget's CSV export. A per-widget download action would cover
-  "get this widget's data out" on every data widget, using the spec 2 data layer.
-  **Decide in** the Release 1 step 4 spec (Widget Creation and the first widget set).
-
 - **Outside health data (HCAI ED visits, CDC PLACES, etc.) and the "smoke → ER visits"
   lag analysis.** _Deferred 2026-09-23 (IDEA.md Q6)._ The server holds no ER,
   hospitalization, or incidence data, so health analysis is limited to CalEnviroScreen's
@@ -818,17 +828,10 @@ string`) now get the union return type. The mobile app passes a string token, so
   PurpleAir) and reports which one it used; `QueryDescriptor` has no processor field. An
   optional field can be added later without a document migration. **Revisit when**
   researchers ask for uncalibrated or alternative-calibration data.
-- **Refetch keeps the resolution chosen at creation.** _Deferred 2026-10-22 (Foundations spec
-  2)._ A query entry picks its resolution from the range span once, when it is created; a
-  to-date range (e.g. "this month") can grow across a ladder boundary over time without the
-  entry switching. **Revisit when** widgets show to-date ranges (Release 1 step 4).
 - **The query client has no `dispose()`, and its poller is never stopped.** _Deferred
   2026-10-22 (Foundations spec 2)._ `getQueryClient()` returns one app-wide client, so nothing
   needed teardown. **Revisit when** HMR or tests recreate clients, or anything creates more
   than one.
-- **`LiveQuery` has no idle state for a null input.** _Deferred 2026-10-22 (Foundations spec
-  2)._ A widget with nothing to show yet (no place picked) has to avoid constructing the query
-  rather than pass `null`. **Revisit when** building widgets (Release 1 step 4).
 - **`adapter.target` takes no `AbortSignal`.** _Deferred 2026-10-22 (Foundations spec 2 final
   review)._ Resolving a layer's target can't be cancelled when its subscriber moves on; today
   it makes no network calls (the web region resolver answers at once), so nothing is wasted.
@@ -839,16 +842,16 @@ string`) now get the union return type. The mobile app passes a string token, so
   input that resolves to the same cache key (e.g. a selection's ids reordered) shows
   `loading` for a moment and, if it was the entry's only subscriber with a fetch in flight,
   aborts and restarts that fetch. **Revisit when** widgets edit selections in place (Release
-  1 step 4) and the flash or the extra fetch shows.
+  1 step 4) and the flash or the extra fetch shows. The same detach shows when a poll finds the
+  range has grown across a resolution boundary (_noted 2026-11-04, step 4 spec 1 final
+  review_): the subscribers move to the new resolution's entry and the widget shows loading
+  once, without the old data, until it arrives. **Revisit** both together: keep the old data
+  showing while the new entry loads.
 - **A new subscriber refetches an errored entry at once.** _Deferred 2026-10-22 (Foundations
   spec 2 final review)._ Attaching to a cache entry whose last fetch failed refetches
   immediately, skipping the poller's backoff, so widgets opening one after another against a
   failing server each send a request. **Revisit if** that shows up as load during an outage;
   the fix is to respect the entry's backoff when attaching.
-- **The idle cache cap counts entries, not bytes.** _Deferred 2026-10-22 (Foundations spec 2
-  final review)._ Up to 200 idle entries stay cached whatever their size, so large raw
-  selections could hold a lot of memory. **Revisit with** step 4's large selections: cap by
-  approximate size (points held) instead.
 - **Midnight race on rolling keys.** _Deferred 2026-10-22 (Foundations spec 2 final review)._
   A subscriber that attaches across midnight to a rolling entry ("last 7 days") whose fetch
   started before midnight gets the older dates until the next poll. **Revisit if** a widget
@@ -858,14 +861,32 @@ string`) now get the union return type. The mobile app passes a string token, so
   _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
   can't name the published processor, so the request names none and the server returns the
   type's default stage. **Revisit when** step 3's metadata work lands: report the query as
-  `unavailable`, or refresh the monitors list and try again.
-- **The rollup-lag backfill is one level deep and fetched on every poll.** _Deferred
-  2026-10-22 (Foundations spec 2 final review)._ The last completed period is backed up from
-  the next finer level only, so a day backfilled from hourly summaries just after midnight
-  lacks its final hour until that hour's rollup runs (about 00:45), yet reads as complete;
-  and the backfill is fetched with every poll even once the coarse rollup exists. **Revisit
-  when** widgets show daily data live (Release 1 step 4): backfill the backfill's own last
-  period from the next level down, and skip the backfill once the coarse value has arrived.
+  `unavailable`, or refresh the monitors list and try again. (What a widget shows for an
+  unknown monitor today is under "Widgets": "An unknown monitor shows the error (with Retry) or
+  'No data'".)
+- **A failure fetching monitor names fails the whole data query.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ Monitor places are named from the monitors list; if that fetch fails,
+  the query fails with it, though the readings themselves came back. Why: the list is memoized
+  and shared with the processor lookup, so it rarely fails alone. **Revisit if** it's seen: fall
+  back to the monitor ids as names and let the next poll fill them in.
+- **Yearly requests' `fetchEnd` is the segment end.** _Deferred 2026-11-04 (step 4 spec 1 final
+  review)._ Yearly summaries come in one call whose end date is the segment's end, not a whole
+  year's, so the same fixed past range can produce different request URLs depending on where its
+  segment ends, and those URLs don't cache as stable ones. Why: correctness is fine, only
+  caching suffers, and yearly views are rare. **Revisit when** HTTP caching of past summaries
+  matters (the server or a CDN caches them): round the end up to the year.
+- **The seasonal `{year}` path for a winter season is unverified.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ Single-monitor seasonal summaries are fetched by year from the unit's
+  first month (`pathConfig` in `src/lib/data/adapters/air-quality-fetch.ts`), so the season
+  starting December 2025 goes to the 2025 path, while the dashboard's own season rules put that
+  season in 2026 (`seasonStartMonth` in `src/lib/format/range.ts`). Not checked against the
+  server. **Revisit when** a seasonal view is first tested against sjvair.com (check which year
+  the server files December under, and fix the path or the rule).
+- **Whole-layer backfill gaps.** _Deferred 2026-11-04 (step 4 spec 1 final review)._ For a
+  whole-layer (every monitor) query, the backfill that fills recent periods drops a monitor that
+  appears only in the backfill response, and a place with no data in the window costs a backfill
+  request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
+  when** the map widget uses whole-layer queries (Release 1 step 5).
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -953,11 +974,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   probably counts a multi-ingredient record's acres once per ingredient (not yet proven
   with data). Research and widget ideas: `docs/reference/pesticides-explorer-research.md`.
   **Revisit when** step 3's spec 1 is done, or pesticide widgets are planned.
-- **Weak tests in the widget registry and `applyChange`.** _Deferred 2026-10-20 (Foundations
-  spec 1 review)._ Widget-type registration and lookup are untested, and the tests for
-  `applyChange`'s index clamping and for never mutating its input are weak. Both are
-  exercised indirectly by other tests. **Revisit when** a second widget type registers
-  (Release 1 step 4), or `applyChange` gains an operation.
 - **Widget state across the starter's first edit in fullscreen.** _Deferred 2026-10-29 (spec
   2b)._ An edit made while a starter widget is fullscreen hands off to the copy and keeps
   `?widget`, but the page moves from Home to the copy's dashboard page, so the grid and the
@@ -993,6 +1009,40 @@ string`) now get the union return type. The mobile app passes a string token, so
   another tab drops focus to the page, as before. Why: the hand-off has no widget left to
   target, and choosing a neighbour is a separate design question. **Revisit when** cross-tab
   editing gets its keyboard and screen-reader pass, or it's reported.
+- **Zoom and pan on charts.** _Deferred 2026-11-04 (step 4 spec 1, the user)._ Changing the
+  date range covers looking closer, and zoom needs its own keyboard design. **Revisit when**
+  people ask to zoom, or with the Analysis view (Release 3).
+- **The worst hour beyond 3 months, or with several places.** _Deferred 2026-11-04 (step 4
+  spec 1)._ Daily views show each day's worst hourly average only up to 92 days and for a single
+  place (chart, Data table, and CSV): longer or multi-place views would fetch up to 8,760 hourly
+  points per place, and overlapping sticks are unreadable. **Revisit if** people ask for it, or
+  if sjvair.com adds a daily worst-hourly-average to its summaries (the better fix; tell the
+  coordinator).
+- **"Stopped reporting" for monitors.** _Deferred 2026-11-04 (step 4 spec 1, builder check)._
+  Retired regions get the "stopped reporting" note and "Switch to the replacement", but there's
+  no server lookup telling a retired monitor from one that never existed. **Revisit when**
+  sjvair.com adds that lookup.
+- **An unknown monitor shows the error (with Retry) or "No data", not "no longer available".**
+  _Deferred 2026-11-04 (step 4 spec 1 final review, controller ruling)._ A widget whose monitor
+  isn't in the monitors list just runs its query: the server's error shows the error state with
+  Retry, or an empty answer shows "No data". Nothing says the monitor is gone, because nothing
+  can tell yet (see "Stopped reporting" above), and the request goes out with no processor (see
+  "A monitor missing from the monitors list gets the uncalibrated series silently" under
+  "Analysis & data"). Why deferred: step 4 spec 2's place picker brings the monitors list into
+  the widget, where checking the saved monitor against it belongs. **Revisit when** step 4
+  spec 2 starts.
+- **Generated widget titles are never cleared.** _Deferred 2026-11-04 (step 4 spec 1 final
+  review)._ The map of generated titles (`src/lib/widgets/titles.svelte.ts`) only gains
+  entries: an undone delete can briefly show the old generated title until the widget's data is
+  ready again, and the map grows by one entry per data widget opened in a session. Why: each
+  entry is a short string, and a stale one is replaced as soon as data arrives. **Revisit if** a
+  stale title is noticed, or long sessions open many widgets (clear an entry when its widget
+  unmounts or is deleted).
+- **A widget whose code fails to load has no Retry button.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ When a widget type's lazily loaded file can't load (offline, a deploy
+  replaced it), the widget shows the failure without a Retry; remounting it (minimize and
+  restore, switch dashboards) or reloading the page tries again. Why: rare, and a reload is the
+  usual fix after a deploy. **Revisit if** it's reported, or with the offline work.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
@@ -1017,6 +1067,16 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
     timeline).
   - **Monitor health**: QA/QC scores and sensor agreement (research).
+- **Chart axis numbers aren't tabular figures.** _Deferred 2026-11-04 (step 4 spec 1, Task 11)._
+  uPlot draws its axes on a canvas, and canvas text can't turn on font features, so Inter's
+  tabular figures (`tnum`) aren't used there; value-axis labels are right-aligned, so they still
+  line up at the right. The readout, keys, and table are HTML and use `tabular-nums`. **Revisit
+  if** the axes look uneven in testing (then draw the axis labels as HTML, or bundle a font face
+  with tabular digits as the default).
+- **A fifth place's partial dot isn't hollow.** _Deferred 2026-11-04 (step 4 spec 1, Task 11)._
+  The fifth series' marker is a cross, which has no fill to leave out, so its partial (today so
+  far) point looks like any other; the readout still says it's incomplete. **Revisit if** five-
+  place charts are common, or when the series markers are reviewed.
 
 ## Alerts
 
@@ -1136,6 +1196,12 @@ string`) now get the union return type. The mobile app passes a string token, so
   focus to Sign in; and the sign-out lock is exclusive, so a second tab signing out at the
   same moment waits its turn. **Revisit if** people report a tab stuck in the wrong account,
   a confusing failed sign-out, or lost focus after the dialog.
+- **A sign-out dialog that fails to load says only "reload".** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ The sign-out dialog now loads on demand; if its file can't load, the
+  sign-out is cancelled and only the generic reload bar shows, with nothing saying the sign-out
+  didn't happen. Why: rare (offline or a deploy replacing the file), and the person is still
+  signed in, so nothing is lost. **Revisit if** it's reported, or with the offline work (add a
+  message that sign-out didn't happen).
 - **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
   (Foundations spec 5b)._ A new account still goes sign-up, the "enter your code" page, then
   the profile page. During the preview `/workspace/` is behind `beta_tools`, so only people who
@@ -1330,13 +1396,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   renders in the right mode. Ruling it out needs sjvair.com's template to render the theme on the
   server (for example from a cookie), which needs a plan in that repo. **Revisit if** people
   notice the flash.
-- **Chart and map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
+- **Map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
   (design pass, Task 20 review)._ The widget being resized animates its width and height for
   `--motion-duration-base` (200 ms), so its content reflows rather than being stretched. A
   widget that redraws on a `ResizeObserver` (uPlot charts, map-sdk's `MapView`) would redraw on
-  every frame of it. Placeholders don't redraw, so nothing does today. **Revisit when** uPlot or
-  map widgets land: throttle their redraw to the animation's end, or switch to scale with
-  counter-scaled content for those types.
+  every frame of it. Placeholders don't redraw, so nothing does today. **Charts are done**
+  (step 4 spec 1, Task 11: the shared `TimeChart` waits for the frame's animations to finish
+  before it redraws). **Revisit when** map widgets land: throttle their redraw the same way, or
+  switch to scale with counter-scaled content.
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.
@@ -1433,12 +1500,12 @@ point.
   attribution text for air-quality, weather, pesticide-use, pesticide-notices, forecasts,
   calheatscore, calenviroscreen, and emissions must come from the user and must not be
   guessed. Meanwhile the dashboard handles an empty `license` gracefully (shows the `source`
-  alone, never a placeholder). **Decide before** dashboard go-live (and before exports or
-  shared pages show attribution).
+  alone, never a placeholder). **Decide before** dashboard go-live (and before exports,
+  CSV downloads, or shared pages show attribution; the step 4 CSV carries none until then).
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
+- **Date-range method toggle in the Data Explorer** (formerly Widget Creation): a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
 - **Does email get its own rollout switch for alerts?** (2026-10-14) Text alerts open to

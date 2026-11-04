@@ -1,27 +1,5 @@
-<script module lang="ts">
-	export type ShareOptions = {
-		/** The copy link, or `null` when the dashboard is too big for one. */
-		url: string | null;
-		/** Why there is no copy link: `"read-only"` (a newer or invalid document) or `"too-big"`. */
-		linkUnavailable: "too-big" | "read-only" | null;
-		onDownload(): void;
-		/**
-		 * The dashboard a live link shares; `null` signed out, for the starter, or for a read-only
-		 * dashboard (the copy link and file only).
-		 */
-		live: { docId: string } | null;
-	};
-
-	const share = $state<{ open: boolean; opts: ShareOptions | null }>({ open: false, opts: null });
-
-	/** Opens the Share dialog (one is mounted in the app root). */
-	export function openShare(opts: ShareOptions): void {
-		share.opts = opts;
-		share.open = true;
-	}
-</script>
-
 <script lang="ts">
+	import { share } from "./lazy.svelte";
 	import { refusedMessage } from "$lib/components/shell/sync-messages";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";

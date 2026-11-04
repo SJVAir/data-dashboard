@@ -7,6 +7,7 @@ import type { QueryData, QueryInput } from "./types";
 
 const DATA: QueryData = {
 	series: [],
+	places: [],
 	resolution: "hour",
 	fromRaw: false,
 	processor: null,
@@ -62,6 +63,7 @@ describe("LiveQuery", () => {
 	it("set(null) drops the subscription and setPolling passes through", async () => {
 		const { client, pending } = setup();
 		const q = new LiveQuery(client, null);
+		expect(q.state).toEqual({ status: "idle" });
 		expect(client.entries()).toHaveLength(0);
 		q.set(input);
 		await flush();
@@ -70,6 +72,7 @@ describe("LiveQuery", () => {
 		q.setPolling(false);
 		expect(client.entries()[0].polling).toBe(false);
 		q.set(null);
+		expect(q.state).toEqual({ status: "idle" });
 		expect(client.entries()[0].subscribers).toBe(0);
 	});
 

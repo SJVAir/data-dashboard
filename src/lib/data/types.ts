@@ -1,3 +1,4 @@
+import type { ResolvedRegion } from "./adapters/registry";
 import type { DateRangeSpec, Layer, Resolution, TimeSubRange } from "./schema";
 
 /** `t` is the period start in epoch ms. A raw point has `mean = min = max = value`, `count = 1`. */
@@ -8,6 +9,8 @@ export type SeriesPoint = {
 	max: number;
 	count: number;
 	partial: boolean;
+	/** A daily point's highest hourly mean and that hour's start (epoch ms); see `worstHours`. */
+	worstHour?: { t: number; value: number };
 };
 
 /**
@@ -18,8 +21,30 @@ export type SeriesPoint = {
  */
 export type Series = { place: string; points: SeriesPoint[] };
 
+/** Orders by `order`'s index; places it doesn't list come last, keeping their order. */
+export function byPlaceOrder(order: Map<string, number>) {
+	return (a: { place: string }, b: { place: string }): number => {
+		const x = order.get(a.place);
+		const y = order.get(b.place);
+		if (x === undefined || y === undefined) {
+			return x === undefined ? (y === undefined ? 0 : 1) : -1;
+		}
+		return x - y;
+	};
+}
+
+/** A requested place's display name and, for a retired region, its retirement. */
+export type PlaceInfo = {
+	/** Same key as `Series.place`. */
+	place: string;
+	name: string;
+	retired?: ResolvedRegion["retired"];
+};
+
 export type QueryData = {
 	series: Series[];
+	/** One per requested place in request order; for the whole layer, one per monitor returned. */
+	places: PlaceInfo[];
 	resolution: Resolution;
 	fromRaw: boolean;
 	processor: string | null;
@@ -39,6 +64,7 @@ export const UNAVAILABLE_REASONS = [
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
 export type QueryState =
+	| { status: "idle"; data?: undefined }
 	| { status: "loading"; data?: QueryData }
 	| { status: "ready"; data: QueryData }
 	| { status: "error"; error: unknown; data?: QueryData }
@@ -55,5 +81,10 @@ export type QueryInput = {
 	layer: Layer;
 	dateRange: DateRangeSpec;
 	pin?: Resolution;
+	/**
+	 * Asks for each day's worst hourly average; honored only for one place on a daily view of at
+	 * most `WORST_HOUR_MAX_DAYS` days, and ignored otherwise (it doesn't change the cache key then).
+	 */
+	worstHour?: boolean;
 	timeSubRange?: TimeSubRange;
 };

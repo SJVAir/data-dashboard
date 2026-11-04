@@ -1,0 +1,17 @@
+{
+	"data": [
+		{
+			"id": "r6phe",
+			"name": "Fresno County",
+			"slug": "fresno",
+			"type": "county",
+			"external_id": "06019",
+			"retired": null,
+			"boundary": {
+				"id": "wdpej",
+				"version": "latest",
+				"bbox": [-120.91874387116177, 35.906918921644284, -118.36059845591876, 37.58584217244814]
+			}
+		}
+	]
+}

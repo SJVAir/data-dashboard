@@ -6,12 +6,12 @@ const ALL: Resolution[] = ["raw", "hour", "day", "month", "quarter", "year"];
 
 describe("chooseResolution", () => {
 	it.each([
-		[2, "raw"],
-		[2.01, "hour"],
-		[60, "hour"],
-		[61, "day"],
-		[730, "day"],
-		[731, "month"]
+		[3, "raw"],
+		[3.01, "hour"],
+		[7, "hour"],
+		[8, "day"],
+		[365, "day"],
+		[366, "month"]
 	])("ladder: %s days -> %s", (spanDays, resolution) => {
 		expect(chooseResolution({ spanDays, offered: ALL })).toEqual({
 			resolution,
@@ -21,7 +21,7 @@ describe("chooseResolution", () => {
 	});
 
 	it("downsamples from raw when only raw is offered", () => {
-		expect(chooseResolution({ spanDays: 30, offered: ["raw"] })).toEqual({
+		expect(chooseResolution({ spanDays: 5, offered: ["raw"] })).toEqual({
 			resolution: "hour",
 			downsampleFromRaw: true,
 			reason: "ladder"

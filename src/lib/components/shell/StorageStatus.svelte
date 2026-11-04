@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { downloadBackupFile } from "$lib/actions/dashboard";
-	import { openClearData } from "$lib/components/dialogs/ClearDataDialog.svelte";
+	import { openClearData } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { formatDateTime } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";

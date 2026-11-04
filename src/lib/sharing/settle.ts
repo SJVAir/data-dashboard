@@ -1,4 +1,4 @@
-import { askExistingCopy } from "$lib/components/dialogs/ExistingCopyDialog.svelte";
+import { askExistingCopy } from "$lib/components/dialogs/lazy.svelte";
 import type { DashboardSummary } from "$lib/documents/names";
 import type { AppContext } from "$lib/store/app.svelte";
 import { findExistingCopy, saveCopy } from "./copy";

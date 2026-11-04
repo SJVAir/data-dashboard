@@ -128,6 +128,8 @@
 	"widget_delete": "Delete widget",
 	"widget_deleted": "Widget deleted",
 	"widget_unknown_title": "Unknown widget",
+	"widget_loading": "Loading…",
+	"widget_load_failed": "This widget couldn't be loaded.",
 	"widget_move": "Move",
 	"widget_move_up": "Up",
 	"widget_move_down": "Down",
@@ -322,6 +324,12 @@
 	"share_sign_in": "Sign in to share a live link that stays up to date.",
 	"file_dashboard_stem": "dashboard",
 	"file_backup_stem": "sjvair-dashboards-backup",
+	"file_data_stem": "data",
+	"file_places": "{count} places",
+	"widget_download_csv": "Download data (CSV)",
+	"widget_download_csv_failed": "The data couldn't be downloaded. Try again.",
+	"widget_download_csv_pending": "Preparing your data…",
+	"table_download_csv": "Download CSV",
 	"existing_copy_title": "You already have a copy of this dashboard",
 	"existing_copy_changed": "Last changed {date}",
 	"existing_copy_open": "Open my copy",
@@ -592,5 +600,123 @@
 	"based_on_named_by": "Based on {name} by {displayName}",
 	"based_on_named": "Based on {name}",
 	"based_on_shared_by": "Based on a shared dashboard by {displayName}",
-	"based_on_shared": "Based on a shared dashboard"
+	"based_on_shared": "Based on a shared dashboard",
+	"widget_state_idle": "Choose a place to show data.",
+	"widget_state_empty": "No data for this range.",
+	"widget_state_error": "Couldn't load this data.",
+	"widget_state_retry": "Retry",
+	"widget_state_remove": "Remove",
+	"widget_state_switch": "Switch to the replacement",
+	"widget_state_gone_title": "This place is no longer available.",
+	"widget_state_gone_body": "The widget can't show data for it anymore.",
+	"widget_state_place_retired": "{place} stopped reporting on {date}.",
+	"widget_state_dataset_retired": "{dataset} stopped updating on {date}.",
+	"widget_state_unavailable_catalog_unavailable": "The list of datasets couldn't be loaded.",
+	"widget_state_unavailable_unknown_dataset": "This dataset isn't available.",
+	"widget_state_unavailable_unknown_entry_type": "This measurement isn't available.",
+	"widget_state_unavailable_no_adapter": "This dataset can't be shown in this widget yet.",
+	"widget_state_unavailable_no_resolution": "This dataset has no data at a level of detail that fits this range.",
+	"widget_state_unavailable_place_unsupported": "This dataset has no data for that kind of place.",
+	"widget_state_unavailable_whole_layer_raw": "Too much data to show for this range. Choose a longer range or fewer places.",
+	"chart_label": "Chart of {places}",
+	"chart_keyboard_hint": "Use the left and right arrow keys to step through the points, and Home and End to jump to the first and last.",
+	"chart_value": "{value} {unit}",
+	"chart_worst_hour": "Worst hour {value}, {hours}",
+	"chart_partial": "Incomplete: so far",
+	"chart_no_data": "No data",
+	"chart_place_value": "{place}: {value}",
+	"chart_level_key": "Levels",
+	"chart_series_key": "Series",
+	"chart_series_raw": "Measurements",
+	"chart_series_hour": "Hourly average",
+	"chart_series_day": "Daily average",
+	"chart_series_month": "Monthly average",
+	"chart_series_quarter": "Quarterly average",
+	"chart_series_season": "Seasonal average",
+	"chart_series_year": "Yearly average",
+	"chart_series_worst_hour": "Worst hour",
+	"widget_chart_title": "Chart",
+	"widget_data_table_title": "Data table",
+	"table_label": "Data table",
+	"table_scroll_label": "Data table values",
+	"table_date": "Date",
+	"table_place_value": "{place} ({unit})",
+	"table_worst_hour": "Worst hour ({unit})",
+	"table_min": "Lowest ({unit})",
+	"table_max": "Highest ({unit})",
+	"table_partial": "(so far)",
+	"table_caption": "{resolution}",
+	"table_caption_raw": "{resolution} · computed from raw data",
+	"table_hidden_places": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} more place isn't shown.",
+				"countPlural=other": "{count} more places aren't shown."
+			}
+		}
+	],
+	"range_set_week": "Week of {date}",
+	"range_to_date_year": "This year so far",
+	"range_to_date_month": "This month so far",
+	"range_to_date_week": "This week so far",
+	"range_trailing_hour": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Last hour",
+				"countPlural=other": "Last {count} hours"
+			}
+		}
+	],
+	"range_trailing_day": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Today",
+				"countPlural=other": "Last {count} days"
+			}
+		}
+	],
+	"range_trailing_month": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Past month",
+				"countPlural=other": "Last {count} months"
+			}
+		}
+	],
+	"widget_title_place": "{entry} · {place} · {range}",
+	"widget_title_places": [
+		{
+			"declarations": [
+				"input entry",
+				"input count",
+				"input countValue",
+				"input range",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{entry} · {count} place · {range}",
+				"countPlural=other": "{entry} · {count} places · {range}"
+			}
+		}
+	],
+	"widget_title_no_place": "{entry} · {range}",
+	"chart_hidden_places": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} more place isn't shown.",
+				"countPlural=other": "{count} more places aren't shown."
+			}
+		}
+	]
 }

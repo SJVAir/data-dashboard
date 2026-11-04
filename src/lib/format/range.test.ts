@@ -3,6 +3,7 @@ import {
 	freezeRange,
 	nextPeriodStart,
 	periodStart,
+	calendarSpanDays,
 	rangeSpanDays,
 	resolveRange,
 	type DateRangeSpec
@@ -191,5 +192,30 @@ describe("periodStart / nextPeriodStart", () => {
 		expect(iso(nextPeriodStart(new Date("2025-12-01T08:00:00Z"), "season"))).toBe(
 			"2026-03-01T08:00:00.000Z"
 		);
+	});
+});
+
+describe("calendarSpanDays", () => {
+	const NOW = new Date("2026-10-22T19:00:00Z");
+	const days = (spec: Parameters<typeof resolveRange>[0], now = NOW) =>
+		calendarSpanDays(spec, resolveRange(spec, now));
+
+	it("counts Pacific calendar days across both DST changes", () => {
+		expect(days({ kind: "custom", start: "2026-03-07", end: "2026-03-09" })).toBe(3);
+		expect(days({ kind: "custom", start: "2026-10-31", end: "2026-11-02" })).toBe(3);
+		expect(days({ kind: "custom", start: "2026-10-27", end: "2026-11-02" })).toBe(7);
+		expect(days({ kind: "set", unit: "day", start: "2026-11-01" })).toBe(1);
+	});
+
+	it("counts trailing days as calendar days", () => {
+		expect(days({ kind: "trailing", amount: 3, unit: "day" })).toBe(3);
+		const fall = new Date("2026-11-05T20:00:00Z");
+		expect(days({ kind: "trailing", amount: 7, unit: "day" }, fall)).toBe(7);
+		expect(days({ kind: "trailing", amount: 92, unit: "day" }, fall)).toBe(92);
+	});
+
+	it("uses elapsed hours over 24 for trailing hours", () => {
+		expect(days({ kind: "trailing", amount: 24, unit: "hour" })).toBe(1);
+		expect(days({ kind: "trailing", amount: 36, unit: "hour" })).toBe(1.5);
 	});
 });

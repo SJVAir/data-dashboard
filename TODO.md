@@ -49,7 +49,7 @@ Earlier tracks, in order (new dashboard work branches from `main`):
 5. ~~Sync spec 4 (recovery)~~ **done** (PR
    [#29](https://github.com/SJVAir/data-dashboard/pull/29), merged into `main` 2026-11-03 with
    the user's yes). Plan: `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`. The sync
-   track's dashboard specs are all on `main`. The dashboard pins **@sjvair/sdk 4.8.0-beta.3**.
+   track's dashboard specs are all on `main`. The dashboard pins **@sjvair/sdk 4.8.0-beta.6** (bumped with step 4).
 6. ~~The sjvair.com `deletedAccount` change~~ **done** (sjvair.com PR
    [#299](https://github.com/SJVAir/sjvair.com/pull/299), merged into `develop` 2026-11-03 with
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
@@ -1022,7 +1022,26 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
-**Release 1, step 4: Widget Creation and non-map widgets**
+**Release 1, step 4: Widget Creation and non-map widgets** (now "the Data Explorer and non-map widgets")
+
+**Split into six specs (agreed with the user 2026-11-04)**, each its own spec → plan → stacked PR
+into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes:
+
+1. **Widget groundwork, Chart, and Data table** — **built 2026-11-04** (branch `step-4-spec-1`,
+   PR into `step-4` pending review): spec
+   `docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`. Includes
+   the SDK bump (now 4.8.0-beta.6), the new resolution rule, the worst hour, "Download data
+   (CSV)" on every data widget, shared widget states, Duplicate, and the initial bundle trimmed
+   to 195.9 KB (from 213.9 KB). Stack check against Fresno County: request headers right, local
+   summaries too gappy for a full 30-day view.
+2. The shared place picker (second, so sjvair.com's location name search is likely out).
+3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
+   how to show it, then Add to dashboard or Download CSV).
+4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
+5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
+6. Notes and the starter dashboard.
+
+The checklist below is the whole step's scope.
 
 - **Widget types default to about 3 of 12 columns wide**, so a laptop shows about four across
   (the design pass's density). Placeholder already does.
@@ -1039,7 +1058,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   copy); a real edit makes a copy and replaces the URL with `/workspace/dashboards/:id`; sharing
   copies first. It has non-map widgets, including a
   calendar; the Map widget joins in step 6.
-- The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
+- The Data Explorer (formerly the Widget Creation view; including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
 - The "Duplicate widget" action (used to put several widgets on the same place).

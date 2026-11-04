@@ -6,14 +6,21 @@ import { getRegionsByCode } from "@sjvair/sdk";
 import { createWebRegionResolver } from "./registry";
 
 /** A region as `getRegionsByCode` returns it; only `id` and `external_id` matter here. */
-function region(id: string, code: string, retired: { since: string } | null = null) {
+function region(
+	id: string,
+	code: string,
+	retired: {
+		since: string;
+		replaced_by: { type: string; external_id: string } | null;
+	} | null = null
+) {
 	return {
 		id,
 		name: `Region ${code}`,
 		slug: `region-${code}`,
 		type: "county",
 		external_id: code,
-		retired: retired && { ...retired, replaced_by: null },
+		retired,
 		boundary: null
 	};
 }
@@ -21,7 +28,10 @@ function region(id: string, code: string, retired: { since: string } | null = nu
 const COUNTIES: Record<string, ReturnType<typeof region>> = {
 	"06019": region("r6phe", "06019"),
 	"06039": region("r2mad", "06039"),
-	"06099": region("rOld1", "06099", { since: "2026-01-01T00:00:00Z" })
+	"06099": region("rOld1", "06099", {
+		since: "2026-01-01T00:00:00Z",
+		replaced_by: { type: "zipcode", external_id: "93721" }
+	})
 };
 
 beforeEach(() => {
@@ -33,7 +43,10 @@ beforeEach(() => {
 
 describe("createWebRegionResolver", () => {
 	it("resolves a code to the region's sqid", async () => {
-		expect(await createWebRegionResolver().resolve("county", "06019")).toBe("r6phe");
+		expect(await createWebRegionResolver().resolve("county", "06019")).toEqual({
+			id: "r6phe",
+			name: "Region 06019"
+		});
 		expect(getRegionsByCode).toHaveBeenCalledExactlyOnceWith("county", ["06019"]);
 	});
 
@@ -42,7 +55,17 @@ describe("createWebRegionResolver", () => {
 	});
 
 	it("still resolves a retired region", async () => {
-		expect(await createWebRegionResolver().resolve("county", "06099")).toBe("rOld1");
+		expect(await createWebRegionResolver().resolve("county", "06099")).toEqual({
+			id: "rOld1",
+			name: "Region 06099",
+			retired: { since: "2026-01-01T00:00:00Z", replacedBy: { type: "zipcode", code: "93721" } }
+		});
+	});
+
+	it("gives a current region no retired marker", async () => {
+		const found = await createWebRegionResolver().resolve("county", "06019");
+		expect(found).not.toBeNull();
+		expect(found !== "unsupported" && found && "retired" in found).toBe(false);
 	});
 
 	it("reports land-use regions as unsupported without a request", async () => {
@@ -59,7 +82,7 @@ describe("createWebRegionResolver", () => {
 		const resolver = createWebRegionResolver();
 		await resolver.resolve("county", "06019");
 		await resolver.resolve("county", "99999");
-		expect(await resolver.resolve("county", "06019")).toBe("r6phe");
+		expect(await resolver.resolve("county", "06019")).toMatchObject({ id: "r6phe" });
 		expect(await resolver.resolve("county", "99999")).toBeNull();
 		expect(getRegionsByCode).toHaveBeenCalledTimes(2);
 	});
@@ -72,7 +95,12 @@ describe("createWebRegionResolver", () => {
 			resolver.resolve("county", "06019"),
 			resolver.resolve("city", "0627000")
 		]);
-		expect(ids).toEqual(["r6phe", "r2mad", "r6phe", null]);
+		expect(ids.map((r) => (typeof r === "object" && r ? r.id : null))).toEqual([
+			"r6phe",
+			"r2mad",
+			"r6phe",
+			null
+		]);
 		expect(getRegionsByCode).toHaveBeenCalledTimes(2);
 		expect(getRegionsByCode).toHaveBeenCalledWith("county", ["06019", "06039"]);
 		expect(getRegionsByCode).toHaveBeenCalledWith("city", ["0627000"]);
@@ -90,7 +118,7 @@ describe("createWebRegionResolver", () => {
 		vi.mocked(getRegionsByCode).mockRejectedValueOnce(new Error("boom"));
 		const resolver = createWebRegionResolver();
 		await expect(resolver.resolve("county", "06019")).rejects.toThrow("boom");
-		expect(await resolver.resolve("county", "06019")).toBe("r6phe");
+		expect(await resolver.resolve("county", "06019")).toMatchObject({ id: "r6phe" });
 		expect(getRegionsByCode).toHaveBeenCalledTimes(2);
 	});
 
@@ -101,7 +129,7 @@ describe("createWebRegionResolver", () => {
 		const other = resolver.resolve("county", "06019");
 		ctrl.abort();
 		await expect(aborted).rejects.toMatchObject({ name: "AbortError" });
-		expect(await other).toBe("r6phe");
+		expect(await other).toMatchObject({ id: "r6phe" });
 		expect(getRegionsByCode).toHaveBeenCalledTimes(1);
 	});
 });

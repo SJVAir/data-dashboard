@@ -75,7 +75,17 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
   The Map widget joins in step 6.
 
-### Widget Creation view
+### Data Explorer (formerly "Widget Creation view")
+
+**Renamed 2026-11-04 (the user, step 4 spec 1; built in step 4 spec 3).** "Widget Creation" in
+older text means this view. It's called the **Data Explorer** so people know it's where to find
+data, and it gets its own top-nav entry. **Data first:** pick the dataset, places, and dates, see
+the live preview, then choose how to show it (chart, table, calendar, heatmap), then **Add to
+dashboard** or **Download CSV** (no widget needed just to download). Editing a widget opens the
+same view with **Save changes**. Notes (and later the Map) are added directly from the
+dashboard's "Add widget", since they don't start from data. It doesn't overlap Release 3's
+Analysis view. The details below predate the rename and the data-first order; spec 3 revises
+them.
 
 Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter options
 (e.g. pollutant, regions), now living inside the new dataset accordions:
@@ -196,6 +206,16 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 
 **uPlot for all charts.** Nearly all data is time series, so chart configuration should
 converge on a consistent, shared pattern.
+
+**The Chart's look** (decided 2026-11-04, the user, step 4 spec 1, mockup option A): faint level
+bands from the scale metadata behind a navy line with dots; each day's worst hour as a light
+stick (single place only); band labels are the **full** level names, wrapped, never
+abbreviations (the server has none; a band too thin for its label goes unlabeled); a level key
+with outlined swatches and full names **always** shows under the chart; a hover/tap/arrow-key
+readout gives date, value, level, and worst hour; several places (at most 5) differ by series
+color plus dash or marker; gaps break the line. No zoom or pan in Release 1 (`DEFERRED.md`).
+The Chart and the Data table open at **3×6** grid cells (3 of 12 columns, 6 rows) and shrink to
+at least 3×4 (as built, step 4 spec 1).
 
 ### Alerts
 
@@ -898,12 +918,21 @@ caching), not per widget.
 
 **Automatic resolution by range span** (bounds fetch size):
 
-| Range span | Resolution        |
-| ---------- | ----------------- |
-| ≤ 2 days   | Raw entries       |
-| ≤ ~60 days | Hourly summaries  |
-| ≤ ~2 years | Daily summaries   |
-| longer     | Monthly summaries |
+| Range span       | Resolution        |
+| ---------------- | ----------------- |
+| ≤ 3 days         | Raw entries       |
+| ≤ 7 days         | Hourly summaries  |
+| ≤ 1 year (365 d) | Daily summaries   |
+| longer           | Monthly summaries |
+
+Revised 2026-11-04 (step 4 spec 1, the user; was raw ≤ 2 days, hourly ≤ ~60 days, daily ≤ ~2
+years): a month of hourly points reads as alarming spikes to a parent, and monthly points hide
+a week of wildfire smoke. Daily views of up to 92 days also carry each day's **worst hourly
+average** (computed in the browser from hourly summaries, single place only), not the daily
+summary's `maximum`, which is one raw reading. Spec:
+`docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`. **As
+built:** the span is counted in Pacific calendar days, first date to last inclusive ("last 30
+days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
 
 - **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
   server summaries, so the ladder only uses levels the catalog lists in each entry type's `resolutions`:
@@ -926,7 +955,9 @@ caching), not per widget.
   where the coarse response lacks that period (computed client-side, and complete, so not
   partial); once the server's rollup exists, the coarse value wins. Where no finer level is
   offered (regions at hour, which have no raw entries) there is no backfill, and that period
-  stays empty until the server task runs. The backfill is one level deep (see `DEFERRED.md`).
+  stays empty until the server task runs. Since step 4 spec 1 the backfill's own last
+  sub-period is filled one level finer again, and the backfill is skipped for places whose
+  coarse value has arrived.
 - Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
@@ -972,6 +1003,11 @@ caching), not per widget.
   - **Stable URLs:** the browser reuses its cache only for the same URL, so the data layer
     requests settled periods with stable URLs (fixed start and end) separately from the live
     tail. One request spanning "up to now" changes URL every time and never hits the cache.
+    **Request units as built** (step 4 spec 1): requests cover whole Pacific calendar units, a
+    **month** for hourly and daily summaries (and the worst hour's hourly fetch) and a **year**
+    for monthly, quarterly, and seasonal ones (yearly is one call); each past unit is its own
+    request and only the unit containing now is live, so "last 30 days" is last month (long
+    cache) plus this month so far (60 s). Rows outside the range are dropped in the browser.
 - In-flight requests are superseded by newer ones for the same widget
   (last-requested wins, not last-to-finish).
 
@@ -1467,7 +1503,7 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
 | Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)             |
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
-| Data table                | Sortable table + CSV export; the accessibility fallback for maps/charts                                |                              |
+| Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
 | Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
 | Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                              |
 
@@ -1576,7 +1612,8 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
     Sign in / out.
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
-  - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
+  - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), **Download
+    data (CSV)** on every data widget (decided 2026-11-04, step 4 spec 1), Edit
     (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move ▸ / Size ▸
     (single-click alternatives to dragging), Delete. From Release 3: **Mark for analysis**,
     **Analyze**, Add to collection ▸.
@@ -1953,7 +1990,7 @@ rest are the builder's calls, and the user kept them.
    sees it. It is shown with the existing three-choice `ConflictDialog`.
 5. **"Use the other version" keeps the local version as a separate snapshot request:**
    `POST documents/<id>/snapshots/` (sjvair.com #298), through `createSnapshot` in
-   `@sjvair/sdk` 4.8.0-beta.3. "Use the other version" and "Discard" after a delete elsewhere
+   `@sjvair/sdk` 4.8.0-beta.6. "Use the other version" and "Discard" after a delete elsewhere
    keep the local version this way, with no save. (The plan first called for an extra
    snapshot field on a save.)
 6. **A lost save answer is recognized.** The record notes the batch in flight; if the server's
@@ -1984,7 +2021,7 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.3` (exact). The documents code lives in
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.6` (exact). The documents code lives in
     `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
     `DEFERRED.md`).
 

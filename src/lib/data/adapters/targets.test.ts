@@ -6,7 +6,7 @@ import { layerTarget, regionPlace, splitRegionKey } from "./targets";
 /** A stand-in resolver: only Fresno County (`county:06019`) has a server id. */
 const regions: RegionResolver = {
 	resolve: vi.fn(async (type: string, code: string) =>
-		type === "county" && code === "06019" ? "sq1" : null
+		type === "county" && code === "06019" ? { id: "sq1", name: "Fresno County" } : null
 	)
 };
 
@@ -50,7 +50,9 @@ describe("layerTarget", () => {
 	});
 
 	it("maps a region selection when every region resolves", async () => {
-		const both: RegionResolver = { resolve: async (_t, code) => `sq-${code}` };
+		const both: RegionResolver = {
+			resolve: async (_t, code) => ({ id: `sq-${code}`, name: code })
+		};
 		const layer: Layer = {
 			...base,
 			selection: { kind: "regions", ids: ["county:06019", "county:06039"] }
