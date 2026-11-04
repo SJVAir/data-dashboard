@@ -28,7 +28,11 @@ test("editing the starter makes my own copy", async ({ page }) => {
 	await expect(page.getByText(HINT)).toBeVisible();
 	await renameWidget(page, PLACEHOLDER, "Fresno PM2.5");
 	await expect(page).toHaveURL(DASHBOARD_URL);
-	await expect(page.getByText("Saved as your own dashboard")).toBeVisible();
+	// The toast itself: the rename dialog was still closing, so the page's live region holds the
+	// same text for screen readers.
+	await expect(
+		page.getByRole("region", { name: /Notifications/ }).getByText("Saved as your own dashboard")
+	).toBeVisible();
 	await expect(page.getByText(HINT)).toBeHidden();
 	await expect(widgetTitles(page).first()).toHaveText("Fresno PM2.5");
 	await expect(dashboardHeading(page, "My dashboard")).toBeAttached();
