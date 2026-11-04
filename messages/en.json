@@ -638,8 +638,9 @@
 	"table_worst_hour": "Worst hour ({unit})",
 	"table_min": "Lowest ({unit})",
 	"table_max": "Highest ({unit})",
-	"table_partial": "so far",
-	"table_computed_from_raw": "Computed from raw data",
+	"table_partial": "(so far)",
+	"table_caption": "{resolution}",
+	"table_caption_raw": "{resolution} · computed from raw data",
 	"table_hidden_places": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],

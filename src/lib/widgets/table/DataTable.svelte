@@ -1,20 +1,14 @@
 <script lang="ts">
 	import ArrowDown from "@lucide/svelte/icons/arrow-down";
 	import ArrowUp from "@lucide/svelte/icons/arrow-up";
-	import { onDestroy, untrack } from "svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
-	import { getMetadata, getQueryClient } from "$lib/data";
-	import { LiveQuery } from "$lib/data/live-query.svelte";
-	import { levelFor, type CatalogEntry, type Level } from "$lib/data/metadata";
-	import type { QueryData, QueryState } from "$lib/data/types";
+	import { levelFor } from "$lib/data/metadata";
+	import type { QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatHourRange, formatNumber, formatPeriod } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { DEFAULT_RANGE } from "../defaults";
-	import { chartInput, entryMeta } from "../shared/input";
+	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
-	import { dataTitle } from "../title";
-	import { setGeneratedTitle } from "../titles.svelte";
 	import { dataTableType } from "./index";
 	import { sortRows, wideRows } from "./rows";
 
@@ -27,81 +21,7 @@
 	 * 100 px a column with 16 px gaps), rounded down.
 	 */
 	const WIDE_PX = 600;
-	const metadata = getMetadata();
-
-	let catalog = $state.raw<CatalogEntry[] | undefined>();
-	// Never rejects (an unreachable catalog is "unavailable", which the query reports itself).
-	void metadata.catalog().then((c) => {
-		if (c !== "unavailable") catalog = c;
-	});
-
-	const picked = $derived(chartInput(widget.data, catalog, MAX_PLACES));
-	const meta = $derived(entryMeta(catalog, picked.layer));
-	const entryTypeId = $derived(picked.layer?.entryType);
-
-	const query = new LiveQuery(
-		getQueryClient(),
-		untrack(() => picked.input)
-	);
-	$effect(() => query.set(picked.input));
-	$effect(() => query.setPolling(!widget.minimized));
-	onDestroy(() => query.destroy());
-
-	/** The entry type's levels; `undefined` until loaded, an error if they couldn't be. */
-	let levels = $state.raw<Level[] | { error: unknown } | undefined>();
-	let levelsTry = $state(0);
-	$effect(() => {
-		const id = entryTypeId;
-		void levelsTry;
-		if (!id) return;
-		const abort = new AbortController();
-		levels = undefined;
-		metadata.levels(id, abort.signal).then(
-			(l) => (levels = l),
-			(error: unknown) => {
-				if (!abort.signal.aborted) levels = { error };
-			}
-		);
-		return () => abort.abort();
-	});
-
-	/** The query's state, held as loading until the levels are in, or an error if they failed. */
-	const shown = $derived.by<QueryState>(() => {
-		const s = query.state;
-		if (s.status !== "ready" && s.status !== "error") return s;
-		if (levels === undefined) return { status: "loading", data: s.data };
-		if (!Array.isArray(levels) && s.status === "ready") {
-			return { status: "error", error: levels.error, data: s.data };
-		}
-		return s;
-	});
-
-	const retired = $derived.by(() => {
-		if (!meta) return undefined;
-		const r = meta.entryType.retired ?? meta.dataset.retired;
-		if (!r) return undefined;
-		const name = meta.entryType.retired ? meta.entryType.label : meta.dataset.label;
-		return { name, since: r.since };
-	});
-
-	function retry(): void {
-		if (levels && !Array.isArray(levels)) levelsTry++;
-		query.retry();
-	}
-
-	$effect(() => {
-		// Only from ready data: while a new input loads, the old places would pair with the new range.
-		const s = query.state;
-		if (s.status !== "ready" || !meta) return;
-		setGeneratedTitle(
-			widget.id,
-			dataTitle({
-				entryLabel: meta.entryType.label,
-				places: s.data.places,
-				range: widget.data.dateRange ?? DEFAULT_RANGE
-			})
-		);
-	});
+	const w = new DataWidget(() => widget, MAX_PLACES);
 
 	let width = $state(0);
 	const wide = $derived(width >= WIDE_PX);
@@ -131,8 +51,8 @@
 		year: () => m.chart_series_year()
 	} as const;
 
-	const unit = $derived(meta?.entryType.units ?? "");
-	const levelList = $derived(Array.isArray(levels) ? levels : []);
+	const unit = $derived(w.meta?.entryType.units ?? "");
+	const levelList = $derived(w.levelList);
 	const num = (v: number) => formatNumber(v);
 
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */
@@ -146,20 +66,21 @@
 </script>
 
 <div class="flex h-full flex-col" bind:clientWidth={width}>
-	{#if picked.hidden > 0}
+	{#if w.picked.hidden > 0}
 		<p class="bg-muted text-muted-foreground mb-2 rounded-(--radius-control) px-2 py-1 text-sm">
-			{m.table_hidden_places({ count: formatNumber(picked.hidden), countValue: picked.hidden })}
+			{m.table_hidden_places({ count: formatNumber(w.picked.hidden), countValue: w.picked.hidden })}
 		</p>
 	{/if}
 	<div class="min-h-0 flex-1">
-		<WidgetState state={shown} {widget} {retired} onretry={retry}>
+		<WidgetState state={w.shown} {widget} retired={w.retired} onretry={w.retry}>
 			{#snippet children(data)}
 				{@const rows = sortRows(wideRows(data), sort.column, sort.dir)}
 				{@const extra = extras(data)}
 				<div class="flex h-full flex-col">
 					<p class="text-muted-foreground mb-1 text-sm">
-						{RESOLUTION_LABEL[data.resolution]()}{#if data.fromRaw}
-							· {m.table_computed_from_raw()}{/if}
+						{data.fromRaw
+							? m.table_caption_raw({ resolution: RESOLUTION_LABEL[data.resolution]() })
+							: m.table_caption({ resolution: RESOLUTION_LABEL[data.resolution]() })}
 					</p>
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
@@ -196,7 +117,7 @@
 										<th scope="row" class="border-border border-b px-2 py-1 font-normal">
 											{formatPeriod(new Date(row.t), data.resolution)}
 											{#if row.partial}
-												<span class="text-muted-foreground">({m.table_partial()})</span>
+												<span class="text-muted-foreground">{m.table_partial()}</span>
 											{/if}
 										</th>
 										{#each row.cells as cell, i (i)}

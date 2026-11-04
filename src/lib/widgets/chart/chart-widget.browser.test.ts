@@ -14,7 +14,7 @@ import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { generatedTitle } from "../titles.svelte";
 import ChartWidget from "./ChartWidget.svelte";
-import { chartWidget, fakeAdapter } from "./test-harness/fake-data";
+import { chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
 
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,

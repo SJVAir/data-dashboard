@@ -15,7 +15,7 @@ import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import Harness from "$lib/components/dashboard/test-harness/Harness.svelte";
 import { chartType } from "./index";
-import { PM25_LEVELS, chartWidget, fakeAdapter } from "./test-harness/fake-data";
+import { PM25_LEVELS, chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
 
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,

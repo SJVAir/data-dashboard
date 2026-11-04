@@ -1,4 +1,5 @@
 import "../../../app.css";
+import axe from "axe-core";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
@@ -11,7 +12,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { chartWidget, fakeAdapter } from "../chart/test-harness/fake-data";
+import { PM25_LEVELS, chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
 import { generatedTitle } from "../titles.svelte";
 import DataTable from "./DataTable.svelte";
 
@@ -113,4 +114,71 @@ test("ten places at most, and the rest are counted", async () => {
 test("the caption names the resolution", async () => {
 	const screen = await show(tableWidget(["m1"]));
 	await expect.element(screen.getByText(m.chart_series_day())).toBeVisible();
+});
+
+test("has no axe violations narrow or wide", async () => {
+	await show(tableWidget(["m1"]));
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	expect((await axe.run(frame)).violations).toEqual([]);
+	frame.style.width = "800px";
+	await expect.poll(() => frame.querySelectorAll("thead th").length).toBe(5);
+	expect((await axe.run(frame)).violations).toEqual([]);
+});
+
+test("every value row has a level label", async () => {
+	await show(tableWidget(["m1"]));
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	const names = new Set(PM25_LEVELS.map((l) => l.label));
+	for (const row of frame.querySelectorAll("tbody tr")) {
+		const cell = row.querySelector("td")!;
+		expect([...names].some((n) => cell.textContent!.includes(n))).toBe(true);
+	}
+});
+
+test("the worst hour column shows the value and its hour range", async () => {
+	const screen = await show(tableWidget(["m1"]));
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	frame.style.width = "800px";
+	await expect.poll(() => frame.querySelectorAll("thead th").length).toBe(5);
+	const cell = frame.querySelector("tbody tr td:nth-child(3)")!;
+	// Newest first: the third day's worst hour is 14 at 15:00 Pacific-day offset; a one-hour range.
+	expect(cell.textContent).toContain("14");
+	expect(cell.textContent).toMatch(/\d.*[–-].*\d/);
+	await expect.element(screen.getByRole("columnheader", { name: /Worst hour/ })).toBeVisible();
+});
+
+test("the caption notes raw-computed data", async () => {
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{ ...base, fetch: async (r, c, s) => ({ ...(await base.fetch(r, c, s)), fromRaw: true }) }
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const screen = await show(tableWidget(["m1"]));
+	await expect
+		.element(screen.getByText(m.table_caption_raw({ resolution: m.chart_series_day() })))
+		.toBeVisible();
+});
+
+test("a partial period is marked in text", async () => {
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				fetch: async (r, c, s) => {
+					const d = await base.fetch(r, c, s);
+					d.series[0].points[2].partial = true;
+					return d;
+				}
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	await show(tableWidget(["m1"]));
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	expect(frame.querySelector("tbody tr th")!.textContent).toContain(m.table_partial());
 });
