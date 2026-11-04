@@ -1234,7 +1234,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   (the touch check had passed). **Revisit before** Release 1 goes live (step 6) or beta testers
   get the dashboard, whichever comes first, or sooner when the user has time: a hand check with
   NVDA (and JAWS if available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸
-  and Size ▸ submenus (#18), their announcements, and the taskbar.
+  and Size ▸ submenus (#18), their announcements, and the taskbar. _Widened 2026-11-03 (design
+  pass Task 19):_ also check that announcements and toasts made while a dialog is open are read
+  once, from the dialog's own live region (tested only against Chromium's `aria-modal` pruning).
+- **An announcement still being read when its dialog closes is cut off.** _Deferred 2026-11-03
+  (design pass Task 19 review)._ A message belongs to the topmost dialog's live region and is
+  dropped when that dialog closes (moving it to the page's region would read it again). An
+  announcement or toast made in the same 100 ms as another also replaces it. **Revisit if** the
+  screen-reader check above finds messages lost this way.
+- **The e2e `liveRegion()` helper assumes one live region.** _Deferred 2026-11-03 (design pass
+  Task 19 review)._ Each open dialog now has its own region with the same attributes, so a test
+  that reads announcements with a dialog open would match two (a strict-mode error). No e2e does
+  today. **Revisit when** one does: pick the region holding text, or the topmost dialog's.
 - **Keyboard arrangement request-chain cache can thrash in very long pick-ups.** _Deferred
   2026-10-28 (step 2, spec 2a final review)._ The preview cache keeps 512 request prefixes;
   past 512 keyboard steps in one pick-up it evicts the current chain, and each keypress then

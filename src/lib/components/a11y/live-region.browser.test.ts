@@ -1,8 +1,13 @@
-import { expect, test } from "vitest";
+import { toast } from "svelte-sonner";
+import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import { announce, ANNOUNCE_GAP_MS } from "$lib/a11y/announcer.svelte";
 import DialogHarness from "./test-harness/DialogHarness.svelte";
+
+afterEach(() => {
+	toast.dismiss();
+});
 
 const SELECTOR = '[role="status"][aria-live="polite"][aria-atomic="true"]';
 
@@ -67,4 +72,22 @@ test("closing the dialog doesn't move its announcement to the page, so it isn't 
 	const regions = await announced("after");
 	expect(regions).toHaveLength(1);
 	expect(reachable(regions[0])).toBe(true);
+});
+
+test("a toast shown while a dialog is open is read from the dialog's region", async () => {
+	await render(DialogHarness);
+	await userEvent.click(page.getByRole("button", { name: "Open outer" }));
+	await expect.element(page.getByRole("dialog", { name: "Outer" })).toBeVisible();
+	toast.error("Couldn't sign out.", { description: "Try again." });
+	const regions = await announced("Couldn't sign out. Try again.");
+	expect(regions).toHaveLength(1);
+	expect(reachable(regions[0])).toBe(true);
+});
+
+test("with no dialog open, a toast is left to the toaster, so it isn't read twice", async () => {
+	await render(DialogHarness);
+	toast.info("Saved a copy");
+	await expect.element(page.getByText("Saved a copy")).toBeVisible();
+	await new Promise((r) => setTimeout(r, ANNOUNCE_GAP_MS * 2));
+	expect(regionsWith("Saved a copy")).toHaveLength(0);
 });
