@@ -11,6 +11,8 @@
 		loading: boolean;
 		versions: EarlierVersion[];
 		account: AccountStatus;
+		/** The list couldn't be made at all (a failure on this device). */
+		loadFailed: boolean;
 		selected: number;
 		restore: ((version: EarlierVersion) => Promise<RestoreResult>) | null;
 		failure: RestoreResult | null;
@@ -21,6 +23,7 @@
 		loading: false,
 		versions: [],
 		account: "none",
+		loadFailed: false,
 		selected: 0,
 		restore: null,
 		failure: null
@@ -33,6 +36,7 @@
 		opening++;
 		restoring.versions = [];
 		restoring.account = "none";
+		restoring.loadFailed = false;
 		restoring.selected = 0;
 		restoring.restore = null;
 		restoring.failure = null;
@@ -51,6 +55,7 @@
 		const mine = ++opening;
 		restoring.versions = [];
 		restoring.account = "none";
+		restoring.loadFailed = false;
 		restoring.selected = 0;
 		restoring.restore = restore;
 		restoring.failure = null;
@@ -63,8 +68,9 @@
 				restoring.account = loaded.account;
 			})
 			.catch(() => {
+				// Listing failed on this device (the account's failures come back as a status).
 				if (mine !== opening) return;
-				restoring.account = "offline";
+				restoring.loadFailed = true;
 			})
 			.finally(() => {
 				if (mine === opening) restoring.loading = false;
@@ -102,6 +108,21 @@
 		if (version.reason === "schema") return m.restore_version_schema({ date });
 		if (version.reason === "daily") return m.restore_version_daily({ date });
 		return m.restore_version_conflict({ date });
+	}
+
+	/** The one line for an empty list: what "nothing here" means depends on the account. */
+	function emptyMessage(account: AccountStatus): string {
+		switch (account) {
+			case "ok":
+				return m.restore_version_none();
+			case "gone":
+				return m.restore_version_account_gone_none();
+			case "offline":
+			case "unavailable":
+				return m.restore_version_none_device();
+			default:
+				return m.restore_version_none_local();
+		}
 	}
 
 	function failureMessage(failure: RestoreResult | null): string {
@@ -163,12 +184,16 @@
 					</label>
 				{/each}
 			</fieldset>
+		{:else if restoring.loadFailed}
+			<p class="text-muted-foreground text-sm">{m.restore_version_load_failed()}</p>
 		{:else}
-			<p class="text-muted-foreground text-sm">{m.restore_version_none()}</p>
+			<p class="text-muted-foreground text-sm">{emptyMessage(restoring.account)}</p>
 		{/if}
 		{#if !restoring.loading && restoring.account === "offline"}
 			<p class="text-muted-foreground text-sm">{m.restore_version_account_offline()}</p>
-		{:else if !restoring.loading && restoring.account === "gone"}
+		{:else if !restoring.loading && restoring.account === "unavailable"}
+			<p class="text-muted-foreground text-sm">{m.restore_version_account_unavailable()}</p>
+		{:else if !restoring.loading && restoring.account === "gone" && restoring.versions.length > 0}
 			<p class="text-muted-foreground text-sm">{m.restore_version_account_gone()}</p>
 		{/if}
 		<p role="alert" class="text-destructive text-sm">{failureMessage(restoring.failure)}</p>

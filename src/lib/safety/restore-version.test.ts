@@ -149,6 +149,37 @@ describe("listEarlierVersions", () => {
 		session.dispose();
 	});
 
+	it("any other refusal is unavailable, not offline", async () => {
+		const { app, session } = await account();
+		for (const [code, status] of [
+			["unauthorized", 401],
+			["rate_limited", 429],
+			["forbidden", 403]
+		] as const) {
+			const refused = {
+				...app,
+				sync: {
+					isInAccount: async () => true,
+					versions: async () => {
+						throw new RemoteRefusal(code, status);
+					}
+				}
+			} as unknown as AppContext;
+			expect((await listEarlierVersions(refused, session)).account).toBe("unavailable");
+		}
+		const broken = {
+			...app,
+			sync: {
+				isInAccount: async () => true,
+				versions: async () => {
+					throw new TypeError("bad answer");
+				}
+			}
+		} as unknown as AppContext;
+		expect((await listEarlierVersions(broken, session)).account).toBe("unavailable");
+		session.dispose();
+	});
+
 	it("never uploaded, or a first upload in flight, is none and asks no server", async () => {
 		const { app, session, platform } = await account();
 		const record = (await platform.sync.get(SPACE, "d1"))!;

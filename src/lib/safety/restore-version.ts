@@ -3,7 +3,7 @@ import { loadDashboard, migrations, type Migration } from "$lib/documents/load";
 import type { Dashboard } from "$lib/documents/schema";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
-import { RemoteRefusal, type SnapshotReason } from "$lib/sync/remote";
+import { RemoteRefusal, RemoteUnavailable, type SnapshotReason } from "$lib/sync/remote";
 
 /** An earlier version of the open dashboard: the kept original, or one of the account's snapshots. */
 export type EarlierVersion =
@@ -12,9 +12,10 @@ export type EarlierVersion =
 
 /**
  * How the account's list went: `ok`, `offline` (couldn't reach it), `gone` (the dashboard isn't
- * in the account any more), or `none` (anonymous or never uploaded: no list was tried).
+ * in the account any more), `unavailable` (any other refusal or failure: not the connection), or
+ * `none` (anonymous or never uploaded: no list was tried).
  */
-export type AccountStatus = "ok" | "offline" | "gone" | "none";
+export type AccountStatus = "ok" | "offline" | "gone" | "unavailable" | "none";
 
 export type EarlierVersions = { versions: EarlierVersion[]; account: AccountStatus };
 
@@ -51,7 +52,7 @@ export async function listEarlierVersions(
 		} catch (error) {
 			const gone =
 				error instanceof RemoteRefusal && (error.code === "gone" || error.code === "not_found");
-			account = gone ? "gone" : "offline";
+			account = gone ? "gone" : error instanceof RemoteUnavailable ? "offline" : "unavailable";
 		}
 	}
 	if (original) versions.push({ source: "local", at: original.keptAt, alsoInAccount });

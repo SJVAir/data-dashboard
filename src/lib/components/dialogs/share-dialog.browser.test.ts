@@ -414,6 +414,31 @@ test("a name that failed to load can be retried", async () => {
 	expect(dialog().getByRole("button", { name: "Try again" }).elements()).toHaveLength(0);
 });
 
+test("a name refused while loading isn't called a connection problem", async () => {
+	for (const [code, status, text] of [
+		["unauthorized", 401, "You're signed out, so your name can't be shown. Sign in and try again."],
+		["rate_limited", 429, "Your name couldn't be loaded. Try again in a moment."]
+	] as const) {
+		const { fake } = await signedIn();
+		fake.refuseNext.push({ code, status });
+		openLive();
+		await expect.element(dialog().getByText(text)).toBeVisible();
+		expect(
+			dialog().getByText("Couldn't reach SJVAir. Check your connection and try again.").elements()
+		).toHaveLength(0);
+		await expect.element(dialog().getByRole("button", { name: "Try again" })).toBeVisible();
+	}
+});
+
+test("a name that couldn't be loaded offline says to check the connection", async () => {
+	const { fake } = await signedIn();
+	fake.offline = true;
+	openLive();
+	await expect
+		.element(dialog().getByText("Couldn't reach SJVAir. Check your connection and try again."))
+		.toBeVisible();
+});
+
 test("a name that failed to load reloads when the connection returns", async () => {
 	const { fake, memory } = await signedIn();
 	await fake.setProfile("Ms. Lopez");

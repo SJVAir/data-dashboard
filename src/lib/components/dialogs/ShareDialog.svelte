@@ -59,6 +59,8 @@
 	let busy = $state(false);
 	let name = $state("");
 	let nameState = $state<"loading" | "ready" | "failed">("loading");
+	/** Why the name couldn't be loaded (set with `nameState` "failed"). */
+	let nameLoadError = $state("");
 	let nameError = $state("");
 	let nameBusy = $state(false);
 	let nameLoad = 0;
@@ -114,9 +116,20 @@
 			if (load !== nameLoad) return;
 			name = value ?? "";
 			nameState = "ready";
-		} catch {
-			if (load === nameLoad) nameState = "failed";
+		} catch (error) {
+			if (load !== nameLoad) return;
+			nameLoadError = nameLoadErrorFor(error);
+			nameState = "failed";
 		}
+	}
+
+	/** Loading isn't saving: its own words, and "offline" only for the connection. */
+	function nameLoadErrorFor(error: unknown): string {
+		if (error instanceof RemoteUnavailable) return m.share_live_offline();
+		if (error instanceof RemoteRefusal && error.code === "unauthorized") {
+			return m.share_name_load_signed_out();
+		}
+		return m.share_name_load_failed();
 	}
 
 	function nameErrorFor(error: unknown): string {
@@ -323,7 +336,7 @@
 					<p id={nameHelpId} class="text-muted-foreground text-sm">{m.share_name_help()}</p>
 					{#if nameState === "failed"}
 						<div class="flex flex-wrap items-center gap-2 text-sm">
-							<p>{m.share_live_offline()}</p>
+							<p>{nameLoadError}</p>
 							<Button variant="outline" size="sm" onclick={loadName}>{m.share_name_retry()}</Button>
 						</div>
 					{/if}

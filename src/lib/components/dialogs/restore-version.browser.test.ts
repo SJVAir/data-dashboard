@@ -245,3 +245,51 @@ for (const reduce of [false, true]) {
 		expect(document.querySelector('[aria-modal="true"]')).toBeNull();
 	});
 }
+
+test("an account list that can't be loaded for another reason doesn't say offline", async () => {
+	await render(RestoreVersionDialog);
+	openRestoreVersion(loaded([local], "unavailable"), vi.fn());
+	const dialog = page.getByRole("dialog");
+	await expect
+		.element(
+			dialog.getByText("Versions saved in your account can't be loaded right now. Try again later.")
+		)
+		.toBeVisible();
+	expect(dialog.getByText(/offline/).elements()).toHaveLength(0);
+});
+
+test("a list that fails to load on this device says so, not offline", async () => {
+	await render(RestoreVersionDialog);
+	openRestoreVersion(() => Promise.reject(new Error("storage")), vi.fn());
+	const dialog = page.getByRole("dialog");
+	await expect
+		.element(dialog.getByText("Earlier versions couldn't be loaded. Close this and try again."))
+		.toBeVisible();
+	expect(dialog.getByText(/offline/).elements()).toHaveLength(0);
+	expect(dialog.getByText(/No earlier versions yet/).elements()).toHaveLength(0);
+});
+
+test("an empty list picks one line by the account's status", async () => {
+	await render(RestoreVersionDialog);
+	const cases: [EarlierVersions["account"], string][] = [
+		["ok", "No earlier versions yet. Your account keeps one a day for 30 days."],
+		["none", "No earlier versions yet."],
+		["offline", "No earlier versions on this device."],
+		["unavailable", "No earlier versions on this device."],
+		[
+			"gone",
+			"This dashboard is no longer in your account, and there are no earlier versions on this device."
+		]
+	];
+	for (const [account, line] of cases) {
+		openRestoreVersion(loaded([], account), vi.fn());
+		const dialog = page.getByRole("dialog");
+		await expect.element(dialog.getByText(line, { exact: true })).toBeVisible();
+		if (account !== "ok") {
+			expect(dialog.getByText(/Your account keeps/).elements()).toHaveLength(0);
+		}
+		expect(dialog.getByText(/only the copy on this device is listed/).elements()).toHaveLength(0);
+		await dialog.getByRole("button", { name: "Cancel" }).click();
+		await expect.element(dialog).not.toBeInTheDocument();
+	}
+});
