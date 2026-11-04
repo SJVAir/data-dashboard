@@ -118,15 +118,19 @@
 	// (it follows the pointer; a pointer resize animates each snap).
 	let grid = $state<HTMLElement | null>(null);
 	const flip = new Flip();
+	// The widget being arranged, kept for the update that ends it (a cancel resizes it back).
+	let arranged: string | null = null;
 	$effect.pre(() => {
 		void placed;
-		untrack(() => flip.measure(grid));
+		untrack(() => flip.measure(grid, arrangement.columns));
 	});
 	$effect(() => {
 		void placed;
 		untrack(() => {
 			const a = arrangement.active;
-			flip.play(grid, a && a.input !== "keyboard" && a.mode === "move" ? a.id : null);
+			const skip = a && a.input !== "keyboard" && a.mode === "move" ? a.id : null;
+			flip.play(grid, { skip, sized: a?.id ?? arranged });
+			arranged = a?.id ?? null;
 		});
 	});
 

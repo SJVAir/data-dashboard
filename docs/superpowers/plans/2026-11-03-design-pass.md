@@ -589,7 +589,7 @@ PR 2. Run `npm run paraglide` after editing `messages/en.json`. DEFERRED line nu
 ### Task 20: Arranging loose ends
 
 **Files:**
-- Modify: `src/lib/layout/flip.ts`, `src/lib/layout/pointer-drag.ts`,
+- Modify: `src/lib/layout/flip.ts`, `src/lib/layout/pointer-drag.svelte.ts`,
   `src/lib/components/dashboard/WidgetFrame.svelte`, `src/lib/layout/arrangement.svelte.ts`,
   `src/lib/layout/items.ts`, `src/lib/layout/engine.ts` (comment), `src/lib/components/dashboard/DashboardGrid.svelte`
   and the tests that pass `onArrangement`

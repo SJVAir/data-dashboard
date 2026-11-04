@@ -393,13 +393,15 @@
 		Math.hypot(a.x - b.x, a.y - b.y);
 
 	/**
-	 * Keep the page from scrolling under a touch gesture, and anywhere on the widget (its body,
-	 * handles, and Done) during a touch selection. Attached (non-passive) to the title bar and the
-	 * body from the start: browsers decide at touchstart whether a touch's moves can be
-	 * cancelled, so a listener added at the lift would come too late.
+	 * Keep the page from scrolling under the long-press's drag, which starts on a title bar that
+	 * lets page swipes through (`touch-pan-y`). Attached (non-passive) to the title bar from the
+	 * start: browsers decide at touchstart whether a touch's moves can be cancelled, so a
+	 * listener added at the lift would come too late. Everywhere else a touch selection uses
+	 * `touch-action: none` (the title bar, body, handles, and Done), so no other listener has to
+	 * hold up the page's scrolling.
 	 */
 	function blockScroll(event: TouchEvent): void {
-		if ((selected || (gesture && touchActive)) && event.cancelable) event.preventDefault();
+		if (gesture && touchActive && event.cancelable) event.preventDefault();
 	}
 	const scrollBlocker = (el: HTMLElement) => on(el, "touchmove", blockScroll, { passive: false });
 
@@ -584,7 +586,8 @@
 			</Button>
 		{/if}
 	</div>
-	<div class="relative min-h-0 flex-1 p-(--card-padding)" {@attach scrollBlocker}>
+	<!-- During a touch selection, touches on the body (and its handles and Done) don't scroll. -->
+	<div class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}>
 		{#if type}
 			<type.component {widget} {fullscreen} />
 		{/if}
@@ -610,7 +613,7 @@
 				/>
 			</div>
 			<div class="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-				<Button class="pointer-events-auto min-h-11 min-w-11 shadow-md" onclick={drop}>
+				<Button class="pointer-events-auto min-h-11 min-w-11 touch-none shadow-md" onclick={drop}>
 					{m.layout_done()}
 				</Button>
 			</div>

@@ -1300,6 +1300,19 @@ string`) now get the union return type. The mobile app passes a string token, so
   renders in the right mode. Ruling it out needs sjvair.com's template to render the theme on the
   server (for example from a cookie), which needs a plan in that repo. **Revisit if** people
   notice the flash.
+- **Chart and map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
+  (design pass, Task 20 review)._ The widget being resized animates its width and height for
+  `--motion-duration-base` (200 ms), so its content reflows rather than being stretched. A
+  widget that redraws on a `ResizeObserver` (uPlot charts, map-sdk's `MapView`) would redraw on
+  every frame of it. Placeholders don't redraw, so nothing does today. **Revisit when** uPlot or
+  map widgets land: throttle their redraw to the animation's end, or switch to scale with
+  counter-scaled content for those types.
+- **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
+  review)._ During a touch selection the widget's body is `touch-action: none`, so the page
+  can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.
+  A swipe outside the widget still scrolls, and a tap outside finishes, as Done does. Keeping
+  Done sticky within the visible part wasn't cheap enough to add now. **Revisit if** phone
+  testers get stuck with a tall selected widget, or when widgets get taller defaults.
 - **The token-discipline check reads one line at a time.** _Deferred 2026-11-03 (design pass,
   Task 9)._ `src/lib/theme/token-discipline.test.ts` finds a hex color only when it shares a
   line with `class=` or `style=`, so it misses a `style` attribute split over several lines and
