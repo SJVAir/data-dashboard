@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MAX_HEIGHT } from "./config";
-import { nearestIndex, resizedRect } from "./pointer-drag";
+import { nearestIndex, resizedRect } from "./pointer-drag.svelte";
 
 const rows = (...hs: number[]) => hs.map((h) => ({ rect: { x: 0, y: 0, w: 12, h } }));
 

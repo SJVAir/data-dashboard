@@ -4,8 +4,11 @@ import { GRID_COLUMNS } from "./config";
 import type { Placement, SetLayoutChange } from "$lib/changes/types";
 import { diff, placeNew, tidy, type Layout, type LayoutItem, type Size } from "./engine";
 
-/** The placeholder type's minimum size; used for widgets of a type that isn't registered. */
-export const FALLBACK_MIN_SIZE: Size = { w: 3, h: 2 };
+/**
+ * The placeholder type's minimum size; used for widgets of a type that isn't registered.
+ * Shared by every such widget (and the placeholder type), so it's frozen.
+ */
+export const FALLBACK_MIN_SIZE: Readonly<Size> = Object.freeze({ w: 3, h: 2 });
 
 /** Layout items for the widgets on the grid (minimized ones are off it). */
 export function gridItems(widgets: WidgetInstance[]): LayoutItem[] {

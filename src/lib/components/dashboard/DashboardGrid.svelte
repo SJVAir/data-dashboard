@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, setContext, untrack } from "svelte";
+	import { getContext, onDestroy, setContext, untrack } from "svelte";
 	import { on } from "svelte/events";
 	import { MediaQuery } from "svelte/reactivity";
 	import { toast } from "svelte-sonner";
@@ -12,7 +12,11 @@
 	import ContextMenuHost from "$lib/components/menu/ContextMenuHost.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { Dashboard, Rect } from "$lib/documents/schema";
-	import { ARRANGEMENT_KEY, Arrangement } from "$lib/layout/arrangement.svelte";
+	import {
+		ARRANGEMENT_KEY,
+		ARRANGEMENT_PROBE_KEY,
+		Arrangement
+	} from "$lib/layout/arrangement.svelte";
 	import { GRID_COLUMNS, PHONE_QUERY } from "$lib/layout/config";
 	import { Flip, flipRect } from "$lib/layout/flip";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
@@ -37,16 +41,13 @@
 	import WidgetFrame from "./WidgetFrame.svelte";
 
 	let {
-		view,
-		onArrangement
+		view
 	}: {
 		/**
 		 * View mode: show this document read-only (someone else's, on the shared page), ignoring
 		 * the app's current dashboard. Nothing arranges, and the only action is Fullscreen.
 		 */
 		view?: Dashboard;
-		/** Tests only: hands over the grid's arrangement controller once it's made. */
-		onArrangement?: (arrangement: Arrangement) => void;
 	} = $props();
 
 	const app = useApp();
@@ -72,7 +73,9 @@
 		{ onGone: () => announce(m.layout_gone({ title: activeTitle })) }
 	);
 	setContext(ARRANGEMENT_KEY, arrangement);
-	untrack(() => onArrangement?.(arrangement));
+	getContext<((arrangement: Arrangement) => void) | undefined>(ARRANGEMENT_PROBE_KEY)?.(
+		arrangement
+	);
 	onDestroy(() => arrangement.dispose());
 
 	// The shown (tidied) layout, always in desktop coordinates and in reading order, so the
@@ -111,7 +114,8 @@
 		if (widget) activeTitle = widgetTitle(widget);
 	});
 
-	// Widgets that change place animate there (FLIP), except one that follows the pointer.
+	// Widgets that change place or size animate there (FLIP), except one the pointer is moving
+	// (it follows the pointer; a pointer resize animates each snap).
 	let grid = $state<HTMLElement | null>(null);
 	const flip = new Flip();
 	$effect.pre(() => {
@@ -122,7 +126,7 @@
 		void placed;
 		untrack(() => {
 			const a = arrangement.active;
-			flip.play(grid, a && a.input !== "keyboard" ? a.id : null);
+			flip.play(grid, a && a.input !== "keyboard" && a.mode === "move" ? a.id : null);
 		});
 	});
 

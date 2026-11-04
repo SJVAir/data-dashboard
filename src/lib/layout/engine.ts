@@ -120,8 +120,9 @@ export function resize(items: LayoutItem[], id: string, rect: Rect, columns: num
 }
 
 /**
- * Move a widget just past the nearest widget below it whose columns it shares, or `null` when
- * there is none (it is already at the bottom).
+ * The keyboard's Down step: move a widget so its top is at the bottom of the next widget below
+ * it (the first, in reading order, that starts lower and shares any of its columns), pushing
+ * widgets in the way down like `move`. Returns `null` when no widget is below it.
  */
 export function stepDown(items: LayoutItem[], id: string, columns: number): Layout | null {
 	const target = items.find((i) => i.id === id);

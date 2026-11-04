@@ -1,7 +1,8 @@
 /**
- * FLIP for the dashboard grid: `measure` the items' positions before the DOM changes, then
- * `play` after it, and each item that moved animates from where it was with a transform. The
- * duration and easing are the theme's motion tokens, which are 0 ms under reduced motion.
+ * FLIP for the dashboard grid: `measure` the items' boxes before the DOM changes, then `play`
+ * after it, and each item that moved animates from where it was with a transform; one that was
+ * resized also animates its width and height. The duration and easing are the theme's motion
+ * tokens, which are 0 ms under reduced motion.
  *
  * Items are the container's children with a `data-flip-id`.
  */
@@ -16,7 +17,7 @@ export class Flip {
 		for (const [id, el] of items(container)) this.#before.set(id, el.getBoundingClientRect());
 	}
 
-	/** Animate every item that moved since `measure`, except `skip` (it follows the pointer). */
+	/** Animate every item that moved or was resized since `measure`, except `skip` (it follows the pointer). */
 	play(container: HTMLElement | null, skip: string | null = null): void {
 		const before = this.#before;
 		if (!container || before.size === 0) return;
@@ -29,11 +30,19 @@ export class Flip {
 			const to = el.getBoundingClientRect();
 			const dx = from.left - to.left;
 			const dy = from.top - to.top;
-			if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-			const animation = el.animate(
-				[{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-				{ duration, easing }
-			);
+			const resized =
+				Math.abs(from.width - to.width) >= 0.5 || Math.abs(from.height - to.height) >= 0.5;
+			if (!resized && Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+			const slide = { transform: `translate(${dx}px, ${dy}px)` };
+			// A resized item animates its box, not a scale: its content reflows as it goes rather
+			// than being stretched.
+			const keyframes = resized
+				? [
+						{ ...slide, width: `${from.width}px`, height: `${from.height}px` },
+						{ transform: "none", width: `${to.width}px`, height: `${to.height}px` }
+					]
+				: [slide, { transform: "none" }];
+			const animation = el.animate(keyframes, { duration, easing });
 			this.#running.set(id, animation);
 			animation.onfinish = () => {
 				if (this.#running.get(id) === animation) this.#running.delete(id);

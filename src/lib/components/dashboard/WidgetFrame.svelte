@@ -18,7 +18,11 @@
 	import { dropText, pickUpText, positionText, sizeText } from "$lib/layout/announcements";
 	import { DRAG_THRESHOLD, LONG_PRESS_TOLERANCE } from "$lib/layout/config";
 	import { startLongPress } from "$lib/layout/long-press";
-	import { startPointerDrag, type DragKind, type ResizeEdge } from "$lib/layout/pointer-drag";
+	import {
+		startPointerDrag,
+		type DragKind,
+		type ResizeEdge
+	} from "$lib/layout/pointer-drag.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
@@ -389,12 +393,13 @@
 		Math.hypot(a.x - b.x, a.y - b.y);
 
 	/**
-	 * Keep the page from scrolling under a touch gesture. Attached (non-passive) to the title bar
-	 * and the touch handles from the start: browsers decide at touchstart whether a touch's moves
-	 * can be cancelled, so a listener added at the lift would come too late.
+	 * Keep the page from scrolling under a touch gesture, and anywhere on the widget (its body,
+	 * handles, and Done) during a touch selection. Attached (non-passive) to the title bar and the
+	 * body from the start: browsers decide at touchstart whether a touch's moves can be
+	 * cancelled, so a listener added at the lift would come too late.
 	 */
 	function blockScroll(event: TouchEvent): void {
-		if (gesture && touchActive && event.cancelable) event.preventDefault();
+		if ((selected || (gesture && touchActive)) && event.cancelable) event.preventDefault();
 	}
 	const scrollBlocker = (el: HTMLElement) => on(el, "touchmove", blockScroll, { passive: false });
 
@@ -579,7 +584,7 @@
 			</Button>
 		{/if}
 	</div>
-	<div class="relative min-h-0 flex-1 p-(--card-padding)">
+	<div class="relative min-h-0 flex-1 p-(--card-padding)" {@attach scrollBlocker}>
 		{#if type}
 			<type.component {widget} {fullscreen} />
 		{/if}
@@ -596,7 +601,7 @@
 		{/if}
 		{#if selected}
 			<!-- Below the title bar, which still drags the selected widget. -->
-			<div class="contents" {@attach scrollBlocker} {@attach noMenu}>
+			<div class="contents" {@attach noMenu}>
 				<ResizeHandles
 					phone={arrangement.columns === 1}
 					shown={true}

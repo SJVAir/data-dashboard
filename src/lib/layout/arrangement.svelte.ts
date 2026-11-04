@@ -41,6 +41,11 @@ let carried: { from: DocumentSession; id: string } | null = null;
 const CACHE_LIMIT = 512;
 
 export const ARRANGEMENT_KEY = Symbol("arrangement");
+/**
+ * Tests only: a test harness may put a callback under this context key, and the dashboard grid
+ * hands it the arrangement it makes. Nothing in the app sets it.
+ */
+export const ARRANGEMENT_PROBE_KEY = Symbol("arrangement probe");
 
 /** The dashboard page's arrangement controller, from context. */
 export function useArrangement(): Arrangement {
@@ -103,6 +108,8 @@ export class Arrangement {
 	readonly #columns: () => number;
 	readonly #onGone: ((id: string) => void) | undefined;
 	readonly #stop: () => void;
+	/** The starter this page showed, once a drop here handed it off to a copy. */
+	#starter: DocumentSession | null = null;
 
 	/** The shown layout of the last document seen (kept by reference while it's unchanged). */
 	#base: { doc: Dashboard; layout: Layout } | null = null;
@@ -168,6 +175,15 @@ export class Arrangement {
 		this.#clear();
 		this.pendingFocus = null;
 		this.#active = { id, mode, input };
+	}
+
+	/**
+	 * Switch the active widget between moving and resizing, keeping its target (a touch
+	 * selection's next gesture may be either).
+	 */
+	setMode(mode: ArrangeMode): void {
+		const active = this.#active;
+		if (active && active.mode !== mode) this.#active = { ...active, mode };
 	}
 
 	/** Move the active widget to a cell (engine `move`; widgets in the way are pushed down). */
@@ -236,9 +252,11 @@ export class Arrangement {
 		if (!change) return null;
 		session.apply(change);
 		this.pendingFocus = id;
-		// The document didn't take the change itself: it went to a starter's hand-off, and the
-		// copy shows on a new page.
-		if (session.editTarget.doc === doc) carried = { from: session, id };
+		// A starter's page: its edits go to a copy, shown on a new page, so the focus request is
+		// carried there. Once the copy is current (before the page switches) this page's session
+		// is the copy, so the starter is remembered from the first drop.
+		if (session.edited) this.#starter = session;
+		if (this.#starter) carried = { from: this.#starter, id };
 		return change;
 	}
 

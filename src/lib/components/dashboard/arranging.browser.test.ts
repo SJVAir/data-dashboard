@@ -2,7 +2,7 @@ import "../../../app.css";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 import { handleUndoShortcut } from "$lib/actions/global";
 import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
@@ -132,6 +132,39 @@ test("Shift+arrows resize", async () => {
 	await announced("3 columns wide, 5 rows tall.");
 	await press("{Enter}");
 	await expect.poll(() => rectOf(app, "a")).toEqual({ x: 0, y: 0, w: 3, h: 5 });
+});
+
+/** The running animations on widget `id`'s frame that change its width. */
+const sizeAnimations = (id: string) =>
+	page
+		.getByTestId(`widget-${id}`)
+		.element()
+		.getAnimations()
+		.filter((a) => (a.effect as KeyframeEffect).getKeyframes().some((k) => k.width !== undefined));
+
+test("a keyboard resize animates the frame's size, not under reduced motion", async () => {
+	await seed(halves());
+	await focusBar("Readings");
+	const before = page.getByTestId("widget-a").element().getBoundingClientRect();
+	await press("{Enter}");
+	await press("{Shift>}{ArrowLeft}{/Shift}");
+	await expect.poll(() => sizeAnimations("a").length).toBe(1);
+	const first = (sizeAnimations("a")[0].effect as KeyframeEffect).getKeyframes()[0];
+	expect(parseFloat(first.width as string)).toBeCloseTo(before.width, 0);
+	expect(sizeAnimations("a")[0].effect!.getTiming().duration).toBe(200);
+	await press("{Escape}");
+
+	await commands.setReducedMotion(true);
+	try {
+		await press("{Enter}");
+		await press("{Shift>}{ArrowLeft}{/Shift}");
+		await announced("5 columns wide, 4 rows tall.");
+		await nextFrame();
+		expect(sizeAnimations("a")).toEqual([]);
+		await press("{Escape}");
+	} finally {
+		await commands.setReducedMotion(null);
+	}
 });
 
 test("Escape cancels", async () => {
@@ -548,6 +581,48 @@ test("dragging near the bottom of the viewport scrolls the page", async () => {
 	expect(window.scrollY).toBe(y);
 });
 
+test("a pointer resize animates the frame's size as it snaps", async () => {
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	await drag(handle("a", "right"), -pitchX() * 2, 0, false);
+	await expect.poll(() => sizeAnimations("a").length).toBe(1);
+	await press("{Escape}");
+});
+
+test("autoscroll asks for animation frames only while the pointer is in the edge zone", async () => {
+	await seed(
+		Array.from({ length: 30 }, (_, i) =>
+			widget(`w${i}`, { x: (i % 2) * 6, y: Math.floor(i / 2) * 4, w: 6, h: 4 }, `Widget ${i}`)
+		)
+	);
+	await expect.element(titleBar("Widget 0")).toBeVisible();
+	const raf = vi.spyOn(window, "requestAnimationFrame");
+	const autoscrollFrames = () =>
+		raf.mock.calls.filter(([callback]) => callback.name === "autoscroll").length;
+	try {
+		const bar = titleBar("Widget 0").element();
+		const start = center(bar);
+		pointer(bar, "pointerdown", start.x, start.y);
+		pointer(bar, "pointermove", start.x, start.y + 10);
+		await wait(100);
+		expect(autoscrollFrames()).toBe(0);
+		pointer(bar, "pointermove", start.x, window.innerHeight - 10);
+		await expect.poll(() => window.scrollY).toBeGreaterThan(50);
+		expect(autoscrollFrames()).toBeGreaterThan(0);
+		pointer(bar, "pointermove", start.x, window.innerHeight / 2);
+		await nextFrame();
+		await nextFrame();
+		const count = autoscrollFrames();
+		const y = window.scrollY;
+		await wait(100);
+		expect(autoscrollFrames()).toBe(count);
+		expect(window.scrollY).toBe(y);
+		await press("{Escape}");
+	} finally {
+		raf.mockRestore();
+	}
+});
+
 // --- Carried from the mouse review ---
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
@@ -844,7 +919,7 @@ test("on a phone only the bottom handle shows", async () => {
 	await press("{Escape}");
 });
 
-test("a touch selection's handles stop the page scrolling only during a gesture", async () => {
+test("a touch selection's handles stop the page scrolling, during a gesture and between", async () => {
 	await seed(halves());
 	await expect.element(titleBar("Readings")).toBeVisible();
 	const bar = titleBar("Readings").element();
@@ -852,13 +927,55 @@ test("a touch selection's handles stop the page scrolling only during a gesture"
 	touch(bar, "pointerup", at.x, at.y);
 	await expect.element(done()).toBeVisible();
 	const right = handle("a", "right");
-	expect(touchmovePrevented(right)).toBe(false);
+	expect(touchmovePrevented(right)).toBe(true);
 	const r = center(right);
 	touch(right, "pointerdown", r.x, r.y);
 	touch(right, "pointermove", r.x + 20, r.y);
 	expect(touchmovePrevented(right)).toBe(true);
 	touch(right, "pointerup", r.x + 20, r.y);
-	expect(touchmovePrevented(right)).toBe(false);
+	expect(touchmovePrevented(right)).toBe(true);
+	await press("{Escape}");
+});
+
+test("a touch selection keeps the page from scrolling under its body and Done", async () => {
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const body = () => frame("a").querySelector(":scope > div.relative") as HTMLElement;
+	expect(touchmovePrevented(body())).toBe(false);
+	const bar = titleBar("Readings").element();
+	const at = await longPress(bar);
+	touch(bar, "pointerup", at.x, at.y);
+	await expect.element(done()).toBeVisible();
+	expect(touchmovePrevented(body())).toBe(true);
+	expect(touchmovePrevented(done().element())).toBe(true);
+	// Not another widget's body.
+	expect(touchmovePrevented(frame("b").querySelector(":scope > div.relative")!)).toBe(false);
+	await press("{Escape}");
+	await expect.element(done()).not.toBeInTheDocument();
+	expect(touchmovePrevented(body())).toBe(false);
+});
+
+test("a touch selection's resize animates the frame's size; its move doesn't", async () => {
+	await seed(halves());
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const bar = titleBar("Readings").element();
+	const at = await longPress(bar);
+	touch(bar, "pointerup", at.x, at.y);
+	await expect.element(done()).toBeVisible();
+	const right = handle("a", "right");
+	const r = center(right);
+	touch(right, "pointerdown", r.x, r.y);
+	touch(right, "pointermove", r.x + pitchX() * 2, r.y);
+	await expect.poll(() => sizeAnimations("a").length).toBe(1);
+	touch(right, "pointerup", r.x + pitchX() * 2, r.y);
+	for (const a of frame("a").getAnimations()) a.finish();
+	// Moving by the title bar: the frame follows the finger, so it isn't animated.
+	const b = center(bar);
+	touch(bar, "pointerdown", b.x, b.y);
+	touch(bar, "pointermove", b.x, b.y + pitchY() * 5);
+	await nextFrame();
+	expect(frame("a").getAnimations()).toEqual([]);
+	touch(bar, "pointerup", b.x, b.y + pitchY() * 5);
 	await press("{Escape}");
 });
 
