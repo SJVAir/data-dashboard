@@ -15,7 +15,7 @@ the mobile app is `../mobile` (v4.0.5); sjvair.com `main` includes the notificat
 2026-10-13), with #261 still open; `@sjvair/sdk` is
 unchanged at 4.5.0.
 
-**Where things stand (2026-11-02): Foundations (Release 1, step 1) is done and merged into `main`**
+**Where things stand (2026-11-04): Foundations (Release 1, step 1) is done and merged into `main`**
 (#11). Specs 1, 2, 3, 5a, and 5b were each merged into `foundations` first (spec 4 was dropped;
 Collections moved to Release 3). 5b's server and SDK sides are merged too (sjvair.com #296 into
 `develop`, sdk-js #33 into `release/4.8.0`). **Step 2 (the layout engine and windowing) is done and
@@ -27,9 +27,9 @@ go-live or beta testers. **The server-backed documents (sync) track's spec 1 is 
 **spec 3, live share links** (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26),
 2026-11-03), and **spec 4, recovery** (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29),
 2026-11-03; its sjvair.com `deletedAccount` change is #299 on `develop`). The hosting track is built (sjvair.com
-#295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is built too, with its PRs open and not merged.
+#295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is merged too (sjvair.com #300 into `develop`, @sjvair/sdk 4.8.0-beta.4); spec 2 is next in a new sjvair.com session. **The design pass is done and merged into `main`** (2026-11-04: [#33](https://github.com/SJVAir/data-dashboard/pull/33) the look, [#34](https://github.com/SJVAir/data-dashboard/pull/34) wording and behavior), so **step 4 is next** in this repo. `map-sdk` exists (`SJVAir/map-sdk`; design approved, milestone 1 planned and in progress).
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
-4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.3 is the latest). Details in `TODO.md` →
+4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.4 is the latest, the dashboard pins beta.3 until step 4). Details in `TODO.md` →
 "Start here".
 
 ## Done (v1 tab era)
@@ -133,9 +133,11 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    - HTTP cache headers on the summary endpoints
    - hardcoded-value cleanup in sjvair.com, and fixing sdk-js `api-urls.md`
 
-- **Design pass** (decided 2026-09-28): its own small sub-project **before step 4** (and the
-  private preview). It covers the palette, typography, spacing, motion, and component
-  styling, applied through Foundations' theme tokens.
+- ~~**Design pass**~~ **done** (merged into `main` 2026-11-04, #33 and #34; decided 2026-09-28 as
+  its own small sub-project before step 4 and the private preview): the palette, typography,
+  spacing, motion, and component styling through Foundations' theme tokens, dark mode with a
+  switch, and the wording and behavior fixes parked for it. Spec
+  `docs/superpowers/specs/2026-11-03-design-pass-design.md`.
 
 4. **Widget Creation and the non-map widgets**
    - Widget Creation view (catalog-driven dataset accordions, layers, advanced resolution

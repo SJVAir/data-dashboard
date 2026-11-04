@@ -14,7 +14,7 @@ session, in order. From 2026-11-03, three sessions run at once:
 | **Step 3, second batch** (metadata)                        | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
 | **Step 5, part 1: `map-sdk`** (new repo)                   | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 
-**Docs rules for the other sessions** (only the design pass session edits this checkout):
+**Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
 - **Docs-only changes need no PR** (the user, 2026-11-03): commit them to the branch you're
   working on, or straight to `main` when the change is docs only. Other sessions still use their
