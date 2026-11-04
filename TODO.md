@@ -1061,9 +1061,13 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - **Remaining SDK work, in the order sdk-js-6a suggested** (handoff, 2026-11-04; each needs a new
   sdk-js session, and every beta the user's yes):
   1. Pin bumps to `5.0.0-beta.1`: step 4 (spec 2's first commit) and map-sdk (its next session).
-  2. The exact-entry-bounds spec (5.0.0, breaking; sdk-js `DEFERRED.md` "Breaking changes"),
-     soon, before step 4 builds more on `getMonitorEntries`' widening; its caller audit covers
-     monitor-map, mobile and the dashboard. Likely `5.0.0-beta.2`.
+  2. The exact-entry-bounds spec (5.0.0, breaking): **PR open, sdk-js #44** into
+     `release/5.0.0` (sdk-js-8c, 2026-11-04), not merged; likely `5.0.0-beta.2`, which needs the
+     user's yes. Bounds are sent as given by default; `wholeDays: true` rounds to whole Pacific
+     days; `exact` is removed with no runtime check (the user's decision). Caller audit (in the
+     spec): the dashboard drops `exact: true` (`air-quality-fetch.ts`) and the test's `{ exact }`
+     when step 4 pins that beta; monitor-map needs no code change (just the 5.0 bump); mobile and
+     map-sdk don't call these functions.
   3. Moving `@sjvair/sdk/documents` out of the public SDK, before 5.0.0 final and go-live; the
      destination (the dashboard repo or an unpublished internal package) is the user's call.
   4. Pesticide metadata and widget endpoints (`DEFERRED.md` → "Widgets").
