@@ -17,9 +17,8 @@
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import { spaceFor } from "$lib/account/identity";
 	import { displayName, greetingName, initials } from "$lib/account/names";
-	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
+	import { openPrivacy } from "$lib/components/dialogs/lazy.svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
-	import SignOutDialog from "$lib/components/dialogs/SignOutDialog.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import {
@@ -84,6 +83,8 @@
 	/** Changes not yet in the account: the dialog asks what to do (`unsynced` is its count). */
 	let asking = $state(false);
 	let unsynced = $state(0);
+	// The dialog's code loads the first time it's needed, and then it stays mounted.
+	let askedBefore = $state(false);
 
 	async function signOut() {
 		requestFocus(SIGN_IN_FOCUS);
@@ -92,6 +93,7 @@
 			if ("unsynced" in result) {
 				unsynced = result.unsynced;
 				asking = true;
+				askedBefore = true;
 			}
 		} catch (error) {
 			report(error, { operation: "sign-out" });
@@ -161,4 +163,8 @@
 	</DropdownMenu.Root>
 {/if}
 
-<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />
+{#if askedBefore}
+	{#await import("$lib/components/dialogs/SignOutDialog.svelte") then { default: SignOutDialog }}
+		<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />
+	{/await}
+{/if}

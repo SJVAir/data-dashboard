@@ -10,7 +10,7 @@ import Upload from "@lucide/svelte/icons/upload";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
-import { openRestoreVersion } from "$lib/components/dialogs/RestoreVersionDialog.svelte";
+import { openRestoreVersion } from "$lib/components/dialogs/lazy.svelte";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
 import type { WidgetInstance } from "$lib/documents/schema";

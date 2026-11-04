@@ -1,5 +1,5 @@
 import { toast } from "svelte-sonner";
-import { openShare } from "$lib/components/dialogs/ShareDialog.svelte";
+import { openShare } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard } from "$lib/documents/schema";
 import { todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";

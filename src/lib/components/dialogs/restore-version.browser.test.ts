@@ -6,7 +6,8 @@ import { render } from "vitest-browser-svelte";
 import { commands, page, userEvent } from "vitest/browser";
 import { ANNOUNCE_GAP_MS } from "$lib/a11y/announcer.svelte";
 import type { EarlierVersion, EarlierVersions } from "$lib/safety/restore-version";
-import RestoreVersionDialog, { openRestoreVersion } from "./RestoreVersionDialog.svelte";
+import RestoreVersionDialog from "./RestoreVersionDialog.svelte";
+import { openRestoreVersion } from "./lazy.svelte";
 import AnnounceHarness from "./test-harness/AnnounceHarness.svelte";
 import { animationsSettled } from "../../../test/animations";
 

@@ -1,15 +1,10 @@
 <script lang="ts">
 	import { Router } from "sv-router";
 	import LiveRegion from "$lib/components/a11y/LiveRegion.svelte";
-	import ClearDataDialog from "$lib/components/dialogs/ClearDataDialog.svelte";
 	import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
+	import LazyDialogs from "$lib/components/dialogs/LazyDialogs.svelte";
 	import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
-	import ExistingCopyDialog from "$lib/components/dialogs/ExistingCopyDialog.svelte";
-	import MoveToAccountDialog from "$lib/components/dialogs/MoveToAccountDialog.svelte";
-	import PrivacyDialog from "$lib/components/dialogs/PrivacyDialog.svelte";
 	import RemoteDecisionDialog from "$lib/components/dialogs/RemoteDecisionDialog.svelte";
-	import ShareDialog from "$lib/components/dialogs/ShareDialog.svelte";
-	import RestoreVersionDialog from "$lib/components/dialogs/RestoreVersionDialog.svelte";
 	import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
 	import NoticeBars from "$lib/components/shell/NoticeBars.svelte";
 	import TopNav from "$lib/components/shell/TopNav.svelte";
@@ -37,14 +32,11 @@
 	</main>
 </div>
 <RenameDialog />
-<ClearDataDialog />
 <ConflictDialog />
 <RemoteDecisionDialog />
-<MoveToAccountDialog />
-<ExistingCopyDialog />
-<ShareDialog />
-<PrivacyDialog />
-<RestoreVersionDialog />
+<!-- Share, Restore version, Clear my data, Privacy, Existing copy, and Move to account: loaded
+     on demand. -->
+<LazyDialogs />
 <!-- After the other dialogs: dialogs stack in mount order, and a confirm opens over one
      (Stop sharing asks over the Share dialog). -->
 <ConfirmDialog />
