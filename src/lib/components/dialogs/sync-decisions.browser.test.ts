@@ -24,6 +24,7 @@ import { uploadDocument } from "$lib/sync/upload";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import ConflictDialog from "./ConflictDialog.svelte";
 import RemoteDecisionDialog from "./RemoteDecisionDialog.svelte";
+import AnnounceHarness from "./test-harness/AnnounceHarness.svelte";
 
 const workers: SyncWorker[] = [];
 afterEach(() => {
@@ -174,4 +175,21 @@ test("neither dialog closes on Escape", async () => {
 		.element(dialog.getByRole("button", { name: "Keep as a new dashboard" }))
 		.toBeVisible();
 	expect(gone.worker.states.d1?.hold).toEqual({ kind: "gone" });
+});
+
+test("settling a device conflict announces Saved again, read from the page once the dialog is gone", async () => {
+	const { app } = await held([title("a", "Mine")], [title("a", "Theirs")]);
+	await render(AnnounceHarness, {
+		context: new Map([[APP_CONTEXT_KEY, app]]),
+		props: { indicator: true }
+	});
+	const dialog = page.getByRole("dialog", { name: "Changed on another device" });
+	await dialog.getByRole("button", { name: "Keep mine" }).click();
+	// Its title changes as it closes, so wait for any dialog to be gone.
+	await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
+	const selector = '[role="status"][aria-live="polite"][aria-atomic="true"]';
+	const holding = () =>
+		[...document.querySelectorAll(selector)].filter((r) => r.textContent === "Saved again");
+	await expect.poll(() => holding().length).toBe(1);
+	expect(document.querySelector('[aria-modal="true"]')).toBeNull();
 });

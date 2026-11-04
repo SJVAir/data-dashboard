@@ -2508,8 +2508,10 @@ and views.
 - **Live-region announcements** for layout changes, e.g. "Moved to column 3, row 2" or
   "Widget minimized to taskbar". `announce()` and toasts go to one live region on the page; while a
   modal dialog is open they go to that dialog's own region instead (bits-ui hides everything
-  outside a modal from assistive technology), and a message made with `onlyInDialog` is dropped
-  when no dialog is open. The saved indicator announces only changes that matter (a failure, a
+  outside a modal from assistive technology). A dialog stops taking messages as soon as it starts
+  closing; a message for the page waits until the closing dialog is gone. A toast (`onlyInDialog`)
+  is read from our regions only when a dialog was on screen as it appeared or opens just after;
+  otherwise the toaster's own region reads it. The saved indicator announces only changes that matter (a failure, a
   conflict, recovery), not every "Saving…" and "Saved".
 - **Focus management:**
   - Fullscreen traps focus; Esc exits and restores focus.

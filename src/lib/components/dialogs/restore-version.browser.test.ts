@@ -1,10 +1,24 @@
 import "../../../app.css";
 import axe from "axe-core";
-import { expect, test, vi } from "vitest";
+import { toast } from "svelte-sonner";
+import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
+import { ANNOUNCE_GAP_MS } from "$lib/a11y/announcer.svelte";
 import type { EarlierVersion, EarlierVersions } from "$lib/safety/restore-version";
 import RestoreVersionDialog, { openRestoreVersion } from "./RestoreVersionDialog.svelte";
+import AnnounceHarness from "./test-harness/AnnounceHarness.svelte";
+
+declare module "vitest/browser" {
+	interface BrowserCommands {
+		setReducedMotion: (reduce: boolean | null) => Promise<void>;
+	}
+}
+
+afterEach(async () => {
+	toast.dismiss();
+	await commands.setReducedMotion(null);
+});
 
 const local: EarlierVersion = {
 	source: "local",
@@ -208,3 +222,26 @@ test("the open dialog has no axe violations", async () => {
 	const results = await axe.run(el);
 	expect(results.violations).toEqual([]);
 });
+
+for (const reduce of [false, true]) {
+	test(`the Restored toast is read once, from the page, after the dialog closes${reduce ? " (reduced motion)" : ""}`, async () => {
+		await commands.setReducedMotion(reduce);
+		await render(AnnounceHarness);
+		const done = "Restored the earlier version. Undo to go back.";
+		// As in the app: the restore shows the toast, then the dialog closes.
+		openRestoreVersion(loaded([daily]), async () => {
+			toast(done);
+			return "restored";
+		});
+		const dialog = page.getByRole("dialog");
+		await dialog.getByRole("button", { name: "Restore", exact: true }).click();
+		await expect.element(dialog).not.toBeInTheDocument();
+		const selector = '[role="status"][aria-live="polite"][aria-atomic="true"]';
+		const holding = () =>
+			[...document.querySelectorAll(selector)].filter((r) => r.textContent === done);
+		await expect.poll(() => holding().length).toBe(1);
+		await new Promise((r) => setTimeout(r, ANNOUNCE_GAP_MS * 2));
+		expect(holding()).toHaveLength(1);
+		expect(document.querySelector('[aria-modal="true"]')).toBeNull();
+	});
+}

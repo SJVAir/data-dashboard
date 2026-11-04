@@ -1,12 +1,20 @@
+import "../../../app.css";
 import { toast } from "svelte-sonner";
 import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 import { announce, ANNOUNCE_GAP_MS } from "$lib/a11y/announcer.svelte";
 import DialogHarness from "./test-harness/DialogHarness.svelte";
 
-afterEach(() => {
+declare module "vitest/browser" {
+	interface BrowserCommands {
+		setReducedMotion: (reduce: boolean | null) => Promise<void>;
+	}
+}
+
+afterEach(async () => {
 	toast.dismiss();
+	await commands.setReducedMotion(null);
 });
 
 const SELECTOR = '[role="status"][aria-live="polite"][aria-atomic="true"]';
@@ -97,6 +105,51 @@ test("a toast with no dialog open doesn't cancel an announcement made just befor
 	announce("Dropped Alpha at column 2, row 1.");
 	toast("Saved a copy");
 	const regions = await announced("Dropped Alpha at column 2, row 1.");
+	expect(regions).toHaveLength(1);
+	expect(reachable(regions[0])).toBe(true);
+});
+
+/** The one region holding `text` once things settle, checked reachable and on the page. */
+async function readFromPage(text: string): Promise<void> {
+	const regions = await announced(text);
+	expect(regions).toHaveLength(1);
+	expect(reachable(regions[0])).toBe(true);
+	expect(regions[0].closest('[role="dialog"]')).toBeNull();
+}
+
+for (const reduce of [false, true]) {
+	const motion = reduce ? " (reduced motion)" : "";
+
+	test(`a toast shown just before its dialog closes is read once, from the page${motion}`, async () => {
+		await commands.setReducedMotion(reduce);
+		await render(DialogHarness);
+		await userEvent.click(page.getByRole("button", { name: "Open outer" }));
+		await expect.element(page.getByRole("dialog", { name: "Outer" })).toBeVisible();
+		toast("Restored the earlier version.");
+		await userEvent.keyboard("{Escape}");
+		await readFromPage("Restored the earlier version.");
+		await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
+	});
+
+	test(`an announcement made while its dialog closes is read once, from the page${motion}`, async () => {
+		await commands.setReducedMotion(reduce);
+		await render(DialogHarness);
+		await userEvent.click(page.getByRole("button", { name: "Open outer" }));
+		await expect.element(page.getByRole("dialog", { name: "Outer" })).toBeVisible();
+		await userEvent.keyboard("{Escape}");
+		announce("Saved again");
+		await readFromPage("Saved again");
+	});
+}
+
+test("a toast shown just before a dialog opens is read from the dialog", async () => {
+	// One handler shows a toast and opens a dialog: the dialog cuts the toaster off before it reads.
+	await render(DialogHarness);
+	toast("Opened");
+	await new Promise((r) => setTimeout(r, ANNOUNCE_GAP_MS / 4));
+	(page.getByRole("button", { name: "Open outer" }).element() as HTMLElement).click();
+	await expect.element(page.getByRole("dialog", { name: "Outer" })).toBeVisible();
+	const regions = await announced("Opened");
 	expect(regions).toHaveLength(1);
 	expect(reachable(regions[0])).toBe(true);
 });

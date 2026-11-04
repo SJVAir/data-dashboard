@@ -21,6 +21,19 @@
 		children: Snippet;
 		showCloseButton?: boolean;
 	} = $props();
+
+	// Whether the dialog is open, from bits-ui's `data-state`: it turns "closed" as soon as the
+	// dialog starts closing, while the content stays on screen for its close animation.
+	let open = $state(true);
+	$effect(() => {
+		const node = ref;
+		if (!node) return;
+		const update = () => (open = node.getAttribute("data-state") !== "closed");
+		update();
+		const observer = new MutationObserver(update);
+		observer.observe(node, { attributes: true, attributeFilter: ["data-state"] });
+		return () => observer.disconnect();
+	});
 </script>
 
 <DialogPortal {...portalProps}>
@@ -36,7 +49,7 @@
 	>
 		{@render children?.()}
 		<!-- The page's live region is cut off while this modal is open; announcements come here. -->
-		<LiveRegion layer="dialog" />
+		<LiveRegion layer="dialog" {open} />
 		{#if showCloseButton}
 			<DialogPrimitive.Close data-slot="dialog-close">
 				{#snippet child({ props })}

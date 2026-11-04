@@ -32,8 +32,9 @@
 	});
 
 	// The toaster's own live region is outside every dialog, so a modal dialog cuts it off from
-	// screen readers. A toast shown while a dialog is open is also read from the dialog's region
-	// (`onlyInDialog`: with no dialog open, the toaster's region reads it, once).
+	// screen readers. A toast shown while a dialog is on screen is also read from our regions
+	// (`onlyInDialog`: the dialog's, or the page's once the dialog has closed; with no dialog,
+	// the toaster's region reads it, once).
 	// `getActiveToasts` reads svelte-sonner's toast state, so this effect reruns on each change.
 	// Plain sets on purpose: what was already read is bookkeeping, not something to react to.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
