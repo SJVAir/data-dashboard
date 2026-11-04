@@ -956,8 +956,8 @@ built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are i
 (burn-status value, production deploy step, region count caching). **Spec 2 (2026-11-04) is merged:** sjvair.com
 [#301](https://github.com/SJVAir/sjvair.com/pull/301) into `develop` and sdk-js
 [#38](https://github.com/SJVAir/sdk-js/pull/38) into `release/4.8.0` (both 2026-11-04, with the
-user's yes); not yet in production. No beta beyond 4.8.0-beta.4 is cut yet (a beta needs the
-user's yes). Spec at sjvair.com
+user's yes); not yet in production. Both are in **@sjvair/sdk 4.8.0-beta.5** (published 2026-11-04 with the
+user's yes); step 4 can pin it. Spec at sjvair.com
 `docs/superpowers/specs/2026-11-03-summary-cache-and-place-lookup-design.md`. Later specs: location
 search, the remaining wrappers and cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
