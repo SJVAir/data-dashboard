@@ -2,6 +2,7 @@ import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
 	PLACEHOLDER,
+	addWidget,
 	dashboardHeading,
 	expectNoViolations,
 	makeOwnCopy,
@@ -28,6 +29,23 @@ for (const colorScheme of ["light", "dark"] as const) {
 
 		test("a dashboard with widgets", async ({ page }) => {
 			await makeOwnCopy(page);
+			await expectNoViolations(page);
+		});
+
+		test("a Chart and a Data table", async ({ page }) => {
+			await page.goto("./");
+			await addWidget(page, "Chart");
+			await addWidget(page, "Data table");
+			const chart = page.getByRole("group", { name: "Chart of Fresno County" });
+			await expect(chart.getByRole("list", { name: "Series" })).toBeVisible();
+			await expect(chart.getByRole("list", { name: "Levels" })).toBeAttached();
+			await expect(
+				page.getByRole("region", { name: "Data table values" }).getByRole("rowheader")
+			).not.toHaveCount(0);
+			// With the readout showing.
+			await chart.focus();
+			await page.keyboard.press("End");
+			await expect(chart.locator("[aria-live=polite]")).not.toBeEmpty();
 			await expectNoViolations(page);
 		});
 

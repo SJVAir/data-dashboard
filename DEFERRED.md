@@ -23,6 +23,12 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `toJSONSchema` processors add about 8.5 KB; a bigger change). **Revisit when**
   `check:budget` jumps after adding a package (check whether it needs a `BARRELED` entry), or
   when the budget is next over.
+- **The initial bundle over 200 KB again.** _Trimmed 2026-11-04 (step 4 spec 1)_, this once:
+  from 213.9 KB gzip (the design pass plus the SDK bump and the widget groundwork) to 195.9 KB,
+  by loading rarely used dialogs and the dashboards list on demand and keeping uPlot, the data
+  layer, and each widget type's code out of the initial bundle. The budget is a soft limit
+  (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
+  decide then, trim or raise the budget, rather than trimming every time).
 
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
@@ -255,8 +261,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     air data. It moves to an internal package built on the public SDK's exports (`httpRequest`,
     `setOrigin`, request defaults), or into this repo while the dashboard stays the only caller;
     where it goes is still open. Until then the dashboard keeps using `@sjvair/sdk/documents`
-    (4.8.0 prereleases; `createSnapshot` is in the pinned 4.8.0-beta.3). The move changes the
-    dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
+    (4.8.0 prereleases; `createSnapshot` is in them; the pin is now 4.8.0-beta.6). The move
+    changes the dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
     (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 4.8.0 final is tagged, since
     removing it after a stable release has to wait for 5.0; sdk-js's own `DEFERRED.md` ("Before
     4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 4.8.0 final is being
@@ -351,10 +357,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
-- **`@sjvair/sdk` is pinned to the 4.8.0-beta.1 pre-release.** _Deferred 2026-10-22
+- **`@sjvair/sdk` is pinned to a 4.8.0 pre-release (now 4.8.0-beta.6).** _Deferred 2026-10-22
   (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
   `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
-  are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
+  are only in the 4.8.0 pre-releases; it is pinned exactly because a caret range skips
+  pre-releases.
   **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
   the user approves the release): switch to `^4.8.0`.
 - **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
@@ -661,23 +668,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   lines) and `app.svelte.ts` (about 390) could be split; `#onMessage` checks `SYNC_TAB`
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
-- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
-  (4) The initial bundle is about 205.5 KB gzip after the design pass, over the 200 KB soft
-  budget (199.2 KB after spec 4; the restyle and Part 2's announcer, restore dialog, unreadable
-  list, and resize animation added the rest). (5) After a restore's keep pulls in another device's
-  change (stale base), the restore's `from` is built from the open session's document, which may
-  lag the merged storage for a moment; undoing that restore could then drop the other device's
-  merged-in edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test
-  gaps: the keep's `not_found` refusal (shares the `gone` branch); restoring with the keep
-  skipped (anonymous or never uploaded); the "newer" message reaching the dialog;
-  flush-before-load order; "Delete now" pulling in a real concurrent restore (the test uses a
-  synthetic `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
-  `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error wording, the
-  loading line and focus, and the "Delete now" wording) were done in the design pass, part 2._
-  **Revisit** (4) before step 4 adds widget code (trim the initial bundle, or the user raises the
-  budget; _decided 2026-11-04: step 4 spec 1 trims it back under 200 KB this once, by loading
-  rarely used dialogs on demand; this item leaves when that merges_), (5) if an undo after a
-  restore is reported to lose an edit, and (6) when next touching those files.
+- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._ (5) After a
+  restore's keep pulls in another device's change (stale base), the restore's `from` is built from
+  the open session's document, which may lag the merged storage for a moment; undoing that restore
+  could then drop the other device's merged-in edit, which stays recoverable from the conflict
+  snapshot just kept. Rare. (6) Test gaps: the keep's `not_found` refusal (shares the `gone`
+  branch); restoring with the keep skipped (anonymous or never uploaded); the "newer" message
+  reaching the dialog; flush-before-load order; "Delete now" pulling in a real concurrent restore
+  (the test uses a synthetic `not_deleted`); the two-tab "switches away" half of the account-gone
+  flow (pinned by `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error
+  wording, the loading line and focus, and the "Delete now" wording) were done in the design pass,
+  part 2; item (4), the initial bundle over budget, was done in step 4 spec 1._ **Revisit** (5) if
+  an undo after a restore is reported to lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
@@ -1338,7 +1340,7 @@ string`) now get the union return type. The mobile app passes a string token, so
   renders in the right mode. Ruling it out needs sjvair.com's template to render the theme on the
   server (for example from a cookie), which needs a plan in that repo. **Revisit if** people
   notice the flash.
-- **Chart and map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
+- **Map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
   (design pass, Task 20 review)._ The widget being resized animates its width and height for
   `--motion-duration-base` (200 ms), so its content reflows rather than being stretched. A
   widget that redraws on a `ResizeObserver` (uPlot charts, map-sdk's `MapView`) would redraw on

@@ -214,6 +214,8 @@ abbreviations (the server has none; a band too thin for its label goes unlabeled
 with outlined swatches and full names **always** shows under the chart; a hover/tap/arrow-key
 readout gives date, value, level, and worst hour; several places (at most 5) differ by series
 color plus dash or marker; gaps break the line. No zoom or pan in Release 1 (`DEFERRED.md`).
+The Chart and the Data table open at **3×6** grid cells (3 of 12 columns, 6 rows) and shrink to
+at least 3×4 (as built, step 4 spec 1).
 
 ### Alerts
 
@@ -928,7 +930,9 @@ years): a month of hourly points reads as alarming spikes to a parent, and month
 a week of wildfire smoke. Daily views of up to 92 days also carry each day's **worst hourly
 average** (computed in the browser from hourly summaries, single place only), not the daily
 summary's `maximum`, which is one raw reading. Spec:
-`docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`.
+`docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`. **As
+built:** the span is counted in Pacific calendar days, first date to last inclusive ("last 30
+days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
 
 - **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
   server summaries, so the ladder only uses levels the catalog lists in each entry type's `resolutions`:
@@ -951,7 +955,9 @@ summary's `maximum`, which is one raw reading. Spec:
   where the coarse response lacks that period (computed client-side, and complete, so not
   partial); once the server's rollup exists, the coarse value wins. Where no finer level is
   offered (regions at hour, which have no raw entries) there is no backfill, and that period
-  stays empty until the server task runs. The backfill is one level deep (see `DEFERRED.md`).
+  stays empty until the server task runs. Since step 4 spec 1 the backfill's own last
+  sub-period is filled one level finer again, and the backfill is skipped for places whose
+  coarse value has arrived.
 - Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
@@ -997,6 +1003,11 @@ summary's `maximum`, which is one raw reading. Spec:
   - **Stable URLs:** the browser reuses its cache only for the same URL, so the data layer
     requests settled periods with stable URLs (fixed start and end) separately from the live
     tail. One request spanning "up to now" changes URL every time and never hits the cache.
+    **Request units as built** (step 4 spec 1): requests cover whole Pacific calendar units, a
+    **month** for hourly and daily summaries (and the worst hour's hourly fetch) and a **year**
+    for monthly, quarterly, and seasonal ones (yearly is one call); each past unit is its own
+    request and only the unit containing now is live, so "last 30 days" is last month (long
+    cache) plus this month so far (60 s). Rows outside the range are dropped in the browser.
 - In-flight requests are superseded by newer ones for the same widget
   (last-requested wins, not last-to-finish).
 

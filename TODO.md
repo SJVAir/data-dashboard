@@ -1027,10 +1027,13 @@ research in `docs/reference/pesticides-explorer-research.md`).
 **Split into six specs (agreed with the user 2026-11-04)**, each its own spec → plan → stacked PR
 into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes:
 
-1. **Widget groundwork, Chart, and Data table** — spec approved 2026-11-04:
-   `docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md` (branch
-   `step-4-spec-1`). Includes the SDK bump to 4.8.0-beta.5, the new resolution rule, the worst
-   hour, "Download data (CSV)" on every data widget, and trimming the initial bundle under 200 KB.
+1. **Widget groundwork, Chart, and Data table** — **built 2026-11-04** (branch `step-4-spec-1`,
+   PR into `step-4` pending review): spec
+   `docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`. Includes
+   the SDK bump (now 4.8.0-beta.6), the new resolution rule, the worst hour, "Download data
+   (CSV)" on every data widget, shared widget states, Duplicate, and the initial bundle trimmed
+   to 195.9 KB (from 213.9 KB). Stack check against Fresno County: request headers right, local
+   summaries too gappy for a full 30-day view.
 2. The shared place picker (second, so sjvair.com's location name search is likely out).
 3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
    how to show it, then Add to dashboard or Download CSV).
