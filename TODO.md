@@ -1126,7 +1126,35 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
-**Release 1, step 4: Widget Creation and non-map widgets**
+**Release 1, step 4: Widget Creation and non-map widgets** (now "the Data Explorer and non-map widgets")
+
+**Split into six specs (agreed with the user 2026-11-04)**, each its own spec → plan → stacked PR
+into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes:
+
+1. **Widget groundwork, Chart, and Data table** — **merged into `step-4` 2026-11-04**
+   ([#36](https://github.com/SJVAir/data-dashboard/pull/36), with the user's yes): spec
+   `docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`, plan
+   `docs/superpowers/plans/2026-11-04-step-4-spec-1-groundwork-chart-table.md`. Built: the Chart
+   and Data table widgets (default 3×6, min 3×4), "Download data (CSV)" on every data widget,
+   shared widget states, lazily loaded widget types with an Add widget menu (until the Data
+   Explorer), a `setWidgetData` change, the new resolution rule in Pacific calendar days, whole
+   calendar-month requests (past months cache for a day), the worst hourly average, the backfill
+   fix, and the initial bundle trimmed to 195.9 KB (from 213.9 KB). SDK pinned exactly to
+   4.8.0-beta.6. Stack check (Fresno County, after a scoped rebuild of 2026-10-01 → 11-04):
+   cache headers right, the chart spans the whole range with gaps where local data is missing.
+   Its `ARCHITECTURE.md` and `DEFERRED.md` changes are on `step-4` and reach `main` when
+   `step-4` merges.
+2. The **shared place picker** — **next**, in a fresh session (prompt: `prompt-spec-2.txt` at the
+   top of the checkout, untracked). Branch `step-4-spec-2` from `step-4`; its first commit pins
+   `@sjvair/sdk` exactly to `5.0.0-beta.2` and drops `exact`. sjvair.com's location name search
+   (#302) and the SDK's `searchLocations` are out.
+3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
+   how to show it, then Add to dashboard or Download CSV).
+4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
+5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
+6. Notes and the starter dashboard.
+
+The checklist below is the whole step's scope.
 
 - **Widget types default to about 3 of 12 columns wide**, so a laptop shows about four across
   (the design pass's density). Placeholder already does.
@@ -1143,7 +1171,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   copy); a real edit makes a copy and replaces the URL with `/workspace/dashboards/:id`; sharing
   copies first. It has non-map widgets, including a
   calendar; the Map widget joins in step 6.
-- The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
+- The Data Explorer (formerly the Widget Creation view; including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
 - The "Duplicate widget" action (used to put several widgets on the same place).
