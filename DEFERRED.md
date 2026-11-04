@@ -73,8 +73,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   self-test injects an inline script, so it proves the checker works but not that eval is caught.
   **Revisit when** touching the E2E fixtures or the zod wrapper.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
-  follow-ups, none blocking. **Revisit with** the design pass, or when next touching each
-  file:
+  follow-ups, none blocking. **Revisit when** next touching each file:
   - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
     share one constant each.
   - No test covers skipping the entry-file refresh when `BUILD_ID === "dev"`.
@@ -88,7 +87,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
     the platform adapter (Tauri).
 - **Spec 5b polish.** _Deferred 2026-10-27 (Foundations spec 5b, task reviews and final
   review)._ Small follow-ups, none affecting correctness, security, or the token boundary.
-  **Revisit with** the design pass, or when next touching each file:
+  **Revisit when** next touching each file:
   - sjvair.com: v1 `accounts/endpoints.py` imports the session module in its own import
     block; tidy with the imports.
   - sjvair.com: the session password-change test juggles old and new passwords across the v1
@@ -1240,8 +1239,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   carry focus; the focus ring after touch drops isn't checked by hand (the design pass couldn't
   script it: synthetic touch events don't change `:focus-visible`, so it needs a real phone);
   `FALLBACK_MIN_SIZE` is a shared object that isn't frozen; and `stepDown`'s doc comment
-  wording. **Revisit when** touching each area; check the focus ring on a phone in the next
-  hand check or the private preview.
+  wording. **Revisit in** design pass part 2 (Task 20, arranging loose ends); check the focus
+  ring on a phone in the next hand check or the private preview.
 
 - **The "Only on this device" notice bar's count and link.** _Deferred 2026-11-02 (sync spec 2,
   Task 12)._ The bar counts refused dashboards in Recently deleted too, and its link to the
@@ -1290,6 +1289,24 @@ string`) now get the union return type. The mobile app passes a string token, so
   - `readTokens` and the manifest's `lightToken` stop at the first `}` (nested blocks would
     truncate); `scripts/make-icons.mjs` needs `../mobile`'s art and uses `sharp` without
     declaring it.
+  - The dark token list is written twice (the system and override blocks), because CSS can't
+    share one block between a media query and an attribute selector. A test fails if they
+    differ.
+  - `HelpMenu` casts the radio value `as ThemeChoice`; `parseThemeChoice` would be safer. No
+    test checks that destroying the theme store stops listening.
+  - The `@theme inline` `--shadow-card` refers to itself (on purpose, commented), which reads
+    oddly.
+  - `--grid-gap` is the literal `0.75rem`, not `var(--space-3)` (same value). The rewritten
+    starter-drop E2E test checks less layout detail than before (the live-region text backs
+    it).
+  - `app_name_product` ("Dashboard" beside the logo) has no translator note.
+  - The dev manifest middleware test reads the icons through a path relative to the working
+    directory.
+  - `syncThemeColorWhenStyled` adds a `load` listener even if the page has already loaded (it
+    can't happen today: it runs from `bootstrap.ts`). The destructive tint check doesn't cover
+    the page background (axe covers today's uses).
+  - From the screenshot review: the full-width "Clear my data…" button on the list page,
+    tall placeholder widgets on phones, and toasts covering "Add widget" on phones.
 
 ## Legacy Monitors-tab follow-ups
 

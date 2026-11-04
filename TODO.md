@@ -909,7 +909,8 @@ Merging either needs the user's yes.
   platform adapter, applied in `bootstrap.ts` before the app mounts; the Light / Dark / Match my
   device switch in the Help menu (with the new-tab cue on the feedback link); the restyled
   primitives and shell (cards, focus ring, top bar with the SJVAir logo); four-across density
-  (the placeholder widget defaults to 3 columns, and the starter is laid out to match);
+  (the placeholder widget defaults to 3 columns; the starter is 3 + 3 + 6 columns, a four-across row
+  with one double-width widget);
   copied brand assets and SJVAir app icons with a maskable icon; the token-discipline test;
   and axe in both modes, with a theme E2E spec. The toaster no longer uses `mode-watcher` (it
   read its own `localStorage` key, so blocked storage stopped the app from starting). See
