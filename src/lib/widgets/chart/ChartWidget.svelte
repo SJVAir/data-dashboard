@@ -13,7 +13,7 @@
 	import { dataTitle } from "../title";
 	import { setGeneratedTitle } from "../titles.svelte";
 	import { chartType } from "./index";
-	import { chartInput, entryMeta } from "./input";
+	import { entryMeta, chartInput } from "../shared/input";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 

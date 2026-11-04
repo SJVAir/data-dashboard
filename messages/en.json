@@ -630,6 +630,26 @@
 	"chart_series_year": "Yearly average",
 	"chart_series_worst_hour": "Worst hour",
 	"widget_chart_title": "Chart",
+	"widget_data_table_title": "Data table",
+	"table_label": "Data table",
+	"table_scroll_label": "Data table values",
+	"table_date": "Date",
+	"table_place_value": "{place} ({unit})",
+	"table_worst_hour": "Worst hour ({unit})",
+	"table_min": "Lowest ({unit})",
+	"table_max": "Highest ({unit})",
+	"table_partial": "so far",
+	"table_computed_from_raw": "Computed from raw data",
+	"table_hidden_places": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} more place isn't shown.",
+				"countPlural=other": "{count} more places aren't shown."
+			}
+		}
+	],
 	"range_set_week": "Week of {date}",
 	"range_to_date_year": "This year so far",
 	"range_to_date_month": "This month so far",
