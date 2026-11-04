@@ -390,7 +390,9 @@ export function currentDashboardName(app: AppContext): string | null {
 	// of an unnamed version): number this dashboard as unnamed now.
 	const listed = app.index.items.find((d) => d.id === id);
 	if (listed && listed.name !== null) {
-		const items = app.index.items.map((d) => (d.id === id ? { ...d, name: null } : d));
+		const items = [...app.index.items, ...app.index.deleted].map((d) =>
+			d.id === id ? { ...d, name: null } : d
+		);
 		return displayNames(items, STARTER_ID).get(id) ?? m.dashboard_untitled();
 	}
 	return app.index.names.get(id) ?? m.dashboard_untitled();

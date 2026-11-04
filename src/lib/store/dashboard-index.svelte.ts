@@ -66,9 +66,11 @@ function pick(doc: Dashboard): DashboardSummary {
  */
 export class DashboardIndex {
 	items = $state.raw<DashboardSummary[]>([]);
-	names = $derived(displayNames(this.items, STARTER_ID));
 	deleted = $state.raw<DashboardSummary[]>([]);
-	deletedNames = $derived(displayNames(this.deleted, STARTER_ID));
+	/** One pass over live and deleted together, so a dashboard keeps its name when deleted. */
+	#allNames = $derived(displayNames([...this.items, ...this.deleted], STARTER_ID));
+	names = $derived(this.#allNames);
+	deletedNames = $derived(this.#allNames);
 	/** Invalid stored documents that have an id (so can be removed), with their `updatedAt`. */
 	unreadable = $state.raw<Array<{ id: string; updatedAt?: string }>>([]);
 	/** Every stored document, readable or not, including deleted ones and ones with no id. */
