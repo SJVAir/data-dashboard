@@ -1,11 +1,16 @@
 <script module lang="ts">
-	import type { EarlierVersion, EarlierVersions, RestoreResult } from "$lib/safety/restore-version";
+	import type {
+		AccountStatus,
+		EarlierVersion,
+		EarlierVersions,
+		RestoreResult
+	} from "$lib/safety/restore-version";
 
 	type RestoreState = {
 		open: boolean;
 		loading: boolean;
 		versions: EarlierVersion[];
-		accountUnreachable: boolean;
+		account: AccountStatus;
 		selected: number;
 		restore: ((version: EarlierVersion) => Promise<RestoreResult>) | null;
 		failure: RestoreResult | null;
@@ -15,13 +20,24 @@
 		open: false,
 		loading: false,
 		versions: [],
-		accountUnreachable: false,
+		account: "none",
 		selected: 0,
 		restore: null,
 		failure: null
 	});
 
 	let opening = 0;
+
+	/** Closing starts over: the next opening shows a fresh list. */
+	function reset(): void {
+		opening++;
+		restoring.versions = [];
+		restoring.account = "none";
+		restoring.selected = 0;
+		restoring.restore = null;
+		restoring.failure = null;
+		restoring.loading = false;
+	}
 
 	/**
 	 * Opens the Restore dialog (one is mounted in the app root). `load` lists the earlier
@@ -34,7 +50,7 @@
 	): void {
 		const mine = ++opening;
 		restoring.versions = [];
-		restoring.accountUnreachable = false;
+		restoring.account = "none";
 		restoring.selected = 0;
 		restoring.restore = restore;
 		restoring.failure = null;
@@ -44,11 +60,11 @@
 			.then((loaded) => {
 				if (mine !== opening) return;
 				restoring.versions = loaded.versions;
-				restoring.accountUnreachable = loaded.accountUnreachable;
+				restoring.account = loaded.account;
 			})
 			.catch(() => {
 				if (mine !== opening) return;
-				restoring.accountUnreachable = true;
+				restoring.account = "offline";
 			})
 			.finally(() => {
 				if (mine === opening) restoring.loading = false;
@@ -63,10 +79,26 @@
 	import { m } from "$lib/paraglide/messages.js";
 
 	let busy = $state(false);
+	let list = $state<HTMLFieldSetElement | null>(null);
+
+	// When the list arrives, focus moves to the first radio.
+	$effect(() => {
+		if (!restoring.loading && list) list.querySelector<HTMLInputElement>("input")?.focus();
+	});
+
+	function onOpenChange(open: boolean) {
+		if (!open && busy) return;
+		restoring.open = open;
+		if (!open) reset();
+	}
 
 	function label(version: EarlierVersion): string {
 		const date = formatDateTime(new Date(version.at));
-		if (version.source === "local") return m.restore_version_local({ date });
+		if (version.source === "local") {
+			return version.alsoInAccount
+				? m.restore_version_local_and_account({ date })
+				: m.restore_version_local({ date });
+		}
 		if (version.reason === "schema") return m.restore_version_schema({ date });
 		if (version.reason === "daily") return m.restore_version_daily({ date });
 		return m.restore_version_conflict({ date });
@@ -97,20 +129,23 @@
 		} finally {
 			busy = false;
 		}
-		if (restoring.failure === "restored") restoring.open = false;
+		if (restoring.failure === "restored") onOpenChange(false);
 	}
 </script>
 
-<Dialog.Root bind:open={restoring.open}>
+<Dialog.Root open={restoring.open} {onOpenChange}>
 	<Dialog.Content>
 		<Dialog.Header>
 			<Dialog.Title>{m.restore_version_title()}</Dialog.Title>
 			<Dialog.Description class="sr-only">{m.restore_version_legend()}</Dialog.Description>
 		</Dialog.Header>
+		<p class="text-muted-foreground text-sm" role="status">
+			{restoring.loading ? m.restore_version_loading() : ""}
+		</p>
 		{#if restoring.loading}
-			<p class="text-muted-foreground text-sm" role="status">{m.restore_version_loading()}</p>
+			<!-- The status line above holds the loading text. -->
 		{:else if restoring.versions.length > 0}
-			<fieldset class="flex flex-col gap-2">
+			<fieldset class="flex flex-col gap-2" bind:this={list}>
 				<legend class="mb-2 text-sm font-medium">{m.restore_version_legend()}</legend>
 				{#each restoring.versions as version, i (i)}
 					<label class="flex items-start gap-2 text-sm">
@@ -129,12 +164,14 @@
 		{:else}
 			<p class="text-muted-foreground text-sm">{m.restore_version_none()}</p>
 		{/if}
-		{#if !restoring.loading && restoring.accountUnreachable}
-			<p class="text-muted-foreground text-sm">{m.restore_version_account_unreachable()}</p>
+		{#if !restoring.loading && restoring.account === "offline"}
+			<p class="text-muted-foreground text-sm">{m.restore_version_account_offline()}</p>
+		{:else if !restoring.loading && restoring.account === "gone"}
+			<p class="text-muted-foreground text-sm">{m.restore_version_account_gone()}</p>
 		{/if}
 		<p role="alert" class="text-destructive text-sm">{failureMessage(restoring.failure)}</p>
 		<Dialog.Footer>
-			<Button variant="outline" onclick={() => (restoring.open = false)}
+			<Button variant="outline" disabled={busy} onclick={() => onOpenChange(false)}
 				>{m.confirm_cancel()}</Button
 			>
 			<Button
