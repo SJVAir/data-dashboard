@@ -50,7 +50,7 @@ describe("displayNames", () => {
 		const names = displayNames(list, "starter");
 		expect(names.get("mine")).toBe("My dashboard");
 		expect(names.get("c1")).toBe("Copy of My dashboard");
-		expect(names.get("c2")).toBe("Copy of My dashboard 2");
+		expect(names.get("c2")).toBe("Copy of My dashboard (2)");
 		expect(names.get("c3")).toBe("Copy of Trip");
 		expect(list.every((d) => d.name === null || d.id === "named")).toBe(true);
 	});

@@ -285,7 +285,7 @@ test("never uploaded: says why it can't share", async () => {
 	await expect
 		.element(
 			liveSection().getByText(
-				"Your account holds as many dashboards as it can, so this one is only on this device. Deleting one you don't need makes room."
+				"Your account holds as many dashboards as it can, so this one is only in this browser. Deleting one you don't need makes room."
 			)
 		)
 		.toBeVisible();
@@ -348,9 +348,7 @@ test("a name refused for rate or sign-in says why", async () => {
 	fake.refuseNext.push({ code: "rate_limited", status: 429 });
 	await dialog().getByRole("button", { name: "Save name" }).click();
 	await expect
-		.element(
-			dialog().getByText("You've changed your name a lot just now. Wait a minute and try again.")
-		)
+		.element(dialog().getByText("Too many changes in a short time. Wait a minute and try again."))
 		.toBeVisible();
 	fake.refuseNext.push({ code: "unauthorized", status: 401 });
 	await dialog().getByRole("button", { name: "Save name" }).click();

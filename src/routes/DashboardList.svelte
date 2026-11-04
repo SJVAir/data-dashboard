@@ -63,18 +63,30 @@
 		}
 	}
 
-	/** What tells unreadable rows apart: when it was last saved, else a short reference. */
-	function detailOf(item: { id: string; updatedAt?: string }): string {
+	/**
+	 * What tells unreadable rows apart (when it was last saved, else a short reference), and the
+	 * matching delete question. Two whole messages per kind, so nothing is slotted into a sentence.
+	 */
+	function detailOf(item: { id: string; updatedAt?: string }): { detail: string; ask: string } {
 		const when = item.updatedAt ? new Date(item.updatedAt) : null;
-		return when && !Number.isNaN(when.getTime())
-			? m.dashboard_unreadable_saved({ date: formatDate(when) })
-			: m.dashboard_unreadable_ref({ id: item.id.slice(0, 8) });
+		if (when && !Number.isNaN(when.getTime())) {
+			const date = formatDate(when);
+			return {
+				detail: m.dashboard_unreadable_saved({ date }),
+				ask: m.dashboard_unreadable_confirm_body_saved({ date })
+			};
+		}
+		const id = item.id.slice(0, 8);
+		return {
+			detail: m.dashboard_unreadable_ref({ id }),
+			ask: m.dashboard_unreadable_confirm_body_ref({ id })
+		};
 	}
 
-	async function deleteUnreadable(id: string, detail: string) {
+	async function deleteUnreadable(id: string, ask: string) {
 		const confirmed = await confirmAction({
 			title: m.dashboard_unreadable_confirm_title(),
-			body: m.dashboard_unreadable_confirm_body({ detail }),
+			body: ask,
 			confirm: m.dashboard_unreadable_delete(),
 			destructive: true,
 			restoreFocus: () => document.getElementById("dashboards-heading")?.focus()
@@ -179,7 +191,7 @@
 					</li>
 				{/each}
 				{#each app.index.unreadable as item (item.id)}
-					{@const detail = detailOf(item)}
+					{@const { detail, ask } = detailOf(item)}
 					{@const titleId = `dashboard-unreadable-${item.id}`}
 					<li class="flex items-center gap-2 py-1 pr-1 pl-3" data-testid="dashboard-row-{item.id}">
 						<div class="flex min-w-0 flex-1 flex-col py-1">
@@ -200,7 +212,7 @@
 							variant="ghost"
 							size="sm"
 							aria-describedby="{titleId} {titleId}-detail"
-							onclick={() => deleteUnreadable(item.id, detail)}
+							onclick={() => deleteUnreadable(item.id, ask)}
 						>
 							<Trash2 aria-hidden="true" />
 							{m.dashboard_unreadable_delete()}

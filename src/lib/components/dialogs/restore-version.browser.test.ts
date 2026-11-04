@@ -66,7 +66,7 @@ test("the versions are radios with dates in Pacific time", async () => {
 	await expect
 		.element(
 			dialog.getByRole("radio", {
-				name: /^Oct 20, 2026, 12:00\sPM( PT)?: before an app update \(kept on this device\)/
+				name: /^Oct 20, 2026, 12:00\sPM( PT)?: before an app update \(kept in this browser\)/
 			})
 		)
 		.toBeVisible();
@@ -118,7 +118,7 @@ test("a gone dashboard explains why only the device copy is listed", async () =>
 	await expect
 		.element(
 			dialog.getByText(
-				"This dashboard is no longer in your account, so only the copy on this device is listed."
+				"This dashboard is no longer in your account, so only the copy in this browser is listed."
 			)
 		)
 		.toBeVisible();
@@ -128,7 +128,7 @@ test("a copy also in the account says so", async () => {
 	await render(RestoreVersionDialog);
 	openRestoreVersion(loaded([{ ...local, alsoInAccount: true }]), vi.fn());
 	await expect
-		.element(page.getByRole("dialog").getByText(/kept on this device and in your account/))
+		.element(page.getByRole("dialog").getByText(/kept in this browser and in your account/))
 		.toBeVisible();
 });
 
@@ -259,7 +259,7 @@ test("an account list that can't be loaded for another reason doesn't say offlin
 	expect(dialog.getByText(/offline/).elements()).toHaveLength(0);
 });
 
-test("a list that fails to load on this device says so, not offline", async () => {
+test("a list that fails to load in this browser says so, not offline", async () => {
 	await render(RestoreVersionDialog);
 	openRestoreVersion(() => Promise.reject(new Error("storage")), vi.fn());
 	const dialog = page.getByRole("dialog");
@@ -275,11 +275,11 @@ test("an empty list picks one line by the account's status", async () => {
 	const cases: [EarlierVersions["account"], string][] = [
 		["ok", "No earlier versions yet. Your account keeps one a day for 30 days."],
 		["none", "No earlier versions yet."],
-		["offline", "No earlier versions on this device."],
-		["unavailable", "No earlier versions on this device."],
+		["offline", "No earlier versions in this browser."],
+		["unavailable", "No earlier versions in this browser."],
 		[
 			"gone",
-			"This dashboard is no longer in your account, and there are no earlier versions on this device."
+			"This dashboard is no longer in your account, and there are no earlier versions in this browser."
 		]
 	];
 	for (const [account, line] of cases) {
@@ -289,7 +289,7 @@ test("an empty list picks one line by the account's status", async () => {
 		if (account !== "ok") {
 			expect(dialog.getByText(/Your account keeps/).elements()).toHaveLength(0);
 		}
-		expect(dialog.getByText(/only the copy on this device is listed/).elements()).toHaveLength(0);
+		expect(dialog.getByText(/only the copy in this browser is listed/).elements()).toHaveLength(0);
 		await dialog.getByRole("button", { name: "Cancel" }).click();
 		await expect.element(dialog).not.toBeInTheDocument();
 	}
@@ -303,7 +303,7 @@ test("a restore the account refused for another reason doesn't say to check the 
 	await expect
 		.element(
 			dialog.getByText(
-				"Your account couldn't complete the restore right now, so nothing was restored. Try again later."
+				"The restore couldn't be finished right now, so nothing changed. Try again later."
 			)
 		)
 		.toBeVisible();

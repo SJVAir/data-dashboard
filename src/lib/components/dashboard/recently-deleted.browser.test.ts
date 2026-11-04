@@ -141,7 +141,7 @@ test("a copy from a newer version says to reload", async () => {
 	}
 });
 
-test("a copy missing on this device says so", async () => {
+test("a copy missing in this browser says so", async () => {
 	const { worker } = await deleteWith("missing");
 	try {
 		await expect.element(page.getByText(m.deleted_missing())).toBeVisible();

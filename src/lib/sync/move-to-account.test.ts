@@ -181,7 +181,7 @@ describe("answerMoveOffer", () => {
 		expect(await platform.preferences.get(SPACE, MOVE_OFFER_KEY)).toBe("no");
 	});
 
-	test("over the limit, the rest stay on this device", { timeout: 20_000 }, async () => {
+	test("over the limit, the rest stay in this browser", { timeout: 20_000 }, async () => {
 		const platform = platformSignedIn();
 		const all = Array.from({ length: 60 }, (_, i) => `a${String(i).padStart(2, "0")}`);
 		for (const id of all) await storeAnonymous(platform, makeDoc(id));

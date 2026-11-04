@@ -218,7 +218,7 @@ test("a row scope inside the page scope leaves one set of manage actions", async
 	outer.remove();
 });
 
-test("the list marks dashboards only on this device", async () => {
+test("the list marks dashboards only in this browser", async () => {
 	const { app, refuseSaves, worker } = await accountApp(["d1", "d2"]);
 	try {
 		// The first upload in the sweep is refused; the other reaches the account.
@@ -235,21 +235,21 @@ test("the list marks dashboards only on this device", async () => {
 		const held = Object.entries(worker.states).find(([, s]) => s.state === "held")![0];
 		const synced = held === "d1" ? "d2" : "d1";
 		const heldRow = page.getByTestId(`dashboard-row-${held}`);
-		await expect.element(heldRow.getByText("Only on this device")).toBeVisible();
+		await expect.element(heldRow.getByText("Only in this browser")).toBeVisible();
 		await expect.element(heldRow.getByText(m.sync_refused_limit_documents())).toBeVisible();
 		expect(
-			page.getByTestId(`dashboard-row-${synced}`).getByText("Only on this device").query()
+			page.getByTestId(`dashboard-row-${synced}`).getByText("Only in this browser").query()
 		).toBeNull();
 		// The link is named by the dashboard alone; the status describes it.
 		const link = heldRow.getByRole("link").element();
-		expect(link.textContent).not.toContain("Only on this device");
+		expect(link.textContent).not.toContain("Only in this browser");
 		const status = document.getElementById(link.getAttribute("aria-describedby") ?? "");
-		expect(status?.textContent).toContain("Only on this device");
+		expect(status?.textContent).toContain("Only in this browser");
 		expect(status?.textContent).toContain(m.sync_refused_limit_documents());
 		await expect.element(heldRow.getByRole("link")).toHaveAccessibleName(/^Untitled dashboard/);
 		await expect
 			.element(heldRow.getByRole("link"))
-			.toHaveAccessibleDescription(`Only on this device ${m.sync_refused_limit_documents()}`);
+			.toHaveAccessibleDescription(`Only in this browser ${m.sync_refused_limit_documents()}`);
 		expect(
 			page.getByTestId(`dashboard-row-${synced}`).getByRole("link").element()
 		).not.toHaveAttribute("aria-describedby");

@@ -113,7 +113,7 @@ test("the notice bar shows while a dashboard is held and leaves once it uploads"
 	await expect
 		.element(
 			page.getByText(
-				"2 dashboards are too large to save to your account, so they're only on this device."
+				"2 dashboards are too large to save to your account, so they're only in this browser."
 			)
 		)
 		.toBeVisible();
@@ -144,7 +144,7 @@ test("a refused hold on a deleted dashboard isn't counted", async () => {
 	await expect
 		.element(
 			page.getByText(
-				"2 dashboards are too large to save to your account, so they're only on this device."
+				"2 dashboards are too large to save to your account, so they're only in this browser."
 			)
 		)
 		.toBeVisible();
@@ -159,7 +159,7 @@ test("a refused hold on a deleted dashboard isn't counted", async () => {
 	await expect
 		.element(
 			page.getByText(
-				"A dashboard is too large to save to your account, so it's only on this device."
+				"A dashboard is too large to save to your account, so it's only in this browser."
 			)
 		)
 		.toBeVisible();

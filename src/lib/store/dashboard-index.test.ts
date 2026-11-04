@@ -284,7 +284,7 @@ describe("DashboardIndex", () => {
 		await store(platform, { ...blankDashboard(now()), id: "c3", copiedFrom: "gone" }, "c3");
 		const index = new DashboardIndex({ platform, space: SPACE });
 		await index.refresh();
-		expect(index.deletedNames.get("c2")).toBe("Copy of School 2");
+		expect(index.deletedNames.get("c2")).toBe("Copy of School (2)");
 		expect(index.names.get("c1")).toBe("Copy of School");
 		expect(index.names.get("c3")).toBe("Copy of Old");
 	});

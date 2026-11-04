@@ -83,7 +83,7 @@ async function openInAccount(before: (setup: Awaited<ReturnType<typeof accountAp
 	return setup;
 }
 
-test("saved on this device until the account has it", async () => {
+test("saved in this browser until the account has it", async () => {
 	let release = () => {};
 	const { worker } = await openInAccount(({ fake }) => {
 		// The first upload is still on its way.
@@ -94,7 +94,7 @@ test("saved on this device until the account has it", async () => {
 		};
 	});
 	await expect.poll(() => worker.states.d1?.state).toBe("pending");
-	await expect.element(page.getByText("Saved on this device")).toBeVisible();
+	await expect.element(page.getByText("Saved in this browser")).toBeVisible();
 	expect(page.getByText("Saved to your account").query()).toBeNull();
 	release();
 	await expect.element(page.getByText("Saved to your account")).toBeVisible();
@@ -112,7 +112,7 @@ test("the anonymous space keeps the plain Saved label", async () => {
 	app.current = { session: (await app.sessions.get(id))!, isStarter: false };
 	await render(SavedIndicator, { context });
 	await expect.element(page.getByText("Saved", { exact: true })).toBeVisible();
-	expect(page.getByText("Saved on this device").query()).toBeNull();
+	expect(page.getByText("Saved in this browser").query()).toBeNull();
 });
 
 test("the popover shows the last confirmed time in Pacific time", async () => {
@@ -130,7 +130,7 @@ test("a refused dashboard says why", async () => {
 		refuseSaves.push({ code: "too_large", status: 413 });
 	});
 	await expect.poll(() => worker.states.d1?.state).toBe("held");
-	await expect.element(page.getByText("Saved on this device")).toBeVisible();
+	await expect.element(page.getByText("Saved in this browser")).toBeVisible();
 	await page.getByRole("button", { name: /Storage status/ }).click();
 	await expect.element(page.getByText(m.sync_refused_too_large())).toBeVisible();
 	expect(page.getByText(/Last saved to your account/).query()).toBeNull();
@@ -144,7 +144,7 @@ test("colour is never the only signal: a text label in every state", async () =>
 	const button = page.getByRole("button", { name: /Storage status/ });
 	const label = () => button.element().querySelector("span:not(.sr-only)")?.textContent?.trim();
 	await expect.poll(() => worker.states.d1?.state).toBe("held");
-	expect(label()).toBe("Saved on this device");
+	expect(label()).toBe("Saved in this browser");
 	await worker.syncAll();
 	await expect.poll(label).toBe("Saved to your account");
 	session.status = "saving";

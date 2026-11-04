@@ -394,7 +394,7 @@ test("a dashboard whose original couldn't be kept says so", async () => {
 	await expect
 		.element(
 			page.getByText(
-				"This dashboard was updated to a new format, but the original couldn't be saved on this device, so it's open read-only to keep your work safe. Free up space or download a backup, then reload."
+				"This dashboard was upgraded, but there wasn't room to keep a backup of the old version, so it's open read-only to protect your work. Free up browser storage or download a backup, then reload."
 			)
 		)
 		.toBeVisible();
