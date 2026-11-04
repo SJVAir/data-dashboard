@@ -15,6 +15,7 @@ import { registerWidgetType, type WidgetModule } from "$lib/widgets/registry";
 import { starterDashboard } from "$lib/starter/starter";
 import { rectsOverlap } from "$lib/layout/engine";
 import { announce } from "$lib/a11y/announcer.svelte";
+import { updateNotice } from "$lib/safety/update-notice.svelte";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
 import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
@@ -40,6 +41,8 @@ beforeEach(async () => {
 });
 afterEach(() => {
 	toast.dismiss();
+	// A widget load that fails sets the app-wide reload notice; it mustn't leak into later tests.
+	updateNotice.reason = null;
 	history.replaceState(null, "", originalUrl);
 });
 
@@ -317,6 +320,7 @@ test("a widget whose code won't load says so", async () => {
 	await renderGrid(app);
 	await expect.element(frame("a").getByText("This widget couldn't be loaded.")).toBeVisible();
 	await expect.element(page.getByRole("heading", { name: "Broken test" })).toBeVisible();
+	expect(updateNotice.reason).toBe("chunk-failed");
 });
 
 test("widget ⋯ menu and right-click show the same items", async () => {

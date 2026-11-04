@@ -9,6 +9,7 @@ import {
 	openPicker,
 	renameWidget,
 	saveRename,
+	widgetMenuItem,
 	widgetTitles
 } from "./helpers";
 
@@ -41,9 +42,11 @@ test("editing the starter makes my own copy", async ({ page }) => {
 test("add widgets, rename, reload, everything is still there", async ({ page }) => {
 	await page.goto("./");
 	await expect(widgetTitles(page)).toHaveCount(3);
-	await page.getByRole("button", { name: "Add widget", exact: true }).click();
+	// No production type is addable until the Chart (step 4 spec 1, task 12), so widgets are
+	// added by duplicating; re-point this at "Add widget" ▸ Chart then.
+	await widgetMenuItem(page, PLACEHOLDER, "Duplicate widget");
 	await expect(page).toHaveURL(DASHBOARD_URL);
-	await page.getByRole("button", { name: "Add widget", exact: true }).click();
+	await widgetMenuItem(page, PLACEHOLDER, "Duplicate widget");
 	await expect(widgetTitles(page)).toHaveCount(5);
 
 	await renameWidget(page, PLACEHOLDER, "Ozone trend", 4);
@@ -81,7 +84,8 @@ test("edit then immediate reload keeps the edit", async ({ page }) => {
 test("undo and redo with the keyboard and buttons", async ({ page }) => {
 	await page.goto("./");
 	await expect(widgetTitles(page)).toHaveCount(3);
-	await page.getByRole("button", { name: "Add widget", exact: true }).click();
+	// Duplicating adds a widget (one undo step); re-point at "Add widget" ▸ Chart in task 12.
+	await widgetMenuItem(page, PLACEHOLDER, "Duplicate widget");
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(widgetTitles(page)).toHaveCount(4);
 

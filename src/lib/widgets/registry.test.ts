@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Component } from "svelte";
 import {
 	addableWidgetTypes,
@@ -8,6 +8,12 @@ import {
 	type WidgetModule,
 	type WidgetType
 } from "./registry";
+import { updateNotice } from "$lib/safety/update-notice.svelte";
+
+// A failed load sets the app-wide reload notice.
+afterEach(() => {
+	updateNotice.reason = null;
+});
 
 const component = (() => {}) as unknown as WidgetModule["component"];
 
