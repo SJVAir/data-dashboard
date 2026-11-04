@@ -33,7 +33,10 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
   `ROADMAP.md` item and `ARCHITECTURE.md` section. Add every deferral to `DEFERRED.md` (append
   under the right heading; don't reword others' entries).
 - Re-read a file right before editing it. Another session may have changed it.
-- Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`).
+- Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`), even
+  when the work is for the dashboard: **SDK specs in sdk-js, server specs in sjvair.com**, and a
+  spec spanning both goes where most of its work is, linked from the other (the user,
+  2026-11-04).
 
 Earlier tracks, in order (new dashboard work branches from `main`):
 
@@ -972,11 +975,15 @@ search) is merged** (2026-11-04, with the user's yes): sjvair.com #302 into `dev
 (2026-11-04, with the user's yes). It needs a server with #302 (`getRegionsMeta` requires
 `location_types`), which local `develop` now has. sdk-js `CLAUDE.md` now says the SDK keeps no
 fallbacks for older server responses (the user, 2026-11-04), and #39 removed the 4.8.0-beta ones. **Spec 4 (SDK quick
-batch) is in review:** sjvair.com [#303](https://github.com/SJVAir/sjvair.com/pull/303) into
-`develop` and sdk-js [#40](https://github.com/SJVAir/sdk-js/pull/40) into `release/5.0.0` (retargeted from `release/4.8.0`),
-both open; #40 needs #303 merged (its live `regions/meta` test needs `buffers`). Spec and plan
-at sjvair.com `docs/superpowers/specs/2026-11-04-sdk-quick-batch-design.md` and
-`docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (branch `docs/sdk-quick-batch-spec`).
+batch) is merged** (2026-11-04, with the user's yes; every commit verified): sjvair.com
+[#303](https://github.com/SJVAir/sjvair.com/pull/303) into `develop` (HMS lists honor
+`date__gte`/`date__lte` without `date` and order same-day rows by id; CES `?within_mode=`;
+`regions/meta/` `buffers`) and sdk-js [#40](https://github.com/SJVAir/sdk-js/pull/40) and
+[#41](https://github.com/SJVAir/sdk-js/pull/41) into `release/5.0.0` (212 SDK tests green
+against the local server). `5.0.0-beta.1` is not yet published (needs the user's yes). Spec
+and plan at sdk-js `docs/superpowers/specs/2026-11-04-sdk-quick-batch-design.md` and
+`docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (moved from sjvair.com by sdk-js
+[#42](https://github.com/SJVAir/sdk-js/pull/42), open).
 Later specs: the cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
 research in `docs/reference/pesticides-explorer-research.md`).
