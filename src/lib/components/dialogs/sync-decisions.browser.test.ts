@@ -22,6 +22,7 @@ import {
 } from "$lib/sync/test-support";
 import { uploadDocument } from "$lib/sync/upload";
 import { SyncWorker } from "$lib/sync/worker.svelte";
+import SavedIndicator from "$lib/components/shell/SavedIndicator.svelte";
 import ConflictDialog from "./ConflictDialog.svelte";
 import RemoteDecisionDialog from "./RemoteDecisionDialog.svelte";
 import AnnounceHarness from "./test-harness/AnnounceHarness.svelte";
@@ -192,4 +193,12 @@ test("settling a device conflict announces Saved again, read from the page once 
 		[...document.querySelectorAll(selector)].filter((r) => r.textContent === "Saved again");
 	await expect.poll(() => holding().length).toBe(1);
 	expect(document.querySelector('[aria-modal="true"]')).toBeNull();
+});
+
+test("the save indicator reads Changed elsewhere during a device conflict, and isn't red", async () => {
+	const { app } = await held([title("a", "Mine")], [title("a", "Theirs")]);
+	await render(SavedIndicator, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	const button = page.getByRole("button", { name: /Storage status/ });
+	await expect.poll(() => button.element().textContent).toContain("Changed elsewhere");
+	expect(button.element().className).not.toContain("text-destructive");
 });

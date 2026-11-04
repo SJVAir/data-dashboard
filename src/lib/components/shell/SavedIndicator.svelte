@@ -49,11 +49,21 @@
 		status === "error" && !conflicted ? (app.current.session?.errorKind ?? null) : null
 	);
 
-	// Screen readers hear only the changes that matter, not every save.
+	// Screen readers hear only the changes that matter, not every save. Changes are measured from
+	// the last settled state, so "Saving..." in between (each retry) doesn't count, and they start
+	// over when another dashboard opens.
 	const kind = $derived(conflicted ? "conflict" : status);
 	let previous: typeof kind | undefined;
+	let previousSession: unknown;
 	$effect(() => {
 		const now = kind;
+		const session = app.current.session;
+		if (session !== previousSession) {
+			previousSession = session;
+			// A save already under way counts from "saved", so its failure is still heard.
+			previous = now === "saving" ? "saved" : undefined;
+		}
+		if (now === "saving") return;
 		const was = previous;
 		previous = now;
 		if (was === undefined || was === now) return;

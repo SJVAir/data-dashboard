@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
-import { announcer } from "$lib/a11y/announcer.svelte";
+import { announce, announcer } from "$lib/a11y/announcer.svelte";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Protection } from "$lib/platform/types";
@@ -205,4 +205,48 @@ test("announces failures, recovery and conflicts, but not a normal save", async 
 	session.status = "error";
 	session.conflict = {} as never;
 	await expect.poll(() => announcer.text).toBe(m.save_conflict_announce());
+});
+
+/** Waits long enough for any announcement to land (the clear gap plus margin). */
+const quiet = () => new Promise((r) => setTimeout(r, 300));
+
+test("a retry that fails again isn't announced again", async () => {
+	const { session } = await openLocal();
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
+	announce("marker");
+	await expect.poll(() => announcer.text).toBe("marker");
+	// Each retry passes through "saving" and fails again.
+	session.status = "saving";
+	await quiet();
+	session.status = "error";
+	await quiet();
+	expect(announcer.text).toBe("marker");
+});
+
+test("switching from a dashboard that couldn't save to a healthy one announces nothing", async () => {
+	const { app, session } = await openLocal();
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
+	announce("marker");
+	await expect.poll(() => announcer.text).toBe("marker");
+	const other = await app.index.createBlank();
+	app.current = { session: (await app.sessions.get(other))!, isStarter: false };
+	await expect.element(page.getByText("Saved", { exact: true })).toBeVisible();
+	await quiet();
+	expect(announcer.text).toBe("marker");
+});
+
+test("a dashboard's first save failing is announced even if it opened while saving", async () => {
+	const { app } = await setup("protected", false);
+	const id = await app.index.createBlank();
+	const session = (await app.sessions.get(id))!;
+	session.status = "saving";
+	app.current = { session, isStarter: false };
+	await render(SavedIndicator, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByText(m.saving())).toBeVisible();
+	announce("marker");
+	await expect.poll(() => announcer.text).toBe("marker");
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
 });
