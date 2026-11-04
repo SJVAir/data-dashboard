@@ -1070,6 +1070,10 @@ research in `docs/reference/pesticides-explorer-research.md`).
   5. `calenviroscreen/meta/` (server endpoint plus wrapper), before Release 3 starter #7.
   6. sdk-js's 4 small follow-ups (its `DEFERRED.md` "Small follow-ups"), any time.
   7. Deleting `release/4.8.0`, when the user says.
+  8. **Removing `levels` from the SDK** (the user, 2026-11-04; the server side is the
+     hardcoded-value cleanup, spec 5): the `monitors/meta/` schema's `levels` field, the `levels`
+     getter, `asIter.levels`, and the fixtures in `lib/monitors`. For 5.0, in a beta that pairs
+     with spec 5's server change. Handed to the coordinator to give an sdk-js session.
 
   Testing notes: the local DB has no CalEnviroScreen rows (the CES live tests skip), and two
   sessions running sjvair.com's pytest at once drop each other's `test_sjvair` database; give
