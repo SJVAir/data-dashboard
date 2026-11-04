@@ -235,7 +235,8 @@ Recorded now because it changes the docs and spec 3's starting point:
     (when `replaced_by` is set), and `QueryState` carries it alongside the data. An unknown code
     is "no longer available". **Monitors' "stopped reporting" is deferred** (the server's
     retired-versus-never-existed lookup for monitors isn't built; `ARCHITECTURE.md` → "Stable
-    ids and retirement"); an unknown monitor shows "no longer available".
+    ids and retirement"); an unknown monitor shows the error (with Retry) or "No data" state until
+    step 4 spec 2 (`DEFERRED.md` → "An unknown monitor shows the error (with Retry) or 'No data'").
   - nothing to show yet (no place): fixes `DEFERRED.md` → "`LiveQuery` has no idle state for a
     null input" by giving `LiveQuery` an idle state.
 - **Default title:** generated, "PM2.5 · Fresno County · Last 30 days" (pollutant label, place

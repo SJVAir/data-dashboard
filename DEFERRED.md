@@ -842,7 +842,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   input that resolves to the same cache key (e.g. a selection's ids reordered) shows
   `loading` for a moment and, if it was the entry's only subscriber with a fetch in flight,
   aborts and restarts that fetch. **Revisit when** widgets edit selections in place (Release
-  1 step 4) and the flash or the extra fetch shows.
+  1 step 4) and the flash or the extra fetch shows. The same detach shows when a poll finds the
+  range has grown across a resolution boundary (_noted 2026-11-04, step 4 spec 1 final
+  review_): the subscribers move to the new resolution's entry and the widget shows loading
+  once, without the old data, until it arrives. **Revisit** both together: keep the old data
+  showing while the new entry loads.
 - **A new subscriber refetches an errored entry at once.** _Deferred 2026-10-22 (Foundations
   spec 2 final review)._ Attaching to a cache entry whose last fetch failed refetches
   immediately, skipping the poller's backoff, so widgets opening one after another against a
@@ -857,7 +861,32 @@ string`) now get the union return type. The mobile app passes a string token, so
   _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
   can't name the published processor, so the request names none and the server returns the
   type's default stage. **Revisit when** step 3's metadata work lands: report the query as
-  `unavailable`, or refresh the monitors list and try again.
+  `unavailable`, or refresh the monitors list and try again. (What a widget shows for an
+  unknown monitor today is under "Widgets": "An unknown monitor shows the error (with Retry) or
+  'No data'".)
+- **A failure fetching monitor names fails the whole data query.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ Monitor places are named from the monitors list; if that fetch fails,
+  the query fails with it, though the readings themselves came back. Why: the list is memoized
+  and shared with the processor lookup, so it rarely fails alone. **Revisit if** it's seen: fall
+  back to the monitor ids as names and let the next poll fill them in.
+- **Yearly requests' `fetchEnd` is the segment end.** _Deferred 2026-11-04 (step 4 spec 1 final
+  review)._ Yearly summaries come in one call whose end date is the segment's end, not a whole
+  year's, so the same fixed past range can produce different request URLs depending on where its
+  segment ends, and those URLs don't cache as stable ones. Why: correctness is fine, only
+  caching suffers, and yearly views are rare. **Revisit when** HTTP caching of past summaries
+  matters (the server or a CDN caches them): round the end up to the year.
+- **The seasonal `{year}` path for a winter season is unverified.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ Single-monitor seasonal summaries are fetched by year from the unit's
+  first month (`pathConfig` in `src/lib/data/adapters/air-quality-fetch.ts`), so the season
+  starting December 2025 goes to the 2025 path, while the dashboard's own season rules put that
+  season in 2026 (`seasonStartMonth` in `src/lib/format/range.ts`). Not checked against the
+  server. **Revisit when** a seasonal view is first tested against sjvair.com (check which year
+  the server files December under, and fix the path or the rule).
+- **Whole-layer backfill gaps.** _Deferred 2026-11-04 (step 4 spec 1 final review)._ For a
+  whole-layer (every monitor) query, the backfill that fills recent periods drops a monitor that
+  appears only in the backfill response, and a place with no data in the window costs a backfill
+  request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
+  when** the map widget uses whole-layer queries (Release 1 step 5).
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -991,8 +1020,29 @@ string`) now get the union return type. The mobile app passes a string token, so
   coordinator).
 - **"Stopped reporting" for monitors.** _Deferred 2026-11-04 (step 4 spec 1, builder check)._
   Retired regions get the "stopped reporting" note and "Switch to the replacement", but there's
-  no server lookup telling a retired monitor from one that never existed, so an unknown monitor
-  shows "no longer available". **Revisit when** sjvair.com adds that lookup.
+  no server lookup telling a retired monitor from one that never existed. **Revisit when**
+  sjvair.com adds that lookup.
+- **An unknown monitor shows the error (with Retry) or "No data", not "no longer available".**
+  _Deferred 2026-11-04 (step 4 spec 1 final review, controller ruling)._ A widget whose monitor
+  isn't in the monitors list just runs its query: the server's error shows the error state with
+  Retry, or an empty answer shows "No data". Nothing says the monitor is gone, because nothing
+  can tell yet (see "Stopped reporting" above), and the request goes out with no processor (see
+  "A monitor missing from the monitors list gets the uncalibrated series silently" under
+  "Analysis & data"). Why deferred: step 4 spec 2's place picker brings the monitors list into
+  the widget, where checking the saved monitor against it belongs. **Revisit when** step 4
+  spec 2 starts.
+- **Generated widget titles are never cleared.** _Deferred 2026-11-04 (step 4 spec 1 final
+  review)._ The map of generated titles (`src/lib/widgets/titles.svelte.ts`) only gains
+  entries: an undone delete can briefly show the old generated title until the widget's data is
+  ready again, and the map grows by one entry per data widget opened in a session. Why: each
+  entry is a short string, and a stale one is replaced as soon as data arrives. **Revisit if** a
+  stale title is noticed, or long sessions open many widgets (clear an entry when its widget
+  unmounts or is deleted).
+- **A widget whose code fails to load has no Retry button.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ When a widget type's lazily loaded file can't load (offline, a deploy
+  replaced it), the widget shows the failure without a Retry; remounting it (minimize and
+  restore, switch dashboards) or reloading the page tries again. Why: rare, and a reload is the
+  usual fix after a deploy. **Revisit if** it's reported, or with the offline work.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
@@ -1146,6 +1196,12 @@ string`) now get the union return type. The mobile app passes a string token, so
   focus to Sign in; and the sign-out lock is exclusive, so a second tab signing out at the
   same moment waits its turn. **Revisit if** people report a tab stuck in the wrong account,
   a confusing failed sign-out, or lost focus after the dialog.
+- **A sign-out dialog that fails to load says only "reload".** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ The sign-out dialog now loads on demand; if its file can't load, the
+  sign-out is cancelled and only the generic reload bar shows, with nothing saying the sign-out
+  didn't happen. Why: rare (offline or a deploy replacing the file), and the person is still
+  signed in, so nothing is lost. **Revisit if** it's reported, or with the offline work (add a
+  message that sign-out didn't happen).
 - **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
   (Foundations spec 5b)._ A new account still goes sign-up, the "enter your code" page, then
   the profile page. During the preview `/workspace/` is behind `beta_tools`, so only people who

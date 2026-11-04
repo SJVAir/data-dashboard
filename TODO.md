@@ -49,7 +49,7 @@ Earlier tracks, in order (new dashboard work branches from `main`):
 5. ~~Sync spec 4 (recovery)~~ **done** (PR
    [#29](https://github.com/SJVAir/data-dashboard/pull/29), merged into `main` 2026-11-03 with
    the user's yes). Plan: `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`. The sync
-   track's dashboard specs are all on `main`. The dashboard pins **@sjvair/sdk 4.8.0-beta.3**.
+   track's dashboard specs are all on `main`. The dashboard pins **@sjvair/sdk 4.8.0-beta.6** (bumped with step 4).
 6. ~~The sjvair.com `deletedAccount` change~~ **done** (sjvair.com PR
    [#299](https://github.com/SJVAir/sjvair.com/pull/299), merged into `develop` 2026-11-03 with
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
