@@ -404,7 +404,11 @@ string`) now get the union return type. The mobile app passes a string token, so
     subscription levels need a not-found path, since not every level key exists in every
     pollutant's scale), map-sdk's legacy fallback (`src/lib/data/metadata.ts`, which won't
     type-check once the SDK drops `levels`, so it must go when map-sdk pins that beta), and sdk-js (schema, the `levels` getter,
-    `asIter.levels`, fixtures; how is the user's call). The dashboard reads `scale`; its e2e
+    `asIter.levels`, fixtures, plus `SJVAirEntryLevel`, `sjvairEntryLevelMetaSchema` and
+    `EntriesMeta.asIter`, the user's call 2026-11-04). monitor-map (13 files, including the
+    monitor tooltips, cluster renderer, icon manager and detail panel) and mobile (`Alerts.svelte`,
+    `Subscriptions.svelte`, `alert-level.ts`) import `SJVAirEntryLevel` or use `asIter`, so both
+    change when they move to that SDK beta; map-sdk and the dashboard don't use them. The dashboard reads `scale`; its e2e
     fixtures still contain `levels`.
   - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
     credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
