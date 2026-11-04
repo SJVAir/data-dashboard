@@ -1011,9 +1011,8 @@ research in `docs/reference/pesticides-explorer-research.md`).
   100-code cap and merges the FeatureCollections (like `fetchAllBulkPages`).
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
-
-**Release 1, step 3 (addition):** verify production `school_district` rows and the 3
-`custom` forecast-zone regions; import if missing.
+- ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
+  and the 3 `custom` forecast-zone regions.
 
 **Release 1, step 4: Widget Creation and non-map widgets**
 
