@@ -7,6 +7,7 @@ import type { QueryData, QueryInput } from "./types";
 
 const DATA: QueryData = {
 	series: [],
+	places: [],
 	resolution: "hour",
 	fromRaw: false,
 	processor: null,

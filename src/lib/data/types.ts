@@ -1,3 +1,4 @@
+import type { ResolvedRegion } from "./adapters/registry";
 import type { DateRangeSpec, Layer, Resolution, TimeSubRange } from "./schema";
 
 /** `t` is the period start in epoch ms. A raw point has `mean = min = max = value`, `count = 1`. */
@@ -18,8 +19,18 @@ export type SeriesPoint = {
  */
 export type Series = { place: string; points: SeriesPoint[] };
 
+/** A requested place's display name and, for a retired region, its retirement. */
+export type PlaceInfo = {
+	/** Same key as `Series.place`. */
+	place: string;
+	name: string;
+	retired?: ResolvedRegion["retired"];
+};
+
 export type QueryData = {
 	series: Series[];
+	/** One per requested place in request order; for the whole layer, one per monitor returned. */
+	places: PlaceInfo[];
 	resolution: Resolution;
 	fromRaw: boolean;
 	processor: string | null;

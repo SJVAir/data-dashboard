@@ -3,7 +3,7 @@ import { aggregate } from "../aggregate";
 import { runLimited } from "../chunks";
 import { downsampleInWorker } from "../downsample-client";
 import { planSegments } from "../periods";
-import type { QueryData, Series, SeriesPoint, Target } from "../types";
+import type { PlaceInfo, QueryData, Series, SeriesPoint, Target } from "../types";
 import {
 	bulkSummaryTasks,
 	monitorSummaryTasks,
@@ -24,15 +24,30 @@ async function placesOf(
 	target: Target,
 	ctx: AdapterContext,
 	signal: AbortSignal
-): Promise<Place[]> {
-	if (target.kind === "monitors") return target.ids.map((id) => ({ place: `monitor:${id}`, id }));
-	if (target.kind === "all") return [];
-	const ids = await resolveRegionKeys(target.keys, ctx.regions, signal);
-	return target.keys.map((key, i) => {
-		const id = ids[i];
-		if (id === null) throw new Error(`Region ${key} can't be looked up`);
-		return { place: regionPlace(key), id };
+): Promise<{ places: Place[]; info: PlaceInfo[] }> {
+	if (target.kind === "monitors") {
+		const monitors = await ctx.metadata.monitors(signal);
+		const names = new Map(monitors.map((m) => [m.id, m.name]));
+		return {
+			places: target.ids.map((id) => ({ place: `monitor:${id}`, id })),
+			info: target.ids.map((id) => ({ place: `monitor:${id}`, name: names.get(id) ?? id }))
+		};
+	}
+	if (target.kind === "all") return { places: [], info: [] };
+	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);
+	const places: Place[] = [];
+	const info: PlaceInfo[] = [];
+	target.keys.forEach((key, i) => {
+		const region = found[i];
+		if (region === null) throw new Error(`Region ${key} can't be looked up`);
+		places.push({ place: regionPlace(key), id: region.id });
+		info.push({
+			place: regionPlace(key),
+			name: region.name,
+			...(region.retired && { retired: region.retired })
+		});
 	});
+	return { places, info };
 }
 
 /**
@@ -196,7 +211,7 @@ async function fetchAirQuality(
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
-	const [places, processors] = await Promise.all([
+	const [{ places, info }, processors] = await Promise.all([
 		placesOf(req.target, ctx, signal),
 		placeProcessors(req, ctx, signal)
 	]);
@@ -207,8 +222,18 @@ async function fetchAirQuality(
 		req.resolution === "raw" || req.downsampleFromRaw
 			? await rawSeries(req, places, processors, signal)
 			: await summarySeries(req, places, processors, signal);
+	let placeInfo = info;
+	if (req.target.kind === "all") {
+		const monitors = await ctx.metadata.monitors(signal);
+		const names = new Map(monitors.map((m) => [m.id, m.name]));
+		placeInfo = series.map((s) => ({
+			place: s.place,
+			name: names.get(s.place.slice("monitor:".length)) ?? s.place.slice("monitor:".length)
+		}));
+	}
 	return {
 		series,
+		places: placeInfo,
 		resolution: req.resolution,
 		fromRaw: req.downsampleFromRaw,
 		processor,

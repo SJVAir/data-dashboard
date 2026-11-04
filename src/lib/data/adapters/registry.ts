@@ -4,9 +4,21 @@ import { untilAborted, type MetadataSource } from "../metadata";
 import type { Layer, Resolution } from "../schema";
 import type { QueryData, Target, UnavailableReason } from "../types";
 
-/** Looks up a region's server id from its document reference; `null` when there is none. */
+/** A region found on the server: its sqid, name, and (when retired) the retirement marker. */
+export type ResolvedRegion = {
+	/** The server's sqid. */
+	id: string;
+	name: string;
+	retired?: { since: string; replacedBy: { type: string; code: string } | null };
+};
+
+/** Looks up a region from its document reference; `null` when there is none. */
 export interface RegionResolver {
-	resolve(type: string, code: string, signal?: AbortSignal): Promise<string | "unsupported" | null>;
+	resolve(
+		type: string,
+		code: string,
+		signal?: AbortSignal
+	): Promise<ResolvedRegion | "unsupported" | null>;
 }
 
 export type AdapterContext = { metadata: MetadataSource; regions: RegionResolver };
@@ -64,7 +76,10 @@ function isCodedRegionType(type: string): type is CodedRegionType {
 /** The most codes `getRegionsByCode` takes at once. */
 const MAX_CODES = 100;
 
-type Waiter = { resolve: (id: string | null) => void; reject: (error: unknown) => void };
+type Waiter = {
+	resolve: (region: ResolvedRegion | null) => void;
+	reject: (error: unknown) => void;
+};
 
 /**
  * The web build's resolver: official codes to region sqids through `getRegionsByCode`. A retired
@@ -77,7 +92,7 @@ type Waiter = { resolve: (id: string | null) => void; reject: (error: unknown) =
  * that caller.
  */
 export function createWebRegionResolver(): RegionResolver {
-	const cache = new Map<string, Promise<string | null>>();
+	const cache = new Map<string, Promise<ResolvedRegion | null>>();
 	let pending = new Map<string, Map<string, Waiter>>();
 
 	async function lookup(type: string, codes: Map<string, Waiter>) {
@@ -88,8 +103,22 @@ export function createWebRegionResolver(): RegionResolver {
 			batches.map(async (batch) => {
 				try {
 					const regions = await getRegionsByCode(type as CodedRegionType, batch);
-					const ids = new Map(regions.map((r) => [r.external_id, r.id]));
-					for (const code of batch) codes.get(code)!.resolve(ids.get(code) ?? null);
+					const found = new Map<string, ResolvedRegion>();
+					for (const r of regions) {
+						if (r.external_id === null) continue;
+						const region: ResolvedRegion = { id: r.id, name: r.name };
+						if (r.retired) {
+							region.retired = {
+								since: r.retired.since,
+								replacedBy: r.retired.replaced_by && {
+									type: r.retired.replaced_by.type,
+									code: r.retired.replaced_by.external_id
+								}
+							};
+						}
+						found.set(r.external_id, region);
+					}
+					for (const code of batch) codes.get(code)!.resolve(found.get(code) ?? null);
 				} catch (error) {
 					for (const code of batch) {
 						cache.delete(`${type}:${code}`);
@@ -112,7 +141,7 @@ export function createWebRegionResolver(): RegionResolver {
 			const key = `${type}:${code}`;
 			let id = cache.get(key);
 			if (!id) {
-				id = new Promise<string | null>((resolve, reject) => {
+				id = new Promise<ResolvedRegion | null>((resolve, reject) => {
 					if (pending.size === 0) queueMicrotask(flush);
 					let codes = pending.get(type);
 					if (!codes) pending.set(type, (codes = new Map()));

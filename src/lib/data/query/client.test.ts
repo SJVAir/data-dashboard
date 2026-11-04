@@ -20,6 +20,7 @@ type Call = {
 function data(tag: number): QueryData {
 	return {
 		series: [{ place: `monitor:${tag}`, points: [] }],
+		places: [],
 		resolution: "hour",
 		fromRaw: false,
 		processor: null,

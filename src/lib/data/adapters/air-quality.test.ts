@@ -43,8 +43,18 @@ const ALL: Resolution[] = ["raw", "hour", "day", "month", "quarter", "season", "
 
 /** A stand-in resolver for two California counties. */
 const regions: RegionResolver = {
-	resolve: async (type, code) =>
-		type === "county" ? ({ "06019": "sq1", "06039": "sq2" } as Record<string, string>)[code] : null
+	resolve: async (type, code) => {
+		if (type !== "county") return null;
+		if (code === "06019") return { id: "sq1", name: "Fresno County" };
+		if (code === "06039") {
+			return {
+				id: "sq2",
+				name: "Madera County",
+				retired: { since: "2026-01-01", replacedBy: { type: "county", code: "06019" } }
+			};
+		}
+		return null;
+	}
 };
 
 const ctx: AdapterContext = { metadata: fixtureMetadata(), regions };
@@ -99,6 +109,33 @@ describe("airQualityAdapter.offered", () => {
 });
 
 describe("airQualityAdapter.fetch", () => {
+	it("lists each requested place with its name and a region's retirement", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([] as never);
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		const byRegion = await airQualityAdapter.fetch(
+			request({ kind: "regions", keys: ["county:06039", "county:06019"] }, "day", SEPTEMBER),
+			ctx,
+			signal
+		);
+		expect(byRegion.places).toEqual([
+			{
+				place: "region:county:06039",
+				name: "Madera County",
+				retired: { since: "2026-01-01", replacedBy: { type: "county", code: "06019" } }
+			},
+			{ place: "region:county:06019", name: "Fresno County" }
+		]);
+		const byMonitor = await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-pa", "m-unknown"] }, "day", SEPTEMBER),
+			ctx,
+			signal
+		);
+		expect(byMonitor.places).toEqual([
+			{ place: "monitor:m-pa", name: "Purple Air" },
+			{ place: "monitor:m-unknown", name: "m-unknown" }
+		]);
+	});
+
 	it("a PurpleAir monitor's daily summaries ask for the published processor", async () => {
 		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
 		const data = await airQualityAdapter.fetch(
