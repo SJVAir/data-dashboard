@@ -18,7 +18,7 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
 | **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                             | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
 | **Step 3, second batch** (metadata) — specs 1–4 and the summaries fix merged (SDK 5.0.0-beta.1); cleanup and SDK entry bounds in progress (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
 | **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1)                                                                          | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
-| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; spec 1 PR #36 open, spec 2 (place picker) next (2026-11-04)                   | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
+| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; spec 1 merged into `step-4` (#36), spec 2 (place picker) next (2026-11-04)    | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
