@@ -410,7 +410,7 @@
 	const noMenu = (el: HTMLElement) => on(el, "contextmenu", oncontextmenu);
 
 	const dragging = $derived(mine()?.input === "pointer" || (gesture && touchActive));
-	/** Picked up by any input: marked by a ring and a raised look. */
+	/** Picked up by any input: marked by the focus ring's look and a lifted shadow. */
 	const pickedUp = $derived(mine() !== null);
 	/** Picked up by keyboard: a hint shows the keys. */
 	const keyboardActive = $derived(mine()?.input === "keyboard");
@@ -492,8 +492,12 @@
 		"group bg-card text-card-foreground border-card-border flex min-h-0 flex-col overflow-hidden border",
 		fullscreen
 			? "fixed inset-x-0 top-(--fullscreen-top) bottom-0 z-(--z-fullscreen) overscroll-contain"
-			: "shadow-card relative [grid-column:1/-1] [grid-row:var(--prow)] scroll-mb-[calc(var(--taskbar-height)+var(--grid-gap))] rounded-lg md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
-		pickedUp && "ring-ring z-10 shadow-lg ring-2"
+			: "relative [grid-column:1/-1] [grid-row:var(--prow)] scroll-mb-[calc(var(--taskbar-height)+var(--grid-gap))] rounded-lg md:[grid-column:var(--col)] md:[grid-row:var(--row)]",
+		// Picked up: the focus ring's look (sky outline, --ring-edge ring) marks it, raised.
+		!fullscreen &&
+			(pickedUp
+				? "outline-ring ring-ring-edge shadow-lifted z-10 ring-4 outline-2 outline-offset-1"
+				: "shadow-card")
 	]}
 	data-picked-up={pickedUp ? "" : undefined}
 	{inert}

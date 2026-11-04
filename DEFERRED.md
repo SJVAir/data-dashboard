@@ -1255,7 +1255,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   2026-11-03 (design pass spec)._ The design pass's palette is meant for every SJVAir app, but
   restyling the others now would change live apps before the dashboard has proven the look.
   Token names stay shadcn's (plus `--link`, `--highlight*`, `--card-border`, `--shadow-card`,
-  `--radius-control`, `--chart-1…5`, `--overlay`), so each app can copy the token blocks.
+  `--shadow-lifted`, `--radius-control`, `--chart-1…5`, `--overlay`), so each app can copy the
+  token blocks.
   `map-sdk`'s legends and tooltips should use the same names and inherit the dashboard's theme
   (the token list goes to the map-sdk session after the design pass's first PR).
   **Revisit when** the dashboard launches. Each repo needs its own approved plan.
@@ -1281,7 +1282,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   touching each file:
   - The `secondary` button variant is still the old blue-gray fill; the spec's secondary look
     lives in `outline`. Pick one when step 4 needs secondary buttons.
-  - A picked-up widget's `shadow-lg` is Tailwind's default black, not a token.
   - "Sign in" is an outline button; the mockup showed a link.
   - All three logo images are in the DOM (two hidden by breakpoint or mode), so a browser may
     fetch the hidden ones.

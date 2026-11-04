@@ -146,7 +146,9 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
     fire, forecasts). Level colors still come from server metadata, not tokens.
   - **Shape.** Cards (widgets, menus, popovers, dialogs) are white with 12px corners
     (`--radius`), a 1px `--card-border`, and a soft blue-tinted `--shadow-card`. Buttons and
-    inputs have 8px corners (`--radius-control`). The top bar shows the SJVAir logo with
+    inputs have 8px corners (`--radius-control`); text fields have a darker `--input` border
+    (3:1, WCAG 1.4.11), while outline buttons keep `--border`. A picked-up widget shows the focus
+    ring's look and `--shadow-lifted`. The top bar shows the SJVAir logo with
     "Dashboard"; the current page's link has navy text and an underline (navy in light, sky in
     dark, so it reaches 3:1).
   - **Density: "in between, closer to packed".** About 12px gaps and card padding (`--grid-gap`,
@@ -177,8 +179,8 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
   web manifest stays light. A saved override that differs from the system can flash the page
   background before `app.js` runs (see `DEFERRED.md`).
 - **The family palette.** Token names stay shadcn's plus a few new ones (`--link`,
-  `--highlight*`, `--card-border`, `--shadow-card`, `--radius-control`, `--chart-1…5`,
-  `--overlay`), so monitor-map, mobile, and `map-sdk` can adopt the palette by copying the token
+  `--highlight*`, `--card-border`, `--shadow-card`, `--shadow-lifted`, `--radius-control`,
+  `--chart-1…5`, `--overlay`), so monitor-map, mobile, and `map-sdk` can adopt the palette by copying the token
   blocks. `map-sdk`'s legends and tooltips will use the same names and inherit the host's theme
   (the token list goes to the map-sdk session after the design pass's first PR). The
   restyle of the other apps waits for launch (see `DEFERRED.md`).

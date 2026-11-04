@@ -919,6 +919,34 @@ test("a keyboard pickup marks the widget and shows the key hint", async () => {
 	expect(hint().query()).toBeNull();
 });
 
+/** A token's value as the browser computes it in a color or a shadow. */
+function computed(property: "color" | "boxShadow", value: string): string {
+	const probe = document.createElement("span");
+	probe.style[property] = value;
+	document.body.append(probe);
+	const result = getComputedStyle(probe)[property];
+	probe.remove();
+	return result;
+}
+
+test("a picked-up widget has the focus ring's boundary and the lifted shadow", async () => {
+	await seed(halves());
+	await focusBar("Readings");
+	await press("{Enter}");
+	await expect.poll(() => pickedUp("a")).toBe(true);
+	const style = getComputedStyle(frame("a"));
+	expect(style.outlineStyle).toBe("solid");
+	expect(style.outlineWidth).toBe("2px");
+	expect(style.outlineColor).toBe(computed("color", "var(--ring)"));
+	expect(style.boxShadow).toContain(computed("color", "var(--ring-edge)"));
+	expect(style.boxShadow).toContain(computed("boxShadow", "var(--shadow-lifted)"));
+	await press("{Escape}");
+	const after = getComputedStyle(frame("a"));
+	expect(after.outlineStyle).toBe("none");
+	expect(after.boxShadow).toContain(computed("boxShadow", "var(--shadow-card)"));
+	expect(after.boxShadow).not.toContain(computed("boxShadow", "var(--shadow-lifted)"));
+});
+
 test("Escape or a click elsewhere ends the marking", async () => {
 	await seed(halves());
 	await focusBar("Readings");

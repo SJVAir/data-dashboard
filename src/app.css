@@ -15,11 +15,12 @@
 	}
 }
 
-/* Inline, so shadow-card reads var(--shadow-card) at use and follows the dark blocks (a plain
-   @theme value is copied into the utility). Tailwind also echoes it into its theme layer, but the
-   unlayered :root and dark blocks below win, so the token keeps its real values. */
+/* Inline, so shadow-card and shadow-lifted read their tokens at use and follow the dark blocks (a
+   plain @theme value is copied into the utility). Tailwind also echoes them into its theme layer,
+   but the unlayered :root and dark blocks below win, so the tokens keep their real values. */
 @theme inline {
 	--shadow-card: var(--shadow-card);
+	--shadow-lifted: var(--shadow-lifted);
 }
 
 @theme {
@@ -112,6 +113,8 @@
 	--ring-edge: var(--primary);
 	--overlay: oklch(0.257 0.061 257.8 / 10%);
 	--shadow-card: 0 1px 2px #1c448212, 0 4px 14px #1c448214;
+	/* A picked-up widget, raised above the grid. */
+	--shadow-lifted: 0 2px 4px #1c44821f, 0 12px 28px #1c448229;
 	--chart-1: oklch(0.394 0.114 259.1);
 	--chart-2: oklch(0.527 0.124 247.4);
 	--chart-3: oklch(0.511 0.086 186.4);
@@ -170,6 +173,7 @@
 		--ring-edge: var(--background);
 		--overlay: oklch(0 0 0 / 40%);
 		--shadow-card: 0 1px 2px #0006;
+		--shadow-lifted: 0 2px 4px #0006, 0 12px 28px #0009;
 		--chart-1: oklch(0.781 0.111 261.1);
 		--chart-2: oklch(0.791 0.101 239.5);
 		--chart-3: oklch(0.785 0.133 181.9);
@@ -204,6 +208,7 @@
 	--ring-edge: var(--background);
 	--overlay: oklch(0 0 0 / 40%);
 	--shadow-card: 0 1px 2px #0006;
+	--shadow-lifted: 0 2px 4px #0006, 0 12px 28px #0009;
 	--chart-1: oklch(0.781 0.111 261.1);
 	--chart-2: oklch(0.791 0.101 239.5);
 	--chart-3: oklch(0.785 0.133 181.9);
@@ -286,6 +291,7 @@
 		@apply bg-background text-foreground;
 	}
 	html {
-		@apply font-sans;
+		/* Native radios and checkboxes in navy (light blue in dark), not the browser's accent. */
+		@apply accent-primary font-sans;
 	}
 }
