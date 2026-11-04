@@ -1077,7 +1077,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   8. **Removing `levels` from the SDK** (the user, 2026-11-04; the server side is the
      hardcoded-value cleanup, spec 5): the `monitors/meta/` schema's `levels` field, the `levels`
      getter, `asIter.levels`, and the fixtures in `lib/monitors`. For 5.0, in a beta that pairs
-     with spec 5's server change. Handed to the coordinator to give an sdk-js session.
+     with spec 5's server change. Taken by sdk-js-8c (2026-11-04); **waiting on spec 5's server spec** (the user's call: decide which beta once that spec is written). Server answers so far (sjvair-com-c9): `levels` goes away entirely; the same server PR adds a school activity guidelines block to `monitors/meta/` that the SDK must add in the same beta; alert/subscription level names equal the scale level keys, but not every key is in every pollutant's scale. Callers that must change: monitor-map and mobile (migrate to `scale`), map-sdk (delete the legacy fallback in `metadata.ts`), and the dashboard's e2e `monitors/meta.json` fixture.
 
   Testing notes: the local DB has no CalEnviroScreen rows (the CES live tests skip), and two
   sessions running sjvair.com's pytest at once drop each other's `test_sjvair` database; give
