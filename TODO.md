@@ -43,7 +43,9 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
   the docs that the user didn't give.
 - Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`), even
   when the work is for the dashboard: **SDK specs in sdk-js, server specs in sjvair.com** (the
-  user, 2026-11-04). Specs 1–3 of step 3 spanned both and live in sjvair.com.
+  user, 2026-11-04). Specs 1–3 of step 3 spanned both and live in sjvair.com. When SDK work needs
+  a small server change, a section in the SDK spec is enough; if the server side has a place
+  where server sessions would see the change, add a note there too (the user, 2026-11-04).
 
 Earlier tracks, in order (new dashboard work branches from `main`):
 
@@ -987,7 +989,7 @@ batch) is merged** (2026-11-04, with the user's yes; every commit verified): sjv
 `date__gte`/`date__lte` without `date` and order same-day rows by id; CES `?within_mode=`;
 `regions/meta/` `buffers`) and sdk-js [#40](https://github.com/SJVAir/sdk-js/pull/40) and
 [#41](https://github.com/SJVAir/sdk-js/pull/41) into `release/5.0.0` (212 SDK tests green
-against the local server). `5.0.0-beta.1` is not yet published (needs the user's yes). Spec
+against the local server). Published as **@sjvair/sdk `5.0.0-beta.1`** (2026-11-04, with the user's yes; tag `v5.0.0-beta.1`, commit af43564 on `release/5.0.0`; JSR `latest` stays 4.7.0). Step 4 (pins `4.8.0-beta.6`) and map-sdk (pins `4.8.0-beta.4`) move to it; map-sdk can then drop its own 100-code chunking and its direct HMS `paginatedApiCall`. Spec
 and plan at sdk-js `docs/superpowers/specs/2026-11-04-sdk-quick-batch-design.md` and
 `docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (moved from sjvair.com by sdk-js
 [#42](https://github.com/SJVAir/sdk-js/pull/42), open).
