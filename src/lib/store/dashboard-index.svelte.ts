@@ -69,8 +69,8 @@ export class DashboardIndex {
 	names = $derived(displayNames(this.items, STARTER_ID));
 	deleted = $state.raw<DashboardSummary[]>([]);
 	deletedNames = $derived(displayNames(this.deleted, STARTER_ID));
-	/** Stored documents that can't be opened (invalid) but have an id, so they can be removed. */
-	unreadable = $state.raw<Array<{ id: string }>>([]);
+	/** Invalid stored documents that have an id (so can be removed), with their `updatedAt`. */
+	unreadable = $state.raw<Array<{ id: string; updatedAt?: string }>>([]);
 	/** Every stored document, readable or not, including deleted ones and ones with no id. */
 	storedCount = $state(0);
 
@@ -124,13 +124,14 @@ export class DashboardIndex {
 			pending.set(docId, [...(pending.get(docId) ?? []), { record }]);
 		}
 		this.storedCount = raws.length;
-		this.unreadable = raws
-			.filter((raw) => summarize(raw) === null)
-			.map((raw) => (raw as { id?: unknown } | null)?.id)
-			.filter((id): id is string => typeof id === "string")
-			.map((id) => ({ id }));
-		const all = raws
-			.map(summarize)
+		const summaries = raws.map((raw) => ({ raw, summary: summarize(raw) }));
+		this.unreadable = summaries
+			.filter(({ summary }) => summary === null)
+			.map(({ raw }) => raw as { id?: unknown; updatedAt?: unknown } | null)
+			.filter((raw) => typeof raw?.id === "string")
+			.map((raw) => ({ id: raw!.id as string, updatedAt: optionalString(raw!.updatedAt) }));
+		const all = summaries
+			.map(({ summary }) => summary)
 			.filter((d): d is DashboardSummary => d !== null)
 			.map((d) => {
 				const name = pendingName(pending.get(d.id) ?? []);

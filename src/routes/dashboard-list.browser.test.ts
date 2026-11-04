@@ -74,6 +74,31 @@ test("a dashboard that can't be opened is listed with Download and Delete", asyn
 	);
 });
 
+test("unreadable rows tell their buttons apart", async () => {
+	const app = await setup();
+	for (const [id, updatedAt] of [
+		["bad1", "2026-10-01T12:00:00.000Z"],
+		["bad2", undefined]
+	] as const) {
+		await app.platform.documents.commit(app.space, {
+			docId: id,
+			baseVersion: null,
+			doc: { kind: "dashboard", schemaVersion: 1, id, updatedAt } as never,
+			entries: []
+		});
+	}
+	await app.index.refresh();
+	await render(DashboardList, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	const describedBy = (id: string) => {
+		const button = page.getByTestId(`dashboard-row-${id}`).getByRole("button", { name: "Delete" });
+		const ids = button.element().getAttribute("aria-describedby")!.split(" ");
+		return ids.map((i) => document.getElementById(i)?.textContent).join(" ");
+	};
+	expect(describedBy("bad1")).toContain("Last saved Oct 1, 2026");
+	expect(describedBy("bad2")).toContain("Reference bad2");
+	expect(describedBy("bad1")).not.toBe(describedBy("bad2"));
+});
+
 test("row menu deletes that dashboard", async () => {
 	const app = await setup();
 	await app.index.createBlank();

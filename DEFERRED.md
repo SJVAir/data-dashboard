@@ -416,6 +416,11 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Documents & saving
 
+- **Deleting an unreadable dashboard is local only.** _Deferred 2026-11-03 (design pass, Task 15)._
+  The list's Delete for a dashboard that can't be opened removes only this browser's copy; in an
+  account space, sync may download a valid server copy again (arguably a repair). **Revisit on** a
+  report of a deleted unreadable dashboard coming back, or with account-side deletion of
+  unreadable documents.
 - **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
   task 6)._ If the page goes away mid-hand-off after the copy was stored but before its first
   save, the next load opens the (unedited) copy, not the starter, so the starter's journal

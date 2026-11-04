@@ -49,20 +49,32 @@
 			);
 
 	async function downloadUnreadable(id: string) {
-		const raw = await app.platform.documents.get(app.space, id);
-		if (raw === undefined) return;
-		const now = new Date();
-		platform().files.save(
-			dashboardFileName(m.dashboard_unreadable(), todayPacific(now)),
-			rawDocumentFileJson(raw, now),
-			"application/json"
-		);
+		try {
+			const raw = await app.platform.documents.get(app.space, id);
+			if (raw === undefined) return;
+			const now = new Date();
+			platform().files.save(
+				dashboardFileName(id, todayPacific(now)),
+				rawDocumentFileJson(raw, now),
+				"application/json"
+			);
+		} catch {
+			toast.error(m.dashboard_unreadable_download_failed());
+		}
 	}
 
-	async function deleteUnreadable(id: string) {
+	/** What tells unreadable rows apart: when it was last saved, else a short reference. */
+	function detailOf(item: { id: string; updatedAt?: string }): string {
+		const when = item.updatedAt ? new Date(item.updatedAt) : null;
+		return when && !Number.isNaN(when.getTime())
+			? m.dashboard_unreadable_saved({ date: formatDate(when) })
+			: m.dashboard_unreadable_ref({ id: item.id.slice(0, 8) });
+	}
+
+	async function deleteUnreadable(id: string, detail: string) {
 		const confirmed = await confirmAction({
 			title: m.dashboard_unreadable_confirm_title(),
-			body: m.dashboard_unreadable_confirm_body(),
+			body: m.dashboard_unreadable_confirm_body({ detail }),
 			confirm: m.dashboard_unreadable_delete(),
 			destructive: true,
 			restoreFocus: () => document.getElementById("dashboards-heading")?.focus()
@@ -167,16 +179,29 @@
 					</li>
 				{/each}
 				{#each app.index.unreadable as item (item.id)}
+					{@const detail = detailOf(item)}
+					{@const titleId = `dashboard-unreadable-${item.id}`}
 					<li class="flex items-center gap-2 py-1 pr-1 pl-3" data-testid="dashboard-row-{item.id}">
 						<div class="flex min-w-0 flex-1 flex-col py-1">
-							<span class="truncate font-medium">{m.dashboard_unreadable()}</span>
+							<span id={titleId} class="truncate font-medium">{m.dashboard_unreadable()}</span>
+							<span id="{titleId}-detail" class="text-muted-foreground text-sm">{detail}</span>
 							<span class="text-muted-foreground text-sm">{m.dashboard_unreadable_hint()}</span>
 						</div>
-						<Button variant="ghost" size="sm" onclick={() => downloadUnreadable(item.id)}>
+						<Button
+							variant="ghost"
+							size="sm"
+							aria-describedby="{titleId} {titleId}-detail"
+							onclick={() => downloadUnreadable(item.id)}
+						>
 							<Download aria-hidden="true" />
 							{m.dashboard_unreadable_download()}
 						</Button>
-						<Button variant="ghost" size="sm" onclick={() => deleteUnreadable(item.id)}>
+						<Button
+							variant="ghost"
+							size="sm"
+							aria-describedby="{titleId} {titleId}-detail"
+							onclick={() => deleteUnreadable(item.id, detail)}
+						>
 							<Trash2 aria-hidden="true" />
 							{m.dashboard_unreadable_delete()}
 						</Button>
