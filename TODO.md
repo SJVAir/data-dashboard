@@ -16,7 +16,7 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
 | Track                                                                                                                    | Session starts in | Repos it edits                | Its status lives in                          |
 | ------------------------------------------------------------------------------------------------------------------------ | ----------------- | ----------------------------- | -------------------------------------------- |
 | **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                               | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata) — spec 2 merged; spec 3 (location search) PRs #302, sdk #39 open                     | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 3, second batch** (metadata) — spec 2 merged; spec 3 (location search) merged, in 4.8.0-beta.6                    | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
 | **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1)                                            | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 | **Step 4: Widget Creation and non-map widgets** — 6 stacked specs into `step-4`; spec 1 approved, plan next (2026-11-04) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
@@ -967,7 +967,11 @@ built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are i
 user's yes); not yet in production. Both are in **@sjvair/sdk 4.8.0-beta.5** (published 2026-11-04 with the
 user's yes); step 4 can pin it. Spec at sjvair.com
 `docs/superpowers/specs/2026-11-03-summary-cache-and-place-lookup-design.md`. **Spec 3 (location
-search, 2026-11-04) has PRs open:** sjvair.com #302 and sdk-js #39 (below). Later specs: the
+search) is merged** (2026-11-04, with the user's yes): sjvair.com #302 into `develop` and sdk-js
+#39 into `release/4.8.0`, not yet in production; published as **@sjvair/sdk 4.8.0-beta.6**
+(2026-11-04, with the user's yes). It needs a server with #302 (`getRegionsMeta` requires
+`location_types`), which local `develop` now has. sdk-js `CLAUDE.md` now says the SDK keeps no
+fallbacks for older server responses (the user, 2026-11-04), and #39 removed the 4.8.0-beta ones. Later specs: the
 remaining wrappers and cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
 research in `docs/reference/pesticides-explorer-research.md`).
@@ -1002,9 +1006,9 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ (spec 2, sjvair.com #301, merged into `develop`) Summary rollups moved to Pacific time
   (they ran on UTC, so each landed a period late and seasons covered the wrong months). Needs
   a catch-up run after deploy (see the PR's deploy notes).
-- (spec 3, PRs open, not merged: sjvair.com [#302](https://github.com/SJVAir/sjvair.com/pull/302)
+- ✅ (spec 3, merged: sjvair.com [#302](https://github.com/SJVAir/sjvair.com/pull/302)
   into `develop`, sdk-js [#39](https://github.com/SJVAir/sdk-js/pull/39) into `release/4.8.0`;
-  no beta yet) Location (schools, child care) name search: `regions/locations/search/?q=`
+  in 4.8.0-beta.6) Location (schools, child care) name search: `regions/locations/search/?q=`
   (typo-tolerant, a town can be typed, ≤10 rows stretched to 15 on a name tie, `more`),
   region names on location rows, `location_types` labels in `regions/meta/`, and sdk-js
   `searchLocations` and `getPesticideLocations`. What it does is in `ARCHITECTURE.md` →

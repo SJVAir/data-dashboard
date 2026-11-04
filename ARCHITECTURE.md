@@ -1155,7 +1155,7 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   - **Server and SDK work (step 3):** a name search for locations, ideally an endpoint
     outside the `pesticides/` namespace since schools are used for air quality too; SDK
     wrappers; and a check that production has the school data loaded (`import_schools`).
-    **Built in spec 3** (sjvair.com #302, sdk-js #39; open for review, 2026-11-04):
+    **Built in spec 3** (sjvair.com #302, sdk-js #39; merged 2026-11-04, in @sjvair/sdk 4.8.0-beta.6):
     - `GET regions/locations/search/?q=&type=&region_type=&region=` →
       `{ data: [location rows], more }`. Each row is the `regions/locations/` row (code pair,
       name, type, address, `city_name`, ZIP, point, linked regions as
