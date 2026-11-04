@@ -425,6 +425,10 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			const range = resolveRange(entry.spec, at);
 			const prev = entry.request;
 			const choice = choose(entry.spec, range, prev.offered, prev.target, entry.pick);
+			// A re-pick that comes back `unavailable` (the new resolution isn't offered, say) falls
+			// through and keeps refetching at the old resolution: the old data is still right for
+			// what it covers, and moving subscribers would swap a working chart for an
+			// "unavailable" state over a boundary the user never chose.
 			if (
 				!("unavailable" in choice) &&
 				(choice.resolution !== prev.resolution ||
