@@ -10,7 +10,7 @@ import type { MetadataSource } from "../metadata";
 import { chooseResolution } from "../resolution";
 import type { DateRangeSpec, Resolution, TimeSubRange } from "../schema";
 import { filterToSubRange } from "../sub-range";
-import type { QueryData, QueryInput, QueryState, UnavailableReason } from "../types";
+import type { QueryData, QueryInput, QueryState, Target, UnavailableReason } from "../types";
 import { WORST_HOUR_MAX_DAYS } from "../worst-hour";
 import { keyRange, queryKey, stableJson } from "./key";
 import { startPoller } from "./poller";
@@ -61,6 +61,8 @@ export type QueryClientOptions = {
 	regions: RegionResolver;
 	now?: () => Date;
 	maxIdleEntries?: number;
+	/** Idle entries are evicted oldest first once their series hold more points than this. */
+	maxIdlePoints?: number;
 	/** When given, entries that include now are polled, paused while not visible. */
 	activity?: ActivitySource;
 };
@@ -70,12 +72,19 @@ type Plan = {
 	adapter: DatasetAdapter;
 	spec: DateRangeSpec;
 	request: AdapterRequest;
+	pick: Pick;
 };
+
+/** What the resolution choice depends on besides the range, kept so a refetch can redo it. */
+type Pick = { pin?: Resolution; override?: "auto" | Resolution; worstHour: boolean };
+
+type Choice = { resolution: Resolution; downsampleFromRaw: boolean; worstHour: boolean };
 
 type Entry = {
 	key: string;
 	adapter: DatasetAdapter;
 	spec: DateRangeSpec;
+	pick: Pick;
 	/** The latest request started, which may still be in flight or have been aborted. */
 	request: AdapterRequest;
 	/** The request the current `data` (or `error`) came from; set only when a fetch settles. */
@@ -117,12 +126,43 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 	const ctx: AdapterContext = { metadata: opts.metadata, regions: opts.regions };
 	const now = opts.now ?? (() => new Date());
 	const maxIdleEntries = opts.maxIdleEntries ?? 200;
+	const maxIdlePoints = opts.maxIdlePoints ?? 500_000;
 	const cache = new Map<string, Entry>();
 	const changeListeners = new Set<() => void>();
 	let clock = 0;
 
 	function changed() {
 		for (const listener of [...changeListeners]) listener();
+	}
+
+	/** The resolution (and worst-hour flag) for a range; shared by planning and refetching. */
+	function choose(
+		spec: DateRangeSpec,
+		range: ReturnType<typeof resolveRange>,
+		offered: Resolution[],
+		target: Target,
+		pick: Pick
+	): Choice | { unavailable: UnavailableReason } {
+		const spanDays = calendarSpanDays(spec, range);
+		let choice;
+		try {
+			choice = chooseResolution({ spanDays, offered, pin: pick.pin, override: pick.override });
+		} catch (error) {
+			if (!(error instanceof RangeError)) throw error;
+			return { unavailable: target.kind === "all" ? "whole-layer-raw" : "no-resolution" };
+		}
+		if (target.kind === "all" && (choice.resolution === "raw" || choice.downsampleFromRaw)) {
+			return { unavailable: "whole-layer-raw" };
+		}
+		const { resolution, downsampleFromRaw } = choice;
+		const worstHour =
+			pick.worstHour &&
+			resolution === "day" &&
+			!downsampleFromRaw &&
+			spanDays <= WORST_HOUR_MAX_DAYS &&
+			((target.kind === "monitors" && target.ids.length === 1) ||
+				(target.kind === "regions" && target.keys.length === 1));
+		return { resolution, downsampleFromRaw, worstHour };
 	}
 
 	async function plan(
@@ -145,30 +185,14 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 
 		const range = resolveRange(input.dateRange, at);
 		const offered = adapter.offered(entryType.resolutions, target);
-		let choice;
-		try {
-			choice = chooseResolution({
-				spanDays: calendarSpanDays(input.dateRange, range),
-				offered,
-				pin: input.pin,
-				override: layer.resolution
-			});
-		} catch (error) {
-			if (!(error instanceof RangeError)) throw error;
-			return { unavailable: target.kind === "all" ? "whole-layer-raw" : "no-resolution" };
-		}
-		if (target.kind === "all" && (choice.resolution === "raw" || choice.downsampleFromRaw)) {
-			return { unavailable: "whole-layer-raw" };
-		}
-
-		const { resolution, downsampleFromRaw } = choice;
-		const worstHour =
-			input.worstHour === true &&
-			resolution === "day" &&
-			!downsampleFromRaw &&
-			calendarSpanDays(input.dateRange, range) <= WORST_HOUR_MAX_DAYS &&
-			((target.kind === "monitors" && target.ids.length === 1) ||
-				(target.kind === "regions" && target.keys.length === 1));
+		const pick: Pick = {
+			pin: input.pin,
+			override: layer.resolution,
+			worstHour: input.worstHour === true
+		};
+		const choice = choose(input.dateRange, range, offered, target, pick);
+		if ("unavailable" in choice) return choice;
+		const { resolution, downsampleFromRaw, worstHour } = choice;
 		const key = queryKey({
 			dataset: dataset.id,
 			entryType: entryType.id,
@@ -182,6 +206,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			key,
 			adapter,
 			spec: input.dateRange,
+			pick,
 			request: {
 				entryType: entryType.id,
 				target,
@@ -259,15 +284,27 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		if (entry.fetched) entry.request = entry.fetched;
 	}
 
+	function pointsHeld(entry: Entry): number {
+		let total = 0;
+		for (const series of entry.data?.series ?? []) total += series.points.length;
+		return total;
+	}
+
 	function evict() {
 		const idle = [...cache.values()].filter((e) => e.subscribers.size === 0);
-		if (idle.length <= maxIdleEntries) return;
 		idle.sort((a, b) => a.lastUsed - b.lastUsed);
-		for (const entry of idle.slice(0, idle.length - maxIdleEntries)) {
+		let points = idle.reduce((sum, e) => sum + pointsHeld(e), 0);
+		let count = idle.length;
+		let dropped = false;
+		for (const entry of idle) {
+			if (count <= maxIdleEntries && points <= maxIdlePoints) break;
 			abortFetch(entry);
 			cache.delete(entry.key);
+			count--;
+			points -= pointsHeld(entry);
+			dropped = true;
 		}
-		changed();
+		if (dropped) changed();
 	}
 
 	function attach(sub: Sub, p: Plan) {
@@ -278,6 +315,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 				key: p.key,
 				adapter: p.adapter,
 				spec: p.spec,
+				pick: p.pick,
 				request: p.request,
 				subscribers: new Set(),
 				failed: false,
@@ -384,7 +422,25 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			const entry = cache.get(key);
 			if (!entry || entry.controller) return;
 			const at = now();
-			fetchEntry(entry, { ...entry.request, range: resolveRange(entry.spec, at), now: at });
+			const range = resolveRange(entry.spec, at);
+			const prev = entry.request;
+			const choice = choose(entry.spec, range, prev.offered, prev.target, entry.pick);
+			if (
+				!("unavailable" in choice) &&
+				(choice.resolution !== prev.resolution ||
+					choice.downsampleFromRaw !== prev.downsampleFromRaw ||
+					choice.worstHour !== prev.worstHour)
+			) {
+				// The range grew across a ladder boundary: subscribers move to the entry for the
+				// new resolution, which this entry's data cannot serve.
+				for (const sub of [...entry.subscribers]) {
+					if (!sub.input) continue;
+					sub.inputJson = undefined;
+					request(sub, sub.input);
+				}
+				return;
+			}
+			fetchEntry(entry, { ...prev, range, now: at });
 		},
 
 		entries() {

@@ -52,6 +52,7 @@ export const UNAVAILABLE_REASONS = [
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
 export type QueryState =
+	| { status: "idle"; data?: undefined }
 	| { status: "loading"; data?: QueryData }
 	| { status: "ready"; data: QueryData }
 	| { status: "error"; error: unknown; data?: QueryData }

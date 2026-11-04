@@ -50,7 +50,9 @@ function fakeAdapter(id = "air-quality") {
 
 const regions: RegionResolver = { resolve: async () => "unsupported" };
 
-function setup(opts: { metadata?: MetadataSource; maxIdleEntries?: number } = {}) {
+function setup(
+	opts: { metadata?: MetadataSource; maxIdleEntries?: number; maxIdlePoints?: number } = {}
+) {
 	const { adapter, calls } = fakeAdapter();
 	const clock = { now: NOW };
 	const client = createQueryClient({
@@ -58,7 +60,8 @@ function setup(opts: { metadata?: MetadataSource; maxIdleEntries?: number } = {}
 		metadata: opts.metadata ?? fixtureMetadata(),
 		regions,
 		now: () => clock.now,
-		maxIdleEntries: opts.maxIdleEntries
+		maxIdleEntries: opts.maxIdleEntries,
+		maxIdlePoints: opts.maxIdlePoints
 	});
 	return { client, calls, clock };
 }
@@ -508,6 +511,61 @@ describe("createQueryClient", () => {
 				.map((e) => e.key)
 				.sort()
 		).toEqual([keys[1], keys[3]].sort());
+	});
+
+	it("idle entries are evicted oldest first once their points exceed the cap", async () => {
+		const { client, calls } = setup({ maxIdlePoints: 5 });
+		const withPoints = (n: number): QueryData => ({
+			...data(n),
+			series: [
+				{
+					place: "monitor:x",
+					points: Array.from({ length: n }, (_, i) => ({ t: i, v: i })) as never
+				}
+			]
+		});
+		const keys: string[] = [];
+		async function visit(monitor: string, n: number) {
+			const sub = client.subscribe(input(monitor), () => {});
+			await flush();
+			calls.at(-1)!.resolve(withPoints(n));
+			await flush();
+			keys.push(sub.key!);
+			sub.unsubscribe();
+		}
+		await visit("m-1", 3);
+		await visit("m-2", 2);
+		expect(client.entries()).toHaveLength(2);
+		await visit("m-3", 2);
+		expect(client.entries().map((e) => e.key)).toEqual([keys[1], keys[2]]);
+	});
+
+	it("refetch picks the resolution again for a to-date range", async () => {
+		const { client, calls, clock } = setup();
+		const toDate: QueryInput = {
+			...input(),
+			dateRange: { kind: "to-date", unit: "week" }
+		};
+		// 2026-10-26 is a Monday (weeks start Sunday): two days, so raw.
+		clock.now = new Date("2026-10-27T19:00:00Z");
+		const rec = recorder();
+		const sub = client.subscribe(toDate, rec.listener);
+		await flush();
+		expect(calls[0].req.resolution).toBe("raw");
+		calls[0].resolve(data(1));
+		await flush();
+		const first = sub.key;
+
+		// Thursday: four days, so hourly.
+		clock.now = new Date("2026-10-29T19:00:00Z");
+		client.refetch(first!);
+		await flush();
+		expect(calls).toHaveLength(2);
+		expect(calls[1].req.resolution).toBe("hour");
+		calls[1].resolve(data(2));
+		await flush();
+		expect(sub.key).not.toBe(first);
+		expect(rec.last()?.status).toBe("ready");
 	});
 
 	it("retry re-plans after a resolution step fails, as does updating to the same input", async () => {

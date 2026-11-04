@@ -813,17 +813,10 @@ string`) now get the union return type. The mobile app passes a string token, so
   PurpleAir) and reports which one it used; `QueryDescriptor` has no processor field. An
   optional field can be added later without a document migration. **Revisit when**
   researchers ask for uncalibrated or alternative-calibration data.
-- **Refetch keeps the resolution chosen at creation.** _Deferred 2026-10-22 (Foundations spec
-  2)._ A query entry picks its resolution from the range span once, when it is created; a
-  to-date range (e.g. "this month") can grow across a ladder boundary over time without the
-  entry switching. **Revisit when** widgets show to-date ranges (Release 1 step 4).
 - **The query client has no `dispose()`, and its poller is never stopped.** _Deferred
   2026-10-22 (Foundations spec 2)._ `getQueryClient()` returns one app-wide client, so nothing
   needed teardown. **Revisit when** HMR or tests recreate clients, or anything creates more
   than one.
-- **`LiveQuery` has no idle state for a null input.** _Deferred 2026-10-22 (Foundations spec
-  2)._ A widget with nothing to show yet (no place picked) has to avoid constructing the query
-  rather than pass `null`. **Revisit when** building widgets (Release 1 step 4).
 - **`adapter.target` takes no `AbortSignal`.** _Deferred 2026-10-22 (Foundations spec 2 final
   review)._ Resolving a layer's target can't be cancelled when its subscriber moves on; today
   it makes no network calls (the web region resolver answers at once), so nothing is wasted.
@@ -840,10 +833,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   immediately, skipping the poller's backoff, so widgets opening one after another against a
   failing server each send a request. **Revisit if** that shows up as load during an outage;
   the fix is to respect the entry's backoff when attaching.
-- **The idle cache cap counts entries, not bytes.** _Deferred 2026-10-22 (Foundations spec 2
-  final review)._ Up to 200 idle entries stay cached whatever their size, so large raw
-  selections could hold a lot of memory. **Revisit with** step 4's large selections: cap by
-  approximate size (points held) instead.
 - **Midnight race on rolling keys.** _Deferred 2026-10-22 (Foundations spec 2 final review)._
   A subscriber that attaches across midnight to a rolling entry ("last 7 days") whose fetch
   started before midnight gets the older dates until the next poll. **Revisit if** a widget
