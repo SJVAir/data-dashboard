@@ -13,12 +13,12 @@ session coordinates (the server sessions, the cross-track docs, decisions for th
 coordinator edits the table below, other tracks' sections, and the `DEFERRED.md` deploy entry
 from a worktree off `origin/main`. Server sessions message the coordinator.
 
-| Track                                                                                                                                               | Session starts in | Repos it edits                | Its status lives in                          |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                          | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata) — specs 1–3 merged (beta.6); SDK quick batch and summaries investigation in progress, cleanup next (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1)                                                                       | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
-| **Step 4: Widget Creation and non-map widgets** — 6 stacked specs into `step-4`; spec 1 approved, plan next (2026-11-04)                            | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
+| Track                                                                                                                                   | Session starts in | Repos it edits                | Its status lives in                          |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                              | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata) — specs 1–4 merged (@sjvair/sdk 5.0.0-beta.1); summaries fix in progress, cleanup next (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1)                                                           | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| **Step 4: Widget Creation and non-map widgets** — 6 stacked specs into `step-4`; spec 1 approved, plan next (2026-11-04)                | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
@@ -991,8 +991,7 @@ batch) is merged** (2026-11-04, with the user's yes; every commit verified): sjv
 [#41](https://github.com/SJVAir/sdk-js/pull/41) into `release/5.0.0` (212 SDK tests green
 against the local server). Published as **@sjvair/sdk `5.0.0-beta.1`** (2026-11-04, with the user's yes; tag `v5.0.0-beta.1`, commit af43564 on `release/5.0.0`; JSR `latest` stays 4.7.0). Step 4 (pins `4.8.0-beta.6`) and map-sdk (pins `4.8.0-beta.4`) move to it; map-sdk can then drop its own 100-code chunking and its direct HMS `paginatedApiCall`. Spec
 and plan at sdk-js `docs/superpowers/specs/2026-11-04-sdk-quick-batch-design.md` and
-`docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (moved from sjvair.com by sdk-js
-[#42](https://github.com/SJVAir/sdk-js/pull/42), open).
+`docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (moved from sjvair.com by sdk-js [#42](https://github.com/SJVAir/sdk-js/pull/42), merged). Spec 4 is complete.
 Later specs: the cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
 research in `docs/reference/pesticides-explorer-research.md`).
