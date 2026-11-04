@@ -1306,9 +1306,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     timeout. `share_downloaded` ("Your file is downloading.") also shows when a native save
     dialog is cancelled, since the download call doesn't say; revisit with the Tauri build's
     file-save adapter.
-  - `dashboard_unreadable_confirm_body` slots a detail into a parenthesized phrase ("Deleting
-    removes this dashboard ({detail}) from this browser only."), which some languages can't
-    keep; revisit when translations start ("Translations and language switching").
   - The Recently deleted list has no explicit focus target in its empty or load-failed states,
     and an empty `{#if loading}` branch holds only a comment. The "missing" delete result has no
     unit test at the `deletePermanently` level (a `documents.get` stub returning nothing would
