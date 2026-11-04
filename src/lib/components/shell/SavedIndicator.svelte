@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Cloud from "@lucide/svelte/icons/cloud";
 	import HardDrive from "@lucide/svelte/icons/hard-drive";
+	import Info from "@lucide/svelte/icons/info";
+	import { announce } from "$lib/a11y/announcer.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Popover from "$lib/components/ui/popover";
 	import { m } from "$lib/paraglide/messages.js";
@@ -22,20 +24,44 @@
 		return inAccount && session ? (app.sync?.states[session.doc.id] ?? null) : null;
 	});
 	const onAccount = $derived(syncState?.state === "synced");
-	const label = $derived(
-		status === "saving"
-			? m.saving()
-			: status === "error"
-				? m.save_failed()
-				: status === "saved"
-					? inAccount
-						? onAccount
-							? m.saved_account()
-							: m.saved_device()
-						: m.saved()
-					: ""
+	// A conflict (another version of this dashboard to choose from, here or on the account) isn't a
+	// failure: it gets its own label and the neutral style.
+	const conflicted = $derived(
+		status !== null &&
+			(!!app.current.session?.conflict || (inAccount && syncState?.hold?.kind === "conflict"))
 	);
-	const errorKind = $derived(status === "error" ? (app.current.session?.errorKind ?? null) : null);
+	const label = $derived(
+		conflicted
+			? m.save_conflict()
+			: status === "saving"
+				? m.saving()
+				: status === "error"
+					? m.save_failed()
+					: status === "saved"
+						? inAccount
+							? onAccount
+								? m.saved_account()
+								: m.saved_device()
+							: m.saved()
+						: ""
+	);
+	const errorKind = $derived(
+		status === "error" && !conflicted ? (app.current.session?.errorKind ?? null) : null
+	);
+
+	// Screen readers hear only the changes that matter, not every save.
+	const kind = $derived(conflicted ? "conflict" : status);
+	let previous: typeof kind | undefined;
+	$effect(() => {
+		const now = kind;
+		const was = previous;
+		previous = now;
+		if (was === undefined || was === now) return;
+		if (now === "conflict") announce(m.save_conflict_announce());
+		else if (now === "error") announce(m.save_failed());
+		else if (now === "saved" && (was === "error" || was === "conflict"))
+			announce(m.save_recovered());
+	});
 </script>
 
 <Popover.Root>
@@ -45,14 +71,16 @@
 				{...props}
 				variant="ghost"
 				size="sm"
-				class={status === "error" ? "text-destructive" : "text-muted-foreground"}
+				class={status === "error" && !conflicted ? "text-destructive" : "text-muted-foreground"}
 			>
-				{#if status === "saved" && onAccount}
+				{#if conflicted}
+					<Info aria-hidden="true" />
+				{:else if status === "saved" && onAccount}
 					<Cloud aria-hidden="true" />
 				{:else}
 					<HardDrive aria-hidden="true" />
 				{/if}
-				<span aria-live="polite">{label}</span>
+				<span>{label}</span>
 				<span class="sr-only">{m.storage_status_label()}</span>
 			</Button>
 		{/snippet}

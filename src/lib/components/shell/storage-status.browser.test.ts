@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
+import { announcer } from "$lib/a11y/announcer.svelte";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Protection } from "$lib/platform/types";
@@ -141,7 +142,7 @@ test("colour is never the only signal: a text label in every state", async () =>
 	});
 	const session = app.current.session!;
 	const button = page.getByRole("button", { name: /Storage status/ });
-	const label = () => button.element().querySelector("[aria-live]")?.textContent?.trim();
+	const label = () => button.element().querySelector("span:not(.sr-only)")?.textContent?.trim();
 	await expect.poll(() => worker.states.d1?.state).toBe("held");
 	expect(label()).toBe("Saved on this device");
 	await worker.syncAll();
@@ -163,4 +164,45 @@ test("in an account the note says the account keeps the dashboards, without the 
 	expect(page.getByText(m.storage_note_unprotected()).query()).toBeNull();
 	expect(page.getByRole("button", { name: m.protect_button() }).query()).toBeNull();
 	expect(page.getByRole("button", { name: m.backup_download() }).query()).toBeNull();
+});
+
+async function openLocal() {
+	const { app, context } = await setup("protected", false);
+	const id = await app.index.createBlank();
+	const session = (await app.sessions.get(id))!;
+	app.current = { session, isStarter: false };
+	const view = await render(SavedIndicator, { context });
+	return { app, session, view };
+}
+
+test("a conflict reads Changed elsewhere, not the failure, and is not red", async () => {
+	const { session } = await openLocal();
+	session.status = "error";
+	session.conflict = {} as never;
+	const button = page.getByRole("button", { name: /Storage status/ });
+	await expect.poll(() => button.element().textContent).toContain(m.save_conflict());
+	expect(page.getByText(m.save_failed()).query()).toBeNull();
+	expect(button.element().className).not.toContain("text-destructive");
+});
+
+test("the indicator has no live region of its own", async () => {
+	const { view } = await openLocal();
+	expect(view.container.querySelector("[aria-live]")).toBeNull();
+});
+
+test("announces failures, recovery and conflicts, but not a normal save", async () => {
+	const { session } = await openLocal();
+	session.status = "saving";
+	await new Promise((r) => setTimeout(r, 300));
+	session.status = "saved";
+	await new Promise((r) => setTimeout(r, 300));
+	expect(announcer.text).not.toBe(m.save_failed());
+	expect(announcer.text).not.toBe(m.save_recovered());
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
+	session.status = "saved";
+	await expect.poll(() => announcer.text).toBe(m.save_recovered());
+	session.status = "error";
+	session.conflict = {} as never;
+	await expect.poll(() => announcer.text).toBe(m.save_conflict_announce());
 });
