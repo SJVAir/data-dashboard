@@ -934,12 +934,13 @@ Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22
 `main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
 @sjvair/sdk 4.8.0 is released only after #293 reaches production, with explicit approval.
 
-**Second batch status (2026-11-03):** split into specs, scales first. **Spec 1** (scale metas,
-tiers, region hierarchy, stage/processor labels, display hints, forecast and CalHeatScore
-APIs and wrappers) is being brainstormed; draft at sjvair.com
-`docs/superpowers/specs/2026-11-03-metadata-scales-design.md` (not approved). Decided so far:
-smoke tiers, the CalHeatScore correction, heat guidance texts, cross-county browsing (see
-`ARCHITECTURE.md` → "Metadata as source of truth"). Later specs: cache headers, location
+**Second batch status (2026-11-03):** split into specs, scales first. **Spec 1 is built**
+(scale metas, tiers, region hierarchy, stage/processor labels, display hints, forecast and
+CalHeatScore APIs and wrappers, and the `regions/geojson/` wrapper moved in for `map-sdk`):
+✅ below. The sjvair.com and sdk-js PRs are open, not merged; waiting on an approved SDK beta.
+Spec at sjvair.com `docs/superpowers/specs/2026-11-03-metadata-scales-design.md`; what it
+built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are in `DEFERRED.md`
+(burn-status value, production deploy step, region count caching). Later specs: cache headers, location
 search, `places/lookup/` by coordinates, the remaining wrappers and cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
 research in `docs/reference/pesticides-explorer-research.md`).
@@ -956,13 +957,13 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ Stable ids and retirement: a never-reuse rule for ids, `retired` (date, optional
   replacement) on catalog entries and entry types, and lookups that distinguish "retired"
   from "never existed" (`ARCHITECTURE.md` → "Stable ids and retirement").
-- In order (✅ the catalog and the coverage endpoint; the rest is left): the `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of truth" →
-  "What a dataset is"), the coverage endpoint, per-domain scale metas
-  (hms, calheatscore with per-score guidance, forecasts, AQI), plus a shared `tier` (0–4;
-  CalHeatScore's scale, heat mapped one to one) on every level of every scale (AQ levels: Good 0 … Unhealthy 3,
-  Very Unhealthy and Hazardous 4), region
-  hierarchy, choice lists, and
-  display hints.
+- ✅ The `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of
+  truth" → "What a dataset is") and the coverage endpoint.
+- ✅ (spec 1, PRs open) Per-domain scale metas (hms, calheatscore with per-score guidance,
+  forecasts, AQI), a shared `tier` (0–4; CalHeatScore's scale, heat mapped one to one) on
+  every level of every scale (AQ levels: Good 0 … Unhealthy 3, Very Unhealthy and Hazardous
+  4), region hierarchy (`count`, `parents`, `within_mode=overlaps`), choice lists (stage and
+  processor labels), and display hints.
 - HTTP cache headers (Cache-Control/ETag) on the summary endpoints: **required**, since the
   browser's HTTP cache is the dashboard's persistent data cache (long on completed
   periods, short on the current one).
@@ -975,10 +976,10 @@ research in `docs/reference/pesticides-explorer-research.md`).
   rules; the name mode is unchanged; update
   `lookupRegionPlace` in sdk-js.
 - **First sdk-js change:** done; released 2026-10-21 as @sjvair/sdk 4.7.0. See `ARCHITECTURE.md` → "SDK request options".
-- sdk-js wrappers for `forecasts/`, `calheatscore/`, and `calenviroscreen/`, plus
-  `regions/geojson/` and the `buffer` parameter (the region list no longer returns
-  geometry). Fix sdk-js
-  `api-urls.md`.
+- ✅ (spec 1, PRs open) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
+  `place/`), `getHMSMeta`, and `regions/geojson/`. Left: the `calenviroscreen/` wrapper, the
+  `buffer` parameter (the region list no longer returns geometry), and the rest of the
+  `api-urls.md` fixes (partly done).
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
 

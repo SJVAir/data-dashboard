@@ -27,7 +27,7 @@ go-live or beta testers. **The server-backed documents (sync) track's spec 1 is 
 **spec 3, live share links** (PR [#26](https://github.com/SJVAir/data-dashboard/pull/26),
 2026-11-03), and **spec 4, recovery** (PR [#29](https://github.com/SJVAir/data-dashboard/pull/29),
 2026-11-03; its sjvair.com `deletedAccount` change is #299 on `develop`). The hosting track is built (sjvair.com
-#295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1).
+#295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is built too, with its PRs open and not merged.
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
 4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.3 is the latest). Details in `TODO.md` →
 "Start here".
