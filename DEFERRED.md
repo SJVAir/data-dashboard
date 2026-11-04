@@ -485,8 +485,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
-  summaries, misaligned seasons, under "Analysis & data") is sjvair.com #305 (open into
-  `develop`); it should be merged before this deploy, and its repair steps are above.
+  summaries, misaligned seasons, under "Analysis & data") is sjvair.com #305 (merged into
+  `develop` 2026-11-04, so this deploy carries it); its repair steps are above.
 
 - **Credentialed CORS from any origin in front of private documents.** _Deferred 2026-10-28
   (Sync spec 1)._ sjvair.com already sets `CORS_ORIGIN_ALLOW_ALL` with
@@ -976,7 +976,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `docs/superpowers/reports/2026-11-03-summary-rollups.md`)._ Not fixed by the Pacific
   schedule change. **Cause found** (2026-11-04): the backfill job stepped its UTC-reloaded
   cursor by 24-hour days, so standard-time days, months, seasons and years landed at 23:00 the
-  day before. Fixed in sjvair.com #305 (open into `develop`). Production's rows are repaired by
+  day before. Fixed in sjvair.com #305 (merged into `develop` 2026-11-04). Production's rows are repaired by
   `repair_summaries` at the deploy (steps in the deploy entry above). **Revisit when** #305 is
   deployed and the repair has run; local winter rows from a backfill may show the same stamps
   until then.

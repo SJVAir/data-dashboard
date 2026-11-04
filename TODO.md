@@ -1026,8 +1026,8 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ (spec 2, sjvair.com #301, merged into `develop`) Summary rollups moved to Pacific time
   (they ran on UTC, so each landed a period late and seasons covered the wrong months). Needs
   a catch-up run after deploy (see the PR's deploy notes).
-- 🔄 (summaries follow-up, sjvair.com [#305](https://github.com/SJVAir/sjvair.com/pull/305),
-  open into `develop`) Findings 2 and 3 of the 2026-11-03 rollup report:
+- ✅ (summaries follow-up, sjvair.com [#305](https://github.com/SJVAir/sjvair.com/pull/305),
+  merged into `develop` 2026-11-04; production repair at the deploy) Findings 2 and 3 of the 2026-11-03 rollup report:
   - Period starts are stamped at Pacific midnight, through one period module.
   - The hourly region job no longer skips hours.
   - New: `repair_summaries` (scoped, dry run) and the daily `check_summary_integrity`.
