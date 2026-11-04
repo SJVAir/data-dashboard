@@ -57,6 +57,8 @@
 	"deleted_newer": "This dashboard was saved by a newer version of the app. Reload the page, then try again.",
 	"deleted_missing": "This dashboard is no longer on this device, so it wasn't deleted. Reload the page to see what's left in Recently deleted.",
 	"deleted_restore_read_only": "This dashboard was saved by a newer version, so it can't be restored here.",
+	"deleted_restore_unreadable": "This dashboard can't be read on this device, so it can't be restored here. Try from another device.",
+	"deleted_restore_unkept": "This dashboard was updated to a new format, but the original couldn't be saved on this device, so it can't be restored yet. Free up space, then reload and try again.",
 	"deleted_restore_failed": "Couldn't restore the dashboard.",
 	"confirm_cancel": "Cancel",
 	"dashboard_empty": "This dashboard is empty.",

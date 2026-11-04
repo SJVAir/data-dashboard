@@ -206,7 +206,12 @@ export async function restoreDeleted(app: AppContext, id: string): Promise<void>
 	const session = await app.sessions.get(id, { remember: false });
 	if (!session) return;
 	if (session.readOnly) {
-		toast.info(m.deleted_restore_read_only());
+		const why = {
+			newer: m.deleted_restore_read_only,
+			invalid: m.deleted_restore_unreadable,
+			unkept: m.deleted_restore_unkept
+		}[session.readOnly];
+		toast.info(why());
 		return;
 	}
 	if (session.doc.deletedAt === undefined) return;

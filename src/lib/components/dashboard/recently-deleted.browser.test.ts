@@ -150,6 +150,25 @@ test("a copy missing on this device says so", async () => {
 	}
 });
 
+test("restoring a read-only dashboard says why, by cause", async () => {
+	const info = vi.spyOn(toast, "info");
+	const { app, worker } = await trashedApp();
+	try {
+		const get = vi.spyOn(app.sessions, "get");
+		for (const [readOnly, message] of [
+			["newer", m.deleted_restore_read_only()],
+			["invalid", m.deleted_restore_unreadable()],
+			["unkept", m.deleted_restore_unkept()]
+		] as const) {
+			get.mockResolvedValue({ readOnly } as never);
+			await restoreDeleted(app, "d1");
+			expect(info).toHaveBeenLastCalledWith(message);
+		}
+	} finally {
+		worker.stop();
+	}
+});
+
 test("restoring a read-only dashboard is an informational toast", async () => {
 	const info = vi.spyOn(toast, "info");
 	const error = vi.spyOn(toast, "error");
