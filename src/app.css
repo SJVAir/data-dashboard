@@ -3,12 +3,32 @@
 @import "shadcn-svelte/tailwind.css";
 @import "@fontsource-variable/inter";
 
-@custom-variant dark (&:is(.dark *));
+/* Dark applies for System dark (unless forced light) and for the forced-dark attribute. */
+@custom-variant dark {
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme="light"]) & {
+			@slot;
+		}
+	}
+	:root[data-theme="dark"] & {
+		@slot;
+	}
+}
+
+/* Inline, so shadow-card and shadow-lifted read their tokens at use and follow the dark blocks (a
+   plain @theme value is copied into the utility). Tailwind also echoes them into its theme layer,
+   but the unlayered :root and dark blocks below win, so the tokens keep their real values. */
+@theme inline {
+	--shadow-card: var(--shadow-card);
+	--shadow-lifted: var(--shadow-lifted);
+}
 
 @theme {
 	--breakpoint-xs: 25rem;
-	--duration-fast: var(--motion-duration-fast);
-	--duration-base: var(--motion-duration-base);
+	/* Tailwind's duration-* utilities read --transition-duration-*, and ease-* reads --ease-*:
+	   duration-fast, duration-base, and ease-standard follow the motion tokens (and reduced motion). */
+	--transition-duration-fast: var(--motion-duration-fast);
+	--transition-duration-base: var(--motion-duration-base);
 	--ease-standard: var(--motion-ease-standard);
 	--font-sans: "Inter Variable", sans-serif;
 	--color-chart-5: var(--chart-5);
@@ -17,6 +37,13 @@
 	--color-chart-2: var(--chart-2);
 	--color-chart-1: var(--chart-1);
 	--color-ring: var(--ring);
+	--color-ring-edge: var(--ring-edge);
+	--color-link: var(--link);
+	--color-highlight: var(--highlight);
+	--color-highlight-subtle: var(--highlight-subtle);
+	--color-highlight-foreground: var(--highlight-foreground);
+	--color-card-border: var(--card-border);
+	--color-overlay: var(--overlay);
 	--color-input: var(--input);
 	--color-border: var(--border);
 	--color-destructive: var(--destructive);
@@ -41,33 +68,61 @@
 	--radius-2xl: calc(var(--radius) * 1.8);
 	--radius-3xl: calc(var(--radius) * 2.2);
 	--radius-4xl: calc(var(--radius) * 2.6);
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1.5;
+	/* Form fields on small screens: 16px, so iOS Safari doesn't zoom in on focus. */
+	--text-field: 1rem;
+	--text-field--line-height: 1.5;
+	--text-sm: 0.8125rem;
+	--text-sm--line-height: 1.5;
+	--text-base: 0.9375rem;
+	--text-base--line-height: 1.5;
+	--text-lg: 1.125rem;
+	--text-lg--line-height: 1.4;
+	--text-3xl: 2rem;
+	--text-3xl--line-height: 1.2;
 }
 
 :root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
+	color-scheme: light;
+	--background: oklch(0.971 0.007 247.9);
+	--foreground: oklch(0.257 0.061 257.8);
 	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
+	--card-foreground: oklch(0.257 0.061 257.8);
+	--card-border: oklch(0.934 0.013 251.6);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.505 0.213 27.518);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
-	--radius: 0.625rem;
+	--popover-foreground: oklch(0.257 0.061 257.8);
+	--primary: oklch(0.394 0.114 259.1);
+	--primary-foreground: oklch(1 0 0);
+	--secondary: oklch(0.952 0.01 247.9);
+	--secondary-foreground: oklch(0.257 0.061 257.8);
+	--muted: oklch(0.952 0.01 247.9);
+	--muted-foreground: oklch(0.53 0.042 254.7);
+	--accent: oklch(0.952 0.01 247.9);
+	--accent-foreground: oklch(0.257 0.061 257.8);
+	--link: oklch(0.527 0.124 247.4);
+	/* Sky blue: a highlight and focus color, never text and never a control's only boundary. */
+	--highlight: oklch(0.736 0.139 229);
+	--highlight-subtle: oklch(0.959 0.022 226.1);
+	--highlight-foreground: oklch(0.403 0.079 233.2);
+	--destructive: oklch(0.5 0.182 29.5);
+	--border: oklch(0.915 0.017 250.9);
+	/* Text-field borders: 3:1 on cards and the page (WCAG 1.4.11); outline buttons keep --border. */
+	--input: oklch(0.63 0.03 254);
+	--ring: var(--highlight);
+	--ring-edge: var(--primary);
+	--overlay: oklch(0.257 0.061 257.8 / 10%);
+	--shadow-card: 0 1px 2px #1c448212, 0 4px 14px #1c448214;
+	/* A picked-up widget, raised above the grid. */
+	--shadow-lifted: 0 2px 4px #1c44821f, 0 12px 28px #1c448229;
+	--chart-1: oklch(0.394 0.114 259.1);
+	--chart-2: oklch(0.527 0.124 247.4);
+	--chart-3: oklch(0.511 0.086 186.4);
+	--chart-4: oklch(0.446 0.037 257.3);
+	--chart-5: oklch(0.457 0.215 277);
+	--radius: 0.75rem;
+	--radius-control: 0.5rem;
+	--card-padding: 0.75rem;
 	--space-1: 0.25rem;
 	--space-2: 0.5rem;
 	--space-3: 0.75rem;
@@ -80,7 +135,7 @@
 	--motion-duration-base: 200ms;
 	--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 	--grid-row-height: 4rem;
-	--grid-gap: var(--space-3);
+	--grid-gap: 0.75rem;
 	--taskbar-height: 3rem;
 	/* A fullscreen widget: above the grid and taskbar (z-20), below menus, dialogs, and toasts (z-50+). */
 	--z-fullscreen: 40;
@@ -90,30 +145,75 @@
 	--swatch-outline-color: var(--foreground);
 }
 
-.dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
+/* The two dark blocks must stay identical (a test checks): System dark unless forced light, and forced dark. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		color-scheme: dark;
+		--background: oklch(0.199 0.036 257.7);
+		--foreground: oklch(0.946 0.015 251.2);
+		--card: oklch(0.252 0.05 259.4);
+		--card-foreground: oklch(0.946 0.015 251.2);
+		--card-border: oklch(0.33 0.05 256.7);
+		--popover: oklch(0.252 0.05 259.4);
+		--popover-foreground: oklch(0.946 0.015 251.2);
+		--primary: oklch(0.743 0.106 244.3);
+		--primary-foreground: oklch(0.199 0.036 257.7);
+		--secondary: oklch(0.293 0.055 259.3);
+		--secondary-foreground: oklch(0.946 0.015 251.2);
+		--muted: oklch(0.293 0.055 259.3);
+		--muted-foreground: oklch(0.756 0.038 252.2);
+		--accent: oklch(0.293 0.055 259.3);
+		--accent-foreground: oklch(0.946 0.015 251.2);
+		--link: oklch(0.791 0.101 239.5);
+		--highlight-subtle: oklch(0.335 0.062 236.1);
+		--highlight-foreground: oklch(0.93 0.039 225.3);
+		--destructive: oklch(0.73 0.17 26.5);
+		--border: oklch(0.33 0.05 256.7);
+		--input: oklch(0.56 0.045 255);
+		--ring-edge: var(--background);
+		--overlay: oklch(0 0 0 / 40%);
+		--shadow-card: 0 1px 2px #0006;
+		--shadow-lifted: 0 2px 4px #0006, 0 12px 28px #0009;
+		--chart-1: oklch(0.781 0.111 261.1);
+		--chart-2: oklch(0.791 0.101 239.5);
+		--chart-3: oklch(0.785 0.133 181.9);
+		--chart-4: oklch(0.869 0.02 252.9);
+		--chart-5: oklch(0.785 0.104 274.7);
+	}
+}
+
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--background: oklch(0.199 0.036 257.7);
+	--foreground: oklch(0.946 0.015 251.2);
+	--card: oklch(0.252 0.05 259.4);
+	--card-foreground: oklch(0.946 0.015 251.2);
+	--card-border: oklch(0.33 0.05 256.7);
+	--popover: oklch(0.252 0.05 259.4);
+	--popover-foreground: oklch(0.946 0.015 251.2);
+	--primary: oklch(0.743 0.106 244.3);
+	--primary-foreground: oklch(0.199 0.036 257.7);
+	--secondary: oklch(0.293 0.055 259.3);
+	--secondary-foreground: oklch(0.946 0.015 251.2);
+	--muted: oklch(0.293 0.055 259.3);
+	--muted-foreground: oklch(0.756 0.038 252.2);
+	--accent: oklch(0.293 0.055 259.3);
+	--accent-foreground: oklch(0.946 0.015 251.2);
+	--link: oklch(0.791 0.101 239.5);
+	--highlight-subtle: oklch(0.335 0.062 236.1);
+	--highlight-foreground: oklch(0.93 0.039 225.3);
+	--destructive: oklch(0.73 0.17 26.5);
+	--border: oklch(0.33 0.05 256.7);
+	--input: oklch(0.56 0.045 255);
+	--ring-edge: var(--background);
+	--overlay: oklch(0 0 0 / 40%);
+	--shadow-card: 0 1px 2px #0006;
+	--shadow-lifted: 0 2px 4px #0006, 0 12px 28px #0009;
+	--chart-1: oklch(0.781 0.111 261.1);
+	--chart-2: oklch(0.791 0.101 239.5);
+	--chart-3: oklch(0.785 0.133 181.9);
+	--chart-4: oklch(0.869 0.02 252.9);
+	--chart-5: oklch(0.785 0.104 274.7);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -131,14 +231,67 @@
 	}
 }
 
+/* While the theme switches (the theme store adds the class for one base motion), colors fade.
+   Unlayered, so it wins over utilities' own transitions; reduced motion makes it 0 ms. */
+.theme-changing,
+.theme-changing *,
+.theme-changing ::before,
+.theme-changing ::after {
+	transition-property: color, background-color, border-color, outline-color, fill, stroke;
+	transition-duration: var(--motion-duration-base);
+	transition-timing-function: var(--motion-ease-standard);
+}
+
+/* Toasts: svelte-sonner's styles are unlayered, so these repeat its selectors under the toaster
+   (one more attribute) to win. Its own reduced-motion rule and the one above still turn motion off. */
+[data-sonner-toaster] [data-sonner-toast] {
+	transition-duration: var(--motion-duration-base);
+	transition-timing-function: var(--motion-ease-standard);
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+	padding: var(--card-padding);
+	border-color: var(--card-border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-card);
+	font-family: var(--font-sans);
+	font-size: var(--text-sm);
+}
+[data-sonner-toaster] [data-sonner-toast]:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+	box-shadow: 0 0 0 4px var(--ring-edge);
+}
+
+/* Menu items: focus moves by script (tabindex="-1"), so the base rule below skips them, and their
+   rounded rows sit flush in the menu, so the same ring is drawn inside the item (like the widget
+   title bar). Unlayered, so it wins over the items' outline-hidden; the accent fill stays as the
+   hover cue. */
+[role^="menuitem"]:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -3px;
+	box-shadow: inset 0 0 0 4px var(--ring-edge);
+}
+
 @layer base {
 	* {
-		@apply border-border outline-ring/50;
+		@apply border-border outline-ring;
+	}
+	/* One focus indicator for everything: a 2px sky ring with a 1px --ring-edge on each side (navy
+	   in light, the page color in dark), so it reads on cards and the page in both modes. The edge
+	   is a ring (box-shadow) so it composes with shadow utilities. Elements whose focus is moved by
+	   script (tabindex="-1") skip the edge: headings focused after navigation show no ring, and
+	   menu items draw the same ring inset (the rule above). */
+	:focus-visible {
+		@apply outline-2 outline-offset-1;
+	}
+	:focus-visible:not([tabindex="-1"]) {
+		@apply ring-ring-edge ring-4;
 	}
 	body {
 		@apply bg-background text-foreground;
 	}
 	html {
-		@apply font-sans;
+		/* Native radios and checkboxes in navy (light blue in dark), not the browser's accent. */
+		@apply accent-primary font-sans;
 	}
 }

@@ -11,6 +11,7 @@ import { DocumentSession } from "$lib/store/document-session.svelte";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
+import { starterDashboard } from "$lib/starter/starter";
 import { rectsOverlap } from "$lib/layout/engine";
 import { announce } from "$lib/a11y/announcer.svelte";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
@@ -247,7 +248,7 @@ test("add widget appends a placeholder at the bottom", async () => {
 	const widgets = session.doc.body.widgets;
 	expect(widgets).toHaveLength(2);
 	expect(widgets[1].type).toBe(PLACEHOLDER_TYPE);
-	expect(widgets[1].rect).toEqual({ x: 0, y: 3, w: 6, h: 4 });
+	expect(widgets[1].rect).toEqual({ x: 0, y: 3, w: 3, h: 4 });
 	await expect.element(frame(widgets[1].id)).toBeVisible();
 });
 
@@ -334,7 +335,7 @@ test("a widget's undo after its row was taken puts it back below, not on top", a
 	await page.getByRole("menuitem", { name: "Delete widget" }).click();
 	// The new placeholder takes the freed row.
 	await page.getByRole("button", { name: "Add widget" }).click();
-	expect(session.doc.body.widgets[1].rect).toEqual({ x: 0, y: 3, w: 6, h: 4 });
+	expect(session.doc.body.widgets[1].rect).toEqual({ x: 0, y: 3, w: 3, h: 4 });
 	const toastItem = page.getByRole("listitem").filter({ hasText: "Widget deleted" });
 	await toastItem.getByRole("button", { name: "Undo" }).click();
 
@@ -384,6 +385,20 @@ test("empty dashboard shows the empty state", async () => {
 	await page.getByRole("button", { name: "Add widget" }).click();
 	expect(session.doc.body.widgets).toHaveLength(1);
 	await expect.element(page.getByText("This dashboard is empty.")).not.toBeInTheDocument();
+});
+
+test("a dashboard whose original couldn't be kept says so", async () => {
+	const { app, session } = await setup();
+	session.readOnly = "unkept";
+	await renderGrid(app);
+	await expect
+		.element(
+			page.getByText(
+				"This dashboard was upgraded, but there wasn't room to keep a backup of the old version, so it's open read-only to protect your work. Free up browser storage or download a backup, then reload."
+			)
+		)
+		.toBeVisible();
+	await expect.element(page.getByRole("button", { name: "Add widget" })).not.toBeInTheDocument();
 });
 
 test("read-only dashboard shows the message and no edit actions", async () => {
@@ -585,4 +600,32 @@ test("the dashboard ⋯ shows on a read-only dashboard", async () => {
 	await expect.element(dashboardMore()).toBeVisible();
 	await dashboardMore().click();
 	await expect.element(page.getByRole("menuitem", { name: /^New blank dashboard/ })).toBeVisible();
+});
+
+test("the starter's first two widgets render at most 320px wide on a desktop", async () => {
+	const { app } = await seed(starterDashboard().body.widgets);
+	await renderGrid(app);
+	await expect.element(frame("starter-2")).toBeVisible();
+	for (const id of ["starter-1", "starter-2"]) {
+		expect(frame(id).element().getBoundingClientRect().width).toBeLessThanOrEqual(320);
+	}
+});
+
+test("on a phone every starter widget spans the grid and the menu button is tappable", async () => {
+	await page.viewport(390, 844);
+	const { app } = await seed(starterDashboard().body.widgets);
+	await renderGrid(app);
+	await expect.element(frame("starter-3")).toBeVisible();
+	const grid = frame("starter-1").element().parentElement!;
+	await expect.poll(() => getComputedStyle(grid).gridTemplateColumns.split(" ")).toHaveLength(1);
+	const gridWidth = grid.getBoundingClientRect().width;
+	for (const id of ["starter-1", "starter-2", "starter-3"]) {
+		expect(frame(id).element().getBoundingClientRect().width).toBeCloseTo(gridWidth, 0);
+	}
+	const menu = frame("starter-1")
+		.element()
+		.querySelector<HTMLElement>("[aria-label^='Actions for']")!;
+	const box = menu.getBoundingClientRect();
+	expect(box.width).toBeGreaterThanOrEqual(24);
+	expect(box.height).toBeGreaterThanOrEqual(24);
 });

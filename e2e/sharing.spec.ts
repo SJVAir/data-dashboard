@@ -109,7 +109,7 @@ test("a link copied from the Share dialog opens as a copy in a new browser", asy
 	const shared = await dialog.getByRole("textbox", { name: "Link" }).inputValue();
 	expect(shared).toContain("/import#");
 	await dialog.getByRole("button", { name: "Copy link" }).click();
-	await expect(dialog.getByRole("status")).toHaveText("Link copied");
+	await expect(dialog.getByRole("status").filter({ hasText: "Link copied" })).toBeVisible();
 
 	const other = await browser.newContext();
 	try {

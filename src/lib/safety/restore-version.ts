@@ -3,16 +3,26 @@ import { loadDashboard, migrations, type Migration } from "$lib/documents/load";
 import type { Dashboard } from "$lib/documents/schema";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
-import type { SnapshotReason } from "$lib/sync/remote";
+import { RemoteRefusal, RemoteUnavailable, type SnapshotReason } from "$lib/sync/remote";
 
 /** An earlier version of the open dashboard: the kept original, or one of the account's snapshots. */
 export type EarlierVersion =
-	| { source: "local"; at: string }
+	| { source: "local"; at: string; alsoInAccount: boolean }
 	| { source: "server"; at: string; id: number; reason: SnapshotReason };
 
-export type EarlierVersions = { versions: EarlierVersion[]; accountUnreachable: boolean };
+/**
+ * How the account's list went: `ok`, `offline` (couldn't reach it), `gone` (the dashboard isn't
+ * in the account any more), `unavailable` (any other refusal or failure: not the connection), or
+ * `none` (anonymous or never uploaded: no list was tried).
+ */
+export type AccountStatus = "ok" | "offline" | "gone" | "unavailable" | "none";
 
-/** Newest first. `accountUnreachable` when the server list couldn't be loaded. */
+export type EarlierVersions = { versions: EarlierVersion[]; account: AccountStatus };
+
+/**
+ * Newest first. The account's copy of the kept original (its `schema` snapshot at the same
+ * document and schema version) is left out; the local entry says `alsoInAccount` instead.
+ */
 export async function listEarlierVersions(
 	app: AppContext,
 	session: DocumentSession
@@ -20,22 +30,47 @@ export async function listEarlierVersions(
 	const id = session.doc.id;
 	const versions: EarlierVersion[] = [];
 	const original = await app.platform.originals.get(app.space, id);
-	if (original) versions.push({ source: "local", at: original.keptAt });
-	let accountUnreachable = false;
-	if (app.sync) {
+	const rawVersion = (original?.raw as { version?: unknown } | null | undefined)?.version;
+	let alsoInAccount = false;
+	let account: AccountStatus = "none";
+	if (app.sync && (await app.sync.isInAccount(id))) {
+		account = "ok";
 		try {
 			for (const s of await app.sync.versions(id)) {
+				if (
+					original &&
+					s.reason === "schema" &&
+					typeof rawVersion === "number" &&
+					s.version === rawVersion &&
+					s.schemaVersion === original.fromSchemaVersion
+				) {
+					alsoInAccount = true;
+					continue;
+				}
 				versions.push({ source: "server", at: s.createdAt, id: s.id, reason: s.reason });
 			}
-		} catch {
-			accountUnreachable = true;
+		} catch (error) {
+			const gone =
+				error instanceof RemoteRefusal && (error.code === "gone" || error.code === "not_found");
+			account = gone ? "gone" : error instanceof RemoteUnavailable ? "offline" : "unavailable";
 		}
 	}
+	if (original) versions.push({ source: "local", at: original.keptAt, alsoInAccount });
 	versions.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-	return { versions, accountUnreachable };
+	return { versions, account };
 }
 
-export type RestoreResult = "restored" | "unreadable" | "newer" | "unreachable" | "read-only";
+/**
+ * `unreachable`: the account couldn't be reached (the connection); `unavailable`: it refused or
+ * failed for another reason.
+ */
+export type RestoreResult =
+	"restored" | "unreadable" | "newer" | "unreachable" | "unavailable" | "read-only";
+
+/** Why an account call failed, in restore terms: the connection, or anything else. */
+function accountFailure(error: unknown): "unreachable" | "unavailable" {
+	return error instanceof RemoteUnavailable ? "unreachable" : "unavailable";
+}
 
 type Content = { name: string | null; body: Dashboard["body"] };
 
@@ -54,7 +89,7 @@ async function loadContent(
 	session: DocumentSession,
 	version: EarlierVersion,
 	chain: Migration[]
-): Promise<Content | "unreadable" | "newer" | "unreachable"> {
+): Promise<Content | "unreadable" | "newer" | "unreachable" | "unavailable"> {
 	let raw: unknown;
 	if (version.source === "local") {
 		const original = await app.platform.originals.get(app.space, session.doc.id);
@@ -77,8 +112,8 @@ async function loadContent(
 				version: doc.version,
 				...(doc.copiedFrom ? { copiedFrom: doc.copiedFrom } : {})
 			};
-		} catch {
-			return "unreachable";
+		} catch (error) {
+			return accountFailure(error);
 		}
 	}
 	if (tooLarge(raw)) return "unreadable";
@@ -104,8 +139,8 @@ export async function restoreEarlierVersion(
 	if (app.sync) {
 		try {
 			await app.sync.keepBeforeRestore(session.doc.id);
-		} catch {
-			return "unreachable";
+		} catch (error) {
+			return accountFailure(error);
 		}
 	}
 	session.apply({

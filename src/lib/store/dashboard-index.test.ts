@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Dashboard } from "$lib/documents/schema";
+import { normalizeName, type Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
@@ -57,7 +57,7 @@ describe("DashboardIndex", () => {
 		expect(index.items.map((d) => d.id)).toEqual(["new", "old"]);
 	});
 
-	it("leaves deleted dashboards out of the items and the numbering", async () => {
+	it("leaves deleted dashboards out of the items but keeps names stable", async () => {
 		const platform = createMemoryPlatform();
 		const now = clock();
 		const gone = { ...blankDashboard(now()), id: "gone", deletedAt: now().toISOString() };
@@ -66,8 +66,8 @@ describe("DashboardIndex", () => {
 		const index = new DashboardIndex({ platform, space: SPACE });
 		await index.refresh();
 		expect(index.items.map((d) => d.id)).toEqual(["kept"]);
-		expect(index.names.get("kept")).toBe("Untitled dashboard");
-		expect(index.names.has("gone")).toBe(false);
+		expect(index.names.get("kept")).toBe("Untitled dashboard 2");
+		expect(index.deletedNames.get("gone")).toBe("Untitled dashboard");
 	});
 
 	it("skips invalid documents and lists newer ones by their stored name", async () => {
@@ -84,6 +84,34 @@ describe("DashboardIndex", () => {
 		await index.refresh();
 		expect(index.items.map((d) => d.id).sort()).toEqual(["newer", "ok"]);
 		expect(index.names.get("newer")).toBe("Future");
+		expect(index.unreadable).toEqual([{ id: "bad" }]);
+		expect(index.storedCount).toBe(3);
+	});
+
+	it("counts documents without an id but can't list them", async () => {
+		const platform = createMemoryPlatform();
+		const now = clock();
+		await store(platform, { ...blankDashboard(now()), id: "ok" }, "ok");
+		await store(platform, { name: "No id" }, "noid");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		expect(index.unreadable).toEqual([]);
+		expect(index.storedCount).toBe(2);
+	});
+
+	it("removeUnreadable deletes only an unreadable document", async () => {
+		const platform = createMemoryPlatform();
+		const now = clock();
+		await store(platform, { kind: "dashboard", schemaVersion: 1, id: "bad" }, "bad");
+		await store(platform, { ...blankDashboard(now()), id: "ok" }, "ok");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		await index.removeUnreadable("ok");
+		expect(await platform.documents.get(SPACE, "ok")).toBeDefined();
+		await index.removeUnreadable("bad");
+		expect(await platform.documents.get(SPACE, "bad")).toBeUndefined();
+		expect(index.unreadable).toEqual([]);
+		expect(index.storedCount).toBe(1);
 	});
 
 	it("duplicate copies the name and sets copiedFrom", async () => {
@@ -219,6 +247,64 @@ describe("DashboardIndex", () => {
 		const index = new DashboardIndex({ platform, space: SPACE });
 		await index.refresh();
 		expect(index.names.get("d")).toBe("New name");
+	});
+
+	it("lists a journal-only name the way it will be saved", async () => {
+		const platform = createMemoryPlatform();
+		await store(platform, { ...blankDashboard(clock()()), id: "d", name: "Old name" }, "d");
+		platform.journal.write(SPACE, "d", "t1", {
+			baseVersion: 1,
+			changes: [
+				{ op: "setField", target: { path: "name" }, from: "Old name", to: "  Field   trip  " }
+			],
+			schemaVersion: 1,
+			writtenAt: "2026-10-20T12:00:00.000Z"
+		});
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		expect(index.names.get("d")).toBe(normalizeName("  Field   trip  "));
+	});
+
+	it("names copies the same whether the copy or its source is deleted", async () => {
+		const platform = createMemoryPlatform();
+		const now = clock();
+		const at = now().toISOString();
+		await store(platform, { ...blankDashboard(now()), id: "src", name: "School" }, "src");
+		await store(platform, { ...blankDashboard(now()), id: "c1", copiedFrom: "src" }, "c1");
+		await store(
+			platform,
+			{ ...blankDashboard(now()), id: "c2", copiedFrom: "src", deletedAt: at },
+			"c2"
+		);
+		await store(
+			platform,
+			{ ...blankDashboard(now()), id: "gone", name: "Old", deletedAt: at },
+			"gone"
+		);
+		await store(platform, { ...blankDashboard(now()), id: "c3", copiedFrom: "gone" }, "c3");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		expect(index.deletedNames.get("c2")).toBe("Copy of School (2)");
+		expect(index.names.get("c1")).toBe("Copy of School");
+		expect(index.names.get("c3")).toBe("Copy of Old");
+	});
+
+	it("a live name doesn't change when an unrelated dashboard is deleted", async () => {
+		const platform = createMemoryPlatform();
+		const now = clock();
+		await store(platform, { ...blankDashboard(now()), id: "a" }, "a");
+		await store(platform, { ...blankDashboard(now()), id: "b" }, "b");
+		const index = new DashboardIndex({ platform, space: SPACE });
+		await index.refresh();
+		const before = index.names.get("b");
+		await platform.documents.commit(SPACE, {
+			docId: "a",
+			baseVersion: 1,
+			doc: { ...blankDashboard(now()), id: "a", deletedAt: now().toISOString() },
+			entries: []
+		});
+		await index.refresh();
+		expect(index.names.get("b")).toBe(before);
 	});
 
 	it("remove leaves a dashboard that is no longer deleted", async () => {

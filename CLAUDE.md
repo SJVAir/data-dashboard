@@ -240,7 +240,8 @@ Decided 2026-09-28.
 - Prettier + ESLint (flat config); run `npm run format` before committing
 - Tailwind CSS v4 for styling; prefer utility classes over custom `<style>` blocks
 - **Styling values come from theme tokens** (CSS variables for colors, fonts, radii,
-  spacing, motion); never hardcode them in components, so the design pass is a token swap
+  spacing, motion); never hardcode them in components, so the design pass is a token swap.
+  Enforced by `src/lib/theme/token-discipline.test.ts` (raw palette classes and hex colors fail)
 - UI components from shadcn-svelte (bits-ui). **Never use Bulma** (the server's CSS
   framework) in this project.
 - **Accessibility target: WCAG 2.2 AA** (see `ARCHITECTURE.md` → "Accessibility"). Every

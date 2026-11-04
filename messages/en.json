@@ -1,12 +1,16 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_name": "SJVAir Dashboard",
+	"app_name_product": "Dashboard",
 	"dashboard_untitled": "Untitled dashboard",
 	"dashboard_untitled_numbered": "Untitled dashboard {number}",
 	"dashboard_my": "My dashboard",
 	"dashboard_my_numbered": "My dashboard {number}",
+	"dashboard_copy_of": "Copy of {name}",
+	"dashboard_copy_of_numbered": "Copy of {name} ({number})",
 	"dashboard_starter": "Starter dashboard",
 	"doc_readonly_newer": "This dashboard was saved by a newer version. Reload to edit.",
+	"doc_readonly_unkept": "This dashboard was upgraded, but there wasn't room to keep a backup of the old version, so it's open read-only to protect your work. Free up browser storage or download a backup, then reload.",
 	"doc_readonly_invalid": "This dashboard couldn't be read, so it's open read-only.",
 	"widget_placeholder_title": "Placeholder widget",
 	"widget_placeholder_body": "This is a placeholder widget.",
@@ -19,6 +23,9 @@
 	"saving": "Saving…",
 	"saved": "Saved",
 	"save_failed": "Couldn't save",
+	"save_conflict": "Changed elsewhere",
+	"save_conflict_announce": "This dashboard was changed somewhere else. Choose which version to keep.",
+	"save_recovered": "Saved again",
 	"undo": "Undo",
 	"redo": "Redo",
 	"shortcut_undo": "Ctrl+Z",
@@ -46,7 +53,12 @@
 	"deleted_restored_elsewhere": "This dashboard was restored on another device, so it wasn't deleted.",
 	"deleted_unreachable": "Couldn't reach your account, so the dashboard wasn't deleted. Try again when you're online.",
 	"deleted_not_saved": "This dashboard has changes that aren't in your account yet, so it wasn't deleted. Try again in a moment.",
+	"deleted_unreadable": "This dashboard can't be read in this browser, so it can't be deleted from your account here. Try from another browser or device.",
+	"deleted_newer": "This dashboard was saved by a newer version of the app. Reload the page, then try again.",
+	"deleted_missing": "This dashboard was already removed from this browser. Reload the page to update Recently deleted.",
 	"deleted_restore_read_only": "This dashboard was saved by a newer version, so it can't be restored here.",
+	"deleted_restore_unreadable": "This dashboard can't be read in this browser, so it can't be restored here. Try from another browser or device.",
+	"deleted_restore_unkept": "This dashboard was upgraded, but there wasn't room to keep a backup of the old version, so it can't be restored yet. Free up browser storage, then reload and try again.",
 	"deleted_restore_failed": "Couldn't restore the dashboard.",
 	"confirm_cancel": "Cancel",
 	"dashboard_empty": "This dashboard is empty.",
@@ -74,14 +86,14 @@
 	"purged_body": "This dashboard was permanently deleted from your account. Keep your version as a new dashboard, or discard it?",
 	"purged_keep": "Keep as a new dashboard",
 	"purged_discard": "Discard",
-	"move_offer_title": "Dashboards on this browser",
+	"move_offer_title": "Dashboards in this browser",
 	"move_offer_body": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "Add the dashboard made on this browser to your account?",
-				"countPlural=other": "Add the {count} dashboards made on this browser to your account?"
+				"countPlural=one": "Add the dashboard made in this browser to your account?",
+				"countPlural=other": "Add the {count} dashboards made in this browser to your account?"
 			}
 		}
 	],
@@ -96,7 +108,7 @@
 		}
 	],
 	"move_offer_yes": "Add to my account",
-	"move_offer_no": "Keep on this browser",
+	"move_offer_no": "Keep in this browser",
 	"move_offer_failed": [
 		{
 			"declarations": ["input count", "local countPlural = count: plural"],
@@ -299,6 +311,13 @@
 	"share_name_save": "Save name",
 	"share_name_saved": "Name saved",
 	"share_name_refused": "That name can't be used. Try a shorter one.",
+	"share_name_rate_limited": "Too many changes in a short time. Wait a minute and try again.",
+	"share_name_signed_out": "You're signed out, so the name wasn't saved. Sign in and try again.",
+	"share_name_retry": "Try again",
+	"share_name_load_signed_out": "You're signed out, so your name can't be shown. Sign in and try again.",
+	"share_name_load_failed": "Your name couldn't be loaded. Try again in a moment.",
+	"share_read_only": "This dashboard is open read-only, so it can't be shared as a link. You can download it as a file instead.",
+	"share_downloaded": "Your file is downloading.",
 	"share_copy_heading": "Send a copy instead",
 	"share_sign_in": "Sign in to share a live link that stays up to date.",
 	"file_dashboard_stem": "dashboard",
@@ -368,7 +387,7 @@
 	],
 	"storage_status_label": "Storage status",
 	"storage_note": "Dashboards are stored in this browser.",
-	"storage_note_account": "Your dashboards are saved to your account. Changes not uploaded yet stay on this device until they are.",
+	"storage_note_account": "Your dashboards are saved to your account. Changes not uploaded yet stay in this browser until they are.",
 	"storage_note_unprotected": "Your browser may clear them to free up space (Safari does after 7 days without a visit).",
 	"protect_button": "Protect my dashboards",
 	"reminder_text": "Your dashboards are only stored in this browser. Download a backup so you don't lose them.",
@@ -408,18 +427,37 @@
 	"clear_body_empty": "This removes everything SJVAir Dashboard keeps in this browser, such as your settings. It can't be undone.",
 	"clear_backup_first": "Download a backup first",
 	"clear_confirm": "Clear everything",
+	"dashboard_unreadable": "A dashboard that can't be opened",
+	"dashboard_unreadable_hint": "Download it to keep a copy, or delete it.",
+	"dashboard_unreadable_download": "Download",
+	"dashboard_unreadable_delete": "Delete",
+	"dashboard_unreadable_confirm_title": "Delete this dashboard?",
+	"dashboard_unreadable_confirm_body_saved": "Delete the dashboard last saved {date} from this browser?",
+	"dashboard_unreadable_confirm_body_ref": "Delete the dashboard with reference {id} from this browser?",
+	"dashboard_unreadable_saved": "Last saved {date}",
+	"dashboard_unreadable_ref": "Reference {id}",
+	"dashboard_unreadable_download_failed": "Couldn't download that dashboard. Please try again.",
+	"dashboard_unreadable_delete_failed": "Couldn't delete that dashboard. Please try again.",
 	"clear_failed": "Couldn't clear your data. Please try again.",
 	"restore_version_action": "Restore an earlier version…",
 	"restore_version_title": "Restore an earlier version",
-	"restore_version_local": "{date}: before an app update (kept on this device)",
+	"restore_version_local": "{date}: before an app update (kept in this browser)",
+	"restore_version_local_and_account": "{date}: before an app update (kept in this browser and in your account)",
 	"restore_version_schema": "{date}: before an app update",
 	"restore_version_daily": "{date}: before that day's first change",
 	"restore_version_conflict": "{date}: set aside when settling a conflict or restoring",
 	"restore_version_legend": "Choose a version",
 	"restore_version_loading": "Loading earlier versions…",
 	"restore_version_none": "No earlier versions yet. Your account keeps one a day for 30 days.",
-	"restore_version_account_unreachable": "Earlier versions saved in your account can't be loaded right now.",
+	"restore_version_none_local": "No earlier versions yet.",
+	"restore_version_none_device": "No earlier versions in this browser.",
+	"restore_version_account_offline": "Versions saved in your account can't be loaded while you're offline.",
+	"restore_version_account_gone": "This dashboard is no longer in your account, so only the copy in this browser is listed.",
+	"restore_version_account_gone_none": "This dashboard is no longer in your account, and there are no earlier versions in this browser.",
+	"restore_version_account_unavailable": "Versions saved in your account can't be loaded right now. Try again later.",
+	"restore_version_load_failed": "Earlier versions couldn't be loaded. Close this and try again.",
 	"restore_version_unreachable": "Couldn't reach your account, so nothing was restored. Check your connection and try again.",
+	"restore_version_unavailable": "The restore couldn't be finished right now, so nothing changed. Try again later.",
 	"restore_version_newer": "That version was saved by a newer version of the app. Reload to restore it.",
 	"restore_version_confirm": "Restore",
 	"restore_version_failed": "That version can't be opened.",
@@ -431,8 +469,13 @@
 	"help_menu": "Help",
 	"privacy_open": "Your data and privacy",
 	"feedback_link": "Send feedback",
+	"opens_in_new_tab": "(opens in a new tab)",
+	"theme_label": "Appearance",
+	"theme_light": "Light",
+	"theme_dark": "Dark",
+	"theme_system": "Match my device",
 	"privacy_title": "Your data and privacy",
-	"privacy_local_anonymous": "Your dashboards and settings are kept in this browser, on this device.",
+	"privacy_local_anonymous": "Your dashboards and settings are kept only in this browser.",
 	"privacy_server_anonymous": "They are not sent to SJVAir's server. Showing air quality data asks the server for that data. A copy link has the dashboard inside the link itself, so anyone you give the link to can see it.",
 	"privacy_local_account": "Your dashboards and settings are saved in this browser and to your SJVAir account, so they open on your other devices.",
 	"privacy_server_account": "A live link shows the dashboard to anyone with the link until you stop sharing. A copy link has the dashboard inside the link itself, so anyone you give the link to can see it.",
@@ -472,8 +515,8 @@
 			"declarations": ["input days", "input daysValue", "local daysPlural = daysValue: plural"],
 			"selectors": ["daysPlural"],
 			"match": {
-				"daysPlural=one": "If you sign out anyway, they stay on this browser for {days} day, hidden from anyone else, and finish saving if you sign back in here before then.",
-				"daysPlural=other": "If you sign out anyway, they stay on this browser for {days} days, hidden from anyone else, and finish saving if you sign back in here before then."
+				"daysPlural=one": "If you sign out anyway, they stay in this browser for {days} day, hidden from anyone else, and finish saving if you sign back in here before then.",
+				"daysPlural=other": "If you sign out anyway, they stay in this browser for {days} days, hidden from anyone else, and finish saving if you sign back in here before then."
 			}
 		}
 	],
@@ -496,21 +539,21 @@
 	"widget_fullscreen_entered": "{title} fullscreen. Press Escape to exit.",
 	"fullscreen_widget_missing": "That widget isn't on this dashboard anymore.",
 	"dashboard_menu": "Dashboard actions",
-	"saved_device": "Saved on this device",
+	"saved_device": "Saved in this browser",
 	"saved_account": "Saved to your account",
 	"sync_confirmed_at": "Last saved to your account {time}",
-	"sync_refused_too_large": "This dashboard is too large to save to your account, so it's only on this device.",
-	"sync_refused_limit_documents": "Your account holds as many dashboards as it can, so this one is only on this device. Deleting one you don't need makes room.",
-	"sync_refused_limit_storage": "Your account is out of storage space, so this dashboard is only on this device.",
-	"sync_refused_invalid": "Your account couldn't accept this dashboard, so it's only on this device.",
-	"only_on_device": "Only on this device",
+	"sync_refused_too_large": "This dashboard is too large to save to your account, so it's only in this browser.",
+	"sync_refused_limit_documents": "Your account holds as many dashboards as it can, so this one is only in this browser. Deleting one you don't need makes room.",
+	"sync_refused_limit_storage": "Your account is out of storage space, so this dashboard is only in this browser.",
+	"sync_refused_invalid": "Your account couldn't accept this dashboard, so it's only in this browser.",
+	"only_on_device": "Only in this browser",
 	"sync_held_too_large": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "A dashboard is too large to save to your account, so it's only on this device.",
-				"countPlural=other": "{count} dashboards are too large to save to your account, so they're only on this device."
+				"countPlural=one": "A dashboard is too large to save to your account, so it's only in this browser.",
+				"countPlural=other": "{count} dashboards are too large to save to your account, so they're only in this browser."
 			}
 		}
 	],
@@ -519,8 +562,8 @@
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "Your account holds as many dashboards as it can, so one is only on this device.",
-				"countPlural=other": "Your account holds as many dashboards as it can, so {count} are only on this device."
+				"countPlural=one": "Your account holds as many dashboards as it can, so one is only in this browser.",
+				"countPlural=other": "Your account holds as many dashboards as it can, so {count} are only in this browser."
 			}
 		}
 	],
@@ -529,8 +572,8 @@
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "Your account is out of storage space, so a dashboard is only on this device.",
-				"countPlural=other": "Your account is out of storage space, so {count} dashboards are only on this device."
+				"countPlural=one": "Your account is out of storage space, so a dashboard is only in this browser.",
+				"countPlural=other": "Your account is out of storage space, so {count} dashboards are only in this browser."
 			}
 		}
 	],
@@ -539,8 +582,8 @@
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "Your account couldn't accept a dashboard, so it's only on this device.",
-				"countPlural=other": "Your account couldn't accept {count} dashboards, so they're only on this device."
+				"countPlural=one": "Your account couldn't accept a dashboard, so it's only in this browser.",
+				"countPlural=other": "Your account couldn't accept {count} dashboards, so they're only in this browser."
 			}
 		}
 	],

@@ -2,6 +2,7 @@
 	import { toast } from "svelte-sonner";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
+	import { nameOpenedCopy } from "$lib/actions/dashboard";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import type { ConflictChoice } from "$lib/store/document-session.svelte";
@@ -28,7 +29,10 @@
 				// The document under the undo history was replaced.
 				if (choice !== "keep-mine") session.clearHistory();
 			}
-			if (copyId) await navigate("/dashboards/:id", { params: { id: copyId } });
+			if (copyId) {
+				await navigate("/dashboards/:id", { params: { id: copyId } });
+				await nameOpenedCopy(app, copyId);
+			}
 		} catch {
 			toast.error(m.conflict_failed());
 		} finally {

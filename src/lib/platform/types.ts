@@ -150,6 +150,18 @@ export interface ActivitySource {
 	onChange(cb: (visible: boolean) => void): () => void;
 }
 
+/** The per-device color theme choice: a fixed light or dark, or follow the system. */
+export type ThemeChoice = "light" | "dark" | "system";
+
+/** Display preferences kept on this device (not in the account or a saved document). */
+export interface DisplayPreferences {
+	theme(): ThemeChoice;
+	/** Saves the choice and tells this tab's listeners; other tabs hear it through the browser. */
+	setTheme(choice: ThemeChoice): void;
+	/** Called on every change, from this tab or another; returns a function that stops listening. */
+	onThemeChange(listener: (choice: ThemeChoice) => void): () => void;
+}
+
 /** Whether the network is reachable, as far as the platform can tell. */
 export interface OnlineSource {
 	online(): boolean;
@@ -228,6 +240,7 @@ export type Platform = {
 	identity: IdentitySource;
 	activity: ActivitySource;
 	online: OnlineSource;
+	display: DisplayPreferences;
 	locks: LockAccess;
 	clipboard: ClipboardAccess;
 	files: FileAccess;

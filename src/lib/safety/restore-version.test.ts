@@ -9,6 +9,7 @@ import { MAX_DOCUMENT_CHARS } from "$lib/sharing/envelope";
 import { uploadDocument } from "$lib/sync/upload";
 import { NOW, SPACE, makeDoc, setupSync, storeDoc, title, widget } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
+import { RemoteRefusal, RemoteUnavailable } from "$lib/sync/remote";
 import { listEarlierVersions, restoreEarlierVersion } from "./restore-version";
 
 vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
@@ -75,8 +76,8 @@ describe("listEarlierVersions", () => {
 		});
 		const first = await seed("One");
 		const second = await seed("Two");
-		const { versions, accountUnreachable } = await listEarlierVersions(app, session);
-		expect(accountUnreachable).toBe(false);
+		const { versions, account: status } = await listEarlierVersions(app, session);
+		expect(status).toBe("ok");
 		expect(versions.map((v) => (v.source === "server" ? v.id : "local"))).toEqual([
 			second,
 			first,
@@ -101,14 +102,14 @@ describe("listEarlierVersions", () => {
 			chain: upgrade
 		}))!;
 		const app = { platform, space: "anonymous", sync: null } as unknown as AppContext;
-		const { versions, accountUnreachable } = await listEarlierVersions(app, session);
+		const { versions, account: status } = await listEarlierVersions(app, session);
 		expect(versions).toHaveLength(1);
 		expect(versions[0].source).toBe("local");
-		expect(accountUnreachable).toBe(false);
+		expect(status).toBe("none");
 		session.dispose();
 	});
 
-	it("offline lists the local original and says the account is unreachable", async () => {
+	it("offline lists the local original and says the account is offline", async () => {
 		const { app, session, platform, fake } = await account();
 		await platform.originals.put(SPACE, {
 			id: "d1",
@@ -117,9 +118,123 @@ describe("listEarlierVersions", () => {
 			fromSchemaVersion: OLD
 		});
 		fake.offline = true;
-		const { versions, accountUnreachable } = await listEarlierVersions(app, session);
+		const { versions, account: status } = await listEarlierVersions(app, session);
 		expect(versions.map((v) => v.source)).toEqual(["local"]);
-		expect(accountUnreachable).toBe(true);
+		expect(status).toBe("offline");
+		session.dispose();
+	});
+
+	it("a refused list because the dashboard is gone says so", async () => {
+		const { app, session } = await account();
+		for (const code of ["gone", "not_found"] as const) {
+			const sync = {
+				isInAccount: async () => true,
+				versions: async () => {
+					throw new RemoteRefusal(code, 404);
+				}
+			};
+			const gone = { ...app, sync } as unknown as AppContext;
+			expect((await listEarlierVersions(gone, session)).account).toBe("gone");
+		}
+		const down = {
+			...app,
+			sync: {
+				isInAccount: async () => true,
+				versions: async () => {
+					throw new RemoteUnavailable();
+				}
+			}
+		} as unknown as AppContext;
+		expect((await listEarlierVersions(down, session)).account).toBe("offline");
+		session.dispose();
+	});
+
+	it("any other refusal is unavailable, not offline", async () => {
+		const { app, session } = await account();
+		for (const [code, status] of [
+			["unauthorized", 401],
+			["rate_limited", 429],
+			["forbidden", 403]
+		] as const) {
+			const refused = {
+				...app,
+				sync: {
+					isInAccount: async () => true,
+					versions: async () => {
+						throw new RemoteRefusal(code, status);
+					}
+				}
+			} as unknown as AppContext;
+			expect((await listEarlierVersions(refused, session)).account).toBe("unavailable");
+		}
+		const broken = {
+			...app,
+			sync: {
+				isInAccount: async () => true,
+				versions: async () => {
+					throw new TypeError("bad answer");
+				}
+			}
+		} as unknown as AppContext;
+		expect((await listEarlierVersions(broken, session)).account).toBe("unavailable");
+		session.dispose();
+	});
+
+	it("never uploaded, or a first upload in flight, is none and asks no server", async () => {
+		const { app, session, platform } = await account();
+		const record = (await platform.sync.get(SPACE, "d1"))!;
+		const versions = vi.fn();
+		const run = async () => {
+			const real = app.sync as unknown as { isInAccount(id: string): Promise<boolean> };
+			const sync = { isInAccount: (id: string) => real.isInAccount(id), versions };
+			return (await listEarlierVersions({ ...app, sync } as unknown as AppContext, session))
+				.account;
+		};
+		await platform.sync.put(SPACE, { ...record, serverVersion: null, inFlight: null });
+		expect(await run()).toBe("none");
+		await platform.sync.put(SPACE, {
+			...record,
+			serverVersion: null,
+			inFlight: { baseVersion: null, throughVersion: 1, changes: "[]" }
+		});
+		expect(await run()).toBe("none");
+		expect(versions).not.toHaveBeenCalled();
+		session.dispose();
+	});
+
+	it("leaves out the account's copy of the kept original and marks the local entry", async () => {
+		const { app, session, platform } = await account();
+		await platform.originals.put(SPACE, {
+			id: "d1",
+			raw: { ...original, version: 7 },
+			keptAt: "2026-10-01T00:00:00.000Z",
+			fromSchemaVersion: OLD
+		});
+		const meta = (id: number, reason: string, version: number, schemaVersion: number) => ({
+			id,
+			reason,
+			version,
+			schemaVersion,
+			createdAt: "2026-10-01T00:00:01.000Z"
+		});
+		const sync = {
+			isInAccount: async () => true,
+			versions: async () => [
+				meta(1, "schema", 7, OLD),
+				meta(2, "schema", 8, OLD),
+				meta(3, "daily", 7, OLD)
+			]
+		};
+		const { versions } = await listEarlierVersions(
+			{ ...app, sync } as unknown as AppContext,
+			session
+		);
+		expect(versions.map((v) => (v.source === "server" ? v.id : "local")).sort()).toEqual([
+			2,
+			3,
+			"local"
+		]);
+		expect(versions.find((v) => v.source === "local")).toMatchObject({ alsoInAccount: true });
 		session.dispose();
 	});
 });
@@ -179,6 +294,23 @@ describe("restoreEarlierVersion", () => {
 		session.dispose();
 	});
 
+	it("a keep or fetch refused for another reason is unavailable, not unreachable", async () => {
+		const { app, session, seed, fake } = await account();
+		const id = await seed("Earlier");
+		const before = JSON.stringify(session.doc);
+		const version = { source: "server", at: NOW.toISOString(), id, reason: "conflict" } as const;
+		fake.refuseNext.push({ code: "rate_limited", status: 429 });
+		expect(await restoreEarlierVersion(app, session, version)).toBe("unavailable");
+		const keep = app.sync!.keepBeforeRestore.bind(app.sync);
+		app.sync!.keepBeforeRestore = async () => {
+			throw new RemoteRefusal("forbidden", 403);
+		};
+		expect(await restoreEarlierVersion(app, session, version)).toBe("unavailable");
+		app.sync!.keepBeforeRestore = keep;
+		expect(JSON.stringify(session.doc)).toBe(before);
+		session.dispose();
+	});
+
 	it("restores the local original, keeping the current version on the server", async () => {
 		const { app, session, platform, fake } = await account();
 		await platform.originals.put(SPACE, {
@@ -189,7 +321,11 @@ describe("restoreEarlierVersion", () => {
 		});
 		const before = fake.snapshots("d1").length;
 		expect(
-			await restoreEarlierVersion(app, session, { source: "local", at: "2026-10-01T00:00:00.000Z" })
+			await restoreEarlierVersion(app, session, {
+				source: "local",
+				at: "2026-10-01T00:00:00.000Z",
+				alsoInAccount: false
+			})
 		).toBe("restored");
 		expect(session.doc.name).toBe("Original");
 		expect(fake.snapshots("d1")).toHaveLength(before + 1);
@@ -262,7 +398,11 @@ describe("restoreEarlierVersion", () => {
 		const { app, session } = await account();
 		session.readOnly = "invalid";
 		expect(
-			await restoreEarlierVersion(app, session, { source: "local", at: NOW.toISOString() })
+			await restoreEarlierVersion(app, session, {
+				source: "local",
+				at: NOW.toISOString(),
+				alsoInAccount: false
+			})
 		).toBe("read-only");
 		session.dispose();
 	});

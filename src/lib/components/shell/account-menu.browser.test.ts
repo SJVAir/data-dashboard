@@ -61,7 +61,7 @@ test("signed in shows initials and a menu that re-checks on open", async () => {
 	await button.click();
 	await expect.element(page.getByText("Hi, Maria")).toBeVisible();
 	await expect.element(page.getByText("Signed in as Maria Lopez")).toBeVisible();
-	const settings = page.getByRole("menuitem", { name: "Account settings" });
+	const settings = page.getByRole("menuitem", { name: "Account settings (opens in a new tab)" });
 	await expect.element(settings).toHaveAttribute("href", "/account/");
 	await expect.element(settings).toHaveAttribute("target", "_blank");
 	expect(settings.element().getAttribute("rel")).toContain("noopener");
@@ -85,7 +85,9 @@ test("keyboard: Enter opens, ArrowDown to Sign out, Enter signs out", async () =
 	const button = page.getByRole("button", { name: "ML, account menu for Maria Lopez" });
 	button.element().focus();
 	await userEvent.keyboard("{Enter}");
-	await expect.element(page.getByRole("menuitem", { name: "Account settings" })).toBeVisible();
+	await expect
+		.element(page.getByRole("menuitem", { name: "Account settings (opens in a new tab)" }))
+		.toBeVisible();
 	for (let i = 0; i < 5 && document.activeElement?.textContent !== "Sign out"; i++) {
 		await userEvent.keyboard("{ArrowDown}");
 		await new Promise((r) => setTimeout(r, 50));
@@ -136,4 +138,14 @@ test("the Sign in href follows client-side navigation", async () => {
 	await expect
 		.element(link)
 		.toHaveAttribute("href", `/account/login/?next=${encodeURIComponent("/workspace/import")}`);
+});
+
+test("the greeting sits in a group", async () => {
+	await setup(user("Maria Lopez"));
+	await page.getByRole("button", { name: "ML, account menu for Maria Lopez" }).click();
+	const greeting = page.getByText("Hi, Maria");
+	await expect.element(greeting).toBeVisible();
+	const group = greeting.element().closest("[role=group]");
+	expect(group).not.toBeNull();
+	expect(group!.textContent).toContain("Signed in as Maria Lopez");
 });

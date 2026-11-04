@@ -6,7 +6,7 @@
 </script>
 
 <div
-	class="text-muted-foreground flex h-full items-center justify-center p-4"
+	class="text-muted-foreground flex h-full items-center justify-center"
 	data-widget={widget.id}
 	data-fullscreen={fullscreen}
 >

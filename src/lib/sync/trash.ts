@@ -6,7 +6,17 @@ import { pullIntoLocked } from "./pull";
 import { RemoteRefusal, RemoteUnavailable } from "./remote";
 import { remoteCall, uploadDocument } from "./upload";
 
-export type DeleteResult = "deleted" | "restored-elsewhere" | "unreachable" | "not-saved";
+export type DeleteResult =
+	| "deleted"
+	| "restored-elsewhere"
+	| "unreachable"
+	| "not-saved"
+	/** The local copy can't be read on this device. */
+	| "unreadable"
+	/** The local copy was saved by a newer version of the app. */
+	| "newer"
+	/** There is no local copy on this device. */
+	| "missing";
 
 /**
  * Permanently deletes a dashboard in Recently deleted from the account (call 4), then the
@@ -21,7 +31,8 @@ export async function deletePermanently(ctx: SyncContext, docId: string): Promis
 	const uploaded = await uploadDocument(ctx, docId);
 	return ctx.platform.locks.run(docLock(ctx.space, docId), async () => {
 		const local = await readLocal(ctx, docId);
-		if (typeof local === "string") return "unreachable";
+		if (local === "invalid") return "unreadable";
+		if (typeof local === "string") return local;
 		if (local.doc.deletedAt === undefined) return "restored-elsewhere";
 		if (local.record.hold || local.unsynced.length > 0) {
 			return uploaded === "retry" || uploaded === "signed-out" ? "unreachable" : "not-saved";

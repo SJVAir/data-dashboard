@@ -209,19 +209,25 @@ test.describe("with reduced motion", () => {
 		await expect(widgetTitles(page)).toHaveCount(3);
 	});
 
-	test("axe: taskbar", async ({ page }) => {
-		await openSharedDoc(page, DOC);
-		await page.getByRole("button", { name: "Minimize Alpha" }).click();
-		await expect(taskbarItem(page, "Alpha")).toBeVisible();
-		await expectNoViolations(page);
-	});
+	for (const colorScheme of ["light", "dark"] as const) {
+		test.describe(`${colorScheme} mode`, () => {
+			test.use({ colorScheme });
 
-	test("axe: fullscreen", async ({ page }) => {
-		await openSharedDoc(page, DOC);
-		await page.getByRole("button", { name: "Show Alpha fullscreen" }).click();
-		await expect(fullscreenFrame(page)).toBeVisible();
-		await expectNoViolations(page);
-	});
+			test("axe: taskbar", async ({ page }) => {
+				await openSharedDoc(page, DOC);
+				await page.getByRole("button", { name: "Minimize Alpha" }).click();
+				await expect(taskbarItem(page, "Alpha")).toBeVisible();
+				await expectNoViolations(page);
+			});
+
+			test("axe: fullscreen", async ({ page }) => {
+				await openSharedDoc(page, DOC);
+				await page.getByRole("button", { name: "Show Alpha fullscreen" }).click();
+				await expect(fullscreenFrame(page)).toBeVisible();
+				await expectNoViolations(page);
+			});
+		});
+	}
 });
 
 test("fullscreen animates without reduced motion", async ({ page, browserName }) => {

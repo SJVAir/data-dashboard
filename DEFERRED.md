@@ -34,9 +34,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   license field and no license text, so the third-party notices carry none for it. **Revisit
   when** sdk-js ships a `LICENSE` file (and a license field in its JSR package): remove the
   exception and check the notices include its text.
-- **A maskable icon and real app icons.** _Deferred 2026-10-26 (Foundations spec 5a)._ The
-  manifest uses sjvair.com's Android Chrome favicons as placeholders, with no `maskable`
-  icon. **Revisit with** the design pass.
 - **A test of the real Sentry envelope.** _Deferred 2026-10-26 (Foundations spec 5a, final
   review)._ The scrubbing is unit-tested on the event the app hands to `@sentry/browser`, but
   nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the
@@ -76,8 +73,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   self-test injects an inline script, so it proves the checker works but not that eval is caught.
   **Revisit when** touching the E2E fixtures or the zod wrapper.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
-  follow-ups, none blocking. **Revisit with** the design pass, or when next touching each
-  file:
+  follow-ups, none blocking. **Revisit when** next touching each file:
   - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
     share one constant each.
   - No test covers skipping the entry-file refresh when `BUILD_ID === "dev"`.
@@ -85,16 +81,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   - The host-list logic is duplicated between `csp-hosts.test.ts` and
     `scripts/check-build-output.mjs`, and the list is flat across directives.
   - The license collection skips virtual modules (Vite's and rolldown's MIT helpers).
-  - The web manifest's `lightToken` takes the first regex match; scope it to `:root`.
-  - The E2E test loads only `icons[0]`, and the dev manifest route is untested.
   - The bare `/account/` dev proxy prefix could shadow a future app route.
   - The embedding suite's "lazy chunk" check doesn't prove the chunk loads lazily.
-  - The feedback link has no new-tab cue (design pass).
   - `reload.ts`'s `location.reload` and the entry-file refresh are web-only behavior outside
     the platform adapter (Tauri).
 - **Spec 5b polish.** _Deferred 2026-10-27 (Foundations spec 5b, task reviews and final
   review)._ Small follow-ups, none affecting correctness, security, or the token boundary.
-  **Revisit with** the design pass, or when next touching each file:
+  **Revisit when** next touching each file:
   - sjvair.com: v1 `accounts/endpoints.py` imports the session module in its own import
     block; tidy with the imports.
   - sjvair.com: the session password-change test juggles old and new passwords across the v1
@@ -125,7 +118,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     across tabs.
   - The account menu's keyboard test steps with `ArrowDown` and sleeps; use focus assertions.
     Its test user is cast `as never`, which hides type drift.
-  - The menu's greeting labels aren't wrapped in a `DropdownMenu.Group` (design pass).
   - `returnPath`'s query comes from `serializeSearch(route.search)`, which rebuilds it from an
     object and collapses repeated keys. No route uses repeated keys; read the browser's real
     query through the router if one does.
@@ -236,14 +228,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
-  - **The Share dialog's public-name field stays disabled after a failed load until the dialog
-    is reopened.** _Deferred 2026-11-02 (sync spec 3, final review)._ There is no retry when the
-    connection comes back; reopening the dialog loads it again. **Revisit on a report, or in the
-    design pass.**
-  - **A display-name save that fails for any reason other than an invalid name shows the
-    "Couldn't reach SJVAir" message.** _Deferred 2026-11-02 (sync spec 3, final review)._ Rate
-    limited and signed-out failures are worded as if offline; the wording is a working draft.
-    **Revisit with** the design pass's error wording.
   - **"Based on …" looked up while offline stays hidden until the next page load.**
     _Deferred 2026-11-02 (sync spec 3, final review)._ The answer is cached per page load, so a
     lookup that failed offline is not retried. **Revisit if** people report a missing credit.
@@ -328,11 +312,12 @@ string`) now get the union return type. The mobile app passes a string token, so
   everywhere. **Revisit with** the next sjvair.com test or settings change. Needs an
   approved sjvair.com plan.
 - **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
-  affects what ships: Playwright runs with no retries in CI; the `--duration-*` `@theme`
-  aliases are probably inert. (Resolved in spec 5a: the inlang plugin is a named exception in
+  affects what ships: Playwright runs with no retries in CI. (Resolved in the design pass: the
+  inert `--duration-*` `@theme` aliases became `--transition-duration-*`, so `duration-fast` and
+  `duration-base` work. Resolved in spec 5a: the inlang plugin is a named exception in
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
-  **Revisit when** CI first flakes (retries) and in the design pass (the duration aliases).
+  **Revisit when** CI first flakes (retries).
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -423,6 +408,11 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Documents & saving
 
+- **Deleting an unreadable dashboard is local only.** _Deferred 2026-11-03 (design pass, Task 15)._
+  The list's Delete for a dashboard that can't be opened removes only this browser's copy; in an
+  account space, sync may download a valid server copy again (arguably a repair). **Revisit on** a
+  report of a deleted unreadable dashboard coming back, or with account-side deletion of
+  unreadable documents.
 - **A starter journal record can outlive its copy.** _Deferred 2026-10-25 (Foundations spec 3,
   task 6)._ If the page goes away mid-hand-off after the copy was stored but before its first
   save, the next load opens the (unedited) copy, not the starter, so the starter's journal
@@ -438,9 +428,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
   two dashboards, which the person can delete or restore.
-- **Conflict status wording.** _Deferred 2026-10-20 (Foundations spec 1 review); the other
-  cross-tab sync edge cases were done in spec 3._ The "error" status during a conflict looks
-  like "Couldn't save". **Revisit in** the design pass.
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size
@@ -472,10 +459,6 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **A failed `lastShownAt` write lets the reminder show again next load.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ And
   `NoticeBars` keeps its own guard around reading the reminder prefs instead of sharing one.
   **Revisit if** a repeating reminder is reported.
-- **Restored unreadable dashboards are invisible in the list and the Clear count.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A
-  backup's invalid (unreadable) dashboard is restored as stored, but the index lists only
-  loadable ones, so it isn't shown or counted. **Revisit with** the design pass or a "can't
-  open" list.
 
 - **Upgrading `bits-ui` past 2.19.2.** _Deferred 2026-10-25 (Foundations spec 3, Task 13)._
   `npx shadcn-svelte add popover` bumped `bits-ui` from 2.19.2 to 2.20.2, which broke
@@ -634,26 +617,21 @@ string`) now get the union return type. The mobile app passes a string token, so
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
 - **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
-  (1) The restore dialog's "can't be loaded right now" shows for any failure to list the
-  account's versions, including a refusal (gone or not found), not just offline; it adds a
-  clearer message per cause. (2) The dialog's loading line is inserted conditionally as a
-  status region (some screen readers may not announce it), and focus stays on Cancel after the
-  list loads. (3) "Delete now" on a local copy that can't be read (newer format or invalid)
-  says "couldn't reach your account", which is misleading, and the "restored on another
-  device" toast uses the error style though it's informational. (4) The initial bundle is
-  about 199.2 KB of the 200 KB soft budget after spec 4 (the restore dialog and Recently
-  deleted changes). (5) After a restore's keep pulls in another device's change (stale base),
-  the restore's `from` is built from the open session's document, which may lag the merged
-  storage for a moment; undoing that restore could then drop the other device's merged-in
-  edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test gaps: the
-  keep's `not_found` refusal (shares the `gone` branch); restoring with the keep skipped
-  (anonymous or never uploaded); the "newer" message reaching the dialog; flush-before-load
-  order; "Delete now" pulling in a real concurrent restore (the test uses a synthetic
-  `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
-  `space-switch` closing the old app first, not by a test). **Revisit** (1) and (3) with the
-  design pass's error wording, (2) in the design pass or the screen-reader check, (4) when the
-  next feature would cross the budget (CI warns), (5) if an undo after a restore is reported to
-  lose an edit, and (6) when next touching those files.
+  (4) The initial bundle is about 205.5 KB gzip after the design pass, over the 200 KB soft
+  budget (199.2 KB after spec 4; the restyle and Part 2's announcer, restore dialog, unreadable
+  list, and resize animation added the rest). (5) After a restore's keep pulls in another device's
+  change (stale base), the restore's `from` is built from the open session's document, which may
+  lag the merged storage for a moment; undoing that restore could then drop the other device's
+  merged-in edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test
+  gaps: the keep's `not_found` refusal (shares the `gone` branch); restoring with the keep
+  skipped (anonymous or never uploaded); the "newer" message reaching the dialog;
+  flush-before-load order; "Delete now" pulling in a real concurrent restore (the test uses a
+  synthetic `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
+  `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error wording, the
+  loading line and focus, and the "Delete now" wording) were done in the design pass, part 2._
+  **Revisit** (4) before step 4 adds widget code (trim the initial bundle, or the user raises the
+  budget), (5) if an undo after a
+  restore is reported to lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
@@ -664,11 +642,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   server snapshot, so it can be undone after a reload; offline (or refused) nothing is restored,
   even for the local kept original. A queued keep would need a new hold kind. **Revisit if**
   people report restoring while offline.
-- **The earlier-versions list isn't deduplicated.** _Deferred 2026-11-02 (sync spec 4 plan, call
-  2)._ The local kept original and the server's `schema` snapshot can hold the same content, and
-  both are listed (each labelled with its source and time). Telling them apart reliably would
-  need a content hash on both sides. **Revisit in** the design pass, or on a report of a
-  confusing list.
 - **Unsynced edits in the browser where an account is deleted are lost with it.** _Deferred
   2026-11-02 (sync spec 4 plan, call 6)._ The dashboard removes the deleted account's space at
   once, and "Download my documents" on sjvair.com's delete page has only the server's copies, so
@@ -1158,10 +1131,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   global actions (the spec has nav controls be views onto actions). **Revisit in** Release 1
   step 4 (its first checkbox or range input), with the command palette (the actions), and
   before translations ship (IME).
-- **Save-status announcements.** _Deferred 2026-10-20 (Foundations spec 1 review)._
-  The saved indicator's `aria-live` region announces "Saving…"/"Saved" on every edit, which
-  is noisy for screen readers. (The undo-toast half closed with "Recently deleted", which
-  recovers a deleted dashboard after the toast is gone.) **Revisit in** the design pass.
 - **Read-only dashboards in Recently deleted can't be undeleted by a restore.**
   _Deferred 2026-10-25 (Foundations spec 3, Task 11 review)._ Restoring a backup undeletes
   a stored dashboard that is in Recently deleted through an ordinary edit, and read-only
@@ -1169,10 +1138,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   kept and stays deleted. The Recently deleted list's **Restore** has the same limit: for a
   read-only dashboard it only shows a toast saying it can't be restored here. **Revisit if** read-only dashboards become restorable or
   undeletable.
-- **Names of copies.** _Deferred 2026-10-20 (Foundations spec 1 review)._ "Save mine as a
-  copy" keeps the same name with no rename prompt, and duplicating an unnamed "My dashboard"
-  lists the copy as "Untitled dashboard". **Revisit in** the design pass, or when people
-  report confusing copies.
 - **Dashboard page and list loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._
   The delete action's `deletedAt` comes from `new Date()`, not an injected clock; the
   previous `document.title` lingers while a session loads; the conflict dialog watches only
@@ -1184,17 +1149,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   2026-09-24._ IDEA.md: "at minimum via dropdown; ideally via a nicer visual picker".
   Release 1 uses a top-nav dropdown. **Revisit when** people routinely keep more than
   about 5–7 dashboards, or public templates ship and need browsing.
-- **Read-only Share dialog and Download feedback.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ For a read-only dashboard the Share
-  dialog shows the "too big for a link" text (the real reason is that it can't be linked), and
-  Download gives no confirmation. **Revisit in** the design pass.
-- **Wording for a dashboard opened read-only because its original couldn't be kept.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
-  It reuses the "invalid" (can't be opened) wording. **Revisit in** the design pass.
-- **`pendingName` is shown unnormalized in the list.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A name that isn't saved yet is
-  listed as it was typed, not normalized like a saved name. **Revisit in** the design pass.
-- **RestoreVersionDialog closing mid-restore.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ It doesn't block closing while a
-  restore runs, or reset its state on close. **Revisit in** the design pass.
-- **Dark-mode `--destructive` contrast isn't covered by axe.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ The axe checks run in
-  light mode only. **Revisit in** the design pass.
 - **A "present" mode using the browser's own full screen.** _Deferred 2026-10-28 (step 2
   design)._ Widget fullscreen covers the dashboard area only; the browser's F11 / fullscreen key
   already gives an edge-to-edge projector view. The Fullscreen API would add a second Esc-to-exit
@@ -1231,7 +1185,19 @@ string`) now get the union return type. The mobile app passes a string token, so
   (the touch check had passed). **Revisit before** Release 1 goes live (step 6) or beta testers
   get the dashboard, whichever comes first, or sooner when the user has time: a hand check with
   NVDA (and JAWS if available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸
-  and Size ▸ submenus (#18), their announcements, and the taskbar.
+  and Size ▸ submenus (#18), their announcements, and the taskbar. _Widened 2026-11-03 (design
+  pass Task 19):_ also check that announcements and toasts made while a dialog is open are read
+  once, from the dialog's own live region (tested only against Chromium's `aria-modal` pruning).
+- **An announcement still being read when its dialog closes is cut off.** _Deferred 2026-11-03
+  (design pass Task 19 review)._ A message belongs to the topmost dialog's live region and is
+  dropped when that dialog starts closing (moving it to the page's region would read it again;
+  a message sent after that waits and is read from the page's region once the dialog is gone). An
+  announcement or toast made in the same 100 ms as another also replaces it. **Revisit if** the
+  screen-reader check above finds messages lost this way.
+- **The e2e `liveRegion()` helper assumes one live region.** _Deferred 2026-11-03 (design pass
+  Task 19 review)._ Each open dialog now has its own region with the same attributes, so a test
+  that reads announcements with a dialog open would match two (a strict-mode error). No e2e does
+  today. **Revisit when** one does: pick the region holding text, or the topmost dialog's.
 - **Keyboard arrangement request-chain cache can thrash in very long pick-ups.** _Deferred
   2026-10-28 (step 2, spec 2a final review)._ The preview cache keeps 512 request prefixes;
   past 512 keyboard steps in one pick-up it evicts the current chain, and each keypress then
@@ -1249,20 +1215,105 @@ string`) now get the union return type. The mobile app passes a string token, so
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
-- **Spec 2a robustness loose ends.** _Deferred 2026-10-28 (step 2, spec 2a final review)._ None
-  is a user-facing bug today: a tests-only `onArrangement` prop on `DashboardGrid` and the test
-  harness; the live region is hidden behind bits-ui modals (they `aria-hidden` their siblings);
-  resizing isn't animated; the autoscroll animation frame runs for the whole drag, not only in
-  the edge zone; touches starting on a widget's body or Done during a touch selection can
-  scroll the page; a second drop on the starter before the page switches to its copy doesn't
-  carry focus; the focus ring after touch drops isn't checked by hand; `FALLBACK_MIN_SIZE` is a
-  shared object that isn't frozen; and `stepDown`'s doc comment wording. **Revisit in** the
-  design pass, or in spec 2b where it touches the same code.
 
-- **The "Only on this device" notice bar's count and link.** _Deferred 2026-11-02 (sync spec 2,
-  Task 12)._ The bar counts refused dashboards in Recently deleted too, and its link to the
-  dashboards list shows on the list page itself. **Revisit with** the design pass, or if the
-  count is reported as wrong.
+- **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
+  for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.
+  Numbers counting up and widgets sliding into place were left out to start simple; the tokens
+  make them easy to add. **Revisit after** preview testers have used the app.
+- **Restyle monitor-map, mobile, and map-sdk's defaults to the family palette.** _Deferred
+  2026-11-03 (design pass spec)._ The design pass's palette is meant for every SJVAir app, but
+  restyling the others now would change live apps before the dashboard has proven the look.
+  Token names stay shadcn's (plus `--link`, `--highlight*`, `--card-border`, `--shadow-card`,
+  `--shadow-lifted`, `--radius-control`, `--chart-1…5`, `--overlay`), so each app can copy the
+  token blocks.
+  `map-sdk`'s legends and tooltips should use the same names and inherit the dashboard's theme
+  (the token list goes to the map-sdk session after the design pass's first PR).
+  **Revisit when** the dashboard launches. Each repo needs its own approved plan.
+- **The page background can flash for a saved theme override.** _Deferred 2026-11-03 (design pass
+  spec)._ System mode is CSS only and never flashes. A saved Light or Dark that differs from the
+  system is applied by `app.js`, which sjvair.com's template loads as a deferred module, so the
+  browser can paint the page background once in the other mode first. The app itself always
+  renders in the right mode. Ruling it out needs sjvair.com's template to render the theme on the
+  server (for example from a cookie), which needs a plan in that repo. **Revisit if** people
+  notice the flash.
+- **Chart and map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
+  (design pass, Task 20 review)._ The widget being resized animates its width and height for
+  `--motion-duration-base` (200 ms), so its content reflows rather than being stretched. A
+  widget that redraws on a `ResizeObserver` (uPlot charts, map-sdk's `MapView`) would redraw on
+  every frame of it. Placeholders don't redraw, so nothing does today. **Revisit when** uPlot or
+  map widgets land: throttle their redraw to the animation's end, or switch to scale with
+  counter-scaled content for those types.
+- **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
+  review)._ During a touch selection the widget's body is `touch-action: none`, so the page
+  can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.
+  A swipe outside the widget still scrolls, and a tap outside finishes, as Done does. Keeping
+  Done sticky within the visible part wasn't cheap enough to add now. **Revisit if** phone
+  testers get stuck with a tall selected widget, or when widgets get taller defaults.
+- **The token-discipline check reads one line at a time.** _Deferred 2026-11-03 (design pass,
+  Task 9)._ `src/lib/theme/token-discipline.test.ts` finds a hex color only when it shares a
+  line with `class=` or `style=`, so it misses a `style` attribute split over several lines and
+  hex constants in `.ts` files. Today none exist; the check stays simple. **Revisit if** a
+  hardcoded color slips through review, or before the family restyle copies the check.
+- **The theme store applies the theme through web code.** _Deferred 2026-11-03 (design pass,
+  Task 4)._ `src/lib/store/theme.svelte.ts` imports `applyTheme` from
+  `$lib/platform/web/theme` directly, outside the adapter boundary. Fine on the web; a Tauri
+  build would want applying to live in `platform.display`. **Revisit when** the Tauri build
+  starts, or if a second place needs theme state (then the store also moves to app context).
+- **Design pass, part 1 polish.** _Deferred 2026-11-03 (design pass, task reviews)._ Small
+  follow-ups, none affecting correctness or accessibility. **Revisit with** step 4, or when next
+  touching each file:
+  - The `secondary` button variant is still the old blue-gray fill; the spec's secondary look
+    lives in `outline`. Pick one when step 4 needs secondary buttons.
+  - "Sign in" is an outline button; the mockup showed a link.
+  - All three logo images are in the DOM (two hidden by breakpoint or mode), so a browser may
+    fetch the hidden ones.
+  - The theme's color fade can cut its last frame (the class is removed on a timer).
+  - `readTokens` and the manifest's `lightToken` stop at the first `}` (nested blocks would
+    truncate); `scripts/make-icons.mjs` needs `../mobile`'s art and uses `sharp` without
+    declaring it.
+  - The dark token list is written twice (the system and override blocks), because CSS can't
+    share one block between a media query and an attribute selector. A test fails if they
+    differ.
+  - `HelpMenu` casts the radio value `as ThemeChoice`; `parseThemeChoice` would be safer. No
+    test checks that destroying the theme store stops listening.
+  - The `@theme inline` `--shadow-card` refers to itself (on purpose, commented), which reads
+    oddly.
+  - `--grid-gap` is the literal `0.75rem`, not `var(--space-3)` (same value). The rewritten
+    starter-drop E2E test checks less layout detail than before (the live-region text backs
+    it).
+  - `app_name_product` ("Dashboard" beside the logo) has no translator note.
+  - The dev manifest middleware test reads the icons through a path relative to the working
+    directory.
+  - `syncThemeColorWhenStyled` adds a `load` listener even if the page has already loaded (it
+    can't happen today: it runs from `bootstrap.ts`). The destructive tint check doesn't cover
+    the page background (axe covers today's uses).
+  - From the screenshot review: the full-width "Clear my data…" button on the list page,
+    tall placeholder widgets on phones, and toasts covering "Add widget" on phones.
+- **Phone check of the focus ring after touch drops.** _Deferred 2026-10-28 (step 2, spec 2a final
+  review); narrowed 2026-11-03 (design pass, Task 20)._ The rest of the spec 2a robustness loose
+  ends are done. This one can't be scripted: synthetic touch events don't change
+  `:focus-visible`, so it needs a real phone. **Revisit in** the next hand check or the private
+  preview.
+- **Design pass, part 2 polish.** _Deferred 2026-11-03 (design pass, Tasks 11-20 reviews)._ Small
+  follow-ups, none affecting correctness for people today. **Revisit when** next touching each
+  file, or if one is reported:
+  - The `SavedIndicator` tests cast a local conflict with `{} as never`.
+  - The scan that finds `LiveRegion` uses in tests can pair a self-closing component with a later
+    closing tag (pre-existing).
+  - The Share dialog's carry-over test checks for absence right after `setOnline(true)` without a
+    settle step, so a late request could slip past it. `linkUnavailable` is inferred from "no
+    url" rather than from the result kind of `shareUrl`, and the download confirmation has no
+    timeout. `share_downloaded` ("Your file is downloading.") also shows when a native save
+    dialog is cancelled, since the download call doesn't say; revisit with the Tauri build's
+    file-save adapter.
+  - The Recently deleted list has no explicit focus target in its empty or load-failed states,
+    and an empty `{#if loading}` branch holds only a comment. The "missing" delete result has no
+    unit test at the `deletePermanently` level (a `documents.get` stub returning nothing would
+    cover it).
+  - `DashboardGrid` no longer wraps the probe callback in `untrack` (harmless), the read-only
+    message there is a nested ternary, carried focus stays set if the page never switches
+    (guarded, pre-existing), and no test covers a cancelled resize animating back under
+    reduced motion (the zero-duration guard covers it).
 
 ## Legacy Monitors-tab follow-ups
 

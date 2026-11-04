@@ -1,9 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { DASHBOARD_URL, maria, setVisibility } from "./helpers";
-
-const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+import { DASHBOARD_URL, expectNoViolations, maria, setVisibility } from "./helpers";
 
 // Motion collapses, so the menu is fully shown when checked.
 test.use({ reducedMotion: "reduce" });
@@ -31,17 +28,21 @@ test("signed out, Sign in returns to the current dashboard", async ({ page }) =>
 test.describe("signed in", () => {
 	test.use({ account: maria });
 
-	test("the account menu shows the initials and the greeting", async ({ page }) => {
-		await page.goto("./");
-		await expect(accountButton(page)).toHaveText("ML");
-		await expect(signIn(page)).toHaveCount(0);
-		await accountButton(page).click();
-		await expect(page.getByRole("menu")).toBeVisible();
-		await expect(page.getByText("Hi, Maria")).toBeVisible();
-		await expect(page.getByText("Signed in as Maria Lopez")).toBeVisible();
-		const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-		expect(results.violations).toEqual([]);
-	});
+	for (const colorScheme of ["light", "dark"] as const) {
+		test(`the account menu shows the initials and the greeting (${colorScheme} mode)`, async ({
+			page
+		}) => {
+			await page.emulateMedia({ colorScheme });
+			await page.goto("./");
+			await expect(accountButton(page)).toHaveText("ML");
+			await expect(signIn(page)).toHaveCount(0);
+			await accountButton(page).click();
+			await expect(page.getByRole("menu")).toBeVisible();
+			await expect(page.getByText("Hi, Maria")).toBeVisible();
+			await expect(page.getByText("Signed in as Maria Lopez")).toBeVisible();
+			await expectNoViolations(page);
+		});
+	}
 
 	test("signing out flips every tab", async ({ page }) => {
 		await page.goto("./");

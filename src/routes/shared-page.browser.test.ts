@@ -156,7 +156,7 @@ test("the bar shows the display name, or a generic label", async () => {
 	await asOwner(() => fake.setProfile("Ms. Ruiz"));
 	const first = await openShared(named);
 	await expect.element(bar().getByText("Shared by Ms. Ruiz")).toBeVisible();
-	const link = bar().getByRole("link", { name: "Report this page" }).element();
+	const link = bar().getByRole("link", { name: "Report this page (opens in a new tab)" }).element();
 	expect(link.getAttribute("href")).toBe(reportUrl(named));
 	expect(link.getAttribute("target")).toBe("_blank");
 	expect(link.getAttribute("rel")).toBe("noopener");
@@ -177,7 +177,7 @@ test("the bar shows nothing else about the owner", async () => {
 	expect(parts).toEqual([
 		"Shared by Ms. Ruiz",
 		"This is not an official SJVAir page.",
-		"Report this page"
+		"Report this page (opens in a new tab)"
 	]);
 	expect(aside.textContent?.replace(/\s+/g, "")).toBe(parts.join("").replace(/\s+/g, ""));
 	// No way to dismiss it.

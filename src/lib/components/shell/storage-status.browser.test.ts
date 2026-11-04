@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
+import { announce, announcer } from "$lib/a11y/announcer.svelte";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Protection } from "$lib/platform/types";
@@ -82,7 +83,7 @@ async function openInAccount(before: (setup: Awaited<ReturnType<typeof accountAp
 	return setup;
 }
 
-test("saved on this device until the account has it", async () => {
+test("saved in this browser until the account has it", async () => {
 	let release = () => {};
 	const { worker } = await openInAccount(({ fake }) => {
 		// The first upload is still on its way.
@@ -93,7 +94,7 @@ test("saved on this device until the account has it", async () => {
 		};
 	});
 	await expect.poll(() => worker.states.d1?.state).toBe("pending");
-	await expect.element(page.getByText("Saved on this device")).toBeVisible();
+	await expect.element(page.getByText("Saved in this browser")).toBeVisible();
 	expect(page.getByText("Saved to your account").query()).toBeNull();
 	release();
 	await expect.element(page.getByText("Saved to your account")).toBeVisible();
@@ -111,7 +112,7 @@ test("the anonymous space keeps the plain Saved label", async () => {
 	app.current = { session: (await app.sessions.get(id))!, isStarter: false };
 	await render(SavedIndicator, { context });
 	await expect.element(page.getByText("Saved", { exact: true })).toBeVisible();
-	expect(page.getByText("Saved on this device").query()).toBeNull();
+	expect(page.getByText("Saved in this browser").query()).toBeNull();
 });
 
 test("the popover shows the last confirmed time in Pacific time", async () => {
@@ -129,7 +130,7 @@ test("a refused dashboard says why", async () => {
 		refuseSaves.push({ code: "too_large", status: 413 });
 	});
 	await expect.poll(() => worker.states.d1?.state).toBe("held");
-	await expect.element(page.getByText("Saved on this device")).toBeVisible();
+	await expect.element(page.getByText("Saved in this browser")).toBeVisible();
 	await page.getByRole("button", { name: /Storage status/ }).click();
 	await expect.element(page.getByText(m.sync_refused_too_large())).toBeVisible();
 	expect(page.getByText(/Last saved to your account/).query()).toBeNull();
@@ -141,9 +142,9 @@ test("colour is never the only signal: a text label in every state", async () =>
 	});
 	const session = app.current.session!;
 	const button = page.getByRole("button", { name: /Storage status/ });
-	const label = () => button.element().querySelector("[aria-live]")?.textContent?.trim();
+	const label = () => button.element().querySelector("span:not(.sr-only)")?.textContent?.trim();
 	await expect.poll(() => worker.states.d1?.state).toBe("held");
-	expect(label()).toBe("Saved on this device");
+	expect(label()).toBe("Saved in this browser");
 	await worker.syncAll();
 	await expect.poll(label).toBe("Saved to your account");
 	session.status = "saving";
@@ -163,4 +164,89 @@ test("in an account the note says the account keeps the dashboards, without the 
 	expect(page.getByText(m.storage_note_unprotected()).query()).toBeNull();
 	expect(page.getByRole("button", { name: m.protect_button() }).query()).toBeNull();
 	expect(page.getByRole("button", { name: m.backup_download() }).query()).toBeNull();
+});
+
+async function openLocal() {
+	const { app, context } = await setup("protected", false);
+	const id = await app.index.createBlank();
+	const session = (await app.sessions.get(id))!;
+	app.current = { session, isStarter: false };
+	const view = await render(SavedIndicator, { context });
+	return { app, session, view };
+}
+
+test("a conflict reads Changed elsewhere, not the failure, and is not red", async () => {
+	const { session } = await openLocal();
+	session.status = "error";
+	session.conflict = {} as never;
+	const button = page.getByRole("button", { name: /Storage status/ });
+	await expect.poll(() => button.element().textContent).toContain(m.save_conflict());
+	expect(page.getByText(m.save_failed()).query()).toBeNull();
+	expect(button.element().className).not.toContain("text-destructive");
+});
+
+test("the indicator has no live region of its own", async () => {
+	const { view } = await openLocal();
+	expect(view.container.querySelector("[aria-live]")).toBeNull();
+});
+
+test("announces failures, recovery and conflicts, but not a normal save", async () => {
+	const { session } = await openLocal();
+	session.status = "saving";
+	await new Promise((r) => setTimeout(r, 300));
+	session.status = "saved";
+	await new Promise((r) => setTimeout(r, 300));
+	expect(announcer.text).not.toBe(m.save_failed());
+	expect(announcer.text).not.toBe(m.save_recovered());
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
+	session.status = "saved";
+	await expect.poll(() => announcer.text).toBe(m.save_recovered());
+	session.status = "error";
+	session.conflict = {} as never;
+	await expect.poll(() => announcer.text).toBe(m.save_conflict_announce());
+});
+
+/** Waits long enough for any announcement to land (the clear gap plus margin). */
+const quiet = () => new Promise((r) => setTimeout(r, 300));
+
+test("a retry that fails again isn't announced again", async () => {
+	const { session } = await openLocal();
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
+	announce("marker");
+	await expect.poll(() => announcer.text).toBe("marker");
+	// Each retry passes through "saving" and fails again.
+	session.status = "saving";
+	await quiet();
+	session.status = "error";
+	await quiet();
+	expect(announcer.text).toBe("marker");
+});
+
+test("switching from a dashboard that couldn't save to a healthy one announces nothing", async () => {
+	const { app, session } = await openLocal();
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
+	announce("marker");
+	await expect.poll(() => announcer.text).toBe("marker");
+	const other = await app.index.createBlank();
+	app.current = { session: (await app.sessions.get(other))!, isStarter: false };
+	await expect.element(page.getByText("Saved", { exact: true })).toBeVisible();
+	await quiet();
+	expect(announcer.text).toBe("marker");
+});
+
+test("a dashboard's first save failing is announced even if it opened while saving", async () => {
+	const { app } = await setup("protected", false);
+	const id = await app.index.createBlank();
+	const session = (await app.sessions.get(id))!;
+	session.status = "saving";
+	app.current = { session, isStarter: false };
+	await render(SavedIndicator, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByText(m.saving())).toBeVisible();
+	announce("marker");
+	await expect.poll(() => announcer.text).toBe("marker");
+	session.status = "error";
+	await expect.poll(() => announcer.text).toBe(m.save_failed());
 });

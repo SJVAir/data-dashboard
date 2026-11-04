@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
+import { restoreDeleted } from "$lib/actions/dashboard";
 import { m } from "$lib/paraglide/messages.js";
 import { APP_CONTEXT_KEY } from "$lib/store/app.svelte";
 import { accountApp } from "$lib/sync/test-app";
@@ -94,6 +95,89 @@ test("an unexpected failure keeps the row and says it couldn't reach the account
 		await expect.element(page.getByText(m.deleted_unreachable())).toBeVisible();
 		await expect.element(page.getByTestId("deleted-row-d1")).toBeVisible();
 		expect(app.index.deleted.map((d) => d.id)).toEqual(["d1"]);
+	} finally {
+		worker.stop();
+	}
+});
+
+async function deleteWith(result: string) {
+	const setup = await trashedApp();
+	vi.spyOn(setup.worker, "deletePermanently").mockResolvedValue(result as never);
+	await render(Harness, { context: new Map([[APP_CONTEXT_KEY, setup.app]]) });
+	await page.getByRole("button", { name: /Delete now: / }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Delete now" }).click();
+	return setup;
+}
+
+test("a dashboard restored elsewhere is an informational toast, not an error", async () => {
+	const info = vi.spyOn(toast, "info");
+	const error = vi.spyOn(toast, "error");
+	const { worker } = await deleteWith("restored-elsewhere");
+	try {
+		await expect.element(page.getByText(m.deleted_restored_elsewhere())).toBeVisible();
+		expect(info).toHaveBeenCalledWith(m.deleted_restored_elsewhere());
+		expect(error).not.toHaveBeenCalled();
+	} finally {
+		worker.stop();
+	}
+});
+
+test("an unreadable local copy says so and keeps the row", async () => {
+	const { app, worker } = await deleteWith("unreadable");
+	try {
+		await expect.element(page.getByText(m.deleted_unreadable())).toBeVisible();
+		expect(app.index.deleted.map((d) => d.id)).toEqual(["d1"]);
+	} finally {
+		worker.stop();
+	}
+});
+
+test("a copy from a newer version says to reload", async () => {
+	const { worker } = await deleteWith("newer");
+	try {
+		await expect.element(page.getByText(m.deleted_newer())).toBeVisible();
+	} finally {
+		worker.stop();
+	}
+});
+
+test("a copy missing in this browser says so", async () => {
+	const { worker } = await deleteWith("missing");
+	try {
+		await expect.element(page.getByText(m.deleted_missing())).toBeVisible();
+	} finally {
+		worker.stop();
+	}
+});
+
+test("restoring a read-only dashboard says why, by cause", async () => {
+	const info = vi.spyOn(toast, "info");
+	const { app, worker } = await trashedApp();
+	try {
+		const get = vi.spyOn(app.sessions, "get");
+		for (const [readOnly, message] of [
+			["newer", m.deleted_restore_read_only()],
+			["invalid", m.deleted_restore_unreadable()],
+			["unkept", m.deleted_restore_unkept()]
+		] as const) {
+			get.mockResolvedValue({ readOnly } as never);
+			await restoreDeleted(app, "d1");
+			expect(info).toHaveBeenLastCalledWith(message);
+		}
+	} finally {
+		worker.stop();
+	}
+});
+
+test("restoring a read-only dashboard is an informational toast", async () => {
+	const info = vi.spyOn(toast, "info");
+	const error = vi.spyOn(toast, "error");
+	const { app, worker } = await trashedApp();
+	try {
+		vi.spyOn(app.sessions, "get").mockResolvedValue({ readOnly: "newer" } as never);
+		await restoreDeleted(app, "d1");
+		expect(info).toHaveBeenCalledWith(m.deleted_restore_read_only());
+		expect(error).not.toHaveBeenCalled();
 	} finally {
 		worker.stop();
 	}

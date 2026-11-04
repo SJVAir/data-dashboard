@@ -145,6 +145,10 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 								await ctx.page.emulateMedia({
 									reducedMotion: reduce === null ? null : reduce ? "reduce" : "no-preference"
 								});
+							},
+							/** Emulate `prefers-color-scheme` for the test page (null resets it). */
+							setColorScheme: async (ctx, scheme: "light" | "dark" | null) => {
+								await ctx.page.emulateMedia({ colorScheme: scheme });
 							}
 						}
 					}

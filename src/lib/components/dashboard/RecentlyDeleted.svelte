@@ -7,6 +7,7 @@
 	import { formatDate } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
+	import type { DeleteResult } from "$lib/sync/trash";
 	import { route } from "../../../router";
 
 	const app = useApp();
@@ -18,6 +19,17 @@
 		heading.focus();
 		heading.scrollIntoView({ block: "start" });
 	});
+
+	const deleteMessages: Record<
+		Exclude<DeleteResult, "deleted" | "restored-elsewhere">,
+		() => string
+	> = {
+		unreachable: () => m.deleted_unreachable(),
+		"not-saved": () => m.deleted_not_saved(),
+		unreadable: () => m.deleted_unreadable(),
+		newer: () => m.deleted_newer(),
+		missing: () => m.deleted_missing()
+	};
 
 	async function deleteNow(id: string) {
 		let position = -1;
@@ -48,13 +60,8 @@
 			if (result === "deleted") {
 				await app.index.remove(id);
 			} else {
-				toast.error(
-					result === "restored-elsewhere"
-						? m.deleted_restored_elsewhere()
-						: result === "unreachable"
-							? m.deleted_unreachable()
-							: m.deleted_not_saved()
-				);
+				if (result === "restored-elsewhere") toast.info(m.deleted_restored_elsewhere());
+				else toast.error(deleteMessages[result]());
 				await app.index.refresh();
 			}
 		} catch {
@@ -71,10 +78,10 @@
 </script>
 
 <section id="recently-deleted" class="flex flex-col gap-2">
-	<h2 bind:this={heading} tabindex="-1" class="text-lg font-medium outline-none">
+	<h2 bind:this={heading} tabindex="-1" class="text-base font-semibold outline-none">
 		{m.deleted_heading()}
 	</h2>
-	<ul class="border-border divide-border divide-y rounded-lg border">
+	<ul class="bg-card border-card-border shadow-card divide-border divide-y rounded-lg border">
 		{#each app.index.deleted as item (item.id)}
 			{@const name = app.index.deletedNames.get(item.id) ?? ""}
 			<li

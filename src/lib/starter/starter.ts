@@ -9,9 +9,9 @@ export const STARTER_ID = "starter";
 
 const STARTER_TIME = "2026-10-20T00:00:00Z";
 const STARTER_RECTS: Rect[] = [
-	{ x: 0, y: 0, w: 6, h: 4 },
-	{ x: 6, y: 0, w: 6, h: 4 },
-	{ x: 0, y: 4, w: 12, h: 4 }
+	{ x: 0, y: 0, w: 3, h: 4 },
+	{ x: 3, y: 0, w: 3, h: 4 },
+	{ x: 6, y: 0, w: 6, h: 4 }
 ];
 
 /** The built-in starter dashboard. Never stored; the first edit saves a copy. */

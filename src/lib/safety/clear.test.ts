@@ -32,4 +32,16 @@ describe("clearMyData", () => {
 		expect(platform.journal.list(a.space)).toEqual([]);
 		expect(await platform.documents.list(a.space)).toEqual([]);
 	});
+
+	it("resets the theme to Match my device, in this tab too", async () => {
+		const platform = createMemoryPlatform();
+		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "a" });
+		platform.display.setTheme("dark");
+		const heard: string[] = [];
+		platform.display.onThemeChange((choice) => heard.push(choice));
+
+		await clearMyData(app);
+		expect(platform.display.theme()).toBe("system");
+		expect(heard).toEqual(["system"]);
+	});
 });

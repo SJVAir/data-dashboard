@@ -12,7 +12,7 @@ import type { TabChannel, TabMessage } from "./tab-channel";
 
 export type SaveStatus = "saved" | "saving" | "error";
 export type Conflict = { pairs: Array<[Change, Change]> };
-export type ReadOnly = false | "newer" | "invalid";
+export type ReadOnly = false | "newer" | "invalid" | "unkept";
 export type ConflictChoice = "keep-mine" | "use-other" | "save-copy";
 /** Why the last save failed: storage full, or storage that couldn't be written at all. */
 export type SaveErrorKind = "quota" | "unavailable";
@@ -229,7 +229,7 @@ export class DocumentSession {
 			session = new DocumentSession({ ...common, doc: loaded.doc });
 			await session.#replayJournal();
 		} else if (loaded.status === "ok") {
-			session = new DocumentSession({ ...common, doc: loaded.doc, readOnly: "invalid" });
+			session = new DocumentSession({ ...common, doc: loaded.doc, readOnly: "unkept" });
 		} else {
 			if (fromVersion !== null && fromVersion < CURRENT_SCHEMA_VERSION) {
 				report(new Error("A stored dashboard couldn't be upgraded"), {

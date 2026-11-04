@@ -110,18 +110,20 @@
 	{#if view.kind === "opening"}
 		<p role="status">{m.import_opening()}</p>
 	{:else if view.kind === "error"}
-		<h1 class="text-xl font-semibold">
+		<h1 class="text-primary text-lg font-semibold">
 			{view.reason === "newer"
 				? m.import_newer()
 				: view.reason === "save"
 					? m.import_save_failed()
 					: m.import_link_invalid()}
 		</h1>
-		<a class="underline" href={p("/dashboards")}>{m.nav_dashboards()}</a>
+		<a class="text-link underline underline-offset-4" href={p("/dashboards")}
+			>{m.nav_dashboards()}</a
+		>
 	{:else if view.kind === "chunk-failed"}
 		<!-- The reload bar says what to do. -->
 	{:else}
-		<h1 class="text-xl font-semibold">{m.existing_copy_title()}</h1>
+		<h1 class="text-primary text-lg font-semibold">{m.existing_copy_title()}</h1>
 		<div class="flex flex-wrap gap-2">
 			<Button variant="outline" disabled={busy} onclick={() => choose("open")}>
 				{m.existing_copy_open()}

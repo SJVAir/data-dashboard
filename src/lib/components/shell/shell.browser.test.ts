@@ -1,10 +1,12 @@
-import { afterEach, expect, test } from "vitest";
+import "../../../app.css";
+import { afterEach, describe, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import type { Change } from "$lib/changes/types";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { navigate } from "../../../router";
 import TopNav from "./TopNav.svelte";
 
 const rename = (to: string): Change => ({
@@ -111,4 +113,84 @@ test("picker lists the registered dashboard actions", async () => {
 		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
 	}
 	await expect.element(page.getByRole("menuitem", { name: "Add widget" })).not.toBeInTheDocument();
+});
+
+/** A token's color, resolved the same way the browser resolves it in a shadow. */
+function tokenColor(token: string): string {
+	const probe = document.createElement("span");
+	probe.style.color = `var(${token})`;
+	document.body.append(probe);
+	const color = getComputedStyle(probe).color;
+	probe.remove();
+	return color;
+}
+
+test("the current page's link is marked and underlined: navy in light, sky in dark", async () => {
+	const { app } = await setup();
+	await navigate("/dashboards");
+	await renderNav(app);
+	const link = page.getByRole("link", { name: "Dashboards" });
+	await expect.element(link).toHaveAttribute("aria-current", "page");
+	try {
+		// Light: the navy primary carries the 3:1 cue (sky on white is only 2.27:1).
+		document.documentElement.setAttribute("data-theme", "light");
+		let underline = getComputedStyle(link.element()).boxShadow;
+		expect(underline).toContain(tokenColor("--primary"));
+		expect(underline).toMatch(/0px -2px 0px 0px inset$/);
+		// Dark: sky reads at 7:1 on the dark page.
+		document.documentElement.setAttribute("data-theme", "dark");
+		underline = getComputedStyle(link.element()).boxShadow;
+		expect(underline).toContain(tokenColor("--highlight"));
+		expect(underline).toMatch(/0px -2px 0px 0px inset$/);
+	} finally {
+		document.documentElement.removeAttribute("data-theme");
+		await navigate("/");
+	}
+});
+
+describe("logo", () => {
+	afterEach(async () => {
+		document.documentElement.removeAttribute("data-theme");
+		await page.viewport(1280, 720);
+	});
+
+	const visible = (el: Element) => getComputedStyle(el).display !== "none";
+	const logos = (root: ParentNode) => ({
+		full: root.querySelector<HTMLImageElement>("img[data-logo=full]")!,
+		white: root.querySelector<HTMLImageElement>("img[data-logo=white]")!,
+		compact: root.querySelector<HTMLImageElement>("img[data-logo=compact]")!
+	});
+
+	test("the home link is named by the app name and holds a decorative image", async () => {
+		const { app } = await setup();
+		await renderNav(app);
+		const link = page.getByRole("link", { name: "SJVAir Dashboard" });
+		await expect.element(link).toBeInTheDocument();
+		const el = link.element();
+		for (const img of Object.values(logos(el))) expect(img.getAttribute("alt")).toBe("");
+	});
+
+	test("desktop shows the full logo; dark mode swaps in the white one", async () => {
+		await page.viewport(1280, 720);
+		const { app } = await setup();
+		await renderNav(app);
+		const el = page.getByRole("link", { name: "SJVAir Dashboard" }).element();
+		const l = logos(el);
+		expect(visible(l.full)).toBe(true);
+		expect(visible(l.white)).toBe(false);
+		expect(visible(l.compact)).toBe(false);
+		document.documentElement.setAttribute("data-theme", "dark");
+		expect(visible(l.full)).toBe(false);
+		expect(visible(l.white)).toBe(true);
+	});
+
+	test("a phone shows the compact mark", async () => {
+		await page.viewport(390, 800);
+		const { app } = await setup();
+		await renderNav(app);
+		const l = logos(page.getByRole("link", { name: "SJVAir Dashboard" }).element());
+		expect(visible(l.compact)).toBe(true);
+		expect(visible(l.full)).toBe(false);
+		expect(visible(l.white)).toBe(false);
+	});
 });

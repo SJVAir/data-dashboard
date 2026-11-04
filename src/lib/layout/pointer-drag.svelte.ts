@@ -111,7 +111,8 @@ export function resizedRect(
  * Follow one pointer from its press (`event`) on `handle` (the title bar or a resize handle):
  * once it has moved `threshold` px the widget is picked up; it then moves (following the
  * pointer with a transform) or resizes, snapping the arrangement's target only when the cell
- * changes, and autoscrolls near the viewport's top and bottom. Release drops; Escape,
+ * changes, and autoscrolls while the pointer is near the viewport's top or bottom (asking for
+ * animation frames only then). Release drops; Escape,
  * `pointercancel`, and the window losing focus cancel. Returns a function that abandons the
  * drag (cancelling the arrangement without an announcement), e.g. when the frame goes away.
  * The drag also ends, unannounced, once the arrangement is no longer its own, and is cancelled
@@ -130,7 +131,10 @@ export function startPointerDrag(
 	/** Whether the drag has moved (past `threshold` when lifted; always once a drag starts otherwise). */
 	let moved = false;
 	let ended = false;
+	/** The autoscroll's queued animation frame, or 0 (none: the pointer is out of the edge zone). */
 	let frameRequest = 0;
+	/** Stops watching the arrangement (set once the drag starts). */
+	let unwatch: (() => void) | null = null;
 	const width = window.innerWidth;
 
 	// Set when the drag starts.
@@ -161,7 +165,7 @@ export function startPointerDrag(
 			const before = arrangement.active;
 			arrangement.pickUp(id, kind.mode, input);
 			if (before && mine()) opts.replaced?.(before.id);
-		}
+		} else arrangement.setMode(kind.mode);
 		const item = arrangement.preview?.find((i) => i.id === id);
 		if (!mine() || !item) return false;
 		started = true;
@@ -175,7 +179,14 @@ export function startPointerDrag(
 		grab = { x: startPage.x - natural.x, y: startPage.y - natural.y };
 		startRect = item.rect;
 		minSize = item.minSize;
-		frameRequest = requestAnimationFrame(autoscroll);
+		// The drag ends, unannounced, once the arrangement is no longer its own (cancelled or
+		// taken over elsewhere), even if the pointer doesn't move again.
+		unwatch = $effect.root(() => {
+			$effect(() => {
+				if (!mine()) queueMicrotask(end);
+			});
+		});
+		startAutoscroll();
 		return true;
 	}
 
@@ -228,18 +239,33 @@ export function startPointerDrag(
 		return true;
 	}
 
+	/** How far (px per frame) to scroll for the pointer where it is now: 0 outside the edge zone. */
+	function scrollStep(): number {
+		const y = client.y;
+		const bottom = window.innerHeight - AUTOSCROLL_EDGE;
+		if (y < AUTOSCROLL_EDGE) return -speed(AUTOSCROLL_EDGE - y);
+		if (y > bottom) return speed(y - bottom);
+		return 0;
+	}
+
+	/** Start the autoscroll loop if the pointer has entered the edge zone (and it isn't running). */
+	function startAutoscroll(): void {
+		if (frameRequest === 0 && !ended && scrollStep() !== 0) {
+			frameRequest = requestAnimationFrame(autoscroll);
+		}
+	}
+
+	/** One autoscroll frame; the loop stops once the pointer leaves the edge zone. */
 	function autoscroll(): void {
+		frameRequest = 0;
 		if (!mine()) {
 			end();
 			return;
 		}
-		const y = client.y;
-		const bottom = window.innerHeight - AUTOSCROLL_EDGE;
-		let step = 0;
-		if (y < AUTOSCROLL_EDGE) step = -speed(AUTOSCROLL_EDGE - y);
-		else if (y > bottom) step = speed(y - bottom);
+		const step = scrollStep();
+		if (step === 0) return;
 		// The scroll event that follows updates the target.
-		if (step !== 0) window.scrollBy({ top: step, behavior: "instant" });
+		window.scrollBy({ top: step, behavior: "instant" });
 		frameRequest = requestAnimationFrame(autoscroll);
 	}
 
@@ -270,6 +296,7 @@ export function startPointerDrag(
 			moved = true;
 		}
 		update();
+		startAutoscroll();
 	}
 
 	function onUp(e: PointerEvent): void {
@@ -312,6 +339,9 @@ export function startPointerDrag(
 		window.removeEventListener("scroll", onScroll);
 		window.removeEventListener("resize", onResize);
 		cancelAnimationFrame(frameRequest);
+		frameRequest = 0;
+		unwatch?.();
+		unwatch = null;
 		frame.style.transform = "";
 		try {
 			if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);

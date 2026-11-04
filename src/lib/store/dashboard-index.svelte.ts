@@ -34,7 +34,7 @@ const optionalString = (value: unknown): string | undefined =>
 
 /**
  * The summary of a stored document, or `null` to leave it out. Documents a newer version
- * saved are listed by their stored fields when those are readable; invalid ones are skipped.
+ * saved are listed by their stored fields when those are readable; invalid ones are skipped (and listed in `unreadable`).
  */
 function summarize(raw: unknown): DashboardSummary | null {
 	const loaded = loadDashboard(raw);
@@ -66,9 +66,15 @@ function pick(doc: Dashboard): DashboardSummary {
  */
 export class DashboardIndex {
 	items = $state.raw<DashboardSummary[]>([]);
-	names = $derived(displayNames(this.items, STARTER_ID));
 	deleted = $state.raw<DashboardSummary[]>([]);
-	deletedNames = $derived(displayNames(this.deleted, STARTER_ID));
+	/** One pass over live and deleted together, so a dashboard keeps its name when deleted. */
+	#allNames = $derived(displayNames([...this.items, ...this.deleted], STARTER_ID));
+	names = $derived(this.#allNames);
+	deletedNames = $derived(this.#allNames);
+	/** Invalid stored documents that have an id (so can be removed), with their `updatedAt`. */
+	unreadable = $state.raw<Array<{ id: string; updatedAt?: string }>>([]);
+	/** Every stored document, readable or not, including deleted ones and ones with no id. */
+	storedCount = $state(0);
 
 	readonly #platform: Platform;
 	readonly #space: SpaceId;
@@ -119,8 +125,15 @@ export class DashboardIndex {
 		for (const { docId, record } of this.#platform.journal.list(this.#space)) {
 			pending.set(docId, [...(pending.get(docId) ?? []), { record }]);
 		}
-		const all = raws
-			.map(summarize)
+		this.storedCount = raws.length;
+		const summaries = raws.map((raw) => ({ raw, summary: summarize(raw) }));
+		this.unreadable = summaries
+			.filter(({ summary }) => summary === null)
+			.map(({ raw }) => raw as { id?: unknown; updatedAt?: unknown } | null)
+			.filter((raw) => typeof raw?.id === "string")
+			.map((raw) => ({ id: raw!.id as string, updatedAt: optionalString(raw!.updatedAt) }));
+		const all = summaries
+			.map(({ summary }) => summary)
 			.filter((d): d is DashboardSummary => d !== null)
 			.map((d) => {
 				const name = pendingName(pending.get(d.id) ?? []);
@@ -141,6 +154,30 @@ export class DashboardIndex {
 		const stored = await documents.get(this.#space, id);
 		const deletedAt = (stored as { deletedAt?: unknown } | null | undefined)?.deletedAt;
 		if (typeof deletedAt !== "string") {
+			await this.refresh();
+			return;
+		}
+		await documents.remove(this.#space, id);
+		for (const { docId, tabId } of journal.list(this.#space)) {
+			if (docId === id) journal.clear(this.#space, docId, tabId);
+		}
+		await forgetDocument(this.#platform, this.#space, id);
+		this.#channel?.post({
+			type: "committed",
+			space: this.#space,
+			docId: id,
+			version: 0,
+			tabId: this.#tabId
+		});
+		await this.refresh();
+	}
+
+	/** Deletes a dashboard that can't be opened, with its journal records and fingerprints. */
+	async removeUnreadable(id: string): Promise<void> {
+		const { documents, journal } = this.#platform;
+		// Readable (or already gone) by now, e.g. fixed in another tab: leave it.
+		const stored = await documents.get(this.#space, id);
+		if (stored === undefined || summarize(stored) !== null) {
 			await this.refresh();
 			return;
 		}

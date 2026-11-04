@@ -126,6 +126,11 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	if (!target.isStarter) await target.session.flush();
 	const copyId = await app.index.duplicate(target.isStarter ? STARTER_ID : target.session.doc.id);
 	await openDashboard(copyId);
+	await nameOpenedCopy(app, copyId);
+}
+
+/** Asks what to call a copy that was just opened (Duplicate and "Save mine as a copy"). */
+export async function nameOpenedCopy(app: AppContext, copyId: string): Promise<void> {
 	const copy = await app.sessions.get(copyId);
 	if (copy) renameDashboard(app, () => copy);
 }
@@ -201,7 +206,12 @@ export async function restoreDeleted(app: AppContext, id: string): Promise<void>
 	const session = await app.sessions.get(id, { remember: false });
 	if (!session) return;
 	if (session.readOnly) {
-		toast.error(m.deleted_restore_read_only());
+		const why = {
+			newer: m.deleted_restore_read_only,
+			invalid: m.deleted_restore_unreadable,
+			unkept: m.deleted_restore_unkept
+		}[session.readOnly];
+		toast.info(why());
 		return;
 	}
 	if (session.doc.deletedAt === undefined) return;

@@ -1,6 +1,6 @@
 import { z } from "$lib/zod";
 import { ChangeSchema } from "$lib/changes/types";
-import { CURRENT_SCHEMA_VERSION } from "$lib/documents/schema";
+import { CURRENT_SCHEMA_VERSION, normalizeName } from "$lib/documents/schema";
 
 /**
  * A tab's unsaved changes, written synchronously on `pagehide` (`platform.journal`) and
@@ -49,7 +49,8 @@ export function pendingName(records: Array<{ record: unknown }>): string | null 
 		if (op !== "setField" || typeof target !== "object" || target === null) continue;
 		const { path, widgetId } = target as { path?: unknown; widgetId?: unknown };
 		if (path !== "name" || widgetId !== undefined) continue;
-		if (typeof to === "string" || to === null) return to;
+		if (typeof to === "string") return normalizeName(to);
+		if (to === null) return null;
 	}
 	return undefined;
 }

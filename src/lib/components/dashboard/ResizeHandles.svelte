@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ResizeEdge } from "$lib/layout/pointer-drag";
+	import type { ResizeEdge } from "$lib/layout/pointer-drag.svelte";
 
 	let {
 		phone,

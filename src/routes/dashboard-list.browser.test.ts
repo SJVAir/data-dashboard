@@ -2,6 +2,8 @@ import "../app.css";
 import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
+import ConfirmDialog from "$lib/components/dialogs/ConfirmDialog.svelte";
+import RenameDialog from "$lib/components/dialogs/RenameDialog.svelte";
 import ConflictDialog from "$lib/components/dialogs/ConflictDialog.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { m } from "$lib/paraglide/messages.js";
@@ -49,6 +51,55 @@ test("list shows dashboards by display name, newest first", async () => {
 		.toBeVisible();
 });
 
+test("a dashboard that can't be opened is listed with Download and Delete", async () => {
+	const app = await setup();
+	await app.platform.documents.commit(app.space, {
+		docId: "bad",
+		baseVersion: null,
+		doc: { kind: "dashboard", schemaVersion: 1, id: "bad" } as never,
+		entries: []
+	});
+	await app.index.refresh();
+	await render(DashboardList, {
+		context: new Map([[APP_CONTEXT_KEY, app]])
+	});
+	const row = page.getByTestId("dashboard-row-bad");
+	await expect.element(row.getByText("A dashboard that can't be opened")).toBeVisible();
+	expect(row.getByRole("link").elements()).toHaveLength(0);
+	await expect.element(row.getByRole("button", { name: "Download" })).toBeVisible();
+	await row.getByRole("button", { name: "Delete" }).click();
+	await render(ConfirmDialog);
+	await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+	await vi.waitFor(async () =>
+		expect(await app.platform.documents.get(app.space, "bad")).toBeUndefined()
+	);
+});
+
+test("unreadable rows tell their buttons apart", async () => {
+	const app = await setup();
+	for (const [id, updatedAt] of [
+		["bad1", "2026-10-01T12:00:00.000Z"],
+		["bad2", undefined]
+	] as const) {
+		await app.platform.documents.commit(app.space, {
+			docId: id,
+			baseVersion: null,
+			doc: { kind: "dashboard", schemaVersion: 1, id, updatedAt } as never,
+			entries: []
+		});
+	}
+	await app.index.refresh();
+	await render(DashboardList, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	const describedBy = (id: string) => {
+		const button = page.getByTestId(`dashboard-row-${id}`).getByRole("button", { name: "Delete" });
+		const ids = button.element().getAttribute("aria-describedby")!.split(" ");
+		return ids.map((i) => document.getElementById(i)?.textContent).join(" ");
+	};
+	expect(describedBy("bad1")).toContain("Last saved Oct 1, 2026");
+	expect(describedBy("bad2")).toContain("Reference bad2");
+	expect(describedBy("bad1")).not.toBe(describedBy("bad2"));
+});
+
 test("row menu deletes that dashboard", async () => {
 	const app = await setup();
 	await app.index.createBlank();
@@ -89,6 +140,26 @@ test("conflict dialog choices call resolveConflict", async () => {
 		"use-other",
 		"save-copy"
 	]);
+});
+
+test("saving mine as a copy opens the copy with the rename dialog", async () => {
+	const app = await setup();
+	const copyId = await app.index.createBlank();
+	const resolveConflict = vi.fn<(choice: string) => Promise<string | null>>(async () => copyId);
+	app.current = {
+		session: { conflict: { pairs: [] }, resolveConflict } as unknown as DocumentSession,
+		isStarter: false
+	};
+	await render(RenameDialog);
+	await render(ConflictDialog, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await page.getByRole("button", { name: "Save mine as a copy" }).click();
+	await expect.element(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
+	// Leave no dialog open for the tests after this one.
+	app.current = { session: null, isStarter: false };
+	await userEvent.keyboard("{Escape}");
+	await expect
+		.element(page.getByRole("dialog", { name: "Rename dashboard" }))
+		.not.toBeInTheDocument();
 });
 
 test("conflict dialog can't be dismissed without a choice", async () => {
@@ -147,7 +218,7 @@ test("a row scope inside the page scope leaves one set of manage actions", async
 	outer.remove();
 });
 
-test("the list marks dashboards only on this device", async () => {
+test("the list marks dashboards only in this browser", async () => {
 	const { app, refuseSaves, worker } = await accountApp(["d1", "d2"]);
 	try {
 		// The first upload in the sweep is refused; the other reaches the account.
@@ -164,21 +235,21 @@ test("the list marks dashboards only on this device", async () => {
 		const held = Object.entries(worker.states).find(([, s]) => s.state === "held")![0];
 		const synced = held === "d1" ? "d2" : "d1";
 		const heldRow = page.getByTestId(`dashboard-row-${held}`);
-		await expect.element(heldRow.getByText("Only on this device")).toBeVisible();
+		await expect.element(heldRow.getByText("Only in this browser")).toBeVisible();
 		await expect.element(heldRow.getByText(m.sync_refused_limit_documents())).toBeVisible();
 		expect(
-			page.getByTestId(`dashboard-row-${synced}`).getByText("Only on this device").query()
+			page.getByTestId(`dashboard-row-${synced}`).getByText("Only in this browser").query()
 		).toBeNull();
 		// The link is named by the dashboard alone; the status describes it.
 		const link = heldRow.getByRole("link").element();
-		expect(link.textContent).not.toContain("Only on this device");
+		expect(link.textContent).not.toContain("Only in this browser");
 		const status = document.getElementById(link.getAttribute("aria-describedby") ?? "");
-		expect(status?.textContent).toContain("Only on this device");
+		expect(status?.textContent).toContain("Only in this browser");
 		expect(status?.textContent).toContain(m.sync_refused_limit_documents());
 		await expect.element(heldRow.getByRole("link")).toHaveAccessibleName(/^Untitled dashboard/);
 		await expect
 			.element(heldRow.getByRole("link"))
-			.toHaveAccessibleDescription(`Only on this device ${m.sync_refused_limit_documents()}`);
+			.toHaveAccessibleDescription(`Only in this browser ${m.sync_refused_limit_documents()}`);
 		expect(
 			page.getByTestId(`dashboard-row-${synced}`).getByRole("link").element()
 		).not.toHaveAttribute("aria-describedby");

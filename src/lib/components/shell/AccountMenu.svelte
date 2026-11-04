@@ -18,6 +18,7 @@
 	import { spaceFor } from "$lib/account/identity";
 	import { displayName, greetingName, initials } from "$lib/account/names";
 	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
+	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import SignOutDialog from "$lib/components/dialogs/SignOutDialog.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
@@ -126,7 +127,7 @@
 			aria-label={name && letters
 				? m.account_menu_for({ initials: letters, name })
 				: m.account_menu()}
-			class="border-border bg-muted text-foreground focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-full border text-xs font-semibold focus-visible:ring-2 focus-visible:outline-none"
+			class="border-border bg-muted text-foreground inline-flex size-8 items-center justify-center rounded-full border text-xs font-semibold"
 		>
 			{#if letters}
 				<span aria-hidden="true">{letters}</span>
@@ -135,17 +136,20 @@
 			{/if}
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Content bind:ref={content} align="end" class="min-w-56">
-			<DropdownMenu.Label class="text-foreground text-sm font-semibold">
-				{first ? m.account_greeting({ name: first }) : m.account_greeting_unnamed()}
-			</DropdownMenu.Label>
-			<DropdownMenu.Label>
-				{name ? m.account_signed_in_as({ name }) : m.account_signed_in_unnamed()}
-			</DropdownMenu.Label>
+			<DropdownMenu.Group>
+				<DropdownMenu.Label class="text-foreground text-sm font-semibold">
+					{first ? m.account_greeting({ name: first }) : m.account_greeting_unnamed()}
+				</DropdownMenu.Label>
+				<DropdownMenu.Label>
+					{name ? m.account_signed_in_as({ name }) : m.account_signed_in_unnamed()}
+				</DropdownMenu.Label>
+			</DropdownMenu.Group>
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item>
 				{#snippet child({ props })}
 					<a {...props} href={app.platform.identity.accountUrl()} target="_blank" rel="noopener">
 						{m.account_settings()}
+						<ExternalLinkCue />
 					</a>
 				{/snippet}
 			</DropdownMenu.Item>

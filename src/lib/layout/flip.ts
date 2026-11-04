@@ -1,39 +1,68 @@
 /**
- * FLIP for the dashboard grid: `measure` the items' positions before the DOM changes, then
- * `play` after it, and each item that moved animates from where it was with a transform. The
- * duration and easing are the theme's motion tokens, which are 0 ms under reduced motion.
+ * FLIP for the dashboard grid: `measure` the items' boxes before the DOM changes, then `play`
+ * after it, and each item that moved animates from where it was with a transform. The one
+ * widget being arranged also animates its width and height when it was resized; everything else
+ * only slides, so layout work stays on one item. When the column count changed since the last
+ * `measure` (the phone breakpoint), nothing animates: every item would. The duration and easing
+ * are the theme's motion tokens, which are 0 ms under reduced motion.
  *
  * Items are the container's children with a `data-flip-id`.
  */
 export class Flip {
 	#before = new Map<string, DOMRect>();
 	#running = new Map<string, Animation>();
+	/** The column count at the last `measure`. */
+	#columns: number | null = null;
+	/** The columns changed at this `measure`: the next `play` jumps. */
+	#jump = false;
 
-	/** Record where every item is now (as shown, so an interrupted animation continues). */
-	measure(container: HTMLElement | null): void {
+	/**
+	 * Record where every item is now (as shown, so an interrupted animation continues), on a
+	 * grid of `columns`.
+	 */
+	measure(container: HTMLElement | null, columns: number): void {
 		this.#before.clear();
+		this.#jump = this.#columns !== null && this.#columns !== columns;
+		this.#columns = columns;
 		if (!container) return;
 		for (const [id, el] of items(container)) this.#before.set(id, el.getBoundingClientRect());
 	}
 
-	/** Animate every item that moved since `measure`, except `skip` (it follows the pointer). */
-	play(container: HTMLElement | null, skip: string | null = null): void {
+	/**
+	 * Animate every item that moved since `measure`, except `skip` (it follows the pointer);
+	 * `sized` (the widget being arranged) also animates a change of size.
+	 */
+	play(
+		container: HTMLElement | null,
+		{ skip = null, sized = null }: { skip?: string | null; sized?: string | null } = {}
+	): void {
 		const before = this.#before;
 		if (!container || before.size === 0) return;
+		const jump = this.#jump;
+		this.#jump = false;
 		const { duration, easing } = motion(container);
 		for (const [id, el] of items(container)) {
 			this.#running.get(id)?.cancel();
 			this.#running.delete(id);
 			const from = before.get(id);
-			if (!from || id === skip || duration <= 0) continue;
+			if (!from || jump || id === skip || duration <= 0) continue;
 			const to = el.getBoundingClientRect();
 			const dx = from.left - to.left;
 			const dy = from.top - to.top;
-			if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-			const animation = el.animate(
-				[{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-				{ duration, easing }
-			);
+			const resized =
+				id === sized &&
+				(Math.abs(from.width - to.width) >= 0.5 || Math.abs(from.height - to.height) >= 0.5);
+			if (!resized && Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+			const slide = { transform: `translate(${dx}px, ${dy}px)` };
+			// A resized item animates its box, not a scale: its content reflows as it goes rather
+			// than being stretched.
+			const keyframes = resized
+				? [
+						{ ...slide, width: `${from.width}px`, height: `${from.height}px` },
+						{ transform: "none", width: `${to.width}px`, height: `${to.height}px` }
+					]
+				: [slide, { transform: "none" }];
+			const animation = el.animate(keyframes, { duration, easing });
 			this.#running.set(id, animation);
 			animation.onfinish = () => {
 				if (this.#running.get(id) === animation) this.#running.delete(id);

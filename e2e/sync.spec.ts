@@ -38,7 +38,7 @@ function savedToAccount(page: Page): Locator {
 }
 
 function savedOnDevice(page: Page): Locator {
-	return nav(page).getByText("Saved on this device", { exact: true });
+	return nav(page).getByText("Saved in this browser", { exact: true });
 }
 
 function deviceConflict(page: Page): Locator {
@@ -313,10 +313,10 @@ test("moving this browser's dashboards into the account", async ({
 
 	accountServer.set(maria);
 	await page.reload();
-	const dialog = page.getByRole("dialog", { name: "Dashboards on this browser" });
+	const dialog = page.getByRole("dialog", { name: "Dashboards in this browser" });
 	await expect(dialog).toBeVisible();
 	await expect(
-		dialog.getByText("Add the dashboard made on this browser to your account?")
+		dialog.getByText("Add the dashboard made in this browser to your account?")
 	).toBeVisible();
 	await expectNoViolations(page);
 	await dialog.getByRole("button", { name: "Add to my account" }).click();

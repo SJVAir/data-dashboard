@@ -11,6 +11,7 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { MOVE_OFFER_KEY } from "$lib/sync/move-to-account";
 import { ACCOUNT, SPACE, makeDoc, user } from "$lib/sync/test-support";
 import MoveToAccountDialog from "./MoveToAccountDialog.svelte";
+import { animationsSettled } from "../../../test/animations";
 
 /** A signed-in app whose browser holds `count` signed-out dashboards. */
 async function withAnonymous(count: number) {
@@ -37,7 +38,7 @@ async function withAnonymous(count: number) {
 async function expectNoAxeViolations() {
 	// After the open animation: mid-fade, the text's contrast is measured too low.
 	const dialog = page.getByRole("dialog").element();
-	await Promise.all(dialog.getAnimations({ subtree: true }).map((a) => a.finished));
+	await animationsSettled(dialog);
 	const results = await axe.run(dialog);
 	expect(results.violations).toEqual([]);
 }
@@ -47,9 +48,9 @@ test("the question counts dashboards in words", async () => {
 	const first = await render(MoveToAccountDialog, {
 		context: new Map([[APP_CONTEXT_KEY, one.app]])
 	});
-	const dialog = page.getByRole("dialog", { name: "Dashboards on this browser" });
+	const dialog = page.getByRole("dialog", { name: "Dashboards in this browser" });
 	await expect
-		.element(dialog.getByText("Add the dashboard made on this browser to your account?"))
+		.element(dialog.getByText("Add the dashboard made in this browser to your account?"))
 		.toBeVisible();
 	await expect
 		.element(
@@ -59,14 +60,14 @@ test("the question counts dashboards in words", async () => {
 		)
 		.toBeVisible();
 	await expect.element(dialog.getByRole("button", { name: "Add to my account" })).toBeVisible();
-	await expect.element(dialog.getByRole("button", { name: "Keep on this browser" })).toBeVisible();
+	await expect.element(dialog.getByRole("button", { name: "Keep in this browser" })).toBeVisible();
 	await expectNoAxeViolations();
 	await first.unmount();
 
 	const many = await withAnonymous(3);
 	await render(MoveToAccountDialog, { context: new Map([[APP_CONTEXT_KEY, many.app]]) });
 	await expect
-		.element(dialog.getByText("Add the 3 dashboards made on this browser to your account?"))
+		.element(dialog.getByText("Add the 3 dashboards made in this browser to your account?"))
 		.toBeVisible();
 	await expect
 		.element(
@@ -97,7 +98,7 @@ test("Escape dismisses it without an answer", async () => {
 test("no keeps them here and stores the answer", async () => {
 	const { app, platform } = await withAnonymous(2);
 	await render(MoveToAccountDialog, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await page.getByRole("button", { name: "Keep on this browser" }).click();
+	await page.getByRole("button", { name: "Keep in this browser" }).click();
 	await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
 	await expect.poll(() => platform.preferences.get(SPACE, MOVE_OFFER_KEY)).toBe("no");
 	expect(await platform.documents.list("anonymous")).toHaveLength(2);

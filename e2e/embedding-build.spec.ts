@@ -25,15 +25,18 @@ test("deep routes and the bare mount path render the shell from /workspace/ file
 	await expect(nav(fresh)).toBeVisible();
 });
 
-test("the web app manifest is served and its icon loads", async ({ request, baseURL }) => {
+test("the web app manifest is served and its icons load", async ({ request, baseURL }) => {
 	const response = await request.get(new URL("/workspace/manifest.webmanifest", baseURL).href);
 	expect(response.ok()).toBe(true);
 	const manifest = await response.json();
 	expect(manifest.start_url).toBe("/workspace/");
 	expect(manifest.scope).toBe("/workspace/");
-	const icon = await request.get(
-		new URL(manifest.icons[0].src, new URL("/workspace/manifest.webmanifest", baseURL)).href
-	);
-	expect(icon.ok()).toBe(true);
-	expect(icon.headers()["content-type"]).toContain("image/png");
+	expect(manifest.icons).toHaveLength(4);
+	for (const entry of manifest.icons) {
+		const icon = await request.get(
+			new URL(entry.src, new URL("/workspace/manifest.webmanifest", baseURL)).href
+		);
+		expect(icon.ok(), entry.src).toBe(true);
+		expect(icon.headers()["content-type"]).toContain("image/png");
+	}
 });

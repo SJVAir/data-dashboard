@@ -13,6 +13,8 @@ describe("layout items", () => {
 	test("the fallback minimum is the placeholder's", () => {
 		expect(FALLBACK_MIN_SIZE).toEqual(placeholderType.minSize);
 		expect(FALLBACK_MIN_SIZE).toEqual({ w: 3, h: 2 });
+		// Shared by every unregistered widget and the placeholder type: nobody may change it.
+		expect(Object.isFrozen(FALLBACK_MIN_SIZE)).toBe(true);
 	});
 
 	test("known types use their own minimum", () => {

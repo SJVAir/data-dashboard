@@ -1,10 +1,14 @@
 import { readFileSync } from "node:fs";
 import type { Plugin } from "vite";
 
+type Icon = { src: string; sizes: string; purpose?: "any" | "maskable" };
+
 const ICONS = [
-	{ name: "icon-192.png", sizes: "192x192" },
-	{ name: "icon-512.png", sizes: "512x512" }
-];
+	{ name: "icon-192.png", sizes: "192x192", purpose: "any" },
+	{ name: "icon-512.png", sizes: "512x512", purpose: "any" },
+	{ name: "maskable-192.png", sizes: "192x192", purpose: "maskable" },
+	{ name: "maskable-512.png", sizes: "512x512", purpose: "maskable" }
+] as const;
 const ICON_DIR = new URL("../static-src/icons/", import.meta.url);
 
 function srgb(linear: number): number {
@@ -41,7 +45,7 @@ export function buildManifest(opts: {
 	shortName: string;
 	themeColor: string;
 	backgroundColor: string;
-	icons: Array<{ src: string; sizes: string }>;
+	icons: Icon[];
 }): object {
 	return {
 		name: opts.name,
@@ -55,13 +59,16 @@ export function buildManifest(opts: {
 	};
 }
 
-function lightToken(css: string, token: string): string {
-	const match = new RegExp(`${token}:\\s*(oklch\\([^)]*\\))`).exec(css);
+/** Reads a color token from the light `:root { … }` block (not the dark blocks). */
+export function lightToken(css: string, token: string): string {
+	const block = /(?:^|\n):root\s*\{([^}]*)\}/.exec(css);
+	if (!block) throw new Error("Light :root block not found in src/app.css");
+	const match = new RegExp(`${token}:\\s*(oklch\\([^)]*\\))`).exec(block[1]);
 	if (!match) throw new Error(`${token} not found in src/app.css`);
 	return oklchToHex(match[1]);
 }
 
-function manifestFor(icons: Array<{ src: string; sizes: string }>): object {
+function manifestFor(icons: Icon[]): object {
 	const css = readFileSync(new URL("../src/app.css", import.meta.url), "utf8");
 	const messages = JSON.parse(
 		readFileSync(new URL("../messages/en.json", import.meta.url), "utf8")
@@ -90,7 +97,9 @@ export function webManifest(): Plugin {
 					res.setHeader("Content-Type", "application/manifest+json");
 					res.end(
 						JSON.stringify(
-							manifestFor(ICONS.map((i) => ({ src: `icons/${i.name}`, sizes: i.sizes })))
+							manifestFor(
+								ICONS.map((i) => ({ src: `icons/${i.name}`, sizes: i.sizes, purpose: i.purpose }))
+							)
 						)
 					);
 					return;
@@ -111,7 +120,11 @@ export function webManifest(): Plugin {
 					name: icon.name,
 					source: readFileSync(new URL(icon.name, ICON_DIR))
 				});
-				return { src: this.getFileName(id).replace(/^workspace\//, ""), sizes: icon.sizes };
+				return {
+					src: this.getFileName(id).replace(/^workspace\//, ""),
+					sizes: icon.sizes,
+					purpose: icon.purpose
+				};
 			});
 			this.emitFile({
 				type: "asset",

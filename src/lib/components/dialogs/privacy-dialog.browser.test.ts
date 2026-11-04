@@ -35,7 +35,11 @@ test("signed out: the title, every paragraph, and the notices link", async () =>
 		await expect.element(dialog.getByText(text)).toBeVisible();
 	}
 	await expect
-		.element(dialog.getByRole("link", { name: m.privacy_notices_link() }))
+		.element(
+			dialog.getByRole("link", {
+				name: `${m.privacy_notices_link()} ${m.opens_in_new_tab()}`
+			})
+		)
 		.toHaveAttribute("href", "https://s.example/static/workspace/THIRD-PARTY-NOTICES.txt");
 	expect(m.privacy_server_anonymous()).toContain("They are not sent to SJVAir's server.");
 	expect(m.privacy_server_anonymous()).not.toContain("live link");
@@ -75,7 +79,9 @@ test("the help menu offers the privacy note and a feedback link", async () => {
 	await render(PrivacyDialog, { context });
 	await render(HelpMenu, { context });
 	await page.getByRole("button", { name: m.help_menu() }).click();
-	const feedback = page.getByRole("menuitem", { name: m.feedback_link() });
+	const feedback = page.getByRole("menuitem", {
+		name: `${m.feedback_link()} ${m.opens_in_new_tab()}`
+	});
 	await expect.element(feedback).toHaveAttribute("href", "https://www.sjvair.com/contact/");
 	await expect.element(feedback).toHaveAttribute("target", "_blank");
 	await expect.element(feedback).toHaveAttribute("rel", "noopener");

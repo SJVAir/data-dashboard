@@ -27,3 +27,29 @@ test("LevelSwatch on a white background has no axe violations", async () => {
 	const results = await axe.run(container);
 	expect(results.violations).toEqual([]);
 });
+
+test("LevelSwatch on a dark card keeps its outline and visible label", async () => {
+	document.documentElement.setAttribute("data-theme", "dark");
+	const card = document.createElement("div");
+	card.className = "bg-card text-card-foreground p-4";
+	document.body.appendChild(card);
+	try {
+		const screen = await render(LevelSwatch, {
+			target: card,
+			props: { color: "#ffff00", label: "Moderate" }
+		});
+		const chip = card.querySelector("[data-swatch-chip]") as HTMLElement;
+		const style = getComputedStyle(chip);
+		expect(style.outlineStyle).toBe("solid");
+		expect(parseFloat(style.outlineWidth)).toBeGreaterThanOrEqual(1);
+		// The outline is the foreground (light on dark), not the card's own color.
+		expect(style.outlineColor).toBe(getComputedStyle(card).color);
+		expect(style.outlineColor).not.toBe(getComputedStyle(card).backgroundColor);
+		await expect.element(screen.getByText("Moderate")).toBeVisible();
+		const results = await axe.run(card);
+		expect(results.violations).toEqual([]);
+	} finally {
+		card.remove();
+		document.documentElement.removeAttribute("data-theme");
+	}
+});

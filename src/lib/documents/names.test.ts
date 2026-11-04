@@ -38,4 +38,38 @@ describe("displayNames", () => {
 		expect(names.get("x")).toBe("My dashboard");
 		expect(names.get("y")).toBe("My dashboard 2");
 	});
+
+	it("names an unnamed copy of a listed dashboard after it, and numbers several", () => {
+		const list = [
+			summary({ id: "mine", copiedFrom: "starter", createdAt: "2026-10-20T01:00:00Z" }),
+			summary({ id: "c1", copiedFrom: "mine", createdAt: "2026-10-20T02:00:00Z" }),
+			summary({ id: "c2", copiedFrom: "mine", createdAt: "2026-10-20T03:00:00Z" }),
+			summary({ id: "named", name: "Trip" }),
+			summary({ id: "c3", copiedFrom: "named", createdAt: "2026-10-20T04:00:00Z" })
+		];
+		const names = displayNames(list, "starter");
+		expect(names.get("mine")).toBe("My dashboard");
+		expect(names.get("c1")).toBe("Copy of My dashboard");
+		expect(names.get("c2")).toBe("Copy of My dashboard (2)");
+		expect(names.get("c3")).toBe("Copy of Trip");
+		expect(list.every((d) => d.name === null || d.id === "named")).toBe(true);
+	});
+
+	it("falls back to the Untitled rules for a missing source, itself, or a cycle", () => {
+		const names = displayNames(
+			[
+				summary({ id: "a", copiedFrom: "gone", createdAt: "2026-10-20T01:00:00Z" }),
+				summary({ id: "b", copiedFrom: "b", createdAt: "2026-10-20T02:00:00Z" }),
+				summary({ id: "c", copiedFrom: "d", createdAt: "2026-10-20T03:00:00Z" }),
+				summary({ id: "d", copiedFrom: "c", createdAt: "2026-10-20T04:00:00Z" })
+			],
+			"starter"
+		);
+		expect([...names.values()]).toEqual([
+			"Untitled dashboard",
+			"Untitled dashboard 2",
+			"Untitled dashboard 3",
+			"Untitled dashboard 4"
+		]);
+	});
 });
