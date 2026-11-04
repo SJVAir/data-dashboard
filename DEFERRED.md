@@ -399,7 +399,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
     "Deploy notes"; never unscoped bulk commands).
   - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 4.8.0
-    final can be cut (with the user's yes) once #293 is in production.
+    final can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04).
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
