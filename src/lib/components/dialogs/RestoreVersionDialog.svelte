@@ -133,7 +133,9 @@
 	}
 </script>
 
-<Dialog.Root open={restoring.open} {onOpenChange}>
+<!-- A function binding: bits-ui sets its own `open` before calling `onOpenChange`, so refusing
+	there wouldn't keep the dialog open during a restore. -->
+<Dialog.Root bind:open={() => restoring.open, (open) => onOpenChange(open)}>
 	<Dialog.Content>
 		<Dialog.Header>
 			<Dialog.Title>{m.restore_version_title()}</Dialog.Title>

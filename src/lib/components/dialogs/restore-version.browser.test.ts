@@ -153,6 +153,37 @@ test("Escape and Cancel don't close the dialog while a restore runs", async () =
 	await expect.element(dialog).not.toBeInTheDocument();
 });
 
+/** Longer than the dialog's close animation, so a dialog that started closing is gone by then. */
+const settle = () => new Promise((r) => setTimeout(r, 300));
+
+test("Escape, the X, and a click outside can't close it during a restore, even after the animation", async () => {
+	await render(RestoreVersionDialog);
+	let finish: (r: "unreachable") => void = () => {};
+	openRestoreVersion(loaded([daily]), () => new Promise((r) => (finish = r)));
+	const dialog = page.getByRole("dialog");
+	await dialog.getByRole("button", { name: "Restore", exact: true }).click();
+	await expect.element(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
+	await userEvent.keyboard("{Escape}");
+	await settle();
+	await expect.element(dialog).toBeInTheDocument();
+	await dialog.getByRole("button", { name: "Close" }).click({ force: true });
+	await settle();
+	await expect.element(dialog).toBeInTheDocument();
+	const overlay = document.querySelector('[data-slot="dialog-overlay"]');
+	if (!overlay) throw new Error("no overlay");
+	await page.elementLocator(overlay).click({ position: { x: 5, y: 5 } });
+	await settle();
+	await expect.element(dialog).toBeInTheDocument();
+	finish("unreachable");
+	await expect
+		.element(dialog.getByText(/Couldn't reach your account, so nothing was restored/))
+		.toBeVisible();
+	await dialog.getByRole("button", { name: "Cancel" }).click();
+	await expect.element(dialog).not.toBeInTheDocument();
+	openRestoreVersion(loaded([daily]), vi.fn());
+	await expect.element(page.getByRole("dialog").getByRole("radio").first()).toBeVisible();
+});
+
 test("reopening shows a fresh list with nothing selected and no old failure", async () => {
 	await render(RestoreVersionDialog);
 	openRestoreVersion(loaded([conflict, daily]), async () => "unreachable");
