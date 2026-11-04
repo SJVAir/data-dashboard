@@ -25,7 +25,12 @@
 	} from "$lib/layout/pointer-drag.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { getWidgetType } from "$lib/widgets/registry";
+	import {
+		getWidgetType,
+		loadWidget,
+		loadedWidget,
+		type WidgetModule
+	} from "$lib/widgets/registry";
 	import ResizeHandles from "./ResizeHandles.svelte";
 
 	let {
@@ -588,8 +593,27 @@
 	</div>
 	<!-- During a touch selection, touches on the body (and its handles and Done) don't scroll. -->
 	<div class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}>
+		{#snippet body(mod: WidgetModule)}
+			<mod.component {widget} {fullscreen} />
+		{/snippet}
 		{#if type}
-			<type.component {widget} {fullscreen} />
+			{@const loaded = loadedWidget(type)}
+			{#if loaded}
+				{@render body(loaded)}
+			{:else}
+				<!-- The type's code loads the first time one of its widgets is shown. -->
+				{#await loadWidget(type)}
+					<p class="text-muted-foreground flex h-full items-center justify-center text-sm">
+						{m.widget_loading()}
+					</p>
+				{:then mod}
+					{@render body(mod)}
+				{:catch}
+					<p class="text-muted-foreground flex h-full items-center justify-center text-sm">
+						{m.widget_load_failed()}
+					</p>
+				{/await}
+			{/if}
 		{/if}
 		{#if keyboardActive && !fullscreen}
 			<!-- Over the content, so the layout doesn't change. Hidden from assistive tech: the

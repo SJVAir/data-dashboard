@@ -128,6 +128,8 @@
 	"widget_delete": "Delete widget",
 	"widget_deleted": "Widget deleted",
 	"widget_unknown_title": "Unknown widget",
+	"widget_loading": "Loading…",
+	"widget_load_failed": "This widget couldn't be loaded.",
 	"widget_move": "Move",
 	"widget_move_up": "Up",
 	"widget_move_down": "Down",

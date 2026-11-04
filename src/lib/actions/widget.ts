@@ -37,13 +37,22 @@ import { shownLayout } from "$lib/layout/items";
 import { actionLayout, dropChange, sameRect, type LayoutAction } from "$lib/layout/steps";
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
+import { generatedTitle } from "$lib/widgets/titles.svelte";
 import type { MenuItem, MenuProvider } from "./types";
 
-/** A widget's display title: its own, else its type's generated one. */
-export function widgetTitle(widget: WidgetInstance): string {
+/**
+ * A widget's generated title: the one its component worked out once loaded, else its type's
+ * label.
+ */
+function generated(widget: WidgetInstance): string {
 	return (
-		widget.title ?? getWidgetType(widget.type)?.defaultTitle(widget) ?? m.widget_unknown_title()
+		generatedTitle(widget.id) ?? getWidgetType(widget.type)?.label() ?? m.widget_unknown_title()
 	);
+}
+
+/** A widget's display title: its own, else its generated one. */
+export function widgetTitle(widget: WidgetInstance): string {
+	return widget.title ?? generated(widget);
 }
 
 /** The editable current session and the widget in it, read when an action runs. */
@@ -62,11 +71,10 @@ function rename(app: AppContext, widgetId: string): void {
 	const found = find(app, widgetId);
 	if (!found) return;
 	const { widget } = found;
-	const generated = getWidgetType(widget.type)?.defaultTitle(widget) ?? m.widget_unknown_title();
 	openRename({
 		title: m.rename_widget_title(),
 		initial: widget.title ?? "",
-		placeholder: generated,
+		placeholder: generated(widget),
 		onSave(value) {
 			// Re-read: the starter may have handed off to its copy meanwhile.
 			const current = find(app, widgetId);

@@ -13,12 +13,14 @@ import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { openRestoreVersion } from "$lib/components/dialogs/RestoreVersionDialog.svelte";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
+import type { WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
 import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
-import { newPlaceholder } from "$lib/widgets/placeholder";
+import { placeNewWidget } from "$lib/layout/items";
+import { addableWidgetTypes, getWidgetType } from "$lib/widgets/registry";
 import { navigate } from "../../router";
 import type { MenuProvider } from "./types";
 
@@ -81,12 +83,22 @@ async function goHome(target: HomeTarget): Promise<void> {
 	else await navigate("/", { replace: true });
 }
 
-/** Adds a placeholder below everything else on the current dashboard. */
-export function addWidget(app: AppContext): void {
+/**
+ * Adds a widget of `type` below everything else on the current dashboard: at the type's default
+ * size, with its `addable` data (one undo step).
+ */
+export function addWidget(app: AppContext, type: string): void {
 	const session = editable(app);
-	if (!session) return;
+	const widgetType = getWidgetType(type);
+	if (!session || !widgetType) return;
 	const widgets = session.doc.body.widgets;
-	const widget = newPlaceholder(widgets);
+	const widget: WidgetInstance = {
+		id: crypto.randomUUID(),
+		type,
+		title: null,
+		rect: placeNewWidget(widgets, widgetType.defaultSize),
+		data: widgetType.addable?.() ?? { layers: [] }
+	};
 	session.apply({
 		op: "addWidget",
 		target: { widgetId: widget.id },
@@ -271,14 +283,22 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 			session !== null &&
 			!session.readOnly &&
 			(session.hasOriginal || app.sync?.states[session.doc.id]?.onServer === true);
+		const addable = addableWidgetTypes();
 		return [
 			{
 				id: "add-widget",
 				label: m.add_widget(),
 				icon: Plus,
 				group: "add",
-				disabled: locked,
-				run: () => addWidget(app)
+				disabled: locked || addable.length === 0,
+				children: addable.map((t) => ({
+					id: `add-widget-${t.type}`,
+					label: t.label(),
+					icon: t.icon,
+					group: "add",
+					run: () => addWidget(app, t.type)
+				})),
+				run: () => {}
 			},
 			{
 				id: "new-blank-dashboard",
