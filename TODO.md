@@ -915,7 +915,7 @@ noted on each item.
 
 Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22; not yet on
 `main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
-@sjvair/sdk 4.8.0 is released only after #293 reaches production, with explicit approval.
+@sjvair/sdk 4.8.0 is released only after #293 and #300 reach production, with explicit approval.
 
 **Second batch status (2026-11-03):** split into specs, scales first. **Spec 1 is built**
 (scale metas, tiers, region hierarchy, stage/processor labels, display hints, forecast and
@@ -944,7 +944,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   from "never existed" (`ARCHITECTURE.md` → "Stable ids and retirement").
 - ✅ The `meta/datasets/` catalog (schema per `ARCHITECTURE.md` → "Metadata as source of
   truth" → "What a dataset is") and the coverage endpoint.
-- ✅ (spec 1, PRs open) Per-domain scale metas (hms, calheatscore with per-score guidance,
+- ✅ (spec 1, merged; in 4.8.0-beta.4) Per-domain scale metas (hms, calheatscore with per-score guidance,
   forecasts, AQI), a shared `tier` (0–4; CalHeatScore's scale, heat mapped one to one) on
   every level of every scale (AQ levels: Good 0 … Unhealthy 3, Very Unhealthy and Hazardous
   4), region hierarchy (`count`, `parents`, `within_mode=overlaps`), choice lists (stage and
@@ -961,7 +961,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   rules; the name mode is unchanged; update
   `lookupRegionPlace` in sdk-js.
 - **First sdk-js change:** done; released 2026-10-21 as @sjvair/sdk 4.7.0. See `ARCHITECTURE.md` → "SDK request options".
-- ✅ (spec 1, PRs open) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
+- ✅ (spec 1, merged; in 4.8.0-beta.4) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
   `place/`), `getHMSMeta`, and `regions/geojson/`. Left: the `calenviroscreen/` wrapper, the
   `buffer` parameter (the region list no longer returns geometry), and the rest of the
   `api-urls.md` fixes (partly done).
