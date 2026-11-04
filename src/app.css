@@ -256,14 +256,25 @@
 	box-shadow: 0 0 0 4px var(--ring-edge);
 }
 
+/* Menu items: focus moves by script (tabindex="-1"), so the base rule below skips them, and their
+   rounded rows sit flush in the menu, so the same ring is drawn inside the item (like the widget
+   title bar). Unlayered, so it wins over the items' outline-hidden; the accent fill stays as the
+   hover cue. */
+[role^="menuitem"]:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -3px;
+	box-shadow: inset 0 0 0 4px var(--ring-edge);
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring;
 	}
 	/* One focus indicator for everything: a 2px sky ring with a 1px --ring-edge on each side (navy
 	   in light, the page color in dark), so it reads on cards and the page in both modes. The edge
-	   is a ring (box-shadow) so it composes with shadow utilities. Items whose focus is managed by
-	   script (tabindex="-1": menu items, headings) show focus their own way and skip the edge. */
+	   is a ring (box-shadow) so it composes with shadow utilities. Elements whose focus is moved by
+	   script (tabindex="-1") skip the edge: headings focused after navigation show no ring, and
+	   menu items draw the same ring inset (the rule above). */
 	:focus-visible {
 		@apply outline-2 outline-offset-1;
 	}

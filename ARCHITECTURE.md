@@ -155,8 +155,11 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
     `text-lg` 18 (page titles), `text-3xl` 32 (headline numbers). Form fields use 16px below the
     `md` breakpoint so iOS doesn't zoom on focus. Numbers that line up use tabular figures
     (`tabular-nums`); step 4 applies it to readings, tables, and axes.
-  - **Focus.** One indicator everywhere: a 2px sky ring with a 1px `--ring-edge` (navy in light,
-    the page color in dark). A focused invalid field shows this ring, not the destructive one.
+  - **Focus.** One indicator: a 2px sky ring with a 1px `--ring-edge` (navy in light, the page
+    color in dark). Where a card clips it (the widget title bar) and in menus, it's drawn inside
+    the element: menu items move focus by script, so a keyboard-focused item gets the inset ring
+    and the accent fill alone marks pointer hover. A focused invalid field shows this ring, not
+    the destructive one.
   - **Motion: quick and subtle.** `--motion-duration-fast` (120ms), `--motion-duration-base`
     (200ms), and `--motion-ease-standard`, used through `duration-fast`, `duration-base`, and
     `ease-standard`. Colors fade for one base duration only while the theme changes. Reduced
