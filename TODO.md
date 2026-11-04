@@ -951,7 +951,7 @@ Spec: `docs/superpowers/specs/2026-11-03-design-pass-design.md`. Plan:
 
 Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22; not yet on
 `main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
-@sjvair/sdk's next stable release is **5.0.0, not 4.8.0** (the user, 2026-11-04: sdk-js #40 changes existing call signatures, and monitor-map's `^4.7.0` and mobile's `^4.6.0` must not pick that up by accident). Until sjvair.com `develop` reaches production it ships **betas only** (`5.0.0-beta.N`, each with the user's yes, like the 4.8.0 betas); 5.0.0 final follows the deploy (`DEFERRED.md` deploy entry), with explicit approval.
+@sjvair/sdk's next stable release is **5.0.0, not 4.8.0** (the user, 2026-11-04: sdk-js #40 changes existing call signatures, and monitor-map's `^4.7.0` and mobile's `^4.6.0` must not pick that up by accident). Until sjvair.com `develop` reaches production it ships **betas only** (`5.0.0-beta.N`, each with the user's yes, like the 4.8.0 betas); 5.0.0 final follows the deploy (`DEFERRED.md` deploy entry), with explicit approval. sdk-js work now targets `release/5.0.0` (created at `release/4.8.0`'s tip, 4c85c16; `release/4.8.0` is kept until the user says to delete it), and sdk-js #41 adds its `CHANGELOG.md`.
 
 **Second batch status (2026-11-03):** split into specs, scales first. **Spec 1 is built**
 (scale metas, tiers, region hierarchy, stage/processor labels, display hints, forecast and
@@ -973,7 +973,7 @@ search) is merged** (2026-11-04, with the user's yes): sjvair.com #302 into `dev
 `location_types`), which local `develop` now has. sdk-js `CLAUDE.md` now says the SDK keeps no
 fallbacks for older server responses (the user, 2026-11-04), and #39 removed the 4.8.0-beta ones. **Spec 4 (SDK quick
 batch) is in review:** sjvair.com [#303](https://github.com/SJVAir/sjvair.com/pull/303) into
-`develop` and sdk-js [#40](https://github.com/SJVAir/sdk-js/pull/40) into `release/4.8.0`,
+`develop` and sdk-js [#40](https://github.com/SJVAir/sdk-js/pull/40) into `release/5.0.0` (retargeted from `release/4.8.0`),
 both open; #40 needs #303 merged (its live `regions/meta` test needs `buffers`). Spec and plan
 at sjvair.com `docs/superpowers/specs/2026-11-04-sdk-quick-batch-design.md` and
 `docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (branch `docs/sdk-quick-batch-spec`).
