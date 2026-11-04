@@ -79,8 +79,10 @@ export async function shareDashboard(app: AppContext, id?: string): Promise<void
 	const result = target.readOnly
 		? null
 		: await shareUrl(`${location.origin}/workspace/`, target.doc, new Date());
+	const url = result && "url" in result ? result.url : null;
 	openShare({
-		url: result && "url" in result ? result.url : null,
+		url,
+		linkUnavailable: url ? null : target.readOnly ? "read-only" : "too-big",
 		onDownload: () => downloadDocument(target),
 		// A live link needs the account's sync and a dashboard it can read and upload.
 		live: app.sync && !target.isStarter && !target.readOnly ? { docId: target.doc.id } : null

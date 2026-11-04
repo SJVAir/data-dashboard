@@ -2,6 +2,8 @@
 	export type ShareOptions = {
 		/** The copy link, or `null` when the dashboard is too big for one. */
 		url: string | null;
+		/** Why there is no copy link: `"read-only"` (a newer or invalid document) or `"too-big"`. */
+		linkUnavailable: "too-big" | "read-only" | null;
 		onDownload(): void;
 		/**
 		 * The dashboard a live link shares; `null` signed out, for the starter, or for a read-only
@@ -66,6 +68,13 @@
 	const sync = $derived(live ? app.sync : null);
 	const token = $derived(live && sync ? (sync.states[live.docId]?.shareToken ?? null) : null);
 	const liveUrl = $derived(token ? `${location.origin}${BASE}/shared/${token}` : null);
+	const linkNote = $derived(
+		share.opts?.url
+			? m.share_note()
+			: share.opts?.linkUnavailable === "read-only"
+				? m.share_read_only()
+				: m.share_too_big()
+	);
 	const signedOut = $derived(!sync && app.account.identity.state !== "signed-in");
 	// Back to this page after signing in.
 	const signInHref = $derived(
@@ -87,6 +96,14 @@
 		});
 	});
 
+	// While the name is missing, a return to being online loads it again.
+	$effect(() => {
+		if (!share.open || nameState !== "failed") return;
+		return app.platform.online.onChange((online) => {
+			if (online) void loadName();
+		});
+	});
+
 	async function loadName() {
 		const load = nameLoad;
 		nameState = "loading";
@@ -101,6 +118,20 @@
 		}
 	}
 
+	function nameErrorFor(error: unknown): string {
+		if (error instanceof RemoteRefusal) {
+			if (error.code === "invalid") return m.share_name_refused();
+			if (error.code === "rate_limited") return m.share_name_rate_limited();
+			if (error.code === "unauthorized") return m.share_name_signed_out();
+		}
+		return m.share_live_offline();
+	}
+
+	function download() {
+		share.opts?.onDownload();
+		status = m.share_downloaded();
+	}
+
 	async function saveName() {
 		if (!sync) return;
 		nameBusy = true;
@@ -110,10 +141,7 @@
 			name = (await sync.setDisplayName(name.trim() || null)) ?? "";
 			status = m.share_name_saved();
 		} catch (error) {
-			nameError =
-				error instanceof RemoteRefusal && error.code === "invalid"
-					? m.share_name_refused()
-					: m.share_live_offline();
+			nameError = nameErrorFor(error);
 		} finally {
 			nameBusy = false;
 		}
@@ -218,7 +246,7 @@
 	{#if share.opts?.url}
 		<Button onclick={() => copy(share.opts?.url ?? null, copyInput)}>{m.share_copy()}</Button>
 	{/if}
-	<Button variant="outline" onclick={() => share.opts?.onDownload()}>
+	<Button variant="outline" onclick={download}>
 		{m.share_download_instead()}
 	</Button>
 {/snippet}
@@ -238,7 +266,7 @@
 			<Dialog.Title>{m.share_title()}</Dialog.Title>
 			{#if !sync}
 				<Dialog.Description>
-					{share.opts?.url ? m.share_note() : m.share_too_big()}
+					{linkNote}
 				</Dialog.Description>
 			{/if}
 		</Dialog.Header>
@@ -293,7 +321,10 @@
 					</div>
 					<p id={nameHelpId} class="text-muted-foreground text-sm">{m.share_name_help()}</p>
 					{#if nameState === "failed"}
-						<p class="text-sm">{m.share_live_offline()}</p>
+						<div class="flex flex-wrap items-center gap-2 text-sm">
+							<p>{m.share_live_offline()}</p>
+							<Button variant="outline" size="sm" onclick={loadName}>{m.share_name_retry()}</Button>
+						</div>
 					{/if}
 					<p id={nameErrorId} role="alert" class="text-destructive text-sm">{nameError}</p>
 				</div>
@@ -301,7 +332,7 @@
 			<section aria-labelledby={copyHeadingId} class="grid gap-3">
 				<h3 id={copyHeadingId} class="text-base font-semibold">{m.share_copy_heading()}</h3>
 				<p class="text-muted-foreground text-sm">
-					{share.opts?.url ? m.share_note() : m.share_too_big()}
+					{linkNote}
 				</p>
 				{@render copyLink()}
 				<div class="flex flex-wrap gap-2">

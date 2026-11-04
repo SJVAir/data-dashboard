@@ -69,7 +69,8 @@ async function signedIn({ upload = true } = {}) {
 	return { memory, fake, app, worker };
 }
 
-const openLive = () => openShare({ url: URL_TEXT, onDownload() {}, live: { docId: "d1" } });
+const openLive = () =>
+	openShare({ url: URL_TEXT, linkUnavailable: null, onDownload() {}, live: { docId: "d1" } });
 const liveUrl = (token: string) => `${location.origin}${BASE}/shared/${token}`;
 const dialog = () => page.getByRole("dialog", { name: "Share dashboard" });
 const liveSection = () => dialog().getByRole("region", { name: "Anyone with the link can view" });
@@ -93,7 +94,7 @@ async function createLink(worker: SyncWorker): Promise<string> {
 
 test("Copy writes the link and announces it in a live region", async () => {
 	const { memory } = await signedOut();
-	openShare({ url: URL_TEXT, onDownload() {}, live: null });
+	openShare({ url: URL_TEXT, linkUnavailable: null, onDownload() {}, live: null });
 	await expect
 		.element(
 			dialog().getByText(
@@ -109,7 +110,7 @@ test("Copy writes the link and announces it in a live region", async () => {
 test("when copying is refused, the field is focused with the whole link selected", async () => {
 	const { memory } = await signedOut();
 	memory.clipboard.fail(true);
-	openShare({ url: URL_TEXT, onDownload() {}, live: null });
+	openShare({ url: URL_TEXT, linkUnavailable: null, onDownload() {}, live: null });
 	await dialog().getByRole("button", { name: "Copy link" }).click();
 	const field = dialog().getByRole("textbox", { name: "Link" });
 	await expect.element(field).toHaveFocus();
@@ -123,7 +124,12 @@ test("when copying is refused, the field is focused with the whole link selected
 test("a dashboard too big for a link shows the message and only the download button", async () => {
 	await signedOut();
 	let downloaded = 0;
-	openShare({ url: null, onDownload: () => downloaded++, live: null });
+	openShare({
+		url: null,
+		linkUnavailable: "too-big",
+		onDownload: () => downloaded++,
+		live: null
+	});
 	await expect
 		.element(
 			dialog().getByText(
@@ -158,7 +164,7 @@ test("Share on a read-only dashboard opens the dialog with the download only", a
 
 test("signed out shows the copy link and a sign-in line", async () => {
 	await signedOut();
-	openShare({ url: URL_TEXT, onDownload() {}, live: null });
+	openShare({ url: URL_TEXT, linkUnavailable: null, onDownload() {}, live: null });
 	await expect.element(dialog().getByRole("textbox", { name: "Link" })).toHaveValue(URL_TEXT);
 	const signIn = dialog().getByRole("link", {
 		name: "Sign in to share a live link that stays up to date."
@@ -330,10 +336,95 @@ test("the display name saves, and a refused one says so", async () => {
 	expect((await fake.getProfile()).displayName).toBe("Room 12");
 });
 
+test("a name refused for rate or sign-in says why", async () => {
+	const { fake } = await signedIn();
+	openLive();
+	const field = dialog().getByRole("textbox", {
+		name: "Your name on shared dashboards (optional)"
+	});
+	await expect.element(field).toBeEnabled();
+	await field.fill("Room 12");
+	fake.refuseNext.push({ code: "rate_limited", status: 429 });
+	await dialog().getByRole("button", { name: "Save name" }).click();
+	await expect
+		.element(
+			dialog().getByText("You've changed your name a lot just now. Wait a minute and try again.")
+		)
+		.toBeVisible();
+	fake.refuseNext.push({ code: "unauthorized", status: 401 });
+	await dialog().getByRole("button", { name: "Save name" }).click();
+	await expect
+		.element(
+			dialog().getByText("You're signed out, so the name wasn't saved. Sign in and try again.")
+		)
+		.toBeVisible();
+	fake.offline = true;
+	await dialog().getByRole("button", { name: "Save name" }).click();
+	await expect
+		.element(dialog().getByText("Couldn't reach SJVAir. Check your connection and try again."))
+		.toBeVisible();
+});
+
+test("a name that failed to load can be retried", async () => {
+	const { fake } = await signedIn();
+	await fake.setProfile("Ms. Lopez");
+	fake.offline = true;
+	openLive();
+	const retry = dialog().getByRole("button", { name: "Try again" });
+	await expect.element(retry).toBeVisible();
+	fake.offline = false;
+	await retry.click();
+	const field = dialog().getByRole("textbox", {
+		name: "Your name on shared dashboards (optional)"
+	});
+	await expect.element(field).toHaveValue("Ms. Lopez");
+	await expect.element(field).toBeEnabled();
+	expect(dialog().getByRole("button", { name: "Try again" }).elements()).toHaveLength(0);
+});
+
+test("a name that failed to load reloads when the connection returns", async () => {
+	const { fake, memory } = await signedIn();
+	await fake.setProfile("Ms. Lopez");
+	fake.offline = true;
+	openLive();
+	await expect.element(dialog().getByRole("button", { name: "Try again" })).toBeVisible();
+	fake.offline = false;
+	memory.online.setOnline(false);
+	memory.online.setOnline(true);
+	await expect
+		.element(dialog().getByRole("textbox", { name: "Your name on shared dashboards (optional)" }))
+		.toHaveValue("Ms. Lopez");
+});
+
+test("a read-only dashboard says why it has no link", async () => {
+	await signedOut();
+	openShare({ url: null, linkUnavailable: "read-only", onDownload() {}, live: null });
+	await expect
+		.element(
+			dialog().getByText(
+				"This dashboard is open read-only, so it can't be shared as a link. You can download it as a file instead."
+			)
+		)
+		.toBeVisible();
+	expect(dialog().getByText("too big").elements()).toHaveLength(0);
+});
+
+test("downloading says the file is on its way", async () => {
+	await signedOut();
+	openShare({ url: URL_TEXT, linkUnavailable: null, onDownload() {}, live: null });
+	await dialog().getByRole("button", { name: "Download file instead" }).click();
+	await expect.element(dialog().getByText("Your file is downloading.")).toBeVisible();
+});
+
 test("send a copy instead still offers the link and the file", async () => {
 	const { memory, worker } = await signedIn();
 	let downloaded = 0;
-	openShare({ url: URL_TEXT, onDownload: () => downloaded++, live: { docId: "d1" } });
+	openShare({
+		url: URL_TEXT,
+		linkUnavailable: null,
+		onDownload: () => downloaded++,
+		live: { docId: "d1" }
+	});
 	await expect
 		.element(copySection().getByRole("heading", { name: "Send a copy instead" }))
 		.toBeVisible();
