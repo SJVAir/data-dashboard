@@ -8,11 +8,11 @@ Last updated: 2026-11-03
 replacing the 2026-10-29 "one session at a time" rule). Tracks in the same repo still go in one
 session, in order. From 2026-11-03, three sessions run at once:
 
-| Track                                                         | Session starts in | Repos it edits                | Its status lives in                          |
-| ------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** (before step 4; part 2 built, PR 2 in review) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata)                           | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** (new repo)                      | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| Track                                                      | Session starts in | Repos it edits                | Its status lives in                          |
+| ---------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata)                        | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** (new repo)                   | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 
 **Docs rules for the other sessions** (only the design pass session edits this checkout):
 
@@ -49,8 +49,9 @@ Earlier tracks, in order (new dashboard work branches from `main`):
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
 7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 3's scales, tiers,
    and wrappers are done (sjvair.com #300 on `develop`, @sjvair/sdk 4.8.0-beta.4), so step 4
-   waits only on the design pass (PR 1 #33 open; Part 2 built, PR 2 pending review); its spec
-   can be drafted meanwhile. Server alerting (Release 2) waits for the sjvair.com session to
+   was waiting only on the design pass, which is on `main` (2026-11-04, #33 and #34), so **step 4
+   (Widget Creation and the non-map widgets) is next in this repo** (start it in a fresh session;
+   bump @sjvair/sdk to 4.8.0-beta.4 with it). Server alerting (Release 2) waits for the sjvair.com session to
    finish step 3. Email-only accounts wait on the legal adviser.
 
 **Hand checks:** the touch check on real devices is **done** (the user, 2026-11-02, via `npm run
@@ -903,9 +904,11 @@ noted on each item.
 Spec: `docs/superpowers/specs/2026-11-03-design-pass-design.md`. Plan:
 `docs/superpowers/plans/2026-11-03-design-pass.md`. Two stacked PRs: PR 1 (`design-pass` into
 `main`, the look) and PR 2 (`design-pass-wording` into `design-pass`, wording and behavior).
-Merging either needs the user's yes.
+**Both merged 2026-11-04 with the user's yes** ([#33](https://github.com/SJVAir/data-dashboard/pull/33),
+[#34](https://github.com/SJVAir/data-dashboard/pull/34)); the user reviewed the wording first
+("this browser" everywhere, a few rewordings).
 
-- ✅ **Part 1, the look** (built 2026-11-03 on `design-pass`, Tasks 1–10; not yet merged): the
+- ✅ **Part 1, the look** (built 2026-11-03 on `design-pass`, Tasks 1–10; merged 2026-11-04, #33): the
   light and dark token sets with a contrast test; a synchronous `display` capability in the
   platform adapter, applied in `bootstrap.ts` before the app mounts; the Light / Dark / Match my
   device switch in the Help menu (with the new-tab cue on the feedback link); the restyled
@@ -916,8 +919,8 @@ Merging either needs the user's yes.
   and axe in both modes, with a theme E2E spec. The toaster no longer uses `mode-watcher` (it
   read its own `localStorage` key, so blocked storage stopped the app from starting). See
   `ARCHITECTURE.md` → "Theme & style".
-- ✅ **Part 2, wording and behavior** (built 2026-11-03, Tasks 11–21, branch `design-pass-wording`;
-  PR 2 into `design-pass` pending review, not merged): the save indicator names a conflict and
+- ✅ **Part 2, wording and behavior** (built 2026-11-03, Tasks 11–21; merged 2026-11-04,
+  #34): the save indicator names a conflict and
   announces only changes that matter; the Share dialog's name field retries and words each
   failure, and a read-only dashboard says why it can't be shared; Recently deleted and the
   earlier-versions list tell the account apart from the device; unreadable dashboards are listed
@@ -1238,8 +1241,8 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
-- [x] **Design pass, part 1: the look** (built 2026-11-03 on `design-pass`; PR 1 into `main`
-      not yet opened): light and dark tokens, the theme switch, restyled primitives and shell,
+- [x] **Design pass, part 1: the look** (built 2026-11-03; merged into `main` 2026-11-04,
+      PR [#33](https://github.com/SJVAir/data-dashboard/pull/33)): light and dark tokens, the theme switch, restyled primitives and shell,
       four-across density, brand assets and app icons. Removed from `DEFERRED.md`: the maskable
       icon and real app icons; dark-mode `--destructive` contrast (axe now runs in both modes,
       and the contrast test covers destructive text on its tint); the `--duration-*` aliases;
@@ -1247,8 +1250,8 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
       the icon-route and dev-manifest tests; from "Spec 5b polish", the greeting group. The focus
       ring after touch drops stays in `DEFERRED.md` ("Phone check of the focus ring after touch
       drops") for a phone hand check.
-- [x] **Design pass, part 2: wording and behavior** (built 2026-11-03 on `design-pass-wording`;
-      PR 2 into `design-pass` pending review): removed from `DEFERRED.md`: conflict status
+- [x] **Design pass, part 2: wording and behavior** (built 2026-11-03; merged 2026-11-04 via
+      PR [#34](https://github.com/SJVAir/data-dashboard/pull/34)): removed from `DEFERRED.md`: conflict status
       wording; display-name save failures and the Share dialog's name field; sync spec 4
       tidy-ups (1)-(3); restored unreadable dashboards (now listed); the earlier-versions
       duplicate; save-status announcements; names of copies; read-only Share and Download;
