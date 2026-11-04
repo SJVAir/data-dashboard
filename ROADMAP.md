@@ -29,7 +29,7 @@ go-live or beta testers. **The server-backed documents (sync) track's spec 1 is 
 2026-11-03; its sjvair.com `deletedAccount` change is #299 on `develop`). The hosting track is built (sjvair.com
 #295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is merged too (sjvair.com #300 into `develop`, @sjvair/sdk 4.8.0-beta.4); spec 2 is next in a new sjvair.com session. **The design pass is done and merged into `main`** (2026-11-04: [#33](https://github.com/SJVAir/data-dashboard/pull/33) the look, [#34](https://github.com/SJVAir/data-dashboard/pull/34) wording and behavior), so **step 4 is next** in this repo. `map-sdk` milestone 1 is merged (`SJVAir/map-sdk` #1, 2026-11-04; not yet published), so the Map widget can build on it.
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
-4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (the next release is 5.0.0, renamed from 4.8.0 on 2026-11-04; betas only until sjvair.com `develop` reaches production; 4.8.0-beta.6 is the latest). Details in `TODO.md` →
+4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (the next release is 5.0.0, renamed from 4.8.0 on 2026-11-04; betas only until sjvair.com `develop` reaches production; `5.0.0-beta.2` is the latest). Details in `TODO.md` →
 "Start here".
 
 ## Done (v1 tab era)
