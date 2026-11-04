@@ -33,6 +33,14 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
   `ROADMAP.md` item and `ARCHITECTURE.md` section. Add every deferral to `DEFERRED.md` (append
   under the right heading; don't reword others' entries).
 - Re-read a file right before editing it. Another session may have changed it.
+- **All of this work (sdk-js, sjvair.com, map-sdk) is for the data-dashboard project** (the
+  user, 2026-11-04). Keep the data-dashboard coordinator informed, unprompted, of anything
+  relevant to these docs or to other sessions: the user's decisions and corrections, status
+  changes, PRs opened or merged, and signature or response-shape changes.
+- **When something doesn't feel right, ask the user** (the user, 2026-11-04: "We have
+  communication issues sometimes, and that's fine when it happens, as long as we keep
+  communicating. It's ok to ask questions."). Don't guess silently, and don't write rules into
+  the docs that the user didn't give.
 - Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`), even
   when the work is for the dashboard: **SDK specs in sdk-js, server specs in sjvair.com** (the
   user, 2026-11-04). Specs 1–3 of step 3 spanned both and live in sjvair.com.
