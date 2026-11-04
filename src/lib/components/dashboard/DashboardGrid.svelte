@@ -291,7 +291,11 @@
 			{#if session?.readOnly}
 				<!-- A read-only document may not be valid, so its widgets aren't rendered. -->
 				<p role="status" class="bg-muted rounded-lg px-4 py-2 text-sm">
-					{session.readOnly === "newer" ? m.doc_readonly_newer() : m.doc_readonly_invalid()}
+					{session.readOnly === "newer"
+						? m.doc_readonly_newer()
+						: session.readOnly === "unkept"
+							? m.doc_readonly_unkept()
+							: m.doc_readonly_invalid()}
 				</p>
 			{:else}
 				<!-- While a widget is fullscreen, the rest of the dashboard is inert. -->

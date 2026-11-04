@@ -939,7 +939,7 @@ describe("DocumentSession format changes", () => {
 		const failure = new Error("originals unavailable");
 		vi.spyOn(platform.originals, "put").mockRejectedValueOnce(failure);
 		const session = await open(platform, { chain: testChain() });
-		expect(session.readOnly).toBe("invalid");
+		expect(session.readOnly).toBe("unkept");
 		expect(session.hasOriginal).toBe(false);
 		session.apply(rename("Home"));
 		await session.flush();

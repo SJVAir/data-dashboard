@@ -387,6 +387,20 @@ test("empty dashboard shows the empty state", async () => {
 	await expect.element(page.getByText("This dashboard is empty.")).not.toBeInTheDocument();
 });
 
+test("a dashboard whose original couldn't be kept says so", async () => {
+	const { app, session } = await setup();
+	session.readOnly = "unkept";
+	await renderGrid(app);
+	await expect
+		.element(
+			page.getByText(
+				"This dashboard was updated to a new format, but the original couldn't be saved on this device, so it's open read-only to keep your work safe. Free up space or download a backup, then reload."
+			)
+		)
+		.toBeVisible();
+	await expect.element(page.getByRole("button", { name: "Add widget" })).not.toBeInTheDocument();
+});
+
 test("read-only dashboard shows the message and no edit actions", async () => {
 	const { platform, app, id } = await setup();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
