@@ -91,3 +91,12 @@ test("with no dialog open, a toast is left to the toaster, so it isn't read twic
 	await new Promise((r) => setTimeout(r, ANNOUNCE_GAP_MS * 2));
 	expect(regionsWith("Saved a copy")).toHaveLength(0);
 });
+
+test("a toast with no dialog open doesn't cancel an announcement made just before it", async () => {
+	await render(DialogHarness);
+	announce("Dropped Alpha at column 2, row 1.");
+	toast("Saved a copy");
+	const regions = await announced("Dropped Alpha at column 2, row 1.");
+	expect(regions).toHaveLength(1);
+	expect(reachable(regions[0])).toBe(true);
+});

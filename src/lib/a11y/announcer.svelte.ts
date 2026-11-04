@@ -52,10 +52,14 @@ export function registerDialogRegion(): { id: number; release: () => void } {
 /**
  * Read `message` politely, from the topmost region. The region is cleared first and set after a
  * short gap, so the same text twice in a row is read both times. A newer message replaces one
- * still waiting. With `onlyInDialog`, the message is dropped when no dialog is open by then: for
- * text with its own live region on the page (toasts), which a dialog cuts off.
+ * still waiting. With `onlyInDialog`, the message is ignored when no dialog is open (at the call or by
+ * the time it's set): for text with its own live region on the page (toasts), which a dialog
+ * cuts off.
  */
 export function announce(message: string, options: { onlyInDialog?: boolean } = {}): void {
+	// Leave the regions alone: clearing here would cancel a message still waiting (a drop's
+	// announcement followed by a toast on the same keypress).
+	if (options.onlyInDialog && dialogRegions.length === 0) return;
 	text = "";
 	clearTimeout(timer);
 	timer = setTimeout(() => {
