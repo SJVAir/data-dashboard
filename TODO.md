@@ -1085,9 +1085,9 @@ research in `docs/reference/pesticides-explorer-research.md`).
      5's server spec is written**; sjvair-com-c9 will say when. Nothing is written or built yet
      (no SDK spec, branch or notes file); sdk-js-8c brainstormed it with the user only up to the
      timing question. What a fresh sdk-js session needs:
-     - **SDK scope, beyond the four parts above (sdk-js-8c's guesses, not yet put to the
-       user):** `SJVAirEntryLevel` and `sjvairEntryLevelMetaSchema` are used only by `levels`,
-       and `EntriesMeta.asIter` holds only `levels`, so all three likely go too (no fallbacks).
+     - **SDK scope, beyond the four parts above (the user, 2026-11-04: remove them if nothing
+       else uses them):** `SJVAirEntryLevel` and `sjvairEntryLevelMetaSchema` are used only by `levels`,
+       and `EntriesMeta.asIter` holds only `levels`, so all three go too (no fallbacks).
        The `mod.ts` module example (`asIter.levels.find(...)` for subscriptions) and the
        `lib/account/air-alerts.ts` comment that points to "the levels" need rewriting to use
        `scale`.
