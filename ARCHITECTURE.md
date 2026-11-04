@@ -2506,7 +2506,11 @@ and views.
   Taller, Shorter. One click is one step (one undo step), and the submenu stays open for the
   next. Keyboard support alone doesn't meet 2.5.7 (W3C technique G219).
 - **Live-region announcements** for layout changes, e.g. "Moved to column 3, row 2" or
-  "Widget minimized to taskbar".
+  "Widget minimized to taskbar". `announce()` and toasts go to one live region on the page; while a
+  modal dialog is open they go to that dialog's own region instead (bits-ui hides everything
+  outside a modal from assistive technology), and a message made with `onlyInDialog` is dropped
+  when no dialog is open. The saved indicator announces only changes that matter (a failure, a
+  conflict, recovery), not every "Saving…" and "Saved".
 - **Focus management:**
   - Fullscreen traps focus; Esc exits and restores focus.
   - Minimize moves focus to the widget's taskbar item; restore returns it to the widget.

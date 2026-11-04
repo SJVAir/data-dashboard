@@ -8,11 +8,11 @@ Last updated: 2026-11-03
 replacing the 2026-10-29 "one session at a time" rule). Tracks in the same repo still go in one
 session, in order. From 2026-11-03, three sessions run at once:
 
-| Track                                                      | Session starts in | Repos it edits                | Its status lives in                          |
-| ---------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** (before step 4; part 1 built, part 2 next) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata)                        | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** (new repo)                   | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| Track                                                         | Session starts in | Repos it edits                | Its status lives in                          |
+| ------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** (before step 4; part 2 built, PR 2 in review) | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata)                           | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** (new repo)                      | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 
 **Docs rules for the other sessions** (only the design pass session edits this checkout):
 
@@ -49,7 +49,7 @@ Earlier tracks, in order (new dashboard work branches from `main`):
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
 7. **Next (2026-11-03):** the three parallel tracks in the table above. Step 3's scales, tiers,
    and wrappers are done (sjvair.com #300 on `develop`, @sjvair/sdk 4.8.0-beta.4), so step 4
-   waits only on the design pass (PR 1 #33 open; Part 2 in progress); its spec can be drafted
+   waits only on the design pass (PR 1 #33 open; Part 2 built, PR 2 pending review); its spec can be drafted
    meanwhile. Server alerting (Release 2) waits for the sjvair.com session to finish step 3.
    Email-only accounts wait on the legal adviser.
 
@@ -916,7 +916,14 @@ Merging either needs the user's yes.
   and axe in both modes, with a theme E2E spec. The toaster no longer uses `mode-watcher` (it
   read its own `localStorage` key, so blocked storage stopped the app from starting). See
   `ARCHITECTURE.md` → "Theme & style".
-- **Part 2, wording and behavior** (Tasks 11–21, branch `design-pass-wording`): next.
+- ✅ **Part 2, wording and behavior** (built 2026-11-03, Tasks 11–21, branch `design-pass-wording`;
+  PR 2 into `design-pass` pending review, not merged): the save indicator names a conflict and
+  announces only changes that matter; the Share dialog's name field retries and words each
+  failure, and a read-only dashboard says why it can't be shared; Recently deleted and the
+  earlier-versions list tell the account apart from the device; unreadable dashboards are listed
+  with Download and Delete; copies get names like "Copy of School"; announcements and toasts go
+  to the open dialog's own live region; keyboard and touch arranging got their loose ends and a
+  resize animation. The new wording is listed in PR 2's description for the user's review.
 - After PR 1: tell the `map-sdk` session the final token names (`ARCHITECTURE.md` →
   "Theme & style" → "The family palette").
 
@@ -1238,7 +1245,15 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
       and the contrast test covers destructive text on its tint); the `--duration-*` aliases;
       from "Spec 5a polish", the feedback link's new-tab cue, scoping `lightToken` to `:root`, and
       the icon-route and dev-manifest tests; from "Spec 5b polish", the greeting group. The focus
-      ring after touch drops stays in "Spec 2a robustness loose ends" for a phone hand check.
+      ring after touch drops stays in `DEFERRED.md` ("Phone check of the focus ring after touch
+      drops") for a phone hand check.
+- [x] **Design pass, part 2: wording and behavior** (built 2026-11-03 on `design-pass-wording`;
+      PR 2 into `design-pass` pending review): removed from `DEFERRED.md`: conflict status
+      wording; display-name save failures and the Share dialog's name field; sync spec 4
+      tidy-ups (1)-(3); restored unreadable dashboards (now listed); the earlier-versions
+      duplicate; save-status announcements; names of copies; read-only Share and Download;
+      read-only "unkept" wording; `pendingName`; the restore dialog closing mid-restore; spec 2a
+      robustness loose ends (the phone focus-ring check stays); the "Only on this device" bar.
 - [x] **Live share links and the contact-form pre-fill** (sync spec 3, built 2026-11-02, merged
       into `main` 2026-11-03, PR [#26](https://github.com/SJVAir/data-dashboard/pull/26)): the Share dialog (create, copy, stop with confirmation,
       display name), the `/shared/:token` page (read-only, "made by a user" bar, 60-second
