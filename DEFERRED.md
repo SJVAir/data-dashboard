@@ -662,7 +662,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error wording, the
   loading line and focus, and the "Delete now" wording) were done in the design pass, part 2._
   **Revisit** (4) before step 4 adds widget code (trim the initial bundle, or the user raises the
-  budget), (5) if an undo after a
+  budget; _decided 2026-11-04: step 4 spec 1 trims it back under 200 KB this once, by loading
+  rarely used dialogs on demand; this item leaves when that merges_), (5) if an undo after a
   restore is reported to lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
@@ -751,12 +752,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   `defaultCollectionId` stays an optional field. **Revisit with** the Release 3 step 1 spec
   (Collections and the analysis engine), or sooner if people ask to gather data across
   dashboards before then.
-- **"Download data (CSV)" on every data widget.** _Suggested 2026-10-25 (Foundations spec 4
-  planning), not yet decided._ With Collections in Release 3, the only planned Release 1
-  download is the Data table widget's CSV export. A per-widget download action would cover
-  "get this widget's data out" on every data widget, using the spec 2 data layer.
-  **Decide in** the Release 1 step 4 spec (Widget Creation and the first widget set).
-
 - **Outside health data (HCAI ED visits, CDC PLACES, etc.) and the "smoke → ER visits"
   lag analysis.** _Deferred 2026-09-23 (IDEA.md Q6)._ The server holds no ER,
   hospitalization, or incidence data, so health analysis is limited to CalEnviroScreen's
@@ -993,6 +988,19 @@ string`) now get the union return type. The mobile app passes a string token, so
   another tab drops focus to the page, as before. Why: the hand-off has no widget left to
   target, and choosing a neighbour is a separate design question. **Revisit when** cross-tab
   editing gets its keyboard and screen-reader pass, or it's reported.
+- **Zoom and pan on charts.** _Deferred 2026-11-04 (step 4 spec 1, the user)._ Changing the
+  date range covers looking closer, and zoom needs its own keyboard design. **Revisit when**
+  people ask to zoom, or with the Analysis view (Release 3).
+- **The worst hour beyond 3 months, or with several places.** _Deferred 2026-11-04 (step 4
+  spec 1)._ Daily views show each day's worst hourly average only up to 92 days and for a single
+  place (chart, Data table, and CSV): longer or multi-place views would fetch up to 8,760 hourly
+  points per place, and overlapping sticks are unreadable. **Revisit if** people ask for it, or
+  if sjvair.com adds a daily worst-hourly-average to its summaries (the better fix; tell the
+  coordinator).
+- **"Stopped reporting" for monitors.** _Deferred 2026-11-04 (step 4 spec 1, builder check)._
+  Retired regions get the "stopped reporting" note and "Switch to the replacement", but there's
+  no server lookup telling a retired monitor from one that never existed, so an unknown monitor
+  shows "no longer available". **Revisit when** sjvair.com adds that lookup.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
@@ -1433,12 +1441,12 @@ point.
   attribution text for air-quality, weather, pesticide-use, pesticide-notices, forecasts,
   calheatscore, calenviroscreen, and emissions must come from the user and must not be
   guessed. Meanwhile the dashboard handles an empty `license` gracefully (shows the `source`
-  alone, never a placeholder). **Decide before** dashboard go-live (and before exports or
-  shared pages show attribution).
+  alone, never a placeholder). **Decide before** dashboard go-live (and before exports,
+  CSV downloads, or shared pages show attribution; the step 4 CSV carries none until then).
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
+- **Date-range method toggle in the Data Explorer** (formerly Widget Creation): a dropdown (IDEA.md's default) or
   something more elegant (e.g. a segmented control) for set / rolling / custom.
   **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
 - **Does email get its own rollout switch for alerts?** (2026-10-14) Text alerts open to

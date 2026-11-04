@@ -75,7 +75,17 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
   The Map widget joins in step 6.
 
-### Widget Creation view
+### Data Explorer (formerly "Widget Creation view")
+
+**Renamed 2026-11-04 (the user, step 4 spec 1; built in step 4 spec 3).** "Widget Creation" in
+older text means this view. It's called the **Data Explorer** so people know it's where to find
+data, and it gets its own top-nav entry. **Data first:** pick the dataset, places, and dates, see
+the live preview, then choose how to show it (chart, table, calendar, heatmap), then **Add to
+dashboard** or **Download CSV** (no widget needed just to download). Editing a widget opens the
+same view with **Save changes**. Notes (and later the Map) are added directly from the
+dashboard's "Add widget", since they don't start from data. It doesn't overlap Release 3's
+Analysis view. The details below predate the rename and the data-first order; spec 3 revises
+them.
 
 Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter options
 (e.g. pollutant, regions), now living inside the new dataset accordions:
@@ -196,6 +206,14 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 
 **uPlot for all charts.** Nearly all data is time series, so chart configuration should
 converge on a consistent, shared pattern.
+
+**The Chart's look** (decided 2026-11-04, the user, step 4 spec 1, mockup option A): faint level
+bands from the scale metadata behind a navy line with dots; each day's worst hour as a light
+stick (single place only); band labels are the **full** level names, wrapped, never
+abbreviations (the server has none; a band too thin for its label goes unlabeled); a level key
+with outlined swatches and full names **always** shows under the chart; a hover/tap/arrow-key
+readout gives date, value, level, and worst hour; several places (at most 5) differ by series
+color plus dash or marker; gaps break the line. No zoom or pan in Release 1 (`DEFERRED.md`).
 
 ### Alerts
 
@@ -898,12 +916,19 @@ caching), not per widget.
 
 **Automatic resolution by range span** (bounds fetch size):
 
-| Range span | Resolution        |
-| ---------- | ----------------- |
-| ≤ 2 days   | Raw entries       |
-| ≤ ~60 days | Hourly summaries  |
-| ≤ ~2 years | Daily summaries   |
-| longer     | Monthly summaries |
+| Range span       | Resolution        |
+| ---------------- | ----------------- |
+| ≤ 3 days         | Raw entries       |
+| ≤ 7 days         | Hourly summaries  |
+| ≤ 1 year (365 d) | Daily summaries   |
+| longer           | Monthly summaries |
+
+Revised 2026-11-04 (step 4 spec 1, the user; was raw ≤ 2 days, hourly ≤ ~60 days, daily ≤ ~2
+years): a month of hourly points reads as alarming spikes to a parent, and monthly points hide
+a week of wildfire smoke. Daily views of up to 92 days also carry each day's **worst hourly
+average** (computed in the browser from hourly summaries, single place only), not the daily
+summary's `maximum`, which is one raw reading. Spec:
+`docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`.
 
 - **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
   server summaries, so the ladder only uses levels the catalog lists in each entry type's `resolutions`:
@@ -1467,7 +1492,7 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
 | Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)             |
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
-| Data table                | Sortable table + CSV export; the accessibility fallback for maps/charts                                |                              |
+| Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
 | Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
 | Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                              |
 
@@ -1576,7 +1601,8 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
     Sign in / out.
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
-  - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
+  - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), **Download
+    data (CSV)** on every data widget (decided 2026-11-04, step 4 spec 1), Edit
     (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move ▸ / Size ▸
     (single-click alternatives to dragging), Delete. From Release 3: **Mark for analysis**,
     **Analyze**, Add to collection ▸.

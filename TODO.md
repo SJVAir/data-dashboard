@@ -1022,7 +1022,23 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
-**Release 1, step 4: Widget Creation and non-map widgets**
+**Release 1, step 4: Widget Creation and non-map widgets** (now "the Data Explorer and non-map widgets")
+
+**Split into six specs (agreed with the user 2026-11-04)**, each its own spec → plan → stacked PR
+into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes:
+
+1. **Widget groundwork, Chart, and Data table** — spec approved 2026-11-04:
+   `docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md` (branch
+   `step-4-spec-1`). Includes the SDK bump to 4.8.0-beta.5, the new resolution rule, the worst
+   hour, "Download data (CSV)" on every data widget, and trimming the initial bundle under 200 KB.
+2. The shared place picker (second, so sjvair.com's location name search is likely out).
+3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
+   how to show it, then Add to dashboard or Download CSV).
+4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
+5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
+6. Notes and the starter dashboard.
+
+The checklist below is the whole step's scope.
 
 - **Widget types default to about 3 of 12 columns wide**, so a laptop shows about four across
   (the design pass's density). Placeholder already does.
@@ -1039,7 +1055,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   copy); a real edit makes a copy and replaces the URL with `/workspace/dashboards/:id`; sharing
   copies first. It has non-map widgets, including a
   calendar; the Map widget joins in step 6.
-- The Widget Creation view (including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
+- The Data Explorer (formerly the Widget Creation view; including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
 - The "Duplicate widget" action (used to put several widgets on the same place).
