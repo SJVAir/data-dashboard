@@ -86,7 +86,8 @@ export function drawBands(
 	);
 	for (const band of boxes) {
 		if (band.level.color === null) continue;
-		ctx.globalAlpha = band.level.opacity ?? style.opacity;
+		// The server's opacity is a map fill's (e.g. 0.4); capped so bands stay faint behind the line.
+		ctx.globalAlpha = Math.min(band.level.opacity ?? style.opacity, style.opacity);
 		ctx.fillStyle = band.level.color;
 		ctx.fillRect(box.left, box.top + band.top * r, box.width, (band.bottom - band.top) * r);
 	}

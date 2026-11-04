@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Level } from "$lib/data/metadata";
-import { layoutBands, valueAxisMax } from "./bands";
+import { drawBands, layoutBands, valueAxisMax } from "./bands";
 
 const level = (key: string, label: string, min: number, max: number | null): Level => ({
 	key,
@@ -84,5 +84,45 @@ describe("valueAxisMax", () => {
 	it("falls back to the data max without levels, and to the first level with no data", () => {
 		expect(valueAxisMax([], 12)).toBe(12);
 		expect(valueAxisMax(LEVELS, null)).toBe(9);
+	});
+});
+
+describe("drawBands", () => {
+	function recordingCtx() {
+		const alphas: number[] = [];
+		const ctx = {
+			globalAlpha: 1,
+			fillStyle: "",
+			font: "",
+			textAlign: "",
+			textBaseline: "",
+			save() {},
+			restore() {},
+			measureText: (t: string) => ({ width: t.length * 5 }),
+			fillRect() {
+				alphas.push(ctx.globalAlpha);
+			},
+			fillText() {}
+		};
+		return { ctx: ctx as unknown as CanvasRenderingContext2D, alphas };
+	}
+
+	it("caps a level's own opacity at the band token, so bands stay faint", () => {
+		const { ctx, alphas } = recordingCtx();
+		const levels = [{ ...LEVELS[0], opacity: 0.4 }, { ...LEVELS[1], opacity: 0.1 }, LEVELS[2]];
+		drawBands(
+			ctx,
+			levels,
+			{ min: 0, max: 60 },
+			{ left: 0, top: 0, width: 300, height: 200 },
+			{
+				opacity: 0.16,
+				text: "text",
+				font: "sans-serif",
+				fontSize: 10,
+				ratio: 1
+			}
+		);
+		expect(alphas).toEqual([0.16, 0.1, 0.16]);
 	});
 });

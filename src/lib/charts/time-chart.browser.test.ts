@@ -1,6 +1,6 @@
 import axe from "axe-core";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import "../../app.css";
 import type { Level } from "$lib/data/metadata";
@@ -51,7 +51,10 @@ function daily(means: Record<number, number>, worst: boolean, partialDay?: numbe
 		max: mean,
 		count: 24,
 		partial: Number(d) === partialDay,
-		...(worst ? { worstHour: { t: threePm(Number(d)), value: mean + 10 } } : {})
+		// Day 1's worst hour equals its average, so it has no stick to draw.
+		...(worst
+			? { worstHour: { t: threePm(Number(d)), value: Number(d) === 1 ? mean : mean + 10 } }
+			: {})
 	}));
 }
 
@@ -168,7 +171,7 @@ test("a single place draws worst-hour sticks", async () => {
 	const { screen } = await renderChart(oneplace());
 	await expect
 		.poll(() => Number(frame.querySelector("[data-sticks]")?.getAttribute("data-sticks")))
-		.toBe(9);
+		.toBe(8);
 	await expect.element(screen.getByText("Worst hour", { exact: true })).toBeVisible();
 });
 
@@ -199,4 +202,50 @@ test("axe passes in light and dark", async () => {
 	expect((await axe.run(frame)).violations).toEqual([]);
 	document.documentElement.setAttribute("data-theme", "dark");
 	expect((await axe.run(frame)).violations).toEqual([]);
+});
+
+const canvasWidth = () => (frame.querySelector("canvas") as HTMLCanvasElement).width;
+
+test("a resize animation redraws once, after it ends", async () => {
+	await renderChart(oneplace());
+	const before = canvasWidth();
+	const host = frame.querySelector("[role='group']")!.parentElement!;
+	const animation = host.animate([{ width: "640px" }, { width: "400px" }], {
+		duration: 300,
+		fill: "forwards"
+	});
+	// Mid-animation the box has shrunk, but the chart hasn't redrawn yet.
+	await new Promise((r) => setTimeout(r, 120));
+	expect(frame.getBoundingClientRect().width).toBeLessThan(640);
+	expect(canvasWidth()).toBe(before);
+	await animation.finished;
+	await expect.poll(canvasWidth).toBeLessThan(before);
+	animation.cancel();
+});
+
+test("an endless ancestor animation doesn't hold back resize redraws", async () => {
+	await renderChart(oneplace());
+	const before = canvasWidth();
+	const spinner = frame.animate([{ opacity: 1 }, { opacity: 1 }], {
+		duration: 1000,
+		iterations: Infinity
+	});
+	try {
+		frame.style.width = "400px";
+		await expect.poll(canvasWidth).toBeLessThan(before);
+	} finally {
+		spinner.cancel();
+	}
+});
+
+test("under reduced motion a resize redraws at once", async () => {
+	await commands.setReducedMotion(true);
+	try {
+		await renderChart(oneplace());
+		const before = canvasWidth();
+		frame.style.width = "400px";
+		await expect.poll(canvasWidth).toBeLessThan(before);
+	} finally {
+		await commands.setReducedMotion(null);
+	}
 });

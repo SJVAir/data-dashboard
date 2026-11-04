@@ -6,7 +6,7 @@ export type Project = { x: (i: number) => number; y: (v: number) => number };
 
 /**
  * Each day's worst hour as a light stick from the dot up to the worst hourly value. Returns how
- * many sticks were drawn.
+ * many sticks were drawn (a worst hour no higher than the average has none).
  */
 export function drawSticks(
 	ctx: CanvasRenderingContext2D,
@@ -23,8 +23,8 @@ export function drawSticks(
 	ctx.setLineDash([]);
 	points.forEach((p, i) => {
 		if (!p?.worstHour) return;
-		drawn++;
 		if (p.worstHour.value <= p.mean) return;
+		drawn++;
 		ctx.beginPath();
 		ctx.moveTo(at.x(i), at.y(p.mean));
 		ctx.lineTo(at.x(i), at.y(p.worstHour.value));

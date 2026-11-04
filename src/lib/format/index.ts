@@ -125,16 +125,21 @@ export function formatPeriod(
 	}).format(start);
 }
 
-/** A compact axis tick in Pacific time: "3 PM", "Oct 1", "Oct", or "2026". */
+/**
+ * A compact axis tick in Pacific time: "3 PM", "Oct 1", "Oct", or "2026". An hourly tick on a
+ * Pacific midnight names the day instead ("Oct 2", not "12 AM"), so hourly axes show the date.
+ */
 export function formatTick(
 	instant: Date,
 	unit: "hour" | "day" | "month" | "year",
 	locale: string = LOCALE
 ): string {
+	const pacific = new TZDate(instant.getTime(), TIME_ZONE);
+	const midnight = pacific.getHours() === 0 && pacific.getMinutes() === 0;
 	const options: Intl.DateTimeFormatOptions =
-		unit === "hour"
+		unit === "hour" && !midnight
 			? { hour: "numeric" }
-			: unit === "day"
+			: unit === "day" || unit === "hour"
 				? { month: "short", day: "numeric" }
 				: unit === "month"
 					? { month: "short" }

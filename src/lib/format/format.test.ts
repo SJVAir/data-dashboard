@@ -103,6 +103,12 @@ describe("format", () => {
 		expect(formatTick(t, "month")).toBe("Oct");
 		expect(formatTick(t, "year")).toBe("2026");
 		expect(formatTick(new Date("2026-10-01T22:00:00Z"), "hour")).toBe("3 PM");
+		// An hourly tick on a Pacific midnight names the day instead of "12 AM".
+		expect(formatTick(new Date("2026-10-02T07:00:00Z"), "hour")).toBe("Oct 2");
+		// Midnight UTC isn't a Pacific midnight.
+		expect(formatTick(new Date("2026-10-02T00:00:00Z"), "hour")).toBe("5 PM");
+		// Fall-back day: midnight is still 07:00Z (PDT); the next midnight is 08:00Z (PST).
+		expect(formatTick(new Date("2026-11-02T08:00:00Z"), "hour")).toBe("Nov 2");
 	});
 	it("formatList joins names as a sentence list", () => {
 		expect(formatList(["A"])).toBe("A");
