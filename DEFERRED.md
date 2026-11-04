@@ -854,13 +854,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   can't name the published processor, so the request names none and the server returns the
   type's default stage. **Revisit when** step 3's metadata work lands: report the query as
   `unavailable`, or refresh the monitors list and try again.
-- **The rollup-lag backfill is one level deep and fetched on every poll.** _Deferred
-  2026-10-22 (Foundations spec 2 final review)._ The last completed period is backed up from
-  the next finer level only, so a day backfilled from hourly summaries just after midnight
-  lacks its final hour until that hour's rollup runs (about 00:45), yet reads as complete;
-  and the backfill is fetched with every poll even once the coarse rollup exists. **Revisit
-  when** widgets show daily data live (Release 1 step 4): backfill the backfill's own last
-  period from the next level down, and skip the backfill once the coarse value has arrived.
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com

@@ -2,7 +2,7 @@ import { periodStart, type Period } from "$lib/format/range";
 import { aggregate } from "../aggregate";
 import { runLimited } from "../chunks";
 import { downsampleInWorker } from "../downsample-client";
-import { planSegments } from "../periods";
+import { finerLevel, planSegments, type Segment } from "../periods";
 import type { PlaceInfo, QueryData, Series, SeriesPoint, Target } from "../types";
 import {
 	bulkSummaryTasks,
@@ -161,31 +161,78 @@ async function summarySeries(
 	});
 	const regionIds = target.kind === "regions" ? places.map((p) => p.id) : undefined;
 
-	const tasksFor = (seg: (typeof segments)[number]): FetchTask[] => {
+	// Tasks for a segment; `only` limits monitors to some ids (bulk requests can't be limited).
+	const tasksFor = (seg: Segment, only?: Set<string>): FetchTask[] => {
+		const chosen = only ? places.filter((p) => only.has(p.id)) : places;
+		const procs = chosen.map((p) => processors[places.indexOf(p)]);
 		if (seg.resolution === "raw") {
-			return places.flatMap((p, i) =>
-				rawTasks(p.id, entryType, processors[i], seg.start, seg.end, signal)
+			return chosen.flatMap((p, i) =>
+				rawTasks(p.id, entryType, procs[i], seg.start, seg.end, signal)
 			);
 		}
 		// Monitors one by one, each with its own published series: the bulk monitor endpoint
 		// can't be scoped to monitor ids, so it is used only for the whole layer.
 		if (target.kind === "monitors") {
-			return places.flatMap((p, i) =>
-				monitorSummaryTasks(p.id, entryType, processors[i], seg, now, signal)
+			return chosen.flatMap((p, i) =>
+				monitorSummaryTasks(p.id, entryType, procs[i], seg, now, signal)
 			);
 		}
 		return bulkSummaryTasks(entryType, regionIds, seg, now, signal);
 	};
-	const [complete, fill, backfill] = await collect(
+	// Complete and fill together; the backfill waits to see which places lack the last period.
+	const [complete, fill] = await collect(
 		[
-			segments.filter((s) => !s.aggregateTo).flatMap(tasksFor),
-			segments.filter((s) => s.aggregateTo && !s.backfill).flatMap(tasksFor),
-			segments.filter((s) => s.backfill).flatMap(tasksFor)
+			segments.filter((s) => !s.aggregateTo).flatMap((s) => tasksFor(s)),
+			segments.filter((s) => s.aggregateTo && !s.backfill).flatMap((s) => tasksFor(s))
 		],
 		signal
 	);
-
 	const to = req.resolution as Period;
+	const knownIds = (): string[] =>
+		target.kind === "all"
+			? [...new Set([...complete.keys(), ...fill.keys()])]
+			: places.map((p) => p.id);
+
+	const backfill = new Map<string, SeriesPoint[]>();
+	const seg = segments.find((s) => s.backfill);
+	if (seg) {
+		const lastT = periodStart(seg.start, to).getTime();
+		const lacking = (byId: Map<string, SeriesPoint[]>, t: number, ids: string[]) =>
+			ids.filter((id) => !(byId.get(id) ?? []).some((p) => p.t === t));
+		const ids = knownIds();
+		// With nothing known (a whole-layer response that is empty) the backfill still runs.
+		const need = ids.length === 0 ? [] : lacking(complete, lastT, ids);
+		if (ids.length === 0 || need.length > 0) {
+			const needed = new Set(need);
+			const [first] = await collect(
+				[tasksFor(seg, target.kind === "monitors" ? needed : undefined)],
+				signal
+			);
+			const take = (id: string) => ids.length === 0 || needed.has(id);
+			for (const [id, pts] of first) if (take(id)) backfill.set(id, pts);
+
+			// The backfill's own last sub-period may lack its rollup too: one level finer.
+			const finer = finerLevel(seg.resolution, req.offered);
+			if (finer) {
+				const subStart = periodStart(new Date(seg.end.getTime() - 1), seg.resolution as Period);
+				const sub: Segment = { ...seg, resolution: finer, start: subStart };
+				const subIds = ids.length === 0 ? [...first.keys()] : need;
+				const short = lacking(first, subStart.getTime(), subIds);
+				if (short.length > 0) {
+					const [extra] = await collect(
+						[tasksFor(sub, target.kind === "monitors" ? new Set(short) : undefined)],
+						signal
+					);
+					const shortSet = new Set(short);
+					for (const [id, pts] of extra) {
+						if (!shortSet.has(id)) continue;
+						backfill.set(id, [...(backfill.get(id) ?? []), ...pts]);
+					}
+				}
+			}
+		}
+	}
+
 	const all =
 		target.kind === "all"
 			? [...new Set([...complete.keys(), ...fill.keys(), ...backfill.keys()])].map((id) => ({

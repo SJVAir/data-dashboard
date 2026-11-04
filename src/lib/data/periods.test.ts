@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedRange } from "$lib/format/range";
-import { planSegments } from "./periods";
+import { finerLevel, planSegments } from "./periods";
 import type { Resolution } from "./schema";
 
 const NOW = new Date("2026-10-22T19:00:00Z");
@@ -248,5 +248,15 @@ describe("planSegments", () => {
 				offered: ALL
 			})
 		).toEqual([]);
+	});
+});
+
+describe("finerLevel", () => {
+	it("is the next finer offered level, one down", () => {
+		expect(finerLevel("hour", ALL)).toBe("raw");
+		expect(finerLevel("hour", ["hour", "day"])).toBeNull();
+		expect(finerLevel("day", ALL)).toBe("hour");
+		expect(finerLevel("month", ["day", "month"])).toBe("day");
+		expect(finerLevel("raw", ALL)).toBeNull();
 	});
 });
