@@ -146,6 +146,7 @@ describe("createWebMetadata().catalog", () => {
 							kind: "particle-count",
 							units: "",
 							resolutions: ["raw", "decade" as never, "day"],
+							display: { precision: null, chart: null, y_min: null },
 							retired: { since: "2026-01-01T00:00:00Z", replaced_by: "pm25" }
 						},
 						{
@@ -154,6 +155,7 @@ describe("createWebMetadata().catalog", () => {
 							kind: "pollutant",
 							units: "",
 							resolutions: [],
+							display: { precision: null, chart: null, y_min: null },
 							retired: { since: "2026-02-01T00:00:00Z", replaced_by: null }
 						}
 					],

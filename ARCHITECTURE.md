@@ -1979,7 +1979,7 @@ rest are the builder's calls, and the user kept them.
    sees it. It is shown with the existing three-choice `ConflictDialog`.
 5. **"Use the other version" keeps the local version as a separate snapshot request:**
    `POST documents/<id>/snapshots/` (sjvair.com #298), through `createSnapshot` in
-   `@sjvair/sdk` 4.8.0-beta.3. "Use the other version" and "Discard" after a delete elsewhere
+   `@sjvair/sdk` 4.8.0-beta.6. "Use the other version" and "Discard" after a delete elsewhere
    keep the local version this way, with no save. (The plan first called for an extra
    snapshot field on a save.)
 6. **A lost save answer is recognized.** The record notes the batch in flight; if the server's
@@ -2010,7 +2010,7 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.3` (exact). The documents code lives in
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.6` (exact). The documents code lives in
     `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
     `DEFERRED.md`).
 

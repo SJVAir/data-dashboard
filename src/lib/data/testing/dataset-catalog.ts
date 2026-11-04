@@ -24,6 +24,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "meteorological",
 					units: "%",
 					resolutions: ["raw"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				},
 				{
@@ -32,6 +33,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "other",
 					units: "",
 					resolutions: ["raw"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				},
 				{
@@ -40,6 +42,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "pollutant",
 					units: "µg/m³",
 					resolutions: ["raw"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null,
 					available: false
 				},
@@ -49,6 +52,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "pollutant",
 					units: "µg/m³",
 					resolutions: [...ALL],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null,
 					available: true
 				}
@@ -71,6 +75,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "other",
 					units: "",
 					resolutions: ["day"],
+					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				}
 			],
