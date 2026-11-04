@@ -228,14 +228,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
-  - **The Share dialog's public-name field stays disabled after a failed load until the dialog
-    is reopened.** _Deferred 2026-11-02 (sync spec 3, final review)._ There is no retry when the
-    connection comes back; reopening the dialog loads it again. **Revisit on a report, or in the
-    design pass.**
-  - **A display-name save that fails for any reason other than an invalid name shows the
-    "Couldn't reach SJVAir" message.** _Deferred 2026-11-02 (sync spec 3, final review)._ Rate
-    limited and signed-out failures are worded as if offline; the wording is a working draft.
-    **Revisit with** the design pass's error wording.
   - **"Based on …" looked up while offline stays hidden until the next page load.**
     _Deferred 2026-11-02 (sync spec 3, final review)._ The answer is cached per page load, so a
     lookup that failed offline is not retried. **Revisit if** people report a missing credit.
@@ -436,9 +428,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
   two dashboards, which the person can delete or restore.
-- **Conflict status wording.** _Deferred 2026-10-20 (Foundations spec 1 review); the other
-  cross-tab sync edge cases were done in spec 3._ The "error" status during a conflict looks
-  like "Couldn't save". **Revisit in** the design pass.
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size
@@ -470,10 +459,6 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **A failed `lastShownAt` write lets the reminder show again next load.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ And
   `NoticeBars` keeps its own guard around reading the reminder prefs instead of sharing one.
   **Revisit if** a repeating reminder is reported.
-- **Restored unreadable dashboards are invisible in the list and the Clear count.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A
-  backup's invalid (unreadable) dashboard is restored as stored, but the index lists only
-  loadable ones, so it isn't shown or counted. **Revisit with** the design pass or a "can't
-  open" list.
 
 - **Upgrading `bits-ui` past 2.19.2.** _Deferred 2026-10-25 (Foundations spec 3, Task 13)._
   `npx shadcn-svelte add popover` bumped `bits-ui` from 2.19.2 to 2.20.2, which broke
@@ -632,26 +617,19 @@ string`) now get the union return type. The mobile app passes a string token, so
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
 - **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
-  (1) The restore dialog's "can't be loaded right now" shows for any failure to list the
-  account's versions, including a refusal (gone or not found), not just offline; it adds a
-  clearer message per cause. (2) The dialog's loading line is inserted conditionally as a
-  status region (some screen readers may not announce it), and focus stays on Cancel after the
-  list loads. (3) "Delete now" on a local copy that can't be read (newer format or invalid)
-  says "couldn't reach your account", which is misleading, and the "restored on another
-  device" toast uses the error style though it's informational. (4) The initial bundle is
-  about 199.2 KB of the 200 KB soft budget after spec 4 (the restore dialog and Recently
-  deleted changes). (5) After a restore's keep pulls in another device's change (stale base),
-  the restore's `from` is built from the open session's document, which may lag the merged
-  storage for a moment; undoing that restore could then drop the other device's merged-in
-  edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test gaps: the
-  keep's `not_found` refusal (shares the `gone` branch); restoring with the keep skipped
-  (anonymous or never uploaded); the "newer" message reaching the dialog; flush-before-load
-  order; "Delete now" pulling in a real concurrent restore (the test uses a synthetic
-  `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
-  `space-switch` closing the old app first, not by a test). **Revisit** (1) and (3) with the
-  design pass's error wording, (2) in the design pass or the screen-reader check, (4) when the
-  next feature would cross the budget (CI warns), (5) if an undo after a restore is reported to
-  lose an edit, and (6) when next touching those files.
+  (4) The initial bundle is about 199.2 KB of the 200 KB soft budget after spec 4 (the restore
+  dialog and Recently deleted changes). (5) After a restore's keep pulls in another device's
+  change (stale base), the restore's `from` is built from the open session's document, which may
+  lag the merged storage for a moment; undoing that restore could then drop the other device's
+  merged-in edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test
+  gaps: the keep's `not_found` refusal (shares the `gone` branch); restoring with the keep
+  skipped (anonymous or never uploaded); the "newer" message reaching the dialog;
+  flush-before-load order; "Delete now" pulling in a real concurrent restore (the test uses a
+  synthetic `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
+  `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error wording, the
+  loading line and focus, and the "Delete now" wording) were done in the design pass, part 2._
+  **Revisit** (4) when the next feature would cross the budget (CI warns), (5) if an undo after a
+  restore is reported to lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
@@ -662,11 +640,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   server snapshot, so it can be undone after a reload; offline (or refused) nothing is restored,
   even for the local kept original. A queued keep would need a new hold kind. **Revisit if**
   people report restoring while offline.
-- **The earlier-versions list isn't deduplicated.** _Deferred 2026-11-02 (sync spec 4 plan, call
-  2)._ The local kept original and the server's `schema` snapshot can hold the same content, and
-  both are listed (each labelled with its source and time). Telling them apart reliably would
-  need a content hash on both sides. **Revisit in** the design pass, or on a report of a
-  confusing list.
 - **Unsynced edits in the browser where an account is deleted are lost with it.** _Deferred
   2026-11-02 (sync spec 4 plan, call 6)._ The dashboard removes the deleted account's space at
   once, and "Download my documents" on sjvair.com's delete page has only the server's copies, so
@@ -1163,10 +1136,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   global actions (the spec has nav controls be views onto actions). **Revisit in** Release 1
   step 4 (its first checkbox or range input), with the command palette (the actions), and
   before translations ship (IME).
-- **Save-status announcements.** _Deferred 2026-10-20 (Foundations spec 1 review)._
-  The saved indicator's `aria-live` region announces "Saving…"/"Saved" on every edit, which
-  is noisy for screen readers. (The undo-toast half closed with "Recently deleted", which
-  recovers a deleted dashboard after the toast is gone.) **Revisit in** the design pass.
 - **Read-only dashboards in Recently deleted can't be undeleted by a restore.**
   _Deferred 2026-10-25 (Foundations spec 3, Task 11 review)._ Restoring a backup undeletes
   a stored dashboard that is in Recently deleted through an ordinary edit, and read-only
@@ -1174,10 +1143,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   kept and stays deleted. The Recently deleted list's **Restore** has the same limit: for a
   read-only dashboard it only shows a toast saying it can't be restored here. **Revisit if** read-only dashboards become restorable or
   undeletable.
-- **Names of copies.** _Deferred 2026-10-20 (Foundations spec 1 review)._ "Save mine as a
-  copy" keeps the same name with no rename prompt, and duplicating an unnamed "My dashboard"
-  lists the copy as "Untitled dashboard". **Revisit in** the design pass, or when people
-  report confusing copies.
 - **Dashboard page and list loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._
   The delete action's `deletedAt` comes from `new Date()`, not an injected clock; the
   previous `document.title` lingers while a session loads; the conflict dialog watches only
@@ -1189,15 +1154,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   2026-09-24._ IDEA.md: "at minimum via dropdown; ideally via a nicer visual picker".
   Release 1 uses a top-nav dropdown. **Revisit when** people routinely keep more than
   about 5–7 dashboards, or public templates ship and need browsing.
-- **Read-only Share dialog and Download feedback.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ For a read-only dashboard the Share
-  dialog shows the "too big for a link" text (the real reason is that it can't be linked), and
-  Download gives no confirmation. **Revisit in** the design pass.
-- **Wording for a dashboard opened read-only because its original couldn't be kept.** _Deferred 2026-10-25 (Foundations spec 3, final review)._
-  It reuses the "invalid" (can't be opened) wording. **Revisit in** the design pass.
-- **`pendingName` is shown unnormalized in the list.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ A name that isn't saved yet is
-  listed as it was typed, not normalized like a saved name. **Revisit in** the design pass.
-- **RestoreVersionDialog closing mid-restore.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ It doesn't block closing while a
-  restore runs, or reset its state on close. **Revisit in** the design pass.
 - **A "present" mode using the browser's own full screen.** _Deferred 2026-10-28 (step 2
   design)._ Widget fullscreen covers the dashboard area only; the browser's F11 / fullscreen key
   already gives an edge-to-edge projector view. The Fullscreen API would add a second Esc-to-exit
@@ -1263,22 +1219,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
-- **Spec 2a robustness loose ends.** _Deferred 2026-10-28 (step 2, spec 2a final review)._ None
-  is a user-facing bug today: a tests-only `onArrangement` prop on `DashboardGrid` and the test
-  harness; the live region is hidden behind bits-ui modals (they `aria-hidden` their siblings);
-  resizing isn't animated; the autoscroll animation frame runs for the whole drag, not only in
-  the edge zone; touches starting on a widget's body or Done during a touch selection can
-  scroll the page; a second drop on the starter before the page switches to its copy doesn't
-  carry focus; the focus ring after touch drops isn't checked by hand (the design pass couldn't
-  script it: synthetic touch events don't change `:focus-visible`, so it needs a real phone);
-  `FALLBACK_MIN_SIZE` is a shared object that isn't frozen; and `stepDown`'s doc comment
-  wording. **Revisit in** design pass part 2 (Task 20, arranging loose ends); check the focus
-  ring on a phone in the next hand check or the private preview.
-
-- **The "Only on this device" notice bar's count and link.** _Deferred 2026-11-02 (sync spec 2,
-  Task 12)._ The bar counts refused dashboards in Recently deleted too, and its link to the
-  dashboards list shows on the list page itself. **Revisit with** the design pass, or if the
-  count is reported as wrong.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.
@@ -1353,6 +1293,37 @@ string`) now get the union return type. The mobile app passes a string token, so
     the page background (axe covers today's uses).
   - From the screenshot review: the full-width "Clear my data…" button on the list page,
     tall placeholder widgets on phones, and toasts covering "Add widget" on phones.
+- **Phone check of the focus ring after touch drops.** _Deferred 2026-10-28 (step 2, spec 2a final
+  review); narrowed 2026-11-03 (design pass, Task 20)._ The rest of the spec 2a robustness loose
+  ends are done. This one can't be scripted: synthetic touch events don't change
+  `:focus-visible`, so it needs a real phone. **Revisit in** the next hand check or the private
+  preview.
+- **Design pass, part 2 polish.** _Deferred 2026-11-03 (design pass, Tasks 11-20 reviews)._ Small
+  follow-ups, none affecting correctness for people today. **Revisit when** next touching each
+  file, or if one is reported:
+  - `SavedIndicator` doesn't reset its remembered previous state when the open dashboard
+    switches, so moving from a dashboard in error or conflict to a healthy one announces "Saved
+    again". It also has no test for the conflict-hold branch, and its test casts a conflict with
+    `{} as never`.
+  - An `onlyInDialog` toast or announcement fired just before a dialog registers (one handler
+    that opens a dialog and shows a toast) is dropped, because the dialog check happens at the
+    call. A message set during a dialog's 120 ms close animation goes to that dialog and is also
+    dropped. `e2e/sharing.spec.ts` (the assertion near line 112) was loosened to filter and
+    check visibility because of this.
+  - The scan that finds `LiveRegion` uses in tests can pair a self-closing component with a later
+    closing tag (pre-existing).
+  - The Share dialog's carry-over test checks for absence right after `setOnline(true)` without a
+    settle step, so a late request could slip past it. `linkUnavailable` is inferred from "no
+    url" rather than from the result kind of `shareUrl`, and the download confirmation has no
+    timeout.
+  - The Recently deleted list has no explicit focus target in its empty or load-failed states,
+    and an empty `{#if loading}` branch holds only a comment. The "missing" delete result has no
+    unit test at the `deletePermanently` level (a `documents.get` stub returning nothing would
+    cover it).
+  - `DashboardGrid` no longer wraps the probe callback in `untrack` (harmless), the read-only
+    message there is a nested ternary, carried focus stays set if the page never switches
+    (guarded, pre-existing), and no test covers a cancelled resize animating back under
+    reduced motion (the zero-duration guard covers it).
 
 ## Legacy Monitors-tab follow-ups
 
