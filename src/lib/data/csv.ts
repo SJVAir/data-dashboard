@@ -42,6 +42,11 @@ function pacificIso(t: number): string {
 	return format(new TZDate(t, TIME_ZONE), "yyyy-MM-dd'T'HH:mm:ssXXX");
 }
 
+/** A number as plain decimal text: `.` decimal, no grouping, never exponent notation. */
+function plain(n: number): string {
+	return n.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 });
+}
+
 function cell(value: string): string {
 	return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
@@ -78,10 +83,10 @@ export function toCsv(data: QueryData, meta: EntryInfo): string {
 				meta.entryType,
 				meta.entryLabel,
 				meta.unit,
-				String(p.mean),
-				String(p.min),
-				String(p.max),
-				p.worstHour ? String(p.worstHour.value) : "",
+				plain(p.mean),
+				plain(p.min),
+				plain(p.max),
+				p.worstHour ? plain(p.worstHour.value) : "",
 				p.worstHour ? pacificIso(p.worstHour.t) : "",
 				String(p.count),
 				data.resolution,
@@ -140,7 +145,7 @@ export async function downloadWidgetCsv(
 	const placeLabel =
 		data.places.length === 1
 			? data.places[0].name
-			: `${data.places.length} ${m.file_places_stem()}`;
+			: m.file_places({ count: String(data.places.length) });
 	save(
 		dataFileName({
 			entryLabel: meta.entryLabel,

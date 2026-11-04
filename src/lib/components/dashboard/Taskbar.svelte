@@ -3,9 +3,16 @@
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 	import { menuScope } from "$lib/actions/scope";
-	import { restoreWidget, taskbarActions, viewActions, widgetTitle } from "$lib/actions/widget";
+	import {
+		downloadItems,
+		restoreWidget,
+		taskbarActions,
+		viewActions,
+		widgetTitle
+	} from "$lib/actions/widget";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
+	import type { MenuProvider } from "$lib/actions/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
@@ -31,6 +38,13 @@
 	let bar = $state<HTMLElement | null>(null);
 	// The one button in the tab order (roving tabindex); index into all buttons.
 	let stop = $state(0);
+	function menuFor(widget: WidgetInstance): MenuProvider {
+		const base = readOnly
+			? viewActions(widget.id, onfullscreen)
+			: taskbarActions(app, widget.id, onfullscreen);
+		return (ctx) => [...downloadItems(app, () => widget), ...base(ctx)];
+	}
+
 	const count = $derived(widgets.length * 2);
 	const current = $derived(Math.min(stop, Math.max(0, count - 1)));
 
@@ -151,11 +165,7 @@
 			<div
 				class="border-border animate-in fade-in-0 zoom-in-95 duration-fast ease-standard flex shrink-0 items-center rounded-(--radius-control) border"
 				data-testid="taskbar-{widget.id}"
-				{@attach menuScope(
-					readOnly
-						? viewActions(widget.id, onfullscreen)
-						: taskbarActions(app, widget.id, onfullscreen)
-				)}
+				{@attach menuScope(menuFor(widget))}
 			>
 				<Button
 					variant="ghost"

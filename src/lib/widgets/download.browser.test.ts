@@ -83,7 +83,7 @@ test.each([
 	expect(lines[0]).toContain("period_start");
 	expect(lines).toHaveLength(5);
 	// One place, daily view, so the worst hour is carried.
-	expect(lines[1]).toContain(",12,");
+	expect(lines[1].split(",")[11]).toBe("12");
 });
 
 test("a placeholder widget's menu has no download", async () => {
@@ -112,4 +112,22 @@ test("the Data table has its own Download CSV button", async () => {
 	expect(lines).toHaveLength(8);
 	expect(lines[1].split(",")[11]).toBe("");
 	expect(platform.files.saved[0].name).toContain("pm25-2-places-");
+});
+
+test("a minimized data widget's taskbar menu has Download data (CSV)", async () => {
+	const platform = await show([
+		{
+			...chartWidget(["m1"], { title: "Readings" }),
+			rect: { x: 0, y: 0, w: 6, h: 8 },
+			minimized: { order: 0 }
+		}
+	]);
+	await page
+		.getByTestId(
+			`taskbar-${document.querySelector("[data-testid^=taskbar-]")!.getAttribute("data-testid")!.slice(8)}`
+		)
+		.click({ button: "right" });
+	await page.getByRole("menuitem", { name: m.widget_download_csv() }).click();
+	await expect.poll(() => platform.files.saved.length).toBe(1);
+	expect(platform.files.saved[0].type).toBe("text/csv");
 });

@@ -138,6 +138,7 @@ describe("toCsv", () => {
 		const [, row] = parse(toCsv(d, META));
 		expect(row[CSV_COLUMNS.indexOf("mean")]).toBe("12345.678");
 		expect(row[CSV_COLUMNS.indexOf("min")]).toBe("0.5");
+		expect(row[CSV_COLUMNS.indexOf("max")]).toBe("1000000000000000000000");
 	});
 
 	it("orders rows by place (request order) then time", () => {

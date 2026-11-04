@@ -325,7 +325,7 @@
 	"file_dashboard_stem": "dashboard",
 	"file_backup_stem": "sjvair-dashboards-backup",
 	"file_data_stem": "data",
-	"file_places_stem": "places",
+	"file_places": "{count} places",
 	"widget_download_csv": "Download data (CSV)",
 	"widget_download_csv_failed": "The data couldn't be downloaded. Try again.",
 	"table_download_csv": "Download CSV",

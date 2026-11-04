@@ -27,6 +27,7 @@ import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { afterMenuClose, closeMenus } from "$lib/components/menu/menu-state.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
+import { report } from "$lib/safety/report";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { movedText, resizedText } from "$lib/layout/announcements";
@@ -359,7 +360,10 @@ export function downloadItems(app: AppContext, widget: () => WidgetInstance | nu
 				void import("$lib/data/csv").then(
 					(csv) =>
 						csv.saveWidgetCsv(latest, (name, contents, type) => files.save(name, contents, type)),
-					() => void toast.error(m.widget_download_csv_failed())
+					(error: unknown) => {
+						report(error);
+						toast.error(m.widget_download_csv_failed());
+					}
 				);
 			}
 		}
