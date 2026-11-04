@@ -1,6 +1,10 @@
 <script lang="ts">
 	import ArrowDown from "@lucide/svelte/icons/arrow-down";
 	import ArrowUp from "@lucide/svelte/icons/arrow-up";
+	import Download from "@lucide/svelte/icons/download";
+	import { Button } from "$lib/components/ui/button";
+	import { saveWidgetCsv } from "$lib/data/csv";
+	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { levelFor } from "$lib/data/metadata";
 	import type { QueryData } from "$lib/data/types";
@@ -14,6 +18,7 @@
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
+	const app = useApp();
 	const MAX_PLACES = dataTableType.accepts?.maxPlaces ?? 10;
 	/**
 	 * "Wide enough" for the extra columns: the widget body is as wide as six grid columns. The grid
@@ -77,11 +82,24 @@
 				{@const rows = sortRows(wideRows(data), sort.column, sort.dir)}
 				{@const extra = extras(data)}
 				<div class="flex h-full flex-col">
-					<p class="text-muted-foreground mb-1 text-sm">
-						{data.fromRaw
-							? m.table_caption_raw({ resolution: RESOLUTION_LABEL[data.resolution]() })
-							: m.table_caption({ resolution: RESOLUTION_LABEL[data.resolution]() })}
-					</p>
+					<div class="mb-1 flex items-center justify-between gap-2">
+						<p class="text-muted-foreground text-sm">
+							{data.fromRaw
+								? m.table_caption_raw({ resolution: RESOLUTION_LABEL[data.resolution]() })
+								: m.table_caption({ resolution: RESOLUTION_LABEL[data.resolution]() })}
+						</p>
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={() =>
+								void saveWidgetCsv(widget, (name, contents, type) =>
+									app.platform.files.save(name, contents, type)
+								)}
+						>
+							<Download aria-hidden="true" />
+							{m.table_download_csv()}
+						</Button>
+					</div>
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
 						class="min-h-0 flex-1 overflow-auto"

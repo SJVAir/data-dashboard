@@ -5,6 +5,7 @@ import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import ArrowUpToLine from "@lucide/svelte/icons/arrow-up-to-line";
+import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
 import FoldHorizontal from "@lucide/svelte/icons/fold-horizontal";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
@@ -335,6 +336,34 @@ export function widgetActions(
 			}
 		];
 	};
+}
+
+/**
+ * "Download data (CSV)" for a widget whose type is `downloadable` (none otherwise). The data
+ * layer comes with a dynamic import, so it stays out of the initial bundle. `widget` is read
+ * when the item runs. Not an edit: offered on a read-only dashboard too.
+ */
+export function downloadItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
+	const current = widget();
+	if (!current || !getWidgetType(current.type)?.downloadable) return [];
+	return [
+		{
+			id: "download-csv",
+			label: m.widget_download_csv(),
+			icon: Download,
+			group: "data",
+			run: () => {
+				const latest = widget();
+				if (!latest) return;
+				const files = app.platform.files;
+				void import("$lib/data/csv").then(
+					(csv) =>
+						csv.saveWidgetCsv(latest, (name, contents, type) => files.save(name, contents, type)),
+					() => void toast.error(m.widget_download_csv_failed())
+				);
+			}
+		}
+	];
 }
 
 /** Minimize to the taskbar; announces and moves focus to its taskbar item. */

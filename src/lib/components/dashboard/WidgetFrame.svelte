@@ -13,6 +13,7 @@
 		minimizeWidget,
 		removeWidget,
 		viewActions,
+		downloadItems,
 		widgetActions,
 		widgetTitle
 	} from "$lib/actions/widget";
@@ -85,9 +86,15 @@
 
 	// The type's own items first, then the common widget actions. Read-only: Fullscreen only.
 	const provider: MenuProvider = (ctx) =>
-		readOnly ? viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx) : editProvider(ctx);
+		readOnly
+			? [
+					...downloadItems(app, () => widget),
+					...viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx)
+				]
+			: editProvider(ctx);
 	const editProvider: MenuProvider = (ctx) => [
 		...(type?.menu(ctx) ?? []),
+		...downloadItems(app, () => widget),
 		...widgetActions(app, widget.id, arrangement, {
 			fullscreen: () => onfullscreen(),
 			inFullscreen: fullscreen,
@@ -103,7 +110,7 @@
 	/** Arranging is offered: not in fullscreen, and not in view mode. */
 	const arrangeable = $derived(!fullscreen && !readOnly);
 	/** The ⋯ menu has something in it (a read-only fullscreen frame's has nothing). */
-	const hasMenu = $derived(!(readOnly && fullscreen));
+	const hasMenu = $derived(!(readOnly && fullscreen && !type?.downloadable));
 	const shortcuts = $derived(arrangeable ? "Enter Shift+F10" : hasMenu ? "Shift+F10" : undefined);
 
 	const ARROWS: Record<string, ArrangeDirection> = {
