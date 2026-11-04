@@ -11,7 +11,9 @@ session, in order. From 2026-11-03, three sessions run at once. **Exception (the
 session coordinates (the server sessions, the cross-track docs, decisions for the user) so step
 4 keeps its context for building. Step 4 edits its own sections from its branches; the
 coordinator edits the table below, other tracks' sections, and the `DEFERRED.md` deploy entry
-from a worktree off `origin/main`. Server sessions message the coordinator.
+from a worktree off `origin/main`. Server sessions message the coordinator. During step 4, `step-4` holds step 4's own
+spec docs until it merges into `main` (the user, 2026-11-04); **each step 4 spec starts by merging
+`origin/main` into `step-4`**, so cross-track docs on `main` don't pile up into one conflict.
 
 | Track                                                                                                                                                  | Session starts in | Repos it edits                | Its status lives in                          |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- | ----------------------------- | -------------------------------------------- |
