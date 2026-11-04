@@ -44,6 +44,13 @@ describe("readThemeChoice", () => {
 });
 
 describe("writeThemeChoice", () => {
+	it("stores nothing for Match my device", () => {
+		const s = fakeStorage({ [KEY]: "dark" });
+		writeThemeChoice(s, "system");
+		expect(s.getItem(KEY)).toBeNull();
+		expect(s.length).toBe(0);
+	});
+
 	it("swallows a throwing setItem and null storage", () => {
 		const s = fakeStorage();
 		s.setItem = () => {

@@ -169,7 +169,8 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
     dash pattern or marker per series).
 - **Dark mode with a switch.** The default follows the system (`prefers-color-scheme`, in CSS
   alone, so no flash). The Help menu's **Light / Dark / Match my device** radio group overrides
-  it per device, not per account. An override sets `data-theme` on `<html>`; `bootstrap.ts`
+  it per device, not per account (Match my device stores nothing, and "Clear my data" goes back
+  to it in every tab). An override sets `data-theme` on `<html>`; `bootstrap.ts`
   applies a saved one before the app mounts. Tailwind's `dark:` variant covers both cases. Dark
   is a deep navy-slate page with slightly lighter cards; navy lifts to a lighter blue. Toasts
   follow the same mode. The app sets a `theme-color` meta from the computed `--background`; the
@@ -178,7 +179,8 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 - **The family palette.** Token names stay shadcn's plus a few new ones (`--link`,
   `--highlight*`, `--card-border`, `--shadow-card`, `--radius-control`, `--chart-1…5`,
   `--overlay`), so monitor-map, mobile, and `map-sdk` can adopt the palette by copying the token
-  blocks. `map-sdk`'s legends and tooltips use the same names and inherit the host's theme. The
+  blocks. `map-sdk`'s legends and tooltips will use the same names and inherit the host's theme
+  (the token list goes to the map-sdk session after the design pass's first PR). The
   restyle of the other apps waits for launch (see `DEFERRED.md`).
 - **Tailwind CSS + shadcn-svelte** for components. **Never Bulma** (the server uses it;
   this project never will).

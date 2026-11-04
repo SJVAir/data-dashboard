@@ -28,11 +28,12 @@ export function readThemeChoice(storage: Storage | null): ThemeChoice {
 	}
 }
 
-/** Saves the choice; blocked or full storage makes this a no-op. */
+/** Saves the choice (Match my device, the default, stores nothing); blocked or full storage makes this a no-op. */
 export function writeThemeChoice(storage: Storage | null, choice: ThemeChoice): void {
 	if (!storage) return;
 	try {
-		storage.setItem(THEME_KEY, choice);
+		if (choice === "system") storage.removeItem(THEME_KEY);
+		else storage.setItem(THEME_KEY, choice);
 	} catch {
 		// Blocked or full: the choice just won't survive a reload.
 	}

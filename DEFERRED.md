@@ -1256,7 +1256,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   restyling the others now would change live apps before the dashboard has proven the look.
   Token names stay shadcn's (plus `--link`, `--highlight*`, `--card-border`, `--shadow-card`,
   `--radius-control`, `--chart-1…5`, `--overlay`), so each app can copy the token blocks.
-  `map-sdk`'s legends and tooltips use the same names now and inherit the dashboard's theme.
+  `map-sdk`'s legends and tooltips should use the same names and inherit the dashboard's theme
+  (the token list goes to the map-sdk session after the design pass's first PR).
   **Revisit when** the dashboard launches. Each repo needs its own approved plan.
 - **The page background can flash for a saved theme override.** _Deferred 2026-11-03 (design pass
   spec)._ System mode is CSS only and never flashes. A saved Light or Dark that differs from the
@@ -1285,7 +1286,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   - All three logo images are in the DOM (two hidden by breakpoint or mode), so a browser may
     fetch the hidden ones.
   - The theme's color fade can cut its last frame (the class is removed on a timer).
-  - A `storage` event with a null key (another tab cleared storage) doesn't reset the theme.
   - `readTokens` and the manifest's `lightToken` stop at the first `}` (nested blocks would
     truncate); `scripts/make-icons.mjs` needs `../mobile`'s art and uses `sharp` without
     declaring it.
