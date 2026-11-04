@@ -34,9 +34,8 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
   under the right heading; don't reword others' entries).
 - Re-read a file right before editing it. Another session may have changed it.
 - Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`), even
-  when the work is for the dashboard: **SDK specs in sdk-js, server specs in sjvair.com**, and a
-  spec spanning both goes where most of its work is, linked from the other (the user,
-  2026-11-04).
+  when the work is for the dashboard: **SDK specs in sdk-js, server specs in sjvair.com** (the
+  user, 2026-11-04). Specs 1–3 of step 3 spanned both and live in sjvair.com.
 
 Earlier tracks, in order (new dashboard work branches from `main`):
 
