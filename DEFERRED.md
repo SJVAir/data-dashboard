@@ -400,8 +400,10 @@ string`) now get the union return type. The mobile app passes a string token, so
     The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
     hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
     (tooltips, legend, clusters, charts, subscription manager), mobile
-    (`MonitorSubscription.svelte`, `Subscriptions.svelte`, `alert-level.ts`), map-sdk's legacy
-    fallback (`src/lib/data/metadata.ts`), and sdk-js (schema, the `levels` getter,
+    (`MonitorSubscription.svelte`, `Subscriptions.svelte`, `Alerts.svelte`, `alert-level.ts`;
+    subscription levels need a not-found path, since not every level key exists in every
+    pollutant's scale), map-sdk's legacy fallback (`src/lib/data/metadata.ts`, which won't
+    type-check once the SDK drops `levels`, so it must go when map-sdk pins that beta), and sdk-js (schema, the `levels` getter,
     `asIter.levels`, fixtures; how is the user's call). The dashboard reads `scale`; its e2e
     fixtures still contain `levels`.
   - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
