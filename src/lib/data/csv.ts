@@ -1,5 +1,4 @@
 import { TZDate } from "@date-fns/tz";
-import { format } from "date-fns";
 import { toast } from "svelte-sonner";
 import { TIME_ZONE } from "$lib/format";
 import { nextPeriodStart, resolveRange } from "$lib/format/range";
@@ -39,7 +38,18 @@ type EntryInfo = { entryType: string; entryLabel: string; unit: string };
 
 /** A Pacific time with its offset: `2026-10-25T00:00:00-07:00`. */
 function pacificIso(t: number): string {
-	return format(new TZDate(t, TIME_ZONE), "yyyy-MM-dd'T'HH:mm:ssXXX");
+	// Built from the fields rather than with date-fns' `format`, whose bundled warning text names
+	// a host the build output check refuses.
+	const d = new TZDate(t, TIME_ZONE);
+	const pad = (n: number, width = 2) => String(n).padStart(width, "0");
+	const date = `${pad(d.getFullYear(), 4)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+	const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+	const offset = -d.getTimezoneOffset();
+	const zone =
+		offset === 0
+			? "Z"
+			: `${offset > 0 ? "+" : "-"}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`;
+	return `${date}T${time}${zone}`;
 }
 
 /** A number as plain decimal text: `.` decimal, no grouping, never exponent notation. */

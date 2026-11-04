@@ -1,7 +1,9 @@
 // The open state of the dialogs loaded on demand (`LazyDialogs.svelte`, mounted in the app root).
 // Their code stays out of the initial bundle: each loads on its first opening and then stays
 // mounted. The `open…()` functions live here, so callers don't import the dialogs themselves.
+import type { Component } from "svelte";
 import type { DashboardSummary } from "$lib/documents/names";
+import { loadLazy } from "$lib/safety/lazy";
 import type {
 	AccountStatus,
 	EarlierVersion,
@@ -17,6 +19,69 @@ export const requested = $state({
 	privacy: false,
 	existingCopy: false
 });
+
+export type LazyDialog = keyof typeof requested | "moveToAccount";
+
+/** Each dialog's code. Replaceable, so a test can make one fail to load. */
+export const dialogLoaders: Record<LazyDialog, () => Promise<{ default: Component }>> = {
+	share: () => import("./ShareDialog.svelte"),
+	restoreVersion: () => import("./RestoreVersionDialog.svelte"),
+	clearData: () => import("./ClearDataDialog.svelte"),
+	privacy: () => import("./PrivacyDialog.svelte"),
+	existingCopy: () => import("./ExistingCopyDialog.svelte"),
+	moveToAccount: () => import("./MoveToAccountDialog.svelte")
+};
+
+/** Loads made or under way, by loader (so a replaced loader loads anew). Not reactive state. */
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const loads = new Map<() => Promise<{ default: Component }>, Promise<Component>>();
+
+/**
+ * Loads a dialog's component (once). A file that won't load (an older deploy's chunk) offers a
+ * reload (`loadLazy`), and the request is undone so the app goes on as if it had been closed:
+ * the next opening tries again, and a question in progress resolves as dismissed.
+ */
+export function loadDialog(key: LazyDialog): Promise<Component> {
+	const loader = dialogLoaders[key];
+	let load = loads.get(loader);
+	if (!load) {
+		load = loadLazy(loader).then(
+			(module) => module.default,
+			(error: unknown) => {
+				loads.delete(loader);
+				dismiss(key);
+				throw error;
+			}
+		);
+		loads.set(loader, load);
+	}
+	return load;
+}
+
+function dismiss(key: LazyDialog): void {
+	switch (key) {
+		case "share":
+			share.open = false;
+			break;
+		case "restoreVersion":
+			resetRestoreVersion();
+			restoring.open = false;
+			break;
+		case "clearData":
+			clearData.open = false;
+			break;
+		case "privacy":
+			privacy.open = false;
+			break;
+		case "existingCopy":
+			settleExistingCopy(null);
+			break;
+		case "moveToAccount":
+			// Asked again the next time the app starts.
+			return;
+	}
+	requested[key] = false;
+}
 
 // Share
 

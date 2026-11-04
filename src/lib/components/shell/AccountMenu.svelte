@@ -28,6 +28,7 @@
 		takeFocus
 	} from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
+	import { loadLazy } from "$lib/safety/lazy";
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { beginSignOut, keepFocusOnlyIfSignedOut } from "$lib/sync/sign-out";
@@ -84,16 +85,29 @@
 	let asking = $state(false);
 	let unsynced = $state(0);
 	// The dialog's code loads the first time it's needed, and then it stays mounted.
-	let askedBefore = $state(false);
+	let SignOutDialog =
+		$state<typeof import("$lib/components/dialogs/SignOutDialog.svelte").default>();
 
 	async function signOut() {
 		requestFocus(SIGN_IN_FOCUS);
 		try {
 			const result = await beginSignOut(app);
 			if ("unsynced" in result) {
+				if (!SignOutDialog) {
+					try {
+						const module = await loadLazy(
+							() => import("$lib/components/dialogs/SignOutDialog.svelte")
+						);
+						SignOutDialog = module.default;
+					} catch {
+						// `loadLazy` offered a reload. Not asking means not signing out: the
+						// unsynced changes stay, and the person is still signed in.
+						void afterDialog();
+						return;
+					}
+				}
 				unsynced = result.unsynced;
 				asking = true;
-				askedBefore = true;
 			}
 		} catch (error) {
 			report(error, { operation: "sign-out" });
@@ -163,8 +177,6 @@
 	</DropdownMenu.Root>
 {/if}
 
-{#if askedBefore}
-	{#await import("$lib/components/dialogs/SignOutDialog.svelte") then { default: SignOutDialog }}
-		<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />
-	{/await}
+{#if SignOutDialog}
+	<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />
 {/if}

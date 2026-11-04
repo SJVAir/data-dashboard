@@ -11,6 +11,19 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **Initial bundle: the hand-kept `BARRELED` list and further trims.** _Deferred 2026-11-04
+  (step 4 spec 1, Task 15)._ The build keeps the app chunk's modules in one file
+  (`appGroup()` in `vite.config.ts`), found by walking the static imports from `src/main.ts`.
+  Packages reached through a barrel (today date-fns' index and Paraglide's `m`) are listed by
+  hand in `BARRELED` and left to the bundler, since the walk reaches all of them but only the
+  used ones are bundled; a new barrel-imported package used only by lazy code would otherwise
+  land in the initial bundle. Further trims found but not needed to get under budget (195.7 KB
+  after Task 15): Conflict and Remote decision as on-demand dialogs (about 1.5 KB), mounting
+  the toaster at idle (about 8 KB), and `zod/mini` in place of classic zod (whose
+  `toJSONSchema` processors add about 8.5 KB; a bigger change). **Revisit when**
+  `check:budget` jumps after adding a package (check whether it needs a `BARRELED` entry), or
+  when the budget is next over.
+
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
   track and Foundations spec 5a)._ The dashboard is uploaded to S3 exactly as monitor-map is

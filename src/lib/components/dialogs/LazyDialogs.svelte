@@ -1,9 +1,22 @@
 <script lang="ts">
 	import { BitsConfig, Portal } from "bits-ui";
 	import { useApp } from "$lib/store/app.svelte";
-	import { requested } from "./lazy.svelte";
+	import { loadDialog, requested, type LazyDialog } from "./lazy.svelte";
 
 	const app = useApp();
+	const DIALOGS: LazyDialog[] = [
+		"share",
+		"restoreVersion",
+		"clearData",
+		"privacy",
+		"existingCopy",
+		"moveToAccount"
+	];
+
+	/** Opened at least once; Move to account is asked once the app starts in an account space. */
+	function wanted(key: LazyDialog): boolean {
+		return key === "moveToAccount" ? app.space !== "anonymous" : requested[key];
+	}
 
 	// The dialogs kept out of the initial bundle (see `lazy.svelte.ts`): each loads on its first
 	// opening, opens as it mounts, and then stays mounted. Dialogs stack in the order their layers
@@ -18,36 +31,14 @@
 </Portal>
 {#if layer}
 	<BitsConfig defaultPortalTo={layer}>
-		{#if requested.share}
-			{#await import("./ShareDialog.svelte") then { default: ShareDialog }}
-				<ShareDialog />
-			{/await}
-		{/if}
-		{#if requested.restoreVersion}
-			{#await import("./RestoreVersionDialog.svelte") then { default: RestoreVersionDialog }}
-				<RestoreVersionDialog />
-			{/await}
-		{/if}
-		{#if requested.clearData}
-			{#await import("./ClearDataDialog.svelte") then { default: ClearDataDialog }}
-				<ClearDataDialog />
-			{/await}
-		{/if}
-		{#if requested.privacy}
-			{#await import("./PrivacyDialog.svelte") then { default: PrivacyDialog }}
-				<PrivacyDialog />
-			{/await}
-		{/if}
-		{#if requested.existingCopy}
-			{#await import("./ExistingCopyDialog.svelte") then { default: ExistingCopyDialog }}
-				<ExistingCopyDialog />
-			{/await}
-		{/if}
-		<!-- Asked once the app starts in an account space. -->
-		{#if app.space !== "anonymous"}
-			{#await import("./MoveToAccountDialog.svelte") then { default: MoveToAccountDialog }}
-				<MoveToAccountDialog />
-			{/await}
-		{/if}
+		{#each DIALOGS as key (key)}
+			{#if wanted(key)}
+				{#await loadDialog(key) then Dialog}
+					<Dialog />
+				{:catch}
+					<!-- `loadDialog` offered a reload and undid the request. -->
+				{/await}
+			{/if}
+		{/each}
 	</BitsConfig>
 {/if}
