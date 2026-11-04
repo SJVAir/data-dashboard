@@ -96,7 +96,7 @@
 	--secondary: oklch(0.952 0.01 247.9);
 	--secondary-foreground: oklch(0.257 0.061 257.8);
 	--muted: oklch(0.952 0.01 247.9);
-	--muted-foreground: oklch(0.536 0.042 254.7);
+	--muted-foreground: oklch(0.53 0.042 254.7);
 	--accent: oklch(0.952 0.01 247.9);
 	--accent-foreground: oklch(0.257 0.061 257.8);
 	--link: oklch(0.527 0.124 247.4);
@@ -106,7 +106,8 @@
 	--highlight-foreground: oklch(0.403 0.079 233.2);
 	--destructive: oklch(0.5 0.182 29.5);
 	--border: oklch(0.915 0.017 250.9);
-	--input: oklch(0.915 0.017 250.9);
+	/* Text-field borders: 3:1 on cards and the page (WCAG 1.4.11); outline buttons keep --border. */
+	--input: oklch(0.63 0.03 254);
 	--ring: var(--highlight);
 	--ring-edge: var(--primary);
 	--overlay: oklch(0.257 0.061 257.8 / 10%);
@@ -165,7 +166,7 @@
 		--highlight-foreground: oklch(0.93 0.039 225.3);
 		--destructive: oklch(0.73 0.17 26.5);
 		--border: oklch(0.33 0.05 256.7);
-		--input: oklch(0.33 0.05 256.7);
+		--input: oklch(0.56 0.045 255);
 		--ring-edge: var(--background);
 		--overlay: oklch(0 0 0 / 40%);
 		--shadow-card: 0 1px 2px #0006;
@@ -199,7 +200,7 @@
 	--highlight-foreground: oklch(0.93 0.039 225.3);
 	--destructive: oklch(0.73 0.17 26.5);
 	--border: oklch(0.33 0.05 256.7);
-	--input: oklch(0.33 0.05 256.7);
+	--input: oklch(0.56 0.045 255);
 	--ring-edge: var(--background);
 	--overlay: oklch(0 0 0 / 40%);
 	--shadow-card: 0 1px 2px #0006;

@@ -36,8 +36,18 @@ const shared: Pair[] = [
 	["--foreground", "--card", 4.5],
 	["--muted-foreground", "--background", 4.5],
 	["--muted-foreground", "--card", 4.5],
+	// Footers and notice bars are bg-muted.
+	["--muted-foreground", "--muted", 4.5],
 	["--link", "--card", 4.5],
 	["--link", "--background", 4.5],
+	// MadeByBar's links sit on bg-muted.
+	["--link", "--muted", 4.5],
+	// Page titles are navy on the page; headings and outline buttons use it on cards.
+	["--primary", "--background", 4.5],
+	["--primary", "--card", 4.5],
+	// Text-field borders (WCAG 1.4.11); outline buttons keep the lighter --border.
+	["--input", "--card", 3],
+	["--input", "--background", 3],
 	["--primary-foreground", "--primary", 4.5],
 	["--highlight-foreground", "--highlight-subtle", 4.5],
 	["--destructive", "--card", 4.5],
@@ -57,7 +67,14 @@ describe("dark tokens", () => {
 	const c = (a: string, b: string) => contrast(resolve(tokens, a), resolve(tokens, b));
 
 	// In dark, --ring-edge equals --background, so the sky ring itself carries the boundary.
-	const pairs: Pair[] = [...shared, ["--ring", "--card", 3], ["--ring", "--background", 3]];
+	// Menu items draw the ring inset, against the menu and the item's accent fill.
+	const pairs: Pair[] = [
+		...shared,
+		["--ring", "--card", 3],
+		["--ring", "--background", 3],
+		["--ring", "--popover", 3],
+		["--ring", "--accent", 3]
+	];
 
 	for (const [fg, bg, min] of pairs) {
 		it(`${fg} on ${bg} is at least ${min}:1`, () => {
@@ -85,7 +102,10 @@ describe("light tokens", () => {
 		...shared,
 		// --ring is sky blue (2.27:1 on white by design); --ring-edge carries the 3:1 boundary.
 		["--ring-edge", "--card", 3],
-		["--ring-edge", "--background", 3]
+		["--ring-edge", "--background", 3],
+		// Menu items draw the ring inset, against the menu and the item's accent fill.
+		["--ring-edge", "--popover", 3],
+		["--ring-edge", "--accent", 3]
 	];
 
 	for (const [fg, bg, min] of pairs) {
