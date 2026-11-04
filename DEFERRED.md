@@ -348,8 +348,14 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
   (decided by the user)._ The user wants the next major sdk-js version to send entry bounds
   unchanged by default, with an opt-in flag for rounding to whole Pacific days; it's recorded
-  in sdk-js's `DEFERRED.md`. **Revisit when** the dashboard upgrades to that major version:
-  remove `exact: true` from the air-quality adapter's `getMonitorEntries` calls.
+  in sdk-js's `DEFERRED.md`. That major version is now 5.0.0; the change is planned as its own
+  5.0.0 spec (likely `5.0.0-beta.2`), ideally before step 4 builds more on `getMonitorEntries`'
+  current widening (sdk-js-6a's handoff, 2026-11-04). **Revisit when** the dashboard pins that
+  beta: remove `exact: true` from the air-quality adapter's `getMonitorEntries` calls.
+- **sdk-js doc-lint errors.** _Noted 2026-11-04 (sdk-js-6a's handoff)._ `deno doc --lint`
+  reports 17 errors that predate the SDK quick batch; `deno publish --dry-run` passes, so
+  publishing isn't blocked. **Revisit when** an SDK session has spare time or before 5.0.0
+  final, if the user wants doc-lint clean.
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it

@@ -1051,6 +1051,23 @@ research in `docs/reference/pesticides-explorer-research.md`).
   tract detail); `getRegionDetails` `buffer` with the choices in `regions/meta/` `buffers`; and
   the `api-urls.md` fixes. Breaking for 4.7.0 callers: `getHMSSmoke`, `getHMSFire` and
   `getRegionDetails` take a query before `options` (the user, 2026-11-04).
+- **Remaining SDK work, in the order sdk-js-6a suggested** (handoff, 2026-11-04; each needs a new
+  sdk-js session, and every beta the user's yes):
+  1. Pin bumps to `5.0.0-beta.1`: step 4 (spec 2's first commit) and map-sdk (its next session).
+  2. The exact-entry-bounds spec (5.0.0, breaking; sdk-js `DEFERRED.md` "Breaking changes"),
+     soon, before step 4 builds more on `getMonitorEntries`' widening; its caller audit covers
+     monitor-map, mobile and the dashboard. Likely `5.0.0-beta.2`.
+  3. Moving `@sjvair/sdk/documents` out of the public SDK, before 5.0.0 final and go-live; the
+     destination (the dashboard repo or an unpublished internal package) is the user's call.
+  4. Pesticide metadata and widget endpoints (`DEFERRED.md` → "Widgets").
+  5. `calenviroscreen/meta/` (server endpoint plus wrapper), before Release 3 starter #7.
+  6. sdk-js's 4 small follow-ups (its `DEFERRED.md` "Small follow-ups"), any time.
+  7. Deleting `release/4.8.0`, when the user says.
+
+  Testing notes: the local DB has no CalEnviroScreen rows (the CES live tests skip), and two
+  sessions running sjvair.com's pytest at once drop each other's `test_sjvair` database; give
+  each run its own by overriding `DATABASE_URL`'s database name.
+
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
