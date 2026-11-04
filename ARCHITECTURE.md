@@ -2114,7 +2114,7 @@ user there):** `resolutions` moved from the dataset onto each entry type, with n
 dataset-level field (so clients need no inheritance rule); air-quality entry types carry
 `available`; the catalog lists every server domain, including `emissions` and `tempo` (the
 dashboard hides those without an adapter); and `metaUrl` is empty for domains with no meta
-endpoint yet (since 2026-11-03 only `emissions`, `tempo`, and the pesticide domains lack one).
+endpoint yet (since 2026-11-03 only `calenviroscreen`, `emissions`, `tempo`, and the pesticide domains lack one).
 
 - **Air quality is one dataset.** Its entry types are PM2.5, O3, … (`kind: "pollutant"`).
   Monitor vs. region is a **geography choice inside a layer**, not a separate dataset.
