@@ -296,7 +296,8 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   geometry from those rows (keeping `bbox`) and adds each row's containing county if cheap, with
   the SDK's new `searchRegionPlaces` return type aiming for beta.3. The picker works either way;
   it reads id, name, type, code, and retirement, and shows the county as a second line once
-  rows carry it. Final shape (sjvair.com PR #308, open): rows are `{ id, name, slug, type,
+  rows carry it. Final shape (sjvair.com #308, merged into `develop` with #307; the local stack
+  serves both): rows are `{ id, name, slug, type,
   external_id, retired, boundary: { id, version, bbox } | null, county: { type, external_id,
   name } | null }`; `county` is the county holding the region's point-on-surface (lowest code on
   a tie), null on county rows and outside every county; "fre" is 3 KB. `monitors/?region=` is
@@ -304,6 +305,10 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   A row spanning several counties (some school districts, ZIPs, urban areas, the Valley air
   district) names one county only; listing every county is deferred by the user
   (`DEFERRED.md` → "Every county on multi-county place search rows").
+- **So the fallbacks are about SDK types, not the server:** beta.2 still types search rows as
+  full `RegionData` (with geometry) and has no `getMonitorsList` region option or
+  `label_plural`. Never read `boundary.geometry` from search rows, even though beta.2's types
+  allow it.
 
 ## Constraints (project rules that bite here)
 
