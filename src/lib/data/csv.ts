@@ -1,7 +1,7 @@
 import { TZDate } from "@date-fns/tz";
 import { toast } from "svelte-sonner";
 import { SvelteMap } from "svelte/reactivity";
-import { TIME_ZONE } from "$lib/format";
+import { formatList, TIME_ZONE } from "$lib/format";
 import { nextPeriodStart, resolveRange } from "$lib/format/range";
 import type { WidgetInstance } from "$lib/documents/schema";
 import type { CatalogEntry, Level } from "./metadata";
@@ -179,7 +179,10 @@ function firstSettled(input: QueryInput): Promise<QueryState> {
 	});
 }
 
-/** One overlay's data, or null when it can't be loaded or is empty (its rows are skipped). */
+/**
+ * One overlay's data, or `null` when it couldn't be loaded (an error, or unavailable). A ready
+ * overlay with no points is not a failure: it just adds no rows.
+ */
 async function loadOverlay(
 	main: QueryInput,
 	layer: WidgetDataConfig["layers"][number],
@@ -189,6 +192,7 @@ async function loadOverlay(
 		const info = entryMeta(catalog, layer);
 		if (!info) return null;
 		const state = await firstSettled(overlayInput(main, layer));
+		if (state.status === "error") throw state.error;
 		if (state.status !== "ready") return null;
 		const levels = await getMetadata().datasetLevels(layer.dataset, info.entryType.id);
 		return {
@@ -200,23 +204,27 @@ async function loadOverlay(
 				unit: info.entryType.units
 			}
 		};
-	} catch {
+	} catch (error) {
+		report(error);
 		return null;
 	}
 }
+
+/** What a download left out: the entry labels of overlays that couldn't be loaded. */
+export type CsvResult = { skipped: string[] };
 
 /**
  * Runs the data config's query once (no polling), with every place of its selection (not only
  * the ones it has room to show), plus each overlay's, then saves it as CSV through the
  * platform. The file name's dates are the range as of when the data was fetched. A failed or
- * empty overlay is left out; the main rows still export. Throws if there is nothing to download
+ * unavailable overlay is left out (named in `skipped`); the main rows still export. Throws if there is nothing to download
  * or the main data can't be loaded.
  */
 export async function downloadDataCsv(
 	config: WidgetDataConfig,
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner"
-): Promise<void> {
+): Promise<CsvResult> {
 	const catalog = await getMetadata().catalog();
 	if (catalog === "unavailable") throw new Error("The catalog is unavailable");
 	const { layer, input } = chartInput(config, catalog, LIMITS.SELECTION_MAX);
@@ -231,10 +239,12 @@ export async function downloadDataCsv(
 		unit: info.entryType.units
 	};
 	const { data } = state;
-	const loaded = await Promise.all(
-		overlayLayers(config, catalog).map((l) => loadOverlay(input, l, catalog))
-	);
+	const layers = overlayLayers(config, catalog);
+	const loaded = await Promise.all(layers.map((l) => loadOverlay(input, l, catalog)));
 	const overlays = loaded.filter((o): o is OverlayCsv => o !== null);
+	const skipped = layers.flatMap((l, i) =>
+		loaded[i] ? [] : [entryMeta(catalog, l)?.entryType.label ?? l.entryType ?? l.dataset]
+	);
 	const range = resolveRange(input.dateRange, new Date(data.fetchedAt));
 	const fileLabel =
 		data.places.length === 1
@@ -250,6 +260,7 @@ export async function downloadDataCsv(
 		toCsv(data, meta, viewer, overlays),
 		"text/csv"
 	);
+	return { skipped };
 }
 
 /** `downloadDataCsv` for a widget's data. */
@@ -257,7 +268,7 @@ export function downloadWidgetCsv(
 	widget: WidgetInstance,
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner"
-): Promise<void> {
+): Promise<CsvResult> {
 	return downloadDataCsv(widget.data, save, viewer);
 }
 
@@ -291,6 +302,11 @@ export function saveDataCsv(
 		}
 	});
 	const done = job
+		.then(({ skipped }) => {
+			if (skipped.length) {
+				toast.warning(m.download_csv_skipped({ layers: formatList(skipped) }));
+			}
+		})
 		.catch(() => {})
 		.finally(() => {
 			if (pending.get(key) === done) pending.delete(key);

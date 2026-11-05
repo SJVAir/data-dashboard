@@ -345,6 +345,7 @@
 	"file_places": "{count} places",
 	"widget_download_csv": "Download data (CSV)",
 	"widget_change_place": "Change place",
+	"download_csv_skipped": "Downloaded without {layers}.",
 	"widget_download_csv_failed": "The data couldn't be downloaded. Try again.",
 	"widget_download_csv_pending": "Preparing your data…",
 	"table_download_csv": "Download CSV",

@@ -17,6 +17,9 @@ vi.mock("$lib/data", () => ({
 	getMetadata: () => fake.metadata!
 }));
 
+const reported = vi.hoisted(() => vi.fn());
+vi.mock("$lib/safety/report", () => ({ report: reported }));
+
 const META = { entryType: "pm25", entryLabel: "PM2.5", unit: "µg/m³" };
 const HOUR = 3_600_000;
 
@@ -403,6 +406,55 @@ describe("downloadDataCsv", () => {
 		expect(types).toContain("burn-status");
 		expect(types.indexOf("pm25")).toBeLessThan(types.indexOf("burn-status"));
 		expect(saved[0]).not.toContain("NaN");
+	});
+
+	it("reports a failed overlay and names it in skipped", async () => {
+		reported.mockClear();
+		setup(async () => {
+			throw new Error("down");
+		});
+		const result = await downloadDataCsv(structuredClone(config) as never, () => {});
+		expect(result.skipped).toEqual(["Burn status"]);
+		expect(reported).toHaveBeenCalledTimes(1);
+	});
+
+	it("names an unavailable overlay in skipped", async () => {
+		reported.mockClear();
+		setup(async () => {
+			throw new Error("unused");
+		});
+		fake.client = createQueryClient({
+			adapters: [
+				fakeAdapter([]),
+				{
+					id: "forecasts",
+					target: async () => ({ unavailable: "place-unsupported" }),
+					offered: (b) => b,
+					fetch: async () => {
+						throw new Error("unused");
+					}
+				}
+			],
+			metadata: fake.metadata!,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const result = await downloadDataCsv(structuredClone(config) as never, () => {});
+		expect(result.skipped).toEqual(["Burn status"]);
+	});
+
+	it("does not call a ready but empty overlay skipped", async () => {
+		reported.mockClear();
+		setup(async () => ({
+			series: [],
+			places: [],
+			resolution: "day",
+			fromRaw: false,
+			processor: null,
+			fetchedAt: Date.now()
+		}));
+		const result = await downloadDataCsv(structuredClone(config) as never, () => {});
+		expect(result.skipped).toEqual([]);
+		expect(reported).not.toHaveBeenCalled();
 	});
 
 	it("still exports the main rows when an overlay fails", async () => {
