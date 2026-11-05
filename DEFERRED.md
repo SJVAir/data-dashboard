@@ -559,6 +559,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Documents & saving
 
+- **Points in a newer-format dashboard's export.** _Deferred 2026-11-04 (step 4 spec 2, Task 13)._
+  A read-only (newer or invalid) dashboard is exported as stored; the location-privacy swap
+  finds only points in today's shape (`body.widgets[].data.layers[].place`). A future format
+  that keeps an exact location elsewhere would be exported as is by this build. **Revisit on**
+  any schema change that stores a coordinate in a new place (that build's own export swaps it,
+  but older builds sharing the same storage won't).
+
 - **Deleting an unreadable dashboard is local only.** _Deferred 2026-11-03 (design pass, Task 15)._
   The list's Delete for a dashboard that can't be opened removes only this browser's copy; in an
   account space, sync may download a valid server copy again (arguably a repair). **Revisit on** a

@@ -1256,6 +1256,17 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     with a notice: "Your location is shared as ZIP 93721, not your exact position." The
     notice offers an explicit **"Share my exact location instead"** option, off by
     default and chosen per share, with a warning that anyone with the link will see it.
+    The region is the one the point's widget shows now (`placeRegion`); a point with no region
+    is left out of the shared content (its widget shows the idle state). The exact option
+    lives only in the Share dialog: the ⋯ menu's **Export** always exports the regions, with
+    the same notice. If a region can't be looked up, nothing is offered until Retry succeeds
+    (never a silent fallback to the point). Copies made from a share, including imported
+    files, always swap points for their regions (no option). **The full backup keeps exact
+    points**: it is the owner's own restore file, not a share (Step 4 spec 2).
+  - **Live share links** can't swap in transit (viewers read the owner's synced document), so
+    before turning one on the Share dialog asks: "Use ZIP 93721 instead" (one undoable edit:
+    `setWidgetData` when one widget has points, else one `replaceDocument`) or "Share my
+    exact location" (with the warning). Viewers' labels read "(shared location)".
 - **Geolocation** is a platform-adapter capability: an opt-in "Use my location" button,
   never automatic, with the browser's usual permission prompt. Tauri can supply its own.
 

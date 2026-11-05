@@ -1,6 +1,7 @@
 import "../../../app.css";
 import axe from "axe-core";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
 import { BASE } from "$lib/routing";
@@ -10,19 +11,48 @@ import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import type { SyncContext } from "$lib/sync/context";
 import { createFakeRemote } from "$lib/sync/remote-fake";
-import { ACCOUNT, SPACE, edit, storeDoc, title, user } from "$lib/sync/test-support";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { Toaster } from "$lib/components/ui/sonner";
+import {
+	ACCOUNT,
+	SPACE,
+	edit,
+	makeDoc,
+	storeDoc,
+	title,
+	user,
+	widget
+} from "$lib/sync/test-support";
 import { uploadDocument } from "$lib/sync/upload";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import ConfirmDialog from "./ConfirmDialog.svelte";
 import ShareDialog from "./ShareDialog.svelte";
-import { openShare } from "./lazy.svelte";
+import { openShare, share, type SharePoints } from "./lazy.svelte";
 import { animationsSettled } from "../../../test/animations";
 
 const URL_TEXT = "http://localhost/workspace/import#1.abcdef";
+const SWAPPED_URL = "http://localhost/workspace/import#1.swapped";
+const EXACT_URL = "http://localhost/workspace/import#1.exact";
+
+const mocked = vi.hoisted(() => ({
+	placeRegion: vi.fn<() => Promise<{ type: string; code: string } | null>>()
+}));
+vi.mock("$lib/data", () => ({
+	placeRegion: mocked.placeRegion,
+	getResolvers: () => ({
+		regions: { resolve: async () => ({ id: "z1", name: "ZIP 93721" }) }
+	})
+}));
+
+beforeEach(() => {
+	mocked.placeRegion.mockReset();
+	mocked.placeRegion.mockResolvedValue({ type: "zipcode", code: "93721" });
+});
 
 const workers: SyncWorker[] = [];
 afterEach(() => {
 	for (const worker of workers.splice(0)) worker.stop();
+	toast.dismiss();
 });
 
 /** A signed-out app with the Share dialog mounted. */
@@ -38,7 +68,7 @@ async function signedOut() {
  * A signed-in app holding dashboard `d1` (uploaded unless `upload` is false), its sync worker
  * (not started: the test drives it), and the Share and Confirm dialogs mounted.
  */
-async function signedIn({ upload = true } = {}) {
+async function signedIn({ upload = true, doc }: { upload?: boolean; doc?: Dashboard } = {}) {
 	const identity = createMemoryIdentity({ state: "signed-in", user: user(ACCOUNT) });
 	identity.start();
 	identity.currentSpace = async () => SPACE;
@@ -50,7 +80,7 @@ async function signedIn({ upload = true } = {}) {
 		tabId: "t1",
 		loadSync: null
 	});
-	await storeDoc(memory);
+	await storeDoc(memory, doc);
 	const ctx: SyncContext = {
 		platform: memory,
 		space: SPACE,
@@ -498,4 +528,201 @@ test("send a copy instead still offers the link and the file", async () => {
 	await copySection().getByRole("button", { name: "Download file instead" }).click();
 	expect(downloaded).toBe(1);
 	expect(worker.states.d1?.shareToken ?? null).toBeNull();
+});
+
+// Location privacy
+
+const POINT = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
+
+function pointWidget(id: string): WidgetInstance {
+	return {
+		...widget(id),
+		type: "chart",
+		data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: POINT }] }
+	};
+}
+
+const withPoints = (...ids: string[]): Dashboard => ({
+	...makeDoc(),
+	body: { widgets: ids.map(pointWidget) }
+});
+
+/** Counts the swapped and exact downloads of an opening with points. */
+function pointsOffer(overrides: Partial<SharePoints> = {}) {
+	const downloads = { swapped: 0, exact: 0 };
+	const points: SharePoints = {
+		summary: { kind: "one", region: "ZIP 93721" },
+		swapped: { url: SWAPPED_URL, linkUnavailable: null, onDownload: () => downloads.swapped++ },
+		exact: { url: EXACT_URL, linkUnavailable: null, onDownload: () => downloads.exact++ },
+		useRegion() {},
+		...overrides
+	};
+	return { downloads, points };
+}
+
+const NOTICE = "Your location is shared as ZIP 93721, not your exact position.";
+const WARNING = "Anyone with the link or file will see your exact location.";
+
+test("with an exact location, the copy link and file share its region unless the owner chooses", async () => {
+	await signedOut();
+	const { downloads, points } = pointsOffer();
+	openShare({ live: null, points: async () => points });
+	const link = dialog().getByRole("textbox", { name: "Link" });
+	await expect.element(link).toHaveValue(SWAPPED_URL);
+	await expect.element(dialog().getByText(NOTICE)).toBeVisible();
+	expect(dialog().getByText(WARNING).elements()).toHaveLength(0);
+	await dialog().getByRole("button", { name: "Download file instead" }).click();
+	expect(downloads).toEqual({ swapped: 1, exact: 0 });
+
+	const exact = dialog().getByRole("checkbox", { name: "Share my exact location instead" });
+	await expect.element(exact).not.toBeChecked();
+	await exact.click();
+	await expect.element(dialog().getByText(WARNING)).toBeVisible();
+	await expect.element(link).toHaveValue(EXACT_URL);
+	await dialog().getByRole("button", { name: "Download file instead" }).click();
+	expect(downloads).toEqual({ swapped: 1, exact: 1 });
+	await expectNoAxeViolations();
+
+	// Chosen per share: the next opening starts with the region again.
+	share.open = false;
+	await expect.element(dialog()).not.toBeInTheDocument();
+	openShare({ live: null, points: async () => points });
+	await expect.element(dialog().getByRole("textbox", { name: "Link" })).toHaveValue(SWAPPED_URL);
+	await expect
+		.element(dialog().getByRole("checkbox", { name: "Share my exact location instead" }))
+		.not.toBeChecked();
+});
+
+test("a failed lookup offers no link or file until Retry succeeds", async () => {
+	await signedOut();
+	const { points } = pointsOffer();
+	let calls = 0;
+	openShare({
+		live: null,
+		points: async () => {
+			if (++calls === 1) throw new Error("offline");
+			return points;
+		}
+	});
+	await expect.element(dialog().getByText("Can't look up your area right now.")).toBeVisible();
+	expect(dialog().getByRole("textbox").elements()).toHaveLength(0);
+	expect(dialog().getByRole("button", { name: "Download file instead" }).elements()).toHaveLength(
+		0
+	);
+	expect(dialog().getByRole("button", { name: "Copy link" }).elements()).toHaveLength(0);
+	await dialog().getByRole("button", { name: "Retry" }).click();
+	await expect.element(dialog().getByRole("textbox", { name: "Link" })).toHaveValue(SWAPPED_URL);
+	expect(dialog().getByText("Can't look up your area right now.").elements()).toHaveLength(0);
+	expect(calls).toBe(2);
+});
+
+test("Share builds the region copy from a real lookup, and a failed one waits for Retry", async () => {
+	const { memory } = await signedOut();
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = { readOnly: false, doc: withPoints("p"), flush: async () => {} };
+	const app = {
+		current: { isStarter: false, session },
+		index: { names: new Map(), items: [], deleted: [] },
+		sync: null
+	} as unknown as AppContext;
+	mocked.placeRegion.mockRejectedValueOnce(new Error("offline"));
+	await shareDashboard(app);
+	await expect.element(dialog().getByText("Can't look up your area right now.")).toBeVisible();
+	await dialog().getByRole("button", { name: "Retry" }).click();
+	await expect.element(dialog().getByText(NOTICE)).toBeVisible();
+	const link = dialog().getByRole("textbox", { name: "Link" });
+	await expect.element(link).toBeVisible();
+	const swappedUrl = (link.element() as HTMLInputElement).value;
+	expect(swappedUrl).toContain("/workspace/import#");
+	await dialog().getByRole("button", { name: "Download file instead" }).click();
+	const file = memory.files.saved[0].contents;
+	expect(file).toContain('"zipcode"');
+	expect(file).not.toContain("36.7378");
+	await dialog().getByRole("checkbox", { name: "Share my exact location instead" }).click();
+	await expect.element(link).not.toHaveValue(swappedUrl);
+	await dialog().getByRole("button", { name: "Download file instead" }).click();
+	expect(memory.files.saved[1].contents).toContain("36.7378");
+});
+
+test("Export always saves the region and says so", async () => {
+	const { memory } = await signedOut();
+	await render(Toaster);
+	const { exportDashboard } = await import("$lib/sharing/actions");
+	const app = {
+		current: {
+			isStarter: false,
+			session: { readOnly: false, doc: withPoints("p"), flush: async () => {} }
+		},
+		index: { names: new Map(), items: [], deleted: [] },
+		sync: null
+	} as unknown as AppContext;
+	await exportDashboard(app);
+	expect(memory.files.saved).toHaveLength(1);
+	expect(memory.files.saved[0].contents).toContain('"zipcode"');
+	expect(memory.files.saved[0].contents).not.toContain("36.7378");
+	await expect
+		.poll(() => document.querySelector("[data-sonner-toast]")?.textContent)
+		.toContain(NOTICE);
+});
+
+test("before a live link, Use ZIP 93721 instead swaps the points in one undoable edit", async () => {
+	const { app, worker } = await signedIn({ doc: withPoints("p", "q") });
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = (await app.sessions.get("d1"))!;
+	app.current = { session, isStarter: false };
+	const applied = vi.spyOn(session, "apply");
+	await shareDashboard(app);
+	await expect
+		.element(liveSection().getByText("This dashboard includes your exact location."))
+		.toBeVisible();
+	expect(liveSection().getByRole("button", { name: "Create link" }).elements()).toHaveLength(0);
+	await expectNoAxeViolations();
+	await liveSection().getByRole("button", { name: "Use ZIP 93721 instead" }).click();
+	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
+	await expect.element(liveSection().getByRole("textbox", { name: "Live link" })).toBeVisible();
+	expect(applied.mock.calls.map(([change]) => change.op)).toEqual(["replaceDocument"]);
+	const places = () => session.doc.body.widgets.map((w) => w.data.layers[0].place);
+	expect(places()).toEqual([
+		{ kind: "region", type: "zipcode", code: "93721" },
+		{ kind: "region", type: "zipcode", code: "93721" }
+	]);
+	session.undo();
+	expect(places()).toEqual([POINT, POINT]);
+	expect(session.canUndo).toBe(false);
+});
+
+test("Share my exact location warns, then creates the link with the point kept", async () => {
+	const { app, worker } = await signedIn({ doc: withPoints("p") });
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = (await app.sessions.get("d1"))!;
+	app.current = { session, isStarter: false };
+	await shareDashboard(app);
+	await liveSection().getByRole("button", { name: "Share my exact location" }).click();
+	await expect.element(liveSection().getByText(WARNING)).toBeVisible();
+	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
+	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
+	expect(session.canUndo).toBe(false);
+});
+
+test("with one point widget, Use ZIP 93721 instead edits only that widget's data", async () => {
+	const doc = withPoints("p");
+	doc.body.widgets.push(widget("other"));
+	const { app, worker } = await signedIn({ doc });
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = (await app.sessions.get("d1"))!;
+	app.current = { session, isStarter: false };
+	const applied = vi.spyOn(session, "apply");
+	await shareDashboard(app);
+	await liveSection().getByRole("button", { name: "Use ZIP 93721 instead" }).click();
+	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
+	// Not a whole-document replacement: a concurrent edit elsewhere doesn't conflict with it.
+	expect(applied.mock.calls.map(([change]) => change.op)).toEqual(["setWidgetData"]);
+	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+		kind: "region",
+		type: "zipcode",
+		code: "93721"
+	});
+	session.undo();
+	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
+	expect(session.canUndo).toBe(false);
 });

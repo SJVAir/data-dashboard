@@ -42,6 +42,7 @@ import { actionLayout, dropChange, sameRect, type LayoutAction } from "$lib/layo
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
 import { generatedTitle } from "$lib/widgets/titles.svelte";
+import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import type { MenuItem, MenuProvider } from "./types";
 
 /**
@@ -344,9 +345,14 @@ export function widgetActions(
 /**
  * "Download data (CSV)" for a widget whose type is `downloadable` (none otherwise). The data
  * layer comes with a dynamic import, so it stays out of the initial bundle. `widget` is read
- * when the item runs. Not an edit: offered on a read-only dashboard too.
+ * when the item runs. Not an edit: offered on a read-only dashboard too. `viewer` names a point's
+ * place in the file ("shared" on a share link's page).
  */
-export function downloadItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
+export function downloadItems(
+	app: AppContext,
+	widget: () => WidgetInstance | null,
+	viewer: PlaceViewer = "owner"
+): MenuItem[] {
 	const current = widget();
 	if (!current || !getWidgetType(current.type)?.downloadable) return [];
 	return [
@@ -364,7 +370,7 @@ export function downloadItems(app: AppContext, widget: () => WidgetInstance | nu
 						csv.saveWidgetCsv(
 							latest,
 							(name, contents, type) => files.save(name, contents, type),
-							"owner"
+							viewer
 						),
 					(error: unknown) => {
 						report(error);

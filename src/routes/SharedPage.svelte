@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { setContext } from "svelte";
 	import { toast } from "svelte-sonner";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { askExistingCopy } from "$lib/components/dialogs/lazy.svelte";
@@ -12,12 +13,15 @@
 	import { sharedDocumentOf } from "$lib/sharing/export";
 	import { fingerprint } from "$lib/sharing/fingerprint";
 	import { useApp } from "$lib/store/app.svelte";
+	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 	import { navigate, p, route } from "../router";
 
 	const app = useApp();
 	// Someone else's dashboard, with no session: undo, redo, and the top bar never reach the
 	// viewer's own dashboard from here. Set before the grid mounts.
 	app.current = { session: null, isStarter: false };
+	// Someone else's point reads as "(shared location)", in titles and CSV files.
+	setContext<PlaceViewer>(PLACE_VIEWER_KEY, "shared");
 
 	let shared = $state.raw<{ token: string; doc: SharedDocumentView } | null>(null);
 	/** The remote's file won't load: `loadLazy` has shown the reload bar, so the page adds nothing. */

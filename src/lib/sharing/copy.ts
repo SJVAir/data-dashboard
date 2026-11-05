@@ -3,6 +3,7 @@ import { duplicateDashboard } from "$lib/starter/starter";
 import type { AppContext } from "$lib/store/app.svelte";
 import { copiesOf, rememberCopy } from "./fingerprints";
 import type { Incoming } from "./incoming";
+import { pointSwaps, withSwaps } from "./points";
 
 /** The live copy of this shared content that changed most recently, if there is one. */
 export async function findExistingCopy(
@@ -26,13 +27,18 @@ export async function findCopyOf(
 	return app.index.items.find((d) => d.copiedFrom === sourceId) ?? null;
 }
 
-/** Stores the shared dashboard as a new one of this person's own; resolves its id. */
+/**
+ * Stores the shared dashboard as a new one of this person's own; resolves its id. Someone else's
+ * exact location is always stored as the region its widget shows (cleared when it has none);
+ * rejects, saving nothing, when a region can't be looked up.
+ */
 export async function saveCopy(
 	app: AppContext,
 	incoming: Extract<Incoming, { kind: "document" }>
 ): Promise<string> {
+	const doc = withSwaps(incoming.doc, await pointSwaps(incoming.doc));
 	const id = await app.index.createFrom(
-		duplicateDashboard({ ...incoming.doc, id: incoming.sourceId }, new Date())
+		duplicateDashboard({ ...doc, id: incoming.sourceId }, new Date())
 	);
 	await rememberCopy(app.platform, app.space, incoming.fingerprint, id);
 	return id;

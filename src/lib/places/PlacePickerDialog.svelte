@@ -43,6 +43,7 @@
 	import { createPlaceDirectory, type PlaceDirectory } from "./directory";
 	import PlacePicker from "./PlacePicker.svelte";
 	import { addRecent, readRecent } from "./recent";
+	import { regionName as nameOf } from "./region-name";
 	import { fromLayer, type PickerMode, type Picks } from "./selection";
 	import type { PlaceOption, PointPlace } from "./types";
 
@@ -277,11 +278,8 @@
 		const saved = result?.savedAsRegion ?? null;
 		let regionName: string | null = null;
 		if (saved) {
-			const found = await ctx.resolvers.regions
-				.resolve(saved.type, saved.code, signal)
-				.catch(() => null);
+			regionName = await nameOf(ctx.resolvers.regions, saved, signal);
 			if (stale()) return;
-			regionName = found && found !== "unsupported" ? found.name : saved.code;
 		}
 		// Applied to the widget as it is now (an edit made meanwhile isn't undone).
 		const latest = find();
