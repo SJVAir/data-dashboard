@@ -290,11 +290,12 @@ async function summarySeriesWithWorstHour(
 	});
 }
 
-async function fetchAirQuality(
+async function fetchTarget(
 	req: AdapterRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
+	if (req.target.kind === "fallback") throw new Error("A fallback is fetched one key at a time");
 	const [{ places, info }, processors] = await Promise.all([
 		placesOf(req.target, ctx, signal),
 		placeProcessors(req, ctx, signal)
@@ -325,11 +326,48 @@ async function fetchAirQuality(
 	};
 }
 
+/**
+ * A point's or a school's data: its candidate regions fetched in order, each through the region
+ * path (the same request units), stopping at the first with any point in the range; the last
+ * candidate's (empty) data when none has any. `key` is the region used. One series, never several.
+ */
+export async function fallbackFetch(
+	req: AdapterRequest,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<{ key: string; data: QueryData }> {
+	const { target } = req;
+	if (target.kind !== "fallback") throw new Error("Not a fallback target");
+	let used: { key: string; data: QueryData } | undefined;
+	for (const key of target.keys) {
+		const data = await fetchTarget(
+			{ ...req, target: { kind: "regions", keys: [key] } },
+			ctx,
+			signal
+		);
+		used = { key, data };
+		if (data.series.some((s) => s.points.length > 0)) break;
+	}
+	if (!used) throw new Error("A fallback target has no regions");
+	return used;
+}
+
+async function fetchAirQuality(
+	req: AdapterRequest,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<QueryData> {
+	const { target } = req;
+	if (target.kind !== "fallback") return fetchTarget(req, ctx, signal);
+	const { data } = await fallbackFetch(req, ctx, signal);
+	return { ...data, places: data.places.map((p) => ({ ...p, via: target.via })) };
+}
+
 /** SJVAir's monitors and regions, through `@sjvair/sdk`; always the published series. */
 export const airQualityAdapter: DatasetAdapter = {
 	id: "air-quality",
-	target: (layer, ctx) => layerTarget(layer, ctx.regions),
-	// Regions and the whole layer have no raw entries.
+	target: (layer, ctx) => layerTarget(layer, ctx),
+	// Regions (and so points and schools) and the whole layer have no raw entries.
 	offered: (base, target) => (target.kind === "monitors" ? base : base.filter((r) => r !== "raw")),
 	fetch: fetchAirQuality
 };

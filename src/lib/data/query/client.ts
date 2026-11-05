@@ -4,6 +4,8 @@ import type {
 	AdapterContext,
 	AdapterRequest,
 	DatasetAdapter,
+	LocationResolver,
+	PointResolver,
 	RegionResolver
 } from "../adapters/registry";
 import type { MetadataSource } from "../metadata";
@@ -59,6 +61,10 @@ export type QueryClientOptions = {
 	adapters: DatasetAdapter[];
 	metadata: MetadataSource;
 	regions: RegionResolver;
+	/** Schools; without one, every school is `location-unresolved`. */
+	locations?: LocationResolver;
+	/** Points; without one, every point is `point-outside`. */
+	points?: PointResolver;
 	now?: () => Date;
 	maxIdleEntries?: number;
 	/** Idle entries are evicted oldest first once their series hold more points than this. */
@@ -123,7 +129,12 @@ function entryState(entry: Entry): QueryState {
 
 export function createQueryClient(opts: QueryClientOptions): QueryClient {
 	const adapters = new Map(opts.adapters.map((a) => [a.id, a]));
-	const ctx: AdapterContext = { metadata: opts.metadata, regions: opts.regions };
+	const ctx: AdapterContext = {
+		metadata: opts.metadata,
+		regions: opts.regions,
+		locations: opts.locations ?? { resolve: async () => null },
+		points: opts.points ?? { keys: async () => [] }
+	};
 	const now = opts.now ?? (() => new Date());
 	const maxIdleEntries = opts.maxIdleEntries ?? 200;
 	const maxIdlePoints = opts.maxIdlePoints ?? 500_000;
@@ -161,7 +172,8 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			!downsampleFromRaw &&
 			spanDays <= WORST_HOUR_MAX_DAYS &&
 			((target.kind === "monitors" && target.ids.length === 1) ||
-				(target.kind === "regions" && target.keys.length === 1));
+				(target.kind === "regions" && target.keys.length === 1) ||
+				target.kind === "fallback");
 		return { resolution, downsampleFromRaw, worstHour };
 	}
 

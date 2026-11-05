@@ -38,6 +38,9 @@
 		"no-adapter": () => m.widget_state_unavailable_no_adapter(),
 		"no-resolution": () => m.widget_state_unavailable_no_resolution(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
+		"location-unresolved": () => m.widget_state_unavailable_location_unresolved(),
+		"point-outside": () => m.widget_state_unavailable_point_outside(),
+		"monitor-unlisted": () => m.widget_state_unavailable_monitor_unlisted(),
 		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw()
 	};
 

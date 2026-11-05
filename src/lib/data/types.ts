@@ -33,12 +33,27 @@ export function byPlaceOrder(order: Map<string, number>) {
 	};
 }
 
+/**
+ * How a point or a school reached the region it shows: `name` is the school's (and `retired` its
+ * retirement); a point carries nothing, so its coordinates never travel with the data.
+ */
+export type Via =
+	| { kind: "point" }
+	| {
+			kind: "location";
+			name: string;
+			retired?: { since: string; replacedBy: { source: string; code: string } | null };
+	  };
+
 /** A requested place's display name and, for a retired region, its retirement. */
 export type PlaceInfo = {
 	/** Same key as `Series.place`. */
 	place: string;
+	/** The region's (or monitor's) name; for a point or a school, the region it shows. */
 	name: string;
 	retired?: ResolvedRegion["retired"];
+	/** Set when the place is the region a point or a school fell back to. */
+	via?: Via;
 };
 
 export type QueryData = {
@@ -59,6 +74,9 @@ export const UNAVAILABLE_REASONS = [
 	"no-resolution",
 	"place-unsupported",
 	"region-unresolved",
+	"location-unresolved",
+	"point-outside",
+	"monitor-unlisted",
 	"whole-layer-raw"
 ] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
@@ -71,7 +89,11 @@ export type QueryState =
 	| { status: "unavailable"; reason: UnavailableReason };
 
 export type Target =
-	{ kind: "monitors"; ids: string[] } | { kind: "regions"; keys: string[] } | { kind: "all" };
+	| { kind: "monitors"; ids: string[] }
+	| { kind: "regions"; keys: string[] }
+	/** A point or a school: its region keys tried in order (ZIP, city, county); one series. */
+	| { kind: "fallback"; via: Via; keys: string[] }
+	| { kind: "all" };
 
 /**
  * `timeSubRange` only filters the data delivered (whole Pacific days for dates, `[start, end]`

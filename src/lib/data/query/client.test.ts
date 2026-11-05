@@ -702,7 +702,7 @@ describe("createQueryClient", () => {
 			const calls: Call[] = [];
 			const adapter: DatasetAdapter = {
 				id: "air-quality",
-				target: (layer, ctx) => layerTarget(layer, ctx.regions),
+				target: (layer, ctx) => layerTarget(layer, ctx),
 				offered: (base) => base,
 				fetch(req, _ctx, signal) {
 					return new Promise((resolve, reject) => calls.push({ req, signal, resolve, reject }));
