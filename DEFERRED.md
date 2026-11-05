@@ -402,6 +402,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     published from that branch. Since sjvair.com builds monitor-map `main` unpinned on each
     deploy, merge `release/5.0.0` into `main` (the user's yes) right before deploying `develop`,
     not earlier.
+    map-sdk must already be on npm by then: monitor-map 5.0 depends on it, and sjvair.com's
+    deploy runs `npm i` on monitor-map `main`.
     The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
     hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
     (tooltips, legend, clusters, charts, subscription manager), mobile
