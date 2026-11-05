@@ -1442,6 +1442,27 @@ release ships the same day (see `DEFERRED.md` → the deploy entry).
 - **`@maptiler/weather` is proprietary**, so map-sdk can't depend on it; wind is decided in
   milestone 2 (see `DEFERRED.md`).
 
+**Milestone 2 (monitor-map parity)** is built and merged (map-sdk #4, 2026-11-04; spec
+`docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`). Every addition is a general
+option the Map widget can use too:
+
+- **Host access without host layers.** `MapContext` gains camera moves (`easeTo`, `flyTo`,
+  `fitBounds`), a reactive `ready` and `gl`, and `maptilerMap()` for markers and popups only.
+  Plugins can add MapLibre custom layers (`addCustomLayer`), which is how monitor-map keeps its
+  wind layer outside map-sdk, and can win the hover tooltip (`hoverPriority`).
+- **`MapView` pieces are choosable:** `controls` (map-sdk's, the engine's, or none),
+  `selectionBar`, and `tooltip` (pinned, or following the pointer). Credits are the engine's
+  attribution control on every map, with data credits in it.
+- **Live stores for everything the live map shows,** in `./stores` with no map engine:
+  monitors (now with a public `meta`), HMS smoke, HMS fire, and collocation sites (joined to the
+  monitors store's readings). Each loads once like today, except monitors, which poll.
+- **Today's look, decided by the user from a side-by-side check:** inactive monitors `#969696`
+  and a black inside outline, the collocation crosshair `#4A5FC6` (fixed colors, exceptions to
+  the theme-token rule), today's monitor and cluster tooltip layout, whole-number readings cut
+  off as today, blocks legends as one labeled bar, the monitors legend titled by pollutant, and
+  fire switching from groups to hotspots at zoom 10. These apply on every map, the dashboard's
+  included.
+
 ## Dashboard layout mechanics
 
 Decided 2026-09-23 (IDEA.md Open Question #4).

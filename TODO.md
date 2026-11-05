@@ -15,12 +15,12 @@ from a worktree off `origin/main`. Server sessions message the coordinator. Duri
 spec docs until it merges into `main` (the user, 2026-11-04); **each step 4 spec starts by merging
 `origin/main` into `step-4`**, so cross-track docs on `main` don't pile up into one conflict.
 
-| Track                                                                                                                                                                                                                                        | Session starts in | Repos it edits                | Its status lives in                          |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                                                                                                                   | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata) — specs 1–4, the summaries fix and SDK entry bounds merged (SDK 5.0.0-beta.2); cleanup (spec 5) and the picker's server changes merged (#306–#308); SDK `5.0.0-beta.3` published (#45, #46) (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1); on SDK 5.0.0-beta.2 (#2); milestone 2 spec and plan merged (#3); milestone 2 built, PR #4 open, awaiting the user's yes to merge (2026-11-04)                 | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
-| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; spec 1 merged into `step-4` (#36), spec 2 (place picker) next (2026-11-04)                                                                                          | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
+| Track                                                                                                                                                                                                                                              | Session starts in | Repos it edits                | Its status lives in                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                                                                                                                         | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata) — specs 1–4, the summaries fix and SDK entry bounds merged (SDK 5.0.0-beta.2); cleanup (spec 5) and the picker's server changes merged (#306–#308); SDK `5.0.0-beta.3` published (#45, #46) (2026-11-04)       | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1); on SDK 5.0.0-beta.2 (#2); milestone 2 spec and plan merged (#3); ✅ milestone 2 (monitor-map parity) merged 2026-11-04 (#4), on SDK 5.0.0-beta.3; not yet published | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; spec 1 merged into `step-4` (#36), spec 2 (place picker) next (2026-11-04)                                                                                                | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
@@ -1258,8 +1258,8 @@ The checklist below is the whole step's scope.
     ready signal, globe, control and credit options, collocation sites, live stores for
     collocation and HMS, the smoke, fire and legend look options, and removing the legacy
     `levels` fallback before go-live. Wind and EV chargers stay in monitor-map.
-  - **Milestone 2 built 2026-11-04, PR open:** [map-sdk #4](https://github.com/SJVAir/map-sdk/pull/4)
-    (not merged; merging needs the user's yes, and no release is cut). All 23 spec items, plus
+  - **✅ Milestone 2 merged 2026-11-04:** [map-sdk #4](https://github.com/SJVAir/map-sdk/pull/4)
+    (no release cut). All 23 spec items, plus
     the legacy `levels` fallback removed on `@sjvair/sdk` 5.0.0-beta.3 (dev pin; peer range
     stays `^5.0.0-beta.2`). The demo's "Live map" section is today's monitor-map setup on
     map-sdk. The user judged it side by side with sjvair.com and chose today's look, on every
@@ -1267,8 +1267,8 @@ The checklist below is the whole step's scope.
     legends as one labeled bar and the monitors legend titled by pollutant; collocation sites
     have no legend section and fire is one plugin that switches to hotspots at zoom 10. Default
     changes the Map widget will see: monitor colors, engine credits, those tooltip and legend
-    changes, the pointer cursor, smoke outlines in the plume color. When #4 merges, close the
-    `DEFERRED.md` entries "map-sdk milestone 2", "Globe projection" and "(1-hour avg)".
+    changes, the pointer cursor, smoke outlines in the plume color. Review leftovers are in
+    `DEFERRED.md` → "map-sdk milestone 2 review leftovers".
   - **Next for monitor-map 5.0:** a published map-sdk `0.x` (the user's yes per release, after
     the npm trusted publisher is set up), then the monitor-map 5.0 rebuild plan.
 - A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate

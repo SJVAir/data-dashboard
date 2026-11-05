@@ -1046,20 +1046,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   on map-sdk's general points and shapes plugins plus their metadata scale with little or no
   preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
   needs one on a map (pesticide notices likely first, alongside the alerts work).
-- **map-sdk milestone 2: monitor-map parity.** _Deferred 2026-11-03 (map-sdk milestone 1 spec,
-  the user's call: the dashboard is the priority)._ Collocation sites, EV stations, wind, live
-  stores beyond monitors (HMS, collocation), and whatever else the 5.0 rebuild needs. EV
-  stations need the NREL key moved into injected config, and their hardcoded ZIP list and
-  labels need a proper home. The live map and mobile keep shipping from monitor-map 4.x
-  meanwhile. The rebuild is now on the go-live path (the mobile entry under "Mobile app", the
-  user, 2026-11-04). **Now specified** (2026-11-04, approved by the user): map-sdk `docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`.
-  The user's parity rule: match today's map, except bug fixes and accessibility additions;
-  dashboard-style differences become options monitor-map sets to today's look. Layers on
-  SJVAir server data go in map-sdk (collocation sites move in); layers on outside services
-  (wind, EV chargers) stay in monitor-map. So the NREL key (into monitor-map's config), the
-  ZIP list cleanup (duplicates; some Inyo/Mono ZIPs filed under San Joaquin; the 5 mountain
-  counties stay, the user's call), and the label maps are monitor-map 5.0 plan items. Remove
-  this entry when milestone 2 merges.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1093,21 +1079,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   spec)._ Keyboard and screen-reader users reach features through map-sdk's feature list (one
   tab stop, features in view). Spatial arrow-key navigation is tricky to get right and the
   list covers the need. **Revisit if** keyboard users find the list too indirect.
-- **Globe projection and space background in map-sdk.** _Deferred 2026-11-03 (map-sdk
-  milestone 1 build)._ map-sdk maps use the flat (Mercator) projection with no starfield
-  background. monitor-map's globe view and Milky Way background aren't needed by the dashboard,
-  and the milestone 1 plan didn't list them. See also "Globe-projection zoom precision" under
-  "Map & selection". **Revisit with** map-sdk milestone 2 (the monitor-map 5.0 rebuild), as a
-  projection option on `createMap()`. **Scheduled 2026-11-04:** milestone 2 item 4 (options,
-  off by default; monitor-map turns them on). Remove when milestone 2 merges.
-- **The "(1-hour avg)" note in map-sdk's monitor tooltip.** _Deferred 2026-11-03 (map-sdk
-  milestone 1 build)._ monitor-map's tooltip labels readings "(1-hour avg)"; map-sdk's shows the
-  reading and "Last updated …" but not the note. Writing it would hardcode the averaging window,
-  which has to come from metadata, and the server's meta doesn't give one yet. **Revisit when**
-  the server's monitors meta or dataset catalog gives an averaging window per entry type, or with
-  milestone 2's parity pass, whichever comes first. **Scheduled 2026-11-04:** milestone 2 item
-  13, from the monitor type's `expected_interval`, the source today's monitor-map uses. Remove
-  when milestone 2 merges.
 - **"hms-fire icon could not be loaded" warning in map-sdk's e2e tests.** _Found 2026-11-03
   (map-sdk milestone 1 build)._ The demo's browser tests log this MapLibre warning; fires still
   draw with their level icons, and the cause hasn't been traced (most likely the map asks for
