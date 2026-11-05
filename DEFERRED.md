@@ -1112,7 +1112,24 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (map-sdk milestone 1 build)._ The demo's browser tests log this MapLibre warning; fires still
   draw with their level icons, and the cause hasn't been traced (most likely the map asks for
   the icon before the plugin has added it). **Revisit when** someone next works on the fire
-  plugin, or sooner if fire icons go missing on a map.
+  plugin, or sooner if fire icons go missing on a map. Milestone 2 (map-sdk #4) couldn't
+  reproduce it in the Chromium e2e, a probe spec, or the browser tests; the suspect is
+  `pointsPlugin` adding icon images in `image.onload` after its layers.
+- **map-sdk milestone 2 review leftovers.** _Deferred 2026-11-04 (map-sdk #4 reviews)._ Small
+  gaps the reviews found that don't affect today's maps:
+  - A collocation site whose collocated monitor isn't in the store shows no name for it (its
+    id is available).
+  - On a map 640px or narrower, data credits arriving after the user collapsed the credits
+    re-open them, because the control is replaced. Data credits are blank today.
+  - After `dispose()` mid-load, a load-once store (HMS, collocation) stays `loading`, as the
+    monitors store does.
+  - No e2e covers fire's zoom-10 switch or the Live map's click easing (client tests cover the
+    layer zoom ranges).
+  - Readings are cut to whole numbers on every map. A ppm-scale entry type such as CO would read
+    "4" in Moderate's color.
+
+  **Revisit when** the Map widget or monitor-map 5.0 hits one of these, before map-sdk 1.0, or
+  if the dashboard shows a ppm-scale entry type.
 
 ## Widgets
 
