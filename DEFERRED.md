@@ -369,6 +369,15 @@ string`) now get the union return type. The mobile app passes a string token, so
   already true without a session; with a session it used to be ignored (200). Not a
   security issue (a cross-site page can't set the header). **Revisit with** the next
   resticus change; fix by raising `AuthenticationFailed` there.
+- **sjvair.com: a malformed id on detail endpoints gives 500, not 404.** _Found 2026-11-05
+  (Get data layers, sjvair.com SDK tests; checked by the coordinator on the local stack)._
+  `hms/smoke/<id>/`, `hms/fire/<id>/` and `monitors/<id>/` answer 500 for any id that isn't a
+  valid small UUID (`nonexistent`, a region sqid): `django_smalluuid`'s `to_python` raises on
+  the bad base64, and in DEBUG resticus's error handler then crashes too (`TypeError:
+'__proxy__' object does not support item assignment` at `data["meta"] = …`), which may hit
+  other endpoints' errors in DEBUG as well. `regions/<id>/` answers 404. Pre-existing on
+  `develop`, not from the Get data work; not scheduled yet (the user's call). **Revisit
+  when** the next sjvair.com cleanup is planned, or before go-live, so bad ids are a 404.
 - **resticus: CSRF skip trusts any non-session authenticator.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22
   (resticus CSRF fix review)._ A custom authenticator that reads a cookie (e.g. a JWT in a
   cookie) and doesn't subclass `SessionAuth` would let cookie-only requests skip the CSRF
