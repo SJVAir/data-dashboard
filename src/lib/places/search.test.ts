@@ -12,9 +12,14 @@ function monitor(name: string, active = true): MonitorOption {
 
 function directory(monitors: MonitorOption[] = []): PlaceDirectory {
 	return {
-		regionTypes: vi.fn(async () => [
-			{ type: "zipcode", label: "ZIP code", plural: "ZIP code", count: 3, parents: [] }
-		]),
+		regionTypes: vi.fn(async () => []),
+		regionTypeLabels: vi.fn(
+			async () =>
+				new Map([
+					["zipcode", "ZIP code"],
+					["tract", "Tract"]
+				])
+		),
 		locationTypes: vi.fn(async () => [
 			{ type: "public_school", label: "Public school", source: "cde-public" }
 		]),
@@ -71,11 +76,12 @@ describe("searchPlaces", () => {
 		expect(result.monitors.status).toBe("ready");
 	});
 
-	it("drops retired regions and labels rows from regionTypes", async () => {
+	it("drops retired regions and labels rows from all metadata types, dropping unlabeled ones", async () => {
 		vi.mocked(searchRegionPlaces).mockResolvedValue([
 			{ id: "1", name: "93721", type: "zipcode", external_id: "93721", retired: null },
 			{ id: "2", name: "93000", type: "zipcode", external_id: "93000", retired: { since: "x" } },
-			{ id: "3", name: "Odd", type: "mystery", external_id: "m1", retired: null },
+			{ id: "3", name: "Tract 1", type: "tract", external_id: "t1", retired: null },
+			{ id: "5", name: "Ghost", type: "mystery", external_id: "g1", retired: null },
 			{ id: "4", name: "NoCode", type: "zipcode", external_id: null, retired: null }
 		] as never);
 		const result = await searchPlaces("93", ctx(directory()), signal());
@@ -93,10 +99,10 @@ describe("searchPlaces", () => {
 				},
 				{
 					kind: "region",
-					type: "mystery",
-					code: "m1",
-					name: "Odd",
-					typeLabel: "mystery",
+					type: "tract",
+					code: "t1",
+					name: "Tract 1",
+					typeLabel: "Tract",
 					county: null
 				}
 			]
@@ -125,6 +131,16 @@ describe("searchPlaces", () => {
 					city_name: "",
 					zip: "",
 					retired: { since: "x", replaced_by: null }
+				},
+				{
+					source: "cde-public",
+					external_id: "3",
+					type: "mystery",
+					name: "Unlabeled",
+					address: "",
+					city_name: "",
+					zip: "",
+					retired: null
 				}
 			],
 			more: true

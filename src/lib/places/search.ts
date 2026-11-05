@@ -83,13 +83,13 @@ export async function searchPlaces(
 			const labels = new Map(types.map((t) => [t.type, t.label]));
 			return {
 				options: found.results
-					.filter((l) => !l.retired)
+					.filter((l) => !l.retired && labels.has(l.type))
 					.map((l): LocationOption => ({
 						kind: "location",
 						source: l.source,
 						code: l.external_id,
 						name: l.name,
-						typeLabel: labels.get(l.type) ?? l.type,
+						typeLabel: labels.get(l.type)!,
 						city: l.city_name,
 						zip: l.zip,
 						address: l.address
@@ -98,20 +98,19 @@ export async function searchPlaces(
 			};
 		})(),
 		(async () => {
-			const [rows, types] = await Promise.all([
+			const [rows, labels] = await Promise.all([
 				searchRegionPlaces(q, undefined, { signal }),
-				directory.regionTypes(signal)
+				directory.regionTypeLabels(signal)
 			]);
-			const labels = new Map(types.map((t) => [t.type, t.label]));
 			return {
 				options: rows
-					.filter((r) => !r.retired && r.external_id !== null)
+					.filter((r) => !r.retired && r.external_id !== null && labels.has(r.type))
 					.map((r): RegionOption => ({
 						kind: "region",
 						type: r.type,
 						code: r.external_id as string,
 						name: r.name,
-						typeLabel: labels.get(r.type) ?? r.type,
+						typeLabel: labels.get(r.type)!,
 						// TODO(beta.3): fill from the row's `county` once the SDK types it.
 						county: null
 					})),

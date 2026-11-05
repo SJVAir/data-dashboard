@@ -68,6 +68,13 @@ describe("regionTypes and locationTypes", () => {
 		});
 	});
 
+	it("labels every region type, browsable or not", async () => {
+		const labels = await directory().regionTypeLabels();
+		expect(labels.get("tract")).toBe("Tract");
+		expect(labels.get("empty")).toBe("Empty");
+		expect(labels.get("county")).toBe("County");
+	});
+
 	it("lists location types and fetches the meta once", async () => {
 		const d = directory();
 		expect(await d.locationTypes()).toEqual([{ type: "school", label: "School", source: "cde" }]);
