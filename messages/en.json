@@ -727,5 +727,49 @@
 				"countPlural=other": "{count} more places aren't shown."
 			}
 		}
-	]
+	],
+	"place_picker_label": "Search for a place",
+	"place_picker_placeholder": "Search for a city, ZIP, school, or monitor",
+	"place_picker_results": "Places found",
+	"place_picker_use_location": "Use my location",
+	"place_picker_locating": "Finding your location…",
+	"place_picker_recent": "Recent",
+	"place_picker_browse": "Browse",
+	"place_picker_group_locations": "Schools & child care",
+	"place_picker_group_regions": "Places",
+	"place_picker_group_monitors": "Monitors",
+	"place_picker_not_reporting": "Not reporting",
+	"place_picker_location_where": "{city} · {zip}",
+	"place_picker_more": "More matches. Keep typing to narrow them down.",
+	"place_picker_error_locations": "Couldn't search schools and child care.",
+	"place_picker_error_regions": "Couldn't search places.",
+	"place_picker_error_monitors": "Couldn't search monitors.",
+	"place_picker_retry": "Retry",
+	"place_picker_count": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} result",
+				"countPlural=other": "{count} results"
+			}
+		}
+	],
+	"place_picker_no_matches": "No matches",
+	"place_picker_reason_other_kind_regions": "This widget compares regions. Remove the regions to compare monitors.",
+	"place_picker_reason_other_kind_monitors": "This widget compares monitors. Remove the monitors to compare regions.",
+	"place_picker_reason_single_only": "A school or your location can only be shown on its own.",
+	"place_picker_reason_alone_picked": "Remove {name} to add other places.",
+	"place_picker_reason_alone_picked_unnamed": "Remove the school or location first to add other places.",
+	"place_picker_reason_at_cap": "This widget shows up to {max} places.",
+	"place_picker_chosen": "Chosen places",
+	"place_picker_remove": "Remove {name}",
+	"place_picker_your_location": "Your location",
+	"place_picker_unnamed": "Unnamed place",
+	"place_picker_done": "Done",
+	"place_picker_cancel": "Cancel",
+	"place_picker_location_off": "Location access is off. Search for a place instead.",
+	"place_picker_location_failed": "Couldn't find your location. Try again, or search for a place instead.",
+	"place_picker_location_check_failed": "Couldn't check your location. Try again, or search for a place instead.",
+	"place_picker_location_outside": "Your location is outside the area SJVAir covers."
 }
