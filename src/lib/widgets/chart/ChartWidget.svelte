@@ -2,10 +2,12 @@
 	import { chartXRange } from "$lib/charts/series";
 	import TimeChart from "$lib/charts/TimeChart.svelte";
 	import type { QueryData } from "$lib/data/types";
+	import { fromLayer } from "$lib/places/selection";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { DataWidget } from "../shared/data-widget.svelte";
+	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
+	import { overlayPlaceFor, sharedSource } from "../shared/overlays";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { placeLabel } from "../title";
@@ -27,6 +29,46 @@
 			new Date(data.fetchedAt)
 		);
 	}
+
+	/**
+	 * What the Chart draws for each overlay: one place's days (the saved "Overlay for" place,
+	 * or the first, when the places' overlays differ), or a note when it has none or failed.
+	 * Overlays still loading, or whose dataset the catalog doesn't list, show nothing yet.
+	 */
+	function drawn(overlays: WidgetOverlay[]) {
+		const bands = [];
+		const notes: string[] = [];
+		const input = w.picked.input;
+		for (const o of overlays) {
+			const layer = o.meta?.entryType.label;
+			if (!layer || !input) continue;
+			const s = o.state;
+			if (s.status === "error" || s.status === "unavailable") {
+				notes.push(m.chart_overlay_failed({ layer }));
+				continue;
+			}
+			if (s.status !== "ready") continue;
+			const { places, series } = s.data;
+			const key = sharedSource(series)
+				? (places[0]?.place ?? "")
+				: overlayPlaceFor(widget.options, places, fromLayer(input.layer));
+			const info = places.find((p) => p.place === key);
+			if (!info) continue;
+			const place = placeLabel(info, w.viewer);
+			const points = series.find((x) => x.place === key)?.points ?? [];
+			if (points.length === 0) {
+				notes.push(m.chart_overlay_none({ layer, place }));
+				continue;
+			}
+			bands.push({
+				name: m.chart_overlay_key({ layer, place }),
+				layer,
+				levels: o.levels,
+				points
+			});
+		}
+		return { bands, notes };
+	}
 </script>
 
 <div class="flex h-full flex-col">
@@ -44,6 +86,7 @@
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
 		>
 			{#snippet children(data)}
+				{@const overlays = drawn(w.overlays)}
 				<TimeChart
 					{data}
 					levels={w.levelList}
@@ -52,6 +95,8 @@
 					xRange={xRange(data)}
 					precision={w.meta?.entryType.precision ?? null}
 					yMin={w.meta?.entryType.yMin ?? null}
+					overlays={overlays.bands}
+					notes={overlays.notes}
 				/>
 			{/snippet}
 		</WidgetState>

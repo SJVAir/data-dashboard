@@ -2,13 +2,36 @@ import { getContext, onDestroy, untrack } from "svelte";
 import { getMetadata, getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
+import type { Layer } from "$lib/data/schema";
 import type { QueryState } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { DEFAULT_RANGE } from "../defaults";
 import { dataTitle } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
 import { chartInput, entryMeta } from "./input";
+import { MAX_OVERLAYS, overlayInput, overlayLayers } from "./overlays";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
+
+/** An overlay's levels: `undefined` until loaded, an error if they couldn't be. */
+type Levels = Level[] | { error: unknown } | undefined;
+
+/** One overlay layer: its catalog entry, its scale, and its own query at the main's places. */
+export type WidgetOverlay = {
+	layer: Layer;
+	meta: ReturnType<typeof entryMeta>;
+	levels: Level[];
+	state: QueryState;
+};
+
+/** A query's state held as loading until `levels` are in, or an error if they failed. */
+function withLevels(s: QueryState, levels: Levels): QueryState {
+	if (s.status !== "ready" && s.status !== "error") return s;
+	if (levels === undefined) return { status: "loading", data: s.data };
+	if (!Array.isArray(levels) && s.status === "ready") {
+		return { status: "error", error: levels.error, data: s.data };
+	}
+	return s;
+}
 
 /**
  * What a widget that shows one pollutant for up to `maxPlaces` places over a date range needs:
@@ -18,9 +41,12 @@ import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 export class DataWidget {
 	catalog = $state.raw<CatalogEntry[] | undefined>();
 	/** The entry type's levels; `undefined` until loaded, an error if they couldn't be. */
-	levels = $state.raw<Level[] | { error: unknown } | undefined>();
+	levels = $state.raw<Levels>();
 	#levelsTry = $state(0);
 	readonly #query: LiveQuery;
+	/** One query per overlay slot (idle when the widget has fewer overlays). */
+	readonly #overlayQueries: LiveQuery[] = [];
+	#overlayLevels = $state.raw<Levels[]>([]);
 
 	/** Who is looking: labels for points read "your location" or "shared location". */
 	readonly viewer: PlaceViewer;
@@ -30,6 +56,11 @@ export class DataWidget {
 	readonly shown;
 	readonly retired;
 	readonly levelList;
+	/**
+	 * The overlay layers (at most `MAX_OVERLAYS`), each queried at the main layer's places. An
+	 * overlay's error or unavailability is its own: it never changes `shown`.
+	 */
+	readonly overlays: WidgetOverlay[];
 
 	constructor(widget: () => WidgetInstance, maxPlaces: number) {
 		const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
@@ -68,15 +99,54 @@ export class DataWidget {
 			return () => abort.abort();
 		});
 
-		this.shown = $derived.by<QueryState>(() => {
-			const s = query.state;
-			if (s.status !== "ready" && s.status !== "error") return s;
-			if (this.levels === undefined) return { status: "loading", data: s.data };
-			if (!Array.isArray(this.levels) && s.status === "ready") {
-				return { status: "error", error: this.levels.error, data: s.data };
-			}
-			return s;
+		this.shown = $derived(withLevels(query.state, this.levels));
+
+		const layers = $derived(overlayLayers(widget().data, this.catalog));
+		const inputs = $derived.by(() => {
+			const main = this.picked.input;
+			return main ? layers.map((l) => overlayInput(main, l)) : [];
 		});
+		const client = getQueryClient();
+		for (let i = 0; i < MAX_OVERLAYS; i++) {
+			const q = new LiveQuery(
+				client,
+				untrack(() => inputs[i] ?? null)
+			);
+			this.#overlayQueries.push(q);
+			$effect(() => q.set(inputs[i] ?? null));
+			$effect(() => q.setPolling(!widget().minimized));
+			onDestroy(() => q.destroy());
+
+			const dataset = $derived(layers[i]?.dataset);
+			const entryType = $derived(layers[i]?.entryType);
+			$effect(() => {
+				const [d, e] = [dataset, entryType];
+				void this.#levelsTry;
+				const set = (l: Levels) => {
+					const next = [...untrack(() => this.#overlayLevels)];
+					next[i] = l;
+					this.#overlayLevels = next;
+				};
+				if (!d || !e) return;
+				const abort = new AbortController();
+				set(undefined);
+				metadata.datasetLevels(d, e, abort.signal).then(set, (error: unknown) => {
+					if (!abort.signal.aborted) set({ error });
+				});
+				return () => abort.abort();
+			});
+		}
+		this.overlays = $derived(
+			layers.map((layer, i) => {
+				const levels = this.#overlayLevels[i];
+				return {
+					layer,
+					meta: entryMeta(this.catalog, layer),
+					levels: Array.isArray(levels) ? levels : [],
+					state: withLevels(this.#overlayQueries[i].state, levels)
+				};
+			})
+		);
 
 		this.retired = $derived.by(() => {
 			const meta = this.meta;
@@ -107,7 +177,9 @@ export class DataWidget {
 	}
 
 	retry = (): void => {
-		if (this.levels && !Array.isArray(this.levels)) this.#levelsTry++;
+		const failed = [this.levels, ...this.#overlayLevels].some((l) => l && !Array.isArray(l));
+		if (failed) this.#levelsTry++;
 		this.#query.retry();
+		for (const q of this.#overlayQueries) q.retry();
 	};
 }

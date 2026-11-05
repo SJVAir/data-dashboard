@@ -1,4 +1,5 @@
 import "../../../app.css";
+import axe from "axe-core";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
@@ -17,7 +18,13 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import ChartWidget from "./ChartWidget.svelte";
-import { chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
+import {
+	FORECASTS_ENTRY,
+	chartWidget,
+	fakeAdapter,
+	fakeForecastsAdapter
+} from "../shared/test-harness/fake-data";
+import { animationsSettled } from "../../../test/animations";
 
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,
@@ -246,5 +253,85 @@ test("the key names a point place by its source, as the title does", async () =>
 		.toBe("PM2.5 · ZIP 93721 (shared location) · Last 30 days");
 	await expect
 		.element(screen.getByRole("group", { name: "Chart of ZIP 93721 (shared location)" }))
+		.toBeVisible();
+});
+
+/** A Chart of PM2.5 at `ids` with a burn-status overlay; forecasts for `missing` 404. */
+async function showWithBurnStatus(ids: string[], missing: string[] = []) {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests, missing)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(ids);
+	widget.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	const screen = await show(widget);
+	return { widget, screen };
+}
+
+test("burn-status bands render with a legend naming the place", async () => {
+	const { widget, screen } = await showWithBurnStatus(["m1"]);
+	const key = screen.getByRole("list", { name: "Burn status in Monitor m1" });
+	await expect.element(key).toBeVisible();
+	// The overlay borrows the main layer's place and asks for days.
+	const asked = requests.find((r) => r.target.kind === "monitors" && r.resolution === "day");
+	expect(requests.map((r) => r.target)).toContainEqual({ kind: "monitors", ids: ["m1"] });
+	expect(asked).toBeDefined();
+	// One labeled, outlined swatch per level of the burn-status scale.
+	const items = key.getByRole("listitem");
+	await expect.element(items.nth(0)).toHaveTextContent("Burning Discouraged");
+	await expect.element(items.nth(1)).toHaveTextContent("No Burning Unless Registered");
+	for (const chip of frame.querySelectorAll("[data-overlay-swatch]")) {
+		expect(chip.getAttribute("data-pattern")).toBeTruthy();
+	}
+	const patterns = [...frame.querySelectorAll("[data-overlay-swatch]")].map((c) =>
+		c.getAttribute("data-pattern")
+	);
+	expect(new Set(patterns).size).toBe(2);
+	// Three days, two runs: two "discouraged" days and one "registered".
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toHaveAttribute("data-day-bands", "3");
+	// The band's label on keyboard focus of its legend item, and in the readout.
+	(items.nth(0).element() as HTMLElement).focus();
+	await expect.element(chart).toHaveAttribute("data-highlight", "discouraged");
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect
+		.poll(() => frame.querySelector("[aria-live='polite']")?.textContent ?? "")
+		.toContain("Burn status: Burning Discouraged");
+	// The title stays about the main layer.
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
+	await animationsSettled(frame);
+	const results = await axe.run(frame);
+	expect(results.violations).toEqual([]);
+});
+
+test("an overlay 404 shows its note and the line still draws", async () => {
+	const { screen } = await showWithBurnStatus(["m1"], ["m1"]);
+	await expect
+		.element(screen.getByText("Burn status isn't available for Monitor m1."))
+		.toBeVisible();
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	await expect.element(chart).toHaveAttribute("data-day-bands", "0");
+	expect(screen.getByRole("list", { name: "Burn status in Monitor m1" }).query()).toBeNull();
+});
+
+test("places with different overlays follow the saved place", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests, ["m1"])],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1", "m2"], {
+		options: { overlayFor: { kind: "monitor", id: "m2" } }
+	});
+	widget.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByRole("list", { name: "Burn status in Monitor m2" }))
 		.toBeVisible();
 });

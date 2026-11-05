@@ -16,7 +16,7 @@
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { dataTableType } from "./index";
 	import { placeLabel } from "../title";
-	import { sortRows, wideRows } from "./rows";
+	import { overlayColumns, sortRows, wideRows } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
@@ -63,6 +63,15 @@
 	/** Values with the catalog's display precision (the CSV keeps every digit). */
 	const num = (v: number) => formatValue(v, w.meta?.entryType.precision);
 
+	/** The overlays with ready data and a catalog label, with that label (column headers name it). */
+	const overlays = $derived(
+		w.overlays.flatMap((o) =>
+			o.state.status === "ready" && o.meta
+				? [{ data: o.state.data, levels: o.levels, layer: o.meta.entryType.label }]
+				: []
+		)
+	);
+
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */
 	function extras(data: QueryData): { worst: boolean; minmax: boolean } {
 		const single = wide && data.places.length === 1;
@@ -88,7 +97,8 @@
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
 		>
 			{#snippet children(data)}
-				{@const rows = sortRows(wideRows(data), sort.column, sort.dir)}
+				{@const rows = sortRows(wideRows(data, overlays), sort.column, sort.dir)}
+				{@const columns = overlayColumns(data, overlays)}
 				{@const extra = extras(data)}
 				<div class="flex h-full flex-col">
 					<div class="mb-1 flex items-center justify-between gap-2">
@@ -142,6 +152,14 @@
 											{m.table_max({ unit })}
 										</th>
 									{/if}
+									{#each columns as column (`${column.overlay} ${column.key}`)}
+										<th scope="col" class="border-border border-b px-2 py-1 font-semibold">
+											{m.table_overlay_place({
+												layer: overlays[column.overlay].layer,
+												place: placeLabel(column.place, w.viewer)
+											})}
+										</th>
+									{/each}
 								</tr>
 							</thead>
 							<tbody>
@@ -187,6 +205,17 @@
 												{row.cells[0] ? num(row.cells[0].max) : ""}
 											</td>
 										{/if}
+										{#each row.overlays as level, i (i)}
+											<td class="border-border border-b px-2 py-1">
+												{#if level}
+													<LevelSwatch
+														size="sm"
+														color={level.color ?? "transparent"}
+														label={level.label}
+													/>
+												{/if}
+											</td>
+										{/each}
 									</tr>
 								{/each}
 							</tbody>

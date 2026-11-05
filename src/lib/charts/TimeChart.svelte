@@ -4,7 +4,9 @@
 	import type { QueryData } from "$lib/data/types";
 	import { formatList } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import { overlayLevelAt, type ChartOverlay } from "./day-bands";
 	import LevelKey from "./LevelKey.svelte";
+	import OverlayKey from "./OverlayKey.svelte";
 	import Readout from "./Readout.svelte";
 	import SeriesKey from "./SeriesKey.svelte";
 	import { alignSeries, type XRange } from "./series";
@@ -19,8 +21,9 @@
 	/**
 	 * The shared time chart: level bands, a line with dots per place (at most five), each day's
 	 * worst hour as a stick (single place), the level key and series key, and a readout that
-	 * follows the pointer or the arrow keys. New data with the same number of places updates the
-	 * same chart, so the readout stays where it was.
+	 * follows the pointer or the arrow keys. Overlays draw as day bands behind the line, each with
+	 * its legend row and its level in the readout; `notes` say why an overlay isn't drawn. New data
+	 * with the same number of places updates the same chart, so the readout stays where it was.
 	 */
 	let {
 		data,
@@ -29,7 +32,9 @@
 		placeNames,
 		xRange,
 		precision = null,
-		yMin = null
+		yMin = null,
+		overlays = [],
+		notes = []
 	}: {
 		data: QueryData;
 		levels: Level[];
@@ -41,6 +46,9 @@
 		precision?: number | null;
 		/** Where the value axis starts (the catalog's `y_min`). */
 		yMin?: number | null;
+		/** `name` heads its legend row; `layer` names it in the readout. */
+		overlays?: (ChartOverlay & { name: string; layer: string })[];
+		notes?: string[];
 	} = $props();
 
 	// By value, so an equal range passed as a new object doesn't redraw the chart.
@@ -64,6 +72,9 @@
 	let active = $state<number | null>(null);
 	let readoutX = $state(0);
 	let drawnSticks = $state(0);
+	let drawnDays = $state(0);
+	/** The overlay level whose key item is hovered or focused. */
+	let highlight = $state<string | null>(null);
 	const hintId = $props.id();
 
 	function size() {
@@ -77,7 +88,14 @@
 			readoutX = chart.u.valToPos(aligned.xs[idx], "x") + chart.u.over.offsetLeft;
 	}
 
-	const chartData = $derived<ChartData>({ aligned, sticks, xRange: range, yMin });
+	const chartData = $derived<ChartData>({
+		aligned,
+		sticks,
+		xRange: range,
+		yMin,
+		overlays,
+		daily: data.resolution === "day"
+	});
 	/** What the chart shows, to skip a repeat and find the active point again in new data. */
 	let shown: ChartData | undefined;
 
@@ -92,11 +110,13 @@
 		const handle = untrack(() =>
 			createTimeChart(plot, { ...chartData, ...fixed }, size(), {
 				onCursor,
-				onSticks: (n) => (drawnSticks = n)
+				onSticks: (n) => (drawnSticks = n),
+				onDayBands: (n) => (drawnDays = n)
 			})
 		);
 		const u = handle.u;
 		chart = handle;
+		handle.highlight(untrack(() => highlight));
 		shown = untrack(() => chartData);
 		active = null;
 
@@ -150,6 +170,11 @@
 		onCursor(idx);
 	});
 
+	$effect(() => {
+		const key = highlight;
+		untrack(() => chart)?.highlight(key);
+	});
+
 	function onkeydown(event: KeyboardEvent) {
 		if (!chart || stops.length === 0) return;
 		const at = active;
@@ -185,6 +210,8 @@
 	aria-label={m.chart_label({ places: formatList(names) })}
 	aria-describedby={hintId}
 	data-sticks={drawnSticks}
+	data-day-bands={drawnDays}
+	data-highlight={highlight}
 	class="flex h-full min-h-0 flex-col gap-1.5 rounded-sm"
 	{onkeydown}
 >
@@ -210,6 +237,10 @@
 						{levels}
 						{unit}
 						{precision}
+						overlays={overlays.map((o) => ({
+							layer: o.layer,
+							level: overlayLevelAt(o, aligned.xs[active!]) ?? null
+						}))}
 					/>
 				</div>
 			{/if}
@@ -220,4 +251,16 @@
 		<SeriesKey {names} resolution={data.resolution} sticks={sticks && drawnSticks > 0} />
 		<LevelKey {levels} />
 	</div>
+	{#each overlays as overlay, i (i)}
+		<div class="text-xs">
+			<OverlayKey
+				name={overlay.name}
+				levels={overlay.levels}
+				onhighlight={(k) => (highlight = k)}
+			/>
+		</div>
+	{/each}
+	{#each notes as note, i (i)}
+		<p class="text-muted-foreground text-xs">{note}</p>
+	{/each}
 </div>

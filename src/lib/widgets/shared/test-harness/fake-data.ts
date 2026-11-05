@@ -1,5 +1,5 @@
 import type { AdapterRequest, DatasetAdapter } from "$lib/data/adapters/registry";
-import type { Level } from "$lib/data/metadata";
+import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { QueryData } from "$lib/data/types";
 import type { Rect, WidgetInstance } from "$lib/documents/schema";
 
@@ -90,3 +90,73 @@ export const PM25_LEVELS: Level[] = [
 	level("very_unhealthy", "Very Unhealthy", "#8f3f97", 4, 125.5, 225.5),
 	level("hazardous", "Hazardous", "#7e0023", 5, 225.5, null)
 ];
+
+/** A catalog entry for the forecasts dataset (burn status and AQI forecast, daily only). */
+export const FORECASTS_ENTRY: CatalogEntry = {
+	id: "forecasts",
+	label: "Air Quality Forecasts",
+	entryTypes: [
+		{
+			id: "burn-status",
+			label: "Burn status",
+			units: "",
+			kind: "other",
+			resolutions: ["day"],
+			precision: null,
+			yMin: null
+		},
+		{
+			id: "aqi-forecast",
+			label: "AQI forecast",
+			units: "AQI",
+			kind: "other",
+			resolutions: ["day"],
+			precision: null,
+			yMin: null
+		}
+	],
+	geographies: ["monitor", "region"]
+};
+
+/**
+ * A fake forecasts adapter for monitors: burn status "discouraged" on the first two days of the
+ * range and "registered" on the third, per requested monitor. Monitors in `missing` get an empty
+ * series, as the real adapter gives a place the server has no forecasts for.
+ */
+export function fakeForecastsAdapter(
+	requests: AdapterRequest[],
+	missing: string[] = []
+): DatasetAdapter {
+	return {
+		id: "forecasts",
+		target: fakeAdapter([]).target,
+		offered: () => ["day"],
+		async fetch(req): Promise<QueryData> {
+			requests.push(req);
+			const ids = req.target.kind === "monitors" ? req.target.ids : [];
+			const start = req.range.start.getTime();
+			const levels = ["discouraged", "discouraged", "registered"];
+			return {
+				series: ids.map((id) => ({
+					place: `monitor:${id}`,
+					points: missing.includes(id)
+						? []
+						: levels.map((level, i) => ({
+								t: start + i * DAY,
+								mean: NaN,
+								min: NaN,
+								max: NaN,
+								count: 1,
+								partial: false,
+								level
+							}))
+				})),
+				places: ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` })),
+				resolution: "day",
+				fromRaw: false,
+				processor: null,
+				fetchedAt: Date.now()
+			};
+		}
+	};
+}
