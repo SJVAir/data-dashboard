@@ -793,7 +793,10 @@ test("a live link already on: Use ZIP 93721 instead updates the server copy, kee
 	expect(token).toBeTruthy();
 	expect(JSON.stringify((await fake.get("d1")).body)).toContain('"point"');
 	const { shareDashboard } = await import("$lib/sharing/actions");
+	// Opening swaps the point on its own; its lookup fails here, so the dialog asks instead.
+	mocked.placeRegion.mockRejectedValueOnce(new Error("offline"));
 	const session = (await app.sessions.get("d1"))!;
+	await expect.poll(() => mocked.placeRegion.mock.calls.length).toBe(1);
 	app.current = { session, isStarter: false };
 	await shareDashboard(app);
 	await expect
@@ -819,7 +822,10 @@ test("a live link already on: Share my exact location is remembered until the li
 	const { app, fake, worker } = await signedIn({ doc: withPoints("p") });
 	await worker.share("d1");
 	const { shareDashboard } = await import("$lib/sharing/actions");
+	// Opening swaps the point on its own; its lookup fails here, so the dialog asks instead.
+	mocked.placeRegion.mockRejectedValueOnce(new Error("offline"));
 	const session = (await app.sessions.get("d1"))!;
+	await expect.poll(() => mocked.placeRegion.mock.calls.length).toBe(1);
 	app.current = { session, isStarter: false };
 	await shareDashboard(app);
 	await liveSection().getByRole("button", { name: "Share my exact location" }).click();

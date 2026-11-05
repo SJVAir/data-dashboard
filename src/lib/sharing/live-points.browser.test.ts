@@ -318,3 +318,68 @@ test("without a live link, Undo restores the point and it uploads (the owner's a
 	expect(JSON.stringify((await fake.get("d1")).body)).toContain("36.7378");
 	expect(mocked.placeRegion).not.toHaveBeenCalled();
 });
+
+test("a device that learns of a link turned on elsewhere swaps the point it already uploaded", async () => {
+	const { fake, worker, session, saves } = await signedIn();
+	// Another device turns the link on; this one doesn't know yet, so its point uploads.
+	fake.signedInAs = ACCOUNT;
+	const token = await fake.share("d1");
+	pick(session, POINT);
+	await session.flush();
+	expect(await worker.syncAll()).toBe(0);
+	expect(JSON.stringify((await fake.shared(token)).body)).toContain("36.7378");
+	const learned = saves.length;
+
+	// Its next poll brings the token: the point is swapped, says so, and the region goes up.
+	worker.start();
+	await expect.poll(() => worker.states.d1?.shareToken).toBe(token);
+	await expect.poll(() => placeOf(session.doc)).toEqual(ZIP);
+	await expect.poll(toastText).toContain(NOTICE);
+	await expect.poll(() => worker.syncAll()).toBe(0);
+	const shared = await fake.shared(token);
+	expect(JSON.stringify(shared.body)).not.toContain('"point"');
+	expect(JSON.stringify(shared.body)).toContain('"zipcode"');
+	// The swap's own save names the point it replaces (the server's copy had it already).
+	expect(saves.length).toBeGreaterThan(learned);
+});
+
+test("opening a live-shared dashboard that holds a point swaps it, says so, and uploads", async () => {
+	const { platform, fake, app, worker, session } = await signedIn();
+	pick(session, POINT);
+	await session.flush();
+	await worker.syncAll();
+	// Shared before the rule (or elsewhere): the server copy holds the point.
+	fake.signedInAs = ACCOUNT;
+	const token = await fake.share("d1");
+	const record = (await platform.sync.get(SPACE, "d1"))!;
+	await platform.sync.put(SPACE, { ...record, shareToken: token });
+	await app.close();
+
+	const reopened = await tab(platform, fake, createMemoryTabHub(), "t3");
+	await reopened.worker.syncAll();
+	const opened = (await reopened.app.sessions.get("d1"))!;
+	await expect.poll(() => placeOf(opened.doc)).toEqual(ZIP);
+	await expect.poll(toastText).toContain(NOTICE);
+	await expect.poll(() => reopened.worker.syncAll()).toBe(0);
+	expect(JSON.stringify((await fake.shared(token)).body)).not.toContain('"point"');
+});
+
+test("with Share my exact location, learning the link or opening the dashboard swaps nothing", async () => {
+	const { platform, fake, app, worker, session } = await signedIn();
+	pick(session, POINT);
+	await session.flush();
+	expect(await worker.share("d1", { exact: true })).toMatchObject({ kind: "shared" });
+	const lookups = mocked.placeRegion.mock.calls.length;
+	worker.start();
+	await expect.poll(() => worker.states.d1?.shareExact).toBe(true);
+	await app.close();
+
+	const reopened = await tab(platform, fake, createMemoryTabHub(), "t3");
+	reopened.worker.start();
+	const opened = (await reopened.app.sessions.get("d1"))!;
+	await new Promise((resolve) => setTimeout(resolve, 300));
+	expect(placeOf(opened.doc)).toEqual(POINT);
+	expect(mocked.placeRegion.mock.calls.length).toBe(lookups);
+	expect(JSON.stringify((await fake.get("d1")).body)).toContain("36.7378");
+	expect(toastText()).not.toContain(NOTICE);
+});

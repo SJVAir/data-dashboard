@@ -45,8 +45,8 @@ async function swapRounds(app: AppContext, target: DocumentSession): Promise<voi
 		const stored = (await app.platform.documents.get(app.space, docId)) as
 			{ version?: unknown } | undefined;
 		if (stored?.version !== target.doc.version || target.hasPending) return;
-		// Only what an upload would hold: a point already on the server isn't swapped by opening.
-		if (!(await app.sync?.pointsHeld(docId))) return;
+		// Its link mustn't show it, uploaded yet or not (one that went up before this device knew).
+		if (!(await app.sync?.pointsShown(docId))) return;
 		let swaps: Awaited<ReturnType<typeof pointSwaps>>;
 		try {
 			swaps = await pointSwaps(target.doc);

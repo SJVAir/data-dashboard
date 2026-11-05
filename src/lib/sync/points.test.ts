@@ -215,4 +215,28 @@ describe("pointsHeld: a live link never gets a point the owner didn't choose", (
 		expect(fake.requests.filter((r) => r.startsWith("save"))).toEqual([]);
 		worker.stop();
 	});
+
+	it("the worker tells the app when a link starts guarding points, not when it's exact", async () => {
+		const { fake, ctx } = await synced({ link: false });
+		const held = vi.fn();
+		const worker = new SyncWorker({ ...ctx, onPointsHeld: held });
+		expect(await worker.syncAll()).toBe(0);
+		expect(held).not.toHaveBeenCalled();
+		// Turned on elsewhere, then learned here.
+		await fake.share("d1");
+		await pollList(ctx);
+		await worker.syncAll();
+		expect(held).toHaveBeenCalledWith("d1");
+		held.mockClear();
+		await worker.syncAll();
+		expect(held).not.toHaveBeenCalled();
+		worker.stop();
+
+		const exact = vi.fn();
+		const other = new SyncWorker({ ...ctx, onPointsHeld: exact });
+		await worker.share("d1", { exact: true });
+		await other.syncAll();
+		expect(exact).not.toHaveBeenCalled();
+		other.stop();
+	});
 });

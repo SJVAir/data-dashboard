@@ -48,8 +48,8 @@ export type AppContext = {
 	/** The sessions this tab has open (the starter's included). */
 	openSessions(): DocumentSession[];
 	/**
-	 * The sync worker held an upload of `docId` for a point its live link mustn't show
-	 * (`SyncContext.onPointsHeld`): swapped here if this tab has it open.
+	 * `docId` may hold a point its live link mustn't show (`SyncContext.onPointsHeld`: a held
+	 * upload, or a link this device just learned of): swapped here if this tab has it open.
 	 */
 	pointsHeld(docId: string): void;
 	/**
@@ -150,7 +150,7 @@ class App implements AppContext {
 
 	/**
 	 * A dashboard with an exact location, unless the worker knows it has no live link (`held`:
-	 * the worker held its upload, whatever its states say yet): the live-link rule (loaded only
+	 * the worker said it may, whatever its states say yet): the live-link rule (loaded only
 	 * then) swaps its points if the link mustn't show them.
 	 */
 	#guardPoints(session: DocumentSession, held = false): void {
@@ -189,7 +189,7 @@ class App implements AppContext {
 				(session) => {
 					if (!session || this.#open.get(id) !== own) return;
 					this.#live.set(id, session);
-					// Opened holding a point its live link mustn't show (a held upload, a replayed edit).
+					// Opened holding a point its live link mustn't show (uploaded or not).
 					this.#guardPoints(session);
 				},
 				// Told to the caller, who awaits `opening`.

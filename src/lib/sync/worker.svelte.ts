@@ -127,7 +127,7 @@ export class SyncWorker {
 		await this.#sweep(true);
 		const states = await this.#readStates();
 		// Fresh for the caller, who may read why some are left (an offline save posts nothing).
-		if (!this.#stopped) this.states = states;
+		if (!this.#stopped) this.#setStates(states);
 		return Object.values(states).filter((s) => s.state !== "synced").length;
 	}
 
@@ -148,14 +148,13 @@ export class SyncWorker {
 	}
 
 	/**
-	 * Whether `docId`'s upload is held for a point (`pointsHeld`): it has changes to upload, and
-	 * holds a point its live link (on, without "Share my exact location") mustn't show.
+	 * Whether `docId`'s live link (on, without "Share my exact location") would show a point the
+	 * stored dashboard holds: whether or not it's uploaded yet (a point that went up before this
+	 * device knew of the link is swapped too).
 	 */
-	async pointsHeld(docId: string): Promise<boolean> {
+	async pointsShown(docId: string): Promise<boolean> {
 		const local = await readLocal(this.#ctx, docId);
-		if (typeof local === "string") return false;
-		const { record, doc, unsynced } = local;
-		return (unsynced.length > 0 || record.serverVersion === null) && pointsHeld(record, doc);
+		return typeof local !== "string" && pointsHeld(local.record, local.doc);
 	}
 
 	/** The server's snapshots of `docId`, newest first; throws as the remote does. */
@@ -173,7 +172,7 @@ export class SyncWorker {
 			return await keepBeforeRestore(this.#ctx, docId);
 		} finally {
 			// A pull or a `gone` hold may have changed the document's standing.
-			this.states = await this.#readStates();
+			this.#setStates(await this.#readStates());
 		}
 	}
 
@@ -182,7 +181,7 @@ export class SyncWorker {
 		try {
 			return await deletePermanently(this.#ctx, docId);
 		} finally {
-			this.states = await this.#readStates();
+			this.#setStates(await this.#readStates());
 		}
 	}
 
@@ -193,7 +192,7 @@ export class SyncWorker {
 	 */
 	async resolve(docId: string, choice: RemoteChoice): Promise<string | null> {
 		const id = await resolveHold(this.#ctx, docId, choice);
-		this.states = await this.#readStates();
+		this.#setStates(await this.#readStates());
 		void this.#sweep(false);
 		return id;
 	}
@@ -204,14 +203,14 @@ export class SyncWorker {
 	 */
 	async share(docId: string, opts?: ShareOptions): Promise<ShareResult> {
 		const result = await shareDocument(this.#ctx, docId, opts);
-		this.states = await this.#readStates();
+		this.#setStates(await this.#readStates());
 		return result;
 	}
 
 	/** Turns `docId`'s share link off; throws `RemoteUnavailable` / `RemoteRefusal` on failure. */
 	async unshare(docId: string): Promise<void> {
 		await unshareDocument(this.#ctx, docId);
-		this.states = await this.#readStates();
+		this.#setStates(await this.#readStates());
 	}
 
 	/** The account's display name on shared dashboards (`null`: none). */
@@ -444,12 +443,26 @@ export class SyncWorker {
 				this.#refreshAgain = false;
 				const states = await this.#readStates();
 				if (this.#stopped) return;
-				this.states = states;
+				this.#setStates(states);
 			} while (this.#refreshAgain);
 		} catch (error) {
 			report(error, { operation: "sync-states" });
 		} finally {
 			this.#refreshing = false;
+		}
+	}
+
+	/**
+	 * Takes new states; a document whose link starts guarding points here (turned on without
+	 * "Share my exact location", by any device, or first known at start) goes to
+	 * `ctx.onPointsHeld`, so its points are swapped where it's open.
+	 */
+	#setStates(states: Record<string, DocSyncState>): void {
+		const before = this.states;
+		this.states = states;
+		const guards = (s: DocSyncState | undefined) => !!s?.shareToken && !s.shareExact;
+		for (const [docId, state] of Object.entries(states)) {
+			if (guards(state) && !guards(before[docId])) this.#ctx.onPointsHeld?.(docId);
 		}
 	}
 

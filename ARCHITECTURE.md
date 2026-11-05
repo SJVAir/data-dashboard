@@ -1303,9 +1303,13 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
       `amend`: stored like any edit but not an undo step of its own, so Undo goes past it
       (the stacks' changes set values, and an inverse is taken from what was there, so it
       ends; a redo that would land on the swapped point lands on the region). The app also
-      runs it when a dashboard opens with a held upload (another tab's journal replayed here,
-      a lookup that failed before a reload), and when the sync worker reports one
-      (`onPointsHeld`). One run per dashboard per tab; a Web Lock and a stored-version check
+      runs it when a live-shared dashboard opens holding a point, uploaded or not (another
+      tab's journal replayed here, a lookup that failed before a reload, a point shared before
+      this rule), and when the sync worker reports one (`onPointsHeld`): a held upload, or a
+      link that starts guarding points in its states (turned on here or elsewhere, learned by
+      a poll or pull, or first known at start). So a device that uploaded a point before it
+      knew of the link swaps it as soon as it learns. The swap checks the stored dashboard
+      (`worker.pointsShown`), whatever is unsynced. One run per dashboard per tab; a Web Lock and a stored-version check
       keep two tabs from both swapping. A failed lookup shows "Can't look up your area right
       now." with Retry (and tries again when the connection returns).
     - _Every upload:_ `pointsHeld` (`src/lib/sync/points.ts`) is the check every save of a

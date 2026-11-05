@@ -21,8 +21,9 @@ export type SyncContext = {
 	/** The server refused this build (the worker's `blocked` is set); the app shows a notice. */
 	onBlocked?: () => void;
 	/**
-	 * An upload of `docId` was held: it holds a point its live link mustn't show (`pointsHeld`).
-	 * The app swaps the point for its region where the dashboard is open.
+	 * `docId` may hold a point its live link mustn't show: an upload was held (`pointsHeld`), or
+	 * its link started guarding points (this device learned of it, or it was turned on). The app
+	 * swaps any point for its region where the dashboard is open.
 	 */
 	onPointsHeld?: (docId: string) => void;
 };
