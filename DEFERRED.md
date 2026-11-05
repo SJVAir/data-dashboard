@@ -777,6 +777,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
+- **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
+  [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
+  way to go in the long run")._ `regions/places/search/` rows carry one `county`: the county
+  holding the region's point-on-surface. A region that crosses county lines shows only that one.
+  Locally, with a 1%-of-area threshold, that's 20 of 200 school districts, 21 of 237 ZIP codes,
+  5 of 56 urban areas, and the Valley air district (8 counties). Cities, CDPs and AB 617
+  communities sit in one county. Fine for telling same-named results apart; misleading if the
+  picker shows it as the place's county. **Revisit when** the picker labels places with their
+  county, or users read the one county as the whole story: serve `counties: [...]` using the
+  region list's `also_in` 1%-of-area rule (measure search time first; the per-row area math is
+  the cost).
+
 - **Region GeoJSON lookups beyond about 10 requests.** _Deferred 2026-11-04 (step 3 spec 4,
   the user)._ `getRegionsGeoJSON` (and the by-code lookups) send one request per 100 codes,
   concurrently; all 2020 tracts (~980) is about 10. A whole area doesn't need codes at all
