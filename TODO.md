@@ -1226,10 +1226,15 @@ The checklist below is the whole step's scope.
   - **Not published yet.** The first `0.1.0` prerelease needs the npm trusted publisher set up
     for `@sjvair/map-sdk` (repository `SJVAir/map-sdk`, workflow `release.yml`), then the
     user's yes for that release.
-  - **Now in @sjvair/sdk `5.0.0-beta.1`** (step 3 spec 4, 2026-11-04): `getHMSSmoke`/`getHMSFire`
-    by `date` or `start`/`end` (now `(query?, options?)`), and `getRegionsGeoJSON` batching over
-    100 codes. map-sdk still pins `4.8.0-beta.4`; moving it to the 5.0.0 beta (and dropping the
-    demo's own chunking and direct HMS calls) is a map-sdk change for its next session.
+  - **✅ On @sjvair/sdk `5.0.0-beta.2`** (merged 2026-11-04,
+    [map-sdk #2](https://github.com/SJVAir/map-sdk/pull/2)): pinned exactly for development,
+    peer range `^5.0.0-beta.2` (the user's call: it takes every later 5.0.0 beta). The demo
+    asks for HMS by date through `getHMSSmoke`/`getHMSFire` and leaves region-code batching to
+    `getRegionsGeoJSON`. No library API change. The legacy `levels` fallback in
+    `src/lib/data/metadata.ts` goes when map-sdk pins the SDK beta that drops `levels`.
+  - **Milestone 2 spec (monitor-map parity) in progress** (2026-11-04). The user's goal: monitor-map
+    5.0 on map-sdk looks and works essentially the same as today's map, while map-sdk stays
+    general enough for other maps such as the dashboard's Map widget.
   - **Next:** the dashboard's Map widget on map-sdk (below), once step 4 is far enough along.
   - **Milestone 2 (a later map-sdk spec):** monitor-map parity (collocation sites, EV stations,
     wind, live stores beyond monitors), started with the monitor-map 5.0 rebuild (see
