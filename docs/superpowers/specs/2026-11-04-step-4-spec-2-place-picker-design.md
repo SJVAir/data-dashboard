@@ -107,8 +107,10 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   compare monitors.").
 - **Schools and "my location" are single-place only.** On a multi-place widget they can be the
   only pick (my reading of the user's "single-place only": a Chart can still show a school
-  alone). Once a school or location is picked, everything else is greyed out with a reason, and
-  while anything else is picked, schools and "Use my location" are.
+  alone). Once a school or location is picked, everything else is greyed out with a reason.
+  **With exactly one other place picked, choosing a school or "Use my location" replaces it**
+  (the user's decision, 2026-11-05); with two or more picked, schools and "Use my location"
+  are greyed out with a reason.
 - **At the cap,** further rows are greyed out with a reason ("This chart shows up to 5
   places.").
 - **Comparing mixed kinds in one widget is deferred** (`DEFERRED.md`).

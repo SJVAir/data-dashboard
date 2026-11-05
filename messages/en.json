@@ -788,6 +788,7 @@
 	"place_picker_reason_other_kind_regions": "This widget compares regions. Remove the regions to compare monitors.",
 	"place_picker_reason_other_kind_monitors": "This widget compares monitors. Remove the monitors to compare regions.",
 	"place_picker_reason_single_only": "A school or your location can only be shown on its own.",
+	"place_picker_replaced": "{name} replaced {old}.",
 	"place_picker_reason_alone_picked": "Remove {name} to add other places.",
 	"place_picker_reason_alone_picked_unnamed": "Remove the school or location first to add other places.",
 	"place_picker_reason_at_cap": "This widget shows up to {max} places.",

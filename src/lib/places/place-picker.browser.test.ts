@@ -395,8 +395,11 @@ describe("multiple mode", () => {
 	test("a blocked row is aria-disabled and focusable, with its reason as its description", async () => {
 		const { screen, input } = await show({
 			mode,
-			initial: [{ kind: "region", type: "county", code: "06019" }],
-			known: [fresnoCounty],
+			initial: [
+				{ kind: "region", type: "county", code: "06019" },
+				{ kind: "region", type: "county", code: "06107" }
+			],
+			known: [fresnoCounty, tulare],
 			recent: [garland, roosevelt]
 		});
 		await input.click();
@@ -418,6 +421,28 @@ describe("multiple mode", () => {
 		document.body.style.background = "#ffffff";
 		const results = await axe.run(screen.container);
 		expect(results.violations).toEqual([]);
+	});
+
+	test("a school row replaces a single picked place and says so", async () => {
+		twelve();
+		const { screen, input, ondone } = await show({
+			mode,
+			initial: [{ kind: "region", type: "county", code: "06019" }],
+			known: [fresnoCounty]
+		});
+		await userEvent.fill(input, "fr");
+		const school = screen.getByRole("option", { name: /Fremont Elementary/ });
+		await expect.element(school).toBeVisible();
+		expect(school.element().getAttribute("aria-disabled")).toBeNull();
+		await school.click();
+		await expect
+			.element(screen.getByRole("button", { name: "Remove Fremont Elementary" }))
+			.toBeVisible();
+		expect(screen.container.querySelector("[aria-label='Remove Fresno County']")).toBeNull();
+		expect(liveText()).toBe("Fremont Elementary replaced Fresno County.");
+		expect(ondone).not.toHaveBeenCalled();
+		await screen.getByRole("button", { name: "Done" }).click();
+		expect(ondone).toHaveBeenCalledWith([{ kind: "location", source: "cde-public", code: "l0" }]);
 	});
 
 	test("an alone pick names itself in the reason; at the cap rows say so", async () => {
@@ -491,11 +516,28 @@ describe("Use my location", () => {
 		expect(ondone).not.toHaveBeenCalled();
 	});
 
-	test("is blocked with a reason once another place is picked", async () => {
-		const { screen, locate } = await show({
+	test("with one place picked, replaces it", async () => {
+		const { screen, ondone } = await show({
 			mode: { kind: "multiple", max: 5 },
 			initial: [{ kind: "region", type: "county", code: "06019" }],
-			known: [fresnoCounty]
+			known: [fresnoCounty],
+			locate: async () => ({ ok: true, lat: 36.75, lon: -119.77 })
+		});
+		const button = screen.getByRole("button", { name: "Use my location" });
+		expect(button.element().getAttribute("aria-disabled")).toBeNull();
+		await button.click();
+		await expect.poll(() => ondone.mock.calls.length).toBe(1);
+		expect(ondone).toHaveBeenCalledWith([{ kind: "point", lat: 36.75, lon: -119.77 }]);
+	});
+
+	test("is blocked with a reason once two other places are picked", async () => {
+		const { screen, locate } = await show({
+			mode: { kind: "multiple", max: 5 },
+			initial: [
+				{ kind: "region", type: "county", code: "06019" },
+				{ kind: "region", type: "county", code: "06107" }
+			],
+			known: [fresnoCounty, { ...fresnoCounty, code: "06107", name: "Tulare County" }]
 		});
 		const button = screen.getByRole("button", { name: "Use my location" });
 		await expect.element(button).toHaveAttribute("aria-disabled", "true");

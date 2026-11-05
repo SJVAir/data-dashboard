@@ -1356,8 +1356,9 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     sets the kind; rows of the other kind stay visible but are `aria-disabled` with a reason
     ("This widget compares regions. Remove the regions to compare monitors."). The reasons say
     "This widget …", since the picker serves every widget type. **Schools and "your location"
-    are single-place only:** either can be the only pick, and while anything else is picked
-    they are greyed out (and the other way round). At the cap, the rest read "This widget shows
+    are single-place only:** either can be the only pick. With exactly one other place picked,
+    choosing one replaces it (the user's decision, 2026-11-05); with two or more picked they are
+    greyed out with a reason; and with one picked, everything else is greyed out. At the cap, the rest read "This widget shows
     up to 5 places." One pick is stored as the layer's `place`, two or more as its
     `selection`; removing back to one stores a `place` again.
   - **Pollutant fit:** monitors whose type can't supply the entry type (`monitors/meta/`

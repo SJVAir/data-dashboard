@@ -256,7 +256,14 @@ export class PickerState {
 			ctx.ondone([row.ref]);
 			return;
 		}
-		this.picks = toggle(this.picks, row.ref, ctx.mode);
+		const before = this.picks;
+		this.picks = toggle(before, row.ref, ctx.mode);
+		// A school replacing the one picked place: say so (the chip changes silently otherwise).
+		if (before.length === 1 && this.picks.length === 1 && refKey(before[0]) !== refKey(row.ref)) {
+			this.announcement = [
+				m.place_picker_replaced({ name: row.option.name, old: this.nameOf(before[0]) })
+			];
+		}
 	}
 
 	remove(ref: PlaceRef): void {

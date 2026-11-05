@@ -3,7 +3,7 @@ import type { Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
 import { sameRef } from "./types";
 
 export type PickerMode = { kind: "single" } | { kind: "multiple"; max: number };
-/** Ordered; points and locations are only ever alone. */
+/** Ordered; points and locations are only ever alone (choosing one replaces a single pick). */
 export type Picks = PlaceRef[];
 export type BlockReason =
 	"other-kind-regions" | "other-kind-monitors" | "single-only" | "alone-picked" | "at-cap";
@@ -21,8 +21,11 @@ export function blockReason(
 	if (mode.kind === "single") return null;
 	if (picks.some((p) => sameRef(p, candidate))) return null;
 	if (picks.some(isSingleOnly)) return "alone-picked";
-	if (isSingleOnly(candidate))
-		return picks.length > 0 || candidate.kind === "default-place" ? "single-only" : null;
+	if (isSingleOnly(candidate)) {
+		// A school or point replaces exactly one picked place; with two or more it stays blocked.
+		if (candidate.kind === "default-place") return "single-only";
+		return picks.length >= 2 ? "single-only" : null;
+	}
 	if (picks.length > 0 && picks[0].kind !== candidate.kind) {
 		return picks[0].kind === "region" ? "other-kind-regions" : "other-kind-monitors";
 	}
@@ -34,6 +37,7 @@ export function toggle(picks: Picks, candidate: PlaceRef, mode: PickerMode): Pic
 	if (mode.kind === "single") return [candidate];
 	if (picks.some((p) => sameRef(p, candidate))) return picks.filter((p) => !sameRef(p, candidate));
 	if (blockReason(picks, candidate, mode)) return picks;
+	if (isSingleOnly(candidate)) return [candidate];
 	return [...picks, candidate];
 }
 

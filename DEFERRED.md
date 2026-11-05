@@ -897,6 +897,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   data. A place without data shows a "no data for this range" state once chosen.
   **Revisit when** users struggle to find places with data; it would need a bulk coverage
   mode, probably backed by a precomputed table on the server.
+- **Region display names: ZIPs and tracts show bare codes ("93702"), and a city, urban area and
+  CDP can share a name ("Arvin").** _Deferred 2026-11-05 (step 4 spec 2, the user)._ The server
+  names these regions bare, so the picker, chips and titles show "93702"; the user wants "ZIP
+  93702" built from metadata, not hardcoded. **Revisit when** sjvair.com adds a display name or
+  a per-type name template to `regions/meta/`.
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.

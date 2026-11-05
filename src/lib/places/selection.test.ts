@@ -28,9 +28,13 @@ describe("blockReason", () => {
 		expect(blockReason([fresno], kern, multi())).toBeNull();
 		expect(blockReason([mon1], mon2, multi())).toBeNull();
 	});
-	it("blocks locations and points after anything", () => {
-		expect(blockReason([fresno], school, multi())).toBe("single-only");
-		expect(blockReason([mon1], point, multi())).toBe("single-only");
+	it("lets a school or point replace exactly one picked place", () => {
+		expect(blockReason([fresno], school, multi())).toBeNull();
+		expect(blockReason([mon1], point, multi())).toBeNull();
+	});
+	it("blocks locations and points after two or more", () => {
+		expect(blockReason([fresno, kern], school, multi())).toBe("single-only");
+		expect(blockReason([mon1, mon2], point, multi())).toBe("single-only");
 	});
 	it("blocks everything after a location or point", () => {
 		for (const c of [fresno, mon1, school, point, kern]) {
@@ -51,6 +55,11 @@ describe("blockReason", () => {
 describe("toggle", () => {
 	it("replaces in single mode", () => {
 		expect(toggle([fresno], kern, single)).toEqual([kern]);
+	});
+	it("a school or point replaces a single picked place, not two", () => {
+		expect(toggle([fresno], school, multi())).toEqual([school]);
+		expect(toggle([mon1], point, multi())).toEqual([point]);
+		expect(toggle([fresno, kern], school, multi())).toEqual([fresno, kern]);
 	});
 	it("adds, removes, and ignores blocked candidates", () => {
 		expect(toggle([fresno], kern, multi())).toEqual([fresno, kern]);
