@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-11-04
+Last updated: 2026-11-05
 
 ## Start here
 
@@ -20,7 +20,9 @@ spec docs until it merges into `main` (the user, 2026-11-04); **each step 4 spec
 | **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                                                                                                                         | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
 | **Step 3, second batch** (metadata) — specs 1–4, the summaries fix and SDK entry bounds merged (SDK 5.0.0-beta.2); cleanup (spec 5) and the picker's server changes merged (#306–#308); SDK `5.0.0-beta.3` published (#45, #46) (2026-11-04)       | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
 | **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1); on SDK 5.0.0-beta.2 (#2); milestone 2 spec and plan merged (#3); ✅ milestone 2 (monitor-map parity) merged 2026-11-04 (#4), on SDK 5.0.0-beta.3; not yet published | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
-| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; specs 1–2 merged into `step-4` (#36, #38), spec 3 (Data Explorer) next (2026-11-05)                                                                                       | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
+| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; specs 1–2 merged into `step-4` (#36, #38), spec 3 (Data Explorer) in progress (2026-11-05)                                                                                | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
+| **Region display names** — ZIPs and other bare region names read like "ZIP 93702", from metadata; server change, then an SDK 5.0 beta (likely beta.4) that the Data Explorer pins; started 2026-11-05                                              | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 2: monitor-map 5.0** — rebuilt on map-sdk; spec in progress (branch plan to reach `main`, when map-sdk first publishes); started 2026-11-05                                                                                         | `../monitor-map`  | `monitor-map` (reads map-sdk) | "Work breakdown" → "Release 1, step 5" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
