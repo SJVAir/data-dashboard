@@ -943,11 +943,21 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2026-09-24._ No health outcome data beyond CalEnviroScreen; closest planned work is
   starter #9 (use trends) and #7 (CES indicators). **Revisit with** the outside-health-data
   entry above.
-- **Server summaries for CIMIS weather and PM10.** _Deferred 2026-09-25._ Only pm25, o3,
-  no2, so2 and co are summarized. Until then the client fetches these raw (span-capped,
-  chunked) and downsamples them in a worker. **Revisit when** raw fetches get slow or large
-  (e.g. a multi-year weather chart takes more than a few seconds). Needs an approved
-  sjvair.com plan (add them to the summary rollups).
+- **Server summaries for PM10.** _Deferred 2026-09-25; updated 2026-11-05._ CIMIS weather now
+  has monitor summaries (sjvair.com #313: 11 types, all but wind direction, through a
+  per-monitor-type switch). PM10 is still raw: the client fetches it span-capped and chunked and
+  downsamples it in a worker. **Revisit when** raw PM10 fetches get slow or large. It's now a
+  one-line switch per monitor type (or the model flag, if regions should get it too).
+- **Region-level weather summaries.** _Deferred 2026-11-05 (Get data layers, the user)._ CIMIS
+  stations get monitor summaries only; there are never region rows for weather. Region
+  weighting is built on air-sensor grades and health checks, so weather would need its own
+  rule. Get data gives a place its weather through the nearby-stations list
+  (`monitors/weather/place/`) and one station's summaries. **Revisit when** a place needs one
+  blended weather value instead of a station's.
+- **Wind direction summaries (circular mean).** _Deferred 2026-11-05 (Get data layers, the
+  user)._ `winddirection` stays raw: averaging angles is wrong. A circular mean (and perhaps a
+  prevailing-direction stat) would need its own aggregation. **Revisit when** a chart or the
+  pollution-rose preset needs daily or monthly prevailing wind.
 - **Sub-yearly pesticide analysis.** _Deferred 2026-09-24; updated 2026-10-13._ The server
   now has **monthly pesticide rollups** (`PesticideUseRollup`, with month 0 for undated
   records), exposed through the new `sections/` and `townships/` endpoints (`month=`) and
