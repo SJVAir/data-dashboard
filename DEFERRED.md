@@ -798,6 +798,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
+- **Per-type counts in Browse's "Inside" list.** _Deferred 2026-11-04 (step 4 spec 2)._ The
+  list of child types under a region ("Inside Tulare County") shows names only; counts would
+  need one `regionsIn` fetch per child type. **Revisit when** people need the counts, or the
+  server adds counts within a parent.
+
+- **A Monitors entry under Browse's "Inside" list.** _Deferred 2026-11-04 (step 4 spec 2)._
+  SDK 5.0.0-beta.2 can't filter monitors by region, so Monitors is a flat filterable list with
+  no county narrowing, and "Inside" leaves it out. **Revisit when** the dashboard pins the SDK
+  beta with `getMonitorsList({ region })` (`TODO(beta.3)` in `BrowsePanel.svelte`).
+
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
   way to go in the long run")._ `regions/places/search/` rows carry one `county`: the county

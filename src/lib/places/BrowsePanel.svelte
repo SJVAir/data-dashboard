@@ -6,7 +6,7 @@
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { PlaceDirectory } from "./directory";
-	import OptionRow from "./OptionRow.svelte";
+	import OptionContent from "./OptionContent.svelte";
 	import type { PickerState } from "./picker-state.svelte";
 	import type { PlaceOption, RegionOption, RegionTypeInfo } from "./types";
 
@@ -49,7 +49,7 @@
 	let parents = $state.raw<RegionOption[]>([]);
 	let filter = $state("");
 	let shown = $state(PAGE);
-	let focusIndex = $state(0);
+	let focus = $state({ row: 0, col: 0 });
 	let attempt = $state(0);
 	let root = $state<HTMLElement | null>(null);
 	let restoreKey: string | null = null;
@@ -160,7 +160,7 @@
 		view = next;
 		filter = "";
 		shown = PAGE;
-		focusIndex = 0;
+		focus = { row: 0, col: 0 };
 		await tick();
 		root?.querySelector<HTMLElement>("[data-browse-heading]")?.focus();
 	}
@@ -172,7 +172,7 @@
 		view = previous.view;
 		filter = "";
 		shown = PAGE;
-		focusIndex = 0;
+		focus = { row: 0, col: 0 };
 		restoreKey = previous.key;
 		await tick();
 		restoreFocus();
@@ -197,7 +197,7 @@
 	function setFilter(value: string) {
 		filter = value;
 		shown = PAGE;
-		focusIndex = 0;
+		focus = { row: 0, col: 0 };
 	}
 
 	function chooseParent(value: string) {
@@ -211,43 +211,79 @@
 		setFilter("");
 	}
 
-	async function focusRow(index: number) {
-		focusIndex = index;
+	async function focusCell(row: number, col: number) {
+		const hasInside = root?.querySelector(`[data-cell="${row}-1"]`) != null;
+		focus = { row, col: col === 1 && hasInside ? 1 : 0 };
 		await tick();
-		root?.querySelector<HTMLElement>(`[data-browse-row="${index}"]`)?.focus();
+		root?.querySelector<HTMLElement>(`[data-cell="${row}-${focus.col}"]`)?.focus();
 	}
 
-	function onrowkeydown(event: KeyboardEvent, index: number, pick: () => void) {
+	function ongridkeydown(event: KeyboardEvent) {
+		const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cell]");
+		if (!target) return;
+		const [row, col] = target.dataset.cell!.split("-").map(Number);
+		const last = rows.length - 1;
 		switch (event.key) {
 			case "ArrowDown":
 				event.preventDefault();
-				focusRow(Math.min(index + 1, rows.length - 1));
+				focusCell(Math.min(row + 1, last), col);
 				break;
 			case "ArrowUp":
 				event.preventDefault();
-				focusRow(Math.max(index - 1, 0));
+				focusCell(Math.max(row - 1, 0), col);
+				break;
+			case "ArrowRight":
+				event.preventDefault();
+				focusCell(row, 1);
+				break;
+			case "ArrowLeft":
+				event.preventDefault();
+				focusCell(row, 0);
 				break;
 			case "Home":
 				event.preventDefault();
-				focusRow(0);
+				focusCell(0, col);
 				break;
 			case "End":
 				event.preventDefault();
-				focusRow(rows.length - 1);
+				focusCell(last, col);
 				break;
 			case "Enter":
 			case " ":
-				event.preventDefault();
-				pick();
+				// The Inside button handles its own Enter and Space.
+				if (col === 0) {
+					event.preventDefault();
+					picker.pick(rows[row]);
+				}
 				break;
 		}
 	}
+
+	/** What a screen reader hears when the list settles, narrows, or fails. */
+	const status = $derived.by(() => {
+		if (view.kind === "types") return typesFailed ? [m.place_picker_browse_error()] : [];
+		if (view.kind === "children") return [];
+		if (load.status === "error") return [m.place_picker_browse_error()];
+		if (load.status !== "ready") return [];
+		return filtered.length === 0
+			? [m.place_picker_browse_empty()]
+			: [
+					m.place_picker_count({
+						count: formatNumber(filtered.length),
+						countValue: filtered.length
+					})
+				];
+	});
 
 	const hasChildren = (option: PlaceOption) =>
 		option.kind === "region" && childTypes(option).length > 0;
 </script>
 
 <div bind:this={root} class="flex flex-col gap-1">
+	<!-- One persistent region, so changes are announced; whole messages, one per node. -->
+	<div data-browse-live role="status" class="sr-only">
+		{#each status as text, i (i)}<p>{text}</p>{/each}
+	</div>
 	{#if view.kind === "types"}
 		{#if typesFailed}
 			<p class="flex flex-wrap items-center gap-2 px-2 text-sm">
@@ -330,7 +366,7 @@
 				class="border-input bg-card placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-ring text-field h-9 w-full min-w-0 rounded-(--radius-control) border px-2.5 focus-visible:outline-2"
 			/>
 			{#if load.status === "loading"}
-				<p role="status" class="text-muted-foreground px-2 text-sm">
+				<p class="text-muted-foreground px-2 text-sm">
 					{m.place_picker_browse_loading()}
 				</p>
 			{:else if load.status === "error"}
@@ -343,45 +379,58 @@
 			{:else if rows.length === 0}
 				<p class="text-muted-foreground px-2 text-sm">{m.place_picker_browse_empty()}</p>
 			{:else}
-				<!-- Buttons can't live inside a listbox, so the rows sit beside it and it owns the options. -->
 				<div
-					role="listbox"
+					role="grid"
+					tabindex="-1"
 					aria-label={m.place_picker_browse_places()}
 					aria-multiselectable={multiple ? "true" : undefined}
-					aria-owns={rows.map((r) => r.id).join(" ")}
-				></div>
-				<div class="flex flex-col">
+					class="flex flex-col"
+					onkeydown={ongridkeydown}
+				>
 					{#each rows as row, index (row.id)}
-						<div class="flex items-start gap-1">
-							<OptionRow
-								{row}
-								{multiple}
-								tag="div"
-								selected={multiple && row.selected}
-								tabindex={index === focusIndex ? 0 : -1}
-								data-browse-row={index}
+						<div
+							role="row"
+							id={row.id}
+							aria-selected={multiple ? (row.selected ? "true" : "false") : undefined}
+							aria-disabled={row.reason ? "true" : undefined}
+							aria-describedby={row.reason ? `${row.id}-reason` : undefined}
+							class="flex items-start gap-1"
+						>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<div
+								role="gridcell"
+								data-cell="{index}-0"
 								data-browse-key="row:{row.id}"
-								onkeydown={(e: KeyboardEvent) => onrowkeydown(e, index, () => picker.pick(row))}
-								onpick={() => picker.pick(row)}
-							/>
+								tabindex={focus.row === index && focus.col === 0 ? 0 : -1}
+								class="hover:bg-secondary focus-visible:outline-ring flex min-w-0 flex-1 cursor-default rounded-(--radius-control) px-2 py-1.5 text-sm focus-visible:outline-2 {row.reason
+									? 'cursor-not-allowed'
+									: ''}"
+								onclick={() => picker.pick(row)}
+							>
+								<OptionContent {row} {multiple} />
+							</div>
 							{#if row.option.kind === "region" && hasChildren(row.option)}
 								{@const region = row.option}
-								<Button
-									variant="ghost"
-									size="sm"
-									data-browse-key="inside:{region.type}:{region.code}"
-									aria-label={m.place_picker_browse_inside({ name: region.name })}
-									onclick={() =>
-										go(
-											{
-												kind: "children",
-												parent: { type: region.type, code: region.code, name: region.name }
-											},
-											`inside:${region.type}:${region.code}`
-										)}
-								>
-									{m.place_picker_browse_inside_short()}
-								</Button>
+								<div role="gridcell">
+									<Button
+										variant="ghost"
+										size="sm"
+										data-cell="{index}-1"
+										data-browse-key="inside:{region.type}:{region.code}"
+										tabindex={focus.row === index && focus.col === 1 ? 0 : -1}
+										aria-label={m.place_picker_browse_inside({ name: region.name })}
+										onclick={() =>
+											go(
+												{
+													kind: "children",
+													parent: { type: region.type, code: region.code, name: region.name }
+												},
+												`inside:${region.type}:${region.code}`
+											)}
+									>
+										{m.place_picker_browse_inside_short()}
+									</Button>
+								</div>
 							{/if}
 						</div>
 					{/each}

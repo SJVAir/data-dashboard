@@ -93,7 +93,7 @@ describe("Browse", () => {
 		await expect.element(screen.getByRole("textbox", { name: "Filter ZIP Code" })).toBeVisible();
 		expect(dir.regionsIn).toHaveBeenCalledWith("zipcode", null, expect.anything());
 		await select.selectOptions("Tulare County");
-		await expect.element(screen.getByRole("option", { name: /ZIP 93215/ })).toBeVisible();
+		await expect.element(screen.getByRole("row", { name: /ZIP 93215/ })).toBeVisible();
 		expect(dir.regionsIn).toHaveBeenCalledWith(
 			"zipcode",
 			{ type: "county", code: "06107" },
@@ -104,10 +104,10 @@ describe("Browse", () => {
 	test("long lists render in pages with Show more", async () => {
 		const { screen } = await show();
 		await screen.getByRole("button", { name: /ZIP Code/ }).click();
-		await expect.element(screen.getByRole("option", { name: /ZIP 93100/ })).toBeVisible();
-		expect(document.querySelectorAll("[role=option]").length).toBe(50);
+		await expect.element(screen.getByRole("row", { name: /ZIP 93100/ })).toBeVisible();
+		expect(document.querySelectorAll("[role=row]").length).toBe(50);
 		await screen.getByRole("button", { name: "Show more" }).click();
-		expect(document.querySelectorAll("[role=option]").length).toBe(100);
+		expect(document.querySelectorAll("[role=row]").length).toBe(100);
 	});
 
 	test("the filter narrows by name; nothing left says Nothing here", async () => {
@@ -115,10 +115,10 @@ describe("Browse", () => {
 		await screen.getByRole("button", { name: /Counties/ }).click();
 		const filter = screen.getByRole("textbox", { name: "Filter Counties" });
 		await userEvent.fill(filter, "kern");
-		await expect.element(screen.getByRole("option", { name: /Kern County/ })).toBeVisible();
-		expect(document.querySelectorAll("[role=option]").length).toBe(1);
+		await expect.element(screen.getByRole("row", { name: /Kern County/ })).toBeVisible();
+		expect(document.querySelectorAll("[role=row]").length).toBe(1);
 		await userEvent.fill(filter, "zzz");
-		await expect.element(screen.getByText("Nothing here")).toBeVisible();
+		await expect.element(screen.getByText("Nothing here").nth(1)).toBeVisible();
 		expect(document.querySelector("[data-picker-error]")).toBeNull();
 	});
 
@@ -132,7 +132,7 @@ describe("Browse", () => {
 			.toBeVisible();
 		expect(document.body.textContent).not.toMatch(/Counties\s*8/);
 		await screen.getByRole("button", { name: /ZIP Code/ }).click();
-		await expect.element(screen.getByRole("option", { name: /ZIP 93215/ })).toBeVisible();
+		await expect.element(screen.getByRole("row", { name: /ZIP 93215/ })).toBeVisible();
 		expect(dir.regionsIn).toHaveBeenCalledWith(
 			"zipcode",
 			{ type: "county", code: "06107" },
@@ -156,23 +156,23 @@ describe("Browse", () => {
 	test("single mode: a row click picks", async () => {
 		const { screen, ondone } = await show();
 		await screen.getByRole("button", { name: /Counties/ }).click();
-		await screen.getByRole("option", { name: /Kern County/ }).click();
+		await screen.getByRole("row", { name: /Kern County/ }).click();
 		expect(ondone).toHaveBeenCalledWith([{ kind: "region", type: "county", code: "06029" }]);
 	});
 
 	test("multiple mode: checkbox rows in a multiselectable listbox, blocked rows say why", async () => {
 		const { screen, ondone } = await show({ kind: "multiple", max: 5 });
 		await screen.getByRole("button", { name: /^Monitors/ }).click();
-		const list = screen.getByRole("listbox", { name: "Places in this list" });
+		const list = screen.getByRole("grid", { name: "Places in this list" });
 		await expect.element(list).toHaveAttribute("aria-multiselectable", "true");
-		await screen.getByRole("option", { name: /Fresno - Garland/ }).click();
+		await screen.getByRole("row", { name: /Fresno - Garland/ }).click();
 		await expect
-			.element(screen.getByRole("option", { name: /Fresno - Garland/ }))
+			.element(screen.getByRole("row", { name: /Fresno - Garland/ }))
 			.toHaveAttribute("aria-selected", "true");
 		expect(ondone).not.toHaveBeenCalled();
 		await screen.getByRole("button", { name: "Back" }).click();
 		await screen.getByRole("button", { name: /Counties/ }).click();
-		const kern = screen.getByRole("option", { name: /Kern County/ });
+		const kern = screen.getByRole("row", { name: /Kern County/ });
 		await expect.element(kern).toHaveAttribute("aria-disabled", "true");
 		const reason = document.getElementById(kern.element().getAttribute("aria-describedby")!)!;
 		expect(reason.textContent).toBe(
@@ -184,19 +184,55 @@ describe("Browse", () => {
 		const { screen, dir } = await show();
 		await screen.getByRole("button", { name: /^Monitors/ }).click();
 		expect(dir.monitors).toHaveBeenCalledWith("pm25", { activeOnly: false }, expect.anything());
-		await expect.element(screen.getByRole("option", { name: /Delano - Cecil/ })).toBeVisible();
+		await expect.element(screen.getByRole("row", { name: /Delano - Cecil/ })).toBeVisible();
 		await userEvent.fill(screen.getByRole("textbox", { name: "Filter Monitors" }), "visalia");
-		expect(document.querySelectorAll("[role=option]").length).toBe(1);
+		expect(document.querySelectorAll("[role=row]").length).toBe(1);
 	});
 
-	test("arrow keys move between rows", async () => {
+	test("arrow keys move between rows and into the Inside cell; Enter opens it", async () => {
 		const { screen } = await show();
 		await screen.getByRole("button", { name: /Counties/ }).click();
-		const first = screen.getByRole("option", { name: /Fresno County/ });
-		await expect.element(first).toBeVisible();
-		(first.element() as HTMLElement).focus();
+		await expect.element(screen.getByRole("row", { name: /Fresno County/ })).toBeVisible();
+		const cell = (r: number, c: number) =>
+			document.querySelector(`[data-cell="${r}-${c}"]`) as HTMLElement;
+		cell(0, 0).focus();
 		await userEvent.keyboard("{ArrowDown}");
-		await expect.element(screen.getByRole("option", { name: /Kern County/ })).toHaveFocus();
+		expect(document.activeElement).toBe(cell(1, 0));
+		await userEvent.keyboard("{ArrowRight}");
+		expect(document.activeElement).toBe(cell(1, 1));
+		await userEvent.keyboard("{ArrowUp}");
+		expect(document.activeElement).toBe(cell(0, 1));
+		await userEvent.keyboard("{ArrowLeft}{End}");
+		expect(document.activeElement).toBe(cell(2, 0));
+		await userEvent.keyboard("{Home}{ArrowRight}{Enter}");
+		await expect
+			.element(screen.getByRole("heading", { name: "Inside Fresno County" }))
+			.toBeVisible();
+	});
+
+	test("Space and Enter on a row pick it", async () => {
+		const { screen, ondone } = await show();
+		await screen.getByRole("button", { name: /Counties/ }).click();
+		await expect.element(screen.getByRole("row", { name: /Kern County/ })).toBeVisible();
+		(document.querySelector('[data-cell="1-0"]') as HTMLElement).focus();
+		await userEvent.keyboard(" ");
+		expect(ondone).toHaveBeenCalledWith([{ kind: "region", type: "county", code: "06029" }]);
+	});
+
+	test("the live region announces the count, an empty narrowing, and a load error", async () => {
+		const { screen, dir } = await show();
+		const live = () =>
+			[...document.querySelectorAll("[data-browse-live] p")].map((p) => p.textContent).join("|");
+		await screen.getByRole("button", { name: /Counties/ }).click();
+		await expect.poll(live).toBe("3 results");
+		await userEvent.fill(screen.getByRole("textbox", { name: "Filter Counties" }), "kern");
+		await expect.poll(live).toBe("1 result");
+		await userEvent.fill(screen.getByRole("textbox", { name: "Filter Counties" }), "zzz");
+		await expect.poll(live).toBe("Nothing here");
+		await screen.getByRole("button", { name: "Back" }).click();
+		vi.mocked(dir.regionsIn).mockRejectedValueOnce(new Error("down"));
+		await screen.getByRole("button", { name: /City/ }).click();
+		await expect.poll(live).toBe("Couldn't load this list.");
 	});
 
 	test("axe clean in the type list and in a list", async () => {
@@ -206,7 +242,7 @@ describe("Browse", () => {
 		let results = await axe.run(screen.container);
 		expect(results.violations).toEqual([]);
 		await screen.getByRole("button", { name: /Counties/ }).click();
-		await expect.element(screen.getByRole("option", { name: /Kern County/ })).toBeVisible();
+		await expect.element(screen.getByRole("row", { name: /Kern County/ })).toBeVisible();
 		results = await axe.run(screen.container);
 		expect(results.violations).toEqual([]);
 		document.body.style.background = "";
