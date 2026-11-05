@@ -270,6 +270,14 @@ export class DocumentSession {
 		return this.#queued.length > 0 || this.#handoff !== null || this.#successor !== null;
 	}
 
+	/**
+	 * A starter's hand-off to its copy, once its first edit started it: resolves the copy, or
+	 * `null` if it failed (the edits stay queued). `null` when no hand-off was started.
+	 */
+	get handoff(): Promise<DocumentSession | null> | null {
+		return this.#handoff;
+	}
+
 	/** The session this one's edits land in: itself, or the copy a starter handed off to. */
 	get editTarget(): DocumentSession {
 		return this.#successor?.editTarget ?? this;

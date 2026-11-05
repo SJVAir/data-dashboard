@@ -18,7 +18,12 @@
 		widgetActions,
 		widgetTitle
 	} from "$lib/actions/widget";
-	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
+	import {
+		ADDED_HIGHLIGHT_MS,
+		pendingFocusTarget,
+		requestFocus,
+		takeFocus
+	} from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { Rect, WidgetInstance } from "$lib/documents/schema";
@@ -465,13 +470,25 @@
 		arrangement.pendingFocus = null;
 	});
 
-	// After a restore: focus the title bar and bring the widget into view.
+	/** Just added from Get data: highlighted for `ADDED_HIGHLIGHT_MS` (the CSS fades it; none with reduced motion). */
+	let added = $state(false);
+	let addedTimer: ReturnType<typeof setTimeout> | undefined;
+	onDestroy(() => clearTimeout(addedTimer));
+
+	// After a restore (or an add from Get data): focus the title bar and bring the widget into view.
 	$effect(() => {
 		const request = pendingFocusTarget();
-		if (!bar || request?.kind !== "title" || request.id !== widget.id) return;
+		if (!bar || request?.id !== widget.id) return;
+		if (request.kind !== "title" && request.kind !== "added") return;
+		const kind = request.kind;
 		untrack(() => {
-			if (!takeFocus({ kind: "title", id: widget.id })) return;
+			if (!takeFocus({ kind, id: widget.id })) return;
 			bar!.focus();
+			if (kind === "added") {
+				added = true;
+				clearTimeout(addedTimer);
+				addedTimer = setTimeout(() => (added = false), ADDED_HIGHLIGHT_MS);
+			}
 			if (fullscreen) return;
 			const behavior = prefersReducedMotion.current ? "instant" : "smooth";
 			section?.scrollIntoView({ block: "nearest", behavior });
@@ -537,6 +554,7 @@
 				: "shadow-card")
 	]}
 	data-picked-up={pickedUp ? "" : undefined}
+	data-added={added ? "" : undefined}
 	{inert}
 	onkeydown={trapTab}
 	{onfocusin}

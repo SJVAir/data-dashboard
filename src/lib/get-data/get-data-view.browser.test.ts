@@ -147,22 +147,31 @@ async function show(initial: Draft = defaultDraft()) {
 	host.dataset.getDataHost = "";
 	document.body.appendChild(host);
 	const added: Draft[] = [];
+	const targets: string[] = [];
 	const screen = await render(GetDataView, {
 		target: host,
 		props: {
 			mode: { kind: "new" },
 			initial,
-			onAdd: (_target: string | undefined, draft: Draft) => added.push(draft),
+			add: {
+				selected: { id: "d1", name: "Home" },
+				others: [{ id: "d2", name: "School" }],
+				busy: false,
+				onAdd: (targetId: string, draft: Draft) => {
+					targets.push(targetId);
+					added.push(draft);
+				}
+			},
 			onCancel: () => {}
 		},
 		context: new Map([[APP_CONTEXT_KEY, app]])
 	});
-	/** The draft as "Add to dashboard" hands it over. */
+	/** The draft as "Add to Home" hands it over. */
 	const current = async () => {
-		await page.getByRole("button", { name: "Add to dashboard" }).click();
+		await page.getByRole("button", { name: "Add to Home" }).click();
 		return added.at(-1)!;
 	};
-	return { screen, host, platform, current };
+	return { screen, host, platform, current, targets };
 }
 
 async function drawn(host: HTMLElement) {

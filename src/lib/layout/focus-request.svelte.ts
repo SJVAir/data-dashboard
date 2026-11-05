@@ -1,8 +1,12 @@
 /**
  * A pending request to focus an element that may not exist yet (for example after the starter
  * hands off to the user's copy and the page rebuilds). Module-level, so a remounted page sees it.
+ * "added" is a widget just added from Get data: its title is focused and it's briefly highlighted.
  */
-export type FocusTarget = { kind: "title" | "taskbar" | "sign-in"; id: string };
+export type FocusTarget = { kind: "title" | "taskbar" | "sign-in" | "added"; id: string };
+
+/** How long a widget added from Get data stays highlighted (its `data-added` attribute). */
+export const ADDED_HIGHLIGHT_MS = 2000;
 
 /** The account menu's Sign in link, after this tab signs out (the app remounts in between). */
 export const SIGN_IN_FOCUS: FocusTarget = { kind: "sign-in", id: "account" };

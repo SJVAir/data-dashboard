@@ -1,20 +1,27 @@
 <script lang="ts">
 	import { Button } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";
+	import type { AddTarget } from "./add";
+	import TargetMenu from "./TargetMenu.svelte";
 
 	let {
 		downloading,
 		ondownload,
 		oncancel,
-		onadd,
+		add,
 		onsave
 	}: {
 		/** A CSV of the draft is being prepared. */
 		downloading: boolean;
 		ondownload: () => void;
 		oncancel: () => void;
-		/** Shown as "Add to dashboard" when given. */
-		onadd?: () => void;
+		/** "Add to {name}" with the other dashboards in its menu, when given. */
+		add?: {
+			selected: AddTarget;
+			others: AddTarget[];
+			busy: boolean;
+			onadd: (targetId: string) => void;
+		};
 		/** Shown as "Save changes" when given. */
 		onsave?: () => void;
 	} = $props();
@@ -29,7 +36,7 @@
 	</Button>
 	{#if onsave}
 		<Button onclick={onsave}>{m.get_data_save()}</Button>
-	{:else if onadd}
-		<Button onclick={onadd}>{m.get_data_add()}</Button>
+	{:else if add}
+		<TargetMenu {...add} />
 	{/if}
 </div>

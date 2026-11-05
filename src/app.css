@@ -137,6 +137,8 @@
 	--motion-duration-fast: 120ms;
 	--motion-duration-base: 200ms;
 	--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+	/* A widget just added from Get data: its highlight fades over this long. */
+	--motion-duration-highlight: 2s;
 	--grid-row-height: 4rem;
 	--grid-gap: 0.75rem;
 	--taskbar-height: 3rem;
@@ -235,6 +237,27 @@
 	::after {
 		animation-duration: var(--motion-duration-base) !important;
 		transition-duration: var(--motion-duration-base) !important;
+	}
+}
+
+/* A widget just added from Get data (`data-added`, set for 2 s): a highlight ring that fades.
+   Reduced motion: no ring at all, only the focus on its title. */
+@keyframes widget-added {
+	from {
+		outline-color: var(--highlight);
+	}
+	to {
+		outline-color: transparent;
+	}
+}
+[data-added] {
+	outline: 3px solid transparent;
+	outline-offset: 2px;
+	animation: widget-added var(--motion-duration-highlight) var(--motion-ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+	[data-added] {
+		animation: none;
 	}
 }
 

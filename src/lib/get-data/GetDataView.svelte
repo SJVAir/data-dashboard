@@ -25,6 +25,7 @@
 	import { placeLabel } from "$lib/widgets/title";
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
 	import ActionBar from "./ActionBar.svelte";
+	import type { AddTarget } from "./add";
 	import DetailControl from "./DetailControl.svelte";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
@@ -39,14 +40,20 @@
 	let {
 		mode,
 		initial,
-		onAdd,
+		add,
 		onSave,
 		onCancel
 	}: {
 		mode: GetDataMode;
 		initial: Draft;
-		/** "Add to dashboard" (the target dashboard, when the view was opened from one). */
-		onAdd?: (target: string | undefined, draft: Draft) => void;
+		/** "Add to {name}": the dashboards offered, and the add (a dashboard id or `NEW_DASHBOARD`). */
+		add?: {
+			selected: AddTarget;
+			others: AddTarget[];
+			/** An add is running. */
+			busy: boolean;
+			onAdd: (targetId: string, draft: Draft) => void;
+		};
 		/** "Save changes" (editing a widget's data). */
 		onSave?: (draft: Draft) => void;
 		onCancel: () => void;
@@ -343,7 +350,12 @@
 		downloading={csvPending("get-data")}
 		ondownload={download}
 		oncancel={onCancel}
-		onadd={onAdd && (() => onAdd(mode.kind === "new" ? mode.dashboardId : undefined, plain))}
+		add={add && {
+			selected: add.selected,
+			others: add.others,
+			busy: add.busy,
+			onadd: (targetId) => add.onAdd(targetId, plain)
+		}}
 		onsave={onSave && (() => onSave(plain))}
 	/>
 </div>
