@@ -813,5 +813,19 @@
 	"place_picker_dialog_lookup_failed": "Can't look up your area right now.",
 	"place_picker_saved_as_region": "This dashboard is shared by link, so your location is saved as {region}.",
 	"live_points_saved_as_several": "This dashboard is shared by link, so your locations are saved as their areas.",
-	"live_points_left_out": "This dashboard is shared by link, and your location is outside the area SJVAir covers, so it's left out."
+	"live_points_left_out": "This dashboard is shared by link, and your location is outside the area SJVAir covers, so it's left out.",
+	"getdata_preset_last_24_hours": "Last 24 hours",
+	"getdata_preset_last_3_days": "Last 3 days",
+	"getdata_preset_last_7_days": "Last 7 days",
+	"getdata_preset_last_30_days": "Last 30 days",
+	"getdata_preset_last_90_days": "Last 90 days",
+	"getdata_preset_last_12_months": "Last 12 months",
+	"getdata_preset_this_week": "This week",
+	"getdata_preset_this_month": "This month",
+	"getdata_preset_this_year": "This year",
+	"getdata_preset_specific_day": "A specific day…",
+	"getdata_preset_specific_week": "A specific week…",
+	"getdata_preset_specific_month": "A specific month…",
+	"getdata_preset_specific_year": "A specific year…",
+	"getdata_preset_custom": "Custom range…"
 }
