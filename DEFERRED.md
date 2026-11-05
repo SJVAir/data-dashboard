@@ -1108,6 +1108,24 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   **Revisit when** the Map widget or monitor-map 5.0 hits one of these, before map-sdk 1.0, or
   if the dashboard shows a ppm-scale entry type.
 
+- **map-sdk List button options leftovers.** _Deferred 2026-11-05 (map-sdk #5 review)._ Edge
+  cases of the new `featureList` position and reveal that monitor-map's top-right setup and
+  ordinary map sizes don't hit:
+  - On a map under about 175px tall with the engine's controls, a top-right List button can sit
+    past the map's bottom edge (the list shrinks, the button doesn't).
+  - On a wide map, full credits plus several data credits can wrap along the whole bottom edge,
+    under a bottom-left button or a left-hand panel's bottom (only the button's own corner and
+    the far corner on its side are measured).
+  - On a short map, a bottom-corner panel can grow under the selection bar.
+  - Tab order stays engine controls → credits → List button; getting the button before the
+    credits means mounting it inside the engine's control container, which is rebuilt when
+    `active` toggles.
+  - The panel's offsets are the custom properties `--mapsdk-list-near`/`-far`; a host setting
+    those names would move it.
+
+  **Revisit when** the Map widget allows very short maps or bottom-corner lists, data credits
+  become non-blank, or before map-sdk 1.0.
+
 ## Widgets
 
 - **Pesticide widgets and `pesticides/meta/`.** _Deferred 2026-11-03 (step 3 second batch,

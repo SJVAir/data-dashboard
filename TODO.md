@@ -1284,6 +1284,15 @@ The checklist below is the whole step's scope.
     changes the Map widget will see: monitor colors, engine credits, those tooltip and legend
     changes, the pointer cursor, smoke outlines in the plume color. Review leftovers are in
     `DEFERRED.md` → "map-sdk milestone 2 review leftovers".
+  - **List button options for monitor-map (2026-11-05):** spec and plan approved by the user;
+    built; [map-sdk #5](https://github.com/SJVAir/map-sdk/pull/5) open, awaiting the user's merge
+    yes. `MapView` `featureList?: boolean | { position?: "top-left" | "top-right" |
+"bottom-left" | "bottom-right"; reveal?: "always" | "focus" }`, defaults unchanged;
+    monitor-map uses `{ position: "top-right", reveal: "focus" }` with `controls="engine"`. Edge
+    cases left are in `DEFERRED.md` → "map-sdk List button options leftovers".
+  - **Next for map-sdk (monitor-map requests, 2026-11-05):** a frameless `Legend`
+    (`framed?: boolean`, default `true`) as its own small spec and PR after #5 (the user's call).
+    A list detail for unscaled rows (EV chargers' "No level" chip) is with the user.
   - **Next for monitor-map 5.0:** a published map-sdk `0.x` (the user's yes per release, after
     the npm trusted publisher is set up), then the monitor-map 5.0 rebuild plan.
 - **monitor-map 5.0, rebuilt on `map-sdk`** (session `monitor-map-2a`): **spec approved by the
