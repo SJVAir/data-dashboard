@@ -29,7 +29,7 @@ go-live or beta testers. **The server-backed documents (sync) track's spec 1 is 
 2026-11-03; its sjvair.com `deletedAccount` change is #299 on `develop`). The hosting track is built (sjvair.com
 #295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is merged too (sjvair.com #300 into `develop`, @sjvair/sdk 4.8.0-beta.4); spec 2 is next in a new sjvair.com session. **The design pass is done and merged into `main`** (2026-11-04: [#33](https://github.com/SJVAir/data-dashboard/pull/33) the look, [#34](https://github.com/SJVAir/data-dashboard/pull/34) wording and behavior), so **step 4 is next** in this repo. `map-sdk` milestone 1 is merged (`SJVAir/map-sdk` #1, 2026-11-04; not yet published), so the Map widget can build on it.
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
-4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (4.8.0 in beta; beta.4 is the latest, the dashboard pins beta.3 until step 4). Details in `TODO.md` →
+4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (the next release is 5.0.0, renamed from 4.8.0 on 2026-11-04; betas only until sjvair.com `develop` reaches production; `5.0.0-beta.2` is the latest). Details in `TODO.md` →
 "Start here".
 
 ## Done (v1 tab era)
@@ -122,7 +122,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      Unhealthy 3, Very Unhealthy and Hazardous 4 (decided 2026-10-14)
    - **first:** sdk-js request options (optional `signal`/`init`, global
      `setRequestDefaults`), which Foundations' data layer needs (released 2026-10-21 as @sjvair/sdk 4.7.0)
-   - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen
+   - SDK wrappers for forecasts, CalHeatScore, and CalEnviroScreen (done: forecasts and
+     CalHeatScore in spec 1, CalEnviroScreen in spec 4; @sjvair/sdk 5.0.0-beta.1)
    - region hierarchy, choice lists, and display hints (metadata gaps 5–7)
    - verify production `school_district` rows and the 3 `custom` forecast-zone regions (the
      other 6 zones are counties); import if missing
@@ -182,7 +183,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      app-level data stores. **Milestone 1 spec approved 2026-11-03** (in the map-sdk repo):
      what the dashboard needs, with presets for monitors, region fill, HMS smoke and fire,
      CalHeatScore ZIPs, and forecast zones, published to npm as `0.x`. monitor-map parity is
-     milestone 2, a later spec started with the monitor-map rebuild. **Milestone 1 merged
+     milestone 2; its spec was approved 2026-11-04 (in the map-sdk repo). **Milestone 1 merged
      2026-11-04** ([map-sdk #1](https://github.com/SJVAir/map-sdk/pull/1)); not yet published.
    - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
@@ -193,8 +194,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      widget and the monitor-map rebuild both build against pre-1.0 `map-sdk`, and 1.0 is
      cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
      with approval.
-   - **Separate later track, not blocking Release 1 or go-live:** the mobile migration
-     (see `DEFERRED.md`).
+   - **On the go-live path (changed 2026-11-04, the user):** the monitor-map 5.0 rebuild and the
+     mobile migration onto it must be done before sjvair.com `develop` is released, and the
+     mobile release ships the same day (see `DEFERRED.md`).
 
 - **Parallel track: hosting on sjvair.com** (approved sjvair.com plan first). An import
   of this repo's `main` into `dist/` during each Heroku deploy (the monitor-map pattern, no
@@ -262,7 +264,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    widget joins once step 5 lands. **The `sjvair.com/workspace/` route goes live when Release 1 is
    complete.** Until then the route stays disabled or hidden (except for the private
    preview), so work in progress on `main` isn't public. Merges still need explicit
-   approval. Before go-live: a low-end device performance check.
+   approval. Before go-live: a low-end device performance check, and monitor-map 5.0 plus the
+   mobile release on it ready to ship the same day as sjvair.com `develop` (the user, 2026-11-04).
 
 ## Release 2: Alerts
 
@@ -298,8 +301,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    "selected data" variants), staging that freezes rolling ranges to fixed Pacific dates
    (with a per-item "keep rolling" toggle), `AnalysisSpec`, the full Analysis view, and
    worker-side engine steps (resample, align, lag, aggregate, correlate).
-2. **The ten starter analyses.** #7 needs the CalEnviroScreen wrapper and #8 needs the
-   CalHeatScore wrapper, both from Release 1 step 3.
+2. **The ten starter analyses.** #7 and #8 use the CalEnviroScreen and CalHeatScore
+   wrappers (both done in Release 1 step 3); #7 still needs `calenviroscreen/meta/` (see
+   `DEFERRED.md`).
 3. **Export-to-notebook bundles**: Python first, then R, then Deno/TypeScript.
 4. **JupyterLite app**: Pyodide only, bundled for offline use, a separate static app.
 

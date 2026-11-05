@@ -1173,7 +1173,7 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   `regions/?within=` (repeatable) for a parent region's children. Since October 2026 the
   region **list returns only `bbox`, not boundary geometry**; geometry comes from
   `regions/geojson/?type=` or region detail, and `regions/<id>/?buffer=1|3|5` returns a
-  buffered boundary. Neither has an SDK wrapper yet.
+  buffered boundary (the allowed distances are listed in `regions/meta/` `buffers`). Both are wrapped: `getRegionsGeoJSON` (4.8.0-beta.4; it batches code lists over the server's 100-code cap since 5.0.0-beta.1) and `getRegionDetails(id, { buffer })` (5.0.0-beta.1).
 - **Schools and child care are places** (decided 2026-10-13). The server's `Location`
   model (public school, private school, child care; added by sjvair.com PR #275) holds a
   name, address, point, and **direct links to its county, city, ZIP, and school
@@ -1191,6 +1191,31 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   - **Server and SDK work (step 3):** a name search for locations, ideally an endpoint
     outside the `pesticides/` namespace since schools are used for air quality too; SDK
     wrappers; and a check that production has the school data loaded (`import_schools`).
+    **Built in spec 3** (sjvair.com #302, sdk-js #39; merged 2026-11-04, in @sjvair/sdk 4.8.0-beta.6):
+    - `GET regions/locations/search/?q=&type=&region_type=&region=` →
+      `{ data: [location rows], more }`. Each row is the `regions/locations/` row (code pair,
+      name, type, address, `city_name`, ZIP, point, linked regions as
+      `{ type, external_id, name }`), so a picked row and a reopened one look the same.
+    - **Matching:** part of a name, small typos (`linclon`), and a town typed with the name
+      (`lincoln visalia`, `visalia lincoln`). A town matches either the mailing city or the
+      linked city/CDP.
+    - **Order:** exact name, then name starts with the text, then a word starts with it,
+      then name + town, then substring or typo only; ties by mailing city, then name.
+    - **Size:** 10 rows, stretched to 15 while the following rows repeat the 10th's name
+      (all 13 "Lincoln Elementary" rows show). `more` is set when anything is left out, for
+      "keep typing to narrow it down".
+    - **Filters:** `type` is a comma list; `region_type` + `region` take a code for
+      county, city, cdp, zipcode or school_district.
+    - **Rows:** current sites only; a child-care center's several licenses are one row.
+      Names are shown as the state publishes them (child-care names are often all caps).
+    - **Labels** come from `regions/meta/` → `location_types` (`{ type, label, source }`).
+    - **Requests:** `q` under 2 characters is empty, with no request from the SDK. 200s are
+      cached by the browser for an hour.
+    - **SDK:** `searchLocations({ q, type?, region?, ...requestOptions })` →
+      `{ results, more }`. `getPesticideLocations` wraps `pesticides/locations/` (its point
+      form puts coordinates in the URL, so it is only for public points like a school).
+    - **Resolving a saved location:** stays on `regions/locations/?source=&external_id=` /
+      `getLocationsByCode`, retired ones included.
 - **Missing: lookup by coordinates or monitor.** Needed for "Use my location" and for
   mapping a monitor to its ZIP (CalHeatScore) or forecast zone. **Extend
   `regions/places/lookup/`** (no new endpoint) to accept rounded coordinates (`lat`/`lon` in a **POST body**; see "Location
@@ -1342,9 +1367,14 @@ the unified legend (its gradient already comes from metadata levels), `mapStyleS
   }
   ```
 
+- **What belongs in map-sdk** (the user, 2026-11-04, map-sdk milestone 2 spec): layers built on
+  SJVAir server data, through `@sjvair/sdk`. Layers on outside services stay in monitor-map:
+  wind (`@maptiler/weather`, proprietary) and EV chargers (NREL). "Weather" in monitor-map is
+  only its detail panel's temperature lookup. map-sdk gives host plugins what they need
+  (custom layers in their draw-order slot, the GL map for popups and markers).
 - **One plugin per data type, each taking a data-source interface** (generalizing
   what `MonitorsDataSource` already does): monitors, region fill/choropleth, HMS
-  smoke, HMS fire, collocation, EV stations, wind, weather, and **later** the `terra-draw`
+  smoke, HMS fire, collocation, and **later** the `terra-draw`
   drawing plugin (Q2, opt-in; see `DEFERRED.md`). Plugins for the remaining server datasets — pesticide
   use/notices, CalEnviroScreen tracts, CalHeatScore ZIPs, forecast zones, CEIDARS
   facilities, TEMPO rasters — are deferred (see `DEFERRED.md` → "Map plugins"), but
@@ -1398,8 +1428,10 @@ needs an approved plan in its repo:
 
 **Dependencies** (decided 2026-09-28): the dashboard's critical path is only 1 → 3.
 monitor-map's rebuild (2) runs **in parallel, started alongside 3**. Both build against
-pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. mobile (4) is a **separate later track** that
-blocks neither Release 1 nor go-live; it keeps working on monitor-map 4.x until then.
+pre-1.0 `map-sdk`, and **1.0 is cut once both have validated the API**. **Changed 2026-11-04 (the
+user):** mobile (4) is no longer a separate later track. map-sdk on the latest sdk-js, monitor-map
+5.0 and mobile on it must all be done before sjvair.com `develop` is released, and the mobile
+release ships the same day (see `DEFERRED.md` → the deploy entry).
 
 **Milestone 1 spec (approved by the user 2026-11-03)** is in the map-sdk repo,
 `docs/superpowers/specs/2026-11-03-map-sdk-design.md`; milestone 1 is built and merged
@@ -2396,7 +2428,26 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    `calheatscore/meta/`, `hms/meta/` (smoke density with `opacity`, fire FRP), and
    `forecasts/meta/` (AQI, the `burn-status` entry type, and the zones with their regions)
    return scales keyed by catalog entry-type id; `monitors/meta/` adds a `scale` per entry
-   type (its old `levels` dict stays for mobile).
+   type. Its old `levels` dict is removed by sjvair.com spec 5
+   ([#306](https://github.com/SJVAir/sjvair.com/pull/306)); `scale` is the only level format.
+
+   **School guidelines** (spec 5): each `monitors/meta/` entry type has `school_guidelines`,
+   `null` except `pm25`. SJVAir's outdoor activity guidelines for schools, verbatim from the
+   `/guidelines/schools/` page, which renders from the same source:
+
+   ```ts
+   type SchoolGuidelines = {
+   	label: string; // "Outdoor Activity Guidelines for Schools"
+   	resolution: "hour"; // compared with hourly PM2.5
+   	source: { name: string; url: string }; // SJVAir, the schools page
+   	activities: {
+   		key: "recess" | "pe" | "athletics" | "events"; // permanent
+   		label: string;
+   		duration: string | null; // e.g. "15 minutes"; null for sporting events
+   		levels: Record<string, string[]>; // PM2.5 level key → sentences, in order
+   	}[];
+   } | null;
+   ```
 
    **Scale shape:** `{id, label, units, kind: "range" | "category", source, levels[]}`; a level
    is `{key, label, color, opacity, tier, description, guidance, min, max, value}`. Ranges are
