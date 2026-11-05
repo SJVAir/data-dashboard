@@ -1068,6 +1068,19 @@ research in `docs/reference/pesticides-explorer-research.md`).
   tract detail); `getRegionDetails` `buffer` with the choices in `regions/meta/` `buffers`; and
   the `api-urls.md` fixes. Breaking for 4.7.0 callers: `getHMSSmoke`, `getHMSFire` and
   `getRegionDetails` take a query before `options` (the user, 2026-11-04).
+- **Get data layers** (sjvair.com + sdk-js, session sjvair-com-21; asked for by step 4 spec 3;
+  specs and plans in sjvair.com `docs/superpowers/specs|plans/2026-11-05-*`). Each item ships on
+  its own; no beta cut yet (each needs the user's yes).
+  - ✅ Monthly pesticide use for a place, `pesticides/place/`: **merged** (sjvair.com #310 into
+    `develop`; sdk-js #51 `getPesticidesForPlace` into `release/5.0.0`).
+  - Weather stations near a place, `monitors/weather/place/`: SDK **merged** (sdk-js #52
+    `getWeatherStationsForPlace` + the CIMIS entry types); server **PR open** (sjvair.com #311).
+  - Smoke over a place per day, `hms/smoke/place/`: server **PR open** (sjvair.com #312), SDK **PR
+    open** (sdk-js #53 `getSmokeForPlace`; open item: narrow its live-step skip once #312 is local).
+  - CIMIS weather summaries (extending the summaries; CIMIS timestamps move to start-of-hour PST):
+    server **PR open** (sjvair.com #313); SDK `sum` on monitor summaries in progress. After #313
+    merges: the local `restamp_cimis` + rebuild, 1 → 3 → 23 stations, each step cleared by the
+    coordinator; the production steps are in `DEFERRED.md`'s deploy entry.
 - **Remaining SDK work, in the order sdk-js-6a suggested** (handoff, 2026-11-04; each needs a new
   sdk-js session, and every beta the user's yes):
   1. Pin bumps to `5.0.0-beta.1`: step 4 (spec 2's first commit) and map-sdk (its next session).
