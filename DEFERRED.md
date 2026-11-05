@@ -289,16 +289,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   monitor search by location/radius. Needs sdk-js and server changes. Drawn-shape selection resolves on the client, so it doesn't depend
   on this. **Revisit when** client-side resolution gets too slow or needs data the client
   doesn't have.
-- **Shared date-range helper home.** _Open since 2026-09-14; narrowed 2026-09-24._
-  monitor-map's `data-chart/DateRange.ts` uses the browser's local time zone, so it
-  conflicts with the Pacific-time rule and can't be reused as-is. This repo's
-  `DateRangeSpec` resolution lives with the `format` module in Foundations. **Still open:**
-  whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Narrowed
-  2026-11-03 (map-sdk milestone 1 spec):** not `map-sdk`, which handles no date ranges (the
-  dashboard feeds its data in). sdk-js already has Pacific day helpers (`startOfPacificDay`,
-  `addPacificDays`). **Decide in** the monitor-map 5.0 plan, when its `DataChart` is rebuilt
-  (also listed under "Open decisions").
-
 - **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
   sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
   `VITE_*` keys come from Heroku config vars at build time. **Revisit when** dashboard and
@@ -416,6 +406,13 @@ string`) now get the union return type. The mobile app passes a string token, so
     rebuilt on map-sdk, and a mobile release on monitor-map 5.0 must all be ready first. SDK 5.0
     has no fallbacks for older servers, so the new mobile build needs the deployed server; on the
     day, **deploy `develop` first, then publish the mobile release** (the user, 2026-11-04).
+    **monitor-map 5.0 reaches `main` only on that day** (the user, 2026-11-05): 5.0 work goes
+    into monitor-map's `release/5.0.0` through PRs, and mobile tries it through npm betas
+    published from that branch. Since sjvair.com builds monitor-map `main` unpinned on each
+    deploy, merge `release/5.0.0` into `main` (the user's yes) right before deploying `develop`,
+    not earlier.
+    map-sdk must already be on npm by then: monitor-map 5.0 depends on it, and sjvair.com's
+    deploy runs `npm i` on monitor-map `main`.
     The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
     hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
     (tooltips, legend, clusters, charts, subscription manager), mobile
@@ -517,7 +514,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     (the normal `invoke build` covers it). `levels` is gone from `monitors/meta/`, so this deploy
     goes out the same day as the map-sdk, monitor-map and mobile releases (the plan above).
   - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 5.0.0
-    final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04).
+    final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04). Note: JSR's npm mirror (npm.jsr.io) lists the newest beta as `dist-tags.latest` (5.0.0-beta.3 on
+    2026-11-05) while JSR's own `latest` stays 4.7.0, so an unpinned `npm i @jsr/sjvair__sdk` gets the
+    beta; ranges and exact pins are unaffected. Check both read 5.0.0 after the final release.
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
@@ -916,6 +915,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   region list's `also_in` 1%-of-area rule (measure search time first; the per-row area math is
   the cost).
 
+- **The Census Bureau's short name for census tracts.** _Deferred 2026-11-05 (sjvair.com region
+  display names, the user)._ A tract's display name is its full code, "Census Tract
+  06019000100", from the `regions/meta/` `name_template` "Census Tract {name}". The Bureau's
+  own form, "Census Tract 1, Fresno County", is friendlier, but a pattern around `{name}` can't
+  produce it, and the short number alone is ambiguous: 274 short tract numbers repeat across the
+  eight counties locally. The server already has the parts (each tract's `metadata` holds
+  `namelsad` and `countyfp`). **Revisit when** tracts show up in resident-facing views (picker
+  results, starter dashboards) or users ask what a tract code means: the server would then
+  send a computed name for each tract.
+
 - **Region GeoJSON lookups beyond about 10 requests.** _Deferred 2026-11-04 (step 3 spec 4,
   the user)._ `getRegionsGeoJSON` (and the by-code lookups) send one request per 100 codes,
   concurrently; all 2020 tracts (~980) is about 10. A whole area doesn't need codes at all
@@ -971,16 +980,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   range change that is still loading and then fails, `DataChart` keeps showing the loading
   state. This is the same as in 4.2.0, not a regression. **Revisit with** the next DataChart
   change or the map-sdk rebuild (5.0). The fix is to have the silent refresh take over the
-  `loading` flag. Needs a monitor-map plan.
+  `loading` flag. **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (spec
+  `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md`, "Fixes folded in"); this entry
+  goes when the fix merges into `release/5.0.0`.
 - **monitor-map: subscription status load errors are unhandled.** _Noted 2026-10-21
   (monitor-map 4.3.0 review)._ A failed subscription-status load (not a cancel) still
   surfaces as an unhandled rejection, as in 4.2.0, with no error state on the button.
   **Revisit with** the next change to `MonitorSubscriptionManager` or the map-sdk rebuild.
-  Needs a monitor-map plan.
-- **monitor-map: cancelling one-off loads.** _Deferred 2026-10-21 (monitor-map SDK 4.7
-  design)._ HMS smoke/fire and collocation sites accept a caller's signal but don't
-  supersede themselves, since nothing re-requests them on user selection. **Revisit when**
-  any of them becomes selection-driven (e.g. a date-picked HMS layer).
+  **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (an error line with Try again);
+  this entry goes when the fix merges into `release/5.0.0`.
 
 ## Analysis & data
 
@@ -1181,20 +1189,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   on map-sdk's general points and shapes plugins plus their metadata scale with little or no
   preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
   needs one on a map (pesticide notices likely first, alongside the alerts work).
-- **map-sdk milestone 2: monitor-map parity.** _Deferred 2026-11-03 (map-sdk milestone 1 spec,
-  the user's call: the dashboard is the priority)._ Collocation sites, EV stations, wind, live
-  stores beyond monitors (HMS, collocation), and whatever else the 5.0 rebuild needs. EV
-  stations need the NREL key moved into injected config, and their hardcoded ZIP list and
-  labels need a proper home. The live map and mobile keep shipping from monitor-map 4.x
-  meanwhile. The rebuild is now on the go-live path (the mobile entry under "Mobile app", the
-  user, 2026-11-04). **Now specified** (2026-11-04, approved by the user): map-sdk `docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`.
-  The user's parity rule: match today's map, except bug fixes and accessibility additions;
-  dashboard-style differences become options monitor-map sets to today's look. Layers on
-  SJVAir server data go in map-sdk (collocation sites move in); layers on outside services
-  (wind, EV chargers) stay in monitor-map. So the NREL key (into monitor-map's config), the
-  ZIP list cleanup (duplicates; some Inyo/Mono ZIPs filed under San Joaquin; the 5 mountain
-  counties stay, the user's call), and the label maps are monitor-map 5.0 plan items. Remove
-  this entry when milestone 2 merges.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1228,26 +1222,28 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   spec)._ Keyboard and screen-reader users reach features through map-sdk's feature list (one
   tab stop, features in view). Spatial arrow-key navigation is tricky to get right and the
   list covers the need. **Revisit if** keyboard users find the list too indirect.
-- **Globe projection and space background in map-sdk.** _Deferred 2026-11-03 (map-sdk
-  milestone 1 build)._ map-sdk maps use the flat (Mercator) projection with no starfield
-  background. monitor-map's globe view and Milky Way background aren't needed by the dashboard,
-  and the milestone 1 plan didn't list them. See also "Globe-projection zoom precision" under
-  "Map & selection". **Revisit with** map-sdk milestone 2 (the monitor-map 5.0 rebuild), as a
-  projection option on `createMap()`. **Scheduled 2026-11-04:** milestone 2 item 4 (options,
-  off by default; monitor-map turns them on). Remove when milestone 2 merges.
-- **The "(1-hour avg)" note in map-sdk's monitor tooltip.** _Deferred 2026-11-03 (map-sdk
-  milestone 1 build)._ monitor-map's tooltip labels readings "(1-hour avg)"; map-sdk's shows the
-  reading and "Last updated …" but not the note. Writing it would hardcode the averaging window,
-  which has to come from metadata, and the server's meta doesn't give one yet. **Revisit when**
-  the server's monitors meta or dataset catalog gives an averaging window per entry type, or with
-  milestone 2's parity pass, whichever comes first. **Scheduled 2026-11-04:** milestone 2 item
-  13, from the monitor type's `expected_interval`, the source today's monitor-map uses. Remove
-  when milestone 2 merges.
 - **"hms-fire icon could not be loaded" warning in map-sdk's e2e tests.** _Found 2026-11-03
   (map-sdk milestone 1 build)._ The demo's browser tests log this MapLibre warning; fires still
   draw with their level icons, and the cause hasn't been traced (most likely the map asks for
   the icon before the plugin has added it). **Revisit when** someone next works on the fire
-  plugin, or sooner if fire icons go missing on a map.
+  plugin, or sooner if fire icons go missing on a map. Milestone 2 (map-sdk #4) couldn't
+  reproduce it in the Chromium e2e, a probe spec, or the browser tests; the suspect is
+  `pointsPlugin` adding icon images in `image.onload` after its layers.
+- **map-sdk milestone 2 review leftovers.** _Deferred 2026-11-04 (map-sdk #4 reviews)._ Small
+  gaps the reviews found that don't affect today's maps:
+  - A collocation site whose collocated monitor isn't in the store shows no name for it (its
+    id is available).
+  - On a map 640px or narrower, data credits arriving after the user collapsed the credits
+    re-open them, because the control is replaced. Data credits are blank today.
+  - After `dispose()` mid-load, a load-once store (HMS, collocation) stays `loading`, as the
+    monitors store does.
+  - No e2e covers fire's zoom-10 switch or the Live map's click easing (client tests cover the
+    layer zoom ranges).
+  - Readings are cut to whole numbers on every map. A ppm-scale entry type such as CO would read
+    "4" in Moderate's color.
+
+  **Revisit when** the Map widget or monitor-map 5.0 hits one of these, before map-sdk 1.0, or
+  if the dashboard shows a ppm-scale entry type.
 
 ## Widgets
 
@@ -1439,7 +1435,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   and calls `setOrigin` on its copy. monitor-map 4.3.0 needs `^4.7.0`. Without the bump,
   npm can nest a second SDK under monitor-map whose requests ignore mobile's origin.
   **Revisit when** mobile next updates its monitor-map dependency. Needs a mobile plan and
-  an app release (explicit approval).
+  an app release (explicit approval). **Update 2026-11-05:** monitor-map 5.0 makes
+  `@sjvair/sdk` a peer dependency (`^5.0.0-beta.3`), so mobile's own copy is the only one;
+  the mobile migration onto 5.0 takes the SDK 5.0 beta instead of `^4.7.0`.
 - **Mobile app's hardcoded PM2.5 scale.** _Noted 2026-09-28; widened 2026-10-13._ Three
   files hardcode the pre-2024 scale: `src/components/PMGauge.svelte`
   (12.1/35.5/55.5/150.5/250.5), `src/lib/colors.ts` (`pmValueColors`,
@@ -1850,8 +1848,6 @@ point.
 - **Geographic crosswalk method**: monitor→region, tract (CES), ZIP (CalHeatScore),
   county/MTRS (PUR), and area weighting. **Decide in** the Release 3 step 1 spec (Analysis
   engine).
-- **Shared date-range helper home** (see "Platform & infrastructure"). Not `map-sdk` (its
-  milestone 1 spec, 2026-11-03). **Decide in** the monitor-map 5.0 plan.
 - **JupyterLite app: owner repo and deploy path** (docs review 2026-09-28). Options: a
   separate build in this repo, or a new repo, imported by sjvair.com like the dashboard,
   with a Django view setting COOP/COEP only on `/notebooks/`. **Constraint found
@@ -2018,3 +2014,9 @@ Dropped 2026-10-29 by the user (spec 2b review notes, closed as already covered 
   pins that the history state survives the rewrite, and the E2E covers Back.
 - **Reduced-motion check inspects only the frame's animations; two-tab test's order relies
   on widget id.** Only the frame animates, and the id tie-break is the spec's rule.
+
+Dropped 2026-11-05 by the user (monitor-map 5.0 spec):
+
+- **monitor-map: cancelling one-off loads** (deferred 2026-10-21, monitor-map SDK 4.7 design).
+  Closed because HMS smoke and fire and collocation sites move to map-sdk's load-once stores in
+  5.0, which already handle a caller's cancel; they still load once.
