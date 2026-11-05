@@ -10,7 +10,8 @@
 		"clearData",
 		"privacy",
 		"existingCopy",
-		"moveToAccount"
+		"moveToAccount",
+		"placePicker"
 	];
 
 	/** Opened at least once; Move to account is asked once the app starts in an account space. */

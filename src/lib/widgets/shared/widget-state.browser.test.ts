@@ -74,6 +74,26 @@ test("idle", async () => {
 	expect(m.widget_state_idle()).toBe("Choose a place to show data.");
 });
 
+test("idle offers Choose a place when editable and given onchoose", async () => {
+	const onchoose = vi.fn();
+	const { screen } = await show({ status: "idle" }, { onchoose });
+	await screen.getByRole("button", { name: m.widget_state_choose_place() }).click();
+	expect(onchoose).toHaveBeenCalledOnce();
+	await screen.unmount();
+	const plain = await show({ status: "idle" });
+	await expect.element(plain.screen.getByText(m.widget_state_idle())).toBeInTheDocument();
+	expect(page.getByRole("button", { name: m.widget_state_choose_place() }).query()).toBeNull();
+});
+
+test("idle has no Choose a place on a read-only dashboard", async () => {
+	const { screen, session } = await show({ status: "idle" }, { onchoose: vi.fn() });
+	session.readOnly = "invalid";
+	await expect.element(screen.getByText(m.widget_state_idle())).toBeInTheDocument();
+	await expect
+		.poll(() => page.getByRole("button", { name: m.widget_state_choose_place() }).query())
+		.toBeNull();
+});
+
 test("loading shows a skeleton after the delay, and no content", async () => {
 	const { screen } = await show({ status: "loading" });
 	expect(screen.container.querySelector("[data-skeleton]")).toBeNull();

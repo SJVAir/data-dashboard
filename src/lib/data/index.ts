@@ -21,8 +21,11 @@ export function getMetadata(): MetadataSource {
 	return metadata;
 }
 
-/** The app's region, location and point resolvers, shared by the query client and `placeRegion`. */
-function getResolvers(): Pick<AdapterContext, "regions" | "locations" | "points"> {
+/**
+ * The app's region, location and point resolvers, shared by the query client, `placeRegion` and
+ * the place picker.
+ */
+export function getResolvers(): Pick<AdapterContext, "regions" | "locations" | "points"> {
 	resolvers ??= {
 		regions: createWebRegionResolver(),
 		locations: createWebLocationResolver(),

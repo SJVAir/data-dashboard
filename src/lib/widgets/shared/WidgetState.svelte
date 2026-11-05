@@ -25,7 +25,10 @@
 		/** The catalog's retirement of the dataset or entry type the widget reads, with its name. */
 		retired?: { name: string; since: string };
 		onretry: () => void;
-		/** Opens the place picker; "Choose another" shows only when this is given and editing. */
+		/**
+		 * Opens the place picker; "Choose a place" (idle) and "Choose another" show only when this is
+		 * given and editing.
+		 */
 		onchoose?: () => void;
 		children: Snippet<[QueryData]>;
 	} = $props();
@@ -133,7 +136,16 @@
 {/snippet}
 
 {#if state.status === "idle"}
-	{@render message(m.widget_state_idle())}
+	{#if editable && onchoose}
+		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
+			<p class="text-muted-foreground text-sm">{m.widget_state_idle()}</p>
+			<Button size="sm" variant="outline" onclick={onchoose}>
+				{m.widget_state_choose_place()}
+			</Button>
+		</div>
+	{:else}
+		{@render message(m.widget_state_idle())}
+	{/if}
 {:else if state.status === "unavailable"}
 	{#if GONE.has(state.reason)}
 		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">

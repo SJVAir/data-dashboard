@@ -13,6 +13,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
+	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { dataTableType } from "./index";
 	import { placeLabel } from "../title";
 	import { sortRows, wideRows } from "./rows";
@@ -79,7 +80,13 @@
 		</p>
 	{/if}
 	<div class="min-h-0 flex-1">
-		<WidgetState state={w.shown} {widget} retired={w.retired} onretry={w.retry}>
+		<WidgetState
+			state={w.shown}
+			{widget}
+			retired={w.retired}
+			onretry={w.retry}
+			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		>
 			{#snippet children(data)}
 				{@const rows = sortRows(wideRows(data), sort.column, sort.dir)}
 				{@const extra = extras(data)}

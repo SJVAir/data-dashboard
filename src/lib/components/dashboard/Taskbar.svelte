@@ -5,6 +5,7 @@
 	import { menuScope } from "$lib/actions/scope";
 	import {
 		downloadItems,
+		placeItems,
 		restoreWidget,
 		taskbarActions,
 		viewActions,
@@ -42,7 +43,11 @@
 		const base = readOnly
 			? viewActions(widget.id, onfullscreen)
 			: taskbarActions(app, widget.id, onfullscreen);
-		return (ctx) => [...downloadItems(app, () => widget), ...base(ctx)];
+		return (ctx) => [
+			...placeItems(app, () => widget),
+			...downloadItems(app, () => widget),
+			...base(ctx)
+		];
 	}
 
 	const count = $derived(widgets.length * 2);

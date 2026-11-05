@@ -75,7 +75,8 @@ describe("createWebLocationResolver", () => {
 	it("maps a location's ZIP, city and county to keys in that order", async () => {
 		expect(await createWebLocationResolver().resolve("cde-public", "1")).toEqual({
 			name: "School 1",
-			keys: ["zipcode:93702", "city:0627000", "county:06019"]
+			keys: ["zipcode:93702", "city:0627000", "county:06019"],
+			details: { type: "public_school", city: "", zip: "", address: "" }
 		});
 		expect(getLocationsByCode).toHaveBeenCalledExactlyOnceWith("cde-public", ["1"]);
 	});
@@ -83,7 +84,8 @@ describe("createWebLocationResolver", () => {
 	it("leaves out the regions a location lacks", async () => {
 		expect(await createWebLocationResolver().resolve("cde-public", "2")).toEqual({
 			name: "School 2",
-			keys: ["county:06019"]
+			keys: ["county:06019"],
+			details: { type: "public_school", city: "", zip: "", address: "" }
 		});
 	});
 
@@ -97,6 +99,7 @@ describe("createWebLocationResolver", () => {
 		expect(await createWebLocationResolver().resolve("cde-public", "3")).toEqual({
 			name: "School 3",
 			keys: ["zipcode:93721", "county:06019"],
+			details: { type: "public_school", city: "", zip: "", address: "" },
 			retired: { since: "2026-06-30", replacedBy: { source: "cde-public", code: "1" } }
 		});
 	});

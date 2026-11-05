@@ -14,6 +14,7 @@
 		removeWidget,
 		viewActions,
 		downloadItems,
+		placeItems,
 		widgetActions,
 		widgetTitle
 	} from "$lib/actions/widget";
@@ -94,6 +95,7 @@
 			: editProvider(ctx);
 	const editProvider: MenuProvider = (ctx) => [
 		...(type?.menu(ctx) ?? []),
+		...placeItems(app, () => widget),
 		...downloadItems(app, () => widget),
 		...widgetActions(app, widget.id, arrangement, {
 			fullscreen: () => onfullscreen(),

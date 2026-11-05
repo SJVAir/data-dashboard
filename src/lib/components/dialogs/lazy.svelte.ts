@@ -17,7 +17,8 @@ export const requested = $state({
 	restoreVersion: false,
 	clearData: false,
 	privacy: false,
-	existingCopy: false
+	existingCopy: false,
+	placePicker: false
 });
 
 export type LazyDialog = keyof typeof requested | "moveToAccount";
@@ -29,7 +30,8 @@ export const dialogLoaders: Record<LazyDialog, () => Promise<{ default: Componen
 	clearData: () => import("./ClearDataDialog.svelte"),
 	privacy: () => import("./PrivacyDialog.svelte"),
 	existingCopy: () => import("./ExistingCopyDialog.svelte"),
-	moveToAccount: () => import("./MoveToAccountDialog.svelte")
+	moveToAccount: () => import("./MoveToAccountDialog.svelte"),
+	placePicker: () => import("$lib/places/PlacePickerDialog.svelte")
 };
 
 /** Loads made or under way, by loader (so a replaced loader loads anew). Not reactive state. */
@@ -75,6 +77,9 @@ function dismiss(key: LazyDialog): void {
 			break;
 		case "existingCopy":
 			settleExistingCopy(null);
+			break;
+		case "placePicker":
+			placePicker.open = false;
 			break;
 		case "moveToAccount":
 			// Asked again the next time the app starts.
@@ -226,4 +231,28 @@ export function askExistingCopy(copy: DashboardSummary): Promise<ExistingCopyCho
 	existingCopy.open = true;
 	requested.existingCopy = true;
 	return new Promise((resolve) => (resolver = resolve));
+}
+
+// The place picker
+
+export const placePicker = $state<{
+	open: boolean;
+	/** The widget whose place it changes. */
+	widgetId: string | null;
+	/** Counts the openings, so each one starts fresh. */
+	opening: number;
+	/** What had focus when it opened (focus returns there, or to the widget when it's gone). */
+	opener: HTMLElement | null;
+}>({ open: false, widgetId: null, opening: 0, opener: null });
+
+/** Opens the place picker for a widget; Done changes its place in one undoable edit. */
+export function openPlacePicker(opts: { widgetId: string }): void {
+	placePicker.widgetId = opts.widgetId;
+	placePicker.opening++;
+	placePicker.opener =
+		typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+			? document.activeElement
+			: null;
+	placePicker.open = true;
+	requested.placePicker = true;
 }

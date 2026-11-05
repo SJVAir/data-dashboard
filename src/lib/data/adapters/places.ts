@@ -37,7 +37,16 @@ function resolvedLocation(location: Location): NonNullable<Resolved> {
 		const ref = location.regions[type];
 		if (ref) keys.push(`${type}:${ref.external_id}`);
 	}
-	const found: NonNullable<Resolved> = { name: location.name, keys };
+	const found: NonNullable<Resolved> = {
+		name: location.name,
+		keys,
+		details: {
+			type: location.type,
+			city: location.city_name,
+			zip: location.zip,
+			address: location.address
+		}
+	};
 	if (location.retired) {
 		const by = location.retired.replaced_by;
 		found.retired = {

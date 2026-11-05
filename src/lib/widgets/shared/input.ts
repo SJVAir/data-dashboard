@@ -14,8 +14,21 @@ export function entryMeta(
 }
 
 /**
- * What a Chart asks the query client for: its first pollutant layer (by the catalog's kind; else
- * the first layer with an entry type, so an unknown one still says so) over the widget's date range, with each
+ * The layer a Chart or Data table shows: its first pollutant layer (by the catalog's kind), else
+ * the first layer with an entry type (so an unknown one still says so).
+ */
+export function pollutantLayer(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined
+): Layer | undefined {
+	const withEntry = data.layers.filter((l) => l.entryType);
+	return (
+		withEntry.find((l) => entryMeta(catalog, l)?.entryType.kind === "pollutant") ?? withEntry[0]
+	);
+}
+
+/**
+ * What a Chart asks the query client for: its `pollutantLayer` over the widget's date range, with each
  * day's worst hour, and at most `maxPlaces` of a selection's places. `hidden` counts the places
  * cut. A layer with no place or selection asks for nothing (`input` is null): a chart of every
  * monitor isn't offered.
@@ -25,9 +38,7 @@ export function chartInput(
 	catalog: CatalogEntry[] | undefined,
 	maxPlaces: number
 ): { layer: Layer | undefined; input: QueryInput | null; hidden: number } {
-	const withEntry = data.layers.filter((l) => l.entryType);
-	const layer =
-		withEntry.find((l) => entryMeta(catalog, l)?.entryType.kind === "pollutant") ?? withEntry[0];
+	const layer = pollutantLayer(data, catalog);
 	if (!layer || (!layer.place && !layer.selection)) return { layer, input: null, hidden: 0 };
 	let shown = layer;
 	let hidden = 0;

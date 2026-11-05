@@ -327,6 +327,7 @@
 	"file_data_stem": "data",
 	"file_places": "{count} places",
 	"widget_download_csv": "Download data (CSV)",
+	"widget_change_place": "Change place",
 	"widget_download_csv_failed": "The data couldn't be downloaded. Try again.",
 	"widget_download_csv_pending": "Preparing your data…",
 	"table_download_csv": "Download CSV",
@@ -610,6 +611,7 @@
 	"widget_state_retry": "Retry",
 	"widget_state_remove": "Remove",
 	"widget_state_choose_another": "Choose another",
+	"widget_state_choose_place": "Choose a place",
 	"widget_state_location_retired": "{name} is no longer listed (since {date})",
 	"widget_state_switch": "Switch to the replacement",
 	"widget_state_gone_title": "This place is no longer available.",
@@ -784,5 +786,12 @@
 	"place_picker_location_off": "Location access is off. Search for a place instead.",
 	"place_picker_location_failed": "Couldn't find your location. Try again, or search for a place instead.",
 	"place_picker_location_check_failed": "Couldn't check your location. Try again, or search for a place instead.",
-	"place_picker_location_outside": "Your location is outside the area SJVAir covers."
+	"place_picker_location_outside": "Your location is outside the area SJVAir covers.",
+	"place_picker_dialog_title": "Choose a place",
+	"place_picker_dialog_title_multiple": "Choose places",
+	"place_picker_dialog_loading": "Loading places…",
+	"place_picker_dialog_failed": "Couldn't open the place picker.",
+	"place_picker_dialog_looking_up": "Finding your area…",
+	"place_picker_dialog_lookup_failed": "Can't look up your area right now.",
+	"place_picker_saved_as_region": "This dashboard is shared by link, so your location is saved as {region}."
 }

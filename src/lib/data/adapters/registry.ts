@@ -34,6 +34,8 @@ export interface LocationResolver {
 	): Promise<{
 		name: string;
 		keys: string[];
+		/** What a place picker row shows: its type (`regions/meta/` `location_types`) and where. */
+		details?: { type: string; city: string; zip: string; address: string };
 		retired?: { since: string; replacedBy: { source: string; code: string } | null };
 	} | null>;
 }
