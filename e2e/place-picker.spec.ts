@@ -27,7 +27,7 @@ const RANGE = { kind: "trailing", amount: 30, unit: "day" };
 /** Somewhere in downtown Fresno (ZIP 93721). */
 const POSITION = { latitude: 36.7372, longitude: -119.7871 };
 
-const POINT_TITLE = "PM2.5 · 93721 (your location) · Last 30 days";
+const POINT_TITLE = "PM2.5 · ZIP 93721 (your location) · Last 30 days";
 
 type Place = Record<string, unknown>;
 
@@ -153,10 +153,12 @@ test("Choose a place on an idle Data table: a school shows its ZIP's data", asyn
 	await picker(page).getByRole("button", { name: "Done" }).click();
 	await expect(picker(page)).toBeHidden();
 
-	const title = "PM2.5 · 93702 (Roosevelt High) · Last 30 days";
+	const title = "PM2.5 · ZIP 93702 (Roosevelt High) · Last 30 days";
 	await expect(widgetTitles(page)).toHaveText([title]);
 	const table = page.getByRole("region", { name: "Data table values" });
-	await expect(table.getByRole("columnheader", { name: /93702 \(Roosevelt High\)/ })).toBeVisible();
+	await expect(
+		table.getByRole("columnheader", { name: /ZIP 93702 \(Roosevelt High\)/ })
+	).toBeVisible();
 	await expect(table.getByRole("rowheader")).toHaveCount(30);
 });
 
@@ -236,7 +238,7 @@ test("a copy link shares the point as its ZIP unless the owner chooses exact", a
 
 	const dialog = await openShare(page);
 	await expect(
-		dialog.getByText("Your location is shared as 93721, not your exact position.")
+		dialog.getByText("Your location is shared as ZIP 93721, not your exact position.")
 	).toBeVisible();
 	const link = dialog.getByRole("textbox", { name: "Link", exact: true });
 	await expect(link).toHaveValue(/#1\./);
@@ -260,10 +262,10 @@ test("a copy link shares the point as its ZIP unless the owner chooses exact", a
 test("a copy made from a link with an exact point gets the region", async ({ page }) => {
 	await openDoc(page, dataDoc("chart", { kind: "point", lat: 36.7372, lon: -119.7871 }));
 	// Not "(your location)": the copy holds ZIP 93721, not the sender's point.
-	await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+	await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 	await expectSaved(page);
 	await page.reload();
-	await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+	await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 });
 
 test.describe("signed in, with a live link", () => {
@@ -282,7 +284,7 @@ test.describe("signed in, with a live link", () => {
 		await context.setGeolocation(POSITION);
 	});
 
-	test("the Share dialog asks before a live link carries the point; Use 93721 instead", async ({
+	test("the Share dialog asks before a live link carries the point; Use ZIP 93721 instead", async ({
 		page,
 		documentsServer
 	}) => {
@@ -290,22 +292,22 @@ test.describe("signed in, with a live link", () => {
 		const dialog = await openShare(page);
 		await expect(dialog.getByText("This dashboard includes your exact location.")).toBeVisible();
 		await expect(dialog.getByRole("button", { name: "Create link" })).toBeHidden();
-		await dialog.getByRole("button", { name: "Use 93721 instead" }).click();
+		await dialog.getByRole("button", { name: "Use ZIP 93721 instead" }).click();
 		const live = dialog.getByRole("textbox", { name: "Live link" });
 		await expect(live).toHaveValue(/\/workspace\/shared\/[^/]+$/);
 		const url = await live.inputValue();
 		await page.keyboard.press("Escape");
-		await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 
 		// Viewers read the region, not the point.
 		const viewer = await documentsServer.newDevice();
 		viewer.account.set(null);
 		await viewer.page.goto(url);
-		await expect(widgetTitles(viewer.page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect(widgetTitles(viewer.page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 
 		// With the link on, Use my location (from another place) saves the region and says so.
-		await widgetMenuItem(page, "PM2.5 · 93721 · Last 30 days", "Change place");
-		await picker(page).getByRole("button", { name: "Remove 93721" }).click();
+		await widgetMenuItem(page, "PM2.5 · ZIP 93721 · Last 30 days", "Change place");
+		await picker(page).getByRole("button", { name: "Remove ZIP 93721" }).click();
 		await searchBox(page).fill("fre");
 		await picker(page)
 			.getByRole("option", { name: /^Fresno County/ })
@@ -314,24 +316,24 @@ test.describe("signed in, with a live link", () => {
 		await expect(widgetTitles(page)).toHaveText([CHART_TITLE]);
 		await useMyLocation(page);
 		await expect(
-			page.getByText("This dashboard is shared by link, so your location is saved as 93721.")
+			page.getByText("This dashboard is shared by link, so your location is saved as ZIP 93721.")
 		).toBeVisible();
-		await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 	});
 
-	test("Undo after Use 93721 instead saves the region again; viewers never get the point", async ({
+	test("Undo after Use ZIP 93721 instead saves the region again; viewers never get the point", async ({
 		page,
 		documentsServer
 	}) => {
 		await pointOnAccount(page);
 		const dialog = await openShare(page);
-		await dialog.getByRole("button", { name: "Use 93721 instead" }).click();
+		await dialog.getByRole("button", { name: "Use ZIP 93721 instead" }).click();
 		const live = dialog.getByRole("textbox", { name: "Live link" });
 		await expect(live).toHaveValue(/\/workspace\/shared\/[^/]+$/);
 		const url = await live.inputValue();
 		const token = url.slice(url.lastIndexOf("/") + 1);
 		await page.keyboard.press("Escape");
-		await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 
 		// Every save from here on, as the server receives it.
 		const { fake } = documentsServer;
@@ -346,9 +348,9 @@ test.describe("signed in, with a live link", () => {
 		// Undo brings the point back for a moment; the dashboard saves its region again.
 		await nav(page).getByRole("button", { name: "Undo" }).click();
 		await expect(
-			page.getByText("This dashboard is shared by link, so your location is saved as 93721.")
+			page.getByText("This dashboard is shared by link, so your location is saved as ZIP 93721.")
 		).toBeVisible();
-		await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 		await expect.poll(async () => (await fake.shared(token)).version).toBeGreaterThan(linked);
 		expect(saves.join("\n")).not.toContain('"kind":"point"');
 		expect(saves.join("\n")).not.toContain(String(POSITION.latitude));
@@ -356,7 +358,7 @@ test.describe("signed in, with a live link", () => {
 		const viewer = await documentsServer.newDevice();
 		viewer.account.set(null);
 		await viewer.page.goto(url);
-		await expect(widgetTitles(viewer.page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect(widgetTitles(viewer.page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 		await expect(widgetTitles(viewer.page)).not.toContainText(["(shared location)"]);
 	});
 
@@ -375,7 +377,7 @@ test.describe("signed in, with a live link", () => {
 		viewer.account.set(null);
 		await viewer.page.goto(url);
 		await expect(widgetTitles(viewer.page)).toHaveText([
-			"PM2.5 · 93721 (shared location) · Last 30 days"
+			"PM2.5 · ZIP 93721 (shared location) · Last 30 days"
 		]);
 	});
 });

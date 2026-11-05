@@ -21,6 +21,7 @@ const META = {
 			type: "zipcode",
 			label: "ZIP code",
 			label_plural: "ZIP Codes",
+			name_template: "ZIP {name}",
 			count: 300,
 			parents: ["county"],
 			browsable: true
@@ -139,6 +140,14 @@ describe("monitorsIn", () => {
 	});
 });
 
+describe("regionNamer", () => {
+	it("shows a ZIP with its template and other types by name", async () => {
+		const nameOf = await directory().regionNamer();
+		expect(nameOf({ type: "zipcode", name: "93702" })).toBe("ZIP 93702");
+		expect(nameOf({ type: "county", name: "Fresno County" })).toBe("Fresno County");
+	});
+});
+
 describe("regionsIn", () => {
 	const rows = [
 		{ id: "r1", name: "93201", type: "zipcode", external_id: "93201", retired: null },
@@ -160,7 +169,7 @@ describe("regionsIn", () => {
 				kind: "region",
 				type: "zipcode",
 				code: "93201",
-				name: "93201",
+				name: "ZIP 93201",
 				typeLabel: "ZIP code",
 				county: null
 			}

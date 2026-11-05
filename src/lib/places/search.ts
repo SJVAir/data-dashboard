@@ -98,9 +98,10 @@ export async function searchPlaces(
 			};
 		})(),
 		(async () => {
-			const [rows, labels] = await Promise.all([
+			const [rows, labels, nameOf] = await Promise.all([
 				searchRegionPlaces(q, undefined, { signal }),
-				directory.regionTypeLabels(signal)
+				directory.regionTypeLabels(signal),
+				directory.regionNamer(signal)
 			]);
 			return {
 				options: rows
@@ -109,7 +110,7 @@ export async function searchPlaces(
 						kind: "region",
 						type: r.type,
 						code: r.external_id as string,
-						name: r.name,
+						name: nameOf(r),
 						typeLabel: labels.get(r.type)!,
 						county: r.county?.name ?? null
 					})),

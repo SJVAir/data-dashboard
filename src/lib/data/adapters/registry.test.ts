@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@sjvair/sdk", () => ({ getRegionsByCode: vi.fn() }));
+vi.mock("@sjvair/sdk", () => ({ getRegionsByCode: vi.fn(), getRegionsMeta: vi.fn() }));
 
-import { getRegionsByCode } from "@sjvair/sdk";
+import { getRegionsByCode, getRegionsMeta } from "@sjvair/sdk";
 import { createWebRegionResolver } from "./registry";
 
 /** A region as `getRegionsByCode` returns it; only `id` and `external_id` matter here. */
@@ -34,14 +34,41 @@ const COUNTIES: Record<string, ReturnType<typeof region>> = {
 	})
 };
 
+const META = {
+	types: {
+		county: { type: "county", name_template: null },
+		zipcode: { type: "zipcode", name_template: "ZIP {name}" }
+	}
+};
+
 beforeEach(() => {
 	vi.resetAllMocks();
+	vi.mocked(getRegionsMeta).mockResolvedValue(META as never);
 	vi.mocked(getRegionsByCode).mockImplementation(
 		async (_type, codes) => codes.flatMap((c) => (COUNTIES[c] ? [COUNTIES[c]] : [])) as never
 	);
 });
 
 describe("createWebRegionResolver", () => {
+	it("a ZIP resolves with its display name", async () => {
+		vi.mocked(getRegionsByCode).mockResolvedValue([
+			{ ...region("rZip1", "93702"), name: "93702", type: "zipcode" }
+		] as never);
+		expect(await createWebRegionResolver().resolve("zipcode", "93702")).toEqual({
+			id: "rZip1",
+			name: "ZIP 93702"
+		});
+	});
+
+	it("a county keeps its plain name", async () => {
+		vi.mocked(getRegionsByCode).mockResolvedValue([
+			{ ...region("r6phe", "06019"), name: "Fresno County" }
+		] as never);
+		expect((await createWebRegionResolver().resolve("county", "06019")) as object).toMatchObject({
+			name: "Fresno County"
+		});
+	});
+
 	it("resolves a code to the region's sqid", async () => {
 		expect(await createWebRegionResolver().resolve("county", "06019")).toEqual({
 			id: "r6phe",

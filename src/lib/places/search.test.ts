@@ -13,6 +13,10 @@ function monitor(name: string, active = true): MonitorOption {
 function directory(monitors: MonitorOption[] = []): PlaceDirectory {
 	return {
 		regionTypes: vi.fn(async () => []),
+		regionNamer: vi.fn(
+			async () => (r: { type: string; name: string }) =>
+				r.type === "zipcode" ? `ZIP ${r.name}` : r.name
+		),
 		regionTypeLabels: vi.fn(
 			async () =>
 				new Map([
@@ -101,7 +105,7 @@ describe("searchPlaces", () => {
 					kind: "region",
 					type: "zipcode",
 					code: "93721",
-					name: "93721",
+					name: "ZIP 93721",
 					typeLabel: "ZIP code",
 					county: "Kern County"
 				},
