@@ -1206,7 +1206,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   forced to update; monitor-map reads it too. Both formats come from the same `LevelSet`,
   with a test that they agree. **Revisit when** a mobile release reads `scale` and the
   monitor-map rebuild on map-sdk ships: mark `levels` deprecated, then remove it once older
-  app versions have aged out.
+  app versions have aged out. **Resolved by sjvair.com spec 5,
+  [#306](https://github.com/SJVAir/sjvair.com/pull/306) (open into `develop`, 2026-11-04):** the user
+  decided to remove `levels` outright rather than deprecate it, since mobile, map-sdk and
+  monitor-map all update to `scale` before `develop` is released the same day. `LevelSet.as_dict`
+  is gone too; the SDK side is TODO "Release 1, step 3" → "Removing `levels` from the SDK".
 - **Mobile migration to `map-sdk` and the rebuilt monitor-map (5.0).** _Deferred
   2026-09-28; updated 2026-10-13; **now on the go-live path** (the user, 2026-11-04: the updated mobile app and sjvair.com `develop` are released the same day, with map-sdk on the latest sdk-js, monitor-map rebuilt on map-sdk, and mobile on that monitor-map, all done before `develop` is released; mobile auto-updates, most likely overnight, the day a release is published)._ It no longer waits: it
   must be done before sjvair.com `develop` is deployed (see the deploy entry). The mobile app

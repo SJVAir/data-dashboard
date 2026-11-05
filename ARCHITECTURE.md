@@ -2386,7 +2386,26 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    `calheatscore/meta/`, `hms/meta/` (smoke density with `opacity`, fire FRP), and
    `forecasts/meta/` (AQI, the `burn-status` entry type, and the zones with their regions)
    return scales keyed by catalog entry-type id; `monitors/meta/` adds a `scale` per entry
-   type (its old `levels` dict stays for mobile).
+   type. Its old `levels` dict is removed by sjvair.com spec 5
+   ([#306](https://github.com/SJVAir/sjvair.com/pull/306)); `scale` is the only level format.
+
+   **School guidelines** (spec 5): each `monitors/meta/` entry type has `school_guidelines`,
+   `null` except `pm25`. SJVAir's outdoor activity guidelines for schools, verbatim from the
+   `/guidelines/schools/` page, which renders from the same source:
+
+   ```ts
+   type SchoolGuidelines = {
+   	label: string; // "Outdoor Activity Guidelines for Schools"
+   	resolution: "hour"; // compared with hourly PM2.5
+   	source: { name: string; url: string }; // SJVAir, the schools page
+   	activities: {
+   		key: "recess" | "pe" | "athletics" | "events"; // permanent
+   		label: string;
+   		duration: string | null; // e.g. "15 minutes"; null for sporting events
+   		levels: Record<string, string[]>; // PM2.5 level key → sentences, in order
+   	}[];
+   } | null;
+   ```
 
    **Scale shape:** `{id, label, units, kind: "range" | "category", source, levels[]}`; a level
    is `{key, label, color, opacity, tier, description, guidance, min, max, value}`. Ranges are

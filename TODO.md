@@ -1125,6 +1125,12 @@ research in `docs/reference/pesticides-explorer-research.md`).
 
 - Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
+  **Spec 5: [#306](https://github.com/SJVAir/sjvair.com/pull/306) open into `develop`
+  (2026-11-04), not merged.** It removes `monitors/meta/`'s `levels` dict, adds
+  `school_guidelines` (pm25 only), builds `/guidelines/` and the account level tags from the
+  level sets, and takes forecast `color`/`aqi_category` from the AQI scale (discrete color;
+  above 500 reads Hazardous). `meta/datasets/` output is unchanged. Spec and plan in sjvair.com
+  `docs/superpowers/specs|plans/2026-11-04-hardcoded-values-cleanup*`.
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
