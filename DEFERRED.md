@@ -961,6 +961,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   with `county__in` and only partial ones by section would fix it. **Revisit when** a
   widget uses a multi-county place (air district, legislative district) or cold requests
   show up as slow in production timing.
+- **Smoke "no data" vs "no smoke".** _Deferred 2026-11-05 (Get data layers, the user)._
+  `hms/smoke/place/` (sjvair.com #312) reads a day with no stored HMS outlines as no smoke
+  (`density: null`). An empty HMS file and a fetch that never ran store the same nothing, so a
+  missed day reads as clear sky. Fix: record each successful daily fetch (a small per-day
+  table) so a missed day reads as unknown. The user decided a new table isn't worth it yet:
+  production fetches about 13 times a day plus a final pass. **Revisit when** a missed day
+  turns up in production data or users report false clear days.
 - **CarbonMapper data source.** _Noted 2026-09-24; updated 2026-10-14._ The server now
   imports Carbon Mapper methane sources and plumes and serves them under
   `emissions/methane/` (merged with #282), so the dashboard would read them from the
