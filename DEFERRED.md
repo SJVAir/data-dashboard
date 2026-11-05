@@ -1660,6 +1660,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
+- **"The live region is polite and announces" flakes under full-suite load.** _Noted 2026-11-05
+  (step 4 spec 2 final checks)._ `src/lib/components/dashboard/dashboard.browser.test.ts`
+  checks the region is still empty two animation frames after a repeated `announce`, assuming
+  both frames land inside `ANNOUNCE_GAP_MS` (100 ms). Under a loaded full `npm run test` run
+  they sometimes don't, so the text is already back; it failed in 2 of 4 local full runs and
+  passes alone (3/3). Neither the test nor the announcer changed in spec 2; the suite just grew.
+  **Revisit when** it flakes in CI, or when touching the announcer: assert against the gap with
+  fake timers instead of frames.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.
