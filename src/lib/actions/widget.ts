@@ -359,7 +359,11 @@ export function downloadItems(app: AppContext, widget: () => WidgetInstance | nu
 				const files = app.platform.files;
 				void import("$lib/data/csv").then(
 					(csv) =>
-						csv.saveWidgetCsv(latest, (name, contents, type) => files.save(name, contents, type)),
+						csv.saveWidgetCsv(
+							latest,
+							(name, contents, type) => files.save(name, contents, type),
+							"owner"
+						),
 					(error: unknown) => {
 						report(error);
 						toast.error(m.widget_download_csv_failed());

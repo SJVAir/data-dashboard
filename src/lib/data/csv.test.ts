@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CSV_COLUMNS, toCsv } from "./csv";
-import type { QueryData, SeriesPoint } from "./types";
+import type { PlaceInfo, QueryData, SeriesPoint } from "./types";
 
 const META = { entryType: "pm25", entryLabel: "PM2.5", unit: "µg/m³" };
 const HOUR = 3_600_000;
@@ -177,5 +177,30 @@ describe("toCsv", () => {
 		const rows = parse(toCsv(d, META)).slice(1);
 		expect(rows.map((r) => r[CSV_COLUMNS.indexOf("place_name")])).toEqual(["A", "B", "B"]);
 		expect(rows[1][0] < rows[2][0]).toBe(true);
+	});
+});
+
+describe("toCsv place labels", () => {
+	const build = (via: PlaceInfo["via"]) =>
+		data({
+			series: [{ place: "region:zipcode:93721", points: [point("2026-10-25T07:00:00Z")] }],
+			places: [{ place: "region:zipcode:93721", name: "ZIP 93721", via }]
+		});
+	const nameOf = (csv: string) => parse(csv)[1][CSV_COLUMNS.indexOf("place_name")];
+
+	it("uses the same label as the title", () => {
+		expect(nameOf(toCsv(build({ kind: "point" }), META))).toBe("ZIP 93721 (your location)");
+		expect(nameOf(toCsv(build({ kind: "point" }), META, "shared"))).toBe(
+			"ZIP 93721 (shared location)"
+		);
+		expect(nameOf(toCsv(build({ kind: "location", name: "Roosevelt High School" }), META))).toBe(
+			"ZIP 93721 (Roosevelt High School)"
+		);
+		expect(nameOf(toCsv(build(undefined), META))).toBe("ZIP 93721");
+	});
+
+	it("never carries a point's coordinates", () => {
+		const d = { ...build({ kind: "point" }), lat: 36.7378, lon: -119.7871 };
+		expect(toCsv(d, META)).not.toMatch(/36\.73|119\.78/);
 	});
 });

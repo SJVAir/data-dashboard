@@ -714,6 +714,9 @@
 			}
 		}
 	],
+	"place_via_point_mine": "{region} (your location)",
+	"place_via_point_shared": "{region} (shared location)",
+	"place_via_location": "{region} ({location})",
 	"widget_title_no_place": "{entry} · {range}",
 	"chart_hidden_places": [
 		{

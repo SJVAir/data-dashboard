@@ -1,4 +1,4 @@
-import { onDestroy, untrack } from "svelte";
+import { getContext, onDestroy, untrack } from "svelte";
 import { getMetadata, getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
@@ -8,6 +8,7 @@ import { DEFAULT_RANGE } from "../defaults";
 import { dataTitle } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
 import { chartInput, entryMeta } from "./input";
+import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 
 /**
  * What a widget that shows one pollutant for up to `maxPlaces` places over a date range needs:
@@ -29,6 +30,7 @@ export class DataWidget {
 	readonly levelList;
 
 	constructor(widget: () => WidgetInstance, maxPlaces: number) {
+		const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 		const metadata = getMetadata();
 		// Never rejects (an unreachable catalog is "unavailable", which the query reports itself).
 		void metadata.catalog().then((c) => {
@@ -94,6 +96,7 @@ export class DataWidget {
 				dataTitle({
 					entryLabel: meta.entryType.label,
 					places: s.data.places,
+					viewer,
 					range: widget().data.dateRange ?? DEFAULT_RANGE
 				})
 			);
