@@ -1162,10 +1162,25 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    cache headers right, the chart spans the whole range with gaps where local data is missing.
    Its `ARCHITECTURE.md` and `DEFERRED.md` changes are on `step-4` and reach `main` when
    `step-4` merges.
-2. The **shared place picker** — **next**, in a fresh session (prompt: `prompt-spec-2.txt` at the
-   top of the checkout, untracked). Branch `step-4-spec-2` from `step-4`; its first commit pins
-   `@sjvair/sdk` exactly to `5.0.0-beta.2` and drops `exact`. sjvair.com's location name search
-   (#302) and the SDK's `searchLocations` are out.
+2. The **shared place picker** — **built on `step-4-spec-2`** (2026-11-04; not merged yet, its
+   PR into `step-4` comes after the final review): spec
+   `docs/superpowers/specs/2026-11-04-step-4-spec-2-place-picker-design.md`, plan
+   `docs/superpowers/plans/2026-11-04-step-4-spec-2-place-picker.md`. Built: SDK pinned exactly
+   to `5.0.0-beta.3` (`exact` dropped; the user approved the beta.3 pin 2026-11-05);
+   `origin/main` merged into `step-4` (#37); the lazily loaded picker (search across schools,
+   places and monitors; browse by type with county narrowing and "Inside ›"; recent places;
+   "Use my location" through a new `geolocation` platform capability; single and multiple
+   modes with greyed-out reasons); "Change place", "Choose a place", and "Choose another" on
+   Chart and Data table; points and schools showing their ZIP → city → county region with data,
+   labeled; "no longer available" for unlisted monitors and gone schools; and location privacy
+   (copy links and exports swap points for their region, copies from shares always swap, a
+   guarded live-link prompt, "Use my location" on a live-shared dashboard saves the region;
+   after review, a guard on every edit so an exact point never reaches a live link by any
+   path, and with exactly one place picked, of any kind, a school or "your location" replaces
+   it). E2E: `e2e/place-picker.spec.ts`. Stack check against `develop`: "fre" and "roo" searches,
+   ZIP Codes in Tulare County, Roosevelt High's chart (ZIP 93702), and a scripted position
+   (ZIP 93721). Its deferrals are in `DEFERRED.md`. After
+   the merge: rewrite `prompt-map-widget.txt` and tell the coordinator.
 3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
    how to show it, then Add to dashboard or Download CSV).
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
@@ -1441,6 +1456,19 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **The place picker on SDK 5.0.0-beta.3** (step 4 spec 2, 2026-11-05): Browse headings and
+      filters use `label_plural` ("Counties", "ZIP Codes"); search rows show their county;
+      Monitors browse has an "In:" county control and a Monitors entry under "Inside ›"
+      (`getMonitorsList({ region })`); the e2e fixture `monitors/meta.json` dropped `levels` and
+      gained `school_guidelines`. Removed from `DEFERRED.md`: "The place picker's SDK
+      5.0.0-beta.3 follow-ups". Browse rows from the regions list still show no county (the
+      list rows don't carry it).
+- [x] **Unlisted monitors and retired schools** (step 4 spec 2, 2026-11-04): a monitor, or a
+      monitor selection, with an id missing from the loaded monitors list is `unavailable`
+      ("monitor-unlisted", the "no longer available" card); a monitors list that fails to load
+      still runs the query as before. Removed from `DEFERRED.md`: "A monitor missing from the
+      monitors list gets the uncalibrated series silently" and "An unknown monitor shows the
+      error (with Retry) or 'No data', not 'no longer available'".
 - [x] **Design pass, part 1: the look** (built 2026-11-03; merged into `main` 2026-11-04,
       PR [#33](https://github.com/SJVAir/data-dashboard/pull/33)): light and dark tokens, the theme switch, restyled primitives and shell,
       four-across density, brand assets and app icons. Removed from `DEFERRED.md`: the maskable

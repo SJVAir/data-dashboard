@@ -91,7 +91,7 @@ export type StarterSessionOptions = {
 	now?: () => Date;
 	/** Called once the copy is stored, holding the first edit. */
 	onCopied?: (copy: DocumentSession) => void;
-} & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared">;
+} & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared" | "onEdit">;
 
 /**
  * A session showing the starter. Its first edit stores `copyOfStarter`, applies the edit to
@@ -100,7 +100,7 @@ export type StarterSessionOptions = {
  */
 export function starterSession(opts: StarterSessionOptions): DocumentSession {
 	const { platform, space, tabId, channel, debounceMs, now = () => new Date() } = opts;
-	const { onNeedsReload, onCleared } = opts;
+	const { onNeedsReload, onCleared, onEdit } = opts;
 	// A tab that missed "Clear my data" mustn't store a copy afterwards.
 	const generation = platform.reset.generation();
 	return new DocumentSession({
@@ -135,7 +135,8 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 				now,
 				doc,
 				onNeedsReload,
-				onCleared
+				onCleared,
+				onEdit
 			});
 			copy.apply(change);
 			opts.onCopied?.(copy);

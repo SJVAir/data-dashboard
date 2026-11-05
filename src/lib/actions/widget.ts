@@ -10,6 +10,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import FoldHorizontal from "@lucide/svelte/icons/fold-horizontal";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import Minus from "@lucide/svelte/icons/minus";
+import MapPin from "@lucide/svelte/icons/map-pin";
 import Maximize2 from "@lucide/svelte/icons/maximize-2";
 import Move from "@lucide/svelte/icons/move";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -23,6 +24,7 @@ import { announce } from "$lib/a11y/announcer.svelte";
 import { ChangeTargetMissing } from "$lib/changes/apply";
 import { replaceIfOverlapping } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
+import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { afterMenuClose, closeMenus } from "$lib/components/menu/menu-state.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
@@ -40,6 +42,7 @@ import { actionLayout, dropChange, sameRect, type LayoutAction } from "$lib/layo
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
 import { generatedTitle } from "$lib/widgets/titles.svelte";
+import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import type { MenuItem, MenuProvider } from "./types";
 
 /**
@@ -342,9 +345,14 @@ export function widgetActions(
 /**
  * "Download data (CSV)" for a widget whose type is `downloadable` (none otherwise). The data
  * layer comes with a dynamic import, so it stays out of the initial bundle. `widget` is read
- * when the item runs. Not an edit: offered on a read-only dashboard too.
+ * when the item runs. Not an edit: offered on a read-only dashboard too. `viewer` names a point's
+ * place in the file ("shared" on a share link's page).
  */
-export function downloadItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
+export function downloadItems(
+	app: AppContext,
+	widget: () => WidgetInstance | null,
+	viewer: PlaceViewer = "owner"
+): MenuItem[] {
 	const current = widget();
 	if (!current || !getWidgetType(current.type)?.downloadable) return [];
 	return [
@@ -359,13 +367,42 @@ export function downloadItems(app: AppContext, widget: () => WidgetInstance | nu
 				const files = app.platform.files;
 				void import("$lib/data/csv").then(
 					(csv) =>
-						csv.saveWidgetCsv(latest, (name, contents, type) => files.save(name, contents, type)),
+						csv.saveWidgetCsv(
+							latest,
+							(name, contents, type) => files.save(name, contents, type),
+							viewer
+						),
 					(error: unknown) => {
 						report(error);
 						toast.error(m.widget_download_csv_failed());
 					}
 				);
 			}
+		}
+	];
+}
+
+/**
+ * "Change place" for an editable widget whose type has `accepts.maxPlaces`; none otherwise. The
+ * picker opens once the menu has closed, from what opened the menu (focus returns there).
+ */
+export function placeItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
+	const current = widget();
+	if (!current || !getWidgetType(current.type)?.accepts?.maxPlaces) return [];
+	if (!find(app, current.id)) return [];
+	const widgetId = current.id;
+	return [
+		{
+			id: "change-place",
+			label: m.widget_change_place(),
+			icon: MapPin,
+			group: "data",
+			run: (ctx) =>
+				afterMenuClose(() => {
+					// Focus goes back to what opened the menu first, so the picker returns it there.
+					(ctx.target as Partial<HTMLElement>).focus?.();
+					openPlacePicker({ widgetId });
+				})
 		}
 	];
 }

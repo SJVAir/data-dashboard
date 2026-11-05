@@ -4,6 +4,7 @@
 import type { Component } from "svelte";
 import type { DashboardSummary } from "$lib/documents/names";
 import { loadLazy } from "$lib/safety/lazy";
+import type { SwapSummary } from "$lib/sharing/points";
 import type {
 	AccountStatus,
 	EarlierVersion,
@@ -17,7 +18,8 @@ export const requested = $state({
 	restoreVersion: false,
 	clearData: false,
 	privacy: false,
-	existingCopy: false
+	existingCopy: false,
+	placePicker: false
 });
 
 export type LazyDialog = keyof typeof requested | "moveToAccount";
@@ -29,7 +31,8 @@ export const dialogLoaders: Record<LazyDialog, () => Promise<{ default: Componen
 	clearData: () => import("./ClearDataDialog.svelte"),
 	privacy: () => import("./PrivacyDialog.svelte"),
 	existingCopy: () => import("./ExistingCopyDialog.svelte"),
-	moveToAccount: () => import("./MoveToAccountDialog.svelte")
+	moveToAccount: () => import("./MoveToAccountDialog.svelte"),
+	placePicker: () => import("$lib/places/PlacePickerDialog.svelte")
 };
 
 /** Loads made or under way, by loader (so a replaced loader loads anew). Not reactive state. */
@@ -76,6 +79,9 @@ function dismiss(key: LazyDialog): void {
 		case "existingCopy":
 			settleExistingCopy(null);
 			break;
+		case "placePicker":
+			placePicker.open = false;
+			break;
 		case "moveToAccount":
 			// Asked again the next time the app starts.
 			return;
@@ -85,18 +91,48 @@ function dismiss(key: LazyDialog): void {
 
 // Share
 
-export type ShareOptions = {
+/** A copy to send: its link and file. */
+export type ShareCopy = {
 	/** The copy link, or `null` when the dashboard is too big for one. */
 	url: string | null;
 	/** Why there is no copy link: `"read-only"` (a newer or invalid document) or `"too-big"`. */
 	linkUnavailable: "too-big" | "read-only" | null;
 	onDownload(): void;
+};
+
+/** A dashboard holding an exact location, once each point's region is known. */
+export type SharePoints = {
+	/** Each point as its region: what the copy link and file share by default. */
+	swapped: ShareCopy;
+	/** The exact copy, offered only after "Share my exact location instead" (each opening). */
+	exact: ShareCopy;
+	/** How the notice and "Use … instead" name the regions. */
+	summary: SwapSummary;
+	/**
+	 * Live link: swaps the owner's points for their regions as one undoable edit and stores it
+	 * (so the next upload carries it). `"stale"`, changing nothing, when the dashboard holds a
+	 * point this lookup didn't cover (look up again).
+	 */
+	useRegion(): Promise<"applied" | "stale">;
+};
+
+export type ShareOptions = {
 	/**
 	 * The dashboard a live link shares; `null` signed out, for the starter, or for a read-only
 	 * dashboard (the copy link and file only).
 	 */
 	live: { docId: string } | null;
-};
+} & (
+	| (ShareCopy & { points?: null })
+	| {
+			/**
+			 * The dashboard holds an exact location: the dialog offers no link or file until this
+			 * resolves, and asks before a live link. It rejects when a region can't be looked up
+			 * (Retry calls it again); `signal` aborts when the dialog closes.
+			 */
+			points: (signal: AbortSignal) => Promise<SharePoints>;
+	  }
+);
 
 export const share = $state<{ open: boolean; opts: ShareOptions | null }>({
 	open: false,
@@ -226,4 +262,28 @@ export function askExistingCopy(copy: DashboardSummary): Promise<ExistingCopyCho
 	existingCopy.open = true;
 	requested.existingCopy = true;
 	return new Promise((resolve) => (resolver = resolve));
+}
+
+// The place picker
+
+export const placePicker = $state<{
+	open: boolean;
+	/** The widget whose place it changes. */
+	widgetId: string | null;
+	/** Counts the openings, so each one starts fresh. */
+	opening: number;
+	/** What had focus when it opened (focus returns there, or to the widget when it's gone). */
+	opener: HTMLElement | null;
+}>({ open: false, widgetId: null, opening: 0, opener: null });
+
+/** Opens the place picker for a widget; Done changes its place in one undoable edit. */
+export function openPlacePicker(opts: { widgetId: string }): void {
+	placePicker.widgetId = opts.widgetId;
+	placePicker.opening++;
+	placePicker.opener =
+		typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+			? document.activeElement
+			: null;
+	placePicker.open = true;
+	requested.placePicker = true;
 }

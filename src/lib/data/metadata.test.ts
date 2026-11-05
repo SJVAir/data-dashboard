@@ -40,8 +40,11 @@ function lvl(
 
 const META = {
 	monitors: {
-		purpleair: { entries: { pm25: { default_calibration: "PM25_EPA_Calibration" } } },
-		bam1022: { entries: { pm25: { default_calibration: "" } } }
+		purpleair: {
+			label: "PurpleAir",
+			entries: { pm25: { default_calibration: "PM25_EPA_Calibration" } }
+		},
+		bam1022: { label: "BAM 1022", entries: { pm25: { default_calibration: "" } } }
 	},
 	entries: {
 		pm25: {
@@ -58,8 +61,15 @@ const META = {
 };
 
 const LIST = [
-	{ id: "m-pa", name: "PA One", type: "purpleair", device: "PA-II" },
-	{ id: "m-bam", name: "BAM One", type: "bam1022" }
+	{
+		id: "m-pa",
+		name: "PA One",
+		type: "purpleair",
+		device: "PA-II",
+		county: "Fresno",
+		is_active: true
+	},
+	{ id: "m-bam", name: "BAM One", type: "bam1022", county: "", is_active: false }
 ];
 
 beforeEach(() => {
@@ -269,8 +279,12 @@ describe("createWebMetadata", () => {
 		expect(await md.monitorType("m-pa")).toBe("purpleair");
 		expect(await md.monitorType("unknown")).toBeNull();
 		expect(await md.monitors()).toEqual([
-			{ id: "m-pa", name: "PA One", type: "purpleair" },
-			{ id: "m-bam", name: "BAM One", type: "bam1022" }
+			{ id: "m-pa", name: "PA One", type: "purpleair", county: "Fresno", active: true },
+			{ id: "m-bam", name: "BAM One", type: "bam1022", county: "", active: false }
+		]);
+		expect(await md.monitorTypes()).toEqual([
+			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25"] },
+			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25"] }
 		]);
 		expect(getMonitorsList).toHaveBeenCalledTimes(1);
 	});

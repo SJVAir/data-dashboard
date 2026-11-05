@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, setContext, untrack } from "svelte";
+	import { getContext, onDestroy, setContext, untrack } from "svelte";
 	import { on } from "svelte/events";
 	import { prefersReducedMotion } from "svelte/motion";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
@@ -14,6 +14,7 @@
 		removeWidget,
 		viewActions,
 		downloadItems,
+		placeItems,
 		widgetActions,
 		widgetTitle
 	} from "$lib/actions/widget";
@@ -39,6 +40,7 @@
 		type WidgetModule
 	} from "$lib/widgets/registry";
 	import { REMOVE_WIDGET_KEY } from "$lib/widgets/shared/context";
+	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 	import WidgetSkeleton from "$lib/widgets/shared/WidgetSkeleton.svelte";
 	import ResizeHandles from "./ResizeHandles.svelte";
 
@@ -74,6 +76,8 @@
 	} = $props();
 
 	const app = useApp();
+	/** Who is looking (a share link's page says "shared"): names a point in a CSV file. */
+	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 	// A widget's own Remove (the "no longer available" card) takes the menu Delete's path.
 	setContext(REMOVE_WIDGET_KEY, () => {
 		if (fullscreen) onexit();
@@ -88,13 +92,14 @@
 	const provider: MenuProvider = (ctx) =>
 		readOnly
 			? [
-					...downloadItems(app, () => widget),
+					...downloadItems(app, () => widget, viewer),
 					...viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx)
 				]
 			: editProvider(ctx);
 	const editProvider: MenuProvider = (ctx) => [
 		...(type?.menu(ctx) ?? []),
-		...downloadItems(app, () => widget),
+		...placeItems(app, () => widget),
+		...downloadItems(app, () => widget, viewer),
 		...widgetActions(app, widget.id, arrangement, {
 			fullscreen: () => onfullscreen(),
 			inFullscreen: fullscreen,

@@ -11,7 +11,13 @@ import type { SpaceId } from "$lib/platform/types";
 import type { AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { isDisabled, type MenuItem } from "./types";
-import { widgetActions } from "./widget";
+import { placeItems, widgetActions } from "./widget";
+import { placePicker, requested } from "$lib/components/dialogs/lazy.svelte";
+import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
+import { registerWidgetType } from "$lib/widgets/registry";
+import { chartType } from "$lib/widgets/chart";
+import { dataTableType } from "$lib/widgets/table";
+import { placeholderType } from "$lib/widgets/placeholder";
 
 vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 
@@ -202,5 +208,47 @@ describe("Move and Size submenus", () => {
 		expect(order().at(-1)).toBe("a");
 		run(submenu(app, arrangement, "a", "move-widget").find((i) => i.id === "move-top")!);
 		expect(order()[0]).toBe("a");
+	});
+});
+
+describe("placeItems", () => {
+	registerWidgetType(placeholderType);
+	registerWidgetType(chartType);
+	registerWidgetType(dataTableType);
+
+	const typed = (type: string): WidgetInstance => ({
+		...widget("w", { x: 0, y: 0, w: 6, h: 4 }),
+		type
+	});
+
+	it.each(["chart", "data-table"])(
+		"offers Change place for a %s on an editable dashboard, opening the picker",
+		async (type) => {
+			const w = typed(type);
+			const { app } = await setup([w]);
+			const items = placeItems(app, () => w);
+			expect(items.map((i) => i.label)).toEqual(["Change place"]);
+			placePicker.open = false;
+			run(items[0]);
+			// After the menu closes, so the picker's focus return lands on the menu's trigger.
+			expect(placePicker.open).toBe(false);
+			takeAfterMenuClose()?.();
+			expect(placePicker.open).toBe(true);
+			expect(placePicker.widgetId).toBe("w");
+			expect(requested.placePicker).toBe(true);
+			placePicker.open = false;
+		}
+	);
+
+	it("offers nothing on a read-only dashboard", async () => {
+		const w = typed("chart");
+		const { app } = await setup([w], 12, true);
+		expect(placeItems(app, () => w)).toEqual([]);
+	});
+
+	it("offers nothing for a Placeholder", async () => {
+		const w = typed("placeholder");
+		const { app } = await setup([w]);
+		expect(placeItems(app, () => w)).toEqual([]);
 	});
 });

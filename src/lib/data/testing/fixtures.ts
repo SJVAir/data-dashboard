@@ -68,7 +68,11 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 		levels: async (entryType) => (entryType === "pm25" ? FIXTURE_LEVELS : []),
 		defaultProcessor: async (monitorType) => FIXTURE_PROCESSORS[monitorType] ?? null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,
-		monitors: async () => FIXTURE_MONITORS.map((m) => ({ ...m })),
+		monitors: async () => FIXTURE_MONITORS.map((m) => ({ ...m, county: "Fresno", active: true })),
+		monitorTypes: async () => [
+			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25", "pm100"] },
+			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25"] }
+		],
 		...overrides
 	};
 }

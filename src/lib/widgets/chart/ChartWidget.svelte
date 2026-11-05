@@ -7,6 +7,8 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
+	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
+	import { placeLabel } from "../title";
 	import { chartType } from "./index";
 
 	let { widget }: { widget: WidgetInstance } = $props();
@@ -34,13 +36,19 @@
 		</p>
 	{/if}
 	<div class="min-h-0 flex-1">
-		<WidgetState state={w.shown} {widget} retired={w.retired} onretry={w.retry}>
+		<WidgetState
+			state={w.shown}
+			{widget}
+			retired={w.retired}
+			onretry={w.retry}
+			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		>
 			{#snippet children(data)}
 				<TimeChart
 					{data}
 					levels={w.levelList}
 					unit={w.meta?.entryType.units ?? ""}
-					placeNames={new Map(data.places.map((p) => [p.place, p.name]))}
+					placeNames={new Map(data.places.map((p) => [p.place, placeLabel(p, w.viewer)]))}
 					xRange={xRange(data)}
 					precision={w.meta?.entryType.precision ?? null}
 					yMin={w.meta?.entryType.yMin ?? null}

@@ -46,3 +46,45 @@ test("null when no retired place has a replacement", () => {
 		withReplacements(data, [retiredPlace("region:tract:9", { type: "tract", code: "2" })])
 	).toBeNull();
 });
+
+test("swaps a retired school for its replacement", () => {
+	const data: WidgetDataConfig = {
+		layers: [{ dataset: "d", place: { kind: "location", source: "cde-public", code: "1" } }]
+	};
+	const out = withReplacements(data, [
+		{
+			place: "region:zipcode:93702",
+			name: "93702",
+			via: {
+				kind: "location",
+				source: "cde-public",
+				code: "1",
+				name: "Old School",
+				retired: { since: "2024-01-01", replacedBy: { source: "cde-public", code: "2" } }
+			}
+		}
+	]);
+	expect(out?.layers[0].place).toEqual({ kind: "location", source: "cde-public", code: "2" });
+	expect(data.layers[0].place).toEqual({ kind: "location", source: "cde-public", code: "1" });
+});
+
+test("a retired school without a replacement swaps nothing", () => {
+	const data: WidgetDataConfig = {
+		layers: [{ dataset: "d", place: { kind: "location", source: "cde-public", code: "1" } }]
+	};
+	expect(
+		withReplacements(data, [
+			{
+				place: "region:zipcode:93702",
+				name: "93702",
+				via: {
+					kind: "location",
+					source: "cde-public",
+					code: "1",
+					name: "Old School",
+					retired: { since: "2024-01-01", replacedBy: null }
+				}
+			}
+		])
+	).toBeNull();
+});

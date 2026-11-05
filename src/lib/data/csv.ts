@@ -8,6 +8,8 @@ import { m } from "$lib/paraglide/messages.js";
 import type { FileAccess } from "$lib/platform/types";
 import { dataFileName } from "$lib/sharing/file-names";
 import { report } from "$lib/safety/report";
+import type { PlaceViewer } from "$lib/widgets/shared/viewer";
+import { placeLabel } from "$lib/widgets/title";
 import { chartInput, entryMeta } from "$lib/widgets/shared/input";
 import { getMetadata, getQueryClient } from "./index";
 import { LIMITS } from "./schema";
@@ -73,8 +75,8 @@ function placeParts(key: string): { kind: string; id: string } {
  * places in request order, oldest first. Numbers are plain (`.` decimal, no grouping) and a
  * missing value is empty. A raw reading's period ends where it starts.
  */
-export function toCsv(data: QueryData, meta: EntryInfo): string {
-	const names = new Map(data.places.map((p) => [p.place, p.name]));
+export function toCsv(data: QueryData, meta: EntryInfo, viewer: PlaceViewer = "owner"): string {
+	const names = new Map(data.places.map((p) => [p.place, placeLabel(p, viewer)]));
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
 	const series = [...data.series].sort(byPlaceOrder(order));
 	const lines: string[] = [CSV_COLUMNS.join(",")];
@@ -135,7 +137,8 @@ function firstSettled(input: QueryInput): Promise<QueryState> {
  */
 export async function downloadWidgetCsv(
 	widget: WidgetInstance,
-	save: FileAccess["save"]
+	save: FileAccess["save"],
+	viewer: PlaceViewer = "owner"
 ): Promise<void> {
 	const catalog = await getMetadata().catalog();
 	if (catalog === "unavailable") throw new Error("The catalog is unavailable");
@@ -152,18 +155,18 @@ export async function downloadWidgetCsv(
 	};
 	const { data } = state;
 	const range = resolveRange(input.dateRange, new Date(data.fetchedAt));
-	const placeLabel =
+	const fileLabel =
 		data.places.length === 1
-			? data.places[0].name
+			? placeLabel(data.places[0], viewer)
 			: m.file_places({ count: String(data.places.length) });
 	save(
 		dataFileName({
 			entryLabel: meta.entryLabel,
-			placeLabel,
+			placeLabel: fileLabel,
 			firstDate: range.firstDate,
 			lastDate: range.lastDate
 		}),
-		toCsv(data, meta),
+		toCsv(data, meta, viewer),
 		"text/csv"
 	);
 }
@@ -181,10 +184,14 @@ export function csvPending(widgetId: string): boolean {
  * reported and shown as a toast. While one is in progress for the widget, another call returns
  * that one, so a double click saves once.
  */
-export function saveWidgetCsv(widget: WidgetInstance, save: FileAccess["save"]): Promise<void> {
+export function saveWidgetCsv(
+	widget: WidgetInstance,
+	save: FileAccess["save"],
+	viewer: PlaceViewer = "owner"
+): Promise<void> {
 	const running = pending.get(widget.id);
 	if (running) return running;
-	const job = downloadWidgetCsv(widget, save);
+	const job = downloadWidgetCsv(widget, save, viewer);
 	toast.promise(job, {
 		loading: m.widget_download_csv_pending(),
 		error: (error: unknown) => {

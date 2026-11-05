@@ -14,11 +14,24 @@ import { saveFields } from "$lib/sync/merge";
 import type { RemoteDocuments } from "$lib/sync/remote";
 import { createFakeRemote, type FakeRemote } from "$lib/sync/remote-fake";
 import { makeDoc, widget } from "$lib/sync/test-support";
+import type { AdapterRequest } from "$lib/data/adapters/registry";
+import { createQueryClient, type QueryClient } from "$lib/data/query/client";
+import { fixtureMetadata } from "$lib/data/testing/fixtures";
+import type { MetadataSource } from "$lib/data/metadata";
+import { chartWidget, fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
 import { navigate } from "../router";
 import SharedHarness from "./test-harness/SharedHarness.svelte";
 
 const mocked = vi.hoisted(() => ({ remote: null as RemoteDocuments | null }));
 vi.mock("$lib/shared/remote", () => ({ sharedRemote: async () => mocked.remote }));
+const data = vi.hoisted(() => ({
+	client: undefined as QueryClient | undefined,
+	metadata: undefined as MetadataSource | undefined
+}));
+vi.mock("$lib/data", () => ({
+	getQueryClient: () => data.client!,
+	getMetadata: () => data.metadata!
+}));
 
 const OWNER = "owner";
 const originalUrl = location.href;
@@ -343,4 +356,42 @@ test("the shown and unavailable pages pass axe", async () => {
 	await openShared("no-such-token");
 	await expect.element(heading("This shared dashboard is no longer available.")).toBeVisible();
 	expect((await axe.run(document.querySelector("main")!)).violations).toEqual([]);
+});
+
+test("a point shared live reads as the shared location, in its title and its CSV", async () => {
+	// The data says the place is a point shown through ZIP 93721.
+	const base = fakeAdapter([] as AdapterRequest[]);
+	data.metadata = fixtureMetadata();
+	data.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				async fetch(req, ctx, signal) {
+					const fetched = await base.fetch(req, ctx, signal);
+					return {
+						...fetched,
+						places: fetched.places.map((p) => ({ ...p, name: "ZIP 93721", via: { kind: "point" } }))
+					};
+				}
+			}
+		],
+		metadata: data.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const token = await publish({
+		...makeDoc("s1"),
+		name: "Class dashboard",
+		body: { widgets: [{ ...chartWidget(["m1"]), id: "c", rect: { x: 0, y: 0, w: 6, h: 8 } }] }
+	});
+	const { platform } = await openShared(token);
+	const actions = page.getByRole("button", {
+		name: /^Actions for .*ZIP 93721 \(shared location\)/
+	});
+	await expect.element(actions).toBeVisible();
+	expect(document.body.textContent).not.toContain("(your location)");
+	await actions.click();
+	await page.getByRole("menuitem", { name: "Download data (CSV)" }).click();
+	await expect.poll(() => platform.files.saved.length).toBe(1);
+	expect(platform.files.saved[0].contents).toContain("ZIP 93721 (shared location)");
+	expect(platform.files.saved[0].name).toContain("shared-location");
 });

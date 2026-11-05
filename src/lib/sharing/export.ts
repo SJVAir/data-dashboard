@@ -88,7 +88,9 @@ export async function unsavedDocuments(sessions: OpenSession[]): Promise<Map<str
 /**
  * A backup file's text: every stored dashboard that isn't deleted, exactly as stored (read-only
  * ones too) or, for one in `unsaved`, as it is in this tab, plus the local fingerprint of each
- * that has one so "You already have a copy" keeps working after a restore.
+ * that has one so "You already have a copy" keeps working after a restore. Exact locations
+ * (`point` places) are kept as they are: a backup is the owner's own restore file, not a share
+ * (`ARCHITECTURE.md` → "Location privacy").
  */
 export async function backupJson(
 	platform: Platform,

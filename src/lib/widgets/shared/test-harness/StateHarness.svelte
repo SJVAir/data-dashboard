@@ -7,16 +7,18 @@
 		state,
 		widget,
 		retired,
-		onretry
+		onretry,
+		onchoose
 	}: {
 		state: QueryState;
 		widget: WidgetInstance;
 		retired?: { name: string; since: string };
 		onretry: () => void;
+		onchoose?: () => void;
 	} = $props();
 </script>
 
-<WidgetState {state} {widget} {retired} {onretry}>
+<WidgetState {state} {widget} {retired} {onretry} {onchoose}>
 	{#snippet children(data)}
 		<p data-testid="content">content {data.series.length}</p>
 	{/snippet}

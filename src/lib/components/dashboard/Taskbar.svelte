@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { onDestroy, untrack } from "svelte";
+	import { getContext, onDestroy, untrack } from "svelte";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 	import { menuScope } from "$lib/actions/scope";
 	import {
 		downloadItems,
+		placeItems,
 		restoreWidget,
 		taskbarActions,
 		viewActions,
@@ -18,6 +19,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
+	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 
 	let {
 		widgets,
@@ -35,6 +37,8 @@
 	} = $props();
 
 	const app = useApp();
+	/** Who is looking (a share link's page says "shared"): names a point in a CSV file. */
+	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 	let bar = $state<HTMLElement | null>(null);
 	// The one button in the tab order (roving tabindex); index into all buttons.
 	let stop = $state(0);
@@ -42,7 +46,11 @@
 		const base = readOnly
 			? viewActions(widget.id, onfullscreen)
 			: taskbarActions(app, widget.id, onfullscreen);
-		return (ctx) => [...downloadItems(app, () => widget), ...base(ctx)];
+		return (ctx) => [
+			...placeItems(app, () => widget),
+			...downloadItems(app, () => widget, viewer),
+			...base(ctx)
+		];
 	}
 
 	const count = $derived(widgets.length * 2);

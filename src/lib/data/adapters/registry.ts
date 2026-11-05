@@ -21,7 +21,39 @@ export interface RegionResolver {
 	): Promise<ResolvedRegion | "unsupported" | null>;
 }
 
-export type AdapterContext = { metadata: MetadataSource; regions: RegionResolver };
+/**
+ * Looks up a school or other location from its document reference: its name, the region keys it
+ * falls back through (`"zipcode:…"`, `"city:…"`, `"county:…"`, in that order, only those it has),
+ * and (when retired) the retirement marker; `null` when there is none.
+ */
+export interface LocationResolver {
+	resolve(
+		source: string,
+		code: string,
+		signal?: AbortSignal
+	): Promise<{
+		name: string;
+		keys: string[];
+		/** What a place picker row shows: its type (`regions/meta/` `location_types`) and where. */
+		details?: { type: string; city: string; zip: string; address: string };
+		retired?: { since: string; replacedBy: { source: string; code: string } | null };
+	} | null>;
+}
+
+/**
+ * The region keys containing a point, in the same order as a location's; none when it's outside
+ * them all. Implementations never put the coordinates in a URL, a log, or an error message.
+ */
+export interface PointResolver {
+	keys(lat: number, lon: number, signal?: AbortSignal): Promise<string[]>;
+}
+
+export type AdapterContext = {
+	metadata: MetadataSource;
+	regions: RegionResolver;
+	locations: LocationResolver;
+	points: PointResolver;
+};
 
 export type AdapterRequest = {
 	entryType: string;

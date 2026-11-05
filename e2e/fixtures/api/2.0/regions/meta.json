@@ -1,0 +1,201 @@
+{
+	"data": {
+		"types": {
+			"county": {
+				"type": "county",
+				"label": "County",
+				"label_plural": "Counties",
+				"category": "administrative",
+				"count": 8,
+				"parents": [],
+				"referenceable": true,
+				"browsable": true
+			},
+			"city": {
+				"type": "city",
+				"label": "City",
+				"label_plural": "Cities",
+				"category": "administrative",
+				"count": 62,
+				"parents": ["county"],
+				"referenceable": true,
+				"browsable": true
+			},
+			"zipcode": {
+				"type": "zipcode",
+				"label": "ZIP Code",
+				"label_plural": "ZIP Codes",
+				"category": "administrative",
+				"count": 237,
+				"parents": ["county"],
+				"referenceable": true,
+				"browsable": true
+			},
+			"tract": {
+				"type": "tract",
+				"label": "Census Tract",
+				"label_plural": "Census Tracts",
+				"category": "census",
+				"count": 1161,
+				"parents": ["county"],
+				"referenceable": true,
+				"browsable": true
+			},
+			"cdp": {
+				"type": "cdp",
+				"label": "Census Designated Place",
+				"label_plural": "Census Designated Places",
+				"category": "census",
+				"count": 215,
+				"parents": ["county"],
+				"referenceable": true,
+				"browsable": true
+			},
+			"congressional_district": {
+				"type": "congressional_district",
+				"label": "Congressional District",
+				"label_plural": "Congressional Districts",
+				"category": "district",
+				"count": 0,
+				"parents": [],
+				"referenceable": true,
+				"browsable": true
+			},
+			"state_assembly": {
+				"type": "state_assembly",
+				"label": "State Assembly District",
+				"label_plural": "State Assembly Districts",
+				"category": "district",
+				"count": 0,
+				"parents": [],
+				"referenceable": true,
+				"browsable": true
+			},
+			"state_senate": {
+				"type": "state_senate",
+				"label": "State Senate District",
+				"label_plural": "State Senate Districts",
+				"category": "district",
+				"count": 0,
+				"parents": [],
+				"referenceable": true,
+				"browsable": true
+			},
+			"school_district": {
+				"type": "school_district",
+				"label": "School District",
+				"label_plural": "School Districts",
+				"category": "district",
+				"count": 200,
+				"parents": ["county"],
+				"referenceable": true,
+				"browsable": true
+			},
+			"air_district": {
+				"type": "air_district",
+				"label": "Air District",
+				"label_plural": "Air Districts",
+				"category": "district",
+				"count": 2,
+				"parents": [],
+				"referenceable": true,
+				"browsable": true
+			},
+			"urban_area": {
+				"type": "urban_area",
+				"label": "Urban Area",
+				"label_plural": "Urban Areas",
+				"category": "environmental",
+				"count": 56,
+				"parents": ["county"],
+				"referenceable": true,
+				"browsable": true
+			},
+			"land_use": {
+				"type": "land_use",
+				"label": "Land Use",
+				"label_plural": "Land Use Areas",
+				"category": "environmental",
+				"count": 0,
+				"parents": [],
+				"referenceable": false,
+				"browsable": false
+			},
+			"protected": {
+				"type": "protected",
+				"label": "Protected Area",
+				"label_plural": "Protected Areas",
+				"category": "environmental",
+				"count": 0,
+				"parents": [],
+				"referenceable": true,
+				"browsable": true
+			},
+			"ab617": {
+				"type": "ab617",
+				"label": "AB 617 Community",
+				"label_plural": "AB 617 Communities",
+				"category": "environmental",
+				"count": 4,
+				"parents": ["county"],
+				"referenceable": true,
+				"browsable": true
+			},
+			"mtrs": {
+				"type": "mtrs",
+				"label": "MTRS Section",
+				"label_plural": "MTRS Sections",
+				"category": "agricultural",
+				"count": 27917,
+				"parents": [],
+				"referenceable": true,
+				"browsable": false
+			},
+			"custom": {
+				"type": "custom",
+				"label": "Custom Region",
+				"label_plural": "Custom Regions",
+				"category": "custom",
+				"count": 3,
+				"parents": [],
+				"referenceable": true,
+				"browsable": true
+			}
+		},
+		"location_types": {
+			"public_school": {
+				"type": "public_school",
+				"label": "Public school",
+				"source": "cde-public"
+			},
+			"private_school": {
+				"type": "private_school",
+				"label": "Private school",
+				"source": "cde-private"
+			},
+			"child_care": {
+				"type": "child_care",
+				"label": "Child care",
+				"source": "cdss-ccl"
+			}
+		},
+		"buffers": [
+			{
+				"miles": 0,
+				"label": "Exact boundary"
+			},
+			{
+				"miles": 1,
+				"label": "+1 mile"
+			},
+			{
+				"miles": 3,
+				"label": "+3 miles"
+			},
+			{
+				"miles": 5,
+				"label": "+5 miles"
+			}
+		]
+	}
+}

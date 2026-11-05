@@ -33,18 +33,28 @@ import {
 } from "@sjvair/sdk";
 import { getValidDateRange } from "@sjvair/sdk/datetime";
 import { resolveRange } from "$lib/format/range";
-import type { DateRangeSpec, Resolution } from "../schema";
+import { createPlaceRegion } from "../place-region";
+import { createQueryClient } from "../query/client";
+import type { DateRangeSpec, Layer, Resolution } from "../schema";
 import { fixtureMetadata } from "../testing/fixtures";
 import type { Target } from "../types";
 import { airQualityAdapter } from "./air-quality";
-import type { AdapterContext, AdapterRequest, RegionResolver } from "./registry";
+import type {
+	AdapterContext,
+	AdapterRequest,
+	LocationResolver,
+	PointResolver,
+	RegionResolver
+} from "./registry";
 
 const NOW = new Date("2026-10-22T19:00:00Z");
 const ALL: Resolution[] = ["raw", "hour", "day", "month", "quarter", "season", "year"];
 
-/** A stand-in resolver for two California counties. */
+/** A stand-in resolver for two California counties, a city and a ZIP. */
 const regions: RegionResolver = {
 	resolve: async (type, code) => {
+		if (type === "zipcode" && code === "93721") return { id: "sqz", name: "93721" };
+		if (type === "city" && code === "0627000") return { id: "sqc", name: "Fresno" };
 		if (type !== "county") return null;
 		if (code === "06019") return { id: "sq1", name: "Fresno County" };
 		if (code === "06039") {
@@ -58,7 +68,20 @@ const regions: RegionResolver = {
 	}
 };
 
-const ctx: AdapterContext = { metadata: fixtureMetadata(), regions };
+/** One school, in ZIP 93721, the city of Fresno and Fresno County. */
+const locations: LocationResolver = {
+	resolve: async (source, code) =>
+		source === "cde-public" && code === "1"
+			? { name: "Roosevelt High School", keys: ["zipcode:93721", "city:0627000", "county:06019"] }
+			: null
+};
+
+/** Every point is in ZIP 93721, the city of Fresno and Fresno County. */
+const points: PointResolver = {
+	keys: async () => ["zipcode:93721", "city:0627000", "county:06019"]
+};
+
+const ctx: AdapterContext = { metadata: fixtureMetadata(), regions, locations, points };
 
 function request(
 	target: Target,
@@ -97,6 +120,18 @@ let signal: AbortSignal;
 beforeEach(() => {
 	vi.resetAllMocks();
 	signal = new AbortController().signal;
+});
+
+describe("airQualityAdapter.target", () => {
+	it("reports a monitor missing from the loaded list as monitor-unlisted", async () => {
+		const layer: Layer = { dataset: "air-quality", place: { kind: "monitor", id: "m-gone" } };
+		expect(await airQualityAdapter.target(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
+		const listed: Layer = { dataset: "air-quality", place: { kind: "monitor", id: "m-pa" } };
+		expect(await airQualityAdapter.target(listed, ctx)).toEqual({
+			kind: "monitors",
+			ids: ["m-pa"]
+		});
+	});
 });
 
 describe("airQualityAdapter.offered", () => {
@@ -271,8 +306,7 @@ describe("airQualityAdapter.fetch", () => {
 				entryType: "pm25",
 				processor: "PM25_EPA_Calibration",
 				timestampGte: new Date("2026-10-21T19:00:00.000Z"),
-				timestampLte: new Date("2026-10-22T18:59:59.999Z"),
-				exact: true
+				timestampLte: new Date("2026-10-22T18:59:59.999Z")
 			},
 			{ signal }
 		);
@@ -318,8 +352,7 @@ describe("airQualityAdapter.fetch", () => {
 			monitorId: "m-bam",
 			entryType: "pm25",
 			timestampGte: new Date("2026-10-21T19:00:00.000Z"),
-			timestampLte: new Date("2026-10-22T18:59:59.999Z"),
-			exact: true
+			timestampLte: new Date("2026-10-22T18:59:59.999Z")
 		});
 		expect("processor" in config).toBe(false);
 	});
@@ -432,7 +465,7 @@ describe("airQualityAdapter.fetch", () => {
 		const metadata = fixtureMetadata({ monitorType: async () => "purpleair" });
 		const data = await airQualityAdapter.fetch(
 			request({ kind: "monitors", ids: ["m-pa", "m-pa2"] }, "day", SEPTEMBER),
-			{ metadata, regions },
+			{ ...ctx, metadata },
 			signal
 		);
 		expect(data.processor).toBe("PM25_EPA_Calibration");
@@ -466,8 +499,7 @@ describe("airQualityAdapter.fetch", () => {
 				monitorId: "m-bam",
 				entryType: "pm25",
 				timestampGte: new Date("2026-10-22T19:00:00.000Z"),
-				timestampLte: new Date("2026-10-22T19:29:59.999Z"),
-				exact: true
+				timestampLte: new Date("2026-10-22T19:29:59.999Z")
 			},
 			{ signal }
 		);
@@ -501,8 +533,7 @@ describe("airQualityAdapter.fetch", () => {
 		const [config] = vi.mocked(getMonitorEntries).mock.calls[0];
 		expect(config).toMatchObject({
 			timestampGte: new Date("2026-11-01T09:00:00.000Z"),
-			timestampLte: new Date("2026-11-01T09:29:59.999Z"),
-			exact: true
+			timestampLte: new Date("2026-11-01T09:29:59.999Z")
 		});
 		// Only the entry in the second 1 AM (PST) fills the open hour.
 		expect(data.series[0].points.at(-1)).toMatchObject({
@@ -701,7 +732,7 @@ describe("airQualityAdapter.fetch", () => {
 		expect(data.series[0].points[0]).toMatchObject({ mean: 4, min: 4, max: 4 });
 	});
 
-	it("sends a short raw window exactly as given, with `exact: true`", async () => {
+	it("sends a short raw window exactly as given", async () => {
 		// Two minutes into the hour: the open hour's raw fill spans only 19:00 to 19:02.
 		const now = new Date("2026-10-22T19:02:00Z");
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
@@ -720,15 +751,12 @@ describe("airQualityAdapter.fetch", () => {
 			signal
 		);
 		const calls = vi.mocked(getMonitorEntries).mock.calls.map(([c]) => c);
-		expect(calls.every((c) => c.exact === true)).toBe(true);
 		const open = calls.find(
 			(c) => (c.timestampGte as Date).toISOString() === "2026-10-22T19:00:00.000Z"
 		);
 		expect((open!.timestampLte as Date).toISOString()).toBe("2026-10-22T19:01:59.999Z");
-		// The SDK's own range logic leaves an exact window alone (it widens it otherwise).
-		const { gte, lte } = getValidDateRange(open!.timestampGte, open!.timestampLte, {
-			exact: open!.exact
-		});
+		// Given bounds come back as given (the SDK widens them only with `wholeDays`).
+		const { gte, lte } = getValidDateRange(open!.timestampGte, open!.timestampLte);
 		expect([gte.toISOString(), lte.toISOString()]).toEqual([
 			"2026-10-22T19:00:00.000Z",
 			"2026-10-22T19:01:59.999Z"
@@ -910,5 +938,130 @@ describe("airQualityAdapter.fetch worstHour", () => {
 				signal
 			)
 		).rejects.toThrow("boom");
+	});
+});
+
+describe("airQualityAdapter.fetch fallback", () => {
+	const SCHOOL: Target = {
+		kind: "fallback",
+		via: { kind: "location", source: "cde-public", code: "1", name: "Roosevelt High School" },
+		keys: ["zipcode:93721", "city:0627000", "county:06019"]
+	};
+	/** Daily rows for the regions (by sqid) that have data. */
+	const withData = (ids: string[]) =>
+		vi.mocked(getRegionSummariesBulkDaily).mockImplementation(async (config) => {
+			const [id] = (config as { region: string[] }).region;
+			return (
+				ids.includes(id)
+					? [{ id, summaries: [row("2026-09-02T00:00:00-07:00", 7)] }]
+					: [{ id, summaries: [] }]
+			) as never;
+		});
+	const asked = () =>
+		vi
+			.mocked(getRegionSummariesBulkDaily)
+			.mock.calls.map(([c]) => (c as { region: string[] }).region);
+
+	it("shows the ZIP when it has points in the range, named through the school", async () => {
+		withData(["sqz", "sqc", "sq1"]);
+		const data = await airQualityAdapter.fetch(request(SCHOOL, "day", SEPTEMBER), ctx, signal);
+		expect(asked()).toEqual([["sqz"]]);
+		expect(data.series).toEqual([
+			{ place: "region:zipcode:93721", points: [expect.objectContaining({ mean: 7 })] }
+		]);
+		expect(data.places).toEqual([
+			{
+				place: "region:zipcode:93721",
+				name: "93721",
+				via: { kind: "location", source: "cde-public", code: "1", name: "Roosevelt High School" }
+			}
+		]);
+	});
+
+	it("falls to the city when the ZIP has no points in the range", async () => {
+		withData(["sqc", "sq1"]);
+		const data = await airQualityAdapter.fetch(request(SCHOOL, "day", SEPTEMBER), ctx, signal);
+		expect(asked()).toEqual([["sqz"], ["sqc"]]);
+		expect(data.series.map((s) => s.place)).toEqual(["region:city:0627000"]);
+		expect(data.places.map((p) => p.name)).toEqual(["Fresno"]);
+	});
+
+	it("returns the county's empty series when no candidate has data", async () => {
+		withData([]);
+		const point: Target = { ...SCHOOL, via: { kind: "point" } };
+		const data = await airQualityAdapter.fetch(request(point, "day", SEPTEMBER), ctx, signal);
+		expect(asked()).toEqual([["sqz"], ["sqc"], ["sq1"]]);
+		expect(data.series).toEqual([{ place: "region:county:06019", points: [] }]);
+		expect(data.places).toEqual([
+			{ place: "region:county:06019", name: "Fresno County", via: { kind: "point" } }
+		]);
+	});
+
+	it("offers what a region offers", () => {
+		expect(airQualityAdapter.offered(["raw", "hour", "day"], SCHOOL)).toEqual(["hour", "day"]);
+	});
+});
+
+describe("placeRegion", () => {
+	const base: Layer = { dataset: "air-quality", entryType: "pm25" };
+	const school: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "1" } };
+	const placeRegion = () =>
+		createPlaceRegion(
+			createQueryClient({
+				adapters: [airQualityAdapter],
+				metadata: ctx.metadata,
+				regions,
+				locations,
+				points,
+				now: () => NOW
+			}),
+			ctx
+		);
+	const withData = (ids: string[]) =>
+		vi.mocked(getRegionSummariesBulkDaily).mockImplementation(async (config) => {
+			const [id] = (config as { region: string[] }).region;
+			return (
+				ids.includes(id)
+					? [{ id, summaries: [row("2026-09-02T00:00:00-07:00", 7)] }]
+					: [{ id, summaries: [] }]
+			) as never;
+		});
+
+	it("is the region a school's widget shows", async () => {
+		withData(["sqc"]);
+		expect(await placeRegion()({ layer: school, dateRange: SEPTEMBER })).toEqual({
+			type: "city",
+			code: "0627000"
+		});
+	});
+
+	it("is a point's last candidate when none has data", async () => {
+		withData([]);
+		const layer: Layer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
+		expect(await placeRegion()({ layer, dateRange: SEPTEMBER })).toEqual({
+			type: "county",
+			code: "06019"
+		});
+	});
+
+	it("is null for a school that doesn't resolve and for other places", async () => {
+		const gone: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "9" } };
+		const region: Layer = { ...base, place: { kind: "region", type: "county", code: "06019" } };
+		expect(await placeRegion()({ layer: gone, dateRange: SEPTEMBER })).toBeNull();
+		expect(await placeRegion()({ layer: region, dateRange: SEPTEMBER })).toBeNull();
+		expect(getRegionSummariesBulkDaily).not.toHaveBeenCalled();
+	});
+
+	it("rejects when the data can't be fetched", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockRejectedValue(new Error("offline"));
+		await expect(placeRegion()({ layer: school, dateRange: SEPTEMBER })).rejects.toThrow("offline");
+	});
+
+	it("rejects with an AbortError when its signal aborts", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockReturnValue(new Promise(() => {}) as never);
+		const controller = new AbortController();
+		const pending = placeRegion()({ layer: school, dateRange: SEPTEMBER }, controller.signal);
+		controller.abort();
+		await expect(pending).rejects.toMatchObject({ name: "AbortError" });
 	});
 });

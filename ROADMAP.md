@@ -142,7 +142,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   switch, and the wording and behavior fixes parked for it. Spec
   `docs/superpowers/specs/2026-11-03-design-pass-design.md`.
 
-4. **Widget Creation and the non-map widgets** (six specs, stacked into `step-4`; see `TODO.md`)
+4. **Widget Creation and the non-map widgets** (six specs, stacked into `step-4`; see `TODO.md`;
+   spec 1 merged into `step-4` (#36); spec 2, the shared place picker, built on `step-4-spec-2`,
+   its PR into `step-4` to come, 2026-11-04)
    - the **Data Explorer** (renamed from Widget Creation view, 2026-11-04: data first, then how
      to show it; Add to dashboard or Download CSV; catalog-driven dataset accordions, layers,
      advanced resolution override)

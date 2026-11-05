@@ -19,6 +19,7 @@ import { safeLocalStorage } from "./theme";
 import { createWebDisplay } from "./display";
 import { createWebOnline } from "./online";
 import { createWebClipboard } from "./clipboard";
+import { createWebGeolocation } from "./geolocation";
 import { createWebErrors, listenForCspViolations } from "./errors";
 import { createWebFiles } from "./files";
 import { createWebIdentity } from "./identity";
@@ -41,7 +42,18 @@ function unwrapRecord(row: { space: SpaceId; id: string } & SyncRecord): SyncRec
 	const { docId, serverVersion, syncedThrough, confirmedAt, inFlight, hold } = row;
 	// Records stored before share links have no token.
 	const shareToken = row.shareToken ?? null;
-	return { docId, serverVersion, syncedThrough, confirmedAt, inFlight, hold, shareToken };
+	// And before the exact-location choice was remembered: not chosen.
+	const shareExact = shareToken !== null && row.shareExact === true;
+	return {
+		docId,
+		serverVersion,
+		syncedThrough,
+		confirmedAt,
+		inFlight,
+		hold,
+		shareToken,
+		shareExact
+	};
 }
 
 /** Every key in `space`: arrays sort after strings and numbers, so `[space, []]` ends it. */
@@ -333,6 +345,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		display: createWebDisplay(window, safeLocalStorage()),
 		locks: createWebLocks(),
 		clipboard: createWebClipboard(),
+		geolocation: createWebGeolocation(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),
 		reset: createWebReset(run),

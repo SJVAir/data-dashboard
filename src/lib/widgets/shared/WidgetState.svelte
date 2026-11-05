@@ -17,6 +17,7 @@
 		widget,
 		retired,
 		onretry,
+		onchoose,
 		children
 	}: {
 		state: QueryState;
@@ -24,12 +25,20 @@
 		/** The catalog's retirement of the dataset or entry type the widget reads, with its name. */
 		retired?: { name: string; since: string };
 		onretry: () => void;
+		/**
+		 * Opens the place picker; "Choose a place" (idle) and "Choose another" show only when this is
+		 * given and editing.
+		 */
+		onchoose?: () => void;
 		children: Snippet<[QueryData]>;
 	} = $props();
 
 	const app = useApp();
 	const remove =
 		getContext<(() => void) | undefined>(REMOVE_WIDGET_KEY) ?? (() => removeWidget(app, widget.id));
+
+	/** Reasons for which the saved place is gone: the "no longer available" card. */
+	const GONE = new Set(["region-unresolved", "location-unresolved", "monitor-unlisted"]);
 
 	const UNAVAILABLE = {
 		"catalog-unavailable": () => m.widget_state_unavailable_catalog_unavailable(),
@@ -38,6 +47,7 @@
 		"no-adapter": () => m.widget_state_unavailable_no_adapter(),
 		"no-resolution": () => m.widget_state_unavailable_no_resolution(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
+		"point-outside": () => m.widget_state_unavailable_point_outside(),
 		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw()
 	};
 
@@ -49,13 +59,21 @@
 	const data = $derived<QueryData | undefined>("data" in state ? state.data : undefined);
 	const allPlaces = $derived(data?.places ?? []);
 	const retiredPlaces = $derived(allPlaces.filter((p) => p.retired));
+	/** Places reached through a retired school (the school's note, not the region's). */
+	const retiredSchools = $derived(
+		allPlaces.filter((p) => p.via?.kind === "location" && p.via.retired)
+	);
 	const replacement = $derived<WidgetDataConfig | null>(withReplacements(widget.data, allPlaces));
 	const empty = $derived(!!data && data.series.every((s) => !s.points.length));
 	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
 	/** The one note that carries Switch (it applies every replacement together). */
-	const switchOn = $derived(
-		replacement && editable ? retiredPlaces.find((p) => p.retired?.replacedBy)?.place : undefined
-	);
+	const switchOn = $derived.by(() => {
+		if (!replacement || !editable) return undefined;
+		const region = retiredPlaces.find((p) => p.retired?.replacedBy);
+		if (region) return region.place;
+		return retiredSchools.find((p) => p.via?.kind === "location" && p.via.retired?.replacedBy)
+			?.place;
+	});
 
 	function switchToReplacement(): void {
 		const session = app.current.session;
@@ -86,6 +104,12 @@
 	</p>
 {/snippet}
 
+{#snippet switchButton()}
+	<Button size="sm" variant="outline" onclick={switchToReplacement}>
+		{m.widget_state_switch()}
+	</Button>
+{/snippet}
+
 {#snippet notes()}
 	{#if retired}
 		{@render note(
@@ -93,33 +117,64 @@
 		)}
 	{/if}
 	{#each retiredPlaces as p (p.place)}
-		{#snippet switchButton()}
-			<Button size="sm" variant="outline" onclick={switchToReplacement}>
-				{m.widget_state_switch()}
-			</Button>
-		{/snippet}
 		{@render note(
 			m.widget_state_place_retired({ place: p.name, date: sinceText(p.retired!.since) }),
 			p.place === switchOn ? switchButton : undefined
 		)}
 	{/each}
+	{#each retiredSchools as p (p.place)}
+		{#if p.via?.kind === "location" && p.via.retired}
+			{@render note(
+				m.widget_state_location_retired({
+					name: p.via.name,
+					date: sinceText(p.via.retired.since)
+				}),
+				p.place === switchOn ? switchButton : undefined
+			)}
+		{/if}
+	{/each}
 {/snippet}
 
 {#if state.status === "idle"}
-	{@render message(m.widget_state_idle())}
+	{#if editable && onchoose}
+		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
+			<p class="text-muted-foreground text-sm">{m.widget_state_idle()}</p>
+			<Button size="sm" variant="outline" onclick={onchoose}>
+				{m.widget_state_choose_place()}
+			</Button>
+		</div>
+	{:else}
+		{@render message(m.widget_state_idle())}
+	{/if}
 {:else if state.status === "unavailable"}
-	{#if state.reason === "region-unresolved"}
+	{#if GONE.has(state.reason)}
 		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
 			<p class="text-sm font-medium">{m.widget_state_gone_title()}</p>
 			<p class="text-muted-foreground text-sm">{m.widget_state_gone_body()}</p>
 			{#if editable}
-				<Button size="sm" variant="outline" onclick={remove}>
-					{m.widget_state_remove()}
+				<div class="flex flex-wrap items-center justify-center gap-2">
+					{#if onchoose}
+						<Button size="sm" variant="outline" onclick={onchoose}>
+							{m.widget_state_choose_another()}
+						</Button>
+					{/if}
+					<Button size="sm" variant="outline" onclick={remove}>
+						{m.widget_state_remove()}
+					</Button>
+				</div>
+			{/if}
+		</div>
+	{:else if state.reason === "point-outside"}
+		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
+			<p class="text-muted-foreground text-sm">{UNAVAILABLE[state.reason]()}</p>
+			{#if editable && onchoose}
+				<Button size="sm" variant="outline" onclick={onchoose}>
+					{m.widget_state_choose_another()}
 				</Button>
 			{/if}
 		</div>
 	{:else}
-		{@render message(UNAVAILABLE[state.reason]())}
+		{@render message(UNAVAILABLE[state.reason as keyof typeof UNAVAILABLE]())}
 	{/if}
 {:else if state.status === "error" && !data}
 	<div class="flex h-full flex-col items-center justify-center gap-2 text-center">

@@ -9,8 +9,125 @@
 			"retired": null,
 			"boundary": {
 				"id": "wdpej",
-				"version": "latest",
+				"version": "2023",
 				"bbox": [-120.91874387116177, 35.906918921644284, -118.36059845591876, 37.58584217244814]
+			}
+		},
+		{
+			"id": "4fjmg",
+			"name": "Madera County",
+			"slug": "madera",
+			"type": "county",
+			"external_id": "06039",
+			"retired": null,
+			"boundary": {
+				"id": "n7qfm",
+				"version": "2023",
+				"bbox": [-120.54554884301392, 36.763052005975005, -119.02237565751238, 37.777991170180144]
+			}
+		},
+		{
+			"id": "dn3sk",
+			"name": "Tulare County",
+			"slug": "tulare",
+			"type": "county",
+			"external_id": "06107",
+			"retired": null,
+			"boundary": {
+				"id": "fbxqk",
+				"version": "2023",
+				"bbox": [-119.57320663026515, 35.78916605794458, -117.98077330401863, 36.74482113093293]
+			}
+		},
+		{
+			"id": "njyup",
+			"name": "Fresno",
+			"slug": "fresno",
+			"type": "city",
+			"external_id": "0627000",
+			"retired": null,
+			"boundary": {
+				"id": "b9268",
+				"version": "2023",
+				"bbox": [-119.93440971171536, 36.66216702177423, -119.65052167400698, 36.91154105642143]
+			}
+		},
+		{
+			"id": "4ghjm",
+			"name": "Visalia",
+			"slug": "visalia",
+			"type": "city",
+			"external_id": "0682954",
+			"retired": null,
+			"boundary": {
+				"id": "narqf",
+				"version": "2023",
+				"bbox": [-119.47483459656318, 36.26943502334578, -119.23382055842119, 36.37086702692919]
+			}
+		},
+		{
+			"id": "7fryx",
+			"name": "93274",
+			"slug": "93274",
+			"type": "zipcode",
+			"external_id": "93274",
+			"retired": null,
+			"boundary": {
+				"id": "f3txq",
+				"version": "2020",
+				"bbox": [-119.536489, 36.065385, -119.181251, 36.27642]
+			}
+		},
+		{
+			"id": "9yy4e",
+			"name": "93277",
+			"slug": "93277",
+			"type": "zipcode",
+			"external_id": "93277",
+			"retired": null,
+			"boundary": {
+				"id": "j55y3",
+				"version": "2020",
+				"bbox": [-119.475364, 36.254749, -119.287172, 36.32902]
+			}
+		},
+		{
+			"id": "zw8ca",
+			"name": "93291",
+			"slug": "93291",
+			"type": "zipcode",
+			"external_id": "93291",
+			"retired": null,
+			"boundary": {
+				"id": "pdhcs",
+				"version": "2020",
+				"bbox": [-119.475481, 36.326893999999996, -119.28628499999999, 36.487054]
+			}
+		},
+		{
+			"id": "c85na",
+			"name": "93702",
+			"slug": "93702",
+			"type": "zipcode",
+			"external_id": "93702",
+			"retired": null,
+			"boundary": {
+				"id": "yskz4",
+				"version": "2020",
+				"bbox": [-119.77477, 36.71842, -119.727442, 36.761351]
+			}
+		},
+		{
+			"id": "yd7ru",
+			"name": "93721",
+			"slug": "93721",
+			"type": "zipcode",
+			"external_id": "93721",
+			"retired": null,
+			"boundary": {
+				"id": "ysjz4",
+				"version": "2020",
+				"bbox": [-119.80579399999999, 36.713051, -119.771767, 36.746829999999996]
 			}
 		}
 	]

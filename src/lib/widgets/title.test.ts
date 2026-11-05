@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DateRangeSpec } from "$lib/data/schema";
 import type { PlaceInfo } from "$lib/data/types";
 import { m } from "$lib/paraglide/messages.js";
-import { dataTitle, rangeLabel } from "./title";
+import { dataTitle, placeLabel, rangeLabel } from "./title";
 
 describe("rangeLabel", () => {
 	const cases: [DateRangeSpec, string][] = [
@@ -82,5 +82,35 @@ describe("dataTitle", () => {
 		expect(
 			dataTitle({ entryLabel: "Ozone", places: [], range: { kind: "to-date", unit: "month" } })
 		).toBe("Ozone · This month so far");
+	});
+});
+
+describe("placeLabel", () => {
+	const zip = { place: "region:zipcode:93721", name: "ZIP 93721" };
+	const range: DateRangeSpec = { kind: "trailing", amount: 30, unit: "day" };
+
+	it("says whose point it is", () => {
+		const point: PlaceInfo = { ...zip, via: { kind: "point" } };
+		expect(placeLabel(point, "owner")).toBe("ZIP 93721 (your location)");
+		expect(placeLabel(point, "shared")).toBe("ZIP 93721 (shared location)");
+		expect(dataTitle({ entryLabel: "PM2.5", places: [point], range, viewer: "shared" })).toBe(
+			"PM2.5 · ZIP 93721 (shared location) · Last 30 days"
+		);
+	});
+
+	it("names a school", () => {
+		const school: PlaceInfo = {
+			place: "region:zipcode:93702",
+			name: "ZIP 93702",
+			via: { kind: "location", source: "cde-public", code: "1", name: "Roosevelt High School" }
+		};
+		expect(placeLabel(school, "owner")).toBe("ZIP 93702 (Roosevelt High School)");
+		expect(dataTitle({ entryLabel: "PM2.5", places: [school], range })).toBe(
+			"PM2.5 · ZIP 93702 (Roosevelt High School) · Last 30 days"
+		);
+	});
+
+	it("leaves a plain region alone", () => {
+		expect(placeLabel(zip, "owner")).toBe("ZIP 93721");
 	});
 });

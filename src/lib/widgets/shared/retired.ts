@@ -1,17 +1,26 @@
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { PlaceInfo } from "$lib/data/types";
 
-/** The widget's data with each retired region swapped for its replacement (null if none has one). */
+/**
+ * The widget's data with each retired region, and each retired school, swapped for its
+ * replacement (null if none has one).
+ */
 export function withReplacements(
 	data: WidgetDataConfig,
 	places: PlaceInfo[]
 ): WidgetDataConfig | null {
 	// "region:<type>:<code>" to the replacement's "<type>:<code>".
 	const swaps = new Map<string, { type: string; code: string }>();
+	// "<source>:<code>" of a retired school to its replacement.
+	const schools = new Map<string, { source: string; code: string }>();
 	for (const p of places) {
 		if (p.retired?.replacedBy) swaps.set(p.place, p.retired.replacedBy);
+		const via = p.via;
+		if (via?.kind === "location" && via.retired?.replacedBy) {
+			schools.set(`${via.source}:${via.code}`, via.retired.replacedBy);
+		}
 	}
-	if (swaps.size === 0) return null;
+	if (swaps.size === 0 && schools.size === 0) return null;
 	let changed = false;
 	const layers = data.layers.map((layer) => {
 		const next = { ...layer };
@@ -19,6 +28,13 @@ export function withReplacements(
 			const swap = swaps.get(`region:${layer.place.type}:${layer.place.code}`);
 			if (swap) {
 				next.place = { kind: "region", type: swap.type, code: swap.code };
+				changed = true;
+			}
+		}
+		if (layer.place?.kind === "location") {
+			const swap = schools.get(`${layer.place.source}:${layer.place.code}`);
+			if (swap) {
+				next.place = { kind: "location", source: swap.source, code: swap.code };
 				changed = true;
 			}
 		}

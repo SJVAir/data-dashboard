@@ -155,6 +155,36 @@ describe("DocumentSession", () => {
 		]);
 	});
 
+	it("onEdit hears apply, undo, and redo, not amend", async () => {
+		const edits: string[] = [];
+		const { session } = await setup({ onEdit: (s) => edits.push(s.doc.name ?? "none") });
+		session.apply(rename("One"));
+		session.undo();
+		session.redo();
+		session.amend(rename("Amended", "One"));
+		// Nothing to undo or redo: nothing heard.
+		session.redo();
+		expect(edits).toEqual(["One", "none", "One"]);
+	});
+
+	it("amend is stored but isn't an undo step: Undo goes past it, Redo stays offered", async () => {
+		const { platform, session } = await setup();
+		session.apply(rename("One"));
+		session.apply(title("a", "Map"));
+		session.undo();
+		expect(session.canRedo).toBe(true);
+		// Finishes the undo: the edit it landed on is changed again.
+		session.amend(rename("Amended", "One"));
+		expect(session.doc.name).toBe("Amended");
+		expect(session.canRedo).toBe(true);
+		await vi.advanceTimersByTimeAsync(500);
+		expect((await stored(platform)).name).toBe("Amended");
+		// The next undo is the rename's: back to before it, not to "One".
+		session.undo();
+		expect(session.doc.name).toBeNull();
+		expect(session.canUndo).toBe(false);
+	});
+
 	it("flushes pending changes on pagehide", async () => {
 		const win = new EventTarget();
 		vi.stubGlobal("window", win);

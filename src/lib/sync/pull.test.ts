@@ -263,7 +263,8 @@ describe("pollList", () => {
 			confirmedAt: NOW.toISOString(),
 			inFlight: null,
 			hold: null,
-			shareToken: null
+			shareToken: null,
+			shareExact: false
 		});
 		expect(posted).toContainEqual({ type: "sync", space: SPACE, docId: "d2", tabId: ctx.tabId });
 		// Deleted more than 30 days ago: purged here, so not brought back.

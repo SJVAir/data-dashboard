@@ -1,6 +1,21 @@
-import { describe, expect, it } from "vitest";
-import { CSV_COLUMNS, toCsv } from "./csv";
-import type { QueryData, SeriesPoint } from "./types";
+import { describe, expect, it, vi } from "vitest";
+import { fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
+import { chartWidget } from "$lib/widgets/shared/test-harness/fake-data";
+import type { AdapterRequest, DatasetAdapter } from "./adapters/registry";
+import { CSV_COLUMNS, downloadWidgetCsv, toCsv } from "./csv";
+import type { MetadataSource } from "./metadata";
+import { createQueryClient, type QueryClient } from "./query/client";
+import { fixtureMetadata } from "./testing/fixtures";
+import type { PlaceInfo, QueryData, SeriesPoint } from "./types";
+
+const fake = vi.hoisted(() => ({
+	client: undefined as QueryClient | undefined,
+	metadata: undefined as MetadataSource | undefined
+}));
+vi.mock("$lib/data", () => ({
+	getQueryClient: () => fake.client!,
+	getMetadata: () => fake.metadata!
+}));
 
 const META = { entryType: "pm25", entryLabel: "PM2.5", unit: "µg/m³" };
 const HOUR = 3_600_000;
@@ -177,5 +192,83 @@ describe("toCsv", () => {
 		const rows = parse(toCsv(d, META)).slice(1);
 		expect(rows.map((r) => r[CSV_COLUMNS.indexOf("place_name")])).toEqual(["A", "B", "B"]);
 		expect(rows[1][0] < rows[2][0]).toBe(true);
+	});
+});
+
+describe("toCsv place labels", () => {
+	const build = (via: PlaceInfo["via"]) =>
+		data({
+			series: [{ place: "region:zipcode:93721", points: [point("2026-10-25T07:00:00Z")] }],
+			places: [{ place: "region:zipcode:93721", name: "ZIP 93721", via }]
+		});
+	const nameOf = (csv: string) => parse(csv)[1][CSV_COLUMNS.indexOf("place_name")];
+
+	it("uses the same label as the title", () => {
+		expect(nameOf(toCsv(build({ kind: "point" }), META))).toBe("ZIP 93721 (your location)");
+		expect(nameOf(toCsv(build({ kind: "point" }), META, "shared"))).toBe(
+			"ZIP 93721 (shared location)"
+		);
+		expect(
+			nameOf(
+				toCsv(
+					build({
+						kind: "location",
+						source: "cde-public",
+						code: "1",
+						name: "Roosevelt High School"
+					}),
+					META
+				)
+			)
+		).toBe("ZIP 93721 (Roosevelt High School)");
+		expect(nameOf(toCsv(build(undefined), META))).toBe("ZIP 93721");
+	});
+});
+
+describe("downloadWidgetCsv for a point", () => {
+	it("never carries the point's coordinates", async () => {
+		const requests: AdapterRequest[] = [];
+		const base = fakeAdapter(requests);
+		const adapter: DatasetAdapter = {
+			...base,
+			async target(layer) {
+				if (layer.place?.kind === "point") {
+					return { kind: "fallback", via: { kind: "point" }, keys: ["zipcode:93721"] };
+				}
+				return base.target(layer, undefined as never);
+			},
+			async fetch() {
+				return {
+					series: [{ place: "region:zipcode:93721", points: [point("2026-10-25T07:00:00Z")] }],
+					places: [{ place: "region:zipcode:93721", name: "ZIP 93721", via: { kind: "point" } }],
+					resolution: "day",
+					fromRaw: false,
+					processor: null,
+					fetchedAt: Date.parse("2026-10-26T00:00:00Z")
+				};
+			}
+		};
+		fake.metadata = fixtureMetadata();
+		fake.client = createQueryClient({
+			adapters: [adapter],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const widget = chartWidget(["m1"]);
+		widget.data.layers[0] = {
+			dataset: "air-quality",
+			entryType: "pm25",
+			place: { kind: "point", lat: 36.7468, lon: -119.7726 }
+		};
+		const saved: Array<{ name: string; contents: string }> = [];
+		await downloadWidgetCsv(widget, (name, contents) => {
+			saved.push({ name, contents });
+		});
+		expect(saved).toHaveLength(1);
+		const { name, contents } = saved[0];
+		for (const text of [contents, name]) {
+			expect(text).not.toMatch(/36\.7468|119\.7726|36\.747|119\.773/);
+		}
+		expect(parse(contents)[1][CSV_COLUMNS.indexOf("place_name")]).toBe("ZIP 93721 (your location)");
 	});
 });

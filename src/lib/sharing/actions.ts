@@ -1,5 +1,5 @@
 import { toast } from "svelte-sonner";
-import { openShare } from "$lib/components/dialogs/lazy.svelte";
+import { openShare, type ShareCopy, type SharePoints } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard } from "$lib/documents/schema";
 import { todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
@@ -7,6 +7,7 @@ import { platform } from "$lib/platform";
 import { updateReminderPrefs } from "$lib/safety/reminder";
 import { starterDashboard } from "$lib/starter/starter";
 import { currentDashboardName, type AppContext } from "$lib/store/app.svelte";
+import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { navigate } from "../../router";
 import { MAX_BACKUP_BYTES } from "./envelope";
 import {
@@ -18,10 +19,28 @@ import {
 } from "./export";
 import { backupFileName, dashboardFileName } from "./file-names";
 import { parseIncoming } from "./incoming";
+import {
+	hasPoints,
+	pointSwaps,
+	pointsCovered,
+	summarizeSwaps,
+	swapChange,
+	swapNotice,
+	withSwaps,
+	type PointSwap,
+	type SwapSummary
+} from "./points";
 import { restoreFromEnvelope, type RestoreSummary } from "./restore";
 import { settleDocument } from "./settle";
 
-type Target = { doc: Dashboard; name: string; readOnly: boolean; isStarter: boolean };
+type Target = {
+	doc: Dashboard;
+	name: string;
+	readOnly: boolean;
+	isStarter: boolean;
+	/** The dashboard's session (not the starter's built-in document). */
+	session: DocumentSession | null;
+};
 
 /**
  * What to share or export: the dashboard `id`'s stored document, or the current one (the
@@ -36,14 +55,16 @@ async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 				doc: starterDashboard(),
 				name: currentDashboardName(app) ?? "",
 				readOnly: false,
-				isStarter: true
+				isStarter: true,
+				session: null
 			};
 		await session.flush();
 		return {
 			doc: session.doc,
 			name: currentDashboardName(app) ?? "",
 			readOnly: !!session.readOnly,
-			isStarter: false
+			isStarter: false,
+			session
 		};
 	}
 	const session = await app.sessions.get(id, { remember: false });
@@ -53,14 +74,44 @@ async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 		doc: session.doc,
 		name: app.index.names.get(id) ?? "",
 		readOnly: !!session.readOnly,
-		isStarter: false
+		isStarter: false,
+		session
 	};
 }
 
+/** The target with each point swapped for its region, and how to say so; rejects when a lookup fails. */
+async function swappedTarget(target: Target): Promise<{ target: Target; summary: SwapSummary }> {
+	const swaps = await pointSwaps(target.doc);
+	const summary = await summarizeSwaps(swaps);
+	return { target: { ...target, doc: withSwaps(target.doc, swaps) }, summary };
+}
+
+/**
+ * Saves the dashboard's file. An exact location is always exported as its region, and a toast
+ * says so (sharing it exactly is a choice in the Share dialog); when a region can't be looked up,
+ * no file is saved and the toast offers Retry.
+ */
 export async function exportDashboard(app: AppContext, id?: string): Promise<void> {
 	const target = await targetOf(app, id);
 	if (!target) return;
-	downloadDocument(target);
+	if (!hasPoints(target.doc)) {
+		downloadDocument(target);
+		return;
+	}
+	let swapped: Awaited<ReturnType<typeof swappedTarget>>;
+	try {
+		swapped = await swappedTarget(target);
+	} catch {
+		toast.error(m.share_points_failed(), {
+			action: {
+				label: m.share_points_retry(),
+				onClick: () => void exportDashboard(app, id).catch(() => toast.error(m.share_failed()))
+			}
+		});
+		return;
+	}
+	downloadDocument(swapped.target);
+	toast(swapNotice(swapped.summary));
 }
 
 function downloadDocument({ doc, name, readOnly }: Target): void {
@@ -72,21 +123,67 @@ function downloadDocument({ doc, name, readOnly }: Target): void {
 	);
 }
 
-export async function shareDashboard(app: AppContext, id?: string): Promise<void> {
-	const target = await targetOf(app, id);
-	if (!target) return;
+/** The copy link and file of `target`. */
+async function copyOf(target: Target): Promise<ShareCopy> {
 	// A newer or invalid document can't be turned into a link; the file is still offered.
 	const result = target.readOnly
 		? null
 		: await shareUrl(`${location.origin}/workspace/`, target.doc, new Date());
 	const url = result && "url" in result ? result.url : null;
-	openShare({
+	return {
 		url,
 		linkUnavailable: url ? null : target.readOnly ? "read-only" : "too-big",
-		onDownload: () => downloadDocument(target),
-		// A live link needs the account's sync and a dashboard it can read and upload.
-		live: app.sync && !target.isStarter && !target.readOnly ? { docId: target.doc.id } : null
-	});
+		onDownload: () => downloadDocument(target)
+	};
+}
+
+/**
+ * Swaps the points of `session`'s dashboard as it is now for their regions, as one undoable
+ * change (`swapChange`). Resolves once the change is stored (so an upload carries it), or
+ * `"stale"`, changing nothing, when the dashboard holds a point `swaps` doesn't cover (added or
+ * re-picked since).
+ */
+async function useRegions(
+	session: DocumentSession,
+	swaps: PointSwap[]
+): Promise<"applied" | "stale"> {
+	const editing = session.editTarget;
+	const doc = editing.doc;
+	if (!pointsCovered(doc, swaps)) return "stale";
+	const change = swapChange(doc, swaps);
+	if (change) editing.apply(change);
+	await editing.flush();
+	return "applied";
+}
+
+export async function shareDashboard(app: AppContext, id?: string): Promise<void> {
+	const target = await targetOf(app, id);
+	if (!target) return;
+	// A live link needs the account's sync and a dashboard it can read and upload.
+	const live = app.sync && !target.isStarter && !target.readOnly ? { docId: target.doc.id } : null;
+	if (!hasPoints(target.doc)) {
+		openShare({ ...(await copyOf(target)), live });
+		return;
+	}
+	const { session } = target;
+	// Looked up each time the dialog asks (a Retry asks again), on the dashboard as it is then.
+	const points = async (signal: AbortSignal): Promise<SharePoints> => {
+		const current =
+			session && !target.readOnly ? { ...target, doc: session.editTarget.doc } : target;
+		const swaps = await pointSwaps(current.doc, signal);
+		const summary = await summarizeSwaps(swaps, signal);
+		const [swapped, exact] = await Promise.all([
+			copyOf({ ...current, doc: withSwaps(current.doc, swaps) }),
+			copyOf(current)
+		]);
+		return {
+			swapped,
+			exact,
+			summary,
+			useRegion: async () => (session ? useRegions(session, swaps) : "stale")
+		};
+	};
+	openShare({ live, points });
 }
 
 /** One toast whose description lists the non-zero outcomes, a whole sentence on each line. */

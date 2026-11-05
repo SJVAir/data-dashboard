@@ -1,0 +1,119 @@
+{
+	"data": [
+		{
+			"id": "zgj8j",
+			"source": "cde-public",
+			"external_id": "15633626009930",
+			"aliases": [],
+			"type": "public_school",
+			"name": "Fred L. Thompson Junior High",
+			"address": "4200 Planz Rd.",
+			"city_name": "Bakersfield",
+			"zip": "93309",
+			"point": {
+				"lat": 35.32611594,
+				"lng": -119.05122943
+			},
+			"regions": {
+				"county": {
+					"type": "county",
+					"external_id": "06029",
+					"name": "Kern County"
+				},
+				"city": {
+					"type": "city",
+					"external_id": "0603526",
+					"name": "Bakersfield"
+				},
+				"zipcode": {
+					"type": "zipcode",
+					"external_id": "93309",
+					"name": "93309"
+				},
+				"school_district": {
+					"type": "school_district",
+					"external_id": "15633620000000",
+					"name": "Panama-Buena Vista Union"
+				}
+			},
+			"retired": null
+		},
+		{
+			"id": "3djg5",
+			"source": "cde-public",
+			"external_id": "15637506117717",
+			"aliases": [],
+			"type": "public_school",
+			"name": "Freedom Middle",
+			"address": "11445 Noriega Rd.",
+			"city_name": "Bakersfield",
+			"zip": "93312",
+			"point": {
+				"lat": 35.40430495,
+				"lng": -119.12981245
+			},
+			"regions": {
+				"county": {
+					"type": "county",
+					"external_id": "06029",
+					"name": "Kern County"
+				},
+				"city": {
+					"type": "city",
+					"external_id": "0603526",
+					"name": "Bakersfield"
+				},
+				"zipcode": {
+					"type": "zipcode",
+					"external_id": "93312",
+					"name": "93312"
+				},
+				"school_district": {
+					"type": "school_district",
+					"external_id": "15637500000000",
+					"name": "Rosedale Union Elementary"
+				}
+			},
+			"retired": null
+		},
+		{
+			"id": "qzhem",
+			"source": "cde-public",
+			"external_id": "15633216008940",
+			"aliases": [],
+			"type": "public_school",
+			"name": "Fremont Elementary",
+			"address": "607 Texas St.",
+			"city_name": "Bakersfield",
+			"zip": "93307",
+			"point": {
+				"lat": 35.35705795,
+				"lng": -118.99781743
+			},
+			"regions": {
+				"county": {
+					"type": "county",
+					"external_id": "06029",
+					"name": "Kern County"
+				},
+				"city": {
+					"type": "city",
+					"external_id": "0603526",
+					"name": "Bakersfield"
+				},
+				"zipcode": {
+					"type": "zipcode",
+					"external_id": "93307",
+					"name": "93307"
+				},
+				"school_district": {
+					"type": "school_district",
+					"external_id": "15633210000000",
+					"name": "Bakersfield City"
+				}
+			},
+			"retired": null
+		}
+	],
+	"more": false
+}

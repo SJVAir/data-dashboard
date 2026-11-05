@@ -9,6 +9,9 @@ const UNAVAILABLE: Record<UnavailableReason, () => string> = {
 	"no-resolution": m.data_unavailable_no_resolution,
 	"place-unsupported": m.data_unavailable_place_unsupported,
 	"region-unresolved": m.data_unavailable_region_unresolved,
+	"location-unresolved": m.data_unavailable_location_unresolved,
+	"point-outside": m.data_unavailable_point_outside,
+	"monitor-unlisted": m.data_unavailable_monitor_unlisted,
 	"whole-layer-raw": m.data_unavailable_whole_layer_raw
 };
 

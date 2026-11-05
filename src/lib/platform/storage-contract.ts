@@ -22,7 +22,8 @@ function record(docId: string, syncedThrough: number): SyncRecord {
 		confirmedAt: syncedThrough === 0 ? null : "2026-11-02T00:00:00.000Z",
 		inFlight: null,
 		hold: null,
-		shareToken: null
+		shareToken: null,
+		shareExact: false
 	};
 }
 
@@ -344,8 +345,8 @@ export function runStorageContract(name: string, make: () => Promise<Platform>) 
 			expect(await p.sync.list("anonymous")).toEqual([]);
 		});
 
-		test("a sync record keeps its share token", async () => {
-			const shared = { ...record("a", 1), shareToken: "token-1" };
+		test("a sync record keeps its share token and the exact choice", async () => {
+			const shared = { ...record("a", 1), shareToken: "token-1", shareExact: true };
 			await p.sync.put("account:a", shared);
 			expect(await p.sync.get("account:a", "a")).toEqual(shared);
 			expect(await p.sync.list("account:a")).toEqual([shared]);

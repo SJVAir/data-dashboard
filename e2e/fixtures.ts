@@ -10,6 +10,7 @@ import {
 import type { AccountUser } from "../src/lib/account/identity";
 import { createFakeRemote, type FakeRemote } from "../src/lib/sync/remote-fake";
 import { CSRF_TOKEN, routeDocuments } from "./documents-server";
+import { routePlaces } from "./places-server";
 import { routeSummaries } from "./summaries-server";
 
 const API_FIXTURES = fileURLToPath(new URL("./fixtures/api/", import.meta.url));
@@ -132,7 +133,8 @@ async function addCsrfCookie(context: BrowserContext, baseURL: string): Promise<
  * API fixture routing: every request to `/api/…` is answered from
  * `e2e/fixtures/api/<path after /api/, trailing slash dropped>.json` (query ignored), and a
  * request with no fixture file fails the test, except the summaries endpoints, which
- * `routeSummaries` answers from the query. The account server answers the session account
+ * `routeSummaries` answers from the query, and the place searches and region lists, which
+ * `routePlaces` answers from fixture files picked by the query. The account server answers the session account
  * (`api/2.0/account/`: 401 signed out, or the `account` option's user) and the site's logout,
  * which signs out. The documents server (`api/2.0/documents/…`) is an in-memory fake shared by
  * every context in the test (`documentsServer.newDevice()` makes another). Specs import `test`
@@ -160,6 +162,7 @@ export const test = base.extend<{
 			const unmatched: string[] = [];
 			await routeApiFixtures(context, unmatched);
 			await routeSummaries(context);
+			await routePlaces(context);
 			await use(unmatched);
 			expect(unmatched, "API requests with no fixture file").toEqual([]);
 		},
@@ -219,6 +222,7 @@ export const test = base.extend<{
 				await addCsrfCookie(device, origin);
 				await routeApiFixtures(device, apiFixtures);
 				await routeSummaries(device);
+				await routePlaces(device);
 				const deviceAccount = await routeAccount(device, account);
 				await routeDocuments(device, fake, () => deviceAccount.get()?.id ?? null, unmatched);
 				await routeOffline(device);

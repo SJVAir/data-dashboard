@@ -1,6 +1,6 @@
 import type { Layer } from "../schema";
-import type { Target, UnavailableReason } from "../types";
-import type { RegionResolver, ResolvedRegion } from "./registry";
+import type { Target, UnavailableReason, Via } from "../types";
+import type { AdapterContext, RegionResolver, ResolvedRegion } from "./registry";
 
 /** Splits a region key (`<type>:<code>`, the document's region reference) into its parts. */
 export function splitRegionKey(key: string): { type: string; code: string } {
@@ -28,29 +28,87 @@ export async function resolveRegionKeys(
 	);
 }
 
+/** The keys the region resolver can look up, in their order. */
+async function resolvableKeys(
+	keys: string[],
+	regions: RegionResolver,
+	signal?: AbortSignal
+): Promise<string[]> {
+	const found = await resolveRegionKeys(keys, regions, signal);
+	return keys.filter((_, i) => found[i] !== null);
+}
+
+/**
+ * Whether any of the monitor ids is missing from a loaded monitors list. A list that fails to
+ * load says nothing, so the query runs as before (and shows its own error with Retry).
+ */
+async function anyUnlisted(
+	ids: string[],
+	metadata: AdapterContext["metadata"],
+	signal?: AbortSignal
+): Promise<boolean> {
+	let listed: Set<string>;
+	try {
+		listed = new Set((await metadata.monitors(signal)).map((m) => m.id));
+	} catch (error) {
+		if (signal?.aborted) throw error;
+		return false;
+	}
+	return ids.some((id) => !listed.has(id));
+}
+
 /**
  * What a layer asks for. Regions stay keyed by their document reference (`<type>:<code>`), so
  * cache keys and series never carry the server's per-database id; they are resolved here only
- * to check that they can be.
+ * to check that they can be. A point or a school becomes its region keys to try in order, so its
+ * coordinates never reach a cache key or a request beyond the point lookup.
  */
 export async function layerTarget(
 	layer: Layer,
-	regions: RegionResolver,
+	ctx: Pick<AdapterContext, "regions" | "locations" | "points" | "metadata">,
 	signal?: AbortSignal
 ): Promise<Target | { unavailable: UnavailableReason }> {
 	const { place, selection } = layer;
 	let keys: string[];
 	if (place) {
-		if (place.kind === "monitor") return { kind: "monitors", ids: [place.id] };
+		if (place.kind === "monitor") {
+			if (await anyUnlisted([place.id], ctx.metadata, signal))
+				return { unavailable: "monitor-unlisted" };
+			return { kind: "monitors", ids: [place.id] };
+		}
+		if (place.kind === "location") {
+			const found = await ctx.locations.resolve(place.source, place.code, signal);
+			const candidates = found ? await resolvableKeys(found.keys, ctx.regions, signal) : [];
+			if (!found || candidates.length === 0) return { unavailable: "location-unresolved" };
+			const via: Via = {
+				kind: "location",
+				source: place.source,
+				code: place.code,
+				name: found.name,
+				...(found.retired && { retired: found.retired })
+			};
+			return { kind: "fallback", via, keys: candidates };
+		}
+		if (place.kind === "point") {
+			const found = await ctx.points.keys(place.lat, place.lon, signal);
+			const candidates = await resolvableKeys(found, ctx.regions, signal);
+			if (candidates.length === 0) return { unavailable: "point-outside" };
+			return { kind: "fallback", via: { kind: "point" }, keys: candidates };
+		}
 		if (place.kind !== "region") return { unavailable: "place-unsupported" };
 		keys = [`${place.type}:${place.code}`];
 	} else if (selection) {
-		if (selection.kind === "monitors") return { kind: "monitors", ids: [...selection.ids] };
+		if (selection.kind === "monitors") {
+			if (await anyUnlisted(selection.ids, ctx.metadata, signal)) {
+				return { unavailable: "monitor-unlisted" };
+			}
+			return { kind: "monitors", ids: [...selection.ids] };
+		}
 		keys = [...selection.ids];
 	} else {
 		return { kind: "all" };
 	}
-	const found = await resolveRegionKeys(keys, regions, signal);
+	const found = await resolveRegionKeys(keys, ctx.regions, signal);
 	if (found.some((r) => r === null)) return { unavailable: "region-unresolved" };
 	return { kind: "regions", keys };
 }

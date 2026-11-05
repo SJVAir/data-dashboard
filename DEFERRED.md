@@ -559,6 +559,75 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Documents & saving
 
+- **Copying a shared dashboard with a point needs the network.** _Deferred 2026-11-04 (step 4
+  spec 2, Task 13 review)._ A copy made from a share (link, file, or live link) always swaps a
+  point for its region, and that lookup needs the server; offline the copy fails with the
+  generic "couldn't save" message. **Revisit on** reports of people copying shared dashboards
+  offline, or if a share starts carrying the region along with the point.
+- **The live-link point check trusts the stored copy.** _Deferred 2026-11-04 (step 4 spec 2,
+  Task 13 review)._ Before a live link goes on without "Share my exact location", the share
+  checks the stored dashboard for points (`onlyIf`) and refuses while edits wait to upload. When
+  nothing is waiting it assumes the server's copy equals the stored one; if another device
+  uploaded a newer version with a point and this device's swap was a no-op, that version could
+  be shared. Why: needs two devices, a point added on one, and a share from the other within a
+  sync interval. **Revisit if** multi-device sharing is common: check the server's copy (or its
+  version) instead.
+- **The Share dialog reads a dashboard's points once, when it opens.** _Deferred 2026-11-04
+  (step 4 spec 2, Task 13 review)._ The notice and the live-link prompt come from the points
+  present at opening, so a point added in another tab before "Create link" gets no prompt and
+  skips the point check, and could be shared. Why: needs a second tab editing the same
+  dashboard while the dialog is open. **Revisit if** it's seen: reread the points when the
+  stored document changes while the dialog is open (or always pass the check).
+- **"Share my exact location" is remembered on one device.** _Deferred 2026-11-05 (step 4
+  spec 2, Task 16)._ The choice lives in this device's sync record (`shareExact`), not on the
+  server. Another signed-in device sees the link as not exact, so its next edit of that
+  dashboard (or a held upload there) swaps the exact points the owner chose for their regions.
+  Why: it errs toward privacy, and needs the owner editing one live-shared dashboard from two
+  devices after choosing exact. **Revisit if** that's seen, or when the server can store the
+  choice with the link.
+- **Server snapshots of a live-shared dashboard aren't held for points.** _Deferred 2026-11-05
+  (step 4 spec 2, Task 16)._ The snapshot kept before restoring a version, and the one kept for
+  "use theirs" or "discard" when settling a hold, send the local dashboard as it is, so an exact
+  point waiting to be swapped can reach the account's snapshots. Why: snapshots are the owner's
+  only (like the account copy of a dashboard without a link) and never shown on the link; holding
+  them would lose the safety copy. **Revisit if** snapshots ever become visible to link viewers
+  (or shareable), or the server starts reading points out of them.
+- **A lookup that never succeeds leaves the dashboard unsynced.** _Deferred 2026-11-05 (step 4
+  spec 2, Task 16)._ On a live-shared dashboard, a point whose region can't be looked up stays
+  held: retried with the toast's Retry, when the connection returns, on the next edit, and when
+  the dashboard opens, but not on a timer, and a held dashboard is only shown as having changes
+  waiting. Why: the lookup fails only offline or with the server down, which those retries
+  cover. **Revisit on** reports of a live-shared dashboard stuck unsynced with a point.
+- **The live-point guard's retry outlives its session.** _Deferred 2026-11-05 (step 4 spec
+  2, final review)._ After a failed lookup, the `online` listener and the persistent Retry toast
+  stay after the dashboard is closed, so the toast can show on another dashboard, and a
+  reconnect runs a guard on a closed session (harmless: the version check makes it a no-op).
+  Why: needs a failed lookup and then leaving the dashboard before reconnecting. **Revisit if**
+  it confuses anyone: tie the listener and toast to the session and drop them when it closes.
+- **"Keep mine" during a failed lookup shows a generic error.** _Deferred 2026-11-05 (step 4
+  spec 2, final review)._ In a conflict on a live-shared dashboard whose point can't be looked
+  up, "Keep mine" fails with the generic error, not "Can't look up your area right now." Why:
+  needs a conflict and a lookup failure at once; nothing exact is shared either way. **Revisit
+  on** a report of it, or when the conflict dialog's messages are next reworked.
+- **Exporting with points reports no errors.** _Deferred 2026-11-05 (step 4 spec 2, final
+  review)._ `exportDashboard`'s catch turns every error from the swap (a bug included) into
+  "Can't look up your area" with Retry, without `report()`. Telling a lookup failure from a bug
+  needs a typed lookup error from `pointSwaps`, used by its four callers (export, copy link,
+  copies from shares, the live-point guard). **Revisit when** the swap code is next touched, or
+  on a report of an export that always fails with the lookup message.
+- **A shared exact point outside SJVAir's area reads as the viewer's location.** _Deferred
+  2026-11-05 (step 4 spec 2, final review)._ A viewer of an exact share whose point is outside
+  the area sees "Your location is outside the area SJVAir covers.", worded as if it were the
+  viewer's own location. Why: an owner can only pick a point inside the area, so it needs an
+  edited or very old document. **Revisit on** a report of it: word it for the place, not the
+  viewer, when the document isn't the viewer's own.
+- **Points in a newer-format dashboard's export.** _Deferred 2026-11-04 (step 4 spec 2, Task 13)._
+  A read-only (newer or invalid) dashboard is exported as stored; the location-privacy swap
+  finds only points in today's shape (`body.widgets[].data.layers[].place`). A future format
+  that keeps an exact location elsewhere would be exported as is by this build. **Revisit on**
+  any schema change that stores a coordinate in a new place (that build's own export swaps it,
+  but older builds sharing the same storage won't).
+
 - **Deleting an unreadable dashboard is local only.** _Deferred 2026-11-03 (design pass, Task 15)._
   The list's Delete for a dashboard that can't be opened removes only this browser's copy; in an
   account space, sync may download a valid server copy again (arguably a repair). **Revisit on** a
@@ -798,6 +867,43 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
+- **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
+  school, a monitor and a county side by side in one Chart: several places are one
+  `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other
+  kind (with a reason) and schools and "your location" are single-place only. Mixing needs a new
+  shape across map-sdk and the data layer. **Revisit if** users ask, or when Release 3 analysis
+  needs it.
+- **Per-monitor pollutant coverage in the place picker.** _Deferred 2026-11-04 (step 4 spec
+  2)._ Monitors are offered by type (`monitors/meta/` `monitors[<type>].entries`), so a site
+  whose type takes a pollutant but that doesn't measure it (an AirNow site without ozone) can be
+  picked and then shows "No data". **Revisit when** the server exposes per-monitor entry types.
+- **Location type and region filters in the place picker.** _Deferred 2026-11-04 (step 4 spec
+  2)._ One search box covers the brief; `searchLocations`' `type` and `region` options stay
+  unused. **Revisit if** school searches return too many unrelated rows.
+- **Recent places don't follow the account across devices.** _Deferred 2026-11-04 (step 4 spec
+  2)._ They're kept per space in this browser's preferences, never sent to the server or saved
+  in documents. **Revisit if** people ask for them on another device.
+
+- **Per-type counts in Browse's "Inside" list.** _Deferred 2026-11-04 (step 4 spec 2)._ The
+  list of child types under a region ("Inside Tulare County") shows names only; counts would
+  need one `regionsIn` fetch per child type. **Revisit when** people need the counts, or the
+  server adds counts within a parent.
+
+- **A picked region whose type has no metadata label is dropped on Done.** _Deferred
+  2026-11-05 (step 4 spec 2, final review)._ The picker names a picked region with its type's
+  label from `regions/meta/`; a region whose type has none resolves as gone, so it isn't picked
+  again and Done saves the widget without it. Why: every region type the server serves has a
+  label today, and a gone place is already handled (see `ARCHITECTURE.md`). **Revisit if** the
+  server adds a region type without a label, or a saved region vanishes after "Change place".
+
+- **Browse's list state and paging semantics.** _Deferred 2026-11-05 (step 4 spec 2, final
+  review)._ Back returns to a list with its filter cleared and only the first page shown; the
+  paged grid (50 rows drawn of, say, ~1,160 ZIP codes) has no `aria-rowcount` or
+  `aria-setsize`, so a screen reader hears the rows drawn, not the total (the count is
+  announced once in the status); and Browse's "Loading…" isn't announced (the count is, when
+  the list settles). Why: minor next to the rest of the picker; each is a small change. **Revisit
+  on** a screen-reader or usability report about Browse, or with the accessibility audit.
+
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
   way to go in the long run")._ `regions/places/search/` rows carry one `county`: the county
@@ -829,6 +935,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   data. A place without data shows a "no data for this range" state once chosen.
   **Revisit when** users struggle to find places with data; it would need a bulk coverage
   mode, probably backed by a precomputed table on the server.
+- **Region display names: ZIPs and tracts show bare codes ("93702"), and a city, urban area and
+  CDP can share a name ("Arvin").** _Deferred 2026-11-05 (step 4 spec 2, the user)._ The server
+  names these regions bare, so the picker, chips and titles show "93702"; the user wants "ZIP
+  93702" built from metadata, not hardcoded. **Revisit when** sjvair.com adds a display name or
+  a per-type name template to `regions/meta/`.
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
@@ -989,13 +1100,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   started before midnight gets the older dates until the next poll. **Revisit if** a widget
   shows yesterday's window after midnight for longer than a poll; the fix is to compare the
   in-flight request's dates when attaching.
-- **A monitor missing from the monitors list gets the uncalibrated series silently.**
-  _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
-  can't name the published processor, so the request names none and the server returns the
-  type's default stage. **Revisit when** step 3's metadata work lands: report the query as
-  `unavailable`, or refresh the monitors list and try again. (What a widget shows for an
-  unknown monitor today is under "Widgets": "An unknown monitor shows the error (with Retry) or
-  'No data'".)
+- **A point's or school's fallback isn't shared with plain region widgets, and re-runs each
+  poll.** _Deferred 2026-11-04 (step 4 spec 2, Task 7 review)._ A fallback query (ZIP → city →
+  county) is its own cache entry, so a ZIP widget and a point widget using that ZIP fetch it
+  separately, and each poll walks the chain again from the ZIP (a point with data only at the
+  county makes 3 requests per poll). Why: correct, and the HTTP cache absorbs most repeats.
+  **Revisit if** point or school widgets show up as load, or the polls are slow: share the
+  per-region entries, or remember the region used until the range changes.
+- **The monitors list is fetched once per session.** _Deferred 2026-11-04 (step 4 spec 2, Task
+  9 review)._ It's memoized, so a monitor added to the server after the page loaded isn't in it:
+  a widget saved with it elsewhere reads "no longer available" here, and the picker doesn't
+  offer it, until a reload. Why: new monitors are rare, and a reload fixes it. **Revisit if**
+  it's reported, or a long-lived page (Tauri, a kiosk) needs it: refresh the list on a miss, or
+  on a timer.
 - **A failure fetching monitor names fails the whole data query.** _Deferred 2026-11-04 (step 4
   spec 1 final review)._ Monitor places are named from the monitors list; if that fetch fails,
   the query fails with it, though the readings themselves came back. Why: the list is memoized
@@ -1194,15 +1311,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Retired regions get the "stopped reporting" note and "Switch to the replacement", but there's
   no server lookup telling a retired monitor from one that never existed. **Revisit when**
   sjvair.com adds that lookup.
-- **An unknown monitor shows the error (with Retry) or "No data", not "no longer available".**
-  _Deferred 2026-11-04 (step 4 spec 1 final review, controller ruling)._ A widget whose monitor
-  isn't in the monitors list just runs its query: the server's error shows the error state with
-  Retry, or an empty answer shows "No data". Nothing says the monitor is gone, because nothing
-  can tell yet (see "Stopped reporting" above), and the request goes out with no processor (see
-  "A monitor missing from the monitors list gets the uncalibrated series silently" under
-  "Analysis & data"). Why deferred: step 4 spec 2's place picker brings the monitors list into
-  the widget, where checking the saved monitor against it belongs. **Revisit when** step 4
-  spec 2 starts.
 - **Generated widget titles are never cleared.** _Deferred 2026-11-04 (step 4 spec 1 final
   review)._ The map of generated titles (`src/lib/widgets/titles.svelte.ts`) only gains
   entries: an undone delete can briefly show the old generated title until the widget's data is
@@ -1552,6 +1660,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
+- **"The live region is polite and announces" flakes under full-suite load.** _Noted 2026-11-05
+  (step 4 spec 2 final checks)._ `src/lib/components/dashboard/dashboard.browser.test.ts`
+  checks the region is still empty two animation frames after a repeated `announce`, assuming
+  both frames land inside `ANNOUNCE_GAP_MS` (100 ms). Under a loaded full `npm run test` run
+  they sometimes don't, so the text is already back; it failed in 2 of 4 local full runs and
+  passes alone (3/3). Neither the test nor the announcer changed in spec 2; the suite just grew.
+  **Revisit when** it flakes in CI, or when touching the announcer: assert against the gap with
+  fake timers instead of frames.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.

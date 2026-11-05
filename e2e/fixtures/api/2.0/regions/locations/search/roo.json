@@ -1,0 +1,119 @@
+{
+	"data": [
+		{
+			"id": "qfpem",
+			"source": "cde-public",
+			"external_id": "10621661035831",
+			"aliases": [],
+			"type": "public_school",
+			"name": "Roosevelt High",
+			"address": "4250 East Tulare St.",
+			"city_name": "Fresno",
+			"zip": "93702",
+			"point": {
+				"lat": 36.74199204,
+				"lng": -119.75280769
+			},
+			"regions": {
+				"county": {
+					"type": "county",
+					"external_id": "06019",
+					"name": "Fresno County"
+				},
+				"city": {
+					"type": "city",
+					"external_id": "0627000",
+					"name": "Fresno"
+				},
+				"zipcode": {
+					"type": "zipcode",
+					"external_id": "93702",
+					"name": "93702"
+				},
+				"school_district": {
+					"type": "school_district",
+					"external_id": "10621660000000",
+					"name": "Fresno Unified"
+				}
+			},
+			"retired": null
+		},
+		{
+			"id": "ga9bc",
+			"source": "cde-public",
+			"external_id": "15633216009146",
+			"aliases": [],
+			"type": "public_school",
+			"name": "Roosevelt Elementary",
+			"address": "2324 Verde St.",
+			"city_name": "Bakersfield",
+			"zip": "93304",
+			"point": {
+				"lat": 35.35638895,
+				"lng": -119.02745043
+			},
+			"regions": {
+				"county": {
+					"type": "county",
+					"external_id": "06029",
+					"name": "Kern County"
+				},
+				"city": {
+					"type": "city",
+					"external_id": "0603526",
+					"name": "Bakersfield"
+				},
+				"zipcode": {
+					"type": "zipcode",
+					"external_id": "93304",
+					"name": "93304"
+				},
+				"school_district": {
+					"type": "school_district",
+					"external_id": "15633210000000",
+					"name": "Bakersfield City"
+				}
+			},
+			"retired": null
+		},
+		{
+			"id": "zdkr8",
+			"source": "cde-public",
+			"external_id": "54755316107650",
+			"aliases": [],
+			"type": "public_school",
+			"name": "Roosevelt Elementary",
+			"address": "1311 Euclid Ave.",
+			"city_name": "Dinuba",
+			"zip": "93618",
+			"point": {
+				"lat": 36.55800505,
+				"lng": -119.40061261
+			},
+			"regions": {
+				"county": {
+					"type": "county",
+					"external_id": "06107",
+					"name": "Tulare County"
+				},
+				"city": {
+					"type": "city",
+					"external_id": "0619318",
+					"name": "Dinuba"
+				},
+				"zipcode": {
+					"type": "zipcode",
+					"external_id": "93618",
+					"name": "93618"
+				},
+				"school_district": {
+					"type": "school_district",
+					"external_id": "54755310000000",
+					"name": "Dinuba Unified"
+				}
+			},
+			"retired": null
+		}
+	],
+	"more": false
+}

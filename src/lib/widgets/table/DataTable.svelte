@@ -13,7 +13,9 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
+	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { dataTableType } from "./index";
+	import { placeLabel } from "../title";
 	import { sortRows, wideRows } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
@@ -78,7 +80,13 @@
 		</p>
 	{/if}
 	<div class="min-h-0 flex-1">
-		<WidgetState state={w.shown} {widget} retired={w.retired} onretry={w.retry}>
+		<WidgetState
+			state={w.shown}
+			{widget}
+			retired={w.retired}
+			onretry={w.retry}
+			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		>
 			{#snippet children(data)}
 				{@const rows = sortRows(wideRows(data), sort.column, sort.dir)}
 				{@const extra = extras(data)}
@@ -94,8 +102,10 @@
 							size="sm"
 							disabled={csvPending(widget.id)}
 							onclick={() =>
-								void saveWidgetCsv(widget, (name, contents, type) =>
-									app.platform.files.save(name, contents, type)
+								void saveWidgetCsv(
+									widget,
+									(name, contents, type) => app.platform.files.save(name, contents, type),
+									w.viewer
 								)}
 						>
 							<Download aria-hidden="true" />
@@ -114,7 +124,10 @@
 								<tr>
 									{@render head("t", m.table_date())}
 									{#each data.places as place, i (place.place)}
-										{@render head(i, m.table_place_value({ place: place.name, unit }))}
+										{@render head(
+											i,
+											m.table_place_value({ place: placeLabel(place, w.viewer), unit })
+										)}
 									{/each}
 									{#if extra.worst}
 										<th scope="col" class="border-border border-b px-2 py-1 font-semibold">

@@ -50,56 +50,6 @@
 				"type": "pm25",
 				"units": "µg/m³",
 				"epa_aqs_code": 88101,
-				"levels": {
-					"GOOD": {
-						"name": "good",
-						"label": "Good",
-						"color": "#00e400",
-						"range": [0.0, 9.0],
-						"guidance": null,
-						"tier": 0
-					},
-					"MODERATE": {
-						"name": "moderate",
-						"label": "Moderate",
-						"color": "#ffff00",
-						"range": [9.1, 35.4],
-						"guidance": "Highly sensitive groups should stay indoors and avoid outdoor activities.",
-						"tier": 1
-					},
-					"UNHEALTHY_SENSITIVE": {
-						"name": "unhealthy_sensitive",
-						"label": "Unhealthy for Sensitive Groups",
-						"color": "#ff7e00",
-						"range": [35.5, 55.4],
-						"guidance": "Sensitive groups should stay indoors and avoid outdoor activities.",
-						"tier": 2
-					},
-					"UNHEALTHY": {
-						"name": "unhealthy",
-						"label": "Unhealthy",
-						"color": "#ff0000",
-						"range": [55.5, 125.4],
-						"guidance": "Everyone should reduce prolonged or heavy exertion.",
-						"tier": 3
-					},
-					"VERY_UNHEALTHY": {
-						"name": "very_unhealthy",
-						"label": "Very Unhealthy",
-						"color": "#8f3f97",
-						"range": [125.5, 225.4],
-						"guidance": "Everyone should avoid prolonged or heavy exertion.",
-						"tier": 4
-					},
-					"HAZARDOUS": {
-						"name": "hazardous",
-						"label": "Hazardous",
-						"color": "#7e0023",
-						"range": [225.5, 99999],
-						"guidance": "Everyone should stay indoors and avoid physical outdoor activities.",
-						"tier": 4
-					}
-				},
 				"scale": {
 					"id": "pm25",
 					"label": "PM2.5",
@@ -184,7 +134,111 @@
 						}
 					]
 				},
-				"fields": ["timestamp", "sensor", "stage", "processor", "value"]
+				"fields": ["timestamp", "sensor", "stage", "processor", "value"],
+				"school_guidelines": {
+					"label": "Outdoor Activity Guidelines for Schools",
+					"resolution": "hour",
+					"source": {
+						"name": "SJVAir",
+						"url": "https://www.sjvair.com/guidelines/schools/"
+					},
+					"activities": [
+						{
+							"key": "recess",
+							"label": "Recess",
+							"duration": "15 minutes",
+							"levels": {
+								"good": ["No restrictions."],
+								"moderate": [
+									"Ensure that sensitive individuals are medically managing their condition."
+								],
+								"unhealthy_sensitive": [
+									"Sensitive individuals should exercise indoors or avoid vigorous outdoor activities."
+								],
+								"unhealthy": [
+									"Exercise indoors or avoid vigorous outdoor activities.",
+									"Sensitive individuals should remain indoors."
+								],
+								"very_unhealthy": [
+									"No outdoor activity.",
+									"All activities should be moved indoors."
+								],
+								"hazardous": ["No outdoor or indoor activities."]
+							}
+						},
+						{
+							"key": "pe",
+							"label": "P.E.",
+							"duration": "1 hour",
+							"levels": {
+								"good": ["No restrictions."],
+								"moderate": [
+									"Ensure that sensitive individuals are medically managing their condition."
+								],
+								"unhealthy_sensitive": [
+									"Sensitive individuals should exercise indoors or avoid vigorous outdoor activities."
+								],
+								"unhealthy": [
+									"Exercise indoors or limit vigorous outdoor activities to a maximum of 15 minutes.",
+									"Sensitive individuals should remain indoors."
+								],
+								"very_unhealthy": [
+									"No outdoor activity.",
+									"All activities should be moved indoors."
+								],
+								"hazardous": ["No outdoor or indoor activities."]
+							}
+						},
+						{
+							"key": "athletics",
+							"label": "Athletic Practice & Training",
+							"duration": "2-4 hours",
+							"levels": {
+								"good": ["No restrictions."],
+								"moderate": [
+									"Ensure that sensitive individuals are medically managing their condition."
+								],
+								"unhealthy_sensitive": [
+									"Reduce vigorous exercise to 30 min per hour of practice time with increased breaks and substitutions.",
+									"Ensure that sensitive individuals are medically managing their condition."
+								],
+								"unhealthy": [
+									"Exercise indoors or reduce vigorous exercise to 30 minutes of practice time with increased rest breaks and substitutions.",
+									"Sensitive individuals should remain indoors."
+								],
+								"very_unhealthy": [
+									"No outdoor activity.",
+									"All activities should be moved indoors."
+								],
+								"hazardous": ["No outdoor or indoor activities."]
+							}
+						},
+						{
+							"key": "events",
+							"label": "Scheduled Sporting Events",
+							"duration": null,
+							"levels": {
+								"good": ["No restrictions."],
+								"moderate": [
+									"Ensure that sensitive individuals are medically managing their condition."
+								],
+								"unhealthy_sensitive": [
+									"Increase rest breaks and substitutions per CIF guidelines for extreme heat.",
+									"Ensure that sensitive individuals are medically managing their condition."
+								],
+								"unhealthy": [
+									"Increase rest breaks and substitutions per CIF guidelines for extreme heat.",
+									"Ensure that sensitive individuals are medically managing their condition."
+								],
+								"very_unhealthy": [
+									"No outdoor activity.",
+									"All activities should be moved indoors."
+								],
+								"hazardous": ["No outdoor or indoor activities."]
+							}
+						}
+					]
+				}
 			}
 		},
 		"stages": {
