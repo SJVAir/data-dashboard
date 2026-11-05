@@ -1083,10 +1083,13 @@ research in `docs/reference/pesticides-explorer-research.md`).
   8. **Removing `levels` from the SDK** (the user, 2026-11-04; the server side is the
      hardcoded-value cleanup, spec 5): the `monitors/meta/` schema's `levels` field, the `levels`
      getter, `asIter.levels`, and the fixtures in `lib/monitors`. For 5.0, in a beta that pairs
-     with spec 5's server change. **Parked (the user, 2026-11-04): decide which beta once spec
-     5's server spec is written**; sjvair-com-c9 will say when. Nothing is written or built yet
-     (no SDK spec, branch or notes file); sdk-js-8c brainstormed it with the user only up to the
-     timing question. What a fresh sdk-js session needs:
+     with spec 5's server change. **Status (2026-11-04): PR SJVAir/sdk-js#45 open into
+     `release/5.0.0`, not merged.** Spec and plan approved (sdk-js
+     `docs/superpowers/specs/2026-11-04-remove-levels-design.md`). It also adds
+     `school_guidelines` (`EntriesMeta.school_guidelines`, `SchoolGuidelines` /
+     `SchoolActivity` types) and the forecast `color` / `aqi_category` docs. Checked against
+     sjvair.com PR #306 served locally: all match. Ships in 5.0.0-beta.3, cut only after #306
+     merges into `develop` and with the user's yes. Background notes:
      - **SDK scope, beyond the four parts above (the user, 2026-11-04: remove them if nothing
        else uses them):** `SJVAirEntryLevel` and `sjvairEntryLevelMetaSchema` are used only by `levels`,
        and `EntriesMeta.asIter` holds only `levels`, so all three go too (no fallbacks).
