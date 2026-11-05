@@ -1307,8 +1307,11 @@ The checklist below is the whole step's scope.
     (`FeatureListItem.detail`, `pointsPlugin` `detail(props)`; EV chargers' "Level 2 charger" in
     place of "No level" in the list and map-sdk's tooltips), both the user's calls. Spec written,
     awaiting the user's review (branch `feature/legend-list-detail`).
-  - **Next for monitor-map 5.0:** a published map-sdk `0.x` (the user's yes per release, after
-    the npm trusted publisher is set up), then the monitor-map 5.0 rebuild plan.
+  - **✅ First publish 2026-11-05:** `@sjvair/map-sdk@0.1.0-beta.1` on npm (`next`; npm also
+    points `latest` at it, as the only release), published by hand by the user after the release
+    prep PR ([map-sdk #6](https://github.com/SJVAir/map-sdk/pull/6): version, `prepack` build,
+    the npm 12 `allow-remote=root` install note). Next: the user sets up the npm trusted
+    publisher; later releases go through `release.yml`, each with the user's yes.
 - **monitor-map 5.0, rebuilt on `map-sdk`** (session `monitor-map-2a`): **spec approved by the
   user 2026-11-05**, monitor-map `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md`;
   the plan is next. All 5.0 work goes into a `release/5.0.0` branch through PRs, merged into
