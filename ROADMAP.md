@@ -29,7 +29,7 @@ go-live or beta testers. **The server-backed documents (sync) track's spec 1 is 
 2026-11-03; its sjvair.com `deletedAccount` change is #299 on `develop`). The hosting track is built (sjvair.com
 #295) and step 3's catalog, codes, and coverage are built (sjvair.com #293, sdk-js 4.8.0-beta.1). Step 3's spec 1 (scale metas, tiers, region hierarchy, forecast and CalHeatScore wrappers) is merged too (sjvair.com #300 into `develop`, @sjvair/sdk 4.8.0-beta.4); spec 2 is next in a new sjvair.com session. **The design pass is done and merged into `main`** (2026-11-04: [#33](https://github.com/SJVAir/data-dashboard/pull/33) the look, [#34](https://github.com/SJVAir/data-dashboard/pull/34) wording and behavior), so **step 4 is next** in this repo. `map-sdk` milestone 1 is merged (`SJVAir/map-sdk` #1, 2026-11-04; not yet published), so the Map widget can build on it.
 Both server PRs are on sjvair.com `develop`, not yet in production. Current baseline: monitor-map
-4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (the next release is 5.0.0, renamed from 4.8.0 on 2026-11-04; betas only until sjvair.com `develop` reaches production; `5.0.0-beta.2` is the latest). Details in `TODO.md` →
+4.3.0, mobile 4.0.6, @sjvair/sdk 4.7.0 (the next release is 5.0.0, renamed from 4.8.0 on 2026-11-04; betas only until sjvair.com `develop` reaches production; `5.0.0-beta.3` is the latest). Details in `TODO.md` →
 "Start here".
 
 ## Done (v1 tab era)
@@ -186,7 +186,10 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      what the dashboard needs, with presets for monitors, region fill, HMS smoke and fire,
      CalHeatScore ZIPs, and forecast zones, published to npm as `0.x`. monitor-map parity is
      milestone 2; its spec was approved 2026-11-04 (in the map-sdk repo). **Milestone 1 merged
-     2026-11-04** ([map-sdk #1](https://github.com/SJVAir/map-sdk/pull/1)); not yet published.
+     2026-11-04** ([map-sdk #1](https://github.com/SJVAir/map-sdk/pull/1)). **Milestone 2 (monitor-map
+     parity) merged 2026-11-04** ([map-sdk #4](https://github.com/SJVAir/map-sdk/pull/4)), on
+     `@sjvair/sdk` 5.0.0-beta.3 with the legacy `levels` fallback removed. Neither is published yet;
+     monitor-map 5.0 needs a published `0.x`.
    - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B)
@@ -196,6 +199,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      widget and the monitor-map rebuild both build against pre-1.0 `map-sdk`, and 1.0 is
      cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
      with approval.
+     **monitor-map 5.0 spec approved 2026-11-05** (in the monitor-map repo): work goes into
+     `release/5.0.0`, merged into `main` on go-live day; mobile tries npm betas from it.
    - **On the go-live path (changed 2026-11-04, the user):** the monitor-map 5.0 rebuild and the
      mobile migration onto it must be done before sjvair.com `develop` is released, and the
      mobile release ships the same day (see `DEFERRED.md`).
