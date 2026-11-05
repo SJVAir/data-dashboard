@@ -598,6 +598,29 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   the dashboard opens, but not on a timer, and a held dashboard is only shown as having changes
   waiting. Why: the lookup fails only offline or with the server down, which those retries
   cover. **Revisit on** reports of a live-shared dashboard stuck unsynced with a point.
+- **The live-point guard's retry outlives its session.** _Deferred 2026-11-05 (step 4 spec
+  2, final review)._ After a failed lookup, the `online` listener and the persistent Retry toast
+  stay after the dashboard is closed, so the toast can show on another dashboard, and a
+  reconnect runs a guard on a closed session (harmless: the version check makes it a no-op).
+  Why: needs a failed lookup and then leaving the dashboard before reconnecting. **Revisit if**
+  it confuses anyone: tie the listener and toast to the session and drop them when it closes.
+- **"Keep mine" during a failed lookup shows a generic error.** _Deferred 2026-11-05 (step 4
+  spec 2, final review)._ In a conflict on a live-shared dashboard whose point can't be looked
+  up, "Keep mine" fails with the generic error, not "Can't look up your area right now." Why:
+  needs a conflict and a lookup failure at once; nothing exact is shared either way. **Revisit
+  on** a report of it, or when the conflict dialog's messages are next reworked.
+- **Exporting with points reports no errors.** _Deferred 2026-11-05 (step 4 spec 2, final
+  review)._ `exportDashboard`'s catch turns every error from the swap (a bug included) into
+  "Can't look up your area" with Retry, without `report()`. Telling a lookup failure from a bug
+  needs a typed lookup error from `pointSwaps`, used by its four callers (export, copy link,
+  copies from shares, the live-point guard). **Revisit when** the swap code is next touched, or
+  on a report of an export that always fails with the lookup message.
+- **A shared exact point outside SJVAir's area reads as the viewer's location.** _Deferred
+  2026-11-05 (step 4 spec 2, final review)._ A viewer of an exact share whose point is outside
+  the area sees "Your location is outside the area SJVAir covers.", worded as if it were the
+  viewer's own location. Why: an owner can only pick a point inside the area, so it needs an
+  edited or very old document. **Revisit on** a report of it: word it for the place, not the
+  viewer, when the document isn't the viewer's own.
 - **Points in a newer-format dashboard's export.** _Deferred 2026-11-04 (step 4 spec 2, Task 13)._
   A read-only (newer or invalid) dashboard is exported as stored; the location-privacy swap
   finds only points in today's shape (`body.widgets[].data.layers[].place`). A future format
@@ -865,6 +888,21 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   list of child types under a region ("Inside Tulare County") shows names only; counts would
   need one `regionsIn` fetch per child type. **Revisit when** people need the counts, or the
   server adds counts within a parent.
+
+- **A picked region whose type has no metadata label is dropped on Done.** _Deferred
+  2026-11-05 (step 4 spec 2, final review)._ The picker names a picked region with its type's
+  label from `regions/meta/`; a region whose type has none resolves as gone, so it isn't picked
+  again and Done saves the widget without it. Why: every region type the server serves has a
+  label today, and a gone place is already handled (see `ARCHITECTURE.md`). **Revisit if** the
+  server adds a region type without a label, or a saved region vanishes after "Change place".
+
+- **Browse's list state and paging semantics.** _Deferred 2026-11-05 (step 4 spec 2, final
+  review)._ Back returns to a list with its filter cleared and only the first page shown; the
+  paged grid (50 rows drawn of, say, ~1,160 ZIP codes) has no `aria-rowcount` or
+  `aria-setsize`, so a screen reader hears the rows drawn, not the total (the count is
+  announced once in the status); and Browse's "Loading…" isn't announced (the count is, when
+  the list settles). Why: minor next to the rest of the picker; each is a small change. **Revisit
+  on** a screen-reader or usability report about Browse, or with the accessibility audit.
 
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better

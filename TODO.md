@@ -1174,8 +1174,10 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    Chart and Data table; points and schools showing their ZIP → city → county region with data,
    labeled; "no longer available" for unlisted monitors and gone schools; and location privacy
    (copy links and exports swap points for their region, copies from shares always swap, a
-   guarded live-link prompt, "Use my location" on a live-shared dashboard saves the region).
-   E2E: `e2e/place-picker.spec.ts`. Stack check against `develop`: "fre" and "roo" searches,
+   guarded live-link prompt, "Use my location" on a live-shared dashboard saves the region;
+   after review, a guard on every edit so an exact point never reaches a live link by any
+   path, and with exactly one place picked, of any kind, a school or "your location" replaces
+   it). E2E: `e2e/place-picker.spec.ts`. Stack check against `develop`: "fre" and "roo" searches,
    ZIP Codes in Tulare County, Roosevelt High's chart (ZIP 93702), and a scripted position
    (ZIP 93721). Its deferrals are in `DEFERRED.md`. After
    the merge: rewrite `prompt-map-widget.txt` and tell the coordinator.
