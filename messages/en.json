@@ -914,5 +914,11 @@
 	"get_data_add_other": "Add to another dashboard",
 	"get_data_add_new": "New dashboard",
 	"get_data_add_failed": "Couldn't add the widget. Please try again.",
-	"get_data_save": "Save changes"
+	"get_data_save": "Save changes",
+	"get_data_save_failed": "Couldn't save your changes. Please try again.",
+	"get_data_discard_title": "Discard changes?",
+	"get_data_discard": "Discard",
+	"get_data_keep_editing": "Keep editing",
+	"edit_data_unavailable": "This widget's data can't be edited here.",
+	"widget_edit_data": "Edit data"
 }

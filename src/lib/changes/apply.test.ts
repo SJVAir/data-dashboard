@@ -220,6 +220,100 @@ describe("applyChange", () => {
 		expect(appliedChange(inverse)).toEqual({ ...change, from: emptyData, to: otherData });
 	});
 
+	it("setWidgetData with type, options and rect sets them all and inverts to what was there", () => {
+		const doc = makeDoc({
+			body: { widgets: [{ ...widget("a"), options: { keep: 1 } }, widget("b")] }
+		});
+		const change: Change = {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: emptyData,
+			to: otherData,
+			// `from`s are stale: the inverse restores what was really there.
+			type: { from: "stale", to: "data-table" },
+			options: { from: { stale: true }, to: { overlayFor: "x" } },
+			rect: { from: { x: 9, y: 9, w: 1, h: 1 }, to: { x: 0, y: 0, w: 8, h: 6 } }
+		};
+		const { doc: next, inverse } = applyChange(doc, change);
+		expect(next.body.widgets[0]).toEqual({
+			id: "a",
+			type: "data-table",
+			title: null,
+			rect: { x: 0, y: 0, w: 8, h: 6 },
+			data: otherData,
+			options: { overlayFor: "x" }
+		});
+		expect(inverse).toEqual({
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: otherData,
+			to: emptyData,
+			type: { from: "data-table", to: "placeholder" },
+			options: { from: { overlayFor: "x" }, to: { keep: 1 } },
+			rect: { from: { x: 0, y: 0, w: 8, h: 6 }, to: { x: 0, y: 0, w: 6, h: 4 } }
+		});
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+		expect(appliedChange(inverse)).toEqual({
+			...change,
+			from: emptyData,
+			type: { from: "placeholder", to: "data-table" },
+			options: { from: { keep: 1 }, to: { overlayFor: "x" } },
+			rect: { from: { x: 0, y: 0, w: 6, h: 4 }, to: { x: 0, y: 0, w: 8, h: 6 } }
+		});
+	});
+
+	it("setWidgetData options with no `to` removes them; the inverse puts them back", () => {
+		const doc = makeDoc({
+			body: { widgets: [{ ...widget("a"), options: { keep: 1 } }, widget("b")] }
+		});
+		const { doc: next, inverse } = applyChange(doc, {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: emptyData,
+			to: emptyData,
+			options: { from: { keep: 1 } }
+		});
+		expect("options" in next.body.widgets[0]).toBe(false);
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+	});
+
+	it("setWidgetData without type, options or rect leaves them as they are", () => {
+		const doc = makeDoc({
+			body: { widgets: [{ ...widget("a"), options: { keep: 1 } }, widget("b")] }
+		});
+		const { doc: next, inverse } = applyChange(doc, {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: emptyData,
+			to: otherData
+		});
+		expect(next.body.widgets[0]).toEqual({ ...doc.body.widgets[0], data: otherData });
+		expect(Object.keys(inverse).sort()).toEqual(["from", "op", "target", "to"]);
+	});
+
+	it("ChangeSchema validates setWidgetData's type, options and rect", () => {
+		const good = {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: emptyData,
+			to: otherData,
+			type: { from: "chart", to: "data-table" },
+			options: { from: { a: 1 } },
+			rect: { from: { x: 0, y: 0, w: 3, h: 4 }, to: { x: 0, y: 0, w: 4, h: 5 } }
+		};
+		expect(ChangeSchema.safeParse(good).success).toBe(true);
+		expect(ChangeSchema.safeParse({ ...good, type: { from: "chart", to: "" } }).success).toBe(
+			false
+		);
+		expect(ChangeSchema.safeParse({ ...good, options: { to: "no" } }).success).toBe(false);
+		expect(
+			ChangeSchema.safeParse({
+				...good,
+				rect: { from: good.rect.from, to: { x: 10, y: 0, w: 4, h: 5 } }
+			}).success
+		).toBe(false);
+	});
+
 	it("setWidgetData throws ChangeTargetMissing for a missing widget", () => {
 		expect(() =>
 			applyChange(makeDoc(), {

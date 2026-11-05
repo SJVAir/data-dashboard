@@ -1546,6 +1546,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
   registry and the widget "⋯" menus have shipped.
+- **Asking before closing the tab or reloading with unsaved Edit data changes** (a browser
+  `beforeunload` prompt). _Deferred 2026-11-05 (step 4 spec 3, Edit data; ruled out of scope
+  for the task)._ Cancel, Back, forward and in-app links ask "Discard changes?"; closing the
+  tab or reloading drops the unsaved edit without asking (the dashboard itself is untouched,
+  since nothing is applied before Save changes). sv-router's `blockNavigation` already takes a
+  `beforeUnload` callback. **Revisit when** people report losing Edit data work to a closed tab
+  or reload, or when Edit data grows long-running edits.
 - **Visual and brand design system.** _Deferred 2026-09-14; **scheduled 2026-09-28** as its
   own sub-project before Release 1 step 4 (Foundations builds the theme-token layer it
   plugs into)._ It stays listed here until it ships.

@@ -42,7 +42,8 @@
 		initial,
 		add,
 		onSave,
-		onCancel
+		onCancel,
+		onchange
 	}: {
 		mode: GetDataMode;
 		initial: Draft;
@@ -57,6 +58,8 @@
 		/** "Save changes" (editing a widget's data). */
 		onSave?: (draft: Draft) => void;
 		onCancel: () => void;
+		/** The draft after each change (and once at the start). */
+		onchange?: (draft: Draft) => void;
 	} = $props();
 
 	const app = useApp();
@@ -177,6 +180,11 @@
 		if (data.shown.status !== "ready") return;
 		const t = generatedTitle(PREVIEW_ID);
 		if (t) announcement = m.get_data_preview_showing({ title: t });
+	});
+
+	$effect(() => {
+		const snapshot = plain;
+		untrack(() => onchange?.(snapshot));
 	});
 
 	// The draft is kept for a reload or a later visit; Edit data starts from the widget each time.

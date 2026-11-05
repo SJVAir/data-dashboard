@@ -104,6 +104,35 @@ describe("rebase", () => {
 		if (result.kind !== "clean") return;
 		expect(result.changes).toEqual([title("b", "Mine", null)]);
 	});
+
+	it("a setWidgetData with a type switch replays over their title edit, recording what was there", () => {
+		const theirs = [title("a", "Theirs")];
+		const switched: Change = {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: { layers: [] },
+			to: { layers: [{ dataset: "air-quality" }] },
+			type: { from: "stale", to: "data-table" },
+			options: { to: { x: 1 } },
+			rect: { from: { x: 0, y: 0, w: 6, h: 4 }, to: { x: 0, y: 0, w: 6, h: 5 } }
+		};
+		const current = applyAll(makeDoc(), theirs);
+		const result = rebase(current, theirs, [switched]);
+		expect(result.kind).toBe("clean");
+		if (result.kind !== "clean") return;
+		expect(result.doc.body.widgets[0]).toMatchObject({
+			title: "Theirs",
+			type: "data-table",
+			options: { x: 1 },
+			rect: { x: 0, y: 0, w: 6, h: 5 }
+		});
+		expect(result.changes).toEqual([
+			{ ...switched, type: { from: "placeholder", to: "data-table" }, options: { to: { x: 1 } } }
+		]);
+		// Their own type switch to something else conflicts.
+		const other: Change = { ...switched, type: { from: "placeholder", to: "chart" } };
+		expect(rebase(applyAll(makeDoc(), [other]), [other], [switched]).kind).toBe("conflict");
+	});
 });
 
 describe("layout moves in rebase", () => {

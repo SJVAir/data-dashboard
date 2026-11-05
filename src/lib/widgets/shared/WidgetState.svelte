@@ -8,6 +8,8 @@
 	import { formatDate } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
+	import { getWidgetType } from "$lib/widgets/registry";
+	import { navigate } from "../../../router";
 	import { REMOVE_WIDGET_KEY } from "./context";
 	import { withReplacements } from "./retired";
 	import WidgetSkeleton from "./WidgetSkeleton.svelte";
@@ -26,8 +28,9 @@
 		retired?: { name: string; since: string };
 		onretry: () => void;
 		/**
-		 * Opens the place picker; "Choose a place" (idle) and "Choose another" show only when this is
-		 * given and editing.
+		 * Opens the place picker; "Choose a place" (idle) and "Choose another" (for a place) show
+		 * only when this is given and editing. "Choose another" for a retired dataset or entry type
+		 * opens Edit data instead.
 		 */
 		onchoose?: () => void;
 		children: Snippet<[QueryData]>;
@@ -75,6 +78,18 @@
 			?.place;
 	});
 
+	/** Edit data can change what a retired dataset or entry type was: types Get data shows. */
+	const editsData = $derived(editable && !!getWidgetType(widget.type)?.accepts?.datasets?.length);
+
+	/** "Choose another" for a retired dataset or entry type: Edit data on this widget. */
+	function chooseAnotherDataset(): void {
+		const session = app.current.session;
+		if (!session || session.readOnly) return;
+		void navigate("/dashboards/:id/widgets/:widgetId/edit", {
+			params: { id: session.doc.id, widgetId: widget.id }
+		});
+	}
+
 	function switchToReplacement(): void {
 		const session = app.current.session;
 		if (!session || session.readOnly || !replacement) return;
@@ -104,6 +119,12 @@
 	</p>
 {/snippet}
 
+{#snippet chooseAnotherButton()}
+	<Button size="sm" variant="outline" onclick={chooseAnotherDataset}>
+		{m.widget_state_choose_another()}
+	</Button>
+{/snippet}
+
 {#snippet switchButton()}
 	<Button size="sm" variant="outline" onclick={switchToReplacement}>
 		{m.widget_state_switch()}
@@ -113,7 +134,8 @@
 {#snippet notes()}
 	{#if retired}
 		{@render note(
-			m.widget_state_dataset_retired({ dataset: retired.name, date: sinceText(retired.since) })
+			m.widget_state_dataset_retired({ dataset: retired.name, date: sinceText(retired.since) }),
+			editsData ? chooseAnotherButton : undefined
 		)}
 	{/if}
 	{#each retiredPlaces as p (p.place)}

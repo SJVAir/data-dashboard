@@ -52,8 +52,11 @@ export async function addFromDraft(
 	return { dashboardId: target.doc.id, widgetId: widget.id };
 }
 
-/** The session the edit landed in: the starter's copy once the hand-off is done. */
-async function landedIn(session: DocumentSession): Promise<DocumentSession> {
+/**
+ * The session an edit landed in: the starter's copy once the hand-off is done. Throws when the
+ * copy couldn't be stored.
+ */
+export async function landedIn(session: DocumentSession): Promise<DocumentSession> {
 	const handoff = session.handoff;
 	if (!handoff) return session.editTarget;
 	const copy = await handoff;

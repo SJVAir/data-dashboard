@@ -18,8 +18,10 @@ import { registerWidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
 import { dataTableType } from "$lib/widgets/table";
 import { placeholderType } from "$lib/widgets/placeholder";
+import { navigate } from "../../router";
 
 vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
+vi.mock("../../router", () => ({ navigate: vi.fn(async () => {}) }));
 
 const SPACE: SpaceId = "anonymous";
 const CTX = { target: {} as Element, payload: {} };
@@ -250,5 +252,37 @@ describe("placeItems", () => {
 		const w = typed("placeholder");
 		const { app } = await setup([w]);
 		expect(placeItems(app, () => w)).toEqual([]);
+	});
+});
+
+describe("Edit data", () => {
+	registerWidgetType(placeholderType);
+	registerWidgetType(chartType);
+	registerWidgetType(dataTableType);
+
+	const typed = (type: string): WidgetInstance => ({
+		...widget("w", { x: 0, y: 0, w: 6, h: 4 }),
+		type
+	});
+	const editItem = (app: AppContext) =>
+		widgetActions(app, "w")(CTX).find((i) => i.id === "edit-data");
+
+	it.each(["chart", "data-table"])(
+		"a %s on an editable dashboard offers Edit data, opening the widget's data",
+		async (type) => {
+			const { app } = await setup([typed(type)]);
+			const item = editItem(app)!;
+			expect(item).toMatchObject({ label: "Edit data", group: "data" });
+			vi.mocked(navigate).mockClear();
+			run(item);
+			expect(navigate).toHaveBeenCalledWith("/dashboards/:id/widgets/:widgetId/edit", {
+				params: { id: "d1", widgetId: "w" }
+			});
+		}
+	);
+
+	it("not on a read-only dashboard, nor for a Placeholder", async () => {
+		expect(editItem((await setup([typed("chart")], 12, true)).app)).toBeUndefined();
+		expect(editItem((await setup([typed("placeholder")])).app)).toBeUndefined();
 	});
 });

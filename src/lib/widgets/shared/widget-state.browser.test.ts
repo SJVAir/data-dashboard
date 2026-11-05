@@ -57,7 +57,11 @@ async function seed() {
 
 async function show(
 	state: QueryState,
-	extra: { retired?: { name: string; since: string }; onchoose?: () => void } = {}
+	extra: {
+		retired?: { name: string; since: string };
+		onchoose?: () => void;
+		widget?: WidgetInstance;
+	} = {}
 ) {
 	const { app, session } = await seed();
 	const onretry = vi.fn();
@@ -304,6 +308,37 @@ test("a retired dataset shows its note over the data", async () => {
 			)
 		)
 		.toBeInTheDocument();
+});
+
+test("Choose another on a retired entry type opens Edit data, not the place picker", async () => {
+	const originalUrl = location.href;
+	try {
+		const onchoose = vi.fn();
+		const { screen, session } = await show(
+			{ status: "ready", data: data() },
+			{
+				retired: { name: "PM2.5", since: "2025-01-02" },
+				onchoose,
+				widget: { ...widget, type: "chart" }
+			}
+		);
+		await screen.getByRole("button", { name: m.widget_state_choose_another() }).click();
+		await expect
+			.poll(() => location.pathname)
+			.toBe(`/workspace/dashboards/${session.doc.id}/widgets/w1/edit`);
+		expect(onchoose).not.toHaveBeenCalled();
+	} finally {
+		history.replaceState(null, "", originalUrl);
+	}
+});
+
+test("a retired dataset on a type Get data can't edit has no Choose another", async () => {
+	const { screen } = await show(
+		{ status: "ready", data: data() },
+		{ retired: { name: "PM2.5", since: "2025-01-02" } }
+	);
+	await expect.element(screen.getByTestId("content")).toBeInTheDocument();
+	expect(page.getByRole("button", { name: m.widget_state_choose_another() }).query()).toBeNull();
 });
 
 test("several retired places share one Switch button", async () => {
