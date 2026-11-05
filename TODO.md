@@ -970,7 +970,7 @@ Spec: `docs/superpowers/specs/2026-11-03-design-pass-design.md`. Plan:
 
 Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22; not yet on
 `main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
-@sjvair/sdk's next stable release is **5.0.0, not 4.8.0** (the user, 2026-11-04: sdk-js #40 changes existing call signatures, and monitor-map's `^4.7.0` and mobile's `^4.6.0` must not pick that up by accident). Until sjvair.com `develop` reaches production it ships **betas only** (`5.0.0-beta.N`, each with the user's yes, like the 4.8.0 betas); 5.0.0 final follows the deploy (`DEFERRED.md` deploy entry), with explicit approval. sdk-js work now targets `release/5.0.0` (created at `release/4.8.0`'s tip, 4c85c16; `release/4.8.0` is kept until the user says to delete it), and sdk-js #41 adds its `CHANGELOG.md`.
+@sjvair/sdk's next stable release is **5.0.0, not 4.8.0** (the user, 2026-11-04: sdk-js #40 changes existing call signatures, and monitor-map's `^4.7.0` and mobile's `^4.6.0` must not pick that up by accident). Until sjvair.com `develop` reaches production it ships **betas only** (`5.0.0-beta.N`, each with the user's yes, like the 4.8.0 betas); 5.0.0 final follows the deploy (`DEFERRED.md` deploy entry), with explicit approval. sdk-js work now targets `release/5.0.0` (created at `release/4.8.0`'s tip, 4c85c16; `release/4.8.0` was deleted 2026-11-05, with the user's yes), and sdk-js #41 adds its `CHANGELOG.md`.
 
 **Second batch status (2026-11-03):** split into specs, scales first. **Spec 1 is built**
 (scale metas, tiers, region hierarchy, stage/processor labels, display hints, forecast and
@@ -1079,7 +1079,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
   4. Pesticide metadata and widget endpoints (`DEFERRED.md` → "Widgets").
   5. `calenviroscreen/meta/` (server endpoint plus wrapper), before Release 3 starter #7.
   6. sdk-js's 4 small follow-ups (its `DEFERRED.md` "Small follow-ups"), any time.
-  7. Deleting `release/4.8.0`, when the user says.
+  7. ✅ `release/4.8.0` deleted (the user's yes, 2026-11-05; fully contained in `release/5.0.0`, tip tagged `v4.8.0-beta.6`).
   8. **Removing `levels` from the SDK** (the user, 2026-11-04; the server side is the
      hardcoded-value cleanup, spec 5): the `monitors/meta/` schema's `levels` field, the `levels`
      getter, `asIter.levels`, and the fixtures in `lib/monitors`. For 5.0, in a beta that pairs
