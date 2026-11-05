@@ -58,11 +58,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the
   scrubbed fields). A test with a capturing transport would. **Revisit when** the dashboard's
   Sentry project exists, together with the hand check of a real report.
-- **The error reports' route list duplicates the router's.** _Deferred 2026-10-26
-  (Foundations spec 5a, final review)._ `routePattern` in `src/lib/errors/scrub.ts` keeps its
-  own copy of the route patterns, so a new route reports as `/other` until it is added there
-  too. **Revisit when** the Widget Creation or Analysis routes are added: derive it from the
-  router, or add a test comparing it to the router's route keys.
 - **CSP violations before IndexedDB opens aren't seen by the app.** _Deferred 2026-10-26
   (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
   only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed

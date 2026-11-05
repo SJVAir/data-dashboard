@@ -1488,6 +1488,9 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **The error reports' route list** (step 4 spec 3, 2026-11-05): a test compares
+      `routePattern` to the router's route keys (`ROUTE_KEYS`). Removed from `DEFERRED.md`: "The
+      error reports' route list duplicates the router's".
 - [x] **monitor-map 5.0 decisions** (the user, 2026-11-05, in the 5.0 spec). Removed from
       `DEFERRED.md`: "Shared date-range helper home" (the chart uses `@sjvair/sdk`'s Pacific
       day helpers; no new shared module), and "monitor-map: cancelling one-off loads" (HMS and
