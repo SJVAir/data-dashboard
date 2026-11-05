@@ -3,7 +3,7 @@ import type { Platform } from "$lib/platform/types";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
 import { dataTableType } from "$lib/widgets/table";
-import { DRAFT_KEY, defaultDraft, loadDraft, saveDraft } from "./draft.svelte";
+import { DRAFT_KEY, defaultDraft, flushDraft, loadDraft, saveDraft } from "./draft.svelte";
 
 const SPACE = "anonymous" as const;
 
@@ -89,5 +89,19 @@ describe("the Get data draft", () => {
 		platform.preferences.set = () => Promise.reject(new Error("blocked"));
 		saveDraft(platform, SPACE, defaultDraft());
 		await vi.advanceTimersByTimeAsync(600);
+	});
+
+	it("flushDraft writes a pending save at once, and only once", async () => {
+		vi.useFakeTimers();
+		const { platform, store } = fakePlatform();
+		const set = vi.spyOn(platform.preferences, "set");
+		const draft = { ...defaultDraft(), type: "data-table" };
+		saveDraft(platform, SPACE, draft);
+		flushDraft();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(store.get(DRAFT_KEY)).toEqual(draft);
+		await vi.advanceTimersByTimeAsync(600);
+		flushDraft();
+		expect(set).toHaveBeenCalledTimes(1);
 	});
 });

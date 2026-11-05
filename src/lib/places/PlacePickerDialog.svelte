@@ -1,26 +1,6 @@
 <script module lang="ts">
-	import type { MetadataSource } from "$lib/data/metadata";
-	import type { RegionResolver } from "$lib/data/adapters/registry";
-
-	/** One directory for the app's metadata and resolvers (its lists are fetched once). */
-	let shared: {
-		metadata: MetadataSource;
-		regions: RegionResolver;
-		directory: PlaceDirectory;
-	} | null = null;
-
-	function directoryFor(metadata: MetadataSource, regions: RegionResolver): PlaceDirectory {
-		if (shared?.metadata !== metadata || shared.regions !== regions) {
-			shared = { metadata, regions, directory: createPlaceDirectory({ metadata, regions }) };
-		}
-		return shared.directory;
-	}
-
 	/** How long a live-link lookup of "your location"'s region may take before it counts as failed. */
 	const LOOKUP_TIMEOUT_MS = 20_000;
-
-	/** The kinds of place looked up by code, so a pick of one can be gone. */
-	const RESOLVED = new Set(["monitor", "region", "location"]);
 </script>
 
 <script lang="ts">
@@ -31,9 +11,8 @@
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers, placeRegion } from "$lib/data";
-	import type { AdapterContext } from "$lib/data/adapters/registry";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import type { Layer, PlaceRef, WidgetDataConfig } from "$lib/data/schema";
+	import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
@@ -43,7 +22,8 @@
 	import { getWidgetType } from "$lib/widgets/registry";
 	import { chartInput, pollutantLayer } from "$lib/widgets/shared/input";
 	import { pickedData } from "./apply";
-	import { createPlaceDirectory, type PlaceDirectory } from "./directory";
+	import type { PlaceDirectory } from "./directory";
+	import { directoryFor, resolvePicks, type Resolvers } from "./host";
 	import PlacePicker from "./PlacePicker.svelte";
 	import { addRecent, readRecent } from "./recent";
 	import { regionName as nameOf } from "./region-name";
@@ -52,7 +32,6 @@
 
 	const app = useApp();
 
-	type Resolvers = Pick<AdapterContext, "regions" | "locations" | "points">;
 	type Ready = {
 		widgetId: string;
 		directory: PlaceDirectory;
@@ -142,17 +121,13 @@
 				report(error);
 				return [];
 			});
-			// `null`: the place no longer resolves; `undefined`: its lookup failed.
-			const resolve = (ref: PlaceRef) =>
-				resolveOption(ref, { directory, resolvers, entryType }, signal).catch(() => undefined);
-			const [known, recent] = await Promise.all([
-				Promise.all(initial.map(resolve)),
-				Promise.all(recentRefs.map(resolve))
-			]);
+			const picks = await resolvePicks(
+				initial,
+				recentRefs,
+				{ directory, resolvers, entryType },
+				signal
+			);
 			if (signal.aborted) return;
-			// A monitor, region or school that no longer resolves isn't picked again ("Choose another"
-			// replaces it); one whose lookup failed may still exist, so it stays (unnamed), as do points.
-			const kept = initial.filter((ref, i) => !(RESOLVED.has(ref.kind) && known[i] === null));
 			ready = {
 				widgetId: target.widget.id,
 				directory,
@@ -161,66 +136,13 @@
 				max,
 				purpose: { dataset: layer.dataset, entryType },
 				mode: max > 1 ? { kind: "multiple", max } : { kind: "single" },
-				initial: kept,
-				known: known.filter((o): o is PlaceOption => o != null),
-				recent: recent.filter((o): o is PlaceOption => o != null)
+				...picks
 			};
 			phase = "ready";
 		} catch (error) {
 			if (signal.aborted) return;
 			report(error);
 			phase = "failed";
-		}
-	}
-
-	/** A place's option with its current name; null when it no longer resolves. */
-	async function resolveOption(
-		ref: PlaceRef,
-		ctx: { directory: PlaceDirectory; resolvers: Resolvers; entryType: string },
-		signal: AbortSignal
-	): Promise<PlaceOption | null> {
-		switch (ref.kind) {
-			case "monitor": {
-				const monitors = await ctx.directory.monitors(ctx.entryType, { activeOnly: false }, signal);
-				return monitors.find((o) => o.id === ref.id) ?? null;
-			}
-			case "region": {
-				const [found, labels] = await Promise.all([
-					ctx.resolvers.regions.resolve(ref.type, ref.code, signal),
-					ctx.directory.regionTypeLabels(signal)
-				]);
-				const typeLabel = labels.get(ref.type);
-				if (!found || found === "unsupported" || !typeLabel) return null;
-				return {
-					kind: "region",
-					type: ref.type,
-					code: ref.code,
-					name: found.name,
-					typeLabel,
-					county: null
-				};
-			}
-			case "location": {
-				const [found, types] = await Promise.all([
-					ctx.resolvers.locations.resolve(ref.source, ref.code, signal),
-					ctx.directory.locationTypes(signal)
-				]);
-				const details = found?.details;
-				const typeLabel = details && types.find((t) => t.type === details.type)?.label;
-				if (!found || !details || !typeLabel) return null;
-				return {
-					kind: "location",
-					source: ref.source,
-					code: ref.code,
-					name: found.name,
-					typeLabel,
-					city: details.city,
-					zip: details.zip,
-					address: details.address
-				};
-			}
-			default:
-				return null;
 		}
 	}
 

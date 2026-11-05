@@ -1,5 +1,5 @@
 import "../app.css";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
 import TopNav from "$lib/components/shell/TopNav.svelte";
@@ -8,6 +8,26 @@ import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { navigate } from "../router";
 import GetData from "./GetData.svelte";
+
+// The view below the heading runs queries; a client with no adapters keeps them local.
+vi.mock("$lib/data", async () => {
+	const { createQueryClient } = await import("$lib/data/query/client");
+	const { fixtureMetadata } = await import("$lib/data/testing/fixtures");
+	const metadata = fixtureMetadata();
+	const regions = { resolve: async () => null };
+	const client = createQueryClient({ adapters: [], metadata, regions });
+	return {
+		adapterIds: () => [],
+		getQueryClient: () => client,
+		getMetadata: () => metadata,
+		getResolvers: () => ({
+			regions,
+			locations: { resolve: async () => null },
+			points: { keys: async () => [] }
+		}),
+		placeRegion: async () => null
+	};
+});
 
 const originalUrl = location.href;
 afterEach(() => {

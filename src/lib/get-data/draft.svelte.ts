@@ -45,12 +45,22 @@ export async function loadDraft(platform: Platform, space: SpaceId, type?: strin
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;
+/** The write the timer will run, so `flushDraft` can run it early. */
+let pendingWrite: (() => void) | undefined;
 
 /** Saves the draft after 500 ms without another call. A failed write is dropped. */
 export function saveDraft(platform: Platform, space: SpaceId, draft: Draft): void {
 	clearTimeout(timer);
 	const snapshot = $state.snapshot(draft);
-	timer = setTimeout(() => {
+	pendingWrite = () => {
+		pendingWrite = undefined;
 		void Promise.resolve(platform.preferences.set(space, DRAFT_KEY, snapshot)).catch(() => {});
-	}, SAVE_DELAY_MS);
+	};
+	timer = setTimeout(pendingWrite, SAVE_DELAY_MS);
+}
+
+/** Writes a pending draft save now (leaving the view, or the page being hidden). */
+export function flushDraft(): void {
+	clearTimeout(timer);
+	pendingWrite?.();
 }

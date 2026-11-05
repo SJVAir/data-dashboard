@@ -833,5 +833,83 @@
 	"getdata_preset_specific_week": "A specific week…",
 	"getdata_preset_specific_month": "A specific month…",
 	"getdata_preset_specific_year": "A specific year…",
-	"getdata_preset_custom": "Custom range…"
+	"getdata_preset_custom": "Custom range…",
+	"get_data_when": "When",
+	"get_data_where": "Where",
+	"get_data_what": "What",
+	"get_data_more_options": "More options",
+	"get_data_loading": "Loading…",
+	"get_data_catalog_unavailable": "The list of data isn't available right now.",
+	"get_data_retry": "Try again",
+	"get_data_date_label": "Dates",
+	"get_data_range_rolling": "{range} · moves forward each day",
+	"get_data_group_last": "Last",
+	"get_data_group_to_date": "To date",
+	"get_data_group_specific": "A specific…",
+	"get_data_span_too_short": "Shorter than this widget can show",
+	"get_data_span_too_long": "Longer than this widget can show",
+	"get_data_pick_day": "Day",
+	"get_data_pick_week": "Any day in the week",
+	"get_data_pick_month": "Month",
+	"get_data_pick_year": "Year",
+	"get_data_custom_start": "Start date",
+	"get_data_custom_end": "End date",
+	"get_data_custom_order": "The end date is before the start date.",
+	"get_data_places_change": "Change",
+	"get_data_places_change_label": "Change places",
+	"get_data_places_loading": "Loading place names…",
+	"get_data_places_count": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} place",
+				"countPlural=other": "{count} places"
+			}
+		}
+	],
+	"get_data_overlays": "Overlays",
+	"get_data_overlay_limit": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Up to {count} overlay",
+				"countPlural=other": "Up to {count} overlays"
+			}
+		}
+	],
+	"get_data_overlay_for": "Overlay for",
+	"get_data_show_as": "Show as",
+	"get_data_block_dataset": "Can't show this data",
+	"get_data_block_places": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Shows up to {count} place",
+				"countPlural=other": "Shows up to {count} places"
+			}
+		}
+	],
+	"get_data_type_blocked": "{type}: {reason}",
+	"get_data_block_span": "Can't show this date range",
+	"get_data_block_pollutants": "Shows one pollutant at a time",
+	"get_data_preview": "Preview",
+	"get_data_preview_size": "Preview size",
+	"get_data_preview_large": "Large",
+	"get_data_preview_dashboard": "Dashboard size",
+	"get_data_preview_showing": "Showing {title}",
+	"get_data_detail": "Detail",
+	"get_data_detail_auto": "Automatic",
+	"get_data_detail_raw": "Raw",
+	"get_data_detail_hour": "Hourly",
+	"get_data_detail_day": "Daily",
+	"get_data_detail_month": "Monthly",
+	"get_data_detail_server_limit": "Not available for a range this long",
+	"get_data_detail_too_many": "Too many points for this range and these places",
+	"get_data_cancel": "Cancel",
+	"get_data_download_csv": "Download CSV",
+	"get_data_add": "Add to dashboard",
+	"get_data_save": "Save changes"
 }
