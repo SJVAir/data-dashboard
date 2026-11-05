@@ -260,12 +260,15 @@ string`) now get the union return type. The mobile app passes a string token, so
     `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public
     air data. It moves to an internal package built on the public SDK's exports (`httpRequest`,
     `setOrigin`, request defaults), or into this repo while the dashboard stays the only caller;
-    where it goes is still open. Until then the dashboard keeps using `@sjvair/sdk/documents`
-    (4.8.0 prereleases; `createSnapshot` is in them; the pin is now 4.8.0-beta.6). The move
-    changes the dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
-    (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 4.8.0 final is tagged, since
-    removing it after a stable release has to wait for 5.0; sdk-js's own `DEFERRED.md` ("Before
-    4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 4.8.0 final is being
+    where it goes: **the user plans a new internal repo, `internal-sdk-js`** (2026-11-04), built on the
+    public SDK's exports. How the dashboard installs it is decided when the move is planned: JSR has
+    no private packages, so GitHub Packages or a git dependency, with read access in CI, local
+    dev, and sjvair.com's Heroku build (which installs the dashboard). Until then the dashboard keeps using `@sjvair/sdk/documents`
+    (4.8.0 and 5.0.0 prereleases; `createSnapshot` is in them; `step-4` pins 4.8.0-beta.6 until step 4 spec 2 pins 5.0.0-beta.2). The move changes the
+    dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
+    (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 5.0.0 final is tagged (the next stable release, renamed from 4.8.0 on 2026-11-04), since
+    removing it after a stable release has to wait for 6.0; sdk-js's own `DEFERRED.md` ("Before
+    4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 5.0.0 final is being
     planned, whichever comes first. **Blocks go-live.**
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
@@ -360,15 +363,23 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **`@sjvair/sdk` is pinned to a 4.8.0 pre-release (now 4.8.0-beta.6).** _Deferred 2026-10-22
   (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
   `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
-  are only in the 4.8.0 pre-releases; it is pinned exactly because a caret range skips
-  pre-releases.
-  **Revisit when** sdk-js 4.8.0 is released (after sjvair.com #293 reaches production and
-  the user approves the release): switch to `^4.8.0`.
+  are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
+  The pin now follows the 5.0.0 betas (the next stable release was renamed from 4.8.0 on
+  2026-11-04). **Revisit when** sdk-js 5.0.0 is released (after sjvair.com `develop` reaches
+  production and the user approves the release): switch to `^5.0.0`.
 - **Drop `exact: true` when sdk-js makes exact bounds the default.** _Deferred 2026-10-25
   (decided by the user)._ The user wants the next major sdk-js version to send entry bounds
   unchanged by default, with an opt-in flag for rounding to whole Pacific days; it's recorded
-  in sdk-js's `DEFERRED.md`. **Revisit when** the dashboard upgrades to that major version:
-  remove `exact: true` from the air-quality adapter's `getMonitorEntries` calls.
+  in sdk-js's `DEFERRED.md`. That major version is now 5.0.0; the change is planned as its own
+  5.0.0 spec (likely `5.0.0-beta.2`), ideally before step 4 builds more on `getMonitorEntries`'
+  current widening (sdk-js-6a's handoff, 2026-11-04). **Shipped in `5.0.0-beta.2`**
+  (2026-11-04, sdk-js #44): `exact` is removed, not checked, so a leftover one is ignored.
+  **Revisit when** the dashboard pins beta.2: remove `exact: true` from the air-quality adapter's
+  `getMonitorEntries` call and the `{ exact }` option in `air-quality.test.ts`.
+- **sdk-js doc-lint errors.** _Noted 2026-11-04 (sdk-js-6a's handoff)._ `deno doc --lint`
+  reports 17 errors that predate the SDK quick batch; `deno publish --dry-run` passes, so
+  publishing isn't blocked. **Revisit when** an SDK session has spare time or before 5.0.0
+  final, if the user wants doc-lint clean.
 - **sjvair.com: `ensure_csrf_cookie` on the map page.** _Deferred 2026-10-21 (monitor-map
   SDK 4.7 design)._ The subscribe button's `X-CSRFToken` relies on the `csrftoken` cookie
   that Django sets at login (1-year cookie vs. a 2-week session), so the page doesn't set it
@@ -401,6 +412,23 @@ string`) now get the union return type. The mobile app passes a string token, so
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
   lands on `develop` for Release 1). A production deploy, so it needs the user's explicit yes.
   Checklist for that day:
+  - **Released together** (the user, 2026-11-04: the updated mobile app and sjvair.com `develop` are released the same day, with map-sdk on the latest sdk-js, monitor-map rebuilt on map-sdk, and mobile on that monitor-map, all done before `develop` is released; mobile auto-updates, most likely overnight, the day a release is published): map-sdk on the latest @sjvair/sdk 5.0 beta, monitor-map 5.0
+    rebuilt on map-sdk, and a mobile release on monitor-map 5.0 must all be ready first. SDK 5.0
+    has no fallbacks for older servers, so the new mobile build needs the deployed server; on the
+    day, **deploy `develop` first, then publish the mobile release** (the user, 2026-11-04).
+    The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
+    hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
+    (tooltips, legend, clusters, charts, subscription manager), mobile
+    (`MonitorSubscription.svelte`, `Subscriptions.svelte`, `Alerts.svelte`, `alert-level.ts`;
+    subscription levels need a not-found path, since not every level key exists in every
+    pollutant's scale), map-sdk's legacy fallback (`src/lib/data/metadata.ts`, which won't
+    type-check once the SDK drops `levels`, so it must go when map-sdk pins that beta), and sdk-js (schema, the `levels` getter,
+    `asIter.levels`, fixtures, plus `SJVAirEntryLevel`, `sjvairEntryLevelMetaSchema` and
+    `EntriesMeta.asIter`, the user's call 2026-11-04). monitor-map (13 files, including the
+    monitor tooltips, cluster renderer, icon manager and detail panel) and mobile (`Alerts.svelte`,
+    `Subscriptions.svelte`, `alert-level.ts`) import `SJVAirEntryLevel` or use `asIter`, so both
+    change when they move to that SDK beta; map-sdk and the dashboard don't use them. The dashboard reads `scale`; its e2e
+    fixtures still contain `levels`.
   - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
     credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
@@ -418,12 +446,83 @@ string`) now get the union return type. The mobile app passes a string token, so
     adds to it. Use the rollup tasks with a scope, one monitor and one region first, then the
     wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
     "Deploy notes"; never unscoped bulk commands).
-  - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 4.8.0
-    final can be cut (with the user's yes) once #293 is in production.
+  - **Summaries repair (sjvair.com #305):** findings 2 and 3 of the 2026-11-03 rollup report.
+    Production has backfill rows stamped an hour early (some correctly stamped months,
+    quarters, seasons and years also hold one extra row), seasons starting May 1 from the old
+    schedule, and hourly region rows skipped since about September. #305 fixes the code and
+    adds `repair_summaries` (always scoped, `--dry-run` first) and the daily
+    `check_summary_integrity`. Nothing runs on production before that day. In order:
+    1. **Before the deploy, read-only checks:**
+       - the summaries worker logs: when `hourly_region_summaries` starts against its :50
+         schedule, and when the hour's last `summarize_monitor_hour` finishes. This confirms
+         finding 3's cause;
+       - `heroku ps`: whether `huey_summaries_worker` is scaled, and `HUEY_SUMMARIES_WORKERS`;
+       - Sentry: errors from `summarize_region_hour`;
+       - Redis: memory and eviction policy;
+       - `backfill_summaries status`: no job running. Don't start a backfill on production
+         before the deploy; it's what wrote the hour-early rows.
+    2. **Deploy**, inside #301's window above.
+    3. **Explain the large queries on production** (`heroku run python manage.py shell`, plain
+       `.explain()` only). Check the weekly monitor-hours query and the region-hours query in
+       `repair.missing_region_hours`, and `check_summary_integrity`'s 400-day `DISTINCT`. Local
+       tables were too small to prove their plans; each should use the `(resolution,
+timestamp)` index or the unique index's leading columns, not a full scan.
+    4. **Size it:**
+       - `check_summary_integrity.call_local()` gives the network-wide misaligned count and
+         yesterday's skipped region hours, and logs its run time;
+       - then `repair_summaries <first summary date> <deploy date> --monitor <pk> --region
+<pk> --region-hours --dry-run` for one monitor and one county (Fresno, `r6phe`). The
+         first summary date is the earliest non-hourly row, or the old backfill's `--from`.
+       - The dry run prints the spans it widens to, what it will delete and re-roll, and the
+         rows it leaves in place. Record those counts.
+    5. **Repair that one scope** (same command without `--dry-run`). **Check after** with the
+       report's requests:
+       - `monitors/<id>/summaries/pm25/monthly/2025/` returns Jan–Dec 2025, each at 00:00;
+       - `yearly/` and the seasonal rows start at Pacific midnight, and no row starts May 1;
+       - Fresno's `hourly/2026/11/2/` has 24 rows and `daily/2026/10/` has 31.
+       - A second run should report 0 misaligned.
+    6. **Wider, with a yes:** after a blast-radius check (the dry-run totals), run it per
+       monitor type (`--monitor-type purpleair`, …) and per region type (`--region-type
+county`, then the other types the dashboard reads), each with `--dry-run` first.
+       - The repair re-rolls every finished period in its range, so it also does #301's
+         catch-up for that scope. Still confirm October monthly, Q3 quarterly and Jun–Aug 2026.
+       - Run it promptly after the deploy, before the dashboard's monthly and region widgets
+         go live: settled periods are cached 24 hours in browsers. While one resolution of
+         one kind is being repaired, its misaligned rows are briefly absent.
+    7. **The next day:** `check_summary_integrity` logs no error, and there are no "started …
+       after its :50 run" warnings.
+
+    Known leftovers: an hour where every monitor's health score is 0 correctly gets no region
+    row, and `--region-hours` keeps listing it. Retired regions need `--region <pk>`, since
+    `--region-type` covers current regions only. Misaligned rows of unfinished periods (such
+    as the current year's) are deleted and come back at the scheduled rollup.
+
+    **How the list grows until the deploy:**
+    - Skipped region hours: about every hour the old code's region job starts late.
+    - #301's late months, quarters and seasons: each period the old schedule misses.
+    - Misaligned seasons: two more from the old schedule (Aug–Oct written on Nov 30, Nov–Jan
+      on Feb 28).
+    - Hour-early rows don't grow, unless someone runs a backfill.
+
+  - **Client updates for the SDK call changes (sdk-js #40):** monitor-map (pins `^4.7.0`; the release is 5.0.0, so it
+    can't pick it up by accident) calls `getHMSSmoke({ signal })`/`getHMSFire({ signal })`; they become
+    `getHMSSmoke(undefined, { signal })`/`getHMSFire(undefined, { signal })` when it moves to
+    SDK 5.0, which it and mobile (`^4.6.0`) must do before `develop` goes live. TypeScript flags the old call; plain JS would
+    silently drop the signal. `getRegionDetails(id, options)` also became
+    `getRegionDetails(id, query, options)` (no external callers found). SDK 5.0 also makes entry bounds exact by default (sdk-js-8c's spec, 2026-11-04, likely `5.0.0-beta.2`): monitor-map's `getMonitorEntries`/`getMonitorEntriesCSVUrl` calls need no code change (only a today–today request in the first 5 minutes after Pacific midnight gets a near-empty window; it could pass `wholeDays: true` for that), and mobile has no calls, so both just need the 5.0 bump.
+  - **Spec 5 and the picker changes (#306, #307, #308, from sjvair-com-c9 2026-11-04):** no migrations
+    or data commands, and no server cache to clear. Forecast `aqi_category` is computed on read, so
+    stored "Out of Range" rows serve as "Hazardous" with no backfill. The forecast import task
+    changed (the deploy restarts workers anyway). `/guidelines/` pages need the new compiled CSS
+    (the normal `invoke build` covers it). `levels` is gone from `monitors/meta/`, so this deploy
+    goes out the same day as the map-sdk, monitor-map and mobile releases (the plan above).
+  - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 5.0.0
+    final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04).
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
-  summaries, misaligned seasons, under "Analysis & data") should land before or with it.
+  summaries, misaligned seasons, under "Analysis & data") is sjvair.com #305 (merged into
+  `develop` 2026-11-04, so this deploy carries it); its repair steps are above.
 
 - **Credentialed CORS from any origin in front of private documents.** _Deferred 2026-10-28
   (Sync spec 1)._ sjvair.com already sets `CORS_ORIGIN_ALLOW_ALL` with
@@ -699,6 +798,25 @@ string`) now get the union return type. The mobile app passes a string token, so
 
 ## Map & selection
 
+- **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
+  [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
+  way to go in the long run")._ `regions/places/search/` rows carry one `county`: the county
+  holding the region's point-on-surface. A region that crosses county lines shows only that one.
+  Locally, with a 1%-of-area threshold, that's 20 of 200 school districts, 21 of 237 ZIP codes,
+  5 of 56 urban areas, and the Valley air district (8 counties). Cities, CDPs and AB 617
+  communities sit in one county. Fine for telling same-named results apart; misleading if the
+  picker shows it as the place's county. **Revisit when** the picker labels places with their
+  county, or users read the one county as the whole story: serve `counties: [...]` using the
+  region list's `also_in` 1%-of-area rule (measure search time first; the per-row area math is
+  the cost).
+
+- **Region GeoJSON lookups beyond about 10 requests.** _Deferred 2026-11-04 (step 3 spec 4,
+  the user)._ `getRegionsGeoJSON` (and the by-code lookups) send one request per 100 codes,
+  concurrently; all 2020 tracts (~980) is about 10. A whole area doesn't need codes at all
+  (`within` is one request). **Revisit when** a map regularly needs more than about 10
+  requests, or the server slows under them: a POST lookup with codes in the body, or a higher
+  cap for simplified shapes.
+
 - **Saving land-use regions by code.** _Deferred 2026-10-22 (sjvair.com metadata plan,
   decided by the user)._ Land-use codes include the state dataset's `OBJECTID`, which a
   refresh can renumber, so they are excluded from code lookup and the permanence promise;
@@ -754,6 +872,20 @@ string`) now get the union return type. The mobile app passes a string token, so
   any of them becomes selection-driven (e.g. a date-picked HMS layer).
 
 ## Analysis & data
+
+- **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
+  spec 4 final review, graded minor)._ Since sjvair.com #303, an empty `date` counts as no date
+  filter, so `hms/smoke/?date=` alone now gets the today default (before, it returned every
+  row). That was a deliberate call, but no test pins it. **Revisit when** someone next touches
+  `camp/api/v2/hms/` (add the test to `DateRangeTestsMixin`).
+
+- **`calenviroscreen/meta/`.** _Deferred 2026-11-04 (step 3 spec 4, the coordinator and the
+  user)._ The sdk-js CalEnviroScreen wrapper takes the version (`4.0`/`5.0`) as a required
+  argument and returns raw indicator fields, because no metadata describes them: the catalog's
+  `calenviroscreen` entry has an empty `meta_url` on purpose. Clients need the indicator
+  labels, units and the versions on offer from the server rather than hardcoding CES field
+  names or picking a version. Needs sjvair.com work (the endpoint) and an sdk-js wrapper.
+  **Revisit before** Release 3 starter analysis #7 or any CES display.
 
 - **Collections and "Mark for analysis" in Release 1.** _Deferred 2026-10-25 (Foundations
   spec 4 planning, decided by the user)._ The 2026-09-24 plan shipped a minimal Collections
@@ -891,16 +1023,28 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
   `docs/superpowers/reports/2026-11-03-summary-rollups.md`)._ Not fixed by the Pacific
-  schedule change; it needs its own investigation. **Revisit with** the summaries follow-up
-  investigation, and before step 4 widgets show monthly data.
+  schedule change. **Cause found** (2026-11-04): the backfill job stepped its UTC-reloaded
+  cursor by 24-hour days, so standard-time days, months, seasons and years landed at 23:00 the
+  day before. Fixed in sjvair.com #305 (merged into `develop` 2026-11-04). Production's rows are repaired by
+  `repair_summaries` at the deploy (steps in the deploy entry above). **Revisit when** #305 is
+  deployed and the repair has run; local winter rows from a backfill may show the same stamps
+  until then.
 - **Region summaries are mostly missing on production.** _Deferred 2026-11-04 (summary cache
-  and place lookup; finding 3 of the same report)._ Production has almost no hourly or daily
-  region rows, so the region catch-up after the deploy has little to roll up. **Revisit with**
-  the same investigation, and before region-summary widgets ship.
+  and place lookup; finding 3 of the same report)._ **Cause found** (2026-11-04): the hourly
+  region job took its hour from when it ran. Queued behind the monitor tasks, a start after the
+  top of the hour summarized an hour with no monitor rows yet and wrote nothing. Fixed in #305.
+  The production worker logs that would confirm it, and the refill, are in the deploy entry.
+  **Revisit when** #305 is deployed and the region hours are refilled, before region-summary
+  widgets ship.
 - **Misaligned seasonal rows already in production.** _Deferred 2026-11-04 (summary cache and
   place lookup)._ The old UTC schedule wrote seasonal windows starting in May (for example
-  `2026-05-01`); the Pacific fix only affects new runs and doesn't repair them. **Revisit
-  with** the same investigation.
+  `2026-05-01`); the Pacific fix only affects new runs. `repair_summaries` (#305) deletes them
+  and rebuilds the real seasons at the deploy. **Revisit when** that repair has run.
+- **`schedule.hour_for_run` docstring overstates the integrity check.** _Deferred 2026-11-04
+  (summary-rollup follow-up, sjvair.com #305)._ It implies `check_summary_integrity` catches a
+  late run, but when both hourly jobs (monitors and regions) are an hour late together the check
+  doesn't flag it. Docs only; the behavior is as designed. **Revisit when** someone next edits
+  `camp/apps/summaries/schedule.py`.
 - **Hidden monitors' summaries are readable by anyone with the id.** _Deferred 2026-11-04
   (summary cache and place lookup; predates this work)._ **Revisit when** "hidden" gets a
   defined read policy.
@@ -925,12 +1069,37 @@ string`) now get the union return type. The mobile app passes a string token, so
   stores beyond monitors (HMS, collocation), and whatever else the 5.0 rebuild needs. EV
   stations need the NREL key moved into injected config, and their hardcoded ZIP list and
   labels need a proper home. The live map and mobile keep shipping from monitor-map 4.x
-  meanwhile. **Revisit when** the monitor-map 5.0 rebuild starts; it gets its own map-sdk spec.
+  meanwhile. The rebuild is now on the go-live path (the mobile entry under "Mobile app", the
+  user, 2026-11-04). **Now specified** (2026-11-04, approved by the user): map-sdk `docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`.
+  The user's parity rule: match today's map, except bug fixes and accessibility additions;
+  dashboard-style differences become options monitor-map sets to today's look. Layers on
+  SJVAir server data go in map-sdk (collocation sites move in); layers on outside services
+  (wind, EV chargers) stay in monitor-map. So the NREL key (into monitor-map's config), the
+  ZIP list cleanup (duplicates; some Inyo/Mono ZIPs filed under San Joaquin; the 5 mountain
+  counties stay, the user's call), and the label maps are monitor-map 5.0 plan items. Remove
+  this entry when milestone 2 merges.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
   monitor-map keeps wind as its own plugin outside map-sdk, or wind moves to an open data
-  source. **Decide in** the map-sdk milestone 2 spec.
+  source. **Decided 2026-11-04 (the user, milestone 2 spec):** monitor-map keeps its own wind
+  layer on `@maptiler/weather`; map-sdk only lets a host plugin add a custom layer in its
+  draw-order slot. See "Wind from open data" below.
+- **Wind from open data.** _Deferred 2026-11-04 (map-sdk milestone 2 spec, the user's call:
+  "option 1 for now")._ A map-sdk wind plugin on open data, e.g. NOAA GFS winds (public
+  domain) processed by the server into textures and drawn with an open-source wind layer
+  (`webgl-wind`, ISC), would let every map, the dashboard included, show wind and drop the
+  proprietary `@maptiler/weather`. It needs new server work and would look different, so it
+  isn't on the go-live path. **Revisit if** the dashboard wants wind on a map, or to drop
+  `@maptiler/weather`.
+- **Server EV charger integration, then a map-sdk EV layer.** _Deferred 2026-11-04 (map-sdk
+  milestone 2 spec, the user)._ EV chargers come straight from NREL (with a public key and a
+  hardcoded ZIP list of the 8 valley counties plus Calaveras, Tuolumne, Mariposa, Mono and
+  Inyo) and stay in monitor-map, since map-sdk layers read SJVAir server data. If the server
+  integrates chargers (or at least serves the ZIP list, which would need ZIP regions for the
+  5 mountain counties), map-sdk gets an EV layer through `@sjvair/sdk`. Needs a sjvair.com
+  plan first. **Revisit when** the server integrates EV chargers, or a dashboard widget wants
+  them.
 - **map-sdk raster plugin.** _Deferred 2026-11-03 (map-sdk milestone 1 spec)._ The plugin
   interface and legends allow rasters, but nothing is built. **Revisit with** TEMPO on a map,
   or wind if it moves to an open raster source.
@@ -947,13 +1116,16 @@ string`) now get the union return type. The mobile app passes a string token, so
   background. monitor-map's globe view and Milky Way background aren't needed by the dashboard,
   and the milestone 1 plan didn't list them. See also "Globe-projection zoom precision" under
   "Map & selection". **Revisit with** map-sdk milestone 2 (the monitor-map 5.0 rebuild), as a
-  projection option on `createMap()`.
+  projection option on `createMap()`. **Scheduled 2026-11-04:** milestone 2 item 4 (options,
+  off by default; monitor-map turns them on). Remove when milestone 2 merges.
 - **The "(1-hour avg)" note in map-sdk's monitor tooltip.** _Deferred 2026-11-03 (map-sdk
   milestone 1 build)._ monitor-map's tooltip labels readings "(1-hour avg)"; map-sdk's shows the
   reading and "Last updated …" but not the note. Writing it would hardcode the averaging window,
   which has to come from metadata, and the server's meta doesn't give one yet. **Revisit when**
   the server's monitors meta or dataset catalog gives an averaging window per entry type, or with
-  milestone 2's parity pass, whichever comes first.
+  milestone 2's parity pass, whichever comes first. **Scheduled 2026-11-04:** milestone 2 item
+  13, from the monitor type's `expected_interval`, the source today's monitor-map uses. Remove
+  when milestone 2 merges.
 - **"hms-fire icon could not be loaded" warning in map-sdk's e2e tests.** _Found 2026-11-03
   (map-sdk milestone 1 build)._ The demo's browser tests log this MapLibre warning; fires still
   draw with their level icons, and the cause hasn't been traced (most likely the map asks for
@@ -1138,13 +1310,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   forced to update; monitor-map reads it too. Both formats come from the same `LevelSet`,
   with a test that they agree. **Revisit when** a mobile release reads `scale` and the
   monitor-map rebuild on map-sdk ships: mark `levels` deprecated, then remove it once older
-  app versions have aged out.
+  app versions have aged out. **Resolved by sjvair.com spec 5,
+  [#306](https://github.com/SJVAir/sjvair.com/pull/306) (open into `develop`, 2026-11-04):** the user
+  decided to remove `levels` outright rather than deprecate it, since mobile, map-sdk and
+  monitor-map all update to `scale` before `develop` is released the same day. `LevelSet.as_dict`
+  is gone too; the SDK side is TODO "Release 1, step 3" → "Removing `levels` from the SDK".
 - **Mobile migration to `map-sdk` and the rebuilt monitor-map (5.0).** _Deferred
-  2026-09-28; updated 2026-10-13._ It doesn't block Release 1 or go-live. The mobile app
+  2026-09-28; updated 2026-10-13; **now on the go-live path** (the user, 2026-11-04: the updated mobile app and sjvair.com `develop` are released the same day, with map-sdk on the latest sdk-js, monitor-map rebuilt on map-sdk, and mobile on that monitor-map, all done before `develop` is released; mobile auto-updates, most likely overnight, the day a release is published)._ It no longer waits: it
+  must be done before sjvair.com `develop` is deployed (see the deploy entry). The mobile app
   is on monitor-map `^4.2.0` and keeps working on 4.x. It depends on
   `@sjvair/monitor-map/core` (`monitorsManager` as an app-wide store,
   `provideMonitorMapRouter`) and `/routes` (`monitorMapRoutes`), which the rebuild must
-  keep. **Revisit when** the mobile team wants the new stores or features. Bundle the
+  keep. **Revisit when** the monitor-map 5.0 rebuild is far enough along to migrate onto. Bundle the
   other mobile follow-ups into the same effort where timing allows: the new alert-rule
   endpoints, and the hardcoded PM2.5 scale unless it has already shipped with the
   breakpoint fix. Needs a mobile plan and an app release (explicit approval; publishing
@@ -1475,6 +1652,17 @@ string`) now get the union return type. The mobile app passes a string token, so
     message there is a nested ternary, carried focus stays set if the page never switches
     (guarded, pre-existing), and no test covers a cancelled resize animating back under
     reduced motion (the zero-duration guard covers it).
+- **Tidying child-care names in the place picker.** _Deferred 2026-11-04 (sjvair.com step 3
+  spec 3, the user's call)._ The state's child-care list stores names and cities in capitals,
+  some cut off (`BCSD/ROOSEVELT ELEMENTARY PRE-KINDERGAR`), and the location search returns
+  them as published. A rule-based tidy (title case plus an acronym list) would get acronyms
+  and names like McKinley wrong, which looks worse than the state's own capitals, and can't
+  restore cut-off names. **Revisit if** parents or partners find the capitals confusing in
+  the picker.
+- **Accent-insensitive location search.** _Deferred 2026-11-04 (sjvair.com step 3 spec 3)._
+  No school or child-care name in the data has an accent today, so `ninos` vs `Niños`
+  doesn't come up. **Revisit when** an import brings in accented names (Postgres `unaccent`
+  is the likely fix).
 
 ## Legacy Monitors-tab follow-ups
 
