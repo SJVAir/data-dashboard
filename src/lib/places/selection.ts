@@ -20,12 +20,13 @@ export function blockReason(
 ): BlockReason | null {
 	if (mode.kind === "single") return null;
 	if (picks.some((p) => sameRef(p, candidate))) return null;
-	if (picks.some(isSingleOnly)) return "alone-picked";
 	if (isSingleOnly(candidate)) {
-		// A school or point replaces exactly one picked place; with two or more it stays blocked.
+		// A school or point replaces exactly one picked place (of any kind, a school or point too);
+		// with two or more it stays blocked.
 		if (candidate.kind === "default-place") return "single-only";
 		return picks.length >= 2 ? "single-only" : null;
 	}
+	if (picks.some(isSingleOnly)) return "alone-picked";
 	if (picks.length > 0 && picks[0].kind !== candidate.kind) {
 		return picks[0].kind === "region" ? "other-kind-regions" : "other-kind-monitors";
 	}

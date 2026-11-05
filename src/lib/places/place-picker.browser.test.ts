@@ -445,6 +445,34 @@ describe("multiple mode", () => {
 		expect(ondone).toHaveBeenCalledWith([{ kind: "location", source: "cde-public", code: "l0" }]);
 	});
 
+	test("a picked school: another school replaces it and Use my location is enabled", async () => {
+		twelve();
+		const { screen, input, ondone } = await show({
+			mode,
+			initial: [{ kind: "location", source: "cde-public", code: "100" }],
+			known: [roosevelt]
+		});
+		await expect
+			.element(screen.getByRole("button", { name: "Use my location" }))
+			.not.toHaveAttribute("aria-disabled");
+		await userEvent.fill(input, "fr");
+		const school = screen.getByRole("option", { name: /Fremont Elementary/ });
+		await expect.element(school).toBeVisible();
+		expect(school.element().getAttribute("aria-disabled")).toBeNull();
+		const region = screen.getByRole("option", { name: /Friant/ }).first();
+		await expect.element(region).toHaveAttribute("aria-disabled", "true");
+		await school.click();
+		await expect
+			.element(screen.getByRole("button", { name: "Remove Fremont Elementary" }))
+			.toBeVisible();
+		expect(
+			screen.container.querySelector("[aria-label='Remove Roosevelt High School']")
+		).toBeNull();
+		expect(liveText()).toBe("Fremont Elementary replaced Roosevelt High School.");
+		await screen.getByRole("button", { name: "Done" }).click();
+		expect(ondone).toHaveBeenCalledWith([{ kind: "location", source: "cde-public", code: "l0" }]);
+	});
+
 	test("an alone pick names itself in the reason; at the cap rows say so", async () => {
 		const alone = await show({
 			mode,
@@ -514,6 +542,25 @@ describe("Use my location", () => {
 			.element(screen.getByText("Your location is outside the area SJVAir covers."))
 			.toBeVisible();
 		expect(ondone).not.toHaveBeenCalled();
+	});
+
+	test("an unexpected locate failure says so and the button works again", async () => {
+		let calls = 0;
+		const { screen, locate } = await show({
+			locate: async () => {
+				calls++;
+				if (calls === 1) throw new Error("boom");
+				return { ok: false, reason: "denied" };
+			}
+		});
+		const button = screen.getByRole("button", { name: "Use my location" });
+		await button.click();
+		await expect.element(screen.getByText(m.place_picker_location_failed())).toBeVisible();
+		await button.click();
+		await expect
+			.element(screen.getByText("Location access is off. Search for a place instead."))
+			.toBeVisible();
+		expect(locate).toHaveBeenCalledTimes(2);
 	});
 
 	test("with one place picked, replaces it", async () => {

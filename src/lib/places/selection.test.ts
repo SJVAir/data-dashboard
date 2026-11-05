@@ -36,11 +36,17 @@ describe("blockReason", () => {
 		expect(blockReason([fresno, kern], school, multi())).toBe("single-only");
 		expect(blockReason([mon1, mon2], point, multi())).toBe("single-only");
 	});
-	it("blocks everything after a location or point", () => {
-		for (const c of [fresno, mon1, school, point, kern]) {
-			expect(blockReason([school], c, multi())).toBe(c === school ? null : "alone-picked");
+	it("blocks regions and monitors after a location or point", () => {
+		for (const c of [fresno, mon1, kern]) {
+			expect(blockReason([school], c, multi())).toBe("alone-picked");
+			expect(blockReason([point], c, multi())).toBe("alone-picked");
 		}
-		expect(blockReason([point], fresno, multi())).toBe("alone-picked");
+	});
+	it("lets another school or point replace a picked school or point", () => {
+		const other: PlaceRef = { kind: "location", source: "schools", code: "s2" };
+		for (const picked of [school, point]) {
+			for (const c of [other, point, school]) expect(blockReason([picked], c, multi())).toBeNull();
+		}
 	});
 	it("blocks a new candidate at the cap but lets a picked one go", () => {
 		const picks = [mon1, mon2];
@@ -60,6 +66,13 @@ describe("toggle", () => {
 		expect(toggle([fresno], school, multi())).toEqual([school]);
 		expect(toggle([mon1], point, multi())).toEqual([point]);
 		expect(toggle([fresno, kern], school, multi())).toEqual([fresno, kern]);
+	});
+	it("a school or point replaces a picked school or point", () => {
+		const other: PlaceRef = { kind: "location", source: "schools", code: "s2" };
+		expect(toggle([school], other, multi())).toEqual([other]);
+		expect(toggle([school], point, multi())).toEqual([point]);
+		expect(toggle([point], school, multi())).toEqual([school]);
+		expect(toggle([school], fresno, multi())).toEqual([school]);
 	});
 	it("adds, removes, and ignores blocked candidates", () => {
 		expect(toggle([fresno], kern, multi())).toEqual([fresno, kern]);

@@ -282,7 +282,8 @@ export class PickerState {
 		try {
 			found = await ctx.locate(signal);
 		} catch {
-			// `locate` rejects only when aborted.
+			// Aborted, or failed unexpectedly: then say so, so the button works again.
+			if (!signal.aborted) this.geo = { status: "message", text: m.place_picker_location_failed() };
 			return;
 		}
 		if (signal.aborted) return;
