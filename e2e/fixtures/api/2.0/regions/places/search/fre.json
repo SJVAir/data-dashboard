@@ -1,0 +1,54 @@
+{
+	"data": [
+		{
+			"id": "r6phe",
+			"name": "Fresno County",
+			"slug": "fresno",
+			"type": "county",
+			"external_id": "06019",
+			"retired": null,
+			"boundary": {
+				"id": "wdpej",
+				"version": "2023",
+				"bbox": [-120.91874387116177, 35.906918921644284, -118.36059845591876, 37.58584217244814]
+			},
+			"county": null
+		},
+		{
+			"id": "njyup",
+			"name": "Fresno",
+			"slug": "fresno",
+			"type": "city",
+			"external_id": "0627000",
+			"retired": null,
+			"boundary": {
+				"id": "b9268",
+				"version": "2023",
+				"bbox": [-119.93440971171536, 36.66216702177423, -119.65052167400698, 36.91154105642143]
+			},
+			"county": {
+				"name": "Fresno County",
+				"type": "county",
+				"external_id": "06019"
+			}
+		},
+		{
+			"id": "rb2rf",
+			"name": "Fresno Unified",
+			"slug": "fresno-unified",
+			"type": "school_district",
+			"external_id": "10621660000000",
+			"retired": null,
+			"boundary": {
+				"id": "5ftd8",
+				"version": "2025-2026",
+				"bbox": [-119.88107171486904, 36.69226703354723, -119.68207067450787, 36.861302045465784]
+			},
+			"county": {
+				"name": "Fresno County",
+				"type": "county",
+				"external_id": "06019"
+			}
+		}
+	]
+}

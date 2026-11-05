@@ -1,0 +1,90 @@
+{
+	"data": [
+		{
+			"id": "4Mb0j33kTnS0qzeE4iDGWw",
+			"name": "Fresno - Drummond Street",
+			"type": "airnow",
+			"device": "BAM 1022",
+			"grade": "fem",
+			"is_active": true,
+			"is_sjvair": false,
+			"position": {
+				"type": "Point",
+				"coordinates": [-119.7414, 36.7056]
+			},
+			"last_active_limit": 10800,
+			"location": "outside",
+			"county": "Fresno",
+			"data_source": {
+				"name": "AirNow.gov",
+				"url": "https://www.airnow.gov/"
+			},
+			"data_providers": [
+				{
+					"name": "AirNow Partners",
+					"url": "https://www.airnow.gov/partners/"
+				},
+				{
+					"name": "San Joaquin Valley Unified APCD"
+				}
+			]
+		},
+		{
+			"id": "6qEHS0fITHOQYHLN4c9GKA",
+			"name": "Porterville-NFS",
+			"type": "airnow",
+			"device": "BAM 1022",
+			"grade": "fem",
+			"is_active": true,
+			"is_sjvair": false,
+			"position": {
+				"type": "Point",
+				"coordinates": [-119.055, 36.0319]
+			},
+			"last_active_limit": 10800,
+			"location": "outside",
+			"county": "Tulare",
+			"data_source": {
+				"name": "AirNow.gov",
+				"url": "https://www.airnow.gov/"
+			},
+			"data_providers": [
+				{
+					"name": "AirNow Partners",
+					"url": "https://www.airnow.gov/partners/"
+				},
+				{
+					"name": "San Joaquin Valley Unified APCD"
+				}
+			]
+		},
+		{
+			"id": "Tt5ixZRKSH-rVKJtwVh-bw",
+			"name": "Science Building Room 74",
+			"type": "purpleair",
+			"device": "PA-II",
+			"grade": "lcs",
+			"is_active": false,
+			"is_sjvair": false,
+			"position": {
+				"type": "Point",
+				"coordinates": [-119.54671, 36.51851]
+			},
+			"last_active_limit": 3600,
+			"location": "inside",
+			"county": "Fresno",
+			"data_source": {
+				"name": "PurpleAir",
+				"url": "https://www2.purpleair.com/"
+			},
+			"data_providers": [
+				{
+					"name": "PurpleAir",
+					"url": "https://www2.purpleair.com/"
+				}
+			],
+			"sensor_id": 106002,
+			"purple_id": 106002
+		}
+	]
+}
