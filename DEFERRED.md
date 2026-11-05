@@ -968,6 +968,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   table) so a missed day reads as unknown. The user decided a new table isn't worth it yet:
   production fetches about 13 times a day plus a final pass. **Revisit when** a missed day
   turns up in production data or users report false clear days.
+- **A date index on HMS `Smoke`.** _Deferred 2026-11-05 (sjvair.com #312 final review); the
+  coordinator is bringing the now-or-later choice to the user._ `Smoke` has only a GiST index
+  on its geometry. Every stored outline touches the valley, so the GiST filter keeps nearly
+  everything and the date filter does the real narrowing. `hms/smoke/place/` timings: a year
+  over Fresno County takes 0.14 s on local data (sparse: smoke only since 2026-10-18) and
+  1.4–1.7 s on a synthetic heavy season (2,280 outlines over 310 days); a ZIP 51–67 ms. Ranges
+  ending today aren't server-cached. An `Index(fields=['date'])` (as `Fire` has) would help
+  this endpoint and `hms/smoke/`; it needs a migration. **Revisit when** production timings for
+  `hms/smoke/place/` or `hms/smoke/` show slow requests, or the Smoke table grows past a few
+  seasons of outlines.
 - **CarbonMapper data source.** _Noted 2026-09-24; updated 2026-10-14._ The server now
   imports Carbon Mapper methane sources and plumes and serves them under
   `emissions/methane/` (merged with #282), so the dashboard would read them from the
@@ -1234,8 +1244,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   forecasts, and nearby pesticide notices. Deferred: **HMS smoke** over an area
   (density ≥ X), **heat** (CalHeatScore ≥ level), **fire detections** within N miles,
   and **drawn-area / near-a-point targets** (resolved to monitor sets per Q2).
-  **Revisit when** the first alert-rule iteration ships, or ahead of wildfire/heat
-  season if demand appears.
+  **Updated 2026-11-05:** the server now has the per-day smoke a smoke alert would read:
+  `hms/smoke/place/` (sjvair.com #312) gives the heaviest density and the share covered for
+  any place. The alert source itself is still deferred. **Revisit when** the first alert-rule
+  iteration ships, or ahead of wildfire/heat season if demand appears.
 
 - **An opt-in "back to normal" message by email.** _Deferred 2026-10-13._ All channels follow
   the server's escalation-only rules, with no all-clear; the in-app inbox shows when an
