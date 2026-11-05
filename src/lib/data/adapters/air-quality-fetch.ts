@@ -197,9 +197,8 @@ function entryValue(value: unknown): number {
  * One monitor's raw entries in `[start, end)` as count-1 points, by chunk, for the published
  * series (`processor`, when the monitor's type names one). Bounds go to the SDK as `Date`s, so
  * they are unambiguous instants even inside the repeated fall-back hour. Its upper bound is
- * inclusive, so the exclusive end is sent less 1 ms. `exact: true` sends both bounds unchanged,
- * so a short window (the open hour) isn't widened to whole Pacific days. Entries are still
- * filtered by their own (offset-carrying) timestamps.
+ * inclusive, so the exclusive end is sent less 1 ms. Entries are still filtered by their own
+ * (offset-carrying) timestamps.
  */
 export function rawTasks(
 	monitorId: string,
@@ -220,8 +219,7 @@ export function rawTasks(
 				entryType: entryType as Parameters<typeof getMonitorEntries>[0]["entryType"],
 				...(processor ? { processor } : {}),
 				timestampGte: new Date(from),
-				timestampLte: new Date(to - 1),
-				exact: true
+				timestampLte: new Date(to - 1)
 			},
 			{ signal }
 		);
