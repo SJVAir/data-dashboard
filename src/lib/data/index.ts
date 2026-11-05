@@ -53,6 +53,6 @@ export function placeRegion(
 	input: QueryInput,
 	signal?: AbortSignal
 ): Promise<{ type: string; code: string } | null> {
-	region ??= createPlaceRegion(getQueryClient(), getResolvers());
+	region ??= createPlaceRegion(getQueryClient(), { ...getResolvers(), metadata: getMetadata() });
 	return region(input, signal);
 }

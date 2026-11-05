@@ -857,13 +857,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   started before midnight gets the older dates until the next poll. **Revisit if** a widget
   shows yesterday's window after midnight for longer than a poll; the fix is to compare the
   in-flight request's dates when attaching.
-- **A monitor missing from the monitors list gets the uncalibrated series silently.**
-  _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
-  can't name the published processor, so the request names none and the server returns the
-  type's default stage. **Revisit when** step 3's metadata work lands: report the query as
-  `unavailable`, or refresh the monitors list and try again. (What a widget shows for an
-  unknown monitor today is under "Widgets": "An unknown monitor shows the error (with Retry) or
-  'No data'".)
 - **A failure fetching monitor names fails the whole data query.** _Deferred 2026-11-04 (step 4
   spec 1 final review)._ Monitor places are named from the monitors list; if that fetch fails,
   the query fails with it, though the readings themselves came back. Why: the list is memoized
@@ -1022,15 +1015,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   Retired regions get the "stopped reporting" note and "Switch to the replacement", but there's
   no server lookup telling a retired monitor from one that never existed. **Revisit when**
   sjvair.com adds that lookup.
-- **An unknown monitor shows the error (with Retry) or "No data", not "no longer available".**
-  _Deferred 2026-11-04 (step 4 spec 1 final review, controller ruling)._ A widget whose monitor
-  isn't in the monitors list just runs its query: the server's error shows the error state with
-  Retry, or an empty answer shows "No data". Nothing says the monitor is gone, because nothing
-  can tell yet (see "Stopped reporting" above), and the request goes out with no processor (see
-  "A monitor missing from the monitors list gets the uncalibrated series silently" under
-  "Analysis & data"). Why deferred: step 4 spec 2's place picker brings the monitors list into
-  the widget, where checking the saved monitor against it belongs. **Revisit when** step 4
-  spec 2 starts.
 - **Generated widget titles are never cleared.** _Deferred 2026-11-04 (step 4 spec 1 final
   review)._ The map of generated titles (`src/lib/widgets/titles.svelte.ts`) only gains
   entries: an undone delete can briefly show the old generated title until the widget's data is

@@ -1309,6 +1309,12 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **Unlisted monitors and retired schools** (step 4 spec 2, 2026-11-04): a monitor, or a
+      monitor selection, with an id missing from the loaded monitors list is `unavailable`
+      ("monitor-unlisted", the "no longer available" card); a monitors list that fails to load
+      still runs the query as before. Removed from `DEFERRED.md`: "A monitor missing from the
+      monitors list gets the uncalibrated series silently" and "An unknown monitor shows the
+      error (with Retry) or 'No data', not 'no longer available'".
 - [x] **Design pass, part 1: the look** (built 2026-11-03; merged into `main` 2026-11-04,
       PR [#33](https://github.com/SJVAir/data-dashboard/pull/33)): light and dark tokens, the theme switch, restyled primitives and shell,
       four-across density, brand assets and app icons. Removed from `DEFERRED.md`: the maskable

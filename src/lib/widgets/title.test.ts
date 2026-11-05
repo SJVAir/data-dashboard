@@ -102,7 +102,7 @@ describe("placeLabel", () => {
 		const school: PlaceInfo = {
 			place: "region:zipcode:93702",
 			name: "ZIP 93702",
-			via: { kind: "location", name: "Roosevelt High School" }
+			via: { kind: "location", source: "cde-public", code: "1", name: "Roosevelt High School" }
 		};
 		expect(placeLabel(school, "owner")).toBe("ZIP 93702 (Roosevelt High School)");
 		expect(dataTitle({ entryLabel: "PM2.5", places: [school], range })).toBe(

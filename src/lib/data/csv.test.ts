@@ -208,9 +208,19 @@ describe("toCsv place labels", () => {
 		expect(nameOf(toCsv(build({ kind: "point" }), META, "shared"))).toBe(
 			"ZIP 93721 (shared location)"
 		);
-		expect(nameOf(toCsv(build({ kind: "location", name: "Roosevelt High School" }), META))).toBe(
-			"ZIP 93721 (Roosevelt High School)"
-		);
+		expect(
+			nameOf(
+				toCsv(
+					build({
+						kind: "location",
+						source: "cde-public",
+						code: "1",
+						name: "Roosevelt High School"
+					}),
+					META
+				)
+			)
+		).toBe("ZIP 93721 (Roosevelt High School)");
 		expect(nameOf(toCsv(build(undefined), META))).toBe("ZIP 93721");
 	});
 });

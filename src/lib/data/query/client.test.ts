@@ -748,7 +748,7 @@ describe("createQueryClient", () => {
 		});
 
 		it("is dropped, with the same key, for two places", async () => {
-			const two: Partial<Layer> = { selection: { kind: "monitors", ids: ["m-pa", "m-pb"] } };
+			const two: Partial<Layer> = { selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } };
 			const on = await run(two, DAYS(30), true);
 			const off = await run(two, DAYS(30));
 			expect(on.req.worstHour).toBe(false);

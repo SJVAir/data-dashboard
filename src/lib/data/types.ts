@@ -41,6 +41,9 @@ export type Via =
 	| { kind: "point" }
 	| {
 			kind: "location";
+			/** The school's document reference, so a replacement can swap the layer's place. */
+			source: string;
+			code: string;
 			name: string;
 			retired?: { since: string; replacedBy: { source: string; code: string } | null };
 	  };

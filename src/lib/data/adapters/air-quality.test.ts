@@ -122,6 +122,18 @@ beforeEach(() => {
 	signal = new AbortController().signal;
 });
 
+describe("airQualityAdapter.target", () => {
+	it("reports a monitor missing from the loaded list as monitor-unlisted", async () => {
+		const layer: Layer = { dataset: "air-quality", place: { kind: "monitor", id: "m-gone" } };
+		expect(await airQualityAdapter.target(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
+		const listed: Layer = { dataset: "air-quality", place: { kind: "monitor", id: "m-pa" } };
+		expect(await airQualityAdapter.target(listed, ctx)).toEqual({
+			kind: "monitors",
+			ids: ["m-pa"]
+		});
+	});
+});
+
 describe("airQualityAdapter.offered", () => {
 	it("offers raw only for monitors", () => {
 		const base: Resolution[] = ["raw", "hour", "day"];
@@ -932,7 +944,7 @@ describe("airQualityAdapter.fetch worstHour", () => {
 describe("airQualityAdapter.fetch fallback", () => {
 	const SCHOOL: Target = {
 		kind: "fallback",
-		via: { kind: "location", name: "Roosevelt High School" },
+		via: { kind: "location", source: "cde-public", code: "1", name: "Roosevelt High School" },
 		keys: ["zipcode:93721", "city:0627000", "county:06019"]
 	};
 	/** Daily rows for the regions (by sqid) that have data. */
@@ -961,7 +973,7 @@ describe("airQualityAdapter.fetch fallback", () => {
 			{
 				place: "region:zipcode:93721",
 				name: "93721",
-				via: { kind: "location", name: "Roosevelt High School" }
+				via: { kind: "location", source: "cde-public", code: "1", name: "Roosevelt High School" }
 			}
 		]);
 	});

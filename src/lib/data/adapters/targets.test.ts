@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Layer } from "../schema";
+import { fixtureMetadata } from "../testing/fixtures";
 import type { LocationResolver, PointResolver, RegionResolver } from "./registry";
 import { layerTarget, regionPlace, splitRegionKey } from "./targets";
 
@@ -25,7 +26,7 @@ const points: PointResolver = {
 	keys: vi.fn(async (lat: number) => (lat > 40 ? [] : ["zipcode:93721", "county:06019"]))
 };
 
-const ctx = { regions, locations, points };
+const ctx = { regions, locations, points, metadata: fixtureMetadata() };
 
 const base: Layer = { dataset: "air-quality", entryType: "pm25" };
 
@@ -33,6 +34,34 @@ describe("layerTarget", () => {
 	it("maps a monitor place to its id", async () => {
 		const layer: Layer = { ...base, place: { kind: "monitor", id: "m-pa" } };
 		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa"] });
+	});
+
+	it("reports a monitor absent from a loaded monitors list as monitor-unlisted", async () => {
+		const layer: Layer = { ...base, place: { kind: "monitor", id: "m-gone" } };
+		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
+	});
+
+	it("reports a monitor selection with any absent id as monitor-unlisted", async () => {
+		const layer: Layer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-gone"] } };
+		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
+	});
+
+	it("keeps a monitor selection whose ids are all listed", async () => {
+		const layer: Layer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } };
+		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa", "m-bam"] });
+	});
+
+	it("runs the query as before when the monitors list fails to load", async () => {
+		const failing = {
+			...ctx,
+			metadata: fixtureMetadata({
+				monitors: async () => {
+					throw new Error("down");
+				}
+			})
+		};
+		const layer: Layer = { ...base, place: { kind: "monitor", id: "m-gone" } };
+		expect(await layerTarget(layer, failing)).toEqual({ kind: "monitors", ids: ["m-gone"] });
 	});
 
 	it("keys a resolvable region place by type and code, not sqid", async () => {
@@ -60,7 +89,12 @@ describe("layerTarget", () => {
 		};
 		expect(await layerTarget(layer, ctx)).toEqual({
 			kind: "fallback",
-			via: { kind: "location", name: "Roosevelt High School" },
+			via: {
+				kind: "location",
+				source: "cde-public",
+				code: "10621661035023",
+				name: "Roosevelt High School"
+			},
 			keys: ["zipcode:93702", "city:0627000", "county:06019"]
 		});
 	});
@@ -77,7 +111,7 @@ describe("layerTarget", () => {
 		});
 		expect(target).toEqual({
 			kind: "fallback",
-			via: { kind: "location", name: "Old School", retired },
+			via: { kind: "location", source: "cde-public", code: "1", name: "Old School", retired },
 			keys: ["county:06019"]
 		});
 	});

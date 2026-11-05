@@ -30,7 +30,7 @@ function settled(client: QueryClient, input: QueryInput, signal?: AbortSignal) {
  */
 export function createPlaceRegion(
 	client: QueryClient,
-	ctx: Pick<AdapterContext, "regions" | "locations" | "points">
+	ctx: Pick<AdapterContext, "regions" | "locations" | "points" | "metadata">
 ): PlaceRegion {
 	return async (input, signal) => {
 		const kind = input.layer.place?.kind;

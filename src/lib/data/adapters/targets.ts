@@ -39,6 +39,25 @@ async function resolvableKeys(
 }
 
 /**
+ * Whether any of the monitor ids is missing from a loaded monitors list. A list that fails to
+ * load says nothing, so the query runs as before (and shows its own error with Retry).
+ */
+async function anyUnlisted(
+	ids: string[],
+	metadata: AdapterContext["metadata"],
+	signal?: AbortSignal
+): Promise<boolean> {
+	let listed: Set<string>;
+	try {
+		listed = new Set((await metadata.monitors(signal)).map((m) => m.id));
+	} catch (error) {
+		if (signal?.aborted) throw error;
+		return false;
+	}
+	return ids.some((id) => !listed.has(id));
+}
+
+/**
  * What a layer asks for. Regions stay keyed by their document reference (`<type>:<code>`), so
  * cache keys and series never carry the server's per-database id; they are resolved here only
  * to check that they can be. A point or a school becomes its region keys to try in order, so its
@@ -46,19 +65,25 @@ async function resolvableKeys(
  */
 export async function layerTarget(
 	layer: Layer,
-	ctx: Pick<AdapterContext, "regions" | "locations" | "points">,
+	ctx: Pick<AdapterContext, "regions" | "locations" | "points" | "metadata">,
 	signal?: AbortSignal
 ): Promise<Target | { unavailable: UnavailableReason }> {
 	const { place, selection } = layer;
 	let keys: string[];
 	if (place) {
-		if (place.kind === "monitor") return { kind: "monitors", ids: [place.id] };
+		if (place.kind === "monitor") {
+			if (await anyUnlisted([place.id], ctx.metadata, signal))
+				return { unavailable: "monitor-unlisted" };
+			return { kind: "monitors", ids: [place.id] };
+		}
 		if (place.kind === "location") {
 			const found = await ctx.locations.resolve(place.source, place.code, signal);
 			const candidates = found ? await resolvableKeys(found.keys, ctx.regions, signal) : [];
 			if (!found || candidates.length === 0) return { unavailable: "location-unresolved" };
 			const via: Via = {
 				kind: "location",
+				source: place.source,
+				code: place.code,
 				name: found.name,
 				...(found.retired && { retired: found.retired })
 			};
@@ -73,7 +98,12 @@ export async function layerTarget(
 		if (place.kind !== "region") return { unavailable: "place-unsupported" };
 		keys = [`${place.type}:${place.code}`];
 	} else if (selection) {
-		if (selection.kind === "monitors") return { kind: "monitors", ids: [...selection.ids] };
+		if (selection.kind === "monitors") {
+			if (await anyUnlisted(selection.ids, ctx.metadata, signal)) {
+				return { unavailable: "monitor-unlisted" };
+			}
+			return { kind: "monitors", ids: [...selection.ids] };
+		}
 		keys = [...selection.ids];
 	} else {
 		return { kind: "all" };
