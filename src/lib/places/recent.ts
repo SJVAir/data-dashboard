@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "$lib/zod";
 import { PlaceRefSchema, type PlaceRef } from "$lib/data/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
 
