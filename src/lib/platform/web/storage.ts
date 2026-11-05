@@ -19,6 +19,7 @@ import { safeLocalStorage } from "./theme";
 import { createWebDisplay } from "./display";
 import { createWebOnline } from "./online";
 import { createWebClipboard } from "./clipboard";
+import { createWebGeolocation } from "./geolocation";
 import { createWebErrors, listenForCspViolations } from "./errors";
 import { createWebFiles } from "./files";
 import { createWebIdentity } from "./identity";
@@ -333,6 +334,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		display: createWebDisplay(window, safeLocalStorage()),
 		locks: createWebLocks(),
 		clipboard: createWebClipboard(),
+		geolocation: createWebGeolocation(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),
 		reset: createWebReset(run),

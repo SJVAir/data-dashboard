@@ -91,3 +91,19 @@ describe("createMemoryIdentity", () => {
 		expect(heard.at(-1)).toEqual([{ state: "signed-out" }, "sign-out"]);
 	});
 });
+
+describe("memory geolocation", () => {
+	it("is unsupported until scripted, then returns the scripted result", async () => {
+		const p = createMemoryPlatform();
+		expect(await p.geolocation.locate()).toEqual({ ok: false, reason: "unsupported" });
+		p.geolocation.script({ ok: true, lat: 36.7, lon: -119.8 });
+		expect(await p.geolocation.locate()).toEqual({ ok: true, lat: 36.7, lon: -119.8 });
+	});
+
+	it("rejects with the reason of an aborted signal", async () => {
+		const p = createMemoryPlatform();
+		const controller = new AbortController();
+		controller.abort(new Error("stop"));
+		await expect(p.geolocation.locate(controller.signal)).rejects.toThrow("stop");
+	});
+});

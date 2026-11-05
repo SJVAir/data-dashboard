@@ -17,6 +17,8 @@ import {
 	type OnlineSource,
 	type ThemeChoice,
 	type ClipboardAccess,
+	type GeoResult,
+	type GeolocationAccess,
 	type ErrorReporter,
 	type FileAccess,
 	type IdentityCause,
@@ -158,6 +160,7 @@ export function createMemoryIdentity(
 }
 
 export type MemoryClipboard = ClipboardAccess & { fail(on: boolean): void; last: string | null };
+export type MemoryGeolocation = GeolocationAccess & { script(result: GeoResult): void };
 export type MemoryFiles = FileAccess & {
 	queueOpen(file: OpenedFile | null): void;
 	saved: Array<{ name: string; contents: string; type: string }>;
@@ -175,6 +178,7 @@ export type MemoryPlatform = Platform & {
 	activity: MemoryActivity;
 	online: MemoryOnline;
 	clipboard: MemoryClipboard;
+	geolocation: MemoryGeolocation;
 	files: MemoryFiles;
 	persistence: MemoryPersistence;
 	errors: MemoryErrors;
@@ -205,6 +209,16 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 			if (failClipboard) return false;
 			clipboard.last = text;
 			return true;
+		}
+	};
+	let geoAnswer: GeoResult = { ok: false, reason: "unsupported" };
+	const geolocation: MemoryGeolocation = {
+		script(result) {
+			geoAnswer = result;
+		},
+		async locate(signal) {
+			signal?.throwIfAborted();
+			return geoAnswer;
 		}
 	};
 	const opens: Array<OpenedFile | null> = [];
@@ -392,6 +406,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 		display: createMemoryDisplay(),
 		locks: createQueueLocks(),
 		clipboard,
+		geolocation,
 		files,
 		persistence,
 		errors,
