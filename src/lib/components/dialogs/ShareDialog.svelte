@@ -9,7 +9,7 @@
 	import { BASE } from "$lib/routing";
 	import { useApp } from "$lib/store/app.svelte";
 	import { RemoteRefusal, RemoteUnavailable } from "$lib/sync/remote";
-	import type { ShareResult } from "$lib/sync/share";
+	import type { ShareOptions, ShareResult } from "$lib/sync/share";
 	import type { Dashboard } from "$lib/documents/schema";
 	import { hasPoints, swapNotice } from "$lib/sharing/points";
 	import { tick, untrack } from "svelte";
@@ -115,7 +115,9 @@
 			if (!open) return;
 			exact = false;
 			regionUsed = false;
-			exactLive = false;
+			// Chosen for the link that's on: remembered until it's turned off.
+			const state = opts?.live ? app.sync?.states[opts.live.docId] : undefined;
+			exactLive = !!state?.shareToken && state.shareExact;
 			lookup = "none";
 			if (opts?.points) startLookup(opts.points);
 		});
@@ -171,10 +173,13 @@
 		if (await shareLink()) regionUsed = true;
 	}
 
-	/** "Share my exact location": the warning stays shown; without a link yet, it's created. */
+	/**
+	 * "Share my exact location": the warning stays shown, and the choice is remembered for the
+	 * link until it's turned off (it's created first when there's none), so its points upload.
+	 */
 	async function shareExact() {
 		exactLive = true;
-		if (!liveUrl) await shareLink();
+		await shareLink();
 	}
 
 	// While the name is missing, a return to being online loads it again.
@@ -268,17 +273,21 @@
 
 	/**
 	 * Uploads, then turns the link on (or keeps it, with the uploaded version); resolves whether it
-	 * did. Unless the owner chose "Share my exact location", a dashboard that held an exact location
-	 * is shared only if the uploaded version holds none.
+	 * did. Unless the owner chose "Share my exact location" (remembered for the link), a dashboard
+	 * that held an exact location is shared only if the uploaded version holds none.
 	 */
 	async function shareLink(): Promise<boolean> {
 		if (!live || !sync) return false;
-		const onlyIf = share.opts?.points && !exactLive ? (doc: Dashboard) => !hasPoints(doc) : null;
+		const opts: ShareOptions | undefined = !share.opts?.points
+			? undefined
+			: exactLive
+				? { exact: true }
+				: { exact: false, onlyIf: (doc: Dashboard) => !hasPoints(doc) };
 		busy = true;
 		status = "";
 		notes = [];
 		try {
-			const result = await sync.share(live.docId, onlyIf ? { onlyIf } : undefined);
+			const result = await sync.share(live.docId, opts);
 			notes = notesFor(result);
 			if (result.kind !== "shared") return false;
 			await tick();

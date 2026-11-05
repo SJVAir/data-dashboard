@@ -1290,13 +1290,41 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     before turning one on the Share dialog asks: "Use ZIP 93721 instead" (one undoable edit:
     `setWidgetData` when one widget has points, else one `replaceDocument`) or "Share my
     exact location" (with the warning). Viewers' labels read "(shared location)".
-    **The live link is guarded** (step 4 spec 2): the share uploads first, then checks, under
-    the document lock, that the stored version has no point (unless the owner chose "Share my
-    exact location"); a failed check, or edits still waiting to upload, refuses the share, so
-    the server copy never carries a point the owner didn't choose. An already-on link whose
-    dashboard gains a point shows the same prompt.
+    **The live link is guarded three ways** (step 4 spec 2):
+    - _When the link goes on:_ the share uploads first, then checks, under the document lock,
+      that the stored version has no point (unless the owner chose "Share my exact location");
+      a failed check, or edits still waiting to upload, refuses the share. An already-on link
+      whose dashboard holds a point shows the same prompt.
+    - _Every edit while it's on_ (the user, 2026-11-05): any of this tab's edits, Undo and Redo
+      included, that leaves a point on a live-shared dashboard saves its region instead, with
+      the "saved as" notice (a toast, announced). `DocumentSession`'s `onEdit` hook hands the
+      session to the app, which loads `src/lib/sharing/live-points.ts` only for a dashboard
+      with a point (and a live link, once the worker's states know); it looks the regions up (`placeRegion`, 20 s), and applies the swap with
+      `amend`: stored like any edit but not an undo step of its own, so Undo goes past it
+      (the stacks' changes set values, and an inverse is taken from what was there, so it
+      ends; a redo that would land on the swapped point lands on the region). The app also
+      runs it when a dashboard opens with a held upload (another tab's journal replayed here,
+      a lookup that failed before a reload), and when the sync worker reports one
+      (`onPointsHeld`). One run per dashboard per tab; a Web Lock and a stored-version check
+      keep two tabs from both swapping. A failed lookup shows "Can't look up your area right
+      now." with Retry (and tries again when the connection returns).
+    - _Every upload:_ `pointsHeld` (`src/lib/sync/points.ts`) is the check every save of a
+      stored document makes first (`uploadDocument`'s loop, after each merge too, and
+      settling a conflict, which refuses with `PointsHeld`): with the link on and not exact, a
+      document holding a point isn't sent (`points`), whichever path asks (autosave, a replayed
+      journal, the sweep, another tab). It goes once the swap is stored. A batch whose changes
+      mention a point (the pick and its undo) is sent as one `replaceDocument` from the
+      server's copy instead, so not even the change log gets it. Server snapshots kept before
+      a restore or a "use theirs" are the owner's only, never shown on the link, and aren't
+      held (`DEFERRED.md`).
+    - **"Share my exact location" is remembered per link**: `shareExact` in the sync record,
+      next to `shareToken`, set by the Share dialog's choice (on a new link with the share; on
+      an on link first, so its held points go up), and kept by every record write for the
+      same token (`withShareToken`). Turning the link off, or a different token arriving,
+      clears it; "Use … instead" sets it back to false. It's this device's record: another
+      device swaps the points on its next edit (`DEFERRED.md`).
   - **"Use my location" on a dashboard with a live link** (the picker reads the sync record's
-    `shareToken` at Done) saves the region the widget would use (ZIP, else city, else county)
+    `shareToken` and `shareExact` at Done; with exact chosen it keeps the point) saves the region the widget would use (ZIP, else city, else county)
     instead of the point, and says so: "This dashboard is shared by link, so your location is
     saved as 93721." Turning the link off later doesn't restore the point. A pick identical to
     the current place makes no edit (and no notice).
@@ -2190,7 +2218,9 @@ rest are the builder's calls, and the user kept them.
     93721 instead" or "Share my exact location". Unless the owner chose exact, the share runs
     with a check (`onlyIf`, after the upload and under the document lock) that the stored
     version has no point; a failed check or edits still waiting to upload refuse it
-    (`check-failed`). See "Widget data selection" → "Location privacy".
+    (`check-failed`). While the link is on, every edit and every upload is guarded too, and
+    the exact choice is remembered (`shareExact`) until the link is off. See "Widget data
+    selection" → "Location privacy".
 
 **Recovery (built in sync spec 4, 2026-11-03).** The builder's calls, in the plan
 `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`:

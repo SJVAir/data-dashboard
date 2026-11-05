@@ -11,6 +11,7 @@ import { purgeExpired } from "$lib/safety/purge";
 import { report } from "$lib/safety/report";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
+import { hasPoints } from "$lib/sharing/point-layers";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
 import { dataTableType } from "$lib/widgets/table";
@@ -46,6 +47,11 @@ export type AppContext = {
 	sync: SyncWorker | null;
 	/** The sessions this tab has open (the starter's included). */
 	openSessions(): DocumentSession[];
+	/**
+	 * The sync worker held an upload of `docId` for a point its live link mustn't show
+	 * (`SyncContext.onPointsHeld`): swapped here if this tab has it open.
+	 */
+	pointsHeld(docId: string): void;
 	/**
 	 * Leaving this space (the app is remounted for another): stores and disposes every open
 	 * session, stops the sync worker, and stops following the other tabs.
@@ -129,14 +135,38 @@ class App implements AppContext {
 		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
 	}
 
-	/** Given to every session: storage moved to a newer format, or was cleared, elsewhere. */
+	/**
+	 * Given to every session: storage moved to a newer format, or was cleared, elsewhere; and
+	 * each edit, for a live link's points.
+	 */
 	readonly #guards = {
 		onNeedsReload: () => {
 			updateNotice.show("newer-data");
 			this.suspendAll();
 		},
-		onCleared: () => void this.resetAfterClear()
+		onCleared: () => void this.resetAfterClear(),
+		onEdit: (session: DocumentSession) => this.#guardPoints(session)
 	};
+
+	/**
+	 * A dashboard with an exact location, unless the worker knows it has no live link (`held`:
+	 * the worker held its upload, whatever its states say yet): the live-link rule (loaded only
+	 * then) swaps its points if the link mustn't show them.
+	 */
+	#guardPoints(session: DocumentSession, held = false): void {
+		const doc = session.editTarget.doc;
+		if (!this.sync || !hasPoints(doc)) return;
+		const state = this.sync.states[doc.id];
+		if (!held && state && !state.shareToken) return;
+		void import("$lib/sharing/live-points")
+			.then(({ guardLivePoints }) => guardLivePoints(this, session))
+			.catch((error) => report(error, { operation: "live-points" }));
+	}
+
+	pointsHeld(docId: string): void {
+		const session = this.#live.get(docId);
+		if (session) this.#guardPoints(session, true);
+	}
 
 	async #get(id: string, remember: boolean): Promise<DocumentSession | null> {
 		// Closed: its sessions are gone, and a new one would never be stored or disposed.
@@ -157,7 +187,10 @@ class App implements AppContext {
 			const own = opening;
 			void own.then(
 				(session) => {
-					if (session && this.#open.get(id) === own) this.#live.set(id, session);
+					if (!session || this.#open.get(id) !== own) return;
+					this.#live.set(id, session);
+					// Opened holding a point its live link mustn't show (a held upload, a replayed edit).
+					this.#guardPoints(session);
 				},
 				// Told to the caller, who awaits `opening`.
 				() => {}
@@ -225,7 +258,8 @@ class App implements AppContext {
 				tabId: this.tabId,
 				buildId: BUILD_ID,
 				now,
-				onBlocked: () => updateNotice.show("build-blocked")
+				onBlocked: () => updateNotice.show("build-blocked"),
+				onPointsHeld: (docId) => this.pointsHeld(docId)
 			});
 			if (this.#closed) return;
 			this.sync = worker;

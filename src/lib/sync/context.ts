@@ -20,6 +20,11 @@ export type SyncContext = {
 	now: () => Date;
 	/** The server refused this build (the worker's `blocked` is set); the app shows a notice. */
 	onBlocked?: () => void;
+	/**
+	 * An upload of `docId` was held: it holds a point its live link mustn't show (`pointsHeld`).
+	 * The app swaps the point for its region where the dashboard is open.
+	 */
+	onPointsHeld?: (docId: string) => void;
 };
 
 /** The Web Lock held while a document is uploaded or merged (not re-entrant). */

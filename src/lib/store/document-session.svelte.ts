@@ -45,6 +45,11 @@ export type DocumentSessionOptions = {
 	onCleared?: () => void;
 	/** The migration chain for older stored documents and changes (tests inject one). */
 	chain?: Migration[];
+	/**
+	 * Called after each of this tab's edits lands in `doc` (`apply`, `undo`, `redo`; not `amend`
+	 * or another tab's changes), so the app can finish it with `amend` (a live link's points).
+	 */
+	onEdit?: (session: DocumentSession) => void;
 };
 
 type Listener = { target: EventTarget; type: string; fn: (event: Event) => void };
@@ -121,6 +126,7 @@ export class DocumentSession {
 	readonly #generation: string;
 	readonly #onNeedsReload: (() => void) | undefined;
 	readonly #onCleared: (() => void) | undefined;
+	readonly #onEdit: ((session: DocumentSession) => void) | undefined;
 	#conflictBase: ConflictBase | null = null;
 	#unsubscribe: () => void = () => {};
 	#stopActivity: () => void = () => {};
@@ -166,6 +172,7 @@ export class DocumentSession {
 		this.#generation = opts.platform.reset.generation();
 		this.#onNeedsReload = opts.onNeedsReload;
 		this.#onCleared = opts.onCleared;
+		this.#onEdit = opts.onEdit;
 		if (this.#channel) this.#unsubscribe = this.#channel.subscribe((msg) => this.#onMessage(msg));
 
 		if (typeof window !== "undefined") {
@@ -200,7 +207,7 @@ export class DocumentSession {
 		tabId: string,
 		options: Pick<
 			DocumentSessionOptions,
-			"channel" | "debounceMs" | "now" | "onNeedsReload" | "onCleared" | "chain"
+			"channel" | "debounceMs" | "now" | "onNeedsReload" | "onCleared" | "chain" | "onEdit"
 		> = {}
 	): Promise<DocumentSession | null> {
 		const raw = await platform.documents.get(space, id);
@@ -282,6 +289,7 @@ export class DocumentSession {
 		this.#record(result.doc, appliedChange(result.inverse));
 		this.#undoStack.push(appliedChange(result.inverse), result.inverse);
 		this.#syncUndoState();
+		this.#onEdit?.(this);
 	}
 
 	undo(): void {
@@ -289,6 +297,7 @@ export class DocumentSession {
 		const result = this.#undoStack.takeUndo(this.doc);
 		if (result) this.#record(result.doc, result.change);
 		this.#syncUndoState();
+		if (result) this.#onEdit?.(this);
 	}
 
 	redo(): void {
@@ -296,6 +305,28 @@ export class DocumentSession {
 		const result = this.#undoStack.takeRedo(this.doc);
 		if (result) this.#record(result.doc, result.change);
 		this.#syncUndoState();
+		if (result) this.#onEdit?.(this);
+	}
+
+	/**
+	 * Applies a change that finishes the edit before it (a live link's points swapped for their
+	 * regions): stored like any edit, but not an undo step of its own, and not passed to
+	 * `onEdit`. Undo goes past it: the stacks' changes set values, so the next undo restores what
+	 * was there before the edit it finished, and a redo stays offered.
+	 */
+	amend(change: Change): void {
+		if (this.readOnly) return;
+		if (this.#successor) {
+			this.#successor.amend(change);
+			return;
+		}
+		// A starter's edits all go to its copy first.
+		if (this.#onBeforeFirstEdit || this.#handoff) {
+			this.#handOff(change);
+			return;
+		}
+		const result = applyChange(this.doc, change);
+		this.#record(result.doc, appliedChange(result.inverse));
 	}
 
 	/** Empties the undo and redo stacks (after the document was replaced under them). */

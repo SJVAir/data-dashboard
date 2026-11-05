@@ -704,6 +704,11 @@ test("before a live link, Use ZIP 93721 instead swaps the points in one undoable
 	session.undo();
 	expect(places()).toEqual([POINT, POINT]);
 	expect(session.canUndo).toBe(false);
+	// With the link on, the undone points are saved as their regions again (the every-edit rule).
+	await expect.poll(places).toEqual([
+		{ kind: "region", type: "zipcode", code: "93721" },
+		{ kind: "region", type: "zipcode", code: "93721" }
+	]);
 });
 
 test("Share my exact location warns, then creates the link with the point kept", async () => {
@@ -740,6 +745,9 @@ test("with one point widget, Use ZIP 93721 instead edits only that widget's data
 	session.undo();
 	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
 	expect(session.canUndo).toBe(false);
+	await expect
+		.poll(() => session.doc.body.widgets[0].data.layers[0].place)
+		.toEqual({ kind: "region", type: "zipcode", code: "93721" });
 });
 
 test("a point re-picked after the lookup is looked up again before anything is swapped", async () => {
@@ -807,7 +815,7 @@ test("a live link already on: Use ZIP 93721 instead updates the server copy, kee
 	).toHaveLength(0);
 });
 
-test("a live link already on: Share my exact location dismisses the notice for this opening", async () => {
+test("a live link already on: Share my exact location is remembered until the link is off", async () => {
 	const { app, fake, worker } = await signedIn({ doc: withPoints("p") });
 	await worker.share("d1");
 	const { shareDashboard } = await import("$lib/sharing/actions");
@@ -818,8 +826,28 @@ test("a live link already on: Share my exact location dismisses the notice for t
 	await expect
 		.element(liveSection().getByText("This dashboard includes your exact location."))
 		.not.toBeInTheDocument();
+	await expect.poll(() => worker.states.d1?.shareExact).toBe(true);
 	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
-	expect(fake.requests.filter((r) => r === "share d1")).toHaveLength(1);
+	expect(fake.requests.filter((r) => r === "share d1")).toHaveLength(2);
+
+	// The next opening doesn't ask again: the warning stands.
+	share.open = false;
+	await expect.element(dialog()).not.toBeInTheDocument();
+	await shareDashboard(app);
+	await expect.element(liveSection().getByText(WARNING)).toBeVisible();
+	expect(
+		liveSection().getByText("This dashboard includes your exact location.").elements()
+	).toHaveLength(0);
+
+	// Turned off and on again: a new link starts by asking.
+	await worker.unshare("d1");
+	expect(worker.states.d1?.shareExact).toBe(false);
+	share.open = false;
+	await expect.element(dialog()).not.toBeInTheDocument();
+	await shareDashboard(app);
+	await expect
+		.element(liveSection().getByText("This dashboard includes your exact location."))
+		.toBeVisible();
 });
 
 test("Use ZIP 93721 instead turns no link on when the swap couldn't be uploaded", async () => {

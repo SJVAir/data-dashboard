@@ -1,5 +1,4 @@
 import { toast } from "svelte-sonner";
-import type { Change } from "$lib/changes/types";
 import { openShare, type ShareCopy, type SharePoints } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard } from "$lib/documents/schema";
 import { todayPacific } from "$lib/format";
@@ -25,6 +24,7 @@ import {
 	pointSwaps,
 	pointsCovered,
 	summarizeSwaps,
+	swapChange,
 	swapNotice,
 	withSwaps,
 	type PointSwap,
@@ -139,10 +139,9 @@ async function copyOf(target: Target): Promise<ShareCopy> {
 
 /**
  * Swaps the points of `session`'s dashboard as it is now for their regions, as one undoable
- * change: `setWidgetData` when one widget has points (so edits elsewhere, from this or another
- * device, aren't touched), else one `replaceDocument` (no other single change covers several
- * widgets). Resolves once the change is stored (so an upload carries it), or `"stale"`, changing
- * nothing, when the dashboard holds a point `swaps` doesn't cover (added or re-picked since).
+ * change (`swapChange`). Resolves once the change is stored (so an upload carries it), or
+ * `"stale"`, changing nothing, when the dashboard holds a point `swaps` doesn't cover (added or
+ * re-picked since).
  */
 async function useRegions(
 	session: DocumentSession,
@@ -151,25 +150,7 @@ async function useRegions(
 	const editing = session.editTarget;
 	const doc = editing.doc;
 	if (!pointsCovered(doc, swaps)) return "stale";
-	const next = withSwaps(doc, swaps);
-	const changed = next.body.widgets.filter((w, i) => w !== doc.body.widgets[i]);
-	let change: Change | null = null;
-	if (changed.length === 1) {
-		const widget = changed[0];
-		change = {
-			op: "setWidgetData",
-			target: { widgetId: widget.id },
-			from: doc.body.widgets.find((w) => w.id === widget.id)!.data,
-			to: widget.data
-		};
-	} else if (changed.length > 1) {
-		change = {
-			op: "replaceDocument",
-			target: {},
-			from: { name: doc.name, body: doc.body },
-			to: { name: doc.name, body: next.body }
-		};
-	}
+	const change = swapChange(doc, swaps);
 	if (change) editing.apply(change);
 	await editing.flush();
 	return "applied";

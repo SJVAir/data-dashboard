@@ -42,7 +42,18 @@ function unwrapRecord(row: { space: SpaceId; id: string } & SyncRecord): SyncRec
 	const { docId, serverVersion, syncedThrough, confirmedAt, inFlight, hold } = row;
 	// Records stored before share links have no token.
 	const shareToken = row.shareToken ?? null;
-	return { docId, serverVersion, syncedThrough, confirmedAt, inFlight, hold, shareToken };
+	// And before the exact-location choice was remembered: not chosen.
+	const shareExact = shareToken !== null && row.shareExact === true;
+	return {
+		docId,
+		serverVersion,
+		syncedThrough,
+		confirmedAt,
+		inFlight,
+		hold,
+		shareToken,
+		shareExact
+	};
 }
 
 /** Every key in `space`: arrays sort after strings and numbers, so `[space, []]` ends it. */

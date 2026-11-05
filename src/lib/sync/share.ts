@@ -4,7 +4,7 @@
  */
 import type { Dashboard } from "$lib/documents/schema";
 import { docLock, type SyncContext } from "./context";
-import { postSync, readLocal } from "./local";
+import { postSync, readLocal, withShareToken } from "./local";
 import { RemoteRefusal, RemoteUnavailable } from "./remote";
 import type { SyncHold } from "./types";
 import { remoteCall, uploadDocument } from "./upload";
@@ -27,6 +27,13 @@ export type ShareOptions = {
 	 * so the share is refused.
 	 */
 	onlyIf?: (doc: Dashboard) => boolean;
+	/**
+	 * The owner's choice for this link's exact locations: `true` ("Share my exact location") lets
+	 * them upload while the link stays on (set before the upload, so an on link gets them now);
+	 * `false` swaps them as for any live link. Left out, an on link keeps its choice and a new one
+	 * starts without it.
+	 */
+	exact?: boolean;
 };
 
 /** Uploads what's pending, then turns the link on. Under the doc lock for the record write. */
@@ -35,6 +42,7 @@ export async function shareDocument(
 	docId: string,
 	opts: ShareOptions = {}
 ): Promise<ShareResult> {
+	if (opts.exact) await chooseExact(ctx, docId);
 	// Any result: a failed upload still shares the last synced version.
 	await uploadDocument(ctx, docId);
 	return ctx.platform.locks.run(docLock(ctx.space, docId), async () => {
@@ -56,7 +64,9 @@ export async function shareDocument(
 			}
 			throw error;
 		}
-		await ctx.platform.sync.put(ctx.space, { ...record, shareToken: token });
+		const shared = withShareToken(record, token);
+		const shareExact = opts.exact ?? shared.shareExact;
+		await ctx.platform.sync.put(ctx.space, { ...shared, shareExact });
 		postSync(ctx, docId);
 		return { kind: "shared", token, unsynced: local.unsynced.length > 0 };
 	});
@@ -67,9 +77,19 @@ export function unshareDocument(ctx: SyncContext, docId: string): Promise<void> 
 	return ctx.platform.locks.run(docLock(ctx.space, docId), async () => {
 		await remoteCall(() => ctx.remote.unshare(docId), "sync-unshare");
 		const record = await ctx.platform.sync.get(ctx.space, docId);
-		if (record && record.shareToken !== null) {
-			await ctx.platform.sync.put(ctx.space, { ...record, shareToken: null });
+		if (record && (record.shareToken !== null || record.shareExact)) {
+			await ctx.platform.sync.put(ctx.space, withShareToken(record, null));
 		}
+		postSync(ctx, docId);
+	});
+}
+
+/** Remembers "Share my exact location" on a link that's on (a new link takes it from `share`). */
+function chooseExact(ctx: SyncContext, docId: string): Promise<void> {
+	return ctx.platform.locks.run(docLock(ctx.space, docId), async () => {
+		const record = await ctx.platform.sync.get(ctx.space, docId);
+		if (!record || record.shareToken === null || record.shareExact) return;
+		await ctx.platform.sync.put(ctx.space, { ...record, shareExact: true });
 		postSync(ctx, docId);
 	});
 }

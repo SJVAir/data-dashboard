@@ -12,6 +12,7 @@ import type { TabMessage } from "$lib/store/tab-channel";
 import type { SyncContext } from "./context";
 import { emptyRecord, readLocal } from "./local";
 import { finishMoves } from "./move";
+import { pointsHeld } from "./points";
 import { fetchMissing, pollList } from "./pull";
 import {
 	RemoteRefusal,
@@ -34,6 +35,8 @@ export type DocSyncState = {
 	onServer: boolean;
 	/** The share link's token while it's on, else `null`. */
 	shareToken: string | null;
+	/** The owner chose "Share my exact location" for that link. */
+	shareExact: boolean;
 };
 
 /** At most one save per document this often while editing. */
@@ -142,6 +145,17 @@ export class SyncWorker {
 	async isInAccount(docId: string): Promise<boolean> {
 		const record = await this.#ctx.platform.sync.get(this.#ctx.space, docId);
 		return record !== null && record !== undefined && record.serverVersion !== null;
+	}
+
+	/**
+	 * Whether `docId`'s upload is held for a point (`pointsHeld`): it has changes to upload, and
+	 * holds a point its live link (on, without "Share my exact location") mustn't show.
+	 */
+	async pointsHeld(docId: string): Promise<boolean> {
+		const local = await readLocal(this.#ctx, docId);
+		if (typeof local === "string") return false;
+		const { record, doc, unsynced } = local;
+		return (unsynced.length > 0 || record.serverVersion === null) && pointsHeld(record, doc);
 	}
 
 	/** The server's snapshots of `docId`, newest first; throws as the remote does. */
@@ -327,6 +341,11 @@ export class SyncWorker {
 				this.signedOut = true;
 				this.#cancelUploads();
 				return;
+			case "points":
+				// Uploaded once the point is swapped (a commit schedules it), not on a timer.
+				this.#retries.delete(docId);
+				this.#ctx.onPointsHeld?.(docId);
+				return;
 			default:
 				this.#retries.delete(docId);
 		}
@@ -459,7 +478,8 @@ export class SyncWorker {
 				hold,
 				confirmedAt: record.confirmedAt,
 				onServer: record.serverVersion !== null,
-				shareToken: record.shareToken
+				shareToken: record.shareToken,
+				shareExact: record.shareExact
 			};
 		}
 		return states;

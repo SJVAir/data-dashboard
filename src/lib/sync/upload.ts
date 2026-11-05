@@ -9,11 +9,14 @@ import { docLock, type SyncContext } from "./context";
 import { MAX_SAVE_CHANGES_CHARS, postSync, readLocal, type LocalState } from "./local";
 import { canonicalJson, saveFields } from "./merge";
 import { moveLocked } from "./move";
+import { guardsPoints, mentionsPoint, pointsHeld } from "./points";
 import { pullIntoLocked } from "./pull";
 import { RemoteRefusal, RemoteUnavailable, type RemoteDocument, type SaveInput } from "./remote";
 import type { SyncHold, SyncRecord } from "./types";
 
-export type UploadResult = "saved" | "nothing" | "held" | "retry" | "signed-out" | "blocked";
+/** `points`: held while the document holds a point its live link mustn't show (`pointsHeld`). */
+export type UploadResult =
+	"saved" | "nothing" | "held" | "points" | "retry" | "signed-out" | "blocked";
 
 /** Merges after stale bases before giving up until the next try. */
 const MAX_MERGES = 3;
@@ -36,6 +39,7 @@ async function uploadLocked(ctx: SyncContext, docId: string): Promise<UploadResu
 		if (record.serverVersion !== null && local.unsynced.length === 0) {
 			return confirmed ? "saved" : "nothing";
 		}
+		if (pointsHeld(record, local.doc)) return "points";
 		if (!checked) {
 			if (!(await stillSignedIn(ctx))) return "signed-out";
 			checked = true;
@@ -106,13 +110,15 @@ async function stillSignedIn(ctx: SyncContext): Promise<boolean> {
 }
 
 /**
- * The save's changes: none on create (the body is everything), else the unsynced ones, or (past
- * `MAX_SAVE_CHANGES_CHARS`) one `replaceDocument` from the server's copy.
+ * The save's changes: none on create (the body is everything), else the unsynced ones, or one
+ * `replaceDocument` from the server's copy: past `MAX_SAVE_CHANGES_CHARS`, or when they mention
+ * a point a live link mustn't show (a swapped point's pick and its undo, say).
  */
 async function batchChanges(ctx: SyncContext, local: LocalState): Promise<SaveInput["changes"]> {
 	if (local.record.serverVersion === null) return [];
 	const changes = local.unsynced.map((e) => ({ schemaVersion: e.schemaVersion, change: e.change }));
-	if (!oversized(changes)) return changes;
+	const hidden = guardsPoints(local.record) && mentionsPoint(changes);
+	if (!oversized(changes) && !hidden) return changes;
 	return replacing(await remoteCall(() => ctx.remote.get(local.doc.id)), local.doc);
 }
 

@@ -266,8 +266,10 @@
 			return;
 		}
 		pending = picks;
-		// Read now, not at opening: a link turned on meanwhile counts.
-		const liveLink = !!app.sync?.states[target.session.doc.id]?.shareToken;
+		// Read now, not at opening: a link turned on meanwhile counts. A live link without "Share my
+		// exact location" gets the point's region.
+		const state = app.sync?.states[target.session.doc.id];
+		const liveLink = !!state?.shareToken && !state.shareExact;
 		lookup = liveLink && picks[0]?.kind === "point" ? "looking" : "idle";
 		let result: Awaited<ReturnType<typeof pickedData>>;
 		try {

@@ -578,6 +578,26 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   skips the point check, and could be shared. Why: needs a second tab editing the same
   dashboard while the dialog is open. **Revisit if** it's seen: reread the points when the
   stored document changes while the dialog is open (or always pass the check).
+- **"Share my exact location" is remembered on one device.** _Deferred 2026-11-05 (step 4
+  spec 2, Task 16)._ The choice lives in this device's sync record (`shareExact`), not on the
+  server. Another signed-in device sees the link as not exact, so its next edit of that
+  dashboard (or a held upload there) swaps the exact points the owner chose for their regions.
+  Why: it errs toward privacy, and needs the owner editing one live-shared dashboard from two
+  devices after choosing exact. **Revisit if** that's seen, or when the server can store the
+  choice with the link.
+- **Server snapshots of a live-shared dashboard aren't held for points.** _Deferred 2026-11-05
+  (step 4 spec 2, Task 16)._ The snapshot kept before restoring a version, and the one kept for
+  "use theirs" or "discard" when settling a hold, send the local dashboard as it is, so an exact
+  point waiting to be swapped can reach the account's snapshots. Why: snapshots are the owner's
+  only (like the account copy of a dashboard without a link) and never shown on the link; holding
+  them would lose the safety copy. **Revisit if** snapshots ever become visible to link viewers
+  (or shareable), or the server starts reading points out of them.
+- **A lookup that never succeeds leaves the dashboard unsynced.** _Deferred 2026-11-05 (step 4
+  spec 2, Task 16)._ On a live-shared dashboard, a point whose region can't be looked up stays
+  held: retried with the toast's Retry, when the connection returns, on the next edit, and when
+  the dashboard opens, but not on a timer, and a held dashboard is only shown as having changes
+  waiting. Why: the lookup fails only offline or with the server down, which those retries
+  cover. **Revisit on** reports of a live-shared dashboard stuck unsynced with a point.
 - **Points in a newer-format dashboard's export.** _Deferred 2026-11-04 (step 4 spec 2, Task 13)._
   A read-only (newer or invalid) dashboard is exported as stored; the location-privacy swap
   finds only points in today's shape (`body.widgets[].data.layers[].place`). A future format

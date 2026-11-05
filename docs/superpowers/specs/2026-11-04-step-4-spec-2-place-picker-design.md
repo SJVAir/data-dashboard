@@ -257,6 +257,13 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   93721." So nothing exact reaches viewers through autosave without a choice. The check is at
   pick time (the picker knows whether the open dashboard has a live link from its sync record's
   `shareToken`); turning a link off doesn't restore the point.
+- **Any edit on a live-shared dashboard (the user, 2026-11-05, after the end-to-end check found
+  Undo re-sharing the point):** "On a live-shared dashboard, any edit (including Undo/Redo) that
+  leaves an exact point saves its region instead, with the 'saved as ZIP …' notice. If you chose
+  'Share my exact location' for that link, the dashboard remembers it until the link is turned
+  off, so exact points stay." Until the swap is stored, the upload is held, so the point never
+  reaches the link; one Undo of the swap lands on the region again (with the notice), the next
+  goes past it. Built in Task 16 (`ARCHITECTURE.md` → "Location privacy").
 - **What other people see for a point (the user, from the builder check):** copies made from a
   share, including imported files, **always** swap points for their region; there's no "keep
   exact" option on the receiving side. So the only people who see someone else's point are

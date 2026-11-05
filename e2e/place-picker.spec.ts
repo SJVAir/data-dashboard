@@ -319,6 +319,47 @@ test.describe("signed in, with a live link", () => {
 		await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
 	});
 
+	test("Undo after Use 93721 instead saves the region again; viewers never get the point", async ({
+		page,
+		documentsServer
+	}) => {
+		await pointOnAccount(page);
+		const dialog = await openShare(page);
+		await dialog.getByRole("button", { name: "Use 93721 instead" }).click();
+		const live = dialog.getByRole("textbox", { name: "Live link" });
+		await expect(live).toHaveValue(/\/workspace\/shared\/[^/]+$/);
+		const url = await live.inputValue();
+		const token = url.slice(url.lastIndexOf("/") + 1);
+		await page.keyboard.press("Escape");
+		await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+
+		// Every save from here on, as the server receives it.
+		const { fake } = documentsServer;
+		const saves: string[] = [];
+		const save = fake.save;
+		fake.save = (id, input) => {
+			saves.push(JSON.stringify(input));
+			return save(id, input);
+		};
+		const linked = (await fake.shared(token)).version;
+
+		// Undo brings the point back for a moment; the dashboard saves its region again.
+		await nav(page).getByRole("button", { name: "Undo" }).click();
+		await expect(
+			page.getByText("This dashboard is shared by link, so your location is saved as 93721.")
+		).toBeVisible();
+		await expect(widgetTitles(page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect.poll(async () => (await fake.shared(token)).version).toBeGreaterThan(linked);
+		expect(saves.join("\n")).not.toContain('"kind":"point"');
+		expect(saves.join("\n")).not.toContain(String(POSITION.latitude));
+
+		const viewer = await documentsServer.newDevice();
+		viewer.account.set(null);
+		await viewer.page.goto(url);
+		await expect(widgetTitles(viewer.page)).toHaveText(["PM2.5 · 93721 · Last 30 days"]);
+		await expect(widgetTitles(viewer.page)).not.toContainText(["(shared location)"]);
+	});
+
 	test("an exact location shared by live link reads (shared location) to viewers", async ({
 		page,
 		documentsServer

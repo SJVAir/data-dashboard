@@ -1,7 +1,11 @@
+import type { Change } from "$lib/changes/types";
 import type { Layer } from "$lib/data/schema";
-import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import type { Dashboard } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { chartInput } from "$lib/widgets/shared/input";
+import { hasPoints, pointLayers } from "./point-layers";
+
+export { hasPoints };
 
 /**
  * Location privacy when sharing: an exact location (a `point` place in any widget layer) leaves
@@ -32,26 +36,6 @@ function samePoint(place: Layer["place"], swap: PointSwap): boolean {
 export type SwapSummary =
 	{ kind: "one"; region: string } | { kind: "several" } | { kind: "removed" };
 
-type Found = { widget: WidgetInstance; layer: Layer; layerIndex: number };
-
-/**
- * Every point layer. Read defensively: a read-only (newer or invalid) document is the stored
- * value unvalidated, so its shape isn't guaranteed.
- */
-function pointLayers(doc: Dashboard): Found[] {
-	const widgets: unknown = doc.body?.widgets;
-	if (!Array.isArray(widgets)) return [];
-	const found: Found[] = [];
-	for (const widget of widgets as WidgetInstance[]) {
-		const layers: unknown = widget?.data?.layers;
-		if (!Array.isArray(layers)) continue;
-		(layers as Layer[]).forEach((layer, layerIndex) => {
-			if (layer?.place?.kind === "point") found.push({ widget, layer, layerIndex });
-		});
-	}
-	return found;
-}
-
 /** `signal`, also aborted after `LOOKUP_TIMEOUT_MS`; call `done` when finished with it. */
 function bounded(signal?: AbortSignal): { signal: AbortSignal; done(): void } {
 	const timed = new AbortController();
@@ -66,10 +50,6 @@ function bounded(signal?: AbortSignal): { signal: AbortSignal; done(): void } {
 			signal?.removeEventListener("abort", stop);
 		}
 	};
-}
-
-export function hasPoints(doc: Dashboard): boolean {
-	return pointLayers(doc).length > 0;
 }
 
 /**
@@ -144,6 +124,34 @@ export function withSwaps(doc: Dashboard, swaps: PointSwap[]): Dashboard {
 			})
 		}
 	};
+}
+
+/**
+ * `withSwaps` as one change to `doc`: `setWidgetData` when one widget has points (so edits
+ * elsewhere, from this or another device, aren't touched), else one `replaceDocument` (no other
+ * single change covers several widgets). `null` when nothing would change.
+ */
+export function swapChange(doc: Dashboard, swaps: PointSwap[]): Change | null {
+	const next = withSwaps(doc, swaps);
+	const changed = next.body.widgets.filter((w, i) => w !== doc.body.widgets[i]);
+	if (changed.length === 1) {
+		const widget = changed[0];
+		return {
+			op: "setWidgetData",
+			target: { widgetId: widget.id },
+			from: doc.body.widgets.find((w) => w.id === widget.id)!.data,
+			to: widget.data
+		};
+	}
+	if (changed.length > 1) {
+		return {
+			op: "replaceDocument",
+			target: {},
+			from: { name: doc.name, body: doc.body },
+			to: { name: doc.name, body: next.body }
+		};
+	}
+	return null;
 }
 
 /**

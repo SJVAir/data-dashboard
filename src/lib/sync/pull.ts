@@ -13,6 +13,7 @@ import {
 	emptyRecord,
 	postSync,
 	readLocal,
+	withShareToken,
 	writeLocal,
 	type LocalState
 } from "./local";
@@ -137,7 +138,7 @@ async function mergeOnce(
 		const unsynced = local.unsynced.filter((e) => e.version > inFlight.throughVersion);
 		local = { ...local, record, unsynced };
 		if (answered === server.version) {
-			await ctx.platform.sync.put(ctx.space, { ...record, shareToken: server.document.shareToken });
+			await ctx.platform.sync.put(ctx.space, withShareToken(record, server.document.shareToken));
 			postSync(ctx, record.docId);
 			return "merged";
 		}
@@ -162,12 +163,11 @@ async function mergeOnce(
 		mine: currentChanges(local.unsynced)
 	});
 	const pulled = {
-		...record,
+		...withShareToken(record, server.document.shareToken),
 		serverVersion: server.version,
 		confirmedAt,
 		inFlight: null,
-		hold: null,
-		shareToken: server.document.shareToken
+		hold: null
 	};
 	let written: boolean;
 	switch (out.kind) {
@@ -252,7 +252,7 @@ function takeShareToken(ctx: SyncContext, meta: RemoteMeta): Promise<void> {
 	return platform.locks.run(docLock(space, meta.id), async () => {
 		const record = await platform.sync.get(space, meta.id);
 		if (!record || record.shareToken === meta.shareToken) return;
-		await platform.sync.put(space, { ...record, shareToken: meta.shareToken });
+		await platform.sync.put(space, withShareToken(record, meta.shareToken));
 		postSync(ctx, meta.id);
 	});
 }
@@ -299,7 +299,8 @@ async function storeFromServer(ctx: SyncContext, remote: RemoteDocument): Promis
 				confirmedAt: ctx.now().toISOString(),
 				inFlight: null,
 				hold: null,
-				shareToken: remote.shareToken
+				shareToken: remote.shareToken,
+				shareExact: false
 			}
 		});
 		postSync(ctx, remote.id);
