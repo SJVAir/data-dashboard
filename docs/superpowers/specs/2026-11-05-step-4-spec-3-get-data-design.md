@@ -1,6 +1,6 @@
 # Release 1, step 4, spec 3: Get data (formerly the Data Explorer)
 
-Status: design, brainstormed with the user 2026-11-05. Branch `step-4-spec-3` from `step-4`; the
+Status: approved by the user 2026-11-05 (brainstormed the same day). Branch `step-4-spec-3` from `step-4`; the
 PR goes into `step-4` (the user's yes needed to merge).
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
