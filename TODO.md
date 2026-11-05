@@ -1242,9 +1242,12 @@ The checklist below is the whole step's scope.
     5.0 on map-sdk looks and works essentially the same as today's map, while map-sdk stays
     general enough for other maps such as the dashboard's Map widget.
   - **Next:** the dashboard's Map widget on map-sdk (below), once step 4 is far enough along.
-  - **Milestone 2 (a later map-sdk spec):** monitor-map parity (collocation sites, EV stations,
-    wind, live stores beyond monitors), started with the monitor-map 5.0 rebuild (see
-    `DEFERRED.md`).
+  - **Milestone 2 spec approved by the user 2026-11-04:** map-sdk `docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`
+    ([map-sdk #3](https://github.com/SJVAir/map-sdk/pull/3), the plan follows in the same PR).
+    What map-sdk adds so monitor-map 5.0 looks and works like today's map: camera moves, a
+    ready signal, globe, control and credit options, collocation sites, live stores for
+    collocation and HMS, the smoke, fire and legend look options, and removing the legacy
+    `levels` fallback before go-live. Wind and EV chargers stay in monitor-map.
 - A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate
   the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.

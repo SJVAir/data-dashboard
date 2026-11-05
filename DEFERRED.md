@@ -1032,12 +1032,36 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   stations need the NREL key moved into injected config, and their hardcoded ZIP list and
   labels need a proper home. The live map and mobile keep shipping from monitor-map 4.x
   meanwhile. The rebuild is now on the go-live path (the mobile entry under "Mobile app", the
-  user, 2026-11-04). **Revisit when** the monitor-map 5.0 rebuild starts; it gets its own map-sdk spec.
+  user, 2026-11-04). **Now specified** (2026-11-04, approved by the user): map-sdk `docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`.
+  The user's parity rule: match today's map, except bug fixes and accessibility additions;
+  dashboard-style differences become options monitor-map sets to today's look. Layers on
+  SJVAir server data go in map-sdk (collocation sites move in); layers on outside services
+  (wind, EV chargers) stay in monitor-map. So the NREL key (into monitor-map's config), the
+  ZIP list cleanup (duplicates; some Inyo/Mono ZIPs filed under San Joaquin; the 5 mountain
+  counties stay, the user's call), and the label maps are monitor-map 5.0 plan items. Remove
+  this entry when milestone 2 merges.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
   monitor-map keeps wind as its own plugin outside map-sdk, or wind moves to an open data
-  source. **Decide in** the map-sdk milestone 2 spec.
+  source. **Decided 2026-11-04 (the user, milestone 2 spec):** monitor-map keeps its own wind
+  layer on `@maptiler/weather`; map-sdk only lets a host plugin add a custom layer in its
+  draw-order slot. See "Wind from open data" below.
+- **Wind from open data.** _Deferred 2026-11-04 (map-sdk milestone 2 spec, the user's call:
+  "option 1 for now")._ A map-sdk wind plugin on open data, e.g. NOAA GFS winds (public
+  domain) processed by the server into textures and drawn with an open-source wind layer
+  (`webgl-wind`, ISC), would let every map, the dashboard included, show wind and drop the
+  proprietary `@maptiler/weather`. It needs new server work and would look different, so it
+  isn't on the go-live path. **Revisit if** the dashboard wants wind on a map, or to drop
+  `@maptiler/weather`.
+- **Server EV charger integration, then a map-sdk EV layer.** _Deferred 2026-11-04 (map-sdk
+  milestone 2 spec, the user)._ EV chargers come straight from NREL (with a public key and a
+  hardcoded ZIP list of the 8 valley counties plus Calaveras, Tuolumne, Mariposa, Mono and
+  Inyo) and stay in monitor-map, since map-sdk layers read SJVAir server data. If the server
+  integrates chargers (or at least serves the ZIP list, which would need ZIP regions for the
+  5 mountain counties), map-sdk gets an EV layer through `@sjvair/sdk`. Needs a sjvair.com
+  plan first. **Revisit when** the server integrates EV chargers, or a dashboard widget wants
+  them.
 - **map-sdk raster plugin.** _Deferred 2026-11-03 (map-sdk milestone 1 spec)._ The plugin
   interface and legends allow rasters, but nothing is built. **Revisit with** TEMPO on a map,
   or wind if it moves to an open raster source.
@@ -1054,13 +1078,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   background. monitor-map's globe view and Milky Way background aren't needed by the dashboard,
   and the milestone 1 plan didn't list them. See also "Globe-projection zoom precision" under
   "Map & selection". **Revisit with** map-sdk milestone 2 (the monitor-map 5.0 rebuild), as a
-  projection option on `createMap()`.
+  projection option on `createMap()`. **Scheduled 2026-11-04:** milestone 2 item 4 (options,
+  off by default; monitor-map turns them on). Remove when milestone 2 merges.
 - **The "(1-hour avg)" note in map-sdk's monitor tooltip.** _Deferred 2026-11-03 (map-sdk
   milestone 1 build)._ monitor-map's tooltip labels readings "(1-hour avg)"; map-sdk's shows the
   reading and "Last updated …" but not the note. Writing it would hardcode the averaging window,
   which has to come from metadata, and the server's meta doesn't give one yet. **Revisit when**
   the server's monitors meta or dataset catalog gives an averaging window per entry type, or with
-  milestone 2's parity pass, whichever comes first.
+  milestone 2's parity pass, whichever comes first. **Scheduled 2026-11-04:** milestone 2 item
+  13, from the monitor type's `expected_interval`, the source today's monitor-map uses. Remove
+  when milestone 2 merges.
 - **"hms-fire icon could not be loaded" warning in map-sdk's e2e tests.** _Found 2026-11-03
   (map-sdk milestone 1 build)._ The demo's browser tests log this MapLibre warning; fires still
   draw with their level icons, and the cause hasn't been traced (most likely the map asks for

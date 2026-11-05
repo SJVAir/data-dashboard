@@ -1331,9 +1331,14 @@ the unified legend (its gradient already comes from metadata levels), `mapStyleS
   }
   ```
 
+- **What belongs in map-sdk** (the user, 2026-11-04, map-sdk milestone 2 spec): layers built on
+  SJVAir server data, through `@sjvair/sdk`. Layers on outside services stay in monitor-map:
+  wind (`@maptiler/weather`, proprietary) and EV chargers (NREL). "Weather" in monitor-map is
+  only its detail panel's temperature lookup. map-sdk gives host plugins what they need
+  (custom layers in their draw-order slot, the GL map for popups and markers).
 - **One plugin per data type, each taking a data-source interface** (generalizing
   what `MonitorsDataSource` already does): monitors, region fill/choropleth, HMS
-  smoke, HMS fire, collocation, EV stations, wind, weather, and **later** the `terra-draw`
+  smoke, HMS fire, collocation, and **later** the `terra-draw`
   drawing plugin (Q2, opt-in; see `DEFERRED.md`). Plugins for the remaining server datasets — pesticide
   use/notices, CalEnviroScreen tracts, CalHeatScore ZIPs, forecast zones, CEIDARS
   facilities, TEMPO rasters — are deferred (see `DEFERRED.md` → "Map plugins"), but
