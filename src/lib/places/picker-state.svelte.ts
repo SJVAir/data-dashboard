@@ -82,8 +82,8 @@ export class PickerState {
 	query = $state("");
 	/** The latest settled search for `query` (kept while a newer one runs). */
 	result = $state<SearchResult | null>(null);
-	/** Announced once a search settles ("12 results", "No matches"). */
-	announcement = $state("");
+	/** Announced once a search settles: whole messages ("12 results", then each failed group's). */
+	announcement = $state<string[]>([]);
 	picks = $state<Picks>([]);
 	activeIndex = $state(-1);
 	geo = $state<GeoState>({ status: "idle" });
@@ -190,7 +190,7 @@ export class PickerState {
 	setQuery(query: string): void {
 		this.query = query;
 		this.activeIndex = -1;
-		this.announcement = "";
+		this.announcement = [];
 		clearTimeout(this.#timer);
 		this.#search?.abort();
 		this.#search = undefined;
@@ -220,19 +220,20 @@ export class PickerState {
 				if (controller.signal.aborted) return;
 				this.result = result;
 				this.activeIndex = -1;
-				this.announcement = this.#countText();
+				this.announcement = this.#announce();
 			},
 			// Each group settles on its own; the search rejects only when aborted.
 			() => {}
 		);
 	}
 
-	#countText(): string {
+	#announce(): string[] {
 		const count = this.rows.length;
+		const failures = this.failed.map(errorText);
 		if (count > 0) {
-			return m.place_picker_count({ count: formatNumber(count), countValue: count });
+			return [m.place_picker_count({ count: formatNumber(count), countValue: count }), ...failures];
 		}
-		return this.failed.length === 0 ? m.place_picker_no_matches() : "";
+		return failures.length === 0 ? [m.place_picker_no_matches()] : failures;
 	}
 
 	/** Moves the active row by `delta`, wrapping; from none, down starts at the first and up at the last. */

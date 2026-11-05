@@ -166,7 +166,7 @@
 		{#if picker.locationReason}
 			<p id={locationReasonId} class="text-muted-foreground text-xs">{picker.locationReason}</p>
 		{/if}
-		<p role="status" class="text-sm empty:hidden">
+		<p data-picker-location-status role="status" class="text-sm">
 			{#if picker.geo.status === "locating"}{m.place_picker_locating()}{:else if picker.geo.status === "message"}{picker
 					.geo.text}{/if}
 		</p>
@@ -176,7 +176,7 @@
 
 	{#if picker.typing}
 		{#each picker.failed as key (key)}
-			<p class="flex flex-wrap items-center gap-2 text-sm">
+			<p data-picker-error class="flex flex-wrap items-center gap-2 text-sm">
 				<span>{errorText(key)}</span>
 				<Button variant="outline" size="xs" onclick={() => picker.retry()}>
 					{m.place_picker_retry()}
@@ -198,12 +198,18 @@
 		</section>
 	{/if}
 
-	<p data-picker-live role="status" class="sr-only">{picker.announcement}</p>
+	<!-- Separate whole messages, one per node, never joined into a sentence. -->
+	<div data-picker-live role="status" class="sr-only">
+		{#each picker.announcement as text, i (i)}<p>{text}</p>{/each}
+	</div>
 
 	{#if multiple}
 		<div class="border-border flex justify-end gap-2 border-t pt-3">
 			<Button variant="outline" onclick={oncancel}>{m.place_picker_cancel()}</Button>
-			<Button onclick={() => ondone($state.snapshot(picker.picks))}>{m.place_picker_done()}</Button>
+			<Button
+				disabled={picker.picks.length === 0}
+				onclick={() => ondone($state.snapshot(picker.picks))}>{m.place_picker_done()}</Button
+			>
 		</div>
 	{/if}
 </div>

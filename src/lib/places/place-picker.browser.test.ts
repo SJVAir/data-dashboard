@@ -135,8 +135,10 @@ function activeOption(): HTMLElement | null {
 	return id ? document.getElementById(id) : null;
 }
 
+/** The live region's messages, each a separate node, joined with " | " for comparing. */
 function liveText(): string {
-	return (document.querySelector("[data-picker-live]") as HTMLElement).textContent?.trim() ?? "";
+	const live = document.querySelector("[data-picker-live]") as HTMLElement;
+	return [...live.children].map((c) => c.textContent?.trim()).join(" | ");
 }
 
 beforeEach(async () => {
@@ -287,12 +289,8 @@ test("a stale response is ignored", async () => {
 	expect(liveText()).toBe("1 result");
 });
 
-test("a failed group shows Retry while the others show", async () => {
-	twelve();
-	const dir = directory();
-	vi.mocked(dir.monitors).mockRejectedValueOnce(new Error("offline"));
-	const ondone = vi.fn();
-	const screen = await render(PlacePicker, {
+function renderWith(dir: PlaceDirectory) {
+	return render(PlacePicker, {
 		directory: dir,
 		purpose: { dataset: "air-quality", entryType: "pm25" },
 		mode: { kind: "single" },
@@ -300,16 +298,34 @@ test("a failed group shows Retry while the others show", async () => {
 		recent: [],
 		locate: vi.fn(),
 		pointKeys: vi.fn(),
-		ondone,
+		ondone: vi.fn(),
 		oncancel: vi.fn()
 	});
+}
+
+test("a failed group shows Retry while the others show, and is announced", async () => {
+	twelve();
+	const dir = directory();
+	vi.mocked(dir.monitors).mockRejectedValueOnce(new Error("offline"));
+	const screen = await renderWith(dir);
 	await userEvent.fill(screen.getByRole("combobox"), "fr");
-	await expect.element(screen.getByText("Couldn't search monitors.")).toBeVisible();
+	const notice = () => screen.container.querySelector("[data-picker-error]");
+	await expect.poll(() => notice()?.textContent).toContain("Couldn't search monitors.");
 	await expect.element(screen.getByRole("group", { name: "Places" })).toBeVisible();
 	expect(screen.container.querySelector("[aria-label='Monitors']")).toBeNull();
+	await expect.poll(liveText).toBe("8 results | Couldn't search monitors.");
 	await screen.getByRole("button", { name: "Retry" }).click();
 	await expect.element(screen.getByRole("group", { name: "Monitors" })).toBeVisible();
-	expect(screen.container.textContent).not.toContain("Couldn't search monitors.");
+	await expect.poll(liveText).toBe("12 results");
+	expect(notice()).toBeNull();
+});
+
+test("when every returned group is empty, only the failure is announced", async () => {
+	const dir = directory();
+	vi.mocked(dir.monitors).mockRejectedValueOnce(new Error("offline"));
+	const screen = await renderWith(dir);
+	await userEvent.fill(screen.getByRole("combobox"), "zz");
+	await expect.poll(liveText).toBe("Couldn't search monitors.");
 });
 
 test("More matches when a group has more", async () => {
@@ -337,6 +353,7 @@ describe("multiple mode", () => {
 			],
 			known: [fresnoCounty, tulare]
 		});
+		await expect.element(screen.getByRole("button", { name: "Done" })).toBeEnabled();
 		const removeFresno = screen.getByRole("button", { name: "Remove Fresno County" });
 		await expect.element(removeFresno).toBeVisible();
 		await removeFresno.click();
@@ -347,6 +364,14 @@ describe("multiple mode", () => {
 		expect(ondone).toHaveBeenCalledWith([{ kind: "region", type: "county", code: "06107" }]);
 		await screen.getByRole("button", { name: "Cancel" }).click();
 		expect(oncancel).toHaveBeenCalledOnce();
+	});
+
+	test("Done needs a pick", async () => {
+		const { screen, ondone } = await show({ mode });
+		const done = screen.getByRole("button", { name: "Done" });
+		await expect.element(done).toBeDisabled();
+		(done.element() as HTMLButtonElement).click();
+		expect(ondone).not.toHaveBeenCalled();
 	});
 
 	test("Enter adds a pick as a chip and keeps the picker open", async () => {
@@ -436,14 +461,20 @@ describe("Use my location", () => {
 		expect(pointKeys).toHaveBeenCalledWith(36.75, -119.77, expect.any(AbortSignal));
 	});
 
-	test("denied says location access is off", async () => {
+	test("denied says location access is off, in a status region there before the click", async () => {
 		const { screen, ondone } = await show({
 			locate: async () => ({ ok: false, reason: "denied" })
 		});
+		const region = screen.container.querySelector("[data-picker-location-status]") as HTMLElement;
+		expect(region).not.toBeNull();
+		expect(region.getAttribute("role")).toBe("status");
+		expect(getComputedStyle(region).display).not.toBe("none");
+		expect(region.textContent?.trim()).toBe("");
 		await screen.getByRole("button", { name: "Use my location" }).click();
 		await expect
 			.element(screen.getByText("Location access is off. Search for a place instead."))
 			.toBeVisible();
+		expect(region.textContent?.trim()).toBe("Location access is off. Search for a place instead.");
 		expect(ondone).not.toHaveBeenCalled();
 	});
 
