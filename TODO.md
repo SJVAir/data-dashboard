@@ -11,14 +11,16 @@ session, in order. From 2026-11-03, three sessions run at once. **Exception (the
 session coordinates (the server sessions, the cross-track docs, decisions for the user) so step
 4 keeps its context for building. Step 4 edits its own sections from its branches; the
 coordinator edits the table below, other tracks' sections, and the `DEFERRED.md` deploy entry
-from a worktree off `origin/main`. Server sessions message the coordinator.
+from a worktree off `origin/main`. Server sessions message the coordinator. During step 4, `step-4` holds step 4's own
+spec docs until it merges into `main` (the user, 2026-11-04); **each step 4 spec starts by merging
+`origin/main` into `step-4`**, so cross-track docs on `main` don't pile up into one conflict.
 
-| Track                                                                                                  | Session starts in | Repos it edits                | Its status lives in                          |
-| ------------------------------------------------------------------------------------------------------ | ----------------- | ----------------------------- | -------------------------------------------- |
-| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                             | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
-| **Step 3, second batch** (metadata) — spec 2 merged; spec 3 (location search) in progress (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1)                          | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
-| **Step 4: Widget Creation and non-map widgets** — starting (2026-11-04)                                | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
+| Track                                                                                                                                                                                                                                        | Session starts in | Repos it edits                | Its status lives in                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
+| **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                                                                                                                   | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
+| **Step 3, second batch** (metadata) — specs 1–4, the summaries fix and SDK entry bounds merged (SDK 5.0.0-beta.2); cleanup (spec 5) and the picker's server changes merged (#306–#308); SDK beta.3 (#45 plus a stacked PR) next (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
+| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1); on SDK 5.0.0-beta.2 (#2); milestone 2 spec and plan merged (#3); build in progress (2026-11-04)                                                               | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; spec 1 merged into `step-4` (#36), spec 2 (place picker) next (2026-11-04)                                                                                          | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
@@ -33,7 +35,24 @@ from a worktree off `origin/main`. Server sessions message the coordinator.
   `ROADMAP.md` item and `ARCHITECTURE.md` section. Add every deferral to `DEFERRED.md` (append
   under the right heading; don't reword others' entries).
 - Re-read a file right before editing it. Another session may have changed it.
-- Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`).
+- **All of this work (sdk-js, sjvair.com, map-sdk) is for the data-dashboard project** (the
+  user, 2026-11-04). Keep the data-dashboard coordinator informed, unprompted, of anything
+  relevant to these docs or to other sessions: the user's decisions and corrections, status
+  changes, PRs opened or merged, and signature or response-shape changes.
+- **Local data is incomplete** (the user, 2026-11-04): the local sjvair.com stack only runs during
+  work hours, about 8 hours a day, and missed scheduled jobs aren't run later. Ingests, health
+  checks and summary rollups have gaps, and catch-ups or rebuilds can compute rows before the data
+  they depend on exists. Before calling a local gap, spike or odd row a bug, rule that out; only
+  the code or production evidence proves a server bug.
+- **When something doesn't feel right, ask the user** (the user, 2026-11-04: "We have
+  communication issues sometimes, and that's fine when it happens, as long as we keep
+  communicating. It's ok to ask questions."). Don't guess silently, and don't write rules into
+  the docs that the user didn't give.
+- Specs and plans live in the repo the work is in (`docs/superpowers/specs/` and `plans/`), even
+  when the work is for the dashboard: **SDK specs in sdk-js, server specs in sjvair.com** (the
+  user, 2026-11-04). Specs 1–3 of step 3 spanned both and live in sjvair.com. When SDK work needs
+  a small server change, a section in the SDK spec is enough; if the server side has a place
+  where server sessions would see the change, add a note there too (the user, 2026-11-04).
 
 Earlier tracks, in order (new dashboard work branches from `main`):
 
@@ -392,7 +411,7 @@ and the copyright holder (Central California Asthma Collaborative).
   `DEFERRED.md`.
 - **PR #7 now uses @sjvair/sdk 4.8.0-beta.1 (2026-10-25)**: raw entries, the dataset catalog,
   and region codes go through the SDK's wrappers instead of workarounds (pinned exactly until
-  4.8.0 is released; see `DEFERRED.md`).
+  the next stable SDK, now 5.0.0, is released; see `DEFERRED.md`).
 - **Spec 3 (safety and sharing) is done: merged into `foundations` as PR
   [#8](https://github.com/SJVAir/data-dashboard/pull/8) (2026-10-25).** Share links and
   `/import` (with "You already have a copy"), Export/Import, backups that restore without
@@ -951,7 +970,7 @@ Spec: `docs/superpowers/specs/2026-11-03-design-pass-design.md`. Plan:
 
 Items marked ✅ were built in sjvair.com #293 (merged into `develop` 2026-10-22; not yet on
 `main`) and sdk-js #32 (merged into `release/4.8.0` 2026-10-25, published as 4.8.0-beta.1).
-@sjvair/sdk 4.8.0 is released only after #293 and #300 reach production, with explicit approval.
+@sjvair/sdk's next stable release is **5.0.0, not 4.8.0** (the user, 2026-11-04: sdk-js #40 changes existing call signatures, and monitor-map's `^4.7.0` and mobile's `^4.6.0` must not pick that up by accident). Until sjvair.com `develop` reaches production it ships **betas only** (`5.0.0-beta.N`, each with the user's yes, like the 4.8.0 betas); 5.0.0 final follows the deploy (`DEFERRED.md` deploy entry), with explicit approval. sdk-js work now targets `release/5.0.0` (created at `release/4.8.0`'s tip, 4c85c16; `release/4.8.0` is kept until the user says to delete it), and sdk-js #41 adds its `CHANGELOG.md`.
 
 **Second batch status (2026-11-03):** split into specs, scales first. **Spec 1 is built**
 (scale metas, tiers, region hierarchy, stage/processor labels, display hints, forecast and
@@ -966,8 +985,21 @@ built is in `ARCHITECTURE.md` → "Metadata as source of truth". Deferrals are i
 [#38](https://github.com/SJVAir/sdk-js/pull/38) into `release/4.8.0` (both 2026-11-04, with the
 user's yes); not yet in production. Both are in **@sjvair/sdk 4.8.0-beta.5** (published 2026-11-04 with the
 user's yes); step 4 can pin it. Spec at sjvair.com
-`docs/superpowers/specs/2026-11-03-summary-cache-and-place-lookup-design.md`. Later specs: location
-search, the remaining wrappers and cleanup. **Pesticide
+`docs/superpowers/specs/2026-11-03-summary-cache-and-place-lookup-design.md`. **Spec 3 (location
+search) is merged** (2026-11-04, with the user's yes): sjvair.com #302 into `develop` and sdk-js
+#39 into `release/4.8.0`, not yet in production; published as **@sjvair/sdk 4.8.0-beta.6**
+(2026-11-04, with the user's yes). It needs a server with #302 (`getRegionsMeta` requires
+`location_types`), which local `develop` now has. sdk-js `CLAUDE.md` now says the SDK keeps no
+fallbacks for older server responses (the user, 2026-11-04), and #39 removed the 4.8.0-beta ones. **Spec 4 (SDK quick
+batch) is merged** (2026-11-04, with the user's yes; every commit verified): sjvair.com
+[#303](https://github.com/SJVAir/sjvair.com/pull/303) into `develop` (HMS lists honor
+`date__gte`/`date__lte` without `date` and order same-day rows by id; CES `?within_mode=`;
+`regions/meta/` `buffers`) and sdk-js [#40](https://github.com/SJVAir/sdk-js/pull/40) and
+[#41](https://github.com/SJVAir/sdk-js/pull/41) into `release/5.0.0` (212 SDK tests green
+against the local server). Published as **@sjvair/sdk `5.0.0-beta.1`** (2026-11-04, with the user's yes; tag `v5.0.0-beta.1`, commit af43564 on `release/5.0.0`; JSR `latest` stays 4.7.0). Step 4 (pins `4.8.0-beta.6`) and map-sdk (pins `4.8.0-beta.4`) move to it; map-sdk can then drop its own 100-code chunking and its direct HMS `paginatedApiCall`. Spec
+and plan at sdk-js `docs/superpowers/specs/2026-11-04-sdk-quick-batch-design.md` and
+`docs/superpowers/plans/2026-11-04-sdk-quick-batch.md` (moved from sjvair.com by sdk-js [#42](https://github.com/SJVAir/sdk-js/pull/42), merged). Spec 4 is complete.
+Later specs: the cleanup. **Pesticide
 metadata and widget endpoints** are their own later spec (`DEFERRED.md` → "Widgets";
 research in `docs/reference/pesticides-explorer-research.md`).
 
@@ -1001,9 +1033,22 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ (spec 2, sjvair.com #301, merged into `develop`) Summary rollups moved to Pacific time
   (they ran on UTC, so each landed a period late and seasons covered the wrong months). Needs
   a catch-up run after deploy (see the PR's deploy notes).
-- Location (schools, child care) support: a name search endpoint (ideally outside
-  `pesticides/`), sdk-js wrappers for it and `pesticides/locations/`, and a check that
-  production has `import_schools` data.
+- ✅ (summaries follow-up, sjvair.com [#305](https://github.com/SJVAir/sjvair.com/pull/305),
+  merged into `develop` 2026-11-04; production repair at the deploy) Findings 2 and 3 of the 2026-11-03 rollup report:
+  - Period starts are stamped at Pacific midnight, through one period module.
+  - The hourly region job no longer skips hours.
+  - New: `repair_summaries` (scoped, dry run) and the daily `check_summary_integrity`.
+  - The production repair steps are in `DEFERRED.md` → the sjvair.com deploy entry.
+  - Spec, plan and report are in sjvair.com `docs/superpowers/`.
+- ✅ (spec 3, merged: sjvair.com [#302](https://github.com/SJVAir/sjvair.com/pull/302)
+  into `develop`, sdk-js [#39](https://github.com/SJVAir/sdk-js/pull/39) into `release/4.8.0`;
+  in 4.8.0-beta.6) Location (schools, child care) name search: `regions/locations/search/?q=`
+  (typo-tolerant, a town can be typed, ≤10 rows stretched to 15 on a name tie, `more`),
+  region names on location rows, `location_types` labels in `regions/meta/`, and sdk-js
+  `searchLocations` and `getPesticideLocations`. What it does is in `ARCHITECTURE.md` →
+  "Schools and child care are places". The production `import_schools` check stays the
+  user's call (production checks are out of scope). Spec at sjvair.com
+  `docs/superpowers/specs/2026-11-04-location-search-design.md`.
 - ✅ (spec 2, sjvair.com #301 and sdk-js #38, merged) Extend
   `regions/places/lookup/` to accept coordinates (rounded, **in a POST body**; scrub
   `lat`/`lon` from Sentry, Scout, and logs) or `?monitor=` (plus `type=`),
@@ -1011,14 +1056,91 @@ research in `docs/reference/pesticides-explorer-research.md`).
   rules; the name mode is unchanged; `lookupRegionPlace` in sdk-js updated.
 - **First sdk-js change:** done; released 2026-10-21 as @sjvair/sdk 4.7.0. See `ARCHITECTURE.md` → "SDK request options".
 - ✅ (spec 1, merged; in 4.8.0-beta.4) sdk-js wrappers for `forecasts/` and `calheatscore/` (including
-  `place/`), `getHMSMeta`, and `regions/geojson/`. Left: the `calenviroscreen/` wrapper, the
-  `buffer` parameter (the region list no longer returns geometry), and the rest of the
-  `api-urls.md` fixes (partly done). Also from the `map-sdk` demo (2026-11-03): `getHMSSmoke`/`getHMSFire` take a
-  `date` or `start`/`end` range (the server already filters `date`, `date__gte`, `date__lte`)
-  plus request options, and `getRegionsGeoJSON` batches `external_id` lists over the server's
-  100-code cap and merges the FeatureCollections (like `fetchAllBulkPages`).
-- Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
+  `place/`), `getHMSMeta`, and `regions/geojson/`. ✅ The rest is **spec 4 (SDK quick batch),
+  merged** (sjvair.com #303 into `develop`, sdk-js #40 into `release/5.0.0`; in
+  @sjvair/sdk 5.0.0-beta.1): `getHMSSmoke`/`getHMSFire` by `date`
+  or `start`/`end` range (with a server fix: ranges were ignored without `date`), plus
+  `region_id` and `density`; `getRegionsGeoJSON`, `getRegionsByCode` and `getLocationsByCode`
+  batch lists over 100 codes; a `calenviroscreen/` module (region list with `within_mode`, and
+  tract detail); `getRegionDetails` `buffer` with the choices in `regions/meta/` `buffers`; and
+  the `api-urls.md` fixes. Breaking for 4.7.0 callers: `getHMSSmoke`, `getHMSFire` and
+  `getRegionDetails` take a query before `options` (the user, 2026-11-04).
+- **Remaining SDK work, in the order sdk-js-6a suggested** (handoff, 2026-11-04; each needs a new
+  sdk-js session, and every beta the user's yes):
+  1. Pin bumps to `5.0.0-beta.1`: step 4 (spec 2's first commit) and map-sdk (its next session).
+  2. ✅ The exact-entry-bounds spec (5.0.0, breaking): **merged (sdk-js #44) and published as
+     `5.0.0-beta.2`** (2026-11-04, commit 7dede63, tag `v5.0.0-beta.2`). Bounds are sent as given by
+     default; `wholeDays: true` rounds to whole Pacific days; `exact` is removed with no runtime
+     check (the user's decision). Caller audit (in the spec): the dashboard drops `exact: true`
+     (`air-quality-fetch.ts`) and the test's `{ exact }` when step 4 pins beta.2; monitor-map needs
+     no code change (just the 5.0 bump); mobile and map-sdk don't call these functions.
+  3. Moving `@sjvair/sdk/documents` out of the public SDK, before 5.0.0 final and go-live; the
+     destination (the dashboard repo or an unpublished internal package) is the user's call.
+  4. Pesticide metadata and widget endpoints (`DEFERRED.md` → "Widgets").
+  5. `calenviroscreen/meta/` (server endpoint plus wrapper), before Release 3 starter #7.
+  6. sdk-js's 4 small follow-ups (its `DEFERRED.md` "Small follow-ups"), any time.
+  7. Deleting `release/4.8.0`, when the user says.
+  8. **Removing `levels` from the SDK** (the user, 2026-11-04; the server side is the
+     hardcoded-value cleanup, spec 5): the `monitors/meta/` schema's `levels` field, the `levels`
+     getter, `asIter.levels`, and the fixtures in `lib/monitors`. For 5.0, in a beta that pairs
+     with spec 5's server change. **Status (2026-11-04): PR SJVAir/sdk-js#45 open into
+     `release/5.0.0`, not merged.** Spec and plan approved (sdk-js
+     `docs/superpowers/specs/2026-11-04-remove-levels-design.md`). It also adds
+     `school_guidelines` (`EntriesMeta.school_guidelines`, `SchoolGuidelines` /
+     `SchoolActivity` types) and the forecast `color` / `aqi_category` docs. Checked against
+     sjvair.com PR #306 served locally: all match. Ships in 5.0.0-beta.3, cut only after #306
+     merges into `develop` and with the user's yes. Background notes:
+     - **SDK scope, beyond the four parts above (the user, 2026-11-04: remove them if nothing
+       else uses them):** `SJVAirEntryLevel` and `sjvairEntryLevelMetaSchema` are used only by `levels`,
+       and `EntriesMeta.asIter` holds only `levels`, so all three go too (no fallbacks).
+       The `mod.ts` module example (`asIter.levels.find(...)` for subscriptions) and the
+       `lib/account/air-alerts.ts` comment that points to "the levels" need rewriting to use
+       `scale`.
+     - **sjvair-com-c9's answers (2026-11-04):** the `levels` key is removed from each
+       `entries.<type>` (not set to null). The same server PR adds a school activity guidelines
+       block to `monitors/meta/` (recess / PE / athletics / events, plain text per level, keyed
+       by scale level key, with a source credit; PM2.5-only so far, and its name and shape are
+       being settled by data-dashboard-0d and c9). The SDK must add it in the same beta, and step
+       4 wants a typed accessor next to `scale`. Spec 5 also changes the forecast API: `color`
+       becomes the AQI scale's discrete color (was a blended gradient), `aqi_category` its
+       label (was "Out of Range" above 500), and an `aqi_level` key may be added (open); sdk-js's
+       forecast schema is the only reader, so check those fields' types and docs in the same
+       beta.
+     - **Level names:** subscription and alert `level` values equal the scale level keys (one
+       list: good, moderate, unhealthy_sensitive, unhealthy, very_unhealthy, hazardous,
+       very_hazardous), but not every key is in every pollutant's scale: O3 has no `moderate`,
+       PM2.5 and SO2 have no `very_hazardous`, SO2 has no `hazardous`. Alert levels always
+       resolve; a subscription's level is validated only against the full list, so a lookup in
+       one pollutant's scale needs a not-found path.
+     - **Caller audit (read-only, 2026-11-04):** monitor-map uses `asIter.levels` and
+       `SJVAirEntryLevel` widely (tooltips, cluster tooltip and renderer, icon manager,
+       legend, chart colors, detail panel, subscription manager, `monitors.svelte.ts`) and must
+       migrate to `entryType(...).scale`. Mobile uses them in `MonitorSubscription.svelte`,
+       `Subscriptions.svelte`, `Alerts.svelte` and `alert-level.ts`, and must migrate the same way.
+       map-sdk's legacy fallback in `src/lib/data/metadata.ts` (~129–131, `scaleFromLegacyLevels`
+       from `entry.levels`) **won't type-check** once the SDK types drop `levels`, so map-sdk
+       must delete it when it pins that beta. The dashboard's e2e fixture
+       `e2e/fixtures/api/2.0/monitors/meta.json` (on `step-4-spec-1`) still has `levels`.
+
+  Testing notes: the local DB has no CalEnviroScreen rows (the CES live tests skip), and two
+  sessions running sjvair.com's pytest at once drop each other's `test_sjvair` database; give
+  each run its own by overriding `DATABASE_URL`'s database name.
+
+- ✅ Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
+  **Spec 5: [#306](https://github.com/SJVAir/sjvair.com/pull/306) merged into `develop`
+  (536cb1ef, 2026-11-04, the user's yes), not in production.** It removes `monitors/meta/`'s `levels` dict, adds
+  `school_guidelines` (pm25 only), builds `/guidelines/` and the account level tags from the
+  level sets, and takes forecast `color`/`aqi_category` from the AQI scale (discrete color;
+  above 500 reads Hazardous). `meta/datasets/` output is unchanged. Spec and plan in sjvair.com
+  `docs/superpowers/specs|plans/2026-11-04-hardcoded-values-cleanup*`.
+- ✅ Place-picker server additions, merged into `develop` 2026-11-04 (the user's yes), not in
+  production: [#307](https://github.com/SJVAir/sjvair.com/pull/307) (fdc5ab60) adds
+  `label_plural` to every `regions/meta/` type (Title Case, the user's choice);
+  [#308](https://github.com/SJVAir/sjvair.com/pull/308) (95daa0bc) drops geometry from
+  `regions/places/search/` rows (bbox kept) and adds one `county` per row, and adds
+  repeatable `monitors/?region=<sqid>`. Listing every county on multi-county rows is in
+  `DEFERRED.md` → "Every county on multi-county place search rows".
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
@@ -1120,12 +1242,22 @@ The checklist below is the whole step's scope.
   - **Not published yet.** The first `0.1.0` prerelease needs the npm trusted publisher set up
     for `@sjvair/map-sdk` (repository `SJVAir/map-sdk`, workflow `release.yml`), then the
     user's yes for that release.
-  - **Waiting on sdk-js (step 3, spec 2), not blocking:** `getHMSSmoke`/`getHMSFire` by date,
-    and `getRegionsGeoJSON` batching over 100 codes. The demo works around both until then.
+  - **✅ On @sjvair/sdk `5.0.0-beta.2`** (merged 2026-11-04,
+    [map-sdk #2](https://github.com/SJVAir/map-sdk/pull/2)): pinned exactly for development,
+    peer range `^5.0.0-beta.2` (the user's call: it takes every later 5.0.0 beta). The demo
+    asks for HMS by date through `getHMSSmoke`/`getHMSFire` and leaves region-code batching to
+    `getRegionsGeoJSON`. No library API change. The legacy `levels` fallback in
+    `src/lib/data/metadata.ts` goes when map-sdk pins the SDK beta that drops `levels`.
+  - **Milestone 2 spec (monitor-map parity) in progress** (2026-11-04). The user's goal: monitor-map
+    5.0 on map-sdk looks and works essentially the same as today's map, while map-sdk stays
+    general enough for other maps such as the dashboard's Map widget.
   - **Next:** the dashboard's Map widget on map-sdk (below), once step 4 is far enough along.
-  - **Milestone 2 (a later map-sdk spec):** monitor-map parity (collocation sites, EV stations,
-    wind, live stores beyond monitors), started with the monitor-map 5.0 rebuild (see
-    `DEFERRED.md`).
+  - **Milestone 2 spec approved by the user 2026-11-04:** map-sdk `docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`
+    ([map-sdk #3](https://github.com/SJVAir/map-sdk/pull/3), the plan follows in the same PR).
+    What map-sdk adds so monitor-map 5.0 looks and works like today's map: camera moves, a
+    ready signal, globe, control and credit options, collocation sites, live stores for
+    collocation and HMS, the smoke, fire and legend look options, and removing the legacy
+    `levels` fallback before go-live. Wind and EV chargers stay in monitor-map.
 - A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate
   the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.
