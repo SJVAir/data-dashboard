@@ -80,6 +80,9 @@
 	/** This opening's work; aborted when the dialog closes. */
 	let controller: AbortController | null = null;
 
+	const showPicker = $derived(mounted && phase === "ready" && ready !== null);
+	const failed = $derived(phase === "failed");
+
 	const title = $derived(
 		ready?.mode.kind === "multiple"
 			? m.place_picker_dialog_title_multiple()
@@ -291,6 +294,7 @@
 			if (stale()) return;
 		}
 		// Applied to the widget as it is now (an edit made meanwhile isn't undone).
+		let applied = false;
 		const latest = find();
 		if (latest && result) {
 			const final = saved ? [{ kind: "region" as const, ...saved }] : picks;
@@ -307,11 +311,13 @@
 					from: latest.widget.data,
 					to: next.data
 				});
+				applied = true;
 			}
 		}
 		void remember(picks);
 		close();
-		if (regionName) {
+		// Said only when it was saved (an edit made meanwhile may already have made it so).
+		if (applied && regionName) {
 			const text = m.place_picker_saved_as_region({ region: regionName });
 			toast(text);
 			// The toast's own region is cut off by this dialog until it has gone.
@@ -372,7 +378,7 @@
 				{/if}
 			</div>
 		</Dialog.Header>
-		{#if mounted && phase === "ready" && ready}
+		{#if showPicker && ready}
 			<PlacePicker
 				directory={ready.directory}
 				purpose={ready.purpose}
@@ -385,9 +391,13 @@
 				ondone={(picks) => void done(picks)}
 				oncancel={close}
 			/>
-		{:else if phase === "failed"}
-			<p class="flex flex-wrap items-center gap-2 text-sm">
-				<span>{m.place_picker_dialog_failed()}</span>
+		{/if}
+		<!-- One persistent status for loading and failure, so either is announced. -->
+		<div class={["flex flex-wrap items-center gap-2 text-sm", showPicker && "sr-only"]}>
+			<p role="status" data-place-picker-load-status class={[!failed && "text-muted-foreground"]}>
+				{#if failed}{m.place_picker_dialog_failed()}{:else if !showPicker}{m.place_picker_dialog_loading()}{/if}
+			</p>
+			{#if failed}
 				<Button
 					variant="outline"
 					size="xs"
@@ -395,9 +405,7 @@
 				>
 					{m.place_picker_retry()}
 				</Button>
-			</p>
-		{:else}
-			<p role="status" class="text-muted-foreground text-sm">{m.place_picker_dialog_loading()}</p>
-		{/if}
+			{/if}
+		</div>
 	</Dialog.Content>
 </Dialog.Root>

@@ -243,7 +243,7 @@ test("a point stays picked when the picker opens", async () => {
 		.toBeVisible();
 });
 
-// A chart with a place picked can't add "your location" (it's single-only), so these start empty.
+// These start empty (with one place picked, "your location" would replace it).
 test("Use my location without a live link saves the point, not as a recent place", async () => {
 	const { app, platform, session } = await show(widget({}));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
@@ -274,6 +274,67 @@ test("on a live-shared dashboard, Use my location saves the region and says so (
 	expect(placeRegion.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
 	session.undo();
 	expect(layerOf(session).place).toBeUndefined();
+});
+
+test("no saved-as notice when an edit meanwhile already set that region", async () => {
+	announce("Start");
+	await expect.poll(() => announcer.text).toBe("Start");
+	const { app, platform, session } = await show(widget({}));
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	shareByLink(app, session);
+	let finish: (region: Region) => void = () => {};
+	placeRegion.mockImplementationOnce(() => new Promise<Region>((resolve) => (finish = resolve)));
+	await openFromMenu();
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(page.getByText(m.place_picker_dialog_looking_up())).toBeVisible();
+	// Another device (or tab) picks that ZIP code meanwhile.
+	const data = session.doc.body.widgets[0].data;
+	const zip = { kind: "region", type: "zipcode", code: "93721" } as const;
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: "w1" },
+		from: data,
+		to: { ...data, layers: [{ ...data.layers[0], place: zip }] }
+	});
+	finish(zip);
+	await expect.element(dialog()).not.toBeInTheDocument();
+	await new Promise((r) => setTimeout(r, 300));
+	expect(layerOf(session).place).toEqual(zip);
+	const toasts = [...document.querySelectorAll("[data-sonner-toast]")];
+	expect(toasts.filter((t) => t.textContent?.includes("so your location is saved as"))).toEqual([]);
+	expect(announcer.text).toBe("Start");
+});
+
+test("a load failure is announced in the status there while loading, and Retry loads", async () => {
+	const metadata = fake.metadata!;
+	let fail = true;
+	let release: () => void = () => {};
+	fake.metadata = {
+		...metadata,
+		catalog: async (signal) => {
+			if (fail) {
+				await new Promise<void>((resolve) => (release = resolve));
+				throw new Error("down");
+			}
+			return metadata.catalog(signal);
+		}
+	};
+	await show(widget({ place: COUNTY }));
+	await trigger().click();
+	await page.getByRole("menuitem", { name: m.widget_change_place() }).click();
+	const status = () =>
+		document.querySelector("[data-place-picker-load-status]") as HTMLElement | null;
+	await expect.poll(() => status()?.textContent?.trim()).toBe(m.place_picker_dialog_loading());
+	const before = status();
+	expect(before!.getAttribute("role")).toBe("status");
+	release();
+	await expect.poll(() => status()?.textContent?.trim()).toBe(m.place_picker_dialog_failed());
+	// The same node, so the change is announced.
+	expect(status()).toBe(before);
+	fail = false;
+	await dialog().getByRole("button", { name: m.place_picker_retry() }).click();
+	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
+	expect(status()?.textContent?.trim()).toBe("");
 });
 
 test("on a live-shared dashboard, a failed lookup applies nothing and offers Retry", async () => {

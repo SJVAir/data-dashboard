@@ -166,6 +166,7 @@
 	const rows = $derived(filtered.slice(0, shown).map((o, i) => picker.rowFor(o, `${id}-r${i}`)));
 
 	async function go(next: View, key: string) {
+		restoreKey = null;
 		trail = [...trail, { view, key }];
 		view = next;
 		filter = "";
@@ -188,13 +189,26 @@
 		restoreFocus();
 	}
 
-	/** Focus the control Back came from; its list may still be loading, so this retries after loads. */
+	/** Whether the current view's controls are drawn (its list isn't still loading). */
+	function settled(): boolean {
+		if (view.kind === "types") return types !== null || typesFailed;
+		if (view.kind === "children") return true;
+		return load.status !== "loading";
+	}
+
+	/**
+	 * Focus the control Back came from; its list may still be loading, so this retries after loads.
+	 * Once the list has settled without it (gone, or past the first page), it's given up on.
+	 */
 	function restoreFocus() {
 		if (restoreKey === null) return;
 		const target = root?.querySelector<HTMLElement>(
 			`[data-browse-key="${CSS.escape(restoreKey)}"]`
 		);
-		if (!target) return;
+		if (!target) {
+			if (settled()) restoreKey = null;
+			return;
+		}
 		restoreKey = null;
 		target.focus();
 	}
@@ -205,6 +219,7 @@
 	});
 
 	function setFilter(value: string) {
+		restoreKey = null;
 		filter = value;
 		shown = PAGE;
 		focus = { row: 0, col: 0 };
@@ -212,6 +227,7 @@
 
 	function chooseParent(value: string) {
 		if (!narrowable) return;
+		restoreKey = null;
 		const choice = parents.find((p) => `${p.type}:${p.code}` === value);
 		const parent = choice ? { type: choice.type, code: choice.code } : null;
 		view = narrowable.kind === "type" ? { ...narrowable, parent } : { kind: "monitors", parent };
@@ -247,13 +263,16 @@
 				event.preventDefault();
 				focusCell(row, 0);
 				break;
+			// W3C APG grid: Home/End within the row; Ctrl+Home/End to the first/last cell of the grid.
 			case "Home":
 				event.preventDefault();
-				focusCell(0, col);
+				if (event.ctrlKey) focusCell(0, 0);
+				else focusCell(row, 0);
 				break;
 			case "End":
 				event.preventDefault();
-				focusCell(last, col);
+				if (event.ctrlKey) focusCell(last, 1);
+				else focusCell(row, 1);
 				break;
 			case "Enter":
 			case " ":
@@ -264,6 +283,22 @@
 				}
 				break;
 		}
+	}
+
+	/** The roving tab stop follows real focus (a click, or Back's restore). */
+	function ongridfocusin(event: FocusEvent) {
+		const cell = (event.target as HTMLElement).closest<HTMLElement>("[data-cell]")?.dataset.cell;
+		if (!cell) return;
+		const [row, col] = cell.split("-").map(Number);
+		if (focus.row !== row || focus.col !== col) focus = { row, col };
+	}
+
+	function onfilterkeydown(event: KeyboardEvent) {
+		if (event.key !== "Escape" || filter === "") return;
+		// Clearing is handled here; don't let a host dialog close too.
+		event.preventDefault();
+		event.stopPropagation();
+		setFilter("");
 	}
 
 	/** What a screen reader hears when the list settles, narrows, or fails. */
@@ -375,6 +410,7 @@
 				placeholder={m.place_picker_browse_filter({ types: filterLabel })}
 				value={filter}
 				oninput={(e) => setFilter(e.currentTarget.value)}
+				onkeydown={onfilterkeydown}
 				class="border-input bg-card placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-ring text-field h-9 w-full min-w-0 rounded-(--radius-control) border px-2.5 focus-visible:outline-2"
 			/>
 			{#if load.status === "loading"}
@@ -398,6 +434,7 @@
 					aria-multiselectable={multiple ? "true" : undefined}
 					class="flex flex-col"
 					onkeydown={ongridkeydown}
+					onfocusin={ongridfocusin}
 				>
 					{#each rows as row, index (row.id)}
 						<div

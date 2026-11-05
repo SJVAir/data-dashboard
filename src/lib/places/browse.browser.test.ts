@@ -161,7 +161,7 @@ describe("Browse", () => {
 		expect(ondone).toHaveBeenCalledWith([{ kind: "region", type: "county", code: "06029" }]);
 	});
 
-	test("multiple mode: checkbox rows in a multiselectable listbox, blocked rows say why", async () => {
+	test("multiple mode: checkbox rows in a multiselectable grid, blocked rows say why", async () => {
 		const { screen, ondone } = await show({ kind: "multiple", max: 5 });
 		await screen.getByRole("button", { name: /^Monitors/ }).click();
 		const list = screen.getByRole("grid", { name: "Places in this list" });
@@ -236,12 +236,83 @@ describe("Browse", () => {
 		expect(document.activeElement).toBe(cell(1, 1));
 		await userEvent.keyboard("{ArrowUp}");
 		expect(document.activeElement).toBe(cell(0, 1));
-		await userEvent.keyboard("{ArrowLeft}{End}");
-		expect(document.activeElement).toBe(cell(2, 0));
-		await userEvent.keyboard("{Home}{ArrowRight}{Enter}");
+		await userEvent.keyboard("{ArrowLeft}{Control>}{End}{/Control}");
+		expect(document.activeElement).toBe(cell(2, 1));
+		await userEvent.keyboard("{Control>}{Home}{/Control}");
+		expect(document.activeElement).toBe(cell(0, 0));
+		await userEvent.keyboard("{ArrowRight}{Enter}");
 		await expect
 			.element(screen.getByRole("heading", { name: "Inside Fresno County" }))
 			.toBeVisible();
+	});
+
+	test("Home and End move within the row (W3C APG grid)", async () => {
+		const { screen } = await show();
+		await screen.getByRole("button", { name: /Counties/ }).click();
+		await expect.element(screen.getByRole("row", { name: /Kern County/ })).toBeVisible();
+		const cell = (r: number, c: number) =>
+			document.querySelector(`[data-cell="${r}-${c}"]`) as HTMLElement;
+		cell(1, 0).focus();
+		await userEvent.keyboard("{End}");
+		expect(document.activeElement).toBe(cell(1, 1));
+		await userEvent.keyboard("{Home}");
+		expect(document.activeElement).toBe(cell(1, 0));
+	});
+
+	test("the roving tab stop follows a click and Back's restored focus", async () => {
+		const { screen } = await show({ kind: "multiple", max: 5 });
+		await screen.getByRole("button", { name: /Counties/ }).click();
+		await expect.element(screen.getByRole("row", { name: /Tulare County/ })).toBeVisible();
+		const cell = (r: number, c: number) =>
+			document.querySelector(`[data-cell="${r}-${c}"]`) as HTMLElement;
+		const stops = () =>
+			[...document.querySelectorAll("[data-cell][tabindex='0']")].map(
+				(el) => (el as HTMLElement).dataset.cell
+			);
+		await screen.getByRole("row", { name: /Tulare County/ }).click();
+		await expect.poll(stops).toEqual(["2-0"]);
+		await screen.getByRole("button", { name: "Inside Kern County" }).click();
+		await expect.element(screen.getByRole("heading", { name: "Inside Kern County" })).toBeVisible();
+		await screen.getByRole("button", { name: "Back" }).click();
+		await expect.element(screen.getByRole("button", { name: "Inside Kern County" })).toHaveFocus();
+		await expect.poll(stops).toEqual(["1-1"]);
+		expect(cell(1, 1)).toBe(document.activeElement);
+	});
+
+	test("a Back restore whose list is still loading doesn't steal focus after the filter is used", async () => {
+		const { screen, dir } = await show();
+		await screen.getByRole("button", { name: /Counties/ }).click();
+		await screen.getByRole("button", { name: "Inside Kern County" }).click();
+		await expect.element(screen.getByRole("heading", { name: "Inside Kern County" })).toBeVisible();
+		let release!: () => void;
+		vi.mocked(dir.regionsIn).mockImplementationOnce(
+			() => new Promise((resolve) => (release = () => resolve(counties)))
+		);
+		await screen.getByRole("button", { name: "Back" }).click();
+		const filter = screen.getByRole("textbox", { name: "Filter Counties" });
+		await userEvent.fill(filter, "k");
+		release();
+		await expect.element(screen.getByRole("row", { name: /Kern County/ })).toBeVisible();
+		await new Promise((r) => setTimeout(r, 50));
+		await expect.element(filter).toHaveFocus();
+	});
+
+	test("Escape in the filter clears it first, without closing a host", async () => {
+		const { screen } = await show();
+		await screen.getByRole("button", { name: /Counties/ }).click();
+		const filter = screen.getByRole("textbox", { name: "Filter Counties" });
+		await userEvent.fill(filter, "kern");
+		const host = vi.fn();
+		document.addEventListener("keydown", host);
+		try {
+			await userEvent.keyboard("{Escape}");
+			await expect.element(filter).toHaveValue("");
+			expect(host).not.toHaveBeenCalled();
+			await userEvent.keyboard("{Escape}");
+			expect(host).toHaveBeenCalledOnce();
+		} finally {
+			document.removeEventListener("keydown", host);
+		}
 	});
 
 	test("Space and Enter on a row pick it", async () => {
