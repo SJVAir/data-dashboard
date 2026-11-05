@@ -1138,9 +1138,9 @@ research in `docs/reference/pesticides-explorer-research.md`).
   `regionDisplayName(region, meta)`; region rows don't change. The Census Bureau's short tract
   name is deferred (`DEFERRED.md` → "Map & selection"). **Status (2026-11-05): ✅ merged with the user's yes, sjvair.com
   [#309](https://github.com/SJVAir/sjvair.com/pull/309) into `develop` (0a603d90) and sdk-js
-  [#50](https://github.com/SJVAir/sdk-js/pull/50) into `release/5.0.0` (a617499); not in a
-  published beta or production yet.** Next, with the user's yes: `5.0.0-beta.4` (also ships #48),
-  which step 4 (data-dashboard-13) pins. Specs and plan in sjvair.com and sdk-js
+  [#50](https://github.com/SJVAir/sdk-js/pull/50) into `release/5.0.0` (a617499); published as **`@sjvair/sdk 5.0.0-beta.4`** (2026-11-05, the user's yes;
+  7508f41, tag `v5.0.0-beta.4`, also ships #48); not in production yet. Step 4
+  (data-dashboard-13) pins it. Specs and plan in sjvair.com and sdk-js
   `docs/superpowers/specs|plans/2026-11-05-region-name-templates*`.
 
 - ✅ Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
