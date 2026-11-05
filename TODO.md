@@ -890,7 +890,7 @@ noted on each item.
   cross-origin. Sentry through the platform adapter: `VITE_SENTRY_DSN` (off when unset) and
   the git commit as the release and build id.
 - ✅ Date-range resolution (spec 2; `DateRangeSpec` → Pacific dates) lives with the `format` module;
-  see `DEFERRED.md` → "Shared date-range helper home".
+  no shared helper (decided 2026-11-05: monitor-map 5.0 uses `@sjvair/sdk`'s Pacific helpers).
 - ✅ Local save plus Export/Import (spec 3) `.json` and URL-fragment share, with the `/import` route.
 - ✅ Version skew (spec 3): open newer-`schemaVersion` documents read-only; tag queued changes with
   their `schemaVersion` and replay before migrating; a `version.json` check on focus and
@@ -1285,9 +1285,13 @@ The checklist below is the whole step's scope.
     `DEFERRED.md` → "map-sdk milestone 2 review leftovers".
   - **Next for monitor-map 5.0:** a published map-sdk `0.x` (the user's yes per release, after
     the npm trusted publisher is set up), then the monitor-map 5.0 rebuild plan.
-- A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate
-  the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
-  standalone build). Merge to its `main` only after verification, with explicit approval.
+- **monitor-map 5.0, rebuilt on `map-sdk`** (session `monitor-map-2a`): **spec approved by the
+  user 2026-11-05**, monitor-map `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md`;
+  the plan is next. All 5.0 work goes into a `release/5.0.0` branch through PRs, merged into
+  `main` on go-live day (sjvair.com builds `main`). Mobile tries 5.0 through npm betas from that
+  branch (`next` tag), each with the user's yes, after map-sdk is on npm. Needs from map-sdk:
+  the List button's corner and show-on-keyboard-focus options (asked 2026-11-05), and a
+  published `0.x` before the first beta. Adds the MIT license.
 - The mobile migration is a separate later track (see `DEFERRED.md`).
 - The Map widget: map feature clicking (method A), synced both ways with the step 4 shared
   place picker (method B). Drawn shapes (C, via a
@@ -1468,6 +1472,10 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **monitor-map 5.0 decisions** (the user, 2026-11-05, in the 5.0 spec). Removed from
+      `DEFERRED.md`: "Shared date-range helper home" (the chart uses `@sjvair/sdk`'s Pacific
+      day helpers; no new shared module), and "monitor-map: cancelling one-off loads" (HMS and
+      collocation data move to map-sdk's load-once stores).
 - [x] **Design pass, part 1: the look** (built 2026-11-03; merged into `main` 2026-11-04,
       PR [#33](https://github.com/SJVAir/data-dashboard/pull/33)): light and dark tokens, the theme switch, restyled primitives and shell,
       four-across density, brand assets and app icons. Removed from `DEFERRED.md`: the maskable

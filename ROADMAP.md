@@ -197,6 +197,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      widget and the monitor-map rebuild both build against pre-1.0 `map-sdk`, and 1.0 is
      cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
      with approval.
+     **monitor-map 5.0 spec approved 2026-11-05** (in the monitor-map repo): work goes into
+     `release/5.0.0`, merged into `main` on go-live day; mobile tries npm betas from it.
    - **On the go-live path (changed 2026-11-04, the user):** the monitor-map 5.0 rebuild and the
      mobile migration onto it must be done before sjvair.com `develop` is released, and the
      mobile release ships the same day (see `DEFERRED.md`).

@@ -270,16 +270,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   monitor search by location/radius. Needs sdk-js and server changes. Drawn-shape selection resolves on the client, so it doesn't depend
   on this. **Revisit when** client-side resolution gets too slow or needs data the client
   doesn't have.
-- **Shared date-range helper home.** _Open since 2026-09-14; narrowed 2026-09-24._
-  monitor-map's `data-chart/DateRange.ts` uses the browser's local time zone, so it
-  conflicts with the Pacific-time rule and can't be reused as-is. This repo's
-  `DateRangeSpec` resolution lives with the `format` module in Foundations. **Still open:**
-  whether a Pacific-aware helper is later shared with monitor-map or sdk-js. **Narrowed
-  2026-11-03 (map-sdk milestone 1 spec):** not `map-sdk`, which handles no date ranges (the
-  dashboard feeds its data in). sdk-js already has Pacific day helpers (`startOfPacificDay`,
-  `addPacificDays`). **Decide in** the monitor-map 5.0 plan, when its `DataChart` is rebuilt
-  (also listed under "Open decisions").
-
 - **Pinned dashboard versions and runtime config injection.** _Deferred 2026-09-24._
   sjvair.com builds dashboard `main` on each Heroku deploy, the same as monitor-map, and
   `VITE_*` keys come from Heroku config vars at build time. **Revisit when** dashboard and
@@ -864,16 +854,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   range change that is still loading and then fails, `DataChart` keeps showing the loading
   state. This is the same as in 4.2.0, not a regression. **Revisit with** the next DataChart
   change or the map-sdk rebuild (5.0). The fix is to have the silent refresh take over the
-  `loading` flag. Needs a monitor-map plan.
+  `loading` flag. **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (spec
+  `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md`, "Fixes folded in"); this entry
+  goes when the fix merges into `release/5.0.0`.
 - **monitor-map: subscription status load errors are unhandled.** _Noted 2026-10-21
   (monitor-map 4.3.0 review)._ A failed subscription-status load (not a cancel) still
   surfaces as an unhandled rejection, as in 4.2.0, with no error state on the button.
   **Revisit with** the next change to `MonitorSubscriptionManager` or the map-sdk rebuild.
-  Needs a monitor-map plan.
-- **monitor-map: cancelling one-off loads.** _Deferred 2026-10-21 (monitor-map SDK 4.7
-  design)._ HMS smoke/fire and collocation sites accept a caller's signal but don't
-  supersede themselves, since nothing re-requests them on user selection. **Revisit when**
-  any of them becomes selection-driven (e.g. a date-picked HMS layer).
+  **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (an error line with Try again);
+  this entry goes when the fix merges into `release/5.0.0`.
 
 ## Analysis & data
 
@@ -1279,7 +1268,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   and calls `setOrigin` on its copy. monitor-map 4.3.0 needs `^4.7.0`. Without the bump,
   npm can nest a second SDK under monitor-map whose requests ignore mobile's origin.
   **Revisit when** mobile next updates its monitor-map dependency. Needs a mobile plan and
-  an app release (explicit approval).
+  an app release (explicit approval). **Update 2026-11-05:** monitor-map 5.0 makes
+  `@sjvair/sdk` a peer dependency (`^5.0.0-beta.3`), so mobile's own copy is the only one;
+  the mobile migration onto 5.0 takes the SDK 5.0 beta instead of `^4.7.0`.
 - **Mobile app's hardcoded PM2.5 scale.** _Noted 2026-09-28; widened 2026-10-13._ Three
   files hardcode the pre-2024 scale: `src/components/PMGauge.svelte`
   (12.1/35.5/55.5/150.5/250.5), `src/lib/colors.ts` (`pmValueColors`,
@@ -1675,8 +1666,6 @@ point.
 - **Geographic crosswalk method**: monitor→region, tract (CES), ZIP (CalHeatScore),
   county/MTRS (PUR), and area weighting. **Decide in** the Release 3 step 1 spec (Analysis
   engine).
-- **Shared date-range helper home** (see "Platform & infrastructure"). Not `map-sdk` (its
-  milestone 1 spec, 2026-11-03). **Decide in** the monitor-map 5.0 plan.
 - **JupyterLite app: owner repo and deploy path** (docs review 2026-09-28). Options: a
   separate build in this repo, or a new repo, imported by sjvair.com like the dashboard,
   with a Django view setting COOP/COEP only on `/notebooks/`. **Constraint found
