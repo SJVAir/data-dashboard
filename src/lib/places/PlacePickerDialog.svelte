@@ -18,6 +18,9 @@
 
 	/** How long a live-link lookup of "your location"'s region may take before it counts as failed. */
 	const LOOKUP_TIMEOUT_MS = 20_000;
+
+	/** The kinds of place looked up by code, so a pick of one can be gone. */
+	const RESOLVED = new Set(["monitor", "region", "location"]);
 </script>
 
 <script lang="ts">
@@ -136,13 +139,17 @@
 				report(error);
 				return [];
 			});
+			// `null`: the place no longer resolves; `undefined`: its lookup failed.
 			const resolve = (ref: PlaceRef) =>
-				resolveOption(ref, { directory, resolvers, entryType }, signal).catch(() => null);
+				resolveOption(ref, { directory, resolvers, entryType }, signal).catch(() => undefined);
 			const [known, recent] = await Promise.all([
 				Promise.all(initial.map(resolve)),
 				Promise.all(recentRefs.map(resolve))
 			]);
 			if (signal.aborted) return;
+			// A monitor, region or school that no longer resolves isn't picked again ("Choose another"
+			// replaces it); one whose lookup failed may still exist, so it stays (unnamed), as do points.
+			const kept = initial.filter((ref, i) => !(RESOLVED.has(ref.kind) && known[i] === null));
 			ready = {
 				widgetId: target.widget.id,
 				directory,
@@ -151,9 +158,9 @@
 				max,
 				purpose: { dataset: layer.dataset, entryType },
 				mode: max > 1 ? { kind: "multiple", max } : { kind: "single" },
-				initial,
-				known: known.filter((o): o is PlaceOption => o !== null),
-				recent: recent.filter((o): o is PlaceOption => o !== null)
+				initial: kept,
+				known: known.filter((o): o is PlaceOption => o != null),
+				recent: recent.filter((o): o is PlaceOption => o != null)
 			};
 			phase = "ready";
 		} catch (error) {

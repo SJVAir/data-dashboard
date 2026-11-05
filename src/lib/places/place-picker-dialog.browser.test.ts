@@ -200,11 +200,47 @@ test("the idle state's Choose a place opens the picker", async () => {
 	expect(layerOf(session).place).toEqual({ kind: "region", type: "city", code: "0627000" });
 });
 
-test("the no-longer-available card's Choose another opens the picker", async () => {
-	await show(widget({ place: { kind: "monitor", id: "gone" } }));
+test("the no-longer-available card's Choose another opens the picker without the gone place", async () => {
+	const { session } = await show(widget({ place: { kind: "monitor", id: "gone" } }), [
+		{ kind: "region", type: "city", code: "0627000" }
+	]);
 	await page.getByRole("button", { name: m.widget_state_choose_another() }).click();
 	await expect.element(dialog()).toBeVisible();
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
+	// The gone monitor isn't a chip, so it neither blocks regions nor stays beside the new pick.
+	await expect
+		.element(page.getByRole("list", { name: m.place_picker_chosen() }))
+		.not.toBeInTheDocument();
+	await page.getByRole("option", { name: /City of Fresno/ }).click();
+	await page.getByRole("button", { name: m.place_picker_done() }).click();
+	expect(layerOf(session).place).toEqual({ kind: "region", type: "city", code: "0627000" });
+});
+
+test("a place whose lookup fails stays picked (it may still exist)", async () => {
+	const { session } = await show(widget({ place: COUNTY }));
+	fake.resolvers!.regions.resolve = async () => {
+		throw new Error("offline");
+	};
+	await openFromMenu();
+	await expect
+		.element(
+			page.getByRole("button", { name: m.place_picker_remove({ name: m.place_picker_unnamed() }) })
+		)
+		.toBeVisible();
+	await page.getByRole("button", { name: m.place_picker_cancel() }).click();
+	expect(layerOf(session).place).toEqual(COUNTY);
+});
+
+test("a point stays picked when the picker opens", async () => {
+	await show(widget({ place: { kind: "point", lat: 36.75, lon: -119.79 } }));
+	await openFromMenu();
+	await expect
+		.element(
+			page.getByRole("button", {
+				name: m.place_picker_remove({ name: m.place_picker_your_location() })
+			})
+		)
+		.toBeVisible();
 });
 
 // A chart with a place picked can't add "your location" (it's single-only), so these start empty.
