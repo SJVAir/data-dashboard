@@ -564,6 +564,20 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   point for its region, and that lookup needs the server; offline the copy fails with the
   generic "couldn't save" message. **Revisit on** reports of people copying shared dashboards
   offline, or if a share starts carrying the region along with the point.
+- **The live-link point check trusts the stored copy.** _Deferred 2026-11-04 (step 4 spec 2,
+  Task 13 review)._ Before a live link goes on without "Share my exact location", the share
+  checks the stored dashboard for points (`onlyIf`) and refuses while edits wait to upload. When
+  nothing is waiting it assumes the server's copy equals the stored one; if another device
+  uploaded a newer version with a point and this device's swap was a no-op, that version could
+  be shared. Why: needs two devices, a point added on one, and a share from the other within a
+  sync interval. **Revisit if** multi-device sharing is common: check the server's copy (or its
+  version) instead.
+- **The Share dialog reads a dashboard's points once, when it opens.** _Deferred 2026-11-04
+  (step 4 spec 2, Task 13 review)._ The notice and the live-link prompt come from the points
+  present at opening, so a point added in another tab before "Create link" gets no prompt and
+  skips the point check, and could be shared. Why: needs a second tab editing the same
+  dashboard while the dialog is open. **Revisit if** it's seen: reread the points when the
+  stored document changes while the dialog is open (or always pass the check).
 - **Points in a newer-format dashboard's export.** _Deferred 2026-11-04 (step 4 spec 2, Task 13)._
   A read-only (newer or invalid) dashboard is exported as stored; the location-privacy swap
   finds only points in today's shape (`body.widgets[].data.layers[].place`). A future format
@@ -810,15 +824,48 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
+- **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
+  school, a monitor and a county side by side in one Chart: several places are one
+  `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other
+  kind (with a reason) and schools and "your location" are single-place only. Mixing needs a new
+  shape across map-sdk and the data layer. **Revisit if** users ask, or when Release 3 analysis
+  needs it.
+- **Per-monitor pollutant coverage in the place picker.** _Deferred 2026-11-04 (step 4 spec
+  2)._ Monitors are offered by type (`monitors/meta/` `monitors[<type>].entries`), so a site
+  whose type takes a pollutant but that doesn't measure it (an AirNow site without ozone) can be
+  picked and then shows "No data". **Revisit when** the server exposes per-monitor entry types.
+- **Location type and region filters in the place picker.** _Deferred 2026-11-04 (step 4 spec
+  2)._ One search box covers the brief; `searchLocations`' `type` and `region` options stay
+  unused. **Revisit if** school searches return too many unrelated rows.
+- **Recent places don't follow the account across devices.** _Deferred 2026-11-04 (step 4 spec
+  2)._ They're kept per space in this browser's preferences, never sent to the server or saved
+  in documents. **Revisit if** people ask for them on another device.
+
 - **Per-type counts in Browse's "Inside" list.** _Deferred 2026-11-04 (step 4 spec 2)._ The
   list of child types under a region ("Inside Tulare County") shows names only; counts would
   need one `regionsIn` fetch per child type. **Revisit when** people need the counts, or the
   server adds counts within a parent.
 
-- **A Monitors entry under Browse's "Inside" list.** _Deferred 2026-11-04 (step 4 spec 2)._
-  SDK 5.0.0-beta.2 can't filter monitors by region, so Monitors is a flat filterable list with
-  no county narrowing, and "Inside" leaves it out. **Revisit when** the dashboard pins the SDK
-  beta with `getMonitorsList({ region })` (`TODO(beta.3)` in `BrowsePanel.svelte`).
+- **The place picker's SDK 5.0.0-beta.3 follow-ups.** _Deferred 2026-11-04 (step 4 spec 2;
+  the spec's "singular headings" and "Monitors browse can't narrow by county" deferrals, and
+  the Task 11 build)._ The dashboard is still pinned to 5.0.0-beta.2, which lacks what the
+  server already serves on `develop` (sjvair.com #307, #308), so the picker uses fallbacks
+  (`TODO(beta.3)` in `src/lib/places/directory.ts` and `BrowsePanel.svelte`):
+  - **Browse headings are the singular `label`** ("County", "ZIP Code"), so the list texts read
+    "All County" and "Filter County"; beta.3 types `types.<type>.label_plural` ("Counties",
+    "ZIP Codes"). The picker never invents plurals.
+  - **Region rows show no county.** Search rows (`searchRegionPlaces`) carry `county` on the
+    server (rows are light now, 3 KB for "fre"), but beta.2 types them as full `RegionData`
+    (with geometry the picker never reads); beta.3's `RegionPlaceMatch` type has `county` for
+    the second line on search and browse rows.
+  - **Monitors browse is a flat filterable list with no county narrowing, and "Inside ›" has no
+    Monitors entry:** beta.2 has no `getMonitorsList({ region })` (`monitors/?region=`).
+  - **The e2e fixture `e2e/fixtures/api/2.0/monitors/meta.json`** still has the legacy `levels`
+    dict and no `school_guidelines`; with beta.3, drop `levels` and add `school_guidelines`
+    (required, nullable; pm25's value from sjvair.com #306's `camp/apps/entries/guidelines.py`
+    or the SDK fixture).
+    **Revisit when** the dashboard pins @sjvair/sdk 5.0.0-beta.3 (published; awaiting the user's
+    go-ahead).
 
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
@@ -1011,6 +1058,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   started before midnight gets the older dates until the next poll. **Revisit if** a widget
   shows yesterday's window after midnight for longer than a poll; the fix is to compare the
   in-flight request's dates when attaching.
+- **A point's or school's fallback isn't shared with plain region widgets, and re-runs each
+  poll.** _Deferred 2026-11-04 (step 4 spec 2, Task 7 review)._ A fallback query (ZIP → city →
+  county) is its own cache entry, so a ZIP widget and a point widget using that ZIP fetch it
+  separately, and each poll walks the chain again from the ZIP (a point with data only at the
+  county makes 3 requests per poll). Why: correct, and the HTTP cache absorbs most repeats.
+  **Revisit if** point or school widgets show up as load, or the polls are slow: share the
+  per-region entries, or remember the region used until the range changes.
+- **The monitors list is fetched once per session.** _Deferred 2026-11-04 (step 4 spec 2, Task
+  9 review)._ It's memoized, so a monitor added to the server after the page loaded isn't in it:
+  a widget saved with it elsewhere reads "no longer available" here, and the picker doesn't
+  offer it, until a reload. Why: new monitors are rare, and a reload fixes it. **Revisit if**
+  it's reported, or a long-lived page (Tauri, a kiosk) needs it: refresh the list on a miss, or
+  on a timer.
 - **A failure fetching monitor names fails the whole data query.** _Deferred 2026-11-04 (step 4
   spec 1 final review)._ Monitor places are named from the monitors list; if that fetch fails,
   the query fails with it, though the readings themselves came back. Why: the list is memoized

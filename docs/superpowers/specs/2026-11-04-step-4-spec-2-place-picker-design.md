@@ -272,8 +272,13 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   listbox popup): arrow keys move through results across groups, Enter picks, Escape clears,
   then closes; groups are labeled (`role="group"` with a label); the result count is announced
   in a polite live region after each search settles ("12 results", "No matches").
-- **Browse lists** are listboxes (multi-select ones `aria-multiselectable`, checkboxes shown);
-  breadcrumbs/back buttons are real buttons; "Inside ›" is a separate, labeled button on the row.
+- **Browse lists** are a W3C APG grid (`role="grid"`, multi-select ones `aria-multiselectable`,
+  checkboxes shown; each row a `row` with `aria-selected`/`aria-disabled`, a name cell and an
+  Inside cell; ↑/↓ rows, ←/→ to Inside, Space/Enter picks). _Changed during the build
+  (2026-11-04, Task 11 review):_ this said listboxes, but a listbox can't hold the row's
+  separate "Inside ›" button, and the grid is the standard pattern for rows with their own
+  controls. Breadcrumbs/back buttons are real buttons; "Inside ›" is a separate, labeled
+  button on the row.
 - **Greyed-out rows** are `aria-disabled` (still focusable and announced) with their reason as
   the row's description, never color alone.
 - **Chips** have a labeled remove button; removing returns focus sensibly.

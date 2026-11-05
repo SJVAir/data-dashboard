@@ -484,6 +484,13 @@ Tauri-ready seams required **from day one**:
 - **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
   `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
   and drives the offline banner. A Tauri build can report real connectivity.
+- **`geolocation` capability** (built 2026-11-04, step 4 spec 2). `platform.geolocation.locate(signal?)`
+  asks once, only when "Use my location" is pressed, and resolves `{ ok: true, lat, lon }` or
+  `{ ok: false, reason: "denied" | "unavailable" | "timeout" | "unsupported" }` (it rejects
+  only on abort). On the web it is one `getCurrentPosition` call (low accuracy, 15 s timeout,
+  a position up to 5 minutes old is fine); the memory version takes a scripted position for
+  tests; a Tauri build can supply its own. Coordinates are never logged or reported. The place
+  picker's **recent places** use the existing per-space `preferences` (`places.recent`).
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
   air-quality data uses an **in-memory cache** shared across widgets, plus the
@@ -1242,6 +1249,22 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   (ZIP for heat, forecast zone for the Forecast strip). The region is resolved when the
   widget renders. **"Mark for analysis" freezes it** to the region actually used, staged as
   a normal region item ("ZIP 93721 (from your location)").
+  - **Built in step 4 spec 2 (2026-11-04).** A point gets its candidate regions from the
+    coordinate lookup (`lookupRegionPlace({ lat, lon, type: ["zipcode", "city", "county"] })`,
+    cached in memory per rounded point); a school uses its own linked regions
+    (`getLocationsByCode`, batched per source, no coordinate lookup). `layerTarget` returns a
+    `fallback` target with those candidates, and the adapter fetches them in order through
+    the region path, **stopping at the first that has any point in the widget's date range**
+    ("has data"; a ZIP with gaps stays the ZIP), else the last candidate's empty data.
+    `QueryData.places` names the region used with `via` (the point, or the school's name), and
+    `placeLabel` renders it: "93721 (your location)", "93702 (Roosevelt High)", and
+    "(shared location)" in a live link's read-only view; the table header and the CSV place
+    column read the same, and the CSV never carries coordinates. A point the lookup puts in no
+    ZIP, city or county is "Your location is outside the area SJVAir covers." A school that no
+    longer resolves gets the "no longer available" card; a retired one keeps its data with
+    "<name> is no longer listed (since <date>)" and, when replaced, "Switch to the replacement".
+    `placeRegion(input)` gives the region a point or school widget uses now, through the same
+    query and cache (the share swap and the live-link save use it).
 - **Location privacy** (decided 2026-09-28). Exact coordinates are often a home or school,
   and the audience includes students.
   - **The owner's own document keeps the exact point**, private to their browser or
@@ -1267,8 +1290,80 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     before turning one on the Share dialog asks: "Use ZIP 93721 instead" (one undoable edit:
     `setWidgetData` when one widget has points, else one `replaceDocument`) or "Share my
     exact location" (with the warning). Viewers' labels read "(shared location)".
+    **The live link is guarded** (step 4 spec 2): the share uploads first, then checks, under
+    the document lock, that the stored version has no point (unless the owner chose "Share my
+    exact location"); a failed check, or edits still waiting to upload, refuses the share, so
+    the server copy never carries a point the owner didn't choose. An already-on link whose
+    dashboard gains a point shows the same prompt.
+  - **"Use my location" on a dashboard with a live link** (the picker reads the sync record's
+    `shareToken` at Done) saves the region the widget would use (ZIP, else city, else county)
+    instead of the point, and says so: "This dashboard is shared by link, so your location is
+    saved as 93721." Turning the link off later doesn't restore the point. A pick identical to
+    the current place makes no edit (and no notice).
 - **Geolocation** is a platform-adapter capability: an opt-in "Use my location" button,
   never automatic, with the browser's usual permission prompt. Tauri can supply its own.
+- **The shared place picker** (built in step 4 spec 2, 2026-11-04; spec
+  `docs/superpowers/specs/2026-11-04-step-4-spec-2-place-picker-design.md`). A lazily loaded
+  component (`src/lib/places/`) that a dialog hosts today (full screen on a phone) and spec 3's
+  Data Explorer and spec 6's starter bar can place inline. Its code never reaches the initial
+  bundle; the menu item and idle button reach it through `lazy.svelte.ts`.
+  - **Getting there:** "Change place" in a Chart's or Data table's ⋯ menu (and its taskbar
+    menu when minimized), only on an editable dashboard; "Choose a place" on the idle state;
+    "Choose another" on the "no longer available" card. A saved place that no longer resolves
+    isn't offered back as a pick (so "Choose another" replaces it); one whose lookup failed
+    stays, unnamed. Every change is one `setWidgetData` edit (Undo restores the old place);
+    Cancel, Escape, or closing makes none, and neither does a pick identical to the current
+    place.
+  - **What it's for:** the host passes the dataset and entry type (the widget's pollutant
+    layer), the mode, and the cap. **Single** mode closes on the first pick; **multiple** mode
+    (`accepts.maxPlaces`: Chart 5, Data table 10) keeps picks as removable chips until
+    **Done**, which needs at least one pick (an empty Done would idle the widget; Remove widget
+    exists for that), and **Cancel** discards them.
+  - **One kind at a time:** several places are one `SpatialSelection` (all monitors or all
+    regions, region ids `"type:code"`), the shape the Map widget syncs with. The first pick
+    sets the kind; rows of the other kind stay visible but are `aria-disabled` with a reason
+    ("This widget compares regions. Remove the regions to compare monitors."). The reasons say
+    "This widget …", since the picker serves every widget type. **Schools and "your location"
+    are single-place only:** either can be the only pick, and while anything else is picked
+    they are greyed out (and the other way round). At the cap, the rest read "This widget shows
+    up to 5 places." One pick is stored as the layer's `place`, two or more as its
+    `selection`; removing back to one stores a `place` again.
+  - **Pollutant fit:** monitors whose type can't supply the entry type (`monitors/meta/`
+    `monitors[<type>].entries`) are hidden, not greyed out. Regions, schools, and points aren't
+    filtered (no bulk coverage; see `DEFERRED.md`); a place with no data shows "No data".
+  - **Monitors** come from the memoized `monitors/` list (every public monitor, active or not;
+    the health filter applies only to current readings), active first, then by name; stopped
+    ones are tagged "Not reporting" in text. An `activeOnly` option (for spec 4's "now"
+    widgets) leaves them out. **A saved monitor missing from a list that loaded** gets the "no
+    longer available" card (`monitor-unlisted`), not an uncalibrated series; when the list
+    can't load, the error with Retry stays.
+  - **Search:** one box, from 2 characters, debounced 250 ms, each query aborting the last.
+    Three searches run at once and load and fail on their own ("Couldn't search places.
+    Retry"): schools and child care (`searchLocations`), places (`searchRegionPlaces`, reading
+    only id, name, type, code and retirement, never `boundary.geometry`), and monitors (in the
+    browser: name starts, then word starts, then substrings; active first). Groups show in that
+    order, up to 10 rows each, with "More matches. Keep typing to narrow them down." when the
+    server says `more` (or more than 10 monitors match). A row whose type has no label in
+    `regions/meta/` is dropped, never shown with a raw key. Retired regions aren't offered.
+  - **Browse:** the `regions/meta/` types with `browsable: true` and `count > 0`, in the
+    server's order with their counts, plus Monitors (a flat list, filterable, until the SDK can
+    filter monitors by region). A type whose `parents` includes `county` gets an "In:" control
+    (`regions/?within=`); every list has a filter box; a county row's **"Inside ›"** lists the
+    child types and opens one already narrowed to it. Headings use the singular `label` until
+    the pinned SDK has `label_plural` (`DEFERRED.md`).
+  - **Recent places:** up to 8, newest first, per space through `preferences` (this browser
+    only, never in documents); every monitor, region, or school pick is added, "your location"
+    never is. Read back through a schema (a malformed list is dropped) and shown with current
+    names; a place that no longer resolves is left out.
+  - **Accessibility:** the search box and results follow the W3C ARIA combobox pattern
+    (editable combobox with a listbox popup; labeled groups; arrow keys across groups, Enter
+    picks, Escape clears, then closes); the result count and a failed group are announced in a
+    polite live region. **Browse lists are a W3C APG grid**, not a listbox (changed during the
+    build, because rows carry a separate "Inside ›" button): `role="grid"`
+    (`aria-multiselectable` in multiple mode), each row a `row` with `aria-selected` /
+    `aria-disabled`, a name cell and an Inside cell; ↑/↓ move between rows, ←/→ to and from
+    Inside, Space/Enter picks. Greyed-out rows stay focusable with their reason as the
+    description; chips have a labeled remove button.
 
 "Mark for analysis" on a multi-layer widget adds **one Collection item per layer**, each
 with the widget's date range and any current time sub-range or selection.
@@ -2064,7 +2159,7 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.6` (exact). The documents code lives in
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.2` (exact; step 4 spec 2). The documents code lives in
     `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
     `DEFERRED.md`).
 
@@ -2092,6 +2187,11 @@ rest are the builder's calls, and the user kept them.
 9. **A dashboard with unsynced changes still shares** (its last synced version) after one
    upload attempt; the dialog says so. One that has never reached the server can't share yet,
    and the dialog says why.
+10. **A dashboard with an exact location asks before its link goes on** (step 4 spec 2): "Use
+    93721 instead" or "Share my exact location". Unless the owner chose exact, the share runs
+    with a check (`onlyIf`, after the upload and under the document lock) that the stored
+    version has no point; a failed check or edits still waiting to upload refuse it
+    (`check-failed`). See "Widget data selection" → "Location privacy".
 
 **Recovery (built in sync spec 4, 2026-11-03).** The builder's calls, in the plan
 `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`:
@@ -2182,6 +2282,11 @@ stay local; built in Foundations spec 3):
   invalid) dashboards in a backup are restored as stored, still read-only. Links and Export
   files refuse newer or invalid documents; a read-only dashboard's Export file is its stored
   value as it is (unknown top-level fields kept), less the local-only fields.
+- **Exact locations (step 4 spec 2):** a link or Export file carries each point as the region
+  its widget shows ("Your location is shared as 93721, not your exact position."); only the
+  Share dialog's "Share my exact location instead" keeps it, per share. A copy made from a link
+  or file always swaps any point for its region. A backup keeps exact points (a restore, not a
+  share). Details: "Widget data selection" → "Location privacy".
 - **"You already have a copy."** If a non-deleted local copy was made from the same
   contents, the app asks first: "Open my copy" or "Make a new copy" (equal prominence). "Same
   contents" is a **local content fingerprint** (a hash of the document's canonical JSON,
