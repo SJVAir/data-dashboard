@@ -19,7 +19,7 @@ spec docs until it merges into `main` (the user, 2026-11-04); **each step 4 spec
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------- | -------------------------------------------- |
 | **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                                                                                                                   | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
 | **Step 3, second batch** (metadata) — specs 1–4, the summaries fix and SDK entry bounds merged (SDK 5.0.0-beta.2); cleanup (spec 5) and the picker's server changes merged (#306–#308); SDK `5.0.0-beta.3` published (#45, #46) (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
-| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1); on SDK 5.0.0-beta.2 (#2); milestone 2 spec and plan merged (#3); build in progress (2026-11-04)                                                               | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
+| **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1); on SDK 5.0.0-beta.2 (#2); milestone 2 spec and plan merged (#3); milestone 2 built, PR #4 open, awaiting the user's yes to merge (2026-11-04)                 | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
 | **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; spec 1 merged into `step-4` (#36), spec 2 (place picker) next (2026-11-04)                                                                                          | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
@@ -1251,9 +1251,6 @@ The checklist below is the whole step's scope.
     asks for HMS by date through `getHMSSmoke`/`getHMSFire` and leaves region-code batching to
     `getRegionsGeoJSON`. No library API change. The legacy `levels` fallback in
     `src/lib/data/metadata.ts` goes when map-sdk pins the SDK beta that drops `levels`.
-  - **Milestone 2 spec (monitor-map parity) in progress** (2026-11-04). The user's goal: monitor-map
-    5.0 on map-sdk looks and works essentially the same as today's map, while map-sdk stays
-    general enough for other maps such as the dashboard's Map widget.
   - **Next:** the dashboard's Map widget on map-sdk (below), once step 4 is far enough along.
   - **Milestone 2 spec approved by the user 2026-11-04:** map-sdk `docs/superpowers/specs/2026-11-04-map-sdk-milestone-2-design.md`
     ([map-sdk #3](https://github.com/SJVAir/map-sdk/pull/3), the plan follows in the same PR).
@@ -1261,6 +1258,19 @@ The checklist below is the whole step's scope.
     ready signal, globe, control and credit options, collocation sites, live stores for
     collocation and HMS, the smoke, fire and legend look options, and removing the legacy
     `levels` fallback before go-live. Wind and EV chargers stay in monitor-map.
+  - **Milestone 2 built 2026-11-04, PR open:** [map-sdk #4](https://github.com/SJVAir/map-sdk/pull/4)
+    (not merged; merging needs the user's yes, and no release is cut). All 23 spec items, plus
+    the legacy `levels` fallback removed on `@sjvair/sdk` 5.0.0-beta.3 (dev pin; peer range
+    stays `^5.0.0-beta.2`). The demo's "Live map" section is today's monitor-map setup on
+    map-sdk. The user judged it side by side with sjvair.com and chose today's look, on every
+    map, for the monitor and cluster tooltips, whole-number readings (cut off as today), blocks
+    legends as one labeled bar and the monitors legend titled by pollutant; collocation sites
+    have no legend section and fire is one plugin that switches to hotspots at zoom 10. Default
+    changes the Map widget will see: monitor colors, engine credits, those tooltip and legend
+    changes, the pointer cursor, smoke outlines in the plume color. When #4 merges, close the
+    `DEFERRED.md` entries "map-sdk milestone 2", "Globe projection" and "(1-hour avg)".
+  - **Next for monitor-map 5.0:** a published map-sdk `0.x` (the user's yes per release, after
+    the npm trusted publisher is set up), then the monitor-map 5.0 rebuild plan.
 - A monitor-map plan (parallel, not blocking; adds the MIT license; start alongside the Map widget to validate
   the `map-sdk` API): rebuild on `map-sdk` on a branch (MapShell, routes, panels, the
   standalone build). Merge to its `main` only after verification, with explicit approval.
