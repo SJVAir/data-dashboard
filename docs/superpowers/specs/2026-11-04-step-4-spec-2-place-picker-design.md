@@ -157,9 +157,8 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   in the server's order, each with its count, plus **Monitors** (a fixed UI string). Selecting
   one opens its list.
 - **Headings are the plural label,** `types.<type>.label_plural` (Title Case, e.g. "Counties",
-  "ZIP Codes"; sjvair.com PR #307, SDK 5.0.0-beta.3, not out yet). **Until the pinned SDK has
-  it, show the singular `label`** ("County"); never invent plurals (my call, agreed with the
-  coordinator; `DEFERRED.md` until the pin moves).
+  "ZIP Codes"; sjvair.com PR #307, SDK 5.0.0-beta.3, not out yet). Built on the
+  beta.3 pin (2026-11-05); never invent plurals.
 - **Narrowing by parent:** a type whose `parents` includes a type (today only `county`) gets an
   "In: <parent> ▾" control (default: all), and its list is fetched with `regions/?within=`. One
   parent type narrows; the others are children (`docs/reference/v1-lessons.md`). A narrowing
@@ -168,11 +167,9 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
 - **"Inside ›" on a parent's rows** (county rows) lists the child types inside it and opens a
   child list already narrowed to it.
 - **Picking a row picks the place** (or ticks it, in multiple mode; rows have checkboxes there).
-- **Monitors browse:** a flat list with the filter box, grouped or labeled by network, until the
-  server can filter the monitors list by region (approved by the user 2026-11-04:
-  `monitors/?region=<sqid>`, repeatable, union; sjvair-com-c9 builds it after #307, with a
-  `getMonitorsList` region option aiming for SDK beta.3); then it narrows by county like the
-  region types (`DEFERRED.md` until the pin has it).
+- **Monitors browse:** a flat list with the filter box, labeled by network, narrowed by county
+  like the region types through `monitors/?region=<sqid>` (`getMonitorsList({ region })`, SDK
+  beta.3).
 - **Retired regions** aren't offered in browse lists or search (my call; they still resolve for
   saved widgets).
 
@@ -310,10 +307,8 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   A row spanning several counties (some school districts, ZIPs, urban areas, the Valley air
   district) names one county only; listing every county is deferred by the user
   (`DEFERRED.md` → "Every county on multi-county place search rows").
-- **So the fallbacks are about SDK types, not the server:** beta.2 still types search rows as
-  full `RegionData` (with geometry) and has no `getMonitorsList` region option or
-  `label_plural`. Never read `boundary.geometry` from search rows, even though beta.2's types
-  allow it.
+- **SDK beta.3 types all of this** (`RegionPlaceMatch`, `getMonitorsList({ region })`,
+  `label_plural`), so the beta.2 fallbacks are gone. Never read `boundary.geometry`.
 
 ## Constraints (project rules that bite here)
 
@@ -374,11 +369,6 @@ down." hint when the server says `more` (or, for monitors, when more than 10 mat
   needs it.
 - **Per-monitor pollutant coverage.** Why: the fit rule is per monitor type, so a site without
   the pollutant can still be offered. Revisit when the server exposes per-monitor entry types.
-- **Singular browse headings until `label_plural` is in the pinned SDK.** Revisit when the user
-  says 5.0.0-beta.3 is out.
-- **Monitors browse can't narrow by county,** and region search rows are heavy and carry no
-  county. Revisit when the user says the SDK beta with `monitors/?region=` and the lighter
-  `searchRegionPlaces` rows is out (approved 2026-11-04, aiming for 5.0.0-beta.3).
 - **Location type and region filters in the picker UI.** Why: one search box covers the brief.
   Revisit if school searches return too many unrelated rows.
 - **Recent places don't follow the account across devices.** Why: kept in this browser only.

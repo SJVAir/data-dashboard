@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getRegionsList, getRegionsMeta } from "@sjvair/sdk";
+import { getMonitorsList, getRegionsList, getRegionsMeta } from "@sjvair/sdk";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { RegionResolver } from "$lib/data/adapters/registry";
 import { createPlaceDirectory } from "./directory";
@@ -9,10 +9,18 @@ vi.mock("@sjvair/sdk");
 
 const META = {
 	types: {
-		county: { type: "county", label: "County", count: 8, parents: [], browsable: true },
+		county: {
+			type: "county",
+			label: "County",
+			label_plural: "Counties",
+			count: 8,
+			parents: [],
+			browsable: true
+		},
 		zipcode: {
 			type: "zipcode",
 			label: "ZIP code",
+			label_plural: "ZIP Codes",
 			count: 300,
 			parents: ["county"],
 			browsable: true
@@ -56,13 +64,13 @@ beforeEach(() => {
 });
 
 describe("regionTypes and locationTypes", () => {
-	it("drops unbrowsable and empty types, keeps order, plural is label", async () => {
+	it("drops unbrowsable and empty types, keeps order, plural is label_plural", async () => {
 		const types = await directory().regionTypes();
 		expect(types.map((t) => t.type)).toEqual(["county", "zipcode"]);
 		expect(types[1]).toEqual({
 			type: "zipcode",
 			label: "ZIP code",
-			plural: "ZIP code",
+			plural: "ZIP Codes",
 			count: 300,
 			parents: ["county"]
 		});
@@ -105,6 +113,29 @@ describe("monitors", () => {
 	it("drops inactive monitors with activeOnly", async () => {
 		const list = await directory().monitors("pm25", { activeOnly: true });
 		expect(list.map((m) => m.id)).toEqual(["c", "d", "a"]);
+	});
+});
+
+describe("monitorsIn", () => {
+	it("resolves the parent and keeps the monitors the server lists inside it", async () => {
+		vi.mocked(getMonitorsList).mockResolvedValue([{ id: "d" }, { id: "a" }, { id: "x" }] as never);
+		const list = await directory().monitorsIn(
+			"pm25",
+			{ type: "county", code: "06107" },
+			{ activeOnly: false }
+		);
+		expect(getMonitorsList).toHaveBeenCalledWith({ region: "sq1" });
+		expect(list.map((m) => m.id)).toEqual(["d", "a"]);
+	});
+
+	it("is empty when the parent does not resolve", async () => {
+		const list = await directory().monitorsIn(
+			"pm25",
+			{ type: "county", code: "nope" },
+			{ activeOnly: false }
+		);
+		expect(list).toEqual([]);
+		expect(getMonitorsList).not.toHaveBeenCalled();
 	});
 });
 

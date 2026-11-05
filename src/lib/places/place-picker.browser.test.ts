@@ -74,6 +74,7 @@ function directory(): PlaceDirectory {
 			{ type: "public_school", label: "Public school", source: "cde-public" }
 		]),
 		monitors: vi.fn(async () => monitors),
+		monitorsIn: vi.fn(async () => []),
 		regionsIn: vi.fn(async () => [])
 	};
 }

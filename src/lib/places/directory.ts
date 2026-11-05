@@ -1,10 +1,10 @@
-import { getRegionsList, getRegionsMeta } from "@sjvair/sdk";
+import { getMonitorsList, getRegionsList, getRegionsMeta } from "@sjvair/sdk";
 import type { RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import type { LocationTypeInfo, MonitorOption, RegionOption, RegionTypeInfo } from "./types";
 
 export interface PlaceDirectory {
-	/** Browsable types with count > 0, server order. `plural` = `label` until beta.3. */
+	/** Browsable types with count > 0, server order. `plural` is the metadata `label_plural`. */
 	regionTypes(signal?: AbortSignal): Promise<RegionTypeInfo[]>;
 	/** The label of every region type in the metadata (browsable or not), by type. */
 	regionTypeLabels(signal?: AbortSignal): Promise<Map<string, string>>;
@@ -12,6 +12,13 @@ export interface PlaceDirectory {
 	/** Monitors that can supply `entryType` (by type), active first then by name; `activeOnly` drops the rest. */
 	monitors(
 		entryType: string,
+		opts: { activeOnly: boolean },
+		signal?: AbortSignal
+	): Promise<MonitorOption[]>;
+	/** `monitors`, narrowed to those inside one region (the server's `monitors/?region=`). */
+	monitorsIn(
+		entryType: string,
+		parent: { type: string; code: string },
 		opts: { activeOnly: boolean },
 		signal?: AbortSignal
 	): Promise<MonitorOption[]>;
@@ -74,22 +81,48 @@ export function createPlaceDirectory(ctx: {
 					code: r.external_id as string,
 					name: r.name,
 					typeLabel,
-					// TODO(beta.3): fill from the row's `county` once the SDK types it.
+					// The regions list doesn't carry the containing county.
 					county: null
 				}))
 		);
 	});
 
+	const monitorIdsIn = memoByKey(async (key) => {
+		const [type, code] = JSON.parse(key) as [string, string];
+		const parent = await ctx.regions.resolve(type, code);
+		if (!parent || parent === "unsupported") return new Set<string>();
+		return new Set((await getMonitorsList({ region: parent.id })).map((m) => m.id));
+	});
+
+	async function monitors(entryType: string, opts: { activeOnly: boolean }, signal?: AbortSignal) {
+		const [types, all] = await Promise.all([
+			ctx.metadata.monitorTypes(signal),
+			ctx.metadata.monitors(signal)
+		]);
+		const byType = new Map(types.map((t) => [t.type, t]));
+		return all
+			.filter((m) => byType.get(m.type)?.entryTypes.includes(entryType))
+			.filter((m) => m.active || !opts.activeOnly)
+			.map((m): MonitorOption => ({
+				kind: "monitor",
+				id: m.id,
+				name: m.name,
+				network: byType.get(m.type)!.label,
+				county: m.county,
+				active: m.active
+			}))
+			.sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
+	}
+
 	return {
 		async regionTypes(signal) {
 			const meta = await regionsMeta("meta", signal);
-			// TODO(beta.3): `plural` from `label_plural`; `county` on region rows; `getMonitorsList`'s region option.
 			return Object.values(meta.types)
 				.filter((t) => t.browsable && t.count > 0)
 				.map((t) => ({
 					type: t.type,
 					label: t.label,
-					plural: t.label,
+					plural: t.label_plural,
 					count: t.count,
 					parents: [...t.parents]
 				}));
@@ -106,24 +139,13 @@ export function createPlaceDirectory(ctx: {
 				source: t.source
 			}));
 		},
-		async monitors(entryType, opts, signal) {
-			const [types, monitors] = await Promise.all([
-				ctx.metadata.monitorTypes(signal),
-				ctx.metadata.monitors(signal)
+		monitors,
+		async monitorsIn(entryType, parent, opts, signal) {
+			const [ids, list] = await Promise.all([
+				monitorIdsIn(JSON.stringify([parent.type, parent.code]), signal),
+				monitors(entryType, opts, signal)
 			]);
-			const byType = new Map(types.map((t) => [t.type, t]));
-			return monitors
-				.filter((m) => byType.get(m.type)?.entryTypes.includes(entryType))
-				.filter((m) => m.active || !opts.activeOnly)
-				.map((m): MonitorOption => ({
-					kind: "monitor",
-					id: m.id,
-					name: m.name,
-					network: byType.get(m.type)!.label,
-					county: m.county,
-					active: m.active
-				}))
-				.sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
+			return list.filter((m) => ids.has(m.id));
 		},
 		regionsIn(type, parent, signal) {
 			const key = JSON.stringify(parent ? [type, parent.type, parent.code] : [type]);

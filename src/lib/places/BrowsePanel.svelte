@@ -15,7 +15,7 @@
 		| { kind: "types" }
 		| { kind: "children"; parent: Parent & { name: string } }
 		| { kind: "type"; type: string; parent: Parent | null }
-		| { kind: "monitors" };
+		| { kind: "monitors"; parent: Parent | null };
 	type Load =
 		{ status: "loading" } | { status: "error" } | { status: "ready"; options: PlaceOption[] };
 
@@ -77,7 +77,6 @@
 	function info(type: string): RegionTypeInfo | undefined {
 		return types?.find((t) => t.type === type);
 	}
-	// TODO(beta.3): `plural` is `label_plural` once the SDK exposes it; until then it equals `label`.
 	function pluralOf(type: string): string {
 		return info(type)?.plural ?? labels.get(type) ?? type;
 	}
@@ -92,17 +91,17 @@
 		untrack(() => (load = { status: "loading" }));
 		const fetched: Promise<PlaceOption[]> =
 			current.kind === "monitors"
-				? // TODO(beta.3): narrow by county with `getMonitorsList({ region })`.
-					directory.monitors(entryType, { activeOnly }, signal)
+				? current.parent
+					? directory.monitorsIn(entryType, current.parent, { activeOnly }, signal)
+					: directory.monitors(entryType, { activeOnly }, signal)
 				: directory.regionsIn(current.type, current.parent, signal);
-		const choices: Promise<RegionOption[]> =
+		const parentTypes =
 			current.kind === "type"
-				? Promise.all(
-						(untrack(() => info(current.type))?.parents ?? []).map((p) =>
-							directory.regionsIn(p, null, signal)
-						)
-					).then((lists) => lists.flat())
-				: Promise.resolve([]);
+				? (untrack(() => info(current.type))?.parents ?? [])
+				: untrack(() => (monitorParentType ? [monitorParentType] : []));
+		const choices: Promise<RegionOption[]> = Promise.all(
+			parentTypes.map((p) => directory.regionsIn(p, null, signal))
+		).then((lists) => lists.flat());
 		Promise.all([fetched, choices]).then(
 			([options, choiceList]) => {
 				if (signal.aborted) return;
@@ -136,9 +135,20 @@
 				? pluralOf(typeView.type)
 				: ""
 	);
-	const parentType = $derived(typeView ? (info(typeView.type)?.parents[0] ?? null) : null);
+	/** Monitors narrow by the first parent type the metadata declares (today: county). */
+	const monitorParentType = $derived(
+		(types ?? []).find((t) => t.parents.length > 0)?.parents[0] ?? null
+	);
+	const parentType = $derived(
+		typeView
+			? (info(typeView.type)?.parents[0] ?? null)
+			: view.kind === "monitors"
+				? monitorParentType
+				: null
+	);
+	const narrowable = $derived(view.kind === "type" || view.kind === "monitors" ? view : null);
 	const parentValue = $derived(
-		typeView?.parent ? `${typeView.parent.type}:${typeView.parent.code}` : ""
+		narrowable?.parent ? `${narrowable.parent.type}:${narrowable.parent.code}` : ""
 	);
 
 	/** Types a county-like region can be browsed inside: those listing its type as a parent. */
@@ -201,13 +211,10 @@
 	}
 
 	function chooseParent(value: string) {
-		if (!typeView) return;
+		if (!narrowable) return;
 		const choice = parents.find((p) => `${p.type}:${p.code}` === value);
-		view = {
-			kind: "type",
-			type: typeView.type,
-			parent: choice ? { type: choice.type, code: choice.code } : null
-		};
+		const parent = choice ? { type: choice.type, code: choice.code } : null;
+		view = narrowable.kind === "type" ? { ...narrowable, parent } : { kind: "monitors", parent };
 		setFilter("");
 	}
 
@@ -308,7 +315,7 @@
 				{@render typeButton(
 					m.place_picker_browse_monitors(),
 					null,
-					{ kind: "monitors" },
+					{ kind: "monitors", parent: null },
 					"monitors"
 				)}
 			</ul>
@@ -325,7 +332,6 @@
 		{#if view.kind === "children"}
 			<ul aria-label={heading} class="flex flex-col">
 				{#each childTypes(view.parent) as t (t.type)}
-					<!-- TODO(beta.3): a "Monitors" entry here once monitors can narrow by county. -->
 					{@render typeButton(
 						t.plural,
 						null,
@@ -337,9 +343,15 @@
 						`type:${t.type}`
 					)}
 				{/each}
+				{@render typeButton(
+					m.place_picker_browse_monitors(),
+					null,
+					{ kind: "monitors", parent: { type: view.parent.type, code: view.parent.code } },
+					"monitors"
+				)}
 			</ul>
 		{:else}
-			{#if typeView && parentType}
+			{#if parentType}
 				{@const parentLabel = pluralOf(parentType)}
 				<label class="flex items-center gap-2 px-2 text-sm">
 					<span>{m.place_picker_browse_in()}</span>

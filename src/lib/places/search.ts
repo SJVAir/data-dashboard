@@ -111,8 +111,7 @@ export async function searchPlaces(
 						code: r.external_id as string,
 						name: r.name,
 						typeLabel: labels.get(r.type)!,
-						// TODO(beta.3): fill from the row's `county` once the SDK types it.
-						county: null
+						county: r.county?.name ?? null
 					})),
 				more: false
 			};

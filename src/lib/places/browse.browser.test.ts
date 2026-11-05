@@ -10,8 +10,8 @@ import type { MonitorOption, RegionOption, RegionTypeInfo } from "./types";
 
 const types: RegionTypeInfo[] = [
 	{ type: "county", label: "County", plural: "Counties", count: 8, parents: [] },
-	{ type: "zipcode", label: "ZIP Code", plural: "ZIP Code", count: 1161, parents: ["county"] },
-	{ type: "city", label: "City", plural: "City", count: 62, parents: ["county"] }
+	{ type: "zipcode", label: "ZIP Code", plural: "ZIP Codes", count: 1161, parents: ["county"] },
+	{ type: "city", label: "City", plural: "Cities", count: 62, parents: ["county"] }
 ];
 
 function region(type: string, code: string, name: string, typeLabel: string): RegionOption {
@@ -46,6 +46,7 @@ function directory(): PlaceDirectory {
 		regionTypeLabels: vi.fn(async () => new Map(types.map((t) => [t.type, t.label]))),
 		locationTypes: vi.fn(async () => []),
 		monitors: vi.fn(async () => monitors),
+		monitorsIn: vi.fn(async () => monitors.slice(0, 1)),
 		regionsIn: vi.fn(async (type, parent) => {
 			if (type === "county") return counties;
 			if (type === "zipcode") return parent ? tulareZips : zips;
@@ -79,18 +80,18 @@ describe("Browse", () => {
 	test("lists each type with its count, plus Monitors", async () => {
 		const { screen } = await show();
 		await expect.element(screen.getByRole("button", { name: /Counties.*8/ })).toBeVisible();
-		await expect.element(screen.getByRole("button", { name: /ZIP Code.*1,161/ })).toBeVisible();
-		await expect.element(screen.getByRole("button", { name: /City.*62/ })).toBeVisible();
+		await expect.element(screen.getByRole("button", { name: /ZIP Codes.*1,161/ })).toBeVisible();
+		await expect.element(screen.getByRole("button", { name: /Cities.*62/ })).toBeVisible();
 		await expect.element(screen.getByRole("button", { name: /^Monitors/ })).toBeVisible();
 	});
 
 	test("a type opens with In: (all counties) and a filter; choosing a county narrows", async () => {
 		const { screen, dir } = await show();
-		await screen.getByRole("button", { name: /ZIP Code/ }).click();
-		await expect.element(screen.getByRole("heading", { name: "ZIP Code" })).toBeVisible();
+		await screen.getByRole("button", { name: /ZIP Codes/ }).click();
+		await expect.element(screen.getByRole("heading", { name: "ZIP Codes" })).toBeVisible();
 		const select = screen.getByRole("combobox", { name: "In:" });
 		await expect.element(select).toHaveDisplayValue("All Counties");
-		await expect.element(screen.getByRole("textbox", { name: "Filter ZIP Code" })).toBeVisible();
+		await expect.element(screen.getByRole("textbox", { name: "Filter ZIP Codes" })).toBeVisible();
 		expect(dir.regionsIn).toHaveBeenCalledWith("zipcode", null, expect.anything());
 		await select.selectOptions("Tulare County");
 		await expect.element(screen.getByRole("row", { name: /ZIP 93215/ })).toBeVisible();
@@ -103,7 +104,7 @@ describe("Browse", () => {
 
 	test("long lists render in pages with Show more", async () => {
 		const { screen } = await show();
-		await screen.getByRole("button", { name: /ZIP Code/ }).click();
+		await screen.getByRole("button", { name: /ZIP Codes/ }).click();
 		await expect.element(screen.getByRole("row", { name: /ZIP 93100/ })).toBeVisible();
 		expect(document.querySelectorAll("[role=row]").length).toBe(50);
 		await screen.getByRole("button", { name: "Show more" }).click();
@@ -131,7 +132,7 @@ describe("Browse", () => {
 			.element(screen.getByRole("heading", { name: "Inside Tulare County" }))
 			.toBeVisible();
 		expect(document.body.textContent).not.toMatch(/Counties\s*8/);
-		await screen.getByRole("button", { name: /ZIP Code/ }).click();
+		await screen.getByRole("button", { name: /ZIP Codes/ }).click();
 		await expect.element(screen.getByRole("row", { name: /ZIP 93215/ })).toBeVisible();
 		expect(dir.regionsIn).toHaveBeenCalledWith(
 			"zipcode",
@@ -189,6 +190,39 @@ describe("Browse", () => {
 		expect(document.querySelectorAll("[role=row]").length).toBe(1);
 	});
 
+	test("Monitors has an In: county control that narrows through the server", async () => {
+		const { screen, dir } = await show();
+		await screen.getByRole("button", { name: /^Monitors/ }).click();
+		const select = screen.getByRole("combobox", { name: "In:" });
+		await expect.element(select).toHaveDisplayValue("All Counties");
+		await select.selectOptions("Tulare County");
+		await expect.element(screen.getByRole("row", { name: /Fresno - Garland/ })).toBeVisible();
+		expect(document.querySelectorAll("[role=row]").length).toBe(1);
+		expect(dir.monitorsIn).toHaveBeenCalledWith(
+			"pm25",
+			{ type: "county", code: "06107" },
+			{ activeOnly: false },
+			expect.anything()
+		);
+	});
+
+	test("Inside a county lists Monitors, already narrowed to it", async () => {
+		const { screen, dir } = await show();
+		await screen.getByRole("button", { name: /Counties/ }).click();
+		await screen.getByRole("button", { name: "Inside Tulare County" }).click();
+		await screen.getByRole("button", { name: /^Monitors/ }).click();
+		await expect.element(screen.getByRole("row", { name: /Fresno - Garland/ })).toBeVisible();
+		expect(dir.monitorsIn).toHaveBeenCalledWith(
+			"pm25",
+			{ type: "county", code: "06107" },
+			{ activeOnly: false },
+			expect.anything()
+		);
+		await expect
+			.element(screen.getByRole("combobox", { name: "In:" }))
+			.toHaveDisplayValue("Tulare County");
+	});
+
 	test("arrow keys move between rows and into the Inside cell; Enter opens it", async () => {
 		const { screen } = await show();
 		await screen.getByRole("button", { name: /Counties/ }).click();
@@ -231,7 +265,7 @@ describe("Browse", () => {
 		await expect.poll(live).toBe("Nothing here");
 		await screen.getByRole("button", { name: "Back" }).click();
 		vi.mocked(dir.regionsIn).mockRejectedValueOnce(new Error("down"));
-		await screen.getByRole("button", { name: /City/ }).click();
+		await screen.getByRole("button", { name: /Cities/ }).click();
 		await expect.poll(live).toBe("Couldn't load this list.");
 	});
 

@@ -1346,11 +1346,10 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     server says `more` (or more than 10 monitors match). A row whose type has no label in
     `regions/meta/` is dropped, never shown with a raw key. Retired regions aren't offered.
   - **Browse:** the `regions/meta/` types with `browsable: true` and `count > 0`, in the
-    server's order with their counts, plus Monitors (a flat list, filterable, until the SDK can
-    filter monitors by region). A type whose `parents` includes `county` gets an "In:" control
-    (`regions/?within=`); every list has a filter box; a county row's **"Inside ›"** lists the
-    child types and opens one already narrowed to it. Headings use the singular `label` until
-    the pinned SDK has `label_plural` (`DEFERRED.md`).
+    server's order with their counts, plus Monitors. A type whose `parents` includes `county` gets an "In:" control
+    (`regions/?within=`), and so does Monitors (`monitors/?region=`); every list has a filter
+    box; a county row's **"Inside ›"** lists the child types and Monitors, and opens one already
+    narrowed to it. Headings use `label_plural` from the metadata.
   - **Recent places:** up to 8, newest first, per space through `preferences` (this browser
     only, never in documents); every monitor, region, or school pick is added, "your location"
     never is. Read back through a schema (a malformed list is dropped) and shown with current
@@ -2159,7 +2158,7 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.2` (exact; step 4 spec 2). The documents code lives in
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.3` (exact; step 4 spec 2). The documents code lives in
     `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
     `DEFERRED.md`).
 

@@ -111,7 +111,7 @@ test("Change place on a Chart to two counties, then Undo", async ({ page }) => {
 
 	// Browse the counties (singular heading until the SDK has label_plural) and tick Tulare.
 	await picker(page)
-		.getByRole("button", { name: /^County/ })
+		.getByRole("button", { name: /^Counties/ })
 		.click();
 	const grid = picker(page).getByRole("grid", { name: "Places in this list" });
 	await expect(grid.getByRole("row", { name: /Fresno County/ })).toHaveAttribute(
@@ -215,7 +215,7 @@ test("Use my location with location access off picks nothing", async ({
 test("the open picker has no WCAG 2.2 AA violations", async ({ page }) => {
 	await openDoc(page, dataDoc("chart", FRESNO));
 	await widgetMenuItem(page, CHART_TITLE, "Change place");
-	await expect(picker(page).getByRole("button", { name: /^County/ })).toBeVisible();
+	await expect(picker(page).getByRole("button", { name: /^Counties/ })).toBeVisible();
 	await expectNoViolations(page);
 
 	await searchBox(page).fill("fre");

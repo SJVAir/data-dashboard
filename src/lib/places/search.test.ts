@@ -24,6 +24,7 @@ function directory(monitors: MonitorOption[] = []): PlaceDirectory {
 			{ type: "public_school", label: "Public school", source: "cde-public" }
 		]),
 		monitors: vi.fn(async () => monitors),
+		monitorsIn: vi.fn(async () => []),
 		regionsIn: vi.fn(async () => [])
 	};
 }
@@ -78,7 +79,14 @@ describe("searchPlaces", () => {
 
 	it("drops retired regions and labels rows from all metadata types, dropping unlabeled ones", async () => {
 		vi.mocked(searchRegionPlaces).mockResolvedValue([
-			{ id: "1", name: "93721", type: "zipcode", external_id: "93721", retired: null },
+			{
+				id: "1",
+				name: "93721",
+				type: "zipcode",
+				external_id: "93721",
+				retired: null,
+				county: { type: "county", external_id: "06029", name: "Kern County" }
+			},
 			{ id: "2", name: "93000", type: "zipcode", external_id: "93000", retired: { since: "x" } },
 			{ id: "3", name: "Tract 1", type: "tract", external_id: "t1", retired: null },
 			{ id: "5", name: "Ghost", type: "mystery", external_id: "g1", retired: null },
@@ -95,7 +103,7 @@ describe("searchPlaces", () => {
 					code: "93721",
 					name: "93721",
 					typeLabel: "ZIP code",
-					county: null
+					county: "Kern County"
 				},
 				{
 					kind: "region",

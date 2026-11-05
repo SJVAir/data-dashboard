@@ -846,27 +846,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   need one `regionsIn` fetch per child type. **Revisit when** people need the counts, or the
   server adds counts within a parent.
 
-- **The place picker's SDK 5.0.0-beta.3 follow-ups.** _Deferred 2026-11-04 (step 4 spec 2;
-  the spec's "singular headings" and "Monitors browse can't narrow by county" deferrals, and
-  the Task 11 build)._ The dashboard is still pinned to 5.0.0-beta.2, which lacks what the
-  server already serves on `develop` (sjvair.com #307, #308), so the picker uses fallbacks
-  (`TODO(beta.3)` in `src/lib/places/directory.ts` and `BrowsePanel.svelte`):
-  - **Browse headings are the singular `label`** ("County", "ZIP Code"), so the list texts read
-    "All County" and "Filter County"; beta.3 types `types.<type>.label_plural` ("Counties",
-    "ZIP Codes"). The picker never invents plurals.
-  - **Region rows show no county.** Search rows (`searchRegionPlaces`) carry `county` on the
-    server (rows are light now, 3 KB for "fre"), but beta.2 types them as full `RegionData`
-    (with geometry the picker never reads); beta.3's `RegionPlaceMatch` type has `county` for
-    the second line on search and browse rows.
-  - **Monitors browse is a flat filterable list with no county narrowing, and "Inside ›" has no
-    Monitors entry:** beta.2 has no `getMonitorsList({ region })` (`monitors/?region=`).
-  - **The e2e fixture `e2e/fixtures/api/2.0/monitors/meta.json`** still has the legacy `levels`
-    dict and no `school_guidelines`; with beta.3, drop `levels` and add `school_guidelines`
-    (required, nullable; pm25's value from sjvair.com #306's `camp/apps/entries/guidelines.py`
-    or the SDK fixture).
-    **Revisit when** the dashboard pins @sjvair/sdk 5.0.0-beta.3 (published; awaiting the user's
-    go-ahead).
-
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
   way to go in the long run")._ `regions/places/search/` rows carry one `county`: the county
