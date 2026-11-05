@@ -1,5 +1,6 @@
 import { platform } from "$lib/platform";
 import { airQualityAdapter } from "./adapters/air-quality";
+import { forecastsAdapter } from "./adapters/forecasts";
 import { createWebLocationResolver, createWebPointResolver } from "./adapters/places";
 import {
 	createWebRegionResolver,
@@ -16,7 +17,7 @@ export function adapterIds(): string[] {
 	return ADAPTERS.map((a) => a.id);
 }
 
-const ADAPTERS: DatasetAdapter[] = [airQualityAdapter];
+const ADAPTERS: DatasetAdapter[] = [airQualityAdapter, forecastsAdapter];
 
 let client: QueryClient | undefined;
 let metadata: MetadataSource | undefined;
