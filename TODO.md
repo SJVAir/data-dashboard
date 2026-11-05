@@ -1075,10 +1075,12 @@ research in `docs/reference/pesticides-explorer-research.md`).
     `develop`; sdk-js #51 `getPesticidesForPlace` into `release/5.0.0`).
   - Weather stations near a place, `monitors/weather/place/`: SDK **merged** (sdk-js #52
     `getWeatherStationsForPlace` + the CIMIS entry types); server **PR open** (sjvair.com #311).
-  - Smoke over a place per day, `hms/smoke/place/`: server **PR open** (sjvair.com #312), SDK **PR
-    open** (sdk-js #53 `getSmokeForPlace`; open item: narrow its live-step skip once #312 is local).
+  - Smoke over a place per day, `hms/smoke/place/`: SDK **merged** (sdk-js #53
+    `getSmokeForPlace`; open item: narrow its live-step skip back to 404 once #312 is on the
+    local server); server **PR open** (sjvair.com #312).
   - CIMIS weather summaries (extending the summaries; CIMIS timestamps move to start-of-hour PST):
-    server **PR open** (sjvair.com #313); SDK `sum` on monitor summaries in progress. After #313
+    server **PR open** (sjvair.com #313); SDK **PR open** (sdk-js #54, `sum` on monitor summary
+    rows, required: the beta carrying it must come after #313 is merged and running). After #313
     merges: the local `restamp_cimis` + rebuild, 1 → 3 → 23 stations, each step cleared by the
     coordinator; the production steps are in `DEFERRED.md`'s deploy entry.
 - **Remaining SDK work, in the order sdk-js-6a suggested** (handoff, 2026-11-04; each needs a new
