@@ -943,9 +943,24 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   now has **monthly pesticide rollups** (`PesticideUseRollup`, with month 0 for undated
   records), exposed through the new `sections/` and `townships/` endpoints (`month=`) and
   section detail. The `region/<id>/summary/` endpoint is still chemical × commodity ×
-  year. Starter analysis #9 stays yearly for now. **Revisit when** users need seasonal
-  pesticide timing; it now needs sdk-js wrappers and a client adapter rather than new
-  server summaries.
+  year. **Updated 2026-11-05:** `pesticides/place/` (sjvair.com #310) now serves monthly
+  pounds, acres and applications for any place, for the Get data page. Starter analysis #9
+  stays yearly for now. **Revisit when** users need seasonal pesticide timing in an
+  analysis; it now needs only a client adapter on `getPesticidesForPlace`.
+- **Pesticide use within a distance of a place.** _Deferred 2026-11-05 (Get data layers,
+  the user)._ `pesticides/place/` counts a place's use by region membership: a region's
+  touching MTRS sections, a monitor (or a school, via the client) by its ZIP. "Use within 1
+  mile of this school" would need a buffer (the `shapes.BUFFERS` choices, as `sections/`
+  already takes). Region membership is the rule for every Get data layer today. **Revisit
+  when** the dashboard wants a distance option or users ask about nearby use.
+- **Fast pesticide totals for multi-county places.** _Deferred 2026-11-05 (sjvair.com #310
+  final review)._ `pesticides/place/` sums a non-county place through the MTRS sections it
+  touches. A place spanning several counties takes that path too: the SJV air district
+  touches 24,090 sections, and its aggregate took about 5 s cold locally (cached for 24h
+  afterwards; counties themselves take a fast path, ~1.2 s cold). Counting whole counties
+  with `county__in` and only partial ones by section would fix it. **Revisit when** a
+  widget uses a multi-county place (air district, legislative district) or cold requests
+  show up as slow in production timing.
 - **CarbonMapper data source.** _Noted 2026-09-24; updated 2026-10-14._ The server now
   imports Carbon Mapper methane sources and plumes and serves them under
   `emissions/methane/` (merged with #282), so the dashboard would read them from the
