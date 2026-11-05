@@ -1089,7 +1089,11 @@ research in `docs/reference/pesticides-explorer-research.md`).
      `school_guidelines` (`EntriesMeta.school_guidelines`, `SchoolGuidelines` /
      `SchoolActivity` types) and the forecast `color` / `aqi_category` docs. Checked against
      sjvair.com PR #306 served locally: all match. Ships in 5.0.0-beta.3, cut only after #306
-     merges into `develop` and with the user's yes. Background notes:
+     merges into `develop` and with the user's yes. **Stacked on it (the user, 2026-11-04): PR
+     SJVAir/sdk-js#46**, the SDK side of sjvair.com #307/#308: `label_plural` on region types,
+     `searchRegionPlaces` returning `RegionPlaceMatch[]` (no geometry, one `county`), and
+     `getMonitorsList({ region })`. Live tests pass against `develop`. Merges after #45 (retargeted
+     to `release/5.0.0`), with the user's yes; also in beta.3. Background notes:
      - **SDK scope, beyond the four parts above (the user, 2026-11-04: remove them if nothing
        else uses them):** `SJVAirEntryLevel` and `sjvairEntryLevelMetaSchema` are used only by `levels`,
        and `EntriesMeta.asIter` holds only `levels`, so all three go too (no fallbacks).
