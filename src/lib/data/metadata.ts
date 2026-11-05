@@ -53,7 +53,16 @@ export function levelFor(levels: Level[], value: number): Level | undefined {
 	return levels.find((l) => value >= l.min && (l.max === null || value < l.max));
 }
 
-export type MonitorSummary = { id: string; name: string; type: string };
+export type MonitorSummary = {
+	id: string;
+	name: string;
+	type: string;
+	/** The monitor's county; empty when the server has none. */
+	county: string;
+	active: boolean;
+};
+
+export type MonitorTypeInfo = { type: string; label: string; entryTypes: string[] };
 
 export interface MetadataSource {
 	/** `"unavailable"` when the server has no catalog or it can't be fetched; never rejects except for `signal`'s abort. */
@@ -68,6 +77,8 @@ export interface MetadataSource {
 	): Promise<string | null>;
 	monitorType(monitorId: string, signal?: AbortSignal): Promise<string | null>;
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
+	/** The monitor types (networks) with their labels and the entry types each can supply. */
+	monitorTypes(signal?: AbortSignal): Promise<MonitorTypeInfo[]>;
 }
 
 function abortError(): Error {
@@ -208,7 +219,20 @@ export function createWebMetadata(): MetadataSource {
 			return (await list(signal)).find((m) => m.id === monitorId)?.type ?? null;
 		},
 		async monitors(signal) {
-			return (await list(signal)).map((m) => ({ id: m.id, name: m.name, type: m.type }));
+			return (await list(signal)).map((m) => ({
+				id: m.id,
+				name: m.name,
+				type: m.type,
+				county: m.county ?? "",
+				active: m.is_active ?? true
+			}));
+		},
+		async monitorTypes(signal) {
+			return Object.entries((await meta(signal)).monitors).map(([type, m]) => ({
+				type,
+				label: m.label,
+				entryTypes: Object.keys(m.entries ?? {})
+			}));
 		}
 	};
 }
