@@ -1126,14 +1126,21 @@ research in `docs/reference/pesticides-explorer-research.md`).
   sessions running sjvair.com's pytest at once drop each other's `test_sjvair` database; give
   each run its own by overriding `DATABASE_URL`'s database name.
 
-- Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
+- ✅ Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
   into `map-sdk` and the monitor-map rebuild; this repo's v1 values go away with the v1 code.
-  **Spec 5: [#306](https://github.com/SJVAir/sjvair.com/pull/306) open into `develop`
-  (2026-11-04), not merged.** It removes `monitors/meta/`'s `levels` dict, adds
+  **Spec 5: [#306](https://github.com/SJVAir/sjvair.com/pull/306) merged into `develop`
+  (536cb1ef, 2026-11-04, the user's yes), not in production.** It removes `monitors/meta/`'s `levels` dict, adds
   `school_guidelines` (pm25 only), builds `/guidelines/` and the account level tags from the
   level sets, and takes forecast `color`/`aqi_category` from the AQI scale (discrete color;
   above 500 reads Hazardous). `meta/datasets/` output is unchanged. Spec and plan in sjvair.com
   `docs/superpowers/specs|plans/2026-11-04-hardcoded-values-cleanup*`.
+- ✅ Place-picker server additions, merged into `develop` 2026-11-04 (the user's yes), not in
+  production: [#307](https://github.com/SJVAir/sjvair.com/pull/307) (fdc5ab60) adds
+  `label_plural` to every `regions/meta/` type (Title Case, the user's choice);
+  [#308](https://github.com/SJVAir/sjvair.com/pull/308) (95daa0bc) drops geometry from
+  `regions/places/search/` rows (bbox kept) and adds one `county` per row, and adds
+  repeatable `monitors/?region=<sqid>`. Listing every county on multi-county rows is in
+  `DEFERRED.md` → "Every county on multi-county place search rows".
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
