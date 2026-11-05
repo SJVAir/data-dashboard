@@ -335,6 +335,7 @@
 	"share_points_looking": "Finding your area…",
 	"share_points_failed": "Can't look up your area right now.",
 	"share_points_retry": "Retry",
+	"share_points_not_saved": "Your area couldn't be saved to your account yet. Try again.",
 	"file_dashboard_stem": "dashboard",
 	"file_backup_stem": "sjvair-dashboards-backup",
 	"file_data_stem": "data",

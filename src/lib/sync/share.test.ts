@@ -46,6 +46,39 @@ describe("shareDocument", () => {
 		});
 	});
 
+	it("with a check, shares only when the uploaded version passes it", async () => {
+		const { platform, fake, ctx } = await synced();
+		await edit(platform, [title("a", "Mine")]);
+		const seen: (string | null)[] = [];
+		const result = await shareDocument(ctx, "d1", {
+			onlyIf: (doc) => {
+				seen.push(doc.body.widgets[0].title);
+				return true;
+			}
+		});
+		expect(result).toMatchObject({ kind: "shared", unsynced: false });
+		// Checked on what was uploaded: the edit is in it.
+		expect(seen).toEqual(["Mine"]);
+		expect(fake.requests).toEqual(["save d1", "share d1"]);
+	});
+
+	it("a failed check refuses without sharing", async () => {
+		const { fake, ctx } = await synced();
+		const result = await shareDocument(ctx, "d1", { onlyIf: () => false });
+		expect(result).toEqual({ kind: "check-failed" });
+		expect(fake.requests).not.toContain("share d1");
+		expect((await fake.get("d1")).shareToken).toBeNull();
+	});
+
+	it("with a check, an edit that can't upload refuses (the server's version is unchecked)", async () => {
+		const { platform, fake, ctx } = await synced();
+		await edit(platform, [title("a", "Mine")]);
+		fake.refuseNext.push({ code: "rate_limited", status: 429 });
+		const result = await shareDocument(ctx, "d1", { onlyIf: () => true });
+		expect(result).toEqual({ kind: "check-failed" });
+		expect(fake.requests).not.toContain("share d1");
+	});
+
 	it("a dashboard never uploaded can't share", async () => {
 		const { platform, fake, ctx } = await setupSync();
 		fake.maxDocuments = 0;

@@ -108,8 +108,12 @@ export type SharePoints = {
 	exact: ShareCopy;
 	/** How the notice and "Use … instead" name the regions. */
 	summary: SwapSummary;
-	/** Before a live link: swaps the owner's points for their regions, as one undoable edit. */
-	useRegion(): void;
+	/**
+	 * Live link: swaps the owner's points for their regions as one undoable edit and stores it
+	 * (so the next upload carries it). `"stale"`, changing nothing, when the dashboard holds a
+	 * point this lookup didn't cover (look up again).
+	 */
+	useRegion(): Promise<"applied" | "stale">;
 };
 
 export type ShareOptions = {

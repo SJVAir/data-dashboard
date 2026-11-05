@@ -10,7 +10,8 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import { RemoteRefusal, RemoteUnavailable } from "$lib/sync/remote";
 	import type { ShareResult } from "$lib/sync/share";
-	import { swapNotice } from "$lib/sharing/points";
+	import type { Dashboard } from "$lib/documents/schema";
+	import { hasPoints, swapNotice } from "$lib/sharing/points";
 	import { tick, untrack } from "svelte";
 	import { serializeSearch } from "sv-router";
 	import { p, route } from "../../../router";
@@ -143,18 +144,37 @@
 		if (load) startLookup(load);
 	}
 
-	/** "Use … instead": the owner's points become their regions (one undoable edit), then the link. */
+	/**
+	 * "Use … instead": the owner's points become their regions (one undoable edit, stored), then
+	 * the link is turned on, or an existing link's copy updated, only once the uploaded version
+	 * holds no point. A point added or re-picked since the lookup looks up again first.
+	 */
 	async function useRegionAndShare() {
-		if (!points) return;
-		points.useRegion();
-		regionUsed = true;
-		await createLink();
+		if (!points || busy) return;
+		busy = true;
+		status = "";
+		notes = [];
+		let applied: "applied" | "stale";
+		try {
+			applied = await points.useRegion();
+		} catch {
+			notes = [m.share_live_failed()];
+			return;
+		} finally {
+			busy = false;
+		}
+		if (applied === "stale") {
+			retryLookup();
+			return;
+		}
+		// Until it succeeds, the choice stays offered (pressing it again retries).
+		if (await shareLink()) regionUsed = true;
 	}
 
-	/** "Share my exact location": the warning stays shown, and the link is created. */
+	/** "Share my exact location": the warning stays shown; without a link yet, it's created. */
 	async function shareExact() {
 		exactLive = true;
-		await createLink();
+		if (!liveUrl) await shareLink();
 	}
 
 	// While the name is missing, a return to being online loads it again.
@@ -237,23 +257,36 @@
 				return [m.share_live_blocked()];
 			case "offline":
 				return [m.share_live_offline()];
+			case "check-failed":
+				return [sync?.offline ? m.share_live_offline() : m.share_points_not_saved()];
 		}
 	}
 
-	async function createLink() {
-		if (!live || !sync) return;
+	function createLink() {
+		void shareLink();
+	}
+
+	/**
+	 * Uploads, then turns the link on (or keeps it, with the uploaded version); resolves whether it
+	 * did. Unless the owner chose "Share my exact location", a dashboard that held an exact location
+	 * is shared only if the uploaded version holds none.
+	 */
+	async function shareLink(): Promise<boolean> {
+		if (!live || !sync) return false;
+		const onlyIf = share.opts?.points && !exactLive ? (doc: Dashboard) => !hasPoints(doc) : null;
 		busy = true;
 		status = "";
 		notes = [];
 		try {
-			const result = await sync.share(live.docId);
+			const result = await sync.share(live.docId, onlyIf ? { onlyIf } : undefined);
 			notes = notesFor(result);
-			if (result.kind === "shared") {
-				await tick();
-				select(liveInput);
-			}
+			if (result.kind !== "shared") return false;
+			await tick();
+			select(liveInput);
+			return true;
 		} catch {
 			notes = [m.share_live_failed()];
+			return false;
 		} finally {
 			busy = false;
 		}
@@ -382,9 +415,9 @@
 					</div>
 				{:else}
 					<p class="text-muted-foreground text-sm">{m.share_live_description()}</p>
-					{#if asksBeforeLink && points}
-						<p class="text-sm">{m.share_points_live_notice()}</p>
-					{/if}
+				{/if}
+				{#if asksBeforeLink && points}
+					<p class="text-sm">{m.share_points_live_notice()}</p>
 				{/if}
 				{#if exactLive}
 					<p class="text-sm">{m.share_points_exact_warning()}</p>
@@ -395,6 +428,12 @@
 					{/each}
 				</div>
 				<div class="flex flex-wrap gap-2">
+					{#if asksBeforeLink && points}
+						<Button disabled={busy} onclick={useRegionAndShare}>{useRegionLabel}</Button>
+						<Button variant="outline" disabled={busy} onclick={shareExact}>
+							{m.share_points_share_exact()}
+						</Button>
+					{/if}
 					{#if liveUrl}
 						<Button disabled={busy} onclick={() => copy(liveUrl, liveInput)}>
 							{m.share_copy()}
@@ -403,12 +442,7 @@
 							{m.share_live_stop()}
 						</Button>
 					{:else if asksBeforeLink}
-						{#if points}
-							<Button disabled={busy} onclick={useRegionAndShare}>{useRegionLabel}</Button>
-							<Button variant="outline" disabled={busy} onclick={shareExact}>
-								{m.share_points_share_exact()}
-							</Button>
-						{/if}
+						<!-- Asked first (above), once the regions are known. -->
 					{:else}
 						<Button bind:ref={createButton} disabled={busy} onclick={createLink}>
 							{m.share_live_create()}

@@ -3,7 +3,14 @@ import type { Layer } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { makeDoc } from "./fixtures.test-util";
-import { hasPoints, pointSwaps, swapNotice, summarizeSwaps, withSwaps } from "./points";
+import {
+	hasPoints,
+	pointSwaps,
+	pointsCovered,
+	swapNotice,
+	summarizeSwaps,
+	withSwaps
+} from "./points";
 
 const mocked = vi.hoisted(() => ({
 	placeRegion:
@@ -64,7 +71,12 @@ describe("hasPoints and pointSwaps", () => {
 		expect(hasPoints(doc)).toBe(true);
 		const swaps = await pointSwaps(doc);
 		expect(swaps).toEqual([
-			{ widgetId: "p", layerIndex: 0, region: { type: "zipcode", code: "93721" } }
+			{
+				widgetId: "p",
+				layerIndex: 0,
+				point: { lat: POINT.lat, lon: POINT.lon },
+				region: { type: "zipcode", code: "93721" }
+			}
 		]);
 		const [input, signal] = mocked.placeRegion.mock.calls[0];
 		expect(input).toEqual({ layer: pm25(POINT), dateRange: RANGE, worstHour: true });
@@ -142,12 +154,39 @@ describe("withSwaps", () => {
 		]);
 	});
 
-	it("leaves a layer that is no longer a point alone", () => {
-		const doc = docWith(dataWidget("p", [pm25({ kind: "monitor", id: "m1" })]));
-		const swapped = withSwaps(doc, [
-			{ widgetId: "p", layerIndex: 0, region: { type: "zipcode", code: "93721" } }
-		]);
-		expect(swapped.body.widgets[1]).toEqual(doc.body.widgets[1]);
+	it("leaves a layer that is no longer that point alone", () => {
+		const swap = {
+			widgetId: "p",
+			layerIndex: 0,
+			point: { lat: POINT.lat, lon: POINT.lon },
+			region: { type: "zipcode", code: "93721" }
+		};
+		for (const place of [{ kind: "monitor", id: "m1" } as const, { ...POINT, lat: 36.8 }]) {
+			const doc = docWith(dataWidget("p", [pm25(place)]));
+			expect(withSwaps(doc, [swap]).body.widgets[1]).toEqual(doc.body.widgets[1]);
+		}
+	});
+});
+
+describe("pointsCovered", () => {
+	it("is true only when every point now in the dashboard has its swap", async () => {
+		const doc = docWith(dataWidget("p", [pm25(POINT)]));
+		const swaps = await pointSwaps(doc);
+		expect(pointsCovered(doc, swaps)).toBe(true);
+		expect(pointsCovered(docWith(), swaps)).toBe(true);
+		// Re-picked, added elsewhere, or moved to another layer meanwhile.
+		expect(pointsCovered(docWith(dataWidget("p", [pm25({ ...POINT, lat: 36.8 })])), swaps)).toBe(
+			false
+		);
+		expect(
+			pointsCovered(docWith(dataWidget("p", [pm25(POINT)]), dataWidget("q", [pm25(POINT)])), swaps)
+		).toBe(false);
+		expect(
+			pointsCovered(
+				docWith(dataWidget("p", [pm25({ kind: "monitor", id: "m1" }), pm25(POINT)])),
+				swaps
+			)
+		).toBe(false);
 	});
 });
 
@@ -155,6 +194,7 @@ describe("summarizeSwaps and swapNotice", () => {
 	const swap = (region: { type: string; code: string } | null, widgetId = "p") => ({
 		widgetId,
 		layerIndex: 0,
+		point: { lat: POINT.lat, lon: POINT.lon },
 		region
 	});
 	const zip = { type: "zipcode", code: "93721" };

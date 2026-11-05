@@ -53,6 +53,9 @@ const workers: SyncWorker[] = [];
 afterEach(() => {
 	for (const worker of workers.splice(0)) worker.stop();
 	toast.dismiss();
+	// The next test's dialog mounts closed (an open one would look up the last test's points).
+	share.open = false;
+	share.opts = null;
 });
 
 /** A signed-out app with the Share dialog mounted. */
@@ -554,7 +557,7 @@ function pointsOffer(overrides: Partial<SharePoints> = {}) {
 		summary: { kind: "one", region: "ZIP 93721" },
 		swapped: { url: SWAPPED_URL, linkUnavailable: null, onDownload: () => downloads.swapped++ },
 		exact: { url: EXACT_URL, linkUnavailable: null, onDownload: () => downloads.exact++ },
-		useRegion() {},
+		useRegion: async () => "applied",
 		...overrides
 	};
 	return { downloads, points };
@@ -619,7 +622,14 @@ test("a failed lookup offers no link or file until Retry succeeds", async () => 
 test("Share builds the region copy from a real lookup, and a failed one waits for Retry", async () => {
 	const { memory } = await signedOut();
 	const { shareDashboard } = await import("$lib/sharing/actions");
-	const session = { readOnly: false, doc: withPoints("p"), flush: async () => {} };
+	const session = {
+		readOnly: false,
+		doc: withPoints("p"),
+		flush: async () => {},
+		get editTarget() {
+			return this;
+		}
+	};
 	const app = {
 		current: { isStarter: false, session },
 		index: { names: new Map(), items: [], deleted: [] },
@@ -666,7 +676,7 @@ test("Export always saves the region and says so", async () => {
 });
 
 test("before a live link, Use ZIP 93721 instead swaps the points in one undoable edit", async () => {
-	const { app, worker } = await signedIn({ doc: withPoints("p", "q") });
+	const { app, fake, worker } = await signedIn({ doc: withPoints("p", "q") });
 	const { shareDashboard } = await import("$lib/sharing/actions");
 	const session = (await app.sessions.get("d1"))!;
 	app.current = { session, isStarter: false };
@@ -681,6 +691,11 @@ test("before a live link, Use ZIP 93721 instead swaps the points in one undoable
 	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
 	await expect.element(liveSection().getByRole("textbox", { name: "Live link" })).toBeVisible();
 	expect(applied.mock.calls.map(([change]) => change.op)).toEqual(["replaceDocument"]);
+	// The link went on only once the swap was uploaded: the server never shows the point.
+	const server = JSON.stringify((await fake.get("d1")).body);
+	expect(server).not.toContain('"point"');
+	expect(server).not.toContain("36.7378");
+	expect(server).toContain('"zipcode"');
 	const places = () => session.doc.body.widgets.map((w) => w.data.layers[0].place);
 	expect(places()).toEqual([
 		{ kind: "region", type: "zipcode", code: "93721" },
@@ -725,4 +740,105 @@ test("with one point widget, Use ZIP 93721 instead edits only that widget's data
 	session.undo();
 	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
 	expect(session.canUndo).toBe(false);
+});
+
+test("a point re-picked after the lookup is looked up again before anything is swapped", async () => {
+	const { app, fake, worker } = await signedIn({ doc: withPoints("p") });
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = (await app.sessions.get("d1"))!;
+	app.current = { session, isStarter: false };
+	await shareDashboard(app);
+	const use = liveSection().getByRole("button", { name: "Use ZIP 93721 instead" });
+	await expect.element(use).toBeVisible();
+	expect(mocked.placeRegion).toHaveBeenCalledTimes(1);
+	// Another tab re-picks a different point meanwhile.
+	const moved = { ...POINT, lat: 36.8 };
+	const before = session.doc.body.widgets[0];
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: "p" },
+		from: before.data,
+		to: { layers: [{ ...before.data.layers[0], place: moved }] }
+	});
+	const applied = vi.spyOn(session, "apply");
+	mocked.placeRegion.mockResolvedValue({ type: "zipcode", code: "93722" });
+	await use.click();
+	await expect.poll(() => mocked.placeRegion.mock.calls.length).toBe(2);
+	expect(applied).not.toHaveBeenCalled();
+	expect(worker.states.d1?.shareToken ?? null).toBeNull();
+	expect(fake.requests).not.toContain("share d1");
+	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(moved);
+	// Found again: now it swaps the new point.
+	await liveSection().getByRole("button", { name: "Use ZIP 93721 instead" }).click();
+	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
+	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+		kind: "region",
+		type: "zipcode",
+		code: "93722"
+	});
+	expect(JSON.stringify((await fake.get("d1")).body)).not.toContain('"point"');
+});
+
+test("a live link already on: Use ZIP 93721 instead updates the server copy, keeping the link", async () => {
+	const { app, fake, worker } = await signedIn({ doc: withPoints("p") });
+	const token = (await worker.share("d1")).kind === "shared" ? worker.states.d1!.shareToken : null;
+	expect(token).toBeTruthy();
+	expect(JSON.stringify((await fake.get("d1")).body)).toContain('"point"');
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = (await app.sessions.get("d1"))!;
+	app.current = { session, isStarter: false };
+	await shareDashboard(app);
+	await expect
+		.element(liveSection().getByText("This dashboard includes your exact location."))
+		.toBeVisible();
+	await expect
+		.element(liveSection().getByRole("textbox", { name: "Live link" }))
+		.toHaveValue(liveUrl(token!));
+	await liveSection().getByRole("button", { name: "Use ZIP 93721 instead" }).click();
+	await expect
+		.poll(async () => JSON.stringify((await fake.get("d1")).body))
+		.not.toContain('"point"');
+	expect(worker.states.d1?.shareToken).toBe(token);
+	await expect
+		.element(liveSection().getByText("This dashboard includes your exact location."))
+		.not.toBeInTheDocument();
+	expect(
+		liveSection().getByRole("button", { name: "Use ZIP 93721 instead" }).elements()
+	).toHaveLength(0);
+});
+
+test("a live link already on: Share my exact location dismisses the notice for this opening", async () => {
+	const { app, fake, worker } = await signedIn({ doc: withPoints("p") });
+	await worker.share("d1");
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = (await app.sessions.get("d1"))!;
+	app.current = { session, isStarter: false };
+	await shareDashboard(app);
+	await liveSection().getByRole("button", { name: "Share my exact location" }).click();
+	await expect
+		.element(liveSection().getByText("This dashboard includes your exact location."))
+		.not.toBeInTheDocument();
+	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
+	expect(fake.requests.filter((r) => r === "share d1")).toHaveLength(1);
+});
+
+test("Use ZIP 93721 instead turns no link on when the swap couldn't be uploaded", async () => {
+	const { app, fake, worker } = await signedIn({ doc: withPoints("p") });
+	const { shareDashboard } = await import("$lib/sharing/actions");
+	const session = (await app.sessions.get("d1"))!;
+	app.current = { session, isStarter: false };
+	await shareDashboard(app);
+	const use = liveSection().getByRole("button", { name: "Use ZIP 93721 instead" });
+	await expect.element(use).toBeVisible();
+	fake.refuseNext.push({ code: "rate_limited", status: 429 });
+	await use.click();
+	await expect
+		.element(liveSection().getByText("Your area couldn't be saved to your account yet. Try again."))
+		.toBeVisible();
+	expect(worker.states.d1?.shareToken ?? null).toBeNull();
+	expect(fake.requests).not.toContain("share d1");
+	// Pressing it again retries.
+	await use.click();
+	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
+	expect(JSON.stringify((await fake.get("d1")).body)).not.toContain('"point"');
 });

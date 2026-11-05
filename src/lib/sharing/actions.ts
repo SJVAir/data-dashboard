@@ -23,6 +23,7 @@ import { parseIncoming } from "./incoming";
 import {
 	hasPoints,
 	pointSwaps,
+	pointsCovered,
 	summarizeSwaps,
 	swapNotice,
 	withSwaps,
@@ -140,15 +141,19 @@ async function copyOf(target: Target): Promise<ShareCopy> {
  * Swaps the points of `session`'s dashboard as it is now for their regions, as one undoable
  * change: `setWidgetData` when one widget has points (so edits elsewhere, from this or another
  * device, aren't touched), else one `replaceDocument` (no other single change covers several
- * widgets).
+ * widgets). Resolves once the change is stored (so an upload carries it), or `"stale"`, changing
+ * nothing, when the dashboard holds a point `swaps` doesn't cover (added or re-picked since).
  */
-function useRegions(session: DocumentSession, swaps: PointSwap[]): void {
+async function useRegions(
+	session: DocumentSession,
+	swaps: PointSwap[]
+): Promise<"applied" | "stale"> {
 	const editing = session.editTarget;
 	const doc = editing.doc;
+	if (!pointsCovered(doc, swaps)) return "stale";
 	const next = withSwaps(doc, swaps);
 	const changed = next.body.widgets.filter((w, i) => w !== doc.body.widgets[i]);
-	let change: Change;
-	if (changed.length === 0) return;
+	let change: Change | null = null;
 	if (changed.length === 1) {
 		const widget = changed[0];
 		change = {
@@ -157,7 +162,7 @@ function useRegions(session: DocumentSession, swaps: PointSwap[]): void {
 			from: doc.body.widgets.find((w) => w.id === widget.id)!.data,
 			to: widget.data
 		};
-	} else {
+	} else if (changed.length > 1) {
 		change = {
 			op: "replaceDocument",
 			target: {},
@@ -165,7 +170,9 @@ function useRegions(session: DocumentSession, swaps: PointSwap[]): void {
 			to: { name: doc.name, body: next.body }
 		};
 	}
-	editing.apply(change);
+	if (change) editing.apply(change);
+	await editing.flush();
+	return "applied";
 }
 
 export async function shareDashboard(app: AppContext, id?: string): Promise<void> {
@@ -177,22 +184,22 @@ export async function shareDashboard(app: AppContext, id?: string): Promise<void
 		openShare({ ...(await copyOf(target)), live });
 		return;
 	}
-	// Looked up each time the dialog asks (a Retry asks again).
+	const { session } = target;
+	// Looked up each time the dialog asks (a Retry asks again), on the dashboard as it is then.
 	const points = async (signal: AbortSignal): Promise<SharePoints> => {
-		const swaps = await pointSwaps(target.doc, signal);
+		const current =
+			session && !target.readOnly ? { ...target, doc: session.editTarget.doc } : target;
+		const swaps = await pointSwaps(current.doc, signal);
 		const summary = await summarizeSwaps(swaps, signal);
 		const [swapped, exact] = await Promise.all([
-			copyOf({ ...target, doc: withSwaps(target.doc, swaps) }),
-			copyOf(target)
+			copyOf({ ...current, doc: withSwaps(current.doc, swaps) }),
+			copyOf(current)
 		]);
-		const { session } = target;
 		return {
 			swapped,
 			exact,
 			summary,
-			useRegion: () => {
-				if (session) useRegions(session, swaps);
-			}
+			useRegion: async () => (session ? useRegions(session, swaps) : "stale")
 		};
 	};
 	openShare({ live, points });

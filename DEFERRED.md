@@ -559,6 +559,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Documents & saving
 
+- **Copying a shared dashboard with a point needs the network.** _Deferred 2026-11-04 (step 4
+  spec 2, Task 13 review)._ A copy made from a share (link, file, or live link) always swaps a
+  point for its region, and that lookup needs the server; offline the copy fails with the
+  generic "couldn't save" message. **Revisit on** reports of people copying shared dashboards
+  offline, or if a share starts carrying the region along with the point.
 - **Points in a newer-format dashboard's export.** _Deferred 2026-11-04 (step 4 spec 2, Task 13)._
   A read-only (newer or invalid) dashboard is exported as stored; the location-privacy swap
   finds only points in today's shape (`body.widgets[].data.layers[].place`). A future format

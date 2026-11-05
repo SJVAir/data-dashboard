@@ -21,7 +21,7 @@ import {
 	type RemoteSnapshotMeta
 } from "./remote";
 import { resolveHold, type RemoteChoice } from "./resolve";
-import { shareDocument, unshareDocument, type ShareResult } from "./share";
+import { shareDocument, unshareDocument, type ShareOptions, type ShareResult } from "./share";
 import { SYNC_TAB, type SyncHold } from "./types";
 import { deletePermanently, type DeleteResult } from "./trash";
 import { uploadDocument, type UploadResult } from "./upload";
@@ -186,10 +186,10 @@ export class SyncWorker {
 
 	/**
 	 * Uploads what's pending, then turns `docId`'s share link on (the last synced version, when
-	 * an edit couldn't upload).
+	 * an edit couldn't upload). With `opts.onlyIf`, only when the uploaded version passes it.
 	 */
-	async share(docId: string): Promise<ShareResult> {
-		const result = await shareDocument(this.#ctx, docId);
+	async share(docId: string, opts?: ShareOptions): Promise<ShareResult> {
+		const result = await shareDocument(this.#ctx, docId, opts);
 		this.states = await this.#readStates();
 		return result;
 	}

@@ -12,12 +12,21 @@ import { chartInput } from "$lib/widgets/shared/input";
 /** How long looking up the points' regions may take before it counts as failed. */
 const LOOKUP_TIMEOUT_MS = 20_000;
 
-/** A point layer's region, or `null` when it has none (the place is cleared). */
+/**
+ * A point layer's region, or `null` when it has none (the place is cleared). `point` is the
+ * point it was looked up for (in memory only): a swap applies only while the layer still holds it.
+ */
 export type PointSwap = {
 	widgetId: string;
 	layerIndex: number;
+	point: { lat: number; lon: number };
 	region: { type: string; code: string } | null;
 };
+
+/** Whether `place` is the point `swap` was looked up for. */
+function samePoint(place: Layer["place"], swap: PointSwap): boolean {
+	return place?.kind === "point" && place.lat === swap.point.lat && place.lon === swap.point.lon;
+}
 
 /** How a share's notice names where its points went. */
 export type SwapSummary =
@@ -64,6 +73,18 @@ export function hasPoints(doc: Dashboard): boolean {
 }
 
 /**
+ * Whether `swaps` covers every point `doc` holds now (same widget, layer, and point): false when
+ * one was added, re-picked, or moved since the lookup, so the lookup has to run again.
+ */
+export function pointsCovered(doc: Dashboard, swaps: PointSwap[]): boolean {
+	return pointLayers(doc).every(({ widget, layer, layerIndex }) =>
+		swaps.some(
+			(s) => s.widgetId === widget.id && s.layerIndex === layerIndex && samePoint(layer.place, s)
+		)
+	);
+}
+
+/**
  * Each point layer's region (via `placeRegion`: the widget's own query, so the region it shows
  * now); rejects when a lookup fails, `signal` aborts, or 20 seconds pass. A point layer without
  * an entry type shows nothing, so it has no region.
@@ -80,7 +101,8 @@ export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<
 				// The widget's query for this layer alone (a point is a single place).
 				const { input } = chartInput({ ...widget.data, layers: [layer] }, undefined, 1);
 				const region = input ? await placeRegion(input, timed.signal) : null;
-				return { widgetId: widget.id, layerIndex, region };
+				const { lat, lon } = layer.place as Extract<Layer["place"], { kind: "point" }>;
+				return { widgetId: widget.id, layerIndex, point: { lat, lon }, region };
 			})
 		);
 	} finally {
@@ -91,11 +113,11 @@ export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<
 /** A copy of `doc` with each point replaced by its region, or the place cleared when `region` is null. */
 export function withSwaps(doc: Dashboard, swaps: PointSwap[]): Dashboard {
 	if (swaps.length === 0) return doc;
-	const byWidget = new Map<string, Map<number, PointSwap["region"]>>();
-	for (const { widgetId, layerIndex, region } of swaps) {
-		const layers = byWidget.get(widgetId) ?? new Map();
-		layers.set(layerIndex, region);
-		byWidget.set(widgetId, layers);
+	const byWidget = new Map<string, Map<number, PointSwap>>();
+	for (const swap of swaps) {
+		const layers = byWidget.get(swap.widgetId) ?? new Map<number, PointSwap>();
+		layers.set(swap.layerIndex, swap);
+		byWidget.set(swap.widgetId, layers);
 	}
 	return {
 		...doc,
@@ -109,9 +131,10 @@ export function withSwaps(doc: Dashboard, swaps: PointSwap[]): Dashboard {
 					data: {
 						...widget.data,
 						layers: widget.data.layers.map((layer, i) => {
-							// Only a layer that is still a point (it may have changed since the lookup).
-							if (!regions.has(i) || layer.place?.kind !== "point") return layer;
-							const region = regions.get(i);
+							// Only a layer still holding the point looked up (it may have changed since).
+							const swap = regions.get(i);
+							if (!swap || !samePoint(layer.place, swap)) return layer;
+							const { region } = swap;
 							// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
 							const { place, ...rest } = layer;
 							return region ? { ...rest, place: { kind: "region" as const, ...region } } : rest;
