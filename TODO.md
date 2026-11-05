@@ -1179,7 +1179,7 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    path, and with exactly one place picked, of any kind, a school or "your location" replaces
    it). E2E: `e2e/place-picker.spec.ts`. Stack check against `develop`: "fre" and "roo" searches,
    ZIP Codes in Tulare County, Roosevelt High's chart (ZIP 93702), and a scripted position
-   (ZIP 93721). Its deferrals are in `DEFERRED.md`. After
+   (ZIP 93721). The user approved its new share and picker wording 2026-11-05. Its deferrals are in `DEFERRED.md`. After
    the merge, `prompt-map-widget.txt` (untracked) was refreshed for the Map widget session.
 3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
    how to show it, then Add to dashboard or Download CSV).
