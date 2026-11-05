@@ -6,6 +6,7 @@
 	import type { PlaceRef } from "$lib/data/schema";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { GeoResult } from "$lib/platform/types";
+	import BrowsePanel from "./BrowsePanel.svelte";
 	import type { PlaceDirectory } from "./directory";
 	import { errorText, PickerState, refKey } from "./picker-state.svelte";
 	import ResultList from "./ResultList.svelte";
@@ -194,7 +195,14 @@
 			>
 				{m.place_picker_browse()}
 			</h2>
-			<!-- Task 11: the Browse panel (region types and Monitors) renders here. -->
+			<BrowsePanel
+				{picker}
+				{directory}
+				entryType={purpose.entryType}
+				{activeOnly}
+				{multiple}
+				id={browseId}
+			/>
 		</section>
 	{/if}
 

@@ -121,19 +121,22 @@ export class PickerState {
 			.map(({ key, options }) => ({
 				key,
 				label: groupLabel(key),
-				rows: options.map((option, i) => {
-					const ref = refOf(option);
-					const reason = blockReason(this.picks, ref, ctx.mode);
-					return {
-						id: `${this.#idBase}-${key}-${i}`,
-						option,
-						ref,
-						reason: reason ? this.reasonText(reason) : null,
-						selected: this.picks.some((p) => refKey(p) === refKey(ref))
-					};
-				})
+				rows: options.map((option, i) => this.rowFor(option, `${this.#idBase}-${key}-${i}`))
 			}));
 	});
+
+	/** The row for an option, with its block reason and whether it's picked. */
+	rowFor(option: PlaceOption, id: string): Row {
+		const ref = refOf(option);
+		const reason = blockReason(this.picks, ref, this.#ctx().mode);
+		return {
+			id,
+			option,
+			ref,
+			reason: reason ? this.reasonText(reason) : null,
+			selected: this.picks.some((p) => refKey(p) === refKey(ref))
+		};
+	}
 
 	rows: Row[] = $derived(this.sections.flatMap((s) => s.rows));
 	active: Row | null = $derived(this.rows[this.activeIndex] ?? null);
