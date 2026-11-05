@@ -1832,3 +1832,9 @@ Dropped 2026-10-29 by the user (spec 2b review notes, closed as already covered 
   pins that the history state survives the rewrite, and the E2E covers Back.
 - **Reduced-motion check inspects only the frame's animations; two-tab test's order relies
   on widget id.** Only the frame animates, and the id tie-break is the spec's rule.
+
+Dropped 2026-11-05 by the user (monitor-map 5.0 spec):
+
+- **monitor-map: cancelling one-off loads** (deferred 2026-10-21, monitor-map SDK 4.7 design).
+  Closed because HMS smoke and fire and collocation sites move to map-sdk's load-once stores in
+  5.0, which already handle a caller's cancel; they still load once.
