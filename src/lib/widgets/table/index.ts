@@ -1,6 +1,5 @@
 import Table from "@lucide/svelte/icons/table";
 import { m } from "$lib/paraglide/messages.js";
-import { DEFAULT_LAYER, DEFAULT_RANGE } from "../defaults";
 import type { WidgetType } from "../registry";
 
 export const DATA_TABLE_TYPE = "data-table";
@@ -16,12 +15,12 @@ export const dataTableType: WidgetType = {
 	thresholds: false,
 	analyzable: true,
 	downloadable: true,
-	accepts: { maxPollutantLayers: 1, maxPlaces: 10 },
+	accepts: {
+		datasets: ["air-quality", "forecasts"],
+		maxPollutantLayers: 1,
+		maxPlaces: 10
+	},
 	// Type-specific items only; the widget frame adds the common widget actions.
 	menu: () => [],
-	load: () => import("./module"),
-	addable: () => ({
-		dateRange: structuredClone(DEFAULT_RANGE),
-		layers: [structuredClone(DEFAULT_LAYER)]
-	})
+	load: () => import("./module")
 };

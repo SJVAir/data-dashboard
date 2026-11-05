@@ -32,7 +32,10 @@ export type WidgetType = {
 	menu: MenuProvider;
 	/** A dynamic `import()` of the type's code; `loadWidget` caches it after the first call. */
 	load: () => Promise<WidgetModule>;
-	/** Offered in Add widget until the Data Explorer (spec 3): a new widget's data. */
+	/**
+	 * A direct add: Add widget lists the type (after the data types) and adds it with this data.
+	 * Data types (those with `accepts.datasets`) go through Get data instead.
+	 */
 	addable?: () => WidgetDataConfig;
 };
 
@@ -48,9 +51,14 @@ export function getWidgetType(type: string): WidgetType | undefined {
 	return types.get(type);
 }
 
-/** The types offered in Add widget, in registration order. */
+/** The non-data types Add widget adds directly, in registration order. */
 export function addableWidgetTypes(): WidgetType[] {
 	return [...types.values()].filter((t) => t.addable);
+}
+
+/** The types that take data from Get data (any `accepts.datasets`), in registration order. */
+export function dataTypes(): WidgetType[] {
+	return [...types.values()].filter((t) => (t.accepts?.datasets?.length ?? 0) > 0);
 }
 
 /**

@@ -20,7 +20,7 @@ import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
-import { addableWidgetTypes, getWidgetType } from "$lib/widgets/registry";
+import { addableWidgetTypes, dataTypes, getWidgetType } from "$lib/widgets/registry";
 import { navigate } from "../../router";
 import type { MenuProvider } from "./types";
 
@@ -81,6 +81,16 @@ async function openDashboard(id: string, replace = false): Promise<void> {
 async function goHome(target: HomeTarget): Promise<void> {
 	if (target.kind === "dashboard") await openDashboard(target.id, true);
 	else await navigate("/", { replace: true });
+}
+
+/** Opens Get data to build a new widget of data type `type` for the current dashboard. */
+export function startGetData(app: AppContext, type: string): void {
+	const { session, isStarter } = app.current;
+	if (!session) return;
+	void navigate("/dashboards/:id/widgets/new", {
+		params: { id: isStarter ? STARTER_ID : session.doc.id },
+		search: { type }
+	});
 }
 
 /**
@@ -283,20 +293,24 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 			session !== null &&
 			!session.readOnly &&
 			(session.hasOriginal || app.sync?.states[session.doc.id]?.onServer === true);
-		const addable = addableWidgetTypes();
+		// Data types open Get data; the others are added directly.
+		const entries = [
+			...dataTypes().map((t) => ({ type: t, run: () => startGetData(app, t.type) })),
+			...addableWidgetTypes().map((t) => ({ type: t, run: () => addWidget(app, t.type) }))
+		];
 		return [
 			{
 				id: "add-widget",
 				label: m.add_widget(),
 				icon: Plus,
 				group: "add",
-				disabled: locked || addable.length === 0,
-				children: addable.map((t) => ({
+				disabled: locked || entries.length === 0,
+				children: entries.map(({ type: t, run }) => ({
 					id: `add-widget-${t.type}`,
 					label: t.label(),
 					icon: t.icon,
 					group: "add",
-					run: () => addWidget(app, t.type)
+					run
 				})),
 				run: () => {}
 			},
