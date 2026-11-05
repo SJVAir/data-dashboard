@@ -4,7 +4,6 @@
 	import Download from "@lucide/svelte/icons/download";
 	import { Button } from "$lib/components/ui/button";
 	import { csvPending, saveWidgetCsv } from "$lib/data/csv";
-	import { getContext } from "svelte";
 	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { levelFor } from "$lib/data/metadata";
@@ -15,14 +14,12 @@
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { dataTableType } from "./index";
-	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import { placeLabel } from "../title";
 	import { sortRows, wideRows } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
 	const app = useApp();
-	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 	const MAX_PLACES = dataTableType.accepts?.maxPlaces ?? 10;
 	/**
 	 * "Wide enough" for the extra columns: the widget body is as wide as six grid columns. The grid
@@ -101,7 +98,7 @@
 								void saveWidgetCsv(
 									widget,
 									(name, contents, type) => app.platform.files.save(name, contents, type),
-									viewer
+									w.viewer
 								)}
 						>
 							<Download aria-hidden="true" />
@@ -122,7 +119,7 @@
 									{#each data.places as place, i (place.place)}
 										{@render head(
 											i,
-											m.table_place_value({ place: placeLabel(place, viewer), unit })
+											m.table_place_value({ place: placeLabel(place, w.viewer), unit })
 										)}
 									{/each}
 									{#if extra.worst}

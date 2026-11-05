@@ -13,6 +13,7 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PM25_LEVELS, chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
+import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import DataTable from "./DataTable.svelte";
 
@@ -50,7 +51,7 @@ function tableWidget(ids: string[]): WidgetInstance {
 	return { ...chartWidget(ids), type: "data-table" };
 }
 
-async function show(widget: WidgetInstance) {
+async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"
@@ -58,7 +59,10 @@ async function show(widget: WidgetInstance) {
 	return render(DataTable, {
 		target: frame,
 		props: { widget },
-		context: new Map([[APP_CONTEXT_KEY, app]])
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, app],
+			...(viewer ? [[PLACE_VIEWER_KEY, viewer] as const] : [])
+		])
 	});
 }
 
@@ -208,4 +212,33 @@ test("a partial period is marked in text", async () => {
 	await show(tableWidget(["m1"]));
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
 	expect(frame.querySelector("tbody tr th")!.textContent).toContain(m.table_partial());
+});
+
+test("a point place's column header says whose location it is", async () => {
+	for (const [viewer, label] of [
+		[undefined, "ZIP 93721 (your location)"],
+		["shared", "ZIP 93721 (shared location)"]
+	] as const) {
+		const base = fakeAdapter(requests);
+		fake.client = createQueryClient({
+			adapters: [
+				{
+					...base,
+					async fetch(req, ctx, signal) {
+						const data = await base.fetch(req, ctx, signal);
+						return {
+							...data,
+							places: data.places.map((p) => ({ ...p, name: "ZIP 93721", via: { kind: "point" } }))
+						};
+					}
+				}
+			],
+			metadata: fake.metadata!,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const screen = await show(tableWidget(["m1"]), viewer);
+		await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+		expect(frame.querySelector("thead")!.textContent).toContain(label);
+		await screen.unmount();
+	}
 });

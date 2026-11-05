@@ -22,6 +22,8 @@ export class DataWidget {
 	#levelsTry = $state(0);
 	readonly #query: LiveQuery;
 
+	/** Who is looking: labels for points read "your location" or "shared location". */
+	readonly viewer: PlaceViewer;
 	readonly picked;
 	readonly meta;
 	/** The query's state, held as loading until the levels are in, or an error if they failed. */
@@ -31,6 +33,7 @@ export class DataWidget {
 
 	constructor(widget: () => WidgetInstance, maxPlaces: number) {
 		const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
+		this.viewer = viewer;
 		const metadata = getMetadata();
 		// Never rejects (an unreachable catalog is "unavailable", which the query reports itself).
 		void metadata.catalog().then((c) => {

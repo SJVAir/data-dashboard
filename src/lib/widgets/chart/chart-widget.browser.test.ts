@@ -14,6 +14,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import ChartWidget from "./ChartWidget.svelte";
 import { chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
@@ -48,7 +49,7 @@ beforeEach(async () => {
 
 afterEach(() => frame.remove());
 
-async function show(widget: WidgetInstance) {
+async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"
@@ -56,7 +57,10 @@ async function show(widget: WidgetInstance) {
 	return render(ChartWidget, {
 		target: frame,
 		props: { widget },
-		context: new Map([[APP_CONTEXT_KEY, app]])
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, app],
+			...(viewer ? [[PLACE_VIEWER_KEY, viewer] as const] : [])
+		])
 	});
 }
 
@@ -215,4 +219,32 @@ test("values show with the catalog's precision", async () => {
 	await expect
 		.poll(() => frame.querySelector("[aria-live='polite']")?.textContent ?? "")
 		.toContain("5.0 µg/m³");
+});
+
+test("the key names a point place by its source, as the title does", async () => {
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				async fetch(req, ctx, signal) {
+					const data = await base.fetch(req, ctx, signal);
+					return {
+						...data,
+						places: data.places.map((p) => ({ ...p, name: "ZIP 93721", via: { kind: "point" } }))
+					};
+				}
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	const screen = await show(widget, "shared");
+	await expect
+		.poll(() => generatedTitle(widget.id))
+		.toBe("PM2.5 · ZIP 93721 (shared location) · Last 30 days");
+	await expect
+		.element(screen.getByRole("group", { name: "Chart of ZIP 93721 (shared location)" }))
+		.toBeVisible();
 });

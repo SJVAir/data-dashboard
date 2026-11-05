@@ -7,6 +7,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
+	import { placeLabel } from "../title";
 	import { chartType } from "./index";
 
 	let { widget }: { widget: WidgetInstance } = $props();
@@ -40,7 +41,7 @@
 					{data}
 					levels={w.levelList}
 					unit={w.meta?.entryType.units ?? ""}
-					placeNames={new Map(data.places.map((p) => [p.place, p.name]))}
+					placeNames={new Map(data.places.map((p) => [p.place, placeLabel(p, w.viewer)]))}
 					xRange={xRange(data)}
 					precision={w.meta?.entryType.precision ?? null}
 					yMin={w.meta?.entryType.yMin ?? null}
