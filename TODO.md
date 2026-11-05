@@ -20,7 +20,7 @@ spec docs until it merges into `main` (the user, 2026-11-04); **each step 4 spec
 | **Design pass** — ✅ done, on `main` 2026-11-04 (#33, #34)                                                                                                                                                                                   | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1: design pass"  |
 | **Step 3, second batch** (metadata) — specs 1–4, the summaries fix and SDK entry bounds merged (SDK 5.0.0-beta.2); cleanup (spec 5) and the picker's server changes merged (#306–#308); SDK beta.3 (#45 plus a stacked PR) next (2026-11-04) | `../sjvair.com`   | `sjvair.com`, `../sdk-js`     | "Work breakdown" → "Release 1, step 3" below |
 | **Step 5, part 1: `map-sdk`** — ✅ milestone 1 merged 2026-11-04 (map-sdk #1); on SDK 5.0.0-beta.2 (#2); milestone 2 spec and plan merged (#3); build in progress (2026-11-04)                                                               | `../map-sdk`      | `map-sdk` (reads monitor-map) | "Work breakdown" → "Release 1, step 5" below |
-| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; spec 1 merged into `step-4` (#36), spec 2 (place picker) next (2026-11-04)                                                                                          | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
+| **Step 4: Widget Creation and non-map widgets** — 6 specs into `step-4`; specs 1–2 merged into `step-4` (#36, #38), spec 3 (Data Explorer) next (2026-11-05)                                                                                 | `data-dashboard`  | this repo                     | "Work breakdown" → "Release 1, step 4" below |
 
 **Docs rules for the other sessions** (only the data-dashboard session edits this checkout):
 
@@ -1162,8 +1162,8 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    cache headers right, the chart spans the whole range with gaps where local data is missing.
    Its `ARCHITECTURE.md` and `DEFERRED.md` changes are on `step-4` and reach `main` when
    `step-4` merges.
-2. The **shared place picker** — **built on `step-4-spec-2`** (2026-11-04; not merged yet, its
-   PR into `step-4` comes after the final review): spec
+2. The **shared place picker** — **merged into `step-4` 2026-11-05**
+   ([#38](https://github.com/SJVAir/data-dashboard/pull/38), with the user's yes): spec
    `docs/superpowers/specs/2026-11-04-step-4-spec-2-place-picker-design.md`, plan
    `docs/superpowers/plans/2026-11-04-step-4-spec-2-place-picker.md`. Built: SDK pinned exactly
    to `5.0.0-beta.3` (`exact` dropped; the user approved the beta.3 pin 2026-11-05);
@@ -1180,7 +1180,7 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    it). E2E: `e2e/place-picker.spec.ts`. Stack check against `develop`: "fre" and "roo" searches,
    ZIP Codes in Tulare County, Roosevelt High's chart (ZIP 93702), and a scripted position
    (ZIP 93721). Its deferrals are in `DEFERRED.md`. After
-   the merge: rewrite `prompt-map-widget.txt` and tell the coordinator.
+   the merge, `prompt-map-widget.txt` (untracked) was refreshed for the Map widget session.
 3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
    how to show it, then Add to dashboard or Download CSV).
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
