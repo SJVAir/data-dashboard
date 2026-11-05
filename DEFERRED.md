@@ -797,6 +797,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   region list's `also_in` 1%-of-area rule (measure search time first; the per-row area math is
   the cost).
 
+- **The Census Bureau's short name for census tracts.** _Deferred 2026-11-05 (sjvair.com region
+  display names, the user)._ A tract's display name is its full code, "Census Tract
+  06019000100", from the `regions/meta/` `name_template` "Census Tract {name}". The Bureau's
+  own form, "Census Tract 1, Fresno County", is friendlier, but a pattern around `{name}` can't
+  produce it, and the short number alone is ambiguous: 274 short tract numbers repeat across the
+  eight counties locally. The server already has the parts (each tract's `metadata` holds
+  `namelsad` and `countyfp`). **Revisit when** tracts show up in resident-facing views (picker
+  results, starter dashboards) or users ask what a tract code means: the server would then
+  send a computed name for each tract.
+
 - **Region GeoJSON lookups beyond about 10 requests.** _Deferred 2026-11-04 (step 3 spec 4,
   the user)._ `getRegionsGeoJSON` (and the by-code lookups) send one request per 100 codes,
   concurrently; all 2020 tracts (~980) is about 10. A whole area doesn't need codes at all
