@@ -16,13 +16,16 @@
 	let {
 		picks,
 		names,
+		namesSettled,
 		max,
 		purpose,
 		onchange
 	}: {
 		picks: Picks;
-		/** The places' names once the preview's data has them; `null` while loading. */
+		/** The places' names from the preview's latest data; `null` before it has any. */
 		names: string[] | null;
+		/** No names are coming (the query failed or can't run): show the count instead. */
+		namesSettled: boolean;
 		/** The chosen widget type's `accepts.maxPlaces`. */
 		max: number;
 		purpose: { dataset: string; entryType: string };
@@ -48,7 +51,7 @@
 
 	const summary = $derived.by(() => {
 		if (names && names.length > 0) return formatList(names);
-		if (picks.length > 1) {
+		if (picks.length > 1 || namesSettled) {
 			return m.get_data_places_count({
 				count: formatNumber(picks.length),
 				countValue: picks.length

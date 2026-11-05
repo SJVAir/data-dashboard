@@ -187,7 +187,6 @@
 				<Input
 					type="number"
 					inputmode="numeric"
-					min="2000"
 					max={todayPacific(now).slice(0, 4)}
 					class={inputClass}
 					value={setSpec.start.slice(0, 4)}

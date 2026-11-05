@@ -106,6 +106,14 @@
 		return detailChoices(meta.entryType, range, picks.length, type?.resolution, now);
 	});
 
+	// A detail level the range or places can no longer serve goes back to Automatic.
+	$effect(() => {
+		const level = main?.resolution;
+		if (!choices || !level || level === "auto") return;
+		const choice = choices.find((c) => c.level === level);
+		if (!choice || choice.blocked) untrack(() => setDetail("auto"));
+	});
+
 	const previewWidget = $derived<WidgetInstance>({
 		id: PREVIEW_ID,
 		type: plain.type,
@@ -119,9 +127,20 @@
 	// Where, the overlays' series for "Overlay for", and when the data has settled.
 	const data = new DataWidget(() => previewWidget, LIMITS.SELECTION_MAX);
 
-	const names = $derived(
-		data.shown.status === "ready" ? data.shown.data.places.map((p) => placeLabel(p, "owner")) : null
-	);
+	// The last data's names stay up while another range or type loads (a new query starts with
+	// no data); they're dropped once the places change.
+	const picksKey = $derived(JSON.stringify(picks));
+	let lastNames = $state.raw<{ key: string; names: string[] } | null>(null);
+	$effect(() => {
+		const shown = data.shown;
+		if (!("data" in shown) || !shown.data) return;
+		const names = shown.data.places.map((p) => placeLabel(p, "owner"));
+		const key = untrack(() => picksKey);
+		lastNames = { key, names };
+	});
+	const names = $derived(lastNames?.key === picksKey ? lastNames.names : null);
+	/** No names are coming: the query failed or can't run. */
+	const namesSettled = $derived(data.shown.status !== "loading");
 
 	/** "Overlay for": a Chart choice, only when the places' overlays differ (different zones). */
 	const overlayFor = $derived.by(() => {
@@ -251,6 +270,7 @@
 					<WhereControl
 						{picks}
 						{names}
+						{namesSettled}
 						max={type?.accepts?.maxPlaces ?? 1}
 						purpose={{ dataset: main.dataset, entryType: main.entryType }}
 						onchange={setPlaces}

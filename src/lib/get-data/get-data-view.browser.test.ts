@@ -67,6 +67,8 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 		offered: (base) => base,
 		async fetch(req): Promise<QueryData> {
 			requests.push(req);
+			if (fetchMode === "fail") throw new Error("offline");
+			if (fetchMode === "hang") await new Promise(() => {});
 			const keys =
 				req.target.kind === "monitors" ? req.target.ids : (req.target as { keys: string[] }).keys;
 			const start = req.range.start.getTime();
@@ -98,6 +100,8 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 let requests: AdapterRequest[];
 let forecastRequests: AdapterRequest[];
 let missingForecasts: string[];
+/** How the air-quality fake answers: normally, never, or with an error. */
+let fetchMode: "ok" | "hang" | "fail";
 
 function makeClient(): void {
 	const regions: RegionResolver = { resolve: async () => "unsupported" };
@@ -113,6 +117,7 @@ beforeEach(async () => {
 	requests = [];
 	forecastRequests = [];
 	missingForecasts = [];
+	fetchMode = "ok";
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 });
@@ -338,4 +343,35 @@ test("Download CSV saves the draft's data", async () => {
 	const files = platform.files as unknown as { saved: { name: string; contents: string }[] };
 	await expect.poll(() => files.saved.length).toBe(1);
 	expect(files.saved[0].contents).toContain("pm25");
+});
+
+test("a refetch keeps the place names; a failed query shows the count", async () => {
+	const { host } = await show();
+	const summary = page.getByTestId("where-summary");
+	await expect.element(summary).toHaveTextContent("Fresno County");
+	await drawn(host);
+	fetchMode = "hang";
+	const before = requests.length;
+	await chooseDates("Last 7 days");
+	await expect.poll(() => requests.length).toBeGreaterThan(before);
+	await expect.element(summary).toHaveTextContent("Fresno County");
+	host.remove();
+
+	fetchMode = "fail";
+	makeClient();
+	await show();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("1 place");
+});
+
+test("a detail level the new range can't serve goes back to Automatic", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
+	const { current } = await show(draft);
+	await page.getByRole("button", { name: "More options" }).click();
+	await page.getByRole("radio", { name: "Hourly" }).click();
+	expect((await current()).data.layers[0].resolution).toBe("hour");
+	await chooseDates("Last 90 days");
+	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
+	await expect.element(page.getByRole("radio", { name: "Hourly" })).toBeDisabled();
+	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
 });
