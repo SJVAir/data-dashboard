@@ -1131,16 +1131,16 @@ research in `docs/reference/pesticides-explorer-research.md`).
   sessions running sjvair.com's pytest at once drop each other's `test_sjvair` database; give
   each run its own by overriding `DATABASE_URL`'s database name.
 
-- **Region display names** (asked for by step 4 spec 2; the user's decisions, 2026-11-05):
+- ✅ **Region display names** (asked for by step 4 spec 2; the user's decisions, 2026-11-05):
   `regions/meta/` types carry `name_template`: `"ZIP {name}"`, `"Census Tract {name}"`,
   `"{name} Urban Area"`, `"{name} AB 617 Community"`, `null` for every other type (cities, CDPs
   and the rest show their plain name). The SDK adds the field and
   `regionDisplayName(region, meta)`; region rows don't change. The Census Bureau's short tract
-  name is deferred (`DEFERRED.md` → "Map & selection"). **Status (2026-11-05): PRs open,
-  sjvair.com [#309](https://github.com/SJVAir/sjvair.com/pull/309) into `develop` and sdk-js
-  [#50](https://github.com/SJVAir/sdk-js/pull/50) into `release/5.0.0`; tests pass, final review
-  clean.** Next, each with the user's yes: merge both, then `5.0.0-beta.4` (also ships #48), which
-  step 4 (data-dashboard-13) pins. Specs and plan in sjvair.com and sdk-js
+  name is deferred (`DEFERRED.md` → "Map & selection"). **Status (2026-11-05): ✅ merged with the user's yes, sjvair.com
+  [#309](https://github.com/SJVAir/sjvair.com/pull/309) into `develop` (0a603d90) and sdk-js
+  [#50](https://github.com/SJVAir/sdk-js/pull/50) into `release/5.0.0` (a617499); not in a
+  published beta or production yet.** Next, with the user's yes: `5.0.0-beta.4` (also ships #48),
+  which step 4 (data-dashboard-13) pins. Specs and plan in sjvair.com and sdk-js
   `docs/superpowers/specs|plans/2026-11-05-region-name-templates*`.
 
 - ✅ Clean up hardcoded values in sjvair.com once the metadata exists. The map cleanup folds
