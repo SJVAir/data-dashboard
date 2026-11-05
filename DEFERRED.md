@@ -433,6 +433,18 @@ string`) now get the union return type. The mobile app passes a string token, so
     adds to it. Use the rollup tasks with a scope, one monitor and one region first, then the
     wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
     "Deploy notes"; never unscoped bulk commands).
+  - **CIMIS re-stamp, then weather summaries (sjvair.com #313), after the deploy, in order.**
+    #313 stamps CIMIS readings at the start of their hour in fixed PST (UTC−8); readings stored
+    before the deploy keep the old end-of-hour stamps until re-stamped (no double rows in
+    between). Each step is scoped to one station; the user's yes before the first.
+    1. Per CIMIS station (all 23, largest first; avoid :40–:50 past the hour, when the live
+       import runs at :45): `heroku run -a <app> -- python manage.py restamp_cimis --monitor
+<id> --dry-run`, then the same without `--dry-run`. It runs from the station's first
+       stored date through today, aborts that station without writing if CIMIS returns no
+       labels for a stored date, and a re-run is safe (also after a collision with the live
+       import).
+    2. Once all 23 are re-stamped, per station: `heroku run -a <app> -- python manage.py
+rebuild_summaries <first CIMIS date> <today> --monitor <id> --monitors-only`.
   - **Summaries repair (sjvair.com #305):** findings 2 and 3 of the 2026-11-03 rollup report.
     Production has backfill rows stamped an hour early (some correctly stamped months,
     quarters, seasons and years also hold one extra row), seasons starting May 1 from the old
