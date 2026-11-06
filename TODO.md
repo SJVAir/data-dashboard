@@ -1218,6 +1218,10 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    `e2e/get-data.spec.ts`. Stack check against `develop` (local forecasts start 2026-10-20, so
    October 2026, not January): Fresno County PM2.5 with burn status, ZIP 93702 reads "ZIP
    93702", and the CSV has the overlay rows. Its deferrals are in `DEFERRED.md`.
+   3b. **Get data layers** (added by the user 2026-11-05; next, before spec 4): pin `@sjvair/sdk`
+   `5.0.0-beta.5` (published 2026-11-05) and add the four layers the Get data layers track
+   delivered: monthly pesticide use, nearest weather station, smoke per day, and weather
+   summaries (`DEFERRED.md` → "Get data overlays waiting on the 'Get data layers' track").
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
 5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
 6. Notes and the starter dashboard.

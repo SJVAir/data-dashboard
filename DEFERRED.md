@@ -1369,26 +1369,26 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   becomes a layer in Get data in a later change. Don't start a second track for them. One
   entry each. **Status (2026-11-05, end of day):** all four server PRs (#310–#313) are merged
   into sjvair.com `develop` (`bd071d24`) and run on the local stack, and the SDK side (sdk-js
-  #51–#54, including `sum`) is merged into `release/5.0.0`. All four wait only for the next SDK
-  beta (likely `5.0.0-beta.5`, which needs the user's yes). Details:
+  #51–#54, including `sum`) is merged into `release/5.0.0`. **`@sjvair/sdk` `5.0.0-beta.5` was
+  published 2026-11-05 with all four**, so they wait only on **step 4 spec 3b** (the user,
+  2026-11-05: a new spec right after spec 3 that pins beta.5 and adds these layers). Details:
   - **Monthly pesticide use.** Server `pesticides/place/` merged into sjvair.com `develop`
     (#310); SDK `getPesticidesForPlace(place, filters?, options?)` merged into sdk-js
     `release/5.0.0` (#51). Waits only for the next SDK beta (latest published: 5.0.0-beta.4).
     Shape: `{place, months: [{year, month, pounds, acres, applications}]` (only months with
     use), `years: [{…, undated: {…}}]}`; a year's totals include undated use. A cold, large
     multi-county answer takes about 5 s, then it's cached. A monitor counts through its ZIP
-    (one outside every ZIP gets empty lists). **Revisit when** an SDK beta with
-    `getPesticidesForPlace` is published.
+    (one outside every ZIP gets empty lists). **Revisit in** step 4 spec 3b.
   - **Nearest weather station.** Server `monitors/weather/place/` (sjvair.com #311); SDK
     `getWeatherStationsForPlace` and the CIMIS entry type ids (sdk-js #52). Open question
     for when the layer is built: **which station the chart uses when several are inside the
     place.** `is_active` uses a 4-hour CIMIS limit, so don't hide a listed inactive station. Raw
-    dewpoint and soil temperature carry `*_f`/`*_c` fields, not `value`. **Revisit when** the
-    next SDK beta is published.
+    dewpoint and soil temperature carry `*_f`/`*_c` fields, not `value`. **Revisit in** step 4
+    spec 3b.
   - **Smoke over a place, per day.** Server `hms/smoke/place/` (sjvair.com #312); SDK
     `getSmokeForPlace` (sdk-js #53). At most 366 days per request. Caveat: "no smoke" and
     "never fetched" look the same (a server deferral), so expect false clear days locally.
-    **Revisit when** the next SDK beta is published.
+    **Revisit in** step 4 spec 3b.
   - **Weather daily and monthly summaries.** sjvair.com #313; SDK `sum` on monitor summaries
     (sdk-js #54). CIMIS stations only, monitor-level (no region rows), 11 entry types
     (not wind direction). Fetch one station at a time (the bulk summaries stay air-quality
@@ -1397,7 +1397,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     CIMIS raw timestamps move to the start of the hour in fixed PST, so winter readings move one
     hour earlier. `rebuild_summaries` writes only finished periods (the user, 2026-11-05), so the
     open month or year must be built from finer rows (the air-quality adapter's `planSegments`
-    already does this), including `sum` totals. **Revisit when** the next SDK beta is published.
+    already does this), including `sum` totals. **Revisit in** step 4 spec 3b.
 - **Air monitors' temperature and humidity as Get data overlays.** _Deferred 2026-11-05 (step 4
   spec 3)._ They stay unsummarized on the server (raw readings only), so the weather summaries
   work (CIMIS stations only) doesn't bring them. **Revisit if** the server summarizes them, or a
