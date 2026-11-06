@@ -1302,12 +1302,11 @@ The checklist below is the whole step's scope.
     (4dd7ec6). No fire gap on the globe around zoom 10 (`zoomRange` switches on the camera zoom),
     and collocation tooltips win under monitor cluster bubbles (clicks still blocked). The third
     report (plugin effects stopping when added from a host `$effect`) is in `DEFERRED.md`.
-  - **Frameless `Legend` and list detail (monitor-map requests, 2026-11-05):** spec and plan
-    approved by the user; built; [map-sdk #8](https://github.com/SJVAir/map-sdk/pull/8) open,
-    awaiting the user's merge yes. `Legend` `framed?: boolean` (default `true`);
-    `FeatureListItem.detail?: string` shown in place of "No level" in the list, its accessible
-    name and map-sdk's tooltip (a level always wins); `pointsPlugin` `detail(props)`. Then
-    `0.1.0-beta.2` through `release.yml`, the user's call.
+  - **✅ Frameless `Legend` and list detail merged 2026-11-06:**
+    [map-sdk #8](https://github.com/SJVAir/map-sdk/pull/8) (7676f00). `Legend` `framed?: boolean`
+    (default `true`); `FeatureListItem.detail?: string` shown in place of "No level" in the list,
+    its accessible name and map-sdk's tooltip (a level always wins); `pointsPlugin`
+    `detail(props)`. Next: `0.1.0-beta.2` through `release.yml`, only with the user's own yes.
   - **✅ First publish 2026-11-05:** `@sjvair/map-sdk@0.1.0-beta.1` on npm (`next`; npm also
     points `latest` at it, as the only release), published by hand by the user after the release
     prep PR ([map-sdk #6](https://github.com/SJVAir/map-sdk/pull/6): version, `prepack` build,
