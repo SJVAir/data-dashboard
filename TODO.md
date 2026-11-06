@@ -1068,21 +1068,15 @@ research in `docs/reference/pesticides-explorer-research.md`).
   tract detail); `getRegionDetails` `buffer` with the choices in `regions/meta/` `buffers`; and
   the `api-urls.md` fixes. Breaking for 4.7.0 callers: `getHMSSmoke`, `getHMSFire` and
   `getRegionDetails` take a query before `options` (the user, 2026-11-04).
-- **Get data layers** (sjvair.com + sdk-js, session sjvair-com-21; asked for by step 4 spec 3;
-  specs and plans in sjvair.com `docs/superpowers/specs|plans/2026-11-05-*`). Each item ships on
-  its own; no beta cut yet (each needs the user's yes).
-  - ✅ Monthly pesticide use for a place, `pesticides/place/`: **merged** (sjvair.com #310 into
-    `develop`; sdk-js #51 `getPesticidesForPlace` into `release/5.0.0`).
-  - Weather stations near a place, `monitors/weather/place/`: SDK **merged** (sdk-js #52
-    `getWeatherStationsForPlace` + the CIMIS entry types); server **PR open** (sjvair.com #311).
-  - Smoke over a place per day, `hms/smoke/place/`: SDK **merged** (sdk-js #53
-    `getSmokeForPlace`; open item: narrow its live-step skip back to 404 once #312 is on the
-    local server); server **PR open** (sjvair.com #312).
-  - CIMIS weather summaries (extending the summaries; CIMIS timestamps move to start-of-hour PST):
-    server **PR open** (sjvair.com #313); SDK **PR open** (sdk-js #54, `sum` on monitor summary
-    rows, required: the beta carrying it must come after #313 is merged and running). After #313
-    merges: the local `restamp_cimis` + rebuild, 1 → 3 → 23 stations, each step cleared by the
-    coordinator; the production steps are in `DEFERRED.md`'s deploy entry.
+- ✅ **Get data layers** (sjvair.com + sdk-js, session sjvair-com-21; asked for by step 4 spec 3;
+  specs and plans in sjvair.com `docs/superpowers/specs|plans/2026-11-05-*`). **Done
+  (2026-11-05)**: all merged into sjvair.com `develop` (#310 pesticides/place, #311
+  monitors/weather/place, #312 hms/smoke/place, #313 CIMIS weather summaries) and sdk-js
+  `release/5.0.0` (#51–#54), **published in @sjvair/sdk 5.0.0-beta.5** (the user's yes). Local
+  data run done: all 23 CIMIS stations re-stamped (start-of-hour PST) and their summaries
+  rebuilt, checked against the raw readings. Production steps (re-stamp, then rebuild, per
+  station) are in `DEFERRED.md`'s deploy entry. Open: sdk-js #55 drops two temporary live-test
+  skips (test-only).
 - **Remaining SDK work, in the order sdk-js-6a suggested** (handoff, 2026-11-04; each needs a new
   sdk-js session, and every beta the user's yes):
   1. Pin bumps to `5.0.0-beta.1`: step 4 (spec 2's first commit) and map-sdk (its next session).
