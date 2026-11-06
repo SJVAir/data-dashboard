@@ -322,6 +322,9 @@ test("Choose another on a retired entry type opens Edit data, not the place pick
 				widget: { ...widget, type: "chart" }
 			}
 		);
+		// sv-router loads a lazy route's code before it changes the URL; in browser tests that
+		// code compiles on first use, which can outlast the poll on a loaded CI runner. Load it now.
+		await import("../../../routes/GetData.svelte");
 		await screen.getByRole("button", { name: m.widget_state_choose_another() }).click();
 		await expect
 			.poll(() => location.pathname)
