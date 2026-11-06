@@ -16,7 +16,7 @@
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { dataTableType } from "./index";
 	import { placeLabel } from "../title";
-	import { overlayColumns, sortRows, wideRows } from "./rows";
+	import { byDay, overlayColumns, sortRows, wideRows } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
@@ -72,6 +72,22 @@
 		)
 	);
 
+	/**
+	 * Why an overlay has no columns, so the Table never drops one the Chart shows or explains:
+	 * it failed, or the main's periods are longer than its days.
+	 */
+	function overlayNotes(data: QueryData): string[] {
+		return w.overlays.flatMap((o) => {
+			const layer = o.meta?.entryType.label;
+			if (!layer) return [];
+			const s = o.state;
+			if (s.status === "error" || s.status === "unavailable") {
+				return [m.chart_overlay_failed({ layer })];
+			}
+			return s.status === "ready" && !byDay(data) ? [m.table_overlay_by_day({ layer })] : [];
+		});
+	}
+
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */
 	function extras(data: QueryData): { worst: boolean; minmax: boolean } {
 		const single = wide && data.places.length === 1;
@@ -100,6 +116,7 @@
 				{@const rows = sortRows(wideRows(data, overlays), sort.column, sort.dir)}
 				{@const columns = overlayColumns(data, overlays)}
 				{@const extra = extras(data)}
+				{@const notes = overlayNotes(data)}
 				<div class="flex h-full flex-col">
 					<div class="mb-1 flex items-center justify-between gap-2">
 						<p class="text-muted-foreground text-sm">
@@ -221,6 +238,9 @@
 							</tbody>
 						</table>
 					</div>
+					{#each notes as note, i (i)}
+						<p class="text-muted-foreground mt-1 text-xs">{note}</p>
+					{/each}
 				</div>
 			{/snippet}
 		</WidgetState>

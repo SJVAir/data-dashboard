@@ -20,7 +20,7 @@ export type OverlayRows = { data: QueryData; levels: Level[] };
 export type OverlayColumn = { overlay: number; place: PlaceInfo; key: string };
 
 /** Day values only line up with periods no longer than a day. */
-function byDay(data: QueryData): boolean {
+export function byDay(data: QueryData): boolean {
 	return data.resolution === "raw" || data.resolution === "hour" || data.resolution === "day";
 }
 

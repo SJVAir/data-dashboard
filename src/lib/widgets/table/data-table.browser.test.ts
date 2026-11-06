@@ -277,3 +277,44 @@ test("an overlay adds a column per place with each day's level label", async () 
 	]);
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
+
+test("an overlay that fails, or that the periods are too long for, says so under the table", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	const forecasts = fakeForecastsAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			{
+				...forecasts,
+				async fetch() {
+					throw new Error("offline");
+				}
+			}
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const failing = tableWidget(["m1"]);
+	failing.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	let screen = await show(failing);
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	await expect
+		.element(screen.getByText(m.chart_overlay_failed({ layer: "Burn status" })))
+		.toBeVisible();
+	await screen.unmount();
+
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), forecasts],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const monthly = tableWidget(["m1"]);
+	monthly.data.layers[0].resolution = "month";
+	monthly.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	screen = await show(monthly);
+	await expect
+		.element(screen.getByText(m.table_overlay_by_day({ layer: "Burn status" })))
+		.toBeVisible();
+	expect(frame.querySelector("thead")!.textContent).not.toContain("Burn status");
+	expect((await axe.run(frame)).violations).toEqual([]);
+});
