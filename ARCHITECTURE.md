@@ -75,60 +75,149 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
   The Map widget joins in step 6.
 
-### Data Explorer (formerly "Widget Creation view")
+### Get data (formerly the Data Explorer and "Widget Creation view")
 
-**Renamed 2026-11-04 (the user, step 4 spec 1; built in step 4 spec 3).** "Widget Creation" in
-older text means this view. It's called the **Data Explorer** so people know it's where to find
-data, and it gets its own top-nav entry. **Data first:** pick the dataset, places, and dates, see
-the live preview, then choose how to show it (chart, table, calendar, heatmap), then **Add to
-dashboard** or **Download CSV** (no widget needed just to download). Editing a widget opens the
-same view with **Save changes**. Notes (and later the Map) are added directly from the
-dashboard's "Add widget", since they don't start from data. It doesn't overlap Release 3's
-Analysis view. The details below predate the rename and the data-first order; spec 3 revises
-them.
+**Renamed 2026-11-05 (the user, step 4 spec 3, which built it; spec:
+`docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).** The top nav says
+**"Data"**; the page heading is **"Get data"**, or **"Edit data"** when opened from a widget. In
+docs it's "the Get data view". Older text saying "Widget Creation" or "Data Explorer" means this
+view. People mostly know what they want, so it isn't an explorer (sjvair.com's Pesticide and
+Facility Emissions explorers are "the explorers"). It doesn't overlap Release 3's Analysis view.
 
-Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter options
-(e.g. pollutant, regions), now living inside the new dataset accordions:
+**Data first, and never blank.** Pick _what_ data, _where_ and _when_, watch the live preview,
+choose how to show it, then **Add to dashboard** or **Download CSV** (no widget needed just to
+download). It opens already filled in: from the nav or "Add widget", the last draft, or for a
+first-timer **Fresno County · PM2.5 · last 30 days**; from a widget's **"Edit data"**, that
+widget's data. Notes (and later the Map) are added directly from "Add widget", since they don't
+start from data. Built fresh; the only carry-over from v1 is the idea of per-dataset options,
+now inside the dataset sections.
 
-- **Date selection sits above** the option accordions. **One date range per widget**
-  (dashboard display widgets only — time-offset/lag comparison belongs to Analysis).
-- **Three date-range methods**, one visible at a time, toggled via a dropdown (unless
-  something more elegant fits; decided in the Widget Creation spec, see `DEFERRED.md` →
-  "Open decisions"):
-  - **Set ranges** — year, month, week, day
-  - **Rolling ranges** — two groups in the same control:
-    - _To date:_ year-to-date, month-to-date, week-to-date (IDEA.md's list).
-    - _Last_ (trailing; added 2026-10-13): 24 hours, 3 days, 7 days, 30 days, 90 days,
-      12 months. IDEA.md's three methods couldn't express "the last 30 days", which the
-      starter chart, the "now" widgets' window, and Collections all use, and to-date
-      ranges are nearly empty at the start of a period. This extends the Rolling method;
-      there are still three methods.
-    - **Meaning (Pacific time):** "last 30 days" is today plus the 29 days before it, by
-      Pacific calendar day, so today's partial data is included; "last 12 months" counts
-      calendar days back one year. "Last 24 hours" is exact hours ending now.
-    - **Stored as an amount and a unit** (`{ kind: "trailing", amount: 30, unit: "day" }`;
-      units `hour` | `day` | `month`), so any length is representable although the UI
-      offers only the presets.
-    - Trailing ranges behave like the other rolling ranges: they move forward with time,
-      "Mark for analysis" freezes them, and "keep rolling" applies.
-  - **Custom ranges** — user-selected
-- **The v1 sidebar tabs themselves become accordion sections** (decided 2026-09-24).
-  No tab view or side menu survives. Where v1 had a "Monitors" tab leading to a page of
-  Monitors filters, Widget Creation has a **"Monitors" accordion** that expands to those
-  options (pollutant, monitors/regions). The same goes for "HMS Smoke/Fire" and the
-  others. The accordion list is **generated from the `meta/datasets/` catalog**, so new
-  data types (Pesticides, Weather, Forecasts, …) appear as new accordions without code
-  changes.
-- **Multiple accordions per widget.** A widget combines dataset **layers**, one per
-  accordion used, e.g. a map with PM2.5 plus smoke, or a chart overlaying PM2.5 with
-  smoke days. All layers share the widget's single date range.
-- **Pollutants: at most one pollutant layer per widget** (no mixing O3 and PM2.5 in one
-  widget). Non-pollutant layers can be combined freely.
-- Which accordions a widget offers, and whether the date section appears at all, comes
-  from its **widget type** (see "Widget catalog" → "Widget-type contract"). For example,
-  Notes has no date or data, and Current conditions picks a place instead of a range.
-- **Live preview on the right**, itself a drag-and-drop, resizable area matching
-  dashboard behavior.
+**Layout (option A).**
+
+- **Left column, top to bottom:** **When** (the date control), **Where** (the places, with
+  "Change", which opens the shared place picker in `multiple` mode up to the widget type's
+  `maxPlaces`), **What** (one collapsible section per dataset; Air Quality starts open), and
+  **More options** → **Detail** (the resolution override).
+- **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
+  **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
+  It's the real widget component in a view-only frame, so its states (loading, "No data",
+  errors, retired) look exactly as on the dashboard. No drag-to-resize. Changes are announced
+  politely once the preview settles ("Showing PM2.5 · Fresno County · Last 30 days").
+- **Bottom:** a bar that stays in view: **Cancel**, **Download CSV**, and **Add to _dashboard_
+  ▾** (or **Save changes** when editing).
+- **Phones:** the same parts stacked (controls, then preview), with the bar pinned.
+
+**Dates: one preset list** (option C; replaces the earlier method toggle). One date range per
+widget (dashboard display widgets only; time-offset/lag comparison belongs to Analysis). No
+method switch; one grouped list:
+
+- **Last:** 24 hours, 3 days, 7 days, 30 days, 90 days, 12 months (each type shows the subset
+  its `span` allows).
+- **To date:** This week, This month, This year.
+- **A specific…:** Day…, Week…, Month…, Year… (each opens its own date input).
+- **Custom range…** (start and end dates).
+
+The resolved dates always show underneath ("Oct 7 – Nov 5, 2026"), with "moves forward each
+day" for rolling ranges. A type's `dateMethods` and `span` hide what doesn't apply; a range
+outside `span` can't be chosen, and the reason is shown. Underneath, the saved shape is still
+the **three methods** of `DateRangeSpec`:
+
+- **Set ranges** (`set`): a year, month, week, or day.
+- **Rolling ranges**: _to date_ (`to-date`: year, month, week) and _last_ (`trailing`; added
+  2026-10-13 because IDEA.md's three methods couldn't express "the last 30 days", which the
+  starter chart, the "now" widgets' window, and Collections all use).
+  - **Meaning (Pacific time):** "last 30 days" is today plus the 29 days before it, by Pacific
+    calendar day, so today's partial data is included; "last 12 months" counts calendar days
+    back one year. "Last 24 hours" is exact hours ending now.
+  - **Stored as an amount and a unit** (`{ kind: "trailing", amount: 30, unit: "day" }`; units
+    `hour` | `day` | `month`), so any length is representable although the list offers only
+    the presets (an unlisted length shows as Custom range).
+  - Rolling ranges move forward with time; "Mark for analysis" freezes them, and "keep
+    rolling" applies.
+- **Custom ranges** (`custom`): start and end dates.
+
+Weeks start on Sunday.
+
+**Which datasets appear** (revises the earlier "without code changes" promise). The **What**
+sections are the `meta/datasets/` catalog's datasets that (1) the query client has a data
+adapter for and (2) at least one offered widget type's `accepts.datasets` lists. Labels, entry
+types, units, and descriptions come from the catalog, so a new entry type inside a listed
+dataset still appears without code changes; a new dataset needs an adapter and a type that
+lists it. In a section, entry types no offered type can show are left out, and a `retired` or
+`available: false` entry type isn't offered for new picks (an existing widget that uses one
+keeps showing it, with its retired state). **The adapter decides fit**, not the catalog's
+`geographies`: it says whether it can serve a layer for the main layer's places (the forecasts
+adapter takes monitors and regions and lets the server map them to a forecast zone). Spec 3
+offers **Air Quality** and **Air Quality Forecasts** (`forecasts`).
+
+**Layers.**
+
+- A widget combines dataset **layers** sharing its one date range: **at most one pollutant
+  layer** (by the catalog's `kind`; no mixing O3 and PM2.5), plus **up to two overlays**.
+- **The main layer** is the pollutant (the first, which sets the chart's value axis). It's
+  **required**: the Air Quality section is a single required choice, and overlays can't stand
+  alone (an overlay on its own is in `DEFERRED.md`).
+- **Overlays borrow the main layer's places.** Only the main layer stores places (the shared
+  place picker's `place` or `selection`), so "Change" re-targets every layer at once. An overlay
+  is fetched for each of the main layer's places; the **Data table** shows a column per place
+  per layer, and the **CSV** has every place's overlay rows (categorical values get
+  `level_key` and `level_label` columns).
+- **Spec 3's overlays:** Air Quality Forecasts' **burn status** and **AQI forecast**, one value
+  per Pacific day (the latest issue) from `forecasts/place/`. On the Chart they're **labeled,
+  patterned day bands** behind the line, with levels, labels, and colors from `forecasts/meta/`
+  scales; in the Table they're columns. The legend names each layer ("Burn Status in Fresno
+  County") and never claims a link (no correlation wording or fitted lines).
+- **"Overlay for" is a Chart option.** When all the places share the overlay's source (the
+  same forecast zone), the Chart draws it once and no choice appears. When they don't, an
+  **"Overlay for: [place ▾]"** choice picks whose overlay the Chart draws; it's saved on the
+  widget as a Chart option (`options.overlayFor`, a validated place ref), not on the layer, and
+  falls back to the first place when that place leaves the widget.
+- Waiting overlays (pesticides, weather, smoke) and one chart row per place are in
+  `DEFERRED.md`.
+
+**Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
+the current data (too many places, a dataset it doesn't accept, a span outside its `span`) is
+greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars and
+heatmap appear by registering descriptors (see "Widget-type contract"), with no change here.
+
+**Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
+the last-opened one; the menu lists the others and **"New dashboard"**. A read-only (shared)
+dashboard is never a target. The widget goes into the first free spot at the type's
+`defaultSize`, and you land on that dashboard with the new widget focused and briefly
+highlighted (respecting `prefers-reduced-motion`); the add is one `applyChange`, so one undo
+step. "Add widget" on the starter opens `/dashboards/starter/widgets/new`, and from `/data`
+with no saved dashboards the target is the starter (named as in the nav): adding is an edit,
+so it makes the personal copy as any first edit does.
+
+**Edit data.** Every data widget's ⋯ menu has **"Edit data"**, opening the view with that
+widget's data and **Save changes**, which applies one `setWidgetData` change (one undo step,
+including a switched type and a size clamped to the new type's `minSize`; the widget keeps its
+id, position, and title) and returns to the dashboard. "Choose another" on a retired dataset or
+entry type opens Edit data; "Change place" and "Choose a place" still open the place picker
+directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discard changes?"**
+(an alert dialog).
+
+**Detail ("More options").** **Automatic** (spec 1's resolution rule, the default), or **Raw**,
+**Hourly**, **Daily**, **Monthly**, stored on the main layer as `resolution` (Automatic stores
+nothing). Only levels the entry type's catalog `resolutions` offer are listed; one the server's
+limits or the point budget can't serve for the current range and places is greyed with the
+reason (and a stored one that becomes blocked goes back to Automatic). A type with a pinned
+`resolution` hides it. Collapsed by default.
+
+**Routes** (see "Routing, URL state & undo"): `/data` (from the top nav),
+`/dashboards/:id/widgets/new` (from "Add widget"; `?type=` picks the starting Show as), and
+`/dashboards/:id/widgets/:widgetId/edit` (Edit data). The URL holds only where you are: **the
+draft never goes in the URL**, so coordinates never do. An unknown dashboard or widget id shows
+the not-found page.
+
+**The draft.** Kept in memory on the view and saved through the platform adapter as a
+preference (device-local, never synced) so a reload or later visit starts from it: one draft
+for `/data` and `…/widgets/new`; Edit data starts from the widget each time. It's a
+`WidgetDataConfig` plus the chosen type (and Chart options), validated with the same schemas on
+read (drafts are untrusted input); an invalid one is dropped for the default.
+
+**Loading.** The view is a lazily loaded route: none of its code, nor the place picker's,
+reaches the initial bundle.
 
 ### Shared widget behavior
 
@@ -1040,9 +1129,10 @@ home (`/shared` redirects to `/`; `/shared/:token` is built, sync spec 3).
 /                                                last-opened dashboard (preference) or the starter
 /dashboards                                      all dashboards (list)
 /dashboards/:id                                  a dashboard
-/dashboards/:id/widgets/new?type=map             Widget Creation for a new widget
+/dashboards/:id/widgets/new?type=chart           Get data, adding to that dashboard (from Add widget)
 /dashboards/:id?widget=:widgetId                 that widget fullscreen (deep-linkable)
-/dashboards/:id/widgets/:widgetId/edit           Widget Creation editing an existing widget
+/dashboards/:id/widgets/:widgetId/edit           Get data editing a widget's data ("Edit data")
+/data                                            Get data, from the top nav ("Data")
 /analysis                                        Analysis home (your Collections)
 /analysis/collections/:id                        a Collection
 /analysis/collections/:id/analyses/:analysisId   an analysis run on it
@@ -1050,10 +1140,12 @@ home (`/shared` redirects to `/`; `/shared/:token` is built, sync spec 3).
 /import#<lz-compressed document>                 URL-fragment share → opens a copy (fork on open)
 ```
 
-The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
+The `/analysis` routes arrive with Collections in Release 3 (see "Collections"). The three
+Get data routes were built in step 4 spec 3; `/dashboards/:id/widgets` (trimmed) goes to the
+dashboard, and the Get data draft never goes in the URL (see "Get data").
 
-- **Back/forward navigates between places** (dashboards, fullscreen, Widget Creation,
-  Analysis) — never between edits.
+- **Back/forward navigates between places** (dashboards, fullscreen, Get data, Analysis) —
+  never between edits.
 - **Ephemeral UI state stays out of the URL** (open accordions, in-progress map
   selection, calendar drag range).
 - **Opening a document from another device:** for signed-in users, synced documents
@@ -1062,8 +1154,8 @@ The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
   or documents that were never synced.
 - **Embedding:** same routes, held in memory when the host owns the URL (see
   "Embedding").
-- The v1 per-tab URL seeding is gone. Preferences hold the "last-opened dashboard" and
-  Widget Creation defaults (through the platform adapter).
+- The v1 per-tab URL seeding is gone. Preferences hold the "last-opened dashboard" and the
+  Get data draft (through the platform adapter).
 
 **Undo/redo (first release).** A **document-level undo/redo stack** (Ctrl+Z /
 Ctrl+Shift+Z, plus menu actions via the shared action list), separate from browser
@@ -1105,14 +1197,14 @@ Decided 2026-09-23 (IDEA.md Open Question #2).
 
 **What gets staged is a query descriptor, not copied data.** This is the **single
 definition** used by Collections, saved documents, and export manifests. A widget's
-config is **one shared date range plus a list of layers** (see "Widget Creation view"),
+config is **one shared date range plus a list of layers** (see "Get data"),
 and each layer resolves to one descriptor:
 
 ```ts
 type QueryDescriptor = {
 	dataset: string; // from the meta/datasets/ catalog
 	entryType?: string; // pollutant/entry type where applicable
-	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Widget Creation view")
+	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Get data")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	place?: PlaceRef; // one place (any kind), the common case; or…
 	selection?: SpatialSelection; // …several monitors or regions. Never both; neither = whole layer
@@ -1155,7 +1247,7 @@ type DateRangeSpec =
   not on each layer's descriptor: the range is per widget. A layer resolves to a
   `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
 - **Dates are Pacific calendar dates** (`YYYY-MM-DD`). `"to-date"` and `"trailing"` are the
-  two groups of the Rolling method (see "Widget Creation view").
+  two groups of the Rolling method (see "Get data").
 - **A layer holds one place or a multi-selection** (decided 2026-10-13): `place` takes any
   `PlaceRef`, including a point or a school, which is how a chart keeps "my location";
   `selection` is for several monitors or regions (maps, comparisons).
@@ -1709,7 +1801,7 @@ widget". Linking is deferred (see `DEFERRED.md`).
 
 ### Widget-type contract
 
-Each widget type declares what Widget Creation shows and how the dashboard treats it:
+Each widget type declares what Get data shows and how the dashboard treats it:
 
 ```ts
 type WidgetType = {
@@ -1717,7 +1809,8 @@ type WidgetType = {
 	label: MessageKey; // i18n: message key, never literal English
 	minSize: { w: number; h: number }; // grid cells
 	time: "range" | "now" | "none"; // the date section is shown only for "range"
-	accepts: DatasetFilter; // which accordions/layers apply (enforces ≤ 1 pollutant)
+	accepts?: { datasets?: string[]; maxPollutantLayers?: number; maxPlaces?: number }; // explicit
+	addable?: () => WidgetDataConfig; // non-data types only: a direct add from "Add widget"
 	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
@@ -1732,13 +1825,21 @@ type WidgetType = {
 
 Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **Forecast
 strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`; for those,
-Widget Creation hides the date section and shows **the shared place picker** instead of
+Get data hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
 "Can we go outside?" (gated by available pollutants); in `WidgetDataConfig` that's a
 **single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
 `target` field was removed so every widget type stores places the same way). Current
 conditions and "Can we go outside?" have one pollutant layer (heat for "Can we go
 outside?" follows from the same place); the Forecast strip has one forecasts layer. **Map** and **Chart** are `time: "range"` and accept multiple layers.
+
+**`accepts.datasets` is explicit** (decided 2026-11-05, step 4 spec 3). It lists the catalog
+dataset ids a type can show; a type with no list accepts no datasets, so a new type can't
+accidentally offer everything. Chart and Data table declare `["air-quality", "forecasts"]`;
+Notes declares none. The types with a list are the **data types**: "Add widget" opens Get data
+for them, and Get data's **What** sections and **Show as** choices come from their lists (see
+"Get data"). **`addable`** is only for non-data types (Notes, later the Map), which "Add widget"
+adds directly with the data it returns; Chart and Data table dropped it in spec 3.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
 for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date

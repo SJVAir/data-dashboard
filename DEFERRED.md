@@ -23,6 +23,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `toJSONSchema` processors add about 8.5 KB; a bigger change). **Revisit when**
   `check:budget` jumps after adding a package (check whether it needs a `BARRELED` entry), or
   when the budget is next over.
+- **bits-ui helpers in `BARRELED` (initial bundle near the budget).** _Deferred 2026-11-05
+  (step 4 spec 3, Tasks 9–11)._ To keep Get data's bits-ui primitives (Select, Accordion,
+  Collapsible, Toggle Group, Alert Dialog) out of the initial bundle, `vite.config.ts`'s
+  `BARRELED` names them and some bits-ui helpers by hand (some used only by Select); a bits-ui
+  upgrade that renames or moves them may pull them back into the app chunk. After this spec the
+  initial bundle is about 199.6 KB of the 200 KB soft budget. **Revisit on** a bits-ui upgrade (re-run
+  `check:budget`), or a change to how `appGroup()` treats re-exports.
 - **The initial bundle over 200 KB again.** _Trimmed 2026-11-04 (step 4 spec 1)_, this once:
   from 213.9 KB gzip (the design pass plus the SDK bump and the widget groundwork) to 195.9 KB,
   by loading rarely used dialogs and the dashboards list on demand and keeping uPlot, the data
@@ -993,6 +1000,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   row). That was a deliberate call, but no test pins it. **Revisit when** someone next touches
   `camp/api/v2/hms/` (add the test to `DateRangeTestsMixin`).
 
+- **Places in one forecast zone share no request.** _Deferred 2026-11-05 (step 4 spec 3, Task
+  5)._ The forecasts overlay asks once per place per month, even when several places map to
+  the same zone (the spec's "one request per distinct source"): the zone is only known from the
+  answer. A 10-place Data table makes up to 10 small requests a month. **Revisit if** request
+  counts matter, or the server returns the zone up front (then group places by zone first).
+
 - **`calenviroscreen/meta/`.** _Deferred 2026-11-04 (step 3 spec 4, the coordinator and the
   user)._ The sdk-js CalEnviroScreen wrapper takes the version (`4.0`/`5.0`) as a required
   argument and returns raw indicator fields, because no metadata describes them: the catalog's
@@ -1349,6 +1362,58 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   far) point looks like any other; the readout still says it's incomplete. **Revisit if** five-
   place charts are common, or when the series markers are reviewed.
 
+- **Get data overlays waiting on the "Get data layers" track.** _Deferred 2026-11-05 (step 4
+  spec 3)._ Spec 3 ships one overlay dataset (Air Quality Forecasts: burn status and AQI
+  forecast). The others need server endpoints and SDK functions that the **Get data layers**
+  track (sjvair.com + sdk-js session, started 2026-11-05) is building, in this order; each
+  becomes a layer in Get data in a later change. Don't start a second track for them. One
+  entry each (status as of 2026-11-05):
+  - **Monthly pesticide use.** Server `pesticides/place/` merged into sjvair.com `develop`
+    (#310); SDK `getPesticidesForPlace(place, filters?, options?)` merged into sdk-js
+    `release/5.0.0` (#51). Waits only for the next SDK beta (latest published: 5.0.0-beta.4).
+    Shape: `{place, months: [{year, month, pounds, acres, applications}]` (only months with
+    use), `years: [{…, undated: {…}}]}`; a year's totals include undated use. A cold, large
+    multi-county answer takes about 5 s, then it's cached. A monitor counts through its ZIP
+    (one outside every ZIP gets empty lists). **Revisit when** an SDK beta with
+    `getPesticidesForPlace` is published.
+  - **Nearest weather station.** Server `monitors/weather/place/` (sjvair.com #311, open); SDK
+    `getWeatherStationsForPlace` and the CIMIS entry type ids (sdk-js #52, open). Open question
+    for when the layer is built: **which station the chart uses when several are inside the
+    place.** `is_active` uses a 4-hour CIMIS limit, so don't hide a listed inactive station. Raw
+    dewpoint and soil temperature carry `*_f`/`*_c` fields, not `value`. **Revisit when** #311
+    and #52 merge and land in a published SDK beta.
+  - **Smoke over a place, per day.** Server `hms/smoke/place/` (sjvair.com #312, open); SDK
+    `getSmokeForPlace` (sdk-js #53, open). At most 366 days per request. Caveat: "no smoke" and
+    "never fetched" look the same (a server deferral), so expect false clear days locally.
+    **Revisit when** #312 and #53 merge and land in a published SDK beta.
+  - **Weather daily and monthly summaries.** sjvair.com #313 (open); SDK `sum` on monitor
+    summaries to follow. CIMIS stations only, monitor-level (no region rows), 11 entry types
+    (not wind direction). Fetch one station at a time (the bulk summaries stay air-quality
+    only). Use `sum` for precipitation, ETo and ETr totals, and judge partial totals from
+    `count` against the hours. Summaries settle late (CIMIS revises yesterday each morning).
+    CIMIS raw timestamps move to the start of the hour in fixed PST, so winter readings move one
+    hour earlier. **Revisit when** #313 and the SDK `sum` land in a published SDK beta.
+- **Air monitors' temperature and humidity as Get data overlays.** _Deferred 2026-11-05 (step 4
+  spec 3)._ They stay unsummarized on the server (raw readings only), so the weather summaries
+  work (CIMIS stations only) doesn't bring them. **Revisit if** the server summarizes them, or a
+  raw-only overlay is wanted.
+- **Fires near a place or per day, TEMPO, and emissions series in Get data.** _Deferred
+  2026-11-05 (step 4 spec 3)._ None has a per-place time series today: TEMPO isn't in the SDK,
+  and emissions are yearly snapshots. **Revisit when** a widget needs one of them, or the Map
+  widget (fires) is built.
+- **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3)._ Get data needs a pollutant
+  main layer, so a widget or CSV of only an overlay (say, no-burn days alone) can't be made.
+  **Revisit when** someone asks for it, or when the weather or smoke layers land (a
+  temperature-only chart is the likely first case).
+- **One chart row per place (small multiples) for overlays.** _Deferred 2026-11-05 (step 4 spec
+  3)._ When a Chart's places fall in different forecast zones, the Chart's "Overlay for" choice
+  picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
+  when** users ask to compare overlays across places, or with spec 5's chart work.
+- **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
+  "More options" → Detail greys out levels using guessed limits: Raw and Hourly up to 31 days,
+  places × periods over 50 000 blocked, and 720 raw readings a day per place. **Revisit after**
+  real use, or when the metadata gives reading intervals.
+
 ## Alerts
 
 - **Additional automated-alert sources and targets.** _Deferred 2026-09-24 (alerting
@@ -1553,6 +1618,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   since nothing is applied before Save changes). sv-router's `blockNavigation` already takes a
   `beforeUnload` callback. **Revisit when** people report losing Edit data work to a closed tab
   or reload, or when Edit data grows long-running edits.
+- **Rare read-only dashboards in Get data's "Add to" menu.** _Deferred 2026-11-05 (step 4 spec
+  3, Task 10)._ A dashboard saved by a newer build, or one that couldn't keep its original, opens
+  read-only, but the dashboard index carries no read-only flag, so Get data's target menu still
+  lists it and adding fails with an error toast. Shared dashboards are never offered. **Revisit
+  if** it's reported (then put a read-only flag on the index).
 - **Visual and brand design system.** _Deferred 2026-09-14; **scheduled 2026-09-28** as its
   own sub-project before Release 1 step 4 (Foundations builds the theme-token layer it
   plugs into)._ It stays listed here until it ships.
@@ -1809,9 +1879,6 @@ point.
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Date-range method toggle in the Data Explorer** (formerly Widget Creation): a dropdown (IDEA.md's default) or
-  something more elegant (e.g. a segmented control) for set / rolling / custom.
-  **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
 - **Does email get its own rollout switch for alerts?** (2026-10-14) Text alerts open to
   everyone before Release 2; email is a new channel. The per-account channel list carries
   either answer. **Decide in** the Release 2 server alerting plan.
