@@ -1367,7 +1367,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   forecast). The others need server endpoints and SDK functions that the **Get data layers**
   track (sjvair.com + sdk-js session, started 2026-11-05) is building, in this order; each
   becomes a layer in Get data in a later change. Don't start a second track for them. One
-  entry each (status as of 2026-11-05):
+  entry each. **Status (2026-11-05, end of day):** all four server PRs (#310–#313) are merged
+  into sjvair.com `develop` (`bd071d24`) and run on the local stack, and the SDK side (sdk-js
+  #51–#54, including `sum`) is merged into `release/5.0.0`. All four wait only for the next SDK
+  beta (likely `5.0.0-beta.5`, which needs the user's yes). Details:
   - **Monthly pesticide use.** Server `pesticides/place/` merged into sjvair.com `develop`
     (#310); SDK `getPesticidesForPlace(place, filters?, options?)` merged into sdk-js
     `release/5.0.0` (#51). Waits only for the next SDK beta (latest published: 5.0.0-beta.4).
@@ -1376,23 +1379,25 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     multi-county answer takes about 5 s, then it's cached. A monitor counts through its ZIP
     (one outside every ZIP gets empty lists). **Revisit when** an SDK beta with
     `getPesticidesForPlace` is published.
-  - **Nearest weather station.** Server `monitors/weather/place/` (sjvair.com #311, open); SDK
-    `getWeatherStationsForPlace` and the CIMIS entry type ids (sdk-js #52, open). Open question
+  - **Nearest weather station.** Server `monitors/weather/place/` (sjvair.com #311); SDK
+    `getWeatherStationsForPlace` and the CIMIS entry type ids (sdk-js #52). Open question
     for when the layer is built: **which station the chart uses when several are inside the
     place.** `is_active` uses a 4-hour CIMIS limit, so don't hide a listed inactive station. Raw
-    dewpoint and soil temperature carry `*_f`/`*_c` fields, not `value`. **Revisit when** #311
-    and #52 merge and land in a published SDK beta.
-  - **Smoke over a place, per day.** Server `hms/smoke/place/` (sjvair.com #312, open); SDK
-    `getSmokeForPlace` (sdk-js #53, open). At most 366 days per request. Caveat: "no smoke" and
+    dewpoint and soil temperature carry `*_f`/`*_c` fields, not `value`. **Revisit when** the
+    next SDK beta is published.
+  - **Smoke over a place, per day.** Server `hms/smoke/place/` (sjvair.com #312); SDK
+    `getSmokeForPlace` (sdk-js #53). At most 366 days per request. Caveat: "no smoke" and
     "never fetched" look the same (a server deferral), so expect false clear days locally.
-    **Revisit when** #312 and #53 merge and land in a published SDK beta.
-  - **Weather daily and monthly summaries.** sjvair.com #313 (open); SDK `sum` on monitor
-    summaries to follow. CIMIS stations only, monitor-level (no region rows), 11 entry types
+    **Revisit when** the next SDK beta is published.
+  - **Weather daily and monthly summaries.** sjvair.com #313; SDK `sum` on monitor summaries
+    (sdk-js #54). CIMIS stations only, monitor-level (no region rows), 11 entry types
     (not wind direction). Fetch one station at a time (the bulk summaries stay air-quality
     only). Use `sum` for precipitation, ETo and ETr totals, and judge partial totals from
     `count` against the hours. Summaries settle late (CIMIS revises yesterday each morning).
     CIMIS raw timestamps move to the start of the hour in fixed PST, so winter readings move one
-    hour earlier. **Revisit when** #313 and the SDK `sum` land in a published SDK beta.
+    hour earlier. `rebuild_summaries` writes only finished periods (the user, 2026-11-05), so the
+    open month or year must be built from finer rows (the air-quality adapter's `planSegments`
+    already does this), including `sum` totals. **Revisit when** the next SDK beta is published.
 - **Air monitors' temperature and humidity as Get data overlays.** _Deferred 2026-11-05 (step 4
   spec 3)._ They stay unsummarized on the server (raw readings only), so the weather summaries
   work (CIMIS stations only) doesn't bring them. **Revisit if** the server summarizes them, or a
@@ -1766,6 +1771,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
+- **The shared-page "fullscreen then Escape goes back" test can flake on `history.length`.**
+  _Noted 2026-11-05 (step 4 spec 3 final fix)._ `src/routes/shared-page.browser.test.ts` asserts
+  `history.length`, but Chromium caps it at 50 and the browser test files share one tab, so
+  spec 3's extra navigations push it past the cap now and then (50 vs 51); it passes alone and on
+  a rerun. **Revisit when** it flakes in CI, or when touching that test: assert on the router's
+  state instead of `history.length`.
 - **"The live region is polite and announces" flakes under full-suite load.** _Noted 2026-11-05
   (step 4 spec 2 final checks)._ `src/lib/components/dashboard/dashboard.browser.test.ts`
   checks the region is still empty two animation frames after a repeated `announce`, assuming

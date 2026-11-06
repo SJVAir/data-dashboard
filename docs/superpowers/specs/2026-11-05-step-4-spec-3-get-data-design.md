@@ -250,8 +250,9 @@ that uses one keeps showing it, with spec 1's retired states).
   stored on the main layer as `resolution` (already in `LayerSchema`; "Automatic" stores
   nothing).
 - Only levels the entry type offers (the catalog's `resolutions`) are listed. A level the
-  server's limits or the point budget can't serve for the current range (e.g. raw over a
-  year, hourly region summaries over 31 days) is greyed with the reason. A widget type with
+  point budget can't serve for the current range (e.g. raw over a year) is greyed with the
+  reason. (Corrected in the final review: the server's 31-day cap is per request, and the
+  adapters fetch a month at a time, so no level has a range cap of its own.) A widget type with
   a pinned `resolution` hides the control.
 - Collapsed by default; the teacher never needs to open it.
 
