@@ -11,6 +11,11 @@ export type SeriesPoint = {
 	partial: boolean;
 	/** A daily point's highest hourly mean and that hour's start (epoch ms); see `worstHours`. */
 	worstHour?: { t: number; value: number };
+	/**
+	 * A category point's scale level key (forecasts). A category point (burn status) has no
+	 * number: `mean = min = max = NaN`, so nothing may aggregate, downsample or plot it as a value.
+	 */
+	level?: string;
 };
 
 /**

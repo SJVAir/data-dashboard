@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
 import { chartWidget } from "$lib/widgets/shared/test-harness/fake-data";
 import type { AdapterRequest, DatasetAdapter } from "./adapters/registry";
-import { CSV_COLUMNS, downloadWidgetCsv, toCsv } from "./csv";
-import type { MetadataSource } from "./metadata";
+import { CSV_COLUMNS, downloadDataCsv, downloadWidgetCsv, toCsv } from "./csv";
+import type { CatalogEntry, Level, MetadataSource } from "./metadata";
 import { createQueryClient, type QueryClient } from "./query/client";
-import { fixtureMetadata } from "./testing/fixtures";
+import { FIXTURE_CATALOG, fixtureMetadata } from "./testing/fixtures";
 import type { PlaceInfo, QueryData, SeriesPoint } from "./types";
 
 const fake = vi.hoisted(() => ({
@@ -16,6 +16,9 @@ vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
 	getMetadata: () => fake.metadata!
 }));
+
+const reported = vi.hoisted(() => vi.fn());
+vi.mock("$lib/safety/report", () => ({ report: reported }));
 
 const META = { entryType: "pm25", entryLabel: "PM2.5", unit: "µg/m³" };
 const HOUR = 3_600_000;
@@ -270,5 +273,274 @@ describe("downloadWidgetCsv for a point", () => {
 			expect(text).not.toMatch(/36\.7468|119\.7726|36\.747|119\.773/);
 		}
 		expect(parse(contents)[1][CSV_COLUMNS.indexOf("place_name")]).toBe("ZIP 93721 (your location)");
+	});
+});
+
+const NAN = Number.NaN;
+const BURN: Level[] = [
+	{ key: "burn-day", label: "Burn day", color: null, opacity: null, tier: null, min: 0, max: null }
+];
+const OVERLAY_META = { entryType: "burn-status", entryLabel: "Burn status", unit: "" };
+
+function burnPoint(t: string, level: string): SeriesPoint {
+	return { t: Date.parse(t), mean: NAN, min: NAN, max: NAN, count: NAN, partial: false, level };
+}
+
+describe("toCsv overlay rows", () => {
+	const main = data({
+		series: [
+			{ place: "monitor:a", points: [point("2026-11-01T07:00:00Z")] },
+			{ place: "monitor:b", points: [point("2026-11-01T07:00:00Z")] }
+		],
+		places: [
+			{ place: "monitor:a", name: "A" },
+			{ place: "monitor:b", name: "B" }
+		]
+	});
+	// Overlay places are regions, paired to the main places by request index.
+	const overlay = {
+		meta: OVERLAY_META,
+		levels: BURN,
+		data: data({
+			series: [
+				{ place: "region:county:1", points: [burnPoint("2026-11-01T07:00:00Z", "burn-day")] },
+				{ place: "region:county:2", points: [burnPoint("2026-11-01T07:00:00Z", "burn-day")] }
+			],
+			places: [
+				{ place: "region:county:1", name: "One" },
+				{ place: "region:county:2", name: "Two" }
+			]
+		})
+	};
+	const get = (row: string[], c: (typeof CSV_COLUMNS)[number]) => row[CSV_COLUMNS.indexOf(c)];
+
+	it("overlay rows carry level_key and level_label", () => {
+		const rows = parse(toCsv(main, META, "owner", [overlay])).slice(1);
+		expect(get(rows[0], "level_key")).toBe("");
+		expect(get(rows[0], "level_label")).toBe("");
+		const o = rows[2];
+		expect(get(o, "entry_type")).toBe("burn-status");
+		expect(get(o, "level_key")).toBe("burn-day");
+		expect(get(o, "level_label")).toBe("Burn day");
+		for (const c of ["mean", "min", "max", "count"] as const) expect(get(o, c)).toBe("");
+		expect(text(rows)).not.toContain("NaN");
+	});
+
+	it("every place's overlay rows are exported", () => {
+		const rows = parse(toCsv(main, META, "owner", [overlay])).slice(1);
+		const mine = rows.filter((r) => get(r, "entry_type") === "burn-status");
+		expect(mine.map((r) => get(r, "place_id"))).toEqual(["a", "b"]);
+		expect(mine.map((r) => get(r, "place_name"))).toEqual(["A", "B"]);
+	});
+
+	it("a point's overlay rows are named as its region for a shared viewer", () => {
+		const zip = {
+			place: "region:zipcode:93721",
+			name: "ZIP 93721",
+			via: { kind: "point" as const }
+		};
+		const pointMain = data({
+			series: [{ place: zip.place, points: [point("2026-11-01T07:00:00Z")] }],
+			places: [zip]
+		});
+		const pointOverlay = {
+			...overlay,
+			data: data({
+				series: [
+					{ place: "region:county:06019", points: [burnPoint("2026-11-01T07:00:00Z", "burn-day")] }
+				],
+				places: [{ place: "region:county:06019", name: "Fresno County", via: { kind: "point" } }]
+			})
+		};
+		const rows = parse(toCsv(pointMain, META, "shared", [pointOverlay])).slice(1);
+		const overlayRows = rows.filter((r) => get(r, "entry_type") === "burn-status");
+		expect(overlayRows).toHaveLength(1);
+		expect(get(overlayRows[0], "place_name")).toBe("ZIP 93721 (shared location)");
+		expect(get(overlayRows[0], "place_id")).toBe("zipcode:93721");
+		expect(text(rows)).not.toContain("your location");
+	});
+
+	function text(rows: string[][]): string {
+		return rows.flat().join(",");
+	}
+});
+
+describe("downloadDataCsv", () => {
+	const catalog: CatalogEntry[] = [
+		...FIXTURE_CATALOG,
+		{
+			id: "forecasts",
+			label: "Forecasts",
+			geographies: ["region"],
+			entryTypes: [
+				{
+					id: "burn-status",
+					label: "Burn status",
+					units: "",
+					kind: "other",
+					resolutions: ["day"],
+					precision: null,
+					yMin: null,
+					available: true
+				}
+			]
+		}
+	];
+	const config = {
+		dateRange: { kind: "trailing", amount: 30, unit: "day" },
+		layers: [
+			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+			{ dataset: "forecasts", entryType: "burn-status" }
+		]
+	} as const;
+
+	function setup(forecast: DatasetAdapter["fetch"]) {
+		const base = fakeAdapter([]);
+		const forecasts: DatasetAdapter = {
+			id: "forecasts",
+			async target() {
+				return { kind: "regions", keys: ["county:06019"] } as never;
+			},
+			offered: (b) => b,
+			fetch: forecast
+		};
+		fake.metadata = fixtureMetadata({
+			catalog: async () => catalog,
+			datasetLevels: async (dataset) => (dataset === "forecasts" ? BURN : [])
+		});
+		fake.client = createQueryClient({
+			adapters: [base, forecasts],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+	}
+
+	it("exports the overlay's rows after the main rows", async () => {
+		setup(async () => ({
+			series: [
+				{ place: "region:county:06019", points: [burnPoint("2026-10-25T07:00:00Z", "burn-day")] }
+			],
+			places: [{ place: "region:county:06019", name: "Fresno County" }],
+			resolution: "day",
+			fromRaw: false,
+			processor: null,
+			fetchedAt: Date.now()
+		}));
+		const saved: string[] = [];
+		await downloadDataCsv(structuredClone(config) as never, (_n, c) => void saved.push(c));
+		const rows = parse(saved[0]).slice(1);
+		const types = rows.map((r) => r[CSV_COLUMNS.indexOf("entry_type")]);
+		expect(types).toContain("burn-status");
+		expect(types.indexOf("pm25")).toBeLessThan(types.indexOf("burn-status"));
+		expect(saved[0]).not.toContain("NaN");
+	});
+
+	it("reports a failed overlay and names it in skipped", async () => {
+		reported.mockClear();
+		setup(async () => {
+			throw new Error("down");
+		});
+		const result = await downloadDataCsv(structuredClone(config) as never, () => {});
+		expect(result.skipped).toEqual(["Burn status"]);
+		expect(reported).toHaveBeenCalledTimes(1);
+	});
+
+	it("names an unavailable overlay in skipped", async () => {
+		reported.mockClear();
+		setup(async () => {
+			throw new Error("unused");
+		});
+		fake.client = createQueryClient({
+			adapters: [
+				fakeAdapter([]),
+				{
+					id: "forecasts",
+					target: async () => ({ unavailable: "place-unsupported" }),
+					offered: (b) => b,
+					fetch: async () => {
+						throw new Error("unused");
+					}
+				}
+			],
+			metadata: fake.metadata!,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const result = await downloadDataCsv(structuredClone(config) as never, () => {});
+		expect(result.skipped).toEqual(["Burn status"]);
+	});
+
+	it("does not call a ready but empty overlay skipped", async () => {
+		reported.mockClear();
+		setup(async () => ({
+			series: [],
+			places: [],
+			resolution: "day",
+			fromRaw: false,
+			processor: null,
+			fetchedAt: Date.now()
+		}));
+		const result = await downloadDataCsv(structuredClone(config) as never, () => {});
+		expect(result.skipped).toEqual([]);
+		expect(reported).not.toHaveBeenCalled();
+	});
+
+	it("still exports the main rows when an overlay fails", async () => {
+		setup(async () => {
+			throw new Error("down");
+		});
+		const saved: string[] = [];
+		await downloadDataCsv(structuredClone(config) as never, (_n, c) => void saved.push(c));
+		const types = new Set(
+			parse(saved[0])
+				.slice(1)
+				.map((r) => r[CSV_COLUMNS.indexOf("entry_type")])
+		);
+		expect([...types]).toEqual(["pm25"]);
+	});
+
+	it("a point place exports as its region for shares", async () => {
+		const base = fakeAdapter([]);
+		const adapter: DatasetAdapter = {
+			...base,
+			async target() {
+				return { kind: "fallback", via: { kind: "point" }, keys: ["zipcode:93721"] };
+			},
+			async fetch() {
+				return {
+					series: [{ place: "region:zipcode:93721", points: [point("2026-10-25T07:00:00Z")] }],
+					places: [{ place: "region:zipcode:93721", name: "ZIP 93721", via: { kind: "point" } }],
+					resolution: "day",
+					fromRaw: false,
+					processor: null,
+					fetchedAt: Date.parse("2026-10-26T00:00:00Z")
+				};
+			}
+		};
+		fake.metadata = fixtureMetadata();
+		fake.client = createQueryClient({
+			adapters: [adapter],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const saved: Array<{ name: string; contents: string }> = [];
+		await downloadDataCsv(
+			{
+				dateRange: { kind: "trailing", amount: 30, unit: "day" },
+				layers: [
+					{
+						dataset: "air-quality",
+						entryType: "pm25",
+						place: { kind: "point", lat: 36.7468, lon: -119.7726 }
+					}
+				]
+			},
+			(name, contents) => void saved.push({ name, contents }),
+			"shared"
+		);
+		const { name, contents } = saved[0];
+		for (const t of [contents, name]) expect(t).not.toMatch(/36\.7468|119\.7726/);
+		expect(parse(contents)[1][CSV_COLUMNS.indexOf("place_name")]).toBe(
+			"ZIP 93721 (shared location)"
+		);
 	});
 });

@@ -43,6 +43,7 @@ const monitors: MonitorOption[] = ["Fresno - Garland", "Visalia - Main", "Delano
 function directory(): PlaceDirectory {
 	return {
 		regionTypes: vi.fn(async () => types),
+		regionNamer: vi.fn(async () => (r: { name: string }) => r.name),
 		regionTypeLabels: vi.fn(async () => new Map(types.map((t) => [t.type, t.label]))),
 		locationTypes: vi.fn(async () => []),
 		monitors: vi.fn(async () => monitors),

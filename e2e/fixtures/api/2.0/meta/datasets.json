@@ -27,6 +27,45 @@
 					}
 				],
 				"retired": null
+			},
+			{
+				"id": "forecasts",
+				"label": "Air Quality Forecasts",
+				"description": "Daily air quality index forecasts for each forecast zone.",
+				"source": "San Joaquin Valley Air Pollution Control District",
+				"license": "",
+				"geographies": ["zone"],
+				"meta_url": "/api/2.0/forecasts/meta/",
+				"places_url": "",
+				"entry_types": [
+					{
+						"id": "aqi-forecast",
+						"label": "AQI Forecast",
+						"kind": "other",
+						"units": "AQI",
+						"resolutions": ["day"],
+						"display": {
+							"precision": 0,
+							"chart": "bar",
+							"y_min": 0
+						},
+						"retired": null
+					},
+					{
+						"id": "burn-status",
+						"label": "Burn Status",
+						"kind": "other",
+						"units": "",
+						"resolutions": ["day"],
+						"display": {
+							"precision": null,
+							"chart": null,
+							"y_min": null
+						},
+						"retired": null
+					}
+				],
+				"retired": null
 			}
 		],
 		"summary_rules": {

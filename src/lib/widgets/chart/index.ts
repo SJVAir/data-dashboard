@@ -1,6 +1,5 @@
 import ChartLine from "@lucide/svelte/icons/chart-line";
 import { m } from "$lib/paraglide/messages.js";
-import { DEFAULT_LAYER, DEFAULT_RANGE } from "../defaults";
 import type { WidgetType } from "../registry";
 
 export const CHART_TYPE = "chart";
@@ -16,12 +15,12 @@ export const chartType: WidgetType = {
 	thresholds: false,
 	analyzable: true,
 	downloadable: true,
-	accepts: { maxPollutantLayers: 1, maxPlaces: 5 },
+	accepts: {
+		datasets: ["air-quality", "forecasts"],
+		maxPollutantLayers: 1,
+		maxPlaces: 5
+	},
 	// Type-specific items only; the widget frame adds the common widget actions.
 	menu: () => [],
-	load: () => import("./module"),
-	addable: () => ({
-		dateRange: structuredClone(DEFAULT_RANGE),
-		layers: [structuredClone(DEFAULT_LAYER)]
-	})
+	load: () => import("./module")
 };

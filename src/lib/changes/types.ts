@@ -63,11 +63,22 @@ const SetFieldSchema = z
 		}
 	});
 
+const WidgetOptionsSchema = WidgetInstanceSchema.shape.options;
+
+/**
+ * A widget's data, and with Edit data its type, options (no `to` removes them) and the size its
+ * new type needs, as one change.
+ */
 const SetWidgetDataSchema = z.object({
 	op: z.literal("setWidgetData"),
 	target: z.object({ widgetId: z.string().min(1) }),
 	from: WidgetDataConfigSchema,
-	to: WidgetDataConfigSchema
+	to: WidgetDataConfigSchema,
+	type: z
+		.object({ from: WidgetInstanceSchema.shape.type, to: WidgetInstanceSchema.shape.type })
+		.optional(),
+	options: z.object({ from: WidgetOptionsSchema, to: WidgetOptionsSchema }).optional(),
+	rect: z.object({ from: RectSchema, to: RectSchema }).optional()
 });
 
 const DocContentSchema = z.object({
@@ -127,3 +138,4 @@ export const ChangeSchema = z.discriminatedUnion("op", [
 ]);
 export type Change = z.infer<typeof ChangeSchema>;
 export type SetLayoutChange = Extract<Change, { op: "setLayout" }>;
+export type SetWidgetDataChange = Extract<Change, { op: "setWidgetData" }>;

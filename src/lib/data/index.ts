@@ -1,11 +1,23 @@
 import { platform } from "$lib/platform";
 import { airQualityAdapter } from "./adapters/air-quality";
+import { forecastsAdapter } from "./adapters/forecasts";
 import { createWebLocationResolver, createWebPointResolver } from "./adapters/places";
-import { createWebRegionResolver, type AdapterContext } from "./adapters/registry";
+import {
+	createWebRegionResolver,
+	type AdapterContext,
+	type DatasetAdapter
+} from "./adapters/registry";
 import { createWebMetadata, type MetadataSource } from "./metadata";
 import { createPlaceRegion, type PlaceRegion } from "./place-region";
 import { createQueryClient, type QueryClient } from "./query/client";
 import type { QueryInput } from "./types";
+
+/** The datasets that have an adapter: each one's id and which overlays it serves. */
+export function adapterOffers(): Pick<DatasetAdapter, "id" | "overlays">[] {
+	return ADAPTERS;
+}
+
+const ADAPTERS: DatasetAdapter[] = [airQualityAdapter, forecastsAdapter];
 
 let client: QueryClient | undefined;
 let metadata: MetadataSource | undefined;
@@ -40,7 +52,7 @@ export function getResolvers(): Pick<AdapterContext, "regions" | "locations" | "
  */
 export function getQueryClient(): QueryClient {
 	client ??= createQueryClient({
-		adapters: [airQualityAdapter],
+		adapters: ADAPTERS,
 		metadata: getMetadata(),
 		...getResolvers(),
 		activity: platform().activity

@@ -1,4 +1,6 @@
+import { mapScaleLevels } from "../metadata";
 import type { CatalogEntry, EntryTypeMeta, Level, MetadataSource } from "../metadata";
+import { FORECASTS_META } from "./forecasts-fixtures";
 
 const ALL = ["raw", "hour", "day", "month", "quarter", "season", "year"] as const;
 
@@ -66,6 +68,19 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 	return {
 		catalog: async () => FIXTURE_CATALOG,
 		levels: async (entryType) => (entryType === "pm25" ? FIXTURE_LEVELS : []),
+		datasetLevels: async (dataset, entryType) =>
+			dataset === "forecasts"
+				? mapScaleLevels(
+						(
+							FORECASTS_META.scales as Record<
+								string,
+								{ levels: Parameters<typeof mapScaleLevels>[0] }
+							>
+						)[entryType]?.levels
+					)
+				: entryType === "pm25"
+					? FIXTURE_LEVELS
+					: [],
 		defaultProcessor: async (monitorType) => FIXTURE_PROCESSORS[monitorType] ?? null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,
 		monitors: async () => FIXTURE_MONITORS.map((m) => ({ ...m, county: "Fresno", active: true })),

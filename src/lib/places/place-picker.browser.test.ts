@@ -63,6 +63,7 @@ let monitors: MonitorOption[];
 function directory(): PlaceDirectory {
 	return {
 		regionTypes: vi.fn(async () => []),
+		regionNamer: vi.fn(async () => (r: { name: string }) => r.name),
 		regionTypeLabels: vi.fn(
 			async () =>
 				new Map([

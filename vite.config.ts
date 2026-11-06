@@ -81,7 +81,21 @@ type ModuleInfoLookup = (id: string) => { importedIds: readonly string[] } | nul
  * reaches every one of them, but only what's used is bundled, so the app group would take in the
  * ones only lazy chunks use. They are left to the bundler's own splitting.
  */
-const BARRELED = ["/node_modules/date-fns/", "/src/lib/paraglide/messages/"];
+const BARRELED = [
+	"/node_modules/date-fns/",
+	"/src/lib/paraglide/messages/",
+	// bits-ui's barrel reaches every primitive, so all of them count as the app chunk's. These,
+	// and the helpers only they use, are used by lazy code alone (Get data); left in the group,
+	// they'd be bundled into the app chunk.
+	...["accordion", "alert-dialog", "collapsible", "select", "toggle-group"].map(
+		(bit) => `/node_modules/bits-ui/dist/bits/${bit}/`
+	),
+	"/node_modules/bits-ui/dist/bits/utilities/hidden-input.svelte",
+	"/node_modules/bits-ui/dist/bits/utilities/mounted.svelte",
+	"/node_modules/bits-ui/dist/internal/data-typeahead.svelte.js",
+	"/node_modules/svelte-toolbelt/dist/utils/on-mount-effect.svelte.js",
+	"/node_modules/svelte-toolbelt/dist/utils/sr-only-styles.js"
+];
 
 /**
  * Keeps the app chunk's modules (what `src/main.ts` imports statically, directly or not) in one

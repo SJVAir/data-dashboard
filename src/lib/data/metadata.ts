@@ -1,5 +1,6 @@
 import {
 	getDatasetCatalog,
+	getForecastsMeta,
 	getMonitorsList,
 	getMonitorsMeta,
 	type DatasetCatalog,
@@ -46,6 +47,8 @@ export type Level = {
 	min: number;
 	/** `null` is an open top. */
 	max: number | null;
+	/** A category level's raw value (forecasts' burn status); its `min` is 0 and `max` open. */
+	value?: string;
 };
 
 /** The level whose `[min, max)` holds `value` (the last level's `max` may be open). */
@@ -69,6 +72,11 @@ export interface MetadataSource {
 	catalog(signal?: AbortSignal): Promise<CatalogEntry[] | "unavailable">;
 	/** From the entry type's scale, ordered by min; `[]` if no scale. */
 	levels(entryType: string, signal?: AbortSignal): Promise<Level[]>;
+	/**
+	 * The levels of a dataset's entry type: the forecasts scales for `"forecasts"`, otherwise the
+	 * same as `levels`. `[]` if no scale.
+	 */
+	datasetLevels(dataset: string, entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/** The meta's `default_calibration`; `""` and unknown map to `null`. */
 	defaultProcessor(
 		monitorType: string,
@@ -178,9 +186,43 @@ export function mapDatasetCatalog(catalog: DatasetCatalog): CatalogEntry[] {
 	});
 }
 
+type ScaleLevel = {
+	key: string;
+	label: string;
+	color: string | null;
+	opacity: number | null;
+	tier: number | null;
+	min: number | null;
+	max: number | null;
+	value?: string | number | null;
+};
+
+/** A server scale's levels as `Level`s, ordered by min. A null `min` is 0; `value` is kept. */
+export function mapScaleLevels(levels: ScaleLevel[] | undefined): Level[] {
+	if (!levels) return [];
+	return levels
+		.map((l) => {
+			const level: Level = {
+				key: l.key,
+				label: l.label,
+				color: l.color,
+				opacity: l.opacity,
+				tier: l.tier,
+				min: l.min ?? 0,
+				max: l.max
+			};
+			if (l.value !== null && l.value !== undefined) level.value = String(l.value);
+			return level;
+		})
+		.sort((a, b) => a.min - b.min);
+}
+
 export function createWebMetadata(): MetadataSource {
 	const meta = memoize(() => getMonitorsMeta());
 	const list = memoize(() => getMonitorsList());
+	const forecastsMeta = memoize(() => getForecastsMeta());
+	const monitorLevels = async (entryType: string, signal?: AbortSignal) =>
+		mapScaleLevels((await meta(signal)).entries[entryType]?.scale?.levels);
 	const catalog = memoize(async () => mapDatasetCatalog(await getDatasetCatalog()));
 	return {
 		async catalog(signal) {
@@ -193,21 +235,12 @@ export function createWebMetadata(): MetadataSource {
 				return "unavailable";
 			}
 		},
-		async levels(entryType, signal) {
-			const entry = (await meta(signal)).entries[entryType];
-			const levels = entry?.scale?.levels;
-			if (!levels) return [];
-			return levels
-				.map((l) => ({
-					key: l.key,
-					label: l.label,
-					color: l.color,
-					opacity: l.opacity,
-					tier: l.tier,
-					min: l.min ?? 0,
-					max: l.max
-				}))
-				.sort((a, b) => a.min - b.min);
+		levels: monitorLevels,
+		async datasetLevels(dataset, entryType, signal) {
+			// Each dataset's scales come from its own meta endpoint; only forecasts has one apart
+			// from the monitors' today. A new dataset with its own scales adds its endpoint here.
+			if (dataset !== "forecasts") return monitorLevels(entryType, signal);
+			return mapScaleLevels((await forecastsMeta(signal)).scales[entryType]?.levels);
 		},
 		async defaultProcessor(monitorType, entryType, signal) {
 			const monitor = (await meta(signal)).monitors[monitorType];

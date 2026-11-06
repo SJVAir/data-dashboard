@@ -7,6 +7,7 @@ import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import ArrowUpToLine from "@lucide/svelte/icons/arrow-up-to-line";
 import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
+import Database from "@lucide/svelte/icons/database";
 import FoldHorizontal from "@lucide/svelte/icons/fold-horizontal";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import Minus from "@lucide/svelte/icons/minus";
@@ -43,6 +44,7 @@ import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/window
 import { getWidgetType } from "$lib/widgets/registry";
 import { generatedTitle } from "$lib/widgets/titles.svelte";
 import type { PlaceViewer } from "$lib/widgets/shared/viewer";
+import { navigate } from "../../router";
 import type { MenuItem, MenuProvider } from "./types";
 
 /**
@@ -310,6 +312,7 @@ export function widgetActions(
 		return [
 			...layout,
 			...windowing,
+			...editDataItems(app, widgetId),
 			{
 				id: "rename-widget",
 				label: m.widget_rename(),
@@ -403,6 +406,31 @@ export function placeItems(app: AppContext, widget: () => WidgetInstance | null)
 					(ctx.target as Partial<HTMLElement>).focus?.();
 					openPlacePicker({ widgetId });
 				})
+		}
+	];
+}
+
+/**
+ * "Edit data" for an editable widget whose type takes data from Get data (`accepts.datasets`);
+ * none otherwise. Opens Get data on the widget's data, with Save changes.
+ */
+function editDataItems(app: AppContext, widgetId: string): MenuItem[] {
+	const found = find(app, widgetId);
+	if (!found || !getWidgetType(found.widget.type)?.accepts?.datasets?.length) return [];
+	return [
+		{
+			id: "edit-data",
+			label: m.widget_edit_data(),
+			icon: Database,
+			group: "data",
+			run: () => {
+				// Re-read: the starter may have handed off to its copy meanwhile.
+				const current = find(app, widgetId);
+				if (!current) return;
+				void navigate("/dashboards/:id/widgets/:widgetId/edit", {
+					params: { id: current.session.doc.id, widgetId }
+				});
+			}
 		}
 	];
 }

@@ -142,12 +142,12 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   switch, and the wording and behavior fixes parked for it. Spec
   `docs/superpowers/specs/2026-11-03-design-pass-design.md`.
 
-4. **Widget Creation and the non-map widgets** (six specs, stacked into `step-4`; see `TODO.md`;
-   spec 1 merged into `step-4` (#36); spec 2, the shared place picker, built on `step-4-spec-2`,
-   its PR into `step-4` to come, 2026-11-04)
-   - the **Data Explorer** (renamed from Widget Creation view, 2026-11-04: data first, then how
-     to show it; Add to dashboard or Download CSV; catalog-driven dataset accordions, layers,
-     advanced resolution override)
+4. **Get data (formerly Widget Creation) and the non-map widgets** (six specs, stacked into
+   `step-4`; see `TODO.md`; specs 1–2 merged into `step-4` (#36, #38); spec 3, Get data, built on
+   `step-4-spec-3`, its PR into `step-4` pending the user's yes, 2026-11-05)
+   - **Get data** (formerly the Data Explorer and Widget Creation view; renamed 2026-11-05:
+     data first, then how to show it; Add to dashboard or Download CSV; catalog-driven dataset
+     sections, layers and overlays, advanced resolution override; built in spec 3)
    - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
      "Change place" bar; the first edit makes a personal copy) with non-map widgets: Current
      conditions, Forecast strip, "Can we go outside?", a chart, a calendar, the heatmap, and

@@ -57,6 +57,13 @@ export function routePattern(pathname: string): string {
 	if (path !== BASE && !path.startsWith(`${BASE}/`)) return "/other";
 	const rest = path.slice(BASE.length).replace(/\/+$/, "") || "/";
 	if (rest === "/" || rest === "/dashboards" || rest === "/import") return rest;
+	if (rest === "/data" || rest === "/shared") return rest;
+	if (/^\/shared\/[^/]+$/.test(rest)) return "/shared/:token";
 	if (/^\/dashboards\/[^/]+$/.test(rest)) return "/dashboards/:id";
+	if (/^\/dashboards\/[^/]+\/widgets$/.test(rest)) return "/dashboards/:id/widgets";
+	if (/^\/dashboards\/[^/]+\/widgets\/new$/.test(rest)) return "/dashboards/:id/widgets/new";
+	if (/^\/dashboards\/[^/]+\/widgets\/[^/]+\/edit$/.test(rest)) {
+		return "/dashboards/:id/widgets/:widgetId/edit";
+	}
 	return "/other";
 }

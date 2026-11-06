@@ -12,7 +12,13 @@ import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { PM25_LEVELS, chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
+import {
+	FORECASTS_ENTRY,
+	PM25_LEVELS,
+	chartWidget,
+	fakeAdapter,
+	fakeForecastsAdapter
+} from "../shared/test-harness/fake-data";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import DataTable from "./DataTable.svelte";
@@ -241,4 +247,74 @@ test("a point place's column header says whose location it is", async () => {
 		expect(frame.querySelector("thead")!.textContent).toContain(label);
 		await screen.unmount();
 	}
+});
+
+test("an overlay adds a column per place with each day's level label", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = tableWidget(["m1", "m2"]);
+	widget.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByRole("columnheader", { name: "Burn status, Monitor m1" }))
+		.toBeVisible();
+	await expect
+		.element(screen.getByRole("columnheader", { name: "Burn status, Monitor m2" }))
+		.toBeVisible();
+	// Newest first: the third day is "registered", the first two "discouraged".
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	const cells = [...frame.querySelectorAll("tbody tr")].map((r) =>
+		[...r.querySelectorAll("td")].slice(2).map((td) => td.textContent?.trim())
+	);
+	expect(cells).toEqual([
+		["No Burning Unless Registered", "No Burning Unless Registered"],
+		["Burning Discouraged", "Burning Discouraged"],
+		["Burning Discouraged", "Burning Discouraged"]
+	]);
+	expect((await axe.run(frame)).violations).toEqual([]);
+});
+
+test("an overlay that fails, or that the periods are too long for, says so under the table", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	const forecasts = fakeForecastsAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			{
+				...forecasts,
+				async fetch() {
+					throw new Error("offline");
+				}
+			}
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const failing = tableWidget(["m1"]);
+	failing.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	let screen = await show(failing);
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	await expect
+		.element(screen.getByText(m.chart_overlay_failed({ layer: "Burn status" })))
+		.toBeVisible();
+	await screen.unmount();
+
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), forecasts],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const monthly = tableWidget(["m1"]);
+	monthly.data.layers[0].resolution = "month";
+	monthly.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	screen = await show(monthly);
+	await expect
+		.element(screen.getByText(m.table_overlay_by_day({ layer: "Burn status" })))
+		.toBeVisible();
+	expect(frame.querySelector("thead")!.textContent).not.toContain("Burn status");
+	expect((await axe.run(frame)).violations).toEqual([]);
 });

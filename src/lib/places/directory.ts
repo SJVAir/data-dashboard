@@ -1,4 +1,5 @@
 import { getMonitorsList, getRegionsList, getRegionsMeta } from "@sjvair/sdk";
+import { regionDisplayName } from "@sjvair/sdk/regions";
 import type { RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import type { LocationTypeInfo, MonitorOption, RegionOption, RegionTypeInfo } from "./types";
@@ -8,6 +9,8 @@ export interface PlaceDirectory {
 	regionTypes(signal?: AbortSignal): Promise<RegionTypeInfo[]>;
 	/** The label of every region type in the metadata (browsable or not), by type. */
 	regionTypeLabels(signal?: AbortSignal): Promise<Map<string, string>>;
+	/** How to show a region of any type ("ZIP 93702"): its type's `name_template`, else its name. */
+	regionNamer(signal?: AbortSignal): Promise<(region: { type: string; name: string }) => string>;
 	locationTypes(signal?: AbortSignal): Promise<LocationTypeInfo[]>;
 	/** Monitors that can supply `entryType` (by type), active first then by name; `activeOnly` drops the rest. */
 	monitors(
@@ -70,6 +73,7 @@ export function createPlaceDirectory(ctx: {
 		}
 		const meta = await regionsMeta("meta");
 		const typeLabel = meta.types[type]?.label ?? type;
+		const displayName = (r: { type: string; name: string }) => regionDisplayName(r as never, meta);
 		const rows = await getRegionsList({ type: type as never, ...(within ? { within } : {}) });
 		return (
 			rows
@@ -79,7 +83,7 @@ export function createPlaceDirectory(ctx: {
 					kind: "region",
 					type,
 					code: r.external_id as string,
-					name: r.name,
+					name: displayName(r),
 					typeLabel,
 					// The regions list doesn't carry the containing county.
 					county: null
@@ -130,6 +134,10 @@ export function createPlaceDirectory(ctx: {
 		async regionTypeLabels(signal) {
 			const meta = await regionsMeta("meta", signal);
 			return new Map(Object.values(meta.types).map((t) => [t.type, t.label]));
+		},
+		async regionNamer(signal) {
+			const meta = await regionsMeta("meta", signal);
+			return (r) => regionDisplayName(r as never, meta);
 		},
 		async locationTypes(signal) {
 			const meta = await regionsMeta("meta", signal);

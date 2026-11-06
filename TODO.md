@@ -1162,7 +1162,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
-**Release 1, step 4: Widget Creation and non-map widgets** (now "the Data Explorer and non-map widgets")
+**Release 1, step 4: Widget Creation and non-map widgets** (now "Get data and non-map widgets")
 
 **Split into six specs (agreed with the user 2026-11-04)**, each its own spec → plan → stacked PR
 into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes:
@@ -1199,8 +1199,29 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    ZIP Codes in Tulare County, Roosevelt High's chart (ZIP 93702), and a scripted position
    (ZIP 93721). The user approved its new share and picker wording 2026-11-05. Its deferrals are in `DEFERRED.md`. After
    the merge, `prompt-map-widget.txt` (untracked) was refreshed for the Map widget session.
-3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
-   how to show it, then Add to dashboard or Download CSV).
+3. **Get data** (formerly the Data Explorer and Widget Creation; renamed by the user
+   2026-11-05) — **built on `step-4-spec-3`, its PR into `step-4` pending the user's yes**: spec
+   `docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`, plan
+   `docs/superpowers/plans/2026-11-05-step-4-spec-3-get-data.md`. Built: SDK pinned exactly to
+   `5.0.0-beta.4`, with region display names ("ZIP 93702"); the "Data" nav link and the routes
+   `/data`, `/dashboards/:id/widgets/new` and `/dashboards/:id/widgets/:widgetId/edit` (the error
+   reports' route list now checked against the router); the lazily loaded view (When: one
+   grouped preset list over the three saved methods; Where: the shared picker in multiple
+   mode; What: catalog-driven dataset sections, offered by adapter and the types' explicit
+   `accepts.datasets`; More options → Detail; a live preview with Show as and Dashboard size);
+   the forecasts adapter, with burn status and AQI forecast as overlays (labeled day bands on
+   the Chart, columns in the Data table, "Overlay for" when places' zones differ); CSV from any
+   data config, with overlay rows and `level_key`/`level_label`; the draft kept in this
+   browser; "Add widget" on data types opens Get data; **Add to dashboard** (target menu, the
+   starter's copy, highlight, one undo step); and **Edit data** with Save changes (one undo
+   step) and "Discard changes?". Initial bundle 199.6 KB of the 200 KB soft budget. E2E:
+   `e2e/get-data.spec.ts`. Stack check against `develop` (local forecasts start 2026-10-20, so
+   October 2026, not January): Fresno County PM2.5 with burn status, ZIP 93702 reads "ZIP
+   93702", and the CSV has the overlay rows. Its deferrals are in `DEFERRED.md`.
+   3b. **Get data layers** (added by the user 2026-11-05; next, before spec 4): pin `@sjvair/sdk`
+   `5.0.0-beta.5` (published 2026-11-05) and add the four layers the Get data layers track
+   delivered: monthly pesticide use, nearest weather station, smoke per day, and weather
+   summaries (`DEFERRED.md` → "Get data overlays waiting on the 'Get data layers' track").
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
 5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
 6. Notes and the starter dashboard.
@@ -1210,7 +1231,7 @@ The checklist below is the whole step's scope.
 - **Widget types default to about 3 of 12 columns wide**, so a laptop shows about four across
   (the design pass's density). Placeholder already does.
 - Each widget type declares its allowed date methods and span (`dateMethods`, `span`);
-  Widget Creation hides what doesn't apply.
+  Get data hides what doesn't apply.
 - **Retired or missing references** in every widget type: the "stopped reporting" note,
   "Switch to the replacement", and the "no longer available" card with "Choose another" /
   "Remove" (`ARCHITECTURE.md` → "Stable ids and retirement").
@@ -1222,7 +1243,7 @@ The checklist below is the whole step's scope.
   copy); a real edit makes a copy and replaces the URL with `/workspace/dashboards/:id`; sharing
   copies first. It has non-map widgets, including a
   calendar; the Map widget joins in step 6.
-- The Data Explorer (formerly the Widget Creation view; including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
+- Get data (formerly the Data Explorer and the Widget Creation view; including the advanced resolution override): dates above catalog-driven dataset sections (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
 - The "Duplicate widget" action (used to put several widgets on the same place).
@@ -1488,6 +1509,9 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **The error reports' route list** (step 4 spec 3, 2026-11-05): a test compares
+      `routePattern` to the router's route keys (`ROUTE_KEYS`). Removed from `DEFERRED.md`: "The
+      error reports' route list duplicates the router's".
 - [x] **monitor-map 5.0 decisions** (the user, 2026-11-05, in the 5.0 spec). Removed from
       `DEFERRED.md`: "Shared date-range helper home" (the chart uses `@sjvair/sdk`'s Pacific
       day helpers; no new shared module), and "monitor-map: cancelling one-off loads" (HMS and

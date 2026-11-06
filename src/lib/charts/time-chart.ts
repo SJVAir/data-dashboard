@@ -4,6 +4,7 @@ import type { Level } from "$lib/data/metadata";
 import { formatTick, TIME_ZONE } from "$lib/format";
 import { valueTickLabels } from "./axis";
 import { drawBands, valueAxisMax } from "./bands";
+import { drawDayBands, type ChartOverlay } from "./day-bands";
 import {
 	seriesShape,
 	seriesStyle,
@@ -22,6 +23,7 @@ const BAND_FONT_SIZE = 10;
 type Theme = {
 	series: SeriesStyle[];
 	muted: string;
+	foreground: string;
 	border: string;
 	background: string;
 	bandOpacity: number;
@@ -38,6 +40,7 @@ function readTheme(el: Element, count: number): Theme {
 	return {
 		series: Array.from({ length: count }, (_, i) => seriesStyle(i, css)),
 		muted: css.getPropertyValue("--muted-foreground").trim(),
+		foreground: css.getPropertyValue("--foreground").trim(),
 		border: css.getPropertyValue("--border").trim(),
 		background:
 			css.getPropertyValue("--card").trim() || css.getPropertyValue("--background").trim(),
@@ -62,6 +65,10 @@ export type ChartData = {
 	xRange?: XRange;
 	/** Where the value axis starts (the catalog's `y_min`); else at 0 or the lowest value. */
 	yMin?: number | null;
+	/** Day bands behind the line, one lane each (see `drawDayBands`). */
+	overlays?: ChartOverlay[];
+	/** The points are days: a day band centres on its day's dot. */
+	daily?: boolean;
 };
 
 export type ChartInput = ChartData & { levels: Level[]; unit: string };
@@ -70,6 +77,8 @@ export type TimeChart = {
 	u: uPlot;
 	/** Shows new data in the same chart, with the same number of places. */
 	update(next: ChartData): void;
+	/** Draws one overlay level's day bands stronger and the rest fainter; `null` for none. */
+	highlight(key: string | null): void;
 };
 
 function plotData(aligned: AlignedSeries): uPlot.AlignedData {
@@ -91,6 +100,8 @@ export type ChartEvents = {
 	onCursor(idx: number | null): void;
 	/** How many worst-hour sticks the last draw drew. */
 	onSticks(count: number): void;
+	/** How many overlay days the last draw drew. */
+	onDayBands?(count: number): void;
 };
 
 /** Builds the uPlot chart in `target`; bands, sticks, and dots are drawn from hooks. */
@@ -105,6 +116,7 @@ export function createTimeChart(
 	let yRange = valueRange(current, levels);
 	const count = current.aligned.places.length;
 	let theme = readTheme(target, count);
+	let highlight: string | null = null;
 	const font = getComputedStyle(target).getPropertyValue("--font-sans").trim() || "sans-serif";
 	const ratio = () => uPlot.pxRatio;
 
@@ -187,6 +199,24 @@ export function createTimeChart(
 							fontSize: BAND_FONT_SIZE,
 							ratio: ratio()
 						});
+						const days = drawDayBands(
+							u.ctx,
+							current.overlays ?? [],
+							(t) => u.valToPos(t, "x", true),
+							u.bbox,
+							{
+								opacity: theme.bandOpacity,
+								hatch: theme.muted,
+								text: theme.foreground,
+								background: theme.background,
+								font,
+								fontSize: BAND_FONT_SIZE,
+								ratio: ratio(),
+								highlight,
+								centred: current.daily === true
+							}
+						);
+						events.onDayBands?.(days);
 					}
 				],
 				draw: [
@@ -237,6 +267,11 @@ export function createTimeChart(
 			yRange = valueRange(next, levels);
 			// Applied at once (not on uPlot's next microtask), so the caller can place the cursor after.
 			u.batch(() => u.setData(plotData(next.aligned)));
+		},
+		highlight(key) {
+			if (key === highlight) return;
+			highlight = key;
+			u.redraw(false);
 		}
 	};
 }

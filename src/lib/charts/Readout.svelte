@@ -13,7 +13,8 @@
 		entries,
 		levels,
 		unit,
-		precision = null
+		precision = null,
+		overlays = []
 	}: {
 		t: number;
 		resolution: Resolution;
@@ -23,6 +24,8 @@
 		unit: string;
 		/** Decimals for values (the catalog's display precision); null: the default format. */
 		precision?: number | null;
+		/** Each overlay's level on this day, if it has one. */
+		overlays?: { layer: string; level: Level | null }[];
 	} = $props();
 
 	const value = (v: number) => m.chart_value({ value: formatValue(v, precision), unit });
@@ -61,4 +64,9 @@
 			<p class="text-muted-foreground">{m.chart_partial()}</p>
 		{/if}
 	</div>
+{/each}
+{#each overlays as { layer, level }, i (i)}
+	{#if level}
+		<p>{m.chart_overlay_value({ layer, level: level.label })}</p>
+	{/if}
 {/each}

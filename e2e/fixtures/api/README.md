@@ -23,3 +23,10 @@ The place picker's endpoints whose answer depends on the query are answered by
 trimmed from the local sjvair.com stack (`develop`, 2026-11-04): Fresno, Madera and Tulare
 counties with a few of their cities and ZIPs, the "fre" and "roo" searches, Roosevelt High's
 location, three monitors, and the point lookup, which answers ZIP 93721 for any point.
+
+The forecasts files come from the local stack too (`develop`, 2026-11-05): the catalog's
+`forecasts` dataset in `2.0/meta/datasets.json`, `2.0/forecasts/meta.json` (the real scales,
+zones trimmed to Fresno and Madera), and `2.0/forecasts/place.json`, Fresno County's real answer
+for 2026-10-20 to 2026-11-06. `e2e/forecasts-server.ts` answers `2.0/forecasts/place/` for any
+place from that file, its rows re-dated to one forecast per requested day (up to tomorrow), since
+widgets ask for days around today.

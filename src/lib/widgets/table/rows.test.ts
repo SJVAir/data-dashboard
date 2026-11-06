@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
+import type { Level } from "$lib/data/metadata";
 import type { QueryData, SeriesPoint } from "$lib/data/types";
-import { sortRows, wideRows } from "./rows";
+import { overlayColumns, sortRows, wideRows } from "./rows";
 
 const pt = (t: number, mean: number, partial = false): SeriesPoint => ({
 	t,
@@ -49,4 +50,69 @@ test("sorting by date goes either way", () => {
 	const rows = wideRows(data);
 	expect(sortRows(rows, "t", "desc").map((r) => r.t)).toEqual([4, 3, 2, 1]);
 	expect(sortRows(rows, "t", "asc").map((r) => r.t)).toEqual([1, 2, 3, 4]);
+});
+
+const BURN: Level[] = [
+	{
+		key: "discouraged",
+		label: "Burning Discouraged",
+		color: "#ffff00",
+		opacity: null,
+		tier: null,
+		min: 0,
+		max: null
+	},
+	{
+		key: "registered",
+		label: "No Burning Unless Registered",
+		color: "#ff7e00",
+		opacity: null,
+		tier: null,
+		min: 0,
+		max: null
+	}
+];
+
+const burn = (t: number, level: string): SeriesPoint => ({
+	t,
+	mean: NaN,
+	min: NaN,
+	max: NaN,
+	count: 1,
+	partial: false,
+	level
+});
+
+test("overlay adds a labeled column per place", () => {
+	const overlay: QueryData = {
+		...data,
+		// Matched to the main places by request order, not by key or series order.
+		series: [
+			{ place: "region:b", points: [burn(4, "discouraged")] },
+			{
+				place: "region:a",
+				points: [burn(1, "registered"), burn(2, "discouraged"), burn(5, "registered")]
+			}
+		],
+		places: [
+			{ place: "region:a", name: "A" },
+			{ place: "region:b", name: "B" }
+		]
+	};
+	const columns = overlayColumns(data, [{ data: overlay, levels: BURN }]);
+	expect(columns.map((c) => [c.overlay, c.place.name, c.key])).toEqual([
+		[0, "A", "region:a"],
+		[0, "B", "region:b"]
+	]);
+	const rows = wideRows(data, [{ data: overlay, levels: BURN }]);
+	// A forecast day with no measurement still gets its row on a daily table.
+	expect(rows.map((r) => r.t)).toEqual([1, 2, 3, 4, 5]);
+	expect(rows.map((r) => r.overlays.map((l) => l?.label ?? null))).toEqual([
+		["No Burning Unless Registered", null],
+		["Burning Discouraged", null],
+		[null, null],
+		[null, "Burning Discouraged"],
+		["No Burning Unless Registered", null]
+	]);
+	expect(rows[4].cells).toEqual([null, null]);
 });

@@ -1,6 +1,7 @@
-import { getRegionsByCode, type RegionType } from "@sjvair/sdk";
+import { getRegionsByCode, getRegionsMeta, type RegionType } from "@sjvair/sdk";
+import { regionDisplayName } from "@sjvair/sdk/regions";
 import type { ResolvedRange } from "$lib/format/range";
-import { untilAborted, type MetadataSource } from "../metadata";
+import { untilAborted, type EntryTypeMeta, type MetadataSource } from "../metadata";
 import type { Layer, Resolution } from "../schema";
 import type { QueryData, Target, UnavailableReason } from "../types";
 
@@ -75,6 +76,11 @@ export interface DatasetAdapter {
 	target(layer: Layer, ctx: AdapterContext): Promise<Target | { unavailable: UnavailableReason }>;
 	/** The levels of the entry type's catalog `base` this adapter can actually fetch for `target`. */
 	offered(base: Resolution[], target: Target): Resolution[];
+	/**
+	 * Whether a non-pollutant entry type can be an overlay on a pollutant layer (fetched for the
+	 * main layer's places at its detail). Absent: none can.
+	 */
+	overlays?: (entry: EntryTypeMeta) => boolean;
 	fetch(req: AdapterRequest, ctx: AdapterContext, signal: AbortSignal): Promise<QueryData>;
 }
 
@@ -128,6 +134,15 @@ type Waiter = {
 export function createWebRegionResolver(): RegionResolver {
 	const cache = new Map<string, Promise<ResolvedRegion | null>>();
 	let pending = new Map<string, Map<string, Waiter>>();
+	// One regions/meta fetch per resolver (a failure is forgotten and retried).
+	let metaRequest: ReturnType<typeof getRegionsMeta> | null = null;
+	function regionsMeta() {
+		const request = (metaRequest ??= getRegionsMeta());
+		request.catch(() => {
+			if (metaRequest === request) metaRequest = null;
+		});
+		return request;
+	}
 
 	async function lookup(type: string, codes: Map<string, Waiter>) {
 		const list = [...codes.keys()];
@@ -136,11 +151,17 @@ export function createWebRegionResolver(): RegionResolver {
 		await Promise.all(
 			batches.map(async (batch) => {
 				try {
-					const regions = await getRegionsByCode(type as CodedRegionType, batch);
+					const [regions, meta] = await Promise.all([
+						getRegionsByCode(type as CodedRegionType, batch),
+						regionsMeta()
+					]);
 					const found = new Map<string, ResolvedRegion>();
 					for (const r of regions) {
 						if (r.external_id === null) continue;
-						const region: ResolvedRegion = { id: r.id, name: r.name };
+						const region: ResolvedRegion = {
+							id: r.id,
+							name: regionDisplayName(r, meta)
+						};
 						if (r.retired) {
 							region.retired = {
 								since: r.retired.since,

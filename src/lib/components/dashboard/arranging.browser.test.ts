@@ -1361,6 +1361,14 @@ test("Move ▸ Right from the ⋯ menu on the starter closes the menu and keeps 
 
 /** Focus moves down the open submenu until it's on `name`. */
 async function focusItem(name: string) {
+	// The submenu opens before focus moves into it; an ArrowDown sent in between moves focus in
+	// the parent menu instead (a flake under load). Wait until focus is in the newest menu.
+	await expect
+		.poll(() => {
+			const menus = document.querySelectorAll("[role=menu]");
+			return menus.length > 1 && menus[menus.length - 1].contains(document.activeElement);
+		})
+		.toBe(true);
 	for (let i = 0; i < 8 && document.activeElement?.textContent?.trim() !== name; i++) {
 		await press("{ArrowDown}");
 	}

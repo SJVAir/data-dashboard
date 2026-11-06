@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Component } from "svelte";
 import {
 	addableWidgetTypes,
+	dataTypes,
 	getWidgetType,
 	loadWidget,
 	registerWidgetType,
@@ -47,6 +48,14 @@ describe("widget registry", () => {
 		const again = type("registry-replace", { minSize: { w: 5, h: 5 } });
 		registerWidgetType(again);
 		expect(getWidgetType("registry-replace")).toBe(again);
+	});
+
+	test("data types are those that accept datasets", () => {
+		registerWidgetType(type("registry-data", { accepts: { datasets: ["air-quality"] } }));
+		registerWidgetType(type("registry-no-data", { accepts: { maxPlaces: 3 } }));
+		const names = dataTypes().map((t) => t.type);
+		expect(names).toContain("registry-data");
+		expect(names).not.toContain("registry-no-data");
 	});
 
 	test("only types with `addable` are offered, in registration order", () => {
