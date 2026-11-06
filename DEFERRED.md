@@ -1454,6 +1454,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The Data table shows an AQI forecast's level, not its number** (the CSV has the number in
     `mean`). Showing "Moderate (72)" needs a wording choice and the value in `TableRow`.
     **Revisit when** the new strings go to the user with the PR, or someone asks for the number.
+  - **Test gaps and one duplication** (the user kept these 2026-11-06 out of the review's
+    eight nits): no test pins the Add widget menu's order (data types first) or `typeBlock`
+    with no layers; the Chart's "borrowed place" test doesn't prove the overlay asked for the
+    main layer's place, and nothing tests an overlay whose levels fail to load; Edit data
+    repeats `DashboardPage.svelte`'s fetch-a-server-only-dashboard steps and its not-found
+    markup (`src/routes/GetData.svelte`), so the two can drift. **Revisit when** those files
+    are next touched (the duplication first: a shared helper and not-found component).
 
 ## Alerts
 
@@ -2136,3 +2143,16 @@ Dropped 2026-11-05 by the user (monitor-map 5.0 spec):
 - **monitor-map: cancelling one-off loads** (deferred 2026-10-21, monitor-map SDK 4.7 design).
   Closed because HMS smoke and fire and collocation sites move to map-sdk's load-once stores in
   5.0, which already handle a caller's cancel; they still load once.
+
+Dropped 2026-11-06 by the user (step 4 spec 3 final review nits, harmless polish or process
+notes):
+
+- **`as never` casts around `regionDisplayName`** (`src/lib/places/directory.ts`,
+  `src/lib/data/adapters/registry.ts` and their tests).
+- **The "weeks start on Sunday" test lives in `date-presets.test.ts`** but exercises the shared
+  range code.
+- **The forecasts test fixtures' nested ternary and casts** (`src/lib/data/testing/fixtures.ts`).
+- **The Get data view's tests were written after the components** (test-first order skipped;
+  the tests cover the behavior).
+- **`e2e/get-data.spec.ts` parses CSV by splitting on commas** (fine for its fixtures, which
+  have no quoted commas).
