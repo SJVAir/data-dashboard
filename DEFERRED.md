@@ -1198,6 +1198,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   **Revisit when** the Map widget allows very short maps or bottom-corner lists, data credits
   become non-blank, or before map-sdk 1.0.
 
+- **map-sdk: plugin effects added from inside a host `$effect` can stop.** _Deferred 2026-11-05
+  (the user; map-sdk #7)._ monitor-map found that a plugin's `ctx.effect` can stop re-running for
+  good when the host adds the plugin from inside its own `$effect`. The cause: map-sdk's
+  `plugin-host` creates the effect's `$effect.root` under whatever effect is active, and Svelte
+  detaches that root when the host's effect re-runs. It reproduces in monitor-map (Svelte 5.57.0
+  and 5.57.3) but not in map-sdk's client tests, across several models of that pattern, so no
+  fix can be proven yet. monitor-map no longer triggers it (its add/remove runs outside the
+  effect, monitor-map #126). **Revisit when** monitor-map has to add plugins from an effect again
+  (the user is deciding whether its #126 change stays), another host hits it, or before map-sdk
+  1.0. Next step: run monitor-map's repro (`c-reset3.mjs`) against a local map-sdk build with a
+  candidate fix (effect roots created outside the caller's effect), and file a minimal Svelte
+  repro upstream.
+
 ## Widgets
 
 - **Pesticide widgets and `pesticides/meta/`.** _Deferred 2026-11-03 (step 3 second batch,
