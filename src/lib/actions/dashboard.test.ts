@@ -45,6 +45,11 @@ describe("Add widget", () => {
 		});
 	});
 
+	it("on a read-only dashboard it opens nothing", () => {
+		startGetData(app(false, "newer"), "chart");
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
 	it("a locked dashboard disables Add widget", () => {
 		const add = dashboardActions(app(false, "newer"))(CTX).find((i) => i.id === "add-widget");
 		expect(add && isDisabled(add)).toBe(true);

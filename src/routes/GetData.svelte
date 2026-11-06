@@ -7,10 +7,11 @@
 	import { flushDraft, loadDraft, type Draft } from "$lib/get-data/draft.svelte";
 	import { draftChanged, editDraft, saveEdit } from "$lib/get-data/edit";
 	import GetDataView from "$lib/get-data/GetDataView.svelte";
-	import { parseGetDataMode } from "$lib/get-data/mode";
+	import { cancelPlan, parseGetDataMode } from "$lib/get-data/mode";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { report } from "$lib/safety/report";
+	import { STARTER_ID } from "$lib/starter/starter";
 	import { LAST_OPENED_KEY, useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
 	import { dataTypes } from "$lib/widgets/registry";
@@ -29,7 +30,7 @@
 	let lastOpened = $state<string | undefined>();
 	/** Edit data: the widget's dashboard. */
 	let editing = $state.raw<DocumentSession | null>(null);
-	/** Edit data: the dashboard isn't here, or the widget's data can't be edited. */
+	/** The dashboard isn't here, or (Edit data) the widget's data can't be edited. */
 	let notFound = $state<"dashboard" | "widget" | null>(null);
 	/** The view's draft as it is now (Edit data compares it with `initial`). */
 	let current = $state.raw<Draft | null>(null);
@@ -55,7 +56,11 @@
 		if (at.kind === "edit") {
 			// Edit data starts from the widget each time.
 			void openDashboard(at.dashboardId)
-				.catch(() => null)
+				.catch((error) => {
+					// Storage failed: the "not here" message stands, and the failure is reported.
+					report(error, { operation: "get-data-open" });
+					return null;
+				})
 				.then((session) => {
 					if (!active) return;
 					if (!session || typeof session.doc.deletedAt === "string") {
@@ -71,6 +76,13 @@
 					editing = session;
 					initial = editDraft(widget);
 				});
+		} else if (
+			at.dashboardId !== undefined &&
+			at.dashboardId !== STARTER_ID &&
+			!app.index.items.some((d) => d.id === at.dashboardId)
+		) {
+			// A new widget for a dashboard that isn't here.
+			notFound = "dashboard";
 		} else {
 			const search = route.search as Record<string, unknown>;
 			const type = typeof search.type === "string" ? search.type : undefined;
@@ -127,6 +139,7 @@
 		// Still busy until the page has gone, so a second click can't add another.
 		try {
 			await navigate("/dashboards/:id", { params: { id: added.dashboardId } });
+			if (added.copied) toast(m.starter_copied());
 		} finally {
 			adding = false;
 		}
@@ -163,8 +176,10 @@
 	async function cancel(): Promise<void> {
 		if (dirty && !(await askDiscard())) return;
 		leaving = true;
-		if (history.length > 1) history.back();
-		else void navigate("/");
+		const plan = cancelPlan(history.state, mode);
+		if (plan.kind === "back") history.back();
+		else if (plan.path === "/") void navigate("/");
+		else void navigate("/dashboards/:id", { params: { id: plan.id } });
 	}
 
 	let saving = $state(false);
@@ -175,10 +190,10 @@
 		if (saving || !session || mode.kind !== "edit") return;
 		const { widgetId } = mode;
 		saving = true;
-		let dashboardId: string;
+		let landed: Awaited<ReturnType<typeof landedIn>>;
 		try {
 			saveEdit(session, widgetId, draft);
-			dashboardId = (await landedIn(session)).doc.id;
+			landed = await landedIn(session);
 		} catch (error) {
 			report(error, { operation: "get-data-save" });
 			toast.error(m.get_data_save_failed());
@@ -188,7 +203,8 @@
 		leaving = true;
 		requestFocus({ kind: "title", id: widgetId });
 		try {
-			await navigate("/dashboards/:id", { params: { id: dashboardId } });
+			await navigate("/dashboards/:id", { params: { id: landed.session.doc.id } });
+			if (landed.copied) toast(m.starter_copied());
 		} finally {
 			saving = false;
 		}

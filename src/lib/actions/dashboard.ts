@@ -86,7 +86,8 @@ async function goHome(target: HomeTarget): Promise<void> {
 /** Opens Get data to build a new widget of data type `type` for the current dashboard. */
 export function startGetData(app: AppContext, type: string): void {
 	const { session, isStarter } = app.current;
-	if (!session) return;
+	// The menu disables Add widget there too; this guards any other caller.
+	if (!session || session.readOnly) return;
 	void navigate("/dashboards/:id/widgets/new", {
 		params: { id: isStarter ? STARTER_ID : session.doc.id },
 		search: { type }

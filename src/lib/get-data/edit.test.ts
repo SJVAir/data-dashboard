@@ -149,7 +149,8 @@ describe("saveEdit", () => {
 		const widget = starter.doc.body.widgets[0];
 		const draft: Draft = { ...editDraft(widget), type: "data-table" };
 		expect(saveEdit(starter, widget.id, draft)).toBe(true);
-		const copy = await landedIn(starter);
+		const { session: copy, copied } = await landedIn(starter);
+		expect(copied).toBe(true);
 		expect(copy.doc.id).not.toBe(STARTER_ID);
 		expect(copy.doc.body.widgets.find((w) => w.id === widget.id)?.type).toBe("data-table");
 	});

@@ -20,14 +20,15 @@ export const NEW_DASHBOARD = "new";
 /**
  * Adds `draft` as a widget below everything on dashboard `targetId` (`STARTER_ID` makes the
  * starter's copy, as any first edit does; `NEW_DASHBOARD` creates a blank one), at its type's
- * default size: one `addWidget` change, so one undo step. Resolves where it landed. Throws for a
- * dashboard that can't be opened or edited (never offered) or an unknown type.
+ * default size: one `addWidget` change, so one undo step. Resolves where it landed, and whether
+ * the starter's copy was made there. Throws for a dashboard that can't be opened or edited (never
+ * offered) or an unknown type.
  */
 export async function addFromDraft(
 	app: AppContext,
 	targetId: string,
 	draft: Draft
-): Promise<{ dashboardId: string; widgetId: string }> {
+): Promise<{ dashboardId: string; widgetId: string; copied: boolean }> {
 	const type = getWidgetType(draft.type);
 	if (!type) throw new Error(`Unknown widget type ${draft.type}`);
 	const id = targetId === NEW_DASHBOARD ? await app.index.createBlank() : targetId;
@@ -48,20 +49,23 @@ export async function addFromDraft(
 		widget,
 		index: widgets.length
 	});
-	const target = await landedIn(session);
-	return { dashboardId: target.doc.id, widgetId: widget.id };
+	const { session: target, copied } = await landedIn(session);
+	return { dashboardId: target.doc.id, widgetId: widget.id, copied };
 }
 
 /**
- * The session an edit landed in: the starter's copy once the hand-off is done. Throws when the
- * copy couldn't be stored.
+ * The session an edit landed in: the starter's copy once the hand-off is done (`copied`, so the
+ * caller can say so, as any first edit of the starter does). Throws when the copy couldn't be
+ * stored.
  */
-export async function landedIn(session: DocumentSession): Promise<DocumentSession> {
+export async function landedIn(
+	session: DocumentSession
+): Promise<{ session: DocumentSession; copied: boolean }> {
 	const handoff = session.handoff;
-	if (!handoff) return session.editTarget;
+	if (!handoff) return { session: session.editTarget, copied: false };
 	const copy = await handoff;
 	if (!copy) throw new Error("The starter's copy couldn't be stored");
-	return copy.editTarget;
+	return { session: copy.editTarget, copied: true };
 }
 
 /**

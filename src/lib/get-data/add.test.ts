@@ -67,9 +67,10 @@ describe("addFromDraft", () => {
 		const session = (await app.sessions.get("d1"))!;
 		const before = session.doc.body.widgets;
 
-		const { dashboardId, widgetId } = await addFromDraft(app, "d1", draft());
+		const { dashboardId, widgetId, copied } = await addFromDraft(app, "d1", draft());
 
 		expect(dashboardId).toBe("d1");
+		expect(copied).toBe(false);
 		const added = session.doc.body.widgets.at(-1)!;
 		expect(added).toEqual({
 			id: widgetId,
@@ -97,8 +98,9 @@ describe("addFromDraft", () => {
 	it("adding to the starter makes the copy and returns its id", async () => {
 		const { platform, app } = await anonymous();
 
-		const { dashboardId, widgetId } = await addFromDraft(app, STARTER_ID, draft());
+		const { dashboardId, widgetId, copied } = await addFromDraft(app, STARTER_ID, draft());
 
+		expect(copied).toBe(true);
 		expect(dashboardId).not.toBe(STARTER_ID);
 		const copy = (await app.sessions.get(dashboardId))!;
 		expect(copy.doc.copiedFrom).toBe(STARTER_ID);

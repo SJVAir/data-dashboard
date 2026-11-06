@@ -1,5 +1,6 @@
 import "../app.css";
 import { afterEach, expect, test, vi } from "vitest";
+import { toast } from "svelte-sonner";
 import { blockNavigation } from "sv-router";
 import { render } from "vitest-browser-svelte";
 import { commands, page, userEvent } from "vitest/browser";
@@ -21,6 +22,11 @@ declare module "vitest/browser" {
 	}
 }
 
+const reported = vi.hoisted(() => [] as Array<{ operation?: string }>);
+vi.mock("$lib/safety/report", () => ({
+	report: (_error: unknown, context?: { operation?: string }) => reported.push(context ?? {})
+}));
+
 // The view below the heading runs queries; a client with no adapters keeps them local.
 vi.mock("$lib/data", async () => {
 	const { createQueryClient } = await import("$lib/data/query/client");
@@ -29,7 +35,7 @@ vi.mock("$lib/data", async () => {
 	const regions = { resolve: async () => null };
 	const client = createQueryClient({ adapters: [], metadata, regions });
 	return {
-		adapterIds: () => [],
+		adapterOffers: () => [],
 		getQueryClient: () => client,
 		getMetadata: () => metadata,
 		getResolvers: () => ({
@@ -44,6 +50,8 @@ vi.mock("$lib/data", async () => {
 const originalUrl = location.href;
 afterEach(() => {
 	history.replaceState(null, "", originalUrl);
+	// A toast left up would cover the next test's buttons.
+	toast.dismiss();
 });
 
 async function setup() {
@@ -124,6 +132,8 @@ test("Add to the dashboard you came from: lands there with the widget focused an
 	await addButton("Home").click();
 	const { frame } = await landed(app, "d1");
 	await expect.poll(() => focusedIn(frame)).toBe(true);
+	// No copy was made, so nothing says so.
+	expect(page.getByText("Saved as your own dashboard").query()).toBeNull();
 	expect(frame.hasAttribute("data-added")).toBe(true);
 	expect(getComputedStyle(frame).animationName).toBe("widget-added");
 	// The highlight goes after 2 s.
@@ -156,6 +166,8 @@ test("with no dashboards, Add to Starter dashboard makes the copy and lands on i
 	expect(copy.doc.id).not.toBe(STARTER_ID);
 	expect(copy.doc.copiedFrom).toBe(STARTER_ID);
 	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
+	// As any first edit of the starter says.
+	await expect.element(page.getByText("Saved as your own dashboard")).toBeVisible();
 	const added = copy.doc.body.widgets.at(-1)!;
 	expect(added.type).toBe("chart");
 	const frame = page.getByTestId(`widget-${added.id}`);
@@ -177,6 +189,18 @@ test("with reduced motion the added widget is focused, not animated", async () =
 	} finally {
 		await commands.setReducedMotion(null);
 	}
+});
+
+test("Add widget on an unknown dashboard shows the not-found page", async () => {
+	await appAt(
+		() => navigate("/dashboards/:id/widgets/new", { params: { id: "d9" } }),
+		["Home"],
+		"d1"
+	);
+	await expect
+		.element(page.getByRole("heading", { name: "This dashboard isn't saved in this browser." }))
+		.toBeVisible();
+	expect(addButton("Home").query()).toBeNull();
 });
 
 test("a second click while the dashboard opens adds one widget", async () => {
@@ -255,6 +279,19 @@ test("an unknown dashboard or widget id shows the not-found page", async () => {
 	expect(saveButton().query()).toBeNull();
 });
 
+test("Edit data whose dashboard fails to open says it isn't here, and reports the failure", async () => {
+	const { app } = await editAt(null);
+	reported.length = 0;
+	vi.spyOn(app.sessions, "get").mockRejectedValueOnce(new Error("storage"));
+	await navigate("/dashboards/:id/widgets/:widgetId/edit", {
+		params: { id: "d1", widgetId: "w1" }
+	});
+	await expect
+		.element(page.getByRole("heading", { name: "This dashboard isn't saved in this browser." }))
+		.toBeVisible();
+	expect(reported).toEqual([{ operation: "get-data-open" }]);
+});
+
 test("a pre-spec widget opens unchanged; Save changes with no changes applies nothing", async () => {
 	const { app, platform } = await editAt({ id: "d1", widgetId: "w1" });
 	await expect.element(page.getByRole("heading", { name: "Edit data" })).toBeVisible();
@@ -297,7 +334,12 @@ test("Back while dirty asks to discard; Keep editing stays", async () => {
 });
 
 test("a nav link or Cancel while dirty asks to discard; with no changes they just leave", async () => {
-	await editAt({ id: "d1", widgetId: "w1" });
+	const { app, platform } = await editAt({ id: "d1", widgetId: "w1" });
+	// A Get data draft unlike both the widget (Last 30 days) and the edit (Data table).
+	await platform.preferences.set(app.space, DRAFT_KEY, {
+		type: "chart",
+		data: { ...preSpec.data, dateRange: { kind: "trailing", amount: 7, unit: "day" } }
+	});
 	await page.getByRole("radio", { name: "Data table" }).click();
 	await page.getByRole("button", { name: "Cancel" }).click();
 	await expect.element(discardDialog()).toBeVisible();
@@ -310,9 +352,12 @@ test("a nav link or Cancel while dirty asks to discard; with no changes they jus
 	await page.getByRole("link", { name: "Data" }).click();
 	await page.getByRole("button", { name: "Discard" }).click();
 	await expect.poll(() => location.pathname).toBe("/workspace/data");
-	// /data starts from the Get data draft, not the widget.
+	// /data starts from the Get data draft, not the widget or the discarded edit.
 	await expect.element(page.getByRole("heading", { name: "Get data" })).toBeVisible();
 	await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+	await expect
+		.element(page.getByRole("button", { name: /^Dates/ }))
+		.toHaveTextContent("Last 7 days");
 	expect(saveButton().query()).toBeNull();
 });
 
@@ -322,4 +367,18 @@ test("Cancel with no changes goes back without asking", async () => {
 	await page.getByRole("button", { name: "Cancel" }).click();
 	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
 	expect(discardDialog().query()).toBeNull();
+});
+
+test("Cancel on a page opened on its link goes to the dashboard, not off the app", async () => {
+	await editAt({ id: "d1", widgetId: "w1" });
+	await expect.element(saveButton()).toBeVisible();
+	// Stands in for a tab whose earlier entry is another site: the router's first entry.
+	await navigate("/dashboards");
+	await navigate("/dashboards/:id/widgets/:widgetId/edit", {
+		params: { id: "d1", widgetId: "w1" }
+	});
+	history.replaceState({ ...history.state, _routerIndex: 0 }, "");
+	await expect.element(saveButton()).toBeVisible();
+	await page.getByRole("button", { name: "Cancel" }).click();
+	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
 });
