@@ -1,0 +1,146 @@
+{
+	"data": {
+		"scales": {
+			"aqi-forecast": {
+				"id": "aqi-forecast",
+				"label": "AQI Forecast",
+				"units": "AQI",
+				"kind": "range",
+				"source": {
+					"name": "US EPA AirNow, AQI Basics",
+					"url": "https://www.airnow.gov/aqi/aqi-basics/"
+				},
+				"levels": [
+					{
+						"key": "good",
+						"label": "Good",
+						"color": "#00e400",
+						"tier": 0,
+						"description": "Air quality is satisfactory, and air pollution poses little or no risk.",
+						"guidance": "",
+						"min": 0,
+						"max": 51,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "moderate",
+						"label": "Moderate",
+						"color": "#ffff00",
+						"tier": 1,
+						"description": "Air quality is acceptable. However, there may be a risk for some people, particularly those who are unusually sensitive to air pollution.",
+						"guidance": "Highly sensitive groups should stay indoors and avoid outdoor activities.",
+						"min": 51,
+						"max": 101,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "unhealthy_sensitive",
+						"label": "Unhealthy for Sensitive Groups",
+						"color": "#ff7e00",
+						"tier": 2,
+						"description": "Members of sensitive groups may experience health effects. The general public is less likely to be affected.",
+						"guidance": "Sensitive groups should stay indoors and avoid outdoor activities.",
+						"min": 101,
+						"max": 151,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "unhealthy",
+						"label": "Unhealthy",
+						"color": "#ff0000",
+						"tier": 3,
+						"description": "Some members of the general public may experience health effects; members of sensitive groups may experience more serious health effects.",
+						"guidance": "Everyone should reduce prolonged or heavy exertion.",
+						"min": 151,
+						"max": 201,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "very_unhealthy",
+						"label": "Very Unhealthy",
+						"color": "#8f3f97",
+						"tier": 4,
+						"description": "Health alert: The risk of health effects is increased for everyone.",
+						"guidance": "Everyone should avoid prolonged or heavy exertion.",
+						"min": 201,
+						"max": 301,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "hazardous",
+						"label": "Hazardous",
+						"color": "#7e0023",
+						"tier": 4,
+						"description": "Health warning of emergency conditions: everyone is more likely to be affected.",
+						"guidance": "Everyone should stay indoors and avoid physical outdoor activities.",
+						"min": 301,
+						"max": null,
+						"value": null,
+						"opacity": null
+					}
+				]
+			},
+			"burn-status": {
+				"id": "burn-status",
+				"label": "Burn Status",
+				"units": "",
+				"kind": "category",
+				"source": {
+					"name": "San Joaquin Valley APCD, Check Before You Burn",
+					"url": "https://ww2.valleyair.org/"
+				},
+				"levels": [
+					{
+						"key": "discouraged",
+						"label": "Burning Discouraged",
+						"color": "#ffff00",
+						"tier": null,
+						"description": "",
+						"guidance": "",
+						"min": null,
+						"max": null,
+						"value": "Discouraged",
+						"opacity": null
+					},
+					{
+						"key": "registered",
+						"label": "No Burning Unless Registered",
+						"color": "#ff7e00",
+						"tier": null,
+						"description": "",
+						"guidance": "",
+						"min": null,
+						"max": null,
+						"value": "Registered",
+						"opacity": null
+					}
+				]
+			}
+		},
+		"zones": [
+			{
+				"name": "Madera",
+				"region": {
+					"id": "4fjmg",
+					"type": "county",
+					"external_id": "06039",
+					"name": "Madera County"
+				}
+			},
+			{
+				"name": "Fresno",
+				"region": {
+					"id": "r6phe",
+					"type": "county",
+					"external_id": "06019",
+					"name": "Fresno County"
+				}
+			}
+		]
+	}
+}
