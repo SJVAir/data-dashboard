@@ -1312,13 +1312,16 @@ The checklist below is the whole step's scope.
     prep PR ([map-sdk #6](https://github.com/SJVAir/map-sdk/pull/6): version, `prepack` build,
     the npm 12 `allow-remote=root` install note). Next: the user sets up the npm trusted
     publisher; later releases go through `release.yml`, each with the user's yes.
-- **monitor-map 5.0, rebuilt on `map-sdk`** (session `monitor-map-2a`): **spec approved by the
-  user 2026-11-05**, monitor-map `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md`;
-  the plan is next. All 5.0 work goes into a `release/5.0.0` branch through PRs, merged into
-  `main` on go-live day (sjvair.com builds `main`). Mobile tries 5.0 through npm betas from that
-  branch (`next` tag), each with the user's yes, after map-sdk is on npm. Needs from map-sdk:
-  the List button's corner and show-on-keyboard-focus options (asked 2026-11-05), and a
-  published `0.x` before the first beta. Adds the MIT license.
+- **monitor-map 5.0, rebuilt on `map-sdk`** (session `monitor-map-2a`): spec
+  `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md` (approved 2026-11-05) and plan
+  `docs/superpowers/plans/2026-11-05-monitor-map-5.md`, in the monitor-map repo. **Built and
+  merged into `release/5.0.0`** ([monitor-map #126](https://github.com/SJVAir/monitor-map/pull/126),
+  2026-11-06); `main` is unchanged until go-live day (sjvair.com builds `main`). On
+  `@sjvair/map-sdk` 0.1.0-beta.1 and `@sjvair/sdk` 5.0.0-beta.3, exact pins. **Waiting on the
+  user:** the parity comparison page, three border EV ZIPs (Galt, Isleton, Discovery Bay), and
+  whether monitor-map's own fix for map-sdk's plugin-effect bug stays. **Waiting on map-sdk:**
+  a beta with #7 (globe fire gap, collocation hover) and the frameless `Legend` / list `detail`
+  follow-up. Then the first `5.0.0-beta.0` for mobile (the user's yes).
 - The mobile migration is a separate later track (see `DEFERRED.md`).
 - The Map widget: map feature clicking (method A), synced both ways with the step 4 shared
   place picker (method B). Drawn shapes (C, via a
@@ -1499,6 +1502,9 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **monitor-map: chart stuck loading, and unhandled subscription status errors** (fixed in
+      monitor-map 5.0, merged into `release/5.0.0` via #126, 2026-11-06). Removed from
+      `DEFERRED.md`.
 - [x] **monitor-map 5.0 decisions** (the user, 2026-11-05, in the 5.0 spec). Removed from
       `DEFERRED.md`: "Shared date-range helper home" (the chart uses `@sjvair/sdk`'s Pacific
       day helpers; no new shared module), and "monitor-map: cancelling one-off loads" (HMS and

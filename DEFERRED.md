@@ -870,20 +870,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
-- **monitor-map: chart stuck loading after a failed background refresh.** _Noted
-  2026-10-21 (monitor-map 4.3.0 review)._ If a timed (silent) chart refresh supersedes a
-  range change that is still loading and then fails, `DataChart` keeps showing the loading
-  state. This is the same as in 4.2.0, not a regression. **Revisit with** the next DataChart
-  change or the map-sdk rebuild (5.0). The fix is to have the silent refresh take over the
-  `loading` flag. **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (spec
-  `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md`, "Fixes folded in"); this entry
-  goes when the fix merges into `release/5.0.0`.
-- **monitor-map: subscription status load errors are unhandled.** _Noted 2026-10-21
-  (monitor-map 4.3.0 review)._ A failed subscription-status load (not a cancel) still
-  surfaces as an unhandled rejection, as in 4.2.0, with no error state on the button.
-  **Revisit with** the next change to `MonitorSubscriptionManager` or the map-sdk rebuild.
-  **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (an error line with Try again);
-  this entry goes when the fix merges into `release/5.0.0`.
 
 ## Analysis & data
 
