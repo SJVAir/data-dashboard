@@ -161,7 +161,12 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`).
   place picker's `place` or `selection`), so "Change" re-targets every layer at once. An overlay
   is fetched for each of the main layer's places; the **Data table** shows a column per place
   per layer, and the **CSV** has every place's overlay rows (categorical values get
-  `level_key` and `level_label` columns).
+  `level_key` and `level_label` columns). An overlay the Table can't show (it failed, or the
+  periods are longer than a day) gets a note under the table, so the Table never silently
+  disagrees with the Chart.
+- **The adapter decides which entry types can be overlays** (`DatasetAdapter.overlays`): the
+  forecasts adapter offers all of its own; air quality offers none (its temperature and
+  humidity are raw-only). One already in a widget stays listed, checked, so it can be removed.
 - **Spec 3's overlays:** Air Quality Forecasts' **burn status** and **AQI forecast**, one value
   per Pacific day (the latest issue) from `forecasts/place/`. On the Chart they're **labeled,
   patterned day bands** behind the line, with levels, labels, and colors from `forecasts/meta/`
@@ -187,7 +192,8 @@ dashboard is never a target. The widget goes into the first free spot at the typ
 highlighted (respecting `prefers-reduced-motion`); the add is one `applyChange`, so one undo
 step. "Add widget" on the starter opens `/dashboards/starter/widgets/new`, and from `/data`
 with no saved dashboards the target is the starter (named as in the nav): adding is an edit,
-so it makes the personal copy as any first edit does.
+so it makes the personal copy as any first edit does, with the same "Saved as your own
+dashboard" toast.
 
 **Edit data.** Every data widget's ⋯ menu has **"Edit data"**, opening the view with that
 widget's data and **Save changes**, which applies one `setWidgetData` change (one undo step,
@@ -195,13 +201,15 @@ including a switched type and a size clamped to the new type's `minSize`; the wi
 id, position, and title) and returns to the dashboard. "Choose another" on a retired dataset or
 entry type opens Edit data; "Change place" and "Choose a place" still open the place picker
 directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discard changes?"**
-(an alert dialog).
+(an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
+its link it goes to the dashboard (or `/` from `/data`), never off the app.
 
 **Detail ("More options").** **Automatic** (spec 1's resolution rule, the default), or **Raw**,
 **Hourly**, **Daily**, **Monthly**, stored on the main layer as `resolution` (Automatic stores
-nothing). Only levels the entry type's catalog `resolutions` offer are listed; one the server's
-limits or the point budget can't serve for the current range and places is greyed with the
-reason (and a stored one that becomes blocked goes back to Automatic). A type with a pinned
+nothing). Only levels the entry type's catalog `resolutions` offer are listed; one the point
+budget (places × periods) can't serve for the current range is greyed with the reason. No
+level has a range cap of its own: the server's 31-day cap on raw and hourly is per request,
+and the adapters ask a calendar month (or 31 raw days) at a time (and a stored one that becomes blocked goes back to Automatic). A type with a pinned
 `resolution` hides it. Collapsed by default.
 
 **Routes** (see "Routing, URL state & undo"): `/data` (from the top nav),
@@ -1429,7 +1437,7 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
 - **The shared place picker** (built in step 4 spec 2, 2026-11-04; spec
   `docs/superpowers/specs/2026-11-04-step-4-spec-2-place-picker-design.md`). A lazily loaded
   component (`src/lib/places/`) that a dialog hosts today (full screen on a phone) and spec 3's
-  Data Explorer and spec 6's starter bar can place inline. Its code never reaches the initial
+  Get data view and spec 6's starter bar can place inline. Its code never reaches the initial
   bundle; the menu item and idle button reach it through `lazy.svelte.ts`.
   - **Getting there:** "Change place" in a Chart's or Data table's ⋯ menu (and its taskbar
     menu when minimized), only on an editable dashboard; "Choose a place" on the idle state;

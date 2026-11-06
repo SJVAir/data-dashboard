@@ -1410,9 +1410,45 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
   when** users ask to compare overlays across places, or with spec 5's chart work.
 - **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
-  "More options" → Detail greys out levels using guessed limits: Raw and Hourly up to 31 days,
-  places × periods over 50 000 blocked, and 720 raw readings a day per place. **Revisit after**
-  real use, or when the metadata gives reading intervals.
+  "More options" → Detail greys out levels using guessed limits: places × periods over 50 000
+  blocked, and 720 raw readings a day per place. No level has a range cap of its own: the
+  server's 31-day cap is per request, and the adapters ask a month (or 31 raw days) at a time
+  (settled in the final review). **Revisit after** real use, or when the metadata gives reading
+  intervals.
+- **Get data review leftovers.** _Deferred 2026-11-05 (step 4 spec 3, final review)._ Small
+  things the review let stay, each rare or harmless today:
+  - **A forecasts 404 gives an empty series, not "unavailable"** (Task 5 ruling): `fetch` can't
+    return unavailable per place, so "this place isn't covered" reads the same as "no forecasts
+    yet". **Revisit if** users ask, or the server says which it is.
+  - **One month's 404 drops every month** of that place's forecasts (it assumes a 404 means the
+    region, not the dates). **Revisit if** the server ever 404s for a date range.
+  - **A failed overlay can't be retried on its own:** Retry also refetches the main layer's
+    levels (the shared `#levelsTry`). **Revisit if** overlay failures are reported.
+  - **The overlay legend's highlight matches level keys across overlay lanes.** **Revisit
+    when** two overlays share level keys.
+  - **Overlay rows carry the main place's columns**, not the zone or region the value came from
+    (by design: "a column per place"). **Revisit if** researchers want the source zone's id.
+  - **The draft's debounce timer is module-level, shared across spaces.** **Revisit if** a
+    draft is lost on a space switch.
+  - **A `?type=` override keeps Chart options on a Data table draft** (harmless; Show as does
+    the same by design). **Revisit when** a non-Chart type has options of its own.
+  - **Dashboard size measures the whole view's width,** so a wide `defaultSize` may clip.
+    **Revisit with** spec 5's wider types.
+  - **Rare storage failures when adding:** a failed starter hand-off keeps the add queued (a
+    retry adds two widgets), and `createBlank` followed by a session-open failure leaves an
+    empty dashboard. **Revisit if** reported.
+  - **Edit data edges:** a replayed size clamp overwrites a concurrent move (last wins); Back
+    while dirty flickers the URL, and a second Back while the dialog is open isn't handled; a
+    dataset gone entirely shows no "Choose another" (⋯ Edit data still works); the
+    unknown-widget page links only to "Your dashboards". **Revisit if** reported, or with
+    sv-router's next `blockNavigation` change.
+  - **Two `regions/meta` fetches** (the resolver's and the directory's), and `regionsMeta()`
+    adds a `.catch` per call (harmless). **Revisit if** request counts matter.
+  - **The Add widget list is built twice** (`src/lib/actions/dashboard.ts` and
+    `AddWidgetButton.svelte`). **Revisit when** a third caller appears.
+  - **The Data table shows an AQI forecast's level, not its number** (the CSV has the number in
+    `mean`). Showing "Moderate (72)" needs a wording choice and the value in `TableRow`.
+    **Revisit when** the new strings go to the user with the PR, or someone asks for the number.
 
 ## Alerts
 
