@@ -317,12 +317,12 @@ test("Show as Chart is disabled with a reason at 7 places", async () => {
 	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
 });
 
-test("Detail hides for a pinned type; Raw is disabled over 90 days with a reason", async () => {
+test("Detail hides for a pinned type; Every measurement is disabled over 90 days with a reason", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };
 	const { host } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
-	const raw = page.getByRole("radio", { name: "Raw" });
+	const raw = page.getByRole("radio", { name: m.get_data_detail_raw() });
 	await expect.element(raw).toBeDisabled();
 	await expect.element(raw).toHaveAccessibleDescription(m.get_data_detail_too_many());
 	// Hourly over more than 31 days is served (a month per request).
@@ -424,11 +424,11 @@ test("a detail level the new range can't serve goes back to Automatic", async ()
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
-	await page.getByRole("radio", { name: "Raw" }).click();
+	await page.getByRole("radio", { name: m.get_data_detail_raw() }).click();
 	expect((await current()).data.layers[0].resolution).toBe("raw");
 	// 90 days of raw readings is more than the point budget.
 	await chooseDates("Last 90 days");
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
-	await expect.element(page.getByRole("radio", { name: "Raw" })).toBeDisabled();
+	await expect.element(page.getByRole("radio", { name: m.get_data_detail_raw() })).toBeDisabled();
 	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
 });
