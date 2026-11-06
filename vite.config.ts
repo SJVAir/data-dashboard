@@ -93,7 +93,6 @@ const BARRELED = [
 	"/node_modules/bits-ui/dist/bits/utilities/hidden-input.svelte",
 	"/node_modules/bits-ui/dist/bits/utilities/mounted.svelte",
 	"/node_modules/bits-ui/dist/internal/data-typeahead.svelte.js",
-	"/node_modules/runed/dist/utilities/previous/",
 	"/node_modules/svelte-toolbelt/dist/utils/on-mount-effect.svelte.js",
 	"/node_modules/svelte-toolbelt/dist/utils/sr-only-styles.js"
 ];
