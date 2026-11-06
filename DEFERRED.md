@@ -960,6 +960,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   per-monitor-type switch). PM10 is still raw: the client fetches it span-capped and chunked and
   downsamples it in a worker. **Revisit when** raw PM10 fetches get slow or large. It's now a
   one-line switch per monitor type (or the model flag, if regions should get it too).
+- **To-date summary rows for the current month, quarter, season and year.** _Deferred
+  2026-11-05 (the user, on sjvair.com #313)._ The scheduled rollups write those rows only once a
+  period has ended. `rebuild_summaries` used to also write the current period's rows, which then
+  froze at the rebuild time (and existed only for rebuilt stations), so #313 makes it roll only
+  finished periods, like `repair_summaries`. A proper to-date value needs a small scheduled task
+  that re-rolls the current periods from day rows after each daily rollup, plus decisions on
+  settling, what `is_complete` means mid-period, and region rows. Until then the dashboard
+  computes "so far this month/year" from daily rows. **Revisit when** a widget wants a to-date
+  value or computing it from daily rows gets slow.
 - **Region-level weather summaries.** _Deferred 2026-11-05 (Get data layers, the user)._ CIMIS
   stations get monitor summaries only; there are never region rows for weather. Region
   weighting is built on air-sensor grades and health checks, so weather would need its own
