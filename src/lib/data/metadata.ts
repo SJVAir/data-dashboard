@@ -237,6 +237,8 @@ export function createWebMetadata(): MetadataSource {
 		},
 		levels: monitorLevels,
 		async datasetLevels(dataset, entryType, signal) {
+			// Each dataset's scales come from its own meta endpoint; only forecasts has one apart
+			// from the monitors' today. A new dataset with its own scales adds its endpoint here.
 			if (dataset !== "forecasts") return monitorLevels(entryType, signal);
 			return mapScaleLevels((await forecastsMeta(signal)).scales[entryType]?.levels);
 		},

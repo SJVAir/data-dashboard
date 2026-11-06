@@ -31,7 +31,10 @@ const routes = {
 	"*": NotFound
 };
 
-/** The route table's keys, minus the hooks and the catch-all (the error reports' route list is tested against them). */
+/**
+ * The route table's keys, minus the hooks and the catch-all (the error reports' route list is
+ * tested against them).
+ */
 export const ROUTE_KEYS = Object.keys(routes).filter((key) => key !== "hooks" && key !== "*");
 
 export const { route, navigate, p, isActive } = createRouter(routes, { base: BASE });

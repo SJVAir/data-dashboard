@@ -9,8 +9,8 @@ import { layerTarget, regionPlace, resolveRegionKeys, splitRegionKey } from "./t
 type PlaceRef = Parameters<typeof getForecastForPlace>[0];
 type Forecast = Awaited<ReturnType<typeof getForecastForPlace>>["forecasts"][number];
 
-/** A place asked about: its series key, what to ask the server, and the keys behind it. */
-type Candidate = { place: string; ref: PlaceRef };
+/** A place asked about: what to ask the server, and the place it names (its series key too). */
+type Candidate = { ref: PlaceRef; info: PlaceInfo };
 
 function isNotFound(error: unknown): boolean {
 	const cause = error instanceof Error ? (error.cause as { result?: { status?: number } }) : null;
@@ -50,6 +50,8 @@ function toPoints(
 		if (!(t >= from && t < to)) continue;
 		let value = NaN;
 		let level: Level | undefined;
+		// Each entry type reads its own field of the forecast row, so this keys off the id: burn
+		// status is a category (its scale's levels carry the `value` it matches), AQI a number.
 		if (entryType === "burn-status") {
 			level = levels.find((l) => l.value === f.burn_status);
 		} else {
@@ -70,46 +72,36 @@ function toPoints(
 	return points.sort((a, b) => a.t - b.t);
 }
 
-/** The places to ask about, each with the server reference to try (a fallback has several). */
+/** The places to ask about, each with the server references to try (a fallback has several). */
 async function candidates(
 	target: Target,
 	ctx: AdapterContext,
 	signal: AbortSignal
-): Promise<{ groups: Candidate[][]; info: PlaceInfo[] }> {
+): Promise<Candidate[][]> {
 	if (target.kind === "monitors") {
 		const monitors = await ctx.metadata.monitors(signal);
 		const names = new Map(monitors.map((m) => [m.id, m.name]));
-		const place = (id: string) => `monitor:${id}`;
-		return {
-			groups: target.ids.map((id) => [{ place: place(id), ref: { monitor: id } }]),
-			info: target.ids.map((id) => ({ place: place(id), name: names.get(id) ?? id }))
-		};
+		return target.ids.map((id) => [
+			{ ref: { monitor: id }, info: { place: `monitor:${id}`, name: names.get(id) ?? id } }
+		]);
 	}
-	if (target.kind === "all") return { groups: [], info: [] };
+	if (target.kind === "all") return [];
 	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);
-	const named = target.keys.map((key, i) => {
+	const named = target.keys.map((key, i): Candidate => {
 		const region = found[i];
 		if (region === null) throw new Error(`Region ${key} can't be looked up`);
-		return { key, region };
-	});
-	const candidate = (key: string): Candidate => ({
-		place: regionPlace(key),
-		ref: regionRef(key)
-	});
-	const info = (n: (typeof named)[number]): PlaceInfo => ({
-		place: regionPlace(n.key),
-		name: n.region.name,
-		...(n.region.retired && { retired: n.region.retired })
-	});
-	if (target.kind === "fallback") {
-		// Any region maps to a forecast zone, so the first key answers; later keys only stand in
-		// for one the server doesn't know.
 		return {
-			groups: [named.map((n) => candidate(n.key))],
-			info: [info(named[0])]
+			ref: regionRef(key),
+			info: {
+				place: regionPlace(key),
+				name: region.name,
+				...(region.retired && { retired: region.retired })
+			}
 		};
-	}
-	return { groups: named.map((n) => [candidate(n.key)]), info: named.map(info) };
+	});
+	// Any region maps to a forecast zone, so a fallback's first key answers; later keys only stand
+	// in for one the server doesn't know.
+	return target.kind === "fallback" ? [named] : named.map((c) => [c]);
 }
 
 /** A place's forecasts, month by month (whole calendar months, so requests cache well). */
@@ -140,35 +132,32 @@ async function fetchForecasts(
 	signal: AbortSignal
 ): Promise<QueryData> {
 	const { target, entryType, range } = req;
-	const [{ groups, info }, levels] = await Promise.all([
+	const [groups, levels] = await Promise.all([
 		candidates(target, ctx, signal),
 		ctx.metadata.datasetLevels("forecasts", entryType, signal)
 	]);
 	const from = range.start.getTime();
 	const to = range.end.getTime();
-	const series: Series[] = await Promise.all(
+	// Each place's series and its name, from the candidate that answered (the last when none did).
+	const answers = await Promise.all(
 		groups.map(async (group) => {
-			let used = group[0];
 			for (const candidate of group) {
-				used = candidate;
 				try {
 					const forecasts = await placeForecasts(candidate.ref, req, signal);
-					return {
-						place: candidate.place,
-						points: toPoints(forecasts, entryType, levels, from, to)
-					};
+					const points = toPoints(forecasts, entryType, levels, from, to);
+					return { info: candidate.info, points };
 				} catch (error) {
 					// "No such region": no forecasts for this place (a fallback tries its next key).
 					if (!isNotFound(error)) throw error;
 				}
 			}
-			return { place: used.place, points: [] };
+			return { info: group[group.length - 1].info, points: [] };
 		})
 	);
-	const places =
-		target.kind === "fallback"
-			? info.map((p, i) => ({ ...p, place: series[i].place, via: target.via }))
-			: info;
+	const series: Series[] = answers.map((a) => ({ place: a.info.place, points: a.points }));
+	const places = answers.map((a) =>
+		target.kind === "fallback" ? { ...a.info, via: target.via } : a.info
+	);
 	return {
 		series,
 		places,

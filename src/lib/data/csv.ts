@@ -217,8 +217,8 @@ export type CsvResult = { skipped: string[] };
  * Runs the data config's query once (no polling), with every place of its selection (not only
  * the ones it has room to show), plus each overlay's, then saves it as CSV through the
  * platform. The file name's dates are the range as of when the data was fetched. A failed or
- * unavailable overlay is left out (named in `skipped`); the main rows still export. Throws if there is nothing to download
- * or the main data can't be loaded.
+ * unavailable overlay is left out (named in `skipped`); the main rows still export. Throws if
+ * there is nothing to download or the main data can't be loaded.
  */
 export async function downloadDataCsv(
 	config: WidgetDataConfig,

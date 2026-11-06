@@ -333,6 +333,33 @@ describe("toCsv overlay rows", () => {
 		expect(mine.map((r) => get(r, "place_name"))).toEqual(["A", "B"]);
 	});
 
+	it("a point's overlay rows are named as its region for a shared viewer", () => {
+		const zip = {
+			place: "region:zipcode:93721",
+			name: "ZIP 93721",
+			via: { kind: "point" as const }
+		};
+		const pointMain = data({
+			series: [{ place: zip.place, points: [point("2026-11-01T07:00:00Z")] }],
+			places: [zip]
+		});
+		const pointOverlay = {
+			...overlay,
+			data: data({
+				series: [
+					{ place: "region:county:06019", points: [burnPoint("2026-11-01T07:00:00Z", "burn-day")] }
+				],
+				places: [{ place: "region:county:06019", name: "Fresno County", via: { kind: "point" } }]
+			})
+		};
+		const rows = parse(toCsv(pointMain, META, "shared", [pointOverlay])).slice(1);
+		const overlayRows = rows.filter((r) => get(r, "entry_type") === "burn-status");
+		expect(overlayRows).toHaveLength(1);
+		expect(get(overlayRows[0], "place_name")).toBe("ZIP 93721 (shared location)");
+		expect(get(overlayRows[0], "place_id")).toBe("zipcode:93721");
+		expect(text(rows)).not.toContain("your location");
+	});
+
 	function text(rows: string[][]): string {
 		return rows.flat().join(",");
 	}

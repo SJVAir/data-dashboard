@@ -83,12 +83,18 @@ describe("the Get data draft", () => {
 		expect(await loadDraft(platform, SPACE)).toEqual(draft);
 	});
 
-	it("a failing write is swallowed", async () => {
+	it("a failing write is swallowed, and the next save still goes out", async () => {
 		vi.useFakeTimers();
 		const { platform } = fakePlatform();
-		platform.preferences.set = () => Promise.reject(new Error("blocked"));
+		const set = vi.fn(() => Promise.reject(new Error("blocked")));
+		platform.preferences.set = set;
+		// An unhandled rejection would fail the run.
 		saveDraft(platform, SPACE, defaultDraft());
 		await vi.advanceTimersByTimeAsync(600);
+		expect(set).toHaveBeenCalledTimes(1);
+		saveDraft(platform, SPACE, { ...defaultDraft(), type: "data-table" });
+		await vi.advanceTimersByTimeAsync(600);
+		expect(set).toHaveBeenCalledTimes(2);
 	});
 
 	it("flushDraft writes a pending save at once, and only once", async () => {

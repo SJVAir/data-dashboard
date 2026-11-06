@@ -162,7 +162,7 @@ describe("forecastsAdapter", () => {
 		expect(data.places[0].name).toBe("Purple Air");
 	});
 
-	it("404 is unavailable, not an error", async () => {
+	it("a 404 gives an empty series, not an error", async () => {
 		vi.mocked(getForecastForPlace).mockRejectedValue(
 			new Error("failed", { cause: { result: { status: 404 } } })
 		);
@@ -182,6 +182,10 @@ describe("forecastsAdapter", () => {
 		const data = await forecastsAdapter.fetch(request(target, "burn-status"), ctx, signal);
 		expect(data.series[0].place).toBe("region:county:06019");
 		expect(data.series[0].points).toHaveLength(4);
+		// Named for the region that answered.
+		expect(data.places).toEqual([
+			{ place: "region:county:06019", name: "Fresno County", via: { kind: "point" } }
+		]);
 	});
 
 	it("other failures reject", async () => {
