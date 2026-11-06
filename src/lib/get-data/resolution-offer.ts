@@ -4,20 +4,17 @@ import { calendarSpanDays, resolveRange } from "$lib/format/range";
 
 export type DetailChoice = {
 	level: "auto" | Resolution;
-	blocked: "server-limit" | "too-many-points" | null;
+	blocked: "too-many-points" | null;
 };
 
 /** The levels "Detail" lists, finest first (when the entry type offers them). */
 const LEVELS = ["raw", "hour", "day", "month"] as const;
 
 /**
- * The longest range the server serves at a level, in Pacific days. Raw readings and hourly
- * region summaries are capped at 31 days; daily and monthly are requested by calendar unit, so
- * they have no cap.
+ * The most points (places × periods) a preview is asked to draw. No level has a range cap of
+ * its own: the server's per-request caps (31 days of raw or hourly) are met by the adapters,
+ * which ask a calendar month (or 31 raw days) at a time.
  */
-const SERVER_LIMIT_DAYS: Partial<Record<Resolution, number>> = { raw: 31, hour: 31 };
-
-/** The most points (places × periods) a preview is asked to draw. */
 export const MAX_POINTS = 50_000;
 
 /** Periods per day at each level; raw assumes a reading every two minutes (PurpleAir's rate). */
@@ -30,7 +27,7 @@ const PER_DAY: Record<(typeof LEVELS)[number], number> = {
 
 /**
  * The "Detail" choices for the main layer over `range` at `places` places: Automatic, then each
- * level the entry type offers, greyed when the server's limits or the point budget rule it out.
+ * level the entry type offers, greyed when the point budget rules it out.
  * `null` when the widget type pins its resolution (the control is hidden).
  */
 export function detailChoices(
@@ -45,11 +42,8 @@ export function detailChoices(
 	const choices: DetailChoice[] = [{ level: "auto", blocked: null }];
 	for (const level of LEVELS) {
 		if (!entry.resolutions.includes(level)) continue;
-		const limit = SERVER_LIMIT_DAYS[level];
-		let blocked: DetailChoice["blocked"] = null;
-		if (limit !== undefined && days > limit) blocked = "server-limit";
-		else if (Math.max(1, places) * days * PER_DAY[level] > MAX_POINTS) blocked = "too-many-points";
-		choices.push({ level, blocked });
+		const points = Math.max(1, places) * days * PER_DAY[level];
+		choices.push({ level, blocked: points > MAX_POINTS ? "too-many-points" : null });
 	}
 	return choices;
 }

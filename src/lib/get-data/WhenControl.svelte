@@ -111,7 +111,13 @@
 		apply({ kind: "set", unit, start });
 	}
 
-	const custom = $derived(value.kind === "custom" ? value : null);
+	// "Custom range" shows its dates even for a rolling length the list doesn't have (a saved
+	// "last 45 days"): seeded from what it resolves to now, the first edit makes it custom.
+	const custom = $derived.by(() => {
+		if (value.kind === "custom") return value;
+		if (selectedId !== "custom") return null;
+		return { kind: "custom" as const, start: resolved.firstDate, end: resolved.lastDate };
+	});
 	const setSpec = $derived(value.kind === "set" ? value : null);
 
 	const errorId = `${uid}-error`;
@@ -171,7 +177,7 @@
 		</Select.Portal>
 	</Select.Root>
 
-	{#if setSpec}
+	{#if setSpec && !custom}
 		{@const unit = setSpec.unit}
 		<label class="flex flex-col gap-1 text-sm">
 			<span class="text-muted-foreground text-xs">

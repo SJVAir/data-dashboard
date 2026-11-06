@@ -1,7 +1,7 @@
 import { getRegionsByCode, getRegionsMeta, type RegionType } from "@sjvair/sdk";
 import { regionDisplayName } from "@sjvair/sdk/regions";
 import type { ResolvedRange } from "$lib/format/range";
-import { untilAborted, type MetadataSource } from "../metadata";
+import { untilAborted, type EntryTypeMeta, type MetadataSource } from "../metadata";
 import type { Layer, Resolution } from "../schema";
 import type { QueryData, Target, UnavailableReason } from "../types";
 
@@ -76,6 +76,11 @@ export interface DatasetAdapter {
 	target(layer: Layer, ctx: AdapterContext): Promise<Target | { unavailable: UnavailableReason }>;
 	/** The levels of the entry type's catalog `base` this adapter can actually fetch for `target`. */
 	offered(base: Resolution[], target: Target): Resolution[];
+	/**
+	 * Whether a non-pollutant entry type can be an overlay on a pollutant layer (fetched for the
+	 * main layer's places at its detail). Absent: none can.
+	 */
+	overlays?: (entry: EntryTypeMeta) => boolean;
 	fetch(req: AdapterRequest, ctx: AdapterContext, signal: AbortSignal): Promise<QueryData>;
 }
 

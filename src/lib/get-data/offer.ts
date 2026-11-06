@@ -1,10 +1,19 @@
+import type { DatasetAdapter } from "$lib/data/adapters/registry";
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import { fromLayer } from "$lib/places/selection";
 import type { WidgetType } from "$lib/widgets/registry";
 import { blockedBySpan } from "./date-presets";
 
-export type OfferedDataset = { dataset: CatalogEntry; entryTypes: EntryTypeMeta[] };
+export type OfferedDataset = {
+	dataset: CatalogEntry;
+	entryTypes: EntryTypeMeta[];
+	/** The non-pollutant entry types offered as overlays (their adapter says they fit). */
+	overlayTypes: EntryTypeMeta[];
+};
+
+/** What the offer needs from each adapter. */
+export type AdapterOffer = Pick<DatasetAdapter, "id" | "overlays">;
 
 /**
  * The catalog datasets Get data offers, in catalog order: those with an adapter that at least
@@ -12,19 +21,20 @@ export type OfferedDataset = { dataset: CatalogEntry; entryTypes: EntryTypeMeta[
  */
 export function offeredDatasets(
 	catalog: CatalogEntry[],
-	adapters: string[],
+	adapters: AdapterOffer[],
 	types: WidgetType[]
 ): OfferedDataset[] {
-	return catalog
-		.filter(
-			(dataset) =>
-				adapters.includes(dataset.id) &&
-				types.some((t) => t.accepts?.datasets?.includes(dataset.id))
-		)
-		.map((dataset) => ({
-			dataset,
-			entryTypes: dataset.entryTypes.filter((e) => !e.retired && e.available !== false)
-		}));
+	const offered: OfferedDataset[] = [];
+	for (const dataset of catalog) {
+		const adapter = adapters.find((a) => a.id === dataset.id);
+		if (!adapter || !types.some((t) => t.accepts?.datasets?.includes(dataset.id))) continue;
+		const entryTypes = dataset.entryTypes.filter((e) => !e.retired && e.available !== false);
+		const overlayTypes = entryTypes.filter(
+			(e) => e.kind !== "pollutant" && (adapter.overlays?.(e) ?? false)
+		);
+		offered.push({ dataset, entryTypes, overlayTypes });
+	}
+	return offered;
 }
 
 /** Why a widget type can't show a data config (the first that applies). */

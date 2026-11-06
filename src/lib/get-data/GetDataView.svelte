@@ -7,7 +7,7 @@
 	import { onDestroy, untrack } from "svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { Button } from "$lib/components/ui/button";
-	import { adapterIds, getMetadata } from "$lib/data";
+	import { adapterOffers, getMetadata } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import { LIMITS, type DateRangeSpec, type Layer, type Resolution } from "$lib/data/schema";
@@ -101,7 +101,7 @@
 
 	const sections = $derived(
 		known
-			? offeredDatasets(known, adapterIds(), dataTypes()).filter((s) => s.entryTypes.length > 0)
+			? offeredDatasets(known, adapterOffers(), dataTypes()).filter((s) => s.entryTypes.length > 0)
 			: []
 	);
 	const showAs = $derived(

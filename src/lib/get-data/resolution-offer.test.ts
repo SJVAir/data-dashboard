@@ -46,20 +46,14 @@ describe("detailChoices", () => {
 		).toEqual(["auto", "hour", "day"]);
 	});
 
-	test("raw and hourly are served up to 31 days", () => {
-		const ok = detailChoices(ALL, days(31), 1, undefined, NOW);
-		expect(blocked(ok, "raw")).toBeNull();
-		expect(blocked(ok, "hour")).toBeNull();
-		const over = detailChoices(ALL, days(32), 1, undefined, NOW);
-		expect(blocked(over, "raw")).toBe("server-limit");
-		expect(blocked(over, "hour")).toBe("server-limit");
-		expect(blocked(over, "auto")).toBeNull();
-	});
-
-	test("daily and monthly are never over the server limit (requests are chunked)", () => {
+	test("no level has a range cap of its own (requests are chunked): only the point budget", () => {
+		// The researcher's case: hourly at six places, January to June, is about 26 000 points.
+		const halfYear: DateRangeSpec = { kind: "custom", start: "2026-01-01", end: "2026-06-30" };
+		expect(blocked(detailChoices(ALL, halfYear, 6, undefined, NOW), "hour")).toBeNull();
 		const long = detailChoices(ALL, days(3650), 1, undefined, NOW);
 		expect(blocked(long, "day")).toBeNull();
 		expect(blocked(long, "month")).toBeNull();
+		expect(blocked(long, "auto")).toBeNull();
 	});
 
 	test("more than 50 000 points (places × periods) is too many", () => {
@@ -77,7 +71,8 @@ describe("detailChoices", () => {
 
 	test("rolling ranges are measured as they resolve now", () => {
 		const last90: DateRangeSpec = { kind: "trailing", amount: 90, unit: "day" };
-		expect(blocked(detailChoices(ALL, last90, 1, undefined, NOW), "raw")).toBe("server-limit");
+		// 90 days of raw readings at one place is 64 800 points.
+		expect(blocked(detailChoices(ALL, last90, 1, undefined, NOW), "raw")).toBe("too-many-points");
 		const last24: DateRangeSpec = { kind: "trailing", amount: 24, unit: "hour" };
 		expect(blocked(detailChoices(ALL, last24, 1, undefined, NOW), "raw")).toBeNull();
 	});

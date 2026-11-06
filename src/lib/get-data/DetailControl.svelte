@@ -25,7 +25,6 @@
 		month: () => m.get_data_detail_month()
 	};
 	const REASON: Record<NonNullable<DetailChoice["blocked"]>, () => string> = {
-		"server-limit": () => m.get_data_detail_server_limit(),
 		"too-many-points": () => m.get_data_detail_too_many()
 	};
 </script>

@@ -193,5 +193,7 @@ export const forecastsAdapter: DatasetAdapter = {
 			: { unavailable: "place-unsupported" };
 	},
 	offered: () => ["day"],
+	// One value per day, with levels: each entry type draws as day bands on any pollutant.
+	overlays: () => true,
 	fetch: fetchForecasts
 };

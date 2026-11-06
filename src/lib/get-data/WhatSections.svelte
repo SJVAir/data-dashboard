@@ -40,6 +40,19 @@
 		m.get_data_overlay_limit({ count: formatNumber(maxOverlays), countValue: maxOverlays })
 	);
 
+	/**
+	 * A section's overlay choices: those offered, plus any already chosen (checked, so it can be
+	 * removed), in catalog order.
+	 */
+	function overlaysIn(section: OfferedDataset) {
+		const id = section.dataset.id;
+		return section.dataset.entryTypes.filter(
+			(e) =>
+				e.kind !== "pollutant" &&
+				(section.overlayTypes.includes(e) || isOverlay({ dataset: id, entryType: e.id }))
+		);
+	}
+
 	/** What's chosen in a section, for its heading (so a closed section still says). */
 	function chosen(section: OfferedDataset): string {
 		const id = section.dataset.id;
@@ -58,7 +71,7 @@
 	{#each sections as section (section.dataset.id)}
 		{@const id = section.dataset.id}
 		{@const pollutants = section.entryTypes.filter((e) => e.kind === "pollutant")}
-		{@const others = section.entryTypes.filter((e) => e.kind !== "pollutant")}
+		{@const others = overlaysIn(section)}
 		{@const summary = chosen(section)}
 		<Accordion.Item value={id} class="border-card-border rounded-(--radius-control) border">
 			<Accordion.Header level={3}>

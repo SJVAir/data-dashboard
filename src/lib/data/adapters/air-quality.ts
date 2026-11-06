@@ -369,5 +369,7 @@ export const airQualityAdapter: DatasetAdapter = {
 	target: (layer, ctx) => layerTarget(layer, ctx),
 	// Regions (and so points and schools) and the whole layer have no raw entries.
 	offered: (base, target) => (target.kind === "monitors" ? base : base.filter((r) => r !== "raw")),
+	// No overlays yet: its temperature and humidity are raw-only, which regions can't serve, and
+	// have no scale to draw as bands (they wait for the weather summaries).
 	fetch: fetchAirQuality
 };

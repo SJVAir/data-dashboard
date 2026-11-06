@@ -12,9 +12,9 @@ import { createPlaceRegion, type PlaceRegion } from "./place-region";
 import { createQueryClient, type QueryClient } from "./query/client";
 import type { QueryInput } from "./types";
 
-/** The datasets that have an adapter, by id. */
-export function adapterIds(): string[] {
-	return ADAPTERS.map((a) => a.id);
+/** The datasets that have an adapter: each one's id and which overlays it serves. */
+export function adapterOffers(): Pick<DatasetAdapter, "id" | "overlays">[] {
+	return ADAPTERS;
 }
 
 const ADAPTERS: DatasetAdapter[] = [airQualityAdapter, forecastsAdapter];

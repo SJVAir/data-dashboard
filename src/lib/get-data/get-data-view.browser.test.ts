@@ -25,7 +25,7 @@ const fake = vi.hoisted(() => ({
 	metadata: undefined as unknown as MetadataSource
 }));
 vi.mock("$lib/data", () => ({
-	adapterIds: () => ["air-quality", "forecasts"],
+	adapterOffers: () => [{ id: "air-quality" }, { id: "forecasts", overlays: () => true }],
 	getQueryClient: () => fake.client,
 	getMetadata: () => fake.metadata,
 	getResolvers: () => ({
@@ -232,6 +232,25 @@ test("choosing Last 7 days updates the resolved dates and the preview", async ()
 	expect(requests.at(-1)!.range.firstDate).toBe(r.firstDate);
 });
 
+test("a rolling length the list doesn't have shows as Custom range, with its dates to edit", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "trailing", amount: 45, unit: "day" };
+	const { current } = await show(draft);
+	await expect
+		.element(page.getByRole("button", { name: /^Dates/ }))
+		.toHaveTextContent(m.getdata_preset_custom());
+	const r = resolveRange(draft.data.dateRange, new Date());
+	const start = page.getByLabelText("Start date");
+	await expect.element(start).toHaveValue(r.firstDate);
+	await expect.element(page.getByLabelText("End date")).toHaveValue(r.lastDate);
+	await start.fill("2026-09-01");
+	expect((await current()).data.dateRange).toEqual({
+		kind: "custom",
+		start: "2026-09-01",
+		end: r.lastDate
+	});
+});
+
 test("adding Burn status adds an overlay; a third overlay option is disabled with a reason", async () => {
 	const { current } = await show(monitorsDraft(["m1"]));
 	await page.getByRole("button", { name: /Air Quality Forecasts/ }).click();
@@ -243,6 +262,32 @@ test("adding Burn status adds an overlay; a third overlay option is disabled wit
 	await expect.element(third).toBeDisabled();
 	await expect.element(third).toHaveAccessibleDescription("Up to 2 overlays");
 	expect((await current()).data.layers).toHaveLength(3);
+});
+
+test("an entry type its adapter doesn't overlay isn't offered; one already chosen can be removed", async () => {
+	const humidity = {
+		...FIXTURE_CATALOG[0].entryTypes[0],
+		id: "humidity",
+		label: "Humidity",
+		kind: "meteorological" as const,
+		resolutions: ["raw" as const]
+	};
+	const air = { ...FIXTURE_CATALOG[0], entryTypes: [...FIXTURE_CATALOG[0].entryTypes, humidity] };
+	fake.metadata = fixtureMetadata({ catalog: async () => [air, CATALOG[1]] });
+	makeClient();
+	const fresh = await show(monitorsDraft(["m1"]));
+	await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+	expect(page.getByRole("checkbox", { name: "Humidity" }).elements()).toHaveLength(0);
+	fresh.screen.unmount();
+	fresh.host.remove();
+
+	const saved = monitorsDraft(["m1"]);
+	saved.data.layers.push({ dataset: "air-quality", entryType: "humidity" });
+	const { current } = await show(saved);
+	const box = page.getByRole("checkbox", { name: "Humidity" });
+	await expect.element(box).toBeChecked();
+	await box.click();
+	expect((await current()).data.layers.map((l) => l.entryType)).toEqual(["pm25"]);
 });
 
 test("Overlay for appears only when places are in different zones", async () => {
@@ -279,7 +324,9 @@ test("Detail hides for a pinned type; Raw is disabled over 90 days with a reason
 	await page.getByRole("button", { name: "More options" }).click();
 	const raw = page.getByRole("radio", { name: "Raw" });
 	await expect.element(raw).toBeDisabled();
-	await expect.element(raw).toHaveAccessibleDescription("Not available for a range this long");
+	await expect.element(raw).toHaveAccessibleDescription(m.get_data_detail_too_many());
+	// Hourly over more than 31 days is served (a month per request).
+	await expect.element(page.getByRole("radio", { name: "Hourly" })).toBeEnabled();
 	await expect.element(page.getByRole("radio", { name: "Daily" })).toBeEnabled();
 	host.remove();
 
@@ -377,10 +424,11 @@ test("a detail level the new range can't serve goes back to Automatic", async ()
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
-	await page.getByRole("radio", { name: "Hourly" }).click();
-	expect((await current()).data.layers[0].resolution).toBe("hour");
+	await page.getByRole("radio", { name: "Raw" }).click();
+	expect((await current()).data.layers[0].resolution).toBe("raw");
+	// 90 days of raw readings is more than the point budget.
 	await chooseDates("Last 90 days");
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
-	await expect.element(page.getByRole("radio", { name: "Hourly" })).toBeDisabled();
+	await expect.element(page.getByRole("radio", { name: "Raw" })).toBeDisabled();
 	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
 });

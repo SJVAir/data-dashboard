@@ -58,23 +58,26 @@ const monitors = (n: number) => ({
 	ids: Array.from({ length: n }, (_, i) => `m${i}`)
 });
 
+/** Adapters with only an id: none of them offers overlays. */
+const adapters = (list: string[]) => list.map((id) => ({ id }));
+
 describe("offeredDatasets", () => {
 	it("forecasts appears only once an adapter exists", () => {
 		const types = [chartType, dataTableType];
-		const without = offeredDatasets(CATALOG, ["air-quality"], types).map((o) => o.dataset.id);
+		const without = offeredDatasets(CATALOG, adapters(["air-quality"]), types).map(
+			(o) => o.dataset.id
+		);
 		expect(without).toEqual(["air-quality"]);
-		const withIt = offeredDatasets(CATALOG, ["air-quality", "forecasts"], types).map(
+		const withIt = offeredDatasets(CATALOG, adapters(["air-quality", "forecasts"]), types).map(
 			(o) => o.dataset.id
 		);
 		expect(withIt).toEqual(["air-quality", "forecasts"]);
 	});
 
 	it("hms-smoke is not offered", () => {
-		const ids = offeredDatasets(
-			CATALOG,
-			["air-quality", "forecasts", "hms-smoke"],
-			[chartType]
-		).map((o) => o.dataset.id);
+		const ids = offeredDatasets(CATALOG, adapters(["air-quality", "forecasts", "hms-smoke"]), [
+			chartType
+		]).map((o) => o.dataset.id);
 		expect(ids).not.toContain("hms-smoke");
 	});
 
@@ -86,12 +89,30 @@ describe("offeredDatasets", () => {
 				entryType("pm1", { retired: { since: "2025-01-01" } })
 			])
 		];
-		const [offer] = offeredDatasets(catalog, ["air-quality"], [chartType]);
+		const [offer] = offeredDatasets(catalog, adapters(["air-quality"]), [chartType]);
 		expect(offer.entryTypes.map((e) => e.id)).toEqual(["pm25"]);
 	});
 
 	it("a type with no accepts.datasets accepts nothing", () => {
-		expect(offeredDatasets(CATALOG, ["air-quality"], [type()])).toEqual([]);
+		expect(offeredDatasets(CATALOG, adapters(["air-quality"]), [type()])).toEqual([]);
+	});
+
+	it("overlays are only the entry types their adapter says fit", () => {
+		const catalog = [
+			dataset("air-quality", [
+				entryType("pm25"),
+				entryType("humidity", { kind: "meteorological", resolutions: ["raw"] })
+			]),
+			dataset("forecasts", [
+				entryType("burn-status", { kind: "other" }),
+				entryType("aqi", { kind: "other" })
+			])
+		];
+		const offers = [{ id: "air-quality" }, { id: "forecasts", overlays: () => true }];
+		const [air, forecasts] = offeredDatasets(catalog, offers, [chartType]);
+		expect(air.entryTypes.map((e) => e.id)).toEqual(["pm25", "humidity"]);
+		expect(air.overlayTypes).toEqual([]);
+		expect(forecasts.overlayTypes.map((e) => e.id)).toEqual(["burn-status", "aqi"]);
 	});
 });
 
