@@ -62,6 +62,8 @@ export type PlaceInfo = {
 	retired?: ResolvedRegion["retired"];
 	/** Set when the place is the region a point or a school fell back to. */
 	via?: Via;
+	/** A weather series' station: for the legend and the CSV (`name` stays the place's). */
+	source?: { id: string; name: string; distance: number; inside: boolean };
 };
 
 export type QueryData = {

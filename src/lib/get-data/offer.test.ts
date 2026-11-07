@@ -35,7 +35,7 @@ const CATALOG: CatalogEntry[] = [
 		entryType("temp", { kind: "meteorological" })
 	]),
 	dataset("forecasts", [entryType("pm25")]),
-	dataset("hms-smoke", [entryType("smoke")])
+	dataset("census", [entryType("people")])
 ];
 
 function type(extra: Partial<WidgetType> = {}): WidgetType {
@@ -76,11 +76,11 @@ describe("offeredDatasets", () => {
 		expect(withIt).toEqual(["air-quality", "forecasts"]);
 	});
 
-	it("hms-smoke is not offered", () => {
-		const ids = offeredDatasets(CATALOG, adapters(["air-quality", "forecasts", "hms-smoke"]), [
+	it("a dataset the types do not accept is not offered", () => {
+		const ids = offeredDatasets(CATALOG, adapters(["air-quality", "forecasts", "census"]), [
 			chartType
 		]).map((o) => o.dataset.id);
-		expect(ids).not.toContain("hms-smoke");
+		expect(ids).not.toContain("census");
 	});
 
 	it("an unavailable entry type is left out", () => {
@@ -138,7 +138,7 @@ describe("typeBlock", () => {
 	});
 
 	it("a dataset the type doesn't accept blocks it", () => {
-		const d = data({ layers: [{ dataset: "hms-smoke", entryType: "smoke" }] });
+		const d = data({ layers: [{ dataset: "census", entryType: "people" }] });
 		expect(typeBlock(chartType, d, CATALOG, NOW)).toBe("dataset");
 	});
 

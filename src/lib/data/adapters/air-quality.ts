@@ -147,6 +147,9 @@ async function rawSeries(
  * one and closed in the other). The last completed period, backfilled from a finer level, is
  * used only where the coarse response lacks it (its rollup hasn't run yet); it is complete data,
  * so not partial. A place a response leaves out has no data: an empty series.
+ *
+ * `opts` (totals, completeness) is for monitor targets only: bulk endpoints return means, and
+ * summing them would be wrong.
  */
 export async function summarySeries(
 	req: AdapterRequest,
