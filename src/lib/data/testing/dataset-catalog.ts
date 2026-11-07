@@ -90,23 +90,33 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 	summary_rules: { complete_after_period_end: ["month", "quarter", "season", "year"] }
 };
 
-/** A weather dataset (CIMIS) with sum, mean and no-rollup entry types, from the catalog shape. */
+/** The live catalog's weather dataset (CIMIS), trimmed to sum, mean and no-rollup entry types. */
 export const WEATHER_DATASET: DatasetCatalog["datasets"][number] = {
 	id: "weather",
 	label: "Weather",
-	description: "Daily and hourly weather from CIMIS stations.",
-	source: "CIMIS",
+	description: "Hourly weather observations from agricultural weather stations.",
+	source: "California Irrigation Management Information System (CIMIS)",
 	license: "",
-	geographies: ["station"],
-	meta_url: "/api/2.0/weather/meta/",
-	places_url: "",
+	geographies: ["monitor"],
+	meta_url: "/api/2.0/monitors/meta/",
+	places_url: "/api/2.0/monitors/?dataset=weather",
 	entry_types: [
+		{
+			id: "eto",
+			label: "Reference Evapotranspiration",
+			kind: "meteorological",
+			units: "in",
+			resolutions: ["raw", "hour", "day", "month", "quarter", "season", "year"],
+			aggregate: "sum",
+			display: { precision: 2, chart: "bar", y_min: 0 },
+			retired: null
+		},
 		{
 			id: "precipitation",
 			label: "Precipitation",
 			kind: "meteorological",
 			units: "in",
-			resolutions: ["hour", "day", "month"],
+			resolutions: ["raw", "hour", "day", "month", "quarter", "season", "year"],
 			aggregate: "sum",
 			display: { precision: 2, chart: "bar", y_min: 0 },
 			retired: null
@@ -116,7 +126,7 @@ export const WEATHER_DATASET: DatasetCatalog["datasets"][number] = {
 			label: "Temperature",
 			kind: "meteorological",
 			units: "°F",
-			resolutions: ["raw", "hour", "day", "month"],
+			resolutions: ["raw", "hour", "day", "month", "quarter", "season", "year"],
 			aggregate: "mean",
 			display: { precision: 1, chart: "line", y_min: null },
 			retired: null
@@ -126,9 +136,44 @@ export const WEATHER_DATASET: DatasetCatalog["datasets"][number] = {
 			label: "Wind Direction",
 			kind: "meteorological",
 			units: "°",
-			resolutions: ["hour", "day"],
+			resolutions: ["raw"],
 			aggregate: null,
-			display: { precision: 0, chart: null, y_min: null },
+			display: { precision: 1, chart: "line", y_min: null },
+			retired: null
+		}
+	],
+	retired: null
+};
+
+/** The live catalog's pesticide-use dataset, trimmed to two entry types. */
+export const PESTICIDE_USE_DATASET: DatasetCatalog["datasets"][number] = {
+	id: "pesticide-use",
+	label: "Pesticide Use",
+	description: "Reported agricultural pesticide applications, summed by region.",
+	source: "California DPR Pesticide Use Reporting (PUR)",
+	license: "",
+	geographies: ["region"],
+	meta_url: "/api/2.0/pesticides/meta/",
+	places_url: "",
+	entry_types: [
+		{
+			id: "pounds-applied",
+			label: "Pounds Applied",
+			kind: "other",
+			units: "lbs",
+			resolutions: ["month", "year"],
+			aggregate: "sum",
+			display: { precision: 0, chart: "bar", y_min: 0 },
+			retired: null
+		},
+		{
+			id: "applications",
+			label: "Applications",
+			kind: "other",
+			units: "applications",
+			resolutions: ["month", "year"],
+			aggregate: "sum",
+			display: { precision: 0, chart: "bar", y_min: 0 },
 			retired: null
 		}
 	],

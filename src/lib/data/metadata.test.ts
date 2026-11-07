@@ -15,7 +15,11 @@ import {
 	type CatalogEntry,
 	type Level
 } from "./metadata";
-import { SDK_DATASET_CATALOG, WEATHER_DATASET } from "./testing/dataset-catalog";
+import {
+	SDK_DATASET_CATALOG,
+	WEATHER_DATASET,
+	PESTICIDE_USE_DATASET
+} from "./testing/dataset-catalog";
 
 function lvl(
 	key: string,
@@ -254,7 +258,7 @@ describe("catalog entry types", () => {
 	beforeEach(() => {
 		vi.mocked(getDatasetCatalog).mockResolvedValue({
 			...SDK_DATASET_CATALOG,
-			datasets: [...SDK_DATASET_CATALOG.datasets, WEATHER_DATASET]
+			datasets: [...SDK_DATASET_CATALOG.datasets, WEATHER_DATASET, PESTICIDE_USE_DATASET]
 		});
 	});
 
@@ -274,6 +278,20 @@ describe("catalog entry types", () => {
 		catalog.datasets[0].entry_types[0].display.chart = "pie" as never;
 		vi.mocked(getDatasetCatalog).mockResolvedValue(catalog);
 		expect((await entryType("humidity"))?.chart).toBeNull();
+	});
+
+	it("maps the applications entry type and pesticide meta urls", async () => {
+		const catalog = (await createWebMetadata().catalog()) as CatalogEntry[];
+		const pesticide = catalog.find((d) => d.id === "pesticide-use");
+		expect(pesticide?.metaUrl).toBe("/api/2.0/pesticides/meta/");
+		expect(pesticide?.entryTypes.find((e) => e.id === "applications")).toMatchObject({
+			units: "applications",
+			chart: "bar",
+			yMin: 0,
+			precision: 0,
+			aggregate: "sum"
+		});
+		expect(await entryType("eto")).toMatchObject({ chart: "bar", yMin: 0, precision: 2 });
 	});
 
 	it("maps aggregate onto entry types", async () => {
