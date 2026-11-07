@@ -24,6 +24,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "meteorological",
 					units: "%",
 					resolutions: ["raw"],
+					aggregate: "mean",
 					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				},
@@ -33,6 +34,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "other",
 					units: "",
 					resolutions: ["raw"],
+					aggregate: "mean",
 					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				},
@@ -42,6 +44,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "pollutant",
 					units: "µg/m³",
 					resolutions: ["raw"],
+					aggregate: "mean",
 					display: { precision: null, chart: null, y_min: null },
 					retired: null,
 					available: false
@@ -52,6 +55,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "pollutant",
 					units: "µg/m³",
 					resolutions: [...ALL],
+					aggregate: "mean",
 					display: { precision: null, chart: null, y_min: null },
 					retired: null,
 					available: true
@@ -75,6 +79,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 					kind: "other",
 					units: "",
 					resolutions: ["day"],
+					aggregate: null,
 					display: { precision: null, chart: null, y_min: null },
 					retired: null
 				}
@@ -83,4 +88,49 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 		}
 	],
 	summary_rules: { complete_after_period_end: ["month", "quarter", "season", "year"] }
+};
+
+/** A weather dataset (CIMIS) with sum, mean and no-rollup entry types, from the catalog shape. */
+export const WEATHER_DATASET: DatasetCatalog["datasets"][number] = {
+	id: "weather",
+	label: "Weather",
+	description: "Daily and hourly weather from CIMIS stations.",
+	source: "CIMIS",
+	license: "",
+	geographies: ["station"],
+	meta_url: "/api/2.0/weather/meta/",
+	places_url: "",
+	entry_types: [
+		{
+			id: "precipitation",
+			label: "Precipitation",
+			kind: "meteorological",
+			units: "in",
+			resolutions: ["hour", "day", "month"],
+			aggregate: "sum",
+			display: { precision: 2, chart: "bar", y_min: 0 },
+			retired: null
+		},
+		{
+			id: "temperature",
+			label: "Temperature",
+			kind: "meteorological",
+			units: "°F",
+			resolutions: ["raw", "hour", "day", "month"],
+			aggregate: "mean",
+			display: { precision: 1, chart: "line", y_min: null },
+			retired: null
+		},
+		{
+			id: "winddirection",
+			label: "Wind Direction",
+			kind: "meteorological",
+			units: "°",
+			resolutions: ["hour", "day"],
+			aggregate: null,
+			display: { precision: 0, chart: null, y_min: null },
+			retired: null
+		}
+	],
+	retired: null
 };

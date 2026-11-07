@@ -13,7 +13,9 @@ function entry(resolutions: EntryTypeMeta["resolutions"]): EntryTypeMeta {
 		kind: "pollutant",
 		resolutions,
 		precision: null,
-		yMin: null
+		yMin: null,
+		chart: null,
+		aggregate: null
 	};
 }
 

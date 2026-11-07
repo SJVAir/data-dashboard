@@ -18,7 +18,9 @@ const entry = (id: string, kind: "pollutant" | "other") => ({
 	kind,
 	resolutions: ["day" as const],
 	precision: null,
-	yMin: null
+	yMin: null,
+	chart: null as null,
+	aggregate: null as null
 });
 
 const CATALOG: CatalogEntry[] = [

@@ -18,6 +18,8 @@ function entryType(id: string, extra: Partial<EntryTypeMeta> = {}): EntryTypeMet
 		resolutions: ["hour"],
 		precision: null,
 		yMin: null,
+		chart: null,
+		aggregate: null,
 		...extra
 	};
 }

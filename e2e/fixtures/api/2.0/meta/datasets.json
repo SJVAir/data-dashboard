@@ -17,6 +17,7 @@
 						"kind": "pollutant",
 						"units": "µg/m³",
 						"resolutions": ["raw", "hour", "day", "month", "quarter", "season", "year"],
+						"aggregate": "mean",
 						"display": {
 							"precision": 1,
 							"chart": "line",
@@ -44,6 +45,7 @@
 						"kind": "other",
 						"units": "AQI",
 						"resolutions": ["day"],
+						"aggregate": null,
 						"display": {
 							"precision": 0,
 							"chart": "bar",
@@ -57,6 +59,7 @@
 						"kind": "other",
 						"units": "",
 						"resolutions": ["day"],
+						"aggregate": null,
 						"display": {
 							"precision": null,
 							"chart": null,

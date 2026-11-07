@@ -381,6 +381,8 @@ describe("downloadDataCsv", () => {
 					resolutions: ["day"],
 					precision: null,
 					yMin: null,
+					chart: null,
+					aggregate: null,
 					available: true
 				}
 			]

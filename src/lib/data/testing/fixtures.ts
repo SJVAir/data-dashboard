@@ -18,6 +18,8 @@ function pollutant(
 		resolutions,
 		precision: null,
 		yMin: null,
+		chart: null,
+		aggregate: "mean",
 		available
 	};
 }

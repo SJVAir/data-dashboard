@@ -1,6 +1,7 @@
 import {
 	getDatasetCatalog,
 	getForecastsMeta,
+	getHMSMeta,
 	getMonitorsList,
 	getMonitorsMeta,
 	type DatasetCatalog,
@@ -20,6 +21,13 @@ export type EntryTypeMeta = {
 	precision: number | null;
 	/** Where a chart's value axis starts (the catalog's `display.y_min`); null: unspecified. */
 	yMin: number | null;
+	/** Bars or a line (the catalog's `display.chart`); null: unspecified or unknown. */
+	chart: "line" | "bar" | null;
+	/**
+	 * How values combine over time (the catalog's top-level `aggregate`): `"sum"` totals,
+	 * `"mean"` averages, `null` never rolls up.
+	 */
+	aggregate: "sum" | "mean" | null;
 	available?: boolean;
 	retired?: Retirement;
 };
@@ -73,8 +81,8 @@ export interface MetadataSource {
 	/** From the entry type's scale, ordered by min; `[]` if no scale. */
 	levels(entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/**
-	 * The levels of a dataset's entry type: the forecasts scales for `"forecasts"`, otherwise the
-	 * same as `levels`. `[]` if no scale.
+	 * The levels of a dataset's entry type: the forecasts scales for `"forecasts"`, the HMS
+	 * scales for `"hms-smoke"`, otherwise the same as `levels`. `[]` if no scale.
 	 */
 	datasetLevels(dataset: string, entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/** The meta's `default_calibration`; `""` and unknown map to `null`. */
@@ -170,7 +178,9 @@ export function mapDatasetCatalog(catalog: DatasetCatalog): CatalogEntry[] {
 						: "other",
 					resolutions: e.resolutions.filter((r): r is Resolution => RESOLUTIONS.includes(r)),
 					precision: e.display.precision,
-					yMin: e.display.y_min
+					yMin: e.display.y_min,
+					chart: e.display.chart === "line" || e.display.chart === "bar" ? e.display.chart : null,
+					aggregate: e.aggregate === "sum" || e.aggregate === "mean" ? e.aggregate : null
 				};
 				setIfPresent(type, "available", e.available);
 				setIfPresent(type, "retired", retirement(e.retired));
@@ -223,6 +233,7 @@ export function createWebMetadata(): MetadataSource {
 	const forecastsMeta = memoize(() => getForecastsMeta());
 	const monitorLevels = async (entryType: string, signal?: AbortSignal) =>
 		mapScaleLevels((await meta(signal)).entries[entryType]?.scale?.levels);
+	const hmsMeta = memoize(() => getHMSMeta());
 	const catalog = memoize(async () => mapDatasetCatalog(await getDatasetCatalog()));
 	return {
 		async catalog(signal) {
@@ -237,10 +248,15 @@ export function createWebMetadata(): MetadataSource {
 		},
 		levels: monitorLevels,
 		async datasetLevels(dataset, entryType, signal) {
-			// Each dataset's scales come from its own meta endpoint; only forecasts has one apart
-			// from the monitors' today. A new dataset with its own scales adds its endpoint here.
-			if (dataset !== "forecasts") return monitorLevels(entryType, signal);
-			return mapScaleLevels((await forecastsMeta(signal)).scales[entryType]?.levels);
+			// Each dataset with scales names its own meta endpoint here (forecasts, hms-smoke); the
+			// rest use the monitors'. A new dataset with its own scales adds its endpoint.
+			if (dataset === "forecasts") {
+				return mapScaleLevels((await forecastsMeta(signal)).scales[entryType]?.levels);
+			}
+			if (dataset === "hms-smoke") {
+				return mapScaleLevels((await hmsMeta(signal)).scales[entryType]?.levels);
+			}
+			return monitorLevels(entryType, signal);
 		},
 		async defaultProcessor(monitorType, entryType, signal) {
 			const monitor = (await meta(signal)).monitors[monitorType];

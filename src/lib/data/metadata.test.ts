@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@sjvair/sdk", () => ({
 	getDatasetCatalog: vi.fn(),
 	getMonitorsMeta: vi.fn(),
-	getMonitorsList: vi.fn()
+	getMonitorsList: vi.fn(),
+	getHMSMeta: vi.fn()
 }));
 
-import { getDatasetCatalog, getMonitorsList, getMonitorsMeta } from "@sjvair/sdk";
+import { getDatasetCatalog, getHMSMeta, getMonitorsList, getMonitorsMeta } from "@sjvair/sdk";
 import {
 	createWebMetadata,
 	levelFor,
@@ -14,7 +15,7 @@ import {
 	type CatalogEntry,
 	type Level
 } from "./metadata";
-import { SDK_DATASET_CATALOG } from "./testing/dataset-catalog";
+import { SDK_DATASET_CATALOG, WEATHER_DATASET } from "./testing/dataset-catalog";
 
 function lvl(
 	key: string,
@@ -104,7 +105,9 @@ describe("createWebMetadata().catalog", () => {
 					kind: "meteorological",
 					resolutions: ["raw"],
 					precision: null,
-					yMin: null
+					yMin: null,
+					chart: null,
+					aggregate: "mean"
 				},
 				{
 					id: "particulates",
@@ -113,7 +116,9 @@ describe("createWebMetadata().catalog", () => {
 					kind: "other",
 					resolutions: ["raw"],
 					precision: null,
-					yMin: null
+					yMin: null,
+					chart: null,
+					aggregate: "mean"
 				},
 				{
 					id: "pm100",
@@ -123,6 +128,8 @@ describe("createWebMetadata().catalog", () => {
 					resolutions: ["raw"],
 					precision: null,
 					yMin: null,
+					chart: null,
+					aggregate: "mean",
 					available: false
 				},
 				{
@@ -133,6 +140,8 @@ describe("createWebMetadata().catalog", () => {
 					resolutions: ["raw", "hour", "day", "month", "quarter", "season", "year"],
 					precision: null,
 					yMin: null,
+					chart: null,
+					aggregate: "mean",
 					available: true
 				}
 			]
@@ -164,6 +173,7 @@ describe("createWebMetadata().catalog", () => {
 							kind: "particle-count",
 							units: "",
 							resolutions: ["raw", "decade" as never, "day"],
+							aggregate: null,
 							display: { precision: 1, chart: "line", y_min: 0 },
 							retired: { since: "2026-01-01T00:00:00Z", replaced_by: "pm25" }
 						},
@@ -173,6 +183,7 @@ describe("createWebMetadata().catalog", () => {
 							kind: "pollutant",
 							units: "",
 							resolutions: [],
+							aggregate: null,
 							display: { precision: null, chart: null, y_min: null },
 							retired: { since: "2026-02-01T00:00:00Z", replaced_by: null }
 						}
@@ -236,6 +247,61 @@ describe("createWebMetadata().catalog", () => {
 		release();
 		expect(await other).toHaveLength(2);
 		expect(getDatasetCatalog).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("catalog entry types", () => {
+	beforeEach(() => {
+		vi.mocked(getDatasetCatalog).mockResolvedValue({
+			...SDK_DATASET_CATALOG,
+			datasets: [...SDK_DATASET_CATALOG.datasets, WEATHER_DATASET]
+		});
+	});
+
+	async function entryType(id: string) {
+		const catalog = (await createWebMetadata().catalog()) as CatalogEntry[];
+		return catalog.flatMap((d) => d.entryTypes).find((e) => e.id === id);
+	}
+
+	it("maps display.chart onto entry types", async () => {
+		expect((await entryType("precipitation"))?.chart).toBe("bar");
+		expect((await entryType("temperature"))?.chart).toBe("line");
+		expect((await entryType("humidity"))?.chart).toBeNull();
+	});
+
+	it("maps an unknown display.chart to null", async () => {
+		const catalog = structuredClone(SDK_DATASET_CATALOG);
+		catalog.datasets[0].entry_types[0].display.chart = "pie" as never;
+		vi.mocked(getDatasetCatalog).mockResolvedValue(catalog);
+		expect((await entryType("humidity"))?.chart).toBeNull();
+	});
+
+	it("maps aggregate onto entry types", async () => {
+		expect((await entryType("precipitation"))?.aggregate).toBe("sum");
+		expect((await entryType("temperature"))?.aggregate).toBe("mean");
+		expect((await entryType("winddirection"))?.aggregate).toBeNull();
+	});
+});
+
+describe("hms-smoke levels", () => {
+	it("hms-smoke levels come from hms meta", async () => {
+		vi.mocked(getHMSMeta).mockResolvedValue({
+			scales: {
+				"smoke-density": {
+					levels: [
+						lvl("heavy", "Heavy", "#aa0000", 2, 27, null),
+						lvl("light", "Light", "#cccccc", 0, null, 10),
+						lvl("medium", "Medium", "#888888", 1, 10, 27)
+					]
+				}
+			}
+		} as never);
+		const md = createWebMetadata();
+		const levels = await md.datasetLevels("hms-smoke", "smoke-density");
+		expect(levels.map((l) => l.key)).toEqual(["light", "medium", "heavy"]);
+		await md.datasetLevels("hms-smoke", "smoke-density");
+		expect(getHMSMeta).toHaveBeenCalledTimes(1);
+		expect(await md.datasetLevels("hms-smoke", "nope")).toEqual([]);
 	});
 });
 

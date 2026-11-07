@@ -103,7 +103,9 @@ export const FORECASTS_ENTRY: CatalogEntry = {
 			kind: "other",
 			resolutions: ["day"],
 			precision: null,
-			yMin: null
+			yMin: null,
+			chart: null,
+			aggregate: null
 		},
 		{
 			id: "aqi-forecast",
@@ -112,7 +114,9 @@ export const FORECASTS_ENTRY: CatalogEntry = {
 			kind: "other",
 			resolutions: ["day"],
 			precision: null,
-			yMin: null
+			yMin: null,
+			chart: null,
+			aggregate: null
 		}
 	],
 	geographies: ["monitor", "region"]
