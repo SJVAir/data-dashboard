@@ -5,7 +5,7 @@ import { formatList, TIME_ZONE } from "$lib/format";
 import { nextPeriodStart, resolveRange } from "$lib/format/range";
 import type { WidgetInstance } from "$lib/documents/schema";
 import type { CatalogEntry, Level } from "./metadata";
-import type { WidgetDataConfig } from "./schema";
+import type { Resolution, WidgetDataConfig } from "./schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { FileAccess } from "$lib/platform/types";
 import { dataFileName } from "$lib/sharing/file-names";
@@ -186,12 +186,13 @@ function firstSettled(input: QueryInput): Promise<QueryState> {
 async function loadOverlay(
 	main: QueryInput,
 	layer: WidgetDataConfig["layers"][number],
-	catalog: CatalogEntry[]
+	catalog: CatalogEntry[],
+	mainResolution: Resolution
 ): Promise<OverlayCsv | null> {
 	try {
 		const info = entryMeta(catalog, layer);
 		if (!info) return null;
-		const state = await firstSettled(overlayInput(main, layer));
+		const state = await firstSettled(overlayInput(main, layer, mainResolution, catalog));
 		if (state.status === "error") throw state.error;
 		if (state.status !== "ready") return null;
 		const levels = await getMetadata().datasetLevels(layer.dataset, info.entryType.id);
@@ -240,7 +241,9 @@ export async function downloadDataCsv(
 	};
 	const { data } = state;
 	const layers = overlayLayers(config, catalog);
-	const loaded = await Promise.all(layers.map((l) => loadOverlay(input, l, catalog)));
+	const loaded = await Promise.all(
+		layers.map((l) => loadOverlay(input, l, catalog, data.resolution))
+	);
 	const overlays = loaded.filter((o): o is OverlayCsv => o !== null);
 	const skipped = layers.flatMap((l, i) =>
 		loaded[i] ? [] : [entryMeta(catalog, l)?.entryType.label ?? l.entryType ?? l.dataset]

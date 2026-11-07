@@ -6,7 +6,8 @@ export const LIMITS = {
 	CODE_MAX: 64,
 	LABEL_MAX: 200,
 	LAYERS_MAX: 8,
-	SELECTION_MAX: 500
+	SELECTION_MAX: 500,
+	CATEGORIES_MAX: 10
 } as const;
 
 export const ResolutionSchema = z.enum([
@@ -127,13 +128,29 @@ export const TimeSubRangeSchema = z
 	});
 export type TimeSubRange = z.infer<typeof TimeSubRangeSchema>;
 
+/** A pesticide layer's saved filters: ids from the server's search, codes from its meta. */
+export const PesticideFiltersSchema = z.object({
+	chemical: IdSchema.optional(),
+	commodity: IdSchema.optional(),
+	product: IdSchema.optional(),
+	category: z.array(CodeSchema).min(1).max(LIMITS.CATEGORIES_MAX).optional(),
+	iarcGroup: CodeSchema.optional(),
+	method: CodeSchema.optional(),
+	narrow: CodeSchema.optional()
+});
+export type PesticideFilters = z.infer<typeof PesticideFiltersSchema>;
+
 export const LayerSchema = z
 	.object({
 		dataset: z.string().min(1).max(LIMITS.ID_MAX),
 		entryType: SafeIdSchema.optional(),
 		place: PlaceRefSchema.optional(),
 		selection: SpatialSelectionSchema.optional(),
-		resolution: z.union([z.literal("auto"), ResolutionSchema]).optional()
+		resolution: z.union([z.literal("auto"), ResolutionSchema]).optional(),
+		/** A weather layer's station (the catalog's station id). */
+		station: SafeIdSchema.optional(),
+		/** A pesticide layer's filters. */
+		filters: PesticideFiltersSchema.optional()
 	})
 	.refine((l) => !(l.place && l.selection), {
 		message: "A layer has a place or a selection, not both",

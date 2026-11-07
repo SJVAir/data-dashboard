@@ -20,7 +20,7 @@
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { dataTypes, getWidgetType } from "$lib/widgets/registry";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
-	import { entryMeta, pollutantLayer } from "$lib/widgets/shared/input";
+	import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
 	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
 	import { placeLabel } from "$lib/widgets/title";
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
@@ -90,7 +90,7 @@
 
 	const type = $derived(getWidgetType(plain.type));
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
-	const main = $derived(pollutantLayer(plain.data, known));
+	const main = $derived(mainLayer(plain.data, known));
 	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
 	const picks = $derived(main ? fromLayer(main) : []);
 	const overlayPicks = $derived(
@@ -204,7 +204,7 @@
 	const phone = new MediaQuery(PHONE_QUERY);
 
 	// Edits. The main layer is always there (a pollutant, required); overlays follow it.
-	function mainLayer(): Layer | undefined {
+	function mainDraftLayer(): Layer | undefined {
 		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
 	}
 
@@ -213,7 +213,7 @@
 	}
 
 	function setPlaces(next: Picks): void {
-		const layer = mainLayer();
+		const layer = mainDraftLayer();
 		if (!layer) return;
 		delete layer.place;
 		delete layer.selection;
@@ -221,7 +221,7 @@
 	}
 
 	function setMain(pick: { dataset: string; entryType: string }): void {
-		const layer = mainLayer();
+		const layer = mainDraftLayer();
 		if (!layer) return;
 		layer.dataset = pick.dataset;
 		layer.entryType = pick.entryType;
@@ -245,7 +245,7 @@
 	}
 
 	function setDetail(level: "auto" | Resolution): void {
-		const layer = mainLayer();
+		const layer = mainDraftLayer();
 		if (!layer) return;
 		if (level === "auto") delete layer.resolution;
 		else layer.resolution = level;

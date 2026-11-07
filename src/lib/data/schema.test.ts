@@ -150,3 +150,41 @@ describe("default-place", () => {
 		expect(StarterDashboardSchema.safeParse(starterDashboard()).success).toBe(true);
 	});
 });
+
+describe("layer station and filters", () => {
+	const base = { dataset: "pesticide-use", entryType: "pounds-applied" };
+
+	it("a layer keeps station and filters", () => {
+		const r = LayerSchema.parse({
+			...base,
+			station: "80",
+			filters: { chemical: "123", category: ["fumigant", "herbicide"], narrow: "rodenticide" }
+		});
+		expect(r.station).toBe("80");
+		expect(r.filters).toEqual({
+			chemical: "123",
+			category: ["fumigant", "herbicide"],
+			narrow: "rodenticide"
+		});
+	});
+
+	it("filters reject 11 categories", () => {
+		const category = Array.from({ length: LIMITS.CATEGORIES_MAX + 1 }, (_, i) => `c${i}`);
+		expect(LayerSchema.safeParse({ ...base, filters: { category } }).success).toBe(false);
+		expect(LayerSchema.safeParse({ ...base, filters: { category: [] } }).success).toBe(false);
+	});
+
+	it("unknown filter keys are dropped", () => {
+		const r = LayerSchema.parse({ ...base, filters: { method: "aerial", bogus: "x" } });
+		expect(r.filters).toEqual({ method: "aerial" });
+	});
+
+	it("a 65-char chemical id is rejected", () => {
+		const long = "x".repeat(65);
+		expect(LayerSchema.safeParse({ ...base, filters: { chemical: long } }).success).toBe(false);
+	});
+
+	it("a station id keeps to the safe character set", () => {
+		expect(LayerSchema.safeParse({ ...base, station: "../x" }).success).toBe(false);
+	});
+});

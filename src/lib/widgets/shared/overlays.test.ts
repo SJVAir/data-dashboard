@@ -31,6 +31,18 @@ const CATALOG: CatalogEntry[] = [
 		geographies: []
 	},
 	{
+		id: "weather",
+		label: "Weather",
+		entryTypes: [entry("temperature", "other")],
+		geographies: []
+	},
+	{
+		id: "pesticide-use",
+		label: "Pesticide use",
+		entryTypes: [entry("pounds-applied", "other")],
+		geographies: []
+	},
+	{
 		id: "forecasts",
 		label: "Forecasts",
 		entryTypes: [entry("burn-status", "other"), entry("aqi-forecast", "other")],
@@ -52,7 +64,12 @@ test("overlay borrows the main layer's selection", () => {
 		timeSubRange: { start: "2026-10-01", end: "2026-10-10" },
 		worstHour: true
 	};
-	const input = overlayInput(main, { dataset: "forecasts", entryType: "burn-status" });
+	const input = overlayInput(
+		main,
+		{ dataset: "forecasts", entryType: "burn-status" },
+		"day",
+		CATALOG
+	);
 	expect(input).toEqual({
 		layer: {
 			dataset: "forecasts",
@@ -65,9 +82,63 @@ test("overlay borrows the main layer's selection", () => {
 	// A single place travels too.
 	const one = overlayInput(
 		{ ...main, layer: { dataset: "air-quality", entryType: "pm25", place: FRESNO } },
-		{ dataset: "forecasts", entryType: "aqi-forecast" }
+		{ dataset: "forecasts", entryType: "aqi-forecast" },
+		"day",
+		CATALOG
 	);
 	expect(one.layer).toEqual({ dataset: "forecasts", entryType: "aqi-forecast", place: FRESNO });
+});
+
+const MAIN: QueryInput = {
+	layer: { dataset: "air-quality", entryType: "pm25", place: FRESNO },
+	dateRange: { kind: "trailing", amount: 30, unit: "day" }
+};
+
+test("a number overlay is pinned to the main resolution", () => {
+	const input = overlayInput(
+		MAIN,
+		{ dataset: "weather", entryType: "temperature", resolution: "hour" },
+		"day",
+		CATALOG
+	);
+	expect(input.pin).toBe("day");
+	expect(input.layer.resolution).toBeUndefined();
+	expect(
+		overlayInput(MAIN, { dataset: "weather", entryType: "temperature" }, undefined, CATALOG)
+	).not.toHaveProperty("pin");
+});
+
+test("a level overlay is not pinned", () => {
+	const input = overlayInput(
+		MAIN,
+		{ dataset: "forecasts", entryType: "burn-status", resolution: "day" },
+		"day",
+		CATALOG
+	);
+	expect(input).not.toHaveProperty("pin");
+	expect(input.layer.resolution).toBeUndefined();
+});
+
+test("an overlay carries its station and filters, never places of its own", () => {
+	const input = overlayInput(
+		MAIN,
+		{
+			dataset: "pesticide-use",
+			entryType: "pounds-applied",
+			place: KERN,
+			station: "80",
+			filters: { chemical: "7" }
+		},
+		"day",
+		CATALOG
+	);
+	expect(input.layer).toEqual({
+		dataset: "pesticide-use",
+		entryType: "pounds-applied",
+		place: FRESNO,
+		station: "80",
+		filters: { chemical: "7" }
+	});
 });
 
 test("a third overlay is ignored", () => {

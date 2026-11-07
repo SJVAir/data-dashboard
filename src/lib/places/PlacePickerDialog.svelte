@@ -20,7 +20,7 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
-	import { chartInput, pollutantLayer } from "$lib/widgets/shared/input";
+	import { chartInput, mainLayer } from "$lib/widgets/shared/input";
 	import { pickedData } from "./apply";
 	import type { PlaceDirectory } from "./directory";
 	import { directoryFor, resolvePicks, type Resolvers } from "./host";
@@ -110,7 +110,7 @@
 			if (signal.aborted) return;
 			const target = find();
 			const max = target ? (getWidgetType(target.widget.type)?.accepts?.maxPlaces ?? 0) : 0;
-			const layer = target ? pollutantLayer(target.widget.data, catalog) : undefined;
+			const layer = target ? mainLayer(target.widget.data, catalog) : undefined;
 			if (!target || max < 1 || !layer?.entryType) {
 				close();
 				return;
@@ -163,7 +163,7 @@
 		point: PointPlace,
 		signal: AbortSignal
 	): Promise<{ type: string; code: string } | null> {
-		const layer = pollutantLayer(data, ctx.catalog);
+		const layer = mainLayer(data, ctx.catalog);
 		if (!layer) return null;
 		const { input } = chartInput(withPoint(data, layer, point), ctx.catalog, ctx.max);
 		if (!input) return null;

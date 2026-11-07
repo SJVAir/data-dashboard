@@ -41,7 +41,12 @@
 		getContext<(() => void) | undefined>(REMOVE_WIDGET_KEY) ?? (() => removeWidget(app, widget.id));
 
 	/** Reasons for which the saved place is gone: the "no longer available" card. */
-	const GONE = new Set(["region-unresolved", "location-unresolved", "monitor-unlisted"]);
+	const GONE = new Set([
+		"region-unresolved",
+		"location-unresolved",
+		"monitor-unlisted",
+		"filter-gone"
+	]);
 
 	const UNAVAILABLE = {
 		"catalog-unavailable": () => m.widget_state_unavailable_catalog_unavailable(),
@@ -51,7 +56,8 @@
 		"no-resolution": () => m.widget_state_unavailable_no_resolution(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
 		"point-outside": () => m.widget_state_unavailable_point_outside(),
-		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw()
+		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw(),
+		"filter-gone": () => m.widget_state_unavailable_filter_gone()
 	};
 
 	/** A retirement's `since` (a date or a date-time) as a Pacific date. */
@@ -171,8 +177,12 @@
 {:else if state.status === "unavailable"}
 	{#if GONE.has(state.reason)}
 		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
-			<p class="text-sm font-medium">{m.widget_state_gone_title()}</p>
-			<p class="text-muted-foreground text-sm">{m.widget_state_gone_body()}</p>
+			{#if state.reason === "filter-gone"}
+				<p class="text-sm font-medium">{m.widget_state_unavailable_filter_gone()}</p>
+			{:else}
+				<p class="text-sm font-medium">{m.widget_state_gone_title()}</p>
+				<p class="text-muted-foreground text-sm">{m.widget_state_gone_body()}</p>
+			{/if}
 			{#if editable}
 				<div class="flex flex-wrap items-center justify-center gap-2">
 					{#if onchoose}

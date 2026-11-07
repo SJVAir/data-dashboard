@@ -85,7 +85,8 @@ export const UNAVAILABLE_REASONS = [
 	"location-unresolved",
 	"point-outside",
 	"monitor-unlisted",
-	"whole-layer-raw"
+	"whole-layer-raw",
+	"filter-gone"
 ] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
