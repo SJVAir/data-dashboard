@@ -1215,11 +1215,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   detaches that root when the host's effect re-runs. It reproduces in monitor-map (Svelte 5.57.0
   and 5.57.3) but not in map-sdk's client tests, across several models of that pattern, so no
   fix can be proven yet. monitor-map no longer triggers it (its add/remove runs outside the
-  effect, monitor-map #126). **Revisit when** monitor-map has to add plugins from an effect again
-  (the user is deciding whether its #126 change stays), another host hits it, or before map-sdk
-  1.0. Next step: run monitor-map's repro (`c-reset3.mjs`) against a local map-sdk build with a
-  candidate fix (effect roots created outside the caller's effect), and file a minimal Svelte
-  repro upstream.
+  effect, monitor-map #126). **In progress (the user, 2026-11-07):** monitor-map keeps its
+  workaround (#126) for now, but the map-sdk fix comes next, in a new map-sdk session started
+  from `data-dashboard/prompt-map-sdk-c2.txt`. Next step: reproduce with monitor-map's
+  `c-reset3.mjs` against a local map-sdk build, fix map-sdk so plugin effect roots don't depend on
+  the caller's effect, and offer a minimal Svelte repro upstream (filing it needs the user's yes).
 
 ## Widgets
 
