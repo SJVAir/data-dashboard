@@ -369,15 +369,17 @@ string`) now get the union return type. The mobile app passes a string token, so
   already true without a session; with a session it used to be ignored (200). Not a
   security issue (a cross-site page can't set the header). **Revisit with** the next
   resticus change; fix by raising `AuthenticationFailed` there.
-- **sjvair.com: a malformed id on detail endpoints gives 500, not 404.** _Found 2026-11-05
-  (Get data layers, sjvair.com SDK tests; checked by the coordinator on the local stack)._
-  `hms/smoke/<id>/`, `hms/fire/<id>/` and `monitors/<id>/` answer 500 for any id that isn't a
-  valid small UUID (`nonexistent`, a region sqid): `django_smalluuid`'s `to_python` raises on
-  the bad base64, and in DEBUG resticus's error handler then crashes too (`TypeError:
-'__proxy__' object does not support item assignment` at `data["meta"] = …`), which may hit
-  other endpoints' errors in DEBUG as well. `regions/<id>/` answers 404. Pre-existing on
-  `develop`, not from the Get data work; not scheduled yet (the user's call). **Revisit
-  when** the next sjvair.com cleanup is planned, or before go-live, so bad ids are a 404.
+- **sjvair.com: a malformed id on `hms/smoke/<id>/` and `hms/fire/<id>/` isn't a 404.** _Found
+  2026-11-05 (Get data layers); narrowed 2026-11-06._ Monitors are fixed: sjvair.com #314 (merged)
+  answers one JSON 404 `"Resource not found"` for bad and unknown monitor ids on every route,
+  writes with an access key included. Smoke and Fire detail go through resticus's `get_object`,
+  which doesn't treat an unparseable id as not found: production answers 400 with the unfilled
+  template `"'%(value)s' is not a valid short-form UUID."`, and DEBUG crashes to a 500. Fixed in
+  resticus draft PR [#27](https://github.com/dmpayton/django-resticus/pull/27), which also fixes
+  the DEBUG crash on lazy messages and the `ValidationError` 400 body. It merges with #25 and #26
+  at go-live. The local stack runs it from the fork's `go-live` branch. **Revisit when** #27 is
+  merged and sjvair.com's image is rebuilt: add sjvair.com tests for Smoke and Fire bad ids
+  (404 `Resource not found`), then remove this entry.
 - **resticus: CSRF skip trusts any non-session authenticator.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22
   (resticus CSRF fix review)._ A custom authenticator that reads a cookie (e.g. a JWT in a
   cookie) and doesn't subclass `SessionAuth` would let cookie-only requests skip the CSRF
@@ -999,16 +1001,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   table) so a missed day reads as unknown. The user decided a new table isn't worth it yet:
   production fetches about 13 times a day plus a final pass. **Revisit when** a missed day
   turns up in production data or users report false clear days.
-- **A date index on HMS `Smoke`.** _Deferred 2026-11-05 (sjvair.com #312 final review); the
-  coordinator is bringing the now-or-later choice to the user._ `Smoke` has only a GiST index
-  on its geometry. Every stored outline touches the valley, so the GiST filter keeps nearly
-  everything and the date filter does the real narrowing. `hms/smoke/place/` timings: a year
-  over Fresno County takes 0.14 s on local data (sparse: smoke only since 2026-10-18) and
-  1.4–1.7 s on a synthetic heavy season (2,280 outlines over 310 days); a ZIP 51–67 ms. Ranges
-  ending today aren't server-cached. An `Index(fields=['date'])` (as `Fire` has) would help
-  this endpoint and `hms/smoke/`; it needs a migration. **Revisit when** production timings for
-  `hms/smoke/place/` or `hms/smoke/` show slow requests, or the Smoke table grows past a few
-  seasons of outlines.
+- **`hms/smoke/place/` speed.** _Noted 2026-11-06 (sjvair.com #314)._ The `Smoke` date index
+  (#314, migration `hms/0003`) made `hms/smoke/` list and range queries index scans (a month's
+  first page: 1.6 ms → 0.07 ms on five synthetic seasons), but it didn't speed up the place
+  endpoint. A county over a year still takes 1.6–1.9 s on a synthetic heavy season (2,460
+  outlines; 12,300 over five seasons): the planner keeps the GiST index, and about 1.3 s is
+  `ST_Union`/`ST_Intersection` on the outlines. A ZIP takes 51–67 ms. Ranges ending today
+  aren't server-cached. A fix would change the query or the geometry (e.g. simplified or
+  pre-clipped outlines). **Revisit when** production timings for `hms/smoke/place/` show slow
+  requests, or the dashboard's smoke layer feels slow on county or larger places.
 - **CarbonMapper data source.** _Noted 2026-09-24; updated 2026-10-14._ The server now
   imports Carbon Mapper methane sources and plumes and serves them under
   `emissions/methane/` (merged with #282), so the dashboard would read them from the
