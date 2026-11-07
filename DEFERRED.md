@@ -416,11 +416,16 @@ string`) now get the union return type. The mobile app passes a string token, so
     `Subscriptions.svelte`, `alert-level.ts`) import `SJVAirEntryLevel` or use `asIter`, so both
     change when they move to that SDK beta; map-sdk and the dashboard don't use them. The dashboard reads `scale`; its e2e
     fixtures still contain `levels`.
-  - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
+  - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it; #26 and
+    #27, the bad-id 404s and the 400 body, merge with it at go-live, as agreed with the code owner,
+    the user, 2026-11-06); the
     credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
     `forecast_zone_for:` cache keys after (see "Production deploy step for the place
     endpoints" below).
+  - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
+    `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
+    Nothing to run by hand.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
