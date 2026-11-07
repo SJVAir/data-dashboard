@@ -1229,7 +1229,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **map-sdk: report the Svelte root-detach bug upstream.** _Deferred 2026-11-07 (the user)._ A
   Svelte playground repro of the bug above: two `$effect.root`s created in one `$effect`, that
   effect re-runs, one update dirties both, then an update to the second alone never runs it. The
-  20-line client-test version exists, plus the versions (5.57.0, 5.57.3) and the lines involved
+  20-line client-test version exists (untracked, in
+  `map-sdk/.worktrees/plugin-setup/.superpowers/c2-repro/svelte-repro/`, with a `README.md`), plus
+  the versions (5.57.0, 5.57.3) and the lines involved
   (`destroy_effect_children` keeps `next`; `Batch#traverse` climbs past the root). Why deferred:
   filing on Svelte's GitHub is public and needs the user's yes. Revisit: when the user says to
   file it, or when a Svelte release fixes it. map-sdk's microtask setup stays either way.
