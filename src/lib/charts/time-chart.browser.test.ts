@@ -296,6 +296,7 @@ function dailyStrip(extra: Partial<ChartStrip> = {}): ChartStrip {
 		points: daily(means, false),
 		resolution: "day",
 		wholePeriod: false,
+		aggregate: "sum",
 		...extra
 	};
 }
@@ -308,6 +309,7 @@ const temperature = () =>
 		chart: "line",
 		precision: 1,
 		yMin: null,
+		aggregate: "mean",
 		points: daily({ 1: 61.2, 2: 63, 3: 64.5, 5: 60, 6: 58.25 }, false)
 	});
 
@@ -446,4 +448,35 @@ test("strips pass axe in light and dark", async () => {
 	expect((await axe.run(frame)).violations).toEqual([]);
 	document.documentElement.setAttribute("data-theme", "dark");
 	expect((await axe.run(frame)).violations).toEqual([]);
+});
+
+test("a coarser averaged strip is never called a total; a summed one is", async () => {
+	const oct = Date.UTC(2026, 9, 1, 7);
+	const month = (extra: Partial<ChartStrip>) =>
+		dailyStrip({
+			resolution: "month",
+			wholePeriod: true,
+			precision: 1,
+			points: [{ t: oct, mean: 61.2, min: 61.2, max: 61.2, count: 1, partial: false }],
+			...extra
+		});
+	const temperature = month({
+		name: "Temperature",
+		label: "Temperature",
+		unit: "°F",
+		chart: "line",
+		aggregate: "mean"
+	});
+	const wind = month({ name: "Wind", label: "Wind", unit: "°", chart: "line", aggregate: null });
+	const { screen, chart } = await renderChart(oneplace(), { strips: [temperature, wind] });
+	await expect.element(screen.getByText("Monthly average", { exact: true })).toBeVisible();
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect.poll(() => readout().textContent).toContain("Temperature: 61.2 °F");
+	expect(readout().textContent).toContain("Wind: 61.2 °");
+	expect(frame.textContent).not.toMatch(/total/i);
+	await screen.rerender({ strips: [month({ aggregate: "sum" })] });
+	await expect.element(screen.getByText("Monthly total", { exact: true })).toBeVisible();
+	await userEvent.keyboard("{End}");
+	await expect.poll(() => readout().textContent).toContain("Total for all of Oct 2026");
 });

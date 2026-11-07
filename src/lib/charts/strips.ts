@@ -20,6 +20,11 @@ export type ChartStrip = {
 	points: SeriesPoint[];
 	resolution: Resolution;
 	wholePeriod: boolean;
+	/**
+	 * How the layer's values combine over time (the catalog's `aggregate`): only a `"sum"` value
+	 * is a total, so only a summed coarser strip is marked as a whole period's total.
+	 */
+	aggregate: "sum" | "mean" | null;
 	message?: string;
 };
 

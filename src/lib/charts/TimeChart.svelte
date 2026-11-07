@@ -81,12 +81,18 @@
 		return strip.unit ? m.chart_strip_axis({ label: strip.label, unit: strip.unit }) : strip.label;
 	}
 
-	/** The tag a coarser strip carries ("Monthly total"), if its period has one. */
+	/**
+	 * The tag a coarser strip carries: "Monthly total" for a summed layer, "Monthly average" for an
+	 * averaged one, none for a layer whose values never roll up (or a period with no tag).
+	 */
 	function wholeTag(strip: ChartStrip): string | null {
-		if (!strip.wholePeriod) return null;
-		if (strip.resolution === "month") return m.chart_strip_monthly_total();
-		if (strip.resolution === "year") return m.chart_strip_yearly_total();
-		return null;
+		if (!strip.wholePeriod || strip.aggregate === null) return null;
+		const month = strip.resolution === "month";
+		const year = strip.resolution === "year";
+		if (strip.aggregate === "sum") {
+			return month ? m.chart_strip_monthly_total() : year ? m.chart_strip_yearly_total() : null;
+		}
+		return month ? m.chart_series_month() : year ? m.chart_series_year() : null;
 	}
 
 	// By value, so an equal range passed as a new object doesn't redraw the chart.
@@ -347,7 +353,7 @@
 								precision: s.precision,
 								point,
 								whole:
-									s.wholePeriod && point
+									s.wholePeriod && s.aggregate === "sum" && point
 										? m.chart_strip_whole_month({
 												period: formatPeriod(new Date(point.t), s.resolution)
 											})

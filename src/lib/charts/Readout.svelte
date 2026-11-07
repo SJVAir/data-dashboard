@@ -28,8 +28,8 @@
 		/** Each overlay's level on this day, if it has one. */
 		overlays?: { layer: string; level: Level | null }[];
 		/**
-		 * Each strip's value for this period; `whole` marks a coarser strip's total for its whole
-		 * period (a month only partly in the range still shows the whole month's total).
+		 * Each strip's value for this period; `whole` marks a coarser summed strip's total for its
+		 * whole period (a month only partly in the range still shows the whole month's total).
 		 */
 		strips?: {
 			layer: string;

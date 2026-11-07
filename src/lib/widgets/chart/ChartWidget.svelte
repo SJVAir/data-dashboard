@@ -89,6 +89,7 @@
 				points: [],
 				resolution: main.resolution,
 				wholePeriod: false,
+				aggregate: meta.aggregate,
 				...extra
 			});
 			if (s.status === "error" || s.status === "unavailable") {
