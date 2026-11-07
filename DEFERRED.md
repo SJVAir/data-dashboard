@@ -1001,6 +1001,24 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   table) so a missed day reads as unknown. The user decided a new table isn't worth it yet:
   production fetches about 13 times a day plus a final pass. **Revisit when** a missed day
   turns up in production data or users report false clear days.
+- **`pesticides/place/`: a buffer and a radius.** _Deferred 2026-11-06 (sjvair.com pesticide
+  place filters spec)._ The Pesticides Explorer's region pages take a 0/1/3/5 mi buffer
+  (`regions/meta/` `buffers`), and its near-me pages take a point plus 1/3/5 mi. `place/`
+  addresses only a region or a monitor. **Revisit when** the dashboard wants "around this place"
+  or "near me" pesticide totals.
+- **A per-place pesticide breakdown endpoint.** _Deferred 2026-11-06 (same spec)._ The explorer
+  shows per-place top chemicals, products and commodities, use by application method, and
+  biggest movers between years. `place/` returns only monthly and yearly totals. One
+  `pesticides/place/breakdown/?by=chemical|product|commodity|method` could serve them all.
+  **Revisit when** the dashboard designs a "what's used here" view.
+- **Schools' 3×3 section block for pesticide totals.** _Deferred 2026-11-06 (same spec)._ The
+  explorer answers "within about a mile" of a school from the section holding it plus the eight
+  around it (`stats.block_sections_many`). `place/` can't address a location, and the shared
+  place resolver would need a location form.
+  - **Until then** (the user, 2026-11-06), a school or "my location" uses its ZIP, then its
+    city, then its county for pesticide totals (the dashboard's `placeRegion`), and the legend
+    names that area.
+  - **Revisit when** the dashboard or its users need "within about a mile" totals.
 - **`hms/smoke/place/` speed.** _Noted 2026-11-06 (sjvair.com #314)._ The `Smoke` date index
   (#314, migration `hms/0003`) made `hms/smoke/` list and range queries index scans (a month's
   first page: 1.6 ms → 0.07 ms on five synthetic seasons), but it didn't speed up the place
