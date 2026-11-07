@@ -6,7 +6,9 @@ import { render } from "vitest-browser-svelte";
 import type { AdapterRequest } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
-import { fixtureMetadata } from "$lib/data/testing/fixtures";
+import { mapDatasetCatalog } from "$lib/data/metadata";
+import { PESTICIDE_USE_DATASET, WEATHER_DATASET } from "$lib/data/testing/dataset-catalog";
+import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -15,7 +17,12 @@ import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import Harness from "$lib/components/dashboard/test-harness/Harness.svelte";
 import { chartType } from "./index";
-import { PM25_LEVELS, chartWidget, fakeAdapter } from "../shared/test-harness/fake-data";
+import {
+	PM25_LEVELS,
+	chartWidget,
+	fakeAdapter,
+	fakeNumberAdapter
+} from "../shared/test-harness/fake-data";
 
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,
@@ -103,4 +110,49 @@ test("the minimum size still leaves a usable plot, even with the note", async ()
 		`plot height, minimum size ${chartType.minSize.w}×${chartType.minSize.h}: ${height}px`
 	);
 	expect(height).toBeGreaterThanOrEqual(80);
+});
+
+test("with two strips the main plot keeps half the plot area", async () => {
+	const requests: AdapterRequest[] = [];
+	const numbers = mapDatasetCatalog({
+		datasets: [WEATHER_DATASET, PESTICIDE_USE_DATASET]
+	} as Parameters<typeof mapDatasetCatalog>[0]).map((d) => ({ ...d, geographies: ["monitor"] }));
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, ...numbers],
+		levels: async () => PM25_LEVELS
+	});
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			fakeNumberAdapter("weather", requests),
+			fakeNumberAdapter("pesticide-use", requests, {
+				offered: ["month", "year"],
+				values: [1200, 340]
+			})
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"], {}, rect);
+	widget.data.layers.push(
+		{ dataset: "weather", entryType: "precipitation" },
+		{ dataset: "pesticide-use", entryType: "pounds-applied" }
+	);
+	await showInDashboard(widget);
+	await expect.poll(() => document.querySelectorAll("[data-strip] canvas").length).toBe(2);
+	const area = document.querySelector<HTMLElement>("[role=group] > .relative")!;
+	const main = () => document.querySelector<HTMLCanvasElement>("[role=group] canvas")!;
+	// Once laid out (the strips take their share, the main plot shrinks to the rest).
+	await expect
+		.poll(() => {
+			const strips = [...document.querySelectorAll<HTMLElement>("[data-strip]")];
+			const used = strips.reduce((sum, s) => sum + s.getBoundingClientRect().height, 0);
+			return Math.abs(main().getBoundingClientRect().height + used - area.clientHeight) < 16;
+		})
+		.toBe(true);
+	const height = main().getBoundingClientRect().height;
+	console.log(
+		`main plot height with two strips, default size: ${height}px of ${area.clientHeight}px`
+	);
+	expect(height).toBeGreaterThanOrEqual(area.clientHeight / 2 - 1);
 });

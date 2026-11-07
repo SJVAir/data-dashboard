@@ -123,6 +123,7 @@
 	/* Chart marks: level bands are faint so the line stays strongest; worst-hour sticks are light. */
 	--chart-band-opacity: 0.16;
 	--chart-stick-opacity: 0.35;
+	--chart-bar-opacity: 0.35;
 	--radius: 0.75rem;
 	--radius-control: 0.5rem;
 	--card-padding: 0.75rem;
@@ -186,6 +187,7 @@
 		--chart-5: oklch(0.785 0.104 274.7);
 		--chart-band-opacity: 0.22;
 		--chart-stick-opacity: 0.45;
+		--chart-bar-opacity: 0.4;
 	}
 }
 
@@ -223,6 +225,7 @@
 	--chart-5: oklch(0.785 0.104 274.7);
 	--chart-band-opacity: 0.22;
 	--chart-stick-opacity: 0.45;
+	--chart-bar-opacity: 0.4;
 }
 
 @media (prefers-reduced-motion: reduce) {

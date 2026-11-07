@@ -5,6 +5,7 @@ import { render } from "vitest-browser-svelte";
 import "../../app.css";
 import type { Level } from "$lib/data/metadata";
 import type { QueryData, SeriesPoint } from "$lib/data/types";
+import type { ChartStrip } from "./strips";
 import TimeChart from "./TimeChart.svelte";
 
 const LEVELS: Level[] = [
@@ -105,7 +106,10 @@ afterEach(() => {
 	document.documentElement.removeAttribute("data-theme");
 });
 
-async function renderChart(data: QueryData, extra: { precision?: number | null } = {}) {
+async function renderChart(
+	data: QueryData,
+	extra: { precision?: number | null; strips?: ChartStrip[]; mainChart?: "line" | "bar" } = {}
+) {
 	const names = new Map(data.places.map((p) => [p.place, p.name]));
 	const screen = await render(TimeChart, {
 		target: frame,
@@ -277,4 +281,169 @@ test("under reduced motion a resize redraws at once", async () => {
 	} finally {
 		await commands.setReducedMotion(null);
 	}
+});
+
+/** A daily strip over days 1–10 (no day 4), at the main chart's resolution. */
+function dailyStrip(extra: Partial<ChartStrip> = {}): ChartStrip {
+	const means: Record<number, number> = { 1: 0.12, 2: 0, 3: 0.4, 5: 1.25, 6: 0, 7: 0, 8: 0.5 };
+	return {
+		name: "Precipitation · CIMIS #80 Fresno State (4.2 mi away)",
+		label: "Precipitation",
+		unit: "in",
+		chart: "bar",
+		precision: 2,
+		yMin: 0,
+		points: daily(means, false),
+		resolution: "day",
+		wholePeriod: false,
+		...extra
+	};
+}
+
+const temperature = () =>
+	dailyStrip({
+		name: "Temperature · CIMIS #80 Fresno State (4.2 mi away)",
+		label: "Temperature",
+		unit: "°F",
+		chart: "line",
+		precision: 1,
+		yMin: null,
+		points: daily({ 1: 61.2, 2: 63, 3: 64.5, 5: 60, 6: 58.25 }, false)
+	});
+
+const strips = () => [...frame.querySelectorAll<HTMLElement>("[data-strip]")];
+
+test("a strip draws under the main plot with its axis label", async () => {
+	const { screen } = await renderChart(oneplace(), { strips: [dailyStrip()] });
+	await expect.element(screen.getByText("Precipitation (in)", { exact: true })).toBeVisible();
+	await expect.poll(() => strips()[0]?.querySelector("canvas")).not.toBeNull();
+	// Once laid out, the strip's plot sits under the main one's.
+	const box = (el: Element | null) => el!.getBoundingClientRect();
+	await expect
+		.poll(
+			() => box(strips()[0].querySelector("canvas")).top - box(frame.querySelector("canvas")).bottom
+		)
+		.toBeGreaterThanOrEqual(0);
+	// The same time axis: the plot areas line up.
+	const overs = [...frame.querySelectorAll<HTMLElement>(".u-over")].map((o) =>
+		o.getBoundingClientRect()
+	);
+	expect(overs).toHaveLength(2);
+	expect(overs[1].left).toBeCloseTo(overs[0].left, 0);
+	expect(overs[1].width).toBeCloseTo(overs[0].width, 0);
+	// The legend names the layer and its source, with the mark's shape.
+	const sample = screen
+		.getByText("Precipitation · CIMIS #80 Fresno State (4.2 mi away)")
+		.element()
+		.parentElement!.querySelector("[data-strip-sample]")!;
+	expect(sample.getAttribute("data-shape")).toBe("bar");
+});
+
+test("bar strips for bar entry types, a line for line ones", async () => {
+	await renderChart(oneplace(), { strips: [dailyStrip(), temperature()] });
+	await expect.poll(() => strips().map((s) => s.getAttribute("data-bars"))).toEqual(["7", "0"]);
+	expect(strips().map((s) => s.getAttribute("data-strip"))).toEqual(["bar", "line"]);
+	const shapes = [...frame.querySelectorAll("[data-strip-sample]")].map((s) =>
+		s.getAttribute("data-shape")
+	);
+	expect(shapes).toEqual(["bar", "line"]);
+});
+
+test("the readout shows each strip's value at the cursor", async () => {
+	const { chart } = await renderChart(oneplace(), { strips: [dailyStrip(), temperature()] });
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect.poll(() => readout().textContent).toContain("Oct 1, 2026");
+	expect(readout().textContent).toContain("Precipitation: 0.12 in");
+	expect(readout().textContent).toContain("Temperature: 61.2 °F");
+	await userEvent.keyboard("{End}");
+	await expect.poll(() => readout().textContent).toContain("Oct 10, 2026");
+	expect(readout().textContent).toContain("Precipitation: No data");
+});
+
+test("a coarser strip draws one bar per month and marks the whole-month total", async () => {
+	const sept = Date.UTC(2026, 8, 1, 7);
+	const oct = Date.UTC(2026, 9, 1, 7);
+	const strip = dailyStrip({
+		name: "Pounds Applied · Monitor A",
+		label: "Pounds Applied",
+		unit: "lbs",
+		precision: 0,
+		resolution: "month",
+		wholePeriod: true,
+		points: [
+			{ t: sept, mean: 900, min: 900, max: 900, count: 1, partial: false },
+			{ t: oct, mean: 1234, min: 1234, max: 1234, count: 1, partial: false }
+		]
+	});
+	const { screen, chart } = await renderChart(oneplace(), { strips: [strip] });
+	await expect.element(screen.getByText("Monthly total", { exact: true })).toBeVisible();
+	// September lies wholly before the chart's days, so only October's bar is drawn.
+	await expect.poll(() => strips()[0]?.getAttribute("data-bars")).toBe("1");
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect.poll(() => readout().textContent).toContain("Oct 1, 2026");
+	expect(readout().textContent).toContain("Pounds Applied: 1,234 lbs");
+	expect(readout().textContent).toContain("Total for all of Oct 2026");
+	await userEvent.keyboard("{End}");
+	await expect.poll(() => readout().textContent).toContain("Oct 10, 2026");
+	expect(readout().textContent).toContain("Pounds Applied: 1,234 lbs");
+});
+
+test("a strip with a message shows it in the strip's place", async () => {
+	const { screen } = await renderChart(oneplace(), {
+		strips: [dailyStrip({ points: [], message: "No pesticide use reported for these dates." })]
+	});
+	await expect
+		.element(screen.getByText("No pesticide use reported for these dates."))
+		.toBeVisible();
+	await expect.element(screen.getByText("Precipitation (in)", { exact: true })).toBeVisible();
+	expect(strips()[0].querySelector("canvas")).toBeNull();
+});
+
+test("a pesticide-only chart draws bars as the main chart", async () => {
+	const months = [Date.UTC(2026, 7, 1, 7), Date.UTC(2026, 8, 1, 7), Date.UTC(2026, 9, 1, 7)];
+	const data: QueryData = {
+		series: [
+			{
+				place: "region:county:06019",
+				points: months.map((t, i) => ({
+					t,
+					mean: [1200, 0, 340][i],
+					min: 0,
+					max: 0,
+					count: 1,
+					partial: false
+				}))
+			}
+		],
+		places: [{ place: "region:county:06019", name: "Fresno County" }],
+		resolution: "month",
+		fromRaw: false,
+		processor: null,
+		fetchedAt: 0
+	};
+	const names = new Map([["region:county:06019", "Fresno County"]]);
+	const screen = await render(TimeChart, {
+		target: frame,
+		props: { data, levels: [], unit: "lbs", placeNames: names, mainChart: "bar", precision: 0 }
+	});
+	const chart = screen.getByRole("group", { name: "Chart of Fresno County" });
+	await expect.element(chart).toHaveAttribute("data-bars", "3");
+	const sample = frame.querySelector("[data-series-sample]")!;
+	expect(sample.getAttribute("data-shape")).toBe("bar");
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{End}");
+	await expect.poll(() => readout().textContent).toContain("Oct 2026");
+	expect(readout().textContent).toContain("340 lbs");
+});
+
+test("strips pass axe in light and dark", async () => {
+	const { chart } = await renderChart(oneplace(), { strips: [dailyStrip(), temperature()] });
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect.poll(() => readout().textContent).toContain("Precipitation: 0.12 in");
+	expect((await axe.run(frame)).violations).toEqual([]);
+	document.documentElement.setAttribute("data-theme", "dark");
+	expect((await axe.run(frame)).violations).toEqual([]);
 });

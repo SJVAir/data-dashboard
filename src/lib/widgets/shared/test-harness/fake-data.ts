@@ -1,6 +1,8 @@
 import type { AdapterRequest, DatasetAdapter } from "$lib/data/adapters/registry";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
-import type { QueryData } from "$lib/data/types";
+import type { Resolution } from "$lib/data/schema";
+import type { PlaceInfo, QueryData, UnavailableReason } from "$lib/data/types";
+import { nextPeriodStart, periodStart } from "$lib/format/range";
 import type { Rect, WidgetInstance } from "$lib/documents/schema";
 
 const DAY = 86_400_000;
@@ -157,6 +159,68 @@ export function fakeForecastsAdapter(
 				})),
 				places: ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` })),
 				resolution: "day",
+				fromRaw: false,
+				processor: null,
+				fetchedAt: Date.now()
+			};
+		}
+	};
+}
+
+/**
+ * A fake number-layer adapter for monitors (weather or pesticide use): one point per period of
+ * `req.resolution` from the range's start (`values`, in order), per requested monitor, with the
+ * place's `source` and `filters`. `offered` limits the resolutions (pesticide use: month and
+ * year); `unavailable` makes `target` refuse the layer.
+ */
+export function fakeNumberAdapter(
+	id: string,
+	requests: AdapterRequest[],
+	opts: {
+		values?: number[];
+		offered?: Resolution[];
+		source?: PlaceInfo["source"];
+		filters?: string[];
+		unavailable?: UnavailableReason;
+	} = {}
+): DatasetAdapter {
+	const values = opts.values ?? [0.12, 0, 0.4];
+	return {
+		id,
+		async target(layer, ctx) {
+			if (opts.unavailable) return { unavailable: opts.unavailable };
+			return fakeAdapter([]).target(layer, ctx);
+		},
+		offered: (base) => (opts.offered ? base.filter((r) => opts.offered!.includes(r)) : base),
+		async fetch(req): Promise<QueryData> {
+			requests.push(req);
+			const ids = req.target.kind === "monitors" ? req.target.ids : [];
+			const period = req.resolution === "raw" ? "hour" : req.resolution;
+			let t = periodStart(req.range.start, period);
+			const times = values.map(() => {
+				const at = t.getTime();
+				t = nextPeriodStart(t, period);
+				return at;
+			});
+			return {
+				series: ids.map((id) => ({
+					place: `monitor:${id}`,
+					points: values.map((mean, i) => ({
+						t: times[i],
+						mean,
+						min: mean,
+						max: mean,
+						count: 1,
+						partial: false
+					}))
+				})),
+				places: ids.map((id) => ({
+					place: `monitor:${id}`,
+					name: `Monitor ${id}`,
+					...(opts.source && { source: opts.source }),
+					...(opts.filters && { filters: opts.filters })
+				})),
+				resolution: req.resolution,
 				fromRaw: false,
 				processor: null,
 				fetchedAt: Date.now()

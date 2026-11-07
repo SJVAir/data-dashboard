@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { RegionResolver } from "$lib/data/adapters/registry";
-import type { MetadataSource } from "$lib/data/metadata";
+import { mapDatasetCatalog, type MetadataSource } from "$lib/data/metadata";
+import { PESTICIDE_USE_DATASET, WEATHER_DATASET } from "$lib/data/testing/dataset-catalog";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import { formatPeriod } from "$lib/format";
@@ -22,7 +23,8 @@ import {
 	FORECASTS_ENTRY,
 	chartWidget,
 	fakeAdapter,
-	fakeForecastsAdapter
+	fakeForecastsAdapter,
+	fakeNumberAdapter
 } from "../shared/test-harness/fake-data";
 import { animationsSettled } from "../../../test/animations";
 
@@ -334,4 +336,110 @@ test("places with different overlays follow the saved place", async () => {
 	await expect
 		.element(screen.getByRole("list", { name: "Burn status in Monitor m2" }))
 		.toBeVisible();
+});
+
+/** Weather and pesticide use as the dashboard maps them, both answering for monitors here. */
+const NUMBER_DATASETS = mapDatasetCatalog({
+	datasets: [WEATHER_DATASET, PESTICIDE_USE_DATASET]
+} as Parameters<typeof mapDatasetCatalog>[0]).map((d) => ({ ...d, geographies: ["monitor"] }));
+
+/** A Chart whose layers are `layers` (the first with the place `m1`), with number adapters. */
+async function showLayers(
+	layers: { dataset: string; entryType: string }[],
+	adapters: Parameters<typeof createQueryClient>[0]["adapters"]
+) {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests), ...adapters],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	const [first, ...rest] = layers;
+	widget.data.layers = [{ ...first, place: { kind: "monitor", id: "m1" } }, ...rest];
+	const screen = await show(widget);
+	return { widget, screen };
+}
+
+const PM25 = { dataset: "air-quality", entryType: "pm25" };
+const POUNDS = { dataset: "pesticide-use", entryType: "pounds-applied" };
+const RAIN = { dataset: "weather", entryType: "precipitation" };
+const pesticides = (opts: Parameters<typeof fakeNumberAdapter>[2] = {}) =>
+	fakeNumberAdapter("pesticide-use", requests, { offered: ["month", "year"], ...opts });
+
+test("an empty pesticide strip says no use reported", async () => {
+	const { screen } = await showLayers([PM25, POUNDS], [pesticides({ values: [] })]);
+	await expect
+		.element(screen.getByText(m.chart_strip_none_pesticides(), { exact: true }))
+		.toBeVisible();
+	// The main chart is unaffected: no error, and its line draws.
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
+	// The strip is pinned to the main's days, so it comes back monthly.
+	expect(requests.find((r) => r.entryType === "pounds-applied")?.resolution).toBe("month");
+});
+
+test("a pesticide-only widget with no use says so, not an error", async () => {
+	const { screen } = await showLayers([POUNDS], [pesticides({ values: [] })]);
+	await expect
+		.element(screen.getByText(m.chart_strip_none_pesticides(), { exact: true }))
+		.toBeVisible();
+	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
+	expect(screen.getByText(m.widget_state_empty()).query()).toBeNull();
+});
+
+test("a pesticide-only widget draws its months as bars", async () => {
+	const { screen } = await showLayers([POUNDS], [pesticides({ values: [1200, 340] })]);
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toHaveAttribute("data-bars", "2");
+});
+
+test("the legend names the station and its distance", async () => {
+	const source = { id: "80", name: "CIMIS #80 Fresno State", distance: 4.2, inside: false };
+	const { screen } = await showLayers(
+		[PM25, RAIN],
+		[fakeNumberAdapter("weather", requests, { source })]
+	);
+	await expect
+		.element(screen.getByText("Precipitation · CIMIS #80 Fresno State (4.2 mi away)"))
+		.toBeVisible();
+	await expect.element(screen.getByText("Precipitation (in)", { exact: true })).toBeVisible();
+	await expect.poll(() => frame.querySelectorAll("[data-strip] canvas").length).toBe(1);
+	await animationsSettled(frame);
+	expect((await axe.run(frame)).violations).toEqual([]);
+});
+
+test("the legend names the active filters", async () => {
+	const { screen } = await showLayers(
+		[PM25, POUNDS],
+		[pesticides({ values: [1200, 340], filters: ["Chlorpyrifos", "Grapes"] })]
+	);
+	await expect
+		.element(screen.getByText("Pounds Applied · Chlorpyrifos · Grapes · Monitor m1"))
+		.toBeVisible();
+	await expect.element(screen.getByText(m.chart_strip_monthly_total())).toBeVisible();
+});
+
+test("a gone filter shows in its strip and the chart still draws", async () => {
+	const { screen } = await showLayers([PM25, POUNDS], [pesticides({ unavailable: "filter-gone" })]);
+	await expect.element(screen.getByText(m.data_unavailable_filter_gone())).toBeVisible();
+	await expect.element(screen.getByText("Pounds Applied (lbs)", { exact: true })).toBeVisible();
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+});
+
+test("a pre-spec widget renders as before", async () => {
+	const { screen } = await showWithBurnStatus(["m1"]);
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toHaveAttribute("data-day-bands", "3");
+	expect(frame.querySelectorAll("[data-strip]")).toHaveLength(0);
+	expect(frame.querySelectorAll("canvas")).toHaveLength(1);
+	await expect.element(chart).toHaveAttribute("data-bars", "0");
+	// The burn-status request isn't pinned: it asks for days as spec 3 did.
+	expect(requests.find((r) => r.entryType === "burn-status")?.resolution).toBe("day");
 });

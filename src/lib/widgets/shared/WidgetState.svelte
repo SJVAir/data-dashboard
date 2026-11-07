@@ -20,6 +20,7 @@
 		retired,
 		onretry,
 		onchoose,
+		emptyText,
 		children
 	}: {
 		state: QueryState;
@@ -33,6 +34,8 @@
 		 * opens Edit data instead.
 		 */
 		onchoose?: () => void;
+		/** What an empty range says instead of the general "No data for this range." */
+		emptyText?: string;
 		children: Snippet<[QueryData]>;
 	} = $props();
 
@@ -226,7 +229,7 @@
 		{/if}
 		{@render notes()}
 		{#if empty}
-			{@render message(m.widget_state_empty())}
+			{@render message(emptyText ?? m.widget_state_empty())}
 		{:else}
 			<div class="min-h-0 flex-1">{@render children(data)}</div>
 		{/if}
