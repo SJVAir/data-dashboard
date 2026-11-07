@@ -312,27 +312,38 @@ the Chart's "Overlay for" picks which place's strips and bands it draws.
 - The brief said to pin beta.5. The pesticide filter work the user approved on 2026-11-06 ships
   in **`@sjvair/sdk` 5.0.0-beta.6**, so the spec branch's first code commit pins exactly
   `"npm:@jsr/sjvair__sdk@5.0.0-beta.6"`. Publishing it needs the user's yes, in the SDK session.
-- **Draft signatures** (from sjvair-com-2e via the coordinator; final when its spec is approved):
-  - `PesticidesForPlaceFilters`:
-    - `chemical`/`commodity`/`product`: strings, our ids from the list getters; codes and
-      unknown ids give a 400;
-    - `category?: string | string[]` (OR);
-    - `narrow?: 'concern' | 'restricted' | 'fumigant' | 'aerial'`;
-    - `aerial_ground` gains `'none'`.
-  - **New `getPesticidesMeta()`:** categories `{key, label, description, in_use}`, iarc_groups,
-    methods, narrows, and placeholder_chemicals.
-  - **Chemical rows** gain `placeholder: boolean`.
-  - **The catalog** gains the `applications` entry type, and `pesticide-use`'s `meta_url` points
-    to `pesticides/meta/`.
-- **Asked of the server session (2026-11-06), not yet settled:**
-  - a one-page search for the chemical, crop and product pickers: the list getters fetch every
-    page, and `products/?name=a` is 57,434 rows over 575 pages;
-  - a distinct error for a filter id that no longer exists;
-  - `display` metadata for `applications`.
-- **The plan starts once beta.6's signatures are final, with all three asks in it** **(my call)**.
-  If one slips, this session asks the user before planning around it (for example, leaving out
-  the Product picker). Fixtures (unit and e2e) gain the new
-  shapes. Check beta.5 and beta.6's schemas for fixture changes elsewhere too.
+- **Final signatures** (the user approved the SDK spec 2026-11-07: sdk-js
+  `docs/superpowers/specs/2026-11-07-pesticide-place-filters-design.md`; server: sjvair.com #316,
+  merged into `develop` and live on the local stack):
+  - `getPesticidesForPlace(place, filters, options)` with `PesticidesForPlaceFilters`:
+    - `chemical`, `commodity`, `product`: strings, our ids (CDPR codes are refused);
+    - `category: string | string[]` (any of them);
+    - `narrow: PesticideNarrow` (`"concern" | "restricted" | "fumigant" | "aerial"`, one);
+    - `iarc_group: IARCGroup`;
+    - `aerial_ground: AerialGroundFilter` (`"A" | "F" | "G" | "O" | "none"`);
+    - `year__gte`, `year__lte`: numbers.
+  - **`pesticidePlaceFilterErrors(error)`** gives the first error code per field, or `undefined`
+    for anything else. **`not_found` on `chemical`, `commodity` or `product`** is what triggers
+    the layer's "no longer available" state.
+  - **`getPesticidesMeta()`** returns:
+    - categories `{key, label, description, in_use}`: offer only `in_use`;
+    - iarc_groups, methods (`AerialGroundFilter` keys: Ground / Air / Field fumigation / Other /
+      Not reported) and narrows, each with labels, and descriptions where given;
+    - placeholder_chemicals.
+  - **`searchPesticides({type, q, limit?, year?, county?, narrow?, signal?})`** returns
+    `{results, more}` for the pickers:
+    - `type` is `"chemical" | "product" | "commodity"`;
+    - each hit is `{id, name, detail}`, plus `placeholder` on chemical hits (left out of the
+      picker);
+    - a `q` under 2 characters gives an empty result with no request;
+    - one page only, at most 25 results.
+  - **`display_name` labels** saved filters (the legend and the Data table header) for all three
+    kinds. It's on chemical rows already, and on commodity and product rows through a sjvair.com
+    PR still open on 2026-11-07.
+  - **The catalog** has `applications` (units "applications", `display` bar, `y_min` 0,
+    precision 0), and both pesticide datasets' `meta_url` points to `pesticides/meta/`.
+- **Pin:** exactly `"npm:@jsr/sjvair__sdk@5.0.0-beta.6"` once it's published. Fixtures (unit and
+  e2e) gain the new shapes. Check beta.5 and beta.6's schemas for fixture changes elsewhere too.
 - Nothing works around the SDK. Anything missing goes to the coordinator.
 
 ### Loading
