@@ -390,6 +390,17 @@ string`) now get the union return type. The mobile app passes a string token, so
   already true without a session; with a session it used to be ignored (200). Not a
   security issue (a cross-site page can't set the header). **Revisit with** the next
   resticus change; fix by raising `AuthenticationFailed` there.
+- **sjvair.com: a malformed id on `hms/smoke/<id>/` and `hms/fire/<id>/` isn't a 404.** _Found
+  2026-11-05 (Get data layers); narrowed 2026-11-06._ Monitors are fixed: sjvair.com #314 (merged)
+  answers one JSON 404 `"Resource not found"` for bad and unknown monitor ids on every route,
+  writes with an access key included. Smoke and Fire detail go through resticus's `get_object`,
+  which doesn't treat an unparseable id as not found: production answers 400 with the unfilled
+  template `"'%(value)s' is not a valid short-form UUID."`, and DEBUG crashes to a 500. Fixed in
+  resticus draft PR [#27](https://github.com/dmpayton/django-resticus/pull/27), which also fixes
+  the DEBUG crash on lazy messages and the `ValidationError` 400 body. It merges with #25 and #26
+  at go-live. The local stack runs it from the fork's `go-live` branch. **Revisit when** #27 is
+  merged and sjvair.com's image is rebuilt: add sjvair.com tests for Smoke and Fire bad ids
+  (404 `Resource not found`), then remove this entry.
 - **resticus: CSRF skip trusts any non-session authenticator.** **In draft PR [#26](https://github.com/dmpayton/django-resticus/pull/26) (2026-10-22), stacked on #25; leaves this register when it merges.** _Deferred 2026-10-22
   (resticus CSRF fix review)._ A custom authenticator that reads a cookie (e.g. a JWT in a
   cookie) and doesn't subclass `SessionAuth` would let cookie-only requests skip the CSRF
@@ -428,11 +439,16 @@ string`) now get the union return type. The mobile app passes a string token, so
     `Subscriptions.svelte`, `alert-level.ts`) import `SJVAirEntryLevel` or use `asIter`, so both
     change when they move to that SDK beta; map-sdk and the dashboard don't use them. The dashboard reads `scale`; its e2e
     fixtures still contain `levels`.
-  - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it); the
+  - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it; #26 and
+    #27, the bad-id 404s and the 400 body, merge with it at go-live, as agreed with the code owner,
+    the user, 2026-11-06); the
     credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
     `forecast_zone_for:` cache keys after (see "Production deploy step for the place
     endpoints" below).
+  - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
+    `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
+    Nothing to run by hand.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
@@ -445,6 +461,18 @@ string`) now get the union return type. The mobile app passes a string token, so
     adds to it. Use the rollup tasks with a scope, one monitor and one region first, then the
     wider run only after a blast-radius check and a yes (exact commands in sjvair.com #301's
     "Deploy notes"; never unscoped bulk commands).
+  - **CIMIS re-stamp, then weather summaries (sjvair.com #313), after the deploy, in order.**
+    #313 stamps CIMIS readings at the start of their hour in fixed PST (UTC−8); readings stored
+    before the deploy keep the old end-of-hour stamps until re-stamped (no double rows in
+    between). Each step is scoped to one station; the user's yes before the first.
+    1. Per CIMIS station (all 23, largest first; avoid :40–:50 past the hour, when the live
+       import runs at :45): `heroku run -a <app> -- python manage.py restamp_cimis --monitor
+<id> --dry-run`, then the same without `--dry-run`. It runs from the station's first
+       stored date through today, aborts that station without writing if CIMIS returns no
+       labels for a stored date, and a re-run is safe (also after a collision with the live
+       import).
+    2. Once all 23 are re-stamped, per station: `heroku run -a <app> -- python manage.py
+rebuild_summaries <first CIMIS date> <today> --monitor <id> --monitors-only`.
   - **Summaries repair (sjvair.com #305):** findings 2 and 3 of the 2026-11-03 rollup report.
     Production has backfill rows stamped an hour early (some correctly stamped months,
     quarters, seasons and years also hold one extra row), seasons starting May 1 from the old
@@ -977,20 +1005,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
-- **monitor-map: chart stuck loading after a failed background refresh.** _Noted
-  2026-10-21 (monitor-map 4.3.0 review)._ If a timed (silent) chart refresh supersedes a
-  range change that is still loading and then fails, `DataChart` keeps showing the loading
-  state. This is the same as in 4.2.0, not a regression. **Revisit with** the next DataChart
-  change or the map-sdk rebuild (5.0). The fix is to have the silent refresh take over the
-  `loading` flag. **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (spec
-  `docs/superpowers/specs/2026-11-05-monitor-map-5-design.md`, "Fixes folded in"); this entry
-  goes when the fix merges into `release/5.0.0`.
-- **monitor-map: subscription status load errors are unhandled.** _Noted 2026-10-21
-  (monitor-map 4.3.0 review)._ A failed subscription-status load (not a cancel) still
-  surfaces as an unhandled rejection, as in 4.2.0, with no error state on the button.
-  **Revisit with** the next change to `MonitorSubscriptionManager` or the map-sdk rebuild.
-  **Planned 2026-11-05 (the user):** fixed in monitor-map 5.0 (an error line with Try again);
-  this entry goes when the fix merges into `release/5.0.0`.
 
 ## Analysis & data
 
@@ -1062,18 +1076,86 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2026-09-24._ No health outcome data beyond CalEnviroScreen; closest planned work is
   starter #9 (use trends) and #7 (CES indicators). **Revisit with** the outside-health-data
   entry above.
-- **Server summaries for CIMIS weather and PM10.** _Deferred 2026-09-25._ Only pm25, o3,
-  no2, so2 and co are summarized. Until then the client fetches these raw (span-capped,
-  chunked) and downsamples them in a worker. **Revisit when** raw fetches get slow or large
-  (e.g. a multi-year weather chart takes more than a few seconds). Needs an approved
-  sjvair.com plan (add them to the summary rollups).
+- **Server summaries for PM10.** _Deferred 2026-09-25; updated 2026-11-05._ CIMIS weather now
+  has monitor summaries (sjvair.com #313: 11 types, all but wind direction, through a
+  per-monitor-type switch). PM10 is still raw: the client fetches it span-capped and chunked and
+  downsamples it in a worker. **Revisit when** raw PM10 fetches get slow or large. It's now a
+  one-line switch per monitor type (or the model flag, if regions should get it too).
+- **To-date summary rows for the current month, quarter, season and year.** _Deferred
+  2026-11-05 (the user, on sjvair.com #313)._ The scheduled rollups write those rows only once a
+  period has ended. `rebuild_summaries` used to also write the current period's rows, which then
+  froze at the rebuild time (and existed only for rebuilt stations), so #313 makes it roll only
+  finished periods, like `repair_summaries`. A proper to-date value needs a small scheduled task
+  that re-rolls the current periods from day rows after each daily rollup, plus decisions on
+  settling, what `is_complete` means mid-period, and region rows. Until then the dashboard
+  computes "so far this month/year" from daily rows. **Revisit when** a widget wants a to-date
+  value or computing it from daily rows gets slow.
+- **Region-level weather summaries.** _Deferred 2026-11-05 (Get data layers, the user)._ CIMIS
+  stations get monitor summaries only; there are never region rows for weather. Region
+  weighting is built on air-sensor grades and health checks, so weather would need its own
+  rule. Get data gives a place its weather through the nearby-stations list
+  (`monitors/weather/place/`) and one station's summaries. **Revisit when** a place needs one
+  blended weather value instead of a station's.
+- **Wind direction summaries (circular mean).** _Deferred 2026-11-05 (Get data layers, the
+  user)._ `winddirection` stays raw: averaging angles is wrong. A circular mean (and perhaps a
+  prevailing-direction stat) would need its own aggregation. **Revisit when** a chart or the
+  pollution-rose preset needs daily or monthly prevailing wind.
 - **Sub-yearly pesticide analysis.** _Deferred 2026-09-24; updated 2026-10-13._ The server
   now has **monthly pesticide rollups** (`PesticideUseRollup`, with month 0 for undated
   records), exposed through the new `sections/` and `townships/` endpoints (`month=`) and
   section detail. The `region/<id>/summary/` endpoint is still chemical × commodity ×
-  year. Starter analysis #9 stays yearly for now. **Revisit when** users need seasonal
-  pesticide timing; it now needs sdk-js wrappers and a client adapter rather than new
-  server summaries.
+  year. **Updated 2026-11-05:** `pesticides/place/` (sjvair.com #310) now serves monthly
+  pounds, acres and applications for any place, for the Get data page. Starter analysis #9
+  stays yearly for now. **Revisit when** users need seasonal pesticide timing in an
+  analysis; it now needs only a client adapter on `getPesticidesForPlace`.
+- **Pesticide use within a distance of a place.** _Deferred 2026-11-05 (Get data layers,
+  the user)._ `pesticides/place/` counts a place's use by region membership: a region's
+  touching MTRS sections, a monitor (or a school, via the client) by its ZIP. "Use within 1
+  mile of this school" would need a buffer (the `shapes.BUFFERS` choices, as `sections/`
+  already takes). Region membership is the rule for every Get data layer today. **Revisit
+  when** the dashboard wants a distance option or users ask about nearby use.
+- **Fast pesticide totals for multi-county places.** _Deferred 2026-11-05 (sjvair.com #310
+  final review)._ `pesticides/place/` sums a non-county place through the MTRS sections it
+  touches. A place spanning several counties takes that path too: the SJV air district
+  touches 24,090 sections, and its aggregate took about 5 s cold locally (cached for 24h
+  afterwards; counties themselves take a fast path, ~1.2 s cold). Counting whole counties
+  with `county__in` and only partial ones by section would fix it. **Revisit when** a
+  widget uses a multi-county place (air district, legislative district) or cold requests
+  show up as slow in production timing.
+- **Smoke "no data" vs "no smoke".** _Deferred 2026-11-05 (Get data layers, the user)._
+  `hms/smoke/place/` (sjvair.com #312) reads a day with no stored HMS outlines as no smoke
+  (`density: null`). An empty HMS file and a fetch that never ran store the same nothing, so a
+  missed day reads as clear sky. Fix: record each successful daily fetch (a small per-day
+  table) so a missed day reads as unknown. The user decided a new table isn't worth it yet:
+  production fetches about 13 times a day plus a final pass. **Revisit when** a missed day
+  turns up in production data or users report false clear days.
+- **`pesticides/place/`: a buffer and a radius.** _Deferred 2026-11-06 (sjvair.com pesticide
+  place filters spec)._ The Pesticides Explorer's region pages take a 0/1/3/5 mi buffer
+  (`regions/meta/` `buffers`), and its near-me pages take a point plus 1/3/5 mi. `place/`
+  addresses only a region or a monitor. **Revisit when** the dashboard wants "around this place"
+  or "near me" pesticide totals.
+- **A per-place pesticide breakdown endpoint.** _Deferred 2026-11-06 (same spec)._ The explorer
+  shows per-place top chemicals, products and commodities, use by application method, and
+  biggest movers between years. `place/` returns only monthly and yearly totals. One
+  `pesticides/place/breakdown/?by=chemical|product|commodity|method` could serve them all.
+  **Revisit when** the dashboard designs a "what's used here" view.
+- **Schools' 3×3 section block for pesticide totals.** _Deferred 2026-11-06 (same spec)._ The
+  explorer answers "within about a mile" of a school from the section holding it plus the eight
+  around it (`stats.block_sections_many`). `place/` can't address a location, and the shared
+  place resolver would need a location form.
+  - **Until then** (the user, 2026-11-06), a school or "my location" uses its ZIP, then its
+    city, then its county for pesticide totals (the dashboard's `placeRegion`), and the legend
+    names that area.
+  - **Revisit when** the dashboard or its users need "within about a mile" totals.
+- **`hms/smoke/place/` speed.** _Noted 2026-11-06 (sjvair.com #314)._ The `Smoke` date index
+  (#314, migration `hms/0003`) made `hms/smoke/` list and range queries index scans (a month's
+  first page: 1.6 ms → 0.07 ms on five synthetic seasons), but it didn't speed up the place
+  endpoint. A county over a year still takes 1.6–1.9 s on a synthetic heavy season (2,460
+  outlines; 12,300 over five seasons): the planner keeps the GiST index, and about 1.3 s is
+  `ST_Union`/`ST_Intersection` on the outlines. A ZIP takes 51–67 ms. Ranges ending today
+  aren't server-cached. A fix would change the query or the geometry (e.g. simplified or
+  pre-clipped outlines). **Revisit when** production timings for `hms/smoke/place/` show slow
+  requests, or the dashboard's smoke layer feels slow on county or larger places.
 - **CarbonMapper data source.** _Noted 2026-09-24; updated 2026-10-14._ The server now
   imports Carbon Mapper methane sources and plumes and serves them under
   `emissions/methane/` (merged with #282), so the dashboard would read them from the
@@ -1252,6 +1334,37 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
   **Revisit when** the Map widget or monitor-map 5.0 hits one of these, before map-sdk 1.0, or
   if the dashboard shows a ppm-scale entry type.
+
+- **map-sdk List button options leftovers.** _Deferred 2026-11-05 (map-sdk #5 review)._ Edge
+  cases of the new `featureList` position and reveal that monitor-map's top-right setup and
+  ordinary map sizes don't hit:
+  - On a map under about 175px tall with the engine's controls, a top-right List button can sit
+    past the map's bottom edge (the list shrinks, the button doesn't).
+  - On a wide map, full credits plus several data credits can wrap along the whole bottom edge,
+    under a bottom-left button or a left-hand panel's bottom (only the button's own corner and
+    the far corner on its side are measured).
+  - On a short map, a bottom-corner panel can grow under the selection bar.
+  - Tab order stays engine controls → credits → List button; getting the button before the
+    credits means mounting it inside the engine's control container, which is rebuilt when
+    `active` toggles.
+  - The panel's offsets are the custom properties `--mapsdk-list-near`/`-far`; a host setting
+    those names would move it.
+
+  **Revisit when** the Map widget allows very short maps or bottom-corner lists, data credits
+  become non-blank, or before map-sdk 1.0.
+
+- **map-sdk: plugin effects added from inside a host `$effect` can stop.** _Deferred 2026-11-05
+  (the user; map-sdk #7)._ monitor-map found that a plugin's `ctx.effect` can stop re-running for
+  good when the host adds the plugin from inside its own `$effect`. The cause: map-sdk's
+  `plugin-host` creates the effect's `$effect.root` under whatever effect is active, and Svelte
+  detaches that root when the host's effect re-runs. It reproduces in monitor-map (Svelte 5.57.0
+  and 5.57.3) but not in map-sdk's client tests, across several models of that pattern, so no
+  fix can be proven yet. monitor-map no longer triggers it (its add/remove runs outside the
+  effect, monitor-map #126). **Revisit when** monitor-map has to add plugins from an effect again
+  (the user is deciding whether its #126 change stays), another host hits it, or before map-sdk
+  1.0. Next step: run monitor-map's repro (`c-reset3.mjs`) against a local map-sdk build with a
+  candidate fix (effect roots created outside the caller's effect), and file a minimal Svelte
+  repro upstream.
 
 ## Widgets
 
@@ -1469,8 +1582,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   forecasts, and nearby pesticide notices. Deferred: **HMS smoke** over an area
   (density ≥ X), **heat** (CalHeatScore ≥ level), **fire detections** within N miles,
   and **drawn-area / near-a-point targets** (resolved to monitor sets per Q2).
-  **Revisit when** the first alert-rule iteration ships, or ahead of wildfire/heat
-  season if demand appears.
+  **Updated 2026-11-05:** the server now has the per-day smoke a smoke alert would read:
+  `hms/smoke/place/` (sjvair.com #312) gives the heaviest density and the share covered for
+  any place. The alert source itself is still deferred. **Revisit when** the first alert-rule
+  iteration ships, or ahead of wildfire/heat season if demand appears.
 
 - **An opt-in "back to normal" message by email.** _Deferred 2026-10-13._ All channels follow
   the server's escalation-only rules, with no all-clear; the in-app inbox shows when an
