@@ -10,6 +10,7 @@ import {
 	monitorSummaryTasks,
 	rawTasks,
 	type Fetched,
+	type SummaryOptions,
 	type FetchTask
 } from "./air-quality-fetch";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
@@ -147,13 +148,15 @@ async function rawSeries(
  * used only where the coarse response lacks it (its rollup hasn't run yet); it is complete data,
  * so not partial. A place a response leaves out has no data: an empty series.
  */
-async function summarySeries(
+export async function summarySeries(
 	req: AdapterRequest,
 	places: Place[],
 	processors: Array<string | null>,
-	signal: AbortSignal
+	signal: AbortSignal,
+	opts?: SummaryOptions
 ): Promise<Series[]> {
 	const { target, entryType, now } = req;
+	const how = opts?.total ? "sum" : "mean";
 	const segments = planSegments({
 		resolution: req.resolution,
 		range: req.range,
@@ -175,7 +178,7 @@ async function summarySeries(
 		// can't be scoped to monitor ids, so it is used only for the whole layer.
 		if (target.kind === "monitors") {
 			return chosen.flatMap((p, i) =>
-				monitorSummaryTasks(p.id, entryType, procs[i], seg, now, signal)
+				monitorSummaryTasks(p.id, entryType, procs[i], seg, now, signal, opts)
 			);
 		}
 		return bulkSummaryTasks(entryType, regionIds, seg, now, signal);
@@ -244,10 +247,10 @@ async function summarySeries(
 	return all.map(({ place, id }) => {
 		const coarse = complete.get(id) ?? [];
 		const have = new Set(coarse.map((p) => p.t));
-		const missing = aggregate(backfill.get(id) ?? [], to, now).filter((p) => !have.has(p.t));
+		const missing = aggregate(backfill.get(id) ?? [], to, now, how).filter((p) => !have.has(p.t));
 		return {
 			place,
-			points: [...coarse, ...missing, ...aggregate(fill.get(id) ?? [], to, now)].sort(
+			points: [...coarse, ...missing, ...aggregate(fill.get(id) ?? [], to, now, how)].sort(
 				(a, b) => a.t - b.t
 			)
 		};

@@ -38,7 +38,7 @@ import { createQueryClient } from "../query/client";
 import type { DateRangeSpec, Layer, Resolution } from "../schema";
 import { fixtureMetadata } from "../testing/fixtures";
 import type { Target } from "../types";
-import { airQualityAdapter } from "./air-quality";
+import { airQualityAdapter, summarySeries } from "./air-quality";
 import type {
 	AdapterContext,
 	AdapterRequest,
@@ -1063,5 +1063,54 @@ describe("placeRegion", () => {
 		const pending = placeRegion()({ layer: school, dateRange: SEPTEMBER }, controller.signal);
 		controller.abort();
 		await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+	});
+});
+
+describe("summarySeries options", () => {
+	const place = [{ place: "monitor:m-w", id: "m-w" }];
+	const req = () =>
+		request({ kind: "monitors", ids: ["m-w"] }, "day", SEPTEMBER, { offered: ["day"] });
+	const full = (timestamp: string, extra: object) => ({
+		...row(timestamp, 0.05, 24),
+		sum: 1.25,
+		is_complete: true,
+		...extra
+	});
+
+	it("a total row reads sum", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
+			full("2026-09-10T07:00:00Z", {})
+		] as never);
+		const [s] = await summarySeries(req(), place, [null], signal, { total: true });
+		expect(s.points).toHaveLength(1);
+		expect(s.points[0].mean).toBe(1.25);
+		expect(s.points[0].max).toBe(1.25);
+	});
+
+	it("an incomplete row is partial with completeness", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
+			full("2026-09-10T07:00:00Z", { is_complete: false })
+		] as never);
+		const [on] = await summarySeries(req(), place, [null], signal, { completeness: true });
+		const [off] = await summarySeries(req(), place, [null], signal, {});
+		expect(on.points[0].partial).toBe(true);
+		expect(off.points[0].partial).toBe(false);
+	});
+
+	it("air quality points are unchanged", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
+			full("2026-09-10T07:00:00Z", { is_complete: false })
+		] as never);
+		const [s] = await summarySeries(req(), place, [null], signal);
+		expect(s.points).toEqual([
+			{
+				t: Date.parse("2026-09-10T07:00:00Z"),
+				mean: 0.05,
+				min: 0.05,
+				max: 0.05,
+				count: 24,
+				partial: false
+			}
+		]);
 	});
 });
