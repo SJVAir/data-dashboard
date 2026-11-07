@@ -1315,6 +1315,13 @@ The checklist below is the whole step's scope.
     ([#11](https://github.com/SJVAir/map-sdk/pull/11)); and CI runs in Playwright's Docker image
     and once per change ([#12](https://github.com/SJVAir/map-sdk/pull/12)). The repository was also
     made public (the user), since npm provenance needs a public source repo.
+  - **In progress: the plugin-effect fix** (`DEFERRED.md` → "map-sdk: plugin effects added from
+    inside a host `$effect` can stop"). Cause found 2026-11-07: a Svelte bug (5.57.0 and 5.57.3).
+    Spec and plan approved by the user (branch `fix/plugin-setup-outside-effects`,
+    `docs/superpowers/{specs,plans}/2026-11-07-plugin-setup-outside-effects*`): plugin setup moves
+    to a microtask, outside the caller's code. Hosts wait with `await tick()`, not `flushSync()`,
+    and `ready` waits for queued setups. Built in a new map-sdk session, then proven with
+    monitor-map's repro; the PR and merge each need the user's yes.
   - **✅ First publish 2026-11-05:** `@sjvair/map-sdk@0.1.0-beta.1` on npm (`next`; npm also
     points `latest` at it, as the only release), published by hand by the user after the release
     prep PR ([map-sdk #6](https://github.com/SJVAir/map-sdk/pull/6): version, `prepack` build,

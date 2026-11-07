@@ -1216,10 +1216,23 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   and 5.57.3) but not in map-sdk's client tests, across several models of that pattern, so no
   fix can be proven yet. monitor-map no longer triggers it (its add/remove runs outside the
   effect, monitor-map #126). **In progress (the user, 2026-11-07):** monitor-map keeps its
-  workaround (#126) for now, but the map-sdk fix comes next, in a new map-sdk session started
-  from `data-dashboard/prompt-map-sdk-c2.txt`. Next step: reproduce with monitor-map's
-  `c-reset3.mjs` against a local map-sdk build, fix map-sdk so plugin effect roots don't depend on
-  the caller's effect, and offer a minimal Svelte repro upstream (filing it needs the user's yes).
+  workaround (#126) for now, but the map-sdk fix comes next. **Cause found 2026-11-07** (map-sdk
+  session, reproduced with `c-reset3.mjs`, Ozone 0 layers vs 15 without the clusters toggle):
+  a Svelte bug. When an effect re-runs, Svelte cuts loose the `$effect.root`s created inside it
+  but keeps their sibling links, so walking one root also walks the later ones and leaves them
+  never scheduled again. It needs 2+ roots under one effect, which the monitors plugin's
+  `ctx.effect`s provide. **Fix approved (the user, 2026-11-07):** map-sdk sets plugins up in a
+  microtask, outside the caller's code (spec and plan
+  `docs/superpowers/{specs,plans}/2026-11-07-plugin-setup-outside-effects*` in map-sdk). A
+  host-owned effect was tried and fails the same way. Revisit: mark fixed when the map-sdk PR
+  merges.
+- **map-sdk: report the Svelte root-detach bug upstream.** _Deferred 2026-11-07 (the user)._ A
+  Svelte playground repro of the bug above: two `$effect.root`s created in one `$effect`, that
+  effect re-runs, one update dirties both, then an update to the second alone never runs it. The
+  20-line client-test version exists, plus the versions (5.57.0, 5.57.3) and the lines involved
+  (`destroy_effect_children` keeps `next`; `Batch#traverse` climbs past the root). Why deferred:
+  filing on Svelte's GitHub is public and needs the user's yes. Revisit: when the user says to
+  file it, or when a Svelte release fixes it. map-sdk's microtask setup stays either way.
 
 ## Widgets
 
