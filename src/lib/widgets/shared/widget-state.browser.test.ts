@@ -134,7 +134,7 @@ test("error offers Retry, with or without stale data", async () => {
 
 test("each unavailable reason has its own message", async () => {
 	const seen = new Set<string>();
-	const GONE = ["region-unresolved", "location-unresolved", "monitor-unlisted"];
+	const GONE = ["region-unresolved", "location-unresolved", "monitor-unlisted", "filter-gone"];
 	for (const reason of UNAVAILABLE_REASONS.filter((r) => !GONE.includes(r))) {
 		const { screen } = await show({ status: "unavailable", reason: reason as UnavailableReason });
 		const key = `widget_state_unavailable_${reason.replaceAll("-", "_")}` as const;
@@ -324,6 +324,33 @@ test("Choose another on a retired entry type opens Edit data, not the place pick
 		);
 		// sv-router loads a lazy route's code before it changes the URL; in browser tests that
 		// code compiles on first use, which can outlast the poll on a loaded CI runner. Load it now.
+		await import("../../../routes/GetData.svelte");
+		await screen.getByRole("button", { name: m.widget_state_choose_another() }).click();
+		await expect
+			.poll(() => location.pathname)
+			.toBe(`/workspace/dashboards/${session.doc.id}/widgets/w1/edit`);
+		expect(onchoose).not.toHaveBeenCalled();
+	} finally {
+		history.replaceState(null, "", originalUrl);
+	}
+});
+
+test("filter-gone shows its message; Choose another opens Edit data, not the place picker", async () => {
+	const originalUrl = location.href;
+	try {
+		const onchoose = vi.fn();
+		const { screen, session } = await show(
+			{ status: "unavailable", reason: "filter-gone" },
+			{ onchoose, widget: { ...widget, type: "chart" } }
+		);
+		await expect
+			.element(screen.getByText(m.widget_state_unavailable_filter_gone()))
+			.toBeInTheDocument();
+		await expect
+			.element(screen.getByRole("button", { name: m.widget_state_remove() }))
+			.toBeInTheDocument();
+		const results = await axe.run(screen.container);
+		expect(results.violations).toEqual([]);
 		await import("../../../routes/GetData.svelte");
 		await screen.getByRole("button", { name: m.widget_state_choose_another() }).click();
 		await expect

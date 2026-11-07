@@ -56,8 +56,7 @@
 		"no-resolution": () => m.widget_state_unavailable_no_resolution(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
 		"point-outside": () => m.widget_state_unavailable_point_outside(),
-		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw(),
-		"filter-gone": () => m.widget_state_unavailable_filter_gone()
+		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw()
 	};
 
 	/** A retirement's `since` (a date or a date-time) as a Pacific date. */
@@ -185,7 +184,12 @@
 			{/if}
 			{#if editable}
 				<div class="flex flex-wrap items-center justify-center gap-2">
-					{#if onchoose}
+					{#if state.reason === "filter-gone"}
+						<!-- A new place can't bring a filter back: Edit data can. -->
+						{#if editsData}
+							{@render chooseAnotherButton()}
+						{/if}
+					{:else if onchoose}
 						<Button size="sm" variant="outline" onclick={onchoose}>
 							{m.widget_state_choose_another()}
 						</Button>
