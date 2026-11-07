@@ -1914,6 +1914,15 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   design)._ monitor-map passes request options per call and never sets the SDK's page-global
   defaults, because it runs inside host apps that own those settings. **Reopen if** a host
   needs monitor-map to set a header the host can't set itself.
+- **monitor-map: border EV ZIPs not added (Galt 95632, Isleton 95641, Discovery Bay 94505).**
+  _Ruled out 2026-11-07 (monitor-map 5.0; the user left it to the coordinator)._ The EV
+  chargers' ZIP list (`src/lib/ev-stations/zip-codes.ts`) is the user's scraped per-county list
+  for the 13 counties, minus ZIPs with no land in them (the 5.0 check against the Census ZCTA
+  file, which dropped Livermore 94550, Hollister 95023 and the typo 09534). These three have some
+  land in San Joaquin (30.6%, 3.4%, 0.1%) but were never on the list, and adding them would need
+  an inclusion rule nobody has set; the ZIP filter would also bring in chargers that sit mostly
+  in the towns, outside the valley. **Reopen if** users ask for chargers just over the county
+  line, or a rule for border ZIPs is set (e.g. a minimum land share).
 
 ## Dropped
 
