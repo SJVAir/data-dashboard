@@ -1308,7 +1308,13 @@ The checklist below is the whole step's scope.
     [map-sdk #8](https://github.com/SJVAir/map-sdk/pull/8) (7676f00). `Legend` `framed?: boolean`
     (default `true`); `FeatureListItem.detail?: string` shown in place of "No level" in the list,
     its accessible name and map-sdk's tooltip (a level always wins); `pointsPlugin`
-    `detail(props)`. Next: `0.1.0-beta.2` through `release.yml`, only with the user's own yes.
+    `detail(props)`.
+  - **✅ `0.1.0-beta.2` published 2026-11-07** through `release.yml` and npm trusted publishing,
+    with provenance (`next`). It took three fixes first: `release.yml` e2e under Xvfb
+    ([map-sdk #10](https://github.com/SJVAir/map-sdk/pull/10)); the release reuses `ci.yml`'s checks
+    ([#11](https://github.com/SJVAir/map-sdk/pull/11)); and CI runs in Playwright's Docker image
+    and once per change ([#12](https://github.com/SJVAir/map-sdk/pull/12)). The repository was also
+    made public (the user), since npm provenance needs a public source repo.
   - **✅ First publish 2026-11-05:** `@sjvair/map-sdk@0.1.0-beta.1` on npm (`next`; npm also
     points `latest` at it, as the only release), published by hand by the user after the release
     prep PR ([map-sdk #6](https://github.com/SJVAir/map-sdk/pull/6): version, `prepack` build,
