@@ -142,12 +142,16 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   switch, and the wording and behavior fixes parked for it. Spec
   `docs/superpowers/specs/2026-11-03-design-pass-design.md`.
 
-4. **Get data (formerly Widget Creation) and the non-map widgets** (six specs, stacked into
-   `step-4`; see `TODO.md`; specs 1–2 merged into `step-4` (#36, #38); spec 3, Get data, built on
-   `step-4-spec-3`, its PR into `step-4` pending the user's yes, 2026-11-05)
+4. **Get data (formerly Widget Creation) and the non-map widgets** (seven specs, stacked into
+   `step-4`; see `TODO.md`; specs 1–3 merged into `step-4` (#36, #38, #40); spec 3b, the Get data
+   layers, added after spec 3 by the user on 2026-11-05, spec approved 2026-11-06)
    - **Get data** (formerly the Data Explorer and Widget Creation view; renamed 2026-11-05:
      data first, then how to show it; Add to dashboard or Download CSV; catalog-driven dataset
      sections, layers and overlays, advanced resolution override; built in spec 3)
+   - **spec 3b:** Get data's layers for weather (CIMIS station summaries, with a station choice),
+     smoke per day, and monthly pesticide use (with the explorer's filters); number layers in
+     strips under the chart and on their own; on `@sjvair/sdk` `5.0.0-beta.6` (the pesticide
+     filters; server and SDK first done 2026-11-05: sjvair.com #310–#313, sdk-js #51–#54)
    - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
      "Change place" bar; the first edit makes a personal copy) with non-map widgets: Current
      conditions, Forecast strip, "Can we go outside?", a chart, a calendar, the heatmap, and
@@ -200,7 +204,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      cut once both have validated the API.** Its `main` (which sjvair.com builds) changes only once verified,
      with approval.
      **monitor-map 5.0 spec approved 2026-11-05** (in the monitor-map repo): work goes into
-     `release/5.0.0`, merged into `main` on go-live day; mobile tries npm betas from it.
+     `release/5.0.0`, merged into `main` on go-live day; mobile tries npm betas from it. The
+     rebuild is merged into `release/5.0.0` (monitor-map #126, 2026-11-06).
    - **On the go-live path (changed 2026-11-04, the user):** the monitor-map 5.0 rebuild and the
      mobile migration onto it must be done before sjvair.com `develop` is released, and the
      mobile release ships the same day (see `DEFERRED.md`).

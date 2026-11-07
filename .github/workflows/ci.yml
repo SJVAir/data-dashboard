@@ -10,6 +10,14 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    # Playwright's image ships the browsers and every system package they need, so no run installs
+    # them. Installing per run (`playwright install --with-deps`) downloads about 200 Ubuntu
+    # packages from the runner's mirror, which has stalled jobs for up to an hour. The tag must be
+    # the installed Playwright's version; scripts/ci-playwright-image.test.ts checks it.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      # The runner's user, as Playwright's docs advise (Firefox refuses to run as root here).
+      options: --user 1001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,7 +28,6 @@ jobs:
       - run: npm run paraglide
       - run: npm run lint
       - run: npm run check
-      - run: npx playwright install --with-deps chromium
       - run: npm test
       # Vitest's failure screenshots from browser-mode tests.
       - uses: actions/upload-artifact@v4
@@ -40,6 +47,10 @@ jobs:
     needs: checks
     if: ${{ !(github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout') }}
     runs-on: ubuntu-latest
+    # Playwright's image (see the checks job).
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,7 +58,6 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -61,6 +71,10 @@ jobs:
     needs: checks
     if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout'
     runs-on: ubuntu-latest
+    # Playwright's image (see the checks job).
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
     strategy:
       fail-fast: false
       matrix:
@@ -79,7 +93,6 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
       - run: npx playwright test ${{ matrix.projects }}
       - uses: actions/upload-artifact@v4
         if: failure()
