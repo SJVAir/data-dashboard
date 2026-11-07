@@ -1174,13 +1174,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   plugin, or sooner if fire icons go missing on a map. Milestone 2 (map-sdk #4) couldn't
   reproduce it in the Chromium e2e, a probe spec, or the browser tests; the suspect is
   `pointsPlugin` adding icon images in `image.onload` after its layers.
-- **monitor-map: EV border ZIPs with partial San Joaquin land.** _Deferred 2026-11-07 (the
-  coordinator, delegated by the user)._ Galt 95632 (30.6% of its land in San Joaquin), Isleton
-  95641 (3.4%) and Discovery Bay 94505 (0.1%) are not in monitor-map's EV ZIP list. 5.0's only
-  rule removes ZIPs with no land in their county; adding these would need an inclusion rule
-  nobody has given, and NREL's ZIP filter would bring in chargers that sit mostly in those
-  towns, outside the county. Recorded in `src/lib/ev-stations/zip-codes.ts`. **Revisit if**
-  users ask for chargers just over the county line, or with the server EV integration above.
 - **map-sdk milestone 2 review leftovers.** _Deferred 2026-11-04 (map-sdk #4 reviews)._ Small
   gaps the reviews found that don't affect today's maps:
   - A collocation site whose collocated monitor isn't in the store shows no name for it (its
