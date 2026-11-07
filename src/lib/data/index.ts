@@ -7,6 +7,7 @@ import {
 	type AdapterContext,
 	type DatasetAdapter
 } from "./adapters/registry";
+import { pesticidesAdapter } from "./adapters/pesticides";
 import { smokeAdapter } from "./adapters/smoke";
 import { weatherAdapter } from "./adapters/weather";
 import { createWebMetadata, type MetadataSource } from "./metadata";
@@ -23,7 +24,8 @@ const ADAPTERS: DatasetAdapter[] = [
 	airQualityAdapter,
 	forecastsAdapter,
 	weatherAdapter,
-	smokeAdapter
+	smokeAdapter,
+	pesticidesAdapter
 ];
 
 let client: QueryClient | undefined;

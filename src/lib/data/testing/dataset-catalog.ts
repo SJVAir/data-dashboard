@@ -167,6 +167,16 @@ export const PESTICIDE_USE_DATASET: DatasetCatalog["datasets"][number] = {
 			retired: null
 		},
 		{
+			id: "acres-treated",
+			label: "Acres Treated",
+			kind: "other",
+			units: "acres",
+			resolutions: ["month", "year"],
+			aggregate: "sum",
+			display: { precision: 0, chart: "bar", y_min: 0 },
+			retired: null
+		},
+		{
 			id: "applications",
 			label: "Applications",
 			kind: "other",
