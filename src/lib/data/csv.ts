@@ -44,7 +44,10 @@ export const CSV_COLUMNS = [
 	"partial",
 	"computed_from_raw",
 	"level_key",
-	"level_label"
+	"level_label",
+	"source_id",
+	"source_name",
+	"filters"
 ] as const;
 
 /** What the entry type contributes to every row. */
@@ -97,12 +100,17 @@ function dataRows(
 	viewer: PlaceViewer
 ): string[] {
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
+	const own = new Map(data.places.map((p) => [p.place, p]));
 	const series = [...data.series].sort(byPlaceOrder(order));
 	const lines: string[] = [];
 	for (const s of series) {
 		const info = placeAt(s, order.get(s.place) ?? -1);
 		const { kind, id } = placeParts(info?.place ?? s.place);
 		const name = info ? placeLabel(info, viewer) : "";
+		// The series' own place: a weather layer's station and a pesticide layer's filters belong
+		// to it, not to the main place it is reported as.
+		const source = own.get(s.place)?.source;
+		const filters = own.get(s.place)?.filters?.join("; ") ?? "";
 		for (const p of [...s.points].sort((a, b) => a.t - b.t)) {
 			const end =
 				data.resolution === "raw" ? p.t : nextPeriodStart(new Date(p.t), data.resolution).getTime();
@@ -125,7 +133,10 @@ function dataRows(
 				String(p.partial),
 				String(data.fromRaw),
 				p.level ?? "",
-				p.level ? (levels.find((l) => l.key === p.level)?.label ?? "") : ""
+				p.level ? (levels.find((l) => l.key === p.level)?.label ?? "") : "",
+				source?.id ?? "",
+				source?.name ?? "",
+				filters
 			];
 			lines.push(row.map(cell).join(","));
 		}
@@ -139,7 +150,10 @@ function dataRows(
  * missing value (or NaN) is empty. A raw reading's period ends where it starts. Each overlay's
  * rows follow the main rows, in the same long format with its own entry type; an overlay's
  * places pair with the main's by request index (a point's region can differ by dataset) and
- * carry the main place's columns.
+ * carry the main place's columns. A number overlay coarser than the main (a month's pesticide
+ * use under daily data) keeps its own `period_start`/`period_end` and `resolution`, so it reads as
+ * the whole period's value. A weather overlay's rows carry the station (`source_id`,
+ * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
  */
 export function toCsv(
 	data: QueryData,

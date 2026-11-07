@@ -4,13 +4,14 @@
 	import TimeChart from "$lib/charts/TimeChart.svelte";
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
-	import type { PlaceInfo, QueryData } from "$lib/data/types";
+	import type { QueryData } from "$lib/data/types";
 	import { fromLayer } from "$lib/places/selection";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
 	import { overlayPlaceFor, sharedSource } from "../shared/overlays";
+	import { sourceLabel } from "../shared/source-label";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { placeLabel } from "../title";
@@ -24,30 +25,6 @@
 	/** The pesticide-use dataset: its empty range has its own wording (nothing was reported). */
 	const PESTICIDE_USE = "pesticide-use";
 	const pesticideMain = $derived(w.picked.layer?.dataset === PESTICIDE_USE);
-
-	/**
-	 * A strip's legend row: the layer, then its source: a weather station with its distance (just
-	 * its name when the place is inside the station's area), or the active filters and the place.
-	 */
-	function stripName(layer: string, info: PlaceInfo, place: string): string {
-		const key = (source: string) => m.chart_strip_key({ layer, source });
-		const station = info.source;
-		if (station) {
-			return key(
-				station.inside
-					? station.name
-					: m.chart_strip_station({
-							station: station.name,
-							distance: formatNumber(station.distance, { maximumFractionDigits: 1 })
-						})
-			);
-		}
-		// "Pounds applied · Chlorpyrifos · Grapes · ZIP 93702": each part through the same message.
-		return [...(info.filters ?? []), place].reduce(
-			(name, source) => m.chart_strip_key({ layer: name, source }),
-			layer
-		);
-	}
 
 	/** The widget's whole date range (and sub-range), up to when the data was fetched. */
 	function xRange(data: QueryData) {
@@ -110,7 +87,7 @@
 			const place = placeLabel(info, w.viewer);
 			const points = series.find((x) => x.place === key)?.points ?? [];
 			if (number) {
-				const name = stripName(layer, info, place);
+				const name = sourceLabel(layer, info, place);
 				if (points.length === 0) {
 					const message =
 						o.layer.dataset === PESTICIDE_USE

@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { AdapterRequest, RegionResolver } from "$lib/data/adapters/registry";
-import type { MetadataSource } from "$lib/data/metadata";
+import { mapDatasetCatalog, type MetadataSource } from "$lib/data/metadata";
+import { PESTICIDE_USE_DATASET, WEATHER_DATASET } from "$lib/data/testing/dataset-catalog";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { WidgetInstance } from "$lib/documents/schema";
@@ -17,7 +18,8 @@ import {
 	PM25_LEVELS,
 	chartWidget,
 	fakeAdapter,
-	fakeForecastsAdapter
+	fakeForecastsAdapter,
+	fakeNumberAdapter
 } from "../shared/test-harness/fake-data";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
@@ -316,5 +318,60 @@ test("an overlay that fails, or that the periods are too long for, says so under
 		.element(screen.getByText(m.table_overlay_by_day({ layer: "Burn status" })))
 		.toBeVisible();
 	expect(frame.querySelector("thead")!.textContent).not.toContain("Burn status");
+	expect((await axe.run(frame)).violations).toEqual([]);
+});
+
+/** Weather and pesticide use as the dashboard maps them, both answering for monitors here. */
+const NUMBER_DATASETS = mapDatasetCatalog({
+	datasets: [WEATHER_DATASET, PESTICIDE_USE_DATASET]
+} as Parameters<typeof mapDatasetCatalog>[0]).map((d) => ({ ...d, geographies: ["monitor"] }));
+
+test("the header names the station and filters", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, ...NUMBER_DATASETS]
+	});
+	const source = { id: "80", name: "CIMIS #80 Fresno State", distance: 4.2, inside: false };
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			fakeNumberAdapter("weather", requests, { source }),
+			fakeNumberAdapter("pesticide-use", requests, {
+				offered: ["month", "year"],
+				values: [1200, 340],
+				filters: ["Chlorpyrifos", "Grapes"]
+			})
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = tableWidget(["m1"]);
+	widget.data.layers.push(
+		{ dataset: "weather", entryType: "precipitation" },
+		{ dataset: "pesticide-use", entryType: "pounds-applied" }
+	);
+	const screen = await show(widget);
+	await expect
+		.element(
+			screen.getByRole("columnheader", {
+				name: "Precipitation · CIMIS #80 Fresno State (4.2 mi away), Monitor m1 (in)"
+			})
+		)
+		.toBeVisible();
+	await expect
+		.element(
+			screen.getByRole("columnheader", {
+				name: "Pounds Applied · Chlorpyrifos · Grapes, Monitor m1 (lbs)"
+			})
+		)
+		.toBeVisible();
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	// Numbers use the catalog's precision (rain: 2 places, pounds: none), a whole month's total
+	// says so, and a mean would never be called one.
+	const rows = [...frame.querySelectorAll("tbody tr")].map((r) =>
+		[...r.querySelectorAll("td")].slice(1).map((td) => td.textContent?.trim())
+	);
+	expect(rows.map((r) => r[0])).toEqual(["0.40", "0.00", "0.12"]);
+	expect(rows.every((r) => r[1]?.startsWith("1,200"))).toBe(true);
+	expect(rows.every((r) => r[1]?.includes(m.chart_strip_monthly_total()))).toBe(true);
 	expect((await axe.run(frame)).violations).toEqual([]);
 });

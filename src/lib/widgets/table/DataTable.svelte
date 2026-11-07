@@ -6,7 +6,9 @@
 	import { csvPending, saveWidgetCsv } from "$lib/data/csv";
 	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
+	import { layerKind } from "$lib/data/layer-kind";
 	import { levelFor } from "$lib/data/metadata";
+	import type { Resolution } from "$lib/data/schema";
 	import type { QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatHourRange, formatNumber, formatPeriod, formatValue } from "$lib/format";
@@ -15,8 +17,9 @@
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { dataTableType } from "./index";
+	import { sourceLabel } from "../shared/source-label";
 	import { placeLabel } from "../title";
-	import { byDay, overlayColumns, sortRows, wideRows } from "./rows";
+	import { byDay, overlayColumns, sortRows, wideRows, type OverlayColumn } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
@@ -63,14 +66,57 @@
 	/** Values with the catalog's display precision (the CSV keeps every digit). */
 	const num = (v: number) => formatValue(v, w.meta?.entryType.precision);
 
-	/** The overlays with ready data and a catalog label, with that label (column headers name it). */
+	/**
+	 * The overlays with ready data and a catalog label, with that label (column headers name it),
+	 * whether it is a level or a number layer, and a number layer's units, precision and aggregate.
+	 */
 	const overlays = $derived(
 		w.overlays.flatMap((o) =>
 			o.state.status === "ready" && o.meta
-				? [{ data: o.state.data, levels: o.levels, layer: o.meta.entryType.label }]
+				? [
+						{
+							data: o.state.data,
+							levels: o.levels,
+							kind:
+								layerKind(o.layer, w.catalog) === "number"
+									? ("number" as const)
+									: ("level" as const),
+							aggregate: o.meta.entryType.aggregate,
+							layer: o.meta.entryType.label,
+							unit: o.meta.entryType.units,
+							precision: o.meta.entryType.precision
+						}
+					]
 				: []
 		)
 	);
+
+	/** A number overlay column's header: the layer and its source, the place, and the units. */
+	function overlayHeader(column: OverlayColumn): string {
+		const o = overlays[column.overlay];
+		const place = placeLabel(column.place, w.viewer);
+		if (o.kind === "level") return m.table_overlay_place({ layer: o.layer, place });
+		return m.table_overlay_place_unit({
+			layer: sourceLabel(o.layer, column.info),
+			place,
+			unit: o.unit
+		});
+	}
+
+	/**
+	 * What a whole-period cell is: "Monthly total" for a summed layer, the average's label for a
+	 * mean (never a total), nothing for a layer whose values don't combine over time.
+	 */
+	function wholeLabel(resolution: Resolution, aggregate: "sum" | "mean" | null | undefined) {
+		if (aggregate === "sum") {
+			return resolution === "month"
+				? m.chart_strip_monthly_total()
+				: resolution === "year"
+					? m.chart_strip_yearly_total()
+					: "";
+		}
+		return aggregate === "mean" ? RESOLUTION_LABEL[resolution]() : "";
+	}
 
 	/**
 	 * Why an overlay has no columns, so the Table never drops one the Chart shows or explains:
@@ -84,7 +130,10 @@
 			if (s.status === "error" || s.status === "unavailable") {
 				return [m.chart_overlay_failed({ layer })];
 			}
-			return s.status === "ready" && !byDay(data) ? [m.table_overlay_by_day({ layer })] : [];
+			const level = layerKind(o.layer, w.catalog) !== "number";
+			return s.status === "ready" && level && !byDay(data)
+				? [m.table_overlay_by_day({ layer })]
+				: [];
 		});
 	}
 
@@ -171,10 +220,7 @@
 									{/if}
 									{#each columns as column (`${column.overlay} ${column.key}`)}
 										<th scope="col" class="border-border border-b px-2 py-1 font-semibold">
-											{m.table_overlay_place({
-												layer: overlays[column.overlay].layer,
-												place: placeLabel(column.place, w.viewer)
-											})}
+											{overlayHeader(column)}
 										</th>
 									{/each}
 								</tr>
@@ -222,14 +268,22 @@
 												{row.cells[0] ? num(row.cells[0].max) : ""}
 											</td>
 										{/if}
-										{#each row.overlays as level, i (i)}
+										{#each row.overlays as cell, i (i)}
+											{@const o = overlays[columns[i].overlay]}
 											<td class="border-border border-b px-2 py-1">
-												{#if level}
+												{#if cell && "label" in cell}
 													<LevelSwatch
 														size="sm"
-														color={level.color ?? "transparent"}
-														label={level.label}
+														color={cell.color ?? "transparent"}
+														label={cell.label}
 													/>
+												{:else if cell}
+													<span class="tabular-nums">{formatValue(cell.mean, o.precision)}</span>
+													{#if columns[i].whole}
+														<span class="text-muted-foreground">
+															{wholeLabel(columns[i].whole!, o.aggregate)}
+														</span>
+													{/if}
 												{/if}
 											</td>
 										{/each}

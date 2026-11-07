@@ -676,6 +676,7 @@
 	"chart_strip_whole_month": "Total for all of {period}",
 	"chart_strip_none_pesticides": "No pesticide use reported for these dates.",
 	"table_overlay_place": "{layer}, {place}",
+	"table_overlay_place_unit": "{layer}, {place} ({unit})",
 	"table_overlay_by_day": "{layer} shows only in tables with daily or more detailed rows.",
 	"widget_chart_title": "Chart",
 	"widget_data_table_title": "Data table",
