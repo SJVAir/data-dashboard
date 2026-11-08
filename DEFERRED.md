@@ -1588,6 +1588,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     and typed query shift rows. **Revisit if** layers get stable ids, or users report it.
   - **The filter search shows an empty input when a saved id's name lookup fails** (the layer
     itself shows "filter gone"). **Revisit with** the next picker change.
+  - **The Data table's note for an unavailable number overlay doesn't name the layer** (it reads
+    "A filter this widget uses is no longer available."), so with two number overlays it's
+    unclear which one it means. The Chart shows it in that layer's own strip. **Revisit with**
+    the next Data table change, or if users report it.
   - **Missing `layers.ts` unit tests** for removing a middle layer, and for removing the
     pollutant when the next number layer is a pesticide layer. **Add with** the next
     `layers.ts` change.
