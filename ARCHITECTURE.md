@@ -1295,6 +1295,8 @@ around); monitor-map becomes a real consumer of the plugin API, which keeps it h
 clear ownership (general map capabilities → `map-sdk`, monitor-map product decisions →
 `monitor-map`). Cost: changes that span both need a `map-sdk` release, then a bump in
 monitor-map (local linking for development; each publish needs explicit approval).
+The dashboard's Map widget depends on the published `@sjvair/map-sdk` from npm, not a
+local link (decided 2026-11-08); a map-sdk change it needs ships as a new beta first.
 
 **The core problem being solved is still "one map per page"**, not a lack of
 configurability. As of monitor-map 4.3.0 (unchanged from 3.6.x): `mapManager` (one `map`),
