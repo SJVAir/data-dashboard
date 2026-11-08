@@ -1,4 +1,5 @@
 import { WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
+import { ThresholdSchema } from "$lib/thresholds/schema";
 import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "$lib/layout/config";
 import { z } from "$lib/zod";
 
@@ -25,7 +26,7 @@ export const WidgetInstanceSchema = z.object({
 	minimized: z.object({ order: z.number().int().min(0) }).optional(),
 	data: WidgetDataConfigSchema,
 	options: z.record(z.string(), z.unknown()).optional(),
-	thresholds: z.array(z.unknown()).optional()
+	thresholds: z.array(ThresholdSchema).max(1).optional()
 });
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>;
 

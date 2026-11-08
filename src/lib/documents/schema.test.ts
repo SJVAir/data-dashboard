@@ -109,3 +109,29 @@ describe("minimized", () => {
 		expect(DashboardSchema.safeParse(old).success).toBe(false);
 	});
 });
+
+describe("widget thresholds", () => {
+	const widget = (thresholds: unknown) => ({
+		id: "w1",
+		type: "placeholder",
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 4 },
+		data: { layers: [] },
+		thresholds
+	});
+	it("accepts one threshold", () => {
+		expect(DashboardSchema.safeParse(withWidgets([widget([{ level: "unhealthy" }])])).success).toBe(
+			true
+		);
+	});
+	it("rejects two thresholds", () => {
+		expect(
+			DashboardSchema.safeParse(withWidgets([widget([{ level: "a" }, { level: "b" }])])).success
+		).toBe(false);
+	});
+	it("rejects a level key over the code limit", () => {
+		expect(
+			DashboardSchema.safeParse(withWidgets([widget([{ level: "x".repeat(65) }])])).success
+		).toBe(false);
+	});
+});
