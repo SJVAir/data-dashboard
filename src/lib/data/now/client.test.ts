@@ -185,13 +185,13 @@ describe("createNowClient", () => {
 		const client = createNowClient({});
 		const { src } = source();
 		const err = vi.spyOn(console, "error").mockImplementation(() => {});
-		let second: { unsubscribe(): void } | undefined;
+		const held: { second?: { unsubscribe(): void } } = {};
 		const secondListener = vi.fn();
 		client.subscribe(src, () => {
-			second?.unsubscribe();
-			if (second) throw new Error("x");
+			held.second?.unsubscribe();
+			if (held.second) throw new Error("x");
 		});
-		second = client.subscribe(src, secondListener);
+		held.second = client.subscribe(src, secondListener);
 		secondListener.mockClear();
 		await flush();
 		expect(secondListener).not.toHaveBeenCalledWith(expect.objectContaining({ status: "ready" }));
