@@ -1279,6 +1279,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   on map-sdk's general points and shapes plugins plus their metadata scale with little or no
   preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
   needs one on a map (pesticide notices likely first, alongside the alerts work).
+- **map-sdk: monitor readings round in the list but are cut off in the tooltip.** _Deferred
+  2026-11-08 (map-sdk parity defaults, [#15](https://github.com/SJVAir/map-sdk/pull/15); the
+  user chose to fix fire only)._ The monitor tooltip cuts its reading to a whole number, as
+  sjvair.com's map does, while the feature list and its accessible names round to the
+  metadata's precision. Near a level boundary they disagree: a PM2.5 reading of 9.06 shows "9"
+  in the box but "9.1 µg/m³, Good" in the list, and Moderate starts at 9.1. Fire values now use
+  the same cut-off in the box, list and accessible names (`pointsPlugin`'s `truncateValues`);
+  monitors were out of that work's scope. **Revisit when** monitor values or list formatting
+  are next touched, or a user reports a number that disagrees with its level: turn on
+  `truncateValues` for monitors (rows would then read "9.0").
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1354,17 +1364,35 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   become non-blank, or before map-sdk 1.0.
 
 - **map-sdk: plugin effects added from inside a host `$effect` can stop.** _Deferred 2026-11-05
-  (the user; map-sdk #7)._ monitor-map found that a plugin's `ctx.effect` can stop re-running for
+  (the user; map-sdk #7)._ **✅ Fixed 2026-11-07 ([map-sdk
+  #13](https://github.com/SJVAir/map-sdk/pull/13), merged b1ca49b):** plugin setup runs in a
+  microtask, and `ready` waits for it; proven with `c-reset3.mjs` (Ozone 0 monitor layers on
+  beta.2, 18 = PM2.5 with the fix). On npm in `0.1.0-beta.3` (`next`, 2026-11-08).
+  monitor-map's workaround (#126) was reverted in monitor-map #128 (on beta.3, merged 2026-11-07). monitor-map found that a plugin's `ctx.effect` can stop re-running for
   good when the host adds the plugin from inside its own `$effect`. The cause: map-sdk's
   `plugin-host` creates the effect's `$effect.root` under whatever effect is active, and Svelte
   detaches that root when the host's effect re-runs. It reproduces in monitor-map (Svelte 5.57.0
   and 5.57.3) but not in map-sdk's client tests, across several models of that pattern, so no
   fix can be proven yet. monitor-map no longer triggers it (its add/remove runs outside the
-  effect, monitor-map #126). **Revisit when** monitor-map has to add plugins from an effect again
-  (the user is deciding whether its #126 change stays), another host hits it, or before map-sdk
-  1.0. Next step: run monitor-map's repro (`c-reset3.mjs`) against a local map-sdk build with a
-  candidate fix (effect roots created outside the caller's effect), and file a minimal Svelte
-  repro upstream.
+  effect, monitor-map #126). **In progress (the user, 2026-11-07):** monitor-map keeps its
+  workaround (#126) for now, but the map-sdk fix comes next. **Cause found 2026-11-07** (map-sdk
+  session, reproduced with `c-reset3.mjs`, Ozone 0 layers vs 15 without the clusters toggle):
+  a Svelte bug. When an effect re-runs, Svelte cuts loose the `$effect.root`s created inside it
+  but keeps their sibling links, so walking one root also walks the later ones and leaves them
+  never scheduled again. It needs 2+ roots under one effect, which the monitors plugin's
+  `ctx.effect`s provide. **Fix approved (the user, 2026-11-07):** map-sdk sets plugins up in a
+  microtask, outside the caller's code (spec and plan
+  `docs/superpowers/{specs,plans}/2026-11-07-plugin-setup-outside-effects*` in map-sdk). A
+  host-owned effect was tried and fails the same way.
+- **map-sdk: report the Svelte root-detach bug upstream.** _Deferred 2026-11-07 (the user)._ A
+  Svelte playground repro of the bug above: two `$effect.root`s created in one `$effect`, that
+  effect re-runs, one update dirties both, then an update to the second alone never runs it. The
+  20-line client-test version exists (untracked, in
+  `map-sdk/.superpowers/c2-repro/svelte-repro/`, gitignored, with a `README.md`), plus
+  the versions (5.57.0, 5.57.3) and the lines involved
+  (`destroy_effect_children` keeps `next`; `Batch#traverse` climbs past the root). Why deferred:
+  filing on Svelte's GitHub is public and needs the user's yes. Revisit: when the user says to
+  file it, or when a Svelte release fixes it. map-sdk's microtask setup stays either way.
 
 ## Widgets
 
@@ -2248,6 +2276,15 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   design)._ monitor-map passes request options per call and never sets the SDK's page-global
   defaults, because it runs inside host apps that own those settings. **Reopen if** a host
   needs monitor-map to set a header the host can't set itself.
+- **monitor-map: border EV ZIPs not added (Galt 95632, Isleton 95641, Discovery Bay 94505).**
+  _Ruled out 2026-11-07 (monitor-map 5.0; the user left it to the coordinator)._ The EV
+  chargers' ZIP list (`src/lib/ev-stations/zip-codes.ts`) is the user's scraped per-county list
+  for the 13 counties, minus ZIPs with no land in them (the 5.0 check against the Census ZCTA
+  file, which dropped Livermore 94550, Hollister 95023 and the typo 09534). These three have some
+  land in San Joaquin (30.6%, 3.4%, 0.1%) but were never on the list, and adding them would need
+  an inclusion rule nobody has set; the ZIP filter would also bring in chargers that sit mostly
+  in the towns, outside the valley. **Reopen if** users ask for chargers just over the county
+  line, or a rule for border ZIPs is set (e.g. a minimum land share).
 
 ## Dropped
 
