@@ -459,3 +459,33 @@ test("an averaged main stays an average, with no source to name", async () => {
 	const key = screen.getByRole("list", { name: m.chart_series_key() });
 	await expect.element(key.getByText(m.chart_series_day(), { exact: true })).toBeVisible();
 });
+
+test("a number overlay isn't fetched while the main layer is unavailable", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			// Weather would answer for the county (as a monitor's series, to keep the fake small).
+			{
+				...fakeNumberAdapter("weather", requests),
+				target: async () => ({ kind: "monitors", ids: ["m1"] })
+			}
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	// The fake air-quality adapter serves monitors only: a county is unavailable.
+	widget.data.layers = [
+		{ ...PM25, place: { kind: "region", type: "county", code: "06019" } },
+		{ ...RAIN }
+	];
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.widget_state_unavailable_place_unsupported()))
+		.toBeVisible();
+	await new Promise((r) => setTimeout(r, 100));
+	expect(requests.filter((r) => r.entryType === "precipitation")).toEqual([]);
+});

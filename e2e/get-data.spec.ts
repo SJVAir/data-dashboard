@@ -149,7 +149,7 @@ test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ 
 
 	// Fresno County has one place, so the station can be chosen: the nearest is the default.
 	await openSection(page, /^Weather/);
-	await page.getByRole("checkbox", { name: "Temperature" }).check();
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
 	const station = page.getByRole("combobox", { name: "Station" });
 	await expect(station).toHaveValue("I3wADR9bR-2hfub3h3nsJA");
 	await expect(page.getByText(/Temperature · CIMIS #80 - Fresno State/).first()).toBeVisible();
@@ -185,11 +185,11 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await page.goto("data");
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 	await openSection(page, /^Weather/);
-	await page.getByRole("checkbox", { name: "Temperature" }).check();
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
 	await page.getByRole("radio", { name: "None" }).check();
 	await expect(page.getByRole("radio", { name: "None" })).toBeChecked();
 	// The last number layer can't be unchecked.
-	await expect(page.getByRole("checkbox", { name: "Temperature" })).toBeDisabled();
+	await expect(page.getByRole("checkbox", { name: "Temperature", exact: true })).toBeDisabled();
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await expect(page.getByRole("combobox", { name: "Station" })).toHaveValue(
 		"I3wADR9bR-2hfub3h3nsJA"
@@ -205,7 +205,7 @@ test("downloads a CSV with station and filter columns", async ({ page }) => {
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await openSection(page, /^Weather/);
-	await page.getByRole("checkbox", { name: "Temperature" }).check();
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
 	await openSection(page, /^Pesticide Use/);
 	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
@@ -269,8 +269,14 @@ test("an old PM2.5 + burn status widget still shows its bands", async ({ page })
 	};
 	await page.goto(shareLinkFor(doc));
 	await expect(page).toHaveURL(DASHBOARD_URL);
-	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	const chart = page.getByRole("group", { name: "Chart of Fresno County" });
+	await expect(chart).toBeVisible();
 	// The burn status is a band layer, named in the legend, and no station or filter shows.
 	await expect(page.getByText(/Burn Status/).first()).toBeVisible();
 	await expect(page.getByText(/CIMIS/)).toHaveCount(0);
+	// Its bands are drawn, and no strip is.
+	await expect
+		.poll(async () => Number(await chart.getAttribute("data-day-bands")))
+		.toBeGreaterThan(0);
+	await expect(chart.locator("[data-strip]")).toHaveCount(0);
 });

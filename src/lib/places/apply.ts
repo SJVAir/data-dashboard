@@ -24,7 +24,8 @@ function same(a: Picks, b: Picks): boolean {
  * The widget's new data for `picks`, or null when unchanged. Points become their region when the
  * dashboard has a live link (`regionOf` finds it; none, or a failed lookup, rejects with
  * `RegionLookupFailed`, and an abort rejects with the abort). The layer changed is the widget's
- * pollutant layer (`mainLayer`, read with `catalog` when given).
+ * main layer (`mainLayer`, read with `catalog` when given): its pollutant, else its first number
+ * layer.
  */
 export async function pickedData(
 	data: WidgetDataConfig,

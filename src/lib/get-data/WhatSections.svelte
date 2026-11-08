@@ -106,7 +106,8 @@
 			.filter((l) => l.dataset === id)
 			.map((l) => section.dataset.entryTypes.find((e) => e.id === l.entryType)?.label)
 			.filter((label): label is string => label !== undefined);
-		return formatList(labels);
+		// Two pesticide layers of one measure (different filters) name it once.
+		return formatList([...new Set(labels)]);
 	}
 </script>
 

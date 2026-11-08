@@ -159,7 +159,8 @@ export async function summarySeries(
 	opts?: SummaryOptions
 ): Promise<Series[]> {
 	const { target, entryType, now } = req;
-	const how = opts?.total ? "sum" : "mean";
+	// Bulk (region) endpoints return means, so only a monitor target reads sums.
+	const how = opts?.total && target.kind === "monitors" ? "sum" : "mean";
 	const segments = planSegments({
 		resolution: req.resolution,
 		range: req.range,

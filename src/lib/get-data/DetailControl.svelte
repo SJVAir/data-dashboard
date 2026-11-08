@@ -45,16 +45,15 @@
 		</Collapsible.Trigger>
 	</h2>
 	<Collapsible.Content>
-		<fieldset class="flex flex-col gap-1 px-1">
-			<legend class="mb-1 text-sm font-medium">
-				<span class="flex items-center gap-1">
-					{m.get_data_detail()}
-					<Toggletip
-						label={m.get_data_show_values_help_label()}
-						text={m.get_data_show_values_help()}
-					/>
-				</span>
-			</legend>
+		<!-- Named by its heading text alone: the help button sits beside it, outside the name. -->
+		<fieldset class="flex flex-col gap-1 px-1" aria-labelledby="{uid}-detail-label">
+			<div class="mb-1 flex items-center gap-1 text-sm font-medium">
+				<span id="{uid}-detail-label">{m.get_data_detail()}</span>
+				<Toggletip
+					label={m.get_data_show_values_help_label()}
+					text={m.get_data_show_values_help()}
+				/>
+			</div>
 			{#each choices as choice (choice.level)}
 				{@const reasonId = `${uid}-${choice.level}-reason`}
 				<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">

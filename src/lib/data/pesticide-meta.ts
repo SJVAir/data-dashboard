@@ -97,6 +97,26 @@ export async function filterLabels(
 	return labels;
 }
 
+/**
+ * Whether every saved category, cancer group, method and narrowing code is still one the
+ * server's meta lists. True when the filters have none (nothing is fetched).
+ */
+export async function codesKnown(
+	filters: PesticideFilters,
+	signal?: AbortSignal
+): Promise<boolean> {
+	if (!filters.category && !filters.iarcGroup && !filters.method && !filters.narrow) return true;
+	const m = await pesticideMeta(signal);
+	const has = (list: Array<{ key: string }>, key: string | undefined) =>
+		key === undefined || list.some((item) => item.key === key);
+	return (
+		(filters.category ?? []).every((key) => has(m.categories, key)) &&
+		has(m.iarc_groups, filters.iarcGroup) &&
+		has(m.methods, filters.method) &&
+		has(m.narrows, filters.narrow)
+	);
+}
+
 /** A code's label from a meta list; the code itself when the list doesn't have it. */
 function labelOf(list: Array<{ key: string; label: string }>, key: string): string {
 	return list.find((item) => item.key === key)?.label ?? key;

@@ -363,6 +363,40 @@ test("the readout shows each strip's value at the cursor", async () => {
 	expect(readout().textContent).toContain("Precipitation: No data");
 });
 
+test("a strip swapping with a message builds the plots again", async () => {
+	const data = oneplace();
+	const names = new Map(data.places.map((p) => [p.place, p.name]));
+	const message = dailyStrip({ points: [], message: "Couldn't load Precipitation." });
+	const props = { data, levels: LEVELS, unit: "µg/m³", placeNames: names };
+	const screen = await render(TimeChart, {
+		target: frame,
+		props: { ...props, strips: [dailyStrip(), message] }
+	});
+	await expect.poll(() => strips()[0]?.querySelector("canvas")).not.toBeNull();
+	// Same count and shape of plotted strips, but the plot moves to the second strip.
+	await screen.rerender({ ...props, strips: [message, dailyStrip()] });
+	await expect.poll(() => strips()[1]?.querySelector("canvas")).not.toBeNull();
+	expect(strips()[0].querySelector("canvas")).toBeNull();
+});
+
+test("keyboard stepping moves the strips' cursors with the main one", async () => {
+	const { chart } = await renderChart(oneplace(), { strips: [temperature()] });
+	await expect.poll(() => strips()[0]?.querySelector("canvas")).not.toBeNull();
+	const cursorX = (root: Element) => {
+		const el = root.querySelector<HTMLElement>(".u-cursor-x");
+		return new DOMMatrixReadOnly(getComputedStyle(el!).transform).m41;
+	};
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect.poll(() => cursorX(strips()[0])).toBeGreaterThanOrEqual(0);
+	const home = cursorX(strips()[0]);
+	await userEvent.keyboard("{End}");
+	await expect.poll(() => cursorX(strips()[0])).toBeGreaterThan(home);
+	// The strip's cursor sits where the main plot's does.
+	const main = frame.querySelector(".u-over")!.parentElement!;
+	expect(cursorX(strips()[0])).toBeCloseTo(cursorX(main), 0);
+});
+
 test("a coarser strip draws one bar per month and marks the whole-month total", async () => {
 	const sept = Date.UTC(2026, 8, 1, 7);
 	const oct = Date.UTC(2026, 9, 1, 7);

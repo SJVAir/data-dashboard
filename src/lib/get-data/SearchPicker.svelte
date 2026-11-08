@@ -53,6 +53,8 @@
 		const timer = setTimeout(() => {
 			searchPesticides({ type, q, limit: LIMIT, signal: controller.signal }).then(
 				(found) => {
+					// A search the next one replaced (or the picker closed) is dropped.
+					if (controller.signal.aborted) return;
 					// Placeholder chemicals ("unknown", "confidential") aren't offered.
 					results = found.results.filter((hit) => !("placeholder" in hit && hit.placeholder));
 					more = found.more;

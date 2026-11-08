@@ -42,7 +42,9 @@ const fake = vi.hoisted(() => ({
 	/** What a search answers. */
 	hits: { results: [] as Hit[], more: false },
 	/** Names of the chemical, crop and product ids. */
-	names: {} as Record<string, string>
+	names: {} as Record<string, string>,
+	/** Holds a search's answer back (by its query) until the promise settles. */
+	delay: undefined as ((q: string) => Promise<void>) | undefined
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -83,7 +85,10 @@ vi.mock("./sources", () => ({
 	stationsForLayer: async () => fake.stations,
 	searchPesticides: async (params: { type: string; q: string; limit?: number }) => {
 		fake.searches.push({ type: params.type, q: params.q, limit: params.limit });
-		return params.q.trim().length < 2 ? { results: [], more: false } : fake.hits;
+		// Read before waiting, so a late answer is what was found when it was asked.
+		const hits = fake.hits;
+		await fake.delay?.(params.q);
+		return params.q.trim().length < 2 ? { results: [], more: false } : hits;
 	},
 	pesticideMeta: async () => PESTICIDE_META,
 	filterLabels: async (f: Record<string, string | undefined>) =>
@@ -209,6 +214,7 @@ beforeEach(async () => {
 	fake.searches = [];
 	fake.hits = { results: [], more: false };
 	fake.names = {};
+	fake.delay = undefined;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 });
@@ -436,6 +442,10 @@ test('More options shows "Show values" with a help button', async () => {
 	await page.getByRole("button", { name: "More options" }).click();
 	await expect.element(page.getByText(m.get_data_detail(), { exact: true })).toBeVisible();
 	expect(m.get_data_detail()).toBe("Show values");
+	// The help button sits beside the group's name, not inside it.
+	await expect
+		.element(page.getByRole("group", { name: m.get_data_detail(), exact: true }))
+		.toBeVisible();
 	const help = page.getByRole("button", { name: m.get_data_show_values_help_label() });
 	await expect.element(help).toBeVisible();
 	await help.click();
@@ -558,13 +568,13 @@ async function openSection(name: RegExp) {
 test("a temperature-only chart can be added", async () => {
 	const { current } = await show(monitorsDraft(["m1"]));
 	await openSection(/^Weather/);
-	await page.getByRole("checkbox", { name: "Temperature" }).click();
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
 	await page.getByRole("radio", { name: "None" }).click();
 	expect((await current()).data.layers).toEqual([
 		{ ...TEMPERATURE, selection: { kind: "monitors", ids: ["m1"] } }
 	]);
 	// The last number layer can't be unchecked.
-	const box = page.getByRole("checkbox", { name: "Temperature" });
+	const box = page.getByRole("checkbox", { name: "Temperature", exact: true });
 	await expect.element(box).toBeDisabled();
 	await expect.element(box).toHaveAccessibleDescription(m.get_data_keep_one());
 });
@@ -609,7 +619,9 @@ test("the station choice shows only with one place", async () => {
 
 	await show(withLayers(["m1", "m2"], { ...TEMPERATURE }));
 	await openSection(/^Weather/);
-	await expect.element(page.getByRole("checkbox", { name: "Temperature" })).toBeChecked();
+	await expect
+		.element(page.getByRole("checkbox", { name: "Temperature", exact: true }))
+		.toBeChecked();
 	expect(page.getByRole("combobox", { name: "Station" }).elements()).toHaveLength(0);
 });
 
@@ -645,10 +657,39 @@ test("a filter search lists results after two letters and picks one", async () =
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	const layers = (await current()).data.layers;
 	expect(layers.slice(1)).toEqual([{ ...POUNDS, filters: { chemical: "c1" } }, { ...POUNDS }]);
+	// The section's heading names the measure once.
+	await expect
+		.element(page.getByRole("button", { name: /^Pesticide Use/ }))
+		.toHaveAccessibleName("Pesticide Use Pounds Applied");
 	// At the overlay limit, no more can be added.
 	const add = page.getByRole("button", { name: "Add another pesticide layer" });
 	await expect.element(add).toBeDisabled();
 	await expect.element(add).toHaveAccessibleDescription("Up to 2 overlays");
+});
+
+test("a slow search's results never replace a newer one's", async () => {
+	let release!: () => void;
+	const slow = new Promise<void>((r) => (release = r));
+	fake.hits = {
+		results: [{ id: "c1", name: "Chlorpyrifos", detail: "", placeholder: false }],
+		more: false
+	};
+	await show(withLayers(["m1"], { ...POUNDS }));
+	await openSection(/^Pesticide Use/);
+	await page.getByRole("button", { name: "Narrow down" }).click();
+	const chemical = page.getByRole("combobox", { name: "Chemical" });
+	await chemical.click();
+	// The first search ("ch") answers late, after "chx" found nothing.
+	fake.delay = (q) => (q === "ch" ? slow : Promise.resolve());
+	await userEvent.keyboard("ch");
+	await expect.poll(() => fake.searches.length).toBe(1);
+	fake.hits = { results: [], more: false };
+	await userEvent.keyboard("x");
+	await expect.poll(() => fake.searches.length).toBe(2);
+	await expect.element(page.getByText(m.get_data_search_none()).first()).toBeVisible();
+	release();
+	await new Promise((r) => setTimeout(r, 50));
+	expect(page.getByRole("option", { name: /Chlorpyrifos/ }).elements()).toHaveLength(0);
 });
 
 test("smoke alone disables Add with the reason", async () => {
@@ -673,7 +714,7 @@ test("smoke alone disables Add with the reason", async () => {
 	await expect.element(page.getByText(m.get_data_level_only())).toBeVisible();
 	// Adding a number layer makes it chartable, and it takes the places.
 	await openSection(/^Weather/);
-	await page.getByRole("checkbox", { name: "Temperature" }).click();
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
 	await expect.element(add).toBeEnabled();
 });
 

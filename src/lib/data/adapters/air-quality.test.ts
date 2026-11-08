@@ -29,7 +29,8 @@ import {
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
 	getRegionSummariesBulkDaily,
-	getRegionSummariesBulkHourly
+	getRegionSummariesBulkHourly,
+	getRegionSummariesBulkMonthly
 } from "@sjvair/sdk";
 import { getValidDateRange } from "@sjvair/sdk/datetime";
 import { resolveRange } from "$lib/format/range";
@@ -1085,6 +1086,31 @@ describe("summarySeries options", () => {
 		expect(s.points).toHaveLength(1);
 		expect(s.points[0].mean).toBe(1.25);
 		expect(s.points[0].max).toBe(1.25);
+	});
+
+	it("a region's open month averages its days even when totals are asked (bulk rows are means)", async () => {
+		vi.mocked(getRegionSummariesBulkMonthly).mockResolvedValue([] as never);
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{
+				id: "sq1",
+				summaries: [row("2026-11-01T00:00:00-07:00", 1), row("2026-11-02T00:00:00-08:00", 3)]
+			}
+		] as never);
+		const now = new Date("2026-11-03T20:00:00Z");
+		const regions = request(
+			{ kind: "regions", keys: ["county:06019"] },
+			"month",
+			{ kind: "custom", start: "2026-11-01", end: "2026-11-30" },
+			{ offered: ["day", "month"], now }
+		);
+		const [s] = await summarySeries(
+			regions,
+			[{ place: "region:county:06019", id: "sq1" }],
+			[null],
+			signal,
+			{ total: true }
+		);
+		expect(s.points.map((p) => p.mean)).toEqual([2]);
 	});
 
 	it("an incomplete row is partial with completeness", async () => {

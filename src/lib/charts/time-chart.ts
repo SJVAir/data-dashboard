@@ -49,7 +49,7 @@ function readTheme(el: Element, count: number): Theme {
 			css.getPropertyValue("--card").trim() || css.getPropertyValue("--background").trim(),
 		bandOpacity: num("--chart-band-opacity", 0.16),
 		stickOpacity: num("--chart-stick-opacity", 0.35),
-		barOpacity: num("--chart-bar-opacity", 0.5)
+		barOpacity: num("--chart-bar-opacity", 0.35)
 	};
 }
 
@@ -564,9 +564,19 @@ export function createTimeChart(
 	};
 }
 
-/** Moves the chart's cursor to index `idx` (as if hovered), for keyboard stepping. */
+/** uPlot's `setCursor` with its `pub` argument, which its type declarations leave out. */
+type SetCursor = (opts: { left: number; top: number }, fire?: boolean, pub?: boolean) => void;
+
+/**
+ * Moves the chart's cursor to index `idx` (as if hovered), for keyboard stepping. Published to the
+ * synced strips, so their cursors move with it as they do on hover.
+ */
 export function cursorTo(u: uPlot, idx: number, value: number): void {
-	u.setCursor({ left: u.valToPos(u.data[0][idx], "x"), top: u.valToPos(value, "y") });
+	(u.setCursor as SetCursor)(
+		{ left: u.valToPos(u.data[0][idx], "x"), top: u.valToPos(value, "y") },
+		true,
+		true
+	);
 }
 
 /**

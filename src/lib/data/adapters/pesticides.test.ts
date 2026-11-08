@@ -397,6 +397,30 @@ describe("target", () => {
 		expect(getChemicalDetails).toHaveBeenCalledTimes(2);
 	});
 
+	it("a code the meta no longer lists makes the layer filter-gone", async () => {
+		for (const filters of [
+			{ category: ["carcinogen", "gone"] },
+			{ iarcGroup: "9" },
+			{ method: "gone" },
+			{ narrow: "gone" }
+		] satisfies PesticideFilters[]) {
+			expect(await pesticidesAdapter.target(layer(filters), ctx)).toEqual({
+				unavailable: "filter-gone"
+			});
+		}
+		const known = { category: ["carcinogen"], iarcGroup: "1", method: "none", narrow: "concern" };
+		expect(await pesticidesAdapter.target(layer(known), ctx)).toEqual({
+			kind: "regions",
+			keys: ["county:06019"]
+		});
+	});
+
+	it("a failed meta lookup does not block the layer", async () => {
+		vi.mocked(getPesticidesMeta).mockRejectedValueOnce(new Error("offline"));
+		const target = await pesticidesAdapter.target(layer({ method: "none" }), ctx);
+		expect("unavailable" in target).toBe(false);
+	});
+
 	it("filters without ids look nothing up", async () => {
 		await pesticidesAdapter.target(layer({ category: ["carcinogen"] }), ctx);
 		expect(getChemicalDetails).not.toHaveBeenCalled();

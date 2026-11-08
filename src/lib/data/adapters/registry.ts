@@ -81,8 +81,8 @@ export interface DatasetAdapter {
 	/** The levels of the entry type's catalog `base` this adapter can actually fetch for `target`. */
 	offered(base: Resolution[], target: Target): Resolution[];
 	/**
-	 * Whether a non-pollutant entry type can be an overlay on a pollutant layer (fetched for the
-	 * main layer's places at its detail). Absent: none can.
+	 * Whether a non-pollutant entry type can be an overlay on the main layer (fetched for the main
+	 * layer's places at its detail). Absent: none can.
 	 */
 	overlays?: (entry: EntryTypeMeta) => boolean;
 	fetch(req: AdapterRequest, ctx: AdapterContext, signal: AbortSignal): Promise<QueryData>;

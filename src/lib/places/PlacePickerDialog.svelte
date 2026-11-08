@@ -146,7 +146,7 @@
 		}
 	}
 
-	/** The data with the pollutant layer's places swapped for `point`. */
+	/** The data with the main layer's places swapped for `point`. */
 	function withPoint(data: WidgetDataConfig, layer: Layer, point: PointPlace): WidgetDataConfig {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
 		const { place, selection, ...rest } = layer;

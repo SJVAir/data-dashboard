@@ -11,24 +11,33 @@ function show() {
 	return render(Toggletip, { label: "About smoke", text: TEXT });
 }
 
+/** The visible popover (not the sr-only live region, which holds the same text). */
+const content = () => document.querySelector<HTMLElement>("[data-slot=popover-content]");
+
+async function expectOpen() {
+	await expect.poll(content).not.toBeNull();
+	await expect.element(content()!).toBeVisible();
+	await expect.element(content()!).toHaveTextContent(TEXT);
+}
+
 test("opens with Enter and closes with Escape, focus stays on the button", async () => {
 	show();
 	const button = page.getByRole("button", { name: "About smoke" });
 	(button.element() as HTMLElement).focus();
 	await userEvent.keyboard("{Enter}");
-	await expect.element(page.getByText(TEXT).first()).toBeVisible();
+	await expectOpen();
 	expect(document.activeElement).toBe(button.element());
 	await userEvent.keyboard("{Escape}");
-	await expect.poll(() => page.getByText(TEXT).first().elements().length).toBe(0);
+	await expect.poll(content).toBeNull();
 	expect(document.activeElement).toBe(button.element());
 });
 
 test("opens on click and closes on outside click", async () => {
 	show();
 	await page.getByRole("button", { name: "About smoke" }).click();
-	await expect.element(page.getByText(TEXT).first()).toBeVisible();
+	await expectOpen();
 	await userEvent.click(document.body);
-	await expect.poll(() => page.getByText(TEXT).first().elements().length).toBe(0);
+	await expect.poll(content).toBeNull();
 });
 
 test("its text is announced", async () => {
@@ -46,13 +55,12 @@ test("hover opens it, it stays while the pointer is on it, Escape closes it", as
 	show();
 	const button = page.getByRole("button", { name: "About smoke" });
 	await button.hover();
-	await expect.element(page.getByText(TEXT).first()).toBeVisible();
-	const content = document.querySelector("[data-slot=popover-content]") as HTMLElement;
-	await userEvent.hover(content);
+	await expectOpen();
+	await userEvent.hover(content()!);
 	await new Promise((r) => setTimeout(r, 600));
-	expect(document.querySelector("[data-slot=popover-content]")).not.toBeNull();
+	expect(content()).not.toBeNull();
 	await userEvent.keyboard("{Escape}");
-	await expect.poll(() => document.querySelector("[data-slot=popover-content]")).toBeNull();
+	await expect.poll(content).toBeNull();
 });
 
 test("the button is at least 24 px", async () => {

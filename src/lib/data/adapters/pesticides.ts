@@ -6,7 +6,13 @@ import {
 } from "@sjvair/sdk";
 import { todayPacific } from "$lib/format";
 import { nextPeriodStart, periodStart, type ResolvedRange } from "$lib/format/range";
-import { FilterGone, filterLabels, filterSummary, resetPesticideMeta } from "../pesticide-meta";
+import {
+	codesKnown,
+	FilterGone,
+	filterLabels,
+	filterSummary,
+	resetPesticideMeta
+} from "../pesticide-meta";
 import { untilAborted } from "../metadata";
 import type { PesticideFilters } from "../schema";
 import type { PlaceInfo, QueryData, Series, SeriesPoint } from "../types";
@@ -200,8 +206,8 @@ async function fetchPesticides(
 /**
  * Reported agricultural pesticide use per place (DPR PUR): monthly totals from the server's
  * `months`, yearly totals from its `years` (undated records sit only in year rows), narrowed by
- * the layer's own filters. A saved chemical, commodity or product that the server no longer has
- * makes the layer unavailable. The totals are sums (the catalog's `aggregate`).
+ * the layer's own filters. A saved chemical, commodity or product that the server no longer has,
+ * or a saved code its pesticide meta no longer lists, makes the layer unavailable. The totals are sums (the catalog's `aggregate`).
  */
 export const pesticidesAdapter: DatasetAdapter = {
 	id: DATASET,
@@ -211,7 +217,12 @@ export const pesticidesAdapter: DatasetAdapter = {
 		if (target.kind === "all") return { unavailable: "place-unsupported" };
 		if (layer.filters) {
 			try {
-				await filterLabels(layer.filters);
+				const [, known] = await Promise.all([
+					filterLabels(layer.filters),
+					codesKnown(layer.filters)
+				]);
+				// A category, cancer group, method or narrowing the server no longer lists.
+				if (!known) return { unavailable: "filter-gone" };
 			} catch (error) {
 				if (error instanceof FilterGone) return { unavailable: "filter-gone" };
 				// Any other failure surfaces, with Retry, when the data is fetched.

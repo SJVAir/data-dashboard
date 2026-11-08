@@ -107,9 +107,11 @@ export class DataWidget {
 			const main = this.picked.input;
 			if (!main) return [];
 			const state = query.state;
-			// A number overlay is pinned to the main data's resolution, so it waits for it.
+			// A number overlay is pinned to the main data's resolution, so it waits for it: while
+			// the main loads, and when it failed or is unavailable (nothing is drawn, so nothing is
+			// fetched).
 			const data = "data" in state ? state.data : undefined;
-			const waiting = state.status === "loading" && !data;
+			const waiting = !data;
 			const resolution = data?.resolution;
 			return layers.map((l) =>
 				waiting && layerKind(l, this.catalog) === "number"
