@@ -1,4 +1,5 @@
 import type { DatasetAdapter } from "$lib/data/adapters/registry";
+import { drawsAsBands } from "$lib/data/adapters/bands";
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Target } from "$lib/data/types";
@@ -9,7 +10,15 @@ import { blockedBySpan } from "./date-presets";
 export type OfferedDataset = {
 	dataset: CatalogEntry;
 	entryTypes: EntryTypeMeta[];
-	/** The non-pollutant entry types offered as overlays (their adapter says they fit). */
+	/**
+	 * The entry types that can stand alone (and be added as further layers): the number entry
+	 * types of a dataset with no pollutants (weather, pesticide use).
+	 */
+	layerTypes: EntryTypeMeta[];
+	/**
+	 * The other non-pollutant entry types offered as overlays (their adapter says they fit): level
+	 * layers such as burn status and smoke, which can't stand alone.
+	 */
 	overlayTypes: EntryTypeMeta[];
 };
 
@@ -39,10 +48,12 @@ export function offeredDatasets(
 				e.available !== false &&
 				(adapter.offered?.(e.resolutions, stand).length ?? 1) > 0
 		);
+		const standAlone = !entryTypes.some((e) => e.kind === "pollutant") && !drawsAsBands(dataset.id);
+		const layerTypes = standAlone ? entryTypes : [];
 		const overlayTypes = entryTypes.filter(
-			(e) => e.kind !== "pollutant" && (adapter.overlays?.(e) ?? false)
+			(e) => e.kind !== "pollutant" && !standAlone && (adapter.overlays?.(e) ?? false)
 		);
-		offered.push({ dataset, entryTypes, overlayTypes });
+		offered.push({ dataset, entryTypes, layerTypes, overlayTypes });
 	}
 	return offered;
 }

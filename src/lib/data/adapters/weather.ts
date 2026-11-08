@@ -1,5 +1,6 @@
 import { getWeatherStationsForPlace } from "@sjvair/sdk";
 import { untilAborted, type CatalogEntry } from "../metadata";
+import type { Layer } from "../schema";
 import type { PlaceInfo, QueryData, Series } from "../types";
 import { summarySeries } from "./air-quality";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
@@ -67,6 +68,27 @@ export function stationChoice(
 	saved: string | undefined
 ): WeatherStation | undefined {
 	return list.find((s) => s.id === saved) ?? list[0];
+}
+
+/**
+ * The stations Get data's station choice lists for a layer's one place: those of the first
+ * candidate that has any (a school or point falls back through its regions, as the fetch does).
+ * None for several places, for no place, or for a place that can't be looked up.
+ */
+export async function layerStations(
+	layer: Pick<Layer, "dataset" | "place" | "selection">,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<WeatherStation[]> {
+	const target = await layerTarget(layer as Layer, ctx, signal);
+	if ("unavailable" in target) return [];
+	const groups = await placeCandidates(target, ctx, signal);
+	if (groups.length !== 1) return [];
+	for (const candidate of groups[0]) {
+		const list = await stationsFor(candidate.ref, signal);
+		if (list.length > 0) return list;
+	}
+	return [];
 }
 
 async function aggregateOf(
