@@ -1346,10 +1346,11 @@ The checklist below is the whole step's scope.
   merged into `release/5.0.0`** ([monitor-map #126](https://github.com/SJVAir/monitor-map/pull/126),
   2026-11-06); `main` is unchanged until go-live day (sjvair.com builds `main`). ✅ On map-sdk
   `0.1.0-beta.2` (#127) and ✅ `0.1.0-beta.3` with the plugin-effect workaround reverted (#128,
-  2026-11-07). The user's parity verdicts are given (2026-11-07). **Open, waiting on the user's
-  merge:** [#129](https://github.com/SJVAir/monitor-map/pull/129) pins map-sdk `0.1.0-beta.4`
-  (the four verdict defaults, checked on the rerun comparison page; spec updated) and
-  [#130](https://github.com/SJVAir/monitor-map/pull/130) bumps to `5.0.0-beta.0` (after #129).
+  2026-11-07). The user's parity verdicts are given (2026-11-07). ✅ On map-sdk `0.1.0-beta.4` (#129,
+  e77139f, 2026-11-08: the four verdict defaults, checked on the rerun comparison page; spec
+  updated). **Open:** [#130](https://github.com/SJVAir/monitor-map/pull/130) bumps to
+  `5.0.0-beta.0`; it waits for map-sdk `0.1.0-beta.5` (the smoke in-view fix, the user's call
+  2026-11-08), then re-pins and rechecks the smoke row.
   Then the `5.0.0-beta.0` pre-release for mobile (the user's yes).
 - The mobile migration is a separate later track (see `DEFERRED.md`).
 - The Map widget: map feature clicking (method A), synced both ways with the step 4 shared
