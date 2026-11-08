@@ -1229,12 +1229,15 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    `e2e/get-data.spec.ts`. Stack check against `develop` (local forecasts start 2026-10-20, so
    October 2026, not January): Fresno County PM2.5 with burn status, ZIP 93702 reads "ZIP
    93702", and the CSV has the overlay rows. Its deferrals are in `DEFERRED.md`.
-   3b. **Get data layers** (added by the user 2026-11-05) ✅ built 2026-11-07, PR into `step-4`
-   pending: `@sjvair/sdk` `5.0.0-beta.6`, and the layers for weather (nearest CIMIS station, with
+   3b. **Get data layers** (added by the user 2026-11-05) ✅ built 2026-11-07, merged into `step-4`
+   2026-11-08 ([#43](https://github.com/SJVAir/data-dashboard/pull/43), 8641480): `@sjvair/sdk` `5.0.0-beta.6`, and the layers for weather (nearest CIMIS station, with
    a station choice), smoke per day, and monthly and yearly pesticide use (per-layer filters);
    number layers in strips under the chart and on their own; "Show values" with a "?"; the CSV's
    `source_id`, `source_name`, `filters` and `aggregate`. E2E in `e2e/get-data.spec.ts`; initial bundle
-   199.7 KB of the 200 KB soft budget. Its deferrals are in `DEFERRED.md`.
+   199.7 KB of the 200 KB soft budget. Its deferrals are in `DEFERRED.md`. Before merge (2026-11-08)
+   the user approved the new strings after a copy review (smoke help, "Filters", "no recent data",
+   message keys renamed to match their text), accepted plan decision 3 (weather has no "Every
+   measurement") and the build's calls, and a pesticide search overlap bug was fixed.
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
 5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
 6. Notes and the starter dashboard.
