@@ -1321,8 +1321,9 @@ The checklist below is the whole step's scope.
     and 5.57.3) stopped `ctx.effect`s created inside a host's effect; plugin setup now runs in a
     microtask, outside the caller's code. Hosts wait with `await tick()`, not `flushSync()`, and
     `ready` waits for queued setups. Proven with monitor-map's repro: Ozone 0 monitor layers on
-    beta.2, 18 (= PM2.5) with the fix. ✅ On npm as `0.1.0-beta.3` (`next`) 2026-11-08, through `release.yml` (map-sdk #14). monitor-map's workaround (#126) stays until the user decides. Next for map-sdk: the four
-    queued defaults from monitor-map's parity review.
+    beta.2, 18 (= PM2.5) with the fix. ✅ On npm as `0.1.0-beta.3` (`next`) 2026-11-08, through
+    `release.yml` (map-sdk #14). monitor-map's workaround (#126) stays until the user decides.
+    Next for map-sdk: the four queued defaults from monitor-map's parity review.
   - **✅ First publish 2026-11-05:** `@sjvair/map-sdk@0.1.0-beta.1` on npm (`next`; npm also
     points `latest` at it, as the only release), published by hand by the user after the release
     prep PR ([map-sdk #6](https://github.com/SJVAir/map-sdk/pull/6): version, `prepack` build,
