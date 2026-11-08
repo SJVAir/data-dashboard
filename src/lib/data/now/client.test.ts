@@ -6,7 +6,7 @@ const NOW = new Date("2026-10-22T19:10:00Z");
 
 function source(overrides: Partial<NowSource<number>> = {}) {
 	let n = 0;
-	const fetch = vi.fn(async (_signal: AbortSignal) => ++n);
+	const fetch = vi.fn(async () => ++n);
 	const src: NowSource<number> = { key: "a", cadence: "raw", fetch, ...overrides };
 	return { src, fetch };
 }
