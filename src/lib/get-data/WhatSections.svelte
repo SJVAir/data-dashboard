@@ -3,6 +3,7 @@
 	import { Accordion } from "bits-ui";
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import type { PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
+	import Toggletip from "$lib/components/Toggletip.svelte";
 	import { layerKind } from "$lib/data/layer-kind";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
@@ -18,6 +19,8 @@
 	import type { OfferedDataset } from "./offer";
 	import PesticideLayers from "./PesticideLayers.svelte";
 	import StationChoice from "./StationChoice.svelte";
+
+	const SMOKE = "hms-smoke";
 
 	let {
 		sections,
@@ -135,8 +138,22 @@
 				</Accordion.Trigger>
 			</Accordion.Header>
 			<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
-				{#if section.dataset.description}
-					<p class="text-muted-foreground text-xs">{section.dataset.description}</p>
+				{#if section.dataset.description || id === SMOKE || id === PESTICIDES}
+					<div class="flex items-start gap-1">
+						{#if section.dataset.description}
+							<p class="text-muted-foreground flex-1 text-xs">{section.dataset.description}</p>
+						{:else}
+							<span class="flex-1"></span>
+						{/if}
+						{#if id === SMOKE}
+							<Toggletip label={m.get_data_smoke_help_label()} text={m.get_data_smoke_help()} />
+						{:else if id === PESTICIDES}
+							<Toggletip
+								label={m.get_data_pesticide_help_label()}
+								text={m.get_data_pesticide_help()}
+							/>
+						{/if}
+					</div>
 				{/if}
 				{#if pollutants.length}
 					{@const addBlocked = !pollutant && atCap}

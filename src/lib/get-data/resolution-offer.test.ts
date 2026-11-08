@@ -31,6 +31,18 @@ const blocked = (choices: ReturnType<typeof detailChoices>, level: string) =>
 	choices?.find((c) => c.level === level)?.blocked;
 
 describe("detailChoices", () => {
+	test("pesticides offer Monthly and Yearly only", () => {
+		const levels = detailChoices(entry(["month", "year"]), days(400), 1, undefined, NOW);
+		expect(levels?.map((c) => c.level)).toEqual(["auto", "month", "year"]);
+	});
+
+	test("Yearly is offered when the entry type has it", () => {
+		const has = detailChoices(entry(["day", "year"]), days(7), 1, undefined, NOW);
+		expect(has?.map((c) => c.level)).toContain("year");
+		const lacks = detailChoices(entry(["day"]), days(7), 1, undefined, NOW);
+		expect(lacks?.map((c) => c.level)).not.toContain("year");
+	});
+
 	test("a pinned type hides the control", () => {
 		expect(detailChoices(ALL, days(30), 1, "day", NOW)).toBeNull();
 	});
@@ -41,7 +53,8 @@ describe("detailChoices", () => {
 			"raw",
 			"hour",
 			"day",
-			"month"
+			"month",
+			"year"
 		]);
 		expect(
 			detailChoices(entry(["hour", "day"]), days(7), 1, undefined, NOW)?.map((c) => c.level)

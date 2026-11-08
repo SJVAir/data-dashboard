@@ -7,8 +7,8 @@ export type DetailChoice = {
 	blocked: "too-many-points" | null;
 };
 
-/** The levels "Detail" lists, finest first (when the entry type offers them). */
-const LEVELS = ["raw", "hour", "day", "month"] as const;
+/** The levels "Show values" lists, finest first (when the entry type offers them). */
+const LEVELS = ["raw", "hour", "day", "month", "year"] as const;
 
 /**
  * The most points (places × periods) a preview is asked to draw. No level has a range cap of
@@ -22,11 +22,12 @@ const PER_DAY: Record<(typeof LEVELS)[number], number> = {
 	raw: 720,
 	hour: 24,
 	day: 1,
-	month: 1 / 30
+	month: 1 / 30,
+	year: 1 / 365
 };
 
 /**
- * The "Detail" choices for the main layer over `range` at `places` places: Automatic, then each
+ * The "Show values" choices for the main layer over `range` at `places` places: Automatic, then each
  * level the entry type offers, greyed when the point budget rules it out.
  * `null` when the widget type pins its resolution (the control is hidden).
  */

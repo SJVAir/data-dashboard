@@ -431,6 +431,18 @@ test("Detail hides for a pinned type; Every measurement is disabled over 90 days
 	}
 });
 
+test('More options shows "Show values" with a help button', async () => {
+	const { host } = await show(monitorsDraft(["m1"]));
+	await page.getByRole("button", { name: "More options" }).click();
+	await expect.element(page.getByText(m.get_data_detail(), { exact: true })).toBeVisible();
+	expect(m.get_data_detail()).toBe("Show values");
+	const help = page.getByRole("button", { name: m.get_data_show_values_help_label() });
+	await expect.element(help).toBeVisible();
+	await help.click();
+	await expect.element(page.getByText(m.get_data_show_values_help())).toBeVisible();
+	host.remove();
+});
+
 test("keyboard: the date list, accordion and Show as work without a mouse", async () => {
 	const { host } = await show(monitorsDraft(["m1"]));
 	await drawn(host);
