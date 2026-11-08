@@ -1916,12 +1916,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
-- **The shared-page "fullscreen then Escape goes back" test can flake on `history.length`.**
-  _Noted 2026-11-05 (step 4 spec 3 final fix)._ `src/routes/shared-page.browser.test.ts` asserts
-  `history.length`, but Chromium caps it at 50 and the browser test files share one tab, so
-  spec 3's extra navigations push it past the cap now and then (50 vs 51); it passes alone and on
-  a rerun. **Revisit when** it flakes in CI, or when touching that test: assert on the router's
-  state instead of `history.length`.
 - **"The live region is polite and announces" flakes under full-suite load.** _Noted 2026-11-05
   (step 4 spec 2 final checks)._ `src/lib/components/dashboard/dashboard.browser.test.ts`
   checks the region is still empty two animation frames after a repeated `announce`, assuming
@@ -1930,6 +1924,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   passes alone (3/3). Neither the test nor the announcer changed in spec 2; the suite just grew.
   **Revisit when** it flakes in CI, or when touching the announcer: assert against the gap with
   fake timers instead of frames.
+- **Two more browser tests flake under full-suite load.** _Noted 2026-11-08 (step 4 spec 3b)._
+  Each failed once in six back-to-back local `npm run test` runs and passed in the rest; neither
+  file changed in spec 3b:
+  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a keyboard resize animates the
+    frame's size, not under reduced motion": the 200 ms width animation can finish before the
+    poll first sees it (0 animations, not 1).
+  - `src/lib/components/a11y/live-region.browser.test.ts`, "a toast shown just before its dialog
+    closes is read once, from the page": the page region was still empty when checked.
+
+  **Revisit when** either flakes in CI, or when touching that test: check the animation is
+  started with a paused or longer-running animation, and wait on the announcement rather than a
+  fixed moment.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.

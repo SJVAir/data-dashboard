@@ -271,9 +271,10 @@ async function show(initial: Draft = defaultDraft()) {
 	return { screen, host, platform, current, targets };
 }
 
+/** The preview's canvas appears. The first test pays for loading the chart code, so it waits longer. */
 async function drawn(host: HTMLElement) {
 	await expect
-		.poll(() => host.querySelector("[data-testid=get-data-preview] canvas"))
+		.poll(() => host.querySelector("[data-testid=get-data-preview] canvas"), { timeout: 5000 })
 		.not.toBeNull();
 }
 
