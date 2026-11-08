@@ -1209,7 +1209,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   become non-blank, or before map-sdk 1.0.
 
 - **map-sdk: plugin effects added from inside a host `$effect` can stop.** _Deferred 2026-11-05
-  (the user; map-sdk #7)._ monitor-map found that a plugin's `ctx.effect` can stop re-running for
+  (the user; map-sdk #7)._ **✅ Fixed 2026-11-07 ([map-sdk
+  #13](https://github.com/SJVAir/map-sdk/pull/13), merged b1ca49b):** plugin setup runs in a
+  microtask, and `ready` waits for it; proven with `c-reset3.mjs` (Ozone 0 monitor layers on
+  beta.2, 18 = PM2.5 with the fix). Not yet on npm: it ships in the next beta when the user says.
+  monitor-map's workaround (#126) stays until the user decides. monitor-map found that a plugin's `ctx.effect` can stop re-running for
   good when the host adds the plugin from inside its own `$effect`. The cause: map-sdk's
   `plugin-host` creates the effect's `$effect.root` under whatever effect is active, and Svelte
   detaches that root when the host's effect re-runs. It reproduces in monitor-map (Svelte 5.57.0
@@ -1224,13 +1228,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `ctx.effect`s provide. **Fix approved (the user, 2026-11-07):** map-sdk sets plugins up in a
   microtask, outside the caller's code (spec and plan
   `docs/superpowers/{specs,plans}/2026-11-07-plugin-setup-outside-effects*` in map-sdk). A
-  host-owned effect was tried and fails the same way. Revisit: mark fixed when the map-sdk PR
-  merges.
+  host-owned effect was tried and fails the same way.
 - **map-sdk: report the Svelte root-detach bug upstream.** _Deferred 2026-11-07 (the user)._ A
   Svelte playground repro of the bug above: two `$effect.root`s created in one `$effect`, that
   effect re-runs, one update dirties both, then an update to the second alone never runs it. The
   20-line client-test version exists (untracked, in
-  `map-sdk/.worktrees/plugin-setup/.superpowers/c2-repro/svelte-repro/`, with a `README.md`), plus
+  `map-sdk/.superpowers/c2-repro/svelte-repro/`, gitignored, with a `README.md`), plus
   the versions (5.57.0, 5.57.3) and the lines involved
   (`destroy_effect_children` keeps `next`; `Batch#traverse` climbs past the root). Why deferred:
   filing on Svelte's GitHub is public and needs the user's yes. Revisit: when the user says to
