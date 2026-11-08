@@ -16,6 +16,7 @@ import { registerWidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
 import { currentType } from "$lib/widgets/current";
 import { forecastType } from "$lib/widgets/forecast";
+import { outsideType } from "$lib/widgets/outside";
 import { dataTableType } from "$lib/widgets/table";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
@@ -376,6 +377,7 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	registerWidgetType(chartType);
 	registerWidgetType(currentType);
 	registerWidgetType(forecastType);
+	registerWidgetType(outsideType);
 	registerWidgetType(dataTableType);
 	// The space is whoever is signed in, known once the identity has started.
 	platform.identity.start();

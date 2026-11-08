@@ -40,7 +40,7 @@ function dayOf(value: string): string {
 }
 
 /** The source key for a resolved target; never a point's coordinates. */
-function targetKey(target: Target): string {
+export function targetKey(target: Target): string {
 	switch (target.kind) {
 		case "monitors":
 			return `monitors:${target.ids.join(",")}`;

@@ -996,5 +996,12 @@
 	"forecast_zone": "Forecast for {zone}",
 	"forecast_zone_nearest": "Forecast for {zone} (nearest zone)",
 	"forecast_none_yet": "Today's forecast isn't out yet",
-	"forecast_none_here": "No forecast for this place"
+	"forecast_none_here": "No forecast for this place",
+	"widget_outside_title": "Can we go outside?",
+	"outside_heat_today": "Heat today",
+	"outside_heat_highest": "Highest in {place} (ZIP {zip})",
+	"outside_heat_unavailable": "No heat score today",
+	"outside_no_guidance": "No guidance for this level",
+	"outside_no_pm25": "No PM2.5 data for this place",
+	"outside_source": "Source: {name}"
 }
