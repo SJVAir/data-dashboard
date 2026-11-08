@@ -694,6 +694,35 @@ test("a slow search's results never replace a newer one's", async () => {
 	expect(page.getByRole("option", { name: /Chlorpyrifos/ }).elements()).toHaveLength(0);
 });
 
+test("a long result list scrolls; its rows keep their full height and never overlap", async () => {
+	fake.hits = {
+		results: Array.from({ length: 25 }, (_, i) => ({
+			id: `c${i}`,
+			name:
+				i === 3 ? "Benzyldiethyl [(2,6-xylylcarbamoyl)methyl] ammonium saccharide" : `Chem ${i}`,
+			detail: `CDPR chem code ${i}`,
+			placeholder: false
+		})),
+		more: true
+	};
+	await show(withLayers(["m1"], { ...POUNDS }));
+	await openSection(/^Pesticide Use/);
+	await page.getByRole("button", { name: "Filters" }).click();
+	await page.getByRole("combobox", { name: "Chemical" }).click();
+	await userEvent.keyboard("ch");
+	await expect.element(page.getByRole("option", { name: /Chem 0/ })).toBeVisible();
+	const rows = page
+		.getByRole("option")
+		.elements()
+		.filter((el) => el.closest("[role=listbox]"));
+	expect(rows).toHaveLength(25);
+	for (const row of rows) expect(row.clientHeight).toBeGreaterThanOrEqual(row.scrollHeight);
+	for (let i = 1; i < rows.length; i++) {
+		const above = rows[i - 1].getBoundingClientRect();
+		expect(rows[i].getBoundingClientRect().top).toBeGreaterThanOrEqual(above.bottom - 0.5);
+	}
+});
+
 test("smoke alone disables Add with the reason", async () => {
 	const draft: Draft = {
 		type: "chart",

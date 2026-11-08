@@ -137,7 +137,7 @@
 					<Combobox.Item
 						value={hit.id}
 						label={hit.name}
-						class="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-8 cursor-default flex-col justify-center rounded-(--radius-control) px-2 py-1 text-sm"
+						class="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-8 shrink-0 cursor-default flex-col justify-center rounded-(--radius-control) px-2 py-1 text-sm"
 					>
 						<span>{hit.name}</span>
 						{#if hit.detail}
