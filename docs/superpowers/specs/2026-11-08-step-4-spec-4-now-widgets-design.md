@@ -1,6 +1,6 @@
 # Release 1, step 4, spec 4: the "now" widgets and self-monitoring thresholds
 
-Status: brainstormed with the user 2026-11-08; awaiting the user's approval. Branch `step-4-spec-4`
+Status: approved by the user 2026-11-08 (brainstormed the same day). Branch `step-4-spec-4`
 from `origin/step-4`; the PR goes into `step-4` (the user's yes needed to merge).
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
