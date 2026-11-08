@@ -1,0 +1,300 @@
+{
+	"data": {
+		"place": {
+			"region": {
+				"type": "county",
+				"external_id": "06019",
+				"name": "Fresno County"
+			}
+		},
+		"months": [
+			{
+				"year": 2025,
+				"month": 1,
+				"pounds": 1510000.5,
+				"acres": 500000.5,
+				"applications": 20100
+			},
+			{
+				"year": 2025,
+				"month": 2,
+				"pounds": 1520000.5,
+				"acres": 500000.5,
+				"applications": 20200
+			},
+			{
+				"year": 2025,
+				"month": 3,
+				"pounds": 1530000.5,
+				"acres": 500000.5,
+				"applications": 20300
+			},
+			{
+				"year": 2025,
+				"month": 4,
+				"pounds": 1540000.5,
+				"acres": 500000.5,
+				"applications": 20400
+			},
+			{
+				"year": 2025,
+				"month": 5,
+				"pounds": 1550000.5,
+				"acres": 500000.5,
+				"applications": 20500
+			},
+			{
+				"year": 2025,
+				"month": 6,
+				"pounds": 1560000.5,
+				"acres": 500000.5,
+				"applications": 20600
+			},
+			{
+				"year": 2025,
+				"month": 7,
+				"pounds": 1570000.5,
+				"acres": 500000.5,
+				"applications": 20700
+			},
+			{
+				"year": 2025,
+				"month": 8,
+				"pounds": 1580000.5,
+				"acres": 500000.5,
+				"applications": 20800
+			},
+			{
+				"year": 2025,
+				"month": 9,
+				"pounds": 1590000.5,
+				"acres": 500000.5,
+				"applications": 20900
+			},
+			{
+				"year": 2025,
+				"month": 10,
+				"pounds": 1600000.5,
+				"acres": 500000.5,
+				"applications": 21000
+			},
+			{
+				"year": 2025,
+				"month": 11,
+				"pounds": 1610000.5,
+				"acres": 500000.5,
+				"applications": 21100
+			},
+			{
+				"year": 2025,
+				"month": 12,
+				"pounds": 1620000.5,
+				"acres": 500000.5,
+				"applications": 21200
+			},
+			{
+				"year": 2026,
+				"month": 1,
+				"pounds": 1510000.5,
+				"acres": 500000.5,
+				"applications": 20100
+			},
+			{
+				"year": 2026,
+				"month": 2,
+				"pounds": 1520000.5,
+				"acres": 500000.5,
+				"applications": 20200
+			},
+			{
+				"year": 2026,
+				"month": 3,
+				"pounds": 1530000.5,
+				"acres": 500000.5,
+				"applications": 20300
+			},
+			{
+				"year": 2026,
+				"month": 4,
+				"pounds": 1540000.5,
+				"acres": 500000.5,
+				"applications": 20400
+			},
+			{
+				"year": 2026,
+				"month": 5,
+				"pounds": 1550000.5,
+				"acres": 500000.5,
+				"applications": 20500
+			},
+			{
+				"year": 2026,
+				"month": 6,
+				"pounds": 1560000.5,
+				"acres": 500000.5,
+				"applications": 20600
+			},
+			{
+				"year": 2026,
+				"month": 7,
+				"pounds": 1570000.5,
+				"acres": 500000.5,
+				"applications": 20700
+			},
+			{
+				"year": 2026,
+				"month": 8,
+				"pounds": 1580000.5,
+				"acres": 500000.5,
+				"applications": 20800
+			},
+			{
+				"year": 2026,
+				"month": 9,
+				"pounds": 1590000.5,
+				"acres": 500000.5,
+				"applications": 20900
+			},
+			{
+				"year": 2026,
+				"month": 10,
+				"pounds": 1600000.5,
+				"acres": 500000.5,
+				"applications": 21000
+			},
+			{
+				"year": 2026,
+				"month": 11,
+				"pounds": 1610000.5,
+				"acres": 500000.5,
+				"applications": 21100
+			},
+			{
+				"year": 2026,
+				"month": 12,
+				"pounds": 1620000.5,
+				"acres": 500000.5,
+				"applications": 21200
+			},
+			{
+				"year": 2027,
+				"month": 1,
+				"pounds": 1510000.5,
+				"acres": 500000.5,
+				"applications": 20100
+			},
+			{
+				"year": 2027,
+				"month": 2,
+				"pounds": 1520000.5,
+				"acres": 500000.5,
+				"applications": 20200
+			},
+			{
+				"year": 2027,
+				"month": 3,
+				"pounds": 1530000.5,
+				"acres": 500000.5,
+				"applications": 20300
+			},
+			{
+				"year": 2027,
+				"month": 4,
+				"pounds": 1540000.5,
+				"acres": 500000.5,
+				"applications": 20400
+			},
+			{
+				"year": 2027,
+				"month": 5,
+				"pounds": 1550000.5,
+				"acres": 500000.5,
+				"applications": 20500
+			},
+			{
+				"year": 2027,
+				"month": 6,
+				"pounds": 1560000.5,
+				"acres": 500000.5,
+				"applications": 20600
+			},
+			{
+				"year": 2027,
+				"month": 7,
+				"pounds": 1570000.5,
+				"acres": 500000.5,
+				"applications": 20700
+			},
+			{
+				"year": 2027,
+				"month": 8,
+				"pounds": 1580000.5,
+				"acres": 500000.5,
+				"applications": 20800
+			},
+			{
+				"year": 2027,
+				"month": 9,
+				"pounds": 1590000.5,
+				"acres": 500000.5,
+				"applications": 20900
+			},
+			{
+				"year": 2027,
+				"month": 10,
+				"pounds": 1600000.5,
+				"acres": 500000.5,
+				"applications": 21000
+			},
+			{
+				"year": 2027,
+				"month": 11,
+				"pounds": 1610000.5,
+				"acres": 500000.5,
+				"applications": 21100
+			},
+			{
+				"year": 2027,
+				"month": 12,
+				"pounds": 1620000.5,
+				"acres": 500000.5,
+				"applications": 21200
+			}
+		],
+		"years": [
+			{
+				"year": 2025,
+				"pounds": 18780006.0,
+				"acres": 6000000.0,
+				"applications": 250000,
+				"undated": {
+					"pounds": 0.0,
+					"acres": 0.0,
+					"applications": 0
+				}
+			},
+			{
+				"year": 2026,
+				"pounds": 18780006.0,
+				"acres": 6000000.0,
+				"applications": 250000,
+				"undated": {
+					"pounds": 0.0,
+					"acres": 0.0,
+					"applications": 0
+				}
+			},
+			{
+				"year": 2027,
+				"pounds": 18780006.0,
+				"acres": 6000000.0,
+				"applications": 250000,
+				"undated": {
+					"pounds": 0.0,
+					"acres": 0.0,
+					"applications": 0
+				}
+			}
+		]
+	}
+}

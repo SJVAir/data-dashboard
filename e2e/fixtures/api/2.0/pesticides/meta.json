@@ -1,0 +1,142 @@
+{
+	"data": {
+		"categories": [
+			{
+				"key": "biopesticide",
+				"label": "Biopesticide",
+				"description": "A biopesticide comes from natural materials such as bacteria, minerals, or plant extracts. They are generally lower-toxicity to people than conventional pesticides, though not always harmless.",
+				"in_use": false
+			},
+			{
+				"key": "california_restricted",
+				"label": "California Restricted Material",
+				"description": "An active ingredient California restricts because of its hazard to people or the environment. Applying one needs a permit from the county agricultural commissioner and a notice of intent before each application, which is why these show up in SprayDays.",
+				"in_use": true
+			},
+			{
+				"key": "carcinogen",
+				"label": "Carcinogen",
+				"description": "California lists this chemical as known to cause cancer, birth defects, or other reproductive harm. Being on the list means the state has evidence of a hazard, not that any particular exposure will hurt you.",
+				"in_use": true
+			},
+			{
+				"key": "cholinesterase_inhibitor",
+				"label": "Cholinesterase Inhibitor",
+				"description": "This chemical works by blocking an enzyme the nervous system needs, in insects and in people. Farmworkers who handle it are required to have regular blood tests.",
+				"in_use": false
+			},
+			{
+				"key": "developmental_toxin",
+				"label": "Developmental Toxin",
+				"description": "California lists this chemical as known to cause cancer, birth defects, or other reproductive harm. Being on the list means the state has evidence of a hazard, not that any particular exposure will hurt you.",
+				"in_use": true
+			},
+			{
+				"key": "fumigant",
+				"label": "Fumigant",
+				"description": "A fumigant is applied to soil or stored crops and becomes a gas that can drift beyond the field. Fumigant applications need extra setbacks and buffer zones, and they are the notices SprayDays publishes 48 hours ahead.",
+				"in_use": true
+			},
+			{
+				"key": "groundwater_contaminant",
+				"label": "Groundwater Contaminant",
+				"description": "This chemical has been found in California groundwater or can reach it, so the state restricts where and how it is used to protect drinking-water wells.",
+				"in_use": false
+			},
+			{
+				"key": "oil",
+				"label": "Oil",
+				"description": "Petroleum or plant oils used to smother insects and mites. They are low in toxicity to people, but they are counted by weight, so they often top the pounds-applied lists.",
+				"in_use": false
+			},
+			{
+				"key": "reproductive_toxin",
+				"label": "Reproductive Toxin",
+				"description": "California lists this chemical as known to cause cancer, birth defects, or other reproductive harm. Being on the list means the state has evidence of a hazard, not that any particular exposure will hurt you.",
+				"in_use": true
+			},
+			{
+				"key": "toxic_air_contaminant",
+				"label": "Toxic Air Contaminant",
+				"description": "The California Air Resources Board lists this chemical as an air pollutant that may cause serious illness. Pesticides on the list get extra monitoring and rules when they are sprayed.",
+				"in_use": true
+			}
+		],
+		"iarc_groups": [
+			{
+				"key": "1",
+				"label": "Group 1",
+				"description": "Carcinogenic to humans"
+			},
+			{
+				"key": "2A",
+				"label": "Group 2A",
+				"description": "Probably carcinogenic to humans"
+			},
+			{
+				"key": "2B",
+				"label": "Group 2B",
+				"description": "Possibly carcinogenic to humans"
+			},
+			{
+				"key": "3",
+				"label": "Group 3",
+				"description": "Not classifiable as to carcinogenicity"
+			}
+		],
+		"methods": [
+			{
+				"key": "G",
+				"label": "Ground"
+			},
+			{
+				"key": "A",
+				"label": "Air"
+			},
+			{
+				"key": "F",
+				"label": "Field fumigation"
+			},
+			{
+				"key": "O",
+				"label": "Other"
+			},
+			{
+				"key": "none",
+				"label": "Not reported"
+			}
+		],
+		"narrows": [
+			{
+				"key": "concern",
+				"label": "Flagged chemicals",
+				"description": "Chemicals on a Prop 65 list (carcinogen, reproductive or developmental toxin), CARB's Toxic Air Contaminants, California's restricted materials, or IARC groups 1, 2A and 2B."
+			},
+			{
+				"key": "restricted",
+				"label": "Restricted materials",
+				"description": "Products California restricts (CDPR's per-product restricted-material flag, or a restricted ingredient when CDPR does not list the product). A property of the product, unlike category=california_restricted."
+			},
+			{
+				"key": "fumigant",
+				"label": "Fumigants",
+				"description": "Products classified as fumigants. A property of the product, unlike category=fumigant."
+			},
+			{
+				"key": "aerial",
+				"label": "Applied by air",
+				"description": "Applications reported as made by aircraft (CDPR's application method A)"
+			}
+		],
+		"placeholder_chemicals": [
+			{
+				"id": "8vagt",
+				"name": "AI IS CONFIDENTIAL"
+			},
+			{
+				"id": "srqhc",
+				"name": "UNKNOWN"
+			}
+		]
+	}
+}

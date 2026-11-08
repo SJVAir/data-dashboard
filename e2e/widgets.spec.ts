@@ -15,7 +15,7 @@ const CHART = "Chart of Fresno County";
 const CSV_HEADER =
 	"period_start,period_end,place_kind,place_id,place_name,entry_type,entry_type_label,unit," +
 	"mean,min,max,worst_hour_mean,worst_hour_start,count,resolution,partial,computed_from_raw," +
-	"level_key,level_label";
+	"level_key,level_label,source_id,source_name,filters";
 
 test("a Chart and a Data table: data, readout, CSV, duplicate, reload", async ({ page }) => {
 	await page.goto("./");
