@@ -294,8 +294,7 @@ path inside `CurrentConditions`; until then every place uses `hourlyReading`.
 - Strings (draft English; the user reviews): `widget_current_title` "Current conditions",
   `current_trend_rising` "Rising", `current_trend_falling` "Falling", `current_trend_steady`
   "Steady", `current_minute_average` "{minutes}-minute average", `current_latest_reading` "Latest
-  reading", `current_hourly_average` "Hourly average", `current_updated_minutes` "updated {minutes}
-  min ago", `current_not_available_yet` "Not available yet", `current_no_recent_data` "No recent
+  reading", `current_hourly_average` "Hourly average", `current_source_updated` "{average} · updated {minutes} min ago" (one message, the average label passed in), `current_not_available_yet` "Not available yet", `current_no_recent_data` "No recent
   data", `current_not_enough_readings` "Not enough recent readings", `current_no_data` "No data
   for this place", `current_at_alert_level` "At your alert level", `current_averaging_help` (the
   toggletip: which average and how often it updates).
@@ -304,7 +303,7 @@ path inside `CurrentConditions`; until then every place uses `hourlyReading`.
       `chart-widget.browser.test.ts` does; first wait on the lazy chunk > 1 s): renders "28.4",
       "µg/m³" from metadata units, the Moderate chip text, "Rising", the Moderate guidance, "Hourly
       average · updated 6 min ago"; Good shows no guidance line; each state's text; a mark in
-      `thresholdMarks` shows "At your alert level" and the outline; under emulated reduced motion
+      `thresholdMarks` shows "At your alert level" and the outline; `monitor-unlisted` and a retired region show the shared "no longer available" card; under emulated reduced motion
       there's no pulse animation (`animationsSettled`); axe clean.
 - [ ] **Step 2–4:** FAIL → implement (title generated: "{pollutant} · {place}", via
       `setGeneratedTitle`) → pass.
@@ -355,7 +354,7 @@ export function forecastDaysSource(layer: Layer, ctx: AdapterContext, now: () =>
   reuse if one exists.
 
 - [ ] **Step 1: Failing tests** (unit): latest issue per date wins; days outside today/tomorrow
-      (Pacific) dropped, also with `TZ=America/New_York` at 21:30 Pacific; `Registered` → its
+      (Pacific) dropped, also with `TZ=America/New_York` at 21:30 Pacific; an Air Alert that ended yesterday → `airAlert: null`; `Registered` → its
       level; `"Prohibited"` → `{ text: burn_status_text }`; `air_alert` true with dates →
       `airAlert`; `rule: "center"` → `nearest: true`; a 404 → tries the next fallback key.
       Browser: two rows with chips and labels, the banner, "Issued Sat 1:42 PM", states, axe.
@@ -421,8 +420,7 @@ level); the heat section in a non-shrinking footer, never truncated; the guideli
 - Create: `src/lib/thresholds/watcher.svelte.ts`, `src/lib/thresholds/ThresholdWatcher.svelte`,
   `src/lib/thresholds/told.ts`
 - Modify: `src/lib/components/dashboard/DashboardGrid.svelte` (mount the watcher lazily when any
-  widget has `thresholds`), `src/lib/components/dashboard/Taskbar.svelte` (mark),
-  `src/lib/widgets/shared/data-widget.svelte.ts` is **not** touched; `messages/en.json`
+  widget has `thresholds`), `src/lib/components/dashboard/Taskbar.svelte` (mark), `messages/en.json`
 - Test: `src/lib/thresholds/watcher.browser.test.ts`, `src/lib/thresholds/told.test.ts`,
   `e2e/thresholds.spec.ts`
 
@@ -518,8 +516,7 @@ level); the heat section in a non-shrinking footer, never truncated; the guideli
   (`get_data_now_dropped`) until the next edit.
 - Strings: `get_data_alert_level` "Tell me at {level} or worse" (the select's visible label as
   separate text where needed: `get_data_alert_level_label` "Alert level"), `get_data_alert_off`
-  "Off", `get_data_alert_fell_back` "The saved alert level isn't on this pollutant's scale, so
-  it's Unhealthy-level default for now" (wording to the copy review), `get_data_now_dropped`
+  "Off", `get_data_alert_fell_back` "The saved alert level isn't on this pollutant's scale, so {level} is used instead." (also shown in the tile's settings; wording to the copy review), `get_data_now_dropped`
   "Dates and extra places don't apply to this widget, so they were left out.",
   `get_data_pollutant` "Pollutant".
 
@@ -610,7 +607,7 @@ Start only when the coordinator says beta.7 is published. Show the user the pin 
 
 - Modify: `ARCHITECTURE.md` (the sections listed in the spec's "Docs changed"), `DEFERRED.md`
   (the spec's six deferral bullets: five new entries and the pointer for "No Burning For All"),
-  `TODO.md`/`ROADMAP.md` (step 4 sections only), `prompt`-free; re-read each file right before
+  `TODO.md`/`ROADMAP.md` (step 4 sections only); re-read each file right before
   editing.
 
 - [ ] **Step 1:** Docs edits; `npx prettier --check` on them.
