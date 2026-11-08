@@ -37,7 +37,11 @@ type SummaryRow = {
 	minimum: number;
 	maximum: number;
 	count: number;
+	sum?: number;
+	is_complete?: boolean;
 };
+/** How a summary row is read: `total` reads `sum`, `completeness` marks incomplete rows partial. */
+export type SummaryOptions = { total?: boolean; completeness?: boolean };
 type Bulk = { id: string; summaries: SummaryRow[] };
 type Options = { signal: AbortSignal };
 type PathConfig = { year?: number; month?: number; day?: number };
@@ -74,18 +78,28 @@ const BULK_REGIONS = {
  * is its Pacific period start). A period still open at `now` is `partial`. A missing minimum or
  * maximum falls back to the mean.
  */
-function toPoints(rows: SummaryRow[], res: Period, from: Date, to: Date, now: Date) {
+function toPoints(
+	rows: SummaryRow[],
+	res: Period,
+	from: Date,
+	to: Date,
+	now: Date,
+	opts?: SummaryOptions
+) {
 	const points: SeriesPoint[] = [];
 	for (const row of rows) {
 		const t = Date.parse(row.timestamp);
 		if (!(t >= from.getTime() && t < to.getTime())) continue;
-		if (!Number.isFinite(row.mean) || !Number.isFinite(row.count)) continue;
-		const partial = nextPeriodStart(new Date(t), res).getTime() > now.getTime();
+		const value = opts?.total ? (row.sum as number) : row.mean;
+		if (!Number.isFinite(value) || !Number.isFinite(row.count)) continue;
+		const partial =
+			nextPeriodStart(new Date(t), res).getTime() > now.getTime() ||
+			(!!opts?.completeness && row.is_complete === false);
 		points.push({
 			t,
-			mean: row.mean,
-			min: Number.isFinite(row.minimum) ? row.minimum : row.mean,
-			max: Number.isFinite(row.maximum) ? row.maximum : row.mean,
+			mean: value,
+			min: opts?.total ? value : Number.isFinite(row.minimum) ? row.minimum : value,
+			max: opts?.total ? value : Number.isFinite(row.maximum) ? row.maximum : value,
 			count: row.count,
 			partial
 		});
@@ -131,7 +145,8 @@ export function monitorSummaryTasks(
 	processor: string | null,
 	seg: Segment,
 	now: Date,
-	signal: AbortSignal
+	signal: AbortSignal,
+	opts?: SummaryOptions
 ): FetchTask[] {
 	const res = seg.resolution as Period;
 	const from = periodStart(seg.start, res);
@@ -144,7 +159,7 @@ export function monitorSummaryTasks(
 			...(processor ? { processor } : {})
 		};
 		const rows = await SINGLE[res](config, { signal });
-		return [{ id: monitorId, points: toPoints(rows, res, unit.start, unit.end, now) }];
+		return [{ id: monitorId, points: toPoints(rows, res, unit.start, unit.end, now, opts) }];
 	});
 }
 

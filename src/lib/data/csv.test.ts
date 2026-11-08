@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
+import { fakeAdapter, fakeNumberAdapter } from "$lib/widgets/shared/test-harness/fake-data";
 import { chartWidget } from "$lib/widgets/shared/test-harness/fake-data";
 import type { AdapterRequest, DatasetAdapter } from "./adapters/registry";
 import { CSV_COLUMNS, downloadDataCsv, downloadWidgetCsv, toCsv } from "./csv";
-import type { CatalogEntry, Level, MetadataSource } from "./metadata";
+import { mapDatasetCatalog, type CatalogEntry, type Level, type MetadataSource } from "./metadata";
 import { createQueryClient, type QueryClient } from "./query/client";
+import { PESTICIDE_USE_DATASET } from "./testing/dataset-catalog";
 import { FIXTURE_CATALOG, fixtureMetadata } from "./testing/fixtures";
 import type { PlaceInfo, QueryData, SeriesPoint } from "./types";
 
@@ -381,6 +382,8 @@ describe("downloadDataCsv", () => {
 					resolutions: ["day"],
 					precision: null,
 					yMin: null,
+					chart: null,
+					aggregate: null,
 					available: true
 				}
 			]
@@ -542,5 +545,110 @@ describe("downloadDataCsv", () => {
 		expect(parse(contents)[1][CSV_COLUMNS.indexOf("place_name")]).toBe(
 			"ZIP 93721 (shared location)"
 		);
+	});
+});
+
+describe("toCsv for weather and pesticide layers", () => {
+	const get = (row: string[], c: (typeof CSV_COLUMNS)[number]) => row[CSV_COLUMNS.indexOf(c)];
+	const main = data({
+		series: [{ place: "monitor:a", points: [point("2026-11-01T07:00:00Z")] }],
+		places: [{ place: "monitor:a", name: "A" }]
+	});
+	const layer = (
+		entryType: string,
+		unit: string,
+		place: Partial<PlaceInfo>,
+		resolution: QueryData["resolution"] = "day",
+		aggregate: "sum" | "mean" | null = "sum"
+	) => ({
+		meta: { entryType, entryLabel: entryType, unit, aggregate },
+		levels: [],
+		data: data({
+			resolution,
+			series: [{ place: "monitor:a", points: [point("2026-11-01T07:00:00Z", { mean: 0.4 })] }],
+			places: [{ place: "monitor:a", name: "A", ...place }]
+		})
+	});
+
+	it("the existing columns keep their order", () => {
+		expect(toCsv(main, META).split("\r\n")[0]).toBe(
+			"period_start,period_end,place_kind,place_id,place_name,entry_type,entry_type_label,unit," +
+				"mean,min,max,worst_hour_mean,worst_hour_start,count,resolution,partial," +
+				"computed_from_raw,level_key,level_label,source_id,source_name,filters,aggregate"
+		);
+	});
+
+	it("weather rows carry the station", () => {
+		const weather = layer("precipitation", "in", {
+			source: { id: "80", name: "Fresno State, CIMIS #80", distance: 4.2, inside: false }
+		});
+		const rows = parse(toCsv(main, META, "owner", [weather])).slice(1);
+		expect(get(rows[0], "source_id")).toBe("");
+		expect(get(rows[1], "entry_type")).toBe("precipitation");
+		expect(get(rows[1], "source_id")).toBe("80");
+		expect(get(rows[1], "source_name")).toBe("Fresno State, CIMIS #80");
+		expect(get(rows[1], "mean")).toBe("0.4");
+		expect(get(rows[1], "filters")).toBe("");
+	});
+
+	it("pesticide rows carry their filters", () => {
+		const use = layer("pounds-applied", "lbs", { filters: ["Chlorpyrifos", "Grapes"] }, "month");
+		const rows = parse(toCsv(main, META, "owner", [use])).slice(1);
+		expect(get(rows[1], "filters")).toBe("Chlorpyrifos; Grapes");
+		expect(get(rows[1], "resolution")).toBe("month");
+		// A coarser overlay keeps its own period.
+		expect(get(rows[1], "period_end")).toBe("2026-12-01T00:00:00-08:00");
+		expect(get(rows[1], "source_id")).toBe("");
+	});
+
+	it("each row says whether its value is a total, an average, or neither", () => {
+		const rain = layer("precipitation", "in", {});
+		const temp = layer("air-temperature", "°F", {}, "day", "mean");
+		const wind = layer("wind-direction", "°", {}, "day", null);
+		const csv = toCsv(main, { ...META, aggregate: "mean" }, "owner", [rain, temp, wind]);
+		const rows = parse(csv).slice(1);
+		expect(rows.map((r) => get(r, "aggregate"))).toEqual(["mean", "sum", "mean", ""]);
+		// Appended: it's the last column.
+		expect(CSV_COLUMNS.at(-1)).toBe("aggregate");
+	});
+});
+
+describe("downloadDataCsv for a pesticide-only widget", () => {
+	it("a pesticide-only CSV has no pollutant rows", async () => {
+		const catalog = mapDatasetCatalog({
+			datasets: [PESTICIDE_USE_DATASET]
+		} as Parameters<typeof mapDatasetCatalog>[0]).map((d) => ({ ...d, geographies: ["monitor"] }));
+		fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, ...catalog] });
+		fake.client = createQueryClient({
+			adapters: [
+				fakeAdapter([]),
+				fakeNumberAdapter("pesticide-use", [], {
+					offered: ["month", "year"],
+					values: [1200, 340],
+					filters: ["Grapes"]
+				})
+			],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const saved: string[] = [];
+		await downloadDataCsv(
+			{
+				dateRange: { kind: "trailing", amount: 90, unit: "day" },
+				layers: [
+					{
+						dataset: "pesticide-use",
+						entryType: "pounds-applied",
+						place: { kind: "monitor", id: "m1" }
+					}
+				]
+			},
+			(_n, c) => void saved.push(c)
+		);
+		const rows = parse(saved[0]).slice(1);
+		expect(rows.length).toBeGreaterThan(0);
+		const types = new Set(rows.map((r) => r[CSV_COLUMNS.indexOf("entry_type")]));
+		expect([...types]).toEqual(["pounds-applied"]);
+		expect(rows[0][CSV_COLUMNS.indexOf("filters")]).toBe("Grapes");
 	});
 });

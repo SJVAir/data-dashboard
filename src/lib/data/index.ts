@@ -7,6 +7,9 @@ import {
 	type AdapterContext,
 	type DatasetAdapter
 } from "./adapters/registry";
+import { pesticidesAdapter } from "./adapters/pesticides";
+import { smokeAdapter } from "./adapters/smoke";
+import { weatherAdapter } from "./adapters/weather";
 import { createWebMetadata, type MetadataSource } from "./metadata";
 import { createPlaceRegion, type PlaceRegion } from "./place-region";
 import { createQueryClient, type QueryClient } from "./query/client";
@@ -17,7 +20,13 @@ export function adapterOffers(): Pick<DatasetAdapter, "id" | "overlays">[] {
 	return ADAPTERS;
 }
 
-const ADAPTERS: DatasetAdapter[] = [airQualityAdapter, forecastsAdapter];
+const ADAPTERS: DatasetAdapter[] = [
+	airQualityAdapter,
+	forecastsAdapter,
+	weatherAdapter,
+	smokeAdapter,
+	pesticidesAdapter
+];
 
 let client: QueryClient | undefined;
 let metadata: MetadataSource | undefined;

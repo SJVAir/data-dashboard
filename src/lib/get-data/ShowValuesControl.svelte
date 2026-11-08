@@ -3,6 +3,7 @@
 	import { Collapsible } from "bits-ui";
 	import type { Resolution } from "$lib/data/schema";
 	import { m } from "$lib/paraglide/messages.js";
+	import Toggletip from "$lib/components/Toggletip.svelte";
 	import type { DetailChoice } from "./resolution-offer";
 
 	let {
@@ -18,14 +19,15 @@
 	const uid = $props.id();
 
 	const LABEL: Record<string, () => string> = {
-		auto: () => m.get_data_detail_auto(),
-		raw: () => m.get_data_detail_raw(),
-		hour: () => m.get_data_detail_hour(),
-		day: () => m.get_data_detail_day(),
-		month: () => m.get_data_detail_month()
+		auto: () => m.get_data_show_values_auto(),
+		raw: () => m.get_data_show_values_raw(),
+		hour: () => m.get_data_show_values_hour(),
+		day: () => m.get_data_show_values_day(),
+		month: () => m.get_data_show_values_month(),
+		year: () => m.get_data_show_values_year()
 	};
 	const REASON: Record<NonNullable<DetailChoice["blocked"]>, () => string> = {
-		"too-many-points": () => m.get_data_detail_too_many()
+		"too-many-points": () => m.get_data_show_values_too_many()
 	};
 </script>
 
@@ -43,8 +45,15 @@
 		</Collapsible.Trigger>
 	</h2>
 	<Collapsible.Content>
-		<fieldset class="flex flex-col gap-1 px-1">
-			<legend class="mb-1 text-sm font-medium">{m.get_data_detail()}</legend>
+		<!-- Named by its heading text alone: the help button sits beside it, outside the name. -->
+		<fieldset class="flex flex-col gap-1 px-1" aria-labelledby="{uid}-detail-label">
+			<div class="mb-1 flex items-center gap-1 text-sm font-medium">
+				<span id="{uid}-detail-label">{m.get_data_show_values()}</span>
+				<Toggletip
+					label={m.get_data_show_values_help_label()}
+					text={m.get_data_show_values_help()}
+				/>
+			</div>
 			{#each choices as choice (choice.level)}
 				{@const reasonId = `${uid}-${choice.level}-reason`}
 				<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">

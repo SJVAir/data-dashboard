@@ -1,5 +1,6 @@
+import type { getForecastForPlace } from "@sjvair/sdk";
 import type { Layer } from "../schema";
-import type { Target, UnavailableReason, Via } from "../types";
+import type { PlaceInfo, Target, UnavailableReason, Via } from "../types";
 import type { AdapterContext, RegionResolver, ResolvedRegion } from "./registry";
 
 /** Splits a region key (`<type>:<code>`, the document's region reference) into its parts. */
@@ -111,4 +112,55 @@ export async function layerTarget(
 	const found = await resolveRegionKeys(keys, ctx.regions, signal);
 	if (found.some((r) => r === null)) return { unavailable: "region-unresolved" };
 	return { kind: "regions", keys };
+}
+
+/** What a by-place endpoint takes (the same for forecasts, weather stations and smoke). */
+export type PlaceRef = Parameters<typeof getForecastForPlace>[0];
+
+/** A place asked about: what to ask the server, and the place it names (its series key too). */
+export type Candidate = { ref: PlaceRef; info: PlaceInfo };
+
+/** Whether an SDK error is the server's 404 ("no such region"). */
+export function isNotFound(error: unknown): boolean {
+	const cause = error instanceof Error ? (error.cause as { result?: { status?: number } }) : null;
+	return cause?.result?.status === 404;
+}
+
+function regionRef(key: string): PlaceRef {
+	const { type, code } = splitRegionKey(key);
+	return { region: { type: type as never, external_id: code } };
+}
+
+/**
+ * The places to ask about, each with the server references to try (a fallback has several). A
+ * fallback's first key answers for any region-based by-place endpoint; later keys only stand in for
+ * one the server doesn't know.
+ */
+export async function placeCandidates(
+	target: Target,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<Candidate[][]> {
+	if (target.kind === "monitors") {
+		const monitors = await ctx.metadata.monitors(signal);
+		const names = new Map(monitors.map((m) => [m.id, m.name]));
+		return target.ids.map((id) => [
+			{ ref: { monitor: id }, info: { place: `monitor:${id}`, name: names.get(id) ?? id } }
+		]);
+	}
+	if (target.kind === "all") return [];
+	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);
+	const named = target.keys.map((key, i): Candidate => {
+		const region = found[i];
+		if (region === null) throw new Error(`Region ${key} can't be looked up`);
+		return {
+			ref: regionRef(key),
+			info: {
+				place: regionPlace(key),
+				name: region.name,
+				...(region.retired && { retired: region.retired })
+			}
+		};
+	});
+	return target.kind === "fallback" ? [named] : named.map((c) => [c]);
 }

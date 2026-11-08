@@ -46,6 +46,8 @@ export async function loadDevCatalog(): Promise<CatalogEntry[]> {
 				resolutions,
 				precision: null,
 				yMin: null,
+				chart: null,
+				aggregate: "mean",
 				available: true
 			})),
 			geographies: ["monitor", "region"]

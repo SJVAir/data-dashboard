@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Component } from "svelte";
-import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
+import { pesticidesAdapter } from "$lib/data/adapters/pesticides";
+import { smokeAdapter } from "$lib/data/adapters/smoke";
+import { weatherAdapter } from "$lib/data/adapters/weather";
+import { mapDatasetCatalog, type CatalogEntry, type EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
+import {
+	PESTICIDE_USE_DATASET,
+	SDK_DATASET_CATALOG,
+	WEATHER_DATASET
+} from "$lib/data/testing/dataset-catalog";
 import type { WidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
 import { dataTableType } from "$lib/widgets/table";
@@ -18,6 +26,8 @@ function entryType(id: string, extra: Partial<EntryTypeMeta> = {}): EntryTypeMet
 		resolutions: ["hour"],
 		precision: null,
 		yMin: null,
+		chart: null,
+		aggregate: null,
 		...extra
 	};
 }
@@ -33,7 +43,7 @@ const CATALOG: CatalogEntry[] = [
 		entryType("temp", { kind: "meteorological" })
 	]),
 	dataset("forecasts", [entryType("pm25")]),
-	dataset("hms-smoke", [entryType("smoke")])
+	dataset("census", [entryType("people")])
 ];
 
 function type(extra: Partial<WidgetType> = {}): WidgetType {
@@ -74,11 +84,11 @@ describe("offeredDatasets", () => {
 		expect(withIt).toEqual(["air-quality", "forecasts"]);
 	});
 
-	it("hms-smoke is not offered", () => {
-		const ids = offeredDatasets(CATALOG, adapters(["air-quality", "forecasts", "hms-smoke"]), [
+	it("a dataset the types do not accept is not offered", () => {
+		const ids = offeredDatasets(CATALOG, adapters(["air-quality", "forecasts", "census"]), [
 			chartType
 		]).map((o) => o.dataset.id);
-		expect(ids).not.toContain("hms-smoke");
+		expect(ids).not.toContain("census");
 	});
 
 	it("an unavailable entry type is left out", () => {
@@ -116,6 +126,46 @@ describe("offeredDatasets", () => {
 	});
 });
 
+describe("offeredDatasets: layers that stand alone", () => {
+	const catalog: CatalogEntry[] = [
+		...mapDatasetCatalog({
+			...SDK_DATASET_CATALOG,
+			datasets: [WEATHER_DATASET, PESTICIDE_USE_DATASET]
+		}),
+		dataset("hms-smoke", [entryType("smoke-density", { kind: "other", resolutions: ["day"] })])
+	];
+	const offers = [weatherAdapter, smokeAdapter, pesticidesAdapter];
+	const byId = (id: string) =>
+		offeredDatasets(catalog, offers, [chartType]).find((o) => o.dataset.id === id)!;
+	const ids = (list: EntryTypeMeta[]) => list.map((e) => e.id);
+
+	it("weather offers its summary types only", () => {
+		const weather = byId("weather");
+		expect(ids(weather.layerTypes)).toEqual(["eto", "precipitation", "temperature"]);
+		expect(ids(weather.entryTypes)).not.toContain("winddirection");
+		expect(weather.overlayTypes).toEqual([]);
+	});
+
+	it("pesticide use offers three layer types", () => {
+		expect(ids(byId("pesticide-use").layerTypes)).toEqual([
+			"pounds-applied",
+			"acres-treated",
+			"applications"
+		]);
+	});
+
+	it("smoke is an overlay only", () => {
+		const smoke = byId("hms-smoke");
+		expect(smoke.layerTypes).toEqual([]);
+		expect(ids(smoke.overlayTypes)).toEqual(["smoke-density"]);
+	});
+
+	it("a dataset with pollutants offers no stand-alone layers", () => {
+		const [air] = offeredDatasets(CATALOG, adapters(["air-quality"]), [chartType]);
+		expect(air.layerTypes).toEqual([]);
+	});
+});
+
 describe("typeBlock", () => {
 	const data = (extra: Partial<WidgetDataConfig> = {}): WidgetDataConfig => ({
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
@@ -136,7 +186,7 @@ describe("typeBlock", () => {
 	});
 
 	it("a dataset the type doesn't accept blocks it", () => {
-		const d = data({ layers: [{ dataset: "hms-smoke", entryType: "smoke" }] });
+		const d = data({ layers: [{ dataset: "census", entryType: "people" }] });
 		expect(typeBlock(chartType, d, CATALOG, NOW)).toBe("dataset");
 	});
 

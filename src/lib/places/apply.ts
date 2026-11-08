@@ -1,6 +1,6 @@
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { Layer, WidgetDataConfig } from "$lib/data/schema";
-import { pollutantLayer } from "$lib/widgets/shared/input";
+import { mainLayer } from "$lib/widgets/shared/input";
 import { fromLayer, toLayerPlaces, type Picks } from "./selection";
 import { sameRef, type PointPlace } from "./types";
 
@@ -24,7 +24,8 @@ function same(a: Picks, b: Picks): boolean {
  * The widget's new data for `picks`, or null when unchanged. Points become their region when the
  * dashboard has a live link (`regionOf` finds it; none, or a failed lookup, rejects with
  * `RegionLookupFailed`, and an abort rejects with the abort). The layer changed is the widget's
- * pollutant layer (`pollutantLayer`, read with `catalog` when given).
+ * main layer (`mainLayer`, read with `catalog` when given): its pollutant, else its first number
+ * layer.
  */
 export async function pickedData(
 	data: WidgetDataConfig,
@@ -38,7 +39,7 @@ export async function pickedData(
 	data: WidgetDataConfig;
 	savedAsRegion: { type: string; code: string } | null;
 } | null> {
-	const layer = pollutantLayer(data, opts.catalog);
+	const layer = mainLayer(data, opts.catalog);
 	if (!layer || picks.length === 0) return null;
 	let next = picks;
 	let savedAsRegion: { type: string; code: string } | null = null;

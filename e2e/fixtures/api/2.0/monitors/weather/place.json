@@ -1,0 +1,69 @@
+{
+	"data": {
+		"place": {
+			"region": {
+				"type": "county",
+				"external_id": "06019",
+				"name": "Fresno County"
+			}
+		},
+		"stations": [
+			{
+				"id": "I3wADR9bR-2hfub3h3nsJA",
+				"name": "CIMIS #80 - Fresno State",
+				"type": "cimis",
+				"device": "CIMIS Weather Station",
+				"grade": null,
+				"is_active": true,
+				"is_sjvair": false,
+				"position": {
+					"type": "Point",
+					"coordinates": [-119.74231, 36.820833]
+				},
+				"last_active_limit": 10800,
+				"location": "outside",
+				"county": "Fresno",
+				"data_source": {
+					"name": "CIMIS",
+					"url": "https://cimis.water.ca.gov/"
+				},
+				"data_providers": [
+					{
+						"name": "California Department of Water Resources",
+						"url": "https://water.ca.gov"
+					}
+				],
+				"distance": 0.0,
+				"inside": true
+			},
+			{
+				"id": "NXxE9W0QRfWZjOFlocNgJA",
+				"name": "CIMIS #15 - Stratford",
+				"type": "cimis",
+				"device": "CIMIS Weather Station",
+				"grade": null,
+				"is_active": true,
+				"is_sjvair": false,
+				"position": {
+					"type": "Point",
+					"coordinates": [-119.85143, 36.157972]
+				},
+				"last_active_limit": 10800,
+				"location": "outside",
+				"county": "Kings",
+				"data_source": {
+					"name": "CIMIS",
+					"url": "https://cimis.water.ca.gov/"
+				},
+				"data_providers": [
+					{
+						"name": "California Department of Water Resources",
+						"url": "https://water.ca.gov"
+					}
+				],
+				"distance": 6.2,
+				"inside": false
+			}
+		]
+	}
+}

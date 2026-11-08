@@ -5,6 +5,10 @@ const TIME_ZONE = "America/Los_Angeles";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SUMMARIES = /\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\/(hourly|daily)\/$/;
 
+/** One monitor's summaries by month (daily) or day (hourly): `monitors/<id>/summaries/<entry>/…`. */
+const MONITOR_SUMMARIES =
+	/\/api\/2\.0\/monitors\/([A-Za-z0-9_-]+)\/summaries\/([a-z0-9-]+)\/(hourly|daily)\/(\d{4})\/(\d{1,2})(?:\/(\d{1,2}))?\/$/;
+
 /** A made-up but steady reading for the period starting at `t`, so reloads show the same data. */
 function reading(t: number): number {
 	return 6 + ((t / 3_600_000) % 29);
@@ -34,6 +38,39 @@ function periods(start: string, end: string, hourly: boolean): TZDate[] {
  * depends on the query (the dates and places).
  */
 export async function routeSummaries(context: BrowserContext): Promise<void> {
+	// A single monitor's summaries (a weather station's), a month or a day at a time.
+	await context.route(
+		(url) => MONITOR_SUMMARIES.test(url.pathname),
+		async (route) => {
+			const url = new URL(route.request().url());
+			const [, , entryType, resolution, year, month, day] = MONITOR_SUMMARIES.exec(url.pathname)!;
+			const hourly = resolution === "hourly";
+			const pad = (n: string) => n.padStart(2, "0");
+			const first = `${year}-${pad(month)}-${pad(day ?? "1")}`;
+			const last = day
+				? first
+				: `${year}-${pad(month)}-${new Date(Date.UTC(+year, +month, 0)).getUTCDate()}`;
+			const data = periods(first, last, hourly).map((p) => {
+				const mean = reading(p.getTime());
+				return {
+					timestamp: p.toISOString(),
+					entry_type: entryType,
+					resolution: hourly ? "hour" : "day",
+					count: hourly ? 1 : 24,
+					expected_count: hourly ? 1 : 24,
+					is_complete: true,
+					minimum: mean - 2,
+					maximum: mean + 2,
+					mean,
+					stddev: 1,
+					p25: mean - 1,
+					p75: mean + 1,
+					sum: mean * (hourly ? 1 : 24)
+				};
+			});
+			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
 	await context.route(
 		(url) => SUMMARIES.test(url.pathname),
 		async (route) => {

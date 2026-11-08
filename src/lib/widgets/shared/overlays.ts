@@ -1,10 +1,16 @@
 import type { CatalogEntry } from "$lib/data/metadata";
-import { PlaceRefSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
+import { layerKind } from "$lib/data/layer-kind";
+import {
+	PlaceRefSchema,
+	type Layer,
+	type Resolution,
+	type WidgetDataConfig
+} from "$lib/data/schema";
 import type { PlaceInfo, QueryInput, Series } from "$lib/data/types";
 import type { Picks } from "$lib/places/selection";
 import { sameRef } from "$lib/places/types";
 import { z } from "$lib/zod";
-import { pollutantLayer } from "./input";
+import { mainLayer } from "./input";
 
 /** A Chart or Data table shows at most this many overlays (for readability). */
 export const MAX_OVERLAYS = 2;
@@ -14,22 +20,31 @@ export function overlayLayers(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined
 ): Layer[] {
-	const main = pollutantLayer(data, catalog);
+	const main = mainLayer(data, catalog);
 	return data.layers.filter((l) => l !== main && l.entryType).slice(0, MAX_OVERLAYS);
 }
 
 /**
- * What an overlay asks for: its own dataset and entry type at the main layer's places (overlays
- * store none), over the main's date range and sub-range. No worst hour or pin: those are about
- * the main layer's values.
+ * What an overlay asks for: its own dataset, entry type, station and filters at the main layer's
+ * places (overlays store none), over the main's date range and sub-range. No worst hour: that is
+ * about the main layer's values. A number overlay is pinned to `mainResolution` (the resolution
+ * the main data came back at), so the two line up; the overlay's own `resolution` is dropped. A
+ * level overlay is not pinned.
  */
-export function overlayInput(main: QueryInput, overlay: Layer): QueryInput {
+export function overlayInput(
+	main: QueryInput,
+	overlay: Layer,
+	mainResolution: Resolution | undefined,
+	catalog: CatalogEntry[] | undefined
+): QueryInput {
 	const layer: Layer = { dataset: overlay.dataset, entryType: overlay.entryType };
-	if (overlay.resolution) layer.resolution = overlay.resolution;
+	if (overlay.station) layer.station = overlay.station;
+	if (overlay.filters) layer.filters = overlay.filters;
 	if (main.layer.place) layer.place = main.layer.place;
 	if (main.layer.selection) layer.selection = main.layer.selection;
 	const input: QueryInput = { layer, dateRange: main.dateRange };
 	if (main.timeSubRange) input.timeSubRange = main.timeSubRange;
+	if (mainResolution && layerKind(overlay, catalog) === "number") input.pin = mainResolution;
 	return input;
 }
 

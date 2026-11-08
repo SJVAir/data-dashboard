@@ -212,7 +212,9 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			resolution,
 			downsampleFromRaw,
 			range: keyRange(input.dateRange, range),
-			worstHour
+			worstHour,
+			station: layer.station,
+			filters: layer.filters
 		});
 		return {
 			key,
@@ -227,7 +229,9 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 				worstHour,
 				range,
 				offered,
-				now: at
+				now: at,
+				...(layer.station && { station: layer.station }),
+				...(layer.filters && { filters: layer.filters })
 			}
 		};
 	}

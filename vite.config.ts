@@ -87,7 +87,7 @@ const BARRELED = [
 	// bits-ui's barrel reaches every primitive, so all of them count as the app chunk's. These,
 	// and the helpers only they use, are used by lazy code alone (Get data); left in the group,
 	// they'd be bundled into the app chunk.
-	...["accordion", "alert-dialog", "collapsible", "select", "toggle-group"].map(
+	...["accordion", "alert-dialog", "collapsible", "combobox", "select", "toggle-group"].map(
 		(bit) => `/node_modules/bits-ui/dist/bits/${bit}/`
 	),
 	"/node_modules/bits-ui/dist/bits/utilities/hidden-input.svelte",

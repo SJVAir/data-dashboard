@@ -10,7 +10,13 @@
 	import { adapterOffers, getMetadata } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import { LIMITS, type DateRangeSpec, type Layer, type Resolution } from "$lib/data/schema";
+	import {
+		LIMITS,
+		type DateRangeSpec,
+		type Layer,
+		type PesticideFilters,
+		type Resolution
+	} from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
@@ -20,13 +26,14 @@
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { dataTypes, getWidgetType } from "$lib/widgets/registry";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
-	import { entryMeta, pollutantLayer } from "$lib/widgets/shared/input";
+	import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
 	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
+	import * as layers from "./layers";
 	import { placeLabel } from "$lib/widgets/title";
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
-	import DetailControl from "./DetailControl.svelte";
+	import ShowValuesControl from "./ShowValuesControl.svelte";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import { offeredDatasets, typeBlock } from "./offer";
@@ -90,14 +97,11 @@
 
 	const type = $derived(getWidgetType(plain.type));
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
-	const main = $derived(pollutantLayer(plain.data, known));
+	const main = $derived(mainLayer(plain.data, known));
 	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
 	const picks = $derived(main ? fromLayer(main) : []);
-	const overlayPicks = $derived(
-		plain.data.layers
-			.filter((l, i) => i !== mainIndex && l.entryType)
-			.map((l) => ({ dataset: l.dataset, entryType: l.entryType! }))
-	);
+	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
+	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
 	const sections = $derived(
 		known
@@ -113,7 +117,14 @@
 	const choices = $derived.by(() => {
 		const meta = entryMeta(known, main);
 		if (!meta) return null;
-		return detailChoices(meta.entryType, range, picks.length, type?.resolution, now);
+		return detailChoices(
+			meta.dataset.id,
+			meta.entryType,
+			range,
+			picks.length,
+			type?.resolution,
+			now
+		);
 	});
 
 	// A detail level the range or places can no longer serve goes back to Automatic.
@@ -203,8 +214,8 @@
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
 
-	// Edits. The main layer is always there (a pollutant, required); overlays follow it.
-	function mainLayer(): Layer | undefined {
+	// Edits. The main layer holds the places and the level; overlays follow it (see `layers.ts`).
+	function mainDraftLayer(): Layer | undefined {
 		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
 	}
 
@@ -213,39 +224,40 @@
 	}
 
 	function setPlaces(next: Picks): void {
-		const layer = mainLayer();
+		const layer = mainDraftLayer();
 		if (!layer) return;
 		delete layer.place;
 		delete layer.selection;
 		Object.assign(layer, toLayerPlaces(next));
+		layers.dropStationOnPlaceChange(draft.data);
 	}
 
-	function setMain(pick: { dataset: string; entryType: string }): void {
-		const layer = mainLayer();
-		if (!layer) return;
-		layer.dataset = pick.dataset;
-		layer.entryType = pick.entryType;
-		// A detail level the new entry type doesn't offer goes back to Automatic.
-		const offered = entryMeta(known, layer)?.entryType.resolutions ?? [];
-		if (layer.resolution && layer.resolution !== "auto" && !offered.includes(layer.resolution)) {
-			delete layer.resolution;
-		}
+	function setPollutant(pick: layers.EntryPick | null): void {
+		layers.setPollutant(draft.data, known, pick);
 	}
 
-	function toggleOverlay(pick: { dataset: string; entryType: string }, on: boolean): void {
-		const layers = draft.data.layers;
-		const at = layers.findIndex(
-			(l, i) => i !== mainIndex && l.dataset === pick.dataset && l.entryType === pick.entryType
-		);
-		if (on && at < 0 && overlayPicks.length < MAX_OVERLAYS) {
-			layers.push({ dataset: pick.dataset, entryType: pick.entryType });
-		} else if (!on && at >= 0) {
-			layers.splice(at, 1);
-		}
+	function toggleLayer(pick: layers.EntryPick, on: boolean): void {
+		layers.toggleLayer(draft.data, known, pick, on);
+	}
+
+	function addPesticideLayer(entryType: string): void {
+		layers.addPesticideLayer(draft.data, known, entryType);
+	}
+
+	function removeLayer(index: number): void {
+		layers.removeLayer(draft.data, known, index);
+	}
+
+	function setFilters(index: number, filters: PesticideFilters): void {
+		layers.setFilters(draft.data, index, filters);
+	}
+
+	function setStation(station: string | undefined): void {
+		layers.setStation(draft.data, station);
 	}
 
 	function setDetail(level: "auto" | Resolution): void {
-		const layer = mainLayer();
+		const layer = mainDraftLayer();
 		if (!layer) return;
 		if (level === "auto") delete layer.resolution;
 		else layer.resolution = level;
@@ -307,20 +319,23 @@
 				{:else}
 					<WhatSections
 						{sections}
-						main={main?.entryType
-							? { dataset: main.dataset, entryType: main.entryType }
-							: undefined}
-						overlays={overlayPicks}
+						data={plain.data}
+						catalog={known ?? []}
+						places={picks.length}
 						maxOverlays={MAX_OVERLAYS}
-						onmain={setMain}
-						ontoggle={toggleOverlay}
+						onpollutant={setPollutant}
+						ontoggle={toggleLayer}
+						onaddpesticide={addPesticideLayer}
+						onremove={removeLayer}
+						onfilters={setFilters}
+						onstation={setStation}
 					/>
 				{/if}
 			</section>
 
 			{#if choices}
 				<section>
-					<DetailControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail} />
+					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail} />
 				</section>
 			{/if}
 		</div>
@@ -355,6 +370,7 @@
 	<p role="status" class="sr-only" data-testid="get-data-announcement">{announcement}</p>
 
 	<ActionBar
+		blocked={levelOnly ? m.get_data_level_only() : undefined}
 		downloading={csvPending("get-data")}
 		ondownload={download}
 		oncancel={onCancel}

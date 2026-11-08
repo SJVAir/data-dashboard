@@ -5,7 +5,7 @@ import { formatList, TIME_ZONE } from "$lib/format";
 import { nextPeriodStart, resolveRange } from "$lib/format/range";
 import type { WidgetInstance } from "$lib/documents/schema";
 import type { CatalogEntry, Level } from "./metadata";
-import type { WidgetDataConfig } from "./schema";
+import type { Resolution, WidgetDataConfig } from "./schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { FileAccess } from "$lib/platform/types";
 import { dataFileName } from "$lib/sharing/file-names";
@@ -44,11 +44,23 @@ export const CSV_COLUMNS = [
 	"partial",
 	"computed_from_raw",
 	"level_key",
-	"level_label"
+	"level_label",
+	"source_id",
+	"source_name",
+	"filters",
+	"aggregate"
 ] as const;
 
-/** What the entry type contributes to every row. */
-type EntryInfo = { entryType: string; entryLabel: string; unit: string };
+/**
+ * What the entry type contributes to every row. `aggregate` is the catalog's: `sum` says each
+ * value is its period's total, `mean` its average, and empty that values never roll up.
+ */
+type EntryInfo = {
+	entryType: string;
+	entryLabel: string;
+	unit: string;
+	aggregate?: "sum" | "mean" | null;
+};
 
 /** A Pacific time with its offset: `2026-10-25T00:00:00-07:00`. */
 function pacificIso(t: number): string {
@@ -97,12 +109,17 @@ function dataRows(
 	viewer: PlaceViewer
 ): string[] {
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
+	const own = new Map(data.places.map((p) => [p.place, p]));
 	const series = [...data.series].sort(byPlaceOrder(order));
 	const lines: string[] = [];
 	for (const s of series) {
 		const info = placeAt(s, order.get(s.place) ?? -1);
 		const { kind, id } = placeParts(info?.place ?? s.place);
 		const name = info ? placeLabel(info, viewer) : "";
+		// The series' own place: a weather layer's station and a pesticide layer's filters belong
+		// to it, not to the main place it is reported as.
+		const source = own.get(s.place)?.source;
+		const filters = own.get(s.place)?.filters?.join("; ") ?? "";
 		for (const p of [...s.points].sort((a, b) => a.t - b.t)) {
 			const end =
 				data.resolution === "raw" ? p.t : nextPeriodStart(new Date(p.t), data.resolution).getTime();
@@ -125,7 +142,11 @@ function dataRows(
 				String(p.partial),
 				String(data.fromRaw),
 				p.level ?? "",
-				p.level ? (levels.find((l) => l.key === p.level)?.label ?? "") : ""
+				p.level ? (levels.find((l) => l.key === p.level)?.label ?? "") : "",
+				source?.id ?? "",
+				source?.name ?? "",
+				filters,
+				meta.aggregate ?? ""
 			];
 			lines.push(row.map(cell).join(","));
 		}
@@ -139,7 +160,11 @@ function dataRows(
  * missing value (or NaN) is empty. A raw reading's period ends where it starts. Each overlay's
  * rows follow the main rows, in the same long format with its own entry type; an overlay's
  * places pair with the main's by request index (a point's region can differ by dataset) and
- * carry the main place's columns.
+ * carry the main place's columns. A number overlay coarser than the main (a month's pesticide
+ * use under daily data) keeps its own `period_start`/`period_end` and `resolution`, so it reads as
+ * the whole period's value. A weather overlay's rows carry the station (`source_id`,
+ * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
+ * `aggregate` (last, so no earlier column moves) says whether a value is a total or an average.
  */
 export function toCsv(
 	data: QueryData,
@@ -186,12 +211,13 @@ function firstSettled(input: QueryInput): Promise<QueryState> {
 async function loadOverlay(
 	main: QueryInput,
 	layer: WidgetDataConfig["layers"][number],
-	catalog: CatalogEntry[]
+	catalog: CatalogEntry[],
+	mainResolution: Resolution
 ): Promise<OverlayCsv | null> {
 	try {
 		const info = entryMeta(catalog, layer);
 		if (!info) return null;
-		const state = await firstSettled(overlayInput(main, layer));
+		const state = await firstSettled(overlayInput(main, layer, mainResolution, catalog));
 		if (state.status === "error") throw state.error;
 		if (state.status !== "ready") return null;
 		const levels = await getMetadata().datasetLevels(layer.dataset, info.entryType.id);
@@ -201,7 +227,8 @@ async function loadOverlay(
 			meta: {
 				entryType: info.entryType.id,
 				entryLabel: info.entryType.label,
-				unit: info.entryType.units
+				unit: info.entryType.units,
+				aggregate: info.entryType.aggregate
 			}
 		};
 	} catch (error) {
@@ -236,11 +263,14 @@ export async function downloadDataCsv(
 	const meta: EntryInfo = {
 		entryType: info.entryType.id,
 		entryLabel: info.entryType.label,
-		unit: info.entryType.units
+		unit: info.entryType.units,
+		aggregate: info.entryType.aggregate
 	};
 	const { data } = state;
 	const layers = overlayLayers(config, catalog);
-	const loaded = await Promise.all(layers.map((l) => loadOverlay(input, l, catalog)));
+	const loaded = await Promise.all(
+		layers.map((l) => loadOverlay(input, l, catalog, data.resolution))
+	);
 	const overlays = loaded.filter((o): o is OverlayCsv => o !== null);
 	const skipped = layers.flatMap((l, i) =>
 		loaded[i] ? [] : [entryMeta(catalog, l)?.entryType.label ?? l.entryType ?? l.dataset]

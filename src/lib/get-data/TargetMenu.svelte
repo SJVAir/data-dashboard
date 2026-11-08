@@ -11,6 +11,7 @@
 		selected,
 		others,
 		busy,
+		describedby,
 		onadd
 	}: {
 		/** The button's dashboard. */
@@ -19,6 +20,8 @@
 		others: AddTarget[];
 		/** An add is running: no second one. */
 		busy: boolean;
+		/** The id of why it's disabled, when it is for a reason. */
+		describedby?: string;
 		/** A dashboard's id, or `NEW_DASHBOARD`. */
 		onadd: (targetId: string) => void;
 	} = $props();
@@ -26,7 +29,12 @@
 
 <!-- A split button: "Add to {name}" adds there; the arrow lists the other dashboards. -->
 <div class="flex min-w-0">
-	<Button class="min-w-0 rounded-r-none" disabled={busy} onclick={() => onadd(selected.id)}>
+	<Button
+		class="min-w-0 rounded-r-none"
+		disabled={busy}
+		aria-describedby={describedby}
+		onclick={() => onadd(selected.id)}
+	>
 		<span class="truncate">{m.get_data_add_to({ name: selected.name })}</span>
 	</Button>
 	<DropdownMenu.Root>
@@ -34,6 +42,7 @@
 			class={cn(buttonVariants({ size: "icon" }), "border-l-primary-foreground/30 rounded-l-none")}
 			aria-label={m.get_data_add_other()}
 			disabled={busy}
+			aria-describedby={describedby}
 		>
 			<ChevronDown aria-hidden="true" />
 		</DropdownMenu.Trigger>

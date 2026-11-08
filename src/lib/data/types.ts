@@ -62,6 +62,10 @@ export type PlaceInfo = {
 	retired?: ResolvedRegion["retired"];
 	/** Set when the place is the region a point or a school fell back to. */
 	via?: Via;
+	/** A weather series' station: for the legend and the CSV (`name` stays the place's). */
+	source?: { id: string; name: string; distance: number; inside: boolean };
+	/** A pesticide series' active filters, as labels, for the legend, table header and CSV. */
+	filters?: string[];
 };
 
 export type QueryData = {
@@ -85,7 +89,8 @@ export const UNAVAILABLE_REASONS = [
 	"location-unresolved",
 	"point-outside",
 	"monitor-unlisted",
-	"whole-layer-raw"
+	"whole-layer-raw",
+	"filter-gone"
 ] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 

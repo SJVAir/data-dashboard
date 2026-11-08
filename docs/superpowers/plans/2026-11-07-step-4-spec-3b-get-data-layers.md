@@ -76,9 +76,19 @@ argues from them.
      both.
    - Its only inputs are code facts about what each adapter emits (points with `level`). It keeps
      the SDK out of the initial bundle, since `src/lib/sharing/points.ts` uses the main-layer rule.
-2. **Totals read `sum`:** a weather entry type whose catalog `display.chart` is `"bar"` reads the
-   summary's `sum`, and aggregating it to an open period sums. Every summary row carries `sum`,
-   so the row can't say which it is, and the catalog's bar/line choice is the metadata that does.
+2. **Totals read `sum`, from the catalog's `aggregate` (the user, 2026-11-07; changed from
+   inferring totals from `display.chart`):** each catalog entry type has a required top-level
+   `aggregate: "sum" | "mean" | null` (sjvair.com #318, `@sjvair/sdk` 5.0.0-beta.6), next to
+   `resolutions`, not inside `display`.
+   - `"sum"` (weather precipitation/ETo/ETr, pounds applied, acres treated, applications, spray
+     notices): read the summary's `sum`, and rolling values into an open period sums them.
+   - `"mean"` (pollutants, the other weather entries, TEMPO): read `mean`, and an open period
+     averages.
+   - `null` (wind direction, heat score, AQI forecast, CES score, smoke density, burn status, fire
+     FRP, facility entries, methane emission rate): values never roll up over time.
+   - `display.chart` still picks bars or a line, and nothing else.
+   - Pesticide Yearly still reads the server's `years[]`, because summing months can fall short of
+     a year (undated records sit only in the year rows). Summing is only for an open month.
 3. **Weather offers no "Every measurement":** the adapter offers the catalog's levels minus
    `raw`.
    - CIMIS readings are hourly, so Hourly shows the same values. This also avoids the raw
@@ -139,6 +149,8 @@ argues from them.
 - Produces:
   - `EntryTypeMeta.chart: "line" | "bar" | null`, from the catalog's `display.chart`; unknown
     values → `null`.
+  - `EntryTypeMeta.aggregate: "sum" | "mean" | null`, from the catalog's top-level `aggregate`
+    (decision 2).
   - `MetadataSource.datasetLevels("hms-smoke", "smoke-density")` → levels from
     `getHMSMeta()`'s smoke-density scale, mapped with the existing `mapScaleLevels`.
 - [ ] **Step 1:** `git fetch`, branch `step-4-spec-3b` from `origin/step-4`. Set
@@ -148,6 +160,8 @@ argues from them.
 - [ ] **Step 2: Write failing tests** in `metadata.test.ts`:
   - `maps display.chart onto entry types`: precipitation → `"bar"`, temperature → `"line"`, a
     missing `display` → `null`.
+  - `maps aggregate onto entry types`: precipitation → `"sum"`, temperature → `"mean"`, wind
+    direction → `null`.
   - `hms-smoke levels come from hms meta`: a stubbed `getHMSMeta` with light/medium/heavy → three
     levels in min order, keys `light`/`medium`/`heavy`.
 - [ ] **Step 3:** Implement both.
@@ -318,7 +332,7 @@ argues from them.
   - `the override is ignored with several places`: two places, `station` set → each uses its own
     first station.
   - `an empty station list gives an empty series, not an error`.
-  - `precipitation reads sum, temperature reads mean`: catalog `chart` bar/line.
+  - `precipitation reads sum, temperature reads mean`: catalog `aggregate` sum/mean.
   - `wind direction is not offered`: `offered(["raw"])` → `[]`, so `offeredDatasets` leaves it
     out (assert through `offeredDatasets` with the fixture catalog).
   - `a school uses its ZIP's stations`: a fallback target asks with its first key.

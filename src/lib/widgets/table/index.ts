@@ -16,7 +16,7 @@ export const dataTableType: WidgetType = {
 	analyzable: true,
 	downloadable: true,
 	accepts: {
-		datasets: ["air-quality", "forecasts"],
+		datasets: ["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"],
 		maxPollutantLayers: 1,
 		maxPlaces: 10
 	},

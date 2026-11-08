@@ -9,6 +9,7 @@ import { DEFAULT_RANGE } from "../defaults";
 import { dataTitle } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
 import { chartInput, entryMeta } from "./input";
+import { layerKind } from "$lib/data/layer-kind";
 import { MAX_OVERLAYS, overlayInput, overlayLayers } from "./overlays";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 
@@ -104,7 +105,19 @@ export class DataWidget {
 		const layers = $derived(overlayLayers(widget().data, this.catalog));
 		const inputs = $derived.by(() => {
 			const main = this.picked.input;
-			return main ? layers.map((l) => overlayInput(main, l)) : [];
+			if (!main) return [];
+			const state = query.state;
+			// A number overlay is pinned to the main data's resolution, so it waits for it: while
+			// the main loads, and when it failed or is unavailable (nothing is drawn, so nothing is
+			// fetched).
+			const data = "data" in state ? state.data : undefined;
+			const waiting = !data;
+			const resolution = data?.resolution;
+			return layers.map((l) =>
+				waiting && layerKind(l, this.catalog) === "number"
+					? null
+					: overlayInput(main, l, resolution, this.catalog)
+			);
 		});
 		const client = getQueryClient();
 		for (let i = 0; i < MAX_OVERLAYS; i++) {

@@ -346,7 +346,9 @@ describe("createQueryClient", () => {
 					kind: "other",
 					resolutions: ["day"],
 					precision: null,
-					yMin: null
+					yMin: null,
+					chart: null,
+					aggregate: null
 				}
 			],
 			geographies: []
@@ -397,7 +399,9 @@ describe("createQueryClient", () => {
 					kind: "pollutant",
 					resolutions: ["hour"],
 					precision: null,
-					yMin: null
+					yMin: null,
+					chart: null,
+					aggregate: null
 				}
 			],
 			geographies: []

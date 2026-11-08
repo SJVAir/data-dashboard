@@ -1,5 +1,5 @@
 import type { ResolvedRange } from "$lib/format/range";
-import type { DateRangeSpec, Resolution } from "../schema";
+import type { DateRangeSpec, PesticideFilters, Resolution } from "../schema";
 import type { Target } from "../types";
 
 export type KeyRange = DateRangeSpec | { firstDate: string; lastDate: string };
@@ -49,6 +49,9 @@ export function queryKey(parts: {
 	range: KeyRange;
 	/** Left out of the key unless true. */
 	worstHour?: boolean;
+	/** Left out of the key when absent, so layers saved before these existed keep their keys. */
+	station?: string;
+	filters?: PesticideFilters;
 }): string {
 	const { worstHour, ...rest } = parts;
 	return stableJson({

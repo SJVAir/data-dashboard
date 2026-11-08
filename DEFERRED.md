@@ -1475,42 +1475,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   far) point looks like any other; the readout still says it's incomplete. **Revisit if** five-
   place charts are common, or when the series markers are reviewed.
 
-- **Get data overlays waiting on the "Get data layers" track.** _Deferred 2026-11-05 (step 4
-  spec 3)._ Spec 3 ships one overlay dataset (Air Quality Forecasts: burn status and AQI
-  forecast). The others need server endpoints and SDK functions that the **Get data layers**
-  track (sjvair.com + sdk-js session, started 2026-11-05) is building, in this order; each
-  becomes a layer in Get data in a later change. Don't start a second track for them. One
-  entry each. **Status (2026-11-05, end of day):** all four server PRs (#310–#313) are merged
-  into sjvair.com `develop` (`bd071d24`) and run on the local stack, and the SDK side (sdk-js
-  #51–#54, including `sum`) is merged into `release/5.0.0`. **`@sjvair/sdk` `5.0.0-beta.5` was
-  published 2026-11-05 with all four**, so they wait only on **step 4 spec 3b** (the user,
-  2026-11-05: a new spec right after spec 3 that pins beta.5 and adds these layers). Details:
-  - **Monthly pesticide use.** Server `pesticides/place/` merged into sjvair.com `develop`
-    (#310); SDK `getPesticidesForPlace(place, filters?, options?)` merged into sdk-js
-    `release/5.0.0` (#51). Waits only for the next SDK beta (latest published: 5.0.0-beta.4).
-    Shape: `{place, months: [{year, month, pounds, acres, applications}]` (only months with
-    use), `years: [{…, undated: {…}}]}`; a year's totals include undated use. A cold, large
-    multi-county answer takes about 5 s, then it's cached. A monitor counts through its ZIP
-    (one outside every ZIP gets empty lists). **Revisit in** step 4 spec 3b.
-  - **Nearest weather station.** Server `monitors/weather/place/` (sjvair.com #311); SDK
-    `getWeatherStationsForPlace` and the CIMIS entry type ids (sdk-js #52). Open question
-    for when the layer is built: **which station the chart uses when several are inside the
-    place.** `is_active` uses a 4-hour CIMIS limit, so don't hide a listed inactive station. Raw
-    dewpoint and soil temperature carry `*_f`/`*_c` fields, not `value`. **Revisit in** step 4
-    spec 3b.
-  - **Smoke over a place, per day.** Server `hms/smoke/place/` (sjvair.com #312); SDK
-    `getSmokeForPlace` (sdk-js #53). At most 366 days per request. Caveat: "no smoke" and
-    "never fetched" look the same (a server deferral), so expect false clear days locally.
-    **Revisit in** step 4 spec 3b.
-  - **Weather daily and monthly summaries.** sjvair.com #313; SDK `sum` on monitor summaries
-    (sdk-js #54). CIMIS stations only, monitor-level (no region rows), 11 entry types
-    (not wind direction). Fetch one station at a time (the bulk summaries stay air-quality
-    only). Use `sum` for precipitation, ETo and ETr totals, and judge partial totals from
-    `count` against the hours. Summaries settle late (CIMIS revises yesterday each morning).
-    CIMIS raw timestamps move to the start of the hour in fixed PST, so winter readings move one
-    hour earlier. `rebuild_summaries` writes only finished periods (the user, 2026-11-05), so the
-    open month or year must be built from finer rows (the air-quality adapter's `planSegments`
-    already does this), including `sum` totals. **Revisit in** step 4 spec 3b.
 - **Air monitors' temperature and humidity as Get data overlays.** _Deferred 2026-11-05 (step 4
   spec 3)._ They stay unsummarized on the server (raw readings only), so the weather summaries
   work (CIMIS stations only) doesn't bring them. **Revisit if** the server summarizes them, or a
@@ -1519,10 +1483,33 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2026-11-05 (step 4 spec 3)._ None has a per-place time series today: TEMPO isn't in the SDK,
   and emissions are yearly snapshots. **Revisit when** a widget needs one of them, or the Map
   widget (fires) is built.
-- **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3)._ Get data needs a pollutant
-  main layer, so a widget or CSV of only an overlay (say, no-burn days alone) can't be made.
-  **Revisit when** someone asks for it, or when the weather or smoke layers land (a
-  temperature-only chart is the likely first case).
+- **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3); updated 2026-11-07 (step 4
+  spec 3b)._ Number layers (a temperature-only chart, pesticide use alone) are done in spec 3b.
+  Level layers alone (smoke days, no-burn days) still can't make a widget or a CSV: the reason
+  shows. **Revisit with** spec 5's day-colored calendar.
+- **Wind direction in Get data.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
+  compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
+  summarizes it (a prevailing direction), or someone asks for a wind rose.
+- **"Every measurement" for weather.** _Deferred 2026-11-07 (step 4 spec 3b)._ Weather offers
+  no raw level: "Show values" lists Hourly and coarser, and the raw CIMIS readings (with their
+  dew point and soil temperature `*_f`/`*_c` fields) aren't offered. CIMIS readings are hourly,
+  so Hourly shows the same values, and raw rows carry no `value`. A small narrowing of the spec
+  ("read the °F field when Every measurement is chosen"). **Revisit if** someone asks for the
+  raw CIMIS readings, or the server adds `value` to them.
+- **Pesticide breakdowns** ("top chemicals, products or crops here", by method, biggest
+  movers). _Deferred 2026-11-07 (step 4 spec 3b)._ Needs a ranked-list widget and a server
+  breakdown endpoint. **Revisit when** a later step adds ranked-list widgets, or users ask.
+- **The school "within about a mile" pesticide block, and buffer or radius.** _Deferred
+  2026-11-07 (step 4 spec 3b)._ Server-side deferrals (the coordinator records them). The
+  dashboard side (a school uses its ZIP, then city, then county) **revisits when** the server
+  adds a location place.
+- **A note on when pesticide data is released.** _Deferred 2026-11-07 (step 4 spec 3b)._ A
+  neutral note in the dataset's catalog description (server text), offered and not taken.
+  **Revisit if** people ask why recent months are empty.
+- **Choosing a weather station per place or per layer.** _Deferred 2026-11-07 (step 4 spec
+  3b)._ One station per Weather section, and the choice shows only for one place (rain from two
+  stations, or a station for each of several places, can't be asked for). **Revisit if**
+  researchers ask to compare stations.
 - **One chart row per place (small multiples) for overlays.** _Deferred 2026-11-05 (step 4 spec
   3)._ When a Chart's places fall in different forecast zones, the Chart's "Overlay for" choice
   picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
@@ -1574,6 +1561,42 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     repeats `DashboardPage.svelte`'s fetch-a-server-only-dashboard steps and its not-found
     markup (`src/routes/GetData.svelte`), so the two can drift. **Revisit when** those files
     are next touched (the duplication first: a shared helper and not-found component).
+- **Get data layers review leftovers.** _Deferred 2026-11-07 (step 4 spec 3b, final review)._
+  Small things the review let stay, each rare or harmless today:
+  - **With the catalog down, `mainLayer` falls back to the first layer with an entry type,**
+    which can be a level layer, so the place picker could write places onto an overlay.
+    **Revisit with** the next place-picker change.
+  - **The weather station fallback from ZIP to city is untested** (when the first region key
+    has no stations). **Revisit at** the next weather adapter change.
+  - **Smoke chunks are fetched with `Promise.all`** (not `runLimited`), and a 404 on one chunk
+    drops that place's whole smoke series. **Revisit if** multi-year smoke ranges become common
+    or users report missing smoke.
+  - **Pesticide filter labels are fetched in the same `Promise.all` as the data,** so a
+    transient meta failure fails the fetch (Retry), and an id removed mid-session can loop on
+    Retry instead of showing "filter gone". **Revisit if** seen.
+  - **The last covered pesticide month is marked complete** even when coverage ends mid-month.
+    **Revisit when** coverage stops being month-aligned.
+  - **Main-chart month bars are centred on the month's start,** while strip bars span
+    `[start, next)`, and a strip's value axis counts points outside the visible range.
+    **Revisit in** the next chart design pass.
+  - **The pesticide empty text is keyed on the dataset id** in `ChartWidget` and `DataTable`.
+    **Revisit when** a second dataset needs its own empty text (then the adapter supplies it).
+  - **The category checkbox at `CATEGORIES_MAX` is disabled without a visible reason**
+    (unreachable today: 6 categories are in use). **Revisit if** the server has more than 10
+    in-use categories.
+  - **Pesticide layer rows are keyed by index:** after Remove, a neighbour's open "Filters"
+    and typed query shift rows. **Revisit if** layers get stable ids, or users report it.
+  - **The filter search shows an empty input when a saved id's name lookup fails** (the layer
+    itself shows "filter gone"). **Revisit with** the next picker change.
+  - **The Data table's note for an unavailable number overlay doesn't name the layer** (it reads
+    "A filter this widget uses is no longer available."), so with two number overlays it's
+    unclear which one it means. The Chart shows it in that layer's own strip. **Revisit with**
+    the next Data table change, or if users report it.
+  - **Missing `layers.ts` unit tests** for removing a middle layer, and for removing the
+    pollutant when the next number layer is a pesticide layer. **Add with** the next
+    `layers.ts` change.
+  - **No smoke e2e coverage:** the `hms` fixtures are there, but the e2e catalog has no
+    `hms-smoke`. **Revisit at** the next smoke change.
 
 ## Alerts
 
@@ -1893,12 +1916,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
-- **The shared-page "fullscreen then Escape goes back" test can flake on `history.length`.**
-  _Noted 2026-11-05 (step 4 spec 3 final fix)._ `src/routes/shared-page.browser.test.ts` asserts
-  `history.length`, but Chromium caps it at 50 and the browser test files share one tab, so
-  spec 3's extra navigations push it past the cap now and then (50 vs 51); it passes alone and on
-  a rerun. **Revisit when** it flakes in CI, or when touching that test: assert on the router's
-  state instead of `history.length`.
 - **"The live region is polite and announces" flakes under full-suite load.** _Noted 2026-11-05
   (step 4 spec 2 final checks)._ `src/lib/components/dashboard/dashboard.browser.test.ts`
   checks the region is still empty two animation frames after a repeated `announce`, assuming
@@ -1907,6 +1924,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   passes alone (3/3). Neither the test nor the announcer changed in spec 2; the suite just grew.
   **Revisit when** it flakes in CI, or when touching the announcer: assert against the gap with
   fake timers instead of frames.
+- **Two more browser tests flake under full-suite load.** _Noted 2026-11-08 (step 4 spec 3b)._
+  Each failed once in six back-to-back local `npm run test` runs and passed in the rest; neither
+  file changed in spec 3b:
+  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a keyboard resize animates the
+    frame's size, not under reduced motion": the 200 ms width animation can finish before the
+    poll first sees it (0 animations, not 1).
+  - `src/lib/components/a11y/live-region.browser.test.ts`, "a toast shown just before its dialog
+    closes is read once, from the page": the page region was still empty when checked.
+
+  **Revisit when** either flakes in CI, or when touching that test: check the animation is
+  started with a paused or longer-running animation, and wait on the announcement rather than a
+  fixed moment.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.

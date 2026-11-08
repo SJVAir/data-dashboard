@@ -94,3 +94,44 @@ export function drawMarkers(
 	});
 	ctx.restore();
 }
+
+/** One bar on the canvas (device px): from `x0` to `x1`, from the `base` line up to `top`. */
+export type Bar = { x0: number; x1: number; base: number; top: number; partial: boolean };
+
+/**
+ * Bars filled lightly with an outline in `color` (dashed for a place's dash pattern); a partial
+ * period's bar is hollow, as a partial dot is. Returns how many bars were drawn.
+ */
+export function drawBars(
+	ctx: CanvasRenderingContext2D,
+	bars: Bar[],
+	style: { color: string; fillOpacity: number; dash: number[]; line: number }
+): number {
+	ctx.save();
+	ctx.strokeStyle = style.color;
+	ctx.fillStyle = style.color;
+	ctx.lineWidth = style.line;
+	ctx.setLineDash(style.dash);
+	for (const bar of bars) {
+		const x = Math.min(bar.x0, bar.x1);
+		const w = Math.max(Math.abs(bar.x1 - bar.x0), 1);
+		const y = Math.min(bar.base, bar.top);
+		const h = Math.abs(bar.base - bar.top);
+		if (!bar.partial) {
+			ctx.globalAlpha = style.fillOpacity;
+			ctx.fillRect(x, y, w, h);
+		}
+		ctx.globalAlpha = 1;
+		ctx.beginPath();
+		// A zero bar is a flat mark on its base line.
+		if (h < style.line) {
+			ctx.moveTo(x, bar.base);
+			ctx.lineTo(x + w, bar.base);
+		} else {
+			ctx.rect(x, y, w, h);
+		}
+		ctx.stroke();
+	}
+	ctx.restore();
+	return bars.length;
+}

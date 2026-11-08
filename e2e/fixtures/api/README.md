@@ -30,3 +30,13 @@ zones trimmed to Fresno and Madera), and `2.0/forecasts/place.json`, Fresno Coun
 for 2026-10-20 to 2026-11-06. `e2e/forecasts-server.ts` answers `2.0/forecasts/place/` for any
 place from that file, its rows re-dated to one forecast per requested day (up to tomorrow), since
 widgets ask for days around today.
+
+The Get data layers' files come from `sdk-js`'s own fixtures (`lib/*/fixtures/`): the nearest
+weather stations of Fresno County (`2.0/monitors/weather/place.json`), the pesticide meta, the
+chemical search and Fresno County's pesticide use (`2.0/pesticides/…`; the months cover
+2025–2027 so the default last 30 days has data), Sulfur's details
+(`2.0/pesticides/chemicals/gs65e.json`, written by hand), a pesticide coverage that reaches 2030
+(`2.0/meta/coverage.json`), and the smoke meta and days (`2.0/hms/…`, not in the catalog yet).
+A weather station's own summaries
+(`2.0/monitors/<id>/summaries/<entry>/{daily,hourly}/<year>/<month>[/<day>]/`) are answered by
+`e2e/summaries-server.ts` like the bulk ones.

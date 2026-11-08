@@ -1,3 +1,4 @@
+import { offeredLevels } from "$lib/data/adapters/offered";
 import type { EntryTypeMeta } from "$lib/data/metadata";
 import type { DateRangeSpec, Resolution } from "$lib/data/schema";
 import { calendarSpanDays, resolveRange } from "$lib/format/range";
@@ -7,8 +8,8 @@ export type DetailChoice = {
 	blocked: "too-many-points" | null;
 };
 
-/** The levels "Detail" lists, finest first (when the entry type offers them). */
-const LEVELS = ["raw", "hour", "day", "month"] as const;
+/** The levels "Show values" lists, finest first (when the entry type offers them). */
+const LEVELS = ["raw", "hour", "day", "month", "year"] as const;
 
 /**
  * The most points (places × periods) a preview is asked to draw. No level has a range cap of
@@ -22,16 +23,19 @@ const PER_DAY: Record<(typeof LEVELS)[number], number> = {
 	raw: 720,
 	hour: 24,
 	day: 1,
-	month: 1 / 30
+	month: 1 / 30,
+	year: 1 / 365
 };
 
 /**
- * The "Detail" choices for the main layer over `range` at `places` places: Automatic, then each
- * level the entry type offers, greyed when the point budget rules it out.
+ * The "Show values" choices for the main layer over `range` at `places` places: Automatic, then each
+ * level the entry type offers that `dataset`'s adapter can fetch (`offeredLevels`: weather has no
+ * "Every measurement"), greyed when the point budget rules it out.
  * `null` when the widget type pins its resolution (the control is hidden).
  */
 export function detailChoices(
-	entry: EntryTypeMeta,
+	dataset: string,
+	entry: Pick<EntryTypeMeta, "resolutions">,
 	range: DateRangeSpec,
 	places: number,
 	pin: Resolution | undefined,
@@ -40,8 +44,9 @@ export function detailChoices(
 	if (pin) return null;
 	const days = calendarSpanDays(range, resolveRange(range, now));
 	const choices: DetailChoice[] = [{ level: "auto", blocked: null }];
+	const offered = offeredLevels(dataset, entry.resolutions);
 	for (const level of LEVELS) {
-		if (!entry.resolutions.includes(level)) continue;
+		if (!offered.includes(level)) continue;
 		const points = Math.max(1, places) * days * PER_DAY[level];
 		choices.push({ level, blocked: points > MAX_POINTS ? "too-many-points" : null });
 	}

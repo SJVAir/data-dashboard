@@ -2,25 +2,12 @@ import { getForecastForPlace } from "@sjvair/sdk";
 import { pacificDay, todayPacific } from "$lib/format";
 import { calendarUnits } from "../chunks";
 import { levelFor, type Level } from "../metadata";
-import type { PlaceInfo, QueryData, Series, SeriesPoint, Target } from "../types";
+import type { QueryData, Series, SeriesPoint } from "../types";
+import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
-import { layerTarget, regionPlace, resolveRegionKeys, splitRegionKey } from "./targets";
+import { isNotFound, layerTarget, placeCandidates, type PlaceRef } from "./targets";
 
-type PlaceRef = Parameters<typeof getForecastForPlace>[0];
 type Forecast = Awaited<ReturnType<typeof getForecastForPlace>>["forecasts"][number];
-
-/** A place asked about: what to ask the server, and the place it names (its series key too). */
-type Candidate = { ref: PlaceRef; info: PlaceInfo };
-
-function isNotFound(error: unknown): boolean {
-	const cause = error instanceof Error ? (error.cause as { result?: { status?: number } }) : null;
-	return cause?.result?.status === 404;
-}
-
-function regionRef(key: string): PlaceRef {
-	const { type, code } = splitRegionKey(key);
-	return { region: { type: type as never, external_id: code } };
-}
 
 /** The latest issue for each forecast date. */
 function latestIssues(forecasts: Forecast[]): Forecast[] {
@@ -72,38 +59,6 @@ function toPoints(
 	return points.sort((a, b) => a.t - b.t);
 }
 
-/** The places to ask about, each with the server references to try (a fallback has several). */
-async function candidates(
-	target: Target,
-	ctx: AdapterContext,
-	signal: AbortSignal
-): Promise<Candidate[][]> {
-	if (target.kind === "monitors") {
-		const monitors = await ctx.metadata.monitors(signal);
-		const names = new Map(monitors.map((m) => [m.id, m.name]));
-		return target.ids.map((id) => [
-			{ ref: { monitor: id }, info: { place: `monitor:${id}`, name: names.get(id) ?? id } }
-		]);
-	}
-	if (target.kind === "all") return [];
-	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);
-	const named = target.keys.map((key, i): Candidate => {
-		const region = found[i];
-		if (region === null) throw new Error(`Region ${key} can't be looked up`);
-		return {
-			ref: regionRef(key),
-			info: {
-				place: regionPlace(key),
-				name: region.name,
-				...(region.retired && { retired: region.retired })
-			}
-		};
-	});
-	// Any region maps to a forecast zone, so a fallback's first key answers; later keys only stand
-	// in for one the server doesn't know.
-	return target.kind === "fallback" ? [named] : named.map((c) => [c]);
-}
-
 /** A place's forecasts, month by month (whole calendar months, so requests cache well). */
 async function placeForecasts(
 	ref: PlaceRef,
@@ -133,7 +88,7 @@ async function fetchForecasts(
 ): Promise<QueryData> {
 	const { target, entryType, range } = req;
 	const [groups, levels] = await Promise.all([
-		candidates(target, ctx, signal),
+		placeCandidates(target, ctx, signal),
 		ctx.metadata.datasetLevels("forecasts", entryType, signal)
 	]);
 	const from = range.start.getTime();
@@ -181,7 +136,7 @@ export const forecastsAdapter: DatasetAdapter = {
 			? target
 			: { unavailable: "place-unsupported" };
 	},
-	offered: () => ["day"],
+	offered: (base) => offeredLevels("forecasts", base),
 	// One value per day, with levels: each entry type draws as day bands on any pollutant.
 	overlays: () => true,
 	fetch: fetchForecasts

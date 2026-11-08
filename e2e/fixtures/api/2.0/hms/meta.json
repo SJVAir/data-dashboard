@@ -1,0 +1,126 @@
+{
+	"data": {
+		"scales": {
+			"smoke-density": {
+				"id": "smoke-density",
+				"label": "Smoke Density",
+				"units": "",
+				"kind": "category",
+				"source": {
+					"name": "NOAA Hazard Mapping System",
+					"url": "https://www.ospo.noaa.gov/products/land/hms.html"
+				},
+				"levels": [
+					{
+						"key": "light",
+						"label": "Light",
+						"color": "#bfc8c3",
+						"tier": 1,
+						"description": "",
+						"guidance": "",
+						"min": null,
+						"max": null,
+						"value": "light",
+						"opacity": 0.2
+					},
+					{
+						"key": "medium",
+						"label": "Medium",
+						"color": "#757b78",
+						"tier": 2,
+						"description": "",
+						"guidance": "",
+						"min": null,
+						"max": null,
+						"value": "medium",
+						"opacity": 0.3
+					},
+					{
+						"key": "heavy",
+						"label": "Heavy",
+						"color": "#333634",
+						"tier": 3,
+						"description": "",
+						"guidance": "",
+						"min": null,
+						"max": null,
+						"value": "heavy",
+						"opacity": 0.4
+					}
+				]
+			},
+			"fire-frp": {
+				"id": "fire-frp",
+				"label": "Fire Radiative Power",
+				"units": "MW",
+				"kind": "range",
+				"source": {
+					"name": "NOAA Hazard Mapping System",
+					"url": "https://www.ospo.noaa.gov/products/land/hms.html"
+				},
+				"levels": [
+					{
+						"key": "sm",
+						"label": "<10",
+						"color": "#FFD700",
+						"tier": null,
+						"description": "",
+						"guidance": "",
+						"min": 0,
+						"max": 10,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "md",
+						"label": "10–49",
+						"color": "#FF8C00",
+						"tier": null,
+						"description": "",
+						"guidance": "",
+						"min": 10,
+						"max": 50,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "lg",
+						"label": "50–149",
+						"color": "#FF4500",
+						"tier": null,
+						"description": "",
+						"guidance": "",
+						"min": 50,
+						"max": 150,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "xl",
+						"label": "150–349",
+						"color": "#DC143C",
+						"tier": null,
+						"description": "",
+						"guidance": "",
+						"min": 150,
+						"max": 350,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "xxl",
+						"label": "≥350",
+						"color": "#8B0000",
+						"tier": null,
+						"description": "",
+						"guidance": "",
+						"min": 350,
+						"max": null,
+						"value": null,
+						"opacity": null
+					}
+				]
+			}
+		}
+	}
+}

@@ -14,6 +14,7 @@ import {
 	expectSaved,
 	makeOwnCopy,
 	nav,
+	shareLinkFor,
 	titleBar,
 	widgetMenuItem,
 	widgetTitles
@@ -134,4 +135,148 @@ test("Add widget → Chart on the starter makes a copy", async ({ page }) => {
 	await nav(page).getByRole("button", { name: "My dashboard", exact: true }).click();
 	await page.getByRole("menuitem", { name: "New from starter" }).click();
 	await expect(widgetTitles(page)).toHaveCount(3);
+});
+
+/** Opens a Get data section (Weather, Pesticide Use, …) by its heading. */
+async function openSection(page: Page, name: RegExp): Promise<void> {
+	await page.getByRole("button", { name }).click();
+}
+
+test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ page }) => {
+	await makeOwnCopy(page);
+	await nav(page).getByRole("link", { name: "Data", exact: true }).click();
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+
+	// Fresno County has one place, so the station can be chosen: the nearest is the default.
+	await openSection(page, /^Weather/);
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
+	const station = page.getByRole("combobox", { name: "Station" });
+	await expect(station).toHaveValue("I3wADR9bR-2hfub3h3nsJA");
+	await expect(page.getByText(/Temperature · CIMIS #80 - Fresno State/).first()).toBeVisible();
+
+	// One filtered pesticide layer: the chemical is searched by name, then picked.
+	await openSection(page, /^Pesticide Use/);
+	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
+	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
+	await page.getByRole("button", { name: "Filters" }).click();
+	await page.getByRole("combobox", { name: "Chemical" }).click();
+	const asked = page.waitForRequest((r) => /\/pesticides\/place\/\?.*chemical=gs65e/.test(r.url()));
+	await page.keyboard.type("su");
+	await page
+		.getByRole("option", { name: /Sulfur/ })
+		.first()
+		.click();
+	await asked;
+	await expect(page.getByTestId("pesticide-summary")).toHaveText(/Sulfur/);
+	await expect(page.getByText(/Pounds applied · Sulfur/i).first()).toBeVisible();
+
+	// The draft keeps both layers when added.
+	await addToButton(page).click();
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
+	await expectSaved(page);
+	await page.reload();
+	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
+	await expect(page.getByText(/Temperature · CIMIS #80 - Fresno State/).first()).toBeVisible();
+	await expect(page.getByText(/Pounds applied · Sulfur/i).first()).toBeVisible();
+});
+
+test("adds a temperature-only chart", async ({ page }) => {
+	await page.goto("data");
+	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
+	await openSection(page, /^Weather/);
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
+	await page.getByRole("radio", { name: "None" }).check();
+	await expect(page.getByRole("radio", { name: "None" })).toBeChecked();
+	// The last number layer can't be unchecked.
+	await expect(page.getByRole("checkbox", { name: "Temperature", exact: true })).toBeDisabled();
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	await expect(page.getByRole("combobox", { name: "Station" })).toHaveValue(
+		"I3wADR9bR-2hfub3h3nsJA"
+	);
+
+	await addToButton(page).click();
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	await expect(page.getByText(/PM2\.5/)).toHaveCount(0);
+});
+
+test("downloads a CSV with station and filter columns", async ({ page }) => {
+	await page.goto("data");
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	await openSection(page, /^Weather/);
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
+	await openSection(page, /^Pesticide Use/);
+	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
+	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
+	await page.getByRole("button", { name: "Filters" }).click();
+	await page.getByRole("combobox", { name: "Chemical" }).click();
+	await page.keyboard.type("su");
+	await page
+		.getByRole("option", { name: /Sulfur/ })
+		.first()
+		.click();
+	await expect(page.getByTestId("pesticide-summary")).toHaveText(/Sulfur/);
+
+	const rows = await downloadCsv(page);
+	const temperature = rows.filter((r) => r.entry_type === "temperature");
+	const pesticides = rows.filter((r) => r.entry_type === "pounds-applied");
+	expect(temperature.length).toBeGreaterThan(0);
+	expect(pesticides.length).toBeGreaterThan(0);
+	for (const row of temperature) {
+		expect(row.source_id).toBe("I3wADR9bR-2hfub3h3nsJA");
+		expect(row.source_name).toBe("CIMIS #80 - Fresno State");
+		expect(row.filters).toBe("");
+		expect(row.aggregate).toBe("mean");
+	}
+	for (const row of pesticides) {
+		expect(row.source_id).toBe("");
+		expect(row.filters).toBe("Sulfur");
+		// Pounds applied is a total.
+		expect(row.aggregate).toBe("sum");
+	}
+	// The main rows carry neither.
+	const main = rows.filter((r) => r.entry_type === "pm25");
+	expect(main).toHaveLength(30);
+	expect(main.every((r) => r.source_id === "" && r.filters === "")).toBe(true);
+	expect(main.every((r) => r.aggregate === "mean")).toBe(true);
+});
+
+test("an old PM2.5 + burn status widget still shows its bands", async ({ page }) => {
+	const place = { kind: "region", type: "county", code: "06019" };
+	const doc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "old-burn-1",
+		name: "Old burn",
+		body: {
+			widgets: [
+				{
+					id: "w0",
+					type: "chart",
+					title: "Old burn chart",
+					rect: { x: 0, y: 0, w: 8, h: 4 },
+					data: {
+						dateRange: { kind: "trailing", amount: 30, unit: "day" },
+						layers: [
+							{ dataset: "air-quality", entryType: "pm25", place },
+							{ dataset: "forecasts", entryType: "burn-status", place }
+						]
+					}
+				}
+			]
+		}
+	};
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	const chart = page.getByRole("group", { name: "Chart of Fresno County" });
+	await expect(chart).toBeVisible();
+	// The burn status is a band layer, named in the legend, and no station or filter shows.
+	await expect(page.getByText(/Burn Status/).first()).toBeVisible();
+	await expect(page.getByText(/CIMIS/)).toHaveCount(0);
+	// Its bands are drawn, and no strip is.
+	await expect
+		.poll(async () => Number(await chart.getAttribute("data-day-bands")))
+		.toBeGreaterThan(0);
+	await expect(chart.locator("[data-strip]")).toHaveCount(0);
 });

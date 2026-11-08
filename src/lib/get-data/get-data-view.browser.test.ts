@@ -4,8 +4,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { AdapterRequest, DatasetAdapter, RegionResolver } from "$lib/data/adapters/registry";
-import type { CatalogEntry, MetadataSource } from "$lib/data/metadata";
+import { mapDatasetCatalog, type CatalogEntry, type MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
+import {
+	PESTICIDE_USE_DATASET,
+	SDK_DATASET_CATALOG,
+	WEATHER_DATASET
+} from "$lib/data/testing/dataset-catalog";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { QueryData } from "$lib/data/types";
 import { formatDateRange } from "$lib/format";
@@ -15,17 +20,58 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { chartType } from "$lib/widgets/chart";
-import { FORECASTS_ENTRY, fakeForecastsAdapter } from "$lib/widgets/shared/test-harness/fake-data";
+import {
+	FORECASTS_ENTRY,
+	fakeForecastsAdapter,
+	fakeNumberAdapter
+} from "$lib/widgets/shared/test-harness/fake-data";
 import { animationsSettled } from "../../test/animations";
 import { defaultDraft, type Draft } from "./draft.svelte";
 import GetDataView from "./GetDataView.svelte";
 
+type Hit = { id: string; name: string; detail: string; placeholder?: boolean };
+type Station = { id: string; name: string; distance: number; inside: boolean; active: boolean };
+
 const fake = vi.hoisted(() => ({
 	client: undefined as unknown as QueryClient,
-	metadata: undefined as unknown as MetadataSource
+	metadata: undefined as unknown as MetadataSource,
+	/** The station list every place gets. */
+	stations: [] as Station[],
+	/** Each pesticide search asked for. */
+	searches: [] as { type: string; q: string; limit?: number }[],
+	/** What a search answers. */
+	hits: { results: [] as Hit[], more: false },
+	/** Names of the chemical, crop and product ids. */
+	names: {} as Record<string, string>,
+	/** Holds a search's answer back (by its query) until the promise settles. */
+	delay: undefined as ((q: string) => Promise<void>) | undefined
+}));
+const PESTICIDE_META = vi.hoisted(() => ({
+	categories: [
+		{ key: "insecticide", label: "Insecticides", description: "Kill insects", in_use: true },
+		{ key: "old", label: "Retired category", description: "", in_use: false }
+	],
+	iarc_groups: [{ key: "1", label: "Carcinogens", description: "Group 1" }],
+	methods: [{ key: "A", label: "Air" }],
+	narrows: [{ key: "concern", label: "Chemicals of concern", description: "A list" }],
+	placeholder_chemicals: [{ id: "unk", name: "UNKNOWN" }]
 }));
 vi.mock("$lib/data", () => ({
-	adapterOffers: () => [{ id: "air-quality" }, { id: "forecasts", overlays: () => true }],
+	adapterOffers: () => [
+		{ id: "air-quality" },
+		{ id: "forecasts", overlays: () => true },
+		{
+			id: "weather",
+			offered: (base: string[]) => base.filter((r) => r !== "raw"),
+			overlays: () => true
+		},
+		{ id: "hms-smoke", overlays: () => true },
+		{
+			id: "pesticide-use",
+			offered: (base: string[]) => base.filter((r) => r === "month" || r === "year"),
+			overlays: () => true
+		}
+	],
 	getQueryClient: () => fake.client,
 	getMetadata: () => fake.metadata,
 	getResolvers: () => ({
@@ -35,10 +81,40 @@ vi.mock("$lib/data", () => ({
 	}),
 	placeRegion: async () => null
 }));
+vi.mock("./sources", () => ({
+	stationsForLayer: async () => fake.stations,
+	searchPesticides: async (params: { type: string; q: string; limit?: number }) => {
+		fake.searches.push({ type: params.type, q: params.q, limit: params.limit });
+		// Read before waiting, so a late answer is what was found when it was asked.
+		const hits = fake.hits;
+		await fake.delay?.(params.q);
+		return params.q.trim().length < 2 ? { results: [], more: false } : hits;
+	},
+	pesticideMeta: async () => PESTICIDE_META,
+	filterLabels: async (f: Record<string, string | undefined>) =>
+		Object.fromEntries(
+			["chemical", "commodity", "product"]
+				.filter((k) => f[k])
+				.map((k) => [k, fake.names[f[k]!] ?? f[k]])
+		),
+	filterSummary: async (f: Record<string, unknown> | undefined) => {
+		const labels: string[] = [];
+		for (const k of ["chemical", "commodity", "product"]) {
+			const id = f?.[k] as string | undefined;
+			if (id) labels.push(fake.names[id] ?? id);
+		}
+		if (f?.iarcGroup) labels.push("Carcinogens");
+		return labels;
+	},
+	FilterGone: class extends Error {}
+}));
 
 const DAY = 86_400_000;
 
-/** Air Quality (from the fixtures) and Forecasts with a third overlay, to reach the cap. */
+/**
+ * Air Quality (from the fixtures), Forecasts with a third overlay (to reach the cap), Weather,
+ * Wildfire Smoke and Pesticide Use.
+ */
 const CATALOG: CatalogEntry[] = [
 	FIXTURE_CATALOG[0],
 	{
@@ -47,6 +123,16 @@ const CATALOG: CatalogEntry[] = [
 			...FORECASTS_ENTRY.entryTypes,
 			{ ...FORECASTS_ENTRY.entryTypes[1], id: "smoke-forecast", label: "Smoke forecast" }
 		]
+	},
+	...mapDatasetCatalog({
+		...SDK_DATASET_CATALOG,
+		datasets: [WEATHER_DATASET, PESTICIDE_USE_DATASET]
+	}),
+	{
+		id: "hms-smoke",
+		label: "Wildfire Smoke",
+		entryTypes: [{ ...FORECASTS_ENTRY.entryTypes[0], id: "smoke-density", label: "Smoke density" }],
+		geographies: ["region"]
 	}
 ];
 
@@ -106,7 +192,13 @@ let fetchMode: "ok" | "hang" | "fail";
 function makeClient(): void {
 	const regions: RegionResolver = { resolve: async () => "unsupported" };
 	fake.client = createQueryClient({
-		adapters: [airQuality(requests), fakeForecastsAdapter(forecastRequests, missingForecasts)],
+		adapters: [
+			airQuality(requests),
+			fakeForecastsAdapter(forecastRequests, missingForecasts),
+			fakeNumberAdapter("weather", []),
+			{ ...fakeForecastsAdapter([]), id: "hms-smoke" },
+			fakeNumberAdapter("pesticide-use", [], { offered: ["month", "year"] })
+		],
 		metadata: fake.metadata,
 		regions
 	});
@@ -118,6 +210,11 @@ beforeEach(async () => {
 	forecastRequests = [];
 	missingForecasts = [];
 	fetchMode = "ok";
+	fake.stations = [];
+	fake.searches = [];
+	fake.hits = { results: [], more: false };
+	fake.names = {};
+	fake.delay = undefined;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 });
@@ -174,9 +271,10 @@ async function show(initial: Draft = defaultDraft()) {
 	return { screen, host, platform, current, targets };
 }
 
+/** The preview's canvas appears. The first test pays for loading the chart code, so it waits longer. */
 async function drawn(host: HTMLElement) {
 	await expect
-		.poll(() => host.querySelector("[data-testid=get-data-preview] canvas"))
+		.poll(() => host.querySelector("[data-testid=get-data-preview] canvas"), { timeout: 5000 })
 		.not.toBeNull();
 }
 
@@ -322,9 +420,9 @@ test("Detail hides for a pinned type; Every measurement is disabled over 90 days
 	draft.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };
 	const { host } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
-	const raw = page.getByRole("radio", { name: m.get_data_detail_raw() });
+	const raw = page.getByRole("radio", { name: m.get_data_show_values_raw() });
 	await expect.element(raw).toBeDisabled();
-	await expect.element(raw).toHaveAccessibleDescription(m.get_data_detail_too_many());
+	await expect.element(raw).toHaveAccessibleDescription(m.get_data_show_values_too_many());
 	// Hourly over more than 31 days is served (a month per request).
 	await expect.element(page.getByRole("radio", { name: "Hourly" })).toBeEnabled();
 	await expect.element(page.getByRole("radio", { name: "Daily" })).toBeEnabled();
@@ -338,6 +436,24 @@ test("Detail hides for a pinned type; Every measurement is disabled over 90 days
 	} finally {
 		delete chartType.resolution;
 	}
+});
+
+test('More options shows "Show values" with a help button', async () => {
+	const { host } = await show(monitorsDraft(["m1"]));
+	await page.getByRole("button", { name: "More options" }).click();
+	await expect.element(page.getByText(m.get_data_show_values(), { exact: true })).toBeVisible();
+	expect(m.get_data_show_values()).toBe("Show values");
+	// The help button sits beside the group's name, not inside it.
+	await expect
+		.element(page.getByRole("group", { name: m.get_data_show_values(), exact: true }))
+		.toBeVisible();
+	const help = page.getByRole("button", { name: m.get_data_show_values_help_label() });
+	await expect.element(help).toBeVisible();
+	await help.click();
+	await expect
+		.element(page.getByRole("status").filter({ hasText: m.get_data_show_values_help() }))
+		.toBeVisible();
+	host.remove();
 });
 
 test("keyboard: the date list, accordion and Show as work without a mouse", async () => {
@@ -364,8 +480,11 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
 });
 
-test("the pollutant can't be cleared; overlays can't stand alone", async () => {
+test("the pollutant can't be cleared without a number layer; overlays can't stand alone", async () => {
 	const { current } = await show(monitorsDraft(["m1"], {}, ["burn-status"]));
+	const none = page.getByRole("radio", { name: "None" });
+	await expect.element(none).toBeDisabled();
+	await expect.element(none).toHaveAccessibleDescription(m.get_data_keep_one());
 	const pm25 = page.getByRole("radio", { name: "PM2.5" });
 	await pm25.click();
 	await expect.element(pm25).toBeChecked();
@@ -424,11 +543,228 @@ test("a detail level the new range can't serve goes back to Automatic", async ()
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
-	await page.getByRole("radio", { name: m.get_data_detail_raw() }).click();
+	await page.getByRole("radio", { name: m.get_data_show_values_raw() }).click();
 	expect((await current()).data.layers[0].resolution).toBe("raw");
 	// 90 days of raw readings is more than the point budget.
 	await chooseDates("Last 90 days");
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
-	await expect.element(page.getByRole("radio", { name: m.get_data_detail_raw() })).toBeDisabled();
+	await expect
+		.element(page.getByRole("radio", { name: m.get_data_show_values_raw() }))
+		.toBeDisabled();
 	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
+});
+
+function withLayers(ids: string[], ...rest: Draft["data"]["layers"]): Draft {
+	const draft = monitorsDraft(ids);
+	draft.data.layers.push(...rest);
+	return draft;
+}
+
+const TEMPERATURE = { dataset: "weather", entryType: "temperature" };
+const POUNDS = { dataset: "pesticide-use", entryType: "pounds-applied" };
+
+async function openSection(name: RegExp) {
+	await page.getByRole("button", { name }).click();
+	await animationsSettled(document.body);
+}
+
+test("a temperature-only chart can be added", async () => {
+	const { current } = await show(monitorsDraft(["m1"]));
+	await openSection(/^Weather/);
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
+	await page.getByRole("radio", { name: "None" }).click();
+	expect((await current()).data.layers).toEqual([
+		{ ...TEMPERATURE, selection: { kind: "monitors", ids: ["m1"] } }
+	]);
+	// The last number layer can't be unchecked.
+	const box = page.getByRole("checkbox", { name: "Temperature", exact: true });
+	await expect.element(box).toBeDisabled();
+	await expect.element(box).toHaveAccessibleDescription(m.get_data_keep_one());
+});
+
+test("choosing None for Air Quality keeps the places", async () => {
+	const { current } = await show(withLayers(["m1", "m2"], { ...TEMPERATURE }));
+	await page.getByRole("radio", { name: "None" }).click();
+	await expect.element(page.getByRole("radio", { name: "None" })).toBeChecked();
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent("Monitor m1 and Monitor m2");
+	expect((await current()).data.layers).toEqual([
+		{ ...TEMPERATURE, selection: { kind: "monitors", ids: ["m1", "m2"] } }
+	]);
+	// Choosing a pollutant again takes them back.
+	await page.getByRole("radio", { name: "Ozone" }).click();
+	expect((await current()).data.layers).toEqual([
+		{ dataset: "air-quality", entryType: "o3", selection: { kind: "monitors", ids: ["m1", "m2"] } },
+		{ ...TEMPERATURE }
+	]);
+});
+
+test("the station choice shows only with one place", async () => {
+	fake.stations = [
+		{ id: "st1", name: "Fresno State", distance: 0, inside: true, active: true },
+		{ id: "st2", name: "Parlier", distance: 4.2, inside: false, active: false }
+	];
+	const one = await show(withLayers(["m1"], { ...TEMPERATURE }));
+	await openSection(/^Weather/);
+	const station = page.getByRole("combobox", { name: "Station" });
+	await expect.element(station).toHaveValue("st1");
+	expect(
+		[...(station.element() as HTMLSelectElement).options].map((o) => o.textContent?.trim())
+	).toEqual(["Fresno State", "Parlier (4.2 mi away), no recent data"]);
+	await station.selectOptions("st2");
+	expect((await one.current()).data.layers[1].station).toBe("st2");
+	// The first (default) station stores nothing.
+	await station.selectOptions("st1");
+	expect((await one.current()).data.layers[1]).toEqual(TEMPERATURE);
+	one.screen.unmount();
+	one.host.remove();
+
+	await show(withLayers(["m1", "m2"], { ...TEMPERATURE }));
+	await openSection(/^Weather/);
+	await expect
+		.element(page.getByRole("checkbox", { name: "Temperature", exact: true }))
+		.toBeChecked();
+	expect(page.getByRole("combobox", { name: "Station" }).elements()).toHaveLength(0);
+});
+
+test("a filter search lists results after two letters and picks one", async () => {
+	fake.hits = {
+		results: [
+			{ id: "c1", name: "Chlorpyrifos", detail: "CDPR chem code 253", placeholder: false },
+			{ id: "unk", name: "UNKNOWN", detail: "", placeholder: true }
+		],
+		more: true
+	};
+	fake.names = { c1: "Chlorpyrifos" };
+	const { current } = await show(withLayers(["m1"], { ...POUNDS }));
+	await openSection(/^Pesticide Use/);
+	await expect.element(page.getByTestId("pesticide-summary")).toHaveTextContent("All pesticides");
+	await page.getByRole("button", { name: "Filters" }).click();
+	const chemical = page.getByRole("combobox", { name: "Chemical" });
+	await chemical.click();
+	await userEvent.keyboard("c");
+	await new Promise((r) => setTimeout(r, 400));
+	expect(fake.searches).toEqual([]);
+	await userEvent.keyboard("h");
+	await expect.element(page.getByRole("option", { name: /Chlorpyrifos/ })).toBeVisible();
+	expect(fake.searches).toEqual([{ type: "chemical", q: "ch", limit: 25 }]);
+	expect(page.getByRole("option", { name: /UNKNOWN/ }).elements()).toHaveLength(0);
+	await expect.element(chemical).toHaveAccessibleDescription(m.get_data_search_more());
+	await page.getByRole("option", { name: /Chlorpyrifos/ }).click();
+	await expect.element(page.getByTestId("pesticide-summary")).toHaveTextContent("Chlorpyrifos");
+	expect((await current()).data.layers[1]).toEqual({ ...POUNDS, filters: { chemical: "c1" } });
+
+	// A second layer of the same measure, with its own filters.
+	await page.getByRole("button", { name: "Add another pesticide layer" }).click();
+	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
+	const layers = (await current()).data.layers;
+	expect(layers.slice(1)).toEqual([{ ...POUNDS, filters: { chemical: "c1" } }, { ...POUNDS }]);
+	// The section's heading names the measure once.
+	await expect
+		.element(page.getByRole("button", { name: /^Pesticide Use/ }))
+		.toHaveAccessibleName("Pesticide Use Pounds Applied");
+	// At the overlay limit, no more can be added.
+	const add = page.getByRole("button", { name: "Add another pesticide layer" });
+	await expect.element(add).toBeDisabled();
+	await expect.element(add).toHaveAccessibleDescription("Up to 2 overlays");
+});
+
+test("a slow search's results never replace a newer one's", async () => {
+	let release!: () => void;
+	const slow = new Promise<void>((r) => (release = r));
+	fake.hits = {
+		results: [{ id: "c1", name: "Chlorpyrifos", detail: "", placeholder: false }],
+		more: false
+	};
+	await show(withLayers(["m1"], { ...POUNDS }));
+	await openSection(/^Pesticide Use/);
+	await page.getByRole("button", { name: "Filters" }).click();
+	const chemical = page.getByRole("combobox", { name: "Chemical" });
+	await chemical.click();
+	// The first search ("ch") answers late, after "chx" found nothing.
+	fake.delay = (q) => (q === "ch" ? slow : Promise.resolve());
+	await userEvent.keyboard("ch");
+	await expect.poll(() => fake.searches.length).toBe(1);
+	fake.hits = { results: [], more: false };
+	await userEvent.keyboard("x");
+	await expect.poll(() => fake.searches.length).toBe(2);
+	await expect.element(page.getByText(m.get_data_search_none()).first()).toBeVisible();
+	release();
+	await new Promise((r) => setTimeout(r, 50));
+	expect(page.getByRole("option", { name: /Chlorpyrifos/ }).elements()).toHaveLength(0);
+});
+
+test("a long result list scrolls; its rows keep their full height and never overlap", async () => {
+	fake.hits = {
+		results: Array.from({ length: 25 }, (_, i) => ({
+			id: `c${i}`,
+			name:
+				i === 3 ? "Benzyldiethyl [(2,6-xylylcarbamoyl)methyl] ammonium saccharide" : `Chem ${i}`,
+			detail: `CDPR chem code ${i}`,
+			placeholder: false
+		})),
+		more: true
+	};
+	await show(withLayers(["m1"], { ...POUNDS }));
+	await openSection(/^Pesticide Use/);
+	await page.getByRole("button", { name: "Filters" }).click();
+	await page.getByRole("combobox", { name: "Chemical" }).click();
+	await userEvent.keyboard("ch");
+	await expect.element(page.getByRole("option", { name: /Chem 0/ })).toBeVisible();
+	const rows = page
+		.getByRole("option")
+		.elements()
+		.filter((el) => el.closest("[role=listbox]"));
+	expect(rows).toHaveLength(25);
+	for (const row of rows) expect(row.clientHeight).toBeGreaterThanOrEqual(row.scrollHeight);
+	for (let i = 1; i < rows.length; i++) {
+		const above = rows[i - 1].getBoundingClientRect();
+		expect(rows[i].getBoundingClientRect().top).toBeGreaterThanOrEqual(above.bottom - 0.5);
+	}
+});
+
+test("smoke alone disables Add with the reason", async () => {
+	const draft: Draft = {
+		type: "chart",
+		data: {
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			layers: [
+				{
+					dataset: "hms-smoke",
+					entryType: "smoke-density",
+					selection: { kind: "monitors", ids: ["m1"] }
+				}
+			]
+		}
+	};
+	await show(draft);
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
+	await expect.element(add).toHaveAccessibleDescription(m.get_data_level_only());
+	await expect.element(page.getByRole("button", { name: "Download CSV" })).toBeDisabled();
+	await expect.element(page.getByText(m.get_data_level_only())).toBeVisible();
+	// Adding a number layer makes it chartable, and it takes the places.
+	await openSection(/^Weather/);
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
+	await expect.element(add).toBeEnabled();
+});
+
+describe.each([
+	["desktop", 1280, 800],
+	["phone", 390, 844]
+])("with a pesticide layer's Filters open on a %s", (_name, width, height) => {
+	test("axe passes", async () => {
+		await page.viewport(width, height);
+		fake.stations = [{ id: "st1", name: "Fresno State", distance: 0, inside: true, active: true }];
+		const { host } = await show(withLayers(["m1"], { ...POUNDS, filters: { iarcGroup: "1" } }));
+		await openSection(/^Pesticide Use/);
+		await page.getByRole("button", { name: "Filters" }).click();
+		await expect.element(page.getByRole("combobox", { name: "Cancer group" })).toHaveValue("1");
+		await openSection(/^Weather/);
+		await drawn(host);
+		await animationsSettled(host);
+		const results = await axe.run(host);
+		expect(results.violations).toEqual([]);
+	});
 });

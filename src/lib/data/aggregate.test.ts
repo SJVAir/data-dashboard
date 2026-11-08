@@ -88,4 +88,23 @@ describe("aggregate", () => {
 		const out = aggregate([pt("2026-09-01T07:00:00Z", 10, 1), missing], "month", NOW);
 		expect(out[0]).toMatchObject({ min: 9, max: 20 });
 	});
+
+	it("aggregate sums totals into an open month", () => {
+		const out = aggregate(
+			[
+				pt("2026-10-01T07:00:00Z", 0.1, 1),
+				pt("2026-10-02T07:00:00Z", 0.2, 1),
+				pt("2026-10-03T07:00:00Z", 0.3, 1)
+			],
+			"month",
+			NOW,
+			"sum"
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].mean).toBeCloseTo(0.6);
+		expect(out[0].min).toBeCloseTo(0.6);
+		expect(out[0].max).toBeCloseTo(0.6);
+		expect(out[0].count).toBe(3);
+		expect(out[0].partial).toBe(true);
+	});
 });

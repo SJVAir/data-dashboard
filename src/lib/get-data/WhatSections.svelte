@@ -1,31 +1,63 @@
 <script lang="ts">
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Accordion } from "bits-ui";
+	import type { CatalogEntry } from "$lib/data/metadata";
+	import type { PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
+	import Toggletip from "$lib/components/Toggletip.svelte";
+	import { layerKind } from "$lib/data/layer-kind";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import { mainLayer } from "$lib/widgets/shared/input";
+	import {
+		canAddLayer,
+		canRemoveLayer,
+		numberLayers,
+		PESTICIDES,
+		WEATHER,
+		type EntryPick
+	} from "./layers";
 	import type { OfferedDataset } from "./offer";
+	import PesticideLayers from "./PesticideLayers.svelte";
+	import StationChoice from "./StationChoice.svelte";
 
-	type EntryPick = { dataset: string; entryType: string };
+	const SMOKE = "hms-smoke";
 
 	let {
 		sections,
-		main,
-		overlays,
+		data,
+		catalog,
+		places,
 		maxOverlays,
-		onmain,
-		ontoggle
+		onpollutant,
+		ontoggle,
+		onaddpesticide,
+		onremove,
+		onfilters,
+		onstation
 	}: {
 		/** The offered datasets, each with at least one entry type. */
 		sections: OfferedDataset[];
-		/** The main (pollutant) layer's pick: a single required choice. */
-		main: EntryPick | undefined;
-		overlays: EntryPick[];
+		/** The draft's data (plain). */
+		data: WidgetDataConfig;
+		catalog: CatalogEntry[];
+		/** How many places the widget has (the station choice shows for one). */
+		places: number;
 		maxOverlays: number;
-		onmain: (pick: EntryPick) => void;
+		/** A pollutant, or `null` for None. */
+		onpollutant: (pick: EntryPick | null) => void;
+		/** A weather, smoke or forecast layer on or off. */
 		ontoggle: (pick: EntryPick, on: boolean) => void;
+		onaddpesticide: (entryType: string) => void;
+		onremove: (index: number) => void;
+		onfilters: (index: number, filters: PesticideFilters) => void;
+		onstation: (station: string | undefined) => void;
 	} = $props();
 
 	const uid = $props.id();
+
+	const main = $derived(mainLayer(data, catalog));
+	const pollutantAt = $derived(data.layers.findIndex((l) => layerKind(l, catalog) === "pollutant"));
+	const pollutant = $derived(pollutantAt >= 0 ? data.layers[pollutantAt] : undefined);
 
 	// The main layer's section starts open (Air Quality).
 	// svelte-ignore state_referenced_locally
@@ -33,45 +65,61 @@
 		main ? [main.dataset] : sections.slice(0, 1).map((s) => s.dataset.id)
 	);
 
-	const isOverlay = (p: EntryPick) =>
-		overlays.some((o) => o.dataset === p.dataset && o.entryType === p.entryType);
-	const atCap = $derived(overlays.length >= maxOverlays);
+	const isOn = (p: EntryPick) =>
+		data.layers.some((l) => l.dataset === p.dataset && l.entryType === p.entryType);
+	const indexOf = (p: EntryPick) =>
+		data.layers.findIndex((l) => l.dataset === p.dataset && l.entryType === p.entryType);
+	const atCap = $derived(!canAddLayer(data, catalog));
 	const limitText = $derived(
 		m.get_data_overlay_limit({ count: formatNumber(maxOverlays), countValue: maxOverlays })
 	);
+	/** "None" would leave no number layer. */
+	const noneBlocked = $derived(pollutant !== undefined && numberLayers(data, catalog) <= 1);
+
+	const weatherLayers = $derived(data.layers.filter((l) => l.dataset === WEATHER));
+	const station = $derived(weatherLayers.find((l) => l.station)?.station);
+	const pesticideLayers = $derived(
+		data.layers
+			.map((layer, index) => ({ layer, index }))
+			.filter(({ layer }) => layer.dataset === PESTICIDES && layer.entryType)
+	);
 
 	/**
-	 * A section's overlay choices: those offered, plus any already chosen (checked, so it can be
-	 * removed), in catalog order.
+	 * A section's checkboxes: its stand-alone and overlay choices, plus any already chosen (checked,
+	 * so it can be removed), in catalog order.
 	 */
-	function overlaysIn(section: OfferedDataset) {
+	function checkboxesIn(section: OfferedDataset) {
 		const id = section.dataset.id;
 		return section.dataset.entryTypes.filter(
 			(e) =>
 				e.kind !== "pollutant" &&
-				(section.overlayTypes.includes(e) || isOverlay({ dataset: id, entryType: e.id }))
+				(section.layerTypes.includes(e) ||
+					section.overlayTypes.includes(e) ||
+					isOn({ dataset: id, entryType: e.id }))
 		);
 	}
 
 	/** What's chosen in a section, for its heading (so a closed section still says). */
 	function chosen(section: OfferedDataset): string {
 		const id = section.dataset.id;
-		const labels = section.entryTypes
-			.filter(
-				(e) =>
-					(main?.dataset === id && main.entryType === e.id) ||
-					isOverlay({ dataset: id, entryType: e.id })
-			)
-			.map((e) => e.label);
-		return formatList(labels);
+		const labels = data.layers
+			.filter((l) => l.dataset === id)
+			.map((l) => section.dataset.entryTypes.find((e) => e.id === l.entryType)?.label)
+			.filter((label): label is string => label !== undefined);
+		// Two pesticide layers of one measure (different filters) name it once.
+		return formatList([...new Set(labels)]);
 	}
 </script>
+
+{#snippet reason(id: string, text: string)}
+	<span {id} class="text-muted-foreground text-xs">{text}</span>
+{/snippet}
 
 <Accordion.Root type="multiple" bind:value={open} class="flex flex-col gap-2">
 	{#each sections as section (section.dataset.id)}
 		{@const id = section.dataset.id}
 		{@const pollutants = section.entryTypes.filter((e) => e.kind === "pollutant")}
-		{@const others = overlaysIn(section)}
+		{@const boxes = id === PESTICIDES ? [] : checkboxesIn(section)}
 		{@const summary = chosen(section)}
 		<Accordion.Item value={id} class="border-card-border rounded-(--radius-control) border">
 			<Accordion.Header level={3}>
@@ -91,34 +139,77 @@
 				</Accordion.Trigger>
 			</Accordion.Header>
 			<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
-				{#if section.dataset.description}
-					<p class="text-muted-foreground text-xs">{section.dataset.description}</p>
+				{#if section.dataset.description || id === SMOKE || id === PESTICIDES}
+					<div class="flex items-start gap-1">
+						{#if section.dataset.description}
+							<p class="text-muted-foreground flex-1 text-xs">{section.dataset.description}</p>
+						{:else}
+							<span class="flex-1"></span>
+						{/if}
+						{#if id === SMOKE}
+							<Toggletip label={m.get_data_smoke_help_label()} text={m.get_data_smoke_help()} />
+						{:else if id === PESTICIDES}
+							<Toggletip
+								label={m.get_data_pesticide_help_label()}
+								text={m.get_data_pesticide_help()}
+							/>
+						{/if}
+					</div>
 				{/if}
 				{#if pollutants.length}
+					{@const addBlocked = !pollutant && atCap}
+					{@const addReasonId = `${uid}-${id}-pollutant-reason`}
 					<fieldset class="flex flex-col gap-1">
 						<legend class="sr-only">{section.dataset.label}</legend>
+						<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
+							<label class="flex items-center gap-2">
+								<input
+									type="radio"
+									class="accent-primary size-4"
+									name="{uid}-pollutant"
+									value=""
+									checked={!pollutant}
+									disabled={noneBlocked}
+									aria-describedby={noneBlocked ? `${uid}-none-reason` : undefined}
+									onchange={() => onpollutant(null)}
+								/>
+								<span class={[noneBlocked && "text-muted-foreground"]}>{m.get_data_none()}</span>
+							</label>
+							{#if noneBlocked}
+								{@render reason(`${uid}-none-reason`, m.get_data_keep_one())}
+							{/if}
+						</div>
 						{#each pollutants as entry (entry.id)}
+							{@const checked = pollutant?.dataset === id && pollutant.entryType === entry.id}
 							<label class="flex min-h-6 items-center gap-2 text-sm">
 								<input
 									type="radio"
 									class="accent-primary size-4"
-									name="{uid}-main"
+									name="{uid}-pollutant"
 									value={entry.id}
-									checked={main?.dataset === id && main.entryType === entry.id}
-									onchange={() => onmain({ dataset: id, entryType: entry.id })}
+									{checked}
+									disabled={addBlocked}
+									aria-describedby={addBlocked ? addReasonId : undefined}
+									onchange={() => onpollutant({ dataset: id, entryType: entry.id })}
 								/>
-								{entry.label}
+								<span class={[addBlocked && "text-muted-foreground"]}>{entry.label}</span>
 							</label>
 						{/each}
+						{#if addBlocked}
+							{@render reason(addReasonId, limitText)}
+						{/if}
 					</fieldset>
 				{/if}
-				{#if others.length}
+				{#if boxes.length}
 					<fieldset class="flex flex-col gap-1">
-						<legend class="text-muted-foreground text-xs">{m.get_data_overlays()}</legend>
-						{#each others as entry (entry.id)}
+						<legend class={pollutants.length ? "text-muted-foreground text-xs" : "sr-only"}>
+							{pollutants.length ? m.get_data_overlays() : section.dataset.label}
+						</legend>
+						{#each boxes as entry (entry.id)}
 							{@const pick = { dataset: id, entryType: entry.id }}
-							{@const on = isOverlay(pick)}
-							{@const blocked = !on && atCap}
+							{@const on = isOn(pick)}
+							{@const capped = !on && atCap}
+							{@const kept = on && !canRemoveLayer(data, catalog, indexOf(pick))}
 							{@const reasonId = `${uid}-${id}-${entry.id}-reason`}
 							<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
 								<label class="flex items-center gap-2">
@@ -126,18 +217,34 @@
 										type="checkbox"
 										class="accent-primary size-4"
 										checked={on}
-										disabled={blocked}
-										aria-describedby={blocked ? reasonId : undefined}
+										disabled={capped || kept}
+										aria-describedby={capped || kept ? reasonId : undefined}
 										onchange={(e) => ontoggle(pick, e.currentTarget.checked)}
 									/>
-									<span class={[blocked && "text-muted-foreground"]}>{entry.label}</span>
+									<span class={[(capped || kept) && "text-muted-foreground"]}>{entry.label}</span>
 								</label>
-								{#if blocked}
-									<span id={reasonId} class="text-muted-foreground text-xs">{limitText}</span>
+								{#if capped}
+									{@render reason(reasonId, limitText)}
+								{:else if kept}
+									{@render reason(reasonId, m.get_data_keep_one())}
 								{/if}
 							</div>
 						{/each}
 					</fieldset>
+				{/if}
+				{#if id === WEATHER && weatherLayers.length > 0 && places === 1 && main}
+					<StationChoice place={main} value={station} onchange={onstation} />
+				{/if}
+				{#if id === PESTICIDES}
+					<PesticideLayers
+						entryTypes={section.layerTypes}
+						layers={pesticideLayers}
+						blocked={atCap ? limitText : undefined}
+						canRemove={(index) => canRemoveLayer(data, catalog, index)}
+						onadd={onaddpesticide}
+						{onremove}
+						{onfilters}
+					/>
 				{/if}
 			</Accordion.Content>
 		</Accordion.Item>

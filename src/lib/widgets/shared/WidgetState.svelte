@@ -20,6 +20,7 @@
 		retired,
 		onretry,
 		onchoose,
+		emptyText,
 		children
 	}: {
 		state: QueryState;
@@ -33,6 +34,8 @@
 		 * opens Edit data instead.
 		 */
 		onchoose?: () => void;
+		/** What an empty range says instead of the general "No data for this range." */
+		emptyText?: string;
 		children: Snippet<[QueryData]>;
 	} = $props();
 
@@ -41,7 +44,12 @@
 		getContext<(() => void) | undefined>(REMOVE_WIDGET_KEY) ?? (() => removeWidget(app, widget.id));
 
 	/** Reasons for which the saved place is gone: the "no longer available" card. */
-	const GONE = new Set(["region-unresolved", "location-unresolved", "monitor-unlisted"]);
+	const GONE = new Set([
+		"region-unresolved",
+		"location-unresolved",
+		"monitor-unlisted",
+		"filter-gone"
+	]);
 
 	const UNAVAILABLE = {
 		"catalog-unavailable": () => m.widget_state_unavailable_catalog_unavailable(),
@@ -171,11 +179,22 @@
 {:else if state.status === "unavailable"}
 	{#if GONE.has(state.reason)}
 		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
-			<p class="text-sm font-medium">{m.widget_state_gone_title()}</p>
-			<p class="text-muted-foreground text-sm">{m.widget_state_gone_body()}</p>
+			{#if state.reason === "filter-gone"}
+				<p class="text-sm font-medium">{m.widget_state_unavailable_filter_gone()}</p>
+			{:else}
+				<p class="text-sm font-medium">{m.widget_state_gone_title()}</p>
+				<p class="text-muted-foreground text-sm">{m.widget_state_gone_body()}</p>
+			{/if}
 			{#if editable}
 				<div class="flex flex-wrap items-center justify-center gap-2">
-					{#if onchoose}
+					{#if state.reason === "filter-gone"}
+						<!-- A new place can't bring a filter back: Edit data can. -->
+						{#if editsData}
+							<Button size="sm" variant="outline" onclick={chooseAnotherDataset}>
+								{m.widget_edit_data()}
+							</Button>
+						{/if}
+					{:else if onchoose}
 						<Button size="sm" variant="outline" onclick={onchoose}>
 							{m.widget_state_choose_another()}
 						</Button>
@@ -212,7 +231,7 @@
 		{/if}
 		{@render notes()}
 		{#if empty}
-			{@render message(m.widget_state_empty())}
+			{@render message(emptyText ?? m.widget_state_empty())}
 		{:else}
 			<div class="min-h-0 flex-1">{@render children(data)}</div>
 		{/if}
