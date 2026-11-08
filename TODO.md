@@ -1233,7 +1233,7 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    pending: `@sjvair/sdk` `5.0.0-beta.6`, and the layers for weather (nearest CIMIS station, with
    a station choice), smoke per day, and monthly and yearly pesticide use (per-layer filters);
    number layers in strips under the chart and on their own; "Show values" with a "?"; the CSV's
-   `source_id`, `source_name` and `filters`. E2E in `e2e/get-data.spec.ts`; initial bundle
+   `source_id`, `source_name`, `filters` and `aggregate`. E2E in `e2e/get-data.spec.ts`; initial bundle
    199.7 KB of the 200 KB soft budget. Its deferrals are in `DEFERRED.md`.
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds.
 5. Calendars (day-colored, contribution) and the hour × weekday heatmap.

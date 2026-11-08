@@ -220,7 +220,13 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
   header and CSV name the active filters. A saved id the server no longer has makes the layer
   unavailable ("filter-gone").
 - **Table and CSV:** the CSV gains `source_id` and `source_name` (the weather station) and
-  `filters` (the pesticide filters) after `level_label`.
+  `filters` (the pesticide filters) after `level_label`, then `aggregate` (the catalog's `sum`,
+  `mean`, or empty) last, so a total reads as one. The legend, strip tags, Table caption and
+  cells say "Daily total" for a summed layer at every resolution, "Daily average" for a mean,
+  and the entry type's label for a layer that never rolls up. Weather offers no "Every
+  measurement" (see `DEFERRED.md`).
+- A saved pesticide category, cancer group, method or narrowing that `pesticides/meta/` no
+  longer lists is "filter-gone" too.
 - One chart row per place is in `DEFERRED.md`.
 
 **Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show

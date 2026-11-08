@@ -1490,6 +1490,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **Wind direction in Get data.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
   compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
   summarizes it (a prevailing direction), or someone asks for a wind rose.
+- **"Every measurement" for weather.** _Deferred 2026-11-07 (step 4 spec 3b)._ Weather offers
+  no raw level: "Show values" lists Hourly and coarser, and the raw CIMIS readings (with their
+  dew point and soil temperature `*_f`/`*_c` fields) aren't offered. CIMIS readings are hourly,
+  so Hourly shows the same values, and raw rows carry no `value`. A small narrowing of the spec
+  ("read the °F field when Every measurement is chosen"). **Revisit if** someone asks for the
+  raw CIMIS readings, or the server adds `value` to them.
 - **Pesticide breakdowns** ("top chemicals, products or crops here", by method, biggest
   movers). _Deferred 2026-11-07 (step 4 spec 3b)._ Needs a ranked-list widget and a server
   breakdown endpoint. **Revisit when** a later step adds ranked-list widgets, or users ask.
@@ -1555,6 +1561,38 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     repeats `DashboardPage.svelte`'s fetch-a-server-only-dashboard steps and its not-found
     markup (`src/routes/GetData.svelte`), so the two can drift. **Revisit when** those files
     are next touched (the duplication first: a shared helper and not-found component).
+- **Get data layers review leftovers.** _Deferred 2026-11-07 (step 4 spec 3b, final review)._
+  Small things the review let stay, each rare or harmless today:
+  - **With the catalog down, `mainLayer` falls back to the first layer with an entry type,**
+    which can be a level layer, so the place picker could write places onto an overlay.
+    **Revisit with** the next place-picker change.
+  - **The weather station fallback from ZIP to city is untested** (when the first region key
+    has no stations). **Revisit at** the next weather adapter change.
+  - **Smoke chunks are fetched with `Promise.all`** (not `runLimited`), and a 404 on one chunk
+    drops that place's whole smoke series. **Revisit if** multi-year smoke ranges become common
+    or users report missing smoke.
+  - **Pesticide filter labels are fetched in the same `Promise.all` as the data,** so a
+    transient meta failure fails the fetch (Retry), and an id removed mid-session can loop on
+    Retry instead of showing "filter gone". **Revisit if** seen.
+  - **The last covered pesticide month is marked complete** even when coverage ends mid-month.
+    **Revisit when** coverage stops being month-aligned.
+  - **Main-chart month bars are centred on the month's start,** while strip bars span
+    `[start, next)`, and a strip's value axis counts points outside the visible range.
+    **Revisit in** the next chart design pass.
+  - **The pesticide empty text is keyed on the dataset id** in `ChartWidget` and `DataTable`.
+    **Revisit when** a second dataset needs its own empty text (then the adapter supplies it).
+  - **The category checkbox at `CATEGORIES_MAX` is disabled without a visible reason**
+    (unreachable today: 6 categories are in use). **Revisit if** the server has more than 10
+    in-use categories.
+  - **Pesticide layer rows are keyed by index:** after Remove, a neighbour's open "Narrow down"
+    and typed query shift rows. **Revisit if** layers get stable ids, or users report it.
+  - **The filter search shows an empty input when a saved id's name lookup fails** (the layer
+    itself shows "filter gone"). **Revisit with** the next picker change.
+  - **Missing `layers.ts` unit tests** for removing a middle layer, and for removing the
+    pollutant when the next number layer is a pesticide layer. **Add with** the next
+    `layers.ts` change.
+  - **No smoke e2e coverage:** the `hms` fixtures are there, but the e2e catalog has no
+    `hms-smoke`. **Revisit at** the next smoke change.
 
 ## Alerts
 
