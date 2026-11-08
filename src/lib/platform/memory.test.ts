@@ -107,3 +107,27 @@ describe("memory geolocation", () => {
 		await expect(p.geolocation.locate(controller.signal)).rejects.toThrow("stop");
 	});
 });
+
+describe("memory notifications", () => {
+	it("records shown notifications only once granted", async () => {
+		const p = createMemoryPlatform();
+		const n = { title: "T", body: "B", tag: "k" };
+		expect(p.notifications.permission()).toBe("default");
+		p.notifications.show(n);
+		expect(p.notifications.shown).toEqual([]);
+		expect(await p.notifications.request()).toBe("granted");
+		p.notifications.show(n);
+		expect(p.notifications.shown).toEqual([n]);
+	});
+
+	it("script sets what the next request answers", async () => {
+		const p = createMemoryPlatform();
+		p.notifications.script("denied");
+		expect(await p.notifications.request()).toBe("denied");
+		p.notifications.script("unsupported");
+		expect(await p.notifications.request()).toBe("unsupported");
+		expect(p.notifications.permission()).toBe("unsupported");
+		p.notifications.show({ title: "T", body: "B", tag: "k" });
+		expect(p.notifications.shown).toEqual([]);
+	});
+});

@@ -19,6 +19,8 @@ import {
 	type ClipboardAccess,
 	type GeoResult,
 	type GeolocationAccess,
+	type NotificationAccess,
+	type NotifyPermission,
 	type ErrorReporter,
 	type FileAccess,
 	type IdentityCause,
@@ -161,6 +163,11 @@ export function createMemoryIdentity(
 
 export type MemoryClipboard = ClipboardAccess & { fail(on: boolean): void; last: string | null };
 export type MemoryGeolocation = GeolocationAccess & { script(result: GeoResult): void };
+export type MemoryNotifications = NotificationAccess & {
+	/** What the next `request()` answers; "unsupported" also takes effect at once. */
+	script(p: NotifyPermission): void;
+	shown: Array<{ title: string; body: string; tag: string }>;
+};
 export type MemoryFiles = FileAccess & {
 	queueOpen(file: OpenedFile | null): void;
 	saved: Array<{ name: string; contents: string; type: string }>;
@@ -179,6 +186,7 @@ export type MemoryPlatform = Platform & {
 	online: MemoryOnline;
 	clipboard: MemoryClipboard;
 	geolocation: MemoryGeolocation;
+	notifications: MemoryNotifications;
 	files: MemoryFiles;
 	persistence: MemoryPersistence;
 	errors: MemoryErrors;
@@ -219,6 +227,23 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 		async locate(signal) {
 			signal?.throwIfAborted();
 			return geoAnswer;
+		}
+	};
+	let notifyState: NotifyPermission = "default";
+	let notifyAnswer: NotifyPermission = "granted";
+	const notifications: MemoryNotifications = {
+		shown: [],
+		script(p) {
+			notifyAnswer = p;
+			if (p === "unsupported") notifyState = p;
+		},
+		permission: () => notifyState,
+		async request() {
+			if (notifyState !== "unsupported") notifyState = notifyAnswer;
+			return notifyState;
+		},
+		show(n) {
+			if (notifyState === "granted") notifications.shown.push({ ...n });
 		}
 	};
 	const opens: Array<OpenedFile | null> = [];
@@ -407,6 +432,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 		locks: createQueueLocks(),
 		clipboard,
 		geolocation,
+		notifications,
 		files,
 		persistence,
 		errors,

@@ -20,6 +20,7 @@ import { createWebDisplay } from "./display";
 import { createWebOnline } from "./online";
 import { createWebClipboard } from "./clipboard";
 import { createWebGeolocation } from "./geolocation";
+import { createWebNotifications } from "./notifications";
 import { createWebErrors, listenForCspViolations } from "./errors";
 import { createWebFiles } from "./files";
 import { createWebIdentity } from "./identity";
@@ -346,6 +347,7 @@ export async function createWebPlatform(options: OpenOptions = {}): Promise<Plat
 		locks: createWebLocks(),
 		clipboard: createWebClipboard(),
 		geolocation: createWebGeolocation(),
+		notifications: createWebNotifications(),
 		files: createWebFiles(),
 		persistence: createWebPersistence(),
 		reset: createWebReset(run),
