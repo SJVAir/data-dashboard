@@ -9,7 +9,7 @@ import { createNowClient, type NowClient } from "$lib/data/now/client";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
 import { forecastRow, placeResponse } from "$lib/data/testing/forecasts-fixtures";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { formatDate, formatWeekdayDate, formatWeekdayTime, todayPacific } from "$lib/format";
+import { formatWeekdayDate, formatWeekdayTime, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
@@ -20,7 +20,8 @@ import ForecastWidget from "./ForecastWidget.svelte";
 const fake = vi.hoisted(() => ({
 	client: undefined as NowClient | undefined,
 	metadata: undefined as MetadataSource | undefined,
-	forecast: undefined as (() => Promise<unknown>) | undefined
+	forecast: undefined as (() => Promise<unknown>) | undefined,
+	pointKeys: undefined as (() => Promise<string[]>) | undefined
 }));
 vi.mock("$lib/data", () => ({
 	getMetadata: () => fake.metadata!,
@@ -34,7 +35,7 @@ vi.mock("$lib/data", () => ({
 						: "unsupported"
 		},
 		locations: { resolve: async () => null },
-		points: { keys: async () => [] }
+		points: { keys: () => (fake.pointKeys ? fake.pointKeys() : Promise.resolve([])) }
 	})
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.client! }));
@@ -66,6 +67,7 @@ beforeEach(async () => {
 			entryType === "aqi-forecast" ? { name: "AirNow", url: "https://airnow.example" } : null
 	});
 	fake.forecast = async () => placeResponse(rows());
+	fake.pointKeys = undefined;
 	frame = document.createElement("div");
 	frame.style.width = "320px";
 	frame.style.height = "420px";
@@ -120,6 +122,12 @@ test("shows Today and Tomorrow with level chips, AQI text, burn status and foote
 		.toBeVisible();
 	// An unknown burn status shows the feed's own text.
 	await expect.element(screen.getByText("Prohibited: text")).toBeVisible();
+	// ...as a neutral chip: no level color.
+	const unknown = [...frame.querySelectorAll<HTMLElement>("span")].find(
+		(e) => e.textContent?.trim() === "Prohibited: text"
+	)!;
+	expect(unknown.hasAttribute("data-level-chip")).toBe(false);
+	expect(unknown.style.backgroundColor).toBe("");
 	await expect
 		.element(screen.getByText(m.forecast_issued({ time: formatWeekdayTime(PUBLISHED) })))
 		.toBeVisible();
@@ -134,7 +142,10 @@ test("an Air Alert shows a banner above the rows, in text", async () => {
 	fake.forecast = async () =>
 		placeResponse(rows({ air_alert: true, air_alert_start: today, air_alert_end: today }));
 	const screen = await show(widgetFor());
-	const text = m.forecast_air_alert({ start: formatDate(today), end: formatDate(today) });
+	const text = m.forecast_air_alert({
+		start: formatWeekdayDate(today),
+		end: formatWeekdayDate(today)
+	});
 	await expect.element(screen.getByText(text), { timeout: 5000 }).toBeVisible();
 	const banner = frame.querySelector("[data-air-alert]")!;
 	const first = frame.querySelector("[data-forecast-day]")!;
@@ -179,6 +190,24 @@ test("a failed fetch shows the error with Retry, then recovers", async () => {
 	fake.forecast = async () => placeResponse(rows());
 	await screen.getByRole("button", { name: m.widget_state_retry() }).click();
 	await expect.element(screen.getByText("AQI 62 · PM2.5")).toBeVisible();
+});
+
+test("a point lookup that fails once recovers on Retry, with no coordinates in the key", async () => {
+	let calls = 0;
+	fake.pointKeys = async () => {
+		if (calls++ === 0) throw new Error("network");
+		return ["county:06019"];
+	};
+	const widget = widgetFor();
+	widget.data.layers[0].place = { kind: "point", lat: 36.7377, lon: -119.7871 };
+	const subscribe = vi.spyOn(fake.client!, "subscribe");
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_state_error()), { timeout: 5000 }).toBeVisible();
+	await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+	await expect.element(screen.getByText("AQI 62 · PM2.5")).toBeVisible();
+	for (const [source] of subscribe.mock.calls) {
+		expect(source.key).not.toMatch(/36\.7|119\.7/);
+	}
 });
 
 test("has no axe violations", async () => {

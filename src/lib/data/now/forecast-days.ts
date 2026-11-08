@@ -46,8 +46,16 @@ function targetKey(target: Target): string {
 			return `monitors:${target.ids.join(",")}`;
 		case "all":
 			return "all";
-		default:
-			return `${target.kind}:${target.keys.join(",")}`;
+		case "regions":
+			return `regions:${target.keys.join(",")}`;
+		default: {
+			// How the place was reached shows in the result, so it belongs in the key (no coordinates).
+			const via =
+				target.via.kind === "location"
+					? `location:${target.via.source}:${target.via.code}`
+					: "point";
+			return `fallback:${via}:${target.keys.join(",")}`;
+		}
 	}
 }
 

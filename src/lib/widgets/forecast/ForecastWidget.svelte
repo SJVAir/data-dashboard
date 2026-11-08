@@ -4,7 +4,7 @@
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { getMetadata, getResolvers } from "$lib/data";
-	import type { NowSource, NowState } from "$lib/data/now/client";
+	import type { NowState } from "$lib/data/now/client";
 	import {
 		forecastDaysSource,
 		type ForecastDay,
@@ -15,13 +15,7 @@
 	import type { Layer } from "$lib/data/schema";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import {
-		formatDate,
-		formatDateTime,
-		formatWeekdayDate,
-		formatWeekdayTime,
-		todayPacific
-	} from "$lib/format";
+	import { formatWeekdayDate, formatWeekdayTime, todayPacific } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import LevelChip from "../shared/LevelChip.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
@@ -54,8 +48,14 @@
 		}
 		let cancelled = false;
 		const abort = new AbortController();
-		const ctx = { metadata: getMetadata(), ...getResolvers() };
-		forecastDaysSource(current, ctx, () => new Date(), abort.signal).then(
+		const resolve = (signal?: AbortSignal) =>
+			forecastDaysSource(
+				current,
+				{ metadata: getMetadata(), ...getResolvers() },
+				() => new Date(),
+				signal
+			);
+		resolve(abort.signal).then(
 			(source) => {
 				if (cancelled) return;
 				if ("unavailable" in source) {
@@ -63,16 +63,31 @@
 					query.set(null);
 				} else {
 					unavailable = null;
-					query.set(source as NowSource<ForecastDays>);
+					query.set(source);
 				}
 			},
 			(error: unknown) => {
 				if (cancelled) return;
 				unavailable = null;
+				// The target couldn't be resolved: keyed by widget (never by the place's
+				// coordinates), and Retry resolves it again before fetching.
+				let failedOnce = false;
 				query.set({
-					key: `forecast-days:failed:${layerKey}`,
+					key: `forecast-days:unresolved:${widget.id}`,
 					cadence: "hour",
-					fetch: () => Promise.reject(error)
+					fetch: async (signal) => {
+						// The first fetch reports the failure that got us here; later ones try again.
+						if (!failedOnce) {
+							failedOnce = true;
+							throw error;
+						}
+						const source = await resolve(signal);
+						if ("unavailable" in source) {
+							unavailable = source.unavailable;
+							throw error;
+						}
+						return source.fetch(signal);
+					}
 				});
 			}
 		);
@@ -134,7 +149,9 @@
 
 	/** An Air Alert bound: a date or a timestamp, shown in Pacific time. */
 	function alertTime(value: string): string {
-		return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : formatDateTime(new Date(value));
+		return formatWeekdayDate(
+			/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : todayPacific(new Date(value))
+		);
 	}
 
 	function dayName(day: ForecastDay): string {
