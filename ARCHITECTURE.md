@@ -97,7 +97,7 @@ now inside the dataset sections.
 - **Left column, top to bottom:** **When** (the date control), **Where** (the places, with
   "Change", which opens the shared place picker in `multiple` mode up to the widget type's
   `maxPlaces`), **What** (one collapsible section per dataset; Air Quality starts open), and
-  **More options** → **Detail** (the resolution override).
+  **More options** → **Show values** (the resolution override, with a "?" toggletip).
 - **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
   **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
   It's the real widget component in a view-only frame, so its states (loading, "No data",
@@ -148,15 +148,34 @@ lists it. In a section, entry types no offered type can show are left out, and a
 keeps showing it, with its retired state). **The adapter decides fit**, not the catalog's
 `geographies`: it says whether it can serve a layer for the main layer's places (the forecasts
 adapter takes monitors and regions and lets the server map them to a forecast zone). Spec 3
-offers **Air Quality** and **Air Quality Forecasts** (`forecasts`).
+offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (2026-11-07) adds
+**Weather** (`weather`), **Wildfire Smoke** (`hms-smoke`) and **Pesticide Use** (`pesticide-use`).
 
 **Layers.**
 
 - A widget combines dataset **layers** sharing its one date range: **at most one pollutant
   layer** (by the catalog's `kind`; no mixing O3 and PM2.5), plus **up to two overlays**.
-- **The main layer** is the pollutant (the first, which sets the chart's value axis). It's
-  **required**: the Air Quality section is a single required choice, and overlays can't stand
-  alone (an overlay on its own is in `DEFERRED.md`).
+- **Two kinds of layer (spec 3b).** A **level layer** draws day bands: burn status, AQI
+  forecast and smoke density. A **number layer** has a value with units: a pollutant, a weather
+  reading or total, or a pesticide measure. Which kind a layer is comes from the dataset's
+  adapter (`drawsAsBands`, in the dependency-free `src/lib/data/adapters/bands.ts`: `forecasts`
+  and `hms-smoke` do), not from the catalog, which gives the AQI forecast units and
+  `chart: "bar"`; a metadata test would misclassify it.
+- **The main layer** is the pollutant if there is one, else the first **number layer**
+  (`mainLayer`): a weather reading or total, or a pesticide measure. **A number layer can stand
+  alone**: Air Quality has a "None" choice, and a widget needs at least one number layer. The
+  last one can't be removed (the places move to the next number layer when the main one goes). A
+  widget of only level layers can't be added or downloaded; the reason shows.
+- **Number overlays draw in strips under the chart** (the user, option B, spec 3b), each with
+  its own axis labeled with the entry type's label and units, sharing the chart's dates;
+  nothing is drawn on a second axis inside the main plot. Bars or a line follow the catalog's
+  `display.chart`, from `y_min`. Each strip takes a fixed share of the height and the main chart
+  keeps at least half. The legend names each layer and its source ("Temperature · CIMIS #80 -
+  Fresno State", "Pounds applied · Sulfur"), with no correlation wording. A strip can be
+  coarser than the chart: pesticide use is monthly or yearly, so under a daily chart it is one
+  bar per month spanning that month's days ("Monthly total"; a month only partly in the range
+  shows its whole-month total, marked). An empty pesticide strip says "No pesticide use
+  reported for these dates."
 - **Overlays borrow the main layer's places.** Only the main layer stores places (the shared
   place picker's `place` or `selection`), so "Change" re-targets every layer at once. An overlay
   is fetched for each of the main layer's places; the **Data table** shows a column per place
@@ -177,8 +196,32 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`).
   **"Overlay for: [place ▾]"** choice picks whose overlay the Chart draws; it's saved on the
   widget as a Chart option (`options.overlayFor`, a validated place ref), not on the layer, and
   falls back to the first place when that place leaves the widget.
-- Waiting overlays (pesticides, weather, smoke) and one chart row per place are in
-  `DEFERRED.md`.
+- **Weather (spec 3b):** every catalog entry type with summary levels except `raw` (no "Every
+  measurement": CIMIS readings are hourly, so Hourly shows the same values; entry types left
+  with nothing, such as wind direction, aren't offered). The data is the place's nearest CIMIS
+  station's monitor summaries, one station per request. **The station** defaults to the first
+  one `getWeatherStationsForPlace` lists; with one place, "Station" in the Weather section lists
+  them (inactive ones with "may be behind") and the choice is saved as `Layer.station` (a
+  monitor id; the default stores nothing). One station serves every weather layer of the widget
+  (saved on each, kept in step). With several places each uses its own default; changing the
+  place drops the override; a saved station no longer listed falls back to the first. A row with
+  `is_complete: false` is partial. Schools and "my location" use the region they fall back to,
+  so no coordinates leave the browser.
+- **Wildfire smoke (spec 3b):** a level layer, one band per Pacific day from `hms/smoke/place/`
+  (levels, labels and colors from `hms/meta`), requests split to at most 366 days. Alone it
+  can't make a widget.
+- **Pesticide use (spec 3b):** pounds applied, acres treated and applications per region, from
+  `months` (Monthly; a month the server omits is 0 inside the dataset's coverage, no point
+  outside it) and `years` (Yearly, the server's year totals, which include undated records).
+  **Filters belong to each layer** (`Layer.filters`: chemical, commodity and product ids,
+  categories, cancer group, method, narrow-to): a "Narrow down" area under each layer, with a
+  summary line, and "Add a/another pesticide layer", so one chart can hold all use and
+  carcinogens only. Labels come from `pesticides/meta/` and `display_name`; the legend, Table
+  header and CSV name the active filters. A saved id the server no longer has makes the layer
+  unavailable ("filter-gone").
+- **Table and CSV:** the CSV gains `source_id` and `source_name` (the weather station) and
+  `filters` (the pesticide filters) after `level_label`.
+- One chart row per place is in `DEFERRED.md`.
 
 **Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
 the current data (too many places, a dataset it doesn't accept, a span outside its `span`) is
@@ -204,9 +247,11 @@ directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discar
 (an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
 its link it goes to the dashboard (or `/` from `/data`), never off the app.
 
-**Detail ("More options").** **Automatic** (spec 1's resolution rule, the default), or **Raw**,
-**Hourly**, **Daily**, **Monthly**, stored on the main layer as `resolution` (Automatic stores
-nothing). Only levels the entry type's catalog `resolutions` offer are listed; one the point
+**Show values ("More options"; was "Detail" until spec 3b).** **Automatic** (spec 1's
+resolution rule, the default), or **Every measurement**, **Hourly**, **Daily**, **Monthly**,
+**Yearly**, stored on the main layer as `resolution` (Automatic stores nothing). A "?"
+toggletip beside it (a button on the bits-ui popover: opens on click, tap or Enter, also on
+hover, closes on Escape or a click outside, announced) explains it. Only levels the entry type's catalog `resolutions` offer are listed; one the point
 budget (places × periods) can't serve for the current range is greyed with the reason. No
 level has a range cap of its own: the server's 31-day cap on raw and hourly is per request,
 and the adapters ask a calendar month (or 31 raw days) at a time (and a stored one that becomes blocked goes back to Automatic). A type with a pinned
@@ -1046,8 +1091,20 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
     (about 1 year per request, split into chunks) and **downsampled in a Web Worker** (built inline, since static files are cross-origin) to
     the resolution the ladder would pick. The table and exports say "computed from raw
     data".
-  - **Pesticide use** stays yearly (sub-yearly is deferred).
-  - Server summaries for weather/PM10 are deferred (see `DEFERRED.md`).
+  - **Pesticide use** is monthly and yearly (the server's `months` and `years`; spec 3b).
+  - Weather now has server summaries (CIMIS stations, sjvair.com #313, used by spec 3b); PM10's are deferred (see `DEFERRED.md`).
+- **Number overlays and coarser strips (spec 3b).** A number overlay's strip is pinned to the
+  main data's resolution (`pin`): `chooseResolution` falls back to the nearest coarser level the
+  overlay's entry type offers (a daily chart gets monthly pesticide bars). An overlay's own saved
+  `resolution` is ignored. Level overlays keep spec 3's behavior (no pin).
+- **Totals follow the catalog's `aggregate` (the user, 2026-11-07, `@sjvair/sdk` 5.0.0-beta.6;
+  decision 2 of spec 3b's plan).** Each catalog entry type has a top-level `aggregate`: `"sum"`
+  (weather precipitation, ETo, ETr; pounds applied, acres treated, applications) reads the
+  summary's `sum`, and rolling values into an open period sums them; `"mean"` (pollutants, the
+  other weather entries) reads `mean` and an open period averages; `null` (wind direction,
+  forecasts, smoke density, and others) never rolls up. `display.chart` picks bars or a line
+  and nothing else. Pesticide Yearly still reads the server's `years[]`, since summing months can
+  fall short of a year; summing is only for an open month.
 - **Incomplete periods are stitched from finer data** — e.g. the current month (no
   monthly rollup until it ends) is computed from daily summaries so far, today from
   hourly. Fixes the "current month shows nothing" problem for every widget.
@@ -1843,7 +1900,8 @@ outside?" follows from the same place); the Forecast strip has one forecasts lay
 
 **`accepts.datasets` is explicit** (decided 2026-11-05, step 4 spec 3). It lists the catalog
 dataset ids a type can show; a type with no list accepts no datasets, so a new type can't
-accidentally offer everything. Chart and Data table declare `["air-quality", "forecasts"]`;
+accidentally offer everything. Chart and Data table declare
+`["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"]` (spec 3b);
 Notes declares none. The types with a list are the **data types**: "Add widget" opens Get data
 for them, and Get data's **What** sections and **Show as** choices come from their lists (see
 "Get data"). **`addable`** is only for non-data types (Notes, later the Map), which "Add widget"

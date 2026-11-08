@@ -1475,42 +1475,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   far) point looks like any other; the readout still says it's incomplete. **Revisit if** five-
   place charts are common, or when the series markers are reviewed.
 
-- **Get data overlays waiting on the "Get data layers" track.** _Deferred 2026-11-05 (step 4
-  spec 3)._ Spec 3 ships one overlay dataset (Air Quality Forecasts: burn status and AQI
-  forecast). The others need server endpoints and SDK functions that the **Get data layers**
-  track (sjvair.com + sdk-js session, started 2026-11-05) is building, in this order; each
-  becomes a layer in Get data in a later change. Don't start a second track for them. One
-  entry each. **Status (2026-11-05, end of day):** all four server PRs (#310–#313) are merged
-  into sjvair.com `develop` (`bd071d24`) and run on the local stack, and the SDK side (sdk-js
-  #51–#54, including `sum`) is merged into `release/5.0.0`. **`@sjvair/sdk` `5.0.0-beta.5` was
-  published 2026-11-05 with all four**, so they wait only on **step 4 spec 3b** (the user,
-  2026-11-05: a new spec right after spec 3 that pins beta.5 and adds these layers). Details:
-  - **Monthly pesticide use.** Server `pesticides/place/` merged into sjvair.com `develop`
-    (#310); SDK `getPesticidesForPlace(place, filters?, options?)` merged into sdk-js
-    `release/5.0.0` (#51). Waits only for the next SDK beta (latest published: 5.0.0-beta.4).
-    Shape: `{place, months: [{year, month, pounds, acres, applications}]` (only months with
-    use), `years: [{…, undated: {…}}]}`; a year's totals include undated use. A cold, large
-    multi-county answer takes about 5 s, then it's cached. A monitor counts through its ZIP
-    (one outside every ZIP gets empty lists). **Revisit in** step 4 spec 3b.
-  - **Nearest weather station.** Server `monitors/weather/place/` (sjvair.com #311); SDK
-    `getWeatherStationsForPlace` and the CIMIS entry type ids (sdk-js #52). Open question
-    for when the layer is built: **which station the chart uses when several are inside the
-    place.** `is_active` uses a 4-hour CIMIS limit, so don't hide a listed inactive station. Raw
-    dewpoint and soil temperature carry `*_f`/`*_c` fields, not `value`. **Revisit in** step 4
-    spec 3b.
-  - **Smoke over a place, per day.** Server `hms/smoke/place/` (sjvair.com #312); SDK
-    `getSmokeForPlace` (sdk-js #53). At most 366 days per request. Caveat: "no smoke" and
-    "never fetched" look the same (a server deferral), so expect false clear days locally.
-    **Revisit in** step 4 spec 3b.
-  - **Weather daily and monthly summaries.** sjvair.com #313; SDK `sum` on monitor summaries
-    (sdk-js #54). CIMIS stations only, monitor-level (no region rows), 11 entry types
-    (not wind direction). Fetch one station at a time (the bulk summaries stay air-quality
-    only). Use `sum` for precipitation, ETo and ETr totals, and judge partial totals from
-    `count` against the hours. Summaries settle late (CIMIS revises yesterday each morning).
-    CIMIS raw timestamps move to the start of the hour in fixed PST, so winter readings move one
-    hour earlier. `rebuild_summaries` writes only finished periods (the user, 2026-11-05), so the
-    open month or year must be built from finer rows (the air-quality adapter's `planSegments`
-    already does this), including `sum` totals. **Revisit in** step 4 spec 3b.
 - **Air monitors' temperature and humidity as Get data overlays.** _Deferred 2026-11-05 (step 4
   spec 3)._ They stay unsummarized on the server (raw readings only), so the weather summaries
   work (CIMIS stations only) doesn't bring them. **Revisit if** the server summarizes them, or a
@@ -1519,10 +1483,27 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2026-11-05 (step 4 spec 3)._ None has a per-place time series today: TEMPO isn't in the SDK,
   and emissions are yearly snapshots. **Revisit when** a widget needs one of them, or the Map
   widget (fires) is built.
-- **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3)._ Get data needs a pollutant
-  main layer, so a widget or CSV of only an overlay (say, no-burn days alone) can't be made.
-  **Revisit when** someone asks for it, or when the weather or smoke layers land (a
-  temperature-only chart is the likely first case).
+- **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3); updated 2026-11-07 (step 4
+  spec 3b)._ Number layers (a temperature-only chart, pesticide use alone) are done in spec 3b.
+  Level layers alone (smoke days, no-burn days) still can't make a widget or a CSV: the reason
+  shows. **Revisit with** spec 5's day-colored calendar.
+- **Wind direction in Get data.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
+  compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
+  summarizes it (a prevailing direction), or someone asks for a wind rose.
+- **Pesticide breakdowns** ("top chemicals, products or crops here", by method, biggest
+  movers). _Deferred 2026-11-07 (step 4 spec 3b)._ Needs a ranked-list widget and a server
+  breakdown endpoint. **Revisit when** a later step adds ranked-list widgets, or users ask.
+- **The school "within about a mile" pesticide block, and buffer or radius.** _Deferred
+  2026-11-07 (step 4 spec 3b)._ Server-side deferrals (the coordinator records them). The
+  dashboard side (a school uses its ZIP, then city, then county) **revisits when** the server
+  adds a location place.
+- **A note on when pesticide data is released.** _Deferred 2026-11-07 (step 4 spec 3b)._ A
+  neutral note in the dataset's catalog description (server text), offered and not taken.
+  **Revisit if** people ask why recent months are empty.
+- **Choosing a weather station per place or per layer.** _Deferred 2026-11-07 (step 4 spec
+  3b)._ One station per Weather section, and the choice shows only for one place (rain from two
+  stations, or a station for each of several places, can't be asked for). **Revisit if**
+  researchers ask to compare stations.
 - **One chart row per place (small multiples) for overlays.** _Deferred 2026-11-05 (step 4 spec
   3)._ When a Chart's places fall in different forecast zones, the Chart's "Overlay for" choice
   picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
