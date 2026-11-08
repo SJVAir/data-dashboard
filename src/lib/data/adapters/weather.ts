@@ -14,7 +14,7 @@ export type WeatherStation = {
 	/** Miles from the place's edge (0 when inside). */
 	distance: number;
 	inside: boolean;
-	/** The server's `is_active`; an inactive station may be behind. */
+	/** The server's `is_active`; an inactive station has no recent data. */
 	active: boolean;
 };
 

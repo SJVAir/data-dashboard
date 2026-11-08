@@ -190,7 +190,9 @@
 					{#if state.reason === "filter-gone"}
 						<!-- A new place can't bring a filter back: Edit data can. -->
 						{#if editsData}
-							{@render chooseAnotherButton()}
+							<Button size="sm" variant="outline" onclick={chooseAnotherDataset}>
+								{m.widget_edit_data()}
+							</Button>
 						{/if}
 					{:else if onchoose}
 						<Button size="sm" variant="outline" onclick={onchoose}>

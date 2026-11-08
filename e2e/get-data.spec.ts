@@ -158,7 +158,7 @@ test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ 
 	await openSection(page, /^Pesticide Use/);
 	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
-	await page.getByRole("button", { name: "Narrow down" }).click();
+	await page.getByRole("button", { name: "Filters" }).click();
 	await page.getByRole("combobox", { name: "Chemical" }).click();
 	const asked = page.waitForRequest((r) => /\/pesticides\/place\/\?.*chemical=gs65e/.test(r.url()));
 	await page.keyboard.type("su");
@@ -209,7 +209,7 @@ test("downloads a CSV with station and filter columns", async ({ page }) => {
 	await openSection(page, /^Pesticide Use/);
 	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
-	await page.getByRole("button", { name: "Narrow down" }).click();
+	await page.getByRole("button", { name: "Filters" }).click();
 	await page.getByRole("combobox", { name: "Chemical" }).click();
 	await page.keyboard.type("su");
 	await page

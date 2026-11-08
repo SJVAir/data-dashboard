@@ -54,7 +54,7 @@
 							: labels.reduce((line, label) => m.chart_strip_key({ layer: line, source: label }));
 				},
 				(error: unknown) => {
-					if (error instanceof FilterGone) summaries[key] = m.data_unavailable_filter_gone();
+					if (error instanceof FilterGone) summaries[key] = m.get_data_filter_gone_summary();
 				}
 			);
 		}

@@ -1584,7 +1584,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The category checkbox at `CATEGORIES_MAX` is disabled without a visible reason**
     (unreachable today: 6 categories are in use). **Revisit if** the server has more than 10
     in-use categories.
-  - **Pesticide layer rows are keyed by index:** after Remove, a neighbour's open "Narrow down"
+  - **Pesticide layer rows are keyed by index:** after Remove, a neighbour's open "Filters"
     and typed query shift rows. **Revisit if** layers get stable ids, or users report it.
   - **The filter search shows an empty input when a saved id's name lookup fails** (the layer
     itself shows "filter gone"). **Revisit with** the next picker change.

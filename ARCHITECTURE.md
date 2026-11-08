@@ -201,7 +201,7 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
   with nothing, such as wind direction, aren't offered). The data is the place's nearest CIMIS
   station's monitor summaries, one station per request. **The station** defaults to the first
   one `getWeatherStationsForPlace` lists; with one place, "Station" in the Weather section lists
-  them (inactive ones with "may be behind") and the choice is saved as `Layer.station` (a
+  them (inactive ones with "no recent data") and the choice is saved as `Layer.station` (a
   monitor id; the default stores nothing). One station serves every weather layer of the widget
   (saved on each, kept in step). With several places each uses its own default; changing the
   place drops the override; a saved station no longer listed falls back to the first. A row with
@@ -214,7 +214,7 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
   `months` (Monthly; a month the server omits is 0 inside the dataset's coverage, no point
   outside it) and `years` (Yearly, the server's year totals, which include undated records).
   **Filters belong to each layer** (`Layer.filters`: chemical, commodity and product ids,
-  categories, cancer group, method, narrow-to): a "Narrow down" area under each layer, with a
+  categories, cancer group, method, narrow-to): a "Filters" area under each layer, with a
   summary line, and "Add a/another pesticide layer", so one chart can hold all use and
   carcinogens only. Labels come from `pesticides/meta/` and `display_name`; the legend, Table
   header and CSV name the active filters. A saved id the server no longer has makes the layer

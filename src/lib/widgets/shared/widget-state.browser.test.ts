@@ -335,7 +335,7 @@ test("Choose another on a retired entry type opens Edit data, not the place pick
 	}
 });
 
-test("filter-gone shows its message; Choose another opens Edit data, not the place picker", async () => {
+test("filter-gone shows its message; its Edit data button opens Edit data, not the place picker", async () => {
 	const originalUrl = location.href;
 	try {
 		const onchoose = vi.fn();
@@ -352,7 +352,7 @@ test("filter-gone shows its message; Choose another opens Edit data, not the pla
 		const results = await axe.run(screen.container);
 		expect(results.violations).toEqual([]);
 		await import("../../../routes/GetData.svelte");
-		await screen.getByRole("button", { name: m.widget_state_choose_another() }).click();
+		await screen.getByRole("button", { name: m.widget_edit_data() }).click();
 		await expect
 			.poll(() => location.pathname)
 			.toBe(`/workspace/dashboards/${session.doc.id}/widgets/w1/edit`);

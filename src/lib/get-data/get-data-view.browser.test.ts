@@ -608,7 +608,7 @@ test("the station choice shows only with one place", async () => {
 	await expect.element(station).toHaveValue("st1");
 	expect(
 		[...(station.element() as HTMLSelectElement).options].map((o) => o.textContent?.trim())
-	).toEqual(["Fresno State", "Parlier (4.2 mi), may be behind"]);
+	).toEqual(["Fresno State", "Parlier (4.2 mi away), no recent data"]);
 	await station.selectOptions("st2");
 	expect((await one.current()).data.layers[1].station).toBe("st2");
 	// The first (default) station stores nothing.
@@ -637,7 +637,7 @@ test("a filter search lists results after two letters and picks one", async () =
 	const { current } = await show(withLayers(["m1"], { ...POUNDS }));
 	await openSection(/^Pesticide Use/);
 	await expect.element(page.getByTestId("pesticide-summary")).toHaveTextContent("All pesticides");
-	await page.getByRole("button", { name: "Narrow down" }).click();
+	await page.getByRole("button", { name: "Filters" }).click();
 	const chemical = page.getByRole("combobox", { name: "Chemical" });
 	await chemical.click();
 	await userEvent.keyboard("c");
@@ -676,7 +676,7 @@ test("a slow search's results never replace a newer one's", async () => {
 	};
 	await show(withLayers(["m1"], { ...POUNDS }));
 	await openSection(/^Pesticide Use/);
-	await page.getByRole("button", { name: "Narrow down" }).click();
+	await page.getByRole("button", { name: "Filters" }).click();
 	const chemical = page.getByRole("combobox", { name: "Chemical" });
 	await chemical.click();
 	// The first search ("ch") answers late, after "chx" found nothing.
@@ -721,13 +721,13 @@ test("smoke alone disables Add with the reason", async () => {
 describe.each([
 	["desktop", 1280, 800],
 	["phone", 390, 844]
-])("with a pesticide layer's Narrow down open on a %s", (_name, width, height) => {
+])("with a pesticide layer's Filters open on a %s", (_name, width, height) => {
 	test("axe passes", async () => {
 		await page.viewport(width, height);
 		fake.stations = [{ id: "st1", name: "Fresno State", distance: 0, inside: true, active: true }];
 		const { host } = await show(withLayers(["m1"], { ...POUNDS, filters: { iarcGroup: "1" } }));
 		await openSection(/^Pesticide Use/);
-		await page.getByRole("button", { name: "Narrow down" }).click();
+		await page.getByRole("button", { name: "Filters" }).click();
 		await expect.element(page.getByRole("combobox", { name: "Cancer group" })).toHaveValue("1");
 		await openSection(/^Weather/);
 		await drawn(host);
