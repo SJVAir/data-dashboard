@@ -11,7 +11,8 @@
 		"privacy",
 		"existingCopy",
 		"moveToAccount",
-		"placePicker"
+		"placePicker",
+		"notifications"
 	];
 
 	/** Opened at least once; Move to account is asked once the app starts in an account space. */

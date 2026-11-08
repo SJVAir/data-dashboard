@@ -130,4 +130,12 @@ describe("memory notifications", () => {
 		p.notifications.show({ title: "T", body: "B", tag: "k" });
 		expect(p.notifications.shown).toEqual([]);
 	});
+
+	it("scripting anything after unsupported lifts it", async () => {
+		const p = createMemoryPlatform();
+		p.notifications.script("unsupported");
+		p.notifications.script("granted");
+		expect(p.notifications.permission()).toBe("default");
+		expect(await p.notifications.request()).toBe("granted");
+	});
 });

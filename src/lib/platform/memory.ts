@@ -164,7 +164,11 @@ export function createMemoryIdentity(
 export type MemoryClipboard = ClipboardAccess & { fail(on: boolean): void; last: string | null };
 export type MemoryGeolocation = GeolocationAccess & { script(result: GeoResult): void };
 export type MemoryNotifications = NotificationAccess & {
-	/** What the next `request()` answers; "unsupported" also takes effect at once. */
+	/**
+	 * What the next `request()` answers. "unsupported" also takes effect at once; scripting
+	 * anything else afterwards lifts it again (back to "default", or to the granted/denied answer
+	 * already given).
+	 */
 	script(p: NotifyPermission): void;
 	shown: Array<{ title: string; body: string; tag: string }>;
 };
@@ -231,11 +235,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 	};
 	let notifyState: NotifyPermission = "default";
 	let notifyAnswer: NotifyPermission = "granted";
+	let beforeUnsupported: NotifyPermission = "default";
 	const notifications: MemoryNotifications = {
 		shown: [],
 		script(p) {
 			notifyAnswer = p;
-			if (p === "unsupported") notifyState = p;
+			if (p === "unsupported") {
+				if (notifyState !== "unsupported") beforeUnsupported = notifyState;
+				notifyState = p;
+			} else if (notifyState === "unsupported") notifyState = beforeUnsupported;
 		},
 		permission: () => notifyState,
 		async request() {
