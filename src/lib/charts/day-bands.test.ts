@@ -10,6 +10,8 @@ const level = (key: string): Level => ({
 	color: "#ffff00",
 	opacity: null,
 	tier: null,
+	guidance: "",
+	description: "",
 	min: 0,
 	max: null
 });

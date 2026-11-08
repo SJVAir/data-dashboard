@@ -9,13 +9,25 @@ import type { ChartStrip } from "./strips";
 import TimeChart from "./TimeChart.svelte";
 
 const LEVELS: Level[] = [
-	{ key: "good", label: "Good", color: "#00e400", opacity: null, tier: 1, min: 0, max: 9 },
+	{
+		key: "good",
+		label: "Good",
+		color: "#00e400",
+		opacity: null,
+		tier: 1,
+		guidance: "",
+		description: "",
+		min: 0,
+		max: 9
+	},
 	{
 		key: "moderate",
 		label: "Moderate",
 		color: "#ffff00",
 		opacity: null,
 		tier: 2,
+		guidance: "",
+		description: "",
 		min: 9,
 		max: 35.4
 	},
@@ -25,6 +37,8 @@ const LEVELS: Level[] = [
 		color: "#ff7e00",
 		opacity: null,
 		tier: 3,
+		guidance: "",
+		description: "",
 		min: 35.4,
 		max: 55.4
 	},
@@ -34,6 +48,8 @@ const LEVELS: Level[] = [
 		color: null,
 		opacity: null,
 		tier: 4,
+		guidance: "",
+		description: "",
 		min: 55.4,
 		max: null
 	}

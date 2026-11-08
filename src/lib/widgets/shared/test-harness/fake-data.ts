@@ -80,7 +80,7 @@ function level(
 	min: number,
 	max: number | null
 ): Level {
-	return { key, label, color, opacity: null, tier, min, max };
+	return { key, label, color, opacity: null, tier, guidance: "", description: "", min, max };
 }
 
 /** The six-level PM2.5 scale (the longest level names the key has to fit). */

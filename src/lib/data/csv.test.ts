@@ -279,7 +279,17 @@ describe("downloadWidgetCsv for a point", () => {
 
 const NAN = Number.NaN;
 const BURN: Level[] = [
-	{ key: "burn-day", label: "Burn day", color: null, opacity: null, tier: null, min: 0, max: null }
+	{
+		key: "burn-day",
+		label: "Burn day",
+		color: null,
+		opacity: null,
+		tier: null,
+		guidance: "",
+		description: "",
+		min: 0,
+		max: null
+	}
 ];
 const OVERLAY_META = { entryType: "burn-status", entryLabel: "Burn status", unit: "" };
 
