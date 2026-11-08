@@ -810,6 +810,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
+- **Map views and shapes across the antimeridian.** _Deferred 2026-11-08 (map-sdk in-view
+  shapes fix, `docs/superpowers/specs/2026-11-08-in-view-shapes-design.md`)._ map-sdk's
+  in-view test (the feature list, the view summary, and the focus and hover tooltip anchors)
+  treats lng/lat as flat, so bounds or shapes that cross 180° are measured wrong. Points had
+  the same limit before the fix. Every SJVAir map shows the San Joaquin Valley, far from the
+  date line. **Revisit when** a host map can pan across the date line (a world or Pacific
+  view): split bounds and shapes at 180° before testing.
+
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
   way to go in the long run")._ `regions/places/search/` rows carry one `county`: the county
