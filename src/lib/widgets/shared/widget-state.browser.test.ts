@@ -60,6 +60,7 @@ async function show(
 	extra: {
 		retired?: { name: string; since: string };
 		onchoose?: () => void;
+		ownsEmpty?: boolean;
 		widget?: WidgetInstance;
 	} = {}
 ) {
@@ -117,6 +118,15 @@ test("ready shows the content; all-empty series show the empty message", async (
 	const { screen } = await show({ status: "ready", data: data({ empty: true }) });
 	await expect.element(screen.getByText(m.widget_state_empty())).toBeInTheDocument();
 	expect(screen.container.querySelector("[data-testid=content]")).toBeNull();
+});
+
+test("ownsEmpty renders the children for an all-empty series", async () => {
+	const { screen } = await show(
+		{ status: "ready", data: data({ empty: true }) },
+		{ ownsEmpty: true }
+	);
+	await expect.element(screen.getByTestId("content")).toBeInTheDocument();
+	expect(screen.container.textContent).not.toContain(m.widget_state_empty());
 });
 
 test("error offers Retry, with or without stale data", async () => {

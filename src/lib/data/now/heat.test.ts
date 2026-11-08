@@ -110,6 +110,12 @@ describe("heatSource", () => {
 		expect(r.heat?.highest).toEqual({ zip: "93210", placeName: "Fresno County" });
 	});
 
+	it("keeps a score the heat scale has no level for", async () => {
+		get.mockResolvedValue(response(1, [{ date: "2026-11-08", score: 2, zipcode: "93721" }]));
+		const r = (await load(region("county", "06019"))) as { heat: HeatToday };
+		expect(r.heat).toEqual({ level: undefined });
+	});
+
 	it("is null with no score today", async () => {
 		get.mockResolvedValue(response(58, []));
 		const r = (await load(region("county", "06019"))) as { heat: HeatToday };

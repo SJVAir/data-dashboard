@@ -6,16 +6,17 @@
 	import type { SchoolGuidelines } from "@sjvair/sdk";
 	import type { NowState } from "$lib/data/now/client";
 	import { getNowClient } from "$lib/data/now";
-	import { STALE_MS, type CurrentReading } from "$lib/data/now/current";
 	import { heatSource, type HeatToday } from "$lib/data/now/heat";
 	import { NowQuery } from "$lib/data/now/now-query.svelte";
 	import type { Layer } from "$lib/data/schema";
 	import type { QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
-	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 	import { CurrentConditions } from "../shared/current.svelte";
 	import LevelChip from "../shared/LevelChip.svelte";
+	import MarkFrame from "../shared/MarkFrame.svelte";
+	import { ReadingClock } from "../shared/reading-clock.svelte";
+	import { averageLabel, emptyText } from "../shared/reading-text";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
@@ -120,22 +121,12 @@
 		return heatState.status === "error" ? null : undefined;
 	});
 
-	// --- Clock ---
-	let now = $state(Date.now());
-	$effect(() => {
-		const timer = setInterval(() => (now = Date.now()), 60_000);
-		return () => clearInterval(timer);
-	});
-
+	// --- Reading ---
 	const reading = $derived(current.reading);
-	$effect(() => {
-		void reading;
-		now = Date.now();
-	});
-	const ok = $derived(reading?.status === "ok" ? reading : undefined);
-	const stale = $derived(!!ok && now - ok.at > STALE_MS);
-	const minutes = $derived(ok ? Math.max(0, Math.floor((now - ok.at) / 60_000)) : 0);
-	const mark = $derived(thresholdMarks[widget.id]);
+	const clock = new ReadingClock(() => reading);
+	const ok = $derived(clock.ok);
+	const stale = $derived(clock.stale);
+	const minutes = $derived(clock.minutes);
 
 	/** Held as loading until the catalog and the guidelines are in. */
 	const shown = $derived.by<QueryState>(() => {
@@ -143,22 +134,6 @@
 		if (s.status !== "ready") return s;
 		if (guidelinesError) return { status: "error", error: guidelinesError, data: s.data };
 		if (!meta || guidelines === undefined) return { status: "loading" };
-		// An empty range would replace the whole card; this one keeps its heat line and says
-		// "no PM2.5" itself, so give the shared state one point to render.
-		if (s.data.series.every((x) => !x.points.length)) {
-			return {
-				status: "ready",
-				data: {
-					...s.data,
-					series: [
-						{
-							place: s.data.places[0]?.place ?? "",
-							points: [{ t: 0, mean: 0, min: 0, max: 0, count: 1, partial: false }]
-						}
-					]
-				}
-			};
-		}
 		return s;
 	});
 	const retired = $derived.by(() => {
@@ -185,12 +160,6 @@
 		current.retry();
 	}
 
-	function averageLabel(r: Extract<CurrentReading, { status: "ok" }>): string {
-		if (r.source === "alert") return m.current_minute_average({ minutes: r.windowMinutes ?? 0 });
-		if (r.source === "alert-latest") return m.current_latest_reading();
-		return m.current_hourly_average();
-	}
-
 	/** The guideline sentences for an activity at the current level; never another level's. */
 	function sentencesFor(levels: Record<string, string[]>, key: string | undefined): string[] {
 		return (key !== undefined ? levels[key] : undefined) ?? [];
@@ -210,7 +179,9 @@
 						})}
 					</span>
 				</div>
-				{#if guidelines}
+				{#if !guidelines}
+					<p class="text-muted-foreground px-2 text-sm">{m.outside_no_guidance()}</p>
+				{:else}
 					<ul>
 						{#each guidelines.activities as activity (activity.key)}
 							<ActivityRow
@@ -225,7 +196,7 @@
 				<p
 					class="text-muted-foreground flex flex-1 items-center justify-center px-2 text-center text-sm"
 				>
-					{m.outside_no_pm25()}
+					{stale ? m.current_no_recent_data() : emptyText(reading, m.outside_no_pm25())}
 				</p>
 			{/if}
 		</div>
@@ -266,38 +237,14 @@
 	</div>
 {/snippet}
 
-<div
-	class="relative flex h-full flex-col gap-2 rounded-(--radius-control)"
-	data-mark={mark ? "" : undefined}
-	style:outline-style={mark ? "solid" : undefined}
-	style:outline-width={mark ? "3px" : undefined}
-	style:outline-offset={mark ? "-3px" : undefined}
-	style:outline-color={mark?.level.color ?? (mark ? "var(--foreground)" : undefined)}
->
-	{#if mark}
-		{#key mark.pulse}
-			<span
-				data-pulse={mark.pulse}
-				aria-hidden="true"
-				class="pointer-events-none absolute inset-0 rounded-(--radius-control)"
-				style:outline="3px solid {mark.level.color ?? 'var(--foreground)'}"
-			></span>
-		{/key}
-	{/if}
-	<div class="min-h-0 flex-1">
-		<WidgetState
-			state={shown}
-			{widget}
-			{retired}
-			onretry={retry}
-			onchoose={() => openPlacePicker({ widgetId: widget.id })}
-			emptyText={m.outside_no_pm25()}
-			children={body}
-		/>
-	</div>
-	{#if mark}
-		<p class="bg-muted mx-2 mb-2 rounded-(--radius-control) px-2 py-1 text-sm font-medium">
-			{m.current_at_alert_level()}
-		</p>
-	{/if}
-</div>
+<MarkFrame widgetId={widget.id}>
+	<WidgetState
+		state={shown}
+		{widget}
+		{retired}
+		onretry={retry}
+		onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		ownsEmpty
+		children={body}
+	/>
+</MarkFrame>

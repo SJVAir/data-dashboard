@@ -5,14 +5,16 @@
 	import Minus from "@lucide/svelte/icons/minus";
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
-	import { STALE_MS, type CurrentReading, type Trend } from "$lib/data/now/current";
+	import type { Trend } from "$lib/data/now/current";
 	import type { QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 	import { CurrentConditions } from "../shared/current.svelte";
 	import LevelChip from "../shared/LevelChip.svelte";
+	import MarkFrame from "../shared/MarkFrame.svelte";
+	import { ReadingClock } from "../shared/reading-clock.svelte";
+	import { averageLabel, emptyText } from "../shared/reading-text";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
@@ -25,24 +27,11 @@
 
 	const meta = $derived(current.meta);
 
-	// "Updated N min ago" and staleness change between polls, so time ticks once a minute.
-	let now = $state(Date.now());
-	$effect(() => {
-		const timer = setInterval(() => (now = Date.now()), 60_000);
-		return () => clearInterval(timer);
-	});
-
 	const reading = $derived(current.reading);
-	// A new reading (each poll) is also a fresh look at the clock.
-	$effect(() => {
-		void reading;
-		now = Date.now();
-	});
-	const ok = $derived(reading?.status === "ok" ? reading : undefined);
-	/** An hour that ended too long ago, since the last poll, is "No recent data". */
-	const stale = $derived(!!ok && now - ok.at > STALE_MS);
-	const minutes = $derived(ok ? Math.max(0, Math.floor((now - ok.at) / 60_000)) : 0);
-	const mark = $derived(thresholdMarks[widget.id]);
+	const clock = new ReadingClock(() => reading);
+	const ok = $derived(clock.ok);
+	const stale = $derived(clock.stale);
+	const minutes = $derived(clock.minutes);
 
 	/** Held as loading until the catalog has the entry type (units, precision, label). */
 	const shown = $derived<QueryState>(
@@ -67,29 +56,10 @@
 		);
 	});
 
-	function averageLabel(r: Extract<CurrentReading, { status: "ok" }>): string {
-		if (r.source === "alert") return m.current_minute_average({ minutes: r.windowMinutes ?? 0 });
-		if (r.source === "alert-latest") return m.current_latest_reading();
-		return m.current_hourly_average();
-	}
-
 	function trendText(t: Trend): string {
 		if (t === "rising") return m.current_trend_rising();
 		if (t === "falling") return m.current_trend_falling();
 		return m.current_trend_steady();
-	}
-
-	function emptyText(r: CurrentReading | undefined): string {
-		switch (r?.status) {
-			case "pending":
-				return m.current_not_available_yet();
-			case "insufficient":
-				return m.current_not_enough_readings();
-			case "no-recent":
-				return m.current_no_recent_data();
-			default:
-				return m.current_no_data();
-		}
 	}
 </script>
 
@@ -137,42 +107,18 @@
 			</p>
 		</div>
 	{:else}
-		{@render message(stale ? m.current_no_recent_data() : emptyText(reading))}
+		{@render message(stale ? m.current_no_recent_data() : emptyText(reading, m.current_no_data()))}
 	{/if}
 {/snippet}
 
-<div
-	class="relative flex h-full flex-col gap-2 rounded-(--radius-control)"
-	data-mark={mark ? "" : undefined}
-	style:outline-style={mark ? "solid" : undefined}
-	style:outline-width={mark ? "3px" : undefined}
-	style:outline-offset={mark ? "-3px" : undefined}
-	style:outline-color={mark?.level.color ?? (mark ? "var(--foreground)" : undefined)}
->
-	{#if mark}
-		{#key mark.pulse}
-			<span
-				data-pulse={mark.pulse}
-				aria-hidden="true"
-				class="pointer-events-none absolute inset-0 rounded-(--radius-control)"
-				style:outline="3px solid {mark.level.color ?? 'var(--foreground)'}"
-			></span>
-		{/key}
-	{/if}
-	<div class="min-h-0 flex-1">
-		<WidgetState
-			state={shown}
-			{widget}
-			{retired}
-			onretry={current.retry}
-			onchoose={() => openPlacePicker({ widgetId: widget.id })}
-			emptyText={m.current_no_data()}
-			children={body}
-		/>
-	</div>
-	{#if mark}
-		<p class="bg-muted mx-2 mb-2 rounded-(--radius-control) px-2 py-1 text-sm font-medium">
-			{m.current_at_alert_level()}
-		</p>
-	{/if}
-</div>
+<MarkFrame widgetId={widget.id}>
+	<WidgetState
+		state={shown}
+		{widget}
+		{retired}
+		onretry={current.retry}
+		onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		emptyText={m.current_no_data()}
+		children={body}
+	/>
+</MarkFrame>

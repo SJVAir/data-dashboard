@@ -96,7 +96,7 @@ function adapter(values: Record<string, number | null>): DatasetAdapter {
 		async fetch(req) {
 			const id = req.target.kind === "monitors" ? req.target.ids[0] : "";
 			const value = values[id] ?? null;
-			const t = Date.now() - 6 * 60_000 - HOUR;
+			const t = Date.now() - 6 * 60_000 - HOUR - (id === "old" ? 5 * HOUR : 0);
 			const point = (at: number, mean: number) => ({
 				t: at,
 				mean,
@@ -144,14 +144,14 @@ beforeEach(async () => {
 			dataset === "calheatscore" ? HEAT_LEVELS : entryType === "pm25" ? LEVELS : [],
 		schoolGuidelines: async () => GUIDELINES,
 		monitors: async () =>
-			["usg", "good", "none"].map((id) => ({
+			["usg", "good", "none", "old"].map((id) => ({
 				id,
 				name: `Monitor ${id}`,
 				type: "purpleair"
 			})) as never
 	});
 	fake.query = createQueryClient({
-		adapters: [adapter({ usg: 40, good: 5, none: null })],
+		adapters: [adapter({ usg: 40, good: 5, none: null, old: 40 })],
 		metadata: fake.metadata,
 		regions: { resolve: async () => "unsupported" }
 	});
@@ -279,6 +279,15 @@ test("no PM2.5 says so and keeps the heat line", async () => {
 	const screen = await show(outsideWidget("none"));
 	await expect.element(screen.getByText(m.outside_no_pm25()), { timeout: 5000 }).toBeVisible();
 	await expect.element(screen.getByText(m.outside_heat_today()), { timeout: 5000 }).toBeVisible();
+	await expect.element(screen.getByText("Severe", { exact: true })).toBeVisible();
+});
+
+test("a stale reading says there is no recent data and keeps the heat line", async () => {
+	const screen = await show(outsideWidget("old"));
+	await expect
+		.element(screen.getByText(m.current_no_recent_data()), { timeout: 5000 })
+		.toBeVisible();
+	expect(screen.getByText(m.outside_no_pm25()).elements()).toHaveLength(0);
 	await expect.element(screen.getByText("Severe", { exact: true })).toBeVisible();
 });
 

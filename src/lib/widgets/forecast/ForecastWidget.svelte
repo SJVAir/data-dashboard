@@ -113,13 +113,8 @@
 		if (unavailable) return { status: "unavailable", reason: unavailable };
 		const d = nowState.data;
 		const data = d && {
-			// One point, so the body always renders (it says "no forecast" itself).
-			series: [
-				{
-					place: d.place?.place ?? "",
-					points: [{ t: 0, mean: 0, min: 0, max: 0, count: 1, partial: false }]
-				}
-			],
+			// No series: the body says "no forecast" itself (WidgetState `ownsEmpty`).
+			series: [],
 			places: d.place ? [d.place] : [],
 			resolution: "day" as const,
 			fromRaw: false,
@@ -263,7 +258,7 @@
 		{widget}
 		onretry={() => query.retry()}
 		onchoose={() => openPlacePicker({ widgetId: widget.id })}
-		emptyText={m.forecast_none_here()}
+		ownsEmpty
 		children={body}
 	/>
 </div>
