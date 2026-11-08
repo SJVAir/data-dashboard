@@ -558,9 +558,10 @@ describe("toCsv for weather and pesticide layers", () => {
 		entryType: string,
 		unit: string,
 		place: Partial<PlaceInfo>,
-		resolution: QueryData["resolution"] = "day"
+		resolution: QueryData["resolution"] = "day",
+		aggregate: "sum" | "mean" | null = "sum"
 	) => ({
-		meta: { entryType, entryLabel: entryType, unit },
+		meta: { entryType, entryLabel: entryType, unit, aggregate },
 		levels: [],
 		data: data({
 			resolution,
@@ -573,7 +574,7 @@ describe("toCsv for weather and pesticide layers", () => {
 		expect(toCsv(main, META).split("\r\n")[0]).toBe(
 			"period_start,period_end,place_kind,place_id,place_name,entry_type,entry_type_label,unit," +
 				"mean,min,max,worst_hour_mean,worst_hour_start,count,resolution,partial," +
-				"computed_from_raw,level_key,level_label,source_id,source_name,filters"
+				"computed_from_raw,level_key,level_label,source_id,source_name,filters,aggregate"
 		);
 	});
 
@@ -598,6 +599,17 @@ describe("toCsv for weather and pesticide layers", () => {
 		// A coarser overlay keeps its own period.
 		expect(get(rows[1], "period_end")).toBe("2026-12-01T00:00:00-08:00");
 		expect(get(rows[1], "source_id")).toBe("");
+	});
+
+	it("each row says whether its value is a total, an average, or neither", () => {
+		const rain = layer("precipitation", "in", {});
+		const temp = layer("air-temperature", "°F", {}, "day", "mean");
+		const wind = layer("wind-direction", "°", {}, "day", null);
+		const csv = toCsv(main, { ...META, aggregate: "mean" }, "owner", [rain, temp, wind]);
+		const rows = parse(csv).slice(1);
+		expect(rows.map((r) => get(r, "aggregate"))).toEqual(["mean", "sum", "mean", ""]);
+		// Appended: it's the last column.
+		expect(CSV_COLUMNS.at(-1)).toBe("aggregate");
 	});
 });
 

@@ -372,6 +372,91 @@ test("the header names the station and filters", async () => {
 	);
 	expect(rows.map((r) => r[0])).toEqual(["0.40", "0.00", "0.12"]);
 	expect(rows.every((r) => r[1]?.startsWith("1,200"))).toBe(true);
-	expect(rows.every((r) => r[1]?.includes(m.chart_strip_monthly_total()))).toBe(true);
+	expect(rows.every((r) => r[1]?.includes(m.chart_series_month_total()))).toBe(true);
 	expect((await axe.run(frame)).violations).toEqual([]);
+});
+
+test("a pesticide-only table names the filter and says the values are totals", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			fakeNumberAdapter("pesticide-use", requests, {
+				offered: ["month", "year"],
+				values: [1200, 340],
+				filters: ["Chlorpyrifos"]
+			})
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = tableWidget(["m1"]);
+	widget.data.layers = [
+		{
+			dataset: "pesticide-use",
+			entryType: "pounds-applied",
+			place: { kind: "monitor", id: "m1" }
+		}
+	];
+	const screen = await show(widget);
+	await expect
+		.element(
+			screen.getByRole("columnheader", {
+				name: "Pounds Applied · Chlorpyrifos, Monitor m1 (lbs)"
+			})
+		)
+		.toBeVisible();
+	await expect
+		.element(screen.getByText(m.chart_series_month_total(), { exact: true }))
+		.toBeVisible();
+});
+
+test("a pesticide-only table with no use says so", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			fakeNumberAdapter("pesticide-use", requests, { offered: ["month", "year"], values: [] })
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = tableWidget(["m1"]);
+	widget.data.layers = [
+		{
+			dataset: "pesticide-use",
+			entryType: "pounds-applied",
+			place: { kind: "monitor", id: "m1" }
+		}
+	];
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.chart_strip_none_pesticides(), { exact: true }))
+		.toBeVisible();
+	expect(screen.getByText(m.widget_state_empty()).query()).toBeNull();
+});
+
+test("a gone filter is worded as the Chart words it", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [
+			fakeAdapter(requests),
+			fakeNumberAdapter("pesticide-use", requests, {
+				offered: ["month", "year"],
+				unavailable: "filter-gone"
+			})
+		],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = tableWidget(["m1"]);
+	widget.data.layers.push({ dataset: "pesticide-use", entryType: "pounds-applied" });
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.data_unavailable_filter_gone())).toBeVisible();
 });

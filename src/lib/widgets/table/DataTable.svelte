@@ -6,10 +6,12 @@
 	import { csvPending, saveWidgetCsv } from "$lib/data/csv";
 	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
+	import { periodLabel, seriesLabel, type Aggregate } from "$lib/charts/period-label";
 	import { layerKind } from "$lib/data/layer-kind";
+	import { unavailableMessage } from "$lib/data/messages";
 	import { levelFor } from "$lib/data/metadata";
 	import type { Resolution } from "$lib/data/schema";
-	import type { QueryData } from "$lib/data/types";
+	import type { PlaceInfo, QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatHourRange, formatNumber, formatPeriod, formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
@@ -51,15 +53,28 @@
 		return sort.dir === "asc" ? "ascending" : "descending";
 	}
 
-	const RESOLUTION_LABEL = {
-		raw: () => m.chart_series_raw(),
-		hour: () => m.chart_series_hour(),
-		day: () => m.chart_series_day(),
-		month: () => m.chart_series_month(),
-		quarter: () => m.chart_series_quarter(),
-		season: () => m.chart_series_season(),
-		year: () => m.chart_series_year()
-	} as const;
+	/** The pesticide-use dataset: its empty range has its own wording (nothing was reported). */
+	const PESTICIDE_USE = "pesticide-use";
+	const pesticideMain = $derived(w.picked.layer?.dataset === PESTICIDE_USE);
+	/** How the main layer's values combine (the catalog's `aggregate`). */
+	const aggregate = $derived<Aggregate>(w.meta ? w.meta.entryType.aggregate : "mean");
+	const entryLabel = $derived(w.meta?.entryType.label ?? "");
+
+	/** The caption's period word: "Daily average", "Daily total", or the entry type's label. */
+	function caption(data: QueryData): string {
+		const resolution = seriesLabel(data.resolution, aggregate, entryLabel);
+		return data.fromRaw ? m.table_caption_raw({ resolution }) : m.table_caption({ resolution });
+	}
+
+	/**
+	 * A main column's header: the place and units, with the layer and its source (station or
+	 * filters) when the place has one, as a number overlay's header names it.
+	 */
+	function mainHeader(info: PlaceInfo): string {
+		const place = placeLabel(info, w.viewer);
+		if (!info.source && !info.filters?.length) return m.table_place_value({ place, unit });
+		return m.table_overlay_place_unit({ layer: sourceLabel(entryLabel, info), place, unit });
+	}
 
 	const unit = $derived(w.meta?.entryType.units ?? "");
 	const levelList = $derived(w.levelList);
@@ -104,18 +119,12 @@
 	}
 
 	/**
-	 * What a whole-period cell is: "Monthly total" for a summed layer, the average's label for a
-	 * mean (never a total), nothing for a layer whose values don't combine over time.
+	 * What a whole-period cell is: "Monthly total" for a summed layer, "Monthly average" for a mean
+	 * (never a total), nothing for a layer whose values don't combine over time. The same words as
+	 * the Chart's strip tags.
 	 */
-	function wholeLabel(resolution: Resolution, aggregate: "sum" | "mean" | null | undefined) {
-		if (aggregate === "sum") {
-			return resolution === "month"
-				? m.chart_strip_monthly_total()
-				: resolution === "year"
-					? m.chart_strip_yearly_total()
-					: "";
-		}
-		return aggregate === "mean" ? RESOLUTION_LABEL[resolution]() : "";
+	function wholeLabel(resolution: Resolution, aggregate: Aggregate): string {
+		return periodLabel(resolution, aggregate) ?? "";
 	}
 
 	/**
@@ -127,10 +136,12 @@
 			const layer = o.meta?.entryType.label;
 			if (!layer) return [];
 			const s = o.state;
+			const level = layerKind(o.layer, w.catalog) !== "number";
+			// Worded as the Chart words it: a number layer says why it's unavailable.
+			if (s.status === "unavailable" && !level) return [unavailableMessage(s.reason)];
 			if (s.status === "error" || s.status === "unavailable") {
 				return [m.chart_overlay_failed({ layer })];
 			}
-			const level = layerKind(o.layer, w.catalog) !== "number";
 			return s.status === "ready" && level && !byDay(data)
 				? [m.table_overlay_by_day({ layer })]
 				: [];
@@ -160,6 +171,7 @@
 			retired={w.retired}
 			onretry={w.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			emptyText={pesticideMain ? m.chart_strip_none_pesticides() : undefined}
 		>
 			{#snippet children(data)}
 				{@const rows = sortRows(wideRows(data, overlays), sort.column, sort.dir)}
@@ -169,9 +181,7 @@
 				<div class="flex h-full flex-col">
 					<div class="mb-1 flex items-center justify-between gap-2">
 						<p class="text-muted-foreground text-sm">
-							{data.fromRaw
-								? m.table_caption_raw({ resolution: RESOLUTION_LABEL[data.resolution]() })
-								: m.table_caption({ resolution: RESOLUTION_LABEL[data.resolution]() })}
+							{caption(data)}
 						</p>
 						<Button
 							variant="ghost"
@@ -200,10 +210,7 @@
 								<tr>
 									{@render head("t", m.table_date())}
 									{#each data.places as place, i (place.place)}
-										{@render head(
-											i,
-											m.table_place_value({ place: placeLabel(place, w.viewer), unit })
-										)}
+										{@render head(i, mainHeader(place))}
 									{/each}
 									{#if extra.worst}
 										<th scope="col" class="border-border border-b px-2 py-1 font-semibold">

@@ -47,11 +47,20 @@ export const CSV_COLUMNS = [
 	"level_label",
 	"source_id",
 	"source_name",
-	"filters"
+	"filters",
+	"aggregate"
 ] as const;
 
-/** What the entry type contributes to every row. */
-type EntryInfo = { entryType: string; entryLabel: string; unit: string };
+/**
+ * What the entry type contributes to every row. `aggregate` is the catalog's: `sum` says each
+ * value is its period's total, `mean` its average, and empty that values never roll up.
+ */
+type EntryInfo = {
+	entryType: string;
+	entryLabel: string;
+	unit: string;
+	aggregate?: "sum" | "mean" | null;
+};
 
 /** A Pacific time with its offset: `2026-10-25T00:00:00-07:00`. */
 function pacificIso(t: number): string {
@@ -136,7 +145,8 @@ function dataRows(
 				p.level ? (levels.find((l) => l.key === p.level)?.label ?? "") : "",
 				source?.id ?? "",
 				source?.name ?? "",
-				filters
+				filters,
+				meta.aggregate ?? ""
 			];
 			lines.push(row.map(cell).join(","));
 		}
@@ -154,6 +164,7 @@ function dataRows(
  * use under daily data) keeps its own `period_start`/`period_end` and `resolution`, so it reads as
  * the whole period's value. A weather overlay's rows carry the station (`source_id`,
  * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
+ * `aggregate` (last, so no earlier column moves) says whether a value is a total or an average.
  */
 export function toCsv(
 	data: QueryData,
@@ -216,7 +227,8 @@ async function loadOverlay(
 			meta: {
 				entryType: info.entryType.id,
 				entryLabel: info.entryType.label,
-				unit: info.entryType.units
+				unit: info.entryType.units,
+				aggregate: info.entryType.aggregate
 			}
 		};
 	} catch (error) {
@@ -251,7 +263,8 @@ export async function downloadDataCsv(
 	const meta: EntryInfo = {
 		entryType: info.entryType.id,
 		entryLabel: info.entryType.label,
-		unit: info.entryType.units
+		unit: info.entryType.units,
+		aggregate: info.entryType.aggregate
 	};
 	const { data } = state;
 	const layers = overlayLayers(config, catalog);

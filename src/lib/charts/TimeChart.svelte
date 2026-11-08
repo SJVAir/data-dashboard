@@ -8,6 +8,7 @@
 	import LevelKey from "./LevelKey.svelte";
 	import OverlayKey from "./OverlayKey.svelte";
 	import Readout from "./Readout.svelte";
+	import { periodLabel, seriesLabel, type Aggregate } from "./period-label";
 	import SeriesKey from "./SeriesKey.svelte";
 	import { alignSeries, type XRange } from "./series";
 	import { stripLayout, stripPointAt, type ChartStrip } from "./strips";
@@ -40,7 +41,10 @@
 		overlays = [],
 		notes = [],
 		strips = [],
-		mainChart = "line"
+		mainChart = "line",
+		aggregate = "mean",
+		entryLabel = "",
+		source
 	}: {
 		data: QueryData;
 		levels: Level[];
@@ -58,6 +62,12 @@
 		strips?: ChartStrip[];
 		/** The main layer as bars or a line (the catalog's `display.chart`). */
 		mainChart?: "line" | "bar";
+		/** How the main layer's values combine (the catalog's `aggregate`): names its legend entry. */
+		aggregate?: Aggregate;
+		/** The main layer's label: its legend entry when its values never roll up. */
+		entryLabel?: string;
+		/** A legend entry with its place's source (station or filters) added, when it has one. */
+		source?: (name: string, place: string) => string;
 	} = $props();
 
 	/** Strips drawn as plots; the others show their message (or "No data") in their place. */
@@ -67,8 +77,13 @@
 		let k = 0;
 		return strips.map((s) => (!s.message && s.points.length > 0 ? k++ : -1));
 	});
-	/** What a plot is built for: a change here builds the chart again. */
-	const stripShape = $derived(plotted.map((s) => `${s.chart}:${s.wholePeriod}`).join(","));
+	/**
+	 * What the plots are built for, including which strips are plotted: a change here builds the
+	 * chart again (a strip swapping with a message keeps the count but moves the plots).
+	 */
+	const stripShape = $derived(
+		strips.map((s, i) => (plotIndex[i] < 0 ? "-" : `${s.chart}:${s.wholePeriod}`)).join(",")
+	);
 	let areaHeight = $state(0);
 	const layout = $derived(stripLayout(areaHeight, strips.length));
 	/** Plot containers, one per plotted strip (set by `bind:this`). */
@@ -86,13 +101,8 @@
 	 * averaged one, none for a layer whose values never roll up (or a period with no tag).
 	 */
 	function wholeTag(strip: ChartStrip): string | null {
-		if (!strip.wholePeriod || strip.aggregate === null) return null;
-		const month = strip.resolution === "month";
-		const year = strip.resolution === "year";
-		if (strip.aggregate === "sum") {
-			return month ? m.chart_strip_monthly_total() : year ? m.chart_strip_yearly_total() : null;
-		}
-		return month ? m.chart_series_month() : year ? m.chart_series_year() : null;
+		if (!strip.wholePeriod) return null;
+		return periodLabel(strip.resolution, strip.aggregate);
 	}
 
 	// By value, so an equal range passed as a new object doesn't redraw the chart.
@@ -103,6 +113,16 @@
 	);
 	const aligned = $derived(alignSeries(data, range));
 	const names = $derived(aligned.places.map((p) => placeNames.get(p) ?? p));
+	/** The series key: the period's average or total for one place, else each place's name. */
+	const keyEntries = $derived(
+		aligned.places.map((p, i) => {
+			const name =
+				aligned.places.length === 1
+					? seriesLabel(data.resolution, aggregate, entryLabel)
+					: names[i];
+			return source ? source(name, p) : name;
+		})
+	);
 	const sticks = $derived(
 		aligned.places.length === 1 && aligned.points[0].some((p) => p?.worstHour !== undefined)
 	);
@@ -368,8 +388,7 @@
 	<!-- The series key and the level key share one compact wrapping flow under the plot. -->
 	<div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
 		<SeriesKey
-			{names}
-			resolution={data.resolution}
+			entries={keyEntries}
 			sticks={sticks && drawnSticks > 0}
 			chart={mainChart}
 			strips={strips.map((s) => ({ name: s.name, chart: s.chart }))}

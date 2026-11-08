@@ -227,15 +227,19 @@ test("downloads a CSV with station and filter columns", async ({ page }) => {
 		expect(row.source_id).toBe("I3wADR9bR-2hfub3h3nsJA");
 		expect(row.source_name).toBe("CIMIS #80 - Fresno State");
 		expect(row.filters).toBe("");
+		expect(row.aggregate).toBe("mean");
 	}
 	for (const row of pesticides) {
 		expect(row.source_id).toBe("");
 		expect(row.filters).toBe("Sulfur");
+		// Pounds applied is a total.
+		expect(row.aggregate).toBe("sum");
 	}
 	// The main rows carry neither.
 	const main = rows.filter((r) => r.entry_type === "pm25");
 	expect(main).toHaveLength(30);
 	expect(main.every((r) => r.source_id === "" && r.filters === "")).toBe(true);
+	expect(main.every((r) => r.aggregate === "mean")).toBe(true);
 });
 
 test("an old PM2.5 + burn status widget still shows its bands", async ({ page }) => {

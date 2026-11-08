@@ -152,6 +152,13 @@
 					notes={overlays.notes}
 					strips={overlays.strips}
 					mainChart={w.meta?.entryType.chart === "bar" ? "bar" : "line"}
+					aggregate={w.meta ? w.meta.entryType.aggregate : "mean"}
+					entryLabel={w.meta?.entryType.label ?? ""}
+					source={(name, place) =>
+						sourceLabel(
+							name,
+							data.places.find((p) => p.place === place)
+						)}
 				/>
 			{/snippet}
 		</WidgetState>

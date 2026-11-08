@@ -421,7 +421,7 @@ test("the legend names the active filters", async () => {
 	await expect
 		.element(screen.getByText("Pounds Applied · Chlorpyrifos · Grapes · Monitor m1"))
 		.toBeVisible();
-	await expect.element(screen.getByText(m.chart_strip_monthly_total())).toBeVisible();
+	await expect.element(screen.getByText(m.chart_series_month_total())).toBeVisible();
 });
 
 test("a gone filter shows in its strip and the chart still draws", async () => {
@@ -442,4 +442,20 @@ test("a pre-spec widget renders as before", async () => {
 	await expect.element(chart).toHaveAttribute("data-bars", "0");
 	// The burn-status request isn't pinned: it asks for days as spec 3 did.
 	expect(requests.find((r) => r.entryType === "burn-status")?.resolution).toBe("day");
+});
+
+test("a weather-only chart names the station, and a summed main is a total", async () => {
+	const source = { id: "80", name: "CIMIS #80 Fresno State", distance: 4.2, inside: false };
+	const { screen } = await showLayers([RAIN], [fakeNumberAdapter("weather", requests, { source })]);
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect
+		.element(key.getByText("Daily total · CIMIS #80 Fresno State (4.2 mi away)", { exact: true }))
+		.toBeVisible();
+	expect(key.getByText(m.chart_series_day()).query()).toBeNull();
+});
+
+test("an averaged main stays an average, with no source to name", async () => {
+	const screen = await show(chartWidget(["m1"]));
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.element(key.getByText(m.chart_series_day(), { exact: true })).toBeVisible();
 });

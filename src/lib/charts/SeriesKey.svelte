@@ -1,38 +1,23 @@
 <script lang="ts">
 	import { m } from "$lib/paraglide/messages.js";
-	import type { Resolution } from "$lib/data/schema";
 	import { seriesShape } from "./series";
 
 	/**
-	 * What the marks are: the average (one place) or one entry per place, plus the worst hour, each
-	 * as a line or a bar (`chart`); then each strip with its mark's shape and an outlined swatch.
+	 * What the marks are: one entry for one place (its period's average or total, with its source)
+	 * or one per place, plus the worst hour, each as a line or a bar (`chart`); then each strip with
+	 * its mark's shape and an outlined swatch.
 	 */
 	let {
-		names,
-		resolution,
+		entries,
 		sticks,
 		chart = "line",
 		strips = []
 	}: {
-		names: string[];
-		resolution: Resolution;
+		entries: string[];
 		sticks: boolean;
 		chart?: "line" | "bar";
 		strips?: { name: string; chart: "line" | "bar" }[];
 	} = $props();
-
-	const average = $derived(
-		{
-			raw: m.chart_series_raw,
-			hour: m.chart_series_hour,
-			day: m.chart_series_day,
-			month: m.chart_series_month,
-			quarter: m.chart_series_quarter,
-			season: m.chart_series_season,
-			year: m.chart_series_year
-		}[resolution]()
-	);
-	const entries = $derived(names.length === 1 ? [average] : names);
 </script>
 
 <!-- Its items join the parent's wrapping flow (`display: contents`), next to the level key. -->
