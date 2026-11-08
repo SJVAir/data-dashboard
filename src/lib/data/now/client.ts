@@ -52,7 +52,14 @@ export function createNowClient(
 
 	function emit(e: Entry, state: NowState<unknown>) {
 		e.state = state;
-		for (const s of [...e.subs]) s.listener(state);
+		for (const s of [...e.subs]) {
+			if (!e.subs.has(s)) continue;
+			try {
+				s.listener(state);
+			} catch (err) {
+				console.error(err);
+			}
+		}
 	}
 
 	function evictIdle() {
@@ -105,19 +112,24 @@ export function createNowClient(
 			const entry = e;
 			const sub: Sub = { listener: listener as Sub["listener"], polling: true };
 			entry.subs.add(sub);
+			let done = false;
 			if (entry.state.status !== "idle") sub.listener(entry.state);
 			if (!entry.controller && entry.fetchedAt === undefined) run(entry);
 			else changed();
 			return {
 				setPolling(on) {
+					if (done) return;
 					sub.polling = on;
 					changed();
 				},
 				retry() {
+					if (done) return;
 					run(entry);
 				},
 				unsubscribe() {
-					if (!entry.subs.delete(sub)) return;
+					if (done) return;
+					done = true;
+					entry.subs.delete(sub);
 					if (entry.subs.size === 0 && entry.controller) {
 						const c = entry.controller;
 						entry.controller = undefined;

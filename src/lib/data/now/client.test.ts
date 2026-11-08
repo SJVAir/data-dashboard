@@ -141,4 +141,61 @@ describe("createNowClient", () => {
 		client.subscribe(source({ key: "b" }).src, () => {}).unsubscribe();
 		expect(client.entries().map((e) => e.key)).toEqual(["b"]);
 	});
+
+	it("keeps polling an entry while another subscriber still polls", async () => {
+		const client = createNowClient({ activity: createMemoryActivity() });
+		const { src, fetch } = source();
+		const a = client.subscribe(src, () => {});
+		client.subscribe(src, () => {});
+		await flush();
+		a.setPolling(false);
+		expect(client.entries()[0].polling).toBe(true);
+		await vi.advanceTimersByTimeAsync(181_000);
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not refetch cached data on resubscribe, but refetches an aborted first fetch", async () => {
+		const client = createNowClient({});
+		const { src, fetch } = source();
+		client.subscribe(src, () => {}).unsubscribe();
+		await flush();
+		client.subscribe(src, () => {});
+		await flush();
+		expect(fetch).toHaveBeenCalledTimes(2);
+		const again = client.subscribe(src, () => {});
+		again.unsubscribe();
+		client.subscribe(src, () => {});
+		await flush();
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("ignores calls on a handle after unsubscribe", async () => {
+		const client = createNowClient({});
+		const { src, fetch } = source();
+		const sub = client.subscribe(src, () => {});
+		await flush();
+		sub.unsubscribe();
+		sub.retry();
+		sub.setPolling(true);
+		await flush();
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not call a subscriber removed by an earlier listener, and survives a throwing one", async () => {
+		const client = createNowClient({});
+		const { src } = source();
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		let second: { unsubscribe(): void } | undefined;
+		const secondListener = vi.fn();
+		client.subscribe(src, () => {
+			second?.unsubscribe();
+			if (second) throw new Error("x");
+		});
+		second = client.subscribe(src, secondListener);
+		secondListener.mockClear();
+		await flush();
+		expect(secondListener).not.toHaveBeenCalledWith(expect.objectContaining({ status: "ready" }));
+		expect(client.entries()[0].inFlight).toBe(false);
+		err.mockRestore();
+	});
 });
