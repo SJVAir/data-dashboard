@@ -14,6 +14,7 @@ import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/s
 import { hasPoints } from "$lib/sharing/point-layers";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
+import { currentType } from "$lib/widgets/current";
 import { dataTableType } from "$lib/widgets/table";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
@@ -372,6 +373,7 @@ async function housekeeping(task: () => Promise<void>): Promise<void> {
 export async function initApp(platform: Platform, options: AppOptions = {}): Promise<AppContext> {
 	registerWidgetType(placeholderType);
 	registerWidgetType(chartType);
+	registerWidgetType(currentType);
 	registerWidgetType(dataTableType);
 	// The space is whoever is signed in, known once the identity has started.
 	platform.identity.start();

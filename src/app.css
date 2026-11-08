@@ -328,3 +328,24 @@
 		@apply accent-primary font-sans;
 	}
 }
+
+/* A threshold mark's pulse (replayed once per crossing by re-creating the element): a ring in the
+   level's color that grows and fades. Reduced motion: no pulse; the mark's steady outline stays. */
+@keyframes mark-pulse {
+	from {
+		opacity: 0.9;
+		outline-offset: 0;
+	}
+	to {
+		opacity: 0;
+		outline-offset: 10px;
+	}
+}
+[data-pulse] {
+	animation: mark-pulse var(--motion-duration-highlight) var(--motion-ease-standard) 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+	[data-pulse] {
+		animation: none;
+	}
+}

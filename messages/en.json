@@ -970,5 +970,20 @@
 	"get_data_search_error": "Couldn't search right now.",
 	"get_data_search_clear": "Clear {label}",
 	"edit_data_unavailable": "This widget's data can't be edited here.",
-	"widget_edit_data": "Edit data"
+	"widget_edit_data": "Edit data",
+	"widget_current_title": "Current conditions",
+	"current_trend_rising": "Rising",
+	"current_trend_falling": "Falling",
+	"current_trend_steady": "Steady",
+	"current_minute_average": "{minutes}-minute average",
+	"current_latest_reading": "Latest reading",
+	"current_hourly_average": "Hourly average",
+	"current_source_updated": "{average} · updated {minutes} min ago",
+	"current_not_available_yet": "Not available yet",
+	"current_no_recent_data": "No recent data",
+	"current_not_enough_readings": "Not enough recent readings",
+	"current_no_data": "No data for this place",
+	"current_at_alert_level": "At your alert level",
+	"current_averaging_help": "The value is an average over the period shown, and it updates as new readings arrive.",
+	"current_averaging_label": "About this average"
 }
