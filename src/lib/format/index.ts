@@ -73,6 +73,32 @@ export function formatDate(date: string | Date, locale: string = LOCALE): string
 	}).format(instant);
 }
 
+/** A calendar date shown with its weekday: "Sun, Nov 8". */
+export function formatWeekdayDate(date: string, locale: string = LOCALE): string {
+	return new Intl.DateTimeFormat(locale, {
+		timeZone: TIME_ZONE,
+		weekday: "short",
+		month: "short",
+		day: "numeric"
+	}).format(new Date(pacificDay(date, 12).getTime()));
+}
+
+/** An instant as a Pacific weekday and time ("Sat 1:42 PM"); PT label when the device differs. */
+export function formatWeekdayTime(
+	instant: Date,
+	opts: { deviceZone?: string; locale?: string } = {}
+): string {
+	const text = new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+		timeZone: TIME_ZONE,
+		weekday: "short",
+		hour: "numeric",
+		minute: "2-digit"
+	})
+		.format(instant)
+		.replace(",", "");
+	return needsZoneLabel(opts.deviceZone) ? m.time_zone_suffix({ time: text }) : text;
+}
+
 /** Pacific noon of a calendar date, as a plain `Date` (safely inside the day for formatting). */
 function noon(date: string): Date {
 	return new Date(pacificDay(date, 12).getTime());

@@ -985,5 +985,16 @@
 	"current_no_data": "No data for this place",
 	"current_at_alert_level": "At your alert level",
 	"current_averaging_help": "The value is an average over the period shown, and it updates as new readings arrive.",
-	"current_averaging_label": "About this average"
+	"current_averaging_label": "About this average",
+	"widget_forecast_title": "Forecast",
+	"forecast_today": "Today",
+	"forecast_tomorrow": "Tomorrow",
+	"forecast_aqi": "AQI {value} · {pollutant}",
+	"forecast_air_alert": "Air Alert declared {start} – {end}",
+	"forecast_issued": "Issued {time}",
+	"forecast_source": "Source: {name}",
+	"forecast_zone": "Forecast for {zone}",
+	"forecast_zone_nearest": "Forecast for {zone} (nearest zone)",
+	"forecast_none_yet": "Today's forecast isn't out yet",
+	"forecast_none_here": "No forecast for this place"
 }

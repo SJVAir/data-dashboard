@@ -109,8 +109,8 @@ export function forecastRow(
 		burn_status: burn,
 		burn_status_text: `${burn}: text`,
 		air_alert: false,
-		air_alert_start: null,
-		air_alert_end: null
+		air_alert_start: null as string | null,
+		air_alert_end: null as string | null
 	};
 }
 
