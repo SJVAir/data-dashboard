@@ -1464,6 +1464,15 @@ option the Map widget can use too:
   off as today, blocks legends as one labeled bar, the monitors legend titled by pollutant, and
   fire switching from groups to hotspots at zoom 10. These apply on every map, the dashboard's
   included.
+- **Parity defaults from monitor-map 5.0's review** (map-sdk #15, on npm as `0.1.0-beta.4`,
+  2026-11-08; spec `docs/superpowers/specs/2026-11-07-parity-defaults-design.md`), on every map,
+  the dashboard's included: tooltip times in sjvair.com's format, in Pacific ("4:00 pm Friday
+  Nov 06, 2026", " PT" on other zones); the cluster tooltip's "N monitors within a X mi² area"
+  from the monitors' convex hull (reversing the 2026-11-04 "no area line"); fire tooltips as the
+  monitors' reading box, with fire values cut off rather than rounded in the box, list and
+  accessible names (`truncateValues`); and smoke with no hover tooltip and no hover-stealing
+  (`hoverable: false`; list focus still pins it), reversing part of milestone 2's accessibility
+  additions.
 
 ## Dashboard layout mechanics
 
