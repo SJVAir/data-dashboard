@@ -926,7 +926,7 @@
 	"get_data_show_values_help_label": "About Show values",
 	"get_data_show_values_help": "Each point on the chart is one value. Automatic picks a level that suits the dates you chose. Choose another for more detail or a smoother picture. Also called data resolution.",
 	"get_data_smoke_help_label": "About smoke days",
-	"get_data_smoke_help": "No band doesn't always mean no smoke. The satellite may not have seen that day.",
+	"get_data_smoke_help": "No band doesn't always mean no smoke. Smoke is spotted in daytime satellite images, so smoke that drifts in after dark may not show until the next day.",
 	"get_data_pesticide_help_label": "About pesticide totals",
 	"get_data_pesticide_help": "Yearly totals include reports that have no month, so a year can be larger than its months added together.",
 	"get_data_detail_too_many": "Too much data for this range and these places",
