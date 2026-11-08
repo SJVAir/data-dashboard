@@ -9,7 +9,7 @@ import { m } from "$lib/paraglide/messages.js";
  * rows and the Data table's column headers.
  */
 export function sourceLabel(layer: string, info: PlaceInfo | undefined, place?: string): string {
-	const key = (source: string) => m.chart_strip_key({ layer, source });
+	const key = (source: string) => m.label_join({ first: layer, second: source });
 	const station = info?.source;
 	if (station) {
 		return key(
@@ -23,7 +23,7 @@ export function sourceLabel(layer: string, info: PlaceInfo | undefined, place?: 
 	}
 	// "Pounds applied · Chlorpyrifos · Grapes · ZIP 93702".
 	return [...(info?.filters ?? []), ...(place ? [place] : [])].reduce(
-		(name, source) => m.chart_strip_key({ layer: name, source }),
+		(name, source) => m.label_join({ first: name, second: source }),
 		layer
 	);
 }

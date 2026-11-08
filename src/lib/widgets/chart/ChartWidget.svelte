@@ -91,7 +91,7 @@
 				if (points.length === 0) {
 					const message =
 						o.layer.dataset === PESTICIDE_USE
-							? m.chart_strip_none_pesticides()
+							? m.data_none_pesticides()
 							: m.chart_overlay_none({ layer, place });
 					strips.push(strip({ name, message }));
 					continue;
@@ -136,7 +136,7 @@
 			retired={w.retired}
 			onretry={w.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
-			emptyText={pesticideMain ? m.chart_strip_none_pesticides() : undefined}
+			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}
 		>
 			{#snippet children(data)}
 				{@const overlays = drawn(w.overlays, data)}

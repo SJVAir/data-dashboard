@@ -434,9 +434,7 @@ test("a pesticide-only table with no use says so", async () => {
 		}
 	];
 	const screen = await show(widget);
-	await expect
-		.element(screen.getByText(m.chart_strip_none_pesticides(), { exact: true }))
-		.toBeVisible();
+	await expect.element(screen.getByText(m.data_none_pesticides(), { exact: true })).toBeVisible();
 	expect(screen.getByText(m.widget_state_empty()).query()).toBeNull();
 });
 

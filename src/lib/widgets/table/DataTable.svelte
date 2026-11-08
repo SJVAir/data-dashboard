@@ -171,7 +171,7 @@
 			retired={w.retired}
 			onretry={w.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
-			emptyText={pesticideMain ? m.chart_strip_none_pesticides() : undefined}
+			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}
 		>
 			{#snippet children(data)}
 				{@const rows = sortRows(wideRows(data, overlays), sort.column, sort.dir)}

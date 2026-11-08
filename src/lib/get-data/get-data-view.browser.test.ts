@@ -419,9 +419,9 @@ test("Detail hides for a pinned type; Every measurement is disabled over 90 days
 	draft.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };
 	const { host } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
-	const raw = page.getByRole("radio", { name: m.get_data_detail_raw() });
+	const raw = page.getByRole("radio", { name: m.get_data_show_values_raw() });
 	await expect.element(raw).toBeDisabled();
-	await expect.element(raw).toHaveAccessibleDescription(m.get_data_detail_too_many());
+	await expect.element(raw).toHaveAccessibleDescription(m.get_data_show_values_too_many());
 	// Hourly over more than 31 days is served (a month per request).
 	await expect.element(page.getByRole("radio", { name: "Hourly" })).toBeEnabled();
 	await expect.element(page.getByRole("radio", { name: "Daily" })).toBeEnabled();
@@ -440,11 +440,11 @@ test("Detail hides for a pinned type; Every measurement is disabled over 90 days
 test('More options shows "Show values" with a help button', async () => {
 	const { host } = await show(monitorsDraft(["m1"]));
 	await page.getByRole("button", { name: "More options" }).click();
-	await expect.element(page.getByText(m.get_data_detail(), { exact: true })).toBeVisible();
-	expect(m.get_data_detail()).toBe("Show values");
+	await expect.element(page.getByText(m.get_data_show_values(), { exact: true })).toBeVisible();
+	expect(m.get_data_show_values()).toBe("Show values");
 	// The help button sits beside the group's name, not inside it.
 	await expect
-		.element(page.getByRole("group", { name: m.get_data_detail(), exact: true }))
+		.element(page.getByRole("group", { name: m.get_data_show_values(), exact: true }))
 		.toBeVisible();
 	const help = page.getByRole("button", { name: m.get_data_show_values_help_label() });
 	await expect.element(help).toBeVisible();
@@ -542,12 +542,14 @@ test("a detail level the new range can't serve goes back to Automatic", async ()
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
-	await page.getByRole("radio", { name: m.get_data_detail_raw() }).click();
+	await page.getByRole("radio", { name: m.get_data_show_values_raw() }).click();
 	expect((await current()).data.layers[0].resolution).toBe("raw");
 	// 90 days of raw readings is more than the point budget.
 	await chooseDates("Last 90 days");
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
-	await expect.element(page.getByRole("radio", { name: m.get_data_detail_raw() })).toBeDisabled();
+	await expect
+		.element(page.getByRole("radio", { name: m.get_data_show_values_raw() }))
+		.toBeDisabled();
 	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
 });
 

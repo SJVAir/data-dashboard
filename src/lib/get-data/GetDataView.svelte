@@ -33,7 +33,7 @@
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
-	import DetailControl from "./DetailControl.svelte";
+	import ShowValuesControl from "./ShowValuesControl.svelte";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import { offeredDatasets, typeBlock } from "./offer";
@@ -335,7 +335,7 @@
 
 			{#if choices}
 				<section>
-					<DetailControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail} />
+					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail} />
 				</section>
 			{/if}
 		</div>

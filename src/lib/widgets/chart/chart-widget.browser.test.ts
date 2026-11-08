@@ -371,9 +371,7 @@ const pesticides = (opts: Parameters<typeof fakeNumberAdapter>[2] = {}) =>
 
 test("an empty pesticide strip says no use reported", async () => {
 	const { screen } = await showLayers([PM25, POUNDS], [pesticides({ values: [] })]);
-	await expect
-		.element(screen.getByText(m.chart_strip_none_pesticides(), { exact: true }))
-		.toBeVisible();
+	await expect.element(screen.getByText(m.data_none_pesticides(), { exact: true })).toBeVisible();
 	// The main chart is unaffected: no error, and its line draws.
 	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
 	await expect.element(chart).toBeVisible();
@@ -385,9 +383,7 @@ test("an empty pesticide strip says no use reported", async () => {
 
 test("a pesticide-only widget with no use says so, not an error", async () => {
 	const { screen } = await showLayers([POUNDS], [pesticides({ values: [] })]);
-	await expect
-		.element(screen.getByText(m.chart_strip_none_pesticides(), { exact: true }))
-		.toBeVisible();
+	await expect.element(screen.getByText(m.data_none_pesticides(), { exact: true })).toBeVisible();
 	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
 	expect(screen.getByText(m.widget_state_empty()).query()).toBeNull();
 });

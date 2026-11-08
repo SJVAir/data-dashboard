@@ -19,15 +19,15 @@
 	const uid = $props.id();
 
 	const LABEL: Record<string, () => string> = {
-		auto: () => m.get_data_detail_auto(),
-		raw: () => m.get_data_detail_raw(),
-		hour: () => m.get_data_detail_hour(),
-		day: () => m.get_data_detail_day(),
-		month: () => m.get_data_detail_month(),
-		year: () => m.get_data_detail_year()
+		auto: () => m.get_data_show_values_auto(),
+		raw: () => m.get_data_show_values_raw(),
+		hour: () => m.get_data_show_values_hour(),
+		day: () => m.get_data_show_values_day(),
+		month: () => m.get_data_show_values_month(),
+		year: () => m.get_data_show_values_year()
 	};
 	const REASON: Record<NonNullable<DetailChoice["blocked"]>, () => string> = {
-		"too-many-points": () => m.get_data_detail_too_many()
+		"too-many-points": () => m.get_data_show_values_too_many()
 	};
 </script>
 
@@ -48,7 +48,7 @@
 		<!-- Named by its heading text alone: the help button sits beside it, outside the name. -->
 		<fieldset class="flex flex-col gap-1 px-1" aria-labelledby="{uid}-detail-label">
 			<div class="mb-1 flex items-center gap-1 text-sm font-medium">
-				<span id="{uid}-detail-label">{m.get_data_detail()}</span>
+				<span id="{uid}-detail-label">{m.get_data_show_values()}</span>
 				<Toggletip
 					label={m.get_data_show_values_help_label()}
 					text={m.get_data_show_values_help()}

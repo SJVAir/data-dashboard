@@ -51,7 +51,7 @@
 					summaries[key] =
 						labels.length === 0
 							? m.get_data_pesticide_all()
-							: labels.reduce((line, label) => m.chart_strip_key({ layer: line, source: label }));
+							: labels.reduce((line, label) => m.label_join({ first: line, second: label }));
 				},
 				(error: unknown) => {
 					if (error instanceof FilterGone) summaries[key] = m.get_data_filter_gone_summary();
@@ -85,7 +85,7 @@
 							type="button"
 							class="text-muted-foreground hover:bg-secondary focus-visible:outline-ring inline-flex size-8 shrink-0 items-center justify-center rounded-(--radius-control) focus-visible:outline-2 disabled:opacity-50"
 							aria-label={m.get_data_pesticide_remove({
-								layer: summary ? m.chart_strip_key({ layer: label, source: summary }) : label
+								layer: summary ? m.label_join({ first: label, second: summary }) : label
 							})}
 							disabled={!removable}
 							aria-describedby={removable ? undefined : `${uid}-${index}-keep`}
@@ -103,7 +103,7 @@
 						<Collapsible.Trigger
 							class="hover:bg-secondary flex min-h-8 items-center gap-1 rounded-(--radius-control) px-1 text-sm font-medium [&[data-state=open]>svg]:rotate-180"
 						>
-							{m.get_data_narrow_down()}
+							{m.get_data_filters()}
 							<ChevronDownIcon
 								class="text-muted-foreground duration-fast ease-standard size-4 transition-transform"
 								aria-hidden="true"

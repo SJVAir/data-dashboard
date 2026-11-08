@@ -374,7 +374,7 @@
 								point,
 								whole:
 									s.wholePeriod && s.aggregate === "sum" && point
-										? m.chart_strip_whole_month({
+										? m.chart_whole_period({
 												period: formatPeriod(new Date(point.t), s.resolution)
 											})
 										: null

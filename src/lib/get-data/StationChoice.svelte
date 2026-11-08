@@ -51,7 +51,7 @@
 					name: station.name,
 					miles: formatNumber(station.distance, { maximumFractionDigits: 1 })
 				});
-		return station.active ? name : m.get_data_station_behind({ station: name });
+		return station.active ? name : m.get_data_station_no_recent({ station: name });
 	}
 </script>
 
