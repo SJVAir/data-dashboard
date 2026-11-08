@@ -1340,6 +1340,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   any place. The alert source itself is still deferred. **Revisit when** the first alert-rule
   iteration ships, or ahead of wildfire/heat season if demand appears.
 
+- **Should hidden monitors be subscribable and send alert texts?** _Deferred 2026-11-08
+  (sjvair.com alert current value spec)._ `is_hidden` only hides a monitor on the map. The
+  subscribe endpoint accepts hidden monitors, and `periodic_alerts` evaluates and texts them
+  like any other. Monitors are usually hidden for a reason, so texting from one may be wrong.
+  Changing it alters SMS behaviour and raises its own questions: existing subscribers, whether
+  they're told, and refusing new subscriptions. The new `monitors/<id>/alerts/current/`
+  endpoint serves hidden monitors so the tile matches the texts. If hidden monitors stop being
+  evaluated, it follows on its own. **Revisit before** public go-live, or when a monitor is
+  first hidden on purpose while it has subscribers.
+
 - **An opt-in "back to normal" message by email.** _Deferred 2026-10-13._ All channels follow
   the server's escalation-only rules, with no all-clear; the in-app inbox shows when an
   alert eased or ended. An email-only all-clear has no per-message cost and could be
