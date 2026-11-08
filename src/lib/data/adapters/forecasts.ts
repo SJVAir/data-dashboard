@@ -3,6 +3,7 @@ import { pacificDay, todayPacific } from "$lib/format";
 import { calendarUnits } from "../chunks";
 import { levelFor, type Level } from "../metadata";
 import type { QueryData, Series, SeriesPoint } from "../types";
+import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { isNotFound, layerTarget, placeCandidates, type PlaceRef } from "./targets";
 
@@ -135,7 +136,7 @@ export const forecastsAdapter: DatasetAdapter = {
 			? target
 			: { unavailable: "place-unsupported" };
 	},
-	offered: () => ["day"],
+	offered: (base) => offeredLevels("forecasts", base),
 	// One value per day, with levels: each entry type draws as day bands on any pollutant.
 	overlays: () => true,
 	fetch: fetchForecasts

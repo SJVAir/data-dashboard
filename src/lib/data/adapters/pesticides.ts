@@ -10,6 +10,7 @@ import { FilterGone, filterLabels, filterSummary, resetPesticideMeta } from "../
 import { untilAborted } from "../metadata";
 import type { PesticideFilters } from "../schema";
 import type { PlaceInfo, QueryData, Series, SeriesPoint } from "../types";
+import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { isNotFound, layerTarget, placeCandidates } from "./targets";
 
@@ -218,7 +219,7 @@ export const pesticidesAdapter: DatasetAdapter = {
 		}
 		return target;
 	},
-	offered: (base) => base.filter((r) => r === "month" || r === "year"),
+	offered: (base) => offeredLevels(DATASET, base),
 	overlays: () => true,
 	fetch: fetchPesticides
 };

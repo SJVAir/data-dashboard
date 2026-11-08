@@ -3,6 +3,7 @@ import { untilAborted, type CatalogEntry } from "../metadata";
 import type { Layer } from "../schema";
 import type { PlaceInfo, QueryData, Series } from "../types";
 import { summarySeries } from "./air-quality";
+import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { isNotFound, layerTarget, placeCandidates, type PlaceRef } from "./targets";
 
@@ -168,7 +169,7 @@ export const weatherAdapter: DatasetAdapter = {
 			? target
 			: { unavailable: "place-unsupported" };
 	},
-	offered: (base) => base.filter((r) => r !== "raw"),
+	offered: (base) => offeredLevels("weather", base),
 	overlays: () => true,
 	fetch: fetchWeather
 };

@@ -3,6 +3,7 @@ import { pacificDay, todayPacific } from "$lib/format";
 import { splitChunks } from "../chunks";
 import type { Level } from "../metadata";
 import type { QueryData, Series, SeriesPoint } from "../types";
+import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { isNotFound, layerTarget, placeCandidates, type PlaceRef } from "./targets";
 
@@ -107,7 +108,7 @@ export const smokeAdapter: DatasetAdapter = {
 			? target
 			: { unavailable: "place-unsupported" };
 	},
-	offered: () => ["day"],
+	offered: (base) => offeredLevels("hms-smoke", base),
 	// One density per day: draws as day bands on any pollutant.
 	overlays: () => true,
 	fetch: fetchSmoke

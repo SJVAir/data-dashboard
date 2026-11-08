@@ -66,6 +66,13 @@ describe("draft layers", () => {
 		]);
 	});
 
+	it("a raw level isn't carried onto a weather main (weather has no Every measurement)", () => {
+		const data = pm25With({ ...temperature });
+		data.layers[0].resolution = "raw";
+		setPollutant(data, CATALOG, null);
+		expect(data.layers).toEqual([{ ...temperature, place: FRESNO }]);
+	});
+
 	it("the last number layer can't be removed", () => {
 		const data = pm25With({ ...smoke });
 		const before = structuredClone(data);

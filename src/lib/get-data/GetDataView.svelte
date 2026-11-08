@@ -117,7 +117,14 @@
 	const choices = $derived.by(() => {
 		const meta = entryMeta(known, main);
 		if (!meta) return null;
-		return detailChoices(meta.entryType, range, picks.length, type?.resolution, now);
+		return detailChoices(
+			meta.dataset.id,
+			meta.entryType,
+			range,
+			picks.length,
+			type?.resolution,
+			now
+		);
 	});
 
 	// A detail level the range or places can no longer serve goes back to Automatic.

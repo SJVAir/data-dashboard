@@ -1,6 +1,7 @@
+import { offeredLevels } from "$lib/data/adapters/offered";
 import type { CatalogEntry } from "$lib/data/metadata";
 import { layerKind } from "$lib/data/layer-kind";
-import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
+import type { Layer, PesticideFilters, Resolution, WidgetDataConfig } from "$lib/data/schema";
 import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
@@ -45,9 +46,16 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 	return withEntry === 0 || overlayCount(data, catalog) + 1 <= MAX_OVERLAYS;
 }
 
+/** The levels `layer`'s entry type offers that its adapter can fetch ("Show values"' choices). */
+function offeredFor(catalog: CatalogEntry[] | undefined, layer: Layer): Resolution[] {
+	const meta = entryMeta(catalog, layer);
+	return meta ? offeredLevels(layer.dataset, meta.entryType.resolutions) : [];
+}
+
 /**
  * Runs `change`, then moves the places and the "Show values" level from the old main layer to
- * the new one when the main changed. A level the new main's entry type doesn't offer is dropped.
+ * the new one when the main changed. A level the new main doesn't offer (`offeredFor`: weather
+ * has no "Every measurement") is dropped.
  */
 function keepingPlaces(
 	data: WidgetDataConfig,
@@ -70,8 +78,8 @@ function keepingPlaces(
 	delete after.selection;
 	if (carried.place) after.place = carried.place;
 	if (carried.selection) after.selection = carried.selection;
-	const offered = entryMeta(catalog, after)?.entryType.resolutions ?? [];
 	const level = carried.resolution;
+	const offered = offeredFor(catalog, after);
 	if (level && (level === "auto" || offered.includes(level))) after.resolution = level;
 	else delete after.resolution;
 }
@@ -97,7 +105,7 @@ export function setPollutant(
 		layer.dataset = pick.dataset;
 		layer.entryType = pick.entryType;
 		// A level the new entry type doesn't offer goes back to Automatic.
-		const offered = entryMeta(catalog, layer)?.entryType.resolutions ?? [];
+		const offered = offeredFor(catalog, layer);
 		if (layer.resolution && layer.resolution !== "auto" && !offered.includes(layer.resolution)) {
 			delete layer.resolution;
 		}
