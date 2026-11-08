@@ -1213,7 +1213,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   #13](https://github.com/SJVAir/map-sdk/pull/13), merged b1ca49b):** plugin setup runs in a
   microtask, and `ready` waits for it; proven with `c-reset3.mjs` (Ozone 0 monitor layers on
   beta.2, 18 = PM2.5 with the fix). On npm in `0.1.0-beta.3` (`next`, 2026-11-08).
-  monitor-map's workaround (#126) stays until the user decides. monitor-map found that a plugin's `ctx.effect` can stop re-running for
+  monitor-map's workaround (#126) was reverted in monitor-map #128 (on beta.3, merged 2026-11-07). monitor-map found that a plugin's `ctx.effect` can stop re-running for
   good when the host adds the plugin from inside its own `$effect`. The cause: map-sdk's
   `plugin-host` creates the effect's `$effect.root` under whatever effect is active, and Svelte
   detaches that root when the host's effect re-runs. It reproduces in monitor-map (Svelte 5.57.0
