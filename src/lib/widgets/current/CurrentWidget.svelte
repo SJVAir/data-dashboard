@@ -5,8 +5,6 @@
 	import Minus from "@lucide/svelte/icons/minus";
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
-	import { getMetadata } from "$lib/data";
-	import type { CatalogEntry } from "$lib/data/metadata";
 	import { STALE_MS, type CurrentReading, type Trend } from "$lib/data/now/current";
 	import type { QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
@@ -14,7 +12,6 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 	import { CurrentConditions } from "../shared/current.svelte";
-	import { entryMeta, mainLayer } from "../shared/input";
 	import LevelChip from "../shared/LevelChip.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -26,13 +23,7 @@
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 	const current = new CurrentConditions(() => widget);
 
-	let catalog = $state.raw<CatalogEntry[] | undefined>();
-	void getMetadata()
-		.catalog()
-		.then((c) => {
-			if (c !== "unavailable") catalog = c;
-		});
-	const meta = $derived(entryMeta(catalog, mainLayer(widget.data, catalog)));
+	const meta = $derived(current.meta);
 
 	// "Updated N min ago" and staleness change between polls, so time ticks once a minute.
 	let now = $state(Date.now());
@@ -53,15 +44,10 @@
 	const minutes = $derived(ok ? Math.max(0, Math.floor((now - ok.at) / 60_000)) : 0);
 	const mark = $derived(thresholdMarks[widget.id]);
 
-	/** The query's state as WidgetState understands it; "ready" shows our own body. */
-	const shown = $derived.by((): QueryState => {
-		const s = current.state;
-		if (s === "loading") return { status: "loading" };
-		if (s === "error") return { status: "error", error: new Error("current") };
-		if (typeof s === "object") return { status: "unavailable", reason: s.unavailable };
-		return { status: "loading" };
-	});
-
+	/** Held as loading until the catalog has the entry type (units, precision, label). */
+	const shown = $derived<QueryState>(
+		current.shown.status === "ready" && !meta ? { status: "loading" } : current.shown
+	);
 	const retired = $derived.by(() => {
 		if (!meta) return undefined;
 		const r = meta.entryType.retired ?? meta.dataset.retired;
@@ -107,35 +93,15 @@
 	}
 </script>
 
-<!-- WidgetState's data body: unused, since a ready reading renders above. -->
-{#snippet noBody()}{/snippet}
-
 {#snippet message(text: string)}
 	<p class="text-muted-foreground flex h-full items-center justify-center text-center text-sm">
 		{text}
 	</p>
 {/snippet}
 
-<div
-	class="relative flex h-full flex-col justify-center gap-2 rounded-(--radius-control)"
-	data-mark={mark ? "" : undefined}
-	style:outline-style={mark ? "solid" : undefined}
-	style:outline-width={mark ? "3px" : undefined}
-	style:outline-offset={mark ? "-3px" : undefined}
-	style:outline-color={mark?.level.color ?? (mark ? "var(--foreground)" : undefined)}
->
-	{#if mark}
-		{#key mark.pulse}
-			<span
-				data-pulse={mark.pulse}
-				aria-hidden="true"
-				class="pointer-events-none absolute inset-0 rounded-(--radius-control)"
-				style:outline="3px solid {mark.level.color ?? 'var(--foreground)'}"
-			></span>
-		{/key}
-	{/if}
-	{#if current.state === "ready"}
-		{#if ok && !stale && meta}
+{#snippet body()}
+	{#if ok && !stale && meta}
+		<div class="flex h-full flex-col justify-center gap-2">
 			<div class="flex flex-wrap items-baseline gap-x-2 px-2">
 				<span class="text-3xl leading-none font-semibold tabular-nums">
 					{formatValue(ok.value, meta.entryType.precision)}
@@ -160,11 +126,6 @@
 			{#if ok.level?.guidance}
 				<p data-guidance class="px-2 text-sm">{ok.level.guidance}</p>
 			{/if}
-			{#if mark}
-				<p class="bg-muted mx-2 rounded-(--radius-control) px-2 py-1 text-sm font-medium">
-					{m.current_at_alert_level()}
-				</p>
-			{/if}
 			<p class="text-muted-foreground flex items-center gap-1 px-2 text-xs">
 				<span>
 					{m.current_source_updated({
@@ -174,17 +135,44 @@
 				</span>
 				<Toggletip label={m.current_averaging_label()} text={m.current_averaging_help()} />
 			</p>
-		{:else}
-			{@render message(stale ? m.current_no_recent_data() : emptyText(reading))}
-		{/if}
+		</div>
 	{:else}
+		{@render message(stale ? m.current_no_recent_data() : emptyText(reading))}
+	{/if}
+{/snippet}
+
+<div
+	class="relative flex h-full flex-col gap-2 rounded-(--radius-control)"
+	data-mark={mark ? "" : undefined}
+	style:outline-style={mark ? "solid" : undefined}
+	style:outline-width={mark ? "3px" : undefined}
+	style:outline-offset={mark ? "-3px" : undefined}
+	style:outline-color={mark?.level.color ?? (mark ? "var(--foreground)" : undefined)}
+>
+	{#if mark}
+		{#key mark.pulse}
+			<span
+				data-pulse={mark.pulse}
+				aria-hidden="true"
+				class="pointer-events-none absolute inset-0 rounded-(--radius-control)"
+				style:outline="3px solid {mark.level.color ?? 'var(--foreground)'}"
+			></span>
+		{/key}
+	{/if}
+	<div class="min-h-0 flex-1">
 		<WidgetState
 			state={shown}
 			{widget}
 			{retired}
 			onretry={current.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
-			children={noBody}
+			emptyText={m.current_no_data()}
+			children={body}
 		/>
+	</div>
+	{#if mark}
+		<p class="bg-muted mx-2 mb-2 rounded-(--radius-control) px-2 py-1 text-sm font-medium">
+			{m.current_at_alert_level()}
+		</p>
 	{/if}
 </div>

@@ -8,6 +8,7 @@ import type { CatalogEntry, Level, MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { WidgetInstance } from "$lib/documents/schema";
+import { formatDate } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
@@ -34,6 +35,8 @@ vi.mock("$lib/data", () => ({
 }));
 
 const HOUR = 3_600_000;
+/** When the test began: the latest complete hour ended 6 minutes before it. */
+let t0 = Date.now();
 const LEVELS: Level[] = PM25_LEVELS.map((l) =>
 	l.key === "moderate"
 		? { ...l, guidance: "Unusually sensitive people should reduce exertion." }
@@ -57,7 +60,7 @@ function adapter(values: Record<string, [number, number]>): DatasetAdapter {
 		async fetch(req) {
 			const id = req.target.kind === "monitors" ? req.target.ids[0] : "";
 			const [before, latest] = values[id] ?? [0, 0];
-			const t = Date.now() - 6 * 60_000 - HOUR;
+			const t = t0 - 6 * 60_000 - HOUR;
 			const point = (at: number, mean: number) => ({
 				t: at,
 				mean,
@@ -81,6 +84,7 @@ function adapter(values: Record<string, [number, number]>): DatasetAdapter {
 let frame: HTMLDivElement;
 
 beforeEach(async () => {
+	t0 = Date.now();
 	await page.viewport(1280, 800);
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,
@@ -98,7 +102,10 @@ beforeEach(async () => {
 	document.body.appendChild(frame);
 });
 
-afterEach(() => frame.remove());
+afterEach(() => {
+	vi.useRealTimers();
+	frame.remove();
+});
 
 function currentWidget(id: string): WidgetInstance {
 	return {
@@ -221,6 +228,68 @@ test("the pulse replays once with motion and not at all under reduced motion", a
 		await commands.setReducedMotion(null);
 		setMark(widget.id, null);
 	}
+});
+
+test("an hour that has gone stale between polls becomes No recent data", async () => {
+	vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+	const screen = await show(currentWidget("a"));
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
+	await vi.advanceTimersByTimeAsync(3 * HOUR);
+	await expect.element(screen.getByText(m.current_no_recent_data())).toBeVisible();
+});
+
+test("a retired entry type shows its note over the value", async () => {
+	const retiredCatalog = CATALOG.map((d) => ({
+		...d,
+		entryTypes: d.entryTypes.map((e) =>
+			e.id === "pm25" ? { ...e, retired: { since: "2025-01-02" } } : e
+		)
+	}));
+	fake.metadata = fixtureMetadata({
+		catalog: async () => retiredCatalog,
+		levels: async (entryType) => (entryType === "pm25" ? LEVELS : [])
+	});
+	const screen = await show(currentWidget("a"));
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(
+			screen.getByText(
+				m.widget_state_dataset_retired({ dataset: "PM2.5", date: formatDate("2025-01-02") })
+			)
+		)
+		.toBeVisible();
+});
+
+test("a retired place shows its note over the value", async () => {
+	const base = adapter({ a: [27.1, 28.4] });
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				async fetch(req, ctx, signal) {
+					const data = await base.fetch(req, ctx, signal);
+					return {
+						...data,
+						places: data.places.map((p) => ({
+							...p,
+							retired: { since: "2024-03-05", replacedBy: null }
+						}))
+					};
+				}
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const screen = await show(currentWidget("a"));
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(
+			screen.getByText(
+				m.widget_state_place_retired({ place: "Monitor a", date: formatDate("2024-03-05") })
+			)
+		)
+		.toBeVisible();
 });
 
 test("has no axe violations", async () => {

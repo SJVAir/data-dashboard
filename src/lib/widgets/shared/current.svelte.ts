@@ -3,7 +3,7 @@ import { getMetadata, getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
 import { currentInput, hourlyReading, type CurrentReading } from "$lib/data/now/current";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
-import type { UnavailableReason } from "$lib/data/types";
+import type { QueryState, UnavailableReason } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { entryMeta, mainLayer } from "./input";
 
@@ -21,8 +21,12 @@ export class CurrentConditions {
 	readonly #query: LiveQuery;
 
 	readonly levels: Level[];
-	readonly reading: CurrentReading | undefined;
+	/** The catalog entry (and dataset) the widget reads, once the catalog has loaded. */
+	readonly meta: ReturnType<typeof entryMeta>;
+	/** The query's state, held as loading until the levels are in, or an error if they failed. */
+	readonly shown: QueryState;
 	readonly state: "loading" | "ready" | "error" | { unavailable: UnavailableReason };
+	readonly reading: CurrentReading | undefined;
 
 	constructor(widget: () => WidgetInstance, opts?: { polling?: () => boolean }) {
 		const metadata = getMetadata();
@@ -61,6 +65,17 @@ export class CurrentConditions {
 
 		this.levels = $derived(Array.isArray(this.#levels) ? this.#levels : []);
 
+		this.meta = $derived(meta);
+		this.shown = $derived.by((): QueryState => {
+			const s = query.state;
+			if (s.status !== "ready" && s.status !== "error") return s;
+			const levels = this.#levels;
+			if (levels === undefined) return { status: "loading", data: s.data };
+			if (!Array.isArray(levels) && s.status === "ready") {
+				return { status: "error", error: levels.error, data: s.data };
+			}
+			return s;
+		});
 		this.state = $derived.by(() => {
 			const s = query.state;
 			if (s.status === "unavailable") return { unavailable: s.reason };
