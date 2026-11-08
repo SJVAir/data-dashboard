@@ -1134,6 +1134,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   on map-sdk's general points and shapes plugins plus their metadata scale with little or no
   preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
   needs one on a map (pesticide notices likely first, alongside the alerts work).
+- **map-sdk: monitor readings round in the list but are cut off in the tooltip.** _Deferred
+  2026-11-08 (map-sdk parity defaults, [#15](https://github.com/SJVAir/map-sdk/pull/15); the
+  user chose to fix fire only)._ The monitor tooltip cuts its reading to a whole number, as
+  sjvair.com's map does, while the feature list and its accessible names round to the
+  metadata's precision. Near a level boundary they disagree: a PM2.5 reading of 9.06 shows "9"
+  in the box but "9.1 µg/m³, Good" in the list, and Moderate starts at 9.1. Fire values now use
+  the same cut-off in the box, list and accessible names (`pointsPlugin`'s `truncateValues`);
+  monitors were out of that work's scope. **Revisit when** monitor values or list formatting
+  are next touched, or a user reports a number that disagrees with its level: turn on
+  `truncateValues` for monitors (rows would then read "9.0").
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
