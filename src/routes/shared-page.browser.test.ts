@@ -333,11 +333,11 @@ test("on the routed page, fullscreen then Escape goes back", async () => {
 	const token = await publish();
 	await openShared(token, { routed: true });
 	await expect.element(titleBar("Readings")).toBeVisible();
-	const entries = history.length;
 	await page.getByRole("button", { name: "Show Readings fullscreen" }).click();
 	await expect.poll(() => location.search).toBe("?widget=a");
 	await expect.poll(() => isFullscreen("a")).toBe(true);
-	expect(history.length).toBe(entries + 1);
+	// Not asserting history.length: browsers cap session history (Chromium: 50), so in a long
+	// shared-tab run a push leaves it unchanged. Going back to the shared page proves a push.
 	await userEvent.keyboard("{Escape}");
 	await expect.poll(() => location.search).toBe("");
 	await expect.poll(() => isFullscreen("a")).toBe(false);
