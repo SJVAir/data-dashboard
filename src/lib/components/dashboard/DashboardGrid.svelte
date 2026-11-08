@@ -31,6 +31,7 @@
 	import { shownLayout } from "$lib/layout/items";
 	import { taskbarWidgets } from "$lib/layout/windowing";
 	import { STARTER_ID } from "$lib/starter/starter";
+	import { watchesThresholds } from "$lib/thresholds/watched";
 	import { useApp } from "$lib/store/app.svelte";
 	import { navigate, route } from "../../../router";
 	import AddWidgetButton from "./AddWidgetButton.svelte";
@@ -63,6 +64,12 @@
 	const doc = $derived(view ?? editable?.doc ?? null);
 	/** The view's widgets, read by its frames and taskbar in place of the app's session. */
 	const viewWidgets = $derived(view ? () => view.body.widgets : undefined);
+
+	// The threshold watcher (its own chunk), loaded once some widget has an alert level. It runs
+	// here, not in the tiles, since minimized widgets aren't on the grid.
+	const watching = $derived(!!doc?.body.widgets.some(watchesThresholds));
+	let watcherModule: Promise<typeof import("$lib/thresholds/ThresholdWatcher.svelte")> | undefined;
+	const loadWatcher = () => (watcherModule ??= import("$lib/thresholds/ThresholdWatcher.svelte"));
 
 	const phone = new MediaQuery(PHONE_QUERY);
 	// The active widget's title, kept from pickup on: when it goes, it's no longer in the document.
@@ -309,6 +316,13 @@
 				<!-- While a widget is fullscreen, the rest of the dashboard is inert. -->
 				{#if !view && app.current.isStarter}
 					<div class="contents" inert={!!shownId}><StarterHint /></div>
+				{/if}
+				{#if doc && watching}
+					{#await loadWatcher() then { default: ThresholdWatcher }}
+						{#key doc.id}
+							<ThresholdWatcher docId={doc.id} widgets={doc.body.widgets} space={app.space} />
+						{/key}
+					{/await}
 				{/if}
 				{#if placed.length === 0}
 					<div class="contents" inert={!!shownId}>

@@ -1009,5 +1009,8 @@
 	"outside_heat_unavailable": "No heat score today",
 	"outside_no_guidance": "No guidance for this level",
 	"outside_no_pm25": "No PM2.5 data for this place",
-	"outside_source": "Source: {name}"
+	"outside_source": "Source: {name}",
+	"threshold_reached": "{pollutant} at {place} is now {level}",
+	"taskbar_restore_named_at_alert_level": "Restore {title}, at your alert level",
+	"widget_fullscreen_named_at_alert_level": "Show {title} fullscreen, at your alert level"
 }

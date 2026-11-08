@@ -22,6 +22,7 @@
 	import { placeLabel } from "../title";
 	import { setGeneratedTitle } from "../titles.svelte";
 	import ActivityRow from "./ActivityRow.svelte";
+	import { asPm25 } from "./pm25";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
@@ -29,17 +30,7 @@
 
 	// The card is always about PM2.5 (the only pollutant with school guidelines), whatever the
 	// saved layer says.
-	const pm25Widget = $derived<WidgetInstance>({
-		...widget,
-		data: {
-			...widget.data,
-			layers: widget.data.layers.map((l) =>
-				l.dataset === "air-quality" && l.entryType && l.entryType !== "pm25"
-					? { ...l, entryType: "pm25" }
-					: l
-			)
-		}
-	});
+	const pm25Widget = $derived(asPm25(widget));
 	const current = new CurrentConditions(() => pm25Widget);
 	const meta = $derived(current.meta);
 

@@ -2,6 +2,7 @@
 	import { getContext, onDestroy, untrack } from "svelte";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
+	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import { menuScope } from "$lib/actions/scope";
 	import {
 		downloadItems,
@@ -18,6 +19,7 @@
 	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
+	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 
@@ -170,20 +172,42 @@
 		{#each widgets as widget, i (widget.id)}
 			{@const title = widgetTitle(widget)}
 			{@const Icon = getWidgetType(widget.type)?.icon ?? CircleQuestionMark}
+			{@const mark = thresholdMarks[widget.id]}
+			<!-- At its alert level: an outline in the level's color, a warning icon, and the name says
+			     so; it flashes once per crossing (steady under reduced motion). -->
 			<div
-				class="border-border animate-in fade-in-0 zoom-in-95 duration-fast ease-standard flex shrink-0 items-center rounded-(--radius-control) border"
+				class="border-border animate-in fade-in-0 zoom-in-95 duration-fast ease-standard relative flex shrink-0 items-center rounded-(--radius-control) border"
 				data-testid="taskbar-{widget.id}"
+				data-mark={mark ? "" : undefined}
+				style:outline-style={mark ? "solid" : undefined}
+				style:outline-width={mark ? "2px" : undefined}
+				style:outline-color={mark ? (mark.level.color ?? "var(--foreground)") : undefined}
 				{@attach menuScope(menuFor(widget))}
 			>
+				{#if mark && mark.pulse > 0}
+					{#key mark.pulse}
+						<span
+							data-pulse={mark.pulse}
+							aria-hidden="true"
+							class="pointer-events-none absolute inset-0 rounded-(--radius-control)"
+							style:outline="2px solid {mark.level.color ?? 'var(--foreground)'}"
+						></span>
+					{/key}
+				{/if}
 				<Button
 					variant="ghost"
 					size="sm"
 					tabindex={current === i * 2 ? 0 : -1}
 					aria-label={readOnly
-						? m.widget_fullscreen_named({ title })
-						: m.taskbar_restore_named({ title })}
+						? mark
+							? m.widget_fullscreen_named_at_alert_level({ title })
+							: m.widget_fullscreen_named({ title })
+						: mark
+							? m.taskbar_restore_named_at_alert_level({ title })
+							: m.taskbar_restore_named({ title })}
 					onclick={() => (readOnly ? onfullscreen(widget.id) : restoreWidget(app, widget.id))}
 				>
+					{#if mark}<TriangleAlert data-mark-icon aria-hidden="true" />{/if}
 					<Icon aria-hidden="true" />
 					<span class="max-w-40 truncate">{title}</span>
 				</Button>

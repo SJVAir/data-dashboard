@@ -15,7 +15,6 @@ type Levels = Level[] | { error: unknown } | undefined;
  * cleanup). Polling follows `!widget().minimized` unless `opts.polling` says otherwise.
  */
 export class CurrentConditions {
-	#catalog = $state.raw<CatalogEntry[] | undefined>();
 	#levels = $state.raw<Levels>();
 	#levelsTry = $state(0);
 	readonly #query: LiveQuery;
@@ -30,13 +29,16 @@ export class CurrentConditions {
 
 	constructor(widget: () => WidgetInstance, opts?: { polling?: () => boolean }) {
 		const metadata = getMetadata();
+		// A local, not a class field: the compiler reads a field untracked in the constructor's
+		// `const … = $derived(…)`, so the layer and `meta` would never see the catalog arrive.
+		let catalog = $state.raw<CatalogEntry[] | undefined>();
 		void metadata.catalog().then((c) => {
-			if (c !== "unavailable") this.#catalog = c;
+			if (c !== "unavailable") catalog = c;
 		});
 
-		const layer = $derived(mainLayer(widget().data, this.#catalog));
+		const layer = $derived(mainLayer(widget().data, catalog));
 		const input = $derived(layer && (layer.place || layer.selection) ? currentInput(layer) : null);
-		const meta = $derived(entryMeta(this.#catalog, layer));
+		const meta = $derived(entryMeta(catalog, layer));
 		const entryTypeId = $derived(layer?.entryType);
 
 		const query = new LiveQuery(

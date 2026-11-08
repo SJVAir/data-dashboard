@@ -17,7 +17,8 @@
 	style:outline-offset={mark ? "-3px" : undefined}
 	style:outline-color={mark?.level.color ?? (mark ? "var(--foreground)" : undefined)}
 >
-	{#if mark}
+	<!-- Pulse 0 is a mark seen on arrival (not a crossing): it shows without the pulse. -->
+	{#if mark && mark.pulse > 0}
 		{#key mark.pulse}
 			<span
 				data-pulse={mark.pulse}
