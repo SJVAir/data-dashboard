@@ -439,7 +439,9 @@ test('More options shows "Show values" with a help button', async () => {
 	const help = page.getByRole("button", { name: m.get_data_show_values_help_label() });
 	await expect.element(help).toBeVisible();
 	await help.click();
-	await expect.element(page.getByText(m.get_data_show_values_help())).toBeVisible();
+	await expect
+		.element(page.getByRole("status").filter({ hasText: m.get_data_show_values_help() }))
+		.toBeVisible();
 	host.remove();
 });
 
