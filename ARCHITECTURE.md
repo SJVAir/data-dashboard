@@ -1942,6 +1942,42 @@ is a map idea instead (see `DEFERRED.md` → "Map plugins").
   hourly average**. The tile says which it is ("updated N min ago", an averaging note), and a
   reading older than 3 hours is marked stale. Regions always use hourly averages.
 
+**The two calendars as built (step 4 spec 5, 2026-11-09).** Both are `time: "range"` types with
+the resolution pinned to `"day"`, lazily loaded, set up in Get data, and limited to **one place
+and one air-quality pollutant** (`accepts.onlyPollutant`; other data layers are in `DEFERRED.md`).
+Show as greys them out with the reason for two places, a weather or other non-pollutant layer, or
+a date range outside their span.
+
+- **Day-colored calendar:** month grids (weeks as rows, Sunday first), several side by side for a
+  longer range. Default range "This month"; the whole month is drawn with days still to come left
+  blank. Span 1 day to 12 months. A rated cell shows the level color, the day number, the value
+  and the level label (the tier number when the cell is small).
+- **Contribution calendar:** GitHub's layout (a column per week, Sunday at the top, month labels
+  above). Default range "Last 12 months"; span 1 week to about 2 years; long ranges scroll
+  sideways from the latest week. A **Show patterns** switch (on by default) adds a per-tier
+  pattern over each color; see "Accessibility".
+- **A day's figure comes from server metadata, never from the dashboard.** Each day is colored by
+  the daily figure matching its pollutant's scale, **because that is how EPA computes the daily
+  AQI**: the 24-hour scales (PM2.5, PM10) use the 24-hour average, the 1-hour scales (O3, NO2, SO2)
+  the day's highest hourly average, and CO's 8-hour scale its highest 8-hour average. A daily mean
+  against a 1-hour scale would almost never leave Good. `monitors/meta/` `scale.daily_statistic`
+  names the daily summary field to read (`mean_24h`, `max_1h`, `max_8h`) and
+  `scale.daily_statistic_label` its name; the calendar never maps pollutants itself. A null value
+  is "Not enough data" (EPA's completeness rule, applied by the server). Until the metadata
+  carries `daily_statistic`, every past day is unrated and the widget says so once. It never falls
+  back to the mean. Today is colored "so far" from the server's running figure, and a day whose
+  rollup hasn't finished shows "Not final yet" (`is_final`).
+- **Selecting days uses a two-click range for every pointer:** click a day, then click another to
+  extend the range; a third click starts anew; clicking the only selected day clears it. Mouse
+  drag and Shift-click also work, and the keyboard follows the date-grid pattern (one Tab stop,
+  arrows, Home/End, Page Up/Down, Space or Enter, Shift+arrows, Esc). The selection is stored as
+  `timeSubRange` and summarised under the grid; **Open these days in a chart** (a widget menu item
+  while days are selected) adds a separate Chart over them.
+- **The tooltip and each cell's accessible name** give the date, the figure's name, the value,
+  unit and level, and whether the day is selected, at or above the threshold, partial or not final.
+- **The display-only threshold** (`thresholds: true`, off by default) marks and counts rated days
+  at or above a level; no alerts or notifications.
+
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
 **Widgets are independent in Release 1** (decided 2026-09-28). Each widget has its own data,
@@ -1959,7 +1995,12 @@ type WidgetType = {
 	label: MessageKey; // i18n: message key, never literal English
 	minSize: { w: number; h: number }; // grid cells
 	time: "range" | "now" | "none"; // the date section is shown only for "range"
-	accepts?: { datasets?: string[]; maxPollutantLayers?: number; maxPlaces?: number }; // explicit
+	accepts?: {
+		datasets?: string[];
+		maxPollutantLayers?: number;
+		maxPlaces?: number;
+		onlyPollutant?: boolean; // only a pollutant (a layer with a daily scale) can be added
+	}; // explicit
 	addable?: () => WidgetDataConfig; // non-data types only: a direct add from "Add widget"
 	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
@@ -1967,8 +2008,10 @@ type WidgetType = {
 	resolution?: Resolution; // pinned resolution (e.g. calendars "day"); hides the override
 	dateMethods?: DateRangeSpec["kind"][]; // allowed date methods (default: all); only for time: "range"
 	span?: { min?: Duration; max?: Duration }; // e.g. contribution calendar: min 1 week
+	defaultRange?: DateRangeSpec; // the range a new widget (and one with none of its own) shows
 	defaultTitle(config: WidgetDataConfig, meta: Metadata): string; // generated, not stored
-	menu: MenuProvider; // widget-scoped actions (see "Actions & context menu")
+	menu: (ctx: MenuContext, env: WidgetMenuEnv) => MenuItem[]; // widget-scoped actions (see
+	// "Actions & context menu"); `env` reads the live widget, so a menu can depend on its data
 	component: Component;
 };
 ```
@@ -3116,6 +3159,15 @@ and views.
     `format`/theme module (mobile already uses it). No `text_color` metadata field.
   - axe checks and manual passes cover these states (e.g. a yellow-level tile, the
     calendar).
+  - **The one exception: the contribution calendar's "Show patterns" switch** (step 4 spec 5).
+    With it on (the default), each cell also carries a per-tier pattern, so the level does not
+    rest on color. A viewer may switch it off for themselves (a per-viewer preference, not saved in
+    the document) and then sees color only; the tooltip and each cell's accessible name still give
+    the level. This is the user's informed choice, recorded here as the only place color alone is
+    allowed.
+- **Range selection without dragging** (WCAG 2.5.7). On the calendars, the two-click range
+  (click a day, click another) is the single-pointer alternative to dragging across days; the
+  keyboard has its own (Shift+arrows).
 
 - **Both modes are checked** (design pass, 2026-11-03). The axe checks (`e2e/a11y.spec.ts` and
   the per-feature ones) run in light and dark. `src/lib/theme/contrast.test.ts` checks the token

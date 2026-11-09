@@ -43,6 +43,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   the change schema. The user accepted it for now on 2026-11-08 (no trim, budget unchanged).
   Candidates if trimming later: lazy-load the widget type icons, drop the menu item's icon.
   **Revisit when** `check:budget` grows further, or before step 4 merges into `main`.
+- **The initial bundle is 204.5 KB after step 4 spec 5 (accepted).** _Deferred 2026-11-09 (step 4
+  spec 5, Task 12)._ `check:budget` reads 204.5 KB gzip against the 200 KB soft budget (202.1 KB
+  after spec 4). The growth is the two calendar descriptors, their date and place-spot helpers,
+  and the registry's new fields (`defaultRange`, `menu(ctx, env)`, `accepts.onlyPollutant`); the
+  calendars' code itself is lazy. The user accepted the growth on 2026-11-09 (no trim, budget
+  unchanged). Candidates: the ones listed above. **Revisit when** `check:budget` grows further, or
+  before step 4 merges into `main`.
 
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
