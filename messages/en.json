@@ -698,7 +698,7 @@
 	"csv_rated": "Rated",
 	"csv_rated_yes": "Yes",
 	"csv_rated_not_enough": "Not enough data",
-	"csv_rated_so_far": "So far",
+	"csv_rated_not_final": "Not final yet",
 	"calendar_not_enough_data": "Not enough data",
 	"calendar_no_data": "No data",
 	"calendar_key": "Key",
@@ -720,9 +720,10 @@
 		}
 	],
 	"calendar_threshold_month_count": "{at} of {rated} in {month} so far",
-	"calendar_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked.",
+	"calendar_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked. Choose another level in Get data.",
 	"calendar_no_levels": "This pollutant has no levels, so its days can't be rated.",
-	"calendar_figure_unknown": "The server doesn't say yet which daily figure rates this pollutant, so its days aren't rated.",
+	"calendar_day_rating_unknown": "SJVAir doesn't say yet how to rate a whole day of this pollutant, so its days aren't rated.",
+	"calendar_day_rating_unavailable": "Day ratings can't be loaded right now. Try again later.",
 	"calendar_selection_summary": [
 		{
 			"declarations": [
@@ -738,8 +739,8 @@
 			],
 			"selectors": ["daysPlural"],
 			"match": {
-				"daysPlural=one": "{dates} · {days} day · {figure}: average {average} {unit} · worst day {worstDate}, {worstValue} {unit}",
-				"daysPlural=other": "{dates} · {days} days · {figure}: average {average} {unit} · worst day {worstDate}, {worstValue} {unit}"
+				"daysPlural=one": "{dates} · {days} day · {figure} · average day {average} {unit} · worst day {worstDate}, {worstValue} {unit}",
+				"daysPlural=other": "{dates} · {days} days · {figure} · average day {average} {unit} · worst day {worstDate}, {worstValue} {unit}"
 			}
 		}
 	],
@@ -804,8 +805,8 @@
 	],
 	"calendar_day_rated": "{figure} {value} {unit}, {level}",
 	"calendar_day_value": "{figure} {value} {unit}",
-	"calendar_day_so_far_rated": "{figure} so far {value} {unit}, {level}",
-	"calendar_day_so_far_value": "{figure} so far {value} {unit}",
+	"calendar_day_so_far_rated": "{figure} {value} {unit} so far, {level}",
+	"calendar_day_so_far_value": "{figure} {value} {unit} so far",
 	"calendar_day_level_so_far": "{level} · so far",
 	"calendar_day_no_data_so_far": "No data so far",
 	"calendar_day_not_final_yet": "Not final yet",
@@ -1039,6 +1040,8 @@
 	"get_data_pollutant_instead": "This widget shows only {pollutant}, so it uses that instead of {previous}.",
 	"get_data_levels_unavailable": "The levels can't be loaded right now.",
 	"get_data_line_at_level": "Line at level",
+	"get_data_mark_days_at_level": "Mark days at level",
+	"get_data_mark_days_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked.",
 	"get_data_block_dataset": "Can't show this data",
 	"get_data_block_places": [
 		{
@@ -1053,7 +1056,7 @@
 	"get_data_type_blocked": "{type}: {reason}",
 	"get_data_block_span": "Can't show this date range",
 	"get_data_block_pollutants": "Shows one pollutant at a time",
-	"get_data_show_as_needs_one_pollutant": "Needs exactly one pollutant layer",
+	"get_data_block_one_pollutant_no_overlays": "Shows one pollutant, without overlays",
 	"get_data_selection_outside_range": "{days} is outside the new date range, so the selected days were left out. Select days again on the calendar.",
 	"get_data_selection_left_out": "A day selection only applies to a calendar, so {days} was left out. Switch back to a calendar to select days again.",
 	"get_data_preview": "Preview",

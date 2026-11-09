@@ -56,6 +56,7 @@
 		type NowDropped
 	} from "./now";
 	import NowControls from "./NowControls.svelte";
+	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { formatDateRange } from "$lib/format";
 	import { offeredDatasets, typeBlock } from "./offer";
@@ -647,6 +648,7 @@
 								thresholds={plain.thresholds}
 								onthreshold={setThreshold}
 								onretry={() => alertTry++}
+								marks={isCalendarType(plain.type)}
 							/>
 						{/if}
 					</ShowValuesControl>

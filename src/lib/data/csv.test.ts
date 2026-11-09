@@ -687,7 +687,7 @@ describe("a calendar's CSV", () => {
 		expect(rows.slice(1).map((r) => r.slice(n))).toEqual([
 			["31.9", "Yes"],
 			["", "Not enough data"],
-			["19.9", "So far"]
+			["19.9", "Not final yet"]
 		]);
 	});
 

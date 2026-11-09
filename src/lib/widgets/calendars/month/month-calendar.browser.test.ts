@@ -239,7 +239,7 @@ test("the other states: stripes, no data, today so far, not final yet, still to 
 	expect(today.outlineStyle).toBe("dashed");
 	expect(visibleText("2026-11-09")).toEqual(["9", "19.9", "Moderate · so far"]);
 	expect(cellOf("2026-11-09")!.querySelector("[data-name]")!.textContent).toBe(
-		"Monday, November 9: 24-hour average so far 19.9 µg/m³, Moderate"
+		"Monday, November 9: 24-hour average 19.9 µg/m³ so far, Moderate"
 	);
 	expect(getComputedStyle(inner("2026-11-08")).outlineStyle).toBe("dashed");
 	expect(visibleText("2026-11-08")).toEqual(["8", "…", "Not final yet"]);

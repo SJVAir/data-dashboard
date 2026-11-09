@@ -69,7 +69,8 @@
 		const out: string[] = [];
 		if (!data.levelsLoaded) return out;
 		if (data.levels.length === 0) out.push(m.calendar_no_levels());
-		else if (data.figure === null) out.push(m.calendar_figure_unknown());
+		else if (data.figureFailed) out.push(m.calendar_day_rating_unavailable());
+		else if (data.figure === null) out.push(m.calendar_day_rating_unknown());
 		if (data.thresholdMissing) out.push(m.calendar_level_missing());
 		return out;
 	});
@@ -128,7 +129,8 @@
 {/snippet}
 
 {#snippet summaryCounts()}
-	{#if summary}
+	<!-- With no rated day the summary line already says so: no counts to repeat it. -->
+	{#if summary && summary.average !== null}
 		{#if summary.atOrAbove !== null && data.threshold}
 			<span>
 				{m.calendar_selection_at_or_above({

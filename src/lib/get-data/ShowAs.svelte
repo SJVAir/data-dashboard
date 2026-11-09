@@ -31,7 +31,7 @@
 			case "pollutants":
 				return m.get_data_block_pollutants();
 			case "pollutant":
-				return m.get_data_show_as_needs_one_pollutant();
+				return m.get_data_block_one_pollutant_no_overlays();
 		}
 	}
 

@@ -17,7 +17,7 @@ import { mainLayer } from "../../shared/input";
 export { figureName };
 
 /** The figure lookup for one entry type, once it has settled (`null`: none, or it failed). */
-type FigureLookup = { entryType: string; figure: DailyFigure | null };
+type FigureLookup = { entryType: string; figure: DailyFigure | null; failed?: boolean };
 
 /**
  * A calendar widget's state: its daily query (asking for the figure the metadata names), the
@@ -30,6 +30,8 @@ export class CalendarData {
 	#now = $state(Date.now());
 
 	readonly figure: DailyFigure | null;
+	/** The figure lookup failed (as opposed to the server not naming one). */
+	readonly figureFailed: boolean;
 	readonly today: string;
 	readonly range: { first: string; last: string };
 	/** The days a viewer can pick, or `null` when the range has none (it's all still to come). */
@@ -70,7 +72,7 @@ export class CalendarData {
 					if (!abort.signal.aborted) this.#lookup = { entryType: id, figure };
 				},
 				() => {
-					if (!abort.signal.aborted) this.#lookup = { entryType: id, figure: null };
+					if (!abort.signal.aborted) this.#lookup = { entryType: id, figure: null, failed: true };
 				}
 			);
 			return () => abort.abort();
@@ -94,6 +96,7 @@ export class CalendarData {
 		});
 		const settled = $derived(!!lookup);
 		this.figure = $derived(lookup?.figure ?? null);
+		this.figureFailed = $derived(lookup?.failed ?? false);
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a fresh read, never mutated
 		this.today = $derived(todayPacific(new Date(this.#now)));
 		// The range's dates as strings first, so the objects below (and every cell reading them)

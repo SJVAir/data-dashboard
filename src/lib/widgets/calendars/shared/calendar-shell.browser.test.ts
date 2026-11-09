@@ -250,14 +250,14 @@ test("a pollutant with no levels: the no-levels note, no count, no crash", async
 	expect(data.threshold).toBeNull();
 	expect(data.thresholdMissing).toBe(false);
 	expect(frame.querySelector("[data-calendar-count]")).toBeNull();
-	expect(frame.textContent).not.toContain(m.calendar_figure_unknown());
+	expect(frame.textContent).not.toContain(m.calendar_day_rating_unknown());
 });
 
 test("no daily figure: one note, no figure asked for, every past day unrated", async () => {
 	figure = null;
 	const { screen, data } = await show(calendar());
-	await expect.element(screen.getByText(m.calendar_figure_unknown())).toBeVisible();
-	expect(screen.getByText(m.calendar_figure_unknown()).elements()).toHaveLength(1);
+	await expect.element(screen.getByText(m.calendar_day_rating_unknown())).toBeVisible();
+	expect(screen.getByText(m.calendar_day_rating_unknown()).elements()).toHaveLength(1);
 	expect(requests).toHaveLength(1);
 	expect(requests[0].dailyFigure).toBeUndefined();
 	expect(data.figure).toBeNull();
@@ -269,7 +269,7 @@ test("no daily figure: one note, no figure asked for, every past day unrated", a
 test("a failed figure lookup proceeds without the figure", async () => {
 	fake.metadata = { ...fake.metadata!, dailyFigure: async () => Promise.reject(new Error("x")) };
 	const { screen, data } = await show(calendar());
-	await expect.element(screen.getByText(m.calendar_figure_unknown())).toBeVisible();
+	await expect.element(screen.getByText(m.calendar_day_rating_unavailable())).toBeVisible();
 	expect(requests).toHaveLength(1);
 	expect(requests[0].dailyFigure).toBeUndefined();
 	expect(data.figure).toBeNull();
@@ -290,7 +290,7 @@ test("the summary line for a selection, with the worst day's chip and the thresh
 		worstValue: "31.9"
 	});
 	expect(summary).toBe(
-		"Nov 5 – 8, 2026 · 4 days · 24-hour average: average 25.5 µg/m³ · worst day Fri, Nov 6, 31.9 µg/m³"
+		"Nov 5 – 8, 2026 · 4 days · 24-hour average · average day 25.5 µg/m³ · worst day Fri, Nov 6, 31.9 µg/m³"
 	);
 	const line = frame.querySelector("[data-calendar-summary]") as HTMLElement;
 	await expect.poll(() => line?.textContent).toContain(summary);
@@ -307,7 +307,7 @@ test("unrated days in a selection are named and left out of the average", async 
 	await expect.element(screen.getByText("2 days not rated")).toBeVisible();
 	const line = frame.querySelector("[data-calendar-summary]") as HTMLElement;
 	// (31.9 + 25) / 2
-	expect(line.textContent).toContain("average 28.4");
+	expect(line.textContent).toContain("average day 28.4");
 	expect(line.textContent).not.toContain("at or above");
 });
 
@@ -325,6 +325,9 @@ test("a selection with no rated day says so", async () => {
 			)
 		)
 		.toBeVisible();
+	// The line says so; no second "4 days not rated" repeats it.
+	const line = frame.querySelector("[data-calendar-summary]") as HTMLElement;
+	expect(line.textContent).not.toContain("4 days not rated");
 });
 
 test("the live region announces the summary once the selection settles, not while dragging", async () => {

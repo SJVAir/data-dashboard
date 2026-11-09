@@ -22,7 +22,7 @@ test.use({ reducedMotion: "reduce" });
 
 const GET_DATA = { level: 1, name: "Get data" } as const;
 const NOT_RATED_NOTE =
-	"The server doesn't say yet which daily figure rates this pollutant, so its days aren't rated.";
+	"SJVAir doesn't say yet how to rate a whole day of this pollutant, so its days aren't rated.";
 const FRESNO = { kind: "region", type: "county", code: "06019" };
 
 /** The days drawn in `scope`, in order, as grid cells. */

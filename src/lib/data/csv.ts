@@ -100,7 +100,7 @@ function placeParts(key: string): { kind: string; id: string } {
 
 /** The "Rated" cell: whether a day's figure was counted, left out, or is still changing. */
 function rated(p: SeriesPoint): string {
-	if (p.final === false) return m.csv_rated_so_far();
+	if (p.final === false) return m.csv_rated_not_final();
 	return p.figure === null || p.figure === undefined ? m.csv_rated_not_enough() : m.csv_rated_yes();
 }
 
