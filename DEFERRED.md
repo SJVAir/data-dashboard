@@ -394,6 +394,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   `localhost:8000`, but SDK 5 calls `/api/2.0` on the origin set by `VITE_DEV_URL`, so the proxy
   is no longer used. Left alone to keep that work to the library switch. **Revisit when**
   mobile's dev setup is next touched, or after go-live.
+- **Mobile: README's missing-MapTiler-key note and `user.ts`'s import-order comment.**
+  _Deferred 2026-11-09 (mobile #114, final review, minor)._ `README.md` still says that without
+  `VITE_MAPTILER_KEY` the map falls back to a default style with a console warning, which was
+  monitor-map 4.x. With 5.0 the app passes `""` and map-sdk sends an empty `key=`, so the
+  basemap most likely fails to load without that warning. Separately, `src/lib/users/account/user.ts`
+  syncs the map login when it loads and relies on being imported only after `initPreferences()`;
+  a comment is the only guard, and it could point to `ARCHITECTURE.md`'s bootstrap-ordering note.
+  **Revisit when** mobile's README or bootstrap code is next touched.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
