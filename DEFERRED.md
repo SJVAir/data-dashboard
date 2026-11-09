@@ -1671,6 +1671,29 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     `layers.ts` change.
   - **No smoke e2e coverage:** the `hms` fixtures are there, but the e2e catalog has no
     `hms-smoke`. **Revisit at** the next smoke change.
+- **Other data in the calendars** (weather, smoke days, pesticide use, forecasts). _Deferred
+  2026-11-09 (step 4 spec 5, the user: "keep it to air quality and defer the rest")._ Each kind
+  needs its own daily figure named in metadata (as `daily_statistic` does for pollutants), and
+  coloring for scales without levels (temperature); a "smoke day" at a point or school needs an
+  area rule; pesticide use is monthly; forecasts must not be confused with measured days. The
+  calendars read their datasets and day figure from the type and metadata, so adding one is
+  registration. Smoke days (HMS, one category per day with levels) are the likely first.
+  **Revisit when** someone asks for a non-pollutant calendar.
+- **The Chart's worst hour could use the server's `max_1h`.** _Deferred 2026-11-09 (step 4 spec
+  5)._ The Chart computes each day's worst hourly average in the browser from hourly summaries
+  (`src/lib/data/worst-hour.ts`, up to 92 days, no completeness rule). The server's daily
+  `max_1h` (SDK 5.0.0-beta.8) could replace it and save the hourly fetch, but it's only published
+  for 1-hour scales and is null on incomplete days, so the Chart's meaning would change. **Revisit
+  when** beta.8 is pinned and the Chart's daily view is next touched.
+- **The Data table's column for the day's figure.** _Deferred 2026-11-09 (step 4 spec 5, builder
+  check)._ The calendars' CSV gets the figure that colors a day and whether it was rated; the
+  Data table still shows the daily mean, which for ozone, NO2, SO2 and CO isn't the colored
+  number. **Revisit when** the Data table is next touched, or a screen-reader user needs the
+  figure in the table.
+- **Several places in one calendar** (a row of calendars per place). _Deferred 2026-11-09 (step
+  4 spec 5)._ One place keeps cells readable, and `maxPlaces: 1` greys the calendars out for a
+  multi-place draft. **Revisit if** people ask to compare places day by day.
+
 - **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
   brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide
   the ones a school does not have was offered and left out. **Revisit if** schools ask to hide
