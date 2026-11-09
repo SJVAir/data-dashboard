@@ -57,9 +57,47 @@ const META = {
 	monitors: {
 		purpleair: {
 			label: "PurpleAir",
-			entries: { pm25: { default_calibration: "PM25_EPA_Calibration" } }
+			expected_interval: "2 min",
+			entries: {
+				pm25: {
+					default_calibration: "PM25_EPA_Calibration",
+					alerts: {
+						window: "60 min",
+						min_coverage: 0.5,
+						stage: "calibrated",
+						processor: null,
+						expected_interval: null
+					}
+				}
+			}
 		},
-		bam1022: { label: "BAM 1022", entries: { pm25: { default_calibration: "" } } }
+		bam1022: {
+			label: "BAM 1022",
+			expected_interval: "1 hour",
+			entries: {
+				pm25: {
+					default_calibration: "",
+					alerts: {
+						window: "60 min",
+						min_coverage: 0.5,
+						stage: "cleaned",
+						processor: null,
+						expected_interval: null
+					}
+				},
+				o3: {
+					default_calibration: "",
+					alerts: {
+						window: "1h",
+						min_coverage: 0.5,
+						stage: "raw",
+						processor: null,
+						expected_interval: "30 min"
+					}
+				},
+				pm10: { default_calibration: "", alerts: null }
+			}
+		}
 	},
 	entries: {
 		pm25: {
@@ -370,6 +408,26 @@ describe("createWebMetadata", () => {
 		expect(await md.defaultProcessor("nope", "pm25")).toBeNull();
 	});
 
+	it("reads how the server evaluates alerts, null when it doesn't", async () => {
+		const md = createWebMetadata();
+		expect(await md.alertConfig("purpleair", "pm25")).toEqual({
+			windowMinutes: 60,
+			expectedIntervalMinutes: 2
+		});
+		// The monitor type's interval stands in for the entry's missing one.
+		expect(await md.alertConfig("bam1022", "pm25")).toEqual({
+			windowMinutes: 60,
+			expectedIntervalMinutes: 60
+		});
+		expect(await md.alertConfig("bam1022", "o3")).toEqual({
+			windowMinutes: 60,
+			expectedIntervalMinutes: 30
+		});
+		expect(await md.alertConfig("bam1022", "pm10")).toBeNull();
+		expect(await md.alertConfig("purpleair", "o3")).toBeNull();
+		expect(await md.alertConfig("nope", "pm25")).toBeNull();
+	});
+
 	it("looks up monitor types and lists monitors from one fetch", async () => {
 		const md = createWebMetadata();
 		expect(await md.monitorType("m-pa")).toBe("purpleair");
@@ -380,7 +438,7 @@ describe("createWebMetadata", () => {
 		]);
 		expect(await md.monitorTypes()).toEqual([
 			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25"] },
-			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25"] }
+			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25", "o3", "pm10"] }
 		]);
 		expect(getMonitorsList).toHaveBeenCalledTimes(1);
 	});

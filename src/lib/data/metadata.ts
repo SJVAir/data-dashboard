@@ -108,10 +108,48 @@ export interface MetadataSource {
 		entryType: string,
 		signal?: AbortSignal
 	): Promise<{ name: string; url: string } | null>;
+	/**
+	 * How the server evaluates an entry type on a monitor type for alerts (the meta's `alerts`
+	 * block); `null` when the pair isn't evaluated. The interval falls back to the monitor type's.
+	 */
+	alertConfig(
+		monitorType: string,
+		entryType: string,
+		signal?: AbortSignal
+	): Promise<{ windowMinutes: number; expectedIntervalMinutes: number | null } | null>;
 	monitorType(monitorId: string, signal?: AbortSignal): Promise<string | null>;
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
 	monitorTypes(signal?: AbortSignal): Promise<MonitorTypeInfo[]>;
+}
+
+const UNIT_MINUTES: Record<string, number> = {
+	s: 1 / 60,
+	sec: 1 / 60,
+	second: 1 / 60,
+	seconds: 1 / 60,
+	m: 1,
+	min: 1,
+	mins: 1,
+	minute: 1,
+	minutes: 1,
+	h: 60,
+	hr: 60,
+	hrs: 60,
+	hour: 60,
+	hours: 60,
+	d: 1440,
+	day: 1440,
+	days: 1440
+};
+
+/** A meta duration ("60 min", "1h", "1 hour") in minutes; `null` when it isn't one. */
+export function parseMinutes(text: string | null | undefined): number | null {
+	const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z]+)\s*$/i.exec(text ?? "");
+	if (!match) return null;
+	const unit = UNIT_MINUTES[match[2].toLowerCase()];
+	const minutes = unit === undefined ? NaN : Number(match[1]) * unit;
+	return minutes > 0 ? minutes : null;
 }
 
 function abortError(): Error {
@@ -302,6 +340,16 @@ export function createWebMetadata(): MetadataSource {
 			const entries = monitor?.entries as
 				Record<string, { default_calibration?: string | null } | undefined> | undefined;
 			return entries?.[entryType]?.default_calibration || null;
+		},
+		async alertConfig(monitorType, entryType, signal) {
+			const monitor = (await meta(signal)).monitors[monitorType];
+			const alerts = monitor?.entries?.[entryType]?.alerts;
+			const windowMinutes = parseMinutes(alerts?.window);
+			if (!alerts || windowMinutes === null) return null;
+			return {
+				windowMinutes,
+				expectedIntervalMinutes: parseMinutes(alerts.expected_interval ?? monitor.expected_interval)
+			};
 		},
 		async monitorType(monitorId, signal) {
 			return (await list(signal)).find((m) => m.id === monitorId)?.type ?? null;

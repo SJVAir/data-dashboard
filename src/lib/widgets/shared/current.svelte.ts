@@ -1,7 +1,10 @@
 import { onDestroy, untrack } from "svelte";
 import { getMetadata, getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
+import { getNowClient } from "$lib/data/now";
+import { alertReading, alertSource, type AlertConfig, type AlertRecord } from "$lib/data/now/alert";
 import { currentInput, hourlyReading, type CurrentReading } from "$lib/data/now/current";
+import { NowQuery } from "$lib/data/now/now-query.svelte";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { QueryState, UnavailableReason } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
@@ -9,15 +12,24 @@ import { entryMeta, mainLayer } from "./input";
 
 type Levels = Level[] | { error: unknown } | undefined;
 
+/** A monitor the server evaluates alerts for: what its alert value needs. */
+type AlertMode = { monitorId: string; entryType: string; config: AlertConfig; name: string };
+
 /**
  * The current reading of a widget's first layer's place, with its levels. Used by the two "now"
  * tiles and the threshold watcher. Call during component initialization (it registers effects and
  * cleanup). Polling follows `!widget().minimized` unless `opts.polling` says otherwise.
+ *
+ * A monitor whose type the server evaluates alerts for reads the server's alert value (a 60-minute
+ * average, or the latest reading of an hourly feed); every other place, and a monitor whose
+ * alert result has no entry for the pollutant, reads the latest complete hour. The hourly
+ * query always runs: it supplies the place, the unavailable states and the fallback.
  */
 export class CurrentConditions {
 	#levels = $state.raw<Levels>();
 	#levelsTry = $state(0);
 	readonly #query: LiveQuery;
+	readonly #alertQuery: NowQuery<AlertRecord>;
 
 	readonly levels: Level[];
 	/** The catalog entry (and dataset) the widget reads, once the catalog has loaded. */
@@ -47,8 +59,53 @@ export class CurrentConditions {
 		);
 		this.#query = query;
 		$effect(() => query.set(input));
-		$effect(() => query.setPolling(opts?.polling ? opts.polling() : !widget().minimized));
+		const polling = () => (opts?.polling ? opts.polling() : !widget().minimized);
+		$effect(() => query.setPolling(polling()));
 		onDestroy(() => query.destroy());
+
+		// `undefined` while the monitor's type and alert config are being looked up; `null` when
+		// the place is not a monitor the server evaluates for this pollutant.
+		let alertMode = $state.raw<AlertMode | null | undefined>();
+		const monitorId = $derived(layer?.place?.kind === "monitor" ? layer.place.id : undefined);
+		$effect(() => {
+			const id = monitorId;
+			const entryType = entryTypeId;
+			if (!id || !entryType) {
+				alertMode = null;
+				return;
+			}
+			alertMode = undefined;
+			const abort = new AbortController();
+			const { signal } = abort;
+			void (async () => {
+				const type = await metadata.monitorType(id, signal);
+				const config = type ? await metadata.alertConfig(type, entryType, signal) : null;
+				if (!config) return null;
+				const name = (await metadata.monitors(signal)).find((mon) => mon.id === id)?.name ?? id;
+				return { monitorId: id, entryType, config, name };
+			})().then(
+				(mode) => (alertMode = mode),
+				// A lookup that fails reads the hourly average, as for a monitor with no config.
+				() => {
+					if (!signal.aborted) alertMode = null;
+				}
+			);
+			return () => abort.abort();
+		});
+		const alertQuery = new NowQuery<AlertRecord>(getNowClient());
+		this.#alertQuery = alertQuery;
+		$effect(() => alertQuery.set(alertMode ? alertSource(alertMode.monitorId) : null));
+		$effect(() => alertQuery.setPolling(polling()));
+		onDestroy(() => alertQuery.destroy());
+		// The alert result, when it is the answer: a stale one stays while a refetch runs or fails.
+		const alertRecord = $derived(alertMode ? alertQuery.state.data : undefined);
+		/** The alert value is still on its way, so the tile is held as loading. */
+		const alertPending = $derived.by(() => {
+			if (alertMode === undefined) return true;
+			if (alertMode === null || alertRecord) return false;
+			const status = alertQuery.state.status;
+			return status === "idle" || status === "loading";
+		});
 
 		$effect(() => {
 			const id = entryTypeId;
@@ -70,6 +127,7 @@ export class CurrentConditions {
 		this.meta = $derived(meta);
 		this.shown = $derived.by((): QueryState => {
 			const s = query.state;
+			if (s.status === "ready" && alertPending) return { status: "loading", data: s.data };
 			if (s.status !== "ready" && s.status !== "error") return s;
 			const levels = this.#levels;
 			if (levels === undefined) return { status: "loading", data: s.data };
@@ -83,21 +141,34 @@ export class CurrentConditions {
 			if (s.status === "unavailable") return { unavailable: s.reason };
 			if (s.status === "error") return "error";
 			if (this.#levels && !Array.isArray(this.#levels)) return "error";
-			if (s.status === "ready" && Array.isArray(this.#levels)) return "ready";
+			if (s.status === "ready" && Array.isArray(this.#levels) && !alertPending) return "ready";
 			return "loading";
 		});
 
 		this.reading = $derived.by(() => {
 			const s = query.state;
-			if (s.status !== "ready" || !Array.isArray(this.#levels)) return undefined;
+			const levels = this.#levels;
+			const precision = meta?.entryType.precision ?? null;
+			const mode = alertMode;
+			const entry = mode ? alertRecord?.[mode.entryType] : undefined;
+			if (mode && entry && Array.isArray(levels)) {
+				const place = (s.status === "ready" ? s.data.places[0] : undefined) ?? {
+					place: `monitor:${mode.monitorId}`,
+					name: mode.name
+				};
+				return alertReading(entry, levels, mode.config, place, precision);
+			}
+			if (alertPending) return undefined;
+			if (s.status !== "ready" || !Array.isArray(levels)) return undefined;
 			// A plain Date: the reading re-derives on each poll, which is when staleness can change.
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity
-			return hourlyReading(s.data, this.#levels, new Date(), meta?.entryType.precision ?? null);
+			return hourlyReading(s.data, levels, new Date(), precision);
 		});
 	}
 
 	retry = (): void => {
 		if (this.#levels && !Array.isArray(this.#levels)) this.#levelsTry++;
 		this.#query.retry();
+		this.#alertQuery.retry();
 	};
 }

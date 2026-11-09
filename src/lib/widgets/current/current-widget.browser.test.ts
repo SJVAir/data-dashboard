@@ -5,6 +5,8 @@ import { commands, page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { DatasetAdapter, RegionResolver } from "$lib/data/adapters/registry";
 import type { CatalogEntry, Level, MetadataSource } from "$lib/data/metadata";
+import type { AlertRecord } from "$lib/data/now/alert";
+import { createNowClient, type NowClient } from "$lib/data/now/client";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { WidgetInstance } from "$lib/documents/schema";
@@ -27,11 +29,28 @@ declare module "vitest/browser" {
 
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,
-	metadata: undefined as MetadataSource | undefined
+	metadata: undefined as MetadataSource | undefined,
+	now: undefined as NowClient | undefined,
+	/** What the alert endpoint answers for each monitor id; each call is counted. */
+	alerts: {} as Record<string, AlertRecord>,
+	alertCalls: [] as string[]
 }));
 vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
 	getMetadata: () => fake.metadata!
+}));
+
+vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.now! }));
+vi.mock("$lib/data/now/alert", async (original) => ({
+	...(await original<typeof import("$lib/data/now/alert")>()),
+	alertSource: (id: string) => ({
+		key: `alert:${id}`,
+		cadence: "raw" as const,
+		fetch: async () => {
+			fake.alertCalls.push(id);
+			return fake.alerts[id] ?? {};
+		}
+	})
 }));
 
 const HOUR = 3_600_000;
@@ -86,13 +105,32 @@ let frame: HTMLDivElement;
 beforeEach(async () => {
 	t0 = Date.now();
 	await page.viewport(1280, 800);
+	fake.now = createNowClient();
+	fake.alerts = {};
+	fake.alertCalls = [];
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,
-		levels: async (entryType) => (entryType === "pm25" ? LEVELS : [])
+		levels: async (entryType) => (entryType === "pm25" ? LEVELS : []),
+		monitorType: async (id) =>
+			({ "m-pa": "purpleair", "m-bam": "bam1022", voz: "vozbox" })[id] ?? null,
+		monitors: async () => [
+			{ id: "m-pa", name: "PA", type: "purpleair", county: "Fresno", active: true },
+			{ id: "m-bam", name: "BAM", type: "bam1022", county: "Fresno", active: true },
+			{ id: "voz", name: "VOZ", type: "vozbox", county: "Fresno", active: true }
+		]
 	});
 	const regions: RegionResolver = { resolve: async () => "unsupported" };
 	fake.client = createQueryClient({
-		adapters: [adapter({ a: [27.1, 28.4], good: [4, 5], none: [0, 0] })],
+		adapters: [
+			adapter({
+				a: [27.1, 28.4],
+				good: [4, 5],
+				none: [0, 0],
+				"m-pa": [20, 21],
+				"m-bam": [20, 21],
+				voz: [20, 21]
+			})
+		],
 		metadata: fake.metadata,
 		regions
 	});
@@ -304,4 +342,98 @@ test("has no axe violations", async () => {
 	const results = await axe.run(frame);
 	expect(results.violations).toEqual([]);
 	setMark(widget.id, null);
+});
+
+/** An alert result in the published shape; `over` replaces fields. */
+function alertEntry(over: Record<string, unknown> = {}) {
+	const at = new Date(Date.now() - 2 * 60_000).toISOString();
+	return {
+		status: "ok",
+		value: 31.2,
+		level: "moderate",
+		window: { start: at, end: at },
+		latest_timestamp: at,
+		readings: 29,
+		required: 15,
+		previous: {
+			status: "ok",
+			value: 40.1,
+			level: "unhealthy_for_sensitive_groups",
+			latest_timestamp: new Date(Date.now() - 62 * 60_000).toISOString()
+		},
+		evaluated_at: at,
+		...over
+	};
+}
+
+test("a monitor the server evaluates reads the alert value as a 60-minute average", async () => {
+	fake.alerts = { "m-pa": { pm25: alertEntry() } as never };
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText("31.2"), { timeout: 5000 }).toBeVisible();
+	await expect.element(screen.getByText("Moderate", { exact: true })).toBeVisible();
+	await expect.element(screen.getByText(m.current_trend_falling())).toBeVisible();
+	await expect
+		.element(
+			screen.getByText(
+				m.current_source_updated_minutes({
+					average: m.current_minute_average({ minutes: 60 }),
+					minutes: "2"
+				})
+			)
+		)
+		.toBeVisible();
+	expect(fake.alertCalls).toEqual(["m-pa"]);
+});
+
+test("an hourly feed reads its latest reading", async () => {
+	fake.alerts = { "m-bam": { pm25: alertEntry({ value: 12.5 }) } as never };
+	const screen = await show(currentWidget("m-bam"));
+	await expect.element(screen.getByText("12.5"), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(
+			screen.getByText(
+				m.current_source_updated_minutes({ average: m.current_latest_reading(), minutes: "2" })
+			)
+		)
+		.toBeVisible();
+});
+
+test("a monitor the server does not evaluate reads the hourly average", async () => {
+	const screen = await show(currentWidget("voz"));
+	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(
+			screen.getByText(
+				m.current_source_updated_minutes({ average: m.current_hourly_average(), minutes: "6" })
+			)
+		)
+		.toBeVisible();
+	expect(fake.alertCalls).toEqual([]);
+});
+
+test("an alert result with no entry for the pollutant reads the hourly average", async () => {
+	fake.alerts = { "m-pa": {} };
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(screen.getByText(m.current_hourly_average(), { exact: false }))
+		.toBeVisible();
+	expect(fake.alertCalls).toEqual(["m-pa"]);
+});
+
+test("a pending alert result says it is not available yet", async () => {
+	const none = { value: null, level: null, window: null, latest_timestamp: null, previous: null };
+	fake.alerts = { "m-pa": { pm25: alertEntry({ status: "pending", ...none }) } as never };
+	const screen = await show(currentWidget("m-pa"));
+	await expect
+		.element(screen.getByText(m.current_not_available_yet()), { timeout: 5000 })
+		.toBeVisible();
+});
+
+test("a region never asks for an alert value", async () => {
+	const widget = currentWidget("a");
+	widget.data.layers[0].place = { kind: "region", source: "county", code: "fresno" } as never;
+	await show(widget);
+	await new Promise((r) => setTimeout(r, 300));
+	expect(fake.alertCalls).toEqual([]);
 });

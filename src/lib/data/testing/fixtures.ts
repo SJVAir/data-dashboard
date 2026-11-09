@@ -84,6 +84,14 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 					? FIXTURE_LEVELS
 					: [],
 		defaultProcessor: async (monitorType) => FIXTURE_PROCESSORS[monitorType] ?? null,
+		alertConfig: async (monitorType, entryType) =>
+			entryType !== "pm25"
+				? null
+				: monitorType === "purpleair"
+					? { windowMinutes: 60, expectedIntervalMinutes: 2 }
+					: monitorType === "bam1022"
+						? { windowMinutes: 60, expectedIntervalMinutes: 60 }
+						: null,
 		schoolGuidelines: async () => null,
 		scaleSource: async () => null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,
