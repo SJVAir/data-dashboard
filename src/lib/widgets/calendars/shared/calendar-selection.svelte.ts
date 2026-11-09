@@ -22,14 +22,14 @@ export class CalendarSelection {
 	readonly writable = $derived.by(() => canWriteSelection(this.#app, this.#widget().id));
 	readonly #stored = $derived.by(() => {
 		const s = this.#data.selectable;
-		return s ? visibleSelection(this.#widget().data.timeSubRange, s, this.#data.range.last) : null;
+		return s ? visibleSelection(this.#widget().data.timeSubRange, s, s.last) : null;
 	});
 	/** The selected days shown (limited to the range). */
 	readonly selection = $derived.by(() => {
 		const local = this.#local;
 		if (this.writable || local === undefined) return this.#stored;
 		const s = this.#data.selectable;
-		return local && s ? visibleSelection(local, s, this.#data.range.last) : null;
+		return local && s ? visibleSelection(local, s, s.last) : null;
 	});
 	/** What the summary shows: the drag's span while one is in progress. */
 	readonly shown = $derived(this.preview ?? this.selection);

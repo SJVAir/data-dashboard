@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
 import { CURRENT_SCHEMA_VERSION, type Dashboard, type WidgetInstance } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -6,6 +6,16 @@ import type { AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { monthCalendarType } from "../month";
 import { openDaysInChart } from "./open-in-chart";
+
+/** Noon Pacific on Mon, Nov 9 2026: "today". */
+const NOW = new Date("2026-11-09T20:00:00Z");
+
+beforeEach(() => {
+	vi.useFakeTimers({ toFake: ["Date"], now: NOW });
+});
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 function calendar(selected: boolean): WidgetInstance {
 	return {
@@ -29,7 +39,7 @@ function calendar(selected: boolean): WidgetInstance {
 	};
 }
 
-async function setup(selected: boolean) {
+async function setup(selected: boolean, change?: (w: WidgetInstance) => void) {
 	const platform = createMemoryPlatform();
 	const doc: Dashboard = {
 		kind: "dashboard",
@@ -41,6 +51,7 @@ async function setup(selected: boolean) {
 		updatedAt: "2026-10-20T00:00:00.000Z",
 		body: { widgets: [calendar(selected)] }
 	};
+	change?.(doc.body.widgets[0]);
 	await platform.documents.commit("anonymous", {
 		docId: doc.id,
 		baseVersion: null,
@@ -95,5 +106,36 @@ describe("open days in a chart", () => {
 			});
 			expect(items.map((i) => i.id)).toEqual(selected ? ["calendar_open_in_chart"] : []);
 		}
+	});
+
+	it("uses the selection shown: a rolling range that moved on hides it, a partial one clips", async () => {
+		// "This month" on Dec 1: the November selection is out of the range.
+		vi.setSystemTime(new Date("2026-12-01T20:00:00Z"));
+		const moved = await setup(true, (w) => {
+			w.data.dateRange = { kind: "to-date", unit: "month" };
+		});
+		const env = { app: moved.app, widget: () => moved.session.doc.body.widgets[0] };
+		expect(monthCalendarType.menu(ctx, env)).toEqual([]);
+		openDaysInChart(moved.app, "cal");
+		expect(moved.session.doc.body.widgets).toHaveLength(1);
+
+		// The last 7 days on Nov 9 (Nov 3–9) show Nov 5–8 of a Nov 1–8 selection.
+		vi.setSystemTime(NOW);
+		const partial = await setup(true, (w) => {
+			w.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
+			w.data.timeSubRange = { start: "2026-11-01", end: "2026-11-08" };
+		});
+		expect(
+			monthCalendarType
+				.menu(ctx, { app: partial.app, widget: () => partial.session.doc.body.widgets[0] })
+				.map((i) => i.id)
+		).toEqual(["calendar_open_in_chart"]);
+		openDaysInChart(partial.app, "cal");
+		const chart = partial.session.doc.body.widgets[1];
+		expect(chart.data.dateRange).toEqual({
+			kind: "custom",
+			start: "2026-11-03",
+			end: "2026-11-08"
+		});
 	});
 });
