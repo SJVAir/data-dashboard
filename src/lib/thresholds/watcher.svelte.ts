@@ -5,18 +5,13 @@ import type { CurrentReading } from "$lib/data/now/current";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { decide } from "./firing";
+import { markLevel } from "./mark-level";
 import { setMark, thresholdMarks } from "./marks.svelte";
 import { notifyEnabled } from "./notify-pref";
 import { readTold, writeTold } from "./told";
 
 /** What a crossing's toast and notification say about a widget, read when it fires. */
 export type CrossingText = { title: string; pollutant: string; place: string };
-
-function atOrAbove(level: Level, threshold: Level, levels: Level[]): boolean {
-	const index = levels.findIndex((l) => l.key === level.key);
-	const limit = levels.findIndex((l) => l.key === threshold.key);
-	return index !== -1 && limit !== -1 && index >= limit;
-}
 
 /**
  * One dashboard's threshold watching: the marks for each watched widget's current reading, and,
@@ -40,34 +35,28 @@ export class ThresholdWatch {
 		}
 	) {}
 
-	/**
-	 * Shows or clears `id`'s mark for its current reading: shown whenever the level is at or
-	 * above the threshold (keeping its pulse count), cleared below it, with no threshold, or when
-	 * the place has no current value (pending, insufficient, no recent data, no data). No reading
-	 * (loading, or a failed fetch that still holds the last data) and a value with no level leave
-	 * it as it is.
-	 */
+	/** Shows or clears `id`'s mark for its current reading (see `markLevel`), keeping its pulse count. */
 	mark(
 		id: string,
 		reading: CurrentReading | undefined,
 		threshold: Level | null,
-		levels: Level[]
+		levels: Level[],
+		now: number = Date.now()
 	): void {
-		if (!threshold || (reading && reading.status !== "ok")) {
-			setMark(id, null);
-			return;
-		}
-		if (!reading?.level) return;
-		if (atOrAbove(reading.level, threshold, levels)) {
-			setMark(id, { level: reading.level, at: reading.at, pulse: thresholdMarks[id]?.pulse ?? 0 });
+		const level = markLevel(reading, threshold, levels, now);
+		if (level === undefined) return;
+		if (level && reading?.status === "ok") {
+			setMark(id, { level, at: reading.at, pulse: thresholdMarks[id]?.pulse ?? 0 });
 		} else {
 			setMark(id, null);
 		}
 	}
 
 	/**
-	 * Drops what this browser was told about widgets that are no longer watched (removed, or
-	 * their threshold turned Off), so watching them again starts from their next reading.
+	 * Drops what this browser was told about `ids`: widgets no longer watched (removed, or their
+	 * threshold turned Off), or watching another place or pollutant, so watching starts again
+	 * from their next reading. The lock is asked for at once, so a reading handled after this
+	 * call is decided after the drop.
 	 */
 	async forget(ids: string[]): Promise<void> {
 		for (const id of ids) this.#lastAt.delete(id);
@@ -78,6 +67,7 @@ export class ThresholdWatch {
 			await p.locks.run(`thresholds:${docId}`, async () => {
 				const told = await readTold(p, space, docId);
 				if (!ids.some((id) => id in told)) return;
+				for (const id of ids) delete told[id];
 				await writeTold(p, space, docId, told, this.opts.watching());
 			});
 		} catch (error) {

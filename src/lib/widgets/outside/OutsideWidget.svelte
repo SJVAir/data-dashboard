@@ -230,7 +230,7 @@
 	</div>
 {/snippet}
 
-<MarkFrame widgetId={widget.id}>
+<MarkFrame {widget} {reading} levels={current.levels} now={clock.now}>
 	<WidgetState
 		state={shown}
 		{widget}

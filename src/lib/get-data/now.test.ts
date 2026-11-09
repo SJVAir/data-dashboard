@@ -182,6 +182,26 @@ describe("Chart threshold lines in conversions", () => {
 		expect(converted.draft.thresholds).toEqual([{ level: "unhealthy" }]);
 	});
 
+	it("a line below tier 2 carried over is named, so a low alert level isn't a surprise", () => {
+		const withLine: Draft = { ...chart, thresholds: [{ level: "moderate" }] };
+		const converted = toNowDraft(withLine, currentType, CATALOG, PM25_LEVELS, chartType);
+		expect(converted.draft.thresholds).toEqual([{ level: "moderate" }]);
+		expect(converted.fromLine).toEqual(PM25_LEVELS[1]);
+		// At tier 2 or above, or the default (no line), nothing is said.
+		const usg: Draft = { ...chart, thresholds: [{ level: "unhealthy_sensitive" }] };
+		expect(toNowDraft(usg, currentType, CATALOG, PM25_LEVELS, chartType)).not.toHaveProperty(
+			"fromLine"
+		);
+		expect(toNowDraft(chart, currentType, CATALOG, PM25_LEVELS, chartType)).not.toHaveProperty(
+			"fromLine"
+		);
+		// A tile's own low alert level, between now types, isn't a line.
+		const tile: Draft = { ...withLine, type: "current-conditions" };
+		expect(toNowDraft(tile, outsideType, CATALOG, PM25_LEVELS, currentType)).not.toHaveProperty(
+			"fromLine"
+		);
+	});
+
 	it("a tile's alert level isn't carried to a Chart as a line", () => {
 		const tile = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS).draft;
 		expect(fromNowDraft(tile, chartType).draft).not.toHaveProperty("thresholds");

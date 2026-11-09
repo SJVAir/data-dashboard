@@ -85,6 +85,11 @@ export type NowConversion = {
 	 * (`keptThreshold(undefined, levels, true)`) once the scale loads, unless the person chose one.
 	 */
 	defaultOwed?: boolean;
+	/**
+	 * The alert level came from a Chart's line at a level below tier 2 (Good, say): named in a
+	 * note, so a very low alert level isn't a surprise.
+	 */
+	fromLine?: Level;
 };
 
 /**
@@ -133,6 +138,10 @@ export function toNowDraft(
 	} else {
 		thresholds = keptThreshold(draft.thresholds, levels, defaultWhenOff);
 	}
+	const lineKey = defaultWhenOff ? draft.thresholds?.[0]?.level : undefined;
+	const kept = lineKey !== undefined && thresholds?.[0]?.level === lineKey;
+	const fromLine =
+		kept && levels !== "unavailable" ? levels.find((l) => l.key === lineKey) : undefined;
 	return {
 		draft: {
 			type: type.type,
@@ -145,7 +154,8 @@ export function toNowDraft(
 					pollutant: { from: { dataset: from.dataset, entryType: from.entryType! }, to: entryType }
 				}
 			: {}),
-		...(defaultOwed ? { defaultOwed } : {})
+		...(defaultOwed ? { defaultOwed } : {}),
+		...(fromLine?.tier != null && fromLine.tier < 2 ? { fromLine } : {})
 	};
 }
 

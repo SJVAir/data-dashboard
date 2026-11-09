@@ -328,6 +328,66 @@ test("a threshold turned Off and back On while at the level starts afresh: no to
 	expect(toasts()).toHaveLength(0);
 });
 
+test("a new place starts afresh: its first reading seeds, a later rise toasts", async () => {
+	// Monitor a is Unhealthy (told); b is already at USG at the same hour, then rises.
+	const values: Record<string, (number | null)[]> = { a: [60, 60], b: [40, 60] };
+	series.values = values.a;
+	series.step = 0;
+	const { app, platform, docId, session } = await seed([tile("w1")]);
+	await handled(platform, app, docId, "w1", readingAt(0));
+	expect((await readTold(platform, app.space, docId)).w1.level).toBe("unhealthy");
+	series.values = values.b;
+	const from = { name: session.doc.name, body: session.doc.body };
+	const widgets = session.doc.body.widgets.map((w) => ({
+		...w,
+		data: {
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor" as const, id: "b" } }
+			]
+		}
+	}));
+	session.apply({
+		op: "replaceDocument",
+		target: {},
+		from,
+		to: { name: from.name, body: { widgets } }
+	});
+	// The same hour at b: the mark, "last told" seeded from b, and no toast.
+	await expect
+		.poll(async () => (await readTold(platform, app.space, docId)).w1?.level, { timeout: 5000 })
+		.toBe("unhealthy_sensitive");
+	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	expect(toasts()).toHaveLength(0);
+	nextPoll();
+	await expect.poll(toastTexts).toEqual([
+		m.alert_pollutant_at_place_is_now_level({
+			pollutant: "PM2.5",
+			place: "Monitor b",
+			level: "Unhealthy"
+		})
+	]);
+});
+
+test("a reading that ages past 3 hours loses its mark between polls", async () => {
+	series.values = [40];
+	series.step = 0;
+	vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"], now: Date.now() });
+	try {
+		const { app, platform, docId } = await seed([tile("w1", { minimized: { order: 0 } })]);
+		await handled(platform, app, docId, "w1", readingAt(0));
+		await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+		// No poll comes (an outage): only the clock moves. The hour ended 6 minutes before t0, so
+		// it is "recent" until t0 + 2 h 54 min.
+		vi.advanceTimersByTime(3 * HOUR - 12 * 60_000);
+		await new Promise((r) => setTimeout(r, 50));
+		expect(thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+		vi.advanceTimersByTime(8 * 60_000);
+		await expect.poll(() => thresholdMarks.w1).toBeUndefined();
+	} finally {
+		vi.useRealTimers();
+	}
+});
+
 test("a place with no current value clears the mark; a failed fetch keeps it", async () => {
 	series.values = [40, null];
 	series.step = 0;

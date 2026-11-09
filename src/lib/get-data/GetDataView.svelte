@@ -299,7 +299,7 @@
 	let dropped = $state.raw<{ after: string; conversion: NowConversion } | null>(null);
 	const notes = $derived.by(() => {
 		if (!dropped || dropped.after !== JSON.stringify(plain)) return [];
-		const { dropped: what, pollutant } = dropped.conversion;
+		const { dropped: what, pollutant, fromLine } = dropped.conversion;
 		const out: string[] = [];
 		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
 		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
@@ -315,6 +315,7 @@
 			);
 		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
+		if (fromLine) out.push(m.get_data_alert_level_from_line({ level: fromLine.label }));
 		return out;
 	});
 

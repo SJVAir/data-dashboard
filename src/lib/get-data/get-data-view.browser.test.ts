@@ -25,6 +25,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 import { chartType } from "$lib/widgets/chart";
 import {
 	FORECASTS_ENTRY,
@@ -894,6 +895,33 @@ describe("now widgets", () => {
 		await alert().selectOptions("good");
 		await page.getByRole("radio", { name: "PM2.5" }).click();
 		await expect.element(alert()).toHaveValue("good");
+		expect((await current()).thresholds).toEqual([{ level: "good" }]);
+	});
+
+	test("the preview shows the tile's mark when the air is already at the level, and tells nothing", async () => {
+		const { host } = await show(currentDraft([{ level: "good" }]));
+		const preview = () => host.querySelector<HTMLElement>("[data-testid=get-data-preview]")!;
+		// The fake's reading is Good: at the alert level.
+		await expect
+			.poll(() => preview().querySelector("[data-mark]") !== null, { timeout: 5000 })
+			.toBe(true);
+		await expect
+			.element(page.getByTestId("get-data-preview").getByText(m.current_alert_level_reached()))
+			.toBeVisible();
+		// No watcher: nothing in the dashboard's marks.
+		expect(Object.keys(thresholdMarks)).toEqual([]);
+		// Above the reading: no mark.
+		await alert().selectOptions("unhealthy");
+		await expect.poll(() => preview().querySelector("[data-mark]")).toBeNull();
+	});
+
+	test("a Chart's low line carried to a tile as its alert level is named", async () => {
+		const { current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "good" }] }));
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(alert()).toHaveValue("good");
+		const note = m.get_data_alert_level_from_line({ level: "Good" });
+		expect(note).toBe("The alert level comes from the chart's line: Good.");
+		await expect.element(page.getByText(note)).toBeVisible();
 		expect((await current()).thresholds).toEqual([{ level: "good" }]);
 	});
 
