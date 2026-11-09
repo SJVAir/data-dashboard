@@ -977,6 +977,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   user expands it again with the panel open, at 390 px wide the card can still reach under the zoom and compass buttons
   on the right. **Why deferred:** minor, and it only happens after the user expands the legend with a panel open.
   **Revisit:** if it's reported, or when monitor-map's map controls are next laid out.
+- **monitor-map 5.0: final-review minors from #131 and #132 (2026-11-09, monitor-map-18).**
+  (1) No test checks that subscribing sends the current token after a user switch. **Why:** the panel's
+  `{#key getApiToken()}` remounts the control, and that remount is tested. **Revisit:** if the subscribe path changes or
+  mobile reports a wrong-account subscription. (2) The README doesn't warn hosts against calling `monitorMapUserChanged()`
+  inside a `$derived` (it writes `$state`). **Why:** mobile calls it from event handlers. **Revisit:** if a host hits
+  Svelte's `state_unsafe_mutation` error. (3) No comment ties the legend wrapper's `top-18` / `md:top-32` offsets to
+  OptionsBar's height. **Why:** cosmetic. **Revisit:** when OptionsBar's height changes. (4) Ruling: two cookie-only users
+  (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
+  without a token.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
