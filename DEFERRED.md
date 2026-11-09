@@ -1659,6 +1659,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Unit-test gaps:** re-arm through the watcher and after firing, `decide` with a threshold
     missing from the scale, the alert banner's timestamp bounds, a retired-school tile, and
     `convertToNow` edit-during-load. **Add with** the next change to each.
+  - **A hung first alert request keeps a Current conditions tile loading** even when its hourly
+    average is ready; the now client has no request timeout. **Revisit if** seen, or with a
+    shared request timeout.
+  - **Retry on a Current conditions tile also refetches the alert value** when only the hourly
+    query or the levels failed. Harmless (one extra request). **Revisit with** the next now
+    client change.
+  - **A tile's title and toast can show a monitor's raw id** when the hourly query fails and the
+    monitor list has no name for it. **Revisit if** seen.
+  - **The alert path has no end-to-end test** (the e2e meta fixture has no `alerts` block), and
+    two live stack checks did not run: a PurpleAir tile at `ok` ("60-minute average") and a
+    VOZBox tile ("Hourly average"). Local PurpleAir alert rows all read `no_data` on
+    2026-11-08 (local data is incomplete); browser tests cover both. **Revisit** on the next
+    stack run with live PurpleAir data, or before step 4 merges into `main`.
 
 ## Alerts
 
@@ -2011,6 +2024,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   **Revisit when** either flakes in CI, or when touching that test: check the animation is
   started with a paused or longer-running animation, and wait on the announcement rather than a
   fixed moment.
+
+- **A chart browser test flaked once under full-suite load.** _Noted 2026-11-08 (step 4 spec 4,
+  Task 13)._ `src/lib/charts/time-chart.browser.test.ts`, "keyboard stepping moves the strips'
+  cursors", failed once in a full `npm run test` and passed alone and in the next full run; Task
+  13 did not touch charts. **Revisit when** it flakes again or in CI, or when touching that test.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.

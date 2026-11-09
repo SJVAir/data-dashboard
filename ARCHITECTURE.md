@@ -1925,7 +1925,8 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
   `getHeatForPlace` already exists. A heat failure only blanks the heat line, never the card.
 - **Current conditions' number:** for monitor types and pollutants the server evaluates alerts
   for, the number is the **server's alert value** (the same trailing 60-minute figure the server
-  alerts on; needs `@sjvair/sdk` 5.0.0-beta.7, pending); otherwise it is the **latest complete
+  alerts on, from `getMonitorAlertCurrent` in `@sjvair/sdk` 5.0.0-beta.7; the meta `alerts` block
+  says which pairs are evaluated); otherwise it is the **latest complete
   hourly average**. The tile says which it is ("updated N min ago", an averaging note), and a
   reading older than 3 hours is marked stale. Regions always use hourly averages.
 

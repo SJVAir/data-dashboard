@@ -1239,14 +1239,14 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    message keys renamed to match their text), accepted plan decision 3 (weather has no "Every
    measurement") and the build's calls, and a pesticide search overlap bug was fixed.
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds. **Built on `step-4-spec-4`
-   (2026-11-08); waits on `@sjvair/sdk` 5.0.0-beta.7 for the alert value; PR into `step-4`
-   pending.** Spec `docs/superpowers/specs/2026-11-08-step-4-spec-4-now-widgets-design.md`, plan
+   (2026-11-08), with the server's alert value through `@sjvair/sdk` 5.0.0-beta.7; PR into
+   `step-4` pending.** Spec `docs/superpowers/specs/2026-11-08-step-4-spec-4-now-widgets-design.md`, plan
    `docs/superpowers/plans/2026-11-08-step-4-spec-4-now-widgets.md`. Built: the three "now"
    widgets (Forecast strip with an Air Alert banner, "Can we go outside?" with today's heat),
    the alert-level choice in Get data, Chart threshold lines, toasts and a taskbar mark for the
    two live tiles, a per-browser per-dashboard Notifications switch in the dashboard menu, and
-   the `notifications` platform capability. The initial bundle is 201.8 KB, over the 200 KB soft
-   budget; the user has not decided yet (`DEFERRED.md`). Its deferrals are in `DEFERRED.md`.
+   the `notifications` platform capability. The initial bundle is 202.1 KB, over the 200 KB soft
+   budget; the user accepted it for now (`DEFERRED.md`). Its deferrals are in `DEFERRED.md`.
 5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
 6. Notes and the starter dashboard.
 
