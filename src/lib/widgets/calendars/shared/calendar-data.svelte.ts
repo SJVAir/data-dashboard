@@ -6,18 +6,15 @@ import type { WidgetInstance } from "$lib/documents/schema";
 import { CALENDAR_DEFAULT_RANGES, calendarInput } from "$lib/calendars/input";
 import { dayStates, type DayState } from "$lib/calendars/day-state";
 import type { Selectable } from "$lib/calendars/selection";
+import { figureName } from "$lib/calendars/figure";
 import { addDays, todayPacific } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
-import { m } from "$lib/paraglide/messages.js";
 import { resolveThreshold } from "$lib/thresholds/levels";
 import { DEFAULT_RANGE } from "../../defaults";
 import { DataWidget } from "../../shared/data-widget.svelte";
 import { mainLayer } from "../../shared/input";
 
-/** What the day's figure is called: the server's label, else "Daily value". */
-export function figureName(figure: DailyFigure | null): string {
-	return figure?.label ?? m.calendar_daily_value();
-}
+export { figureName };
 
 /** The figure lookup for one entry type, once it has settled (`null`: none, or it failed). */
 type FigureLookup = { entryType: string; figure: DailyFigure | null };

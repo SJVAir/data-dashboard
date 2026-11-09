@@ -662,3 +662,75 @@ describe("downloadDataCsv for a pesticide-only widget", () => {
 		expect(rows[0][CSV_COLUMNS.indexOf("filters")]).toBe("Grapes");
 	});
 });
+
+describe("a calendar's CSV", () => {
+	const days = (extra: Partial<SeriesPoint>[]) =>
+		data({
+			series: [
+				{
+					place: "monitor:m1",
+					points: extra.map((e, i) => point(`2026-10-2${i + 5}T07:00:00Z`, e))
+				}
+			],
+			places: [{ place: "monitor:m1", name: "Monitor 1" }]
+		});
+
+	it("adds the figure and whether the day was rated", () => {
+		const d = days([
+			{ figure: 31.9, final: true },
+			{ figure: null, final: true },
+			{ figure: 19.9, final: false }
+		]);
+		const rows = parse(toCsv(d, META, "owner", [], "24-hour average"));
+		const n = CSV_COLUMNS.length;
+		expect(rows[0].slice(n)).toEqual(["24-hour average", "Rated"]);
+		expect(rows.slice(1).map((r) => r.slice(n))).toEqual([
+			["31.9", "Yes"],
+			["", "Not enough data"],
+			["19.9", "So far"]
+		]);
+	});
+
+	it("leaves a Chart's CSV without the columns", () => {
+		const rows = parse(toCsv(days([{ figure: 31.9, final: true }]), META));
+		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+		expect(rows[1]).toHaveLength(CSV_COLUMNS.length);
+	});
+
+	it("downloads with the calendar's own query and the server's label", async () => {
+		const requests: AdapterRequest[] = [];
+		const base = fakeAdapter(requests);
+		const adapter: DatasetAdapter = {
+			...base,
+			async fetch() {
+				return {
+					...days([{ figure: 12.5, final: true }]),
+					fetchedAt: Date.parse("2026-10-26T00:00:00Z")
+				};
+			}
+		};
+		fake.metadata = fixtureMetadata();
+		fake.client = createQueryClient({
+			adapters: [adapter],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const widget = chartWidget(["m1"]);
+		widget.data.layers[0] = {
+			dataset: "air-quality",
+			entryType: "o3",
+			place: { kind: "monitor", id: "m1" }
+		};
+		const seen: unknown[] = [];
+		const spy = vi.spyOn(fake.client, "subscribe");
+		const saved: string[] = [];
+		await downloadWidgetCsv({ ...widget, type: "calendar-month" }, (_n, contents) => {
+			saved.push(contents);
+		});
+		seen.push(spy.mock.calls[0][0]);
+		expect(seen[0]).toMatchObject({ pin: "day", dailyFigure: "max_1h" });
+		const rows = parse(saved[0]);
+		expect(rows[0].slice(-2)).toEqual(["Highest 1-hour average", "Rated"]);
+		expect(rows[1].slice(-2)).toEqual(["12.5", "Yes"]);
+	});
+});

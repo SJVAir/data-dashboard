@@ -533,8 +533,12 @@
 	}
 
 	function download(): void {
-		void saveDataCsv("get-data", plain.data, (name, contents, type) =>
-			app.platform.files.save(name, contents, type)
+		void saveDataCsv(
+			"get-data",
+			plain.data,
+			(name, contents, mime) => app.platform.files.save(name, contents, mime),
+			"owner",
+			plain.type
 		);
 	}
 </script>
