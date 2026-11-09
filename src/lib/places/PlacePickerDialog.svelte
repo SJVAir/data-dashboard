@@ -19,6 +19,8 @@
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
+	import { calendarInput } from "$lib/calendars/input";
+	import { isCalendarType } from "$lib/calendars/types";
 	import { getWidgetType } from "$lib/widgets/registry";
 	import {
 		chartInput,
@@ -180,8 +182,10 @@
 			layers: pointData.layers.map(placesQueryLayer)
 		};
 		// A now tile reads the layer's hourly averages, not 30 days of them.
-		const input =
-			getWidgetType(widgetType)?.time === "now"
+		// A calendar reads one daily row per day.
+		const input = isCalendarType(widgetType)
+			? calendarInput(lookup, ctx.catalog, widgetType)
+			: getWidgetType(widgetType)?.time === "now"
 				? nowInput(placesLayer(lookup, ctx.catalog))
 				: chartInput(lookup, ctx.catalog, ctx.max).input;
 		if (!input) return null;

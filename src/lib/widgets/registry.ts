@@ -1,13 +1,17 @@
 import type { Component } from "svelte";
-import type { MenuProvider } from "$lib/actions/types";
+import type { MenuContext, MenuItem } from "$lib/actions/types";
 import type { DateRangeSpec, Resolution, WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
+import type { AppContext } from "$lib/store/app.svelte";
 
 /** A widget type's code, loaded the first time a widget of that type is shown. */
 export type WidgetModule = {
 	component: Component<{ widget: WidgetInstance; fullscreen?: boolean }>;
 };
+
+/** What a type's menu items may read: the app, and the widget as it is now (null if gone). */
+export type WidgetMenuEnv = { app: AppContext; widget: () => WidgetInstance | null };
 
 /**
  * A widget type's descriptor. It's in the initial bundle, so it imports neither the data layer
@@ -24,12 +28,20 @@ export type WidgetType = {
 	analyzable: boolean;
 	/** Offers "Download data (CSV)". */
 	downloadable: boolean;
-	accepts?: { datasets?: string[]; maxPollutantLayers?: number; maxPlaces?: number };
+	accepts?: {
+		datasets?: string[];
+		maxPollutantLayers?: number;
+		maxPlaces?: number;
+		/** Only a pollutant (a layer with a daily scale) can be added. */
+		onlyPollutant?: boolean;
+	};
 	placePicker?: boolean;
 	resolution?: Resolution;
 	dateMethods?: DateRangeSpec["kind"][];
 	span?: { minDays?: number; maxDays?: number };
-	menu: MenuProvider;
+	/** The range a new widget of this type (and one with no range of its own) shows. */
+	defaultRange?: DateRangeSpec;
+	menu: (ctx: MenuContext, env: WidgetMenuEnv) => MenuItem[];
 	/** A dynamic `import()` of the type's code; `loadWidget` caches it after the first call. */
 	load: () => Promise<WidgetModule>;
 	/**

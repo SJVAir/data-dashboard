@@ -102,7 +102,7 @@
 				]
 			: editProvider(ctx);
 	const editProvider: MenuProvider = (ctx) => [
-		...(type?.menu(ctx) ?? []),
+		...(type?.menu(ctx, { app, widget: () => widget }) ?? []),
 		...placeItems(app, () => widget),
 		...downloadItems(app, () => widget, viewer),
 		...widgetActions(app, widget.id, arrangement, {

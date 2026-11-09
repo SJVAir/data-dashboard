@@ -691,6 +691,8 @@
 	"table_overlay_place_unit": "{layer}, {place} ({unit})",
 	"table_overlay_by_day": "{layer} shows only in tables with daily or more detailed rows.",
 	"widget_chart_title": "Chart",
+	"widget_calendar_month_title": "Month calendar",
+	"widget_calendar_contribution_title": "Contribution calendar",
 	"widget_data_table_title": "Data table",
 	"table_label": "Data table",
 	"table_scroll_label": "Data table values",

@@ -1,4 +1,6 @@
 import type { Change } from "$lib/changes/types";
+import { calendarInput } from "$lib/calendars/input";
+import { isCalendarType } from "$lib/calendars/types";
 import type { Layer } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
@@ -77,6 +79,8 @@ function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
 	const places = placesLayer(data, undefined);
 	if (!places) return null;
 	const query = placesQueryLayer(places);
+	if (isCalendarType(widget.type))
+		return calendarInput({ ...data, layers: [query] }, undefined, widget.type);
 	if (getWidgetType(widget.type)?.time === "now") return nowInput(query);
 	return chartInput({ ...data, layers: [query] }, undefined, 1).input;
 }

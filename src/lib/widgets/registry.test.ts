@@ -99,3 +99,24 @@ describe("widget registry", () => {
 		expect((await loadWidget(b)).component).toBe(other);
 	});
 });
+
+describe("calendar types", () => {
+	test("both register as data types with their spans and default ranges", async () => {
+		const { monthCalendarType } = await import("./calendars/month");
+		const { contributionCalendarType } = await import("./calendars/contribution");
+		registerWidgetType(monthCalendarType);
+		registerWidgetType(contributionCalendarType);
+		const names = dataTypes().map((t) => t.type);
+		expect(names).toContain("calendar-month");
+		expect(names).toContain("calendar-contribution");
+		expect(monthCalendarType.span).toEqual({ minDays: 1, maxDays: 366 });
+		expect(monthCalendarType.defaultRange).toEqual({ kind: "to-date", unit: "month" });
+		expect(contributionCalendarType.span).toEqual({ minDays: 7, maxDays: 731 });
+		expect(contributionCalendarType.defaultRange).toEqual({
+			kind: "trailing",
+			amount: 12,
+			unit: "month"
+		});
+		expect(contributionCalendarType.accepts?.onlyPollutant).toBe(true);
+	});
+});
