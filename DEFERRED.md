@@ -1659,11 +1659,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Unit-test gaps:** re-arm through the watcher and after firing, `decide` with a threshold
     missing from the scale, the alert banner's timestamp bounds, a retired-school tile, and
     `convertToNow` edit-during-load. **Add with** the next change to each.
-  - **Two live stack checks of the alert value did not run:** a PurpleAir tile at `ok`
-    ("60-minute average") and a VOZBox tile ("Hourly average"). Local PurpleAir alert rows all
-    read `no_data` on 2026-11-08 (local data is incomplete); browser tests and
-    `e2e/current.spec.ts` cover both. **Revisit** on the next stack run with live PurpleAir data,
-    or before step 4 merges into `main`.
+  - **Two live stack checks of the alert value did not run;** browser tests and
+    `e2e/current.spec.ts` cover both.
+    - **A PurpleAir tile at `ok` ("60-minute average").** PurpleAir's alert series is PM2.5
+      `PM25_UnivariateLinearRegression`, and the local stack has no trained calibrations (no
+      rows with that processor, and no calibration rows). So every local PurpleAir alert row
+      reads `no_data`, even though raw and `PM25_EPA_Oct2021` data are current. **Revisit** when
+      the local stack has a trained linear calibration, at the first check against production
+      after the develop deploy, or before step 4 merges into `main`.
+    - **A VOZBox tile ("Hourly average").** This is not blocked: the check used an inactive VOZBox
+      (`HkyQReykQwa81CUJkcv74w`, no data), while the three active local VOZBoxes have complete
+      hourly PM2.5 averages from the last hour (2026-11-08). **Revisit** on the next stack check,
+      with an active VOZBox.
   - **While a tile has fallen back from the alert value to hourly averages** (the alert request
     failed or timed out), a crossing can be told up to about an hour late: the watcher skips
     hourly readings older than the last alert evaluation. The tile's mark stays right meanwhile,
