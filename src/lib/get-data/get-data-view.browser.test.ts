@@ -27,6 +27,7 @@ import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 import { chartType } from "$lib/widgets/chart";
+import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import {
 	FORECASTS_ENTRY,
 	fakeForecastsAdapter,
@@ -1101,7 +1102,7 @@ describe("calendar types", () => {
 		}
 	});
 
-	test("greyed out with its reason when the data has two places; a default range on switching", async () => {
+	test("greyed out with its reason when the data has two places", async () => {
 		await show(monitorsDraft(["m1", "m2"]));
 		await expect.element(page.getByRole("radio", { name: "Month calendar" })).toBeDisabled();
 		await expect.element(page.getByText(/Month calendar:/).first()).toBeInTheDocument();
@@ -1118,5 +1119,66 @@ describe("calendar types", () => {
 			)
 			.toBeVisible();
 		expect("timeSubRange" in (await current()).data).toBe(false);
+	});
+
+	const daysAgo = (n: number) => {
+		const d = new Date(Date.now() - n * DAY);
+		return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(d);
+	};
+	const rangedMonth = (start: string, end: string): Draft => ({
+		...monthDraft(),
+		data: {
+			...monthDraft().data,
+			dateRange: { kind: "trailing", amount: 90, unit: "day" },
+			timeSubRange: { start, end }
+		}
+	});
+
+	test("Chart to month calendar: the default range changes and the line is kept both ways", async () => {
+		const line = [{ level: "unhealthy-sensitive" }];
+		const base = monitorsDraft(["m1"], { thresholds: line });
+		const { current } = await show({
+			...base,
+			data: { ...base.data, dateRange: DEFAULT_RANGE }
+		});
+		await page.getByRole("radio", { name: "Month calendar" }).click();
+		let now = await current();
+		expect(now.type).toBe("calendar-month");
+		expect(now.data.dateRange).toEqual({ kind: "to-date", unit: "month" });
+		expect(now.thresholds).toEqual(line);
+		await page.getByRole("radio", { name: "Chart" }).click();
+		now = await current();
+		expect(now.type).toBe("chart");
+		expect(now.data.dateRange).toEqual(DEFAULT_RANGE);
+		expect(now.thresholds).toEqual(line);
+	});
+
+	test("Chart to month calendar keeps a chosen range that the span allows", async () => {
+		const own = { kind: "trailing", amount: 20, unit: "day" } as const;
+		const base = monitorsDraft(["m1"]);
+		const { current } = await show({ ...base, data: { ...base.data, dateRange: own } });
+		await page.getByRole("radio", { name: "Month calendar" }).click();
+		expect((await current()).data.dateRange).toEqual(own);
+	});
+
+	test("a When edit that leaves the selection outside the range drops it with a note", async () => {
+		const { current } = await show(rangedMonth(daysAgo(60), daysAgo(59)));
+		await chooseDates("Last 7 days");
+		await expect
+			.element(
+				page.getByText(
+					m.get_data_selection_outside_range({
+						days: formatDateRange(daysAgo(60), daysAgo(59))
+					})
+				)
+			)
+			.toBeVisible();
+		expect("timeSubRange" in (await current()).data).toBe(false);
+	});
+
+	test("a When edit that still holds the selection keeps it", async () => {
+		const { current } = await show(rangedMonth(daysAgo(2), daysAgo(1)));
+		await chooseDates("Last 90 days");
+		expect((await current()).data.timeSubRange).toEqual({ start: daysAgo(2), end: daysAgo(1) });
 	});
 });

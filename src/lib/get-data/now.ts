@@ -21,7 +21,8 @@ import { mainLayer, placesQueryLayer } from "$lib/widgets/shared/input";
 import type { Draft } from "./draft.svelte";
 
 /** What a conversion left out or changed, for the form's notes. */
-export type NowDropped = "dates" | "overlays" | "places" | "alert" | "pollutant" | "selection";
+export type NowDropped =
+	"dates" | "overlays" | "places" | "alert" | "pollutant" | "selection" | "outside";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
@@ -93,7 +94,7 @@ export type NowConversion = {
 	 * note, so a very low alert level isn't a surprise.
 	 */
 	fromLine?: Level;
-	/** With `"selection"` in `dropped`: the days that were selected. */
+	/** With `"selection"` or `"outside"` in `dropped`: the days that were selected. */
 	selection?: TimeSubRange;
 };
 
@@ -202,37 +203,54 @@ export function isNowShaped(draft: Draft, type: WidgetType): boolean {
 		: layer.dataset === AIR_QUALITY && !!layer.entryType;
 }
 
+/** Whether a stored day selection lies inside the Pacific dates `range` resolves to. */
+export function selectionFits(sel: TimeSubRange, range: DateRangeSpec, now: Date): boolean {
+	const r = resolveRange(range, now);
+	return fitsRange(sel, r.firstDate, r.lastDate);
+}
+
 /**
  * The date range and day selection a range draft has once it's `to`, from `from`: a draft still
- * on `from`'s default range gets `to`'s default; the selection is dropped when `to` isn't a
- * calendar (`left` says so) or when it no longer fits the new range.
+ * on `from`'s default range gets `to`'s default (a calendar's default gives way to the Chart's);
+ * the selection is dropped when `to` isn't a calendar (`left`) or when it no longer fits the new
+ * range (`outside`).
  */
 export function switchRange(
 	data: { dateRange?: DateRangeSpec; timeSubRange?: TimeSubRange },
 	from: WidgetType | undefined,
 	to: WidgetType,
 	now: Date
-): { dateRange?: DateRangeSpec; timeSubRange?: TimeSubRange; left?: TimeSubRange } {
+): {
+	dateRange?: DateRangeSpec;
+	timeSubRange?: TimeSubRange;
+	left?: TimeSubRange;
+	outside?: TimeSubRange;
+} {
 	const same = (a: DateRangeSpec | undefined, b: DateRangeSpec) =>
 		JSON.stringify(a) === JSON.stringify(b);
 	const wasDefault =
 		!data.dateRange ||
 		same(data.dateRange, from?.defaultRange ?? DEFAULT_RANGE) ||
 		same(data.dateRange, DEFAULT_RANGE);
-	const dateRange =
-		wasDefault && to.defaultRange ? structuredClone(to.defaultRange) : data.dateRange;
+	let dateRange = data.dateRange;
+	if (wasDefault && to.defaultRange) dateRange = structuredClone(to.defaultRange);
+	else if (wasDefault && from && isCalendarType(from.type)) {
+		dateRange = structuredClone(DEFAULT_RANGE);
+	}
 	let timeSubRange = data.timeSubRange;
 	let left: TimeSubRange | undefined;
+	let outside: TimeSubRange | undefined;
 	if (timeSubRange && !isCalendarType(to.type)) {
 		left = timeSubRange;
 		timeSubRange = undefined;
-	} else if (timeSubRange) {
-		const r = resolveRange(dateRange ?? DEFAULT_RANGE, now);
-		if (!fitsRange(timeSubRange, r.firstDate, r.lastDate)) timeSubRange = undefined;
+	} else if (timeSubRange && !selectionFits(timeSubRange, dateRange ?? DEFAULT_RANGE, now)) {
+		outside = timeSubRange;
+		timeSubRange = undefined;
 	}
 	return {
 		...(dateRange ? { dateRange } : {}),
 		...(timeSubRange ? { timeSubRange } : {}),
-		...(left ? { left } : {})
+		...(left ? { left } : {}),
+		...(outside ? { outside } : {})
 	};
 }

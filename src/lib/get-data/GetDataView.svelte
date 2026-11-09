@@ -49,6 +49,7 @@
 		keptThreshold,
 		nowPollutant,
 		nowPollutants,
+		selectionFits,
 		switchRange,
 		toNowDraft,
 		type NowConversion,
@@ -56,9 +57,7 @@
 	} from "./now";
 	import NowControls from "./NowControls.svelte";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
-	import { fitsRange } from "$lib/calendars/selection";
 	import { formatDateRange } from "$lib/format";
-	import { resolveRange } from "$lib/format/range";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { detailChoices } from "./resolution-offer";
@@ -259,10 +258,14 @@
 	function setRange(spec: DateRangeSpec): void {
 		draft.data.dateRange = spec;
 		// A calendar's day selection that the new range no longer holds is dropped with it.
-		const sel = draft.data.timeSubRange;
-		if (sel) {
-			const r = resolveRange(spec, now);
-			if (!fitsRange($state.snapshot(sel), r.firstDate, r.lastDate)) delete draft.data.timeSubRange;
+		const sel = draft.data.timeSubRange && $state.snapshot(draft.data.timeSubRange);
+		if (sel && !selectionFits(sel, spec, now)) {
+			delete draft.data.timeSubRange;
+			noteConversion({
+				draft: $state.snapshot(draft) as Draft,
+				dropped: ["outside"],
+				selection: sel
+			});
 		}
 	}
 
@@ -326,9 +329,11 @@
 			);
 		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
-		if (what.includes("selection") && dropped.conversion.selection) {
-			const { start, end } = dropped.conversion.selection;
-			out.push(m.get_data_selection_left_out({ days: formatDateRange(start, end) }));
+		const days = dropped.conversion.selection;
+		if (days) {
+			const text = formatDateRange(days.start, days.end);
+			if (what.includes("selection")) out.push(m.get_data_selection_left_out({ days: text }));
+			if (what.includes("outside")) out.push(m.get_data_selection_outside_range({ days: text }));
 		}
 		if (fromLine) out.push(m.get_data_alert_level_from_low_line({ level: fromLine.label }));
 		return out;
@@ -410,7 +415,8 @@
 			if (moved.dateRange) draft.data.dateRange = moved.dateRange;
 			if (!moved.timeSubRange) delete draft.data.timeSubRange;
 			draft.type = next;
-			const dropped: NowDropped[] = moved.left ? ["selection"] : [];
+			const days = moved.left ?? moved.outside;
+			const dropped: NowDropped[] = moved.left ? ["selection"] : moved.outside ? ["outside"] : [];
 			// A line the new type can't hold is left out, with a note.
 			if (!to.thresholds && draft.thresholds) {
 				delete draft.thresholds;
@@ -420,7 +426,7 @@
 				noteConversion({
 					draft: $state.snapshot(draft) as Draft,
 					dropped,
-					...(moved.left ? { selection: moved.left } : {})
+					...(days ? { selection: days } : {})
 				});
 			}
 		}

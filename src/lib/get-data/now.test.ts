@@ -5,6 +5,7 @@ import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { currentType } from "$lib/widgets/current";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { dataTableType } from "$lib/widgets/table";
 import { forecastType } from "$lib/widgets/forecast";
 import { outsideType } from "$lib/widgets/outside";
 import { FORECASTS_ENTRY, PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
@@ -14,6 +15,7 @@ import {
 	isNowShaped,
 	nowPollutant,
 	nowPollutants,
+	selectionFits,
 	switchRange,
 	toNowDraft
 } from "./now";
@@ -318,5 +320,35 @@ describe("calendar conversions", () => {
 		);
 		expect(out.dateRange).toEqual({ kind: "trailing", amount: 12, unit: "month" });
 		expect(out.timeSubRange).toBeUndefined();
+	});
+
+	it("calendar to Chart: the calendar's default range gives way to the Chart's, a chosen one stays", () => {
+		const last12 = { kind: "trailing", amount: 12, unit: "month" } as const;
+		expect(
+			switchRange({ dateRange: last12 }, contributionCalendarType, chartType, NOW).dateRange
+		).toEqual(DEFAULT_RANGE);
+		const own = { kind: "trailing", amount: 20, unit: "day" } as const;
+		expect(
+			switchRange({ dateRange: own }, contributionCalendarType, chartType, NOW).dateRange
+		).toEqual(own);
+		// A Chart's own range isn't touched when the target has no default either.
+		expect(switchRange({ dateRange: own }, chartType, dataTableType, NOW).dateRange).toEqual(own);
+	});
+
+	it("calendar to calendar drops a selection the new default range doesn't hold, and says outside", () => {
+		const out = switchRange(
+			{ dateRange: MONTH, timeSubRange: { start: "2024-05-02", end: "2024-05-03" } },
+			monthCalendarType,
+			contributionCalendarType,
+			NOW
+		);
+		expect(out.outside).toEqual({ start: "2024-05-02", end: "2024-05-03" });
+		expect(out.left).toBeUndefined();
+	});
+
+	it("selectionFits: inside the range or not", () => {
+		const sel = { start: "2026-11-02", end: "2026-11-03" };
+		expect(selectionFits(sel, MONTH, NOW)).toBe(true);
+		expect(selectionFits(sel, { kind: "trailing", amount: 1, unit: "day" }, NOW)).toBe(false);
 	});
 });

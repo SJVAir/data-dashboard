@@ -935,6 +935,7 @@
 	"get_data_block_span": "Can't show this date range",
 	"get_data_block_pollutants": "Shows one pollutant at a time",
 	"get_data_show_as_needs_one_pollutant": "Needs exactly one pollutant layer",
+	"get_data_selection_outside_range": "{days} is outside the new date range, so the selected days were left out. Select days again on the calendar.",
 	"get_data_selection_left_out": "A day selection only applies to a calendar, so {days} was left out. Switch back to a calendar to select days again.",
 	"get_data_preview": "Preview",
 	"get_data_preview_size": "Preview size",
