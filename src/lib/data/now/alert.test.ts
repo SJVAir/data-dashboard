@@ -79,6 +79,15 @@ describe("alertReading", () => {
 		if (r.status === "ok") expect(r.level?.key).toBe("good");
 	});
 
+	it("counts a new reading by when it was evaluated, falling back to the reading's time", () => {
+		expect(read(entry())).toMatchObject({
+			at: Date.parse(T1),
+			watchAt: Date.parse("2026-11-08T16:00:04-08:00")
+		});
+		expect(read(entry({ evaluated_at: null }))).toMatchObject({ watchAt: Date.parse(T1) });
+		expect(read(entry({ evaluated_at: "soon" }))).toMatchObject({ watchAt: Date.parse(T1) });
+	});
+
 	it("maps the other statuses", () => {
 		const empty = { value: null, level: null, window: null, latest_timestamp: null } as const;
 		expect(read(entry({ status: "pending", ...empty }))).toEqual({ status: "pending", place });

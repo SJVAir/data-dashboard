@@ -42,6 +42,12 @@ export type CurrentReading =
 			/** Epoch ms: the reading's time (alert) or the hour's end (summary). */
 			at: number;
 			trend: Trend | null;
+			/**
+			 * When the watcher counts this as a new reading, when that differs from `at`: an alert
+			 * result's `evaluated_at` (its average keeps changing while a sensor that stopped
+			 * reporting keeps the same latest reading). Defaults to `at`.
+			 */
+			watchAt?: number;
 			source: "alert" | "alert-latest" | "hourly";
 			/** The alert window in minutes, for the "60-minute average" label. */
 			windowMinutes?: number;

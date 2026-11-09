@@ -48,6 +48,7 @@ export function alertReading(
 	}
 	const at = entry.latest_timestamp ? Date.parse(entry.latest_timestamp) : NaN;
 	if (entry.value === null || Number.isNaN(at)) return { status: "no-data", place };
+	const evaluated = entry.evaluated_at ? Date.parse(entry.evaluated_at) : NaN;
 	const previous = entry.previous;
 	const comparable =
 		previous !== null &&
@@ -62,6 +63,7 @@ export function alertReading(
 		value: entry.value,
 		level: levels.find((l) => l.key === entry.level) ?? levelFor(levels, entry.value),
 		at,
+		watchAt: Number.isNaN(evaluated) ? at : evaluated,
 		trend: comparable ? trend(entry.value, previous.value, precision) : null,
 		source: interval !== null && interval >= config.windowMinutes ? "alert-latest" : "alert",
 		windowMinutes: config.windowMinutes,

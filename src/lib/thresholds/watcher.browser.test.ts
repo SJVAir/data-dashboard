@@ -30,7 +30,10 @@ const fake = vi.hoisted(() => ({
 	now: undefined as NowClient | undefined,
 	/** The alert result for monitor `pa` (an entry's `value`, or no entry at all). */
 	alertValue: undefined as number | undefined,
-	alertCalls: 0
+	alertCalls: 0,
+	/** Fixed times for the alert result (epoch ms); default: a reading 2 minutes old, evaluated now. */
+	alertLatest: undefined as number | undefined,
+	alertEvaluated: undefined as number | undefined
 }));
 vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
@@ -47,17 +50,19 @@ vi.mock("$lib/data/now/alert", async (original) => ({
 			fake.alertCalls++;
 			if (fake.alertValue === undefined) return {};
 			const at = new Date(Date.now() - 2 * 60_000).toISOString();
+			const latest = fake.alertLatest ? new Date(fake.alertLatest).toISOString() : at;
+			const evaluated = fake.alertEvaluated ? new Date(fake.alertEvaluated).toISOString() : at;
 			return {
 				pm25: {
 					status: "ok",
 					value: fake.alertValue,
 					level: null,
 					window: { start: at, end: at },
-					latest_timestamp: at,
+					latest_timestamp: latest,
 					readings: 29,
 					required: 15,
 					previous: null,
-					evaluated_at: at
+					evaluated_at: evaluated
 				}
 			};
 		}
@@ -142,15 +147,18 @@ beforeEach(async () => {
 	fake.now = createNowClient();
 	fake.alertValue = undefined;
 	fake.alertCalls = 0;
+	fake.alertLatest = undefined;
+	fake.alertEvaluated = undefined;
 	fetches = 0;
 	levelsFail = false;
 	levelCalls = 0;
 	await page.viewport(1280, 800);
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,
-		monitorType: async (id) => (id === "pa" ? "purpleair" : null),
+		monitorType: async (id) => (id === "pa" || id === "pb" ? "purpleair" : null),
 		monitors: async () => [
-			{ id: "pa", name: "PA", type: "purpleair", county: "Fresno", active: true }
+			{ id: "pa", name: "PA", type: "purpleair", county: "Fresno", active: true },
+			{ id: "pb", name: "PB", type: "purpleair", county: "Fresno", active: true }
 		],
 		levels: async (entryType) => {
 			levelCalls++;
@@ -443,10 +451,12 @@ test("a server key reorder of the layers is not a new place: no re-seeding, so a
 });
 
 /** A tile over monitor `pa`, whose alert value the server evaluates. */
-const alertTile = () =>
+const alertTile = (monitor = "pa") =>
 	tile("w1", {
 		data: {
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "pa" } }]
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: monitor } }
+			]
 		}
 	});
 const crossingAtPa = m.alert_pollutant_at_place_is_now_level({
@@ -475,6 +485,30 @@ test("with the hourly query still loading, the watcher fires on the alert value"
 	fake.alertValue = 40;
 	fake.now!.refetch("alert:pa");
 	await expect.poll(toastTexts, { timeout: 5000 }).toContain(crossingAtPa);
+});
+
+test("a crossing on the same latest reading, evaluated later, fires once and not again", async () => {
+	series.fail = true;
+	const latest = Date.now() - 2 * 60_000;
+	fake.alertLatest = latest;
+	fake.alertEvaluated = Date.now() - 60_000;
+	fake.alertValue = 20;
+	const { app, platform, docId } = await seed([alertTile("pb")]);
+	await handled(platform, app, docId, "w1");
+	// The sensor stopped reporting: the same latest reading, a new evaluation, a higher average.
+	fake.alertValue = 40;
+	fake.alertEvaluated = Date.now() - 30_000;
+	fake.now!.refetch("alert:pb");
+	// Monitor PB only appears in this test, so leftover toasts from others can't be counted.
+	const crossingAtPb = crossingAtPa.replace("PA", "PB");
+	const count = () => toastTexts().filter((t) => t === crossingAtPb).length;
+	await expect.poll(count, { timeout: 5000 }).toBe(1);
+	// The same evaluation again tells nothing new.
+	const calls = fake.alertCalls;
+	fake.now!.refetch("alert:pb");
+	await expect.poll(() => fake.alertCalls).toBeGreaterThan(calls);
+	await new Promise((r) => setTimeout(r, 200));
+	expect(count()).toBe(1);
 });
 
 test("when the tile shows an error or loading, the watcher fires nothing", async () => {

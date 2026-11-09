@@ -51,7 +51,7 @@
 			if (!ok?.level || !limit || !meta) return;
 			void watch.process(
 				widget.id,
-				{ level: ok.level, at: ok.at },
+				{ level: ok.level, at: ok.watchAt ?? ok.at },
 				limit,
 				levels,
 				() => ({
