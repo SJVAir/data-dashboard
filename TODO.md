@@ -1249,7 +1249,7 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    two live tiles, a per-browser per-dashboard Notifications switch in the dashboard menu, and
    the `notifications` platform capability. The initial bundle is 202.1 KB, over the 200 KB soft
    budget; the user accepted it for now (`DEFERRED.md`). Its deferrals are in `DEFERRED.md`.
-5. Calendars (day-colored, contribution) and the hour × weekday heatmap.
+5. Calendars (day-colored, contribution). (The hour × weekday heatmap was dropped 2026-11-09.)
 6. Notes and the starter dashboard.
 
 The checklist below is the whole step's scope.
@@ -1283,7 +1283,7 @@ The checklist below is the whole step's scope.
   hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
   metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.
 - The `WidgetType` registry (including `analyzable` and an optional pinned `resolution`:
-  calendars `day`, heatmap `hour`); layers and `QueryDescriptor` carry `resolution`
+  calendars `day`); layers and `QueryDescriptor` carry `resolution`
   (pin → override → ladder) and `WidgetDataConfig`; "now" widgets
   stage a 3-day trailing window for analysis (Forecast strip only where past forecasts
   exist), and Notes offers no analysis actions (`ARCHITECTURE.md` → "Widget-type
@@ -1296,7 +1296,7 @@ The checklist below is the whole step's scope.
   - Data table
   - Notes (safe Markdown: raw HTML off, link allowlist, links open in a new tab with
     `rel="ugc nofollow noopener"`)
-  - Hour × weekday heatmap
+  - ~~Hour × weekday heatmap~~ (dropped 2026-11-09, step 4 spec 5; see `DEFERRED.md` → "Dropped")
   - Forecast strip
   - "Can we go outside?"
 - Client-side self-monitoring thresholds. These need no server work and ship with the

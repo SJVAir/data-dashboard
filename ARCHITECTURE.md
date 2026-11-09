@@ -72,7 +72,8 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   text only once the user edits it.
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
-  day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
+  day-colored calendar (this month), and a short welcome Note. (The hour × weekday heatmap was
+  dropped on 2026-11-09, step 4 spec 5; spec 6 settles what, if anything, takes its slot.)
   The Map widget joins in step 6.
 
 ### Get data (formerly the Data Explorer and "Widget Creation view")
@@ -231,8 +232,8 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
 
 **Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
 the current data (too many places, a dataset it doesn't accept, a span outside its `span`) is
-greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars and
-heatmap appear by registering descriptors (see "Widget-type contract"), with no change here.
+greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars
+appear by registering descriptors (see "Widget-type contract"), with no change here.
 
 **Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
 the last-opened one; the menu lists the others and **"New dashboard"**. A read-only (shared)
@@ -1164,8 +1165,8 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
   `QueryDescriptor`) carries `resolution` (`"auto"` by default), so Collections and exports
-  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"`, the hour × weekday
-  heatmap `"hour"` (long hourly fetches still use span caps and chunking). **Priority:
+  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"` (the hour × weekday
+  heatmap's `"hour"` pin went with the widget, dropped 2026-11-09). **Priority:
   widget-type pin → user override → automatic ladder.** Pinned widgets don't show the
   override.
 - Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
@@ -1920,7 +1921,11 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
 | Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
 | Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
-| Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                              |
+
+**The hour × weekday heatmap widget was dropped** (the user, 2026-11-09, step 4 spec 5: "just do
+the two calendars"; an average of every Tuesday at 3 pm didn't seem useful). Starter analysis #2
+(Release 3) is a separate item and is unchanged. A heatmap _layer over the map_, of daily values,
+is a map idea instead (see `DEFERRED.md` → "Map plugins").
 
 **The three "now" widgets as built (step 4 spec 4, 2026-11-08).**
 
@@ -1959,7 +1964,7 @@ type WidgetType = {
 	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
-	resolution?: Resolution; // pinned resolution (e.g. calendars "day", heatmap "hour"); hides the override
+	resolution?: Resolution; // pinned resolution (e.g. calendars "day"); hides the override
 	dateMethods?: DateRangeSpec["kind"][]; // allowed date methods (default: all); only for time: "range"
 	span?: { min?: Duration; max?: Duration }; // e.g. contribution calendar: min 1 week
 	defaultTitle(config: WidgetDataConfig, meta: Metadata): string; // generated, not stored
@@ -2673,8 +2678,8 @@ at America/Los_Angeles boundaries** (`settings.DEFAULT_TIMEZONE`, used in
 `summaries/tasks.py`). The dashboard matches that.
 
 - **Pacific time (America/Los_Angeles) everywhere, whatever the viewer's zone.** This
-  covers "today", calendar day cells, set ranges (day/week/month/year), rolling ranges,
-  and the hour × weekday heatmap. It keeps day boundaries identical to the server's daily
+  covers "today", calendar day cells, set ranges (day/week/month/year), and rolling
+  ranges. It keeps day boundaries identical to the server's daily
   and monthly summaries.
 - **Timestamps display in Pacific time.** A "PT" label appears only when the viewer's
   device is in a different zone.

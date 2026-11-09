@@ -1327,6 +1327,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   monitors were out of that work's scope. **Revisit when** monitor values or list formatting
   are next touched, or a user reports a number that disagrees with its level: turn on
   `truncateValues` for monitors (rows would then read "9.0").
+- **A heatmap layer over the map, of daily values.** _Deferred 2026-11-09 (step 4 spec 5
+  brainstorm; the user's idea)._ What the user means by "heatmap": a map layer shading the area
+  by each day's values, the way GitHub shades a day by its commits, not an hour × weekday grid
+  (that widget was dropped; see "Dropped"). It belongs to the Map widget and map-sdk (step 5),
+  not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
+  values where nothing was measured; the day it shows; and which daily figure (spec 5's
+  per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
+  (step 4 → step 5/6), or map-sdk takes on a new layer type.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -2444,3 +2452,12 @@ notes):
   the tests cover the behavior).
 - **`e2e/get-data.spec.ts` parses CSV by splitting on commas** (fine for its fixtures, which
   have no quoted commas).
+
+Dropped 2026-11-09 by the user (step 4 spec 5 brainstorm, "drop it, just do the two calendars"):
+
+- **The hour × weekday heatmap widget** (planned 2026-09-23 in the first widget set, the widget
+  form of starter analysis #2). Each cell averaged one weekday-hour over the range ("every
+  Tuesday at 3 pm over 90 days"), which the user didn't find useful. Spec 5 builds only the two
+  calendars; spec 6's starter drops the heatmap's slot. Starter analysis #2 (Release 3) is not
+  affected. The mockup is kept in
+  `docs/superpowers/mockups/2026-11-09-step-4-spec-5-heatmap-coloring.html`.
