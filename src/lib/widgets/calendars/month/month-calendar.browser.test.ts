@@ -315,7 +315,17 @@ test("a wide widget: one month spans the width up to its cap, its weeks the same
 	expect(new Set(heights).size).toBe(1);
 	// The weeks grow into the free height (up to 7rem each), not left at their minimum.
 	expect(heights[0]).toBeGreaterThan(80);
-	expect(heights[0]).toBeLessThanOrEqual(112);
+	// …up to the month's cap of 40rem.
+	expect(
+		frame.querySelector("[role=rowgroup]")!.getBoundingClientRect().height
+	).toBeLessThanOrEqual(640);
+	// The month's name and weekday headings keep their own height; the weeks take the rest.
+	const headings = frame.querySelector<HTMLElement>("[role=rowgroup] > [role=row]")!;
+	expect(headings.querySelector("[role=columnheader]")).not.toBeNull();
+	expect(headings.getBoundingClientRect().height).toBeLessThan(24);
+	expect(
+		weekRows()[0].getBoundingClientRect().top - headings.getBoundingClientRect().bottom
+	).toBeLessThan(8);
 
 	// Wider still, the month stops at its cap (cells about 9rem wide).
 	frame.style.width = "1600px";
@@ -684,22 +694,40 @@ test("a tooltip names the hovered day and the focused one, and goes when they le
 	await expect.poll(() => tip()).toBeNull();
 });
 
-test("the pointer can move onto the tooltip without it changing or going (WCAG 1.4.13)", async () => {
+/** A mouse move to a viewport point, dispatched to whatever is under it. */
+function moveTo(x: number, y: number) {
+	const el = document.elementFromPoint(x, y)!;
+	const opts = { bubbles: true, pointerId: 1, pointerType: "mouse", clientX: x, clientY: y };
+	el.dispatchEvent(new PointerEvent("pointerover", opts));
+	el.dispatchEvent(new PointerEvent("pointermove", opts));
+}
+
+test("the pointer can rest on the tooltip without it changing or going (WCAG 1.4.13)", async () => {
 	await show(calendar());
 	const tip = () => frame.querySelector<HTMLElement>("[data-calendar-tip]");
 	const NOV_8_NAME = "Sunday, November 8: 24-hour average 25 µg/m³, Moderate";
 	await userEvent.hover(cellOf("2026-11-08")!);
 	await expect.poll(() => tip()?.textContent?.trim()).toBe(NOV_8_NAME);
-	await userEvent.hover(tip()!);
+	// Onto the tip, which sits over other days: it stays as it is.
+	const box = tip()!.getBoundingClientRect();
+	const under = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+	expect(under?.closest("[data-date]")).not.toBeNull();
+	moveTo(box.left + box.width / 2, box.top + box.height / 2);
+	moveTo(box.left + 2, box.top + 2);
 	await new Promise((r) => setTimeout(r, 50));
 	expect(tip()?.textContent?.trim()).toBe(NOV_8_NAME);
+	// It takes no clicks: the days under it can still be picked.
+	expect(getComputedStyle(tip()!).pointerEvents).toBe("none");
+	// Off the tip, onto another day: that day's tip.
+	const nov13 = cellOf("2026-11-13")!.getBoundingClientRect();
+	moveTo(nov13.left + nov13.width / 2, nov13.top + nov13.height / 2);
+	await expect.poll(() => tip()?.textContent?.trim()).toBe("Friday, November 13: Still to come");
 	// Escape dismisses it where it is.
 	await userEvent.keyboard("{Escape}");
 	await expect.poll(() => tip()).toBeNull();
-	// Leaving it for somewhere off the grid also hides it.
-	await userEvent.hover(cellOf("2026-11-08")!);
-	await expect.poll(() => tip()?.textContent?.trim()).toBe(NOV_8_NAME);
-	await userEvent.hover(tip()!);
+	// Off the days altogether, it goes.
+	await userEvent.hover(cellOf("2026-11-06")!);
+	await expect.poll(() => tip()?.textContent?.trim()).toBe(NOV_6_NAME);
 	await userEvent.hover(frame.querySelector("[data-calendar-legend]")!);
 	await expect.poll(() => tip()).toBeNull();
 });

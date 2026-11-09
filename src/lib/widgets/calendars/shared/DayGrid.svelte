@@ -94,12 +94,13 @@
 		else tip.hide();
 	});
 	$effect(() => () => tip?.hide());
-	// The pointer left the tooltip for somewhere off the grid: the tip goes too.
-	$effect(() =>
-		tip?.onleave(() => {
-			if (tipAt?.source === "pointer") tipAt = null;
-		})
-	);
+	// A pointer's tip follows the pointer anywhere on the page: it holds while the pointer is on
+	// the tip itself, so its text can be read (WCAG 1.4.13), and goes once it's off the days.
+	$effect(() => {
+		if (tipAt?.source !== "pointer") return;
+		window.addEventListener("pointermove", trackPointer, { passive: true });
+		return () => window.removeEventListener("pointermove", trackPointer);
+	});
 	// Escape dismisses a pointer's tip wherever focus is (WCAG 1.4.13); the grid's own Escape
 	// handles the rest.
 	$effect(() => {
@@ -126,17 +127,20 @@
 		return el && root?.contains(el) ? el.dataset.date : undefined;
 	};
 
-	function onpointerover(event: PointerEvent): void {
+	/** Points a pointer's tip at the day under it, unless the pointer is on the tip. */
+	function trackPointer(event: PointerEvent): void {
 		if (event.pointerType === "touch") return;
+		if (tipAt?.source === "pointer" && tip?.covers(event.clientX, event.clientY)) return;
 		const date = dayOf(event.target);
-		if (date) tipAt = { date, source: "pointer" };
-		else if (tipAt?.source === "pointer") tipAt = null;
+		if (date) {
+			if (tipAt?.date !== date || tipAt.source !== "pointer") tipAt = { date, source: "pointer" };
+		} else if (tipAt?.source === "pointer") {
+			tipAt = null;
+		}
 	}
 
 	function onpointerleave(event: PointerEvent): void {
-		// Onto the tooltip: it stays while the pointer is over it (WCAG 1.4.13).
-		const to = event.relatedTarget as Element | null;
-		if (to?.closest?.("[data-calendar-tip]")) return;
+		if (tip?.covers(event.clientX, event.clientY)) return;
 		if (tipAt?.source === "pointer") tipAt = null;
 	}
 
@@ -337,7 +341,7 @@
 	{onkeydown}
 	{onkeyup}
 	{onpointerdown}
-	{onpointerover}
+	onpointerover={trackPointer}
 	{onpointerleave}
 	{onfocusin}
 	{onfocusout}
@@ -360,12 +364,13 @@
 								data-kind={state.kind}
 								data-selected={selected ? "" : undefined}
 								tabindex={date === focusDay ? 0 : -1}
-								class="rounded-sm focus-visible:relative focus-visible:z-10"
+								class="relative rounded-sm focus-visible:z-10"
 							>
 								<!-- Named from this text, not aria-label: the drawn day's visible words
 								     (number, value, level) then needn't be one phrase of it (WCAG 2.5.3). -->
 								<span class="sr-only" data-name>{name(state, selected)}</span>
-								<div aria-hidden="true" class="h-full">
+								<!-- Placed over the cell, so the drawing never sizes the rows: the layout does. -->
+								<div aria-hidden="true" class="absolute inset-0">
 									{@render cell(state, { focused: date === focusDay, selected })}
 								</div>
 							</div>

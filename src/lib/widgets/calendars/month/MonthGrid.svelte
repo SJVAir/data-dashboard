@@ -222,7 +222,8 @@
 {/snippet}
 
 <!-- Months side by side as the width allows, each filling its share up to a cap (cells about
-     9rem wide); a month's weeks share its height equally, up to 7rem each. -->
+     9rem wide); a month's weeks share its height equally (at least 3rem each, the month at most
+     40rem tall). Narrower or shorter than that, the widget scrolls. -->
 <div bind:this={box} data-fit={fit} class="group/fit h-full">
 	<DayGrid
 		layout="month"
@@ -237,8 +238,8 @@
 		bind:preview
 		header={heading}
 		cell={day}
-		class="grid min-h-full auto-rows-[minmax(min-content,1fr)] grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3 p-2"
-		sectionClass="grid max-w-[64rem] min-w-0 auto-rows-[minmax(3rem,7rem)] grid-rows-[auto_auto] gap-0.5"
+		class="grid h-full auto-rows-[minmax(min-content,1fr)] grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3 p-2"
+		sectionClass="grid max-h-[40rem] max-w-[64rem] min-w-0 auto-rows-[minmax(3rem,1fr)] grid-rows-[auto_auto] content-start gap-0.5"
 		rowClass="grid grid-cols-7 gap-0.5"
 	/>
 </div>

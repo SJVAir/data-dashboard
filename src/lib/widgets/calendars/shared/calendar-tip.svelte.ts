@@ -22,18 +22,13 @@ export class CalendarTip {
 		this.current = null;
 	}
 
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- listeners, never read reactively
-	#leave = new Set<() => void>();
+	/** The drawn tooltip, while one is shown. */
+	element: HTMLElement | null = null;
 
-	/** Runs `fn` when the pointer leaves the tooltip for somewhere off the grid; returns its undo. */
-	onleave(fn: () => void): () => void {
-		this.#leave.add(fn);
-		return () => this.#leave.delete(fn);
-	}
-
-	/** The pointer left the tooltip for somewhere off the grid. */
-	left(): void {
-		for (const fn of this.#leave) fn();
+	/** Whether a viewport point is on the drawn tooltip. */
+	covers(x: number, y: number): boolean {
+		const r = this.element?.getBoundingClientRect();
+		return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 	}
 }
 
