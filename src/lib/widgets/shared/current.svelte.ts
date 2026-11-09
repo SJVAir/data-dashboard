@@ -185,7 +185,7 @@ export class CurrentConditions {
 			if (usable) {
 				const place = (s.status === "unavailable" || s.status === "idle" ? undefined : s.data)
 					?.places[0] ?? { place: `monitor:${usable.mode.monitorId}`, name: usable.mode.name };
-				return alertReading(usable.entry, levels as Level[], usable.mode.config, place, precision);
+				return alertReading(usable.entry, usable.levels, usable.mode.config, place, precision);
 			}
 			if (alertPending) return undefined;
 			if (s.status !== "ready" || !Array.isArray(levels)) return undefined;

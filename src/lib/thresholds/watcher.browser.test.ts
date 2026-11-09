@@ -483,9 +483,15 @@ test("when the tile shows an error or loading, the watcher fires nothing", async
 	fake.alertValue = undefined;
 	const { app, platform, docId } = await seed([alertTile()]);
 	await expect.poll(() => fake.alertCalls, { timeout: 5000 }).toBeGreaterThan(0);
-	await new Promise((r) => setTimeout(r, 300));
+	// The tile is an error card: that state is reached before nothing is asserted.
+	await expect
+		.element(page.getByRole("button", { name: m.widget_state_retry() }), { timeout: 5000 })
+		.toBeVisible();
 	expect(thresholdMarks.w1).toBeUndefined();
-	expect(toastTexts().filter((t) => t?.includes(" at PA "))).toEqual([]);
+	// Earlier tests' dismissed toasts may still be leaving; none stays once they have.
+	await expect
+		.poll(() => toastTexts().filter((t) => t?.includes(" at PA ")), { timeout: 3000 })
+		.toEqual([]);
 	expect((await readTold(platform, app.space, docId)).w1).toBeUndefined();
 });
 
