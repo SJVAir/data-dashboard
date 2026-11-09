@@ -1,7 +1,7 @@
 # Release 1, step 4, spec 4: the "now" widgets and self-monitoring thresholds
 
-Status: approved by the user 2026-11-08 (brainstormed the same day). Branch `step-4-spec-4`
-from `origin/step-4`; the PR goes into `step-4` (the user's yes needed to merge).
+Status: approved by the user 2026-11-08 (brainstormed the same day). Built on `step-4-spec-4`
+and merged into `step-4` 2026-11-08 (#45, a22e994), on `@sjvair/sdk` 5.0.0-beta.7.
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
 Mockups shown in the brainstorm: the "Can we go outside?" card (`outside-card.html`, then
