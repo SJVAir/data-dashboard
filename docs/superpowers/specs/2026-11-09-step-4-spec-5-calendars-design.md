@@ -109,10 +109,16 @@ average. The server says which applies:
 - **Today's running figure** (the user, 2026-11-09: today is colored "so far", option A over
   an uncolored "In progress"): the completeness rule leaves today's figure null for most of the
   day (PM until about 6 pm), so the server also publishes a running figure for the day in
-  progress, without the completeness rule, and marks it as not final. Today there is no daily
-  row for the open day at all (daily rows are written once, after the day ends), so this is new
-  server work; its shape is the server session's call (requested through the coordinator
-  2026-11-09). The dashboard never computes it from hourly rows. A finished day stays strict.
+  progress, without the completeness rule, and marks it as not final. There was no daily row
+  for the open day (daily rows are written once, after the day ends), so this is new server
+  work. **The shape (the user with the server session, 2026-11-09):** when a daily request
+  (monitor, region, bulk) covers the open Pacific day, the response includes a row for today,
+  computed on request from today's complete hourly rows (60 s cache): `mean_24h` = the mean of
+  the hourly means so far, `max_1h` = the highest so far, `max_8h` = the highest valid 8-hour
+  window so far (≥ 6 of 8 hours), with no 75% rule. **Every daily row gains `is_final`**;
+  today's is false; finished days stay strict. Whether `is_final` is also false for CO's previous
+  day until it settles is still open on the server side; if it is, "Not final yet" reads that
+  one flag. The dashboard never computes any of this from hourly rows. A finished day stays strict.
 - **CO settles late:** CO's 8-hour windows start during the day, so a day's `max_8h` is final
   only about 28 hours after the day ends (the server re-rolls the previous day nightly).
 - **Field names in the SDK** come with beta.8. No dashboard code reads them until the coordinator
@@ -144,8 +150,9 @@ average. The server says which applies:
   everywhere).
 - **Not enough data to rate:** a row exists, but its `daily_statistic` field is null.
 - **No data:** no row for the day.
-- **Today:** today's row, shown "so far", colored by the server's running figure (see
-  "Dependency"), never by `mean` or a browser computation. Its level is the level of that
+- **Today:** the row with `is_final: false` for today's date, shown "so far", colored by its
+  `daily_statistic` field (the running figure; see "Dependency"), never by `mean` or a browser
+  computation. Its level is the level of that
   figure. If the server has no running figure yet (no hours today), today shows "No data so
   far".
 - **Not final yet:** a CO day inside the server's settling margin (yesterday, until the row
