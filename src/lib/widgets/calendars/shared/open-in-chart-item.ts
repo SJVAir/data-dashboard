@@ -1,5 +1,7 @@
 import ChartLine from "@lucide/svelte/icons/chart-line";
 import type { MenuItem } from "$lib/actions/types";
+import { report } from "$lib/safety/report";
+import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
 import type { WidgetMenuEnv } from "../../registry";
 
@@ -21,7 +23,10 @@ export function openInChartItems(env: WidgetMenuEnv): MenuItem[] {
 			run: () => {
 				const widget = env.widget();
 				if (!widget) return;
-				void import("./open-in-chart").then((mod) => mod.openDaysInChart(env.app, widget.id));
+				// A gone chunk (an older deploy) offers a reload; the failure is reported, not swallowed.
+				loadLazy(() => import("./open-in-chart"))
+					.then((mod) => mod.openDaysInChart(env.app, widget.id))
+					.catch((error) => report(error));
 			}
 		}
 	];

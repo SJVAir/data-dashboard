@@ -25,7 +25,7 @@ function calendar(selected: boolean): WidgetInstance {
 				}
 			]
 		},
-		thresholds: [{ value: 35, label: "Limit" } as never]
+		thresholds: [{ level: "unhealthy" }]
 	};
 }
 
@@ -73,7 +73,16 @@ describe("open days in a chart", () => {
 			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }
 		]);
 		expect(chart.thresholds).toEqual(widgets[0].thresholds);
+		expect(chart.id).not.toBe("cal");
+		expect(chart.minimized).toBeUndefined();
 		session.undo();
+		expect(session.doc.body.widgets).toHaveLength(1);
+	});
+
+	it("does nothing in a read-only session", async () => {
+		const { session, app } = await setup(true);
+		(session as unknown as { readOnly: string }).readOnly = "invalid";
+		openDaysInChart(app, "cal");
 		expect(session.doc.body.widgets).toHaveLength(1);
 	});
 
