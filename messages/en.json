@@ -693,6 +693,92 @@
 	"widget_chart_title": "Chart",
 	"widget_calendar_month_title": "Month calendar",
 	"widget_calendar_contribution_title": "Contribution calendar",
+	"calendar_daily_value": "Daily value",
+	"calendar_not_enough_data": "Not enough data",
+	"calendar_no_data": "No data",
+	"calendar_key": "Key",
+	"calendar_legend_threshold": "At or above {level}",
+	"calendar_threshold_count": [
+		{
+			"declarations": [
+				"input at",
+				"input rated",
+				"input ratedValue",
+				"input level",
+				"local ratedPlural = ratedValue: plural"
+			],
+			"selectors": ["ratedPlural"],
+			"match": {
+				"ratedPlural=one": "{at} of {rated} rated day at or above {level}",
+				"ratedPlural=other": "{at} of {rated} rated days at or above {level}"
+			}
+		}
+	],
+	"calendar_threshold_month_count": "{at} of {rated} in {month} so far",
+	"calendar_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked.",
+	"calendar_no_levels": "This pollutant has no levels, so its days can't be rated.",
+	"calendar_figure_unknown": "The server doesn't say yet which daily figure rates this pollutant, so its days aren't rated.",
+	"calendar_selection_summary": [
+		{
+			"declarations": [
+				"input dates",
+				"input days",
+				"input daysValue",
+				"input figure",
+				"input average",
+				"input unit",
+				"input worstDate",
+				"input worstValue",
+				"local daysPlural = daysValue: plural"
+			],
+			"selectors": ["daysPlural"],
+			"match": {
+				"daysPlural=one": "{dates} · {days} day · {figure}: average {average} {unit} · worst day {worstDate}, {worstValue} {unit}",
+				"daysPlural=other": "{dates} · {days} days · {figure}: average {average} {unit} · worst day {worstDate}, {worstValue} {unit}"
+			}
+		}
+	],
+	"calendar_selection_summary_none_rated": [
+		{
+			"declarations": [
+				"input dates",
+				"input days",
+				"input daysValue",
+				"local daysPlural = daysValue: plural"
+			],
+			"selectors": ["daysPlural"],
+			"match": {
+				"daysPlural=one": "{dates} · {days} day · not rated",
+				"daysPlural=other": "{dates} · {days} days · none rated"
+			}
+		}
+	],
+	"calendar_selection_at_or_above": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input level",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} day at or above {level}",
+				"countPlural=other": "{count} days at or above {level}"
+			}
+		}
+	],
+	"calendar_selection_not_rated": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} day not rated",
+				"countPlural=other": "{count} days not rated"
+			}
+		}
+	],
+	"calendar_selection_clear_hint": "Esc clears",
 	"widget_data_table_title": "Data table",
 	"table_label": "Data table",
 	"table_scroll_label": "Data table values",

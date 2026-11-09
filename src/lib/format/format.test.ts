@@ -5,6 +5,7 @@ import {
 	formatDateTime,
 	formatHourRange,
 	formatList,
+	formatMonthName,
 	formatNumber,
 	formatPeriod,
 	formatTick,
@@ -19,6 +20,10 @@ import {
 describe("format", () => {
 	it("todayPacific uses Pacific, not UTC", () => {
 		expect(todayPacific(new Date("2026-10-21T06:30:00Z"))).toBe("2026-10-20");
+	});
+	it("formatMonthName names the Pacific month without its year", () => {
+		expect(formatMonthName("2026-11-30")).toBe("November");
+		expect(formatMonthName("2027-01-01")).toBe("January");
 	});
 	it("weeks start on Sunday", () => {
 		expect(startOfPacificWeek("2026-10-20")).toBe("2026-10-18");
