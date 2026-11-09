@@ -389,6 +389,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
   `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
 
+- **Mobile's `/api/1.0` Vite dev proxy.** _Deferred 2026-11-09 (mobile on monitor-map 5.0,
+  a library-switch-only change)._ Mobile's `vite.config.ts` forwards `/api/1.0` to
+  `localhost:8000`, but SDK 5 calls `/api/2.0` on the origin set by `VITE_DEV_URL`, so the proxy
+  is no longer used. Left alone to keep that work to the library switch. **Revisit when**
+  mobile's dev setup is next touched, or after go-live.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
@@ -417,7 +422,21 @@ string`) now get the union return type. The mobile app passes a string token, so
     monitor tooltips, cluster renderer, icon manager and detail panel) and mobile (`Alerts.svelte`,
     `Subscriptions.svelte`, `alert-level.ts`) import `SJVAirEntryLevel` or use `asIter`, so both
     change when they move to that SDK beta; map-sdk and the dashboard don't use them. The dashboard reads `scale`; its e2e
-    fixtures still contain `levels`.
+    fixtures still contain `levels`. **Mobile done** (mobile #114 into its `release/5.0.0`,
+    2026-11-09): it reads `scale`, and a subscription level missing from the PM2.5 scale shows
+    "—" instead of disappearing; `MonitorSubscription.svelte` was removed.
+  - **Mobile 5.0.0 on the day, after `develop` is deployed** (the user, 2026-11-09). Each step
+    needs the user's own yes; none is done earlier. Mobile's 5.0 work waits on its
+    `release/5.0.0` branch (`main` stays on 4.x for hotfixes):
+    1. Switch mobile to the final `@sjvair/monitor-map` `5.0.0` and `@sjvair/sdk` `5.0.0`
+       (pinned exactly; PR into `release/5.0.0`).
+    2. Rerun `TZ=America/Los_Angeles npx vitest run` and the Android emulator map check (the
+       map renders, a panel opens, subscribing from the map works).
+    3. Date the `## [5.0.0]` CHANGELOG entry.
+    4. Merge `release/5.0.0` → `main`.
+    5. Create the GitHub Release `v5.0.0` targeting `main`'s full SHA. It ships to TestFlight and
+       the Play beta track.
+    6. The user tests on iOS.
   - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it; #26 and
     #27, the bad-id 404s and the 400 body, merge with it at go-live, as agreed with the code owner,
     the user, 2026-11-06); the
