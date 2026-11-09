@@ -957,6 +957,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   covers the Options and Search buttons at the top left. Not yet checked in monitor-map's or map-sdk's code (which one
   owns the layout is open). **Why deferred:** found during mobile QA, no monitor-map or map-sdk session running.
   **Revisit:** before monitor-map `5.0.0` final (go-live), in a monitor-map or map-sdk session.
+- **monitor-map 5.0: an expanded legend can run under the zoom and compass buttons at 390 px (found 2026-11-09).**
+  monitor-map-18's legend fix (spec `docs/superpowers/specs/2026-11-09-user-contract-and-legend-design.md`) collapses the
+  legend when a monitor panel opens on narrow screens and caps its height so it never covers Options and Search. If the
+  user expands it again with the panel open, at 390 px wide the card can still reach under the zoom and compass buttons
+  on the right. **Why deferred:** minor, and it only happens after the user expands the legend with a panel open.
+  **Revisit:** if it's reported, or when monitor-map's map controls are next laid out.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
