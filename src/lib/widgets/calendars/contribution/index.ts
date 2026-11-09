@@ -10,7 +10,7 @@ export const contributionCalendarType: WidgetType = {
 	label: () => m.widget_calendar_year_title(),
 	icon: CalendarRange,
 	minSize: { w: 3, h: 4 },
-	defaultSize: { w: 12, h: 3 },
+	defaultSize: { w: 12, h: 4 },
 	time: "range",
 	thresholds: true,
 	analyzable: true,

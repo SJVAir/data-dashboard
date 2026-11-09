@@ -120,3 +120,22 @@ describe("calendar types", () => {
 		expect(contributionCalendarType.accepts?.onlyPollutant).toBe(true);
 	});
 });
+
+describe("every widget type", () => {
+	test("its default size is at least its minimum size", async () => {
+		const all = [
+			(await import("./placeholder")).placeholderType,
+			(await import("./chart")).chartType,
+			(await import("./calendars/month")).monthCalendarType,
+			(await import("./calendars/contribution")).contributionCalendarType,
+			(await import("./current")).currentType,
+			(await import("./forecast")).forecastType,
+			(await import("./outside")).outsideType,
+			(await import("./table")).dataTableType
+		];
+		for (const t of all) {
+			expect(t.defaultSize.w, t.type).toBeGreaterThanOrEqual(t.minSize.w);
+			expect(t.defaultSize.h, t.type).toBeGreaterThanOrEqual(t.minSize.h);
+		}
+	});
+});

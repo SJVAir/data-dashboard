@@ -130,7 +130,7 @@ function calendar(id = "cal", extra: Partial<WidgetInstance> = {}): WidgetInstan
 		id,
 		type: CONTRIBUTION_CALENDAR_TYPE,
 		title: "A year of days",
-		rect: { x: 0, y: 0, w: 12, h: 3 },
+		rect: { x: 0, y: 0, w: 12, h: 4 },
 		data: {
 			dateRange: { kind: "trailing", amount: 12, unit: "month" },
 			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]

@@ -55,6 +55,37 @@ export function pacificHoursOfDay(date: string): Date[] {
 	return hours;
 }
 
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
+/**
+ * A shared `Intl.DateTimeFormat` for a locale and options: building one is slow, and a calendar
+ * names hundreds of days at once.
+ */
+export function dateTimeFormat(
+	locale: string,
+	options: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+	const key = `${locale}|${JSON.stringify(options)}`;
+	let format = dateFormats.get(key);
+	if (!format) {
+		format = new Intl.DateTimeFormat(locale, options);
+		dateFormats.set(key, format);
+	}
+	return format;
+}
+
+/** A shared `Intl.NumberFormat` for a locale and options. */
+export function numberFormat(locale: string, options?: Intl.NumberFormatOptions): Intl.NumberFormat {
+	const key = `${locale}|${JSON.stringify(options ?? {})}`;
+	let format = numberFormats.get(key);
+	if (!format) {
+		format = new Intl.NumberFormat(locale, options);
+		numberFormats.set(key, format);
+	}
+	return format;
+}
+
 /** Whether the device zone differs from Pacific, so times need a PT label. */
 export function needsZoneLabel(
 	deviceZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -65,7 +96,7 @@ export function needsZoneLabel(
 /** A calendar date (`YYYY-MM-DD` or an instant) shown as a Pacific date. */
 export function formatDate(date: string | Date, locale: string = LOCALE): string {
 	const instant = typeof date === "string" ? new Date(pacificDay(date, 12).getTime()) : date;
-	return new Intl.DateTimeFormat(locale, {
+	return dateTimeFormat(locale, {
 		timeZone: TIME_ZONE,
 		year: "numeric",
 		month: "short",
@@ -75,7 +106,7 @@ export function formatDate(date: string | Date, locale: string = LOCALE): string
 
 /** A calendar date shown with its weekday: "Sun, Nov 8". */
 export function formatWeekdayDate(date: string, locale: string = LOCALE): string {
-	return new Intl.DateTimeFormat(locale, {
+	return dateTimeFormat(locale, {
 		timeZone: TIME_ZONE,
 		weekday: "short",
 		month: "short",
@@ -91,7 +122,7 @@ export function formatLongWeekdayDate(
 	date: string,
 	opts: { year?: boolean; locale?: string } = {}
 ): string {
-	return new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+	return dateTimeFormat(opts.locale ?? LOCALE, {
 		timeZone: TIME_ZONE,
 		weekday: "long",
 		month: "long",
@@ -106,7 +137,7 @@ export function formatWeekday(
 	style: "long" | "short" | "narrow",
 	locale: string = LOCALE
 ): string {
-	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, weekday: style }).format(
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, weekday: style }).format(
 		new Date(pacificDay(date, 12).getTime())
 	);
 }
@@ -116,7 +147,7 @@ export function formatWeekdayTime(
 	instant: Date,
 	opts: { deviceZone?: string; locale?: string } = {}
 ): string {
-	const text = new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+	const text = dateTimeFormat(opts.locale ?? LOCALE, {
 		timeZone: TIME_ZONE,
 		weekday: "short",
 		hour: "numeric",
@@ -134,7 +165,7 @@ function noon(date: string): Date {
 
 /** A calendar month (any `YYYY-MM-DD` in it) shown as "October 2026". */
 export function formatMonth(date: string, locale: string = LOCALE): string {
-	return new Intl.DateTimeFormat(locale, {
+	return dateTimeFormat(locale, {
 		timeZone: TIME_ZONE,
 		year: "numeric",
 		month: "long"
@@ -143,26 +174,31 @@ export function formatMonth(date: string, locale: string = LOCALE): string {
 
 /** A calendar month's name (any `YYYY-MM-DD` in it) without its year: "November". */
 export function formatMonthName(date: string, locale: string = LOCALE): string {
-	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, month: "long" }).format(noon(date));
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, month: "long" }).format(noon(date));
 }
 
 /** A calendar month's short name (any `YYYY-MM-DD` in it): "Nov". */
 export function formatMonthShort(date: string, locale: string = LOCALE): string {
-	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, month: "short" }).format(
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, month: "short" }).format(
 		noon(date)
 	);
 }
 
 /** A calendar year (any `YYYY-MM-DD` in it) shown as "2026". */
 export function formatYear(date: string, locale: string = LOCALE): string {
-	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, year: "numeric" }).format(
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, year: "numeric" }).format(
 		noon(date)
 	);
 }
 
+/** A calendar date's day of the month alone: "6". */
+export function formatDayOfMonth(date: string, locale: string = LOCALE): string {
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, day: "numeric" }).format(noon(date));
+}
+
 /** Two calendar dates as one span, shared parts once: "Oct 1 – 14, 2026". */
 export function formatDateRange(start: string, end: string, locale: string = LOCALE): string {
-	return new Intl.DateTimeFormat(locale, {
+	return dateTimeFormat(locale, {
 		timeZone: TIME_ZONE,
 		year: "numeric",
 		month: "short",
@@ -175,7 +211,7 @@ export function formatDateTime(
 	instant: Date,
 	opts: { deviceZone?: string; locale?: string } = {}
 ): string {
-	const text = new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+	const text = dateTimeFormat(opts.locale ?? LOCALE, {
 		timeZone: TIME_ZONE,
 		year: "numeric",
 		month: "short",
@@ -191,7 +227,7 @@ export function formatNumber(
 	opts?: Intl.NumberFormatOptions,
 	locale: string = LOCALE
 ): string {
-	return new Intl.NumberFormat(locale, opts).format(n);
+	return numberFormat(locale, opts).format(n);
 }
 
 /**
@@ -217,7 +253,7 @@ export function formatHourRange(
 	end: Date,
 	opts: { deviceZone?: string; locale?: string } = {}
 ): string {
-	const text = new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+	const text = dateTimeFormat(opts.locale ?? LOCALE, {
 		timeZone: TIME_ZONE,
 		hour: "numeric"
 	}).formatRange(start, end);
@@ -232,7 +268,7 @@ export function formatPeriod(
 ): string {
 	if (resolution === "raw" || resolution === "hour") return formatDateTime(start, opts);
 	if (resolution === "day") return formatDate(start, opts.locale);
-	return new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
+	return dateTimeFormat(opts.locale ?? LOCALE, {
 		timeZone: TIME_ZONE,
 		year: "numeric",
 		...(resolution === "year" ? {} : { month: "short" })
@@ -258,7 +294,7 @@ export function formatTick(
 				: unit === "month"
 					? { month: "short" }
 					: { year: "numeric" };
-	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, ...options }).format(instant);
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, ...options }).format(instant);
 }
 
 /** Names joined as a sentence list ("A, B, and C"). */

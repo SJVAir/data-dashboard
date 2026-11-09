@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { m } from "$lib/paraglide/messages.js";
 import {
+	dateTimeFormat,
 	formatDate,
+	formatDayOfMonth,
 	formatDateTime,
 	formatHourRange,
 	formatList,
@@ -14,6 +16,7 @@ import {
 	formatValue,
 	formatWeekday,
 	needsZoneLabel,
+	numberFormat,
 	pacificHoursOfDay,
 	parseDateKey,
 	startOfPacificWeek,
@@ -142,5 +145,34 @@ describe("format", () => {
 	it("formatList joins names as a sentence list", () => {
 		expect(formatList(["A"])).toBe("A");
 		expect(formatList(["A", "B", "C"])).toBe("A, B, and C");
+	});
+	it("formatDayOfMonth gives the Pacific day of the month", () => {
+		expect(formatDayOfMonth("2026-11-06")).toBe("6");
+		expect(formatDayOfMonth("2026-03-08")).toBe("8");
+		expect(formatDayOfMonth("2026-11-01", "ar-EG")).toBe("١");
+	});
+	it("formatters are built once per locale and options, then shared", () => {
+		expect(dateTimeFormat("en-US", { month: "long" })).toBe(
+			dateTimeFormat("en-US", { month: "long" })
+		);
+		expect(dateTimeFormat("en-US", { month: "long" })).not.toBe(
+			dateTimeFormat("en-US", { month: "short" })
+		);
+		expect(dateTimeFormat("en-US", { month: "long" })).not.toBe(
+			dateTimeFormat("fr-FR", { month: "long" })
+		);
+		expect(numberFormat("en-US")).toBe(numberFormat("en-US", {}));
+		const spy = vi.spyOn(Intl, "DateTimeFormat");
+		try {
+			formatLongWeekdayDate("2026-11-06");
+			const before = spy.mock.calls.length;
+			for (let d = 1; d <= 30; d++) formatLongWeekdayDate(`2026-11-${String(d).padStart(2, "0")}`);
+			expect(spy.mock.calls.length).toBe(before);
+			// The spy does see a new one being built.
+			dateTimeFormat("en-US", { era: "narrow", year: "numeric" });
+			expect(spy.mock.calls.length).toBe(before + 1);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });
