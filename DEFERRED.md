@@ -480,7 +480,8 @@ string`) now get the union return type. The mobile app passes a string token, so
        `purpleair`, `airgradient`, `aqview` and `bam1022`, then each region type (`mean_24h` makes PM types part of it).
     5. Run the backfill **before announcing** the dashboard: settled daily responses are cached for 24 hours.
        **Pass monitor ids as `--monitor=<id>`** in every command here and in the CIMIS steps: a sqid can start with `-`,
-       which argparse reads as a flag (suspected cause of a flaky `restamp_cimis` test, 2026-11-09).
+       which argparse reads as a flag (suspected cause of a flaky `restamp_cimis` test, 2026-11-09). 6. **After the deploy, in sdk-js:** remove `ignore: isRemote` from the open-day integration steps in
+       `lib/monitors/mod_test.ts` and `lib/regions/mod_test.ts` (sdk-js #59), so `TEST_REMOTE` runs check production.
        Exact commands come with the merged PR. **Why deferred:** nothing touches production until `develop` deploys.
        **Revisit:** at the deploy.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
