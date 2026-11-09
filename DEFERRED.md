@@ -36,13 +36,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   layer, and each widget type's code out of the initial bundle. The budget is a soft limit
   (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
   decide then, trim or raise the budget, rather than trimming every time).
-- **The initial bundle is over 200 KB after step 4 spec 4 (pending the user's decision).**
-  _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14)._ `check:budget` reads 201.8 KB
+- **The initial bundle is a little over 200 KB after step 4 spec 4 (accepted for now).**
+  _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14)._ `check:budget` reads 202.1 KB
   gzip against the 200 KB soft budget (199.7 KB before the spec). The growth is the three
   widget descriptors, the dashboard menu's Notifications item, and the `thresholds` field in
-  the change schema. The user has not yet said whether to trim or raise the budget. Candidates
-  if trimming: lazy-load the widget type icons, drop the menu item's icon. **Revisit before step
-  4 merges into `main`**, or with the starter dashboard spec.
+  the change schema. The user accepted it for now on 2026-11-08 (no trim, budget unchanged).
+  Candidates if trimming later: lazy-load the widget type icons, drop the menu item's icon.
+  **Revisit when** `check:budget` grows further, or before step 4 merges into `main`.
 
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
