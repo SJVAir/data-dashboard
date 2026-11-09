@@ -20,7 +20,12 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
-	import { chartInput, mainLayer } from "$lib/widgets/shared/input";
+	import {
+		chartInput,
+		placesEntryType,
+		placesLayer,
+		placesQueryLayer
+	} from "$lib/widgets/shared/input";
 	import { pickedData } from "./apply";
 	import type { PlaceDirectory } from "./directory";
 	import { directoryFor, resolvePicks, type Resolvers } from "./host";
@@ -110,12 +115,13 @@
 			if (signal.aborted) return;
 			const target = find();
 			const max = target ? (getWidgetType(target.widget.type)?.accepts?.maxPlaces ?? 0) : 0;
-			const layer = target ? mainLayer(target.widget.data, catalog) : undefined;
-			if (!target || max < 1 || !layer?.entryType) {
+			const layer = target ? placesLayer(target.widget.data, catalog) : undefined;
+			if (!target || max < 1 || !layer) {
 				close();
 				return;
 			}
-			const entryType = layer.entryType;
+			// A Forecast strip's layer has no entry type: its places are picked as PM2.5's are.
+			const entryType = placesEntryType(layer);
 			const initial = fromLayer(layer);
 			const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
 				report(error);
@@ -163,9 +169,15 @@
 		point: PointPlace,
 		signal: AbortSignal
 	): Promise<{ type: string; code: string } | null> {
-		const layer = mainLayer(data, ctx.catalog);
+		const layer = placesLayer(data, ctx.catalog);
 		if (!layer) return null;
-		const { input } = chartInput(withPoint(data, layer, point), ctx.catalog, ctx.max);
+		// A Forecast strip's layer is looked up as a PM2.5 one at the same place.
+		const pointData = withPoint(data, layer, point);
+		const lookup = {
+			...pointData,
+			layers: pointData.layers.map(placesQueryLayer)
+		};
+		const { input } = chartInput(lookup, ctx.catalog, ctx.max);
 		if (!input) return null;
 		const timed = new AbortController();
 		const stop = () => timed.abort();

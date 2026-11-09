@@ -60,7 +60,8 @@ describe("toNowDraft", () => {
 				data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: CLOVIS }] },
 				thresholds: [{ level: "unhealthy_sensitive" }]
 			},
-			dropped: []
+			dropped: ["pollutant"],
+			pollutant: { from: { dataset: "air-quality", entryType: "o3" }, to: "pm25" }
 		});
 	});
 
@@ -78,13 +79,63 @@ describe("toNowDraft", () => {
 			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
 			thresholds: [{ level: "unhealthy" }]
 		};
-		expect(toNowDraft(now, outsideType, CATALOG, PM25_LEVELS).draft.thresholds).toEqual([
-			{ level: "unhealthy" }
-		]);
+		expect(
+			toNowDraft(now, outsideType, CATALOG, PM25_LEVELS, currentType).draft.thresholds
+		).toEqual([{ level: "unhealthy" }]);
 		const missing = { ...now, thresholds: [{ level: "gone" }] };
-		expect(toNowDraft(missing, outsideType, CATALOG, PM25_LEVELS).draft.thresholds).toEqual([
-			{ level: "unhealthy_sensitive" }
-		]);
+		expect(
+			toNowDraft(missing, outsideType, CATALOG, PM25_LEVELS, currentType).draft.thresholds
+		).toEqual([{ level: "unhealthy_sensitive" }]);
+	});
+
+	it("an Off alert level stays Off between threshold types; from other types it's the default", () => {
+		const outside: Draft = {
+			type: "outside",
+			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] }
+		};
+		const current = toNowDraft(outside, currentType, CATALOG, PM25_LEVELS, outsideType);
+		expect("thresholds" in current.draft).toBe(false);
+		expect(current.dropped).toEqual([]);
+		const strip = { ...outside, type: "forecast-strip" };
+		expect(
+			toNowDraft(strip, currentType, CATALOG, PM25_LEVELS, forecastType).draft.thresholds
+		).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(
+			toNowDraft(chart, currentType, CATALOG, PM25_LEVELS, chartType).draft.thresholds
+		).toEqual([{ level: "unhealthy_sensitive" }]);
+	});
+
+	it("a scale that can't load keeps the alert level as it is, and owes a default where one's due", () => {
+		const saved: Draft = {
+			type: "current-conditions",
+			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			thresholds: [{ level: "unhealthy" }]
+		};
+		const kept = toNowDraft(saved, outsideType, CATALOG, "unavailable", currentType);
+		expect(kept.draft.thresholds).toEqual([{ level: "unhealthy" }]);
+		expect(kept.defaultOwed).toBeUndefined();
+		const owed = toNowDraft(chart, currentType, CATALOG, "unavailable", chartType);
+		expect("thresholds" in owed.draft).toBe(false);
+		expect(owed.defaultOwed).toBe(true);
+		const off = toNowDraft(
+			{ ...saved, thresholds: undefined },
+			outsideType,
+			CATALOG,
+			"unavailable",
+			currentType
+		);
+		expect(off.defaultOwed).toBeUndefined();
+	});
+
+	it("to the Forecast strip, a saved alert level is left out, and says so", () => {
+		const saved: Draft = {
+			type: "current-conditions",
+			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			thresholds: [{ level: "unhealthy" }]
+		};
+		const strip = toNowDraft(saved, forecastType, CATALOG, [], currentType);
+		expect("thresholds" in strip.draft).toBe(false);
+		expect(strip.dropped).toEqual(["alert"]);
 	});
 
 	it("Forecast strip keeps the place as a forecasts layer, with no alert level", () => {
@@ -96,10 +147,11 @@ describe("toNowDraft", () => {
 		});
 		expect(dropped).toEqual(["dates", "overlays", "places"]);
 		// And back to Current conditions: the catalog's first pollutant.
-		const back = toNowDraft(draft, currentType, CATALOG, PM25_LEVELS);
+		const back = toNowDraft(draft, currentType, CATALOG, PM25_LEVELS, forecastType);
 		expect(back.draft.data.layers).toEqual([
 			{ dataset: "air-quality", entryType: "pm25", place: FRESNO }
 		]);
+		expect(back.draft.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
 		expect(back.dropped).toEqual([]);
 	});
 
@@ -109,19 +161,32 @@ describe("toNowDraft", () => {
 			data: { layers: [{ dataset: "weather", entryType: "temperature", place: FRESNO }] }
 		};
 		expect(nowPollutant(weather, currentType, CATALOG)).toBe("pm25");
+		const converted = toNowDraft(weather, currentType, CATALOG, PM25_LEVELS, chartType);
+		expect(converted.dropped).toEqual(["pollutant"]);
+		expect(converted.pollutant).toEqual({
+			from: { dataset: "weather", entryType: "temperature" },
+			to: "pm25"
+		});
 	});
 });
 
 describe("fromNowDraft", () => {
 	it("back to a Chart gets the default range, nothing else changes", () => {
 		const now = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS).draft;
-		expect(fromNowDraft(now, chartType)).toEqual({
-			type: CHART_TYPE,
-			data: {
-				dateRange: DEFAULT_RANGE,
-				layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
-			}
+		expect(fromNowDraft({ ...now, thresholds: undefined }, chartType)).toEqual({
+			draft: {
+				type: CHART_TYPE,
+				data: {
+					dateRange: DEFAULT_RANGE,
+					layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+				}
+			},
+			dropped: []
 		});
+		// The Chart has no alert level: it's left out, and says so.
+		const withAlert = fromNowDraft(now, chartType);
+		expect("thresholds" in withAlert.draft).toBe(false);
+		expect(withAlert.dropped).toEqual(["alert"]);
 	});
 
 	it("a Forecast strip's place goes on a PM2.5 layer", () => {
@@ -129,7 +194,7 @@ describe("fromNowDraft", () => {
 			type: "forecast-strip",
 			data: { layers: [{ dataset: "forecasts", place: FRESNO }] }
 		};
-		expect(fromNowDraft(strip, chartType).data.layers).toEqual([
+		expect(fromNowDraft(strip, chartType).draft.data.layers).toEqual([
 			{ dataset: "air-quality", entryType: "pm25", place: FRESNO }
 		]);
 	});

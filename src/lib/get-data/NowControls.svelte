@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from "$lib/components/ui/button";
 	import type { EntryTypeMeta, Level } from "$lib/data/metadata";
 	import { m } from "$lib/paraglide/messages.js";
 	import { resolveThreshold } from "$lib/thresholds/levels";
@@ -10,25 +11,29 @@
 		levels,
 		thresholds,
 		onpollutant,
-		onthreshold
+		onthreshold,
+		onretry
 	}: {
 		/** Current conditions' pollutant choices; `null` shows no pollutant control. */
 		pollutants: EntryTypeMeta[] | null;
 		entryType: string | undefined;
 		/**
 		 * The pollutant's scale for the alert level; `null` shows no alert level (a type without
-		 * thresholds, a scale with no levels, or one still loading).
+		 * thresholds, a scale with no levels, or one still loading); `"unavailable"` when it couldn't
+		 * be loaded (the saved alert level is kept meanwhile).
 		 */
-		levels: Level[] | null;
+		levels: Level[] | "unavailable" | null;
 		thresholds: Threshold[] | undefined;
 		onpollutant: (entryType: string) => void;
 		/** A level key, or `null` for Off. */
 		onthreshold: (level: string | null) => void;
+		/** Loads the scale again after it couldn't be. */
+		onretry: () => void;
 	} = $props();
 
 	const uid = $props.id();
 
-	const resolved = $derived(levels ? resolveThreshold(thresholds, levels) : null);
+	const resolved = $derived(Array.isArray(levels) ? resolveThreshold(thresholds, levels) : null);
 </script>
 
 {#if pollutants}
@@ -50,7 +55,12 @@
 	</fieldset>
 {/if}
 
-{#if levels && levels.length > 0}
+{#if levels === "unavailable"}
+	<div class="flex flex-wrap items-center gap-2">
+		<p role="status" class="text-sm">{m.get_data_alert_unavailable()}</p>
+		<Button variant="outline" size="sm" onclick={onretry}>{m.get_data_retry()}</Button>
+	</div>
+{:else if levels && levels.length > 0}
 	<div class="flex flex-col gap-1">
 		<label for="{uid}-alert" class="text-sm font-medium">{m.get_data_alert_level_label()}</label>
 		<select

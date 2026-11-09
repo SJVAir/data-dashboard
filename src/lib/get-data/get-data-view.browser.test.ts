@@ -911,6 +911,67 @@ describe("now widgets", () => {
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 	});
 
+	test("an Off alert level stays Off from Can we go outside? to Current conditions", async () => {
+		const { current } = await show({ ...currentDraft(), type: "outside" });
+		await expect.element(alert()).toHaveValue("");
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
+		await expect.element(alert()).toHaveValue("");
+		expect("thresholds" in (await current())).toBe(false);
+	});
+
+	test("what a conversion changes is said: the pollutant, then the alert level", async () => {
+		const ozone: Draft = {
+			type: "current-conditions",
+			data: {
+				layers: [{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }]
+			}
+		};
+		await show(ozone);
+		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		const instead = m.get_data_pollutant_instead({ pollutant: "PM2.5", previous: "Ozone" });
+		expect(instead).toBe("This widget shows only PM2.5, so it uses that instead of Ozone.");
+		await expect.element(page.getByText(instead)).toBeVisible();
+		await expect.element(alert()).toHaveValue("");
+		await alert().selectOptions("unhealthy");
+		await expect.element(page.getByText(instead)).not.toBeInTheDocument();
+		await page.getByRole("radio", { name: "Forecast" }).click();
+		await expect.element(page.getByText(m.get_data_alert_left_out())).toBeVisible();
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(page.getByText(m.get_data_alert_left_out())).not.toBeInTheDocument();
+	});
+
+	test("a scale that can't load keeps the alert level, says so, and Retry loads it", async () => {
+		let failing = true;
+		const pm25 = await fixtureMetadata().levels("pm25");
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			levels: async (e) => {
+				if (failing) throw new Error("offline");
+				return e === "pm25" ? pm25 : [];
+			}
+		});
+		makeClient();
+		const { current } = await show(monitorsDraft(["m1"]));
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(page.getByText(m.get_data_alert_unavailable())).toBeVisible();
+		await expect.element(alert()).not.toBeInTheDocument();
+		failing = false;
+		await page.getByRole("button", { name: m.get_data_retry() }).click();
+		// The default the conversion owed is set once the scale loads.
+		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+		expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+
+		// A pollutant change whose scale can't load keeps the alert level as it is.
+		await alert().selectOptions("unhealthy");
+		failing = true;
+		await page.getByRole("radio", { name: "Ozone" }).click();
+		await expect.element(page.getByText(m.get_data_alert_unavailable())).toBeVisible();
+		const kept = await current();
+		expect(kept.data.layers[0].entryType).toBe("o3");
+		expect(kept.thresholds).toEqual([{ level: "unhealthy" }]);
+	});
+
 	test("axe passes", async () => {
 		const { host } = await show(currentDraft([{ level: "gone" }]));
 		await expect.element(alert()).toBeVisible();

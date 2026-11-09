@@ -14,11 +14,11 @@ import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import type { WidgetType } from "$lib/widgets/registry";
-import { mainLayer } from "$lib/widgets/shared/input";
+import { mainLayer, placesQueryLayer } from "$lib/widgets/shared/input";
 import type { Draft } from "./draft.svelte";
 
-/** What a conversion to a now type left out, for the form's note. */
-export type NowDropped = "dates" | "overlays" | "places";
+/** What a conversion left out or changed, for the form's notes. */
+export type NowDropped = "dates" | "overlays" | "places" | "alert" | "pollutant";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
@@ -34,7 +34,7 @@ export function nowPollutants(catalog: CatalogEntry[]): EntryTypeMeta[] {
 }
 
 /** The layer holding the draft's places: its main layer, or a Forecast strip's one layer. */
-function placesLayer(draft: Draft, catalog: CatalogEntry[] | undefined): Layer | undefined {
+function sourceLayer(draft: Draft, catalog: CatalogEntry[] | undefined): Layer | undefined {
 	return mainLayer(draft.data, catalog) ?? draft.data.layers[0];
 }
 
@@ -74,19 +74,35 @@ export function keptThreshold(
 	return fallback ? [{ level: fallback }] : undefined;
 }
 
+/** What `toNowDraft` and `fromNowDraft` give: the new draft, and what it left out or changed. */
+export type NowConversion = {
+	draft: Draft;
+	dropped: NowDropped[];
+	/** With `"pollutant"` in `dropped`: the entry type it had, and the one it has now. */
+	pollutant?: { from: { dataset: string; entryType: string }; to: string };
+	/**
+	 * The new pollutant's scale couldn't be loaded, so a default alert level is still owed: set it
+	 * (`keptThreshold(undefined, levels, true)`) once the scale loads, unless the person chose one.
+	 */
+	defaultOwed?: boolean;
+};
+
 /**
- * `draft` as `type` (a now type): the main layer's first place and its pollutant
- * (`nowPollutant`) on one layer, with no dates, overlays or options. A threshold type gets the
- * alert level `keptThreshold` gives with `levels` (the new pollutant's scale), the default when
- * it had none. `dropped` lists what was left out.
+ * `draft` (a `fromType` draft) as `type` (a now type): the main layer's first place and its
+ * pollutant (`nowPollutant`) on one layer, with no dates, overlays or options. A threshold type
+ * keeps the alert level `keptThreshold` gives with `levels` (the new pollutant's scale); a draft
+ * from a type without thresholds (a range type, the Forecast strip) gets the default, and one
+ * from a threshold type keeps Off. With `levels` unavailable the alert level is kept as it is.
+ * `dropped` lists what was left out or changed.
  */
 export function toNowDraft(
 	draft: Draft,
 	type: WidgetType,
 	catalog: CatalogEntry[],
-	levels: Level[]
-): { draft: Draft; dropped: NowDropped[] } {
-	const from = placesLayer(draft, catalog);
+	levels: Level[] | "unavailable",
+	fromType?: WidgetType
+): NowConversion {
+	const from = sourceLayer(draft, catalog);
 	const picks = from ? fromLayer(from) : [];
 	// A starter's `default-place` reads as no picks, but it's kept as the one place.
 	const place = from?.place ?? picks[0];
@@ -100,33 +116,53 @@ export function toNowDraft(
 	if (draft.data.dateRange || draft.data.timeSubRange) dropped.push("dates");
 	if (draft.data.layers.some((l) => l !== from)) dropped.push("overlays");
 	if (picks.length > 1) dropped.push("places");
-	const thresholds = type.thresholds ? keptThreshold(draft.thresholds, levels, true) : undefined;
+	const changed =
+		entryType !== undefined && from?.entryType !== undefined && from.entryType !== entryType;
+	if (changed) dropped.push("pollutant");
+	const defaultWhenOff = !fromType?.thresholds;
+	let thresholds: Threshold[] | undefined;
+	let defaultOwed = false;
+	if (!type.thresholds) {
+		if (draft.thresholds?.length) dropped.push("alert");
+	} else if (levels === "unavailable") {
+		thresholds = draft.thresholds;
+		defaultOwed = defaultWhenOff && !thresholds;
+	} else {
+		thresholds = keptThreshold(draft.thresholds, levels, defaultWhenOff);
+	}
 	return {
-		draft: { type: type.type, data: { layers: [layer] }, ...(thresholds ? { thresholds } : {}) },
-		dropped
+		draft: {
+			type: type.type,
+			data: { layers: [layer] },
+			...(thresholds ? { thresholds: structuredClone(thresholds) } : {})
+		},
+		dropped,
+		...(changed
+			? {
+					pollutant: { from: { dataset: from.dataset, entryType: from.entryType! }, to: entryType }
+				}
+			: {}),
+		...(defaultOwed ? { defaultOwed } : {})
 	};
 }
 
 /**
  * A now draft as `type` (a range type): its layer over the default range (a Forecast strip's
- * place on a PM2.5 layer, as a new widget's), keeping the alert level only when `type` has
- * thresholds. Nothing is left out.
+ * place on a PM2.5 layer, as a new widget's). The alert level is kept only when `type` has
+ * thresholds; otherwise `dropped` says it was left out.
  */
-export function fromNowDraft(draft: Draft, type: WidgetType): Draft {
-	const layers = draft.data.layers.map((l) =>
-		l.dataset === FORECASTS && !l.entryType
-			? { dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType, ...placeOf(l) }
-			: structuredClone(l)
-	);
+export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
+	const layers = draft.data.layers.map((l) => structuredClone(placesQueryLayer(l)));
 	const thresholds = type.thresholds && draft.thresholds ? draft.thresholds : undefined;
 	return {
-		type: type.type,
-		data: { dateRange: structuredClone(DEFAULT_RANGE), layers },
-		...(thresholds ? { thresholds: structuredClone(thresholds) } : {})
+		draft: {
+			type: type.type,
+			data: { dateRange: structuredClone(DEFAULT_RANGE), layers },
+			...(thresholds ? { thresholds: structuredClone(thresholds) } : {})
+		},
+		dropped: !thresholds && draft.thresholds?.length ? ["alert"] : []
 	};
 }
-
-const placeOf = (layer: Layer) => (layer.place ? { place: structuredClone(layer.place) } : {});
 
 /**
  * Whether `draft` already has `type`'s now shape (one layer of its dataset, at most one place,

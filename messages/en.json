@@ -909,6 +909,9 @@
 	"get_data_alert_off": "Off",
 	"get_data_alert_fell_back": "The saved alert level isn't on this pollutant's scale, so {level} is used instead.",
 	"get_data_now_dropped": "Dates and extra places don't apply to this widget, so they were left out.",
+	"get_data_alert_left_out": "This widget has no alert level, so yours was left out.",
+	"get_data_pollutant_instead": "This widget shows only {pollutant}, so it uses that instead of {previous}.",
+	"get_data_alert_unavailable": "The alert levels can't be loaded right now.",
 	"get_data_block_dataset": "Can't show this data",
 	"get_data_block_places": [
 		{

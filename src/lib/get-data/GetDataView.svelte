@@ -23,11 +23,17 @@
 	import { fromLayer, toLayerPlaces, type Picks } from "$lib/places/selection";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
-	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
-	import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
+	import {
+		entryMeta,
+		mainLayer,
+		placesEntryType,
+		placesLayer,
+		placesQueryLayer
+	} from "$lib/widgets/shared/input";
 	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
 	import * as layers from "./layers";
 	import { placeLabel } from "$lib/widgets/title";
@@ -44,7 +50,7 @@
 		nowPollutant,
 		nowPollutants,
 		toNowDraft,
-		type NowDropped
+		type NowConversion
 	} from "./now";
 	import NowControls from "./NowControls.svelte";
 	import { offeredDatasets, typeBlock } from "./offer";
@@ -111,7 +117,7 @@
 	const isNow = $derived(type?.time === "now");
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
 	// A Forecast strip's one layer has no entry type, so isn't a `mainLayer`; it holds the place.
-	const main = $derived(mainLayer(plain.data, known) ?? (isNow ? plain.data.layers[0] : undefined));
+	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
 	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
 	const picks = $derived(main ? fromLayer(main) : []);
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
@@ -168,9 +174,7 @@
 	// layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
 		if (!isNow) return previewWidget;
-		const layers = plain.data.layers.map((l) =>
-			l.entryType ? l : { ...l, dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType }
-		);
+		const layers = plain.data.layers.map(placesQueryLayer);
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
 	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
@@ -290,11 +294,33 @@
 		else layer.resolution = level;
 	}
 
-	/** What the last conversion to a now type left out, until the next edit of the form. */
-	let dropped = $state.raw<{ after: string; what: NowDropped[] } | null>(null);
-	const droppedShown = $derived(
-		!!dropped && dropped.what.length > 0 && dropped.after === JSON.stringify(plain)
-	);
+	/** What the last conversion left out or changed, until the next edit of the form. */
+	let dropped = $state.raw<{ after: string; conversion: NowConversion } | null>(null);
+	const notes = $derived.by(() => {
+		if (!dropped || dropped.after !== JSON.stringify(plain)) return [];
+		const { dropped: what, pollutant } = dropped.conversion;
+		const out: string[] = [];
+		if (what.some((d) => d === "dates" || d === "overlays" || d === "places")) {
+			out.push(m.get_data_now_dropped());
+		}
+		if (pollutant) {
+			const label = (dataset: string, entryType: string) =>
+				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
+			out.push(
+				m.get_data_pollutant_instead({
+					pollutant: label("air-quality", pollutant.to),
+					previous: label(pollutant.from.dataset, pollutant.from.entryType)
+				})
+			);
+		}
+		if (what.includes("alert")) out.push(m.get_data_alert_left_out());
+		return out;
+	});
+
+	/** Shows `conversion`'s notes until the draft changes. */
+	function noteConversion(conversion: NowConversion): void {
+		dropped = { after: JSON.stringify($state.snapshot(draft)), conversion };
+	}
 
 	/** Replaces the whole draft (a conversion between range and now types). */
 	function replaceDraft(next: Draft): void {
@@ -306,29 +332,45 @@
 		else delete draft.thresholds;
 	}
 
-	/** A pollutant's scale; none when it has no levels or they can't be loaded. */
-	async function levelsOf(entryType: string | undefined): Promise<Level[]> {
+	/** A pollutant's scale (empty when it has none), or `"unavailable"` when it can't be loaded. */
+	async function levelsOf(entryType: string | undefined): Promise<Level[] | "unavailable"> {
 		if (!entryType) return [];
 		try {
 			return await getMetadata().levels(entryType);
 		} catch {
-			return [];
+			return "unavailable";
 		}
 	}
 
 	/** Bumped by each type or pollutant change, so a slower earlier one doesn't land after it. */
 	let changeId = 0;
+	/**
+	 * A conversion that should have set the default alert level couldn't load the scale: it's set
+	 * once the scale loads, unless the person chooses one first.
+	 */
+	let defaultOwed = false;
+
+	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
+	function sourceType(snapshot: Draft): WidgetType | undefined {
+		const from = getWidgetType(snapshot.type);
+		return from?.time === "now" && !isNowShaped(snapshot, from) ? undefined : from;
+	}
 
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
 	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
 		const id = ++changeId;
-		const snapshot = $state.snapshot(draft) as Draft;
-		const levels = await levelsOf(nowPollutant(snapshot, next, catalog));
+		const pollutant = nowPollutant($state.snapshot(draft) as Draft, next, catalog);
+		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
-		const converted = toNowDraft(snapshot, next, catalog, levels);
+		// An edit made while the scale loaded counts: convert the draft as it is now (again, when
+		// that edit changed the pollutant).
+		const fresh = $state.snapshot(draft) as Draft;
+		if (nowPollutant(fresh, next, catalog) !== pollutant) return convertToNow(next, catalog);
+		const converted = toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
+		defaultOwed = !!converted.defaultOwed;
 		replaceDraft(converted.draft);
-		dropped = { after: JSON.stringify($state.snapshot(draft)), what: converted.dropped };
+		noteConversion(converted);
 	}
 
 	function setType(next: string): void {
@@ -339,7 +381,12 @@
 			return;
 		}
 		changeId++;
-		if (to.time !== "now" && isNow) replaceDraft(fromNowDraft(plain, to));
+		defaultOwed = false;
+		if (to.time !== "now" && isNow) {
+			const converted = fromNowDraft(plain, to);
+			replaceDraft(converted.draft);
+			noteConversion(converted);
+		}
 		// A now type chosen before the catalog is known is converted once it is (below).
 		else draft.type = next;
 	}
@@ -358,16 +405,25 @@
 		d.type === CURRENT_TYPE
 			? d.data.layers[0]?.entryType
 			: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
-	let alertLevels = $state.raw<{ entryType: string | undefined; levels: Level[] } | null>(null);
+	let alertLevels = $state.raw<{
+		entryType: string | undefined;
+		levels: Level[] | "unavailable";
+	} | null>(null);
+	let alertTry = $state(0);
 	const alertEntryType = $derived(
 		isNow && type?.thresholds && known ? nowEntryType(plain) : undefined
 	);
 	$effect(() => {
+		void alertTry;
 		const entryType = alertEntryType;
-		if (!entryType || untrack(() => alertLevels?.entryType) === entryType) return;
+		if (!entryType) return;
+		const have = untrack(() => alertLevels);
+		if (have?.entryType === entryType && have.levels !== "unavailable") return;
 		let active = true;
 		void levelsOf(entryType).then((levels) => {
-			if (active) alertLevels = { entryType, levels };
+			if (!active) return;
+			alertLevels = { entryType, levels };
+			if (Array.isArray(levels)) untrack(() => payDefault(levels));
 		});
 		return () => {
 			active = false;
@@ -377,7 +433,22 @@
 		alertEntryType && alertLevels?.entryType === alertEntryType ? alertLevels.levels : null
 	);
 
-	/** Current conditions' pollutant: the alert level keeps its key if the new scale has it. */
+	/** Sets the default alert level a conversion owed, keeping its notes up. */
+	function payDefault(levels: Level[]): void {
+		if (!defaultOwed) return;
+		defaultOwed = false;
+		if (draft.thresholds) return;
+		const noted = !!dropped && dropped.after === JSON.stringify(plain);
+		const thresholds = keptThreshold(undefined, levels, true);
+		if (!thresholds) return;
+		draft.thresholds = thresholds;
+		if (noted && dropped) noteConversion(dropped.conversion);
+	}
+
+	/**
+	 * Current conditions' pollutant: the alert level keeps its key if the new scale has it, else
+	 * takes its default. When the scale can't be loaded, the alert level is kept as it is.
+	 */
 	async function setNowPollutant(entryType: string): Promise<void> {
 		const id = ++changeId;
 		const levels = await levelsOf(entryType);
@@ -386,12 +457,14 @@
 		if (!layer) return;
 		layer.entryType = entryType;
 		alertLevels = { entryType, levels };
+		if (levels === "unavailable") return;
 		const thresholds = keptThreshold($state.snapshot(draft.thresholds), levels, false);
 		if (thresholds) draft.thresholds = thresholds;
 		else delete draft.thresholds;
 	}
 
 	function setThreshold(level: string | null): void {
+		defaultOwed = false;
 		if (level) draft.thresholds = [{ level }];
 		else delete draft.thresholds;
 	}
@@ -413,8 +486,12 @@
 		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
 	>
 		<div class="flex min-w-0 flex-col gap-4">
-			{#if droppedShown}
-				<p role="status" class="text-muted-foreground text-sm">{m.get_data_now_dropped()}</p>
+			{#if notes.length > 0}
+				<div role="status" class="flex flex-col gap-1">
+					{#each notes as note (note)}
+						<p class="text-muted-foreground text-sm">{note}</p>
+					{/each}
+				</div>
 			{/if}
 
 			{#if !isNow}
@@ -436,8 +513,8 @@
 						max={type?.accepts?.maxPlaces ?? 1}
 						purpose={{
 							dataset: main.dataset,
-							// A Forecast strip's place is any place PM2.5 is offered for, as a new widget's.
-							entryType: main.entryType ?? DEFAULT_LAYER.entryType!
+							// A Forecast strip's place is any place PM2.5 is offered for.
+							entryType: placesEntryType(main)
 						}}
 						onchange={setPlaces}
 					/>
@@ -472,6 +549,7 @@
 							thresholds={plain.thresholds}
 							onpollutant={(e) => void setNowPollutant(e)}
 							onthreshold={setThreshold}
+							onretry={() => alertTry++}
 						/>
 					</section>
 				{/if}

@@ -32,6 +32,13 @@ const fake = vi.hoisted(() => ({
 	resolvers: undefined as Pick<AdapterContext, "regions" | "locations" | "points"> | undefined,
 	placeRegion: undefined as ((input: unknown, signal?: AbortSignal) => Promise<Region>) | undefined
 }));
+// The Forecast strip tile's now client (its fetches fail here; only its place matters).
+vi.mock("$lib/data/now", async () => {
+	const { createNowClient } = await import("$lib/data/now/client");
+	const { createMemoryPlatform } = await import("$lib/platform/memory");
+	const client = createNowClient({ activity: createMemoryPlatform().activity });
+	return { getNowClient: () => client };
+});
 vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
 	getMetadata: () => fake.metadata!,
@@ -274,6 +281,50 @@ test("on a live-shared dashboard, Use my location saves the region and says so (
 	expect(placeRegion.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
 	session.undo();
 	expect(layerOf(session).place).toBeUndefined();
+});
+
+/** A Forecast strip: one forecasts layer, with no entry type. */
+function strip(place?: Layer["place"]): WidgetInstance {
+	return {
+		id: "w1",
+		type: "forecast-strip",
+		title: "Readings",
+		rect: { x: 0, y: 0, w: 3, h: 4 },
+		data: { layers: [{ dataset: "forecasts", ...(place ? { place } : {}) }] }
+	};
+}
+
+test("a Forecast strip (a layer with no entry type) changes place from the tile", async () => {
+	const { session } = await show(strip(COUNTY), [
+		{ kind: "region", type: "city", code: "0627000" }
+	]);
+	await openFromMenu();
+	await expect.element(dialog()).toBeVisible();
+	// Single mode: the pick applies at once.
+	await page.getByRole("option", { name: /City of Fresno/ }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(layerOf(session)).toEqual({
+		dataset: "forecasts",
+		place: { kind: "region", type: "city", code: "0627000" }
+	});
+	session.undo();
+	expect(layerOf(session)).toEqual({ dataset: "forecasts", place: COUNTY });
+});
+
+test("on a live-shared dashboard, a Forecast strip's location is saved as its region", async () => {
+	const { app, platform, session } = await show(strip());
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(layerOf(session)).toEqual({
+		dataset: "forecasts",
+		place: { kind: "region", type: "zipcode", code: "93721" }
+	});
+	expect(placeRegion.mock.calls[0][0]).toMatchObject({
+		layer: { place: { kind: "point", lat: 36.75, lon: -119.79 } }
+	});
 });
 
 test("no saved-as notice when an edit meanwhile already set that region", async () => {
