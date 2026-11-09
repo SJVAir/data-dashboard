@@ -916,6 +916,17 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
 
+- **monitor-map 5.0: the expanded legend covers Options and Search on a short map (found 2026-11-09).** In mobile's
+  emulator QA (mobile-cf) on monitor-map `5.0.0-beta.0`, with a monitor panel open on a phone, the expanded legend card
+  covers the Options and Search buttons at the top left. Not yet checked in monitor-map's or map-sdk's code (which one
+  owns the layout is open). **Why deferred:** found during mobile QA, no monitor-map or map-sdk session running.
+  **Revisit:** before monitor-map `5.0.0` final (go-live), in a monitor-map or map-sdk session.
+- **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
+  map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
+  than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
+  deferred:** console noise only, and the design is intended. **Revisit:** if a map-sdk feature starts relying on the
+  global config, or before map-sdk's first stable release, to silence the warning.
+
 ## Analysis & data
 
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
