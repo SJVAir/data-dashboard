@@ -432,6 +432,14 @@ string`) now get the union return type. The mobile app passes a string token, so
     `monitors/<id>/alerts/current/` answers `pending` until the first 10-minute alert run (up to
     10 minutes), then real values. The Current conditions tile works against production only
     once this is deployed: SDK 5.0.0-beta.7 expects the new fields.
+  - **AirNow -999 hours already stored, before the daily peaks backfill (found 2026-11-09):** the importer has skipped AirNow's
+    -999 missing-value code since sjvair.com a7507e9d (2026-10-22, already on `main`), but hours stored before that
+    stay: public data from www.sjvair.com showed an O3 hourly summary of -999 (count 1, `is_complete` true) for Fresno – Garland
+    at 2026-09-24 17:00 PT (spec 5 session, one read-only pull, with the user's yes). Locally, summaries have none, but 6 raw
+    PM2.5/PM10 entries of -999 (2026-10-19 to 10-22) remain. `backfill_airnow` drops stored -999 hours. Run it, scoped,
+    over the affected window, then rebuild the affected hourly and daily summaries, **before** `fill_daily_peaks`, so a
+    -999 doesn't become a day's `max_1h`. Exact commands come with the scale-averaging work (sjvair-com-64). **Why
+    deferred:** nothing touches production until `develop` deploys. **Revisit:** at the deploy.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
