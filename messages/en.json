@@ -703,6 +703,7 @@
 	"calendar_no_data": "No data",
 	"calendar_color_key": "Color key",
 	"calendar_legend_threshold": "At or above {level}",
+	"calendar_legend_tier": "{tier} · {level}",
 	"calendar_threshold_count": [
 		{
 			"declarations": [

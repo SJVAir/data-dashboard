@@ -382,6 +382,34 @@ test("long labels wrap at spaces only, and give way to the tier number when they
 	}
 });
 
+test("while days show tier numbers, the legend says which number is which level", async () => {
+	days["2026-11-06"] = 44.8;
+	days["2026-11-07"] = 81.8;
+	const chips = () =>
+		[...frame.querySelectorAll("[data-calendar-legend] [data-level-chip]")].map((c) =>
+			c.textContent!.trim()
+		);
+	frame.style.width = "388px";
+	frame.style.height = "444px";
+	await show(calendar());
+	await expect.poll(() => visibleText("2026-11-06")).toEqual(["6", "44.8", "2"]);
+	await expect
+		.poll(chips)
+		.toEqual([
+			"0 · Good",
+			"1 · Moderate",
+			"2 · Unhealthy for Sensitive Groups",
+			"3 · Unhealthy",
+			"4 · Very Unhealthy"
+		]);
+	// Wide enough for the words: the chips are just the labels.
+	frame.style.width = "1150px";
+	frame.style.height = "700px";
+	await expect
+		.poll(chips)
+		.toEqual(["Good", "Moderate", "Unhealthy for Sensitive Groups", "Unhealthy", "Very Unhealthy"]);
+});
+
 for (const theme of ["light", "dark"] as const) {
 	test(`"Not enough data" reads in the foreground color on a solid backing (${theme})`, async () => {
 		document.documentElement.dataset.theme = theme;

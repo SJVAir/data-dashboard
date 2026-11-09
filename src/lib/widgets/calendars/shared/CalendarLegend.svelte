@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Level } from "$lib/data/metadata";
 	import type { DayState } from "$lib/calendars/day-state";
+	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import LevelChip from "../../shared/LevelChip.svelte";
 	import { inkOf, tierPattern } from "./patterns";
@@ -9,7 +10,8 @@
 		levels,
 		states,
 		threshold,
-		patterns
+		patterns,
+		tiers = false
 	}: {
 		levels: Level[];
 		states: Map<string, DayState>;
@@ -19,6 +21,8 @@
 		 * swatch, with the tier pattern when on). Unset: each level is a labelled chip.
 		 */
 		patterns?: boolean;
+		/** The month calendar's days show tier numbers: each chip says its level's ("2 · …"). */
+		tiers?: boolean;
 	} = $props();
 
 	/** The scale's levels up to one above the highest a colored day shows; none if none does. */
@@ -56,7 +60,15 @@
 >
 	{#each shownLevels as level (level.key)}
 		{#if patterns === undefined}
-			<li><LevelChip {level} size="sm" /></li>
+			<li>
+				<LevelChip
+					{level}
+					size="sm"
+					text={tiers && level.tier != null
+						? m.calendar_legend_tier({ tier: formatNumber(level.tier), level: level.label })
+						: undefined}
+				/>
+			</li>
 		{:else}
 			{@const pattern =
 				patterns && level.color ? tierPattern(level.tier, inkOf(level.color)) : null}

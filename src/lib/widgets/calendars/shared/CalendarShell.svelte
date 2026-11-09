@@ -29,7 +29,8 @@
 		grid,
 		patterns,
 		dragging = false,
-		legendAside
+		legendAside,
+		tiers = false
 	}: {
 		data: CalendarData;
 		widget: WidgetInstance;
@@ -42,6 +43,8 @@
 		legendAside?: Snippet;
 		/** A drag is extending the selection: the live region waits until it settles. */
 		dragging?: boolean;
+		/** The days show tier numbers: the legend names each level's. */
+		tiers?: boolean;
 	} = $props();
 
 	const tip = provideCalendarTip();
@@ -219,6 +222,7 @@
 						states={data.states}
 						threshold={data.threshold}
 						{patterns}
+						{tiers}
 					/>
 					{@render legendAside?.()}
 				</div>

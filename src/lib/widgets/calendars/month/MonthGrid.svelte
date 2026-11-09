@@ -25,7 +25,8 @@
 		onselect,
 		label,
 		dragging = $bindable(false),
-		preview = $bindable(null)
+		preview = $bindable(null),
+		fit = $bindable("tier")
 	}: {
 		data: CalendarData;
 		selection: DaySpan | null;
@@ -33,6 +34,8 @@
 		label: string;
 		dragging?: boolean;
 		preview?: DaySpan | null;
+		/** Whether the days show their words, or tier numbers (the legend then names them). */
+		fit?: "label" | "tier";
 	} = $props();
 
 	/**
@@ -112,7 +115,6 @@
 	 * metadata and may be translated; again whenever the cells change size.
 	 */
 	let box = $state<HTMLElement>();
-	let fit = $state<"label" | "tier">("tier");
 	$effect(() => {
 		const el = box;
 		const words = cellWords;
