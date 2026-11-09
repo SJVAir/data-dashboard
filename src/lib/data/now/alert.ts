@@ -17,12 +17,42 @@ export type AlertConfig = {
 	expectedIntervalMinutes: number | null;
 };
 
-/** A monitor's current alert values, as a now source (polled every 3 minutes). */
-export function alertSource(monitorId: string): NowSource<AlertRecord> {
+/** A request that takes longer than this fails, so a tile never waits on a hung connection. */
+export const ALERT_TIMEOUT_MS = 20_000;
+
+/**
+ * A monitor's current alert values, as a now source (polled every 3 minutes). A request that
+ * takes over `timeoutMs` is aborted and fails; the tile then reads the hourly average and the
+ * poller's backoff retries.
+ */
+export function alertSource(
+	monitorId: string,
+	opts: { timeoutMs?: number } = {}
+): NowSource<AlertRecord> {
+	const timeoutMs = opts.timeoutMs ?? ALERT_TIMEOUT_MS;
 	return {
 		key: `alert:${monitorId}`,
 		cadence: "raw",
-		fetch: (signal) => getMonitorAlertCurrent(monitorId, { signal })
+		fetch: (signal) =>
+			new Promise<AlertRecord>((resolve, reject) => {
+				const request = new AbortController();
+				const timer = setTimeout(() => {
+					reject(new Error("The alert request timed out"));
+					request.abort();
+				}, timeoutMs);
+				const stop = () => {
+					clearTimeout(timer);
+					request.abort();
+					reject(new DOMException("The operation was aborted.", "AbortError"));
+				};
+				signal.addEventListener("abort", stop, { once: true });
+				getMonitorAlertCurrent(monitorId, { signal: request.signal })
+					.then(resolve, reject)
+					.finally(() => {
+						clearTimeout(timer);
+						signal.removeEventListener("abort", stop);
+					});
+			})
 	};
 }
 

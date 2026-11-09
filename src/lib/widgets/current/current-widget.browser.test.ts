@@ -37,7 +37,10 @@ const fake = vi.hoisted(() => ({
 	/** Monitor ids whose alert fetch rejects. */
 	alertFail: new Set<string>(),
 	/** What the hourly fetch does for a monitor id: reject, or never answer. */
-	hourly: {} as Record<string, "fail" | "hang">
+	hourly: {} as Record<string, "fail" | "hang">,
+	hourlyCalls: 0,
+	/** Makes the next scale (levels) lookup reject. */
+	levelsFail: false
 }));
 vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
@@ -85,6 +88,7 @@ function adapter(values: Record<string, [number, number]>): DatasetAdapter {
 		offered: (base) => base,
 		async fetch(req) {
 			const id = req.target.kind === "monitors" ? req.target.ids[0] : "";
+			fake.hourlyCalls++;
 			if (fake.hourly[id] === "fail") throw new Error("hourly failed");
 			if (fake.hourly[id] === "hang") await new Promise(() => {});
 			const [before, latest] = values[id] ?? [0, 0];
@@ -119,11 +123,19 @@ beforeEach(async () => {
 	fake.alertCalls = [];
 	fake.alertFail = new Set();
 	fake.hourly = {};
+	fake.hourlyCalls = 0;
+	fake.levelsFail = false;
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,
-		levels: async (entryType) => (entryType === "pm25" ? LEVELS : []),
+		levels: async (entryType) => {
+			if (fake.levelsFail) {
+				fake.levelsFail = false;
+				throw new Error("levels failed");
+			}
+			return entryType === "pm25" ? LEVELS : [];
+		},
 		monitorType: async (id) =>
-			({ "m-pa": "purpleair", "m-bam": "bam1022", voz: "vozbox" })[id] ?? null,
+			({ "m-pa": "purpleair", "m-bam": "bam1022", voz: "vozbox", "m-x": "purpleair" })[id] ?? null,
 		monitors: async () => [
 			{ id: "m-pa", name: "PA", type: "purpleair", county: "Fresno", active: true },
 			{ id: "m-bam", name: "BAM", type: "bam1022", county: "Fresno", active: true },
@@ -518,4 +530,46 @@ test("a lookup that resolves after the place changed does not set the old monito
 	await new Promise((r) => setTimeout(r, 100));
 	expect(fake.alertCalls).toEqual([]);
 	await expect.element(screen.getByText("21.0", { exact: true })).toBeVisible();
+});
+
+test("Retry fetches again only what failed: the hourly query, not the alert", async () => {
+	fake.hourly = { "m-pa": "fail" };
+	fake.alerts = { "m-pa": {} };
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText(m.widget_state_retry()), { timeout: 5000 }).toBeVisible();
+	expect(fake.alertCalls).toEqual(["m-pa"]);
+	const hourly = fake.hourlyCalls;
+	fake.hourly = {};
+	await screen.getByText(m.widget_state_retry()).click();
+	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();
+	expect(fake.hourlyCalls).toBeGreaterThan(hourly);
+	expect(fake.alertCalls).toEqual(["m-pa"]);
+});
+
+test("Retry after failed levels fetches neither query again", async () => {
+	fake.alerts = { "m-pa": { pm25: alertEntry() } as never };
+	fake.levelsFail = true;
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText(m.widget_state_retry()), { timeout: 5000 }).toBeVisible();
+	const hourly = fake.hourlyCalls;
+	await screen.getByText(m.widget_state_retry()).click();
+	await expect.element(screen.getByText("31.2"), { timeout: 5000 }).toBeVisible();
+	expect(fake.hourlyCalls).toBe(hourly);
+	expect(fake.alertCalls).toEqual(["m-pa"]);
+});
+
+test("a monitor the list has no name for is called the unnamed place, not its id", async () => {
+	fake.alerts = { "m-x": { pm25: alertEntry() } as never };
+	const widget = currentWidget("m-x");
+	await show(widget);
+	await expect
+		.poll(() => generatedTitle(widget.id), { timeout: 5000 })
+		.toBe(`PM2.5 · ${m.place_picker_unnamed()}`);
+	// And with the hourly query failed, so no hourly place names it.
+	fake.hourly = { "m-x": "fail" };
+	const other = currentWidget("m-x");
+	await show(other);
+	await expect
+		.poll(() => generatedTitle(other.id), { timeout: 5000 })
+		.toBe(`PM2.5 · ${m.place_picker_unnamed()}`);
 });

@@ -6,7 +6,13 @@ import { getMonitorAlertCurrent } from "@sjvair/sdk";
 import { parseMinutes } from "../metadata";
 import type { Level } from "../metadata";
 import type { PlaceInfo } from "../types";
-import { alertReading, alertSource, type AlertConfig, type AlertCurrent } from "./alert";
+import {
+	ALERT_TIMEOUT_MS,
+	alertReading,
+	alertSource,
+	type AlertConfig,
+	type AlertCurrent
+} from "./alert";
 
 const levels: Level[] = [
 	{
@@ -148,7 +154,48 @@ describe("alertSource", () => {
 		expect(source).toMatchObject({ key: "alert:m1", cadence: "raw" });
 		const signal = new AbortController().signal;
 		expect(await source.fetch(signal)).toBe(record);
-		expect(getMonitorAlertCurrent).toHaveBeenCalledWith("m1", { signal });
+		expect(getMonitorAlertCurrent).toHaveBeenCalledWith("m1", {
+			signal: expect.any(AbortSignal)
+		});
+	});
+
+	it("fails a request that takes longer than the timeout, aborting it", async () => {
+		vi.useFakeTimers();
+		try {
+			let sent: AbortSignal | undefined;
+			vi.mocked(getMonitorAlertCurrent).mockImplementation((_id, options) => {
+				sent = options?.signal ?? undefined;
+				return new Promise(() => {});
+			});
+			const result = alertSource("m1").fetch(new AbortController().signal);
+			const failed = expect(result).rejects.toThrow("timed out");
+			await vi.advanceTimersByTimeAsync(ALERT_TIMEOUT_MS);
+			await failed;
+			expect(sent?.aborted).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("aborts the request when the caller aborts, and never times out after an answer", async () => {
+		vi.useFakeTimers();
+		try {
+			const caller = new AbortController();
+			let sent: AbortSignal | undefined;
+			vi.mocked(getMonitorAlertCurrent).mockImplementation((_id, options) => {
+				sent = options?.signal ?? undefined;
+				return new Promise(() => {});
+			});
+			const aborted = expect(alertSource("m1").fetch(caller.signal)).rejects.toThrow("aborted");
+			caller.abort();
+			await aborted;
+			expect(sent?.aborted).toBe(true);
+			vi.mocked(getMonitorAlertCurrent).mockResolvedValue({});
+			await expect(alertSource("m1").fetch(new AbortController().signal)).resolves.toEqual({});
+			await vi.advanceTimersByTimeAsync(ALERT_TIMEOUT_MS);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

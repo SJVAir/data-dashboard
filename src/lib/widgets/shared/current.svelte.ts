@@ -6,14 +6,29 @@ import { alertReading, alertSource, type AlertConfig, type AlertRecord } from "$
 import { hourlyReading, type CurrentReading } from "$lib/data/now/current";
 import { NowQuery } from "$lib/data/now/now-query.svelte";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
-import type { QueryState, UnavailableReason } from "$lib/data/types";
+import type { PlaceInfo, QueryState, UnavailableReason } from "$lib/data/types";
+import { m } from "$lib/paraglide/messages.js";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { entryMeta, mainLayer, nowInput } from "./input";
 
 type Levels = Level[] | { error: unknown } | undefined;
 
 /** A monitor the server evaluates alerts for: what its alert value needs. */
-type AlertMode = { monitorId: string; entryType: string; config: AlertConfig; name: string };
+type AlertMode = {
+	monitorId: string;
+	entryType: string;
+	config: AlertConfig;
+	/** The monitor's name, `null` when the monitors list has none for it. */
+	name: string | null;
+};
+
+/** The place an alert reading is of: the hourly query's when it has one, named as the tile names it. */
+function alertPlace(mode: AlertMode, hourly: PlaceInfo | undefined): PlaceInfo {
+	const name = mode.name ?? m.place_picker_unnamed();
+	return hourly
+		? { ...hourly, name: mode.name === null ? name : hourly.name }
+		: { place: `monitor:${mode.monitorId}`, name };
+}
 
 /**
  * The current reading of a widget's first layer's place, with its levels. Used by the two "now"
@@ -81,7 +96,7 @@ export class CurrentConditions {
 				const type = await metadata.monitorType(id, signal);
 				const config = type ? await metadata.alertConfig(type, entryType, signal) : null;
 				if (!config) return null;
-				const name = (await metadata.monitors(signal)).find((mon) => mon.id === id)?.name ?? id;
+				const name = (await metadata.monitors(signal)).find((mon) => mon.id === id)?.name ?? null;
 				return { monitorId: id, entryType, config, name };
 			})().then(
 				(mode) => {
@@ -150,7 +165,7 @@ export class CurrentConditions {
 					status: "ready",
 					data: (s.status === "loading" || s.status === "error" ? s.data : undefined) ?? {
 						series: [],
-						places: [{ place: `monitor:${usable.mode.monitorId}`, name: usable.mode.name }],
+						places: [alertPlace(usable.mode, undefined)],
 						resolution: "hour",
 						fromRaw: false,
 						processor: null,
@@ -183,8 +198,10 @@ export class CurrentConditions {
 			const precision = meta?.entryType.precision ?? null;
 			const usable = alertUsable;
 			if (usable) {
-				const place = (s.status === "unavailable" || s.status === "idle" ? undefined : s.data)
-					?.places[0] ?? { place: `monitor:${usable.mode.monitorId}`, name: usable.mode.name };
+				const place = alertPlace(
+					usable.mode,
+					(s.status === "unavailable" || s.status === "idle" ? undefined : s.data)?.places[0]
+				);
 				return alertReading(usable.entry, usable.levels, usable.mode.config, place, precision);
 			}
 			if (alertPending) return undefined;
@@ -197,7 +214,9 @@ export class CurrentConditions {
 
 	retry = (): void => {
 		if (this.#levels && !Array.isArray(this.#levels)) this.#levelsTry++;
-		this.#query.retry();
-		this.#alertQuery.retry();
+		// Only what failed: a query that is fine isn't fetched again.
+		const failed = (status: string) => status === "error" || status === "unavailable";
+		if (failed(this.#query.state.status)) this.#query.retry();
+		if (failed(this.#alertQuery.state.status)) this.#alertQuery.retry();
 	};
 }
