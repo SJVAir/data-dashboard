@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
+import { setShownSelection } from "$lib/calendars/shown-registry";
 import { CONTRIBUTION_CALENDAR_TYPE, MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { setPlatform } from "$lib/platform";
@@ -26,7 +27,11 @@ beforeEach(async () => {
 	}
 	registerWidgetType(placeholderType);
 });
+/** What a mounted calendar records while it shows saved days (the frames show a placeholder). */
+let unshow: (() => void) | undefined;
 afterEach(() => {
+	unshow?.();
+	unshow = undefined;
 	toast.dismiss();
 	history.replaceState(null, "", originalUrl);
 });
@@ -72,6 +77,8 @@ async function edit(widget: WidgetInstance) {
 	});
 	const session = (await DocumentSession.open(platform, app.space, id, "t2"))!;
 	app.current = { session, isStarter: false };
+	const sub = widget.data.timeSubRange;
+	if (sub) unshow = setShownSelection(widget.id, Symbol("calendar"), sub);
 	await render(Harness, { props: {}, context: new Map([[APP_CONTEXT_KEY, app]]) });
 	return session;
 }

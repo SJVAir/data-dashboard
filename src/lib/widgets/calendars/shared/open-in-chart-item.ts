@@ -3,7 +3,7 @@ import type { MenuItem } from "$lib/actions/types";
 import { report } from "$lib/safety/report";
 import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
-import { shownSelection } from "$lib/calendars/shown-selection";
+import { showsSelection } from "$lib/calendars/shown-registry";
 import type { WidgetMenuEnv } from "../../registry";
 
 /**
@@ -13,7 +13,7 @@ import type { WidgetMenuEnv } from "../../registry";
  */
 export function openInChartItems(env: WidgetMenuEnv): MenuItem[] {
 	const widget = env.widget();
-	if (!widget || !shownSelection(widget)) return [];
+	if (!widget || !showsSelection(widget.id)) return [];
 	return [
 		{
 			id: "calendar_open_in_chart",

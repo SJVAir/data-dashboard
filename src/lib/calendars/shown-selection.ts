@@ -1,10 +1,10 @@
-// Light on purpose: the calendars' menu item (in the initial bundle) reads it.
+// Lazy code only (the chart opener): the menu item reads `shown-registry` instead.
 import type { WidgetInstance } from "$lib/documents/schema";
 import { todayPacific } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { visibleSelection } from "./selection";
-import { CALENDAR_DEFAULT_RANGES } from "./types";
+import { CALENDAR_DEFAULT_RANGES } from "./input";
 
 /**
  * The part of a calendar's saved selection it shows now: inside its range as of `now`, and no

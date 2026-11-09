@@ -1,4 +1,5 @@
 import { visibleSelection } from "$lib/calendars/selection";
+import { setShownSelection } from "$lib/calendars/shown-registry";
 import type { WidgetInstance } from "$lib/documents/schema";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { CalendarData } from "./calendar-data.svelte";
@@ -6,7 +7,8 @@ import { canWriteSelection, writeSelection, type DaySpan } from "./write-selecti
 
 /**
  * A calendar's selected days: saved with the dashboard when it can be; else (shared and
- * read-only views, Get data's preview) kept here, in memory. Plus the drag in progress.
+ * read-only views, Get data's preview) kept here, in memory. Plus the drag in progress. Call
+ * during component initialization.
  */
 export class CalendarSelection {
 	readonly #app: AppContext;
@@ -38,6 +40,12 @@ export class CalendarSelection {
 		this.#app = app;
 		this.#widget = widget;
 		this.#data = data;
+		// The menu's "Open these days in a chart" is offered while saved days are shown.
+		const owner = Symbol("calendar");
+		$effect(() => {
+			const sel = this.writable ? this.selection : null;
+			return setShownSelection(this.#widget().id, owner, sel);
+		});
 	}
 
 	/** A finished gesture's selection. */

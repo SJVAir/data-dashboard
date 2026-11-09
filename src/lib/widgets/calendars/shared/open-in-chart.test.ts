@@ -4,6 +4,7 @@ import { CURRENT_SCHEMA_VERSION, type Dashboard, type WidgetInstance } from "$li
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
+import { setShownSelection } from "$lib/calendars/shown-registry";
 import { monthCalendarType } from "../month";
 import { openDaysInChart } from "./open-in-chart";
 
@@ -97,25 +98,27 @@ describe("open days in a chart", () => {
 		expect(session.doc.body.widgets).toHaveLength(1);
 	});
 
-	it("lists the menu item only with a selection", async () => {
-		for (const selected of [true, false]) {
-			const { session, app } = await setup(selected);
-			const items = monthCalendarType.menu(ctx, {
-				app,
-				widget: () => session.doc.body.widgets[0]
-			});
-			expect(items.map((i) => i.id)).toEqual(selected ? ["calendar_open_in_chart"] : []);
-		}
+	it("lists the menu item only while the mounted calendar shows a selection", async () => {
+		const { session, app } = await setup(true);
+		const env = { app, widget: () => session.doc.body.widgets[0] };
+		expect(monthCalendarType.menu(ctx, env)).toEqual([]);
+		const owner = Symbol("test");
+		const remove = setShownSelection("cal", owner, { start: "2026-11-05", end: "2026-11-08" });
+		expect(monthCalendarType.menu(ctx, env).map((i) => i.id)).toEqual(["calendar_open_in_chart"]);
+		// A second copy (Get data's preview) going doesn't take the first one's away.
+		const preview = Symbol("preview");
+		setShownSelection("cal", preview, { start: "2026-11-05", end: "2026-11-05" })();
+		expect(monthCalendarType.menu(ctx, env)).toHaveLength(1);
+		remove();
+		expect(monthCalendarType.menu(ctx, env)).toEqual([]);
 	});
 
-	it("uses the selection shown: a rolling range that moved on hides it, a partial one clips", async () => {
+	it("charts the selection shown: none once a rolling range moved on, a partial one clipped", async () => {
 		// "This month" on Dec 1: the November selection is out of the range.
 		vi.setSystemTime(new Date("2026-12-01T20:00:00Z"));
 		const moved = await setup(true, (w) => {
 			w.data.dateRange = { kind: "to-date", unit: "month" };
 		});
-		const env = { app: moved.app, widget: () => moved.session.doc.body.widgets[0] };
-		expect(monthCalendarType.menu(ctx, env)).toEqual([]);
 		openDaysInChart(moved.app, "cal");
 		expect(moved.session.doc.body.widgets).toHaveLength(1);
 
@@ -125,11 +128,6 @@ describe("open days in a chart", () => {
 			w.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 			w.data.timeSubRange = { start: "2026-11-01", end: "2026-11-08" };
 		});
-		expect(
-			monthCalendarType
-				.menu(ctx, { app: partial.app, widget: () => partial.session.doc.body.widgets[0] })
-				.map((i) => i.id)
-		).toEqual(["calendar_open_in_chart"]);
 		openDaysInChart(partial.app, "cal");
 		const chart = partial.session.doc.body.widgets[1];
 		expect(chart.data.dateRange).toEqual({

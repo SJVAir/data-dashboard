@@ -16,6 +16,7 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { showsSelection } from "$lib/calendars/shown-registry";
 import { MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
 import { PM25_LEVELS } from "../../shared/test-harness/fake-data";
 import { component } from "./module";
@@ -648,6 +649,34 @@ test("Shift+arrows then Escape drops the extension and the selection", async () 
 	await userEvent.keyboard("{Escape}{/Shift}");
 	expect(saved(read)).toBeUndefined();
 	expect(frame.querySelector("[data-selected]")).toBeNull();
+});
+
+test("the calendar tells the menu whether it shows saved days", async () => {
+	const widget = calendar();
+	widget.data.timeSubRange = { start: "2026-11-05", end: "2026-11-06" };
+	const { screen, read } = await show(widget);
+	expect(showsSelection("cal")).toBe(true);
+	await userEvent.keyboard("{Escape}");
+	await userEvent.click(cellOf("2026-11-06")!);
+	await userEvent.click(cellOf("2026-11-06")!);
+	expect(saved(read)).toBeUndefined();
+	await expect.poll(() => showsSelection("cal")).toBe(false);
+	await userEvent.click(cellOf("2026-11-02")!);
+	await expect.poll(() => showsSelection("cal")).toBe(true);
+	screen.unmount();
+	expect(showsSelection("cal")).toBe(false);
+});
+
+test("a rolling range that moved past the saved days shows none, and tells the menu so", async () => {
+	// The last 3 days on Dec 1 (Nov 29 – Dec 1), with Nov 5–6 saved.
+	vi.setSystemTime(new Date("2026-12-01T20:00:00Z"));
+	const widget = calendar();
+	widget.data.dateRange = { kind: "trailing", amount: 3, unit: "day" };
+	widget.data.timeSubRange = { start: "2026-11-05", end: "2026-11-06" };
+	days["2026-11-29"] = 10;
+	await show(widget, { ready: "2026-11-29" });
+	expect(frame.querySelector("[data-selected]")).toBeNull();
+	expect(showsSelection("cal")).toBe(false);
 });
 
 test("a shared view selects in memory and saves nothing", async () => {
