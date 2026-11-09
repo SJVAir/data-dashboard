@@ -48,9 +48,9 @@
 		stateOf?: (date: string) => DayState | undefined;
 		/** Drawn at the top of each section (hidden headings, a row of column headers). */
 		header?: Snippet<[DayGridSection]>;
-		/** A pointer drag is extending the selection (not yet saved). */
+		/** A pointer drag or Shift+arrows are extending the selection (not yet saved). */
 		dragging?: boolean;
-		/** The selection a drag in progress would make. */
+		/** The selection a drag or Shift+arrows in progress would make. */
 		preview?: DaySpan | null;
 		class?: string;
 		sectionClass?: string;
@@ -94,6 +94,22 @@
 		else tip.hide();
 	});
 	$effect(() => () => tip?.hide());
+	// The pointer left the tooltip for somewhere off the grid: the tip goes too.
+	$effect(() =>
+		tip?.onleave(() => {
+			if (tipAt?.source === "pointer") tipAt = null;
+		})
+	);
+	// Escape dismisses a pointer's tip wherever focus is (WCAG 1.4.13); the grid's own Escape
+	// handles the rest.
+	$effect(() => {
+		if (tipAt?.source !== "pointer") return;
+		const onkey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") tipAt = null;
+		};
+		window.addEventListener("keydown", onkey);
+		return () => window.removeEventListener("keydown", onkey);
+	});
 	$effect(() => {
 		if (!tipAt) return;
 		const source = tipAt.source;
@@ -117,7 +133,10 @@
 		else if (tipAt?.source === "pointer") tipAt = null;
 	}
 
-	function onpointerleave(): void {
+	function onpointerleave(event: PointerEvent): void {
+		// Onto the tooltip: it stays while the pointer is over it (WCAG 1.4.13).
+		const to = event.relatedTarget as Element | null;
+		if (to?.closest?.("[data-calendar-tip]")) return;
 		if (tipAt?.source === "pointer") tipAt = null;
 	}
 
@@ -127,9 +146,9 @@
 	}
 
 	function onfocusout(event: FocusEvent): void {
-		if (!root?.contains(event.relatedTarget as Node | null) && tipAt?.source === "focus") {
-			tipAt = null;
-		}
+		if (root?.contains(event.relatedTarget as Node | null)) return;
+		finishExtend();
+		if (tipAt?.source === "focus") tipAt = null;
 	}
 
 	const isSelected = (date: string) => !!shown && date >= shown.start && date <= shown.end;
@@ -161,14 +180,40 @@
 		"PageDown"
 	]);
 
+	/**
+	 * A Shift+arrow extension in progress, from its fixed end: shown as a preview and saved once
+	 * Shift is let go (or focus leaves, or another key is pressed), so the whole gesture is one
+	 * change, one undo step and one announcement, as a drag is.
+	 */
+	let extending: { from: string } | null = null;
+
+	function finishExtend(): void {
+		if (!extending) return;
+		const sel = preview;
+		extending = null;
+		end();
+		if (sel) onselect(sel);
+	}
+
+	const MODIFIERS = new Set(["Shift", "Control", "Alt", "Meta"]);
+
+	function onkeyup(event: KeyboardEvent): void {
+		if (event.key === "Shift") finishExtend();
+	}
+
 	function onkeydown(event: KeyboardEvent): void {
 		if (event.key === "Escape") {
 			tipAt = null;
-			if (!selection) return;
+			const wasExtending = !!extending;
+			if (wasExtending) {
+				extending = null;
+				end();
+			}
+			if (!selection && !wasExtending) return;
 			event.preventDefault();
 			event.stopPropagation();
 			anchor = null;
-			onselect(null);
+			if (selection) onselect(null);
 			return;
 		}
 		if (!s || !focusDay) return;
@@ -176,13 +221,20 @@
 			event.preventDefault();
 			const next = moveFocus(focusDay, event.key, layout, s);
 			if (event.shiftKey) {
-				const from = selection ? anchorFor(focusDay) : focusDay;
-				anchor = from;
-				onselect(spanOf(from, next));
+				extending ??= { from: selection ? anchorFor(focusDay) : focusDay };
+				anchor = extending.from;
+				const span = spanOf(extending.from, next);
+				if (preview?.start !== span.start || preview?.end !== span.end) preview = span;
+				dragging = true;
+			} else {
+				finishExtend();
 			}
 			void focusCell(next);
 			return;
 		}
+		// A held Shift repeats its keydown on some systems: only other keys end the gesture.
+		if (MODIFIERS.has(event.key)) return;
+		finishExtend();
 		if (event.key === " " || event.key === "Enter") {
 			event.preventDefault();
 			toggle(focusDay);
@@ -217,6 +269,7 @@
 	}
 
 	function onpointerdown(event: PointerEvent): void {
+		finishExtend();
 		if (event.button !== 0 || !s) return;
 		const date = (event.target as Element).closest<HTMLElement>("[data-date]")?.dataset.date;
 		if (!pickable(date)) return;
@@ -282,6 +335,7 @@
 	data-dragging={dragging ? "" : undefined}
 	class={["select-none", className]}
 	{onkeydown}
+	{onkeyup}
 	{onpointerdown}
 	{onpointerover}
 	{onpointerleave}

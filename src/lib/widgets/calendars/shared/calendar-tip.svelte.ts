@@ -21,6 +21,20 @@ export class CalendarTip {
 	hide(): void {
 		this.current = null;
 	}
+
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- listeners, never read reactively
+	#leave = new Set<() => void>();
+
+	/** Runs `fn` when the pointer leaves the tooltip for somewhere off the grid; returns its undo. */
+	onleave(fn: () => void): () => void {
+		this.#leave.add(fn);
+		return () => this.#leave.delete(fn);
+	}
+
+	/** The pointer left the tooltip for somewhere off the grid. */
+	left(): void {
+		for (const fn of this.#leave) fn();
+	}
 }
 
 const KEY = Symbol("calendar-tip");

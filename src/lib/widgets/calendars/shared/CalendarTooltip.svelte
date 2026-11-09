@@ -29,12 +29,18 @@
 </script>
 
 {#if tip.current}
-	<!-- What the cell's accessible name already says, for the eye: hidden from assistive tech. -->
+	<!-- What the cell's accessible name already says, for the eye: hidden from assistive tech.
+	     It stays while the pointer is over it, so its text can be read (WCAG 1.4.13). -->
 	<div
 		bind:this={el}
 		aria-hidden="true"
 		data-calendar-tip
-		class="bg-popover text-popover-foreground border-border shadow-lifted pointer-events-none absolute z-20 max-w-64 rounded-(--radius-control) border px-2 py-1 text-xs"
+		onpointerleave={(event) => {
+			// Back onto a day: the grid shows that day's tip instead.
+			const to = event.relatedTarget as Element | null;
+			if (!to?.closest?.("[data-date]") || !host?.contains(to)) tip.left();
+		}}
+		class="bg-popover text-popover-foreground border-border shadow-lifted absolute z-20 max-w-64 rounded-(--radius-control) border px-2 py-1 text-xs"
 		style:left="{pos?.left ?? 0}px"
 		style:top="{pos?.top ?? 0}px"
 		style:visibility={pos ? "visible" : "hidden"}

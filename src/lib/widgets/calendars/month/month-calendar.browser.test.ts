@@ -297,6 +297,125 @@ test("two months sit side by side, and stack at phone width", async () => {
 		.toBe(true);
 });
 
+/** The week rows of the first month (not its row of weekday headings). */
+const weekRows = () =>
+	[...frame.querySelectorAll<HTMLElement>("[role=rowgroup] > [role=row]")].filter((r) =>
+		r.querySelector("[role=gridcell]")
+	);
+
+test("a wide widget: one month spans the width up to its cap, its weeks the same height", async () => {
+	frame.style.width = "1150px";
+	frame.style.height = "700px";
+	await show(calendar());
+	const month = () => frame.querySelector<HTMLElement>("[role=rowgroup]")!.getBoundingClientRect();
+	const grid = frame.querySelector<HTMLElement>("[role=grid]")!;
+	expect(month().width).toBeGreaterThan(0.9 * (grid.clientWidth - 16));
+	const heights = weekRows().map((r) => Math.round(r.getBoundingClientRect().height));
+	expect(heights).toHaveLength(5);
+	expect(new Set(heights).size).toBe(1);
+	// The weeks grow into the free height (up to 7rem each), not left at their minimum.
+	expect(heights[0]).toBeGreaterThan(80);
+	expect(heights[0]).toBeLessThanOrEqual(112);
+
+	// Wider still, the month stops at its cap (cells about 9rem wide).
+	frame.style.width = "1600px";
+	await expect.poll(() => Math.round(month().width)).toBe(1024);
+});
+
+/** Whether each word of `el`'s text sits on one line (no break inside a word). */
+function wordsWhole(el: HTMLElement): boolean {
+	const node = el.firstChild?.nodeType === Node.TEXT_NODE ? el.firstChild : null;
+	if (!node) return true;
+	const text = node.textContent!;
+	const range = document.createRange();
+	for (const match of text.matchAll(/\S+/g)) {
+		range.setStart(node, match.index!);
+		range.setEnd(node, match.index! + match[0].length);
+		const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+		if (lines.size > 1) return false;
+	}
+	return true;
+}
+
+test("long labels wrap at spaces only, and give way to the tier number when they don't fit", async () => {
+	days["2026-11-06"] = 44.8;
+	days["2026-11-07"] = 81.8;
+	// The default 4-column widget's width: "Sensitive" doesn't fit a cell, so every day shows its tier.
+	frame.style.width = "388px";
+	frame.style.height = "444px";
+	await show(calendar());
+	await expect.poll(() => visibleText("2026-11-06")).toEqual(["6", "44.8", "2"]);
+	expect(visibleText("2026-11-07")).toEqual(["7", "81.8", "3"]);
+	expect(visibleText("2026-11-05")).toEqual(["5", "20", "1"]);
+	expect(cellOf("2026-11-06")!.querySelector("[data-name]")!.textContent).toBe(
+		"Friday, November 6: 24-hour average 44.8 µg/m³, Unhealthy for Sensitive Groups"
+	);
+
+	// Wide: the full labels, every word whole and inside its cell.
+	frame.style.width = "1150px";
+	frame.style.height = "700px";
+	await expect
+		.poll(() => visibleText("2026-11-06"))
+		.toEqual(["6", "44.8", "Unhealthy for Sensitive Groups"]);
+	for (const words of frame.querySelectorAll<HTMLElement>("[data-words]")) {
+		if (words.offsetParent === null) continue;
+		const cell = words.closest<HTMLElement>("[data-cell]")!;
+		expect(words.scrollWidth).toBeLessThanOrEqual(words.clientWidth);
+		expect(words.getBoundingClientRect().right).toBeLessThanOrEqual(
+			cell.getBoundingClientRect().right
+		);
+		expect(words.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			cell.getBoundingClientRect().bottom
+		);
+		expect(wordsWhole(words), words.textContent!).toBe(true);
+	}
+});
+
+for (const theme of ["light", "dark"] as const) {
+	test(`"Not enough data" reads in the foreground color on a solid backing (${theme})`, async () => {
+		document.documentElement.dataset.theme = theme;
+		try {
+			days["2026-11-03"] = null;
+			frame.style.width = "1150px";
+			frame.style.height = "700px";
+			await show(calendar());
+			const probe = document.createElement("span");
+			probe.className = "text-foreground bg-muted";
+			frame.appendChild(probe);
+			const want = getComputedStyle(probe);
+			const cell = inner("2026-11-03");
+			expect(cell.classList).toContain("calendar-stripes");
+			const spans = [...cell.querySelectorAll<HTMLElement>("span")].filter(
+				(el) => el.offsetParent !== null
+			);
+			expect(spans.map((el) => el.textContent!.trim())).toEqual([
+				"3",
+				m.calendar_not_enough_data()
+			]);
+			for (const el of spans) {
+				const style = getComputedStyle(el);
+				expect(style.color).toBe(want.color);
+				expect(style.backgroundColor).toBe(want.backgroundColor);
+			}
+			// The legend's swatch draws the same stripes as the cells.
+			const swatch = frame.querySelector<HTMLElement>("[data-swatch=thin]")!;
+			expect(getComputedStyle(swatch).backgroundImage).toBe(getComputedStyle(cell).backgroundImage);
+		} finally {
+			delete document.documentElement.dataset.theme;
+		}
+	});
+}
+
+test("a past custom range draws no days after its end", async () => {
+	const widget = calendar();
+	widget.data.dateRange = { kind: "custom", start: "2026-11-01", end: "2026-11-05" };
+	await show(widget);
+	const dated = [...frame.querySelectorAll<HTMLElement>("[data-date]")].map(
+		(el) => el.dataset.date
+	);
+	expect(dated).toEqual(["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"]);
+});
+
 /** The selection saved on the widget. */
 const saved = (read: () => WidgetInstance) => read().data.timeSubRange;
 
@@ -492,6 +611,35 @@ test("the keyboard: one Tab stop, arrows, Home/End, Page Up/Down, Space, Shift+a
 	expect(getComputedStyle(inner("2026-11-06")).boxShadow).toBe("none");
 });
 
+test("Shift+arrows extend as one change, saved and announced once Shift is let go", async () => {
+	const { session, read } = await show(calendar());
+	const live = frame.querySelector<HTMLElement>("[aria-live=polite]")!;
+	await userEvent.click(cellOf("2026-11-07")!);
+	expect(saved(read)).toEqual({ start: "2026-11-07", end: "2026-11-07" });
+	await userEvent.keyboard("{Shift>}{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+	// Held: shown, not yet saved, not yet announced.
+	await expect.poll(() => cellOf("2026-11-04")!.dataset.selected).toBe("");
+	expect(saved(read)).toEqual({ start: "2026-11-07", end: "2026-11-07" });
+	expect(live.textContent).not.toContain("4 days");
+	await userEvent.keyboard("{/Shift}");
+	expect(saved(read)).toEqual({ start: "2026-11-04", end: "2026-11-07" });
+	await expect.poll(() => live.textContent).toContain("4 days");
+	session!.undo();
+	expect(saved(read)).toEqual({ start: "2026-11-07", end: "2026-11-07" });
+	session!.undo();
+	expect(saved(read)).toBeUndefined();
+	expect(session!.canUndo).toBe(false);
+});
+
+test("Shift+arrows then Escape drops the extension and the selection", async () => {
+	const { read } = await show(calendar());
+	await userEvent.click(cellOf("2026-11-07")!);
+	await userEvent.keyboard("{Shift>}{ArrowLeft}{ArrowLeft}");
+	await userEvent.keyboard("{Escape}{/Shift}");
+	expect(saved(read)).toBeUndefined();
+	expect(frame.querySelector("[data-selected]")).toBeNull();
+});
+
 test("a shared view selects in memory and saves nothing", async () => {
 	const widget = calendar();
 	widget.data.timeSubRange = { start: "2026-11-06", end: "2026-11-06" };
@@ -533,6 +681,26 @@ test("a tooltip names the hovered day and the focused one, and goes when they le
 		.poll(() => tip()?.textContent?.trim())
 		.toBe("Sunday, November 8: 24-hour average 25 µg/m³, Moderate");
 	before.focus();
+	await expect.poll(() => tip()).toBeNull();
+});
+
+test("the pointer can move onto the tooltip without it changing or going (WCAG 1.4.13)", async () => {
+	await show(calendar());
+	const tip = () => frame.querySelector<HTMLElement>("[data-calendar-tip]");
+	const NOV_8_NAME = "Sunday, November 8: 24-hour average 25 µg/m³, Moderate";
+	await userEvent.hover(cellOf("2026-11-08")!);
+	await expect.poll(() => tip()?.textContent?.trim()).toBe(NOV_8_NAME);
+	await userEvent.hover(tip()!);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(tip()?.textContent?.trim()).toBe(NOV_8_NAME);
+	// Escape dismisses it where it is.
+	await userEvent.keyboard("{Escape}");
+	await expect.poll(() => tip()).toBeNull();
+	// Leaving it for somewhere off the grid also hides it.
+	await userEvent.hover(cellOf("2026-11-08")!);
+	await expect.poll(() => tip()?.textContent?.trim()).toBe(NOV_8_NAME);
+	await userEvent.hover(tip()!);
+	await userEvent.hover(frame.querySelector("[data-calendar-legend]")!);
 	await expect.poll(() => tip()).toBeNull();
 });
 
