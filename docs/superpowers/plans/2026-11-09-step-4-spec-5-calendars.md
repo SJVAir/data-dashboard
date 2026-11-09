@@ -420,7 +420,7 @@ month; when two months start within one column, the later one wins.)
     an outline, and `readableColor` text; its accessible name is "Friday, November 6: 24-hour
     average 31.9 µg/m³, Moderate" (+ ", at or above Moderate" with the threshold, + ", selected").
   - states: thin → stripes and "Not enough data"; none → "—" and "No data"; today → dashed
-    outline and "Moderate · so far"; pending → "Not final yet"; future → day number only.
+    outline and "Moderate · so far" (with no value yet: "No data so far"); pending → "Not final yet"; future → day number only.
   - at a small size the label is replaced by the tier number (`tier` from metadata).
   - "This month" draws all 30 days; Nov 10–30 future; Oct and Nov side by side for a custom
     range, stacked at phone width.
@@ -532,12 +532,10 @@ month; when two months start within one column, the later one wins.)
 - [ ] **Step 1: Write the E2E tests**: Get data → Show as → each calendar → preview → Add;
   greyed reasons for two places and for a weather layer; a share link with a point place swaps
   to its region for a calendar; select days and "Open these days in a chart"; axe on both
-  calendars in light and dark, including a Moderate (yellow) cell. The e2e metadata fixture
-  declares `daily_statistic` so cells color (the app reads it only after Task 13; until then
-  this spec runs with the fixture metadata source the e2e server already serves — if the web
-  metadata can't read it before beta.8, mark the coloring assertions `test.fixme` with a pointer
-  to Task 13).
-- [ ] **Step 2: Run** `npm run test:e2e` — the new spec passes (or fixme'd as above).
+  calendars in light and dark. Before beta.8 the web metadata has no `daily_statistic`, so
+  these assert the unrated state and its note; the colored assertions (a Moderate cell, the
+  count line) are added in Task 13.
+- [ ] **Step 2: Run** `npm run test:e2e` — the new spec passes.
 - [ ] **Step 3: Docs** (re-read each file first): `ARCHITECTURE.md` "Widget catalog" (both
   calendars as built, the day's figure and the EPA reason), "Widget-type contract" (`defaultRange`,
   `menu(ctx, env)`, `accepts.onlyPollutant`), "Accessibility" (the "Show patterns" exception);
@@ -566,7 +564,9 @@ month; when two months start within one column, the later one wins.)
   `daily_statistic_label: "Highest 1-hour average"` to `{ field: "max_1h", label: "Highest 1-hour
   average" }`, a null `daily_statistic` to `null`, a null label to `label: null`; a daily request
   with `dailyFigure` calls the open-days helper once and returns today's row with `final: false`.
-- [ ] **Step 3: Implement**; remove any `test.fixme` from Task 12.
+- [ ] **Step 3: Implement**; add the colored e2e assertions to `e2e/calendars.spec.ts` (a
+  Moderate cell with its label, the count line, axe on a yellow cell) with the e2e metadata
+  fixture declaring `daily_statistic`.
 - [ ] **Step 4: Stack check** (avoid :40–:50 past the hour): an ozone monitor's month calendar
   colored by `max_1h`, a PM2.5 VOZBox's by `mean_24h`, a day under 18 hours as "Not enough data",
   today "so far", yesterday before 3 am "Not final yet" if the timing allows, CO if any local CO
