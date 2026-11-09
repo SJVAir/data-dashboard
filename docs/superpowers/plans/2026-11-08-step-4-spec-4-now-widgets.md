@@ -584,7 +584,8 @@ Start only when the coordinator says beta.7 is published. Show the user the pin 
     `"alert:" + monitorId`).
   - `alertReading(entry, levels, config, place): CurrentReading` — `ok` → `source: "alert"`
     (or `"alert-latest"` when the expected interval ≥ the window), `at = latest_timestamp`,
-    trend from `previous.value` when `previous.status === "ok"`; `pending` → `pending`;
+    trend from `previous.value` when `previous.status === "ok"`, and no trend when
+    `previous.latest_timestamp === latest_timestamp` (the same reading); `pending` → `pending`;
     `insufficient` → `insufficient`; `no_data` → `no-recent`; a missing key → the hourly path.
   - `CurrentConditions` picks: monitor + `alertConfig` not null → alert source; else hourly.
 

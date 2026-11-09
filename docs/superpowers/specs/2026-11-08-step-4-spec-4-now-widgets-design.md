@@ -79,7 +79,7 @@ job. Built by the server session (`sjvair-com-7c`), settled with the user 2026-1
 may shift slightly in its written spec):
 
 - `GET /api/2.0/monitors/<id>/alerts/current/` →
-  `{data: {<entry_type>: {status, value, level, window {start, end}, latest_timestamp, readings, required, previous {status, value, level}, evaluated_at}}}`.
+  `{data: {<entry_type>: {status, value, level, window {start, end}, latest_timestamp, readings, required, previous {status, value, level, latest_timestamp}, evaluated_at}}}`.
   `previous` is the same evaluation as of 60 minutes earlier. Timestamps are ISO strings.
 - `status` is `ok`, `insufficient` (coverage under 50%, or an hourly feed's reading too old),
   `no_data`, or `pending` (no stored result yet, such as after a cache restart). `value` and
@@ -126,7 +126,9 @@ may shift slightly in its written spec):
   (`LevelSwatch`-style: the level's color, its label, `readableColor` text, an outline), a trend in
   words ("Rising", "Falling", "Steady") with an arrow, the level's `guidance` line from the scale
   (empty for Good, so nothing shows), and the averaging label with "updated N min ago".
-- **Trend:** alert values compare `value` with `previous.value`; hourly summaries compare the
+- **Trend:** alert values compare `value` with `previous.value`, and show no trend when
+  `previous.latest_timestamp` equals `latest_timestamp` (an hourly feed that hasn't sent a new
+  reading yet; decided by the user 2026-11-08); hourly summaries compare the
   latest hour with the one before. The rule for "Steady" (how small a change counts as no change)
   is the builder's, kept in one function and unit-tested.
 - **Pollutant control:** the available pollutants from `monitors/meta/` (`available_pollutants`;
