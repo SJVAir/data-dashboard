@@ -154,7 +154,7 @@
 					yMin={w.meta?.entryType.yMin ?? null}
 					overlays={overlays.bands}
 					notes={threshold.missing
-						? [...overlays.notes, m.chart_threshold_missing()]
+						? [...overlays.notes, m.chart_level_line_missing()]
 						: overlays.notes}
 					threshold={threshold.line}
 					strips={overlays.strips}

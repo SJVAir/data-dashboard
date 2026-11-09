@@ -797,7 +797,9 @@ describe("now widgets", () => {
 		await expect.element(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
 		await expect.element(page.getByRole("heading", { name: "When" })).not.toBeInTheDocument();
 		await expect.element(page.getByRole("button", { name: /^Dates/ })).not.toBeInTheDocument();
-		await expect.element(page.getByText(m.get_data_now_dropped())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		// One place: the first.
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
 		// The pollutants on offer (PM10 isn't available), and the alert level at its default.
@@ -831,7 +833,7 @@ describe("now widgets", () => {
 		});
 		// The next edit takes the note away; Off stores no alert level.
 		await alert().selectOptions("Off");
-		await expect.element(page.getByText(m.get_data_now_dropped())).not.toBeInTheDocument();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
 		expect("thresholds" in (await current())).toBe(false);
 	});
 
@@ -845,7 +847,10 @@ describe("now widgets", () => {
 			.not.toBeInTheDocument();
 		await expect.element(page.getByRole("group", { name: "Pollutant" })).not.toBeInTheDocument();
 		// A one-place draft over dates still says the dates were left out.
-		await expect.element(page.getByText(m.get_data_now_dropped())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect
+			.element(page.getByText(m.get_data_extra_places_left_out()))
+			.not.toBeInTheDocument();
 		await page.getByRole("radio", { name: "Forecast" }).click();
 		await expect.element(page.getByRole("radio", { name: "Forecast" })).toBeChecked();
 		await expect.element(alert()).not.toBeInTheDocument();
@@ -897,16 +902,17 @@ describe("now widgets", () => {
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		await expect
 			.element(
-				page.getByText(m.get_data_alert_fell_back({ level: "Unhealthy for Sensitive Groups" }))
+				page.getByText(m.get_data_alert_level_replaced({ level: "Unhealthy for Sensitive Groups" }))
 			)
 			.toBeVisible();
 		// Opening a saved now widget converts nothing.
-		await expect.element(page.getByText(m.get_data_now_dropped())).not.toBeInTheDocument();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
 	});
 
 	test("a Current conditions link opens a range draft converted", async () => {
 		await show({ ...monitorsDraft(["m1", "m2"]), type: "current-conditions" });
-		await expect.element(page.getByText(m.get_data_now_dropped())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 	});
@@ -936,9 +942,9 @@ describe("now widgets", () => {
 		await alert().selectOptions("unhealthy");
 		await expect.element(page.getByText(instead)).not.toBeInTheDocument();
 		await page.getByRole("radio", { name: "Forecast" }).click();
-		await expect.element(page.getByText(m.get_data_alert_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_level_left_out())).toBeVisible();
 		await page.getByRole("radio", { name: "Chart" }).click();
-		await expect.element(page.getByText(m.get_data_alert_left_out())).not.toBeInTheDocument();
+		await expect.element(page.getByText(m.get_data_level_left_out())).not.toBeInTheDocument();
 	});
 
 	test("a scale that can't load keeps the alert level, says so, and Retry loads it", async () => {
@@ -954,7 +960,7 @@ describe("now widgets", () => {
 		makeClient();
 		const { current } = await show(monitorsDraft(["m1"]));
 		await page.getByRole("radio", { name: "Current conditions" }).click();
-		await expect.element(page.getByText(m.get_data_alert_unavailable())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 		await expect.element(alert()).not.toBeInTheDocument();
 		failing = false;
 		await page.getByRole("button", { name: m.get_data_retry() }).click();
@@ -966,7 +972,7 @@ describe("now widgets", () => {
 		await alert().selectOptions("unhealthy");
 		failing = true;
 		await page.getByRole("radio", { name: "Ozone" }).click();
-		await expect.element(page.getByText(m.get_data_alert_unavailable())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 		const kept = await current();
 		expect(kept.data.layers[0].entryType).toBe("o3");
 		expect(kept.thresholds).toEqual([{ level: "unhealthy" }]);
@@ -984,7 +990,7 @@ describe("now widgets", () => {
 test("a Chart's Threshold line defaults to Off and saves the chosen level", async () => {
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	await page.getByRole("button", { name: "More options" }).click();
-	const select = page.getByRole("combobox", { name: m.get_data_threshold_line() });
+	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
 	await expect.element(select).toBeVisible();
 	await expect.element(select).toHaveValue("");
 	expect(await current()).not.toHaveProperty("thresholds");
@@ -998,9 +1004,9 @@ test("a Chart's Threshold line defaults to Off and saves the chosen level", asyn
 test("a saved level the scale lacks shows Off and says so", async () => {
 	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
 	await page.getByRole("button", { name: "More options" }).click();
-	const select = page.getByRole("combobox", { name: m.get_data_threshold_line() });
+	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
 	await expect.element(select).toHaveValue("");
-	await expect.element(page.getByText(m.chart_threshold_missing()).first()).toBeVisible();
+	await expect.element(page.getByText(m.chart_level_line_missing()).first()).toBeVisible();
 	host.remove();
 });
 
@@ -1010,7 +1016,7 @@ test("Threshold line: Chart → Data table drops it with a note, and it isn't ad
 	);
 	await page.getByRole("radio", { name: "Data table" }).click();
 	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
-	await expect.element(page.getByText(m.get_data_alert_left_out())).toBeVisible();
+	await expect.element(page.getByText(m.get_data_level_left_out())).toBeVisible();
 	const added = await current();
 	expect(added.type).toBe("data-table");
 	expect(added).not.toHaveProperty("thresholds");
@@ -1046,7 +1052,7 @@ test("Threshold line is hidden for a non-pollutant main layer, and the saved one
 	await page.getByRole("radio", { name: "None" }).click();
 	await page.getByRole("button", { name: "More options" }).click();
 	await expect
-		.element(page.getByRole("combobox", { name: m.get_data_threshold_line() }))
+		.element(page.getByRole("combobox", { name: m.get_data_line_at_level() }))
 		.not.toBeInTheDocument();
 	expect(await current()).not.toHaveProperty("thresholds");
 	host.remove();

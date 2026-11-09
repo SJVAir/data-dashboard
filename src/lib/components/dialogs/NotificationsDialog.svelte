@@ -61,9 +61,9 @@
 					aria-describedby={unsupported ? "notifications-unsupported" : undefined}
 					onchange={change}
 				/>
-				{m.notifications_switch()}
+				{m.notifications_switch_desktop()}
 			</label>
-			<p class="text-muted-foreground">{m.notifications_this_computer()}</p>
+			<p class="text-muted-foreground">{m.notifications_this_browser_alert_widgets()}</p>
 			{#if unsupported}
 				<p id="notifications-unsupported">{m.notifications_unsupported()}</p>
 			{:else if denied}

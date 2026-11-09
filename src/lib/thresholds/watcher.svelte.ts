@@ -136,7 +136,7 @@ export class ThresholdWatch {
 		{ level, at }: { level: Level; at: number },
 		{ title, pollutant, place }: CrossingText
 	): Promise<void> {
-		const body = m.threshold_reached({ pollutant, place, level: level.label });
+		const body = m.alert_pollutant_at_place_is_now_level({ pollutant, place, level: level.label });
 		toast(body);
 		// Cleared first, so the same words announce again.
 		this.announcement = "";

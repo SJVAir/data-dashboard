@@ -200,7 +200,7 @@ test("shows the level and each activity's first sentence, and the source link", 
 	expect(screen.getByText("Watch players with asthma.").elements()).toHaveLength(0);
 	await expect.element(screen.getByText("Practice", { exact: true })).toBeVisible();
 	const link = screen.getByRole("link", {
-		name: new RegExp(m.outside_source({ name: "Outdoor Activity Guidelines for Schools" }))
+		name: new RegExp(m.source_named({ name: "Outdoor Activity Guidelines for Schools" }))
 	});
 	await expect.element(link).toBeVisible();
 	await expect.poll(() => generatedTitle(widget.id)).toBe("Can we go outside? · Monitor usg");
@@ -209,6 +209,19 @@ test("shows the level and each activity's first sentence, and the source link", 
 test("a saved layer for another pollutant still reads PM2.5", async () => {
 	const screen = await show(outsideWidget("usg", "o3"));
 	await expect.element(screen.getByText("Keep recess short."), { timeout: 5000 }).toBeVisible();
+});
+
+test("an activity's button is named by the activity, not its preview sentence", async () => {
+	const screen = await show(outsideWidget("usg"));
+	const button = screen.getByRole("button", { name: /Athletics/ });
+	await expect.element(button, { timeout: 5000 }).toBeVisible();
+	const el = button.element() as HTMLButtonElement;
+	expect(el.textContent).not.toContain("Keep recess short");
+	expect(el.textContent?.replace(/\s+/g, " ").trim()).toMatch(/^Athletics/);
+	const preview = (el.getRootNode() as Document).getElementById(
+		el.getAttribute("aria-describedby")!
+	);
+	expect(preview?.textContent?.trim()).toBeTruthy();
 });
 
 test("opening Athletics shows both sentences and sets aria-expanded", async () => {
@@ -271,7 +284,7 @@ test("a place covering several ZIPs names the highest", async () => {
 test("a level with no sentences says there is no guidance, never another level's text", async () => {
 	const screen = await show(outsideWidget("good"));
 	await expect.element(screen.getByText("Good", { exact: true }), { timeout: 5000 }).toBeVisible();
-	expect(screen.getByText(m.outside_no_guidance()).elements()).toHaveLength(2);
+	expect(screen.getByText(m.outside_no_guidance_for_level()).elements()).toHaveLength(2);
 	expect(screen.getByText("Keep recess short.").elements()).toHaveLength(0);
 });
 
@@ -297,7 +310,8 @@ test("a heat failure leaves the air quality part and says there is no heat score
 	};
 	const screen = await show(outsideWidget("usg"));
 	await expect.element(screen.getByText("Keep recess short."), { timeout: 5000 }).toBeVisible();
-	await expect.element(screen.getByText(m.outside_heat_unavailable())).toBeVisible();
+	await expect.element(screen.getByText(m.outside_heat_load_failed())).toBeVisible();
+	expect(screen.getByText(m.outside_no_heat_score_today()).elements()).toHaveLength(0);
 });
 
 test("a threshold mark shows the strip and the outline", async () => {
@@ -305,7 +319,7 @@ test("a threshold mark shows the strip and the outline", async () => {
 	setMark(widget.id, { level: LEVELS[2], at: Date.now(), pulse: 1 });
 	const screen = await show(widget);
 	await expect
-		.element(screen.getByText(m.current_at_alert_level()), { timeout: 5000 })
+		.element(screen.getByText(m.current_alert_level_reached()), { timeout: 5000 })
 		.toBeVisible();
 	expect(frame.querySelector("[data-mark]")).not.toBeNull();
 });

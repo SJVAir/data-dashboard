@@ -144,11 +144,11 @@ test("shows the value, unit, level, trend, guidance and source line", async () =
 	await expect
 		.element(
 			screen.getByText(
-				m.current_source_updated({ average: m.current_hourly_average(), minutes: "6" })
+				m.current_source_updated_minutes({ average: m.current_hourly_average(), minutes: "6" })
 			)
 		)
 		.toBeVisible();
-	expect(m.current_source_updated({ average: "Hourly average", minutes: "6" })).toBe(
+	expect(m.current_source_updated_minutes({ average: "Hourly average", minutes: "6" })).toBe(
 		"Hourly average · updated 6 min ago"
 	);
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · Monitor a");
@@ -198,7 +198,7 @@ test("a threshold mark shows the label and an outline in the level color", async
 	const moderate = LEVELS.find((l) => l.key === "moderate")!;
 	setMark(widget.id, { level: moderate, at: Date.now(), pulse: 1 });
 	const screen = await show(widget);
-	await expect.element(screen.getByText(m.current_at_alert_level())).toBeVisible();
+	await expect.element(screen.getByText(m.current_alert_level_reached())).toBeVisible();
 	const card = frame.querySelector<HTMLElement>("[data-mark]")!;
 	expect(getComputedStyle(card).outlineColor).toBe("rgb(255, 255, 0)");
 	setMark(widget.id, null);

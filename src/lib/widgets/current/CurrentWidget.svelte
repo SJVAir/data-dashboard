@@ -14,7 +14,7 @@
 	import LevelChip from "../shared/LevelChip.svelte";
 	import MarkFrame from "../shared/MarkFrame.svelte";
 	import { ReadingClock } from "../shared/reading-clock.svelte";
-	import { averageLabel, emptyText } from "../shared/reading-text";
+	import { averageLabel, emptyText, updatedText } from "../shared/reading-text";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
@@ -98,12 +98,16 @@
 			{/if}
 			<p class="text-muted-foreground flex items-center gap-1 px-2 text-xs">
 				<span>
-					{m.current_source_updated({
-						average: averageLabel(ok),
-						minutes: String(minutes)
-					})}
+					{updatedText(averageLabel(ok), minutes)}
 				</span>
-				<Toggletip label={m.current_averaging_label()} text={m.current_averaging_help()} />
+				<Toggletip
+					label={ok.source === "alert-latest"
+						? m.current_about_this_reading()
+						: m.current_about_this_average()}
+					text={ok.source === "alert-latest"
+						? m.current_latest_reading_help()
+						: m.current_average_help()}
+				/>
 			</p>
 		</div>
 	{:else}

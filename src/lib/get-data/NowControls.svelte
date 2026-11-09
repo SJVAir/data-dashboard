@@ -57,12 +57,12 @@
 
 {#if levels === "unavailable"}
 	<div class="flex flex-wrap items-center gap-2">
-		<p role="status" class="text-sm">{m.get_data_alert_unavailable()}</p>
+		<p role="status" class="text-sm">{m.get_data_levels_unavailable()}</p>
 		<Button variant="outline" size="sm" onclick={onretry}>{m.get_data_retry()}</Button>
 	</div>
 {:else if levels && levels.length > 0}
 	<div class="flex flex-col gap-1">
-		<label for="{uid}-alert" class="text-sm font-medium">{m.get_data_alert_level_label()}</label>
+		<label for="{uid}-alert" class="text-sm font-medium">{m.get_data_alert_level()}</label>
 		<select
 			id="{uid}-alert"
 			value={resolved?.level.key ?? ""}
@@ -70,14 +70,16 @@
 			onchange={(e) => onthreshold(e.currentTarget.value || null)}
 			class="border-input bg-card text-field h-8 max-w-full min-w-0 rounded-(--radius-control) border px-2 md:text-sm"
 		>
-			<option value="">{m.get_data_alert_off()}</option>
+			<option value="">{m.get_data_off()}</option>
 			{#each levels as level (level.key)}
-				<option value={level.key}>{m.get_data_alert_level({ level: level.label })}</option>
+				<option value={level.key}
+					>{m.get_data_tell_me_at_level_or_worse({ level: level.label })}</option
+				>
 			{/each}
 		</select>
 		{#if resolved?.fellBack}
 			<p id="{uid}-fell-back" class="text-muted-foreground text-xs">
-				{m.get_data_alert_fell_back({ level: resolved.level.label })}
+				{m.get_data_alert_level_replaced({ level: resolved.level.label })}
 			</p>
 		{/if}
 	</div>

@@ -90,7 +90,7 @@ test("a crossing between polls toasts once, marks the tile, then its taskbar ent
 	await expect(widgetTitles(page)).toHaveText([TITLE]);
 	await expect(page.getByText("Moderate", { exact: true })).toBeVisible();
 	// Below the alert level: no mark and nothing told.
-	await expect(page.getByText("At your alert level")).toHaveCount(0);
+	await expect(page.getByText("Alert level reached")).toHaveCount(0);
 	await expect(page.locator("[data-sonner-toast]", { hasText: "is now" })).toHaveCount(0);
 
 	state.worse = true;
@@ -99,13 +99,13 @@ test("a crossing between polls toasts once, marks the tile, then its taskbar ent
 	const toast = page.locator("[data-sonner-toast]", { hasText: "is now" });
 	await expect(toast).toHaveCount(1);
 	await expect(toast).toHaveText(`PM2.5 at Fresno County is now ${USG}`);
-	await expect(page.getByText("At your alert level")).toBeVisible();
+	await expect(page.getByText("Alert level reached")).toBeVisible();
 	await expect(page.getByText(USG, { exact: true })).toBeVisible();
 	await expectNoViolations(page);
 
 	await widgetMenuItem(page, TITLE, "Minimize");
 	const entry = taskbar(page).getByRole("button", {
-		name: `Restore ${TITLE}, at your alert level`,
+		name: `Restore ${TITLE} (alert level reached)`,
 		exact: true
 	});
 	await expect(entry).toBeVisible();

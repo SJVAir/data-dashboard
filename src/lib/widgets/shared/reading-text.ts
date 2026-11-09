@@ -8,6 +8,12 @@ export function averageLabel(r: Extract<CurrentReading, { status: "ok" }>): stri
 	return m.current_hourly_average();
 }
 
+/** The source line: how the value was averaged and how long ago it was updated. */
+export function updatedText(average: string, minutes: number): string {
+	if (minutes < 1) return m.current_source_updated_just_now({ average });
+	return m.current_source_updated_minutes({ average, minutes: String(minutes) });
+}
+
 /** What a reading that isn't "ok" says. `noData` is what no reading at all says. */
 export function emptyText(r: CurrentReading | undefined, noData: string): string {
 	switch (r?.status) {

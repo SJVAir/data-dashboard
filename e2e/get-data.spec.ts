@@ -296,7 +296,7 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	// No dates for a now widget, and the form says they were left out.
 	await expect(page.getByRole("button", { name: /^Dates/ })).toHaveCount(0);
 	await expect(
-		page.getByText("Dates and extra places don't apply to this widget, so they were left out.")
+		page.getByText("Dates don't apply to this widget, so they were left out.")
 	).toBeVisible();
 
 	// One place, picked straight away (single mode).

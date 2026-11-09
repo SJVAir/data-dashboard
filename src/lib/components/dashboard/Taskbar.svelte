@@ -192,10 +192,10 @@
 					tabindex={current === i * 2 ? 0 : -1}
 					aria-label={readOnly
 						? mark
-							? m.widget_fullscreen_named_at_alert_level({ title })
+							? m.widget_fullscreen_named_alert_reached({ title })
 							: m.widget_fullscreen_named({ title })
 						: mark
-							? m.taskbar_restore_named_at_alert_level({ title })
+							? m.taskbar_restore_named_alert_reached({ title })
 							: m.taskbar_restore_named({ title })}
 					onclick={() => (readOnly ? onfullscreen(widget.id) : restoreWidget(app, widget.id))}
 				>

@@ -301,9 +301,9 @@
 		if (!dropped || dropped.after !== JSON.stringify(plain)) return [];
 		const { dropped: what, pollutant } = dropped.conversion;
 		const out: string[] = [];
-		if (what.some((d) => d === "dates" || d === "overlays" || d === "places")) {
-			out.push(m.get_data_now_dropped());
-		}
+		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
+		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
+		if (what.includes("places")) out.push(m.get_data_extra_places_left_out());
 		if (pollutant) {
 			const label = (dataset: string, entryType: string) =>
 				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
@@ -314,7 +314,7 @@
 				})
 			);
 		}
-		if (what.includes("alert")) out.push(m.get_data_alert_left_out());
+		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		return out;
 	});
 

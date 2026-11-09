@@ -508,6 +508,6 @@ test("Off draws no line", async () => {
 
 test("a level missing from the scale draws no line and says so, never the default", async () => {
 	const screen = await show(chartWidget(["m1"], { thresholds: [{ level: "gone" }] }));
-	await expect.element(screen.getByText(m.chart_threshold_missing())).toBeVisible();
+	await expect.element(screen.getByText(m.chart_level_line_missing())).toBeVisible();
 	expect(frame.querySelector("[data-threshold]")).toBeNull();
 });

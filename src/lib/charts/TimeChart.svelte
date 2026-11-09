@@ -407,7 +407,7 @@
 				<LevelSwatch
 					size="sm"
 					color={threshold.color ?? "var(--foreground)"}
-					label={m.chart_threshold_line_label({ level: threshold.label })}
+					label={m.chart_level_line_label({ level: threshold.label })}
 				/>
 			</span>
 		{/if}

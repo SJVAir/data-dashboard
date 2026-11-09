@@ -171,7 +171,11 @@ const toasts = () => Array.from(document.querySelectorAll("[data-sonner-toast]")
 /** The toasts' texts (the live region says the same words, so `getByText` would match twice). */
 const toastTexts = () => toasts().map((t) => t.textContent?.trim());
 const watcherLive = () => document.querySelector("[data-threshold-announcer]")?.textContent ?? "";
-const crossing = m.threshold_reached({ pollutant: "PM2.5", place: "Monitor a", level: USG });
+const crossing = m.alert_pollutant_at_place_is_now_level({
+	pollutant: "PM2.5",
+	place: "Monitor a",
+	level: USG
+});
 
 /** Waits until this browser has stored "last told" for `widgetId` (its reading was handled). */
 async function handled(
@@ -195,7 +199,7 @@ test("the first reading at the level shows the mark but no toast", async () => {
 	await handled(platform, app, docId, "w1");
 	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
 	expect(thresholdMarks.w1.pulse).toBe(0);
-	await expect.element(page.getByText(m.current_at_alert_level())).toBeVisible();
+	await expect.element(page.getByText(m.current_alert_level_reached())).toBeVisible();
 	expect(toasts()).toHaveLength(0);
 	expect(watcherLive()).toBe("");
 });
@@ -231,7 +235,7 @@ test("a minimized widget keeps watching and its taskbar entry shows the mark", a
 	nextPoll();
 	await expect.poll(toastTexts).toEqual([crossing]);
 	const marked = page.getByRole("button", {
-		name: m.taskbar_restore_named_at_alert_level({ title: "Tile w1" })
+		name: m.taskbar_restore_named_alert_reached({ title: "Tile w1" })
 	});
 	await expect.element(marked).toBeVisible();
 	const entry = document.querySelector<HTMLElement>('[data-testid="taskbar-w1"]')!;
@@ -285,9 +289,13 @@ test("turning the threshold Off clears the mark and never fires", async () => {
 	await expect.poll(() => thresholdMarks.w1).toBeUndefined();
 	nextPoll();
 	// w2 still watches: it fires; w1 doesn't, and its told entry is dropped.
-	await expect
-		.poll(toastTexts)
-		.toEqual([m.threshold_reached({ pollutant: "PM2.5", place: "Monitor a", level: "Unhealthy" })]);
+	await expect.poll(toastTexts).toEqual([
+		m.alert_pollutant_at_place_is_now_level({
+			pollutant: "PM2.5",
+			place: "Monitor a",
+			level: "Unhealthy"
+		})
+	]);
 	await new Promise((r) => setTimeout(r, 200));
 	expect(toasts()).toHaveLength(1);
 	expect(Object.keys(await readTold(platform, app.space, docId))).toEqual(["w2"]);
@@ -367,7 +375,7 @@ test("a notification is shown only when the switch is on and permission granted"
 	await platform.notifications.request();
 	nextPoll(); // 150: Very Unhealthy
 	await handled(platform, app, docId, "w1", readingAt(3));
-	const body = m.threshold_reached({
+	const body = m.alert_pollutant_at_place_is_now_level({
 		pollutant: "PM2.5",
 		place: "Monitor a",
 		level: "Very Unhealthy"

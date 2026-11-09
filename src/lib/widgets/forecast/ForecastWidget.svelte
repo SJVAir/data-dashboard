@@ -179,10 +179,14 @@
 				>
 					<TriangleAlert class="size-4 shrink-0" aria-hidden="true" />
 					<span>
-						{m.forecast_air_alert({
-							start: alertTime(days.airAlert.start),
-							end: alertTime(days.airAlert.end)
-						})}
+						{#if alertTime(days.airAlert.start) === alertTime(days.airAlert.end)}
+							{m.forecast_air_alert_in_effect_day({ date: alertTime(days.airAlert.start) })}
+						{:else}
+							{m.forecast_air_alert_in_effect({
+								start: alertTime(days.airAlert.start),
+								end: alertTime(days.airAlert.end)
+							})}
+						{/if}
 					</span>
 				</p>
 			{/if}
@@ -239,11 +243,11 @@
 					{#each sourceLinks as s (s.name)}
 						{#if s.url}
 							<a href={s.url} class="underline" target="_blank" rel="noreferrer">
-								{m.forecast_source({ name: s.name })}
+								{m.source_named({ name: s.name })}
 								<ExternalLinkCue class="inline size-3.5 align-baseline" />
 							</a>
 						{:else}
-							<span>{m.forecast_source({ name: s.name })}</span>
+							<span>{m.source_named({ name: s.name })}</span>
 						{/if}
 					{/each}
 				</p>

@@ -142,14 +142,24 @@ test("an Air Alert shows a banner above the rows, in text", async () => {
 	fake.forecast = async () =>
 		placeResponse(rows({ air_alert: true, air_alert_start: today, air_alert_end: today }));
 	const screen = await show(widgetFor());
-	const text = m.forecast_air_alert({
-		start: formatWeekdayDate(today),
-		end: formatWeekdayDate(today)
-	});
+	const text = m.forecast_air_alert_in_effect_day({ date: formatWeekdayDate(today) });
 	await expect.element(screen.getByText(text), { timeout: 5000 }).toBeVisible();
 	const banner = frame.querySelector("[data-air-alert]")!;
 	const first = frame.querySelector("[data-forecast-day]")!;
 	expect(banner.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test("an Air Alert over several days shows the start and end", async () => {
+	const today = todayPacific();
+	const end = todayPacific(new Date(Date.now() + 2 * 86_400_000));
+	fake.forecast = async () =>
+		placeResponse(rows({ air_alert: true, air_alert_start: today, air_alert_end: end }));
+	const screen = await show(widgetFor());
+	const text = m.forecast_air_alert_in_effect({
+		start: formatWeekdayDate(today),
+		end: formatWeekdayDate(end)
+	});
+	await expect.element(screen.getByText(text), { timeout: 5000 }).toBeVisible();
 });
 
 test("a place the feed has no zone for says there is no forecast", async () => {

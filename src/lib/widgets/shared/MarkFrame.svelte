@@ -9,7 +9,7 @@
 	const mark = $derived(thresholdMarks[widgetId]);
 </script>
 
-<!-- A "now" tile's frame: the threshold outline, its pulse, and the "At your alert level" strip. -->
+<!-- A "now" tile's frame: the threshold outline, its pulse, and the "Alert level reached" strip. -->
 <div
 	class="relative flex h-full flex-col gap-2 rounded-(--radius-control)"
 	data-mark={mark ? "" : undefined}
@@ -24,7 +24,7 @@
 	</div>
 	{#if mark}
 		<p class="bg-muted mx-2 mb-2 rounded-(--radius-control) px-2 py-1 text-sm font-medium">
-			{m.current_at_alert_level()}
+			{m.current_alert_level_reached()}
 		</p>
 	{/if}
 </div>

@@ -16,7 +16,7 @@
 	import LevelChip from "../shared/LevelChip.svelte";
 	import MarkFrame from "../shared/MarkFrame.svelte";
 	import { ReadingClock } from "../shared/reading-clock.svelte";
-	import { averageLabel, emptyText } from "../shared/reading-text";
+	import { averageLabel, emptyText, updatedText } from "../shared/reading-text";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
@@ -106,6 +106,9 @@
 
 	const heatState = $derived<NowState<HeatToday>>(heatQuery.state);
 	/** `undefined` while loading; `null` when there is no score today or the source failed. */
+	const heatLoadFailed = $derived(
+		heatFailed || (heatState.data === undefined && heatState.status === "error")
+	);
 	const heat = $derived.by<HeatToday | undefined>(() => {
 		if (heatFailed) return null;
 		if (heatState.data !== undefined) return heatState.data;
@@ -164,14 +167,11 @@
 				<div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-2">
 					{#if ok.level}<LevelChip level={ok.level} />{/if}
 					<span class="text-muted-foreground text-xs">
-						{m.current_source_updated({
-							average: averageLabel(ok),
-							minutes: String(minutes)
-						})}
+						{updatedText(averageLabel(ok), minutes)}
 					</span>
 				</div>
 				{#if !guidelines}
-					<p class="text-muted-foreground px-2 text-sm">{m.outside_no_guidance()}</p>
+					<p class="text-muted-foreground px-2 text-sm">{m.outside_no_activity_guidance()}</p>
 				{:else}
 					<ul>
 						{#each guidelines.activities as activity (activity.key)}
@@ -198,7 +198,9 @@
 					{#if heat?.level}
 						<LevelChip level={heat.level} />
 					{:else}
-						<span class="text-muted-foreground text-sm">{m.outside_heat_unavailable()}</span>
+						<span class="text-muted-foreground text-sm"
+							>{heatLoadFailed ? m.outside_heat_load_failed() : m.outside_no_heat_score_today()}
+						</span>
 					{/if}
 				</div>
 				{#if heat?.level}
@@ -216,11 +218,11 @@
 				<p class="text-muted-foreground mt-1 text-xs">
 					{#if guidelines.source.url}
 						<a href={guidelines.source.url} class="underline" target="_blank" rel="noreferrer">
-							{m.outside_source({ name: guidelines.source.name })}
+							{m.source_named({ name: guidelines.source.name })}
 							<ExternalLinkCue class="inline size-3.5 align-baseline" />
 						</a>
 					{:else}
-						{m.outside_source({ name: guidelines.source.name })}
+						{m.source_named({ name: guidelines.source.name })}
 					{/if}
 				</p>
 			{/if}

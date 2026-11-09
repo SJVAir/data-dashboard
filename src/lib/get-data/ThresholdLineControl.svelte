@@ -30,12 +30,12 @@
 
 {#if levels === "unavailable"}
 	<div class="flex flex-wrap items-center gap-2">
-		<p role="status" class="text-sm">{m.get_data_threshold_line_unavailable()}</p>
+		<p role="status" class="text-sm">{m.get_data_levels_unavailable()}</p>
 		<Button variant="outline" size="sm" onclick={onretry}>{m.get_data_retry()}</Button>
 	</div>
 {:else if levels.length > 0}
 	<div class="flex flex-col gap-1 px-1">
-		<label for="{uid}-line" class="text-sm font-medium">{m.get_data_threshold_line()}</label>
+		<label for="{uid}-line" class="text-sm font-medium">{m.get_data_line_at_level()}</label>
 		<select
 			id="{uid}-line"
 			value={onScale ? saved : ""}
@@ -43,14 +43,14 @@
 			onchange={(e) => onthreshold(e.currentTarget.value || null)}
 			class="border-input bg-card text-field h-8 max-w-full min-w-0 rounded-(--radius-control) border px-2 md:text-sm"
 		>
-			<option value="">{m.get_data_alert_off()}</option>
+			<option value="">{m.get_data_off()}</option>
 			{#each levels as level (level.key)}
 				<option value={level.key}>{level.label}</option>
 			{/each}
 		</select>
 		{#if missing}
 			<p id="{uid}-missing" class="text-muted-foreground text-xs">
-				{m.chart_threshold_missing()}
+				{m.chart_level_line_missing()}
 			</p>
 		{/if}
 	</div>

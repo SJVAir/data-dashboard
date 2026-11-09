@@ -20,7 +20,7 @@ async function setup() {
 	return { platform, app };
 }
 
-const switchBox = () => page.getByRole("switch", { name: m.notifications_switch() });
+const switchBox = () => page.getByRole("switch", { name: m.notifications_switch_desktop() });
 
 test("off by default; on asks once and a grant is stored for this dashboard only", async () => {
 	const { platform, app } = await setup();
