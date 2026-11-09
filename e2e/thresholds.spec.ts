@@ -89,8 +89,9 @@ test("a crossing between polls toasts once, marks the tile, then its taskbar ent
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(widgetTitles(page)).toHaveText([TITLE]);
 	await expect(page.getByText("Moderate", { exact: true })).toBeVisible();
-	// The first reading only sets the starting point.
+	// Below the alert level: no mark and nothing told.
 	await expect(page.getByText("At your alert level")).toHaveCount(0);
+	await expect(page.locator("[data-sonner-toast]", { hasText: "is now" })).toHaveCount(0);
 
 	state.worse = true;
 	await page.clock.fastForward("01:00:00");

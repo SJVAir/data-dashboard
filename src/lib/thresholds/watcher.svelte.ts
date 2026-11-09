@@ -1,6 +1,7 @@
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { Level } from "$lib/data/metadata";
+import type { CurrentReading } from "$lib/data/now/current";
 import { m } from "$lib/paraglide/messages.js";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { decide } from "./firing";
@@ -41,16 +42,18 @@ export class ThresholdWatch {
 
 	/**
 	 * Shows or clears `id`'s mark for its current reading: shown whenever the level is at or
-	 * above the threshold (keeping its pulse count), cleared below it or with no threshold.
-	 * Readings that aren't ok, or have no level, leave it as it is.
+	 * above the threshold (keeping its pulse count), cleared below it, with no threshold, or when
+	 * the place has no current value (pending, insufficient, no recent data, no data). No reading
+	 * (loading, or a failed fetch that still holds the last data) and a value with no level leave
+	 * it as it is.
 	 */
 	mark(
 		id: string,
-		reading: { level: Level | undefined; at: number } | undefined,
+		reading: CurrentReading | undefined,
 		threshold: Level | null,
 		levels: Level[]
 	): void {
-		if (!threshold) {
+		if (!threshold || (reading && reading.status !== "ok")) {
 			setMark(id, null);
 			return;
 		}
@@ -59,6 +62,26 @@ export class ThresholdWatch {
 			setMark(id, { level: reading.level, at: reading.at, pulse: thresholdMarks[id]?.pulse ?? 0 });
 		} else {
 			setMark(id, null);
+		}
+	}
+
+	/**
+	 * Drops what this browser was told about widgets that are no longer watched (removed, or
+	 * their threshold turned Off), so watching them again starts from their next reading.
+	 */
+	async forget(ids: string[]): Promise<void> {
+		for (const id of ids) this.#lastAt.delete(id);
+		const { platform: p } = this.opts;
+		const space = this.opts.space();
+		const docId = this.opts.docId();
+		try {
+			await p.locks.run(`thresholds:${docId}`, async () => {
+				const told = await readTold(p, space, docId);
+				if (!ids.some((id) => id in told)) return;
+				await writeTold(p, space, docId, told, this.opts.watching());
+			});
+		} catch (error) {
+			p.errors.report(error, { operation: "threshold-watch" });
 		}
 	}
 

@@ -20,6 +20,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
+	import MarkPulse from "$lib/thresholds/MarkPulse.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 
@@ -184,16 +185,7 @@
 				style:outline-color={mark ? (mark.level.color ?? "var(--foreground)") : undefined}
 				{@attach menuScope(menuFor(widget))}
 			>
-				{#if mark && mark.pulse > 0}
-					{#key mark.pulse}
-						<span
-							data-pulse={mark.pulse}
-							aria-hidden="true"
-							class="pointer-events-none absolute inset-0 rounded-(--radius-control)"
-							style:outline="2px solid {mark.level.color ?? 'var(--foreground)'}"
-						></span>
-					{/key}
-				{/if}
+				<MarkPulse {mark} width="2px" />
 				<Button
 					variant="ghost"
 					size="sm"

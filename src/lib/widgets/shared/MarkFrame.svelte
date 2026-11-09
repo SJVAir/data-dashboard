@@ -2,6 +2,7 @@
 	import type { Snippet } from "svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
+	import MarkPulse from "$lib/thresholds/MarkPulse.svelte";
 
 	let { widgetId, children }: { widgetId: string; children: Snippet } = $props();
 
@@ -17,17 +18,7 @@
 	style:outline-offset={mark ? "-3px" : undefined}
 	style:outline-color={mark?.level.color ?? (mark ? "var(--foreground)" : undefined)}
 >
-	<!-- Pulse 0 is a mark seen on arrival (not a crossing): it shows without the pulse. -->
-	{#if mark && mark.pulse > 0}
-		{#key mark.pulse}
-			<span
-				data-pulse={mark.pulse}
-				aria-hidden="true"
-				class="pointer-events-none absolute inset-0 rounded-(--radius-control)"
-				style:outline="3px solid {mark.level.color ?? 'var(--foreground)'}"
-			></span>
-		{/key}
-	{/if}
+	<MarkPulse {mark} width="3px" />
 	<div class="min-h-0 flex-1">
 		{@render children()}
 	</div>

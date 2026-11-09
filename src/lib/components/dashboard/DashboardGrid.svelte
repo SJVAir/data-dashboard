@@ -30,6 +30,7 @@
 	import { holdFullscreen } from "$lib/layout/fullscreen-view.svelte";
 	import { shownLayout } from "$lib/layout/items";
 	import { taskbarWidgets } from "$lib/layout/windowing";
+	import { loadLazy } from "$lib/safety/lazy";
 	import { STARTER_ID } from "$lib/starter/starter";
 	import { watchesThresholds } from "$lib/thresholds/watched";
 	import { useApp } from "$lib/store/app.svelte";
@@ -67,9 +68,24 @@
 
 	// The threshold watcher (its own chunk), loaded once some widget has an alert level. It runs
 	// here, not in the tiles, since minimized widgets aren't on the grid.
-	const watching = $derived(!!doc?.body.widgets.some(watchesThresholds));
+	// Once loaded for a dashboard it stays while that dashboard is shown, so it sees its last
+	// watched widget go (and drops its "last told").
+	let watchedDoc = $state<string | null>(null);
+	const anyWatched = $derived(!!doc?.body.widgets.some(watchesThresholds));
+	$effect.pre(() => {
+		if (doc && anyWatched) watchedDoc = doc.id;
+	});
+	const watching = $derived(!!doc && (anyWatched || watchedDoc === doc.id));
+	// One load shared; a failed one isn't kept (the next showing tries again), and a chunk that's
+	// gone offers a reload (`loadLazy`).
 	let watcherModule: Promise<typeof import("$lib/thresholds/ThresholdWatcher.svelte")> | undefined;
-	const loadWatcher = () => (watcherModule ??= import("$lib/thresholds/ThresholdWatcher.svelte"));
+	const loadWatcher = () =>
+		(watcherModule ??= loadLazy(() => import("$lib/thresholds/ThresholdWatcher.svelte")).catch(
+			(error: unknown) => {
+				watcherModule = undefined;
+				throw error;
+			}
+		));
 
 	const phone = new MediaQuery(PHONE_QUERY);
 	// The active widget's title, kept from pickup on: when it goes, it's no longer in the document.
@@ -322,6 +338,8 @@
 						{#key doc.id}
 							<ThresholdWatcher docId={doc.id} widgets={doc.body.widgets} space={app.space} />
 						{/key}
+					{:catch}
+						<!-- Nothing: `loadLazy` has offered a reload. -->
 					{/await}
 				{/if}
 				{#if placed.length === 0}

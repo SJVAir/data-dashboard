@@ -33,8 +33,8 @@
 		const levels = current.levels;
 		const meta = current.meta;
 		untrack(() => {
+			watch.mark(widget.id, reading, limit, levels);
 			const ok = reading?.status === "ok" ? reading : undefined;
-			watch.mark(widget.id, ok, limit, levels);
 			if (!ok?.level || !limit || !meta) return;
 			void watch.process(
 				widget.id,

@@ -45,7 +45,12 @@ const USG = "Unhealthy for Sensitive Groups";
  * last step, so each step is a new reading (and none is stale).
  */
 const STEP = 10 * 60_000;
-const series = { values: [20], step: 0 };
+const series = {
+	values: [20] as (number | null)[],
+	step: 0,
+	/** Makes the next fetches fail (the query keeps its last data). */
+	fail: false
+};
 let t0 = Date.now();
 let fetches = 0;
 
@@ -59,6 +64,7 @@ function adapter(): DatasetAdapter {
 		offered: (base) => base,
 		async fetch(req) {
 			fetches++;
+			if (series.fail) throw new Error("summaries down");
 			const id = req.target.kind === "monitors" ? req.target.ids[0] : "";
 			const step = Math.min(series.step, series.values.length - 1);
 			const latest = t0 - 6 * 60_000 - HOUR - (series.values.length - 1 - step) * STEP;
@@ -74,7 +80,11 @@ function adapter(): DatasetAdapter {
 				series: [
 					{
 						place: `monitor:${id}`,
-						points: [point(latest - HOUR, 5), point(latest, series.values[step])]
+						// null: no hourly value at all (the place has no data).
+						points:
+							series.values[step] === null
+								? []
+								: [point(latest - HOUR, 5), point(latest, series.values[step])]
 					}
 				],
 				places: [{ place: `monitor:${id}`, name: `Monitor ${id}` }],
@@ -92,6 +102,7 @@ let levelCalls = 0;
 
 beforeEach(async () => {
 	t0 = Date.now();
+	series.fail = false;
 	fetches = 0;
 	levelsFail = false;
 	levelCalls = 0;
@@ -280,6 +291,49 @@ test("turning the threshold Off clears the mark and never fires", async () => {
 	await new Promise((r) => setTimeout(r, 200));
 	expect(toasts()).toHaveLength(1);
 	expect(Object.keys(await readTold(platform, app.space, docId))).toEqual(["w2"]);
+});
+
+test("a threshold turned Off and back On while at the level starts afresh: no toast", async () => {
+	series.values = [20, 40];
+	series.step = 0;
+	const { app, platform, docId, session } = await seed([tile("w1")]);
+	await handled(platform, app, docId, "w1", readingAt(0));
+	const setThreshold = (thresholds: WidgetInstance["thresholds"]) => {
+		const from = { name: session.doc.name, body: session.doc.body };
+		const widgets = session.doc.body.widgets.map((w) => ({ ...w, thresholds }));
+		session.apply({
+			op: "replaceDocument",
+			target: {},
+			from,
+			to: { name: from.name, body: { widgets } }
+		});
+	};
+	setThreshold(undefined);
+	// Its re-armed "last told" goes with it.
+	await expect.poll(async () => readTold(platform, app.space, docId)).toEqual({});
+	nextPoll();
+	await expect.element(page.getByText("40.0")).toBeVisible();
+	setThreshold([{ level: "unhealthy_sensitive" }]);
+	await handled(platform, app, docId, "w1", readingAt(1));
+	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	await new Promise((r) => setTimeout(r, 200));
+	expect(toasts()).toHaveLength(0);
+});
+
+test("a place with no current value clears the mark; a failed fetch keeps it", async () => {
+	series.values = [40, null];
+	series.step = 0;
+	const { app, platform, docId } = await seed([tile("w1", { minimized: { order: 0 } })]);
+	await handled(platform, app, docId, "w1", readingAt(0));
+	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	series.fail = true;
+	for (const e of fake.client!.entries()) fake.client!.refetch(e.key);
+	await expect.poll(() => fake.client!.entries()[0]?.failed).toBe(true);
+	await new Promise((r) => setTimeout(r, 100));
+	expect(thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	series.fail = false;
+	nextPoll();
+	await expect.poll(() => thresholdMarks.w1).toBeUndefined();
 });
 
 test("a notification is shown only when the switch is on and permission granted", async () => {
