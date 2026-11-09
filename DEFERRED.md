@@ -456,6 +456,10 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
+  - **Alert current (sjvair.com #319):** nothing to run. After the deploy,
+    `monitors/<id>/alerts/current/` answers `pending` until the first 10-minute alert run (up to
+    10 minutes), then real values. The Current conditions tile works against production only
+    once this is deployed: SDK 5.0.0-beta.7 expects the new fields.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
@@ -940,6 +944,32 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   announced once in the status); and Browse's "Loading…" isn't announced (the count is, when
   the list settles). Why: minor next to the rest of the picker; each is a small change. **Revisit
   on** a screen-reader or usability report about Browse, or with the accessibility audit.
+
+- **Map views and shapes across the antimeridian.** _Deferred 2026-11-08 (map-sdk in-view
+  shapes fix, `docs/superpowers/specs/2026-11-08-in-view-shapes-design.md`)._ map-sdk's
+  in-view test (the feature list, the view summary, and the focus and hover tooltip anchors)
+  treats lng/lat as flat, so bounds or shapes that cross 180° are measured wrong. Points had
+  the same limit before the fix. Every SJVAir map shows the San Joaquin Valley, far from the
+  date line. **Revisit when** a host map can pan across the date line (a world or Pacific
+  view): split bounds and shapes at 180° before testing.
+
+- **Polygons with fewer than 3 points in the in-view test.** _Deferred 2026-11-08 (map-sdk
+  [#18](https://github.com/SJVAir/map-sdk/pull/18) review)._ map-sdk never counts a polygon ring
+  with fewer than 3 points as in view, even with a vertex on screen. Valid GeoJSON rings have at
+  least 4 positions, so no SJVAir data hits it. **Revisit when** a source is found sending
+  degenerate polygons.
+
+- **`MapContext` stand-ins and the two new members.** _Deferred 2026-11-08 (map-sdk
+  [#18](https://github.com/SJVAir/map-sdk/pull/18) review)._ `MapContext` gains required
+  `focusedAnchor` and `anchorFor(item)`. Only code that writes its own `MapContext` (a test
+  double) must add them; no host does. Making them optional would make every caller handle
+  their absence. **Revisit when** a host or a test outside map-sdk implements `MapContext`.
+
+- **A faster in-view test for shapes.** _Deferred 2026-11-08 (map-sdk
+  [#18](https://github.com/SJVAir/map-sdk/pull/18) review)._ map-sdk's `inView` could skip the
+  exact test when a shape's label point or whole bbox is inside the view. The bbox pre-check
+  already rejects most shapes, and no slowdown has been measured. **Revisit when** moving the map
+  with many detailed shapes (all counties, a big plume day) is measurably slow.
 
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
@@ -1695,6 +1725,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `hms/smoke/place/` (sjvair.com #312) gives the heaviest density and the share covered for
   any place. The alert source itself is still deferred. **Revisit when** the first alert-rule
   iteration ships, or ahead of wildfire/heat season if demand appears.
+
+- **Should hidden monitors be subscribable and send alert texts?** _Deferred 2026-11-08
+  (sjvair.com alert current value spec)._ `is_hidden` only hides a monitor on the map. The
+  subscribe endpoint accepts hidden monitors, and `periodic_alerts` evaluates and texts them
+  like any other. Monitors are usually hidden for a reason, so texting from one may be wrong.
+  Changing it alters SMS behaviour and raises its own questions: existing subscribers, whether
+  they're told, and refusing new subscriptions. The new `monitors/<id>/alerts/current/`
+  endpoint serves hidden monitors so the tile matches the texts. If hidden monitors stop being
+  evaluated, it follows on its own. **Revisit before** public go-live, or when a monitor is
+  first hidden on purpose while it has subscribers.
 
 - **An opt-in "back to normal" message by email.** _Deferred 2026-10-13._ All channels follow
   the server's escalation-only rules, with no all-clear; the in-app inbox shows when an
