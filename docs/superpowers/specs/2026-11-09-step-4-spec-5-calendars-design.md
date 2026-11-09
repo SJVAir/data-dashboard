@@ -109,8 +109,10 @@ average. The server says which applies:
 - **Today's running figure** (the user, 2026-11-09: today is colored "so far", option A over
   an uncolored "In progress"): the completeness rule leaves today's figure null for most of the
   day (PM until about 6 pm), so the server also publishes a running figure for the day in
-  progress, without the completeness rule, and marks it as not final. Its shape is the server
-  session's call (requested through the coordinator 2026-11-09). A finished day stays strict.
+  progress, without the completeness rule, and marks it as not final. Today there is no daily
+  row for the open day at all (daily rows are written once, after the day ends), so this is new
+  server work; its shape is the server session's call (requested through the coordinator
+  2026-11-09). The dashboard never computes it from hourly rows. A finished day stays strict.
 - **CO settles late:** CO's 8-hour windows start during the day, so a day's `max_8h` is final
   only about 28 hours after the day ends (the server re-rolls the previous day nightly).
 - **Field names in the SDK** come with beta.8. No dashboard code reads them until the coordinator
@@ -147,8 +149,11 @@ average. The server says which applies:
   figure. If the server has no running figure yet (no hours today), today shows "No data so
   far".
 - **Not final yet:** a CO day inside the server's settling margin (yesterday, until the row
-  settles). How "settled" is read comes with beta.8; until then (and for other pollutants) this
-  state isn't used.
+  settles). How "settled" is read comes with beta.8. **Also yesterday for every pollutant
+  before the server's nightly daily rollup** (about 1:00 am Pacific for monitors, 1:10 for
+  regions; checked by the coordinator 2026-11-09): there is no row yet, so yesterday reads "Not
+  final yet", not "No data" (my call; the cutoff comes from the server's settling rule with
+  beta.8, never a hardcoded time).
 - **Still to come:** a date in the range after today.
 - **Before beta.8 (my call, builder's order):** the grids, states, selection, summary, chart
   action and threshold marks are built and tested against fixtures. In the running app, a
