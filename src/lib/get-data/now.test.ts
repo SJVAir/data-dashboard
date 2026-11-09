@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURE_CATALOG } from "$lib/data/testing/fixtures";
 import { CHART_TYPE, chartType } from "$lib/widgets/chart";
+import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
+import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { currentType } from "$lib/widgets/current";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { forecastType } from "$lib/widgets/forecast";
 import { outsideType } from "$lib/widgets/outside";
 import { FORECASTS_ENTRY, PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
 import type { Draft } from "./draft.svelte";
-import { fromNowDraft, isNowShaped, nowPollutant, nowPollutants, toNowDraft } from "./now";
+import {
+	fromNowDraft,
+	isNowShaped,
+	nowPollutant,
+	nowPollutants,
+	switchRange,
+	toNowDraft
+} from "./now";
 
 const CATALOG = [FIXTURE_CATALOG[0], FORECASTS_ENTRY];
 const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
@@ -251,5 +260,63 @@ describe("isNowShaped", () => {
 describe("nowPollutants", () => {
 	it("lists the air-quality pollutants that are available", () => {
 		expect(nowPollutants(CATALOG).map((e) => e.id)).toEqual(["pm25", "o3"]);
+	});
+});
+
+describe("calendar conversions", () => {
+	const NOW = new Date("2026-11-05T20:00:00Z");
+	const MONTH = { kind: "to-date", unit: "month" } as const;
+
+	it("a current-conditions tile becomes a contribution calendar over 12 months", () => {
+		const tile: Draft = {
+			type: "current-conditions",
+			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			thresholds: [{ level: "unhealthy" }]
+		};
+		expect(fromNowDraft(tile, contributionCalendarType)).toEqual({
+			draft: {
+				type: contributionCalendarType.type,
+				data: {
+					dateRange: { kind: "trailing", amount: 12, unit: "month" },
+					layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+				},
+				thresholds: [{ level: "unhealthy" }]
+			},
+			dropped: []
+		});
+	});
+
+	it("Chart to month calendar: the default range changes, a chosen one stays", () => {
+		const def = switchRange({ dateRange: DEFAULT_RANGE }, chartType, monthCalendarType, NOW);
+		expect(def.dateRange).toEqual(MONTH);
+		const own = { kind: "trailing", amount: 20, unit: "day" } as const;
+		expect(switchRange({ dateRange: own }, chartType, monthCalendarType, NOW).dateRange).toEqual(
+			own
+		);
+	});
+
+	it("leaving a calendar drops the selection and reports it; calendar to calendar keeps it", () => {
+		const data = { dateRange: MONTH, timeSubRange: { start: "2026-11-02", end: "2026-11-03" } };
+		const out = switchRange(data, monthCalendarType, chartType, NOW);
+		expect(out.timeSubRange).toBeUndefined();
+		expect(out.left).toEqual(data.timeSubRange);
+		const kept = switchRange(
+			{ ...data, dateRange: { kind: "trailing", amount: 20, unit: "day" } as const },
+			monthCalendarType,
+			contributionCalendarType,
+			NOW
+		);
+		expect(kept.timeSubRange).toEqual(data.timeSubRange);
+	});
+
+	it("a selection outside the new default range is dropped", () => {
+		const out = switchRange(
+			{ dateRange: MONTH, timeSubRange: { start: "2024-05-02", end: "2024-05-03" } },
+			monthCalendarType,
+			contributionCalendarType,
+			NOW
+		);
+		expect(out.dateRange).toEqual({ kind: "trailing", amount: 12, unit: "month" });
+		expect(out.timeSubRange).toBeUndefined();
 	});
 });

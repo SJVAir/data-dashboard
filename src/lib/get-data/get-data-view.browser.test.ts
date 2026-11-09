@@ -484,9 +484,12 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 
 	const chart = page.getByRole("radio", { name: "Chart" });
 	(chart.element() as HTMLElement).focus();
-	// The now types follow the Chart (they're never blocked: choosing one converts the draft).
-	await userEvent.keyboard("{ArrowRight}");
+	// The other types follow the Chart (the now types are never blocked: choosing one converts the
+	// draft); the arrow keys reach Current conditions past the calendars.
 	const current = page.getByRole("radio", { name: "Current conditions" });
+	for (let i = 0; i < 6 && document.activeElement !== current.element(); i++) {
+		await userEvent.keyboard("{ArrowRight}");
+	}
 	await expect.element(current).toHaveFocus();
 	await userEvent.keyboard(" ");
 	await expect.element(current).toBeChecked();
@@ -1086,4 +1089,34 @@ test("Threshold line is hidden for a non-pollutant main layer, and the saved one
 		.not.toBeInTheDocument();
 	expect(await current()).not.toHaveProperty("thresholds");
 	host.remove();
+});
+
+describe("calendar types", () => {
+	const monthDraft = (): Draft => ({
+		type: "calendar-month",
+		data: {
+			dateRange: { kind: "to-date", unit: "month" },
+			timeSubRange: { start: "2026-11-02", end: "2026-11-03" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+		}
+	});
+
+	test("greyed out with its reason when the data has two places; a default range on switching", async () => {
+		await show(monitorsDraft(["m1", "m2"]));
+		await expect.element(page.getByRole("radio", { name: "Month calendar" })).toBeDisabled();
+		await expect.element(page.getByText(/Month calendar:/).first()).toBeInTheDocument();
+	});
+
+	test("leaving a calendar drops its day selection and says so", async () => {
+		const { current } = await show(monthDraft());
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect
+			.element(
+				page.getByText(
+					m.get_data_selection_left_out({ days: formatDateRange("2026-11-02", "2026-11-03") })
+				)
+			)
+			.toBeVisible();
+		expect("timeSubRange" in (await current()).data).toBe(false);
+	});
 });

@@ -59,7 +59,7 @@ export function offeredDatasets(
 }
 
 /** Why a widget type can't show a data config (the first that applies). */
-export type TypeBlock = "dataset" | "places" | "span" | "pollutants";
+export type TypeBlock = "dataset" | "places" | "span" | "pollutants" | "pollutant";
 
 /** Why `type` can't show `data` as it stands, or `null` when it can. */
 export function typeBlock(
@@ -81,6 +81,14 @@ export function typeBlock(
 			catalog.find((c) => c.id === dataset)?.entryTypes.find((e) => e.id === id)?.kind;
 		const pollutants = data.layers.filter((l) => kindOf(l.dataset, l.entryType) === "pollutant");
 		if (pollutants.length > accepts.maxPollutantLayers) return "pollutants";
+	}
+	if (accepts.onlyPollutant) {
+		const one =
+			data.layers.length === 1 &&
+			catalog
+				.find((c) => c.id === data.layers[0].dataset)
+				?.entryTypes.find((e) => e.id === data.layers[0].entryType)?.kind === "pollutant";
+		if (!one) return "pollutant";
 	}
 	return null;
 }

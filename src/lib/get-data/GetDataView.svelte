@@ -49,11 +49,16 @@
 		keptThreshold,
 		nowPollutant,
 		nowPollutants,
+		switchRange,
 		toNowDraft,
-		type NowConversion
+		type NowConversion,
+		type NowDropped
 	} from "./now";
 	import NowControls from "./NowControls.svelte";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
+	import { fitsRange } from "$lib/calendars/selection";
+	import { formatDateRange } from "$lib/format";
+	import { resolveRange } from "$lib/format/range";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { detailChoices } from "./resolution-offer";
@@ -253,6 +258,12 @@
 
 	function setRange(spec: DateRangeSpec): void {
 		draft.data.dateRange = spec;
+		// A calendar's day selection that the new range no longer holds is dropped with it.
+		const sel = draft.data.timeSubRange;
+		if (sel) {
+			const r = resolveRange(spec, now);
+			if (!fitsRange($state.snapshot(sel), r.firstDate, r.lastDate)) delete draft.data.timeSubRange;
+		}
 	}
 
 	function setPlaces(next: Picks): void {
@@ -315,6 +326,10 @@
 			);
 		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
+		if (what.includes("selection") && dropped.conversion.selection) {
+			const { start, end } = dropped.conversion.selection;
+			out.push(m.get_data_selection_left_out({ days: formatDateRange(start, end) }));
+		}
 		if (fromLine) out.push(m.get_data_alert_level_from_low_line({ level: fromLine.label }));
 		return out;
 	});
@@ -391,11 +406,22 @@
 		}
 		// A now type chosen before the catalog is known is converted once it is (below).
 		else {
+			const moved = switchRange($state.snapshot(draft.data), type, to, now);
+			if (moved.dateRange) draft.data.dateRange = moved.dateRange;
+			if (!moved.timeSubRange) delete draft.data.timeSubRange;
 			draft.type = next;
+			const dropped: NowDropped[] = moved.left ? ["selection"] : [];
+			// A line the new type can't hold is left out, with a note.
 			if (!to.thresholds && draft.thresholds) {
-				// A line the new type can't hold is left out, with a note.
 				delete draft.thresholds;
-				noteConversion({ draft: $state.snapshot(draft) as Draft, dropped: ["alert"] });
+				dropped.push("alert");
+			}
+			if (dropped.length) {
+				noteConversion({
+					draft: $state.snapshot(draft) as Draft,
+					dropped,
+					...(moved.left ? { selection: moved.left } : {})
+				});
 			}
 		}
 	}

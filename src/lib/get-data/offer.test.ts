@@ -12,6 +12,8 @@ import {
 } from "$lib/data/testing/dataset-catalog";
 import type { WidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
+import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
+import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { dataTableType } from "$lib/widgets/table";
 import { offeredDatasets, typeBlock } from "./offer";
 
@@ -163,6 +165,35 @@ describe("offeredDatasets: layers that stand alone", () => {
 	it("a dataset with pollutants offers no stand-alone layers", () => {
 		const [air] = offeredDatasets(CATALOG, adapters(["air-quality"]), [chartType]);
 		expect(air.layerTypes).toEqual([]);
+	});
+});
+
+describe("typeBlock for the calendars", () => {
+	const data = (layers: WidgetDataConfig["layers"], range?: WidgetDataConfig["dateRange"]) => ({
+		dateRange: range ?? ({ kind: "to-date", unit: "month" } as const),
+		layers
+	});
+	const pm25 = { dataset: "air-quality", entryType: "pm25" };
+
+	it("needs exactly one pollutant layer", () => {
+		const humidity = { dataset: "air-quality", entryType: "temp" };
+		expect(typeBlock(monthCalendarType, data([pm25, humidity]), CATALOG, NOW)).toBe("pollutant");
+		expect(typeBlock(monthCalendarType, data([humidity]), CATALOG, NOW)).toBe("pollutant");
+		expect(typeBlock(monthCalendarType, data([pm25]), CATALOG, NOW)).toBeNull();
+	});
+
+	it("two places block; another dataset blocks", () => {
+		const two = { ...pm25, selection: monitors(2) };
+		expect(typeBlock(monthCalendarType, data([two]), CATALOG, NOW)).toBe("places");
+		expect(
+			typeBlock(monthCalendarType, data([{ dataset: "census", entryType: "people" }]), CATALOG, NOW)
+		).toBe("dataset");
+	});
+
+	it("a 400-day range blocks the month calendar but not the contribution calendar", () => {
+		const long = data([pm25], { kind: "trailing", amount: 400, unit: "day" });
+		expect(typeBlock(monthCalendarType, long, CATALOG, NOW)).toBe("span");
+		expect(typeBlock(contributionCalendarType, long, CATALOG, NOW)).toBeNull();
 	});
 });
 
