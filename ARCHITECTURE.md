@@ -3185,8 +3185,8 @@ and views.
   dashboard-wide widget, as GitHub's contribution graph does. A year at a glance is essential to
   that view (2.5.8's "essential" exception), and larger cells would mean scrolling sideways
   through the year. Other routes to the same days: the keyboard (arrows, Page Up/Down, Shift+arrows),
-  the month calendar (cells at least 3rem tall), and the CSV. Recorded as a deliberate exception
-  by the controller on 2026-11-09, pending the user's review.
+  the month calendar (cells at least 3rem tall), and the CSV. A deliberate exception: the user's
+  decision (the user, 2026-11-09).
 - **Range selection without dragging** (WCAG 2.5.7). On the calendars, the two-click range
   (click a day, click another) is the single-pointer alternative to dragging across days; the
   keyboard has its own (Shift+arrows).
