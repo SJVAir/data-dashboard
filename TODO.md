@@ -1370,7 +1370,10 @@ The checklist below is the whole step's scope.
   updated). ✅ **`5.0.0-beta.0` on npm `next` 2026-11-08** ([#130](https://github.com/SJVAir/monitor-map/pull/130),
   bfd080c; on map-sdk `0.1.0-beta.6`, which lists plumes covering the view and says their
   density once; [prerelease v5.0.0-beta.0](https://github.com/SJVAir/monitor-map/releases/tag/v5.0.0-beta.0),
-  signed provenance; `latest` stays 4.3.0). Next: mobile's migration tries it.
+  signed provenance; `latest` stays 4.3.0). Next: mobile's migration tries it. **To revisit
+  (the user, 2026-11-08):** the comparison page mixes builds (tooltip pairs retaken on beta.4,
+  the rest from 2026-11-06); a full rerun on `release/5.0.0` before the user's parity review is
+  offered, not yet started. The page stays at the top of the monitor-map checkout until then.
 - The mobile migration is a separate later track (see `DEFERRED.md`).
 - The Map widget: map feature clicking (method A), synced both ways with the step 4 shared
   place picker (method B). Drawn shapes (C, via a
