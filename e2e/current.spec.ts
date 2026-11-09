@@ -68,9 +68,11 @@ test("a monitor the server evaluates shows its alert value; one it does not show
 
 	const purpleair = page.locator("section").filter({ hasText: "Science Building Room 74" });
 	await expect(purpleair.getByText("31.2", { exact: true })).toBeVisible();
-	await expect(purpleair.getByText(/60-minute average · updated \d+ min ago/)).toBeVisible();
+	await expect(
+		purpleair.getByText(/60-minute average · updated (just now|\d+ min ago)/)
+	).toBeVisible();
 
 	const airnow = page.locator("section").filter({ hasText: "Fresno - Drummond Street" });
-	await expect(airnow.getByText(/Hourly average · updated \d+ min ago/)).toBeVisible();
+	await expect(airnow.getByText(/Hourly average · updated (just now|\d+ min ago)/)).toBeVisible();
 	expect(asked).toEqual([PURPLEAIR]);
 });

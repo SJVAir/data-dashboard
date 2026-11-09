@@ -114,12 +114,21 @@ export class CurrentConditions {
 		$effect(() => alertQuery.set(alertMode ? alertSource(alertMode.monitorId) : null));
 		$effect(() => alertQuery.setPolling(polling()));
 		onDestroy(() => alertQuery.destroy());
+		// The monitor whose alert request has had its first answer (a value or a failure). After
+		// that the tile is never held for the alert again: a refetch (a poll or a retry after a
+		// failure) keeps what is shown until its answer arrives.
+		let alertSettled = $state<string | null>(null);
+		$effect(() => {
+			const status = alertQuery.state.status;
+			if (alertMode && (status === "ready" || status === "error"))
+				alertSettled = alertMode.monitorId;
+		});
 		// The alert result, when it is the answer: a stale one stays while a refetch runs or fails.
 		const alertRecord = $derived(alertMode ? alertQuery.state.data : undefined);
 		/** The alert value is still on its way, so the tile is held as loading. */
 		const alertPending = $derived.by(() => {
 			if (alertMode === undefined) return true;
-			if (alertMode === null || alertRecord) return false;
+			if (alertMode === null || alertRecord || alertSettled === alertMode.monitorId) return false;
 			const status = alertQuery.state.status;
 			return status === "idle" || status === "loading";
 		});

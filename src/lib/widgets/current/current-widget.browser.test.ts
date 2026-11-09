@@ -36,6 +36,8 @@ const fake = vi.hoisted(() => ({
 	alertCalls: [] as string[],
 	/** Monitor ids whose alert fetch rejects. */
 	alertFail: new Set<string>(),
+	/** Makes alert fetches never answer. */
+	alertHang: false,
 	/** What the hourly fetch does for a monitor id: reject, or never answer. */
 	hourly: {} as Record<string, "fail" | "hang">,
 	hourlyCalls: 0,
@@ -55,6 +57,7 @@ vi.mock("$lib/data/now/alert", async (original) => ({
 		cadence: "raw" as const,
 		fetch: async () => {
 			fake.alertCalls.push(id);
+			if (fake.alertHang) await new Promise(() => {});
 			if (fake.alertFail.has(id)) throw new Error("alert failed");
 			return fake.alerts[id] ?? {};
 		}
@@ -122,6 +125,7 @@ beforeEach(async () => {
 	fake.alerts = {};
 	fake.alertCalls = [];
 	fake.alertFail = new Set();
+	fake.alertHang = false;
 	fake.hourly = {};
 	fake.hourlyCalls = 0;
 	fake.levelsFail = false;
@@ -572,4 +576,17 @@ test("a monitor the list has no name for is called the unnamed place, not its id
 	await expect
 		.poll(() => generatedTitle(other.id), { timeout: 5000 })
 		.toBe(`PM2.5 · ${m.place_picker_unnamed()}`);
+});
+
+test("a later alert retry in flight keeps the hourly value on the tile", async () => {
+	fake.alertFail.add("m-pa");
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();
+	// The poller's retry of the alert is on its way and slow: nothing flips to loading or empty.
+	fake.alertHang = true;
+	fake.now!.refetch("alert:m-pa");
+	await expect.poll(() => fake.alertCalls.length).toBe(2);
+	await new Promise((r) => setTimeout(r, 200));
+	await expect.element(screen.getByText("21.0", { exact: true })).toBeVisible();
+	expect(frame.querySelector("[data-skeleton], [aria-busy='true']")).toBeNull();
 });
