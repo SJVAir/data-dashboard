@@ -3,7 +3,9 @@
 	import { readableColor } from "$lib/color";
 	import {
 		addDays,
+		formatDayOfMonth,
 		formatMonth,
+		formatNumber,
 		formatValue,
 		formatWeekday,
 		monthGrid,
@@ -15,6 +17,7 @@
 	import { dayLabel, isMarked } from "../shared/day-label";
 	import DayGrid, { type DayGridSection } from "../shared/DayGrid.svelte";
 	import type { DaySpan } from "../shared/write-selection";
+	import { wordsFit, type CellWords } from "./fit";
 
 	let {
 		data,
@@ -33,23 +36,25 @@
 	} = $props();
 
 	/**
-	 * Each month the range touches, whole: days before the range are left empty, and days after
-	 * it that are still to come are drawn as such ("This month" keeps its shape early on).
+	 * Each month the range touches, whole: days before the range are left empty. When the range
+	 * runs to today or later, its month's days after it are drawn as still to come ("This month"
+	 * keeps its shape early on); a range that ended earlier leaves them empty.
 	 */
+	const reachesToday = $derived(data.range.last >= data.today);
 	const sections = $derived.by<DayGridSection[]>(() => {
 		const { first, last } = data.range;
-		const today = data.today;
+		const pad = reachesToday;
 		return monthStarts(first, last).map((month) => ({
 			key: month,
 			label: formatMonth(month),
 			rows: monthGrid(month).map((week) =>
-				week.map((d) => (d !== null && d >= first && (d <= last || d > today) ? d : null))
+				week.map((d) => (d !== null && d >= first && (d <= last || pad) ? d : null))
 			)
 		}));
 	});
 	const stateOf = (date: string): DayState | undefined =>
 		data.states.get(date) ??
-		(date > data.range.last && date > data.today && data.states.size > 0
+		(date > data.range.last && reachesToday && data.states.size > 0
 			? { date, kind: "future", value: null, level: null }
 			: undefined);
 
@@ -78,6 +83,54 @@
 		}
 		return { dashed: s.kind === "today" || s.kind === "pending" };
 	}
+
+	/** Text on a solid backing inside a striped cell, legible over the stripes (WCAG 1.4.3). */
+	const BACKED = "bg-muted -mx-0.5 w-fit rounded-xs px-0.5";
+
+	/** The words each drawn day would show in full, with the number of lines above them. */
+	const cellWords = $derived.by<CellWords[]>(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, built and read here
+		const out = new Map<string, CellWords>();
+		const add = (text: string, above: number) => out.set(`${above}|${text}`, { text, above });
+		for (const s of data.states.values()) {
+			const value = s.value !== null ? 1 : 0;
+			if (s.kind === "rated" && s.level) add(s.level.label, 1 + value);
+			else if (s.kind === "today" && s.value !== null && s.level)
+				add(m.calendar_day_level_so_far({ level: s.level.label }), 2);
+			else if (s.kind === "today" && s.value === null) add(m.calendar_day_no_data_so_far(), 1);
+			else if (s.kind === "thin") add(m.calendar_not_enough_data(), 1);
+			else if (s.kind === "none") add(m.calendar_no_data(), 2);
+			else if (s.kind === "pending") add(m.calendar_day_not_final_yet(), 2);
+			else if (s.kind === "unrated") add(m.calendar_day_not_rated(), 1);
+		}
+		return [...out.values()];
+	});
+
+	/**
+	 * Whether the days show their words, or the tier number (and short stand-ins) instead: words
+	 * only when every one fits its cell whole, wrapping at spaces. Measured, as labels come from
+	 * metadata and may be translated; again whenever the cells change size.
+	 */
+	let box = $state<HTMLElement>();
+	let fit = $state<"label" | "tier">("tier");
+	$effect(() => {
+		const el = box;
+		const words = cellWords;
+		if (!el) return;
+		const measure = () => {
+			const cells = el.querySelectorAll<HTMLElement>("[data-cell]");
+			if (cells.length) fit = wordsFit(cells, words) ? "label" : "tier";
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		let live = true;
+		void document.fonts?.ready.then(() => live && measure());
+		return () => {
+			live = false;
+			observer.disconnect();
+		};
+	});
 </script>
 
 {#snippet heading(section: DayGridSection)}
@@ -92,13 +145,19 @@
 	</div>
 {/snippet}
 
-{#snippet words(full: string, small?: string)}
-	<!-- The full words in a roomy month; a short stand-in (or nothing) in a small one. -->
-	<span class="hidden [overflow-wrap:anywhere] hyphens-auto @min-[22rem]:block" data-words>
+{#snippet words(full: string, small?: string, backed = false)}
+	<!-- The full words when they fit the cells (wrapping at spaces only); else a short stand-in. -->
+	<span
+		class={[
+			"hidden break-normal hyphens-manual group-data-[fit=label]/fit:block",
+			backed && BACKED
+		]}
+		data-words
+	>
 		{full}
 	</span>
 	{#if small}
-		<span class="truncate @min-[22rem]:hidden" data-short>{small}</span>
+		<span class="truncate group-data-[fit=label]/fit:hidden" data-short>{small}</span>
 	{/if}
 {/snippet}
 
@@ -109,11 +168,11 @@
 		data-cell
 		data-dashed={l.dashed ? "" : undefined}
 		class={[
-			"text-2xs relative flex h-full min-h-8 flex-col gap-px overflow-hidden rounded-sm p-1 @min-[22rem]:min-h-12",
+			"text-2xs relative flex h-full flex-col gap-px overflow-hidden rounded-sm px-1 py-0.5",
 			!l.fill && (s.kind === "pending" || s.kind === "today") && "bg-card text-foreground",
 			!l.fill && (s.kind === "thin" || s.kind === "none" || s.kind === "unrated") && "bg-muted",
 			!l.fill && s.kind === "rated" && "bg-muted",
-			s.kind === "thin" && "calendar-stripes text-muted-foreground",
+			s.kind === "thin" && "calendar-stripes text-foreground",
 			s.kind === "future" && "text-muted-foreground",
 			flags.selected &&
 				"shadow-[inset_0_0_0_3px_var(--calendar-selected),inset_0_0_0_4px_var(--calendar-selected-edge)]"
@@ -127,14 +186,14 @@
 			: "var(--swatch-outline-color)"}
 		style:outline-offset="calc(var(--swatch-outline-width) * -1)"
 	>
-		<span class="font-semibold">{Number(s.date.slice(8))}</span>
+		<span class={["font-semibold", s.kind === "thin" && BACKED]}>{formatDayOfMonth(s.date)}</span>
 		{#if isMarked(s, data.threshold)}
 			<span data-mark class="absolute top-0.5 right-1">▲</span>
 		{/if}
 		{#if s.kind === "rated"}
 			{#if s.value !== null}<span data-value>{num(s.value)}</span>{/if}
 			{#if s.level}
-				{@render words(s.level.label, tier != null ? String(tier) : s.level.label)}
+				{@render words(s.level.label, tier != null ? formatNumber(tier) : s.level.label)}
 			{/if}
 		{:else if s.kind === "today"}
 			{#if s.value !== null}
@@ -142,14 +201,14 @@
 				{#if s.level}
 					{@render words(
 						m.calendar_day_level_so_far({ level: s.level.label }),
-						tier != null ? String(tier) : s.level.label
+						tier != null ? formatNumber(tier) : s.level.label
 					)}
 				{/if}
 			{:else}
 				{@render words(m.calendar_day_no_data_so_far(), "—")}
 			{/if}
 		{:else if s.kind === "thin"}
-			{@render words(m.calendar_not_enough_data())}
+			{@render words(m.calendar_not_enough_data(), undefined, true)}
 		{:else if s.kind === "none"}
 			<span>—</span>
 			{@render words(m.calendar_no_data())}
@@ -162,20 +221,24 @@
 	</div>
 {/snippet}
 
-<DayGrid
-	layout="month"
-	{sections}
-	{data}
-	{selection}
-	{onselect}
-	{name}
-	{label}
-	{stateOf}
-	bind:dragging
-	bind:preview
-	header={heading}
-	cell={day}
-	class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-3 p-2"
-	sectionClass="@container flex min-w-0 flex-col gap-1"
-	rowClass="grid grid-cols-7 gap-0.5"
-/>
+<!-- Months side by side as the width allows, each filling its share up to a cap (cells about
+     9rem wide); a month's weeks share its height equally, up to 7rem each. -->
+<div bind:this={box} data-fit={fit} class="group/fit h-full">
+	<DayGrid
+		layout="month"
+		{sections}
+		{data}
+		{selection}
+		{onselect}
+		{name}
+		{label}
+		{stateOf}
+		bind:dragging
+		bind:preview
+		header={heading}
+		cell={day}
+		class="grid min-h-full auto-rows-[minmax(min-content,1fr)] grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3 p-2"
+		sectionClass="grid max-w-[64rem] min-w-0 auto-rows-[minmax(3rem,7rem)] grid-rows-[auto_auto] gap-0.5"
+		rowClass="grid grid-cols-7 gap-0.5"
+	/>
+</div>

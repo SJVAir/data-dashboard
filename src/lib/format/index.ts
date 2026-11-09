@@ -76,7 +76,10 @@ export function dateTimeFormat(
 }
 
 /** A shared `Intl.NumberFormat` for a locale and options. */
-export function numberFormat(locale: string, options?: Intl.NumberFormatOptions): Intl.NumberFormat {
+export function numberFormat(
+	locale: string,
+	options?: Intl.NumberFormatOptions
+): Intl.NumberFormat {
 	const key = `${locale}|${JSON.stringify(options ?? {})}`;
 	let format = numberFormats.get(key);
 	if (!format) {
@@ -179,16 +182,12 @@ export function formatMonthName(date: string, locale: string = LOCALE): string {
 
 /** A calendar month's short name (any `YYYY-MM-DD` in it): "Nov". */
 export function formatMonthShort(date: string, locale: string = LOCALE): string {
-	return dateTimeFormat(locale, { timeZone: TIME_ZONE, month: "short" }).format(
-		noon(date)
-	);
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, month: "short" }).format(noon(date));
 }
 
 /** A calendar year (any `YYYY-MM-DD` in it) shown as "2026". */
 export function formatYear(date: string, locale: string = LOCALE): string {
-	return dateTimeFormat(locale, { timeZone: TIME_ZONE, year: "numeric" }).format(
-		noon(date)
-	);
+	return dateTimeFormat(locale, { timeZone: TIME_ZONE, year: "numeric" }).format(noon(date));
 }
 
 /** A calendar date's day of the month alone: "6". */

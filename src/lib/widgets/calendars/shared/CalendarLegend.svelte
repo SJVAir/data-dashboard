@@ -38,7 +38,7 @@
 		<span
 			aria-hidden="true"
 			data-swatch={kind}
-			class={["bg-muted inline-block size-3 rounded-sm", kind === "thin" && "calendar-thin"]}
+			class={["bg-muted inline-block size-3 rounded-sm", kind === "thin" && "calendar-stripes"]}
 			style:outline-style="solid"
 			style:outline-width="var(--swatch-outline-width)"
 			style:outline-color="var(--swatch-outline-color)"
@@ -104,14 +104,3 @@
 		</li>
 	{/if}
 </ul>
-
-<style>
-	/* Not enough data: grey stripes, as the cells draw them. */
-	.calendar-thin {
-		background-image: repeating-linear-gradient(
-			45deg,
-			var(--muted-foreground) 0 1px,
-			transparent 1px 4px
-		);
-	}
-</style>
