@@ -971,11 +971,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
 
-- **monitor-map 5.0: the expanded legend covers Options and Search on a short map (found 2026-11-09).** In mobile's
-  emulator QA (mobile-cf) on monitor-map `5.0.0-beta.0`, with a monitor panel open on a phone, the expanded legend card
-  covers the Options and Search buttons at the top left. Not yet checked in monitor-map's or map-sdk's code (which one
-  owns the layout is open). **Why deferred:** found during mobile QA, no monitor-map or map-sdk session running.
-  **Revisit:** before monitor-map `5.0.0` final (go-live), in a monitor-map or map-sdk session.
 - **monitor-map 5.0: an expanded legend can run under the zoom and compass buttons at 390 px (found 2026-11-09).**
   monitor-map-18's legend fix (spec `docs/superpowers/specs/2026-11-09-user-contract-and-legend-design.md`) collapses the
   legend when a monitor panel opens on narrow screens and caps its height so it never covers Options and Search. If the
