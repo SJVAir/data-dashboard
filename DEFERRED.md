@@ -470,10 +470,12 @@ string`) now get the union return type. The mobile app passes a string token, so
        session, one read-only pull, with the user's yes). Run `backfill_airnow` (scoped) over the -999 range, then rebuild
        those monitors' summaries. The daily peaks also skip hourly values ≤ -900 and print a skip count (the user,
        2026-11-09: both the order and the skip).
-    3. `rebuild_summaries --monitor <id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix).
-    4. `fill_daily_peaks`, scoped, `--dry-run` first and then for real: monitor types `airnow` and `vozbox`, each region
-       type with gas rows, and the PM types if the 24-hour completeness field lands.
+    3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix).
+    4. `fill_daily_peaks`, scoped, `--dry-run` first and then for real: monitor types `airnow`, `aqlite`, `vozbox`,
+       `purpleair`, `airgradient`, `aqview` and `bam1022`, then each region type (`mean_24h` makes PM types part of it).
     5. Run the backfill **before announcing** the dashboard: settled daily responses are cached for 24 hours.
+       **Pass monitor ids as `--monitor=<id>`** in every command here and in the CIMIS steps: a sqid can start with `-`,
+       which argparse reads as a flag (suspected cause of a flaky `restamp_cimis` test, 2026-11-09).
        Exact commands come with the merged PR. **Why deferred:** nothing touches production until `develop` deploys.
        **Revisit:** at the deploy.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
@@ -612,6 +614,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (step 3 spec 1)._ `regions/meta/` `count` can lag an import by up to an hour. **Revisit if**
   an import flow needs the new counts immediately (then invalidate the key from the import
   commands).
+
+- **sjvair.com: flaky `restamp_cimis` test (found 2026-11-09).** `camp/apps/monitors/cimis/test_restamp.py::test_command_restamps_and_prints_counts`
+  failed once in a full run (sjvair-com-64) and passed alone and on a rerun. Suspected cause, not yet confirmed: the test
+  calls `call_command('restamp_cimis', '--monitor', monitor.pk, ...)`, and a sqid starting with `-` reads as a flag. A fix
+  would be `--monitor=<id>` in the test and the docs (the deploy steps already say so). **Why deferred:** outside the
+  scale-averaging work and intermittent. **Revisit:** when `restamp_cimis` is next touched, or if it fails in CI.
 
 ## Documents & saving
 
