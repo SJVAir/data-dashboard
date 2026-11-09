@@ -428,6 +428,10 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
+  - **Alert current (sjvair.com #319):** nothing to run. After the deploy,
+    `monitors/<id>/alerts/current/` answers `pending` until the first 10-minute alert run (up to
+    10 minutes), then real values. The Current conditions tile works against production only
+    once this is deployed: SDK 5.0.0-beta.7 expects the new fields.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
