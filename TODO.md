@@ -1238,9 +1238,9 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    the user approved the new strings after a copy review (smoke help, "Filters", "no recent data",
    message keys renamed to match their text), accepted plan decision 3 (weather has no "Every
    measurement") and the build's calls, and a pesticide search overlap bug was fixed.
-4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds. **Built on `step-4-spec-4`
-   (2026-11-08), with the server's alert value through `@sjvair/sdk` 5.0.0-beta.7; PR into
-   `step-4` pending.** Spec `docs/superpowers/specs/2026-11-08-step-4-spec-4-now-widgets-design.md`, plan
+4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds. **Merged into `step-4`
+   2026-11-08 (#45, a22e994)**, built on `step-4-spec-4` with the server's alert value through
+   `@sjvair/sdk` 5.0.0-beta.7; the user approved its 62 new strings. Spec `docs/superpowers/specs/2026-11-08-step-4-spec-4-now-widgets-design.md`, plan
    `docs/superpowers/plans/2026-11-08-step-4-spec-4-now-widgets.md`. Built: the three "now"
    widgets (Forecast strip with an Air Alert banner, "Can we go outside?" with today's heat),
    the alert-level choice in Get data, Chart threshold lines, toasts and a taskbar mark for the
