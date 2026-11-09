@@ -21,6 +21,12 @@ function firstOfMonth(date: string): string {
 	return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-01`;
 }
 
+/** How many days the calendar month holding `month` (any `YYYY-MM-DD` in it) has. */
+export function daysInMonth(month: string): number {
+	const first = firstOfMonth(month);
+	return daysInclusive(first, firstOfMonth(addDays(first, 31))) - 1;
+}
+
 /** The first-of-month keys of every month the range touches. */
 export function monthStarts(start: string, end: string): string[] {
 	const months: string[] = [];

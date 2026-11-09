@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	addDays,
+	daysInMonth,
 	dayOfWeek,
 	daysInclusive,
 	monthGrid,
@@ -82,5 +83,14 @@ describe("calendar date helpers", () => {
 			"2026-11-01",
 			"2026-12-01"
 		]);
+	});
+});
+
+describe("daysInMonth", () => {
+	it("counts the days, leap years included", () => {
+		expect(daysInMonth("2026-11-15")).toBe(30);
+		expect(daysInMonth("2026-10-01")).toBe(31);
+		expect(daysInMonth("2026-02-28")).toBe(28);
+		expect(daysInMonth("2028-02-10")).toBe(29);
 	});
 });
