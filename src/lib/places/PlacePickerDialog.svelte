@@ -12,6 +12,7 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
+	import { currentInput } from "$lib/data/now/current";
 	import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
@@ -165,6 +166,7 @@
 	/** The region the widget would use for `point`, aborted with the dialog or after a timeout. */
 	async function regionOf(
 		ctx: Ready,
+		widgetType: string,
 		data: WidgetDataConfig,
 		point: PointPlace,
 		signal: AbortSignal
@@ -177,7 +179,13 @@
 			...pointData,
 			layers: pointData.layers.map(placesQueryLayer)
 		};
-		const { input } = chartInput(lookup, ctx.catalog, ctx.max);
+		// A now tile reads the layer's hourly averages, not 30 days of them.
+		const nowLayer = getWidgetType(widgetType)?.time === "now" && placesLayer(lookup, ctx.catalog);
+		const input = nowLayer
+			? nowLayer.place || nowLayer.selection
+				? currentInput(nowLayer)
+				: null
+			: chartInput(lookup, ctx.catalog, ctx.max).input;
 		if (!input) return null;
 		const timed = new AbortController();
 		const stop = () => timed.abort();
@@ -213,7 +221,7 @@
 			result = await pickedData(target.widget.data, picks, {
 				liveLink,
 				catalog: ctx.catalog,
-				regionOf: (point) => regionOf(ctx, target.widget.data, point, signal)
+				regionOf: (point) => regionOf(ctx, target.widget.type, target.widget.data, point, signal)
 			});
 		} catch {
 			if (stale()) return;

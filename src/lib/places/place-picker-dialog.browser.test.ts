@@ -283,6 +283,20 @@ test("on a live-shared dashboard, Use my location saves the region and says so (
 	expect(layerOf(session).place).toBeUndefined();
 });
 
+test("on a live-shared dashboard, a now tile's location is looked up as the tile reads it", async () => {
+	const { app, platform, session } = await show(widget({}, "current-conditions"));
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(placeRegion.mock.calls[0][0]).toEqual({
+		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
+		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+		pin: "hour"
+	});
+});
+
 /** A Forecast strip: one forecasts layer, with no entry type. */
 function strip(place?: Layer["place"]): WidgetInstance {
 	return {
