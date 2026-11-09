@@ -24,8 +24,9 @@
 		widget,
 		selection,
 		grid,
-		patterns = false,
-		dragging = false
+		patterns,
+		dragging = false,
+		legendAside
 	}: {
 		data: CalendarData;
 		widget: WidgetInstance;
@@ -34,6 +35,8 @@
 		grid: Snippet;
 		/** The contribution calendar's "Show patterns" (passed to the legend). */
 		patterns?: boolean;
+		/** Drawn at the end of the legend's row (the contribution calendar's switch). */
+		legendAside?: Snippet;
 		/** A drag is extending the selection: the live region waits until it settles. */
 		dragging?: boolean;
 	} = $props();
@@ -188,12 +191,15 @@
 						<span class="text-muted-foreground text-xs">{m.calendar_selection_clear_hint()}</span>
 					</p>
 				{/if}
-				<CalendarLegend
-					levels={data.levels}
-					states={data.states}
-					threshold={data.threshold}
-					{patterns}
-				/>
+				<div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+					<CalendarLegend
+						levels={data.levels}
+						states={data.states}
+						threshold={data.threshold}
+						{patterns}
+					/>
+					{@render legendAside?.()}
+				</div>
 			</div>
 		</WidgetState>
 	</div>

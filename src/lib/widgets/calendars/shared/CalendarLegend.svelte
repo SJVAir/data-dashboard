@@ -3,17 +3,21 @@
 	import type { DayState } from "$lib/calendars/day-state";
 	import { m } from "$lib/paraglide/messages.js";
 	import LevelChip from "../../shared/LevelChip.svelte";
+	import { inkOf, tierPattern } from "./patterns";
 
 	let {
 		levels,
 		states,
 		threshold,
-		patterns = false
+		patterns
 	}: {
 		levels: Level[];
 		states: Map<string, DayState>;
 		threshold: Level | null;
-		/** The contribution calendar's "Show patterns" is on (its cells carry the tier pattern). */
+		/**
+		 * The contribution calendar's "Show patterns" (its levels are drawn as its cells are: a
+		 * swatch, with the tier pattern when on). Unset: each level is a labelled chip.
+		 */
 		patterns?: boolean;
 	} = $props();
 
@@ -51,7 +55,27 @@
 	class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
 >
 	{#each shownLevels as level (level.key)}
-		<li><LevelChip {level} size="sm" /></li>
+		{#if patterns === undefined}
+			<li><LevelChip {level} size="sm" /></li>
+		{:else}
+			{@const pattern =
+				patterns && level.color ? tierPattern(level.tier, inkOf(level.color)) : null}
+			<li class="flex items-center gap-1">
+				<span
+					aria-hidden="true"
+					data-swatch={level.key}
+					class={["inline-block size-3 rounded-sm", !level.color && "bg-muted"]}
+					style:background={level.color
+						? [pattern, level.color].filter(Boolean).join(", ")
+						: undefined}
+					style:outline-style="solid"
+					style:outline-width="var(--swatch-outline-width)"
+					style:outline-color="var(--swatch-outline-color)"
+					style:outline-offset="calc(var(--swatch-outline-width) * -1)"
+				></span>
+				<span>{level.label}</span>
+			</li>
+		{/if}
 	{/each}
 	{@render swatch("thin", m.calendar_not_enough_data())}
 	{@render swatch("none", m.calendar_no_data())}

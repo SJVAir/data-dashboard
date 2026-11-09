@@ -146,6 +146,13 @@ export function formatMonthName(date: string, locale: string = LOCALE): string {
 	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, month: "long" }).format(noon(date));
 }
 
+/** A calendar month's short name (any `YYYY-MM-DD` in it): "Nov". */
+export function formatMonthShort(date: string, locale: string = LOCALE): string {
+	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, month: "short" }).format(
+		noon(date)
+	);
+}
+
 /** A calendar year (any `YYYY-MM-DD` in it) shown as "2026". */
 export function formatYear(date: string, locale: string = LOCALE): string {
 	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, year: "numeric" }).format(

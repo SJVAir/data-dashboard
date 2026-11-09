@@ -7,6 +7,7 @@ import {
 	formatList,
 	formatLongWeekdayDate,
 	formatMonthName,
+	formatMonthShort,
 	formatNumber,
 	formatPeriod,
 	formatTick,
@@ -26,6 +27,10 @@ describe("format", () => {
 	it("formatMonthName names the Pacific month without its year", () => {
 		expect(formatMonthName("2026-11-30")).toBe("November");
 		expect(formatMonthName("2027-01-01")).toBe("January");
+	});
+	it("formatMonthShort names the Pacific month briefly", () => {
+		expect(formatMonthShort("2026-11-01")).toBe("Nov");
+		expect(formatMonthShort("2027-01-31")).toBe("Jan");
 	});
 	it("formatLongWeekdayDate spells out the weekday and month", () => {
 		expect(formatLongWeekdayDate("2026-11-06")).toBe("Friday, November 6");
