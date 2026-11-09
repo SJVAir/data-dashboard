@@ -123,6 +123,7 @@
 		onretry={current.retry}
 		onchoose={() => openPlacePicker({ widgetId: widget.id })}
 		emptyText={m.current_no_data()}
+		ownsEmpty
 		children={body}
 	/>
 </MarkFrame>

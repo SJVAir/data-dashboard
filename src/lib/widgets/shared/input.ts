@@ -1,5 +1,6 @@
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import { layerKind } from "$lib/data/layer-kind";
+import { currentInput } from "$lib/data/now/current";
 import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "../defaults";
@@ -62,6 +63,14 @@ export function placesQueryLayer(layer: Layer): Layer {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
 	const { dataset, ...rest } = layer;
 	return { ...rest, dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType };
+}
+
+/**
+ * What a "now" tile asks the query client for: the layer's hourly averages (`currentInput`). A
+ * layer with no place or selection asks for nothing (null): a tile of every monitor isn't offered.
+ */
+export function nowInput(layer: Layer | undefined): QueryInput | null {
+	return layer && (layer.place || layer.selection) ? currentInput(layer) : null;
 }
 
 /**

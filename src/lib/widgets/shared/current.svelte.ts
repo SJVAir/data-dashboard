@@ -3,12 +3,12 @@ import { getMetadata, getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
 import { getNowClient } from "$lib/data/now";
 import { alertReading, alertSource, type AlertConfig, type AlertRecord } from "$lib/data/now/alert";
-import { currentInput, hourlyReading, type CurrentReading } from "$lib/data/now/current";
+import { hourlyReading, type CurrentReading } from "$lib/data/now/current";
 import { NowQuery } from "$lib/data/now/now-query.svelte";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { QueryState, UnavailableReason } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { entryMeta, mainLayer } from "./input";
+import { entryMeta, mainLayer, nowInput } from "./input";
 
 type Levels = Level[] | { error: unknown } | undefined;
 
@@ -49,7 +49,7 @@ export class CurrentConditions {
 		});
 
 		const layer = $derived(mainLayer(widget().data, catalog));
-		const input = $derived(layer && (layer.place || layer.selection) ? currentInput(layer) : null);
+		const input = $derived(nowInput(layer));
 		const meta = $derived(entryMeta(catalog, layer));
 		const entryTypeId = $derived(layer?.entryType);
 
@@ -84,7 +84,9 @@ export class CurrentConditions {
 				const name = (await metadata.monitors(signal)).find((mon) => mon.id === id)?.name ?? id;
 				return { monitorId: id, entryType, config, name };
 			})().then(
-				(mode) => (alertMode = mode),
+				(mode) => {
+					if (!signal.aborted) alertMode = mode;
+				},
 				// A lookup that fails reads the hourly average, as for a monitor with no config.
 				() => {
 					if (!signal.aborted) alertMode = null;
@@ -107,6 +109,20 @@ export class CurrentConditions {
 			return status === "idle" || status === "loading";
 		});
 
+		/**
+		 * The alert entry the tile reads, when it is the answer: a monitor the server evaluates, whose
+		 * alert result has an entry for the pollutant, with the levels in and a place that is not
+		 * unavailable. `reading`, `shown` and `state` all follow it, so the tile shows (and the
+		 * watcher fires on) one value, whatever state the hourly query is in.
+		 */
+		const alertUsable = $derived.by(() => {
+			const mode = alertMode;
+			const entry = mode ? alertRecord?.[mode.entryType] : undefined;
+			if (!mode || !entry || !Array.isArray(this.#levels)) return undefined;
+			if (query.state.status === "unavailable" || query.state.status === "idle") return undefined;
+			return { mode, entry, levels: this.#levels };
+		});
+
 		$effect(() => {
 			const id = entryTypeId;
 			void this.#levelsTry;
@@ -127,6 +143,21 @@ export class CurrentConditions {
 		this.meta = $derived(meta);
 		this.shown = $derived.by((): QueryState => {
 			const s = query.state;
+			const usable = alertUsable;
+			if (usable) {
+				if (s.status === "ready") return s;
+				return {
+					status: "ready",
+					data: (s.status === "loading" || s.status === "error" ? s.data : undefined) ?? {
+						series: [],
+						places: [{ place: `monitor:${usable.mode.monitorId}`, name: usable.mode.name }],
+						resolution: "hour",
+						fromRaw: false,
+						processor: null,
+						fetchedAt: 0
+					}
+				};
+			}
 			if (s.status === "ready" && alertPending) return { status: "loading", data: s.data };
 			if (s.status !== "ready" && s.status !== "error") return s;
 			const levels = this.#levels;
@@ -139,6 +170,7 @@ export class CurrentConditions {
 		this.state = $derived.by(() => {
 			const s = query.state;
 			if (s.status === "unavailable") return { unavailable: s.reason };
+			if (alertUsable) return "ready";
 			if (s.status === "error") return "error";
 			if (this.#levels && !Array.isArray(this.#levels)) return "error";
 			if (s.status === "ready" && Array.isArray(this.#levels) && !alertPending) return "ready";
@@ -149,14 +181,11 @@ export class CurrentConditions {
 			const s = query.state;
 			const levels = this.#levels;
 			const precision = meta?.entryType.precision ?? null;
-			const mode = alertMode;
-			const entry = mode ? alertRecord?.[mode.entryType] : undefined;
-			if (mode && entry && Array.isArray(levels)) {
-				const place = (s.status === "ready" ? s.data.places[0] : undefined) ?? {
-					place: `monitor:${mode.monitorId}`,
-					name: mode.name
-				};
-				return alertReading(entry, levels, mode.config, place, precision);
+			const usable = alertUsable;
+			if (usable) {
+				const place = (s.status === "unavailable" || s.status === "idle" ? undefined : s.data)
+					?.places[0] ?? { place: `monitor:${usable.mode.monitorId}`, name: usable.mode.name };
+				return alertReading(usable.entry, levels as Level[], usable.mode.config, place, precision);
 			}
 			if (alertPending) return undefined;
 			if (s.status !== "ready" || !Array.isArray(levels)) return undefined;

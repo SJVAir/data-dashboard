@@ -12,7 +12,6 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import { currentInput } from "$lib/data/now/current";
 	import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
@@ -23,6 +22,7 @@
 	import { getWidgetType } from "$lib/widgets/registry";
 	import {
 		chartInput,
+		nowInput,
 		placesEntryType,
 		placesLayer,
 		placesQueryLayer
@@ -180,12 +180,10 @@
 			layers: pointData.layers.map(placesQueryLayer)
 		};
 		// A now tile reads the layer's hourly averages, not 30 days of them.
-		const nowLayer = getWidgetType(widgetType)?.time === "now" && placesLayer(lookup, ctx.catalog);
-		const input = nowLayer
-			? nowLayer.place || nowLayer.selection
-				? currentInput(nowLayer)
-				: null
-			: chartInput(lookup, ctx.catalog, ctx.max).input;
+		const input =
+			getWidgetType(widgetType)?.time === "now"
+				? nowInput(placesLayer(lookup, ctx.catalog))
+				: chartInput(lookup, ctx.catalog, ctx.max).input;
 		if (!input) return null;
 		const timed = new AbortController();
 		const stop = () => timed.abort();

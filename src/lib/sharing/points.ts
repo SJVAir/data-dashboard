@@ -1,11 +1,10 @@
 import type { Change } from "$lib/changes/types";
 import type { Layer } from "$lib/data/schema";
-import { currentInput } from "$lib/data/now/current";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { getWidgetType } from "$lib/widgets/registry";
-import { chartInput, placesLayer, placesQueryLayer } from "$lib/widgets/shared/input";
+import { chartInput, nowInput, placesLayer, placesQueryLayer } from "$lib/widgets/shared/input";
 import { hasPoints, pointLayers } from "./point-layers";
 
 export { hasPoints };
@@ -78,7 +77,7 @@ function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
 	const places = placesLayer(data, undefined);
 	if (!places) return null;
 	const query = placesQueryLayer(places);
-	if (getWidgetType(widget.type)?.time === "now") return currentInput(query);
+	if (getWidgetType(widget.type)?.time === "now") return nowInput(query);
 	return chartInput({ ...data, layers: [query] }, undefined, 1).input;
 }
 

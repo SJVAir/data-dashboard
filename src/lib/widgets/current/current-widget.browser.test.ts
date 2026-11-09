@@ -33,7 +33,11 @@ const fake = vi.hoisted(() => ({
 	now: undefined as NowClient | undefined,
 	/** What the alert endpoint answers for each monitor id; each call is counted. */
 	alerts: {} as Record<string, AlertRecord>,
-	alertCalls: [] as string[]
+	alertCalls: [] as string[],
+	/** Monitor ids whose alert fetch rejects. */
+	alertFail: new Set<string>(),
+	/** What the hourly fetch does for a monitor id: reject, or never answer. */
+	hourly: {} as Record<string, "fail" | "hang">
 }));
 vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
@@ -48,6 +52,7 @@ vi.mock("$lib/data/now/alert", async (original) => ({
 		cadence: "raw" as const,
 		fetch: async () => {
 			fake.alertCalls.push(id);
+			if (fake.alertFail.has(id)) throw new Error("alert failed");
 			return fake.alerts[id] ?? {};
 		}
 	})
@@ -71,13 +76,17 @@ function adapter(values: Record<string, [number, number]>): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			const id = layer.place?.kind === "monitor" ? layer.place.id : "";
+			const place = layer.place;
+			// A region stands in as the monitor named by its code.
+			const id = place?.kind === "monitor" ? place.id : place?.kind === "region" ? place.code : "";
 			if (id === "gone") return { unavailable: "monitor-unlisted" };
 			return { kind: "monitors", ids: [id] };
 		},
 		offered: (base) => base,
 		async fetch(req) {
 			const id = req.target.kind === "monitors" ? req.target.ids[0] : "";
+			if (fake.hourly[id] === "fail") throw new Error("hourly failed");
+			if (fake.hourly[id] === "hang") await new Promise(() => {});
 			const [before, latest] = values[id] ?? [0, 0];
 			const t = t0 - 6 * 60_000 - HOUR;
 			const point = (at: number, mean: number) => ({
@@ -108,6 +117,8 @@ beforeEach(async () => {
 	fake.now = createNowClient();
 	fake.alerts = {};
 	fake.alertCalls = [];
+	fake.alertFail = new Set();
+	fake.hourly = {};
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,
 		levels: async (entryType) => (entryType === "pm25" ? LEVELS : []),
@@ -432,8 +443,79 @@ test("a pending alert result says it is not available yet", async () => {
 
 test("a region never asks for an alert value", async () => {
 	const widget = currentWidget("a");
-	widget.data.layers[0].place = { kind: "region", source: "county", code: "fresno" } as never;
-	await show(widget);
-	await new Promise((r) => setTimeout(r, 300));
+	widget.data.layers[0].place = { kind: "region", type: "county", code: "a" };
+	const screen = await show(widget);
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
 	expect(fake.alertCalls).toEqual([]);
+});
+
+test("the tile shows the alert value when the hourly query fails", async () => {
+	fake.hourly = { "m-pa": "fail" };
+	fake.alerts = { "m-pa": { pm25: alertEntry() } as never };
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText("31.2"), { timeout: 5000 }).toBeVisible();
+	await expect.element(screen.getByText(m.widget_state_retry())).not.toBeInTheDocument();
+});
+
+test("the tile shows the alert value while the hourly query is still loading", async () => {
+	fake.hourly = { "m-pa": "hang" };
+	fake.alerts = { "m-pa": { pm25: alertEntry() } as never };
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText("31.2"), { timeout: 5000 }).toBeVisible();
+});
+
+test("a hourly failure with no alert entry still shows the error card", async () => {
+	fake.hourly = { "m-pa": "fail" };
+	fake.alerts = { "m-pa": {} };
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText(m.widget_state_retry()), { timeout: 5000 }).toBeVisible();
+});
+
+test("an alert fetch that fails with no data falls back to the hourly average", async () => {
+	fake.alertFail.add("m-pa");
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(screen.getByText(m.current_hourly_average(), { exact: false }))
+		.toBeVisible();
+});
+
+test("an alert config lookup that rejects falls back to the hourly average", async () => {
+	const base = fake.metadata!;
+	fake.metadata = {
+		...base,
+		alertConfig: async () => {
+			throw new Error("meta failed");
+		}
+	};
+	const screen = await show(currentWidget("m-pa"));
+	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();
+	expect(fake.alertCalls).toEqual([]);
+});
+
+test("a lookup that resolves after the place changed does not set the old monitor's mode", async () => {
+	let release!: () => void;
+	const gate = new Promise<void>((r) => (release = r));
+	const base = fake.metadata!;
+	fake.metadata = {
+		...base,
+		monitorType: async (id, signal) => {
+			if (id === "m-pa") await gate;
+			return base.monitorType(id, signal);
+		}
+	};
+	fake.alerts = { "m-pa": { pm25: alertEntry() } as never };
+	const first = currentWidget("m-pa");
+	const screen = await show(first);
+	await screen.rerender({
+		widget: {
+			...first,
+			data: { layers: [{ ...first.data.layers[0], place: { kind: "monitor", id: "voz" } }] }
+		}
+	});
+	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();
+	release();
+	await new Promise((r) => setTimeout(r, 100));
+	expect(fake.alertCalls).toEqual([]);
+	await expect.element(screen.getByText("21.0", { exact: true })).toBeVisible();
 });

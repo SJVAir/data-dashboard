@@ -5,6 +5,7 @@ import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { DatasetAdapter } from "$lib/data/adapters/registry";
 import type { CatalogEntry, MetadataSource } from "$lib/data/metadata";
+import { createNowClient, type NowClient } from "$lib/data/now/client";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
@@ -25,18 +26,43 @@ import { readTold } from "./told";
 
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,
-	metadata: undefined as MetadataSource | undefined
+	metadata: undefined as MetadataSource | undefined,
+	now: undefined as NowClient | undefined,
+	/** The alert result for monitor `pa` (an entry's `value`, or no entry at all). */
+	alertValue: undefined as number | undefined,
+	alertCalls: 0
 }));
 vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
 	getMetadata: () => fake.metadata!
 }));
 
-vi.mock("$lib/data/now", async () => {
-	const { createNowClient } = await import("$lib/data/now/client");
-	const client = createNowClient();
-	return { getNowClient: () => client };
-});
+vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.now! }));
+vi.mock("$lib/data/now/alert", async (original) => ({
+	...(await original<typeof import("$lib/data/now/alert")>()),
+	alertSource: (id: string) => ({
+		key: `alert:${id}`,
+		cadence: "raw" as const,
+		fetch: async () => {
+			fake.alertCalls++;
+			if (fake.alertValue === undefined) return {};
+			const at = new Date(Date.now() - 2 * 60_000).toISOString();
+			return {
+				pm25: {
+					status: "ok",
+					value: fake.alertValue,
+					level: null,
+					window: { start: at, end: at },
+					latest_timestamp: at,
+					readings: 29,
+					required: 15,
+					previous: null,
+					evaluated_at: at
+				}
+			};
+		}
+	})
+}));
 
 const HOUR = 3_600_000;
 const CATALOG: CatalogEntry[] = FIXTURE_CATALOG.map((d) => ({
@@ -55,7 +81,9 @@ const series = {
 	values: [20] as (number | null)[],
 	step: 0,
 	/** Makes the next fetches fail (the query keeps its last data). */
-	fail: false
+	fail: false,
+	/** Makes the hourly fetch never answer. */
+	hang: false
 };
 let t0 = Date.now();
 let fetches = 0;
@@ -71,6 +99,7 @@ function adapter(): DatasetAdapter {
 		async fetch(req) {
 			fetches++;
 			if (series.fail) throw new Error("summaries down");
+			if (series.hang) await new Promise(() => {});
 			const id = req.target.kind === "monitors" ? req.target.ids[0] : "";
 			const step = Math.min(series.step, series.values.length - 1);
 			const latest = t0 - 6 * 60_000 - HOUR - (series.values.length - 1 - step) * STEP;
@@ -109,12 +138,20 @@ let levelCalls = 0;
 beforeEach(async () => {
 	t0 = Date.now();
 	series.fail = false;
+	series.hang = false;
+	fake.now = createNowClient();
+	fake.alertValue = undefined;
+	fake.alertCalls = 0;
 	fetches = 0;
 	levelsFail = false;
 	levelCalls = 0;
 	await page.viewport(1280, 800);
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,
+		monitorType: async (id) => (id === "pa" ? "purpleair" : null),
+		monitors: async () => [
+			{ id: "pa", name: "PA", type: "purpleair", county: "Fresno", active: true }
+		],
 		levels: async (entryType) => {
 			levelCalls++;
 			if (levelsFail) throw new Error("levels down");
@@ -403,6 +440,53 @@ test("a server key reorder of the layers is not a new place: no re-seeding, so a
 			level: "Unhealthy"
 		})
 	]);
+});
+
+/** A tile over monitor `pa`, whose alert value the server evaluates. */
+const alertTile = () =>
+	tile("w1", {
+		data: {
+			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "pa" } }]
+		}
+	});
+const crossingAtPa = m.alert_pollutant_at_place_is_now_level({
+	pollutant: "PM2.5",
+	place: "PA",
+	level: USG
+});
+
+test("with the hourly query failed, the watcher fires on the alert value the tile shows", async () => {
+	series.fail = true;
+	fake.alertValue = 20;
+	const { app, platform, docId } = await seed([alertTile()]);
+	await handled(platform, app, docId, "w1");
+	expect(toastTexts()).not.toContain(crossingAtPa);
+	fake.alertValue = 40;
+	fake.now!.refetch("alert:pa");
+	await expect.poll(toastTexts, { timeout: 5000 }).toContain(crossingAtPa);
+	await expect.element(page.getByText("40.0", { exact: true }).first()).toBeVisible();
+});
+
+test("with the hourly query still loading, the watcher fires on the alert value", async () => {
+	series.hang = true;
+	fake.alertValue = 20;
+	const { app, platform, docId } = await seed([alertTile()]);
+	await handled(platform, app, docId, "w1");
+	fake.alertValue = 40;
+	fake.now!.refetch("alert:pa");
+	await expect.poll(toastTexts, { timeout: 5000 }).toContain(crossingAtPa);
+});
+
+test("when the tile shows an error or loading, the watcher fires nothing", async () => {
+	// Hourly fails and the alert has no entry: the tile is an error card.
+	series.fail = true;
+	fake.alertValue = undefined;
+	const { app, platform, docId } = await seed([alertTile()]);
+	await expect.poll(() => fake.alertCalls, { timeout: 5000 }).toBeGreaterThan(0);
+	await new Promise((r) => setTimeout(r, 300));
+	expect(thresholdMarks.w1).toBeUndefined();
+	expect(toastTexts().filter((t) => t?.includes(" at PA "))).toEqual([]);
+	expect((await readTold(platform, app.space, docId)).w1).toBeUndefined();
 });
 
 test("a reading that ages past 3 hours loses its mark between polls", async () => {

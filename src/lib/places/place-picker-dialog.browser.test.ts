@@ -341,6 +341,24 @@ test("on a live-shared dashboard, a Forecast strip's location is saved as its re
 	});
 });
 
+test("a Forecast strip's location is looked up as the PM2.5 hourly input a now tile reads", async () => {
+	const { app, platform, session } = await show(strip());
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(placeRegion.mock.calls[0][0]).toEqual({
+		layer: {
+			dataset: "air-quality",
+			entryType: "pm25",
+			place: { kind: "point", lat: 36.75, lon: -119.79 }
+		},
+		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+		pin: "hour"
+	});
+});
+
 test("no saved-as notice when an edit meanwhile already set that region", async () => {
 	announce("Start");
 	await expect.poll(() => announcer.text).toBe("Start");
