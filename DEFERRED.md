@@ -818,6 +818,24 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   date line. **Revisit when** a host map can pan across the date line (a world or Pacific
   view): split bounds and shapes at 180° before testing.
 
+- **Polygons with fewer than 3 points in the in-view test.** _Deferred 2026-11-08 (map-sdk
+  [#18](https://github.com/SJVAir/map-sdk/pull/18) review)._ map-sdk never counts a polygon ring
+  with fewer than 3 points as in view, even with a vertex on screen. Valid GeoJSON rings have at
+  least 4 positions, so no SJVAir data hits it. **Revisit when** a source is found sending
+  degenerate polygons.
+
+- **`MapContext` stand-ins and the two new members.** _Deferred 2026-11-08 (map-sdk
+  [#18](https://github.com/SJVAir/map-sdk/pull/18) review)._ `MapContext` gains required
+  `focusedAnchor` and `anchorFor(item)`. Only code that writes its own `MapContext` (a test
+  double) must add them; no host does. Making them optional would make every caller handle
+  their absence. **Revisit when** a host or a test outside map-sdk implements `MapContext`.
+
+- **A faster in-view test for shapes.** _Deferred 2026-11-08 (map-sdk
+  [#18](https://github.com/SJVAir/map-sdk/pull/18) review)._ map-sdk's `inView` could skip the
+  exact test when a shape's label point or whole bbox is inside the view. The bbox pre-check
+  already rejects most shapes, and no slowdown has been measured. **Revisit when** moving the map
+  with many detailed shapes (all counties, a big plume day) is measurably slow.
+
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
   way to go in the long run")._ `regions/places/search/` rows carry one `county`: the county
