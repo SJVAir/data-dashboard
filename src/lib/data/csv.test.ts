@@ -733,4 +733,48 @@ describe("a calendar's CSV", () => {
 		expect(rows[0].slice(-2)).toEqual(["Highest 1-hour average", "Rated"]);
 		expect(rows[1].slice(-2)).toEqual(["12.5", "Yes"]);
 	});
+
+	async function download(dailyFigure: MetadataSource["dailyFigure"]): Promise<string[][]> {
+		const adapter: DatasetAdapter = {
+			...fakeAdapter([]),
+			async fetch() {
+				return { ...days([{ figure: 12.5, final: true }]), fetchedAt: 0 };
+			}
+		};
+		fake.metadata = fixtureMetadata({ dailyFigure });
+		fake.client = createQueryClient({
+			adapters: [adapter],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const widget = chartWidget(["m1"]);
+		widget.data.layers[0] = {
+			dataset: "air-quality",
+			entryType: "o3",
+			place: { kind: "monitor", id: "m1" }
+		};
+		let out = "";
+		await downloadWidgetCsv({ ...widget, type: "calendar-month" }, (_n, contents) => {
+			out = contents;
+		});
+		return parse(out);
+	}
+
+	it("downloads a plain daily CSV when the figure lookup fails", async () => {
+		const rows = await download(async () => {
+			throw new Error("down");
+		});
+		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+	});
+
+	it("adds no columns when the entry type has no daily figure", async () => {
+		const rows = await download(async () => null);
+		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+	});
+
+	it("quotes a figure label with a comma in the header", () => {
+		const text = toCsv(days([{ figure: 1, final: true }]), META, "owner", [], "Max, 1-hour");
+		expect(parse(text)[0].slice(-2)).toEqual(["Max, 1-hour", "Rated"]);
+		expect(text).toContain('"Max, 1-hour"');
+	});
 });

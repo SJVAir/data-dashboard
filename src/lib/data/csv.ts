@@ -179,7 +179,8 @@ function dataRows(
  * the whole period's value. A weather overlay's rows carry the station (`source_id`,
  * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
  * A calendar passes `figureLabel` and gets two more columns, the day's figure and "Rated".
- * `aggregate` (last of the common columns, so no earlier column moves) says whether a value is a total or an average.
+ * `aggregate` (last of the common columns, so no earlier column moves) says whether a value is
+ * a total or an average.
  */
 export function toCsv(
 	data: QueryData,
@@ -283,9 +284,16 @@ export async function downloadDataCsv(
 	if (calendar) {
 		// A calendar's own query: one row per day, with the figure the server names.
 		const own = calendarInput(config, catalog, type);
-		const figure = layer?.entryType ? await getMetadata().dailyFigure(layer.entryType) : null;
+		// A failed lookup, or an entry type with no daily statistic, gives a plain daily CSV:
+		// without the figure in the query, "Rated" would be false on every row.
+		const figure = layer?.entryType
+			? await getMetadata()
+					.dailyFigure(layer.entryType)
+					.catch(() => null)
+			: null;
 		input = own ? (figure ? { ...own, dailyFigure: figure.field } : own) : null;
-		figureLabel = figureName(figure);
+		// Calendars take one pollutant layer, so there are no overlays to carry the columns.
+		if (figure) figureLabel = figureName(figure);
 	}
 	const info = entryMeta(catalog, layer);
 	if (!input || !info) throw new Error("There is no data to download");
