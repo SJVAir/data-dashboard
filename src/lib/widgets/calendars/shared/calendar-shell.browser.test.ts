@@ -390,3 +390,15 @@ test("a widget with no place asks for nothing and offers the place picker state"
 	await expect.poll(() => frame.textContent).toContain(m.widget_state_idle());
 	expect(requests).toHaveLength(0);
 });
+
+test("a clock tick within the same day keeps the range, selectable days and states as they were", async () => {
+	vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"], now: NOW });
+	const { data } = await show(calendar());
+	const { states, range, selectable } = data;
+	vi.advanceTimersByTime(60_000);
+	await new Promise((r) => setTimeout(r, 0));
+	expect(data.today).toBe("2026-11-09");
+	expect(data.range).toBe(range);
+	expect(data.selectable).toBe(selectable);
+	expect(data.states).toBe(states);
+});

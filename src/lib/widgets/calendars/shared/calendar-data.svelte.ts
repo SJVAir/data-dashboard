@@ -99,18 +99,20 @@ export class CalendarData {
 		this.figure = $derived(lookup?.figure ?? null);
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a fresh read, never mutated
 		this.today = $derived(todayPacific(new Date(this.#now)));
-		this.range = $derived.by(() => {
+		// The range's dates as strings first, so the objects below (and every cell reading them)
+		// only change when a date does, not on each minute's tick.
+		const rangeKey = $derived.by(() => {
 			const spec =
 				widget().data.dateRange ?? CALENDAR_DEFAULT_RANGES[widget().type] ?? DEFAULT_RANGE;
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a fresh read, never mutated
 			const r = resolveRange(spec, new Date(this.#now));
-			return { first: r.firstDate, last: r.lastDate };
+			return `${r.firstDate}/${r.lastDate}`;
 		});
-		this.selectable = $derived.by(() => {
-			const { first, last } = this.range;
-			const end = last < this.today ? last : this.today;
-			return first <= end ? { first, last: end } : null;
-		});
+		const first = $derived(rangeKey.slice(0, 10));
+		const last = $derived(rangeKey.slice(11));
+		this.range = $derived({ first, last });
+		const selectableLast = $derived(last < this.today ? last : this.today);
+		this.selectable = $derived(first <= selectableLast ? { first, last: selectableLast } : null);
 		this.levels = $derived(w.levelList);
 
 		this.shown = $derived.by(() => {
