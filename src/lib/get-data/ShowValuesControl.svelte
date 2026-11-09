@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Collapsible } from "bits-ui";
+	import type { Snippet } from "svelte";
 	import type { Resolution } from "$lib/data/schema";
 	import { m } from "$lib/paraglide/messages.js";
 	import Toggletip from "$lib/components/Toggletip.svelte";
@@ -9,11 +10,14 @@
 	let {
 		choices,
 		value,
-		onchange
+		onchange,
+		children
 	}: {
 		choices: DetailChoice[];
 		value: "auto" | Resolution;
 		onchange: (level: "auto" | Resolution) => void;
+		/** More options that follow Show values (a Chart's threshold line). */
+		children?: Snippet;
 	} = $props();
 
 	const uid = $props.id();
@@ -44,7 +48,7 @@
 			/>
 		</Collapsible.Trigger>
 	</h2>
-	<Collapsible.Content>
+	<Collapsible.Content class="flex flex-col gap-3">
 		<!-- Named by its heading text alone: the help button sits beside it, outside the name. -->
 		<fieldset class="flex flex-col gap-1 px-1" aria-labelledby="{uid}-detail-label">
 			<div class="mb-1 flex items-center gap-1 text-sm font-medium">
@@ -80,5 +84,6 @@
 				</div>
 			{/each}
 		</fieldset>
+		{@render children?.()}
 	</Collapsible.Content>
 </Collapsible.Root>

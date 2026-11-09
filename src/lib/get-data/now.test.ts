@@ -170,6 +170,18 @@ describe("toNowDraft", () => {
 	});
 });
 
+describe("Chart threshold lines in conversions", () => {
+	it("a Chart with its line Off still gets the default level as a tile", () => {
+		const converted = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS, chartType);
+		expect(converted.draft.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+	});
+
+	it("a tile's alert level isn't carried to a Chart as a line", () => {
+		const tile = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS).draft;
+		expect(fromNowDraft(tile, chartType).draft).not.toHaveProperty("thresholds");
+	});
+});
+
 describe("fromNowDraft", () => {
 	it("back to a Chart gets the default range, nothing else changes", () => {
 		const now = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS).draft;

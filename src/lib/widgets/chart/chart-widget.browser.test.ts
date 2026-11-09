@@ -485,3 +485,29 @@ test("a number overlay isn't fetched while the main layer is unavailable", async
 	await new Promise((r) => setTimeout(r, 100));
 	expect(requests.filter((r) => r.entryType === "precipitation")).toEqual([]);
 });
+
+test("a saved threshold draws a labeled line and names its level in the key", async () => {
+	const screen = await show(
+		chartWidget(["m1"], { thresholds: [{ level: "unhealthy-sensitive" }] })
+	);
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toHaveAttribute("data-threshold", "35.4");
+	await expect.element(chart.getByText("Unhealthy for Sensitive Groups").last()).toBeVisible();
+	expect(frame.querySelector("[data-threshold-key]")?.textContent).toContain(
+		"Unhealthy for Sensitive Groups"
+	);
+});
+
+test("Off draws no line", async () => {
+	const screen = await show(chartWidget(["m1"]));
+	await expect.element(screen.getByRole("group", { name: "Chart of Monitor m1" })).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	expect(frame.querySelector("[data-threshold]")).toBeNull();
+	expect(frame.querySelector("[data-threshold-key]")).toBeNull();
+});
+
+test("a level missing from the scale draws no line and says so, never the default", async () => {
+	const screen = await show(chartWidget(["m1"], { thresholds: [{ level: "gone" }] }));
+	await expect.element(screen.getByText(m.chart_threshold_missing())).toBeVisible();
+	expect(frame.querySelector("[data-threshold]")).toBeNull();
+});

@@ -980,3 +980,26 @@ describe("now widgets", () => {
 		expect(results.violations).toEqual([]);
 	});
 });
+
+test("a Chart's Threshold line defaults to Off and saves the chosen level", async () => {
+	const { host, current } = await show(monitorsDraft(["m1"]));
+	await page.getByRole("button", { name: "More options" }).click();
+	const select = page.getByRole("combobox", { name: m.get_data_threshold_line() });
+	await expect.element(select).toBeVisible();
+	await expect.element(select).toHaveValue("");
+	expect(await current()).not.toHaveProperty("thresholds");
+	await select.selectOptions("unhealthy-sensitive");
+	expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+	await select.selectOptions("");
+	expect(await current()).not.toHaveProperty("thresholds");
+	host.remove();
+});
+
+test("a saved level the scale lacks shows Off and says so", async () => {
+	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
+	await page.getByRole("button", { name: "More options" }).click();
+	const select = page.getByRole("combobox", { name: m.get_data_threshold_line() });
+	await expect.element(select).toHaveValue("");
+	await expect.element(page.getByText(m.chart_threshold_missing()).first()).toBeVisible();
+	host.remove();
+});

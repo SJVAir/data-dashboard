@@ -53,6 +53,7 @@
 		type NowConversion
 	} from "./now";
 	import NowControls from "./NowControls.svelte";
+	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { detailChoices } from "./resolution-offer";
@@ -410,8 +411,14 @@
 		levels: Level[] | "unavailable";
 	} | null>(null);
 	let alertTry = $state(0);
+	// A Chart's threshold line reads its main pollutant's scale the same way (no default).
+	const lineEntryType = $derived.by(() => {
+		if (isNow || !type?.thresholds || !known) return undefined;
+		const meta = entryMeta(known, main);
+		return meta?.entryType.kind === "pollutant" ? main?.entryType : undefined;
+	});
 	const alertEntryType = $derived(
-		isNow && type?.thresholds && known ? nowEntryType(plain) : undefined
+		isNow && type?.thresholds && known ? nowEntryType(plain) : lineEntryType
 	);
 	$effect(() => {
 		void alertTry;
@@ -578,7 +585,16 @@
 
 			{#if choices}
 				<section>
-					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail} />
+					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail}>
+						{#if shownLevels}
+							<ThresholdLineControl
+								levels={shownLevels}
+								thresholds={plain.thresholds}
+								onthreshold={setThreshold}
+								onretry={() => alertTry++}
+							/>
+						{/if}
+					</ShowValuesControl>
 				</section>
 			{/if}
 		</div>

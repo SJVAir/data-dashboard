@@ -119,7 +119,8 @@ export function toNowDraft(
 	const changed =
 		entryType !== undefined && from?.entryType !== undefined && from.entryType !== entryType;
 	if (changed) dropped.push("pollutant");
-	const defaultWhenOff = !fromType?.thresholds;
+	// A Chart's line is its own opt-in: from a Chart, Off still gets the default.
+	const defaultWhenOff = !(fromType?.time === "now" && fromType.thresholds);
 	let thresholds: Threshold[] | undefined;
 	let defaultOwed = false;
 	if (!type.thresholds) {
@@ -153,7 +154,9 @@ export function toNowDraft(
  */
 export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	const layers = draft.data.layers.map((l) => structuredClone(placesQueryLayer(l)));
-	const thresholds = type.thresholds && draft.thresholds ? draft.thresholds : undefined;
+	// A Chart's line is its own opt-in, so a tile's alert level isn't carried to it.
+	const thresholds =
+		type.time === "now" && type.thresholds && draft.thresholds ? draft.thresholds : undefined;
 	return {
 		draft: {
 			type: type.type,

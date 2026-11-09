@@ -15,6 +15,7 @@ import {
 } from "./series";
 import { drawBars, drawMarkers, drawSticks, type Bar, type Project } from "./sticks";
 import { periodSpan, type ChartStrip } from "./strips";
+import { drawThresholdLine, type ThresholdLine } from "./threshold-line";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -78,6 +79,8 @@ export type ChartData = {
 	 * count and each strip's `chart` and `wholePeriod` must stay the same across updates.
 	 */
 	strips?: ChartStrip[];
+	/** A level's line across the main plot (display only); the value axis includes it. */
+	threshold?: ThresholdLine | null;
 };
 
 export type ChartInput = ChartData & {
@@ -108,7 +111,9 @@ function valueRange(data: ChartData, levels: Level[]): [number, number] {
 	);
 	const dataMax = values.length ? Math.max(...values) : null;
 	const dataMin = values.length ? Math.min(...values) : 0;
-	return [Math.min(data.yMin ?? 0, dataMin), valueAxisMax(levels, dataMax)];
+	const top = valueAxisMax(levels, dataMax);
+	const line = data.threshold?.value;
+	return [Math.min(data.yMin ?? 0, dataMin), line !== undefined && line > top ? line : top];
 }
 
 export type ChartEvents = {
@@ -301,6 +306,17 @@ export function createTimeChart(
 							}
 						);
 						events.onDayBands?.(days);
+						const line = current.threshold;
+						if (line) {
+							drawThresholdLine(u.ctx, line, u.valToPos(line.value, "y", true), u.bbox, {
+								color: line.color ?? theme.foreground,
+								text: theme.foreground,
+								background: theme.background,
+								font,
+								fontSize: BAND_FONT_SIZE,
+								ratio: ratio()
+							});
+						}
 					}
 				],
 				draw: [

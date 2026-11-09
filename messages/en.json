@@ -660,6 +660,8 @@
 	"chart_no_data": "No data",
 	"chart_place_value": "{place}: {value}",
 	"chart_level_key": "Levels",
+	"chart_threshold_line_label": "{level}",
+	"chart_threshold_missing": "This chart's threshold level isn't on the pollutant's scale.",
 	"chart_series_key": "Series",
 	"chart_series_raw": "Measurements",
 	"chart_series_hour": "Hourly average",
@@ -912,6 +914,8 @@
 	"get_data_alert_left_out": "This widget has no alert level, so yours was left out.",
 	"get_data_pollutant_instead": "This widget shows only {pollutant}, so it uses that instead of {previous}.",
 	"get_data_alert_unavailable": "The alert levels can't be loaded right now.",
+	"get_data_threshold_line": "Threshold line",
+	"get_data_threshold_line_unavailable": "The levels can't be loaded right now.",
 	"get_data_block_dataset": "Can't show this data",
 	"get_data_block_places": [
 		{
