@@ -1,5 +1,5 @@
 import { mapScaleLevels } from "../metadata";
-import type { CatalogEntry, EntryTypeMeta, Level, MetadataSource } from "../metadata";
+import type { CatalogEntry, DailyFigure, EntryTypeMeta, Level, MetadataSource } from "../metadata";
 import { FORECASTS_META } from "./forecasts-fixtures";
 
 const ALL = ["raw", "hour", "day", "month", "quarter", "season", "year"] as const;
@@ -65,6 +65,10 @@ const FIXTURE_PROCESSORS: Record<string, string | null> = {
 	bam1022: null
 };
 
+const FIXTURE_DAILY_FIGURES: Record<string, DailyFigure> = {
+	o3: { field: "max_1h", label: "Highest 1-hour average" }
+};
+
 /** An in-memory `MetadataSource`; any method can be replaced through `overrides`. */
 export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): MetadataSource {
 	return {
@@ -92,6 +96,7 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 					: monitorType === "bam1022"
 						? { windowMinutes: 60, expectedIntervalMinutes: 60 }
 						: null,
+		dailyFigure: async (entryType) => FIXTURE_DAILY_FIGURES[entryType] ?? null,
 		schoolGuidelines: async () => null,
 		scaleSource: async () => null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,

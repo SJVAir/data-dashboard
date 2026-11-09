@@ -169,6 +169,9 @@ export async function summarySeries(
 	});
 	const regionIds = target.kind === "regions" ? places.map((p) => p.id) : undefined;
 
+	// Bulk rows are means: only the figure applies to them, not totals or completeness.
+	const bulkOpts: SummaryOptions | undefined = opts?.figure ? { figure: opts.figure } : undefined;
+
 	// Tasks for a segment; `only` limits monitors to some ids (bulk requests can't be limited).
 	const tasksFor = (seg: Segment, only?: Set<string>): FetchTask[] => {
 		const chosen = only ? places.filter((p) => only.has(p.id)) : places;
@@ -185,7 +188,7 @@ export async function summarySeries(
 				monitorSummaryTasks(p.id, entryType, procs[i], seg, now, signal, opts)
 			);
 		}
-		return bulkSummaryTasks(entryType, regionIds, seg, now, signal);
+		return bulkSummaryTasks(entryType, regionIds, seg, now, signal, bulkOpts);
 	};
 	// Complete and fill together; the backfill waits to see which places lack the last period.
 	const [complete, fill] = await collect(
@@ -261,6 +264,11 @@ export async function summarySeries(
 	});
 }
 
+/** Summary options asking for the daily figure, only at the daily level. */
+function figureOpts(req: AdapterRequest): SummaryOptions | undefined {
+	return req.dailyFigure && req.resolution === "day" ? { figure: req.dailyFigure } : undefined;
+}
+
 /**
  * Daily summaries, each day point also carrying its worst hourly average when asked: the same
  * query run again at hour resolution (a failure fails the whole query, never partial data).
@@ -272,7 +280,7 @@ async function summarySeriesWithWorstHour(
 	signal: AbortSignal
 ): Promise<Series[]> {
 	if (!req.worstHour || req.resolution !== "day") {
-		return summarySeries(req, places, processors, signal);
+		return summarySeries(req, places, processors, signal, figureOpts(req));
 	}
 	const hourlyReq: AdapterRequest = {
 		...req,
@@ -281,7 +289,7 @@ async function summarySeriesWithWorstHour(
 		offered: req.offered.filter((r) => r === "raw" || r === "hour")
 	};
 	const [daily, hourly] = await Promise.all([
-		summarySeries(req, places, processors, signal),
+		summarySeries(req, places, processors, signal, figureOpts(req)),
 		summarySeries(hourlyReq, places, processors, signal)
 	]);
 	const hourlyByPlace = new Map(hourly.map((s) => [s.place, s.points]));

@@ -25,6 +25,7 @@ import {
 	type CatalogEntry,
 	type Level
 } from "./metadata";
+import { fixtureMetadata } from "./testing/fixtures";
 import {
 	SDK_DATASET_CATALOG,
 	WEATHER_DATASET,
@@ -473,6 +474,26 @@ describe("createWebMetadata", () => {
 		await expect(createWebMetadata().levels("pm25", ctrl.signal)).rejects.toMatchObject({
 			name: "AbortError"
 		});
+	});
+});
+
+describe("dailyFigure", () => {
+	it("the memory source names the figure for an entry type that has one", async () => {
+		const md = fixtureMetadata();
+		expect(await md.dailyFigure("o3")).toEqual({
+			field: "max_1h",
+			label: "Highest 1-hour average"
+		});
+		expect(await md.dailyFigure("pm25")).toBeNull();
+	});
+
+	it("the web source returns null until the SDK carries the field", async () => {
+		expect(await createWebMetadata().dailyFigure("o3")).toBeNull();
+	});
+
+	it("withCatalog forwards it", async () => {
+		const md = withCatalog(fixtureMetadata(), []);
+		expect((await md.dailyFigure("o3"))?.field).toBe("max_1h");
 	});
 });
 

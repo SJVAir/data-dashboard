@@ -11,6 +11,10 @@ export type SeriesPoint = {
 	partial: boolean;
 	/** A daily point's highest hourly mean and that hour's start (epoch ms); see `worstHours`. */
 	worstHour?: { t: number; value: number };
+	/** A daily point's server figure (`QueryInput.dailyFigure`): `null` when the row has it null. */
+	figure?: number | null;
+	/** The row's `is_final`, read together with `figure`; absent when the row has none. */
+	final?: boolean;
 	/**
 	 * A category point's scale level key (forecasts). A category point (burn status) has no
 	 * number: `mean = min = max = NaN`, so nothing may aggregate, downsample or plot it as a value.
@@ -121,5 +125,10 @@ export type QueryInput = {
 	 * most `WORST_HOUR_MAX_DAYS` days, and ignored otherwise (it doesn't change the cache key then).
 	 */
 	worstHour?: boolean;
+	/**
+	 * A summary field name (such as `mean_24h`) each daily point carries as `figure`; honored only
+	 * at resolution `"day"`, and part of the cache key when set.
+	 */
+	dailyFigure?: string;
 	timeSubRange?: TimeSubRange;
 };

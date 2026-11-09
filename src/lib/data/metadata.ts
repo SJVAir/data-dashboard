@@ -81,6 +81,9 @@ export type MonitorSummary = {
 
 export type MonitorTypeInfo = { type: string; label: string; entryTypes: string[] };
 
+/** The summary field that colors a day, with its label; `label` is `null` when the server has none. */
+export type DailyFigure = { field: string; label: string | null };
+
 export interface MetadataSource {
 	/** `"unavailable"` when the server has no catalog or it can't be fetched; never rejects except for `signal`'s abort. */
 	catalog(signal?: AbortSignal): Promise<CatalogEntry[] | "unavailable">;
@@ -117,6 +120,8 @@ export interface MetadataSource {
 		entryType: string,
 		signal?: AbortSignal
 	): Promise<{ windowMinutes: number; expectedIntervalMinutes: number | null } | null>;
+	/** The entry type's daily figure (`scale.daily_statistic`); `null` when it has none. */
+	dailyFigure(entryType: string, signal?: AbortSignal): Promise<DailyFigure | null>;
 	monitorType(monitorId: string, signal?: AbortSignal): Promise<string | null>;
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
@@ -320,6 +325,10 @@ export function createWebMetadata(): MetadataSource {
 				return mapScaleLevels((await heatMeta(signal)).scales[entryType]?.levels);
 			}
 			return monitorLevels(entryType, signal);
+		},
+		// Until the SDK's types carry `daily_statistic` (a later task reads it).
+		async dailyFigure() {
+			return null;
 		},
 		async schoolGuidelines(entryType, signal) {
 			return (await meta(signal)).entries[entryType]?.school_guidelines ?? null;

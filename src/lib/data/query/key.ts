@@ -49,14 +49,17 @@ export function queryKey(parts: {
 	range: KeyRange;
 	/** Left out of the key unless true. */
 	worstHour?: boolean;
+	/** Left out of the key when absent. */
+	dailyFigure?: string;
 	/** Left out of the key when absent, so layers saved before these existed keep their keys. */
 	station?: string;
 	filters?: PesticideFilters;
 }): string {
-	const { worstHour, ...rest } = parts;
+	const { worstHour, dailyFigure, ...rest } = parts;
 	return stableJson({
 		...rest,
 		...(worstHour && { worstHour: true }),
+		...(dailyFigure && { dailyFigure }),
 		target: sortedTarget(parts.target)
 	});
 }

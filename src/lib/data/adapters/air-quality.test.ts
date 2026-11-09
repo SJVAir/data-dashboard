@@ -94,6 +94,7 @@ function request(
 		offered?: Resolution[];
 		now?: Date;
 		worstHour?: boolean;
+		dailyFigure?: string;
 	} = {}
 ): AdapterRequest {
 	const now = opts.now ?? NOW;
@@ -105,6 +106,7 @@ function request(
 		range: resolveRange(spec, now),
 		offered: opts.offered ?? ALL,
 		worstHour: opts.worstHour ?? false,
+		...(opts.dailyFigure && { dailyFigure: opts.dailyFigure }),
 		now
 	};
 }
@@ -940,6 +942,48 @@ describe("airQualityAdapter.fetch worstHour", () => {
 			)
 		).rejects.toThrow("boom");
 	});
+});
+
+describe("airQualityAdapter.fetch dailyFigure", () => {
+	const rows = [
+		{ ...row("2026-09-10T00:00:00-07:00", 12), mean_24h: 11.5, is_final: true },
+		{ ...row("2026-09-11T00:00:00-07:00", 5), mean_24h: null, is_final: true },
+		{ ...row("2026-09-12T00:00:00-07:00", 9), mean_24h: 9.4, is_final: false },
+		row("2026-09-13T00:00:00-07:00", 7)
+	];
+	const monitor: Target = { kind: "monitors", ids: ["m-pa"] };
+	const county: Target = { kind: "regions", keys: ["county:06019"] };
+
+	function mock() {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue(rows as never);
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{ id: "sq1", summaries: rows }
+		] as never);
+	}
+
+	for (const [name, target] of [
+		["monitor", monitor],
+		["region bulk", county]
+	] as const) {
+		it(`reads the figure and is_final on the ${name} path`, async () => {
+			mock();
+			const data = await airQualityAdapter.fetch(
+				request(target, "day", SEPTEMBER, { dailyFigure: "mean_24h" }),
+				ctx,
+				signal
+			);
+			const points = data.series[0].points;
+			expect(points.map((p) => p.figure)).toEqual([11.5, null, 9.4, null]);
+			expect(points.map((p) => p.final)).toEqual([true, true, false, undefined]);
+			expect(points.map((p) => p.mean)).toEqual([12, 5, 9, 7]);
+		});
+
+		it(`adds no figure key without dailyFigure on the ${name} path`, async () => {
+			mock();
+			const data = await airQualityAdapter.fetch(request(target, "day", SEPTEMBER), ctx, signal);
+			for (const p of data.series[0].points) expect("figure" in p).toBe(false);
+		});
+	}
 });
 
 describe("airQualityAdapter.fetch fallback", () => {

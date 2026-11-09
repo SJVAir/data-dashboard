@@ -39,9 +39,15 @@ type SummaryRow = {
 	count: number;
 	sum?: number;
 	is_complete?: boolean;
+	is_final?: boolean;
 };
 /** How a summary row is read: `total` reads `sum`, `completeness` marks incomplete rows partial. */
-export type SummaryOptions = { total?: boolean; completeness?: boolean };
+export type SummaryOptions = {
+	total?: boolean;
+	completeness?: boolean;
+	/** A summary field read by name into `figure` (with `is_final` into `final`). */
+	figure?: string;
+};
 type Bulk = { id: string; summaries: SummaryRow[] };
 type Options = { signal: AbortSignal };
 type PathConfig = { year?: number; month?: number; day?: number };
@@ -73,6 +79,11 @@ const BULK_REGIONS = {
 	year: getRegionSummariesBulkYearly
 } as Record<Period, (config: object, options: Options) => Promise<Bulk[]>>;
 
+/** A figure field's value: a finite number, else `null`. */
+function figureOf(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 /**
  * Summary rows as points, keeping rows whose period starts in `[from, to)` (a row's timestamp
  * is its Pacific period start). A period still open at `now` is `partial`. A missing minimum or
@@ -95,13 +106,18 @@ function toPoints(
 		const partial =
 			nextPeriodStart(new Date(t), res).getTime() > now.getTime() ||
 			(!!opts?.completeness && row.is_complete === false);
+		const figure = opts?.figure;
 		points.push({
 			t,
 			mean: value,
 			min: opts?.total ? value : Number.isFinite(row.minimum) ? row.minimum : value,
 			max: opts?.total ? value : Number.isFinite(row.maximum) ? row.maximum : value,
 			count: row.count,
-			partial
+			partial,
+			...(figure && {
+				figure: figureOf((row as Record<string, unknown>)[figure]),
+				final: row.is_final
+			})
 		});
 	}
 	return points;
@@ -173,7 +189,8 @@ export function bulkSummaryTasks(
 	regionIds: string[] | undefined,
 	seg: Segment,
 	now: Date,
-	signal: AbortSignal
+	signal: AbortSignal,
+	opts?: SummaryOptions
 ): FetchTask[] {
 	const res = seg.resolution as Period;
 	const from = periodStart(seg.start, res);
@@ -196,7 +213,7 @@ export function bulkSummaryTasks(
 			: await BULK_MONITORS[res](dates, { signal });
 		return places.map((p) => ({
 			id: p.id,
-			points: toPoints(p.summaries, res, unit.start, unit.end, now)
+			points: toPoints(p.summaries, res, unit.start, unit.end, now, opts)
 		}));
 	});
 }

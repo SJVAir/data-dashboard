@@ -63,6 +63,8 @@ export type AdapterRequest = {
 	downsampleFromRaw: boolean;
 	/** Attach each day point's worst hourly average (set only where it applies). */
 	worstHour: boolean;
+	/** The summary field each day point reads as `figure` (honored at resolution `"day"`). */
+	dailyFigure?: string;
 	range: ResolvedRange;
 	/** The levels this adapter can fetch for `target` (see `DatasetAdapter.offered`). */
 	offered: Resolution[];
