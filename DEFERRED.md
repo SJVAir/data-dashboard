@@ -2021,10 +2021,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   started with a paused or longer-running animation, and wait on the announcement rather than a
   fixed moment.
 
-- **A chart browser test flaked once under full-suite load.** _Noted 2026-11-08 (step 4 spec 4,
+- **A chart browser test flakes under full-suite load.** _Noted 2026-11-08 (step 4 spec 4,
   Task 13)._ `src/lib/charts/time-chart.browser.test.ts`, "keyboard stepping moves the strips'
-  cursors", failed once in a full `npm run test` and passed alone and in the next full run; Task
-  13 did not touch charts. **Revisit when** it flakes again or in CI, or when touching that test.
+  cursors" (added in spec 3b), failed in 2 of 3 full local `npm run test` runs and passes alone
+  (6 of 6); Task 13 did not touch charts. It fails at line 410: after `{End}` the strip's
+  cursor is still where `{Home}` put it, so the key seems not to reach the focused chart under
+  load (the `{Home}` check, `>= 0`, does not prove it did). **Revisit when** it flakes in CI, or
+  when touching that test: assert the chart has focus and that `{Home}` moved the cursor before
+  pressing `{End}`.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.
