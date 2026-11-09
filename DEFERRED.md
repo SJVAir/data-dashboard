@@ -470,10 +470,11 @@ string`) now get the union return type. The mobile app passes a string token, so
        session, one read-only pull, with the user's yes). Run `backfill_airnow` (scoped) over the -999 range, then rebuild
        those monitors' summaries. The daily peaks also skip hourly values ≤ -900 and print a skip count (the user,
        2026-11-09: both the order and the skip).
-       2b. **Rebuild region summaries over the same -999 range** (`--regions-only`, `--region=<pk>` per region containing the
-       affected AirNow monitors, or per region type), after the AirNow monitor rebuild and before any region fill. Region hourly
-       rows are weighted means, so a -999 monitor hour usually lands above -900 and the skip doesn't catch it (sjvair-com-64's
-       final review, 2026-11-09). Check the region count first; scope by dates.
+       2b. **Rebuild region summaries over the same -999 range,** after the AirNow monitor rebuild and before any region fill:
+       `rebuild_summaries <start> <end> --monitor=<id> --regions-only` per affected AirNow monitor (it rebuilds exactly that
+       monitor's regions; there's no region-type flag). Region hourly rows are weighted means, so a -999 monitor hour usually
+       lands above -900 and the skip doesn't catch it (sjvair-com-64's final review, 2026-11-09). Count the regions first (the
+       sum of `monitor.regions` over those monitors; the query comes with the PR).
     3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix).
     4. `fill_daily_peaks`, scoped, `--dry-run` first and then for real: monitor types `airnow`, `aqlite`, `vozbox`,
        `purpleair`, `airgradient`, `aqview` and `bam1022`, then each region type (`mean_24h` makes PM types part of it).
@@ -505,7 +506,7 @@ string`) now get the union return type. The mobile app passes a string token, so
        labels for a stored date, and a re-run is safe (also after a collision with the live
        import).
     2. Once all 23 are re-stamped, per station: `heroku run -a <app> -- python manage.py
-rebuild_summaries <first CIMIS date> <today> --monitor <id> --monitors-only`.
+rebuild_summaries <first CIMIS date> <today> --monitor=<id> --monitors-only`.
   - **Summaries repair (sjvair.com #305):** findings 2 and 3 of the 2026-11-03 rollup report.
     Production has backfill rows stamped an hour early (some correctly stamped months,
     quarters, seasons and years also hold one extra row), seasons starting May 1 from the old
@@ -530,7 +531,7 @@ timestamp)` index or the unique index's leading columns, not a full scan.
     4. **Size it:**
        - `check_summary_integrity.call_local()` gives the network-wide misaligned count and
          yesterday's skipped region hours, and logs its run time;
-       - then `repair_summaries <first summary date> <deploy date> --monitor <pk> --region
+       - then `repair_summaries <first summary date> <deploy date> --monitor=<pk> --region
 <pk> --region-hours --dry-run` for one monitor and one county (Fresno, `r6phe`). The
          first summary date is the earliest non-hourly row, or the old backfill's `--from`.
        - The dry run prints the spans it widens to, what it will delete and re-roll, and the
@@ -553,7 +554,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
        after its :50 run" warnings.
 
     Known leftovers: an hour where every monitor's health score is 0 correctly gets no region
-    row, and `--region-hours` keeps listing it. Retired regions need `--region <pk>`, since
+    row, and `--region-hours` keeps listing it. Retired regions need `--region=<pk>`, since
     `--region-type` covers current regions only. Misaligned rows of unfinished periods (such
     as the current year's) are deleted and come back at the scheduled rollup.
 
@@ -624,6 +625,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   calls `call_command('restamp_cimis', '--monitor', monitor.pk, ...)`, and a sqid starting with `-` reads as a flag. A fix
   would be `--monitor=<id>` in the test and the docs (the deploy steps already say so). **Why deferred:** outside the
   scale-averaging work and intermittent. **Revisit:** when `restamp_cimis` is next touched, or if it fails in CI.
+
+- **sjvair.com `CLAUDE.md`: monitor and region ids in command examples (found 2026-11-09).** The CIMIS section
+  (`restamp_cimis`, `rebuild_summaries`) and the `repair_summaries` example still show `--monitor <id>` / `--region <pk>`.
+  A sqid can start with `-`, which argparse reads as a flag, so the `=` form is safe. **Why deferred:** it predates the
+  scale-averaging branch and only affects ids that start with `-`. **Revisit:** the next time those docs are touched, or
+  before any production CIMIS re-stamp (the deploy steps here already use the `=` form).
 
 ## Documents & saving
 
