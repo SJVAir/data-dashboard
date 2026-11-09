@@ -171,9 +171,11 @@ average. The server says which applies:
   `air-quality-fetch.ts` merges "period still open" and `is_complete === false` into `partial`.
   The calendar needs them apart: the point carries whether its period is still open, and
   rateability comes from whether the `daily_statistic` field is null, not from `is_complete`.
-- **Tooltip and accessible name** name the figure: "Daily average", "Highest hourly average",
-  "Highest 8-hour average" (one message per `daily_statistic` value; an unknown value reads as a
-  generic "Daily value" (my call)). No EPA mention.
+- **Tooltip and accessible name** name the figure ("Daily average", "Highest hourly average",
+  "Highest 8-hour average"). **The name comes from server metadata** next to `daily_statistic`
+  (the user, 2026-11-09, with the server session; the field name, e.g. `daily_statistic_label`,
+  arrives with beta.8), not from dashboard messages. Only a missing label falls back to one
+  dashboard message, "Daily value" (my call). No EPA mention.
 
 ### Day-colored calendar (the user approved the mockup)
 
@@ -278,8 +280,9 @@ every mode each cell's tooltip and accessible name give the date, figure, value,
   days, the average of the rated days' figures, the worst day (weekday date, value, level chip),
   and, with a threshold, how many are at or above it. Unrated days in the selection are named
   ("2 days not rated") and left out of the average (my call). Days with a different figure
-  (`max_1h`) are averaged as they are; the line says what it averages ("average of daily
-  highest hourly averages") through the figure's message (my call). "Esc clears" hint. A
+  (`max_1h`) are averaged as they are; the line names the figure with the server's label inside
+  a message placeholder (no concatenation; the label is used as given, so the message is worded
+  to work with a capitalized label, e.g. "Average · {figure}") (my call). "Esc clears" hint. A
   polite live region announces the summary after a selection settles.
 - **"Open these days in a chart"** in the widget's ⋯ menu, shown only while a selection exists
   (also on the keyboard: the widget menu shortcut). It adds a Chart widget with the same layer,
@@ -341,14 +344,14 @@ main layer, its date range, resolution `"day"`, no `timeSubRange`, no `worstHour
 - Text on level colors uses `readableColor`; cells and swatches are outlined (3:1).
 - Reduced motion: no animated selection or scroll.
 - "Download data (CSV)" (`downloadable: true`) is the full-numbers alternative. **Its daily rows
-  gain the figure that colors the day (my call):** a column named by the figure ("Highest hourly
+  gain the figure that colors the day (my call):** a column named by the figure's server label ("Highest hourly
   average") and a "Rated" column (yes / not enough data), once beta.8 lands. The Data table's
   matching column is deferred (see Deferrals).
 - Both light and dark modes checked (axe), including a yellow (Moderate) cell.
 
 ## Constraints (project rules that bite here)
 
-- Metadata is the source of truth: `daily_statistic`, levels, colors, tiers, units, precision,
+- Metadata is the source of truth: `daily_statistic` and its label, levels, colors, tiers, units, precision,
   completeness. No pollutant names in calendar logic.
 - Paraglide messages, no concatenation, keys matching their text; dates and numbers through
   `$lib/format` in Pacific time (add helpers there, e.g. a day-count or week-column helper,
