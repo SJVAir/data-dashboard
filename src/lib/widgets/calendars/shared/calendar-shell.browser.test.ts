@@ -275,6 +275,38 @@ test("a failed figure lookup proceeds without the figure", async () => {
 	expect(data.figure).toBeNull();
 });
 
+test("a failed figure lookup can be tried again from its note", async () => {
+	let fail = true;
+	const base = fake.metadata!;
+	fake.metadata = {
+		...base,
+		dailyFigure: async (entryType, signal) =>
+			fail ? Promise.reject(new Error("x")) : base.dailyFigure(entryType, signal)
+	};
+	const { screen, data } = await show(calendar());
+	await expect.element(screen.getByText(m.calendar_day_rating_unavailable())).toBeVisible();
+	fail = false;
+	await screen.getByRole("button", { name: m.shared_try_again() }).click();
+	await expect.poll(() => data.figure).toEqual(FIGURE);
+	await expect.poll(() => requests.at(-1)?.dailyFigure).toBe("mean_24h");
+	expect(frame.textContent).not.toContain(m.calendar_day_rating_unavailable());
+	await expect.poll(() => data.states.get("2026-11-06")?.kind).toBe("rated");
+});
+
+test("no count line while days can't be rated (no figure, or its lookup failed)", async () => {
+	figure = null;
+	const unknown = await show(calendar({ thresholds: MODERATE }));
+	await expect.element(unknown.screen.getByText(m.calendar_day_rating_unknown())).toBeVisible();
+	expect(unknown.data.threshold?.key).toBe("moderate");
+	expect(frame.querySelector("[data-calendar-count]")).toBeNull();
+	unknown.screen.unmount();
+
+	fake.metadata = { ...fake.metadata!, dailyFigure: async () => Promise.reject(new Error("x")) };
+	const failed = await show(calendar({ thresholds: MODERATE }));
+	await expect.element(failed.screen.getByText(m.calendar_day_rating_unavailable())).toBeVisible();
+	expect(frame.querySelector("[data-calendar-count]")).toBeNull();
+});
+
 const NOV_5_8 = { start: "2026-11-05", end: "2026-11-08" };
 
 test("the summary line for a selection, with the worst day's chip and the threshold count", async () => {

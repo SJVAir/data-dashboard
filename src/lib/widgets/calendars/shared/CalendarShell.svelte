@@ -14,6 +14,7 @@
 		monthStarts
 	} from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import { Button } from "$lib/components/ui/button";
 	import LevelChip from "../../shared/LevelChip.svelte";
 	import WidgetState from "../../shared/WidgetState.svelte";
 	import { figureName, type CalendarData } from "./calendar-data.svelte";
@@ -51,14 +52,16 @@
 	const count = (n: number) => formatNumber(n);
 
 	const all = $derived([...data.states.values()]);
-	const counts = $derived(data.threshold ? thresholdCount(all, data.threshold) : null);
+	/** Days are rated only with levels and a known figure; otherwise there's nothing to count. */
+	const rated = $derived(data.levels.length > 0 && data.figure !== null);
+	const counts = $derived(rated && data.threshold ? thresholdCount(all, data.threshold) : null);
 	/** This month's count, when the range spans several months and reaches into this one. */
 	const monthCount = $derived.by(() => {
 		const level = data.threshold;
 		const { first, last } = data.range;
 		const month = data.today.slice(0, 7);
 		const starts = monthStarts(first, last);
-		if (!level || starts.length < 2 || !starts.includes(`${month}-01`)) return null;
+		if (!rated || !level || starts.length < 2 || !starts.includes(`${month}-01`)) return null;
 		return thresholdCount(
 			all.filter((s) => s.date.startsWith(month)),
 			level
@@ -66,12 +69,13 @@
 	});
 
 	const notes = $derived.by(() => {
-		const out: string[] = [];
+		const out: { text: string; retry?: boolean }[] = [];
 		if (!data.levelsLoaded) return out;
-		if (data.levels.length === 0) out.push(m.calendar_no_levels());
-		else if (data.figureFailed) out.push(m.calendar_day_rating_unavailable());
-		else if (data.figure === null) out.push(m.calendar_day_rating_unknown());
-		if (data.thresholdMissing) out.push(m.calendar_level_missing());
+		if (data.levels.length === 0) out.push({ text: m.calendar_no_levels() });
+		else if (data.figureFailed)
+			out.push({ text: m.calendar_day_rating_unavailable(), retry: true });
+		else if (data.figure === null) out.push({ text: m.calendar_day_rating_unknown() });
+		if (data.thresholdMissing) out.push({ text: m.calendar_level_missing() });
 		return out;
 	});
 
@@ -182,9 +186,17 @@
 						</p>
 					{/if}
 				{/if}
-				{#each notes as note (note)}
-					<p class="bg-muted text-muted-foreground rounded-(--radius-control) px-2 py-1 text-sm">
-						{note}
+				{#each notes as note (note.text)}
+					<p
+						data-calendar-note
+						class="bg-muted text-muted-foreground flex flex-wrap items-center gap-x-2 rounded-(--radius-control) px-2 py-1 text-sm"
+					>
+						<span>{note.text}</span>
+						{#if note.retry}
+							<Button variant="link" size="sm" class="h-auto p-0" onclick={data.retryFigure}>
+								{m.shared_try_again()}
+							</Button>
+						{/if}
 					</p>
 				{/each}
 				<div class="min-h-0 flex-1 overflow-auto">{@render grid()}</div>

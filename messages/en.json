@@ -723,7 +723,7 @@
 	"calendar_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked. Choose another level in Get data.",
 	"calendar_no_levels": "This pollutant has no levels, so its days can't be rated.",
 	"calendar_day_rating_unknown": "SJVAir doesn't say yet how to rate a whole day of this pollutant, so its days aren't rated.",
-	"calendar_day_rating_unavailable": "Day ratings can't be loaded right now. Try again later.",
+	"calendar_day_rating_unavailable": "Day ratings can't be loaded right now.",
 	"calendar_selection_summary": [
 		{
 			"declarations": [

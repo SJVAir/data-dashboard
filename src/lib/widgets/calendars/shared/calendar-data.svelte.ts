@@ -26,6 +26,8 @@ type FigureLookup = { entryType: string; figure: DailyFigure | null; failed?: bo
 export class CalendarData {
 	readonly #w: DataWidget;
 	#lookup = $state.raw<FigureLookup | undefined>();
+	/** Bumped to look the figure up again after a failure. */
+	#lookupRun = $state(0);
 	/** The clock "today" is read from: ticks each minute and on each data refresh. */
 	#now = $state(Date.now());
 
@@ -65,6 +67,7 @@ export class CalendarData {
 		const entryType = $derived(mainLayer(widget().data, w.catalog)?.entryType);
 		$effect(() => {
 			const id = entryType;
+			void this.#lookupRun;
 			if (!id) return;
 			const abort = new AbortController();
 			metadata.dailyFigure(id, abort.signal).then(
@@ -165,4 +168,11 @@ export class CalendarData {
 	}
 
 	retry = (): void => this.#w.retry();
+
+	/** Looks the figure up again after a failed lookup (the query then reruns with it). */
+	retryFigure = (): void => {
+		if (!this.figureFailed) return;
+		this.#lookup = undefined;
+		this.#lookupRun += 1;
+	};
 }
