@@ -18,6 +18,8 @@
 	import WidgetState from "../../shared/WidgetState.svelte";
 	import { figureName, type CalendarData } from "./calendar-data.svelte";
 	import CalendarLegend from "./CalendarLegend.svelte";
+	import { provideCalendarTip } from "./calendar-tip.svelte";
+	import CalendarTooltip from "./CalendarTooltip.svelte";
 
 	let {
 		data,
@@ -40,6 +42,9 @@
 		/** A drag is extending the selection: the live region waits until it settles. */
 		dragging?: boolean;
 	} = $props();
+
+	const tip = provideCalendarTip();
+	let host = $state<HTMLElement>();
 
 	const unit = $derived(data.meta?.entryType.units ?? "");
 	const num = (v: number) => formatValue(v, data.meta?.entryType.precision);
@@ -144,7 +149,7 @@
 	{/if}
 {/snippet}
 
-<div class="flex h-full flex-col">
+<div bind:this={host} class="relative flex h-full flex-col">
 	<div class="min-h-0 flex-1">
 		<WidgetState
 			state={data.shown}
@@ -203,6 +208,7 @@
 			</div>
 		</WidgetState>
 	</div>
+	<CalendarTooltip {tip} {host} />
 	<div role="status" aria-live="polite" aria-atomic="true" class="sr-only">
 		{#if announcing && summary}
 			{@render summaryText()}

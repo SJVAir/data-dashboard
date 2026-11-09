@@ -41,7 +41,18 @@
 	 * Up/Down a day (the "weeks" layout), as the columns are drawn.
 	 */
 	const rows = $derived(Array.from({ length: 7 }, (_, i) => columns.map((week) => week[i])));
-	const months = $derived(weekColumnMonthLabels(columns));
+	/** A month label too close to the next (under 3 columns) is left out, so none overlap. */
+	const MIN_LABEL_GAP = 3;
+	const months = $derived.by(() => {
+		const labels = weekColumnMonthLabels(columns);
+		let next = Infinity;
+		for (let i = labels.length - 1; i >= 0; i--) {
+			if (labels[i] === null) continue;
+			if (next - i < MIN_LABEL_GAP) labels[i] = null;
+			else next = i;
+		}
+		return labels;
+	});
 
 	/** Sun, Tue, Thu and Sat label their rows (as GitHub does); the others stay blank. */
 	const weekdays = $derived.by(() => {

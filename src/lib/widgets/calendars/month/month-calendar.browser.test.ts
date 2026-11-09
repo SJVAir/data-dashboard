@@ -516,6 +516,26 @@ test("a read-only session also keeps the selection in memory", async () => {
 	expect(saved(read)).toBeUndefined();
 });
 
+test("a tooltip names the hovered day and the focused one, and goes when they leave", async () => {
+	await show(calendar());
+	const tip = () => frame.querySelector<HTMLElement>("[data-calendar-tip]");
+	await userEvent.hover(cellOf("2026-11-06")!);
+	await expect.poll(() => tip()?.textContent?.trim()).toBe(NOV_6_NAME);
+	expect(tip()!.getAttribute("aria-hidden")).toBe("true");
+	await userEvent.hover(frame.querySelector("[data-calendar-legend]")!);
+	await expect.poll(() => tip()).toBeNull();
+	const before = document.createElement("button");
+	frame.prepend(before);
+	before.focus();
+	await userEvent.tab();
+	await userEvent.keyboard("{ArrowLeft}");
+	await expect
+		.poll(() => tip()?.textContent?.trim())
+		.toBe("Sunday, November 8: 24-hour average 25 µg/m³, Moderate");
+	before.focus();
+	await expect.poll(() => tip()).toBeNull();
+});
+
 test("no motion: day cells have no transition or animation", async () => {
 	await show(calendar());
 	for (const el of [cellOf("2026-11-06")!, inner("2026-11-06")]) {

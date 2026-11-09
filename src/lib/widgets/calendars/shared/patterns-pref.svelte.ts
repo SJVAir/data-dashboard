@@ -1,4 +1,5 @@
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { report } from "$lib/safety/report";
 
 /** Preference key (per space): the contribution calendar's "Show patterns" switch. */
 export const PATTERNS_KEY = "calendarPatterns";
@@ -33,9 +34,18 @@ export function loadPatterns(p: Pick<Platform, "preferences">, space: SpaceId): 
 		});
 }
 
-/** Turns "Show patterns" on or off for every calendar, and stores it (this device, this space). */
+/**
+ * Turns "Show patterns" on or off for every calendar, and stores it (this device, this space).
+ * A failed store is reported; the choice still holds in this tab.
+ */
 export async function setPatternsOn(on: boolean): Promise<void> {
 	generation++;
 	pref.on = on;
-	if (bound) await bound.p.preferences.set(bound.space, PATTERNS_KEY, on);
+	if (!bound) return;
+	try {
+		await bound.p.preferences.set(bound.space, PATTERNS_KEY, on);
+	} catch (error) {
+		// Not stored: the switch still holds for this tab.
+		report(error, { operation: "calendar-patterns-pref" });
+	}
 }

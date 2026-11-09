@@ -371,6 +371,77 @@ test("the switch is a labeled switch, reached by keyboard, its state announced",
 	await expect.element(toggle).toBeChecked();
 });
 
+const tipEl = () => frame.querySelector<HTMLElement>("[data-calendar-tip]");
+
+test("a tooltip names the hovered day, and the focused one; it goes when they leave", async () => {
+	await show([calendar("cal", { thresholds: [{ level: "moderate" }] })]);
+	expect(tipEl()).toBeNull();
+	await userEvent.hover(cellOf("2026-11-06")!);
+	await expect.poll(() => tipEl()?.textContent?.trim()).toBe(nameOf("2026-11-06"));
+	const tip = tipEl()!;
+	expect(tip.getAttribute("aria-hidden")).toBe("true");
+	// Near its cell, inside the widget.
+	const host = frame.querySelector<HTMLElement>('[data-widget="cal"]')!.getBoundingClientRect();
+	await expect.poll(() => getComputedStyle(tipEl()!).visibility).toBe("visible");
+	const r = tipEl()!.getBoundingClientRect();
+	const cell = cellOf("2026-11-06")!.getBoundingClientRect();
+	expect(r.left).toBeGreaterThanOrEqual(host.left);
+	expect(r.right).toBeLessThanOrEqual(host.right);
+	expect(r.top).toBeGreaterThanOrEqual(host.top);
+	expect(Math.abs(r.bottom - cell.top) < 12 || Math.abs(r.top - cell.bottom) < 12).toBe(true);
+	expect(getComputedStyle(tipEl()!).animationName).toBe("none");
+	await userEvent.unhover(cellOf("2026-11-06")!);
+	await userEvent.hover(frame.querySelector("[data-calendar-legend]")!);
+	await expect.poll(() => tipEl()).toBeNull();
+
+	// Keyboard: the focused day's, following the arrows; Escape hides it.
+	const before = document.createElement("button");
+	frame.prepend(before);
+	before.focus();
+	await userEvent.tab();
+	await expect.poll(() => tipEl()?.textContent?.trim()).toBe(nameOf(TODAY));
+	await userEvent.keyboard("{ArrowUp}");
+	await expect.poll(() => tipEl()?.textContent?.trim()).toBe(nameOf("2026-11-08"));
+	await userEvent.keyboard("{Escape}");
+	await expect.poll(() => tipEl()).toBeNull();
+	await userEvent.keyboard("{ArrowUp}");
+	await expect.poll(() => tipEl()?.textContent?.trim()).toBe(nameOf("2026-11-07"));
+	before.focus();
+	await expect.poll(() => tipEl()).toBeNull();
+});
+
+test("a hovered day's tooltip goes when the weeks scroll", async () => {
+	await show([calendar()]);
+	await userEvent.hover(cellOf("2026-11-06")!);
+	await expect.poll(() => tipEl()).not.toBeNull();
+	frame.querySelector<HTMLElement>("[data-weeks-scroll]")!.scrollLeft = 0;
+	await expect.poll(() => tipEl()).toBeNull();
+});
+
+test("a month label too close to the next is left out (a range starting in a month's last week)", async () => {
+	vi.setSystemTime(new Date("2026-11-28T20:00:00Z"));
+	await show([calendar()]);
+	const columns = weekColumns("2025-11-29", "2026-11-28");
+	const raw = weekColumnMonthLabels(columns);
+	// Late November 2025 has only two columns before December.
+	expect(raw[0]).toBe("2025-11-01");
+	expect(raw.indexOf("2025-12-01")).toBe(2);
+	const labels = [...frame.querySelectorAll<HTMLElement>("[data-month-label]")];
+	expect(labels[0].textContent!.trim()).toBe("Dec");
+	expect(labels.map((l) => l.textContent!.trim())).toHaveLength(12);
+	const lefts = labels.map((l) => l.getBoundingClientRect().left);
+	for (let i = 1; i < lefts.length; i++) {
+		expect(lefts[i] - lefts[i - 1]).toBeGreaterThan(labels[i - 1].getBoundingClientRect().width);
+	}
+});
+
+test("the legend's threshold item is a cell with the corner mark", async () => {
+	await show([calendar("cal", { thresholds: [{ level: "moderate" }] })]);
+	const swatch = frame.querySelector<HTMLElement>('[data-swatch="threshold"]')!;
+	expect(swatch.querySelector("[data-mark]")).not.toBeNull();
+	expect(frame.querySelector("[data-legend-threshold]")!.textContent).not.toContain("▲");
+});
+
 test("no motion: cells have no transition or animation", async () => {
 	await show([calendar()]);
 	for (const el of [cellOf("2026-11-06")!, inner("2026-11-06")]) {

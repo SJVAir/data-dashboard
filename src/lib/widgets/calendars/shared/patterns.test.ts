@@ -43,6 +43,20 @@ describe("the Show patterns preference", () => {
 		loadPatterns(p, "anonymous");
 		await expect.poll(() => patternsOn()).toBe(false);
 	});
+	it("a failed store keeps the choice in this tab, without a rejection", async () => {
+		const p = createMemoryPlatform();
+		const failing = {
+			preferences: {
+				get: p.preferences.get.bind(p.preferences),
+				set: async () => {
+					throw new Error("quota");
+				}
+			}
+		};
+		loadPatterns(failing, "anonymous");
+		await expect(setPatternsOn(false)).resolves.toBeUndefined();
+		expect(patternsOn()).toBe(false);
+	});
 	it("a fresh platform reads on", () => {
 		loadPatterns(createMemoryPlatform(), "anonymous");
 		expect(patternsOn()).toBe(true);

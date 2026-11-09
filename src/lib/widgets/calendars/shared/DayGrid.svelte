@@ -8,6 +8,7 @@
 	import type { DayState } from "$lib/calendars/day-state";
 	import { clampSelectable, moveFocus, spanOf, type Layout } from "$lib/calendars/selection";
 	import type { CalendarData } from "./calendar-data.svelte";
+	import { useCalendarTip } from "./calendar-tip.svelte";
 	import type { DaySpan } from "./write-selection";
 
 	let {
@@ -74,6 +75,63 @@
 		return clampSelectable(moved ?? selection?.end ?? s.last, s);
 	});
 
+	/**
+	 * The day the tooltip shows: the hovered day, or the focused one. It says what the cell's name
+	 * says. A pointer's tip goes when the pointer leaves or anything scrolls; a focus tip follows
+	 * its cell through a scroll (moving focus may scroll the cell into view) and goes with focus.
+	 */
+	const tip = useCalendarTip();
+	let tipAt = $state<{ date: string; source: "pointer" | "focus" } | null>(null);
+	const tipText = $derived.by(() => {
+		if (!tipAt) return null;
+		const state = stateFor(tipAt.date);
+		return state ? name(state, isSelected(tipAt.date)) : null;
+	});
+	$effect(() => {
+		if (!tip) return;
+		const cell = tipAt && root?.querySelector<HTMLElement>(`[data-date="${tipAt.date}"]`);
+		if (tipText && cell) tip.show({ text: tipText, cell });
+		else tip.hide();
+	});
+	$effect(() => () => tip?.hide());
+	$effect(() => {
+		if (!tipAt) return;
+		const source = tipAt.source;
+		const onscroll = () => {
+			if (source === "pointer") tipAt = null;
+			else tip?.reposition();
+		};
+		window.addEventListener("scroll", onscroll, { capture: true, passive: true });
+		return () => window.removeEventListener("scroll", onscroll, { capture: true });
+	});
+
+	const dayOf = (target: EventTarget | null): string | undefined => {
+		const el = (target as Element | null)?.closest?.<HTMLElement>("[data-date]");
+		return el && root?.contains(el) ? el.dataset.date : undefined;
+	};
+
+	function onpointerover(event: PointerEvent): void {
+		if (event.pointerType === "touch") return;
+		const date = dayOf(event.target);
+		if (date) tipAt = { date, source: "pointer" };
+		else if (tipAt?.source === "pointer") tipAt = null;
+	}
+
+	function onpointerleave(): void {
+		if (tipAt?.source === "pointer") tipAt = null;
+	}
+
+	function onfocusin(event: FocusEvent): void {
+		const date = dayOf(event.target);
+		if (date) tipAt = { date, source: "focus" };
+	}
+
+	function onfocusout(event: FocusEvent): void {
+		if (!root?.contains(event.relatedTarget as Node | null) && tipAt?.source === "focus") {
+			tipAt = null;
+		}
+	}
+
 	const isSelected = (date: string) => !!shown && date >= shown.start && date <= shown.end;
 	const pickable = (date: string | undefined): date is string =>
 		!!date && !!s && date >= s.first && date <= s.last;
@@ -105,6 +163,7 @@
 
 	function onkeydown(event: KeyboardEvent): void {
 		if (event.key === "Escape") {
+			tipAt = null;
 			if (!selection) return;
 			event.preventDefault();
 			event.stopPropagation();
@@ -224,6 +283,10 @@
 	class={["select-none", className]}
 	{onkeydown}
 	{onpointerdown}
+	{onpointerover}
+	{onpointerleave}
+	{onfocusin}
+	{onfocusout}
 	{onpointermove}
 	{onpointerup}
 	{onpointercancel}

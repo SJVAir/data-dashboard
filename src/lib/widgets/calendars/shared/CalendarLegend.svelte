@@ -81,7 +81,25 @@
 	{@render swatch("none", m.calendar_no_data())}
 	{#if threshold}
 		<li data-legend-threshold class="flex items-center gap-1">
-			<span aria-hidden="true" class="text-foreground">▲</span>
+			{#if patterns === undefined}
+				<span aria-hidden="true" class="text-foreground">▲</span>
+			{:else}
+				<!-- A cell with the corner mark, as the contribution calendar draws it. -->
+				<span
+					aria-hidden="true"
+					data-swatch="threshold"
+					class="bg-card relative inline-block size-3 overflow-hidden rounded-xs"
+					style:outline-style="solid"
+					style:outline-width="var(--swatch-outline-width)"
+					style:outline-color="var(--swatch-outline-color)"
+					style:outline-offset="calc(var(--swatch-outline-width) * -1)"
+				>
+					<span
+						data-mark
+						class="bg-foreground absolute top-0 right-0 size-[45%] [clip-path:polygon(0_0,100%_0,100%_100%)]"
+					></span>
+				</span>
+			{/if}
 			<span>{m.calendar_legend_threshold({ level: threshold.label })}</span>
 		</li>
 	{/if}
