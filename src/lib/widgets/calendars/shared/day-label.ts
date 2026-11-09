@@ -14,6 +14,8 @@ export type DayLabelContext = {
 	unit: string;
 	precision: number | null | undefined;
 	threshold: Level | null;
+	/** Name the year too (the range spans more than one calendar year). */
+	withYear?: boolean;
 };
 
 /** What a day's state says, after its date: "24-hour average 31.9 µg/m³, Moderate". */
@@ -49,7 +51,7 @@ function stateText(s: DayState, c: DayLabelContext): string {
  */
 export function dayLabel(s: DayState, c: DayLabelContext, selected: boolean): string {
 	return m.calendar_day_name({
-		date: formatLongWeekdayDate(s.date),
+		date: formatLongWeekdayDate(s.date, { year: c.withYear }),
 		state: stateText(s, c),
 		level: c.threshold?.label ?? "",
 		marked: isMarked(s, c.threshold) ? "yes" : "no",

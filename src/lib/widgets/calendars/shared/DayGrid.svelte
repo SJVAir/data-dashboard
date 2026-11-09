@@ -130,11 +130,23 @@
 		}
 	}
 
-	/** A plain click or Space/Enter on a day: select it alone, or clear it if it's all that's selected. */
+	/** Space/Enter on a day: select it alone, or clear it if it's all that's selected. */
 	function toggle(date: string): void {
 		anchor = date;
 		if (selection?.start === date && selection.end === date) onselect(null);
 		else onselect({ start: date, end: date });
+	}
+
+	/**
+	 * A click or tap on a day, as a range picker does (one pointer is enough, WCAG 2.5.7): with one
+	 * day selected, another day extends the selection to it; the only selected day clears it; with
+	 * several days or none selected, it starts a new one-day selection.
+	 */
+	function click(date: string): void {
+		const single = selection && selection.start === selection.end ? selection.start : null;
+		if (single === null || single === date) return toggle(date);
+		anchor = single;
+		onselect(spanOf(single, date));
 	}
 
 	/** The pointer drag in progress: where it started, and whether it reached another day. */
@@ -151,11 +163,13 @@
 		if (!pickable(date)) return;
 		moved = date;
 		if (event.shiftKey && selection) {
-			onselect(spanOf(anchorFor(date), date));
+			const from = anchorFor(date);
+			anchor = from;
+			onselect(spanOf(from, date));
 			return;
 		}
 		drag = { from: date, pointer: event.pointerId, moved: false };
-		// Touch keeps its swipe to scroll: a tap selects one day (Shift+arrows extend).
+		// Touch keeps its swipe to scroll (the browser cancels the pointer); a tap is a click.
 		if (event.pointerType === "touch") return;
 		// No preventDefault: the press still focuses the day (`select-none` stops text selection).
 		try {
@@ -186,7 +200,7 @@
 			anchor = done.from;
 			onselect(sel);
 		} else {
-			toggle(done.from);
+			click(done.from);
 		}
 	}
 
@@ -229,7 +243,7 @@
 								data-kind={state.kind}
 								data-selected={selected ? "" : undefined}
 								tabindex={date === focusDay ? 0 : -1}
-								class="rounded-sm"
+								class="rounded-sm focus-visible:relative focus-visible:z-10"
 							>
 								<!-- Named from this text, not aria-label: the drawn day's visible words
 								     (number, value, level) then needn't be one phrase of it (WCAG 2.5.3). -->

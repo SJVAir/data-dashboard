@@ -83,13 +83,20 @@ export function formatWeekdayDate(date: string, locale: string = LOCALE): string
 	}).format(new Date(pacificDay(date, 12).getTime()));
 }
 
-/** A calendar date with its weekday and month spelled out: "Friday, November 6". */
-export function formatLongWeekdayDate(date: string, locale: string = LOCALE): string {
-	return new Intl.DateTimeFormat(locale, {
+/**
+ * A calendar date with its weekday and month spelled out: "Friday, November 6", or with `year`
+ * "Friday, November 6, 2026".
+ */
+export function formatLongWeekdayDate(
+	date: string,
+	opts: { year?: boolean; locale?: string } = {}
+): string {
+	return new Intl.DateTimeFormat(opts.locale ?? LOCALE, {
 		timeZone: TIME_ZONE,
 		weekday: "long",
 		month: "long",
-		day: "numeric"
+		day: "numeric",
+		...(opts.year ? { year: "numeric" } : {})
 	}).format(new Date(pacificDay(date, 12).getTime()));
 }
 

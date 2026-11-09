@@ -1693,12 +1693,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **Several places in one calendar** (a row of calendars per place). _Deferred 2026-11-09 (step
   4 spec 5)._ One place keeps cells readable, and `maxPlaces: 1` greys the calendars out for a
   multi-place draft. **Revisit if** people ask to compare places day by day.
-- **Dragging across days by touch.** _Deferred 2026-11-09 (step 4 spec 5, Task 8 builder call)._
-  On a touchscreen a swipe over a calendar scrolls the widget (the month calendar stacks months
-  on phones and needs it), so a tap selects one day and a touch drag doesn't extend the
-  selection; Shift-click and Shift+arrows do on a keyboard. A long-press-then-drag (as the title
-  bar's lift) would add it without taking the scroll. **Revisit if** phone or tablet users ask
-  to select several days.
+- **Dragging across days by touch.** _Deferred 2026-11-09 (step 4 spec 5, Task 8; Ruling 12)._
+  A swipe over a calendar scrolls the widget (the month calendar stacks months on phones and
+  needs it), so a touch drag doesn't extend the selection. Touch already has a full alternative:
+  tap a day, then tap another to select the days between (the range-picker pattern every pointer
+  uses); a mouse can also drag or Shift-click, and the keyboard uses Shift+arrows. A
+  long-press-then-drag (like the title bar's lift) would add touch dragging without taking the
+  scroll. **Revisit if** phone or tablet users find tap-tap slow for long ranges, or ask to drag.
 
 - **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
   brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide

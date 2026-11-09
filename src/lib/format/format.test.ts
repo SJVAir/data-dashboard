@@ -30,6 +30,7 @@ describe("format", () => {
 	it("formatLongWeekdayDate spells out the weekday and month", () => {
 		expect(formatLongWeekdayDate("2026-11-06")).toBe("Friday, November 6");
 		expect(formatLongWeekdayDate("2026-03-08")).toBe("Sunday, March 8");
+		expect(formatLongWeekdayDate("2026-12-31", { year: true })).toBe("Thursday, December 31, 2026");
 	});
 	it("formatWeekday names a date's Pacific weekday", () => {
 		expect(formatWeekday("2026-11-08", "long")).toBe("Sunday");

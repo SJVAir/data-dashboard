@@ -63,7 +63,8 @@
 		figure: figureName(data.figure),
 		unit: data.meta?.entryType.units ?? "",
 		precision: data.meta?.entryType.precision,
-		threshold: data.threshold
+		threshold: data.threshold,
+		withYear: data.range.first.slice(0, 4) !== data.range.last.slice(0, 4)
 	});
 	const name = (s: DayState, selected: boolean) => dayLabel(s, context, selected);
 	const num = (v: number) => formatValue(v, data.meta?.entryType.precision);

@@ -142,7 +142,7 @@ function calendar(extra: Partial<WidgetInstance> = {}): WidgetInstance {
 }
 
 /** A dashboard session holding `widget`, and the widget drawn from it. */
-async function show(widget: WidgetInstance, opts: { session?: boolean } = {}) {
+async function show(widget: WidgetInstance, opts: { session?: boolean; ready?: string } = {}) {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
 	let session: DocumentSession | null = null;
@@ -167,7 +167,9 @@ async function show(widget: WidgetInstance, opts: { session?: boolean } = {}) {
 		props: { widget: read },
 		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
 	});
-	await expect.poll(() => cellOf("2026-11-01")?.dataset.kind, { timeout: 5000 }).toBe("rated");
+	await expect
+		.poll(() => cellOf(opts.ready ?? "2026-11-01")?.dataset.kind, { timeout: 5000 })
+		.toBe("rated");
 	return { screen, session: s, read };
 }
 
@@ -315,6 +317,81 @@ test("click, then Shift-click: one change each, the second saving the span", asy
 	expect(session!.canUndo).toBe(false);
 });
 
+/** A tap or click on a day's cell, by synthetic pointer events. */
+function tap(date: string, pointerType: "touch" | "mouse") {
+	const el = cellOf(date)!;
+	const r = el.getBoundingClientRect();
+	const opts = {
+		bubbles: true,
+		pointerId: pointerType === "touch" ? 3 : 1,
+		pointerType,
+		button: 0,
+		isPrimary: true,
+		clientX: r.left + r.width / 2,
+		clientY: r.top + r.height / 2
+	};
+	el.dispatchEvent(new PointerEvent("pointerdown", opts));
+	el.dispatchEvent(new PointerEvent("pointerup", opts));
+}
+
+for (const pointerType of ["touch", "mouse"] as const) {
+	test(`one pointer is enough (${pointerType}): a day, then another, selects the days between`, async () => {
+		const { session, read } = await show(calendar());
+		tap("2026-11-03", pointerType);
+		expect(saved(read)).toEqual({ start: "2026-11-03", end: "2026-11-03" });
+		tap("2026-11-07", pointerType);
+		expect(saved(read)).toEqual({ start: "2026-11-03", end: "2026-11-07" });
+		session!.undo();
+		expect(saved(read)).toEqual({ start: "2026-11-03", end: "2026-11-03" });
+		session!.redo();
+		// Several days selected: the next tap starts again.
+		tap("2026-11-05", pointerType);
+		expect(saved(read)).toEqual({ start: "2026-11-05", end: "2026-11-05" });
+		// Backwards works too.
+		tap("2026-11-01", pointerType);
+		expect(saved(read)).toEqual({ start: "2026-11-01", end: "2026-11-05" });
+		tap("2026-11-08", pointerType);
+		tap("2026-11-08", pointerType);
+		expect(saved(read)).toBeUndefined();
+	});
+}
+
+test("Shift-click extends from a stored selection's start, then keeps that anchor", async () => {
+	const widget = calendar();
+	widget.data.timeSubRange = { start: "2026-11-05", end: "2026-11-08" };
+	const { read } = await show(widget);
+	await userEvent.keyboard("{Shift>}");
+	await userEvent.click(cellOf("2026-11-02")!);
+	expect(saved(read)).toEqual({ start: "2026-11-02", end: "2026-11-05" });
+	await userEvent.click(cellOf("2026-11-09")!);
+	await userEvent.keyboard("{/Shift}");
+	expect(saved(read)).toEqual({ start: "2026-11-05", end: "2026-11-09" });
+});
+
+test("a range across years names each day's year", async () => {
+	const widget = calendar();
+	widget.data.dateRange = { kind: "custom", start: "2025-12-01", end: "2026-01-31" };
+	days = { "2025-12-05": 20 };
+	await show(widget, { ready: "2025-12-05" });
+	expect(cellOf("2025-12-05")!.querySelector("[data-name]")!.textContent).toBe(
+		"Friday, December 5, 2025: 24-hour average 20 µg/m³, Moderate"
+	);
+});
+
+test("the focused day draws above its neighbours, so its ring isn't covered", async () => {
+	await show(calendar());
+	const before = document.createElement("button");
+	frame.prepend(before);
+	before.focus();
+	await userEvent.tab();
+	const cell = cellOf("2026-11-09")!;
+	expect(document.activeElement).toBe(cell);
+	const style = getComputedStyle(cell);
+	expect(style.position).toBe("relative");
+	expect(style.zIndex).toBe("10");
+	expect(getComputedStyle(cellOf("2026-11-08")!).zIndex).toBe("auto");
+});
+
 /** A pointer drag from one day's cell to another's, by synthetic pointer events. */
 function drag(from: string, to: string) {
 	const center = (el: Element) => {
@@ -420,13 +497,15 @@ test("a shared view selects in memory and saves nothing", async () => {
 	widget.data.timeSubRange = { start: "2026-11-06", end: "2026-11-06" };
 	await show(widget, { session: false });
 	expect(cellOf("2026-11-06")!.dataset.selected).toBe("");
+	// One day selected: a click on another extends to it, in memory.
 	await userEvent.click(cellOf("2026-11-02")!);
-	await expect.poll(() => cellOf("2026-11-02")!.dataset.selected).toBe("");
-	expect(cellOf("2026-11-06")!.dataset.selected).toBeUndefined();
+	await expect.poll(() => cellOf("2026-11-04")!.dataset.selected).toBe("");
+	expect(cellOf("2026-11-06")!.dataset.selected).toBe("");
+	expect(cellOf("2026-11-01")!.dataset.selected).toBeUndefined();
 	expect(widget.data.timeSubRange).toEqual({ start: "2026-11-06", end: "2026-11-06" });
 	await expect
 		.poll(() => text(frame.querySelector("[data-calendar-summary]")))
-		.toContain("Nov 2, 2026");
+		.toContain("Nov 2 – 6, 2026");
 });
 
 test("a read-only session also keeps the selection in memory", async () => {
