@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const actual = await vi.hoisted(() => import("@sjvair/sdk/open-days"));
+
 vi.mock("@sjvair/sdk", () => ({
 	getMonitorEntries: vi.fn(),
 	getMonitorSummariesHourly: vi.fn(),
@@ -14,17 +16,25 @@ vi.mock("@sjvair/sdk", () => ({
 	getMonitorSummariesBulkQuarterly: vi.fn(),
 	getMonitorSummariesBulkSeasonal: vi.fn(),
 	getMonitorSummariesBulkYearly: vi.fn(),
+	getMonitorSummariesDailyOpen: vi.fn(),
+	getMonitorSummariesBulkDailyOpen: vi.fn(),
+	getRegionSummariesBulkDailyOpen: vi.fn(),
 	getRegionSummariesBulkHourly: vi.fn(),
 	getRegionSummariesBulkDaily: vi.fn(),
 	getRegionSummariesBulkMonthly: vi.fn(),
 	getRegionSummariesBulkQuarterly: vi.fn(),
 	getRegionSummariesBulkSeasonal: vi.fn(),
-	getRegionSummariesBulkYearly: vi.fn()
+	getRegionSummariesBulkYearly: vi.fn(),
+	mergeOpenDays: actual.mergeOpenDays,
+	mergeBulkOpenDays: actual.mergeBulkOpenDays
 }));
 
 import {
 	getMonitorEntries,
 	getMonitorSummariesBulkDaily,
+	getMonitorSummariesBulkDailyOpen,
+	getMonitorSummariesDailyOpen,
+	getRegionSummariesBulkDailyOpen,
 	getMonitorSummariesDaily,
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
@@ -984,6 +994,135 @@ describe("airQualityAdapter.fetch dailyFigure", () => {
 			for (const p of data.series[0].points) expect("figure" in p).toBe(false);
 		});
 	}
+});
+
+describe("airQualityAdapter.fetch open days", () => {
+	// NOW is 2026-10-22 at noon Pacific: today is Oct 22, yesterday Oct 21.
+	const OCTOBER: DateRangeSpec = { kind: "custom", start: "2026-10-01", end: "2026-10-31" };
+	const stored = [
+		{ ...row("2026-10-20T00:00:00-07:00", 8), mean_24h: 8.1, is_final: true },
+		{ ...row("2026-10-21T00:00:00-07:00", 6), mean_24h: 6.2, is_final: true }
+	];
+	const open = [
+		{ ...row("2026-10-21T00:00:00-07:00", 99), mean_24h: 99, is_final: false },
+		{ ...row("2026-10-22T00:00:00-07:00", 4), mean_24h: 4.4, is_final: false }
+	];
+	const monitor: Target = { kind: "monitors", ids: ["m-pa"] };
+	const county: Target = { kind: "regions", keys: ["county:06019"] };
+
+	it("a monitor's calendar request merges its open days once, with the published series", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue(stored as never);
+		vi.mocked(getMonitorSummariesDailyOpen).mockResolvedValue(open as never);
+		const data = await airQualityAdapter.fetch(
+			request(monitor, "day", OCTOBER, { dailyFigure: "mean_24h" }),
+			ctx,
+			signal
+		);
+		expect(getMonitorSummariesDailyOpen).toHaveBeenCalledTimes(1);
+		const [config] = vi.mocked(getMonitorSummariesDailyOpen).mock.calls[0];
+		expect(config).toEqual({
+			monitorId: "m-pa",
+			entryType: "pm25",
+			processor: "PM25_EPA_Calibration"
+		});
+		const points = data.series[0].points;
+		// The stored row wins on a shared day; today comes from the open row.
+		expect(points.map((p) => p.figure)).toEqual([8.1, 6.2, 4.4]);
+		expect(points.map((p) => p.final)).toEqual([true, true, false]);
+		expect(points[2].partial).toBe(true);
+		// Today is the server's row, never a fill aggregated in the browser.
+		expect(getMonitorSummariesHourly).not.toHaveBeenCalled();
+		expect(getMonitorEntries).not.toHaveBeenCalled();
+	});
+
+	it("a region's calendar request merges its bulk open days", async () => {
+		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
+			{ id: "sq1", summaries: stored.slice(0, 1) }
+		] as never);
+		vi.mocked(getRegionSummariesBulkDailyOpen).mockResolvedValue([
+			{ id: "sq1", summaries: open }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(county, "day", OCTOBER, { dailyFigure: "mean_24h" }),
+			ctx,
+			signal
+		);
+		expect(getRegionSummariesBulkDailyOpen).toHaveBeenCalledTimes(1);
+		const [config] = vi.mocked(getRegionSummariesBulkDailyOpen).mock.calls[0];
+		expect(config).toEqual({ entryType: "pm25", region: ["sq1"] });
+		const points = data.series[0].points;
+		expect(points.map((p) => p.figure)).toEqual([8.1, 99, 4.4]);
+		expect(points.map((p) => p.final)).toEqual([true, false, false]);
+		expect(getRegionSummariesBulkHourly).not.toHaveBeenCalled();
+	});
+
+	it("the whole layer's calendar request merges bulk open days, adding open-only monitors", async () => {
+		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([
+			{ id: "m-pa", summaries: stored }
+		] as never);
+		vi.mocked(getMonitorSummariesBulkDailyOpen).mockResolvedValue([
+			{ id: "m-pa", summaries: open },
+			{ id: "m-new", summaries: open.slice(1) }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request({ kind: "all" }, "day", OCTOBER, { dailyFigure: "mean_24h" }),
+			ctx,
+			signal
+		);
+		expect(getMonitorSummariesBulkDailyOpen).toHaveBeenCalledTimes(1);
+		const [config] = vi.mocked(getMonitorSummariesBulkDailyOpen).mock.calls[0];
+		expect(config).toEqual({ entryType: "pm25" });
+		const byPlace = new Map(data.series.map((s) => [s.place, s.points]));
+		expect(byPlace.get("monitor:m-pa")?.map((p) => p.figure)).toEqual([8.1, 6.2, 4.4]);
+		expect(byPlace.get("monitor:m-new")?.map((p) => p.figure)).toEqual([4.4]);
+	});
+
+	it("open days spanning two months are fetched once and trimmed to the range", async () => {
+		const now = new Date("2026-11-01T19:00:00Z");
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		vi.mocked(getMonitorSummariesDailyOpen).mockResolvedValue([
+			{ ...row("2026-10-31T00:00:00-07:00", 3), mean_24h: 3.3, is_final: false },
+			{ ...row("2026-11-01T00:00:00-07:00", 2), mean_24h: 2.2, is_final: false }
+		] as never);
+		const range: DateRangeSpec = { kind: "custom", start: "2026-10-15", end: "2026-11-30" };
+		const data = await airQualityAdapter.fetch(
+			request(monitor, "day", range, { dailyFigure: "mean_24h", now }),
+			ctx,
+			signal
+		);
+		expect(getMonitorSummariesDaily).toHaveBeenCalledTimes(2);
+		expect(getMonitorSummariesDailyOpen).toHaveBeenCalledTimes(1);
+		expect(data.series[0].points.map((p) => p.figure)).toEqual([3.3, 2.2]);
+
+		vi.mocked(getMonitorSummariesDailyOpen).mockClear();
+		const november: DateRangeSpec = { kind: "custom", start: "2026-11-01", end: "2026-11-30" };
+		const only = await airQualityAdapter.fetch(
+			request(monitor, "day", november, { dailyFigure: "mean_24h", now }),
+			ctx,
+			signal
+		);
+		expect(only.series[0].points.map((p) => p.figure)).toEqual([2.2]);
+	});
+
+	it("a range ending before yesterday asks for no open days", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		const range: DateRangeSpec = { kind: "custom", start: "2026-10-01", end: "2026-10-20" };
+		await airQualityAdapter.fetch(
+			request(monitor, "day", range, { dailyFigure: "mean_24h" }),
+			ctx,
+			signal
+		);
+		expect(getMonitorSummariesDailyOpen).not.toHaveBeenCalled();
+	});
+
+	it("a request without dailyFigure asks for no open days", async () => {
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
+		vi.mocked(getMonitorEntries).mockResolvedValue([] as never);
+		await airQualityAdapter.fetch(request(monitor, "day", OCTOBER), ctx, signal);
+		expect(getMonitorSummariesDailyOpen).not.toHaveBeenCalled();
+		expect(getMonitorSummariesHourly).toHaveBeenCalled();
+	});
 });
 
 describe("airQualityAdapter.fetch fallback", () => {

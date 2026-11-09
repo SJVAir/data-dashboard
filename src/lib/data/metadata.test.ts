@@ -487,8 +487,31 @@ describe("dailyFigure", () => {
 		expect(await md.dailyFigure("pm25")).toBeNull();
 	});
 
-	it("the web source returns null until the SDK carries the field", async () => {
-		expect(await createWebMetadata().dailyFigure("o3")).toBeNull();
+	it("the web source reads the scale's daily_statistic and its label", async () => {
+		const scale = (daily_statistic: string | null, daily_statistic_label: string | null) => ({
+			levels: [],
+			averaging_hours: null,
+			daily_statistic,
+			daily_statistic_label
+		});
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			...META,
+			entries: {
+				o3: { scale: scale("max_1h", "Highest 1-hour average") },
+				pm25: { scale: scale(null, null) },
+				co: { scale: scale("max_8h", null) },
+				humidity: { scale: null }
+			}
+		} as never);
+		const md = createWebMetadata();
+		expect(await md.dailyFigure("o3")).toEqual({
+			field: "max_1h",
+			label: "Highest 1-hour average"
+		});
+		expect(await md.dailyFigure("pm25")).toBeNull();
+		expect(await md.dailyFigure("co")).toEqual({ field: "max_8h", label: null });
+		expect(await md.dailyFigure("humidity")).toBeNull();
+		expect(await md.dailyFigure("nope")).toBeNull();
 	});
 
 	it("withCatalog forwards it", async () => {

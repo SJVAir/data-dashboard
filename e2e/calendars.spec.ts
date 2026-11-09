@@ -1,8 +1,8 @@
 /**
  * The two calendars end to end, on the API fixtures: choosing them in Get data, the reasons they
  * are greyed out, a point place swapping to its region, selecting days, and opening the selection
- * in a chart. The web metadata has no `daily_statistic` yet, so every past day is unrated and the
- * calendars say so once; the colored cells are checked once the server's metadata carries it.
+ * in a chart, and the days colored by the metadata's `daily_statistic` (PM2.5's 24-hour average),
+ * with today from the open-day rows.
  */
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
@@ -21,8 +21,7 @@ import {
 test.use({ reducedMotion: "reduce" });
 
 const GET_DATA = { level: 1, name: "Get data" } as const;
-const NOT_RATED_NOTE =
-	"SJVAir doesn't say yet how to rate a whole day of this pollutant, so its days aren't rated.";
+const NOT_RATED_NOTE = /doesn't say yet how to rate a whole day/;
 const FRESNO = { kind: "region", type: "county", code: "06019" };
 
 /** The days drawn in `scope`, in order, as grid cells. */
@@ -52,11 +51,12 @@ for (const name of ["Month calendar", "Year calendar"]) {
 		await makeOwnCopy(page);
 		const before = await widgetTitles(page).count();
 		await showAs(page, name);
-		// The preview draws the calendar and says why its days aren't rated, once.
+		// The preview draws the calendar with its days rated.
 		const preview = page.getByRole("grid").first();
 		await expect(preview).toBeVisible();
 		await expect(dayCells(preview).first()).toBeAttached();
-		await expect(page.getByText(NOT_RATED_NOTE)).toHaveCount(1);
+		await expect(preview.locator("[data-kind=rated]").first()).toBeAttached();
+		await expect(page.getByText(NOT_RATED_NOTE)).toHaveCount(0);
 
 		await addToButton(page).click();
 		await expect(page).toHaveURL(DASHBOARD_URL);
@@ -66,7 +66,9 @@ for (const name of ["Month calendar", "Year calendar"]) {
 		await page.reload();
 		await expect(widgetTitles(page)).toHaveCount(before + 1);
 		await expect(page.getByRole("grid").first()).toBeVisible();
-		await expect(page.getByText(NOT_RATED_NOTE).first()).toBeVisible();
+		await expect(
+			page.getByRole("grid").first().locator("[data-kind=rated]").first()
+		).toBeAttached();
 	});
 }
 
@@ -139,7 +141,12 @@ test("a share link with a point place gets its region for a calendar", async ({ 
 });
 
 /** A saved dashboard with one calendar of `type` on Fresno County, opened through a share link. */
-async function openCalendar(page: Page, type: string, dateRange: unknown): Promise<void> {
+async function openCalendar(
+	page: Page,
+	type: string,
+	dateRange: unknown,
+	thresholds?: Array<{ level: string }>
+): Promise<void> {
 	const doc = {
 		kind: "dashboard",
 		schemaVersion: 1,
@@ -155,7 +162,8 @@ async function openCalendar(page: Page, type: string, dateRange: unknown): Promi
 					data: {
 						dateRange,
 						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
-					}
+					},
+					...(thresholds && { thresholds })
 				}
 			]
 		}
@@ -164,6 +172,37 @@ async function openCalendar(page: Page, type: string, dateRange: unknown): Promi
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(widgetTitles(page)).toHaveCount(1);
 }
+
+/** A Moderate day's cell in `grid` (rated, or today so far). */
+function moderateCell(grid: Locator): Locator {
+	return grid.locator("[role=gridcell]:is([data-kind=rated],[data-kind=today])", {
+		hasText: "Moderate"
+	});
+}
+
+test("days are colored by the daily figure, with its label, today so far and the count", async ({
+	page
+}) => {
+	await openCalendar(page, "calendar-month", { kind: "trailing", amount: 2, unit: "month" }, [
+		{ level: "moderate" }
+	]);
+	const grid = page.getByRole("grid").first();
+	await expect(dayCells(grid).first()).toBeAttached();
+	// A Moderate day shows its level's words and is named with the figure's label.
+	const moderate = moderateCell(grid).first();
+	await expect(moderate).toBeAttached();
+	await expect(moderate.locator("[data-name]")).toContainText("24-hour average");
+	await expect(moderate.locator("[data-name]")).toContainText("Moderate");
+	// Today comes from the open-day rows: "so far", never final.
+	const today = grid.locator("[data-kind=today]");
+	await expect(today).toHaveCount(1);
+	await expect(today).toContainText("so far");
+	// The count line over the rated days.
+	await expect(page.locator("[data-calendar-count]").first()).toHaveText(
+		/^\S*\s*[\d,]+ of [\d,]+ rated days? at or above Moderate/
+	);
+	await expect(page.getByText(NOT_RATED_NOTE)).toHaveCount(0);
+});
 
 test("two clicks select a span, a third starts anew, and the days open in a chart", async ({
 	page
@@ -215,6 +254,10 @@ for (const colorScheme of ["light", "dark"] as const) {
 				await openCalendar(page, type, { kind: "trailing", amount: 2, unit: "month" });
 				const grid = page.getByRole("grid").first();
 				await expect(dayCells(grid).first()).toBeAttached();
+				// Checked with yellow (Moderate) cells drawn.
+				await expect(
+					grid.locator("[role=gridcell][data-kind=rated]", { hasText: "Moderate" }).first()
+				).toBeAttached();
 				await (await pastDay(grid, 2)).click();
 				await (await pastDay(grid, 4)).click();
 				await expectNoViolations(page);

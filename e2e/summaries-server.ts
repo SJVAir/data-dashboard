@@ -9,12 +9,21 @@ const SUMMARIES = /\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\
 const MONITOR_SUMMARIES =
 	/\/api\/2\.0\/monitors\/([A-Za-z0-9_-]+)\/summaries\/([a-z0-9-]+)\/(hourly|daily)\/(\d{4})\/(\d{1,2})(?:\/(\d{1,2}))?\/$/;
 
+/** Today's open-day rows: `api/2.0/regions/<entry>/…`, `monitors/<entry>/…`, `monitors/<id>/<entry>/…`. */
+const OPEN_DAYS =
+	/\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\/(?:([a-z0-9-]+)\/)?daily\/open\/$/;
+
+const DAY = 86_400_000;
+
 /** A made-up but steady reading for the period starting at `t`, so reloads show the same data. */
 function reading(t: number): number {
 	return 6 + ((t / 3_600_000) % 29);
 }
 
-/** The period starts (Pacific) from `start` to `end` (inclusive dates) that have begun by now. */
+/**
+ * The period starts (Pacific) from `start` to `end` (inclusive dates) that have begun by now; a
+ * daily row only once its day has ended (today's comes from the open-days endpoints).
+ */
 function periods(start: string, end: string, hourly: boolean): TZDate[] {
 	const [y, m, d] = start.split("-").map(Number);
 	const [ey, em, ed] = end.split("-").map(Number);
@@ -25,10 +34,42 @@ function periods(start: string, end: string, hourly: boolean): TZDate[] {
 		const t = hourly
 			? new TZDate(y, m - 1, d, 0, 0, 0, TIME_ZONE).getTime() + i * 3_600_000
 			: new TZDate(y, m - 1, d + i, TIME_ZONE).getTime();
-		if (t >= stop || t > now) break;
+		if (t >= stop || t > now || (!hourly && t + DAY > now)) break;
 		out.push(new TZDate(t, TIME_ZONE));
 	}
 	return out;
+}
+
+/** The server's figure fields for a row with `mean`: the daily figure only on a daily row. */
+function figures(mean: number, hourly: boolean, final: boolean) {
+	return {
+		max_1h: hourly ? null : mean + 2,
+		max_8h: hourly ? null : mean + 1,
+		mean_24h: hourly ? null : mean,
+		is_final: final
+	};
+}
+
+/** Today's open-day row (so far), from midnight Pacific. */
+function todayRow(entryType: string) {
+	const now = new TZDate(Date.now(), TIME_ZONE);
+	const start = new TZDate(now.getFullYear(), now.getMonth(), now.getDate(), TIME_ZONE);
+	const mean = reading(start.getTime());
+	return {
+		timestamp: start.toISOString(),
+		entry_type: entryType,
+		resolution: "day",
+		count: 12,
+		minimum: mean - 2,
+		maximum: mean + 2,
+		mean,
+		stddev: 1,
+		p25: mean - 1,
+		p75: mean + 1,
+		sum: mean * 12,
+		station_count: 1,
+		...figures(mean, false, false)
+	};
 }
 
 /**
@@ -65,7 +106,8 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 					stddev: 1,
 					p25: mean - 1,
 					p75: mean + 1,
-					sum: mean * (hourly ? 1 : 24)
+					sum: mean * (hourly ? 1 : 24),
+					...figures(mean, hourly, true)
 				};
 			});
 			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
@@ -100,9 +142,28 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 					stddev: 1,
 					p25: mean - 1,
 					p75: mean + 1,
-					station_count: 1
+					station_count: 1,
+					...figures(mean, hourly, true)
 				};
 			});
+			const data = ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries }));
+			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+	// Today so far, for each place asked for (bulk) or the one monitor.
+	await context.route(
+		(url) => OPEN_DAYS.test(url.pathname),
+		async (route) => {
+			const url = new URL(route.request().url());
+			const [, kind, first, entryType] = OPEN_DAYS.exec(url.pathname)!;
+			if (entryType) {
+				const data = [todayRow(entryType)];
+				await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+				return;
+			}
+			const param = kind === "regions" ? "region" : "monitor";
+			const ids = url.searchParams.getAll(param).flatMap((v) => v.split(","));
+			const summaries = [todayRow(first)];
 			const data = ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries }));
 			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 		}

@@ -1251,9 +1251,9 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    budget; the user accepted it for now (`DEFERRED.md`). Its deferrals are in `DEFERRED.md`.
 5. Calendars (day-colored, contribution). (The hour × weekday heatmap was dropped 2026-11-09.)
    **Built on `step-4-spec-5` (2026-11-09), not yet merged:** both calendars with Get data
-   support, selection, "Open these days in a chart", CSV, E2E and axe checks. Waiting on SDK
-   `5.0.0-beta.8` (the server's `daily_statistic`) for the colored-cell checks (Task 13); until
-   then every past day shows as unrated. Spec
+   support, selection, "Open these days in a chart", CSV, E2E and axe checks. On SDK
+   `5.0.0-beta.8`: days are colored by the server's `daily_statistic`, with today and an
+   unsettled yesterday from the open-day rows. Spec
    `docs/superpowers/specs/2026-11-09-step-4-spec-5-calendars-design.md`.
 6. Notes and the starter dashboard.
 

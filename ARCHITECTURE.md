@@ -2930,6 +2930,21 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    0–4 or `null` (no severity). `description` is the official wording (credited by `source`),
    `guidance` is SJVAir's own. Level `key`s are permanent.
 
+   **Daily figure** (SDK 5.0.0-beta.8, used by the calendars): a `monitors/meta/` scale also
+   carries `averaging_hours` (`24 | 1 | 8 | null`, the averaging period its breakpoints assume),
+   `daily_statistic` (`"mean_24h" | "max_1h" | "max_8h" | null`: the summary field a whole day
+   is rated by) and `daily_statistic_label` (its words, e.g. "24-hour average"; `null` falls back
+   to the dashboard's "Daily value"). Summary rows (every resolution) carry `mean_24h`, `max_1h`
+   and `max_8h` (`number | null`; on a daily row, only the field its scale's `daily_statistic`
+   names is filled, and `null` means too few hours to rate) and `is_final` (`false` while the
+   day can still change). **Open-day rows** (`…/summaries/daily/open/`, single monitor, bulk
+   monitors and bulk regions) are today so far, plus yesterday until its nightly row exists
+   (about 03:00 Pacific); `mergeOpenDays` / `mergeBulkOpenDays` add them to the stored rows
+   (the stored row wins on a shared day). The dashboard asks for them only for calendar
+   requests whose range reaches yesterday or today, never reads their `expected_count` or
+   `is_complete`, and never computes a daily figure itself. A scale with levels but no
+   `daily_statistic` leaves every day unrated, with one note.
+
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).
 5. **Region hierarchy** — nesting between region types, counts, which regions have

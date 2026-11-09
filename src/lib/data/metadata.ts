@@ -326,9 +326,10 @@ export function createWebMetadata(): MetadataSource {
 			}
 			return monitorLevels(entryType, signal);
 		},
-		// Until the SDK's types carry `daily_statistic` (a later task reads it).
-		async dailyFigure() {
-			return null;
+		async dailyFigure(entryType, signal) {
+			const scale = (await meta(signal)).entries[entryType]?.scale;
+			if (!scale?.daily_statistic) return null;
+			return { field: scale.daily_statistic, label: scale.daily_statistic_label ?? null };
 		},
 		async schoolGuidelines(entryType, signal) {
 			return (await meta(signal)).entries[entryType]?.school_guidelines ?? null;
