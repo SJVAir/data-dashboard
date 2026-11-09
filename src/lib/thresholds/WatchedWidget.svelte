@@ -2,6 +2,7 @@
 	import { getContext, onDestroy, untrack } from "svelte";
 	import { widgetTitle } from "$lib/actions/widget";
 	import type { WidgetInstance } from "$lib/documents/schema";
+	import { canonicalJson } from "$lib/sync/merge";
 	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 	import { asPm25 } from "$lib/widgets/outside/pm25";
 	import { CurrentConditions } from "$lib/widgets/shared/current.svelte";
@@ -32,7 +33,7 @@
 
 	// What the reading is of (place and pollutant): when it changes, "last told" was about
 	// another place, so it's dropped and the new place's first reading only seeds it.
-	const watchedKey = $derived(JSON.stringify(read.data.layers));
+	const watchedKey = $derived(canonicalJson(read.data.layers));
 	let lastKey: string | undefined;
 
 	$effect(() => {

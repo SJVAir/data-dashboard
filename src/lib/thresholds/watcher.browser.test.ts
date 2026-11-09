@@ -32,6 +32,12 @@ vi.mock("$lib/data", () => ({
 	getMetadata: () => fake.metadata!
 }));
 
+vi.mock("$lib/data/now", async () => {
+	const { createNowClient } = await import("$lib/data/now/client");
+	const client = createNowClient();
+	return { getNowClient: () => client };
+});
+
 const HOUR = 3_600_000;
 const CATALOG: CatalogEntry[] = FIXTURE_CATALOG.map((d) => ({
 	...d,
@@ -363,6 +369,37 @@ test("a new place starts afresh: its first reading seeds, a later rise toasts", 
 		m.alert_pollutant_at_place_is_now_level({
 			pollutant: "PM2.5",
 			place: "Monitor b",
+			level: "Unhealthy"
+		})
+	]);
+});
+
+test("a server key reorder of the layers is not a new place: no re-seeding, so a rise toasts", async () => {
+	series.values = [40, 60];
+	series.step = 0;
+	const { app, platform, docId, session } = await seed([tile("w1")]);
+	await handled(platform, app, docId, "w1", readingAt(0));
+	const from = { name: session.doc.name, body: session.doc.body };
+	const widgets = session.doc.body.widgets.map((w) => ({
+		...w,
+		// The same layer with its keys in another order.
+		data: {
+			layers: [
+				{ place: { id: "a", kind: "monitor" as const }, entryType: "pm25", dataset: "air-quality" }
+			]
+		}
+	}));
+	session.apply({
+		op: "replaceDocument",
+		target: {},
+		from,
+		to: { name: from.name, body: { widgets } }
+	});
+	nextPoll();
+	await expect.poll(toastTexts, { timeout: 5000 }).toEqual([
+		m.alert_pollutant_at_place_is_now_level({
+			pollutant: "PM2.5",
+			place: "Monitor a",
 			level: "Unhealthy"
 		})
 	]);
