@@ -38,7 +38,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   decide then, trim or raise the budget, rather than trimming every time).
 - **The initial bundle is a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
   _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14); updated 2026-11-09 (spec 5)._
-  `check:budget` reads 204.5 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
+  `check:budget` reads 204.6 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
   202.1 KB after it). Spec 4's growth is the three widget descriptors, the dashboard menu's
   Notifications item, and the `thresholds` field in the change schema; spec 5's is the two calendar
   descriptors, their date and place-spot helpers, and the registry's new fields (`defaultRange`,
@@ -1562,7 +1562,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3); updated 2026-11-07 (step 4
   spec 3b)._ Number layers (a temperature-only chart, pesticide use alone) are done in spec 3b.
   Level layers alone (smoke days, no-burn days) still can't make a widget or a CSV: the reason
-  shows. **Revisit with** spec 5's day-colored calendar.
+  shows. Spec 5's calendars kept to pollutants, so this waits on "Other data in the calendars"
+  (under Widgets). **Revisit with** that item.
 - **Wind direction in Get data.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
   compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
   summarizes it (a prevailing direction), or someone asks for a wind rose.
@@ -1702,6 +1703,58 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   uses); a mouse can also drag or Shift-click, and the keyboard uses Shift+arrows. A
   long-press-then-drag (like the title bar's lift) would add touch dragging without taking the
   scroll. **Revisit if** phone or tablet users find tap-tap slow for long ranges, or ask to drag.
+- **Calendars review leftovers.** _Deferred 2026-11-09 (step 4 spec 5, per-task reviews and the
+  final review)._ Small things the reviews let stay; the first ones a person could meet:
+  - **The narrowest month calendar scrolls.** At 3 columns and the default height the legend wraps
+    to four lines, so the last week sits below the fold (the default 4 columns fits). **Revisit
+    if** people use the month calendar that narrow, or with the next legend change.
+  - **A saved selection the range has moved past stays saved.** "This month" on the 1st no longer
+    shows last month's days (and no longer offers "Open these days in a chart"), but the stored
+    `timeSubRange` stays until the next selection replaces it, and Escape can't clear what isn't
+    shown. Harmless, but a shared copy carries it. **Revisit if** it confuses anyone, or with the
+    next selection change (clear it on the next pick, or when the range moves).
+  - **The tooltip holds while the pointer is on it** (WCAG 1.4.13, final review M8). It lets clicks
+    through, but moving the pointer across it (say up a column) keeps the first day's tip until
+    the pointer leaves the tip's box. **Revisit if** that feels sticky in the year calendar.
+  - **Leaving the grid with the pointer clears a tooltip the focused day was showing.** Moving
+    focus brings it back. **Revisit with** the next tooltip change.
+  - **The year calendar scrolls back to the latest week at midnight** (its range moves). **Revisit
+    if** someone scrolled back loses their place.
+  - **The live region can announce a selection again when its values refresh,** at most hourly
+    (the summary poll) and only while the selection includes today. **Revisit if** screen-reader
+    users find it noisy.
+  - **Small month cells drop the words for days that aren't rated** (Not rated, No data so far):
+    the number shows, and the name and tooltip carry the state. **Revisit if** people miss it.
+  - **Selected days are named ", selected" with no `aria-selected`** (chosen in Task 8 so the state
+    reads with the rest of the name; not yet tried with screen readers). **Revisit at** the manual
+    screen-reader pass.
+  - **The year calendar's patterns are drawn in full ink** (the user's visual review is pending).
+    **Revisit with** that review.
+  - **Switching a calendar whose range is exactly "Last 30 days"** (the app default) to the other
+    calendar gives it the new type's default range, as an untouched range would (Ruling 9's
+    `wasDefault`). **Revisit if** someone loses a chosen 30-day range that way.
+  - **Get data keeps one note slot:** a range note replaces an earlier conversion note.
+    **Revisit if** both are needed at once.
+  - **Code tidying:** the hardcoded ring widths in the selection shadow (token discipline, low
+    risk), the year calendar's `pt-5.5` label offset, the `$derived.by` comment in
+    `calendar-data.svelte.ts` stating a cause as fact, the `hidden: 0` that wants a comment, the
+    `export *` at the bottom of `format/index.ts`, `final` copying `is_final` without a boolean
+    check (the SDK types it), `dailyFigure` in the query key at non-day resolutions (a harmless
+    extra key), and open-day loaders built for non-figure requests (cheap closures). **Revisit
+    with** the next change to each file.
+  - **Test gaps:** `daysInclusive` across spring-forward and with start after end, an all-null
+    column, six-row months; `ratedForCount`'s positive cases, pending and today days in a summary
+    fixture, the `unrated` doc comment, duplicate same-date points (the later wins); a selection
+    after a range change; Home/End/Page Up/Page Down, drag and Shift-click in the year calendar's
+    weeks layout; the cross-widget patterns on-again check and the misnamed "a fresh space starts
+    with patterns on" test; races and midnight rollover in the calendar data; real (not synthetic)
+    drags, including a release outside the grid; Escape's `stopPropagation`; the Get data keyboard
+    Show-as test (loose), its weather case using census, and the span reason; the adapter's bulk
+    all-places path, figure at non-day resolutions, with `worstHour`, and the client carrying
+    `dailyFigure`; an open-days call failing the whole query (deliberate: no partial data), a
+    monitor with no published processor, the bulk memo across units, and a yesterday-only open
+    row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the next
+    change to each.
 
 - **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
   brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide

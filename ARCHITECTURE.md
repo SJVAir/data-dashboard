@@ -3180,6 +3180,13 @@ and views.
     the document) and then sees color only; the tooltip and each cell's accessible name still give
     the level. This is the user's informed choice, recorded here as the only place color alone is
     allowed.
+- **The year calendar's day cells are smaller than 24 px** (WCAG 2.2 2.5.8, Target Size
+  (Minimum), step 4 spec 5). Its cells are about 12–16 px, so a whole year fits across a
+  dashboard-wide widget, as GitHub's contribution graph does. A year at a glance is essential to
+  that view (2.5.8's "essential" exception), and larger cells would mean scrolling sideways
+  through the year. Other routes to the same days: the keyboard (arrows, Page Up/Down, Shift+arrows),
+  the month calendar (cells at least 3rem tall), and the CSV. Recorded as a deliberate exception
+  by the controller on 2026-11-09, pending the user's review.
 - **Range selection without dragging** (WCAG 2.5.7). On the calendars, the two-click range
   (click a day, click another) is the single-pointer alternative to dragging across days; the
   keyboard has its own (Shift+arrows).
