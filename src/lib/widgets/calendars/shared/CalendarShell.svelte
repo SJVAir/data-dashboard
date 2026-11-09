@@ -195,7 +195,10 @@
 							<LevelChip level={summary.worst.level} size="sm" />
 						{/if}
 						{@render summaryCounts()}
-						<span class="text-muted-foreground text-xs">{m.calendar_selection_clear_hint()}</span>
+						<!-- Esc means nothing on a touch screen. -->
+						<span class="text-muted-foreground text-xs pointer-coarse:hidden"
+							>{m.calendar_selection_clear_hint()}</span
+						>
 					</p>
 				{/if}
 				<div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">

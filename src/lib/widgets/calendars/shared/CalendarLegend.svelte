@@ -51,7 +51,7 @@
 <ul
 	data-calendar-legend
 	data-patterns={patterns ? "" : undefined}
-	aria-label={m.calendar_key()}
+	aria-label={m.calendar_color_key()}
 	class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
 >
 	{#each shownLevels as level (level.key)}

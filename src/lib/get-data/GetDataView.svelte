@@ -653,6 +653,17 @@
 						{/if}
 					</ShowValuesControl>
 				</section>
+			{:else if !isNow && type?.thresholds && shownLevels}
+				<!-- A type with a pinned resolution (a calendar) has no Show values: the control stands alone. -->
+				<section>
+					<ThresholdLineControl
+						levels={shownLevels}
+						thresholds={plain.thresholds}
+						onthreshold={setThreshold}
+						onretry={() => alertTry++}
+						marks={isCalendarType(plain.type)}
+					/>
+				</section>
 			{/if}
 		</div>
 

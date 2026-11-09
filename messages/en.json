@@ -692,7 +692,7 @@
 	"table_overlay_by_day": "{layer} shows only in tables with daily or more detailed rows.",
 	"widget_chart_title": "Chart",
 	"widget_calendar_month_title": "Month calendar",
-	"widget_calendar_contribution_title": "Contribution calendar",
+	"widget_calendar_year_title": "Year calendar",
 	"calendar_open_in_chart": "Open these days in a chart",
 	"calendar_daily_value": "Daily value",
 	"csv_rated": "Rated",
@@ -701,7 +701,7 @@
 	"csv_rated_not_final": "Not final yet",
 	"calendar_not_enough_data": "Not enough data",
 	"calendar_no_data": "No data",
-	"calendar_key": "Key",
+	"calendar_color_key": "Color key",
 	"calendar_legend_threshold": "At or above {level}",
 	"calendar_threshold_count": [
 		{
@@ -1041,7 +1041,7 @@
 	"get_data_levels_unavailable": "The levels can't be loaded right now.",
 	"get_data_line_at_level": "Line at level",
 	"get_data_mark_days_at_level": "Mark days at level",
-	"get_data_mark_days_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked.",
+	"get_data_mark_days_level_missing_choose_another": "The chosen level isn't one of this pollutant's levels, so no days are marked. Choose another level.",
 	"get_data_block_dataset": "Can't show this data",
 	"get_data_block_places": [
 		{

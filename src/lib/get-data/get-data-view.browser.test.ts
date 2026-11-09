@@ -1093,6 +1093,23 @@ test("Threshold line is hidden for a non-pollutant main layer, and the saved one
 });
 
 describe("calendar types", () => {
+	test("a calendar's level control says it marks days, and its missing-level hint to choose another", async () => {
+		const { host } = await show({
+			...monthDraft(),
+			thresholds: [{ level: "gone" }]
+		});
+		await expect
+			.element(page.getByRole("combobox", { name: m.get_data_mark_days_at_level() }))
+			.toHaveValue("");
+		expect(
+			page.getByRole("combobox", { name: m.get_data_line_at_level() }).elements()
+		).toHaveLength(0);
+		await expect
+			.element(page.getByText(m.get_data_mark_days_level_missing_choose_another()).first())
+			.toBeVisible();
+		host.remove();
+	});
+
 	const monthDraft = (): Draft => ({
 		type: "calendar-month",
 		data: {

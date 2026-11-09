@@ -47,7 +47,7 @@ async function showAs(page: Page, name: string): Promise<void> {
 	await expect(page.getByRole("radio", { name })).toBeChecked();
 }
 
-for (const name of ["Month calendar", "Contribution calendar"]) {
+for (const name of ["Month calendar", "Year calendar"]) {
 	test(`Get data → ${name}: preview, Add, and it reloads`, async ({ page }) => {
 		await makeOwnCopy(page);
 		const before = await widgetTitles(page).count();
@@ -79,7 +79,7 @@ test("a calendar is greyed out with its reason for two places and for a weather 
 	// A weather layer.
 	await page.getByRole("button", { name: /^Weather/ }).click();
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
-	for (const name of ["Month calendar", "Contribution calendar"]) {
+	for (const name of ["Month calendar", "Year calendar"]) {
 		await expect(page.getByRole("radio", { name })).toBeDisabled();
 	}
 	await expect(page.getByText(/Month calendar: /).first()).toBeVisible();
@@ -96,10 +96,10 @@ test("a calendar is greyed out with its reason for two places and for a weather 
 		.click();
 	await picker.getByRole("button", { name: "Done" }).click();
 	await expect(picker).toBeHidden();
-	for (const name of ["Month calendar", "Contribution calendar"]) {
+	for (const name of ["Month calendar", "Year calendar"]) {
 		await expect(page.getByRole("radio", { name })).toBeDisabled();
 	}
-	await expect(page.getByText(/Contribution calendar: Shows up to 1 place/)).toBeVisible();
+	await expect(page.getByText(/Year calendar: Shows up to 1 place/)).toBeVisible();
 });
 
 test("a share link with a point place gets its region for a calendar", async ({ page }) => {
@@ -116,7 +116,7 @@ test("a share link with a point place gets its region for a calendar", async ({ 
 					title: null,
 					rect: { x: 0, y: 0, w: 6, h: 8 },
 					data: {
-						dateRange: { kind: "to-date", unit: "month" },
+						dateRange: { kind: "trailing", amount: 2, unit: "month" },
 						layers: [
 							{
 								dataset: "air-quality",
@@ -197,7 +197,7 @@ test("two clicks select a span, a third starts anew, and the days open in a char
 });
 
 test("Escape clears the selection", async ({ page }) => {
-	await openCalendar(page, "calendar-month", { kind: "to-date", unit: "month" });
+	await openCalendar(page, "calendar-month", { kind: "trailing", amount: 2, unit: "month" });
 	const grid = page.getByRole("grid").first();
 	await expect(dayCells(grid).first()).toBeAttached();
 	await (await pastDay(grid, 0)).click();

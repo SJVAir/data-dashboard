@@ -7,7 +7,7 @@ import { openInChartItems } from "../shared/open-in-chart-item";
 /** A year of days as a contribution-style grid. */
 export const contributionCalendarType: WidgetType = {
 	type: CONTRIBUTION_CALENDAR_TYPE,
-	label: () => m.widget_calendar_contribution_title(),
+	label: () => m.widget_calendar_year_title(),
 	icon: CalendarRange,
 	minSize: { w: 3, h: 4 },
 	defaultSize: { w: 12, h: 3 },

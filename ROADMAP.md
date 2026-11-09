@@ -171,7 +171,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      (step 5) and alert rules (Release 2)
    - Chart
    - Calendar (day-colored) (built on `step-4-spec-5`, 2026-11-09; waiting on SDK beta.8 for colored-cell checks)
-   - Calendar (contribution) (same)
+   - Calendar (contribution) (built on `step-4-spec-5`, 2026-11-09; waiting on SDK beta.8 for colored-cell checks)
    - Current conditions
    - Data table
    - Notes (safe Markdown: raw HTML off, link allowlist)

@@ -55,7 +55,7 @@
 		</select>
 		{#if missing}
 			<p id="{uid}-missing" class="text-muted-foreground text-xs">
-				{marks ? m.get_data_mark_days_level_missing() : m.chart_level_line_missing()}
+				{marks ? m.get_data_mark_days_level_missing_choose_another() : m.chart_level_line_missing()}
 			</p>
 		{/if}
 	</div>

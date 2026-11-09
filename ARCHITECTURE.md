@@ -1952,7 +1952,7 @@ a date range outside their span.
   longer range. Default range "This month"; the whole month is drawn with days still to come left
   blank. Span 1 day to 12 months. A rated cell shows the level color, the day number, the value
   and the level label (the tier number when the cell is small).
-- **Contribution calendar:** GitHub's layout (a column per week, Sunday at the top, month labels
+- **Contribution calendar** (type `calendar-contribution`; its user-facing label is **"Year calendar"**, the user, 2026-11-09): GitHub's layout (a column per week, Sunday at the top, month labels
   above). Default range "Last 12 months"; span 1 week to about 2 years; long ranges scroll
   sideways from the latest week. A **Show patterns** switch (on by default) adds a per-tier
   pattern over each color; see "Accessibility".
