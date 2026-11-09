@@ -96,11 +96,12 @@ describe("hasPoints and pointSwaps", () => {
 			type: MONTH_CALENDAR_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 4, h: 6 },
-			data: { timeSubRange: { start: "06:00", end: "09:00" } as never, layers: [pm25(POINT)] }
+			data: { timeSubRange: { start: "2026-01-05", end: "2026-01-12" }, layers: [pm25(POINT)] }
 		};
 		await pointSwaps(docWith(calendar));
 		const [input] = mocked.placeRegion.mock.calls[0];
 		expect(input.pin).toBe("day");
+		expect(input.dateRange).toEqual({ kind: "to-date", unit: "month" });
 		expect(input.worstHour).toBeUndefined();
 		expect(input.timeSubRange).toBeUndefined();
 	});

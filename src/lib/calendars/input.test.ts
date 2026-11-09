@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { WidgetDataConfig } from "$lib/data/schema";
-import { calendarInput, isCalendarType, MONTH_CALENDAR_TYPE } from "./input";
+import {
+	calendarInput,
+	CONTRIBUTION_CALENDAR_TYPE,
+	isCalendarType,
+	MONTH_CALENDAR_TYPE
+} from "./input";
 
 const data: WidgetDataConfig = {
-	timeSubRange: { start: "06:00", end: "09:00" } as never,
+	timeSubRange: { start: "2026-01-05", end: "2026-01-12" },
 	layers: [
 		{
 			dataset: "air-quality",
@@ -24,7 +29,15 @@ describe("calendarInput", () => {
 	it("uses the widget's range, else the type's default", () => {
 		const range = { kind: "to-date", unit: "year" } as const;
 		expect(calendarInput({ ...data, dateRange: range }, undefined)!.dateRange).toEqual(range);
-		expect(calendarInput(data, undefined)!.dateRange).toBeDefined();
+		expect(calendarInput(data, undefined, MONTH_CALENDAR_TYPE)!.dateRange).toEqual({
+			kind: "to-date",
+			unit: "month"
+		});
+		expect(calendarInput(data, undefined, CONTRIBUTION_CALENDAR_TYPE)!.dateRange).toEqual({
+			kind: "trailing",
+			amount: 12,
+			unit: "month"
+		});
 	});
 	it("is null without a place", () => {
 		expect(
