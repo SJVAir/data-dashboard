@@ -1,8 +1,11 @@
 import type { Change } from "$lib/changes/types";
 import type { Layer } from "$lib/data/schema";
-import type { Dashboard } from "$lib/documents/schema";
+import { currentInput } from "$lib/data/now/current";
+import type { QueryInput } from "$lib/data/types";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
-import { chartInput } from "$lib/widgets/shared/input";
+import { getWidgetType } from "$lib/widgets/registry";
+import { chartInput, placesLayer, placesQueryLayer } from "$lib/widgets/shared/input";
 import { hasPoints, pointLayers } from "./point-layers";
 
 export { hasPoints };
@@ -65,9 +68,24 @@ export function pointsCovered(doc: Dashboard, swaps: PointSwap[]): boolean {
 }
 
 /**
+ * The query a point layer's region is looked up with: the widget's own, for this layer alone (a
+ * point is a single place). A Forecast strip's layer (no entry type) is looked up as a PM2.5 one at
+ * the same place, as the place picker does; a "now" widget over the trailing hours its tile reads,
+ * so the region matches what it shows. Null when the layer isn't the widget's places layer.
+ */
+function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
+	const data = { ...widget.data, layers: [layer] };
+	const places = placesLayer(data, undefined);
+	if (!places) return null;
+	const query = placesQueryLayer(places);
+	if (getWidgetType(widget.type)?.time === "now") return currentInput(query);
+	return chartInput({ ...data, layers: [query] }, undefined, 1).input;
+}
+
+/**
  * Each point layer's region (via `placeRegion`: the widget's own query, so the region it shows
- * now); rejects when a lookup fails, `signal` aborts, or 20 seconds pass. A point layer without
- * an entry type shows nothing, so it has no region.
+ * now); rejects when a lookup fails, `signal` aborts, or 20 seconds pass. A point layer that
+ * isn't its widget's places layer shows nothing, so it has no region.
  */
 export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<PointSwap[]> {
 	const found = pointLayers(doc);
@@ -78,8 +96,7 @@ export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<
 		timed.signal.throwIfAborted();
 		return await Promise.all(
 			found.map(async ({ widget, layer, layerIndex }): Promise<PointSwap> => {
-				// The widget's query for this layer alone (a point is a single place).
-				const { input } = chartInput({ ...widget.data, layers: [layer] }, undefined, 1);
+				const input = lookupInput(widget, layer);
 				const region = input ? await placeRegion(input, timed.signal) : null;
 				const { lat, lon } = layer.place as Extract<Layer["place"], { kind: "point" }>;
 				return { widgetId: widget.id, layerIndex, point: { lat, lon }, region };
