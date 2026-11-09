@@ -1,6 +1,6 @@
 # Release 1, step 4, spec 5: the calendars
 
-Status: brainstormed with the user 2026-11-09; awaiting the user's approval. Checked by a fresh
+Status: approved by the user 2026-11-09 (brainstormed the same day). Checked by a fresh
 builder read; its questions are answered below (one by the user: today's cell).
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
