@@ -1639,16 +1639,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   activities.
 - **Now widgets review leftovers.** _Deferred 2026-11-08 (step 4 spec 4, per-task reviews)._
   Small things the reviews let stay; the first ones a person could meet:
-  - **A Forecast strip holding an exact point loses its place when a live link is turned on:**
-    `sharing/points.ts` `pointSwaps` builds the swap from the raw layer (`chartInput`), so the
-    strip's region comes out null (no coordinates leak; the place is just gone). Fix by using
-    `placesQueryLayer`. **Revisit with** the next change to sharing or the live-link flow, or if
-    seen.
   - **A failed `setNotifyEnabled` write is not handled:** the Notifications switch should revert
     and say so. **Revisit if** storage write failures are reported.
-  - **A mark can linger up to an hour on a reading that has aged past 3 hours:** staleness is
-    re-derived on a poll (the tile's minute tick clears its own text; the taskbar mark waits for
-    the next poll). **Revisit if** seen, or with a watcher change.
   - **The now client reports a throwing listener with `console.error`,** not
     `platform().errors` as the project rule says; its subscribe-time and `changed()` listener
     calls are unguarded. **Revisit with** the next now client change.
@@ -1667,8 +1659,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Unit-test gaps:** re-arm through the watcher and after firing, `decide` with a threshold
     missing from the scale, the alert banner's timestamp bounds, a retired-school tile, and
     `convertToNow` edit-during-load. **Add with** the next change to each.
-  - **Wording to confirm in the PR's copy review:** `current_averaging_help`,
-    `current_averaging_label`, `outside_no_guidance`.
 
 ## Alerts
 

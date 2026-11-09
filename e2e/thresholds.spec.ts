@@ -9,6 +9,7 @@ import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
 	expectNoViolations,
+	openPicker,
 	shareLinkFor,
 	taskbar,
 	widgetMenuItem,
@@ -110,4 +111,54 @@ test("a crossing between polls toasts once, marks the tile, then its taskbar ent
 	});
 	await expect(entry).toBeVisible();
 	await expect(taskbar(page).locator("[data-testid^='taskbar-']")).toHaveAttribute("data-mark", "");
+});
+
+test("with the notifications switch on, a crossing shows a desktop notification", async ({
+	page
+}) => {
+	// A stand-in for the browser's Notification: it records the permission asked and each one shown.
+	await page.addInitScript(() => {
+		const record = { requests: 0, shown: [] as { title: string; body?: string }[] };
+		(window as unknown as { __notify: typeof record }).__notify = record;
+		class FakeNotification {
+			static permission: NotificationPermission = "default";
+			static async requestPermission(): Promise<NotificationPermission> {
+				record.requests++;
+				FakeNotification.permission = "granted";
+				return "granted";
+			}
+			constructor(title: string, options?: NotificationOptions) {
+				record.shown.push({ title, body: options?.body });
+			}
+		}
+		Object.defineProperty(window, "Notification", { value: FakeNotification, configurable: true });
+	});
+	const notify = () =>
+		page.evaluate(
+			() => (window as unknown as { __notify: { requests: number; shown: unknown[] } }).__notify
+		);
+	const state = { worse: false };
+	await routeHourly(page, state);
+	await page.clock.install({ time: new Date(BASE + 5 * 60_000) });
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await expect(page.getByText("Moderate", { exact: true })).toBeVisible();
+	expect((await notify()).requests).toBe(0);
+
+	await openPicker(page, "Fresno air");
+	await page.getByRole("menuitem", { name: "Notifications…" }).click();
+	const toggle = page.getByRole("switch", {
+		name: "Show desktop notifications while this dashboard is open"
+	});
+	await toggle.click();
+	await expect(toggle).toBeChecked();
+	// Asked from the click, never on load.
+	expect((await notify()).requests).toBe(1);
+	await page.keyboard.press("Escape");
+
+	state.worse = true;
+	await page.clock.fastForward("01:00:00");
+	const body = `PM2.5 at Fresno County is now ${USG}`;
+	await expect(page.locator("[data-sonner-toast]", { hasText: "is now" })).toHaveText(body);
+	await expect.poll(async () => (await notify()).shown).toEqual([{ title: TITLE, body }]);
 });
