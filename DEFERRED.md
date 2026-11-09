@@ -38,7 +38,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   decide then, trim or raise the budget, rather than trimming every time).
 - **The initial bundle is a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
   _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14); updated 2026-11-09 (spec 5)._
-  `check:budget` reads 204.6 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
+  `check:budget` reads 204.8 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
   202.1 KB after it). Spec 4's growth is the three widget descriptors, the dashboard menu's
   Notifications item, and the `thresholds` field in the change schema; spec 5's is the two calendar
   descriptors, their date and place-spot helpers, and the registry's new fields (`defaultRange`,
