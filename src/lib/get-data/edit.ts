@@ -1,4 +1,7 @@
-/** "Edit data": a widget's data, type and options as a Get data draft, and Save changes. */
+/**
+ * "Edit data": a widget's data, type, options and alert level as a Get data draft, and Save
+ * changes.
+ */
 import type { SetWidgetDataChange } from "$lib/changes/types";
 import { GRID_COLUMNS, type Rect, type WidgetInstance } from "$lib/documents/schema";
 import { canonicalJson } from "$lib/sharing/fingerprint";
@@ -6,12 +9,13 @@ import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { getWidgetType } from "$lib/widgets/registry";
 import type { Draft } from "./draft.svelte";
 
-/** The draft Edit data starts from: the widget's type, data and options. */
+/** The draft Edit data starts from: the widget's type, data, options and thresholds. */
 export function editDraft(widget: WidgetInstance): Draft {
 	return {
 		type: widget.type,
 		data: structuredClone(widget.data),
-		...(widget.options ? { options: structuredClone(widget.options) as Draft["options"] } : {})
+		...(widget.options ? { options: structuredClone(widget.options) as Draft["options"] } : {}),
+		...(widget.thresholds ? { thresholds: structuredClone(widget.thresholds) } : {})
 	};
 }
 
@@ -23,8 +27,8 @@ export function draftChanged(initial: Draft, draft: Draft): boolean {
 }
 
 /**
- * Save changes: `draft` as one `setWidgetData` on the widget (one undo step), its type and
- * options included, and its size grown to the new type's `minSize` when it's smaller (moved left
+ * Save changes: `draft` as one `setWidgetData` on the widget (one undo step), its type, options
+ * and thresholds included, and its size grown to the new type's `minSize` when it's smaller (moved left
  * if it would then leave the grid). False, applying nothing, when nothing differs. Throws when
  * the widget isn't in the document.
  */
@@ -34,7 +38,8 @@ export function saveEdit(session: DocumentSession, widgetId: string, draft: Draf
 	const typeChanged = widget.type !== draft.type;
 	const dataChanged = !same(widget.data, draft.data);
 	const optionsChanged = !same(widget.options, draft.options);
-	if (!typeChanged && !dataChanged && !optionsChanged) return false;
+	const thresholdsChanged = !same(widget.thresholds, draft.thresholds);
+	if (!typeChanged && !dataChanged && !optionsChanged && !thresholdsChanged) return false;
 	const change: SetWidgetDataChange = {
 		op: "setWidgetData",
 		target: { widgetId },
@@ -50,6 +55,12 @@ export function saveEdit(session: DocumentSession, widgetId: string, draft: Draf
 		change.options = {
 			from: widget.options,
 			to: draft.options ? structuredClone(draft.options) : undefined
+		};
+	}
+	if (thresholdsChanged) {
+		change.thresholds = {
+			from: widget.thresholds,
+			to: draft.thresholds ? structuredClone(draft.thresholds) : undefined
 		};
 	}
 	session.apply(change);

@@ -903,6 +903,12 @@
 	],
 	"get_data_overlay_for": "Overlay for",
 	"get_data_show_as": "Show as",
+	"get_data_pollutant": "Pollutant",
+	"get_data_alert_level_label": "Alert level",
+	"get_data_alert_level": "Tell me at {level} or worse",
+	"get_data_alert_off": "Off",
+	"get_data_alert_fell_back": "The saved alert level isn't on this pollutant's scale, so {level} is used instead.",
+	"get_data_now_dropped": "Dates and extra places don't apply to this widget, so they were left out.",
 	"get_data_block_dataset": "Can't show this data",
 	"get_data_block_places": [
 		{

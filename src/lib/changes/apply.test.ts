@@ -277,6 +277,36 @@ describe("applyChange", () => {
 		expect(applyChange(next, inverse).doc).toEqual(doc);
 	});
 
+	it("setWidgetData thresholds set them, with no `to` remove them, and invert to what was there", () => {
+		const doc = makeDoc({
+			body: { widgets: [{ ...widget("a"), thresholds: [{ level: "moderate" }] }, widget("b")] }
+		});
+		const change: Change = {
+			op: "setWidgetData",
+			target: { widgetId: "a" },
+			from: emptyData,
+			to: emptyData,
+			// `from` is stale: the inverse restores what was really there.
+			thresholds: { from: [{ level: "stale" }], to: [{ level: "unhealthy" }] }
+		};
+		const { doc: next, inverse } = applyChange(doc, change);
+		expect(next.body.widgets[0].thresholds).toEqual([{ level: "unhealthy" }]);
+		expect(inverse).toMatchObject({
+			thresholds: { from: [{ level: "unhealthy" }], to: [{ level: "moderate" }] }
+		});
+		expect(applyChange(next, inverse).doc).toEqual(doc);
+		expect(appliedChange(inverse)).toMatchObject({
+			thresholds: { from: [{ level: "moderate" }], to: [{ level: "unhealthy" }] }
+		});
+		const off = applyChange(doc, { ...change, thresholds: { from: [{ level: "moderate" }] } });
+		expect("thresholds" in off.doc.body.widgets[0]).toBe(false);
+		expect(applyChange(off.doc, off.inverse).doc).toEqual(doc);
+		expect(
+			ChangeSchema.safeParse({ ...change, thresholds: { to: [{ level: "a" }, { level: "b" }] } })
+				.success
+		).toBe(false);
+	});
+
 	it("setWidgetData without type, options or rect leaves them as they are", () => {
 		const doc = makeDoc({
 			body: { widgets: [{ ...widget("a"), options: { keep: 1 } }, widget("b")] }

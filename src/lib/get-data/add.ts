@@ -41,7 +41,8 @@ export async function addFromDraft(
 		title: null,
 		rect: placeNewWidget(widgets, type.defaultSize),
 		data: structuredClone(draft.data),
-		...(draft.options ? { options: structuredClone(draft.options) } : {})
+		...(draft.options ? { options: structuredClone(draft.options) } : {}),
+		...(draft.thresholds ? { thresholds: structuredClone(draft.thresholds) } : {})
 	};
 	session.apply({
 		op: "addWidget",

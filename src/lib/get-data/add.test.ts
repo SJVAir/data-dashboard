@@ -95,6 +95,22 @@ describe("addFromDraft", () => {
 		expect(session.doc.body.widgets.at(-1)!.options).toEqual(options);
 	});
 
+	it("keeps the draft's alert level", async () => {
+		const { platform, app } = await anonymous();
+		await put(platform, makeDoc("d1"));
+		const now: Draft = {
+			type: "current-conditions",
+			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			thresholds: [{ level: "unhealthy_sensitive" }]
+		};
+		await addFromDraft(app, "d1", now);
+		const session = (await app.sessions.get("d1"))!;
+		expect(session.doc.body.widgets.at(-1)!.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		// Off stores none.
+		await addFromDraft(app, "d1", { ...now, thresholds: undefined });
+		expect("thresholds" in session.doc.body.widgets.at(-1)!).toBe(false);
+	});
+
 	it("adding to the starter makes the copy and returns its id", async () => {
 		const { platform, app } = await anonymous();
 

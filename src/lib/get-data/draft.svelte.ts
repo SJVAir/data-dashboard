@@ -4,6 +4,7 @@ import type { Platform, SpaceId } from "$lib/platform/types";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { dataTypes } from "$lib/widgets/registry";
 import { ChartOptionsSchema } from "$lib/widgets/shared/overlays";
+import { ThresholdSchema } from "$lib/thresholds/schema";
 import { CHART_TYPE } from "$lib/widgets/chart";
 
 /** Preference key (per space) for the Get data draft. Preferences stay on this device. */
@@ -14,7 +15,9 @@ const SAVE_DELAY_MS = 500;
 export const DraftSchema = z.object({
 	type: z.string().max(64),
 	data: WidgetDataConfigSchema,
-	options: ChartOptionsSchema.optional()
+	options: ChartOptionsSchema.optional(),
+	/** The alert level (threshold types); none means Off. */
+	thresholds: z.array(ThresholdSchema).max(1).optional()
 });
 export type Draft = z.infer<typeof DraftSchema>;
 

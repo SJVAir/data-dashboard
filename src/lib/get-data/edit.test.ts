@@ -12,7 +12,7 @@ import { chartType } from "$lib/widgets/chart";
 import { getWidgetType, registerWidgetType } from "$lib/widgets/registry";
 import { landedIn } from "./add";
 import type { Draft } from "./draft.svelte";
-import { editDraft, saveEdit } from "./edit";
+import { draftChanged, editDraft, saveEdit } from "./edit";
 
 // The live-link rule's region lookup: any point is in ZIP 93721.
 vi.mock("$lib/data", () => ({
@@ -135,6 +135,30 @@ describe("saveEdit", () => {
 		expect("options" in shown(session)).toBe(false);
 		session.undo();
 		expect(shown(session).options).toEqual(options);
+	});
+
+	it("changing only the alert level is one undo step; Off removes it", async () => {
+		const current: WidgetInstance = {
+			...preSpec,
+			type: "current-conditions",
+			thresholds: [{ level: "unhealthy_sensitive" }]
+		};
+		const { session } = await withWidget(current);
+		expect(editDraft(current).thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(saveEdit(session, "w1", editDraft(current))).toBe(false);
+		const draft: Draft = { ...editDraft(current), thresholds: [{ level: "unhealthy" }] };
+		expect(draftChanged(editDraft(current), draft)).toBe(true);
+		expect(saveEdit(session, "w1", draft)).toBe(true);
+		expect(shown(session)).toEqual({ ...current, thresholds: [{ level: "unhealthy" }] });
+		session.undo();
+		expect(shown(session)).toEqual(current);
+		expect(session.canUndo).toBe(false);
+
+		const off: Draft = { ...editDraft(current), thresholds: undefined };
+		expect(saveEdit(session, "w1", off)).toBe(true);
+		expect("thresholds" in shown(session)).toBe(false);
+		session.undo();
+		expect(shown(session)).toEqual(current);
 	});
 
 	it("a widget that's gone throws", async () => {
