@@ -2,6 +2,7 @@ import CalendarDays from "@lucide/svelte/icons/calendar-days";
 import { MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
 import { m } from "$lib/paraglide/messages.js";
 import type { WidgetType } from "../../registry";
+import { openInChartItems } from "../shared/open-in-chart-item";
 
 /** A month of days colored by their daily rating. */
 export const monthCalendarType: WidgetType = {
@@ -24,6 +25,6 @@ export const monthCalendarType: WidgetType = {
 	span: { minDays: 1, maxDays: 366 },
 	defaultRange: { kind: "to-date", unit: "month" },
 	// Type-specific items only; the widget frame adds the common widget actions.
-	menu: () => [],
+	menu: (_ctx, env) => openInChartItems(env),
 	load: () => import("./module")
 };

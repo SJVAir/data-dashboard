@@ -693,6 +693,7 @@
 	"widget_chart_title": "Chart",
 	"widget_calendar_month_title": "Month calendar",
 	"widget_calendar_contribution_title": "Contribution calendar",
+	"calendar_open_in_chart": "Open these days in a chart",
 	"calendar_daily_value": "Daily value",
 	"calendar_not_enough_data": "Not enough data",
 	"calendar_no_data": "No data",
