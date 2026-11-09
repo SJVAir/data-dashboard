@@ -59,6 +59,8 @@ const BURN: Level[] = [
 		color: "#ffff00",
 		opacity: null,
 		tier: null,
+		guidance: "",
+		description: "",
 		min: 0,
 		max: null
 	},
@@ -68,6 +70,8 @@ const BURN: Level[] = [
 		color: "#ff7e00",
 		opacity: null,
 		tier: null,
+		guidance: "",
+		description: "",
 		min: 0,
 		max: null
 	}

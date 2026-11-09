@@ -10,8 +10,10 @@
 	import Readout from "./Readout.svelte";
 	import { periodLabel, seriesLabel, type Aggregate } from "./period-label";
 	import SeriesKey from "./SeriesKey.svelte";
+	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { alignSeries, type XRange } from "./series";
 	import { stripLayout, stripPointAt, type ChartStrip } from "./strips";
+	import type { ThresholdLine } from "./threshold-line";
 	import {
 		ancestorAnimationsSettled,
 		createTimeChart,
@@ -44,6 +46,7 @@
 		mainChart = "line",
 		aggregate = "mean",
 		entryLabel = "",
+		threshold = null,
 		source
 	}: {
 		data: QueryData;
@@ -66,6 +69,8 @@
 		aggregate?: Aggregate;
 		/** The main layer's label: its legend entry when its values never roll up. */
 		entryLabel?: string;
+		/** A level's line across the main plot (display only), named in the key under the chart. */
+		threshold?: ThresholdLine | null;
 		/** A legend entry with its place's source (station or filters) added, when it has one. */
 		source?: (name: string, place: string) => string;
 	} = $props();
@@ -159,7 +164,8 @@
 		yMin,
 		overlays,
 		daily: data.resolution === "day",
-		strips: plotted
+		strips: plotted,
+		threshold
 	});
 	/** What the chart shows, to skip a repeat and find the active point again in new data. */
 	let shown: ChartData | undefined;
@@ -307,6 +313,7 @@
 	data-day-bands={drawnDays}
 	data-highlight={highlight}
 	data-bars={drawnBars}
+	data-threshold={threshold ? threshold.value : undefined}
 	class="flex h-full min-h-0 flex-col gap-1.5 rounded-sm"
 	{onkeydown}
 >
@@ -394,6 +401,16 @@
 			strips={strips.map((s) => ({ name: s.name, chart: s.chart }))}
 		/>
 		<LevelKey {levels} />
+		{#if threshold}
+			<!-- The line's level as text too: the line's color is never the only carrier. -->
+			<span data-threshold-key class="inline-flex">
+				<LevelSwatch
+					size="sm"
+					color={threshold.color ?? "var(--foreground)"}
+					label={m.chart_level_line_label({ level: threshold.label })}
+				/>
+			</span>
+		{/if}
 	</div>
 	{#each overlays as overlay, i (i)}
 		<div class="text-xs">

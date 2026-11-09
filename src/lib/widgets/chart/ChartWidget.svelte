@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { chartXRange } from "$lib/charts/series";
 	import type { ChartStrip } from "$lib/charts/strips";
+	import { chartThreshold } from "$lib/charts/threshold-line";
 	import TimeChart from "$lib/charts/TimeChart.svelte";
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
@@ -25,6 +26,9 @@
 	/** The pesticide-use dataset: its empty range has its own wording (nothing was reported). */
 	const PESTICIDE_USE = "pesticide-use";
 	const pesticideMain = $derived(w.picked.layer?.dataset === PESTICIDE_USE);
+
+	/** The saved threshold line: none when Off, and none (with a note) when its key left the scale. */
+	const threshold = $derived(chartThreshold(widget.thresholds, w.levelList));
 
 	/** The widget's whole date range (and sub-range), up to when the data was fetched. */
 	function xRange(data: QueryData) {
@@ -149,7 +153,10 @@
 					precision={w.meta?.entryType.precision ?? null}
 					yMin={w.meta?.entryType.yMin ?? null}
 					overlays={overlays.bands}
-					notes={overlays.notes}
+					notes={threshold.missing
+						? [...overlays.notes, m.chart_level_line_missing()]
+						: overlays.notes}
+					threshold={threshold.line}
 					strips={overlays.strips}
 					mainChart={w.meta?.entryType.chart === "bar" ? "bar" : "line"}
 					aggregate={w.meta ? w.meta.entryType.aggregate : "mean"}

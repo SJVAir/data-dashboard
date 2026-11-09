@@ -16,7 +16,8 @@
 						"default_calibration": "PM25_FEM_Cleaner",
 						"processors": {
 							"raw": ["PM25_FEM_Cleaner"]
-						}
+						},
+						"alerts": null
 					}
 				}
 			},
@@ -39,6 +40,13 @@
 								"PM25_MultivariateLinearRegression",
 								"PM25_UnivariateLinearRegression"
 							]
+						},
+						"alerts": {
+							"window": "60 min",
+							"min_coverage": 0.5,
+							"stage": "calibrated",
+							"processor": "PM25_UnivariateLinearRegression",
+							"expected_interval": null
 						}
 					}
 				}

@@ -64,10 +64,11 @@ const SetFieldSchema = z
 	});
 
 const WidgetOptionsSchema = WidgetInstanceSchema.shape.options;
+const WidgetThresholdsSchema = WidgetInstanceSchema.shape.thresholds;
 
 /**
- * A widget's data, and with Edit data its type, options (no `to` removes them) and the size its
- * new type needs, as one change.
+ * A widget's data, and with Edit data its type, options and thresholds (no `to` removes them)
+ * and the size its new type needs, as one change.
  */
 const SetWidgetDataSchema = z.object({
 	op: z.literal("setWidgetData"),
@@ -78,6 +79,7 @@ const SetWidgetDataSchema = z.object({
 		.object({ from: WidgetInstanceSchema.shape.type, to: WidgetInstanceSchema.shape.type })
 		.optional(),
 	options: z.object({ from: WidgetOptionsSchema, to: WidgetOptionsSchema }).optional(),
+	thresholds: z.object({ from: WidgetThresholdsSchema, to: WidgetThresholdsSchema }).optional(),
 	rect: z.object({ from: RectSchema, to: RectSchema }).optional()
 });
 

@@ -8,6 +8,8 @@ const level = (key: string, label: string, min: number, max: number | null): Lev
 	color: "level-color",
 	opacity: null,
 	tier: null,
+	guidance: "",
+	description: "",
 	min,
 	max
 });

@@ -21,6 +21,7 @@
 		onretry,
 		onchoose,
 		emptyText,
+		ownsEmpty = false,
 		children
 	}: {
 		state: QueryState;
@@ -36,6 +37,8 @@
 		onchoose?: () => void;
 		/** What an empty range says instead of the general "No data for this range." */
 		emptyText?: string;
+		/** The children say what an empty range means (they keep other content), so it isn't replaced. */
+		ownsEmpty?: boolean;
 		children: Snippet<[QueryData]>;
 	} = $props();
 
@@ -75,7 +78,7 @@
 		allPlaces.filter((p) => p.via?.kind === "location" && p.via.retired)
 	);
 	const replacement = $derived<WidgetDataConfig | null>(withReplacements(widget.data, allPlaces));
-	const empty = $derived(!!data && data.series.every((s) => !s.points.length));
+	const empty = $derived(!ownsEmpty && !!data && data.series.every((s) => !s.points.length));
 	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
 	/** The one note that carries Switch (it applies every replacement together). */
 	const switchOn = $derived.by(() => {

@@ -8,6 +8,7 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { GRID_COLUMNS } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
+	import { LOCAL_MARKS_KEY } from "$lib/thresholds/mark-level";
 	import {
 		getWidgetType,
 		loadWidget,
@@ -38,6 +39,9 @@
 
 	// The draft's own places are the owner's: "your location", not "shared location".
 	setContext<PlaceViewer>(PLACE_VIEWER_KEY, "owner");
+	// No watcher watches the preview: a "now" tile marks itself if the air is already at its
+	// alert level (no toast, nothing told).
+	setContext(LOCAL_MARKS_KEY, true);
 
 	const uid = $props.id();
 	const type = $derived(getWidgetType(widget.type));

@@ -7,10 +7,10 @@ import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { isNotFound, layerTarget, placeCandidates, type PlaceRef } from "./targets";
 
-type Forecast = Awaited<ReturnType<typeof getForecastForPlace>>["forecasts"][number];
+export type Forecast = Awaited<ReturnType<typeof getForecastForPlace>>["forecasts"][number];
 
 /** The latest issue for each forecast date. */
-function latestIssues(forecasts: Forecast[]): Forecast[] {
+export function latestIssues(forecasts: Forecast[]): Forecast[] {
 	const byDate = new Map<string, Forecast>();
 	for (const f of forecasts) {
 		const have = byDate.get(f.forecast_date);

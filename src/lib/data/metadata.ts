@@ -1,10 +1,12 @@
 import {
+	getCalHeatScoreMeta,
 	getDatasetCatalog,
 	getForecastsMeta,
 	getHMSMeta,
 	getMonitorsList,
 	getMonitorsMeta,
 	type DatasetCatalog,
+	type SchoolGuidelines,
 	type Retired
 } from "@sjvair/sdk";
 import type { Resolution } from "./schema";
@@ -51,6 +53,10 @@ export type Level = {
 	color: string | null;
 	opacity: number | null;
 	tier: number | null;
+	/** Advice that goes with the level; `""` when the server has none. */
+	guidance: string;
+	/** What the level means; `""` when the server has none. */
+	description: string;
 	/** A missing min is 0. */
 	min: number;
 	/** `null` is an open top. */
@@ -82,7 +88,7 @@ export interface MetadataSource {
 	levels(entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/**
 	 * The levels of a dataset's entry type: the forecasts scales for `"forecasts"`, the HMS
-	 * scales for `"hms-smoke"`, otherwise the same as `levels`. `[]` if no scale.
+	 * scales for `"hms-smoke"`, the CalHeatScore scales for `"calheatscore"`, otherwise the same as `levels`. `[]` if no scale.
 	 */
 	datasetLevels(dataset: string, entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/** The meta's `default_calibration`; `""` and unknown map to `null`. */
@@ -91,10 +97,59 @@ export interface MetadataSource {
 		entryType: string,
 		signal?: AbortSignal
 	): Promise<string | null>;
+	/** The entry type's school activity guidelines (PM2.5 only); `null` when it has none. */
+	schoolGuidelines(entryType: string, signal?: AbortSignal): Promise<SchoolGuidelines | null>;
+	/**
+	 * Where a scale's breakpoints come from; `dataset` routes like `datasetLevels`. `null` when
+	 * the scale has no source.
+	 */
+	scaleSource(
+		dataset: string,
+		entryType: string,
+		signal?: AbortSignal
+	): Promise<{ name: string; url: string } | null>;
+	/**
+	 * How the server evaluates an entry type on a monitor type for alerts (the meta's `alerts`
+	 * block); `null` when the pair isn't evaluated. The interval falls back to the monitor type's.
+	 */
+	alertConfig(
+		monitorType: string,
+		entryType: string,
+		signal?: AbortSignal
+	): Promise<{ windowMinutes: number; expectedIntervalMinutes: number | null } | null>;
 	monitorType(monitorId: string, signal?: AbortSignal): Promise<string | null>;
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
 	monitorTypes(signal?: AbortSignal): Promise<MonitorTypeInfo[]>;
+}
+
+const UNIT_MINUTES: Record<string, number> = {
+	s: 1 / 60,
+	sec: 1 / 60,
+	second: 1 / 60,
+	seconds: 1 / 60,
+	m: 1,
+	min: 1,
+	mins: 1,
+	minute: 1,
+	minutes: 1,
+	h: 60,
+	hr: 60,
+	hrs: 60,
+	hour: 60,
+	hours: 60,
+	d: 1440,
+	day: 1440,
+	days: 1440
+};
+
+/** A meta duration ("60 min", "1h", "1 hour") in minutes; `null` when it isn't one. */
+export function parseMinutes(text: string | null | undefined): number | null {
+	const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z]+)\s*$/i.exec(text ?? "");
+	if (!match) return null;
+	const unit = UNIT_MINUTES[match[2].toLowerCase()];
+	const minutes = unit === undefined ? NaN : Number(match[1]) * unit;
+	return minutes > 0 ? minutes : null;
 }
 
 function abortError(): Error {
@@ -202,6 +257,8 @@ type ScaleLevel = {
 	color: string | null;
 	opacity: number | null;
 	tier: number | null;
+	guidance?: string | null;
+	description?: string | null;
 	min: number | null;
 	max: number | null;
 	value?: string | number | null;
@@ -218,6 +275,8 @@ export function mapScaleLevels(levels: ScaleLevel[] | undefined): Level[] {
 				color: l.color,
 				opacity: l.opacity,
 				tier: l.tier,
+				guidance: l.guidance ?? "",
+				description: l.description ?? "",
 				min: l.min ?? 0,
 				max: l.max
 			};
@@ -234,6 +293,7 @@ export function createWebMetadata(): MetadataSource {
 	const monitorLevels = async (entryType: string, signal?: AbortSignal) =>
 		mapScaleLevels((await meta(signal)).entries[entryType]?.scale?.levels);
 	const hmsMeta = memoize(() => getHMSMeta());
+	const heatMeta = memoize(() => getCalHeatScoreMeta());
 	const catalog = memoize(async () => mapDatasetCatalog(await getDatasetCatalog()));
 	return {
 		async catalog(signal) {
@@ -256,13 +316,40 @@ export function createWebMetadata(): MetadataSource {
 			if (dataset === "hms-smoke") {
 				return mapScaleLevels((await hmsMeta(signal)).scales[entryType]?.levels);
 			}
+			if (dataset === "calheatscore") {
+				return mapScaleLevels((await heatMeta(signal)).scales[entryType]?.levels);
+			}
 			return monitorLevels(entryType, signal);
+		},
+		async schoolGuidelines(entryType, signal) {
+			return (await meta(signal)).entries[entryType]?.school_guidelines ?? null;
+		},
+		async scaleSource(dataset, entryType, signal) {
+			const scale =
+				dataset === "forecasts"
+					? (await forecastsMeta(signal)).scales[entryType]
+					: dataset === "hms-smoke"
+						? (await hmsMeta(signal)).scales[entryType]
+						: dataset === "calheatscore"
+							? (await heatMeta(signal)).scales[entryType]
+							: (await meta(signal)).entries[entryType]?.scale;
+			return scale?.source ?? null;
 		},
 		async defaultProcessor(monitorType, entryType, signal) {
 			const monitor = (await meta(signal)).monitors[monitorType];
 			const entries = monitor?.entries as
 				Record<string, { default_calibration?: string | null } | undefined> | undefined;
 			return entries?.[entryType]?.default_calibration || null;
+		},
+		async alertConfig(monitorType, entryType, signal) {
+			const monitor = (await meta(signal)).monitors[monitorType];
+			const alerts = monitor?.entries?.[entryType]?.alerts;
+			const windowMinutes = parseMinutes(alerts?.window);
+			if (!alerts || windowMinutes === null) return null;
+			return {
+				windowMinutes,
+				expectedIntervalMinutes: parseMinutes(alerts.expected_interval ?? monitor.expected_interval)
+			};
 		},
 		async monitorType(monitorId, signal) {
 			return (await list(signal)).find((m) => m.id === monitorId)?.type ?? null;

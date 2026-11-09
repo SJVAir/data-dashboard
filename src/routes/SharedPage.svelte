@@ -2,7 +2,7 @@
 	import { setContext } from "svelte";
 	import { toast } from "svelte-sonner";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
-	import { askExistingCopy } from "$lib/components/dialogs/lazy.svelte";
+	import { askExistingCopy, openNotifications } from "$lib/components/dialogs/lazy.svelte";
 	import MadeByBar from "$lib/components/shared/MadeByBar.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";
@@ -13,6 +13,7 @@
 	import { sharedDocumentOf } from "$lib/sharing/export";
 	import { fingerprint } from "$lib/sharing/fingerprint";
 	import { useApp } from "$lib/store/app.svelte";
+	import { watchesThresholds } from "$lib/thresholds/watched";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 	import { navigate, p, route } from "../router";
 
@@ -29,6 +30,8 @@
 	let busy = $state(false);
 
 	const view = $derived<SharedView>(shared?.doc.view ?? { kind: "loading" });
+	// Each viewer's own desktop notifications switch, once a widget here has an alert level.
+	const watched = $derived(view.kind === "shown" && view.doc.body.widgets.some(watchesThresholds));
 
 	$effect(() => {
 		const token = route.params.token;
@@ -118,7 +121,14 @@
 	<MadeByBar displayName={view.displayName} token={shared.token} />
 	<div class="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
 		<h1 class="text-primary text-lg font-semibold">{view.doc.name ?? m.shared_untitled()}</h1>
-		<Button variant="outline" disabled={busy} onclick={makeCopy}>{m.shared_make_copy()}</Button>
+		<div class="flex flex-wrap items-center gap-2">
+			{#if watched}
+				<Button variant="ghost" onclick={() => openNotifications(view.doc.id)}>
+					{m.dashboard_notifications_menu()}
+				</Button>
+			{/if}
+			<Button variant="outline" disabled={busy} onclick={makeCopy}>{m.shared_make_copy()}</Button>
+		</div>
 	</div>
 	<DashboardGrid view={view.doc} />
 {:else}

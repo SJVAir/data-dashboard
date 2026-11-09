@@ -19,7 +19,8 @@ export const requested = $state({
 	clearData: false,
 	privacy: false,
 	existingCopy: false,
-	placePicker: false
+	placePicker: false,
+	notifications: false
 });
 
 export type LazyDialog = keyof typeof requested | "moveToAccount";
@@ -32,7 +33,8 @@ export const dialogLoaders: Record<LazyDialog, () => Promise<{ default: Componen
 	privacy: () => import("./PrivacyDialog.svelte"),
 	existingCopy: () => import("./ExistingCopyDialog.svelte"),
 	moveToAccount: () => import("./MoveToAccountDialog.svelte"),
-	placePicker: () => import("$lib/places/PlacePickerDialog.svelte")
+	placePicker: () => import("$lib/places/PlacePickerDialog.svelte"),
+	notifications: () => import("./NotificationsDialog.svelte")
 };
 
 /** Loads made or under way, by loader (so a replaced loader loads anew). Not reactive state. */
@@ -81,6 +83,9 @@ function dismiss(key: LazyDialog): void {
 			break;
 		case "placePicker":
 			placePicker.open = false;
+			break;
+		case "notifications":
+			notifications.open = false;
 			break;
 		case "moveToAccount":
 			// Asked again the next time the app starts.
@@ -286,4 +291,20 @@ export function openPlacePicker(opts: { widgetId: string }): void {
 			: null;
 	placePicker.open = true;
 	requested.placePicker = true;
+}
+
+// The notifications switch
+
+export const notifications = $state<{ open: boolean; docId: string | null; opening: number }>({
+	open: false,
+	docId: null,
+	opening: 0
+});
+
+/** Opens the notifications switch for a dashboard (a preference on this device, per dashboard). */
+export function openNotifications(docId: string): void {
+	notifications.docId = docId;
+	notifications.opening++;
+	notifications.open = true;
+	requested.notifications = true;
 }

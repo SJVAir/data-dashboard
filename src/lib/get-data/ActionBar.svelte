@@ -16,7 +16,8 @@
 		blocked?: string;
 		/** A CSV of the draft is being prepared. */
 		downloading: boolean;
-		ondownload: () => void;
+		/** "Download CSV", for a downloadable type (none otherwise). */
+		ondownload?: () => void;
 		oncancel: () => void;
 		/** "Add to {name}" with the other dashboards in its menu, when given. */
 		add?: {
@@ -41,14 +42,16 @@
 		<p id={reasonId} class="text-muted-foreground mr-auto text-sm">{blocked}</p>
 	{/if}
 	<Button variant="ghost" onclick={oncancel}>{m.get_data_cancel()}</Button>
-	<Button
-		variant="outline"
-		disabled={downloading || !!blocked}
-		aria-describedby={describedBy}
-		onclick={ondownload}
-	>
-		{m.get_data_download_csv()}
-	</Button>
+	{#if ondownload}
+		<Button
+			variant="outline"
+			disabled={downloading || !!blocked}
+			aria-describedby={describedBy}
+			onclick={ondownload}
+		>
+			{m.get_data_download_csv()}
+		</Button>
+	{/if}
 	{#if onsave}
 		<Button disabled={!!blocked} aria-describedby={describedBy} onclick={onsave}>
 			{m.get_data_save()}

@@ -12,7 +12,8 @@ export const chartType: WidgetType = {
 	minSize: { w: 3, h: 4 },
 	defaultSize: { w: 3, h: 6 },
 	time: "range",
-	thresholds: false,
+	// A display-only line per Chart; the watcher watches only "now" types, so none are watched.
+	thresholds: true,
 	analyzable: true,
 	downloadable: true,
 	accepts: {

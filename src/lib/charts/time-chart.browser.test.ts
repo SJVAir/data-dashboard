@@ -9,13 +9,25 @@ import type { ChartStrip } from "./strips";
 import TimeChart from "./TimeChart.svelte";
 
 const LEVELS: Level[] = [
-	{ key: "good", label: "Good", color: "#00e400", opacity: null, tier: 1, min: 0, max: 9 },
+	{
+		key: "good",
+		label: "Good",
+		color: "#00e400",
+		opacity: null,
+		tier: 1,
+		guidance: "",
+		description: "",
+		min: 0,
+		max: 9
+	},
 	{
 		key: "moderate",
 		label: "Moderate",
 		color: "#ffff00",
 		opacity: null,
 		tier: 2,
+		guidance: "",
+		description: "",
 		min: 9,
 		max: 35.4
 	},
@@ -25,6 +37,8 @@ const LEVELS: Level[] = [
 		color: "#ff7e00",
 		opacity: null,
 		tier: 3,
+		guidance: "",
+		description: "",
 		min: 35.4,
 		max: 55.4
 	},
@@ -34,6 +48,8 @@ const LEVELS: Level[] = [
 		color: null,
 		opacity: null,
 		tier: 4,
+		guidance: "",
+		description: "",
 		min: 55.4,
 		max: null
 	}
@@ -513,4 +529,45 @@ test("a coarser averaged strip is never called a total; a summed one is", async 
 	await expect.element(screen.getByText("Monthly total", { exact: true })).toBeVisible();
 	await userEvent.keyboard("{End}");
 	await expect.poll(() => readout().textContent).toContain("Total for all of Oct 2026");
+});
+
+test("a threshold line reaches the value axis and is drawn in the level's color", async () => {
+	const { createTimeChart } = await import("./time-chart");
+	const { alignSeries } = await import("./series");
+	const { thresholdLine } = await import("./threshold-line");
+	const data = oneplace();
+	// Data peaks at 6 (worst hours 16 at most): a 35.4 line is higher than the data and its level.
+	const low: QueryData = {
+		...data,
+		series: [{ place: data.series[0].place, points: daily({ 1: 4, 2: 6, 3: 5 }, false) }]
+	};
+	const target = document.createElement("div");
+	frame.appendChild(target);
+	const usg = LEVELS[2];
+	const chart = createTimeChart(
+		target,
+		{
+			aligned: alignSeries(low),
+			sticks: false,
+			levels: LEVELS.slice(0, 2),
+			unit: "µg/m³",
+			threshold: thresholdLine(usg)
+		},
+		{ width: 600, height: 300 },
+		{ onCursor() {}, onSticks() {} }
+	);
+	await expect.poll(() => chart.u.scales.y.max).toBeGreaterThanOrEqual(35.4);
+	const row = Math.round(chart.u.valToPos(35.4, "y", true));
+	const { left, width } = chart.u.bbox;
+	const pixels = chart.u.ctx.getImageData(left, row - 2, width, 5).data;
+	let orange = 0;
+	for (let i = 0; i < pixels.length; i += 4) {
+		if (pixels[i] > 240 && pixels[i + 1] > 100 && pixels[i + 1] < 150 && pixels[i + 2] < 30)
+			orange++;
+	}
+	expect(orange).toBeGreaterThan(50);
+	// Without the line the axis stops at the data's level.
+	chart.update({ aligned: alignSeries(low), sticks: false, threshold: null });
+	await expect.poll(() => chart.u.scales.y.max).toBeLessThan(35.4);
+	chart.u.destroy();
 });

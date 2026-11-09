@@ -386,6 +386,34 @@ adapter). **Desktop browsers only in Release 1:** Android Chrome and iOS need a 
 worker to show notifications, and that arrives with web push (see `DEFERRED.md`). Thresholds default to metadata levels and are overridable per widget. Needs
 no server changes; ships with the widgets.
 
+**Part 1 as built (step 4 spec 4, 2026-11-08).** Thresholds are per widget; Off is the default
+until a person picks a level (Get data's "Alert me at" choice). They apply to the two live tiles
+(Current conditions and "Can we go outside?", the two `thresholds: true` "now" types; the Forecast strip has none);
+**Charts only display** a level-colored threshold line (keyed in the legend) and never toast or
+notify.
+
+- **Firing rule** (pure `decide`, `src/lib/thresholds/firing.ts`). The first value a browser
+  sees sets the starting point and never fires. After that a toast fires only when the level is
+  **worse than the last one told** (worse is later in the scale, by order, and at or above the
+  chosen level). It re-arms when a value arrives **below the threshold at least 2 hours after
+  the last toast**. There are **no improvement messages** and no all-clear; the tile and the
+  taskbar mark show the current state. An unknown level key never fires.
+- **Told state is per browser** (the last level told and when, kept through the platform
+  adapter, pruned when a widget leaves the dashboard). **Once per browser**: a lock keeps two
+  open tabs of the same dashboard from both toasting.
+- **The mark.** A tile at or above its threshold shows a level mark (text as well as color), and
+  its taskbar entry when minimized; it pulses only when a toast fires and respects
+  `prefers-reduced-motion`. Marks clear on a reading with no current value and stay across a
+  fetch error that still holds the last good reading.
+- **Browser notifications** are a **per-browser, per-dashboard switch** in a "Notifications"
+  dialog from the dashboard's ⋯ menu (also on read-only and shared views, since notifications
+  belong to the viewer). A notification shows only when the switch is on **and** the browser
+  permission is granted; the permission is asked for only when the switch is turned on. **Desktop
+  only** (no service worker, as above); `permission()` reads `"unsupported"` elsewhere.
+- **The watcher** is a dashboard-level component (lazy-loaded) that subscribes to every widget
+  with a threshold, so a minimized or off-screen tile still fires; it shares each widget's query
+  with the tile, so there is one fetch per place.
+
 **2. Automated alerting — server-side, requires an account.** The dashboard only
 _creates rules_; the server evaluates them on its periodic task and delivers through a
 channel that reaches the user when the dashboard is closed. Extends `Subscription` into
@@ -629,6 +657,13 @@ Tauri-ready seams required **from day one**:
   event. Blocked or full storage reads as `"system"` and makes saving a no-op, so the switch
   still works for the page. A memory version backs the tests; a Tauri build can keep the choice
   in its own settings.
+- **`notifications` capability** (built 2026-11-08, step 4 spec 4). `platform.notifications`
+  has `permission()` (`"granted"`, `"denied"`, `"default"`, or `"unsupported"` where pages
+  cannot show notifications, such as phones), `request()` (asks the browser; only from a
+  person's action), and `show({ title, body, tag })` (a no-op unless granted; the same `tag`
+  replaces an earlier notification). Components never call `Notification` directly. A memory
+  version with scripted permission backs the tests; a Tauri build can supply native
+  notifications.
 - **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
   `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
   and drives the offline banner. A Tauri build can report real connectivity.
@@ -1155,6 +1190,12 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
 - **Minimized widgets refresh only if they have thresholds configured** — so their
   taskbar entry can flash when a threshold is crossed (self-monitoring). Minimized
   widgets without thresholds don't poll.
+  **As built (step 4 spec 4, 2026-11-08):** the dashboard-level threshold watcher is what keeps
+  a minimized widget with an alert level refreshing (it holds the same shared query as the tile).
+- **The "now" client** (step 4 spec 4, 2026-11-08; `src/lib/data/now/`). The live tiles read
+  through one shared client that plugs into the same poller: the **alert value polls every 3
+  minutes** (`raw` cadence), and **forecast days and today's heat poll hourly** (at :55 Pacific,
+  like summaries). Sources are keyed without coordinates; a key idle for an hour is dropped.
 - **Caching:** an in-memory cache keyed by descriptor, shared across widgets. Across
   reloads, the **browser's HTTP cache** does the work: completed periods are immutable, so
   the server sends a long `Cache-Control`; open periods get a short one. The server's
@@ -1868,11 +1909,26 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
 | Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Any `PlaceRef`               |
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
-| Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)             |
+| Forecast strip            | Today and tomorrow's AQI category + burn-day status, plus any active Air Alert                         | SDK+ (forecasts)             |
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
 | Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
 | Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
 | Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                              |
+
+**The three "now" widgets as built (step 4 spec 4, 2026-11-08).**
+
+- **Forecast strip:** today and tomorrow, each with its AQI category and burn status (the
+  feed's text; "No Burning For All" has no level of its own yet), and an **Air Alert banner**
+  when a declared alert's dates overlap today or tomorrow (Pacific).
+- **"Can we go outside?":** always reads PM2.5 and the school activity guidelines from
+  `monitors/meta/`, and adds today's CalHeatScore. **The heat needs no SDK work**:
+  `getHeatForPlace` already exists. A heat failure only blanks the heat line, never the card.
+- **Current conditions' number:** for monitor types and pollutants the server evaluates alerts
+  for, the number is the **server's alert value** (the same trailing 60-minute figure the server
+  alerts on, from `getMonitorAlertCurrent` in `@sjvair/sdk` 5.0.0-beta.7; the meta `alerts` block
+  says which pairs are evaluated); otherwise it is the **latest complete
+  hourly average**. The tile says which it is ("updated N min ago", an averaging note), and a
+  reading older than 3 hours is marked stale. Regions always use hourly averages.
 
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
@@ -2200,6 +2256,13 @@ type WidgetInstance = {
 	thresholds?: SelfMonitorThreshold[]; // only where the type has thresholds: true
 };
 ```
+
+**`thresholds` as built (step 4 spec 4, 2026-11-08).** The saved shape is an array of **at most
+one `{ level }` entry** (a level key from the pollutant's scale); **no entry means Off**.
+Live tiles use it as their alert level; Charts use it for the threshold line (a Chart whose
+pollutant's scale lacks the key draws no line and says so). Switching a widget's type carries
+the level where the new type can hold it and says what was dropped. The `SelfMonitorThreshold`
+name above is `Threshold` in the code.
 
 Widget Creation offers only the date methods and spans a type declares (`dateMethods`,
 `span` in the widget-type contract), so a saved widget can't hold a range its type can't

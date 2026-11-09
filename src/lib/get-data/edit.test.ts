@@ -9,10 +9,11 @@ import { createFakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, makeDoc, storeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import { chartType } from "$lib/widgets/chart";
+import { dataTableType } from "$lib/widgets/table";
 import { getWidgetType, registerWidgetType } from "$lib/widgets/registry";
 import { landedIn } from "./add";
 import type { Draft } from "./draft.svelte";
-import { editDraft, saveEdit } from "./edit";
+import { draftChanged, editDraft, saveEdit } from "./edit";
 
 // The live-link rule's region lookup: any point is in ZIP 93721.
 vi.mock("$lib/data", () => ({
@@ -25,6 +26,8 @@ vi.mock("$lib/data", () => ({
 const POINT = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
 const ZIP = { kind: "region", type: "zipcode", code: "93721" } as const;
 const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
+
+registerWidgetType(dataTableType);
 
 // A type with a bigger minimum size than the Chart, for the size clamp.
 registerWidgetType({ ...chartType, type: "tall", minSize: { w: 4, h: 8 } });
@@ -115,6 +118,14 @@ describe("saveEdit", () => {
 		expect(session.canUndo).toBe(false);
 	});
 
+	it("a Chart's threshold line isn't saved onto a Data table", async () => {
+		const withLine: WidgetInstance = { ...preSpec, thresholds: [{ level: "unhealthy_sensitive" }] };
+		const { session } = await withWidget(withLine);
+		expect(saveEdit(session, "w1", { ...editDraft(withLine), type: "data-table" })).toBe(true);
+		expect(shown(session).type).toBe("data-table");
+		expect("thresholds" in shown(session)).toBe(false);
+	});
+
 	it("a type with a bigger minimum size clamps the size, in the same undo step", async () => {
 		const { session } = await withWidget();
 		expect(getWidgetType("tall")?.minSize).toEqual({ w: 4, h: 8 });
@@ -135,6 +146,30 @@ describe("saveEdit", () => {
 		expect("options" in shown(session)).toBe(false);
 		session.undo();
 		expect(shown(session).options).toEqual(options);
+	});
+
+	it("changing only the alert level is one undo step; Off removes it", async () => {
+		const current: WidgetInstance = {
+			...preSpec,
+			type: "current-conditions",
+			thresholds: [{ level: "unhealthy_sensitive" }]
+		};
+		const { session } = await withWidget(current);
+		expect(editDraft(current).thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(saveEdit(session, "w1", editDraft(current))).toBe(false);
+		const draft: Draft = { ...editDraft(current), thresholds: [{ level: "unhealthy" }] };
+		expect(draftChanged(editDraft(current), draft)).toBe(true);
+		expect(saveEdit(session, "w1", draft)).toBe(true);
+		expect(shown(session)).toEqual({ ...current, thresholds: [{ level: "unhealthy" }] });
+		session.undo();
+		expect(shown(session)).toEqual(current);
+		expect(session.canUndo).toBe(false);
+
+		const off: Draft = { ...editDraft(current), thresholds: undefined };
+		expect(saveEdit(session, "w1", off)).toBe(true);
+		expect("thresholds" in shown(session)).toBe(false);
+		session.undo();
+		expect(shown(session)).toEqual(current);
 	});
 
 	it("a widget that's gone throws", async () => {

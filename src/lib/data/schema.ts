@@ -53,7 +53,7 @@ export const DateRangeSpecSchema = z.discriminatedUnion("kind", [
 export type DateRangeSpec = z.infer<typeof DateRangeSpecSchema>;
 
 const IdSchema = z.string().min(1).max(LIMITS.ID_MAX);
-const CodeSchema = z.string().min(1).max(LIMITS.CODE_MAX);
+export const CodeSchema = z.string().min(1).max(LIMITS.CODE_MAX);
 /** Monitor ids and entry types go into API paths, so they keep to a safe character set. */
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 const SafeIdSchema = IdSchema.regex(SAFE_ID);

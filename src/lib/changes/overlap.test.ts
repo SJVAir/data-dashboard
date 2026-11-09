@@ -229,6 +229,14 @@ describe("changesOverlap on deletedAt", () => {
 		expect(changesOverlap(opts({ x: 1 }), opts(undefined))).toBe(true);
 		expect(changesOverlap(opts({ x: 1 }), opts({ x: 1 }))).toBe(false);
 		expect(changesOverlap(opts({ x: 1 }), data("a", 7))).toBe(false);
+		const alert = (level: string | undefined): Change => ({
+			...(data("a", 7) as SetWidgetDataChange),
+			thresholds: { to: level ? [{ level }] : undefined }
+		});
+		expect(changesOverlap(alert("moderate"), alert("unhealthy"))).toBe(true);
+		expect(changesOverlap(alert("moderate"), alert(undefined))).toBe(true);
+		expect(changesOverlap(alert("moderate"), alert("moderate"))).toBe(false);
+		expect(changesOverlap(alert("moderate"), data("a", 7))).toBe(false);
 	});
 
 	it("setWidgetData's size clamp, like a layout move, never overlaps a move", () => {

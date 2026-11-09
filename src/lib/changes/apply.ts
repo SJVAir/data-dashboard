@@ -71,7 +71,7 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 			return { doc: { ...doc, deletedAt: change.to }, inverse };
 		}
 		case "setWidgetData": {
-			// The data, and the type, options and rect when the change carries them (Edit data).
+			// The data, and the type, options, thresholds and rect when the change carries them (Edit data).
 			// The inverse restores what was really there; `change.from` may be stale (rebase).
 			const index = widgets.findIndex((w) => w.id === change.target.widgetId);
 			if (index === -1) throw new ChangeTargetMissing(`No widget ${change.target.widgetId}`);
@@ -86,6 +86,11 @@ export function applyChange(doc: Dashboard, change: Change): { doc: Dashboard; i
 				if (change.options.to) updated.options = change.options.to;
 				else delete updated.options;
 				inverse.options = { from: change.options.to, to: actual.options };
+			}
+			if (change.thresholds) {
+				if (change.thresholds.to) updated.thresholds = change.thresholds.to;
+				else delete updated.thresholds;
+				inverse.thresholds = { from: change.thresholds.to, to: actual.thresholds };
 			}
 			if (change.rect) {
 				updated.rect = change.rect.to;
@@ -157,6 +162,9 @@ export function appliedChange(inverse: Change): Change {
 			const applied: SetWidgetDataChange = { ...inverse, from: inverse.to, to: inverse.from };
 			if (inverse.type) applied.type = { from: inverse.type.to, to: inverse.type.from };
 			if (inverse.options) applied.options = { from: inverse.options.to, to: inverse.options.from };
+			if (inverse.thresholds) {
+				applied.thresholds = { from: inverse.thresholds.to, to: inverse.thresholds.from };
+			}
 			if (inverse.rect) applied.rect = { from: inverse.rect.to, to: inverse.rect.from };
 			return applied;
 		}

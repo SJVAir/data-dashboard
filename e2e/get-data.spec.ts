@@ -280,3 +280,47 @@ test("an old PM2.5 + burn status widget still shows its bands", async ({ page })
 		.toBeGreaterThan(0);
 	await expect(chart.locator("[data-strip]")).toHaveCount(0);
 });
+
+test("Add widget → Current conditions keeps the default alert level through Edit data", async ({
+	page
+}) => {
+	const title = "PM2.5 · Fresno County";
+	const usg = "unhealthy_sensitive";
+	await makeOwnCopy(page);
+	await page.getByRole("button", { name: "Add widget" }).click();
+	await page.getByRole("menuitem", { name: "Chart", exact: true }).click();
+	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
+
+	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await expect(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
+	// No dates for a now widget, and the form says they were left out.
+	await expect(page.getByRole("button", { name: /^Dates/ })).toHaveCount(0);
+	await expect(
+		page.getByText("Dates don't apply to this widget, so they were left out.")
+	).toBeVisible();
+
+	// One place, picked straight away (single mode).
+	await page.getByRole("button", { name: "Change places" }).click();
+	const picker = page.getByRole("dialog", { name: /^Choose (a place|places)$/ });
+	await picker.getByRole("combobox", { name: "Search for a place" }).fill("fre");
+	await picker.getByRole("option", { name: /^Fresno County/ }).click();
+	await expect(picker).toBeHidden();
+	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
+
+	const alert = page.getByRole("combobox", { name: "Alert level" });
+	await expect(alert).toHaveValue(usg);
+	await expect(alert.locator("option:checked")).toHaveText(
+		"Tell me at Unhealthy for Sensitive Groups or worse"
+	);
+
+	await addToButton(page).click();
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await expect(widgetTitles(page).last()).toHaveText(title);
+
+	await widgetMenuItem(page, title, "Edit data");
+	await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeFocused();
+	await expect(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
+	await expect(page.getByRole("combobox", { name: "Alert level" })).toHaveValue(usg);
+	// Opening a saved now widget converts nothing.
+	await expect(page.getByText(/so they were left out/)).toHaveCount(0);
+});

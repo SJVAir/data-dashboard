@@ -4,13 +4,23 @@ vi.mock("@sjvair/sdk", () => ({
 	getDatasetCatalog: vi.fn(),
 	getMonitorsMeta: vi.fn(),
 	getMonitorsList: vi.fn(),
-	getHMSMeta: vi.fn()
+	getHMSMeta: vi.fn(),
+	getForecastsMeta: vi.fn(),
+	getCalHeatScoreMeta: vi.fn()
 }));
 
-import { getDatasetCatalog, getHMSMeta, getMonitorsList, getMonitorsMeta } from "@sjvair/sdk";
+import {
+	getCalHeatScoreMeta,
+	getDatasetCatalog,
+	getForecastsMeta,
+	getHMSMeta,
+	getMonitorsList,
+	getMonitorsMeta
+} from "@sjvair/sdk";
 import {
 	createWebMetadata,
 	levelFor,
+	mapScaleLevels,
 	withCatalog,
 	type CatalogEntry,
 	type Level
@@ -47,9 +57,47 @@ const META = {
 	monitors: {
 		purpleair: {
 			label: "PurpleAir",
-			entries: { pm25: { default_calibration: "PM25_EPA_Calibration" } }
+			expected_interval: "2 min",
+			entries: {
+				pm25: {
+					default_calibration: "PM25_EPA_Calibration",
+					alerts: {
+						window: "60 min",
+						min_coverage: 0.5,
+						stage: "calibrated",
+						processor: null,
+						expected_interval: null
+					}
+				}
+			}
 		},
-		bam1022: { label: "BAM 1022", entries: { pm25: { default_calibration: "" } } }
+		bam1022: {
+			label: "BAM 1022",
+			expected_interval: "1 hour",
+			entries: {
+				pm25: {
+					default_calibration: "",
+					alerts: {
+						window: "60 min",
+						min_coverage: 0.5,
+						stage: "cleaned",
+						processor: null,
+						expected_interval: null
+					}
+				},
+				o3: {
+					default_calibration: "",
+					alerts: {
+						window: "1h",
+						min_coverage: 0.5,
+						stage: "raw",
+						processor: null,
+						expected_interval: "30 min"
+					}
+				},
+				pm10: { default_calibration: "", alerts: null }
+			}
+		}
 	},
 	entries: {
 		pm25: {
@@ -342,6 +390,8 @@ describe("createWebMetadata", () => {
 			color: "#00e400",
 			opacity: 0.8,
 			tier: 0,
+			guidance: "",
+			description: "",
 			min: 0,
 			max: 9
 		});
@@ -358,6 +408,26 @@ describe("createWebMetadata", () => {
 		expect(await md.defaultProcessor("nope", "pm25")).toBeNull();
 	});
 
+	it("reads how the server evaluates alerts, null when it doesn't", async () => {
+		const md = createWebMetadata();
+		expect(await md.alertConfig("purpleair", "pm25")).toEqual({
+			windowMinutes: 60,
+			expectedIntervalMinutes: 2
+		});
+		// The monitor type's interval stands in for the entry's missing one.
+		expect(await md.alertConfig("bam1022", "pm25")).toEqual({
+			windowMinutes: 60,
+			expectedIntervalMinutes: 60
+		});
+		expect(await md.alertConfig("bam1022", "o3")).toEqual({
+			windowMinutes: 60,
+			expectedIntervalMinutes: 30
+		});
+		expect(await md.alertConfig("bam1022", "pm10")).toBeNull();
+		expect(await md.alertConfig("purpleair", "o3")).toBeNull();
+		expect(await md.alertConfig("nope", "pm25")).toBeNull();
+	});
+
 	it("looks up monitor types and lists monitors from one fetch", async () => {
 		const md = createWebMetadata();
 		expect(await md.monitorType("m-pa")).toBe("purpleair");
@@ -368,7 +438,7 @@ describe("createWebMetadata", () => {
 		]);
 		expect(await md.monitorTypes()).toEqual([
 			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25"] },
-			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25"] }
+			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25", "o3", "pm10"] }
 		]);
 		expect(getMonitorsList).toHaveBeenCalledTimes(1);
 	});
@@ -423,9 +493,39 @@ describe("withCatalog", () => {
 
 describe("levelFor", () => {
 	const levels: Level[] = [
-		{ key: "a", label: "A", color: null, opacity: null, tier: 0, min: 0, max: 9 },
-		{ key: "b", label: "B", color: null, opacity: null, tier: 1, min: 9, max: 35.4 },
-		{ key: "c", label: "C", color: null, opacity: null, tier: 2, min: 35.4, max: null }
+		{
+			key: "a",
+			label: "A",
+			color: null,
+			opacity: null,
+			tier: 0,
+			guidance: "",
+			description: "",
+			min: 0,
+			max: 9
+		},
+		{
+			key: "b",
+			label: "B",
+			color: null,
+			opacity: null,
+			tier: 1,
+			guidance: "",
+			description: "",
+			min: 9,
+			max: 35.4
+		},
+		{
+			key: "c",
+			label: "C",
+			color: null,
+			opacity: null,
+			tier: 2,
+			guidance: "",
+			description: "",
+			min: 35.4,
+			max: null
+		}
 	];
 
 	it("finds the level holding the value in [min, max)", () => {
@@ -439,5 +539,69 @@ describe("levelFor", () => {
 	it("is undefined below the first level", () => {
 		expect(levelFor(levels, -1)).toBeUndefined();
 		expect(levelFor([], 5)).toBeUndefined();
+	});
+});
+
+describe("now-widget metadata", () => {
+	it("mapScaleLevels keeps guidance and description", () => {
+		const levels = mapScaleLevels([
+			lvl("good", "Good", "#00e400", 0, null, 9),
+			{
+				...lvl("moderate", "Moderate", "#ffff00", 1, 9, 35.4),
+				description: "Okay.",
+				guidance: "Sensitive people take care."
+			}
+		]);
+		expect(levels[0]).toMatchObject({ guidance: "", description: "" });
+		expect(levels[1]).toMatchObject({
+			guidance: "Sensitive people take care.",
+			description: "Okay."
+		});
+	});
+
+	it("schoolGuidelines returns pm25's set and null for o3", async () => {
+		const guidelines = {
+			source: { name: "AirNow", url: "https://example.org" },
+			activities: []
+		};
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			monitors: {},
+			entries: { pm25: { school_guidelines: guidelines }, o3: { school_guidelines: null } }
+		} as never);
+		const md = createWebMetadata();
+		expect(await md.schoolGuidelines("pm25")).toEqual(guidelines);
+		expect(await md.schoolGuidelines("o3")).toBeNull();
+		expect(await md.schoolGuidelines("nope")).toBeNull();
+	});
+
+	it("datasetLevels reads calheatscore scales", async () => {
+		const keys = ["low", "moderate", "high", "very-high", "severe"];
+		vi.mocked(getCalHeatScoreMeta).mockResolvedValue({
+			scales: {
+				"heat-score": {
+					levels: keys.map((k, i) => lvl(k, k, "#aaaaaa", i, i * 10, i < 4 ? i * 10 + 10 : null))
+				}
+			}
+		} as never);
+		const md = createWebMetadata();
+		const levels = await md.datasetLevels("calheatscore", "heat-score");
+		expect(levels.map((l) => l.key)).toEqual(keys);
+		expect(levels.map((l) => l.tier)).toEqual([0, 1, 2, 3, 4]);
+		await md.datasetLevels("calheatscore", "heat-score");
+		expect(getCalHeatScoreMeta).toHaveBeenCalledTimes(1);
+	});
+
+	it("scaleSource returns the burn-status source", async () => {
+		const source = { name: "Air District", url: "https://example.org/burn" };
+		vi.mocked(getForecastsMeta).mockResolvedValue({
+			scales: {
+				"burn-status": { levels: [], source },
+				"aqi-forecast": { levels: [], source: null }
+			}
+		} as never);
+		const md = createWebMetadata();
+		expect(await md.scaleSource("forecasts", "burn-status")).toEqual(source);
+		expect(await md.scaleSource("forecasts", "aqi-forecast")).toBeNull();
+		expect(await md.scaleSource("forecasts", "nope")).toBeNull();
 	});
 });

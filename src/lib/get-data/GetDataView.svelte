@@ -9,7 +9,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { adapterOffers, getMetadata } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
-	import type { CatalogEntry } from "$lib/data/metadata";
+	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import {
 		LIMITS,
 		type DateRangeSpec,
@@ -24,9 +24,16 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
-	import { dataTypes, getWidgetType } from "$lib/widgets/registry";
+	import { CURRENT_TYPE } from "$lib/widgets/current";
+	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
-	import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
+	import {
+		entryMeta,
+		mainLayer,
+		placesEntryType,
+		placesLayer,
+		placesQueryLayer
+	} from "$lib/widgets/shared/input";
 	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
 	import * as layers from "./layers";
 	import { placeLabel } from "$lib/widgets/title";
@@ -36,6 +43,17 @@
 	import ShowValuesControl from "./ShowValuesControl.svelte";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
+	import {
+		fromNowDraft,
+		isNowShaped,
+		keptThreshold,
+		nowPollutant,
+		nowPollutants,
+		toNowDraft,
+		type NowConversion
+	} from "./now";
+	import NowControls from "./NowControls.svelte";
+	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { detailChoices } from "./resolution-offer";
@@ -96,8 +114,11 @@
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
 
 	const type = $derived(getWidgetType(plain.type));
+	/** A "now" type: no dates, one layer with one place (see `now.ts`). */
+	const isNow = $derived(type?.time === "now");
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
-	const main = $derived(mainLayer(plain.data, known));
+	// A Forecast strip's one layer has no entry type, so isn't a `mainLayer`; it holds the place.
+	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
 	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
 	const picks = $derived(main ? fromLayer(main) : []);
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
@@ -108,13 +129,15 @@
 			? offeredDatasets(known, adapterOffers(), dataTypes()).filter((s) => s.entryTypes.length > 0)
 			: []
 	);
+	// A now type is never blocked: choosing it converts the draft (`toNowDraft`).
 	const showAs = $derived(
 		dataTypes().map((t) => ({
 			type: t,
-			block: known ? typeBlock(t, plain.data, known, now) : null
+			block: known && t.time !== "now" ? typeBlock(t, plain.data, known, now) : null
 		}))
 	);
 	const choices = $derived.by(() => {
+		if (isNow) return null;
 		const meta = entryMeta(known, main);
 		if (!meta) return null;
 		return detailChoices(
@@ -141,12 +164,21 @@
 		title: null,
 		rect: { x: 0, y: 0, w: type?.defaultSize.w ?? 3, h: type?.defaultSize.h ?? 6 },
 		data: plain.data,
-		...(plain.options ? { options: plain.options } : {})
+		...(plain.options ? { options: plain.options } : {}),
+		...(plain.thresholds ? { thresholds: plain.thresholds } : {})
 	});
 
 	// The same queries the preview runs (the query client shares them): every place's name for
-	// Where, the overlays' series for "Overlay for", and when the data has settled.
-	const data = new DataWidget(() => previewWidget, LIMITS.SELECTION_MAX);
+	// Where, the overlays' series for "Overlay for", and when the data has settled. A now tile
+	// sets its own generated title, so for those this runs under another id (two writers of one
+	// title would undo each other forever), and a Forecast strip's place is named through a PM2.5
+	// layer, as its picker offers places.
+	const namesWidget = $derived.by<WidgetInstance>(() => {
+		if (!isNow) return previewWidget;
+		const layers = plain.data.layers.map(placesQueryLayer);
+		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
+	});
+	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
 
 	// The last data's names stay up while another range or type loads (a new query starts with
 	// no data); they're dropped once the places change.
@@ -263,8 +295,204 @@
 		else layer.resolution = level;
 	}
 
+	/** What the last conversion left out or changed, until the next edit of the form. */
+	let dropped = $state.raw<{ after: string; conversion: NowConversion } | null>(null);
+	const notes = $derived.by(() => {
+		if (!dropped || dropped.after !== JSON.stringify(plain)) return [];
+		const { dropped: what, pollutant, fromLine } = dropped.conversion;
+		const out: string[] = [];
+		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
+		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
+		if (what.includes("places")) out.push(m.get_data_extra_places_left_out());
+		if (pollutant) {
+			const label = (dataset: string, entryType: string) =>
+				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
+			out.push(
+				m.get_data_pollutant_instead({
+					pollutant: label("air-quality", pollutant.to),
+					previous: label(pollutant.from.dataset, pollutant.from.entryType)
+				})
+			);
+		}
+		if (what.includes("alert")) out.push(m.get_data_level_left_out());
+		if (fromLine) out.push(m.get_data_alert_level_from_low_line({ level: fromLine.label }));
+		return out;
+	});
+
+	/** Shows `conversion`'s notes until the draft changes. */
+	function noteConversion(conversion: NowConversion): void {
+		dropped = { after: JSON.stringify($state.snapshot(draft)), conversion };
+	}
+
+	/** Replaces the whole draft (a conversion between range and now types). */
+	function replaceDraft(next: Draft): void {
+		draft.type = next.type;
+		draft.data = next.data;
+		if (next.options) draft.options = next.options;
+		else delete draft.options;
+		if (next.thresholds) draft.thresholds = next.thresholds;
+		else delete draft.thresholds;
+	}
+
+	/** A pollutant's scale (empty when it has none), or `"unavailable"` when it can't be loaded. */
+	async function levelsOf(entryType: string | undefined): Promise<Level[] | "unavailable"> {
+		if (!entryType) return [];
+		try {
+			return await getMetadata().levels(entryType);
+		} catch {
+			return "unavailable";
+		}
+	}
+
+	/** Bumped by each type or pollutant change, so a slower earlier one doesn't land after it. */
+	let changeId = 0;
+	/**
+	 * A conversion that should have set the default alert level couldn't load the scale: it's set
+	 * once the scale loads, unless the person chooses one first.
+	 */
+	let defaultOwed = false;
+
+	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
+	function sourceType(snapshot: Draft): WidgetType | undefined {
+		const from = getWidgetType(snapshot.type);
+		return from?.time === "now" && !isNowShaped(snapshot, from) ? undefined : from;
+	}
+
+	/** The draft as now type `next`, once its pollutant's scale has loaded. */
+	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
+		const id = ++changeId;
+		const pollutant = nowPollutant($state.snapshot(draft) as Draft, next, catalog);
+		const levels = await levelsOf(pollutant);
+		if (id !== changeId) return;
+		// An edit made while the scale loaded counts: convert the draft as it is now (again, when
+		// that edit changed the pollutant).
+		const fresh = $state.snapshot(draft) as Draft;
+		if (nowPollutant(fresh, next, catalog) !== pollutant) return convertToNow(next, catalog);
+		const converted = toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
+		alertLevels = { entryType: nowEntryType(converted.draft), levels };
+		defaultOwed = !!converted.defaultOwed;
+		replaceDraft(converted.draft);
+		noteConversion(converted);
+	}
+
 	function setType(next: string): void {
-		draft.type = next;
+		const to = getWidgetType(next);
+		if (!to) return;
+		if (to.time === "now" && known) {
+			void convertToNow(to, known);
+			return;
+		}
+		changeId++;
+		defaultOwed = false;
+		if (to.time !== "now" && isNow) {
+			const converted = fromNowDraft(plain, to);
+			replaceDraft(converted.draft);
+			noteConversion(converted);
+		}
+		// A now type chosen before the catalog is known is converted once it is (below).
+		else {
+			draft.type = next;
+			if (!to.thresholds && draft.thresholds) {
+				// A line the new type can't hold is left out, with a note.
+				delete draft.thresholds;
+				noteConversion({ draft: $state.snapshot(draft) as Draft, dropped: ["alert"] });
+			}
+		}
+	}
+
+	// A draft that's a now type but not in its shape (opened from a `?type=` link or a stored
+	// draft, or the type chosen before the catalog arrived) is converted once the catalog is
+	// known. A saved now widget already has the shape.
+	$effect(() => {
+		const to = type;
+		if (!known || to?.time !== "now") return;
+		if (!untrack(() => isNowShaped(plain, to))) void convertToNow(to, known);
+	});
+
+	// The alert level: the pollutant's scale ("Can we go outside?" reads PM2.5 whatever's saved).
+	const nowEntryType = (d: Draft) =>
+		d.type === CURRENT_TYPE
+			? d.data.layers[0]?.entryType
+			: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
+	let alertLevels = $state.raw<{
+		entryType: string | undefined;
+		levels: Level[] | "unavailable";
+	} | null>(null);
+	let alertTry = $state(0);
+	// A Chart's threshold line reads its main pollutant's scale the same way (no default).
+	const lineEntryType = $derived.by(() => {
+		if (isNow || !type?.thresholds || !known) return undefined;
+		const meta = entryMeta(known, main);
+		return meta?.entryType.kind === "pollutant" ? main?.entryType : undefined;
+	});
+	const alertEntryType = $derived(
+		isNow && type?.thresholds && known ? nowEntryType(plain) : lineEntryType
+	);
+	$effect(() => {
+		void alertTry;
+		const entryType = alertEntryType;
+		if (!entryType) return;
+		const have = untrack(() => alertLevels);
+		if (have?.entryType === entryType && have.levels !== "unavailable") return;
+		let active = true;
+		void levelsOf(entryType).then((levels) => {
+			if (!active) return;
+			alertLevels = { entryType, levels };
+			if (Array.isArray(levels)) untrack(() => payDefault(levels));
+		});
+		return () => {
+			active = false;
+		};
+	});
+	const shownLevels = $derived(
+		alertEntryType && alertLevels?.entryType === alertEntryType ? alertLevels.levels : null
+	);
+
+	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
+	// thresholds, or the main layer isn't a pollutant with levels.
+	$effect(() => {
+		if (isNow || !known || !draft.thresholds) return;
+		const gone =
+			!type?.thresholds ||
+			lineEntryType === undefined ||
+			(Array.isArray(shownLevels) && shownLevels.length === 0);
+		if (gone) untrack(() => delete draft.thresholds);
+	});
+
+	/** Sets the default alert level a conversion owed, keeping its notes up. */
+	function payDefault(levels: Level[]): void {
+		if (!defaultOwed) return;
+		defaultOwed = false;
+		if (draft.thresholds) return;
+		const noted = !!dropped && dropped.after === JSON.stringify(plain);
+		const thresholds = keptThreshold(undefined, levels, true);
+		if (!thresholds) return;
+		draft.thresholds = thresholds;
+		if (noted && dropped) noteConversion(dropped.conversion);
+	}
+
+	/**
+	 * Current conditions' pollutant: the alert level keeps its key if the new scale has it, else
+	 * takes its default. When the scale can't be loaded, the alert level is kept as it is.
+	 */
+	async function setNowPollutant(entryType: string): Promise<void> {
+		const id = ++changeId;
+		const levels = await levelsOf(entryType);
+		if (id !== changeId) return;
+		const layer = draft.data.layers[0];
+		if (!layer) return;
+		layer.entryType = entryType;
+		alertLevels = { entryType, levels };
+		if (levels === "unavailable") return;
+		const thresholds = keptThreshold($state.snapshot(draft.thresholds), levels, false);
+		if (thresholds) draft.thresholds = thresholds;
+		else delete draft.thresholds;
+	}
+
+	function setThreshold(level: string | null): void {
+		defaultOwed = false;
+		if (level) draft.thresholds = [{ level }];
+		else delete draft.thresholds;
 	}
 
 	function setOverlayFor(index: number): void {
@@ -284,29 +512,42 @@
 		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
 	>
 		<div class="flex min-w-0 flex-col gap-4">
-			<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
-				<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
-				{#if type}
-					<WhenControl {type} value={range} {now} onchange={setRange} />
-				{/if}
-			</section>
+			{#if notes.length > 0}
+				<div role="status" class="flex flex-col gap-1">
+					{#each notes as note (note)}
+						<p class="text-muted-foreground text-sm">{note}</p>
+					{/each}
+				</div>
+			{/if}
+
+			{#if !isNow}
+				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
+					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
+					{#if type}
+						<WhenControl {type} value={range} {now} onchange={setRange} />
+					{/if}
+				</section>
+			{/if}
 
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
 				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#if main?.entryType}
+				{#if main?.entryType || (isNow && main)}
 					<WhereControl
 						{picks}
 						{names}
 						{namesSettled}
 						max={type?.accepts?.maxPlaces ?? 1}
-						purpose={{ dataset: main.dataset, entryType: main.entryType }}
+						purpose={{
+							dataset: main.dataset,
+							// A Forecast strip's place is any place PM2.5 is offered for.
+							entryType: placesEntryType(main)
+						}}
 						onchange={setPlaces}
 					/>
 				{/if}
 			</section>
 
-			<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
-				<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
+			{#snippet catalogState()}
 				{#if catalog === undefined}
 					<p role="status" class="text-muted-foreground text-sm">{m.get_data_loading()}</p>
 				{:else if catalog === "unavailable"}
@@ -316,26 +557,63 @@
 							{m.get_data_retry()}
 						</Button>
 					</div>
-				{:else}
-					<WhatSections
-						{sections}
-						data={plain.data}
-						catalog={known ?? []}
-						places={picks.length}
-						maxOverlays={MAX_OVERLAYS}
-						onpollutant={setPollutant}
-						ontoggle={toggleLayer}
-						onaddpesticide={addPesticideLayer}
-						onremove={removeLayer}
-						onfilters={setFilters}
-						onstation={setStation}
-					/>
 				{/if}
-			</section>
+			{/snippet}
+
+			{#if isNow}
+				{#if !known}
+					{@render catalogState()}
+				{:else if plain.type === CURRENT_TYPE || type?.thresholds}
+					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
+						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
+							{m.get_data_what()}
+						</h2>
+						<NowControls
+							pollutants={plain.type === CURRENT_TYPE ? nowPollutants(known) : null}
+							entryType={main?.entryType}
+							levels={type?.thresholds ? shownLevels : null}
+							thresholds={plain.thresholds}
+							onpollutant={(e) => void setNowPollutant(e)}
+							onthreshold={setThreshold}
+							onretry={() => alertTry++}
+						/>
+					</section>
+				{/if}
+			{:else}
+				<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
+					<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
+					{#if !known}
+						{@render catalogState()}
+					{:else}
+						<WhatSections
+							{sections}
+							data={plain.data}
+							catalog={known}
+							places={picks.length}
+							maxOverlays={MAX_OVERLAYS}
+							onpollutant={setPollutant}
+							ontoggle={toggleLayer}
+							onaddpesticide={addPesticideLayer}
+							onremove={removeLayer}
+							onfilters={setFilters}
+							onstation={setStation}
+						/>
+					{/if}
+				</section>
+			{/if}
 
 			{#if choices}
 				<section>
-					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail} />
+					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail}>
+						{#if shownLevels}
+							<ThresholdLineControl
+								levels={shownLevels}
+								thresholds={plain.thresholds}
+								onthreshold={setThreshold}
+								onretry={() => alertTry++}
+							/>
+						{/if}
+					</ShowValuesControl>
 				</section>
 			{/if}
 		</div>
@@ -372,7 +650,7 @@
 	<ActionBar
 		blocked={levelOnly ? m.get_data_level_only() : undefined}
 		downloading={csvPending("get-data")}
-		ondownload={download}
+		ondownload={type?.downloadable ? download : undefined}
 		oncancel={onCancel}
 		add={add && {
 			selected: add.selected,

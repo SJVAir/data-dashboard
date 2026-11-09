@@ -2,6 +2,7 @@ import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
 import FilePlus from "@lucide/svelte/icons/file-plus";
 import LayoutTemplate from "@lucide/svelte/icons/layout-template";
+import Bell from "@lucide/svelte/icons/bell";
 import History from "@lucide/svelte/icons/history";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
@@ -10,7 +11,7 @@ import Upload from "@lucide/svelte/icons/upload";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
-import { openRestoreVersion } from "$lib/components/dialogs/lazy.svelte";
+import { openNotifications, openRestoreVersion } from "$lib/components/dialogs/lazy.svelte";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
 import type { WidgetInstance } from "$lib/documents/schema";
@@ -374,6 +375,18 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				// The starter is built in; it can't be deleted.
 				disabled: locked || (id === undefined && isStarter),
 				run: () => void deleteDashboard(app, id)
+			},
+			{
+				id: "notifications",
+				label: m.dashboard_notifications_menu(),
+				icon: Bell,
+				group: "share",
+				// Per viewer: any open dashboard (read-only and shared views too), not a row's.
+				disabled: id !== undefined || !session,
+				run: () => {
+					const open = app.current.session;
+					if (open) openNotifications(open.doc.id);
+				}
 			},
 			{
 				id: "share-dashboard",

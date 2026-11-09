@@ -36,6 +36,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   layer, and each widget type's code out of the initial bundle. The budget is a soft limit
   (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
   decide then, trim or raise the budget, rather than trimming every time).
+- **The initial bundle is a little over 200 KB after step 4 spec 4 (accepted for now).**
+  _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14)._ `check:budget` reads 202.1 KB
+  gzip against the 200 KB soft budget (199.7 KB before the spec). The growth is the three
+  widget descriptors, the dashboard menu's Notifications item, and the `thresholds` field in
+  the change schema. The user accepted it for now on 2026-11-08 (no trim, budget unchanged).
+  Candidates if trimming later: lazy-load the widget type icons, drop the menu item's icon.
+  **Revisit when** `check:budget` grows further, or before step 4 merges into `main`.
 
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
@@ -573,6 +580,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   feed's exact `status` string for it is unconfirmed, so the `burn-status` scale has no level
   for it. The server stores unknown values as received and logs them. **Revisit when** the
   ingest log shows the new value: add the level in sjvair.com `camp/apps/forecasts/scales.py`.
+  Meanwhile the Forecast strip shows the feed's text (step 4 spec 4, 2026-11-08).
 
 - **Production deploy step for the place endpoints.** _Deferred 2026-11-03 (step 3 spec 1)._
   `forecasts/place/` caches its zone answers for 24 hours, so a place resolved before the 3
@@ -1625,9 +1633,59 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     `layers.ts` change.
   - **No smoke e2e coverage:** the `hms` fixtures are there, but the e2e catalog has no
     `hms-smoke`. **Revisit at** the next smoke change.
+- **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
+  brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide
+  the ones a school does not have was offered and left out. **Revisit if** schools ask to hide
+  activities.
+- **Now widgets review leftovers.** _Deferred 2026-11-08 (step 4 spec 4, per-task reviews)._
+  Small things the reviews let stay; the first ones a person could meet:
+  - **A failed `setNotifyEnabled` write is not handled:** the Notifications switch should revert
+    and say so. **Revisit if** storage write failures are reported.
+  - **The now client reports a throwing listener with `console.error`,** not
+    `platform().errors` as the project rule says; its subscribe-time and `changed()` listener
+    calls are unguarded. **Revisit with** the next now client change.
+  - **A failed watcher chunk load retries only on the next dashboard or watched-set change.**
+    **Revisit if** seen on flaky connections.
+  - **A fell-back default alert level cannot be confirmed in the form** (a stored bad key
+    persists until the person picks a level). **Revisit with** the next thresholds form change.
+  - **The Forecast strip's Where list is filtered to PM2.5 monitors** (coverage unconfirmed), and
+    a names-only Data widget runs a 30-day query. **Revisit** when coverage is checked, or if
+    seen.
+  - **Air Alert dates are evaluated at fetch time,** so the banner can be stale across midnight
+    until the next hourly poll; a heat score with an unknown level reads "No heat score today".
+    **Revisit if** seen.
+  - **The Chart threshold label on the canvas is not accessible text** (the key item under the
+    chart is). **Revisit with** the chart accessibility pass.
+  - **Unit-test gaps:** re-arm through the watcher and after firing, `decide` with a threshold
+    missing from the scale, the alert banner's timestamp bounds, a retired-school tile, and
+    `convertToNow` edit-during-load. **Add with** the next change to each.
+  - **A live stack check of a PurpleAir tile at `ok` ("60-minute average") did not run;**
+    browser tests and `e2e/current.spec.ts` cover it. PurpleAir's alert series is PM2.5
+    `PM25_UnivariateLinearRegression`, and the local stack has no trained calibrations (no rows
+    with that processor, and no calibration rows). So every local PurpleAir alert row reads
+    `no_data`, even though raw and `PM25_EPA_Oct2021` data are current. **Revisit** when the
+    local stack has a trained linear calibration, at the first check against production after
+    the develop deploy, or before step 4 merges into `main`.
+  - **While a tile has fallen back from the alert value to hourly averages** (the alert request
+    failed or timed out), a crossing can be told up to about an hour late: the watcher skips
+    hourly readings older than the last alert evaluation. The tile's mark stays right meanwhile,
+    and nothing is told twice. **Revisit if** alert-request failures turn out to be common.
 
 ## Alerts
 
+- **Thresholds on the Forecast strip** (tomorrow's category or a no-burn day). _(step 4 spec 4, 2026-11-08)_ Left out
+  of spec 4 so the strip stays plain display; Release 2's server forecast rules cover it with
+  the dashboard closed. **Revisit with** Release 2's rule UI, or if people ask for an
+  in-dashboard heads-up.
+- **Toasts or notifications from Chart threshold lines.** _(step 4 spec 4, 2026-11-08)_ Charts only display the line,
+  to avoid noise from widgets people are not watching. **Revisit if** people ask to be told
+  from a Chart.
+- **A client-side daily "still bad" reminder.** _(step 4 spec 4, 2026-11-08)_ The server's 10 AM reminder is for
+  texts; the dashboard tells you once per rise. **Revisit if** people keep a dashboard open all
+  day and ask for one.
+- **A sub-hourly value for regions.** _(step 4 spec 4, 2026-11-08)_ Regions show hourly averages in Current
+  conditions, and Release 2's region alerts use the same. **Revisit if** people find region
+  tiles too slow to react.
 - **Additional automated-alert sources and targets.** _Deferred 2026-09-24 (alerting
   design)._ First server iteration covers pollutants (monitor/region targets),
   forecasts, and nearby pesticide notices. Deferred: **HMS smoke** over an area
@@ -1964,6 +2022,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   **Revisit when** either flakes in CI, or when touching that test: check the animation is
   started with a paused or longer-running animation, and wait on the announcement rather than a
   fixed moment.
+
+- **A chart browser test flakes under full-suite load.** _Noted 2026-11-08 (step 4 spec 4,
+  Task 13)._ `src/lib/charts/time-chart.browser.test.ts`, "keyboard stepping moves the strips'
+  cursors" (added in spec 3b), failed in 2 of 3 full local `npm run test` runs and passes alone
+  (6 of 6); Task 13 did not touch charts. It fails at line 410: after `{End}` the strip's
+  cursor is still where `{Home}` put it, so the key seems not to reach the focused chart under
+  load (the `{Home}` check, `>= 0`, does not prove it did). **Revisit when** it flakes in CI, or
+  when touching that test: assert the chart has focus and that `{Home}` moved the cursor before
+  pressing `{End}`.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.

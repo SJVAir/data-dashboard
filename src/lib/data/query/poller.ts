@@ -28,6 +28,9 @@ export function backoffDelay(failures: number): number {
 	return Math.min(BACKOFF_BASE_MS * 2 ** (failures - 1), BACKOFF_CAP_MS);
 }
 
+/** What the poller needs from a client: the query client and the now client both fit. */
+export type Pollable = Pick<QueryClient, "entries" | "refetch" | "onChange">;
+
 export type PollerOptions = {
 	now?: () => Date;
 	setTimeout?: (fn: () => void, ms: number) => unknown;
@@ -49,7 +52,7 @@ const pollable = (e: QueryEntryInfo) => e.subscribers > 0 && e.polling && e.incl
  * on becoming visible, each entry whose poll fell due meanwhile is refetched once.
  */
 export function startPoller(
-	client: QueryClient,
+	client: Pollable,
 	activity: ActivitySource,
 	opts: PollerOptions = {}
 ): { stop(): void } {

@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Layer } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { registerWidgetType } from "$lib/widgets/registry";
+import { CURRENT_TYPE, currentType } from "$lib/widgets/current";
+import { FORECAST_TYPE, forecastType } from "$lib/widgets/forecast";
 import { makeDoc } from "./fixtures.test-util";
 import {
 	hasPoints,
@@ -49,6 +52,8 @@ const pm25 = (place: Layer["place"]): Layer => ({
 });
 
 beforeEach(() => {
+	registerWidgetType(currentType);
+	registerWidgetType(forecastType);
 	mocked.placeRegion.mockReset();
 	mocked.resolve.mockReset();
 	mocked.placeRegion.mockResolvedValue({ type: "zipcode", code: "93721" });
@@ -82,6 +87,45 @@ describe("hasPoints and pointSwaps", () => {
 		expect(input).toEqual({ layer: pm25(POINT), dateRange: RANGE, worstHour: true });
 		// Always bounded: a lookup can't wait forever.
 		expect(signal).toBeInstanceOf(AbortSignal);
+	});
+
+	it("looks a now tile's point up over the trailing hours the tile reads", async () => {
+		const tile: WidgetInstance = {
+			id: "n",
+			type: CURRENT_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 3, h: 4 },
+			data: { layers: [pm25(POINT)] }
+		};
+		const swaps = await pointSwaps(docWith(tile));
+		expect(swaps[0].region).toEqual({ type: "zipcode", code: "93721" });
+		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
+			layer: pm25(POINT),
+			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+			pin: "hour"
+		});
+	});
+
+	it("keeps a Forecast strip's place: its point is looked up as a PM2.5 one", async () => {
+		const strip: WidgetInstance = {
+			id: "f",
+			type: FORECAST_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 3, h: 4 },
+			data: { layers: [{ dataset: "forecasts", place: POINT }] }
+		};
+		const doc = docWith(strip);
+		const swaps = await pointSwaps(doc);
+		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
+			layer: pm25(POINT),
+			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+			pin: "hour"
+		});
+		const swapped = withSwaps(doc, swaps);
+		expect(swapped.body.widgets[1].data.layers).toEqual([
+			{ dataset: "forecasts", place: { kind: "region", type: "zipcode", code: "93721" } }
+		]);
+		expect(hasPoints(swapped)).toBe(false);
 	});
 
 	it("rejects when a lookup fails", async () => {

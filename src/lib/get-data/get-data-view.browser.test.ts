@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { AdapterRequest, DatasetAdapter, RegionResolver } from "$lib/data/adapters/registry";
-import { mapDatasetCatalog, type CatalogEntry, type MetadataSource } from "$lib/data/metadata";
+import {
+	mapDatasetCatalog,
+	type CatalogEntry,
+	type Level,
+	type MetadataSource
+} from "$lib/data/metadata";
+import { createNowClient, type NowClient } from "$lib/data/now/client";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import {
 	PESTICIDE_USE_DATASET,
@@ -19,6 +25,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 import { chartType } from "$lib/widgets/chart";
 import {
 	FORECASTS_ENTRY,
@@ -34,6 +41,7 @@ type Station = { id: string; name: string; distance: number; inside: boolean; ac
 
 const fake = vi.hoisted(() => ({
 	client: undefined as unknown as QueryClient,
+	now: undefined as unknown as NowClient,
 	metadata: undefined as unknown as MetadataSource,
 	/** The station list every place gets. */
 	stations: [] as Station[],
@@ -81,6 +89,7 @@ vi.mock("$lib/data", () => ({
 	}),
 	placeRegion: async () => null
 }));
+vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.now }));
 vi.mock("./sources", () => ({
 	stationsForLayer: async () => fake.stations,
 	searchPesticides: async (params: { type: string; q: string; limit?: number }) => {
@@ -217,6 +226,7 @@ beforeEach(async () => {
 	fake.delay = undefined;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
+	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
 });
 
 afterEach(() => {
@@ -474,10 +484,12 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 
 	const chart = page.getByRole("radio", { name: "Chart" });
 	(chart.element() as HTMLElement).focus();
+	// The now types follow the Chart (they're never blocked: choosing one converts the draft).
 	await userEvent.keyboard("{ArrowRight}");
-	await expect.element(page.getByRole("radio", { name: "Data table" })).toHaveFocus();
+	const current = page.getByRole("radio", { name: "Current conditions" });
+	await expect.element(current).toHaveFocus();
 	await userEvent.keyboard(" ");
-	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+	await expect.element(current).toBeChecked();
 });
 
 test("the pollutant can't be cleared without a number layer; overlays can't stand alone", async () => {
@@ -767,4 +779,311 @@ describe.each([
 		const results = await axe.run(host);
 		expect(results.violations).toEqual([]);
 	});
+});
+
+describe("now widgets", () => {
+	const alert = () => page.getByRole("combobox", { name: "Alert level" });
+	const currentDraft = (thresholds?: Draft["thresholds"]): Draft => ({
+		type: "current-conditions",
+		data: {
+			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+		},
+		...(thresholds ? { thresholds } : {})
+	});
+
+	test("Show as Current conditions: no When, one place, the pollutant and alert level, a note", async () => {
+		const { host, current } = await show(monitorsDraft(["m1", "m2", "m3"], {}, ["burn-status"]));
+		await expect.element(page.getByRole("heading", { name: "When" })).toBeInTheDocument();
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
+		await expect.element(page.getByRole("heading", { name: "When" })).not.toBeInTheDocument();
+		await expect.element(page.getByRole("button", { name: /^Dates/ })).not.toBeInTheDocument();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
+		// One place: the first.
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
+		// The pollutants on offer (PM10 isn't available), and the alert level at its default.
+		const pollutant = page.getByRole("group", { name: "Pollutant" });
+		await expect.element(pollutant.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		await expect.element(pollutant.getByRole("radio", { name: "Ozone" })).toBeVisible();
+		await expect.element(pollutant.getByRole("radio", { name: "PM10" })).not.toBeInTheDocument();
+		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+		const options = [...(alert().element() as HTMLSelectElement).options].map((o) => o.text);
+		expect(options).toEqual([
+			"Off",
+			"Tell me at Good or worse",
+			"Tell me at Moderate or worse",
+			"Tell me at Unhealthy for Sensitive Groups or worse",
+			"Tell me at Unhealthy or worse"
+		]);
+		// The preview is the Current conditions tile.
+		await expect
+			.poll(() => host.querySelector("[data-testid=get-data-preview]")?.textContent ?? "", {
+				timeout: 5000
+			})
+			.toContain("Monitor m1");
+		expect(await current()).toEqual({
+			type: "current-conditions",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+				]
+			},
+			thresholds: [{ level: "unhealthy-sensitive" }]
+		});
+		// The next edit takes the note away; Off stores no alert level.
+		await alert().selectOptions("Off");
+		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
+		expect("thresholds" in (await current())).toBe(false);
+	});
+
+	test("Outside has the alert level but no pollutant control; the Forecast strip has neither", async () => {
+		const { current } = await show(monitorsDraft(["m1"]));
+		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+		// Not a downloadable type.
+		await expect
+			.element(page.getByRole("button", { name: "Download CSV" }))
+			.not.toBeInTheDocument();
+		await expect.element(page.getByRole("group", { name: "Pollutant" })).not.toBeInTheDocument();
+		// A one-place draft over dates still says the dates were left out.
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect
+			.element(page.getByText(m.get_data_extra_places_left_out()))
+			.not.toBeInTheDocument();
+		await page.getByRole("radio", { name: "Forecast" }).click();
+		await expect.element(page.getByRole("radio", { name: "Forecast" })).toBeChecked();
+		await expect.element(alert()).not.toBeInTheDocument();
+		await expect.element(page.getByRole("group", { name: "Pollutant" })).not.toBeInTheDocument();
+		// The place is still named (through a PM2.5 query of it).
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
+		expect(await current()).toEqual({
+			type: "forecast-strip",
+			data: { layers: [{ dataset: "forecasts", place: { kind: "monitor", id: "m1" } }] }
+		});
+		// Back to a Chart: the default range.
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect
+			.element(page.getByRole("button", { name: /^Dates/ }))
+			.toHaveTextContent("Last 30 days");
+		expect((await current()).data).toEqual({
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+		});
+	});
+
+	test("a pollutant change keeps the alert level its scale has, else its default", async () => {
+		const pm25 = await fixtureMetadata().levels("pm25");
+		const level = (key: string) => pm25.find((l) => l.key === key)!;
+		const o3: Level[] = [
+			level("good"),
+			{ ...level("unhealthy-sensitive"), key: "usg-o3" },
+			{ ...level("unhealthy"), key: "unhealthy-o3" }
+		];
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			levels: async (e) => (e === "o3" ? o3 : e === "pm25" ? pm25 : [])
+		});
+		makeClient();
+		const { current } = await show(currentDraft([{ level: "unhealthy" }]));
+		await expect.element(alert()).toHaveValue("unhealthy");
+		await page.getByRole("radio", { name: "Ozone" }).click();
+		// "unhealthy" isn't on the ozone scale: its default, with no note (the person chose).
+		await expect.element(alert()).toHaveValue("usg-o3");
+		await expect.element(page.getByText(/isn't on this pollutant's scale/)).not.toBeInTheDocument();
+		await alert().selectOptions("good");
+		await page.getByRole("radio", { name: "PM2.5" }).click();
+		await expect.element(alert()).toHaveValue("good");
+		expect((await current()).thresholds).toEqual([{ level: "good" }]);
+	});
+
+	test("the preview shows the tile's mark when the air is already at the level, and tells nothing", async () => {
+		const { host } = await show(currentDraft([{ level: "good" }]));
+		const preview = () => host.querySelector<HTMLElement>("[data-testid=get-data-preview]")!;
+		// The fake's reading is Good: at the alert level.
+		await expect
+			.poll(() => preview().querySelector("[data-mark]") !== null, { timeout: 5000 })
+			.toBe(true);
+		await expect
+			.element(page.getByTestId("get-data-preview").getByText(m.current_alert_level_reached()))
+			.toBeVisible();
+		// No watcher: nothing in the dashboard's marks.
+		expect(Object.keys(thresholdMarks)).toEqual([]);
+		// Above the reading: no mark.
+		await alert().selectOptions("unhealthy");
+		await expect.poll(() => preview().querySelector("[data-mark]")).toBeNull();
+	});
+
+	test("a Chart's low line carried to a tile as its alert level is named", async () => {
+		const { current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "good" }] }));
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(alert()).toHaveValue("good");
+		const note = m.get_data_alert_level_from_low_line({ level: "Good" });
+		expect(note).toBe(
+			"The chart's line was at Good, so the alert level starts there. At that level you'd be told even when the air is fine for most people. You can change it under Alert level."
+		);
+		await expect.element(page.getByText(note)).toBeVisible();
+		expect((await current()).thresholds).toEqual([{ level: "good" }]);
+	});
+
+	test("a saved level the scale no longer has shows its default, and says so", async () => {
+		await show(currentDraft([{ level: "gone" }]));
+		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+		await expect
+			.element(
+				page.getByText(m.get_data_alert_level_replaced({ level: "Unhealthy for Sensitive Groups" }))
+			)
+			.toBeVisible();
+		// Opening a saved now widget converts nothing.
+		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
+	});
+
+	test("a Current conditions link opens a range draft converted", async () => {
+		await show({ ...monitorsDraft(["m1", "m2"]), type: "current-conditions" });
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
+		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+	});
+
+	test("an Off alert level stays Off from Can we go outside? to Current conditions", async () => {
+		const { current } = await show({ ...currentDraft(), type: "outside" });
+		await expect.element(alert()).toHaveValue("");
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
+		await expect.element(alert()).toHaveValue("");
+		expect("thresholds" in (await current())).toBe(false);
+	});
+
+	test("what a conversion changes is said: the pollutant, then the alert level", async () => {
+		const ozone: Draft = {
+			type: "current-conditions",
+			data: {
+				layers: [{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }]
+			}
+		};
+		await show(ozone);
+		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		const instead = m.get_data_pollutant_instead({ pollutant: "PM2.5", previous: "Ozone" });
+		expect(instead).toBe("This widget shows only PM2.5, so it uses that instead of Ozone.");
+		await expect.element(page.getByText(instead)).toBeVisible();
+		await expect.element(alert()).toHaveValue("");
+		await alert().selectOptions("unhealthy");
+		await expect.element(page.getByText(instead)).not.toBeInTheDocument();
+		await page.getByRole("radio", { name: "Forecast" }).click();
+		await expect.element(page.getByText(m.get_data_level_left_out())).toBeVisible();
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(page.getByText(m.get_data_level_left_out())).not.toBeInTheDocument();
+	});
+
+	test("a scale that can't load keeps the alert level, says so, and Retry loads it", async () => {
+		let failing = true;
+		const pm25 = await fixtureMetadata().levels("pm25");
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			levels: async (e) => {
+				if (failing) throw new Error("offline");
+				return e === "pm25" ? pm25 : [];
+			}
+		});
+		makeClient();
+		const { current } = await show(monitorsDraft(["m1"]));
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
+		await expect.element(alert()).not.toBeInTheDocument();
+		failing = false;
+		await page.getByRole("button", { name: m.get_data_retry() }).click();
+		// The default the conversion owed is set once the scale loads.
+		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+		expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+
+		// A pollutant change whose scale can't load keeps the alert level as it is.
+		await alert().selectOptions("unhealthy");
+		failing = true;
+		await page.getByRole("radio", { name: "Ozone" }).click();
+		await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
+		const kept = await current();
+		expect(kept.data.layers[0].entryType).toBe("o3");
+		expect(kept.thresholds).toEqual([{ level: "unhealthy" }]);
+	});
+
+	test("axe passes", async () => {
+		const { host } = await show(currentDraft([{ level: "gone" }]));
+		await expect.element(alert()).toBeVisible();
+		await animationsSettled(host);
+		const results = await axe.run(host);
+		expect(results.violations).toEqual([]);
+	});
+});
+
+test("a Chart's Threshold line defaults to Off and saves the chosen level", async () => {
+	const { host, current } = await show(monitorsDraft(["m1"]));
+	await page.getByRole("button", { name: "More options" }).click();
+	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await expect.element(select).toBeVisible();
+	await expect.element(select).toHaveValue("");
+	expect(await current()).not.toHaveProperty("thresholds");
+	await select.selectOptions("unhealthy-sensitive");
+	expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+	await select.selectOptions("");
+	expect(await current()).not.toHaveProperty("thresholds");
+	host.remove();
+});
+
+test("a saved level the scale lacks shows Off and says so", async () => {
+	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
+	await page.getByRole("button", { name: "More options" }).click();
+	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await expect.element(select).toHaveValue("");
+	await expect.element(page.getByText(m.chart_level_line_missing()).first()).toBeVisible();
+	host.remove();
+});
+
+test("Threshold line: Chart → Data table drops it with a note, and it isn't added", async () => {
+	const { host, current } = await show(
+		monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy-sensitive" }] })
+	);
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+	await expect.element(page.getByText(m.get_data_level_left_out())).toBeVisible();
+	const added = await current();
+	expect(added.type).toBe("data-table");
+	expect(added).not.toHaveProperty("thresholds");
+	host.remove();
+});
+
+test("Threshold line: Chart → Data table → Current conditions gets the default, not the stale key", async () => {
+	const { host, current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await expect
+		.element(page.getByRole("combobox", { name: "Alert level" }))
+		.toHaveValue("unhealthy-sensitive");
+	expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+	host.remove();
+});
+
+test("Threshold line: Chart → Current conditions carries the line's level", async () => {
+	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy" }] }));
+	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await expect
+		.element(page.getByRole("combobox", { name: "Alert level" }))
+		.toHaveValue("unhealthy");
+	host.remove();
+});
+
+test("Threshold line is hidden for a non-pollutant main layer, and the saved one is dropped", async () => {
+	const { host, current } = await show(
+		monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy-sensitive" }] })
+	);
+	await openSection(/^Weather/);
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
+	await page.getByRole("radio", { name: "None" }).click();
+	await page.getByRole("button", { name: "More options" }).click();
+	await expect
+		.element(page.getByRole("combobox", { name: m.get_data_line_at_level() }))
+		.not.toBeInTheDocument();
+	expect(await current()).not.toHaveProperty("thresholds");
+	host.remove();
 });

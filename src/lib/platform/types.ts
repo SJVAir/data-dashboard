@@ -185,6 +185,18 @@ export interface GeolocationAccess {
 	locate(signal?: AbortSignal): Promise<GeoResult>;
 }
 
+export type NotifyPermission = "granted" | "denied" | "default" | "unsupported";
+
+/** Desktop notifications. Components never call `Notification` directly. */
+export interface NotificationAccess {
+	/** "unsupported" where pages can't show notifications (phones, tablets, no API). */
+	permission(): NotifyPermission;
+	/** Asks the browser; call only from a person's action. */
+	request(): Promise<NotifyPermission>;
+	/** No-op unless granted. Same `tag` replaces an earlier notification. */
+	show(n: { title: string; body: string; tag: string }): void;
+}
+
 export type OpenedFile = { name: string; size: number; text(): Promise<string> };
 
 export interface FileAccess {
@@ -254,6 +266,7 @@ export type Platform = {
 	locks: LockAccess;
 	clipboard: ClipboardAccess;
 	geolocation: GeolocationAccess;
+	notifications: NotificationAccess;
 	files: FileAccess;
 	persistence: PersistenceAccess;
 	reset: ResetAccess;
