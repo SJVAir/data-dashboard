@@ -1473,6 +1473,13 @@ option the Map widget can use too:
   accessible names (`truncateValues`); and smoke with no hover tooltip and no hover-stealing
   (`hoverable: false`; list focus still pins it), reversing part of milestone 2's accessibility
   additions.
+- **Shapes that cover the view, and category readings** (map-sdk #18 and #19, on npm as
+  `0.1.0-beta.5` and `0.1.0-beta.6`, 2026-11-08), on every map, the dashboard's included: a shape
+  counts as in view when its geometry overlaps the view, not only its label point; focusing one
+  whose label point is off-screen keeps the camera, and its tooltips and list-pick
+  `featureclick` use a point in view (the antimeridian isn't handled; see `DEFERRED.md`). A value
+  that is its category level's code (smoke density, burn status, the heat score's 0–4) shows only
+  the level label, in rows, tooltips and accessible names (the user chose label only).
 
 ## Dashboard layout mechanics
 
