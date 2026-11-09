@@ -145,7 +145,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
 4. **Get data (formerly Widget Creation) and the non-map widgets** (seven specs, stacked into
    `step-4`; see `TODO.md`; specs 1–3 merged into `step-4` (#36, #38, #40); spec 3b, the Get data
    layers, added after spec 3 by the user on 2026-11-05, spec approved 2026-11-06, built
-   2026-11-07, merged into `step-4` 2026-11-08 (#43))
+   2026-11-07, merged into `step-4` 2026-11-08 (#43); spec 4, the "now" widgets and thresholds, built
+   on `step-4-spec-4` (2026-11-08), waits on `@sjvair/sdk` 5.0.0-beta.7 for the alert value, PR into
+   `step-4` pending)
    - **Get data** (formerly the Data Explorer and Widget Creation view; renamed 2026-11-05:
      data first, then how to show it; Add to dashboard or Download CSV; catalog-driven dataset
      sections, layers and overlays, advanced resolution override; built in spec 3)

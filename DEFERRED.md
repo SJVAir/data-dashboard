@@ -36,6 +36,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   layer, and each widget type's code out of the initial bundle. The budget is a soft limit
   (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
   decide then, trim or raise the budget, rather than trimming every time).
+- **The initial bundle is over 200 KB after step 4 spec 4 (pending the user's decision).**
+  _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14)._ `check:budget` reads 201.8 KB
+  gzip against the 200 KB soft budget (199.7 KB before the spec). The growth is the three
+  widget descriptors, the dashboard menu's Notifications item, and the `thresholds` field in
+  the change schema. The user has not yet said whether to trim or raise the budget. Candidates
+  if trimming: lazy-load the widget type icons, drop the menu item's icon. **Revisit before step
+  4 merges into `main`**, or with the starter dashboard spec.
 
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
@@ -573,6 +580,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   feed's exact `status` string for it is unconfirmed, so the `burn-status` scale has no level
   for it. The server stores unknown values as received and logs them. **Revisit when** the
   ingest log shows the new value: add the level in sjvair.com `camp/apps/forecasts/scales.py`.
+  Meanwhile the Forecast strip shows the feed's text (step 4 spec 4, 2026-11-08).
 
 - **Production deploy step for the place endpoints.** _Deferred 2026-11-03 (step 3 spec 1)._
   `forecasts/place/` caches its zone answers for 24 hours, so a place resolved before the 3
@@ -1625,9 +1633,58 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     `layers.ts` change.
   - **No smoke e2e coverage:** the `hms` fixtures are there, but the e2e catalog has no
     `hms-smoke`. **Revisit at** the next smoke change.
+- **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
+  brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide
+  the ones a school does not have was offered and left out. **Revisit if** schools ask to hide
+  activities.
+- **Now widgets review leftovers.** _Deferred 2026-11-08 (step 4 spec 4, per-task reviews)._
+  Small things the reviews let stay; the first ones a person could meet:
+  - **A Forecast strip holding an exact point loses its place when a live link is turned on:**
+    `sharing/points.ts` `pointSwaps` builds the swap from the raw layer (`chartInput`), so the
+    strip's region comes out null (no coordinates leak; the place is just gone). Fix by using
+    `placesQueryLayer`. **Revisit with** the next change to sharing or the live-link flow, or if
+    seen.
+  - **A failed `setNotifyEnabled` write is not handled:** the Notifications switch should revert
+    and say so. **Revisit if** storage write failures are reported.
+  - **A mark can linger up to an hour on a reading that has aged past 3 hours:** staleness is
+    re-derived on a poll (the tile's minute tick clears its own text; the taskbar mark waits for
+    the next poll). **Revisit if** seen, or with a watcher change.
+  - **The now client reports a throwing listener with `console.error`,** not
+    `platform().errors` as the project rule says; its subscribe-time and `changed()` listener
+    calls are unguarded. **Revisit with** the next now client change.
+  - **A failed watcher chunk load retries only on the next dashboard or watched-set change.**
+    **Revisit if** seen on flaky connections.
+  - **A fell-back default alert level cannot be confirmed in the form** (a stored bad key
+    persists until the person picks a level). **Revisit with** the next thresholds form change.
+  - **The Forecast strip's Where list is filtered to PM2.5 monitors** (coverage unconfirmed), and
+    a names-only Data widget runs a 30-day query. **Revisit** when coverage is checked, or if
+    seen.
+  - **Air Alert dates are evaluated at fetch time,** so the banner can be stale across midnight
+    until the next hourly poll; a heat score with an unknown level reads "No heat score today".
+    **Revisit if** seen.
+  - **The Chart threshold label on the canvas is not accessible text** (the key item under the
+    chart is). **Revisit with** the chart accessibility pass.
+  - **Unit-test gaps:** re-arm through the watcher and after firing, `decide` with a threshold
+    missing from the scale, the alert banner's timestamp bounds, a retired-school tile, and
+    `convertToNow` edit-during-load. **Add with** the next change to each.
+  - **Wording to confirm in the PR's copy review:** `current_averaging_help`,
+    `current_averaging_label`, `outside_no_guidance`.
 
 ## Alerts
 
+- **Thresholds on the Forecast strip** (tomorrow's category or a no-burn day). _(step 4 spec 4, 2026-11-08)_ Left out
+  of spec 4 so the strip stays plain display; Release 2's server forecast rules cover it with
+  the dashboard closed. **Revisit with** Release 2's rule UI, or if people ask for an
+  in-dashboard heads-up.
+- **Toasts or notifications from Chart threshold lines.** _(step 4 spec 4, 2026-11-08)_ Charts only display the line,
+  to avoid noise from widgets people are not watching. **Revisit if** people ask to be told
+  from a Chart.
+- **A client-side daily "still bad" reminder.** _(step 4 spec 4, 2026-11-08)_ The server's 10 AM reminder is for
+  texts; the dashboard tells you once per rise. **Revisit if** people keep a dashboard open all
+  day and ask for one.
+- **A sub-hourly value for regions.** _(step 4 spec 4, 2026-11-08)_ Regions show hourly averages in Current
+  conditions, and Release 2's region alerts use the same. **Revisit if** people find region
+  tiles too slow to react.
 - **Additional automated-alert sources and targets.** _Deferred 2026-09-24 (alerting
   design)._ First server iteration covers pollutants (monitor/region targets),
   forecasts, and nearby pesticide notices. Deferred: **HMS smoke** over an area
