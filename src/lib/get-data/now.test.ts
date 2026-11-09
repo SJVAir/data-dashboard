@@ -176,6 +176,12 @@ describe("Chart threshold lines in conversions", () => {
 		expect(converted.draft.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
 	});
 
+	it("a Chart's line level carries to a tile as its alert level", () => {
+		const withLine: Draft = { ...chart, thresholds: [{ level: "unhealthy" }] };
+		const converted = toNowDraft(withLine, currentType, CATALOG, PM25_LEVELS, chartType);
+		expect(converted.draft.thresholds).toEqual([{ level: "unhealthy" }]);
+	});
+
 	it("a tile's alert level isn't carried to a Chart as a line", () => {
 		const tile = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS).draft;
 		expect(fromNowDraft(tile, chartType).draft).not.toHaveProperty("thresholds");

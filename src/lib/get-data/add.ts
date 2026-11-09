@@ -42,7 +42,10 @@ export async function addFromDraft(
 		rect: placeNewWidget(widgets, type.defaultSize),
 		data: structuredClone(draft.data),
 		...(draft.options ? { options: structuredClone(draft.options) } : {}),
-		...(draft.thresholds ? { thresholds: structuredClone(draft.thresholds) } : {})
+		// Only a type with thresholds keeps them.
+		...(draft.thresholds && type.thresholds
+			? { thresholds: structuredClone(draft.thresholds) }
+			: {})
 	};
 	session.apply({
 		op: "addWidget",

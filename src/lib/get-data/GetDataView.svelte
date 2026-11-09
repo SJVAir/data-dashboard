@@ -389,7 +389,14 @@
 			noteConversion(converted);
 		}
 		// A now type chosen before the catalog is known is converted once it is (below).
-		else draft.type = next;
+		else {
+			draft.type = next;
+			if (!to.thresholds && draft.thresholds) {
+				// A line the new type can't hold is left out, with a note.
+				delete draft.thresholds;
+				noteConversion({ draft: $state.snapshot(draft) as Draft, dropped: ["alert"] });
+			}
+		}
 	}
 
 	// A draft that's a now type but not in its shape (opened from a `?type=` link or a stored
@@ -439,6 +446,17 @@
 	const shownLevels = $derived(
 		alertEntryType && alertLevels?.entryType === alertEntryType ? alertLevels.levels : null
 	);
+
+	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
+	// thresholds, or the main layer isn't a pollutant with levels.
+	$effect(() => {
+		if (isNow || !known || !draft.thresholds) return;
+		const gone =
+			!type?.thresholds ||
+			lineEntryType === undefined ||
+			(Array.isArray(shownLevels) && shownLevels.length === 0);
+		if (gone) untrack(() => delete draft.thresholds);
+	});
 
 	/** Sets the default alert level a conversion owed, keeping its notes up. */
 	function payDefault(levels: Level[]): void {

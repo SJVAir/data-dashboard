@@ -1003,3 +1003,51 @@ test("a saved level the scale lacks shows Off and says so", async () => {
 	await expect.element(page.getByText(m.chart_threshold_missing()).first()).toBeVisible();
 	host.remove();
 });
+
+test("Threshold line: Chart → Data table drops it with a note, and it isn't added", async () => {
+	const { host, current } = await show(
+		monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy-sensitive" }] })
+	);
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+	await expect.element(page.getByText(m.get_data_alert_left_out())).toBeVisible();
+	const added = await current();
+	expect(added.type).toBe("data-table");
+	expect(added).not.toHaveProperty("thresholds");
+	host.remove();
+});
+
+test("Threshold line: Chart → Data table → Current conditions gets the default, not the stale key", async () => {
+	const { host, current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await expect
+		.element(page.getByRole("combobox", { name: "Alert level" }))
+		.toHaveValue("unhealthy-sensitive");
+	expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+	host.remove();
+});
+
+test("Threshold line: Chart → Current conditions carries the line's level", async () => {
+	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy" }] }));
+	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await expect
+		.element(page.getByRole("combobox", { name: "Alert level" }))
+		.toHaveValue("unhealthy");
+	host.remove();
+});
+
+test("Threshold line is hidden for a non-pollutant main layer, and the saved one is dropped", async () => {
+	const { host, current } = await show(
+		monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy-sensitive" }] })
+	);
+	await openSection(/^Weather/);
+	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
+	await page.getByRole("radio", { name: "None" }).click();
+	await page.getByRole("button", { name: "More options" }).click();
+	await expect
+		.element(page.getByRole("combobox", { name: m.get_data_threshold_line() }))
+		.not.toBeInTheDocument();
+	expect(await current()).not.toHaveProperty("thresholds");
+	host.remove();
+});

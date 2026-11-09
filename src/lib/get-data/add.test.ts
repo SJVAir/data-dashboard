@@ -10,6 +10,8 @@ import { createFakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, makeDoc, storeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import { chartType } from "$lib/widgets/chart";
+import { dataTableType } from "$lib/widgets/table";
+import { registerWidgetType } from "$lib/widgets/registry";
 import { addFromDraft, addTargets } from "./add";
 import type { Draft } from "./draft.svelte";
 
@@ -59,7 +61,22 @@ async function put(platform: Platform, doc: Dashboard): Promise<void> {
 const stored = async (platform: Platform, space: SpaceId, id: string) =>
 	(await platform.documents.get(space, id)) as Dashboard;
 
+registerWidgetType(dataTableType);
+
 describe("addFromDraft", () => {
+	it("keeps a Chart's threshold line, but never puts one on a Data table", async () => {
+		const { platform, app } = await anonymous();
+		await put(platform, makeDoc("d1"));
+		await app.index.refresh();
+		const session = (await app.sessions.get("d1"))!;
+		const thresholds = [{ level: "unhealthy_sensitive" }];
+		await addFromDraft(app, "d1", { ...draft(), thresholds });
+		expect(session.doc.body.widgets.at(-1)!.thresholds).toEqual(thresholds);
+		await addFromDraft(app, "d1", { ...draft(), type: "data-table", thresholds });
+		expect(session.doc.body.widgets.at(-1)!.type).toBe("data-table");
+		expect("thresholds" in session.doc.body.widgets.at(-1)!).toBe(false);
+	});
+
 	it("adds at placeNewWidget's rect, one undo removes it", async () => {
 		const { platform, app } = await anonymous();
 		await put(platform, makeDoc("d1"));

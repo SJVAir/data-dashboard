@@ -9,6 +9,7 @@ import { createFakeRemote } from "$lib/sync/remote-fake";
 import { ACCOUNT, SPACE, makeDoc, storeDoc, user } from "$lib/sync/test-support";
 import { SyncWorker } from "$lib/sync/worker.svelte";
 import { chartType } from "$lib/widgets/chart";
+import { dataTableType } from "$lib/widgets/table";
 import { getWidgetType, registerWidgetType } from "$lib/widgets/registry";
 import { landedIn } from "./add";
 import type { Draft } from "./draft.svelte";
@@ -25,6 +26,8 @@ vi.mock("$lib/data", () => ({
 const POINT = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
 const ZIP = { kind: "region", type: "zipcode", code: "93721" } as const;
 const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
+
+registerWidgetType(dataTableType);
 
 // A type with a bigger minimum size than the Chart, for the size clamp.
 registerWidgetType({ ...chartType, type: "tall", minSize: { w: 4, h: 8 } });
@@ -113,6 +116,14 @@ describe("saveEdit", () => {
 		session.undo();
 		expect(shown(session).type).toBe("chart");
 		expect(session.canUndo).toBe(false);
+	});
+
+	it("a Chart's threshold line isn't saved onto a Data table", async () => {
+		const withLine: WidgetInstance = { ...preSpec, thresholds: [{ level: "unhealthy_sensitive" }] };
+		const { session } = await withWidget(withLine);
+		expect(saveEdit(session, "w1", { ...editDraft(withLine), type: "data-table" })).toBe(true);
+		expect(shown(session).type).toBe("data-table");
+		expect("thresholds" in shown(session)).toBe(false);
 	});
 
 	it("a type with a bigger minimum size clamps the size, in the same undo step", async () => {

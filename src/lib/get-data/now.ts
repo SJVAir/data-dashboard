@@ -119,7 +119,9 @@ export function toNowDraft(
 	const changed =
 		entryType !== undefined && from?.entryType !== undefined && from.entryType !== entryType;
 	if (changed) dropped.push("pollutant");
-	// A Chart's line is its own opt-in: from a Chart, Off still gets the default.
+	// From a Chart, its line's level carries over as the alert level (the level the person chose
+	// as notable; `keptThreshold` keeps it when the new scale has it). A Chart with its line Off
+	// still gets the default.
 	const defaultWhenOff = !(fromType?.time === "now" && fromType.thresholds);
 	let thresholds: Threshold[] | undefined;
 	let defaultOwed = false;

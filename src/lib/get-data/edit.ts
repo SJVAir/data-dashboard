@@ -38,7 +38,9 @@ export function saveEdit(session: DocumentSession, widgetId: string, draft: Draf
 	const typeChanged = widget.type !== draft.type;
 	const dataChanged = !same(widget.data, draft.data);
 	const optionsChanged = !same(widget.options, draft.options);
-	const thresholdsChanged = !same(widget.thresholds, draft.thresholds);
+	// Only a type with thresholds keeps them.
+	const kept = getWidgetType(draft.type)?.thresholds === false ? undefined : draft.thresholds;
+	const thresholdsChanged = !same(widget.thresholds, kept);
 	if (!typeChanged && !dataChanged && !optionsChanged && !thresholdsChanged) return false;
 	const change: SetWidgetDataChange = {
 		op: "setWidgetData",
@@ -60,7 +62,7 @@ export function saveEdit(session: DocumentSession, widgetId: string, draft: Draf
 	if (thresholdsChanged) {
 		change.thresholds = {
 			from: widget.thresholds,
-			to: draft.thresholds ? structuredClone(draft.thresholds) : undefined
+			to: kept ? structuredClone(kept) : undefined
 		};
 	}
 	session.apply(change);
