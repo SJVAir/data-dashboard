@@ -470,6 +470,10 @@ string`) now get the union return type. The mobile app passes a string token, so
        session, one read-only pull, with the user's yes). Run `backfill_airnow` (scoped) over the -999 range, then rebuild
        those monitors' summaries. The daily peaks also skip hourly values ≤ -900 and print a skip count (the user,
        2026-11-09: both the order and the skip).
+       2b. **Rebuild region summaries over the same -999 range** (`--regions-only`, `--region=<pk>` per region containing the
+       affected AirNow monitors, or per region type), after the AirNow monitor rebuild and before any region fill. Region hourly
+       rows are weighted means, so a -999 monitor hour usually lands above -900 and the skip doesn't catch it (sjvair-com-64's
+       final review, 2026-11-09). Check the region count first; scope by dates.
     3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix).
     4. `fill_daily_peaks`, scoped, `--dry-run` first and then for real: monitor types `airnow`, `aqlite`, `vozbox`,
        `purpleair`, `airgradient`, `aqview` and `bam1022`, then each region type (`mean_24h` makes PM types part of it).
