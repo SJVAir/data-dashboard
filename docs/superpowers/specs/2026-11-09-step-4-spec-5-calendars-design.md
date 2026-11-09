@@ -115,10 +115,15 @@ average. The server says which applies:
   (monitor, region, bulk) covers the open Pacific day, the response includes a row for today,
   computed on request from today's complete hourly rows (60 s cache): `mean_24h` = the mean of
   the hourly means so far, `max_1h` = the highest so far, `max_8h` = the highest valid 8-hour
-  window so far (≥ 6 of 8 hours), with no 75% rule. **Every daily row gains `is_final`**;
-  today's is false; finished days stay strict. Whether `is_final` is also false for CO's previous
-  day until it settles is still open on the server side; if it is, "Not final yet" reads that
-  one flag. The dashboard never computes any of this from hourly rows. A finished day stays strict.
+  window so far (≥ 6 of 8 hours), with no 75% rule. **Every daily row gains `is_final`** ("can't
+  change anymore"); finished days stay strict. Settled 2026-11-09 (the user with the server
+  session): open days come from separate endpoints next to each daily list (monitor, region,
+  bulk), returning computed rows (`is_final: false`) for today and for any earlier day whose
+  nightly row doesn't exist yet, until about 03:00 Pacific; stored rows are `is_final: false`
+  until settled (yesterday until about 3 am, CO's yesterday until 28 h after the day ends). The
+  SDK gets one helper that fetches a range plus its open days and merges them. **The calendar's
+  rule:** `is_final: false` today = "so far"; `is_final: false` on an earlier day = "Not final
+  yet"; a missing row = "No data". The dashboard never computes any of this from hourly rows. A finished day stays strict.
 - **CO settles late:** CO's 8-hour windows start during the day, so a day's `max_8h` is final
   only about 28 hours after the day ends (the server re-rolls the previous day nightly).
 - **Field names in the SDK** come with beta.8. No dashboard code reads them until the coordinator
@@ -156,11 +161,8 @@ average. The server says which applies:
   figure. If the server has no running figure yet (no hours today), today shows "No data so
   far".
 - **Not final yet:** a CO day inside the server's settling margin (yesterday, until the row
-  settles). How "settled" is read comes with beta.8. **Also yesterday for every pollutant
-  before the server's nightly daily rollup** (about 1:00 am Pacific for monitors, 1:10 for
-  regions; checked by the coordinator 2026-11-09): there is no row yet, so yesterday reads "Not
-  final yet", not "No data" (my call; the cutoff comes from the server's settling rule with
-  beta.8, never a hardcoded time).
+  settles). **Also yesterday for every pollutant before it settles** (about 3 am): the server's
+  open-day rows and `is_final` cover it, so the calendar reads one flag, never a time.
 - **Still to come:** a date in the range after today.
 - **Before beta.8 (my call, builder's order):** the grids, states, selection, summary, chart
   action and threshold marks are built and tested against fixtures. In the running app, a
@@ -173,8 +175,8 @@ average. The server says which applies:
   rateability comes from whether the `daily_statistic` field is null, not from `is_complete`.
 - **Tooltip and accessible name** name the figure ("Daily average", "Highest hourly average",
   "Highest 8-hour average"). **The name comes from server metadata** next to `daily_statistic`
-  (the user, 2026-11-09, with the server session; the field name, e.g. `daily_statistic_label`,
-  arrives with beta.8), not from dashboard messages. Only a missing label falls back to one
+  (the user, 2026-11-09, with the server session: `scale.daily_statistic_label`, translatable;
+  "24-hour average", "Highest 1-hour average", "Highest 8-hour average"; null otherwise), not from dashboard messages. Only a missing label falls back to one
   dashboard message, "Daily value" (my call). No EPA mention.
 
 ### Day-colored calendar (the user approved the mockup)
