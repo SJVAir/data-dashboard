@@ -315,7 +315,7 @@
 			);
 		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
-		if (fromLine) out.push(m.get_data_alert_level_from_line({ level: fromLine.label }));
+		if (fromLine) out.push(m.get_data_alert_level_from_low_line({ level: fromLine.label }));
 		return out;
 	});
 

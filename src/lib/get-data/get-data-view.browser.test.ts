@@ -919,8 +919,10 @@ describe("now widgets", () => {
 		const { current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "good" }] }));
 		await page.getByRole("radio", { name: "Current conditions" }).click();
 		await expect.element(alert()).toHaveValue("good");
-		const note = m.get_data_alert_level_from_line({ level: "Good" });
-		expect(note).toBe("The alert level comes from the chart's line: Good.");
+		const note = m.get_data_alert_level_from_low_line({ level: "Good" });
+		expect(note).toBe(
+			"The chart's line was at Good, so the alert level starts there. At that level you'd be told even when the air is fine for most people. You can change it under Alert level."
+		);
 		await expect.element(page.getByText(note)).toBeVisible();
 		expect((await current()).thresholds).toEqual([{ level: "good" }]);
 	});

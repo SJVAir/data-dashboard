@@ -914,7 +914,7 @@
 	"get_data_overlays_left_out": "Other data layers don't apply to this widget, so they were left out.",
 	"get_data_extra_places_left_out": "This widget shows one place, so the others were left out.",
 	"get_data_level_left_out": "This widget can't show a level, so the one you chose was left out.",
-	"get_data_alert_level_from_line": "The alert level comes from the chart's line: {level}.",
+	"get_data_alert_level_from_low_line": "The chart's line was at {level}, so the alert level starts there. At that level you'd be told even when the air is fine for most people. You can change it under Alert level.",
 	"get_data_pollutant_instead": "This widget shows only {pollutant}, so it uses that instead of {previous}.",
 	"get_data_levels_unavailable": "The levels can't be loaded right now.",
 	"get_data_line_at_level": "Line at level",
