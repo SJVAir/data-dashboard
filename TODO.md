@@ -1335,6 +1335,25 @@ The checklist below is the whole step's scope.
     (22.619 mi²). Merged as 3f90427. ✅ On npm as `0.1.0-beta.4` (`next`) 2026-11-08, through
     `release.yml` (version bump #16). Next:
     monitor-map pins it.
+  - **✅ In-view shapes merged 2026-11-08**
+    ([map-sdk #18](https://github.com/SJVAir/map-sdk/pull/18), 242e90f; spec
+    `docs/superpowers/specs/2026-11-08-in-view-shapes-design.md`). Found by monitor-map-72: the
+    day's smoke plume covered the view but had no list row ("0 Smoke"), because only its
+    off-screen label point was tested. A shape now counts as in view when its geometry overlaps
+    the view (bbox pre-check, then the exact test; holes count). Focusing one whose label point
+    is off-screen keeps the camera, its focus and hover tooltips pin at a point in view, and a
+    list pick's `featureclick` reports that point. New optional API only (`geometry`/`bbox` on
+    `FeatureListItem`, `focusedAnchor`, `anchorFor`, `geometryBbox`, `intersectsBounds`).
+    Deferred: the antimeridian and three review minors (`DEFERRED.md` → "Map & selection").
+    ✅ On npm as `0.1.0-beta.5` (`next`) 2026-11-08, through `release.yml`; the version bump was
+    in #18 (the user's call: no separate bump PR).
+  - **✅ Category readings said once, merged 2026-11-08**
+    ([map-sdk #19](https://github.com/SJVAir/map-sdk/pull/19), ecc6edf). Found by
+    monitor-map-72: smoke rows and tooltips read "light Light". When a value is its category
+    level's code, the row, tooltip and accessible name show only the level label (the user
+    chose "label only"; this also covers burn status and the heat score's 0–4). New message key
+    `mapsdk_list_row_level`. ✅ On npm as `0.1.0-beta.6` (`next`) 2026-11-08, through
+    `release.yml`, bump in #19. Next: monitor-map pins it (#130).
   - **✅ First publish 2026-11-05:** `@sjvair/map-sdk@0.1.0-beta.1` on npm (`next`; npm also
     points `latest` at it, as the only release), published by hand by the user after the release
     prep PR ([map-sdk #6](https://github.com/SJVAir/map-sdk/pull/6): version, `prepack` build,
