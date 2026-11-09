@@ -5,11 +5,13 @@ import {
 	formatDateTime,
 	formatHourRange,
 	formatList,
+	formatLongWeekdayDate,
 	formatMonthName,
 	formatNumber,
 	formatPeriod,
 	formatTick,
 	formatValue,
+	formatWeekday,
 	needsZoneLabel,
 	pacificHoursOfDay,
 	parseDateKey,
@@ -24,6 +26,15 @@ describe("format", () => {
 	it("formatMonthName names the Pacific month without its year", () => {
 		expect(formatMonthName("2026-11-30")).toBe("November");
 		expect(formatMonthName("2027-01-01")).toBe("January");
+	});
+	it("formatLongWeekdayDate spells out the weekday and month", () => {
+		expect(formatLongWeekdayDate("2026-11-06")).toBe("Friday, November 6");
+		expect(formatLongWeekdayDate("2026-03-08")).toBe("Sunday, March 8");
+	});
+	it("formatWeekday names a date's Pacific weekday", () => {
+		expect(formatWeekday("2026-11-08", "long")).toBe("Sunday");
+		expect(formatWeekday("2026-11-08", "short")).toBe("Sun");
+		expect(formatWeekday("2026-11-09", "narrow")).toBe("M");
 	});
 	it("weeks start on Sunday", () => {
 		expect(startOfPacificWeek("2026-10-20")).toBe("2026-10-18");

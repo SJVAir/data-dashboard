@@ -779,6 +779,33 @@
 		}
 	],
 	"calendar_selection_clear_hint": "Esc clears",
+	"calendar_day_name": [
+		{
+			"declarations": [
+				"input date",
+				"input state",
+				"input level",
+				"input marked",
+				"input selected"
+			],
+			"selectors": ["marked", "selected"],
+			"match": {
+				"marked=yes, selected=yes": "{date}: {state}, at or above {level}, selected",
+				"marked=yes, selected=*": "{date}: {state}, at or above {level}",
+				"marked=*, selected=yes": "{date}: {state}, selected",
+				"marked=*, selected=*": "{date}: {state}"
+			}
+		}
+	],
+	"calendar_day_rated": "{figure} {value} {unit}, {level}",
+	"calendar_day_value": "{figure} {value} {unit}",
+	"calendar_day_so_far_rated": "{figure} so far {value} {unit}, {level}",
+	"calendar_day_so_far_value": "{figure} so far {value} {unit}",
+	"calendar_day_level_so_far": "{level} · so far",
+	"calendar_day_no_data_so_far": "No data so far",
+	"calendar_day_not_final_yet": "Not final yet",
+	"calendar_day_still_to_come": "Still to come",
+	"calendar_day_not_rated": "Not rated",
 	"widget_data_table_title": "Data table",
 	"table_label": "Data table",
 	"table_scroll_label": "Data table values",

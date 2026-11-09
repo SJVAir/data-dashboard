@@ -1,0 +1,249 @@
+<script lang="ts" module>
+	/** One labelled group of rows (a month), drawn as a `rowgroup`. */
+	export type DayGridSection = { key: string; label?: string; rows: (string | null)[][] };
+</script>
+
+<script lang="ts">
+	import { tick, type Snippet } from "svelte";
+	import type { DayState } from "$lib/calendars/day-state";
+	import { clampSelectable, moveFocus, spanOf, type Layout } from "$lib/calendars/selection";
+	import type { CalendarData } from "./calendar-data.svelte";
+	import type { DaySpan } from "./write-selection";
+
+	let {
+		layout,
+		rows,
+		sections,
+		data,
+		selection,
+		onselect,
+		cell,
+		name,
+		label,
+		stateOf,
+		header,
+		dragging = $bindable(false),
+		preview = $bindable(null),
+		class: className = "",
+		sectionClass = "",
+		rowClass = ""
+	}: {
+		layout: Layout;
+		/** The rows of one unlabelled group; or give `sections`. */
+		rows?: (string | null)[][];
+		sections?: DayGridSection[];
+		data: CalendarData;
+		/** The selected days shown (already limited to the range). */
+		selection: DaySpan | null;
+		/** A finished gesture's selection: one per click, Shift-click, finished drag, or key. */
+		onselect: (sel: DaySpan | null) => void;
+		/** A day's drawing (hidden from assistive tech: `name` is what's read). */
+		cell: Snippet<[DayState, { focused: boolean; selected: boolean }]>;
+		/** A day cell's accessible name. */
+		name: (state: DayState, selected: boolean) => string;
+		/** The grid's accessible name (the widget's title). */
+		label: string;
+		/** A drawn day's state; defaults to the range's states (days outside it are empty). */
+		stateOf?: (date: string) => DayState | undefined;
+		/** Drawn at the top of each section (hidden headings, a row of column headers). */
+		header?: Snippet<[DayGridSection]>;
+		/** A pointer drag is extending the selection (not yet saved). */
+		dragging?: boolean;
+		/** The selection a drag in progress would make. */
+		preview?: DaySpan | null;
+		class?: string;
+		sectionClass?: string;
+		rowClass?: string;
+	} = $props();
+
+	const stateFor = $derived(stateOf ?? ((date: string) => data.states.get(date)));
+	const groups = $derived<DayGridSection[]>(sections ?? [{ key: "all", rows: rows ?? [] }]);
+	const shown = $derived(preview ?? selection);
+	const s = $derived(data.selectable);
+
+	let root = $state<HTMLElement>();
+	/** The focus day the viewer moved to; `null` until they do. */
+	let moved = $state<string | null>(null);
+	/** The fixed end of a Shift-extended selection. */
+	let anchor: string | null = null;
+
+	const firstDate = $derived(groups.flatMap((g) => g.rows.flat()).find((d) => d !== null) ?? null);
+	/** The one cell in the Tab order: the focus day, or the first day when none can be picked. */
+	const focusDay = $derived.by(() => {
+		if (!s) return firstDate;
+		return clampSelectable(moved ?? selection?.end ?? s.last, s);
+	});
+
+	const isSelected = (date: string) => !!shown && date >= shown.start && date <= shown.end;
+	const pickable = (date: string | undefined): date is string =>
+		!!date && !!s && date >= s.first && date <= s.last;
+
+	/** The fixed end to extend from: the last anchor while it still bounds the selection. */
+	function anchorFor(from: string): string {
+		if (selection && anchor && (anchor === selection.start || anchor === selection.end)) {
+			return anchor;
+		}
+		return selection?.start ?? from;
+	}
+
+	async function focusCell(date: string): Promise<void> {
+		moved = date;
+		await tick();
+		root?.querySelector<HTMLElement>(`[data-date="${date}"]`)?.focus();
+	}
+
+	const NAV = new Set([
+		"ArrowLeft",
+		"ArrowRight",
+		"ArrowUp",
+		"ArrowDown",
+		"Home",
+		"End",
+		"PageUp",
+		"PageDown"
+	]);
+
+	function onkeydown(event: KeyboardEvent): void {
+		if (event.key === "Escape") {
+			if (!selection) return;
+			event.preventDefault();
+			event.stopPropagation();
+			anchor = null;
+			onselect(null);
+			return;
+		}
+		if (!s || !focusDay) return;
+		if (NAV.has(event.key)) {
+			event.preventDefault();
+			const next = moveFocus(focusDay, event.key, layout, s);
+			if (event.shiftKey) {
+				const from = selection ? anchorFor(focusDay) : focusDay;
+				anchor = from;
+				onselect(spanOf(from, next));
+			}
+			void focusCell(next);
+			return;
+		}
+		if (event.key === " " || event.key === "Enter") {
+			event.preventDefault();
+			toggle(focusDay);
+		}
+	}
+
+	/** A plain click or Space/Enter on a day: select it alone, or clear it if it's all that's selected. */
+	function toggle(date: string): void {
+		anchor = date;
+		if (selection?.start === date && selection.end === date) onselect(null);
+		else onselect({ start: date, end: date });
+	}
+
+	/** The pointer drag in progress: where it started, and whether it reached another day. */
+	let drag: { from: string; pointer: number; moved: boolean } | null = null;
+
+	function dateAt(x: number, y: number): string | undefined {
+		const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-date]");
+		return el && root?.contains(el) ? el.dataset.date : undefined;
+	}
+
+	function onpointerdown(event: PointerEvent): void {
+		if (event.button !== 0 || !s) return;
+		const date = (event.target as Element).closest<HTMLElement>("[data-date]")?.dataset.date;
+		if (!pickable(date)) return;
+		moved = date;
+		if (event.shiftKey && selection) {
+			onselect(spanOf(anchorFor(date), date));
+			return;
+		}
+		drag = { from: date, pointer: event.pointerId, moved: false };
+		// Touch keeps its swipe to scroll: a tap selects one day (Shift+arrows extend).
+		if (event.pointerType === "touch") return;
+		// No preventDefault: the press still focuses the day (`select-none` stops text selection).
+		try {
+			root?.setPointerCapture(event.pointerId);
+		} catch {
+			// A synthetic or finished pointer: moves still arrive over the grid.
+		}
+	}
+
+	function onpointermove(event: PointerEvent): void {
+		if (!drag || drag.pointer !== event.pointerId || event.pointerType === "touch" || !s) return;
+		const date = dateAt(event.clientX, event.clientY);
+		if (!date) return;
+		const to = clampSelectable(date, s);
+		if (to === drag.from && !drag.moved) return;
+		drag.moved = true;
+		dragging = true;
+		const next = spanOf(drag.from, to);
+		if (preview?.start !== next.start || preview?.end !== next.end) preview = next;
+	}
+
+	function onpointerup(event: PointerEvent): void {
+		if (!drag || drag.pointer !== event.pointerId) return;
+		const done = drag;
+		const sel = preview;
+		end();
+		if (done.moved && sel) {
+			anchor = done.from;
+			onselect(sel);
+		} else {
+			toggle(done.from);
+		}
+	}
+
+	function end(): void {
+		drag = null;
+		preview = null;
+		dragging = false;
+	}
+
+	function onpointercancel(event: PointerEvent): void {
+		if (drag?.pointer === event.pointerId) end();
+	}
+</script>
+
+<!-- svelte-ignore a11y_interactive_supports_focus (focus lives on the cells: a roving tabindex) -->
+<div
+	bind:this={root}
+	role="grid"
+	aria-label={label}
+	data-dragging={dragging ? "" : undefined}
+	class={["select-none", className]}
+	{onkeydown}
+	{onpointerdown}
+	{onpointermove}
+	{onpointerup}
+	{onpointercancel}
+>
+	{#each groups as group (group.key)}
+		<div role="rowgroup" aria-label={group.label} class={sectionClass}>
+			{@render header?.(group)}
+			{#each group.rows as row, r (r)}
+				<div role="row" class={rowClass}>
+					{#each row as date, c (c)}
+						{@const state = date ? stateFor(date) : undefined}
+						{#if date && state}
+							{@const selected = isSelected(date)}
+							<div
+								role="gridcell"
+								data-date={date}
+								data-kind={state.kind}
+								data-selected={selected ? "" : undefined}
+								tabindex={date === focusDay ? 0 : -1}
+								class="rounded-sm"
+							>
+								<!-- Named from this text, not aria-label: the drawn day's visible words
+								     (number, value, level) then needn't be one phrase of it (WCAG 2.5.3). -->
+								<span class="sr-only" data-name>{name(state, selected)}</span>
+								<div aria-hidden="true" class="h-full">
+									{@render cell(state, { focused: date === focusDay, selected })}
+								</div>
+							</div>
+						{:else}
+							<div role="gridcell"></div>
+						{/if}
+					{/each}
+				</div>
+			{/each}
+		</div>
+	{/each}
+</div>

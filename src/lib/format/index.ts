@@ -83,6 +83,27 @@ export function formatWeekdayDate(date: string, locale: string = LOCALE): string
 	}).format(new Date(pacificDay(date, 12).getTime()));
 }
 
+/** A calendar date with its weekday and month spelled out: "Friday, November 6". */
+export function formatLongWeekdayDate(date: string, locale: string = LOCALE): string {
+	return new Intl.DateTimeFormat(locale, {
+		timeZone: TIME_ZONE,
+		weekday: "long",
+		month: "long",
+		day: "numeric"
+	}).format(new Date(pacificDay(date, 12).getTime()));
+}
+
+/** A calendar date's weekday alone: "Sunday", "Sun" or "S". */
+export function formatWeekday(
+	date: string,
+	style: "long" | "short" | "narrow",
+	locale: string = LOCALE
+): string {
+	return new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, weekday: style }).format(
+		new Date(pacificDay(date, 12).getTime())
+	);
+}
+
 /** An instant as a Pacific weekday and time ("Sat 1:42 PM"); PT label when the device differs. */
 export function formatWeekdayTime(
 	instant: Date,
