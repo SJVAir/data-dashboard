@@ -256,11 +256,11 @@ test("today with no value yet says No data so far", async () => {
 	expect(visibleText("2026-11-09")).toEqual(["9", "No data so far"]);
 });
 
-test("a small calendar shows the level's tier number instead of its label", async () => {
+test("a small calendar shows the level's position in the scale instead of its label", async () => {
 	frame.style.width = "240px";
 	await show(calendar());
-	expect(visibleText("2026-11-06")).toEqual(["6", "31.9", "1"]);
-	expect(visibleText("2026-11-01")).toEqual(["1", "5", "0"]);
+	expect(visibleText("2026-11-06")).toEqual(["6", "31.9", "2"]);
+	expect(visibleText("2026-11-01")).toEqual(["1", "5", "1"]);
 	// The name still carries the label.
 	expect(cellOf("2026-11-06")!.querySelector("[data-name]")!.textContent).toBe(NOV_6_NAME);
 });
@@ -348,16 +348,17 @@ function wordsWhole(el: HTMLElement): boolean {
 	return true;
 }
 
-test("long labels wrap at spaces only, and give way to the tier number when they don't fit", async () => {
+test("long labels wrap at spaces only, and give way to the level's number when they don't fit", async () => {
 	days["2026-11-06"] = 44.8;
 	days["2026-11-07"] = 81.8;
-	// The default 4-column widget's width: "Sensitive" doesn't fit a cell, so every day shows its tier.
+	// The default 4-column widget's width: "Sensitive" doesn't fit a cell, so every day shows its
+	// level's number.
 	frame.style.width = "388px";
 	frame.style.height = "444px";
 	await show(calendar());
-	await expect.poll(() => visibleText("2026-11-06")).toEqual(["6", "44.8", "2"]);
-	expect(visibleText("2026-11-07")).toEqual(["7", "81.8", "3"]);
-	expect(visibleText("2026-11-05")).toEqual(["5", "20", "1"]);
+	await expect.poll(() => visibleText("2026-11-06")).toEqual(["6", "44.8", "3"]);
+	expect(visibleText("2026-11-07")).toEqual(["7", "81.8", "4"]);
+	expect(visibleText("2026-11-05")).toEqual(["5", "20", "2"]);
 	expect(cellOf("2026-11-06")!.querySelector("[data-name]")!.textContent).toBe(
 		"Friday, November 6: 24-hour average 44.8 µg/m³, Unhealthy for Sensitive Groups"
 	);
@@ -382,9 +383,12 @@ test("long labels wrap at spaces only, and give way to the tier number when they
 	}
 });
 
-test("while days show tier numbers, the legend says which number is which level", async () => {
+test("while days show numbers, the legend says which is which, one number per level", async () => {
+	// Very Unhealthy and Hazardous share a tier here, as on some scales: their numbers still differ.
+	levels = PM25_LEVELS.map((l) => (l.key === "hazardous" ? { ...l, tier: 4 } : l));
+	days["2026-11-05"] = 150;
 	days["2026-11-06"] = 44.8;
-	days["2026-11-07"] = 81.8;
+	days["2026-11-07"] = 300;
 	const chips = () =>
 		[...frame.querySelectorAll("[data-calendar-legend] [data-level-chip]")].map((c) =>
 			c.textContent!.trim()
@@ -392,22 +396,32 @@ test("while days show tier numbers, the legend says which number is which level"
 	frame.style.width = "388px";
 	frame.style.height = "444px";
 	await show(calendar());
-	await expect.poll(() => visibleText("2026-11-06")).toEqual(["6", "44.8", "2"]);
+	await expect.poll(() => visibleText("2026-11-06")).toEqual(["6", "44.8", "3"]);
+	expect(visibleText("2026-11-05")).toEqual(["5", "150", "5"]);
+	expect(visibleText("2026-11-07")).toEqual(["7", "300", "6"]);
 	await expect
 		.poll(chips)
 		.toEqual([
-			"0 · Good",
-			"1 · Moderate",
-			"2 · Unhealthy for Sensitive Groups",
-			"3 · Unhealthy",
-			"4 · Very Unhealthy"
+			"1 · Good",
+			"2 · Moderate",
+			"3 · Unhealthy for Sensitive Groups",
+			"4 · Unhealthy",
+			"5 · Very Unhealthy",
+			"6 · Hazardous"
 		]);
 	// Wide enough for the words: the chips are just the labels.
 	frame.style.width = "1150px";
 	frame.style.height = "700px";
 	await expect
 		.poll(chips)
-		.toEqual(["Good", "Moderate", "Unhealthy for Sensitive Groups", "Unhealthy", "Very Unhealthy"]);
+		.toEqual([
+			"Good",
+			"Moderate",
+			"Unhealthy for Sensitive Groups",
+			"Unhealthy",
+			"Very Unhealthy",
+			"Hazardous"
+		]);
 });
 
 for (const theme of ["light", "dark"] as const) {

@@ -11,10 +11,16 @@
 
 	const data = new CalendarData(() => widget);
 	const sel = new CalendarSelection(useApp(), () => widget, data);
-	let fit = $state<"label" | "tier">("tier");
+	let fit = $state<"label" | "number">("number");
 </script>
 
-<CalendarShell {data} {widget} selection={sel.shown} dragging={sel.dragging} tiers={fit === "tier"}>
+<CalendarShell
+	{data}
+	{widget}
+	selection={sel.shown}
+	dragging={sel.dragging}
+	numbered={fit === "number"}
+>
 	{#snippet grid()}
 		<MonthGrid
 			{data}

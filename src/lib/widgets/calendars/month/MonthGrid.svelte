@@ -26,7 +26,7 @@
 		label,
 		dragging = $bindable(false),
 		preview = $bindable(null),
-		fit = $bindable("tier")
+		fit = $bindable("number")
 	}: {
 		data: CalendarData;
 		selection: DaySpan | null;
@@ -34,8 +34,11 @@
 		label: string;
 		dragging?: boolean;
 		preview?: DaySpan | null;
-		/** Whether the days show their words, or tier numbers (the legend then names them). */
-		fit?: "label" | "tier";
+		/**
+		 * Whether the days show their words, or each level's position in the scale (1 for the
+		 * first; the legend then says which number is which level).
+		 */
+		fit?: "label" | "number";
 	} = $props();
 
 	/**
@@ -87,6 +90,15 @@
 		return { dashed: s.kind === "today" || s.kind === "pending" };
 	}
 
+	/**
+	 * A level's position in the scale, 1 for the first (the user, 2026-11-09): every level has its
+	 * own number, unlike `tier`, which levels can share.
+	 */
+	const levelNumber = (level: { key: string }): string | null => {
+		const i = data.levels.findIndex((l) => l.key === level.key);
+		return i < 0 ? null : formatNumber(i + 1);
+	};
+
 	/** Text on a solid backing inside a striped cell, legible over the stripes (WCAG 1.4.3). */
 	const BACKED = "bg-muted -mx-0.5 w-fit rounded-xs px-0.5";
 
@@ -110,7 +122,7 @@
 	});
 
 	/**
-	 * Whether the days show their words, or the tier number (and short stand-ins) instead: words
+	 * Whether the days show their words, or the level's number (and short stand-ins) instead: words
 	 * only when every one fits its cell whole, wrapping at spaces. Measured, as labels come from
 	 * metadata and may be translated; again whenever the cells change size.
 	 */
@@ -121,7 +133,7 @@
 		if (!el) return;
 		const measure = () => {
 			const cells = el.querySelectorAll<HTMLElement>("[data-cell]");
-			if (cells.length) fit = wordsFit(cells, words) ? "label" : "tier";
+			if (cells.length) fit = wordsFit(cells, words) ? "label" : "number";
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
@@ -165,7 +177,7 @@
 
 {#snippet day(s: DayState, flags: { focused: boolean; selected: boolean })}
 	{@const l = look(s)}
-	{@const tier = s.level?.tier}
+	{@const position = s.level ? levelNumber(s.level) : null}
 	<div
 		data-cell
 		data-dashed={l.dashed ? "" : undefined}
@@ -195,7 +207,7 @@
 		{#if s.kind === "rated"}
 			{#if s.value !== null}<span data-value>{num(s.value)}</span>{/if}
 			{#if s.level}
-				{@render words(s.level.label, tier != null ? formatNumber(tier) : s.level.label)}
+				{@render words(s.level.label, position ?? s.level.label)}
 			{/if}
 		{:else if s.kind === "today"}
 			{#if s.value !== null}
@@ -203,7 +215,7 @@
 				{#if s.level}
 					{@render words(
 						m.calendar_day_level_so_far({ level: s.level.label }),
-						tier != null ? formatNumber(tier) : s.level.label
+						position ?? s.level.label
 					)}
 				{/if}
 			{:else}

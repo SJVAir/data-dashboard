@@ -11,7 +11,7 @@
 		states,
 		threshold,
 		patterns,
-		tiers = false
+		numbered = false
 	}: {
 		levels: Level[];
 		states: Map<string, DayState>;
@@ -21,8 +21,11 @@
 		 * swatch, with the tier pattern when on). Unset: each level is a labelled chip.
 		 */
 		patterns?: boolean;
-		/** The month calendar's days show tier numbers: each chip says its level's ("2 · …"). */
-		tiers?: boolean;
+		/**
+		 * The month calendar's days show each level's position in the scale: each chip says its
+		 * number ("3 · Unhealthy for Sensitive Groups").
+		 */
+		numbered?: boolean;
 	} = $props();
 
 	/** The scale's levels up to one above the highest a colored day shows; none if none does. */
@@ -64,8 +67,11 @@
 				<LevelChip
 					{level}
 					size="sm"
-					text={tiers && level.tier != null
-						? m.calendar_legend_tier({ tier: formatNumber(level.tier), level: level.label })
+					text={numbered
+						? m.calendar_legend_position({
+								position: formatNumber(levels.indexOf(level) + 1),
+								level: level.label
+							})
 						: undefined}
 				/>
 			</li>

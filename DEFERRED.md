@@ -1735,6 +1735,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     `wasDefault`). **Revisit if** someone loses a chosen 30-day range that way.
   - **Get data keeps one note slot:** a range note replaces an earlier conversion note.
     **Revisit if** both are needed at once.
+  - **`moveFocus` assumes the selectable days run first ≤ last.** Today a range with no selectable
+    day (all still to come) sets `selectable: null`, so the grid never calls it then. **Revisit
+    if** `selectable` is ever built another way, or with the next keyboard-navigation change (add
+    the guard and a test).
   - **Code tidying:** the hardcoded ring widths in the selection shadow (token discipline, low
     risk), the year calendar's `pt-5.5` label offset, the `$derived.by` comment in
     `calendar-data.svelte.ts` stating a cause as fact, the `hidden: 0` that wants a comment, the
