@@ -423,7 +423,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   `current/`, `at/`, alerts); that needs a caller list and tests pinning each caller's rows.
   A likely candidate (sjvair.com #327's measurements, 2026-11-10): `pm25/current/` cache misses still
   take about 950 ms with 4 queries locally, probably the same join plus `filter_healthy`; it's
-  prewarmed, so most readers hit the cache.
+  prewarmed, so most readers hit the cache. Its join was replaced in `CurrentData` by #328
+  (2026-11-10), but JIT still fires on the new `current/` plans for about 25–50 ms (cost
+  320k–410k), so this entry still covers it.
   **Revisit when** the post-deploy check shows production has JIT on, or another endpoint's
   `EXPLAIN` shows JIT time dominating.
 - **`with_latest_entry()` picks a `LatestEntry` row without an order (sjvair.com).** _Deferred
@@ -443,6 +445,12 @@ string`) now get the union return type. The mobile app passes a string token, so
   `CurrentData`) sidesteps it for those two endpoints. **Revisit when** another large streaming
   endpoint (such as entries JSON lists) shows slow body time, or at the next resticus release
   work.
+- **Flaky CIMIS restamp tests: `--monitor` passed as two arguments (sjvair.com).** _Deferred
+  2026-11-10 (found by the closest-monitor session while testing #326–#328)._
+  `camp/apps/monitors/cimis/test_restamp.py` calls `call_command('restamp_cimis', '--monitor',
+monitor.pk, ...)` in several tests (`RestampCommandTests`), so a random id starting with `-`
+  (about 1 run in 64) makes argparse fail. Fix: `f'--monitor={monitor.pk}'`, per sjvair.com's
+  own CLAUDE.md rule. **Revisit when** the restamp tests are next touched, or on a CI flake.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
