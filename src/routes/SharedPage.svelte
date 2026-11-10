@@ -5,6 +5,7 @@
 	import { askExistingCopy, openNotifications } from "$lib/components/dialogs/lazy.svelte";
 	import MadeByBar from "$lib/components/shared/MadeByBar.svelte";
 	import { Button } from "$lib/components/ui/button";
+	import { forViewers } from "$lib/notes/options";
 	import { m } from "$lib/paraglide/messages.js";
 	import { loadLazy } from "$lib/safety/lazy";
 	import { SharedDocumentView, type SharedView } from "$lib/shared/poll.svelte";
@@ -30,6 +31,8 @@
 	let busy = $state(false);
 
 	const view = $derived<SharedView>(shared?.doc.view ?? { kind: "loading" });
+	// Without the welcome Note: it tells the owner what to do, not a viewer.
+	const viewerDoc = $derived(view.kind === "shown" ? forViewers(view.doc) : null);
 	// Each viewer's own desktop notifications switch, once a widget here has an alert level.
 	const watched = $derived(view.kind === "shown" && view.doc.body.widgets.some(watchesThresholds));
 
@@ -130,7 +133,9 @@
 			<Button variant="outline" disabled={busy} onclick={makeCopy}>{m.shared_make_copy()}</Button>
 		</div>
 	</div>
-	<DashboardGrid view={view.doc} />
+	{#if viewerDoc}
+		<DashboardGrid view={viewerDoc} />
+	{/if}
 {:else}
 	<div class="flex flex-col items-start gap-2 p-4">
 		<h1 class="text-primary text-lg font-semibold">{message}</h1>

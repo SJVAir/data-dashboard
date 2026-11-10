@@ -21,7 +21,9 @@
 		viewer === "owner" && !!app?.current.session && !app.current.session.readOnly
 	);
 
-	const markdown = $derived(noteMarkdown(noteOptions(widget)));
+	const options = $derived(noteOptions(widget));
+	// A built-in message is written for the owner, so a view that can't edit shows nothing.
+	const markdown = $derived("message" in options && !editable ? "" : noteMarkdown(options));
 	const blocks = $derived(toNoteBlocks(markdown));
 
 	/** Double-clicking an empty Note that can be edited opens its editor. */

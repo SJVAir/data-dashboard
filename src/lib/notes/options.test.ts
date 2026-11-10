@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { NOTE_TEXT_MAX, NOTE_TYPE, NoteOptionsSchema, noteOptions } from "./options";
+import {
+	forViewers,
+	isMessageNote,
+	NOTE_TEXT_MAX,
+	NOTE_TYPE,
+	NoteOptionsSchema,
+	noteOptions
+} from "./options";
+import type { Dashboard } from "$lib/documents/schema";
 
 function widget(options?: Record<string, unknown>): WidgetInstance {
 	return {
@@ -37,5 +45,26 @@ describe("noteOptions", () => {
 	it("falls back to empty text", () => {
 		expect(noteOptions(widget())).toEqual({ text: "" });
 		expect(noteOptions(widget({ nope: 1 }))).toEqual({ text: "" });
+	});
+});
+
+describe("forViewers", () => {
+	const welcome = { ...widget({ message: "starter_note_welcome" }), id: "welcome" };
+	const typed = { ...widget({ text: "Bring water" }), id: "typed" };
+	const chart = { ...widget(), id: "chart", type: "chart" } as WidgetInstance;
+	const doc = (widgets: WidgetInstance[]) =>
+		({ id: "d1", body: { widgets, placeBar: null } }) as unknown as Dashboard;
+
+	it("leaves out only built-in message Notes", () => {
+		expect(isMessageNote(welcome)).toBe(true);
+		expect(isMessageNote(typed)).toBe(false);
+		expect(isMessageNote(chart)).toBe(false);
+		const shown = forViewers(doc([welcome, typed, chart]));
+		expect(shown.body.widgets.map((w) => w.id)).toEqual(["typed", "chart"]);
+		expect(shown.body).toMatchObject({ placeBar: null });
+	});
+	it("returns the same document when there's nothing to leave out", () => {
+		const d = doc([typed, chart]);
+		expect(forViewers(d)).toBe(d);
 	});
 });

@@ -91,7 +91,11 @@ test("markup in the text stays inert", async () => {
 });
 
 test("the welcome message shows its text", async () => {
-	const screen = await render(NoteWidget, { widget: note({ message: "starter_note_welcome" }) });
+	const { context } = await editableApp();
+	const screen = await render(NoteWidget, {
+		props: { widget: note({ message: "starter_note_welcome" }) },
+		context
+	});
 	await expect.element(screen.getByText("Welcome to the SJVAir Dashboard.")).toBeInTheDocument();
 	expect(screen.container.querySelector("strong")).not.toBeNull();
 });
@@ -122,6 +126,24 @@ test("an empty Note shows no hint on a read-only dashboard, reactively", async (
 test("an empty Note shows nothing when read-only (a shared link)", async () => {
 	const screen = await render(SharedHarness, { widget: note({ text: "" }) });
 	expect(screen.container.textContent?.trim()).toBe("");
+});
+
+test("the welcome message shows to the owner, not on a shared or read-only view", async () => {
+	const welcome = note({ message: "starter_note_welcome" });
+	const { context, session } = await editableApp();
+	const owner = await render(NoteWidget, { props: { widget: welcome }, context });
+	await expect.element(owner.getByText("Welcome to the SJVAir Dashboard.")).toBeInTheDocument();
+	session.readOnly = "invalid";
+	await expect.poll(() => owner.container.textContent?.trim()).toBe("");
+	owner.unmount();
+
+	const shared = await render(SharedHarness, { widget: welcome });
+	expect(shared.container.textContent?.trim()).toBe("");
+	shared.unmount();
+
+	// A Note's own text always shows.
+	const typed = await render(SharedHarness, { widget: note({ text: "Bring water" }) });
+	await expect.element(typed.getByText("Bring water")).toBeInTheDocument();
 });
 
 test("long text scrolls inside the widget", async () => {
