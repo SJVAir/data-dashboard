@@ -33,9 +33,10 @@ export type DocumentSessionOptions = {
 	now?: () => Date;
 	/**
 	 * Called with the first edit instead of applying it here (the starter dashboard, which is
-	 * never stored). It returns the session that took the edit; later edits go there too.
+	 * never stored), or with `null` from `handOff` (a copy with no edit, for sharing). It returns
+	 * the session that took the edit; later edits go there too.
 	 */
-	onBeforeFirstEdit?: (change: Change) => Promise<DocumentSession | null>;
+	onBeforeFirstEdit?: (change: Change | null) => Promise<DocumentSession | null>;
 	/**
 	 * Storage holds a document or log entry from a newer format than this app knows (another
 	 * tab runs a newer version). The session suspends itself right after.
@@ -276,6 +277,19 @@ export class DocumentSession {
 	 */
 	get handoff(): Promise<DocumentSession | null> | null {
 		return this.#handoff;
+	}
+
+	/**
+	 * Hands a starter off to its copy now, with no edit (sharing it first makes the copy): the
+	 * copy, or `null` if it failed or there is nothing to hand off. A hand-off already started
+	 * (or finished) gives its copy.
+	 */
+	handOff(): Promise<DocumentSession | null> {
+		if (this.#successor) return Promise.resolve(this.#successor);
+		if (this.#handoff) return this.#handoff;
+		if (!this.#onBeforeFirstEdit || this.readOnly || this.#stopped) return Promise.resolve(null);
+		this.#startHandoff();
+		return this.#handoff!;
 	}
 
 	/** The session this one's edits land in: itself, or the copy a starter handed off to. */
@@ -657,23 +671,27 @@ export class DocumentSession {
 		if (!this.#handoff) this.#startHandoff();
 	}
 
-	/** Offer the oldest queued edit to the hook; the rest follow it to the session it returns. */
+	/**
+	 * Offer the oldest queued edit to the hook (none: `handOff`'s copy with no edit); the rest
+	 * follow it to the session it returns.
+	 */
 	#startHandoff(): void {
 		const hook = this.#onBeforeFirstEdit!;
 		this.#onBeforeFirstEdit = undefined;
+		const first = this.#queued.length > 0 ? this.#queued[0] : null;
 		const reset = () => {
 			// Nobody took the edits: they stay queued, and the next edit tries again.
 			this.#handoff = null;
 			this.#onBeforeFirstEdit = hook;
 		};
-		this.#handoff = hook(this.#queued[0]).then(
+		this.#handoff = hook(first).then(
 			(successor) => {
 				if (!successor) {
 					reset();
 					return null;
 				}
 				// Taken all at once, so they reach the successor before any edit made on it.
-				const rest = this.#queued.slice(1);
+				const rest = this.#queued.slice(first ? 1 : 0);
 				this.#queued = [];
 				this.#successor = successor;
 				this.status = "saved";

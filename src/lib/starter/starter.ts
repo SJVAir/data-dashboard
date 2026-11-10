@@ -146,14 +146,14 @@ export type StarterSessionOptions = {
 	now?: () => Date;
 	/** The place the starter shows (the space's chosen place); its copy keeps it. */
 	place: ChosenPlace;
-	/** Called once the copy is stored, holding the first edit. */
+	/** Called once the copy is stored, holding the first edit (if one started the hand-off). */
 	onCopied?: (copy: DocumentSession) => void;
 } & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared" | "onEdit">;
 
 /**
- * A session showing the starter at `place`. Its first edit stores `copyOfStarter` (validated), applies the edit to
- * the copy's session (so undo reverts the edit but keeps the copy), and hands later edits to
- * that session.
+ * A session showing the starter at `place`. Its first edit, or `handOff()` (sharing it), stores
+ * `copyOfStarter` (validated), applies the edit to the copy's session (so undo reverts the edit
+ * but keeps the copy), and hands later edits to that session.
  */
 export function starterSession(opts: StarterSessionOptions): DocumentSession {
 	const { platform, space, tabId, channel, debounceMs, place, now = () => new Date() } = opts;
@@ -198,7 +198,7 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 				onCleared,
 				onEdit
 			});
-			copy.apply(change);
+			if (change) copy.apply(change);
 			opts.onCopied?.(copy);
 			// Not awaited: edits queued on the starter during the hand-off must reach the copy
 			// before any edit made on it directly, now that it's current.

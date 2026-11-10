@@ -128,8 +128,8 @@ export type SharePoints = {
 
 export type ShareOptions = {
 	/**
-	 * The dashboard a live link shares; `null` signed out, for the starter, or for a read-only
-	 * dashboard (the copy link and file only).
+	 * The dashboard a live link shares; `null` signed out or for a read-only dashboard (the copy
+	 * link and file only). The starter is copied before it's shared.
 	 */
 	live: { docId: string } | null;
 } & (

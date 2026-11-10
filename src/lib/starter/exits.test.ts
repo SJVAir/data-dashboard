@@ -2,14 +2,19 @@
  * Every way out of the starter (its first edit, "New from starter", Duplicate, Export) gives a
  * document at the chosen place, with the bar, that passes `DashboardSchema`.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChosenPlace } from "$lib/data/schema";
 import { DashboardSchema, type Dashboard } from "$lib/documents/schema";
 import { addFromDraft } from "$lib/get-data/add";
 import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform } from "$lib/platform/memory";
-import { exportDashboard } from "$lib/sharing/actions";
-import { initApp } from "$lib/store/app.svelte";
+import { openShare, type ShareOptions } from "$lib/components/dialogs/lazy.svelte";
+import { exportDashboard, shareDashboard } from "$lib/sharing/actions";
+import { parseLinkFragment } from "$lib/sharing/incoming";
+import { m } from "$lib/paraglide/messages.js";
+import { toast } from "svelte-sonner";
+import type { SyncWorker } from "$lib/sync/worker.svelte";
+import { LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { DEFAULT_LAYER } from "$lib/widgets/defaults";
 import { writeSelection } from "$lib/widgets/calendars/shared/write-selection";
@@ -20,8 +25,15 @@ import { STARTER_ID } from "./starter";
 vi.mock("../../router", () => ({ navigate: vi.fn() }));
 vi.mock("$lib/components/dialogs/lazy.svelte", () => ({ openShare: vi.fn() }));
 vi.mock("svelte-sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+// Any point is in ZIP 93721.
+vi.mock("$lib/data", async (importOriginal) => ({
+	...(await importOriginal<typeof import("$lib/data")>()),
+	placeRegion: vi.fn(async () => ({ type: "zipcode", code: "93721" }))
+}));
 
 const SCHOOL: ChosenPlace = { kind: "location", source: "schools", code: "123" };
+const POINT: ChosenPlace = { kind: "point", lat: 36.7378, lon: -119.7871 };
+const ZIP: ChosenPlace = { kind: "region", type: "zipcode", code: "93721" };
 
 /** The app, with `place` saved as the starter's place first (none: unset). */
 async function setup(place?: ChosenPlace) {
@@ -141,6 +153,112 @@ describe("every exit from the starter holds the chosen place", () => {
 		expect(DashboardSchema.safeParse({ ...doc, ...local }).success).toBe(true);
 		expect(doc.body.placeBar).toEqual({ place: SCHOOL });
 		expect(JSON.stringify(doc)).not.toContain("default-place");
+		// No copy is made: the starter stays the starter.
+		expect(app.current.session).toBe(starter);
+		expect(app.current.isStarter).toBe(true);
+		expect(await platform.documents.list("anonymous")).toHaveLength(0);
+	});
+
+	it("Export at my location gives the region, in every layer and the bar", async () => {
+		const { platform, app } = await setup(POINT);
+		const starter = (await app.sessions.get(STARTER_ID))!;
+		app.current = { session: starter, isStarter: true };
+		await exportDashboard(app);
+		const file = JSON.parse(platform.files.saved[0].contents) as { documents: Dashboard[] };
+		const doc = file.documents[0];
+		expect(doc.body.placeBar).toEqual({ place: ZIP });
+		expect(JSON.stringify(doc)).not.toContain('"kind":"point"');
+		expect(await platform.documents.list("anonymous")).toHaveLength(0);
+	});
+});
+
+describe("sharing the starter copies it first", () => {
+	beforeEach(() => {
+		vi.mocked(openShare).mockClear();
+		vi.stubGlobal("location", { origin: "https://example.test" });
+	});
+	afterEach(() => vi.unstubAllGlobals());
+
+	const shared = () => vi.mocked(openShare).mock.calls.at(-1)![0] as ShareOptions;
+	const linked = async (url: string | null) => {
+		const incoming = await parseLinkFragment(url!.split("#")[1], new Date());
+		if (incoming.kind !== "document") throw new Error("not a document link");
+		return incoming.doc;
+	};
+
+	it("stores a copy, makes it current, and shares the copy", async () => {
+		const { platform, app } = await setup(SCHOOL);
+		const starter = (await app.sessions.get(STARTER_ID))!;
+		app.current = { session: starter, isStarter: true };
+		await shareDashboard(app);
+		expect(app.current.isStarter).toBe(false);
+		const copy = app.current.session!;
+		expect(copy).not.toBe(starter);
+		expectFromStarter(await stored(platform, copy.doc.id), SCHOOL);
+		expect(await platform.documents.list("anonymous")).toHaveLength(1);
+		expect(await app.sessions.get(copy.doc.id)).toBe(copy);
+		// The next visit to the starter gets a fresh one.
+		expect(await app.sessions.get(STARTER_ID)).not.toBe(starter);
+		expect(await platform.preferences.get("anonymous", LAST_OPENED_KEY)).toBe(copy.doc.id);
+		expect(openShare).toHaveBeenCalledTimes(1);
+		const opts = shared();
+		// Signed out: no live link.
+		expect(opts.live).toBeNull();
+		const doc = await linked("url" in opts ? (opts.url ?? null) : null);
+		expect(doc.body.placeBar).toEqual({ place: SCHOOL });
+		expect(JSON.stringify(doc)).not.toContain("default-place");
+	});
+
+	it("with an account, the copy can be shared live", async () => {
+		const { app } = await setup(SCHOOL);
+		const starter = (await app.sessions.get(STARTER_ID))!;
+		app.current = { session: starter, isStarter: true };
+		app.sync = {} as SyncWorker;
+		await shareDashboard(app);
+		const copy = app.current.session!;
+		expect(shared().live).toEqual({ docId: copy.doc.id });
+	});
+
+	it("at my location: the copy keeps the point; the link has the region, bar included", async () => {
+		const { platform, app } = await setup(POINT);
+		const starter = (await app.sessions.get(STARTER_ID))!;
+		app.current = { session: starter, isStarter: true };
+		await shareDashboard(app);
+		const copy = app.current.session!;
+		const mine = await stored(platform, copy.doc.id);
+		expect(mine.body.placeBar).toEqual({ place: POINT });
+		const opts = shared();
+		if (!("points" in opts) || !opts.points) throw new Error("expected the points prompt");
+		const { swapped, exact } = await opts.points(new AbortController().signal);
+		const doc = await linked(swapped.url);
+		expect(doc.body.placeBar).toEqual({ place: ZIP });
+		expect(JSON.stringify(doc)).not.toContain('"kind":"point"');
+		expect((await linked(exact.url)).body.placeBar).toEqual({ place: POINT });
+	});
+
+	it("an edit made while the copy is made reaches the copy", async () => {
+		const { platform, app } = await setup();
+		const starter = (await app.sessions.get(STARTER_ID))!;
+		app.current = { session: starter, isStarter: true };
+		const sharing = shareDashboard(app);
+		starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+		await sharing;
+		const copy = app.current.session!;
+		expect(copy.doc.name).toBe("Mine");
+		await copy.flush();
+		expect(await platform.documents.list("anonymous")).toHaveLength(1);
+		expect((await stored(platform, copy.doc.id)).name).toBe("Mine");
+	});
+
+	it("shares nothing when the copy can't be stored", async () => {
+		const { platform, app } = await setup();
+		const starter = (await app.sessions.get(STARTER_ID))!;
+		app.current = { session: starter, isStarter: true };
+		vi.spyOn(platform.documents, "commit").mockResolvedValue({ ok: false } as never);
+		await shareDashboard(app);
+		expect(app.current.session).toBe(starter);
+		expect(openShare).not.toHaveBeenCalled();
+		expect(toast.error).toHaveBeenCalledWith(m.share_failed());
 	});
 });
 

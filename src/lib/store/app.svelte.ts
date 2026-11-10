@@ -68,6 +68,14 @@ export type AppContext = {
 	 * started its hand-off gives its copy the bar's change instead (an ordinary, undoable edit).
 	 */
 	changeStarterPlace(place: ChosenPlace): Promise<void>;
+	/**
+	 * Makes the shown starter this person's own dashboard with no edit (sharing it first makes
+	 * the copy), through the same hand-off as its first edit: the copy is stored (validated) and
+	 * made current, and the page showing the starter moves to its URL with the "Saved as your own
+	 * dashboard" toast. Resolves to the copy's session; `null` when the starter isn't shown or
+	 * the copy couldn't be stored.
+	 */
+	copyStarter(): Promise<DocumentSession | null>;
 	/** This tab's sync worker in an account space (`null`: not syncing). */
 	sync: SyncWorker | null;
 	/** The sessions this tab has open (the starter's included). */
@@ -389,6 +397,14 @@ class App implements AppContext {
 			// Shown for now; the next visit shows the place saved before.
 			report(error, { operation: "starter-place" });
 		}
+	}
+
+	async copyStarter(): Promise<DocumentSession | null> {
+		const { session, isStarter } = this.current;
+		if (!session || !isStarter) return null;
+		const copy = await session.handOff();
+		// Not kept (the data was cleared meanwhile): nothing to share.
+		return copy && this.#live.get(copy.doc.id) === copy ? copy : null;
 	}
 
 	#starter(): DocumentSession {
