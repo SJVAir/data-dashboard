@@ -52,7 +52,7 @@ async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 		if (!session) return null;
 		if (isStarter)
 			return {
-				doc: starterDashboard(),
+				doc: starterDashboard(app.starterPlace),
 				name: currentDashboardName(app) ?? "",
 				readOnly: false,
 				isStarter: true,

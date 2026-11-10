@@ -1,6 +1,7 @@
 import { loadDashboard } from "$lib/documents/load";
 import { displayNames, type DashboardSummary } from "$lib/documents/names";
-import type { Dashboard } from "$lib/documents/schema";
+import type { ChosenPlace } from "$lib/data/schema";
+import { DashboardSchema, type Dashboard } from "$lib/documents/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { forgetDocument } from "$lib/sharing/fingerprints";
 import {
@@ -200,15 +201,21 @@ export class DashboardIndex {
 		return this.#create(blankDashboard(this.#now()));
 	}
 
-	createFromStarter(): Promise<string> {
-		return this.#create(copyOfStarter(this.#now()));
+	/** "New from starter": the starter at `place` (the space's chosen place). */
+	createFromStarter(place: ChosenPlace): Promise<string> {
+		return this.#create(copyOfStarter(this.#now(), place));
 	}
 
-	/** Copies the stored document (callers flush its session first), or the starter. */
-	async duplicate(id: string): Promise<string> {
+	/**
+	 * Copies the stored document (callers flush its session first), or the starter at
+	 * `starterPlace` (required for `STARTER_ID`).
+	 */
+	async duplicate(id: string, starterPlace?: ChosenPlace): Promise<string> {
 		let source: Dashboard;
-		if (id === STARTER_ID) source = starterDashboard();
-		else {
+		if (id === STARTER_ID) {
+			if (!starterPlace) throw new Error("Duplicating the starter needs its place");
+			source = starterDashboard(starterPlace);
+		} else {
 			const loaded = loadDashboard(await this.#platform.documents.get(this.#space, id));
 			if (loaded.status !== "ok") throw new Error(`Dashboard ${id} can't be duplicated`);
 			source = loaded.doc;
@@ -226,6 +233,9 @@ export class DashboardIndex {
 	}
 
 	async #create(doc: Dashboard): Promise<string> {
+		// Storage doesn't validate: a document that mustn't be stored (`default-place`) fails here.
+		const valid = DashboardSchema.safeParse(doc);
+		if (!valid.success) throw new Error(`Dashboard ${doc.id} is invalid: ${valid.error.message}`);
 		const result = await this.#platform.documents.commit(this.#space, {
 			docId: doc.id,
 			baseVersion: null,

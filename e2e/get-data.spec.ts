@@ -9,6 +9,7 @@ import { expect, test } from "./fixtures";
 import {
 	CHART_TITLE,
 	DASHBOARD_URL,
+	STARTER_TITLES,
 	addToButton,
 	addWidget,
 	expectSaved,
@@ -21,6 +22,7 @@ import {
 } from "./helpers";
 
 const GET_DATA = { level: 1, name: "Get data" } as const;
+const STARTER = STARTER_TITLES.length;
 
 /** The CSV `page`'s Download CSV button saves, as rows of cells (simple: no quoted commas). */
 async function downloadCsv(page: Page): Promise<Record<string, string>[]> {
@@ -36,7 +38,7 @@ async function downloadCsv(page: Page): Promise<Record<string, string>[]> {
 test("Data nav → Add to dashboard lands highlighted, Undo removes it", async ({ page }) => {
 	await makeOwnCopy(page);
 	const dashboardUrl = page.url();
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER);
 
 	await nav(page).getByRole("link", { name: "Data", exact: true }).click();
 	await expect(page).toHaveURL(/\/workspace\/data$/);
@@ -46,7 +48,7 @@ test("Data nav → Add to dashboard lands highlighted, Undo removes it", async (
 
 	await page.getByRole("button", { name: "Add to My dashboard", exact: true }).click();
 	await expect(page).toHaveURL(dashboardUrl);
-	await expect(widgetTitles(page)).toHaveCount(4);
+	await expect(widgetTitles(page)).toHaveCount(STARTER + 1);
 	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
 	// Briefly highlighted, and focused.
 	const added = page.locator("[data-added]");
@@ -58,10 +60,10 @@ test("Data nav → Add to dashboard lands highlighted, Undo removes it", async (
 
 	// One undo step.
 	await page.keyboard.press("Control+z");
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER);
 	await expectSaved(page);
 	await page.reload();
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER);
 });
 
 test("Edit data → Save changes, Undo restores", async ({ page }) => {
@@ -69,7 +71,8 @@ test("Edit data → Save changes, Undo restores", async ({ page }) => {
 	await addWidget(page, "Chart");
 	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
 
-	await widgetMenuItem(page, CHART_TITLE, "Edit data");
+	// The one just added, after the starter's own Chart.
+	await widgetMenuItem(page, CHART_TITLE, "Edit data", 1);
 	await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeFocused();
 	await page.getByRole("button", { name: /^Dates / }).click();
 	await page.getByRole("option", { name: "Last 7 days" }).click();
@@ -77,14 +80,14 @@ test("Edit data → Save changes, Undo restores", async ({ page }) => {
 
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	const edited = "PM2.5 · Fresno County · Last 7 days";
-	await expect(widgetTitles(page)).toHaveCount(4);
+	await expect(widgetTitles(page)).toHaveCount(STARTER + 1);
 	await expect(widgetTitles(page).last()).toHaveText(edited);
 	await expect(titleBar(page, edited)).toBeFocused();
 
 	// Saving was one undo step; redo brings it back.
 	await page.keyboard.press("Control+z");
 	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
-	await expect(widgetTitles(page)).toHaveCount(4);
+	await expect(widgetTitles(page)).toHaveCount(STARTER + 1);
 	await page.keyboard.press("Control+Shift+z");
 	await expect(widgetTitles(page).last()).toHaveText(edited);
 });
@@ -116,7 +119,7 @@ test("Download CSV from the draft has overlay rows", async ({ page }) => {
 
 test("Add widget → Chart on the starter makes a copy", async ({ page }) => {
 	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER);
 	await page.getByRole("button", { name: "Add widget" }).click();
 	await page.getByRole("menuitem", { name: "Chart", exact: true }).click();
 	await expect(page).toHaveURL(/\/workspace\/dashboards\/starter\/widgets\/new\?type=chart$/);
@@ -126,7 +129,7 @@ test("Add widget → Chart on the starter makes a copy", async ({ page }) => {
 	await expect(addToButton(page)).toHaveText("Add to Starter dashboard");
 	await addToButton(page).click();
 	await expect(page).toHaveURL(DASHBOARD_URL);
-	await expect(widgetTitles(page)).toHaveCount(4);
+	await expect(widgetTitles(page)).toHaveCount(STARTER + 1);
 	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
 	await expect(nav(page).getByRole("button", { name: "My dashboard", exact: true })).toBeVisible();
 
@@ -134,7 +137,7 @@ test("Add widget → Chart on the starter makes a copy", async ({ page }) => {
 	await expectSaved(page);
 	await nav(page).getByRole("button", { name: "My dashboard", exact: true }).click();
 	await page.getByRole("menuitem", { name: "New from starter" }).click();
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
 });
 
 /** Opens a Get data section (Weather, Pesticide Use, …) by its heading. */
@@ -197,8 +200,11 @@ test("adds a temperature-only chart", async ({ page }) => {
 
 	await addToButton(page).click();
 	await expect(page).toHaveURL(DASHBOARD_URL);
-	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
-	await expect(page.getByText(/PM2\.5/)).toHaveCount(0);
+	// The one just added (the starter's own widgets show PM2.5).
+	const added = page.getByRole("group", { name: "Chart of Fresno County" }).last();
+	await expect(added).toBeVisible();
+	await expect(widgetTitles(page).last()).not.toContainText("PM2.5");
+	await expect(added.getByText(/PM2\.5/)).toHaveCount(0);
 });
 
 test("downloads a CSV with station and filter columns", async ({ page }) => {
@@ -317,7 +323,8 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(widgetTitles(page).last()).toHaveText(title);
 
-	await widgetMenuItem(page, title, "Edit data");
+	// The one just added, after the starter's own Current conditions.
+	await widgetMenuItem(page, title, "Edit data", 1);
 	await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeFocused();
 	await expect(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
 	await expect(page.getByRole("combobox", { name: "Alert level" })).toHaveValue(usg);

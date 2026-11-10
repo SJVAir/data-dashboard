@@ -10,6 +10,7 @@ import { StorageProtection } from "$lib/safety/protection.svelte";
 import { purgeExpired } from "$lib/safety/purge";
 import { report } from "$lib/safety/report";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
+import { defaultStarterPlace, readStarterPlace, type ChosenPlace } from "$lib/starter/place.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { hasPoints } from "$lib/sharing/point-layers";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -49,6 +50,11 @@ export type AppContext = {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
 	};
 	current: CurrentDashboard;
+	/**
+	 * The place the starter shows: the space's preference, read when the app opens and after
+	 * "Clear my data" (Fresno County when unset).
+	 */
+	starterPlace: ChosenPlace;
 	/** This tab's sync worker in an account space (`null`: not syncing). */
 	sync: SyncWorker | null;
 	/** The sessions this tab has open (the starter's included). */
@@ -105,6 +111,8 @@ class App implements AppContext {
 	current = $state<CurrentDashboard>({ session: null, isStarter: false });
 	sync = $state.raw<SyncWorker | null>(null);
 	resetCount = $state(0);
+	// Raw: places are cloned into documents, and a deep proxy can't be.
+	starterPlace = $state.raw<ChosenPlace>(defaultStarterPlace());
 	readonly index: DashboardIndex;
 	readonly protection: StorageProtection;
 	readonly account: AccountState;
@@ -328,6 +336,8 @@ class App implements AppContext {
 		this.#live.clear();
 		this.#open.clear();
 		this.current = { session: null, isStarter: false };
+		// Cleared with the rest: read again before the next starter is built.
+		this.starterPlace = await readStarterPlace(this.platform, this.space);
 		this.resetCount++;
 		await this.index.refresh();
 	}
@@ -342,6 +352,7 @@ class App implements AppContext {
 			channel: this.channel,
 			debounceMs,
 			now,
+			place: this.starterPlace,
 			...this.#guards,
 			onCopied: (copy) => {
 				// A hand-off that finished after the data was cleared mustn't come back.
@@ -411,6 +422,8 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	const identityKnown = identity.state !== "unknown" && spaceFor(identity) === space;
 	await housekeeping(() => tidySpaces(platform, space, now, { identityKnown }));
 	await housekeeping(() => purgeExpired(platform, space, now));
+	// Before the first starter session is built.
+	app.starterPlace = await readStarterPlace(platform, space);
 	await app.index.refresh();
 	await app.protection.refresh();
 	app.listen();

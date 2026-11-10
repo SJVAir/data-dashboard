@@ -16,6 +16,7 @@ import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
 import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
 import { animationsSettled } from "../../../test/animations";
+import { stubStarterTypes } from "./test-harness/stub-starter-types";
 
 const originalUrl = location.href;
 let removeUndo: (() => void) | null = null;
@@ -37,6 +38,7 @@ function widget(id: string, rect: Rect, title: string | null = null): WidgetInst
 async function seed(widgets: WidgetInstance[], onArrangement?: (a: Arrangement) => void) {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
 	await platform.documents.commit(app.space, {
@@ -354,13 +356,12 @@ test("phone column: arrows reorder", async () => {
 test("a keyboard drop on the starter keeps focus through the hand-off", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", "/workspace/");
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-2")).toBeVisible();
 	const starter = app.current.session!;
-	const first = page.getByTestId("widget-starter-1").getByRole("group");
+	const first = page.getByTestId("widget-starter-2").getByRole("group");
 	(first.element() as HTMLElement).focus();
 	await press("{Enter}");
 	await press("{ArrowRight}", 6);
@@ -370,10 +371,10 @@ test("a keyboard drop on the starter keeps focus through the hand-off", async ()
 	const copy = app.current.session!;
 	expect(copy.doc.copiedFrom).toBe("starter");
 	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
-	expect(copy.doc.body.widgets.find((w) => w.id === "starter-1")!.rect.x).toBe(6);
+	expect(copy.doc.body.widgets.find((w) => w.id === "starter-2")!.rect.x).toBe(6);
 	await expect
 		.poll(() => document.activeElement)
-		.toBe(page.getByTestId("widget-starter-1").getByRole("group").element());
+		.toBe(page.getByTestId("widget-starter-2").getByRole("group").element());
 });
 
 test("the window losing focus cancels", async () => {
@@ -1327,11 +1328,10 @@ test("the ⋯ menu stays put while the widget moves, so the next click lands on 
 async function starterApp() {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", "/workspace/");
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	return { app, starter: app.current.session! };
 }
 
@@ -1340,18 +1340,18 @@ async function expectHandedOff(app: AppContext, starter: DocumentSession) {
 	await expect.poll(() => app.current.session).not.toBe(starter);
 	const copy = app.current.session!;
 	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
-	expect(copy.doc.body.widgets.find((w) => w.id === "starter-1")!.rect.x).toBe(1);
+	expect(copy.doc.body.widgets.find((w) => w.id === "starter-2")!.rect.x).toBe(1);
 	await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(0);
 	await expect.poll(() => getComputedStyle(document.body).pointerEvents).not.toBe("none");
 	await expect
 		.poll(() => document.activeElement)
-		.toBe(page.getByTestId("widget-starter-1").getByRole("group").element());
+		.toBe(page.getByTestId("widget-starter-2").getByRole("group").element());
 }
 
 test("Move ▸ Right from the ⋯ menu on the starter closes the menu and keeps focus", async () => {
 	const { app, starter } = await starterApp();
 	await page
-		.getByTestId("widget-starter-1")
+		.getByTestId("widget-starter-2")
 		.getByRole("button", { name: /^Actions for/ })
 		.click();
 	await menuItem("Move").click();
@@ -1377,9 +1377,16 @@ async function focusItem(name: string) {
 
 test("Move ▸ Right from the keyboard menu on the starter closes the menu and keeps focus", async () => {
 	const { app, starter } = await starterApp();
-	const bar = page.getByTestId("widget-starter-1").getByRole("group").element() as HTMLElement;
+	const bar = page.getByTestId("widget-starter-2").getByRole("group").element() as HTMLElement;
 	bar.focus();
 	await press("{Shift>}{F10}{/Shift}");
+	// A data widget's own items (Change place, Edit data) come before Move.
+	await expect
+		.poll(() => !!document.querySelector("[role=menu]")?.contains(document.activeElement))
+		.toBe(true);
+	for (let i = 0; i < 8 && document.activeElement?.textContent?.trim() !== "Move"; i++) {
+		await press("{ArrowDown}");
+	}
 	await expect.element(menuItem("Move")).toHaveFocus();
 	await press("{ArrowRight}");
 	await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(2);

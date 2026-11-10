@@ -2,7 +2,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
-	PLACEHOLDER,
+	NOTE,
+	STARTER_TITLES,
 	dashboardHeading,
 	makeOwnCopy,
 	openPicker,
@@ -127,12 +128,12 @@ test("Clear my data with two tabs leaves both on the starter and nothing comes b
 
 	for (const tab of [page, other]) {
 		await expect(tab).toHaveURL(/\/workspace\/$/);
-		await expect(widgetTitles(tab)).toHaveText([PLACEHOLDER, /./, /./]);
+		await expect(widgetTitles(tab)).toHaveText(STARTER_TITLES);
 	}
 	await page.waitForTimeout(1000);
 	for (const tab of [page, other]) {
 		await tab.goto("./");
-		await expect(widgetTitles(tab).first()).toHaveText(PLACEHOLDER);
+		await expect(widgetTitles(tab).first()).toHaveText(NOTE);
 		await tab.goto("./dashboards");
 		await expect(tab.getByText("You don't have any dashboards yet.")).toBeVisible();
 	}

@@ -1,21 +1,70 @@
 import type { DashboardSummary } from "$lib/documents/names";
-import { CURRENT_SCHEMA_VERSION, type Dashboard, type Rect } from "$lib/documents/schema";
+import { MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
+import type { ChosenPlace } from "$lib/data/schema";
+import {
+	CURRENT_SCHEMA_VERSION,
+	DashboardSchema,
+	type Dashboard,
+	type WidgetInstance
+} from "$lib/documents/schema";
+import { NOTE_TYPE } from "$lib/notes/options";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { DocumentSession, type DocumentSessionOptions } from "$lib/store/document-session.svelte";
 import type { TabChannel } from "$lib/store/tab-channel";
-import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
+import { CHART_TYPE } from "$lib/widgets/chart";
+import { CURRENT_TYPE } from "$lib/widgets/current";
+import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { FORECAST_TYPE } from "$lib/widgets/forecast";
+import { OUTSIDE_TYPE } from "$lib/widgets/outside";
+import { resolveDefaultPlace } from "./resolve";
 
 export const STARTER_ID = "starter";
 
 const STARTER_TIME = "2026-10-20T00:00:00Z";
-const STARTER_RECTS: Rect[] = [
-	{ x: 0, y: 0, w: 3, h: 4 },
-	{ x: 3, y: 0, w: 3, h: 4 },
-	{ x: 6, y: 0, w: 6, h: 4 }
-];
 
-/** The built-in starter dashboard. Never stored; the first edit saves a copy. */
-export function starterDashboard(): Dashboard {
+/** The starter's place in the template, replaced by the chosen place before anyone sees it. */
+const DEFAULT_PLACE = { kind: "default-place" } as const;
+const PM25 = { ...DEFAULT_LAYER, place: DEFAULT_PLACE };
+
+/**
+ * The starter's widgets, in reading order, with each layer's data as Get data stores it for the
+ * type (PM2.5; `starter.test.ts` checks they match). Rows of the 12-column grid: the welcome Note;
+ * the "now" row, as tall as "Can we go outside?" fits; then the chart and the month calendar.
+ */
+function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
+	return [
+		{
+			type: NOTE_TYPE,
+			rect: { x: 0, y: 0, w: 12, h: 2 },
+			data: { layers: [] },
+			options: { message: "starter_note_welcome" }
+		},
+		{ type: CURRENT_TYPE, rect: { x: 0, y: 2, w: 3, h: 7 }, data: { layers: [PM25] } },
+		{ type: OUTSIDE_TYPE, rect: { x: 3, y: 2, w: 3, h: 7 }, data: { layers: [PM25] } },
+		{
+			type: FORECAST_TYPE,
+			rect: { x: 6, y: 2, w: 6, h: 7 },
+			data: { layers: [{ dataset: "forecasts", place: DEFAULT_PLACE }] }
+		},
+		{
+			type: CHART_TYPE,
+			rect: { x: 0, y: 9, w: 8, h: 6 },
+			data: { dateRange: DEFAULT_RANGE, layers: [PM25] }
+		},
+		{
+			type: MONTH_CALENDAR_TYPE,
+			rect: { x: 8, y: 9, w: 4, h: 6 },
+			data: { dateRange: { kind: "to-date", unit: "month" }, layers: [PM25] }
+		}
+	];
+}
+
+/**
+ * The built-in starter's template: every place is `default-place`, so it passes only
+ * `StarterDashboardSchema`. Nothing else holds `default-place`: it's shown, copied, shared and
+ * exported as `starterDashboard(place)`.
+ */
+export function starterTemplate(): Dashboard {
 	return {
 		kind: "dashboard",
 		schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -25,15 +74,20 @@ export function starterDashboard(): Dashboard {
 		createdAt: STARTER_TIME,
 		updatedAt: STARTER_TIME,
 		body: {
-			widgets: STARTER_RECTS.map((rect, i) => ({
+			widgets: structuredClone(starterWidgets()).map((widget, i) => ({
 				id: `starter-${i + 1}`,
-				type: PLACEHOLDER_TYPE,
 				title: null,
-				rect: { ...rect },
-				data: { layers: [] }
+				...widget
 			}))
 		}
 	};
+}
+
+/** The starter at `place` (the space's chosen place), with its "Change place" bar. Never stored. */
+export function starterDashboard(place: ChosenPlace): Dashboard {
+	const doc = resolveDefaultPlace(starterTemplate(), place);
+	doc.body.placeBar = { place: structuredClone(place) };
+	return doc;
 }
 
 /** A new, unstored document: `source`'s content with a new id, version 0, and `now` times. */
@@ -52,12 +106,13 @@ function freshCopy(source: Dashboard, now: Date, copiedFrom?: string): Dashboard
 	return copy;
 }
 
-export function copyOfStarter(now: Date): Dashboard {
-	return freshCopy(starterDashboard(), now, STARTER_ID);
+/** The starter at `place`, as a new document of this person's own. */
+export function copyOfStarter(now: Date, place: ChosenPlace): Dashboard {
+	return freshCopy(starterDashboard(place), now, STARTER_ID);
 }
 
 export function blankDashboard(now: Date): Dashboard {
-	return freshCopy({ ...starterDashboard(), body: { widgets: [] } }, now);
+	return freshCopy({ ...starterTemplate(), body: { widgets: [] } }, now);
 }
 
 /** Same name (text or generated) and content; the caller opens the rename dialog. */
@@ -89,17 +144,19 @@ export type StarterSessionOptions = {
 	channel?: TabChannel;
 	debounceMs?: number;
 	now?: () => Date;
+	/** The place the starter shows (the space's chosen place); its copy keeps it. */
+	place: ChosenPlace;
 	/** Called once the copy is stored, holding the first edit. */
 	onCopied?: (copy: DocumentSession) => void;
 } & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared" | "onEdit">;
 
 /**
- * A session showing the starter. Its first edit stores `copyOfStarter`, applies the edit to
+ * A session showing the starter at `place`. Its first edit stores `copyOfStarter` (validated), applies the edit to
  * the copy's session (so undo reverts the edit but keeps the copy), and hands later edits to
  * that session.
  */
 export function starterSession(opts: StarterSessionOptions): DocumentSession {
-	const { platform, space, tabId, channel, debounceMs, now = () => new Date() } = opts;
+	const { platform, space, tabId, channel, debounceMs, place, now = () => new Date() } = opts;
 	const { onNeedsReload, onCleared, onEdit } = opts;
 	// A tab that missed "Clear my data" mustn't store a copy afterwards.
 	const generation = platform.reset.generation();
@@ -111,13 +168,16 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 		now,
 		onNeedsReload,
 		onCleared,
-		doc: starterDashboard(),
+		doc: starterDashboard(place),
 		onBeforeFirstEdit: async (change) => {
 			if (platform.reset.generation() !== generation) {
 				onCleared?.();
 				return null;
 			}
-			const doc = copyOfStarter(now());
+			const doc = copyOfStarter(now(), place);
+			// Storage doesn't validate: a copy that would hold `default-place` fails here instead.
+			const valid = DashboardSchema.safeParse(doc);
+			if (!valid.success) throw new Error(`The starter's copy is invalid: ${valid.error.message}`);
 			const created = await platform.documents.commit(space, {
 				docId: doc.id,
 				baseVersion: null,

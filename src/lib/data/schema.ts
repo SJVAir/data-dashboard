@@ -60,7 +60,7 @@ const SafeIdSchema = IdSchema.regex(SAFE_ID);
 /** A region type, also the part of a selection's `type:code` id before the colon. */
 const REGION_TYPE = /^[a-z0-9_]+$/;
 
-export const PlaceRefSchema = z.discriminatedUnion("kind", [
+const CHOSEN_PLACES = [
 	z.object({ kind: z.literal("monitor"), id: SafeIdSchema }),
 	z.object({ kind: z.literal("region"), type: CodeSchema.regex(REGION_TYPE), code: CodeSchema }),
 	z.object({ kind: z.literal("location"), source: CodeSchema, code: CodeSchema }),
@@ -69,10 +69,18 @@ export const PlaceRefSchema = z.discriminatedUnion("kind", [
 		lat: z.number().min(-90).max(90),
 		lon: z.number().min(-180).max(180),
 		label: z.string().max(LIMITS.LABEL_MAX).optional()
-	}),
+	})
+] as const;
+
+export const PlaceRefSchema = z.discriminatedUnion("kind", [
+	...CHOSEN_PLACES,
 	z.object({ kind: z.literal("default-place") })
 ]);
 export type PlaceRef = z.infer<typeof PlaceRefSchema>;
+
+/** A place someone chose (the starter's place, its bar's): any place but `default-place`. */
+export const ChosenPlaceSchema = z.discriminatedUnion("kind", [...CHOSEN_PLACES]);
+export type ChosenPlace = Exclude<PlaceRef, { kind: "default-place" }>;
 
 const REGION_ID = /^[a-z0-9_]+:[^:]+$/;
 

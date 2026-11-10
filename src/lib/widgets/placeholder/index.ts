@@ -19,7 +19,8 @@ export const placeholderType: WidgetType = {
 	menu: () => [],
 	icon: SquareDashed,
 	load: () => import("./Placeholder.svelte").then((mod) => ({ component: mod.default }))
-	// Not `addable`: it's for tests and the starter, never offered in Add widget.
+	// Not `addable`: it's for tests (and dashboards copied from an early starter), never offered
+	// in Add widget.
 };
 
 export function newPlaceholder(widgets: WidgetInstance[]): WidgetInstance {

@@ -23,7 +23,8 @@ test("loading, listing, and making a dashboard raise no CSP violation", async ({
 test("a Chart (uPlot and the data layer) raises no CSP violation", async ({ page }) => {
 	await page.goto("./");
 	await addWidget(page);
-	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	// The one just added (the starter has a Chart of its own).
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" }).last()).toBeVisible();
 	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
 	await page.waitForLoadState("networkidle");
 });

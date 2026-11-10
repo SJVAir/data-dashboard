@@ -760,6 +760,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
   two dashboards, which the person can delete or restore.
+- **Another tab's starter shows a new chosen place only after reload.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 4)._ The starter's chosen place is a per-space preference, read when the
+  app opens (and after "Clear my data"); preferences have no change event, so a starter already
+  open in another tab keeps the place it opened with until that tab reloads (its first edit's
+  copy keeps that place too). **Revisit if** people notice, or when preferences gain a change
+  event.
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size

@@ -39,7 +39,6 @@
 	import DashboardHeader from "./DashboardHeader.svelte";
 	import EmptyState from "./EmptyState.svelte";
 	import Taskbar from "./Taskbar.svelte";
-	import StarterHint from "./StarterHint.svelte";
 	import WidgetFrame from "./WidgetFrame.svelte";
 
 	let {
@@ -329,10 +328,6 @@
 							: m.doc_readonly_invalid()}
 				</p>
 			{:else}
-				<!-- While a widget is fullscreen, the rest of the dashboard is inert. -->
-				{#if !view && app.current.isStarter}
-					<div class="contents" inert={!!shownId}><StarterHint /></div>
-				{/if}
 				{#if doc && watching}
 					{#await loadWatcher() then { default: ThresholdWatcher }}
 						{#key doc.id}

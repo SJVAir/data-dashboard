@@ -3,6 +3,7 @@ import { normalizeName, type Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
+import { defaultStarterPlace } from "$lib/starter/place.svelte";
 import { STARTER_ID, blankDashboard } from "$lib/starter/starter";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { createMemoryTabHub } from "./tab-channel";
@@ -37,7 +38,7 @@ describe("DashboardIndex", () => {
 		const index = new DashboardIndex({ platform, space: SPACE, now: clock() });
 		const a = await index.createBlank();
 		const b = await index.createBlank();
-		const mine = await index.createFromStarter();
+		const mine = await index.createFromStarter(defaultStarterPlace());
 
 		expect(index.items.map((d) => d.id).sort()).toEqual([a, b, mine].sort());
 		expect(index.names.get(a)).toBe("Untitled dashboard");

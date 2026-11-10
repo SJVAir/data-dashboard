@@ -234,7 +234,7 @@
 				</p>
 			{/if}
 			{#if days.publishedAt || sourceLinks.length}
-				<p class="text-muted-foreground flex flex-wrap gap-x-2 px-2 text-xs">
+				<p class="text-muted-foreground flex flex-wrap gap-x-2 gap-y-2 px-2 text-xs">
 					{#if days.publishedAt}
 						<span>
 							{m.forecast_issued({ time: formatWeekdayTime(new Date(days.publishedAt)) })}

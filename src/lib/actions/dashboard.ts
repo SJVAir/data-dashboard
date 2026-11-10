@@ -151,7 +151,9 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	if (!target || target.session.readOnly) return;
 	// The index copies the stored document, so store this tab's edits first.
 	if (!target.isStarter) await target.session.flush();
-	const copyId = await app.index.duplicate(target.isStarter ? STARTER_ID : target.session.doc.id);
+	const copyId = target.isStarter
+		? await app.index.duplicate(STARTER_ID, app.starterPlace)
+		: await app.index.duplicate(target.session.doc.id);
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
 }
@@ -331,7 +333,8 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				label: m.dashboard_new_from_starter(),
 				icon: LayoutTemplate,
 				group: "create",
-				run: () => void app.index.createFromStarter().then((id) => openDashboard(id))
+				run: () =>
+					void app.index.createFromStarter(app.starterPlace).then((id) => openDashboard(id))
 			},
 			{
 				id: "import",

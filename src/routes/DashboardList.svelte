@@ -104,7 +104,9 @@
 	}
 
 	async function createFromStarter() {
-		await navigate("/dashboards/:id", { params: { id: await app.index.createFromStarter() } });
+		await navigate("/dashboards/:id", {
+			params: { id: await app.index.createFromStarter(app.starterPlace) }
+		});
 	}
 </script>
 

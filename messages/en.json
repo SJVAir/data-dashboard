@@ -129,7 +129,6 @@
 		}
 	],
 	"edits_dropped": "Some unsaved edits from before the update couldn't be applied.",
-	"starter_hint": "This is the starter dashboard. Any change saves it as your own.",
 	"starter_copied": "Saved as your own dashboard",
 	"widget_menu": "Actions for {title}",
 	"widget_rename": "Rename widget…",
