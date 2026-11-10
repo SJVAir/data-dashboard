@@ -2,7 +2,7 @@ import { getContext, onDestroy, untrack } from "svelte";
 import { getMetadata, getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { QueryState } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { DEFAULT_RANGE } from "../defaults";
@@ -15,6 +15,13 @@ import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 
 /** An overlay's levels: `undefined` until loaded, an error if they couldn't be. */
 type Levels = Level[] | { error: unknown } | undefined;
+
+/** What a widget asks the query client for: the shape `chartInput` returns. */
+export type WidgetInputBuilder = (
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined,
+	maxPlaces: number
+) => ReturnType<typeof chartInput>;
 
 /** One overlay layer: its catalog entry, its scale, and its own query at the main's places. */
 export type WidgetOverlay = {
@@ -63,7 +70,13 @@ export class DataWidget {
 	 */
 	readonly overlays: WidgetOverlay[];
 
-	constructor(widget: () => WidgetInstance, maxPlaces: number) {
+	/** `opts.input` builds the main query (default `chartInput`). */
+	constructor(
+		widget: () => WidgetInstance,
+		maxPlaces: number,
+		opts: { input?: WidgetInputBuilder } = {}
+	) {
+		const build = opts.input ?? chartInput;
 		const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 		this.viewer = viewer;
 		const metadata = getMetadata();
@@ -72,7 +85,7 @@ export class DataWidget {
 			if (c !== "unavailable") this.catalog = c;
 		});
 
-		this.picked = $derived(chartInput(widget().data, this.catalog, maxPlaces));
+		this.picked = $derived(build(widget().data, this.catalog, maxPlaces));
 		this.meta = $derived(entryMeta(this.catalog, this.picked.layer));
 		const entryTypeId = $derived(this.picked.layer?.entryType);
 

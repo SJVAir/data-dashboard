@@ -2,23 +2,29 @@ import { TZDate } from "@date-fns/tz";
 import {
 	getMonitorEntries,
 	getMonitorSummariesBulkDaily,
+	getMonitorSummariesBulkDailyOpen,
 	getMonitorSummariesBulkHourly,
 	getMonitorSummariesBulkMonthly,
 	getMonitorSummariesBulkQuarterly,
 	getMonitorSummariesBulkSeasonal,
 	getMonitorSummariesBulkYearly,
 	getMonitorSummariesDaily,
+	getMonitorSummariesDailyOpen,
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
 	getMonitorSummariesQuarterly,
 	getMonitorSummariesSeasonal,
 	getMonitorSummariesYearly,
 	getRegionSummariesBulkDaily,
+	getRegionSummariesBulkDailyOpen,
 	getRegionSummariesBulkHourly,
 	getRegionSummariesBulkMonthly,
 	getRegionSummariesBulkQuarterly,
 	getRegionSummariesBulkSeasonal,
-	getRegionSummariesBulkYearly
+	getRegionSummariesBulkYearly,
+	mergeBulkOpenDays,
+	mergeOpenDays,
+	type DailyStatistic
 } from "@sjvair/sdk";
 import { TIME_ZONE, todayPacific } from "$lib/format";
 import { nextPeriodStart, periodStart, type Period } from "$lib/format/range";
@@ -39,10 +45,18 @@ type SummaryRow = {
 	count: number;
 	sum?: number;
 	is_complete?: boolean;
-};
+	is_final?: boolean;
+} & Partial<Record<DailyStatistic, number | null>>;
 /** How a summary row is read: `total` reads `sum`, `completeness` marks incomplete rows partial. */
-export type SummaryOptions = { total?: boolean; completeness?: boolean };
+export type SummaryOptions = {
+	total?: boolean;
+	completeness?: boolean;
+	/** A summary field read by name into `figure` (with `is_final` into `final`). */
+	figure?: string;
+};
 type Bulk = { id: string; summaries: SummaryRow[] };
+/** Open-day rows, fetched at most once per query and shared by the units that reach them. */
+export type OpenDays<T> = () => Promise<T>;
 type Options = { signal: AbortSignal };
 type PathConfig = { year?: number; month?: number; day?: number };
 
@@ -73,6 +87,11 @@ const BULK_REGIONS = {
 	year: getRegionSummariesBulkYearly
 } as Record<Period, (config: object, options: Options) => Promise<Bulk[]>>;
 
+/** A figure field's value: a finite number, else `null`. */
+function figureOf(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 /**
  * Summary rows as points, keeping rows whose period starts in `[from, to)` (a row's timestamp
  * is its Pacific period start). A period still open at `now` is `partial`. A missing minimum or
@@ -95,13 +114,18 @@ function toPoints(
 		const partial =
 			nextPeriodStart(new Date(t), res).getTime() > now.getTime() ||
 			(!!opts?.completeness && row.is_complete === false);
+		const figure = opts?.figure;
 		points.push({
 			t,
 			mean: value,
 			min: opts?.total ? value : Number.isFinite(row.minimum) ? row.minimum : value,
 			max: opts?.total ? value : Number.isFinite(row.maximum) ? row.maximum : value,
 			count: row.count,
-			partial
+			partial,
+			...(figure && {
+				figure: figureOf(row[figure as DailyStatistic]),
+				final: row.is_final
+			})
 		});
 	}
 	return points;
@@ -109,6 +133,54 @@ function toPoints(
 
 function pacific(instant: Date): TZDate {
 	return new TZDate(instant.getTime(), TIME_ZONE);
+}
+
+/**
+ * Whether a daily unit `[start, end)` reaches yesterday or today, the only days the open-days
+ * endpoints can have (today so far; yesterday until its nightly row exists).
+ */
+function reachesOpenDays(unit: { start: Date; end: Date }, now: Date): boolean {
+	const today = periodStart(now, "day");
+	const yesterday = periodStart(new Date(today.getTime() - 1), "day");
+	return unit.end > yesterday && unit.start < nextPeriodStart(today, "day");
+}
+
+/**
+ * One monitor's open days, for the same series its daily calls ask for (`processor`; none is
+ * the raw series, as in the daily list).
+ */
+export function monitorOpenDays(
+	monitorId: string,
+	entryType: string,
+	processor: string | null,
+	signal: AbortSignal
+): Promise<SummaryRow[]> {
+	return getMonitorSummariesDailyOpen(
+		{
+			monitorId,
+			entryType: entryType as Parameters<typeof getMonitorSummariesDailyOpen>[0]["entryType"],
+			...(processor ? { processor } : {})
+		},
+		{ signal }
+	);
+}
+
+/** Open days for many places: regions by sqid, otherwise every published monitor. */
+export function bulkOpenDays(
+	entryType: string,
+	regionIds: string[] | undefined,
+	signal: AbortSignal
+): Promise<Bulk[]> {
+	return regionIds
+		? getRegionSummariesBulkDailyOpen({ entryType, region: regionIds }, { signal })
+		: getMonitorSummariesBulkDailyOpen(
+				{
+					entryType: entryType as Parameters<
+						typeof getMonitorSummariesBulkDailyOpen
+					>[0]["entryType"]
+				},
+				{ signal }
+			);
 }
 
 /** Whether `[from, to)` sits inside one Pacific day. */
@@ -138,7 +210,11 @@ function pathConfig(res: Period, unit: Unit): PathConfig {
 	return { year };
 }
 
-/** One monitor's summaries for a segment, through the single-monitor endpoints. */
+/**
+ * One monitor's summaries for a segment, through the single-monitor endpoints. With `open`, a
+ * daily unit reaching yesterday or today merges in the open-day rows (the stored row wins on a
+ * shared day), trimmed to the unit like the rest.
+ */
 export function monitorSummaryTasks(
 	monitorId: string,
 	entryType: string,
@@ -146,7 +222,8 @@ export function monitorSummaryTasks(
 	seg: Segment,
 	now: Date,
 	signal: AbortSignal,
-	opts?: SummaryOptions
+	opts?: SummaryOptions,
+	open?: OpenDays<SummaryRow[]>
 ): FetchTask[] {
 	const res = seg.resolution as Period;
 	const from = periodStart(seg.start, res);
@@ -158,7 +235,12 @@ export function monitorSummaryTasks(
 			...pathConfig(res, unit),
 			...(processor ? { processor } : {})
 		};
-		const rows = await SINGLE[res](config, { signal });
+		const withOpen = open && res === "day" && reachesOpenDays(unit, now);
+		const [stored, openRows] = await Promise.all([
+			SINGLE[res](config, { signal }),
+			withOpen ? open() : []
+		]);
+		const rows = withOpen ? mergeOpenDays(stored, openRows) : stored;
 		return [{ id: monitorId, points: toPoints(rows, res, unit.start, unit.end, now, opts) }];
 	});
 }
@@ -166,14 +248,17 @@ export function monitorSummaryTasks(
 /**
  * Summaries for many places through a bulk endpoint, one request per whole calendar unit.
  * Monitors come back with each type's published series; `regionIds` (sqids) picks the region
- * endpoint, otherwise every published monitor is returned.
+ * endpoint, otherwise every published monitor is returned. `open` merges open days as for one
+ * monitor (an owner only in the open rows is added).
  */
 export function bulkSummaryTasks(
 	entryType: string,
 	regionIds: string[] | undefined,
 	seg: Segment,
 	now: Date,
-	signal: AbortSignal
+	signal: AbortSignal,
+	opts?: SummaryOptions,
+	open?: OpenDays<Bulk[]>
 ): FetchTask[] {
 	const res = seg.resolution as Period;
 	const from = periodStart(seg.start, res);
@@ -191,12 +276,17 @@ export function bulkSummaryTasks(
 			start: todayPacific(unit.fetchStart),
 			end: todayPacific(new Date(unit.fetchEnd.getTime() - 1))
 		};
-		const places = regionIds
-			? await BULK_REGIONS[res]({ ...dates, region: regionIds }, { signal })
-			: await BULK_MONITORS[res](dates, { signal });
+		const withOpen = open && res === "day" && reachesOpenDays(unit, now);
+		const [stored, openPlaces] = await Promise.all([
+			regionIds
+				? BULK_REGIONS[res]({ ...dates, region: regionIds }, { signal })
+				: BULK_MONITORS[res](dates, { signal }),
+			withOpen ? open() : []
+		]);
+		const places = withOpen ? mergeBulkOpenDays(stored, openPlaces) : stored;
 		return places.map((p) => ({
 			id: p.id,
-			points: toPoints(p.summaries, res, unit.start, unit.end, now)
+			points: toPoints(p.summaries, res, unit.start, unit.end, now, opts)
 		}));
 	});
 }

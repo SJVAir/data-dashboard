@@ -30,6 +30,8 @@
 				return m.get_data_block_span();
 			case "pollutants":
 				return m.get_data_block_pollutants();
+			case "pollutant":
+				return m.get_data_block_one_pollutant_no_overlays();
 		}
 	}
 

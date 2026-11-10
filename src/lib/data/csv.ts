@@ -12,6 +12,9 @@ import { dataFileName } from "$lib/sharing/file-names";
 import { report } from "$lib/safety/report";
 import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import { placeLabel } from "$lib/widgets/title";
+import { calendarInput } from "$lib/calendars/input";
+import { figureName } from "$lib/calendars/figure";
+import { isCalendarType } from "$lib/calendars/types";
 import { chartInput, entryMeta } from "$lib/widgets/shared/input";
 import { overlayInput, overlayLayers } from "$lib/widgets/shared/overlays";
 import { getMetadata, getQueryClient } from "./index";
@@ -22,7 +25,8 @@ import {
 	type PlaceInfo,
 	type QueryData,
 	type QueryInput,
-	type QueryState
+	type QueryState,
+	type SeriesPoint
 } from "./types";
 
 export const CSV_COLUMNS = [
@@ -94,6 +98,12 @@ function placeParts(key: string): { kind: string; id: string } {
 	return { kind: key.slice(0, i), id: key.slice(i + 1) };
 }
 
+/** The "Rated" cell: whether a day's figure was counted, left out, or is still changing. */
+function rated(p: SeriesPoint): string {
+	if (p.final === false) return m.csv_rated_not_final();
+	return p.figure === null || p.figure === undefined ? m.csv_rated_not_enough() : m.csv_rated_yes();
+}
+
 /** An overlay's data, its entry type, and the labels of its scale levels. */
 export type OverlayCsv = { data: QueryData; meta: EntryInfo; levels: Level[] };
 
@@ -106,7 +116,8 @@ function dataRows(
 	meta: EntryInfo,
 	levels: Level[],
 	placeAt: (series: QueryData["series"][number], index: number) => PlaceInfo | undefined,
-	viewer: PlaceViewer
+	viewer: PlaceViewer,
+	withFigure = false
 ): string[] {
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
 	const own = new Map(data.places.map((p) => [p.place, p]));
@@ -148,6 +159,9 @@ function dataRows(
 				filters,
 				meta.aggregate ?? ""
 			];
+			if (withFigure) {
+				row.push(typeof p.figure === "number" ? plain(p.figure) : "", rated(p));
+			}
 			lines.push(row.map(cell).join(","));
 		}
 	}
@@ -164,18 +178,25 @@ function dataRows(
  * use under daily data) keeps its own `period_start`/`period_end` and `resolution`, so it reads as
  * the whole period's value. A weather overlay's rows carry the station (`source_id`,
  * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
- * `aggregate` (last, so no earlier column moves) says whether a value is a total or an average.
+ * A calendar passes `figureLabel` and gets two more columns, the day's figure and "Rated".
+ * `aggregate` (last of the common columns, so no earlier column moves) says whether a value is
+ * a total or an average.
  */
 export function toCsv(
 	data: QueryData,
 	meta: EntryInfo,
 	viewer: PlaceViewer = "owner",
-	overlays: OverlayCsv[] = []
+	overlays: OverlayCsv[] = [],
+	figureLabel?: string
 ): string {
 	const own = new Map(data.places.map((p) => [p.place, p]));
+	const withFigure = figureLabel !== undefined;
+	const header = withFigure
+		? [...CSV_COLUMNS, cell(figureLabel), m.csv_rated()].join(",")
+		: CSV_COLUMNS.join(",");
 	const lines: string[] = [
-		CSV_COLUMNS.join(","),
-		...dataRows(data, meta, [], (s) => own.get(s.place), viewer)
+		header,
+		...dataRows(data, meta, [], (s) => own.get(s.place), viewer, withFigure)
 	];
 	for (const o of overlays) {
 		lines.push(
@@ -250,11 +271,30 @@ export type CsvResult = { skipped: string[] };
 export async function downloadDataCsv(
 	config: WidgetDataConfig,
 	save: FileAccess["save"],
-	viewer: PlaceViewer = "owner"
+	viewer: PlaceViewer = "owner",
+	type?: string
 ): Promise<CsvResult> {
 	const catalog = await getMetadata().catalog();
 	if (catalog === "unavailable") throw new Error("The catalog is unavailable");
-	const { layer, input } = chartInput(config, catalog, LIMITS.SELECTION_MAX);
+	const calendar = type !== undefined && isCalendarType(type);
+	const chart = chartInput(config, catalog, LIMITS.SELECTION_MAX);
+	const { layer } = chart;
+	let { input } = chart;
+	let figureLabel: string | undefined;
+	if (calendar) {
+		// A calendar's own query: one row per day, with the figure the server names.
+		const own = calendarInput(config, catalog, type);
+		// A failed lookup, or an entry type with no daily statistic, gives a plain daily CSV:
+		// without the figure in the query, "Rated" would be false on every row.
+		const figure = layer?.entryType
+			? await getMetadata()
+					.dailyFigure(layer.entryType)
+					.catch(() => null)
+			: null;
+		input = own ? (figure ? { ...own, dailyFigure: figure.field } : own) : null;
+		// Calendars take one pollutant layer, so there are no overlays to carry the columns.
+		if (figure) figureLabel = figureName(figure);
+	}
 	const info = entryMeta(catalog, layer);
 	if (!input || !info) throw new Error("There is no data to download");
 	const state = await firstSettled(input);
@@ -287,7 +327,7 @@ export async function downloadDataCsv(
 			firstDate: range.firstDate,
 			lastDate: range.lastDate
 		}),
-		toCsv(data, meta, viewer, overlays),
+		toCsv(data, meta, viewer, overlays, figureLabel),
 		"text/csv"
 	);
 	return { skipped };
@@ -299,7 +339,7 @@ export function downloadWidgetCsv(
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner"
 ): Promise<CsvResult> {
-	return downloadDataCsv(widget.data, save, viewer);
+	return downloadDataCsv(widget.data, save, viewer, widget.type);
 }
 
 /** Downloads in progress, by key (a widget id, or `"get-data"` for the draft). */
@@ -319,11 +359,12 @@ export function saveDataCsv(
 	key: string,
 	data: WidgetDataConfig,
 	save: FileAccess["save"],
-	viewer: PlaceViewer = "owner"
+	viewer: PlaceViewer = "owner",
+	type?: string
 ): Promise<void> {
 	const running = pending.get(key);
 	if (running) return running;
-	const job = downloadDataCsv(data, save, viewer);
+	const job = downloadDataCsv(data, save, viewer, type);
 	toast.promise(job, {
 		loading: m.widget_download_csv_pending(),
 		error: (error: unknown) => {
@@ -351,5 +392,5 @@ export function saveWidgetCsv(
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner"
 ): Promise<void> {
-	return saveDataCsv(widget.id, widget.data, save, viewer);
+	return saveDataCsv(widget.id, widget.data, save, viewer, widget.type);
 }

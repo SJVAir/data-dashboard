@@ -297,6 +297,25 @@ test("on a live-shared dashboard, a now tile's location is looked up as the tile
 	});
 });
 
+test("a calendar's location is looked up one row per day, with no sub-range or worst hour", async () => {
+	const cal = widget({}, "calendar-month");
+	cal.data.timeSubRange = { start: "2026-01-05", end: "2026-01-12" };
+	const { app, platform, session } = await show(cal);
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	const input = placeRegion.mock.calls[0][0] as Record<string, unknown>;
+	expect(input).toEqual({
+		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
+		dateRange: { kind: "trailing", amount: 30, unit: "day" },
+		pin: "day"
+	});
+	expect(input).not.toHaveProperty("timeSubRange");
+	expect(input).not.toHaveProperty("worstHour");
+});
+
 /** A Forecast strip: one forecasts layer, with no entry type. */
 function strip(place?: Layer["place"]): WidgetInstance {
 	return {

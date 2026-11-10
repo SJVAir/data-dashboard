@@ -157,11 +157,11 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      filters; server and SDK first done 2026-11-05: sjvair.com #310–#313, sdk-js #51–#54)
    - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
      "Change place" bar; the first edit makes a personal copy) with non-map widgets: Current
-     conditions, Forecast strip, "Can we go outside?", a chart, a calendar, the heatmap, and
-     a welcome Note. Until it
+     conditions, Forecast strip, "Can we go outside?", a chart, a calendar, and
+     a welcome Note (the heatmap was dropped 2026-11-09). Until it
      exists, `/` and "new from starter" open a blank dashboard
    - the `WidgetType` registry and `WidgetDataConfig`, including optional resolution pins
-     (calendars `day`, heatmap `hour`; pin → override → ladder)
+     (calendars `day`; pin → override → ladder)
    - the "Duplicate widget" action
    - point places resolved to the smallest containing region with data (labeled; frozen
      on staging)
@@ -170,8 +170,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      `PlaceRef`), reused by the Map widget
      (step 5) and alert rules (Release 2)
    - Chart
-   - Calendar (day-colored)
-   - Calendar (contribution)
+   - Calendar (day-colored) (built on `step-4-spec-5`, 2026-11-09; colored by the daily figure since SDK beta.8)
+   - Calendar (contribution) (built on `step-4-spec-5`, 2026-11-09; colored by the daily figure since SDK beta.8)
    - Current conditions
    - Data table
    - Notes (safe Markdown: raw HTML off, link allowlist)
@@ -181,7 +181,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      per-share "share exact location" option
    - starter details: lives at `/workspace/`, "Change place" is a preference, a real edit
      copies and replaces the URL, and sharing copies first
-   - Hour × weekday heatmap
+   - ~~Hour × weekday heatmap~~ (dropped 2026-11-09)
    - Forecast strip
    - "Can we go outside?"
    - client-side self-monitoring thresholds (in-browser notifications are desktop-only in

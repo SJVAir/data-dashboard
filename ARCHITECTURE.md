@@ -72,7 +72,8 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   text only once the user edits it.
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
-  day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
+  day-colored calendar (this month), and a short welcome Note. (The hour × weekday heatmap was
+  dropped on 2026-11-09, step 4 spec 5; spec 6 settles what, if anything, takes its slot.)
   The Map widget joins in step 6.
 
 ### Get data (formerly the Data Explorer and "Widget Creation view")
@@ -231,8 +232,8 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
 
 **Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
 the current data (too many places, a dataset it doesn't accept, a span outside its `span`) is
-greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars and
-heatmap appear by registering descriptors (see "Widget-type contract"), with no change here.
+greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars
+appear by registering descriptors (see "Widget-type contract"), with no change here.
 
 **Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
 the last-opened one; the menu lists the others and **"New dashboard"**. A read-only (shared)
@@ -1164,8 +1165,8 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
   `QueryDescriptor`) carries `resolution` (`"auto"` by default), so Collections and exports
-  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"`, the hour × weekday
-  heatmap `"hour"` (long hourly fetches still use span caps and chunking). **Priority:
+  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"` (the hour × weekday
+  heatmap's `"hour"` pin went with the widget, dropped 2026-11-09). **Priority:
   widget-type pin → user override → automatic ladder.** Pinned widgets don't show the
   override.
 - Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
@@ -1920,7 +1921,11 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
 | Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
 | Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
-| Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                              |
+
+**The hour × weekday heatmap widget was dropped** (the user, 2026-11-09, step 4 spec 5: "just do
+the two calendars"; an average of every Tuesday at 3 pm didn't seem useful). Starter analysis #2
+(Release 3) is a separate item and is unchanged. A heatmap _layer over the map_, of daily values,
+is a map idea instead (see `DEFERRED.md` → "Map plugins").
 
 **The three "now" widgets as built (step 4 spec 4, 2026-11-08).**
 
@@ -1936,6 +1941,45 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
   says which pairs are evaluated); otherwise it is the **latest complete
   hourly average**. The tile says which it is ("updated N min ago", an averaging note), and a
   reading older than 3 hours is marked stale. Regions always use hourly averages.
+
+**The two calendars as built (step 4 spec 5, 2026-11-09).** Both are `time: "range"` types with
+the resolution pinned to `"day"`, lazily loaded, set up in Get data, and limited to **one place
+and one air-quality pollutant** (`accepts.onlyPollutant`; other data layers are in `DEFERRED.md`).
+Show as greys them out with the reason for two places, a weather or other non-pollutant layer, or
+a date range outside their span.
+
+- **Day-colored calendar:** month grids (weeks as rows, Sunday first), several side by side for a
+  longer range. Default range "This month"; the whole month is drawn with days still to come left
+  blank. Span 1 day to 12 months. A rated cell shows the level color, the day number, the value
+  and the level label. When the label doesn't fit, the cell shows the level's position in the scale
+  instead (1 for the first level, so every level has its own number; not `tier`, which levels can
+  share), and the legend's chips then carry the same numbers ("3 · Unhealthy for Sensitive
+  Groups"); the user, 2026-11-09.
+- **Contribution calendar** (type `calendar-contribution`; its user-facing label is **"Year calendar"**, the user, 2026-11-09): GitHub's layout (a column per week, Sunday at the top, month labels
+  above). Default range "Last 12 months"; span 1 week to about 2 years; long ranges scroll
+  sideways from the latest week. A **Show patterns** switch (on by default) adds a per-tier
+  pattern over each color; see "Accessibility".
+- **A day's figure comes from server metadata, never from the dashboard.** Each day is colored by
+  the daily figure matching its pollutant's scale, **because that is how EPA computes the daily
+  AQI**: the 24-hour scales (PM2.5, PM10) use the 24-hour average, the 1-hour scales (O3, NO2, SO2)
+  the day's highest hourly average, and CO's 8-hour scale its highest 8-hour average. A daily mean
+  against a 1-hour scale would almost never leave Good. `monitors/meta/` `scale.daily_statistic`
+  names the daily summary field to read (`mean_24h`, `max_1h`, `max_8h`) and
+  `scale.daily_statistic_label` its name; the calendar never maps pollutants itself. A null value
+  is "Not enough data" (EPA's completeness rule, applied by the server). Until the metadata
+  carries `daily_statistic`, every past day is unrated and the widget says so once. It never falls
+  back to the mean. Today is colored "so far" from the server's running figure, and a day whose
+  rollup hasn't finished shows "Not final yet" (`is_final`).
+- **Selecting days uses a two-click range for every pointer:** click a day, then click another to
+  extend the range; a third click starts anew; clicking the only selected day clears it. Mouse
+  drag and Shift-click also work, and the keyboard follows the date-grid pattern (one Tab stop,
+  arrows, Home/End, Page Up/Down, Space or Enter, Shift+arrows, Esc). The selection is stored as
+  `timeSubRange` and summarised under the grid; **Open these days in a chart** (a widget menu item
+  while days are selected) adds a separate Chart over them.
+- **The tooltip and each cell's accessible name** give the date, the figure's name, the value,
+  unit and level, and whether the day is selected, at or above the threshold, partial or not final.
+- **The display-only threshold** (`thresholds: true`, off by default) marks and counts rated days
+  at or above a level; no alerts or notifications.
 
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
@@ -1954,16 +1998,23 @@ type WidgetType = {
 	label: MessageKey; // i18n: message key, never literal English
 	minSize: { w: number; h: number }; // grid cells
 	time: "range" | "now" | "none"; // the date section is shown only for "range"
-	accepts?: { datasets?: string[]; maxPollutantLayers?: number; maxPlaces?: number }; // explicit
+	accepts?: {
+		datasets?: string[];
+		maxPollutantLayers?: number;
+		maxPlaces?: number;
+		onlyPollutant?: boolean; // only a pollutant (a layer with a daily scale) can be added
+	}; // explicit
 	addable?: () => WidgetDataConfig; // non-data types only: a direct add from "Add widget"
 	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
-	resolution?: Resolution; // pinned resolution (e.g. calendars "day", heatmap "hour"); hides the override
+	resolution?: Resolution; // pinned resolution (e.g. calendars "day"); hides the override
 	dateMethods?: DateRangeSpec["kind"][]; // allowed date methods (default: all); only for time: "range"
 	span?: { min?: Duration; max?: Duration }; // e.g. contribution calendar: min 1 week
+	defaultRange?: DateRangeSpec; // the range a new widget (and one with none of its own) shows
 	defaultTitle(config: WidgetDataConfig, meta: Metadata): string; // generated, not stored
-	menu: MenuProvider; // widget-scoped actions (see "Actions & context menu")
+	menu: (ctx: MenuContext, env: WidgetMenuEnv) => MenuItem[]; // widget-scoped actions (see
+	// "Actions & context menu"); `env` reads the live widget, so a menu can depend on its data
 	component: Component;
 };
 ```
@@ -2673,8 +2724,8 @@ at America/Los_Angeles boundaries** (`settings.DEFAULT_TIMEZONE`, used in
 `summaries/tasks.py`). The dashboard matches that.
 
 - **Pacific time (America/Los_Angeles) everywhere, whatever the viewer's zone.** This
-  covers "today", calendar day cells, set ranges (day/week/month/year), rolling ranges,
-  and the hour × weekday heatmap. It keeps day boundaries identical to the server's daily
+  covers "today", calendar day cells, set ranges (day/week/month/year), and rolling
+  ranges. It keeps day boundaries identical to the server's daily
   and monthly summaries.
 - **Timestamps display in Pacific time.** A "PT" label appears only when the viewer's
   device is in a different zone.
@@ -2881,6 +2932,21 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    half-open (`min <= value < max`) with a `null` top `max`; categories use `value`. `tier` is
    0–4 or `null` (no severity). `description` is the official wording (credited by `source`),
    `guidance` is SJVAir's own. Level `key`s are permanent.
+
+   **Daily figure** (SDK 5.0.0-beta.8, used by the calendars): a `monitors/meta/` scale also
+   carries `averaging_hours` (`24 | 1 | 8 | null`, the averaging period its breakpoints assume),
+   `daily_statistic` (`"mean_24h" | "max_1h" | "max_8h" | null`: the summary field a whole day
+   is rated by) and `daily_statistic_label` (its words, e.g. "24-hour average"; `null` falls back
+   to the dashboard's "Daily value"). Summary rows (every resolution) carry `mean_24h`, `max_1h`
+   and `max_8h` (`number | null`; on a daily row, only the field its scale's `daily_statistic`
+   names is filled, and `null` means too few hours to rate) and `is_final` (`false` while the
+   day can still change). **Open-day rows** (`…/summaries/daily/open/`, single monitor, bulk
+   monitors and bulk regions) are today so far, plus yesterday until its nightly row exists
+   (about 03:00 Pacific); `mergeOpenDays` / `mergeBulkOpenDays` add them to the stored rows
+   (the stored row wins on a shared day). The dashboard asks for them only for calendar
+   requests whose range reaches yesterday or today, never reads their `expected_count` or
+   `is_complete`, and never computes a daily figure itself. A scale with levels but no
+   `daily_statistic` leaves every day unrated, with one note.
 
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).
@@ -3111,6 +3177,22 @@ and views.
     `format`/theme module (mobile already uses it). No `text_color` metadata field.
   - axe checks and manual passes cover these states (e.g. a yellow-level tile, the
     calendar).
+  - **The one exception: the contribution calendar's "Show patterns" switch** (step 4 spec 5).
+    With it on (the default), each cell also carries a per-tier pattern, so the level does not
+    rest on color. A viewer may switch it off for themselves (a per-viewer preference, not saved in
+    the document) and then sees color only; the tooltip and each cell's accessible name still give
+    the level. This is the user's informed choice, recorded here as the only place color alone is
+    allowed.
+- **The year calendar's day cells are smaller than 24 px** (WCAG 2.2 2.5.8, Target Size
+  (Minimum), step 4 spec 5). Its cells are about 12–16 px, so a whole year fits across a
+  dashboard-wide widget, as GitHub's contribution graph does. A year at a glance is essential to
+  that view (2.5.8's "essential" exception), and larger cells would mean scrolling sideways
+  through the year. Other routes to the same days: the keyboard (arrows, Page Up/Down, Shift+arrows),
+  the month calendar (cells at least 3rem tall), and the CSV. A deliberate exception: the user's
+  decision (the user, 2026-11-09).
+- **Range selection without dragging** (WCAG 2.5.7). On the calendars, the two-click range
+  (click a day, click another) is the single-pointer alternative to dragging across days; the
+  keyboard has its own (Shift+arrows).
 
 - **Both modes are checked** (design pass, 2026-11-03). The axe checks (`e2e/a11y.spec.ts` and
   the per-feature ones) run in light and dark. `src/lib/theme/contrast.test.ts` checks the token

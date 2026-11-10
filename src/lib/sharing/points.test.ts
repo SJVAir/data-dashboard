@@ -5,6 +5,7 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { CURRENT_TYPE, currentType } from "$lib/widgets/current";
 import { FORECAST_TYPE, forecastType } from "$lib/widgets/forecast";
+import { MONTH_CALENDAR_TYPE } from "$lib/calendars/input";
 import { makeDoc } from "./fixtures.test-util";
 import {
 	hasPoints,
@@ -87,6 +88,22 @@ describe("hasPoints and pointSwaps", () => {
 		expect(input).toEqual({ layer: pm25(POINT), dateRange: RANGE, worstHour: true });
 		// Always bounded: a lookup can't wait forever.
 		expect(signal).toBeInstanceOf(AbortSignal);
+	});
+
+	it("looks a calendar's point up one row per day", async () => {
+		const calendar: WidgetInstance = {
+			id: "k",
+			type: MONTH_CALENDAR_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 4, h: 6 },
+			data: { timeSubRange: { start: "2026-01-05", end: "2026-01-12" }, layers: [pm25(POINT)] }
+		};
+		await pointSwaps(docWith(calendar));
+		const [input] = mocked.placeRegion.mock.calls[0];
+		expect(input.pin).toBe("day");
+		expect(input.dateRange).toEqual({ kind: "to-date", unit: "month" });
+		expect(input.worstHour).toBeUndefined();
+		expect(input.timeSubRange).toBeUndefined();
 	});
 
 	it("looks a now tile's point up over the trailing hours the tile reads", async () => {

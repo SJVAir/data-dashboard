@@ -63,6 +63,9 @@
 					"label": "PM2.5",
 					"units": "µg/m³",
 					"kind": "range",
+					"averaging_hours": 24,
+					"daily_statistic": "mean_24h",
+					"daily_statistic_label": "24-hour average",
 					"source": {
 						"name": "US EPA AirNow, AQI Basics",
 						"url": "https://www.airnow.gov/aqi/aqi-basics/"

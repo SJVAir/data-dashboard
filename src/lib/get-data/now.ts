@@ -6,7 +6,10 @@
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
 import type { CatalogEntry, EntryTypeMeta, Level } from "$lib/data/metadata";
-import type { Layer } from "$lib/data/schema";
+import type { DateRangeSpec, Layer, TimeSubRange } from "$lib/data/schema";
+import { fitsRange } from "$lib/calendars/selection";
+import { isCalendarType } from "$lib/calendars/types";
+import { resolveRange } from "$lib/format/range";
 import { fromLayer } from "$lib/places/selection";
 import { defaultThresholdLevel } from "$lib/thresholds/levels";
 import type { Threshold } from "$lib/thresholds/schema";
@@ -18,7 +21,8 @@ import { mainLayer, placesQueryLayer } from "$lib/widgets/shared/input";
 import type { Draft } from "./draft.svelte";
 
 /** What a conversion left out or changed, for the form's notes. */
-export type NowDropped = "dates" | "overlays" | "places" | "alert" | "pollutant";
+export type NowDropped =
+	"dates" | "overlays" | "places" | "alert" | "pollutant" | "selection" | "outside";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
@@ -90,6 +94,8 @@ export type NowConversion = {
 	 * note, so a very low alert level isn't a surprise.
 	 */
 	fromLine?: Level;
+	/** With `"selection"` or `"outside"` in `dropped`: the days that were selected. */
+	selection?: TimeSubRange;
 };
 
 /**
@@ -166,13 +172,16 @@ export function toNowDraft(
  */
 export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	const layers = draft.data.layers.map((l) => structuredClone(placesQueryLayer(l)));
-	// A Chart's line is its own opt-in, so a tile's alert level isn't carried to it.
+	// A Chart's line is its own opt-in, so a tile's alert level isn't carried to it; a calendar's
+	// threshold is the same alert level, so it is.
 	const thresholds =
-		type.time === "now" && type.thresholds && draft.thresholds ? draft.thresholds : undefined;
+		(type.time === "now" || isCalendarType(type.type)) && type.thresholds && draft.thresholds
+			? draft.thresholds
+			: undefined;
 	return {
 		draft: {
 			type: type.type,
-			data: { dateRange: structuredClone(DEFAULT_RANGE), layers },
+			data: { dateRange: structuredClone(type.defaultRange ?? DEFAULT_RANGE), layers },
 			...(thresholds ? { thresholds: structuredClone(thresholds) } : {})
 		},
 		dropped: !thresholds && draft.thresholds?.length ? ["alert"] : []
@@ -192,4 +201,56 @@ export function isNowShaped(draft: Draft, type: WidgetType): boolean {
 	return type.type === FORECAST_TYPE
 		? layer.dataset === FORECASTS && !layer.entryType
 		: layer.dataset === AIR_QUALITY && !!layer.entryType;
+}
+
+/** Whether a stored day selection lies inside the Pacific dates `range` resolves to. */
+export function selectionFits(sel: TimeSubRange, range: DateRangeSpec, now: Date): boolean {
+	const r = resolveRange(range, now);
+	return fitsRange(sel, r.firstDate, r.lastDate);
+}
+
+/**
+ * The date range and day selection a range draft has once it's `to`, from `from`: a draft still
+ * on `from`'s default range gets `to`'s default (a calendar's default gives way to the Chart's);
+ * the selection is dropped when `to` isn't a calendar (`left`) or when it no longer fits the new
+ * range (`outside`).
+ */
+export function switchRange(
+	data: { dateRange?: DateRangeSpec; timeSubRange?: TimeSubRange },
+	from: WidgetType | undefined,
+	to: WidgetType,
+	now: Date
+): {
+	dateRange?: DateRangeSpec;
+	timeSubRange?: TimeSubRange;
+	left?: TimeSubRange;
+	outside?: TimeSubRange;
+} {
+	const same = (a: DateRangeSpec | undefined, b: DateRangeSpec) =>
+		JSON.stringify(a) === JSON.stringify(b);
+	const wasDefault =
+		!data.dateRange ||
+		same(data.dateRange, from?.defaultRange ?? DEFAULT_RANGE) ||
+		same(data.dateRange, DEFAULT_RANGE);
+	let dateRange = data.dateRange;
+	if (wasDefault && to.defaultRange) dateRange = structuredClone(to.defaultRange);
+	else if (wasDefault && from && isCalendarType(from.type)) {
+		dateRange = structuredClone(DEFAULT_RANGE);
+	}
+	let timeSubRange = data.timeSubRange;
+	let left: TimeSubRange | undefined;
+	let outside: TimeSubRange | undefined;
+	if (timeSubRange && !isCalendarType(to.type)) {
+		left = timeSubRange;
+		timeSubRange = undefined;
+	} else if (timeSubRange && !selectionFits(timeSubRange, dateRange ?? DEFAULT_RANGE, now)) {
+		outside = timeSubRange;
+		timeSubRange = undefined;
+	}
+	return {
+		...(dateRange ? { dateRange } : {}),
+		...(timeSubRange ? { timeSubRange } : {}),
+		...(left ? { left } : {}),
+		...(outside ? { outside } : {})
+	};
 }

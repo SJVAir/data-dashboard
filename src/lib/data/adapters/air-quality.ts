@@ -6,7 +6,9 @@ import { finerLevel, planSegments, type Segment } from "../periods";
 import { worstHours } from "../worst-hour";
 import type { PlaceInfo, QueryData, Series, SeriesPoint, Target } from "../types";
 import {
+	bulkOpenDays,
 	bulkSummaryTasks,
+	monitorOpenDays,
 	monitorSummaryTasks,
 	rawTasks,
 	type Fetched,
@@ -15,6 +17,12 @@ import {
 } from "./air-quality-fetch";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { layerTarget, regionPlace, resolveRegionKeys } from "./targets";
+
+/** `load`, called at most once: later calls share its promise. */
+function once<T>(load: () => Promise<T>): () => Promise<T> {
+	let promise: Promise<T> | undefined;
+	return () => (promise ??= load());
+}
 
 /** Requests in flight at once for one query. */
 const CONCURRENCY = 3;
@@ -150,6 +158,10 @@ async function rawSeries(
  *
  * `opts` (totals, completeness) is for monitor targets only: bulk endpoints return means, and
  * summing them would be wrong.
+ *
+ * A daily figure request (a calendar's) takes every day from the server: daily rows over the
+ * whole range, plus the open-day rows (today so far, yesterday while unsettled) when the range
+ * reaches them. Nothing is filled or backfilled from finer levels, so no day is computed here.
  */
 export async function summarySeries(
 	req: AdapterRequest,
@@ -161,13 +173,26 @@ export async function summarySeries(
 	const { target, entryType, now } = req;
 	// Bulk (region) endpoints return means, so only a monitor target reads sums.
 	const how = opts?.total && target.kind === "monitors" ? "sum" : "mean";
+	const figure = !!opts?.figure;
 	const segments = planSegments({
 		resolution: req.resolution,
 		range: req.range,
 		now,
-		offered: req.offered
+		// Nothing finer offered: one segment at the requested level, up to now.
+		offered: figure ? [req.resolution] : req.offered
 	});
 	const regionIds = target.kind === "regions" ? places.map((p) => p.id) : undefined;
+	// Open days, fetched only when a unit reaches them, once per place (or once for bulk).
+	const monitorOpen = new Map(
+		places.map((p, i) => [
+			p.id,
+			once(() => monitorOpenDays(p.id, entryType, processors[i], signal))
+		])
+	);
+	const bulkOpen = once(() => bulkOpenDays(entryType, regionIds, signal));
+
+	// Bulk rows are means: only the figure applies to them, not totals or completeness.
+	const bulkOpts: SummaryOptions | undefined = opts?.figure ? { figure: opts.figure } : undefined;
 
 	// Tasks for a segment; `only` limits monitors to some ids (bulk requests can't be limited).
 	const tasksFor = (seg: Segment, only?: Set<string>): FetchTask[] => {
@@ -182,10 +207,27 @@ export async function summarySeries(
 		// can't be scoped to monitor ids, so it is used only for the whole layer.
 		if (target.kind === "monitors") {
 			return chosen.flatMap((p, i) =>
-				monitorSummaryTasks(p.id, entryType, procs[i], seg, now, signal, opts)
+				monitorSummaryTasks(
+					p.id,
+					entryType,
+					procs[i],
+					seg,
+					now,
+					signal,
+					opts,
+					figure ? monitorOpen.get(p.id) : undefined
+				)
 			);
 		}
-		return bulkSummaryTasks(entryType, regionIds, seg, now, signal);
+		return bulkSummaryTasks(
+			entryType,
+			regionIds,
+			seg,
+			now,
+			signal,
+			bulkOpts,
+			figure ? bulkOpen : undefined
+		);
 	};
 	// Complete and fill together; the backfill waits to see which places lack the last period.
 	const [complete, fill] = await collect(
@@ -261,6 +303,11 @@ export async function summarySeries(
 	});
 }
 
+/** Summary options asking for the daily figure, only at the daily level. */
+function figureOpts(req: AdapterRequest): SummaryOptions | undefined {
+	return req.dailyFigure && req.resolution === "day" ? { figure: req.dailyFigure } : undefined;
+}
+
 /**
  * Daily summaries, each day point also carrying its worst hourly average when asked: the same
  * query run again at hour resolution (a failure fails the whole query, never partial data).
@@ -272,7 +319,7 @@ async function summarySeriesWithWorstHour(
 	signal: AbortSignal
 ): Promise<Series[]> {
 	if (!req.worstHour || req.resolution !== "day") {
-		return summarySeries(req, places, processors, signal);
+		return summarySeries(req, places, processors, signal, figureOpts(req));
 	}
 	const hourlyReq: AdapterRequest = {
 		...req,
@@ -281,7 +328,7 @@ async function summarySeriesWithWorstHour(
 		offered: req.offered.filter((r) => r === "raw" || r === "hour")
 	};
 	const [daily, hourly] = await Promise.all([
-		summarySeries(req, places, processors, signal),
+		summarySeries(req, places, processors, signal, figureOpts(req)),
 		summarySeries(hourlyReq, places, processors, signal)
 	]);
 	const hourlyByPlace = new Map(hourly.map((s) => [s.place, s.points]));

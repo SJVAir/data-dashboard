@@ -36,14 +36,17 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   layer, and each widget type's code out of the initial bundle. The budget is a soft limit
   (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
   decide then, trim or raise the budget, rather than trimming every time).
-- **The initial bundle is a little over 200 KB after step 4 spec 4 (accepted for now).**
-  _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14)._ `check:budget` reads 202.1 KB
-  gzip against the 200 KB soft budget (199.7 KB before the spec). The growth is the three
-  widget descriptors, the dashboard menu's Notifications item, and the `thresholds` field in
-  the change schema. The user accepted it for now on 2026-11-08 (no trim, budget unchanged).
+- **The initial bundle is a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
+  _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14); updated 2026-11-09 (spec 5)._
+  `check:budget` reads 204.8 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
+  202.1 KB after it). Spec 4's growth is the three widget descriptors, the dashboard menu's
+  Notifications item, and the `thresholds` field in the change schema; spec 5's is the two calendar
+  descriptors, their date and place-spot helpers, and the registry's new fields (`defaultRange`,
+  `menu(ctx, env)`, `accepts.onlyPollutant`); the calendars' own code is lazy. The user accepted
+  the spec 4 growth on 2026-11-08 and the calendars' on 2026-11-09, and accepted the final
+  204.8 KB for now on 2026-11-09 (no trim, budget unchanged).
   Candidates if trimming later: lazy-load the widget type icons, drop the menu item's icon.
   **Revisit when** `check:budget` grows further, or before step 4 merges into `main`.
-
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
   track and Foundations spec 5a)._ The dashboard is uploaded to S3 exactly as monitor-map is
@@ -1327,6 +1330,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   monitors were out of that work's scope. **Revisit when** monitor values or list formatting
   are next touched, or a user reports a number that disagrees with its level: turn on
   `truncateValues` for monitors (rows would then read "9.0").
+- **A heatmap layer over the map, of daily values.** _Deferred 2026-11-09 (step 4 spec 5
+  brainstorm; the user's idea)._ What the user means by "heatmap": a map layer shading the area
+  by each day's values, the way GitHub shades a day by its commits, not an hour × weekday grid
+  (that widget was dropped; see "Dropped"). It belongs to the Map widget and map-sdk (step 5),
+  not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
+  values where nothing was measured; the day it shows; and which daily figure (spec 5's
+  per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
+  (step 4 → step 5/6), or map-sdk takes on a new layer type.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1552,7 +1563,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3); updated 2026-11-07 (step 4
   spec 3b)._ Number layers (a temperature-only chart, pesticide use alone) are done in spec 3b.
   Level layers alone (smoke days, no-burn days) still can't make a widget or a CSV: the reason
-  shows. **Revisit with** spec 5's day-colored calendar.
+  shows. Spec 5's calendars kept to pollutants, so this waits on "Other data in the calendars"
+  (under Widgets). **Revisit with** that item.
 - **Wind direction in Get data.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
   compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
   summarizes it (a prevailing direction), or someone asks for a wind rose.
@@ -1663,6 +1675,92 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     `layers.ts` change.
   - **No smoke e2e coverage:** the `hms` fixtures are there, but the e2e catalog has no
     `hms-smoke`. **Revisit at** the next smoke change.
+- **Other data in the calendars** (weather, smoke days, pesticide use, forecasts). _Deferred
+  2026-11-09 (step 4 spec 5, the user: "keep it to air quality and defer the rest")._ Each kind
+  needs its own daily figure named in metadata (as `daily_statistic` does for pollutants), and
+  coloring for scales without levels (temperature); a "smoke day" at a point or school needs an
+  area rule; pesticide use is monthly; forecasts must not be confused with measured days. The
+  calendars read their datasets and day figure from the type and metadata, so adding one is
+  registration. Smoke days (HMS, one category per day with levels) are the likely first.
+  **Revisit when** someone asks for a non-pollutant calendar.
+- **The Chart's worst hour could use the server's `max_1h`.** _Deferred 2026-11-09 (step 4 spec
+  5)._ The Chart computes each day's worst hourly average in the browser from hourly summaries
+  (`src/lib/data/worst-hour.ts`, up to 92 days, no completeness rule). The server's daily
+  `max_1h` (SDK 5.0.0-beta.8) could replace it and save the hourly fetch, but it's only published
+  for 1-hour scales and is null on incomplete days, so the Chart's meaning would change. **Revisit
+  when** beta.8 is pinned and the Chart's daily view is next touched.
+- **The Data table's column for the day's figure.** _Deferred 2026-11-09 (step 4 spec 5, builder
+  check)._ The calendars' CSV gets the figure that colors a day and whether it was rated; the
+  Data table still shows the daily mean, which for ozone, NO2, SO2 and CO isn't the colored
+  number. **Revisit when** the Data table is next touched, or a screen-reader user needs the
+  figure in the table.
+- **Several places in one calendar** (a row of calendars per place). _Deferred 2026-11-09 (step
+  4 spec 5)._ One place keeps cells readable, and `maxPlaces: 1` greys the calendars out for a
+  multi-place draft. **Revisit if** people ask to compare places day by day.
+- **Dragging across days by touch.** _Deferred 2026-11-09 (step 4 spec 5, Task 8; Ruling 12)._
+  A swipe over a calendar scrolls the widget (the month calendar stacks months on phones and
+  needs it), so a touch drag doesn't extend the selection. Touch already has a full alternative:
+  tap a day, then tap another to select the days between (the range-picker pattern every pointer
+  uses); a mouse can also drag or Shift-click, and the keyboard uses Shift+arrows. A
+  long-press-then-drag (like the title bar's lift) would add touch dragging without taking the
+  scroll. **Revisit if** phone or tablet users find tap-tap slow for long ranges, or ask to drag.
+- **Calendars review leftovers.** _Deferred 2026-11-09 (step 4 spec 5, per-task reviews and the
+  final review)._ Small things the reviews let stay; the first ones a person could meet:
+  - **The narrowest month calendar scrolls.** At 3 columns and the default height the legend wraps
+    to four lines, so the last week sits below the fold (the default 4 columns fits). **Revisit
+    if** people use the month calendar that narrow, or with the next legend change.
+  - **A saved selection the range has moved past stays saved.** "This month" on the 1st no longer
+    shows last month's days (and no longer offers "Open these days in a chart"), but the stored
+    `timeSubRange` stays until the next selection replaces it, and Escape can't clear what isn't
+    shown. Harmless, but a shared copy carries it. **Revisit if** it confuses anyone, or with the
+    next selection change (clear it on the next pick, or when the range moves).
+  - **The tooltip holds while the pointer is on it** (WCAG 1.4.13, final review M8). It lets clicks
+    through, but moving the pointer across it (say up a column) keeps the first day's tip until
+    the pointer leaves the tip's box. **Revisit if** that feels sticky in the year calendar.
+  - **Leaving the grid with the pointer clears a tooltip the focused day was showing.** Moving
+    focus brings it back. **Revisit with** the next tooltip change.
+  - **The year calendar scrolls back to the latest week at midnight** (its range moves). **Revisit
+    if** someone scrolled back loses their place.
+  - **The live region can announce a selection again when its values refresh,** at most hourly
+    (the summary poll) and only while the selection includes today. **Revisit if** screen-reader
+    users find it noisy.
+  - **Small month cells drop the words for days that aren't rated** (Not rated, No data so far):
+    the number shows, and the name and tooltip carry the state. **Revisit if** people miss it.
+  - **Selected days are named ", selected" with no `aria-selected`** (chosen in Task 8 so the state
+    reads with the rest of the name; not yet tried with screen readers). **Revisit at** the manual
+    screen-reader pass.
+  - **The year calendar's patterns are drawn in full ink** (the user's visual review is pending).
+    **Revisit with** that review.
+  - **Switching a calendar whose range is exactly "Last 30 days"** (the app default) to the other
+    calendar gives it the new type's default range, as an untouched range would (Ruling 9's
+    `wasDefault`). **Revisit if** someone loses a chosen 30-day range that way.
+  - **Get data keeps one note slot:** a range note replaces an earlier conversion note.
+    **Revisit if** both are needed at once.
+  - **`moveFocus` assumes the selectable days run first ≤ last.** Today a range with no selectable
+    day (all still to come) sets `selectable: null`, so the grid never calls it then. **Revisit
+    if** `selectable` is ever built another way, or with the next keyboard-navigation change (add
+    the guard and a test).
+  - **Code tidying:** the hardcoded ring widths in the selection shadow (token discipline, low
+    risk), the year calendar's `pt-5.5` label offset, the `$derived.by` comment in
+    `calendar-data.svelte.ts` stating a cause as fact, the `hidden: 0` that wants a comment, the
+    `export *` at the bottom of `format/index.ts`, `final` copying `is_final` without a boolean
+    check (the SDK types it), `dailyFigure` in the query key at non-day resolutions (a harmless
+    extra key), and open-day loaders built for non-figure requests (cheap closures). **Revisit
+    with** the next change to each file.
+  - **Test gaps:** `daysInclusive` across spring-forward and with start after end, an all-null
+    column, six-row months; `ratedForCount`'s positive cases, pending and today days in a summary
+    fixture, the `unrated` doc comment, duplicate same-date points (the later wins); a selection
+    after a range change; Home/End/Page Up/Page Down, drag and Shift-click in the year calendar's
+    weeks layout; the cross-widget patterns on-again check and the misnamed "a fresh space starts
+    with patterns on" test; races and midnight rollover in the calendar data; real (not synthetic)
+    drags, including a release outside the grid; Escape's `stopPropagation`; the Get data keyboard
+    Show-as test (loose), its weather case using census, and the span reason; the adapter's bulk
+    all-places path, figure at non-day resolutions, with `worstHour`, and the client carrying
+    `dailyFigure`; an open-days call failing the whole query (deliberate: no partial data), a
+    monitor with no published processor, the bulk memo across units, and a yesterday-only open
+    row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the next
+    change to each.
+
 - **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
   brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide
   the ones a school does not have was offered and left out. **Revisit if** schools ask to hide
@@ -2444,3 +2542,12 @@ notes):
   the tests cover the behavior).
 - **`e2e/get-data.spec.ts` parses CSV by splitting on commas** (fine for its fixtures, which
   have no quoted commas).
+
+Dropped 2026-11-09 by the user (step 4 spec 5 brainstorm, "drop it, just do the two calendars"):
+
+- **The hour × weekday heatmap widget** (planned 2026-09-23 in the first widget set, the widget
+  form of starter analysis #2). Each cell averaged one weekday-hour over the range ("every
+  Tuesday at 3 pm over 90 days"), which the user didn't find useful. Spec 5 builds only the two
+  calendars; spec 6's starter drops the heatmap's slot. Starter analysis #2 (Release 3) is not
+  affected. The mockup is kept in
+  `docs/superpowers/mockups/2026-11-09-step-4-spec-5-heatmap-coloring.html`.

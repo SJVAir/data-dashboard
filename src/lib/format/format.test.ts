@@ -1,15 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { m } from "$lib/paraglide/messages.js";
 import {
+	dateTimeFormat,
 	formatDate,
+	formatDayOfMonth,
 	formatDateTime,
 	formatHourRange,
 	formatList,
+	formatLongWeekdayDate,
+	formatMonthName,
+	formatMonthShort,
 	formatNumber,
 	formatPeriod,
 	formatTick,
 	formatValue,
+	formatWeekday,
 	needsZoneLabel,
+	numberFormat,
 	pacificHoursOfDay,
 	parseDateKey,
 	startOfPacificWeek,
@@ -19,6 +26,24 @@ import {
 describe("format", () => {
 	it("todayPacific uses Pacific, not UTC", () => {
 		expect(todayPacific(new Date("2026-10-21T06:30:00Z"))).toBe("2026-10-20");
+	});
+	it("formatMonthName names the Pacific month without its year", () => {
+		expect(formatMonthName("2026-11-30")).toBe("November");
+		expect(formatMonthName("2027-01-01")).toBe("January");
+	});
+	it("formatMonthShort names the Pacific month briefly", () => {
+		expect(formatMonthShort("2026-11-01")).toBe("Nov");
+		expect(formatMonthShort("2027-01-31")).toBe("Jan");
+	});
+	it("formatLongWeekdayDate spells out the weekday and month", () => {
+		expect(formatLongWeekdayDate("2026-11-06")).toBe("Friday, November 6");
+		expect(formatLongWeekdayDate("2026-03-08")).toBe("Sunday, March 8");
+		expect(formatLongWeekdayDate("2026-12-31", { year: true })).toBe("Thursday, December 31, 2026");
+	});
+	it("formatWeekday names a date's Pacific weekday", () => {
+		expect(formatWeekday("2026-11-08", "long")).toBe("Sunday");
+		expect(formatWeekday("2026-11-08", "short")).toBe("Sun");
+		expect(formatWeekday("2026-11-09", "narrow")).toBe("M");
 	});
 	it("weeks start on Sunday", () => {
 		expect(startOfPacificWeek("2026-10-20")).toBe("2026-10-18");
@@ -120,5 +145,34 @@ describe("format", () => {
 	it("formatList joins names as a sentence list", () => {
 		expect(formatList(["A"])).toBe("A");
 		expect(formatList(["A", "B", "C"])).toBe("A, B, and C");
+	});
+	it("formatDayOfMonth gives the Pacific day of the month", () => {
+		expect(formatDayOfMonth("2026-11-06")).toBe("6");
+		expect(formatDayOfMonth("2026-03-08")).toBe("8");
+		expect(formatDayOfMonth("2026-11-01", "ar-EG")).toBe("١");
+	});
+	it("formatters are built once per locale and options, then shared", () => {
+		expect(dateTimeFormat("en-US", { month: "long" })).toBe(
+			dateTimeFormat("en-US", { month: "long" })
+		);
+		expect(dateTimeFormat("en-US", { month: "long" })).not.toBe(
+			dateTimeFormat("en-US", { month: "short" })
+		);
+		expect(dateTimeFormat("en-US", { month: "long" })).not.toBe(
+			dateTimeFormat("fr-FR", { month: "long" })
+		);
+		expect(numberFormat("en-US")).toBe(numberFormat("en-US", {}));
+		const spy = vi.spyOn(Intl, "DateTimeFormat");
+		try {
+			formatLongWeekdayDate("2026-11-06");
+			const before = spy.mock.calls.length;
+			for (let d = 1; d <= 30; d++) formatLongWeekdayDate(`2026-11-${String(d).padStart(2, "0")}`);
+			expect(spy.mock.calls.length).toBe(before);
+			// The spy does see a new one being built.
+			dateTimeFormat("en-US", { era: "narrow", year: "numeric" });
+			expect(spy.mock.calls.length).toBe(before + 1);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });

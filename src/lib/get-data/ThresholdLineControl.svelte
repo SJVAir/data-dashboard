@@ -8,7 +8,8 @@
 		levels,
 		thresholds,
 		onthreshold,
-		onretry
+		onretry,
+		marks = false
 	}: {
 		/** The pollutant's scale; `"unavailable"` when it couldn't be loaded. */
 		levels: Level[] | "unavailable";
@@ -16,6 +17,8 @@
 		/** A level key, or `null` for Off. */
 		onthreshold: (level: string | null) => void;
 		onretry: () => void;
+		/** The widget marks days (a calendar) rather than drawing a line (the Chart). */
+		marks?: boolean;
 	} = $props();
 
 	const uid = $props.id();
@@ -35,7 +38,9 @@
 	</div>
 {:else if levels.length > 0}
 	<div class="flex flex-col gap-1 px-1">
-		<label for="{uid}-line" class="text-sm font-medium">{m.get_data_line_at_level()}</label>
+		<label for="{uid}-line" class="text-sm font-medium"
+			>{marks ? m.get_data_mark_days_at_level() : m.get_data_line_at_level()}</label
+		>
 		<select
 			id="{uid}-line"
 			value={onScale ? saved : ""}
@@ -50,7 +55,7 @@
 		</select>
 		{#if missing}
 			<p id="{uid}-missing" class="text-muted-foreground text-xs">
-				{m.chart_level_line_missing()}
+				{marks ? m.get_data_mark_days_level_missing_choose_another() : m.chart_level_line_missing()}
 			</p>
 		{/if}
 	</div>

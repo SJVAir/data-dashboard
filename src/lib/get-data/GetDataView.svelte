@@ -49,11 +49,16 @@
 		keptThreshold,
 		nowPollutant,
 		nowPollutants,
+		selectionFits,
+		switchRange,
 		toNowDraft,
-		type NowConversion
+		type NowConversion,
+		type NowDropped
 	} from "./now";
 	import NowControls from "./NowControls.svelte";
+	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
+	import { formatDateRange } from "$lib/format";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { detailChoices } from "./resolution-offer";
@@ -253,6 +258,16 @@
 
 	function setRange(spec: DateRangeSpec): void {
 		draft.data.dateRange = spec;
+		// A calendar's day selection that the new range no longer holds is dropped with it.
+		const sel = draft.data.timeSubRange && $state.snapshot(draft.data.timeSubRange);
+		if (sel && !selectionFits(sel, spec, now)) {
+			delete draft.data.timeSubRange;
+			noteConversion({
+				draft: $state.snapshot(draft) as Draft,
+				dropped: ["outside"],
+				selection: sel
+			});
+		}
 	}
 
 	function setPlaces(next: Picks): void {
@@ -315,6 +330,12 @@
 			);
 		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
+		const days = dropped.conversion.selection;
+		if (days) {
+			const text = formatDateRange(days.start, days.end);
+			if (what.includes("selection")) out.push(m.get_data_selection_left_out({ days: text }));
+			if (what.includes("outside")) out.push(m.get_data_selection_outside_range({ days: text }));
+		}
 		if (fromLine) out.push(m.get_data_alert_level_from_low_line({ level: fromLine.label }));
 		return out;
 	});
@@ -391,11 +412,23 @@
 		}
 		// A now type chosen before the catalog is known is converted once it is (below).
 		else {
+			const moved = switchRange($state.snapshot(draft.data), type, to, now);
+			if (moved.dateRange) draft.data.dateRange = moved.dateRange;
+			if (!moved.timeSubRange) delete draft.data.timeSubRange;
 			draft.type = next;
+			const days = moved.left ?? moved.outside;
+			const dropped: NowDropped[] = moved.left ? ["selection"] : moved.outside ? ["outside"] : [];
+			// A line the new type can't hold is left out, with a note.
 			if (!to.thresholds && draft.thresholds) {
-				// A line the new type can't hold is left out, with a note.
 				delete draft.thresholds;
-				noteConversion({ draft: $state.snapshot(draft) as Draft, dropped: ["alert"] });
+				dropped.push("alert");
+			}
+			if (dropped.length) {
+				noteConversion({
+					draft: $state.snapshot(draft) as Draft,
+					dropped,
+					...(days ? { selection: days } : {})
+				});
 			}
 		}
 	}
@@ -501,8 +534,12 @@
 	}
 
 	function download(): void {
-		void saveDataCsv("get-data", plain.data, (name, contents, type) =>
-			app.platform.files.save(name, contents, type)
+		void saveDataCsv(
+			"get-data",
+			plain.data,
+			(name, contents, mime) => app.platform.files.save(name, contents, mime),
+			"owner",
+			plain.type
 		);
 	}
 </script>
@@ -611,9 +648,21 @@
 								thresholds={plain.thresholds}
 								onthreshold={setThreshold}
 								onretry={() => alertTry++}
+								marks={isCalendarType(plain.type)}
 							/>
 						{/if}
 					</ShowValuesControl>
+				</section>
+			{:else if !isNow && type?.thresholds && shownLevels}
+				<!-- A type with a pinned resolution (a calendar) has no Show values: the control stands alone. -->
+				<section>
+					<ThresholdLineControl
+						levels={shownLevels}
+						thresholds={plain.thresholds}
+						onthreshold={setThreshold}
+						onretry={() => alertTry++}
+						marks={isCalendarType(plain.type)}
+					/>
 				</section>
 			{/if}
 		</div>

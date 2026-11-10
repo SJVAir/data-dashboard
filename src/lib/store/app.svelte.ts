@@ -13,6 +13,8 @@ import { updateNotice } from "$lib/safety/update-notice.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { hasPoints } from "$lib/sharing/point-layers";
 import { registerWidgetType } from "$lib/widgets/registry";
+import { monthCalendarType } from "$lib/widgets/calendars/month";
+import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
 import { chartType } from "$lib/widgets/chart";
 import { currentType } from "$lib/widgets/current";
 import { forecastType } from "$lib/widgets/forecast";
@@ -375,6 +377,8 @@ async function housekeeping(task: () => Promise<void>): Promise<void> {
 export async function initApp(platform: Platform, options: AppOptions = {}): Promise<AppContext> {
 	registerWidgetType(placeholderType);
 	registerWidgetType(chartType);
+	registerWidgetType(monthCalendarType);
+	registerWidgetType(contributionCalendarType);
 	registerWidgetType(currentType);
 	registerWidgetType(forecastType);
 	registerWidgetType(outsideType);
