@@ -212,6 +212,57 @@ test("pasted text that looks like Markdown structure stays text", async () => {
 	expect(toNoteBlocks(markdown).map((b) => b.kind)).toEqual(["paragraph"]);
 });
 
+/** Pastes `text` into an empty editor, then checks its Markdown reads back the same. */
+async function pasteAndReopen(text: string): Promise<string> {
+	const e = start("");
+	await caretAtEnd();
+	await paste("", text);
+	const markdown = e.markdown();
+	e.destroy();
+	root.remove();
+	expect(start(markdown).markdown()).toBe(markdown);
+	return markdown;
+}
+
+/** The viewer's text of a paragraph, its breaks as newlines. */
+function paragraphText(markdown: string): string[] {
+	return toNoteBlocks(markdown).map((b) =>
+		b.kind === "paragraph"
+			? b.children
+					.map((c) => (c.kind === "text" ? c.text : c.kind === "break" ? "\n" : ""))
+					.join("")
+			: `<${b.kind}>`
+	);
+}
+
+test("a `--` or `==` line stays text and doesn't make the line above a heading", async () => {
+	const markdown = await pasteAndReopen("Thanks\n--\nMs. Smith");
+	expect(root.querySelector("h2")).toBeNull();
+	expect(root.textContent).toContain("--");
+	expect(paragraphText(markdown)).toEqual(["Thanks\n--\nMs. Smith"]);
+
+	const equals = await pasteAndReopen("a\n==");
+	expect(paragraphText(equals)).toEqual(["a\n=="]);
+	const single = await pasteAndReopen("a\n=\nb\n-");
+	expect(paragraphText(single)).toEqual(["a\n=\nb\n-"]);
+});
+
+test("a line starting with `<` stays text, and the heading after it stays a heading", async () => {
+	const e = start("");
+	await caretAtEnd();
+	await paste("", "<div>x\n<!-- y\nTitle");
+	await select("p:last-child span");
+	e.heading();
+	const markdown = e.markdown();
+	expect(markdown.endsWith("## Title")).toBe(true);
+	expect(toNoteBlocks(markdown).map((b) => b.kind)).toEqual(["paragraph", "heading"]);
+	expect(paragraphText(markdown)[0]).toBe("<div>x\n<!-- y");
+	e.destroy();
+	root.remove();
+	expect(start(markdown).markdown()).toBe(markdown);
+	expect(root.querySelector("h2")?.textContent).toBe("Title");
+});
+
 test("a pasted web address becomes a link", async () => {
 	const e = start("see ");
 	await caretAtEnd();

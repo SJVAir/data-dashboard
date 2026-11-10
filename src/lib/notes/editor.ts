@@ -154,13 +154,17 @@ function needsBlankLine(before: LexicalNode, after: LexicalNode): boolean {
 
 /**
  * A paragraph line that would read as Markdown structure (`- `, `1. `, `## `, `> `, a `---`
- * rule), with its marker escaped: text typed or pasted that way stays text in the viewer.
+ * rule, a `--` or `==` line that makes the line above a heading, a `<div` or `<!--` that starts
+ * raw HTML), with its marker escaped: text typed or pasted that way stays text in the viewer.
+ * Every line is escaped, the first too, as paragraphs are joined by a single line break.
  */
 function escapeLine(line: string): string {
 	return line
 		.replace(/^(\s*)(#{1,6}|[>+*-])(?=\s|$)/, "$1\\$2")
 		.replace(/^(\s*)(\d+)([.)])(?=\s|$)/, "$1$2\\$3")
-		.replace(/^(\s*)([-=_*])(?=(?:\s*\2){2,}\s*$)/, "$1\\$2");
+		.replace(/^(\s*)([-=_*])(?=(?:\s*\2){2,}\s*$)/, "$1\\$2")
+		.replace(/^(\s*)([-=])(?=\2*\s*$)/, "$1\\$2")
+		.replace(/^(\s*)</, "$1\\<");
 }
 
 /** The blocks as Markdown, each list a blank line away from the text around it. */
