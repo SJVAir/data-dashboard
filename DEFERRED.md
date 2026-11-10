@@ -36,7 +36,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   layer, and each widget type's code out of the initial bundle. The budget is a soft limit
   (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
   decide then, trim or raise the budget, rather than trimming every time).
-- **The initial bundle is a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
+- **The initial bundle size (soft budget raised to 250 KB, 2026-11-10).** The user, during step
+  4 spec 6 (205.3 KB then): change the limit to 250 KB "so this question stops being a pain
+  point halting our work"; if the bundle is too big, address it later. Sessions no longer stop to
+  ask about growth under 250 KB. History below.
+  **Earlier: a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
   _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14); updated 2026-11-09 (spec 5)._
   `check:budget` reads 204.8 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
   202.1 KB after it). Spec 4's growth is the three widget descriptors, the dashboard menu's
