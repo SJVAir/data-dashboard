@@ -428,6 +428,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   entry type with no `ORDER BY`; for a monitor with both cleaned and calibrated PM2.5 rows it
   returns the calibrated one only because of index order. Unchanged by #326, which kept the
   behavior. **Revisit when** anyone touches `LatestEntry` or the published-series logic.
+- **resticus streams JSON one token at a time (django-resticus).** _Deferred 2026-11-10 (the
+  user, sjvair.com monitor-list work)._ `StreamingJSONResponse` (`resticus/http.py`) passes
+  `JSON_ENCODER().iterencode(data)` straight to `StreamingHttpResponse`, so the 486 KB monitor
+  list goes out as about 87,000 pieces; the per-piece cost in Django's streaming path and
+  `GZipMiddleware` is about 160 ms of a 170 ms cache hit locally. Fix in resticus: group the
+  pieces into chunks of about 64 KB. Deferred because it's a change to the resticus fork (a
+  separate repo; sjvair.com installs `develop` unpinned, and the local stack mounts the
+  `go-live` branch); sjvair.com's follow-up PR (`select_related('airgradient__place')` in
+  `MonitorMixin`, and `CachedEndpointMixin` caching encoded bytes, opt-in for `MonitorList` and
+  `CurrentData`) sidesteps it for those two endpoints. **Revisit when** another large streaming
+  endpoint (such as entries JSON lists) shows slow body time, or at the next resticus release
+  work.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
