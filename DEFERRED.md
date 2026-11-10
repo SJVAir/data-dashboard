@@ -421,6 +421,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   16k, below the 100k threshold). Related: switching `get_active()` itself from the join and
   `DISTINCT` to `EXISTS`, which may have the same cost in its other callers (the list,
   `current/`, `at/`, alerts); that needs a caller list and tests pinning each caller's rows.
+  A likely candidate (sjvair.com #327's measurements, 2026-11-10): `pm25/current/` cache misses still
+  take about 950 ms with 4 queries locally, probably the same join plus `filter_healthy`; it's
+  prewarmed, so most readers hit the cache.
   **Revisit when** the post-deploy check shows production has JIT on, or another endpoint's
   `EXPLAIN` shows JIT time dominating.
 - **`with_latest_entry()` picks a `LatestEntry` row without an order (sjvair.com).** _Deferred
