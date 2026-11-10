@@ -459,8 +459,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     `monitors/<id>/alerts/current/` answers `pending` until the first 10-minute alert run (up to
     10 minutes), then real values. The Current conditions tile works against production only
     once this is deployed: SDK 5.0.0-beta.7 expects the new fields.
-  - **Scale averaging periods and daily peaks (sjvair.com `feature/scale-averaging`, not yet merged; steps from
-    sjvair-com-64, 2026-11-09), in order:**
+  - **Scale averaging periods, daily peaks and open days (sjvair.com #320, #321, #323, merged into `develop` 2026-11-09;
+    steps from sjvair-com-64), in order:**
     1. **Deploy** away from :40–:50 and with no `SummaryBackfillJob` running. The release phase runs
        `summaries/0007_summary_peaks`, which sets `lock_timeout` to 10 s, so a blocked migration fails the release fast; rerun
        it at a quiet time.
