@@ -1569,6 +1569,10 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **sjvair.com: flaky CIMIS restamp tests** (fixed in sjvair.com #329, merged into
+      `develop` 2026-11-10; every `call_command` monitor id uses `--monitor=<id>`, and the restamp
+      tests always use an id starting with `-`). Removed from `DEFERRED.md`: "Flaky CIMIS restamp
+      tests: `--monitor` passed as two arguments".
 - [x] **monitor-map: chart stuck loading, and unhandled subscription status errors** (fixed in
       monitor-map 5.0, merged into `release/5.0.0` via #126, 2026-11-06). Removed from
       `DEFERRED.md`.

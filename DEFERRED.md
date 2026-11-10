@@ -411,7 +411,7 @@ string`) now get the union return type. The mobile app passes a string token, so
   overestimate rows (cost 2.0M against `jit_above_cost` 100k), and `with_latest_entry()` loaded
   every candidate monitor before taking three. **Fix approved by the user 2026-11-10** (closest
   queryset only: `EXISTS`, slice before attaching entries; about 15–18 ms locally, same output;
-  no migration), PR into `develop` in progress. **Still deferred:** production before/after
+  no migration), merged into `develop` 2026-11-10 as #326, with follow-ups #327 (the full list: N+1 fixed, cached as encoded bytes) and #328 (`current/`: `EXISTS` active check). **Still deferred:** production before/after
   timing, which waits for the `develop` deploy (step in the deploy entry below).
 - **App-wide Postgres JIT off, or fixing the queries that trip it (sjvair.com).** _Deferred
   2026-11-10 (the user, closest-monitor work)._ Option: `-c jit=off` in `DATABASES` `OPTIONS`
@@ -445,13 +445,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   `CurrentData`) sidesteps it for those two endpoints. **Revisit when** another large streaming
   endpoint (such as entries JSON lists) shows slow body time, or at the next resticus release
   work.
-- **Flaky CIMIS restamp tests: `--monitor` passed as two arguments (sjvair.com).** _Deferred
-  2026-11-10 (found by the closest-monitor session while testing #326–#328)._
-  `camp/apps/monitors/cimis/test_restamp.py` calls `call_command('restamp_cimis', '--monitor',
-monitor.pk, ...)` in several tests (`RestampCommandTests`), so a random id starting with `-`
-  (about 1 run in 64) makes argparse fail. Fix: `f'--monitor={monitor.pk}'`, per sjvair.com's
-  own CLAUDE.md rule. **Fix open as sjvair.com #329** (2026-11-10, the user's request; tests
-  only); this entry leaves once #329 merges.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
