@@ -1598,11 +1598,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   server's 31-day cap is per request, and the adapters ask a month (or 31 raw days) at a time
   (settled in the final review). **Revisit after** real use, or when the metadata gives reading
   intervals.
-- **A possible bug in the custom date range picker.** _Noted 2026-11-09 (the user, after spec
-  5)._ The user saw what looks like an error when choosing a custom range of 8/10/24 to
-  10/09/24 (read as Aug 10 – Oct 9, 2024). Not investigated yet: the symptom, where it shows (Get
-  data's When control, a widget, or both) and the cause are unknown. **Revisit when** the user
-  picks it up (they said "we will revisit this later"): reproduce with that range first.
+- **A possible bug in the custom date range picker with the year calendar.** _Noted
+  2026-11-09 (the user, after spec 5)._ The user saw what looks like an error when choosing a
+  custom range of 8/10/24 to 10/09/24 (read as Aug 10 – Oct 9, 2024) while the year calendar
+  (the contribution calendar, `calendar-contribution`) was shown. Not investigated yet: the
+  exact symptom and the cause are unknown. **Revisit when** the user picks it up (they said "we
+  will revisit this later"): reproduce with that range on a year calendar in Get data first.
 - **Get data review leftovers.** _Deferred 2026-11-05 (step 4 spec 3, final review)._ Small
   things the review let stay, each rare or harmless today:
   - **A forecasts 404 gives an empty series, not "unavailable"** (Task 5 ruling): `fetch` can't
