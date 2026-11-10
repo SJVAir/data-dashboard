@@ -1,7 +1,8 @@
 import "../../../app.css";
 import { afterEach, expect, test } from "vitest";
 import { page } from "vitest/browser";
-import { noteEditor, requested } from "$lib/components/dialogs/lazy.svelte";
+import { noteEditor, openNoteEditor, requested } from "$lib/components/dialogs/lazy.svelte";
+import { STARTER_ID } from "$lib/starter/starter";
 import { registerWidgetType } from "../registry";
 import AddHarness from "./test-harness/AddHarness.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -208,4 +209,65 @@ test("adding a Note opens its editor at once, with focus in the text", async () 
 	// It stays there once the menu has finished closing.
 	await new Promise((resolve) => setTimeout(resolve, 400));
 	expect(text.element().contains(document.activeElement)).toBe(true);
+});
+
+/** An app showing the starter, with its welcome Note; storing takes a while, as IndexedDB does. */
+async function starterApp() {
+	const platform = createMemoryPlatform();
+	const commit = platform.documents.commit.bind(platform.documents);
+	platform.documents.commit = async (...args) => {
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		return commit(...args);
+	};
+	const app = await initApp(platform, {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1"
+	});
+	const starter = (await app.sessions.get(STARTER_ID))!;
+	app.current = { session: starter, isStarter: true };
+	return { app, starter, context: new Map([[APP_CONTEXT_KEY, app]]) };
+}
+
+/** Adds a Note through Add widget and waits for its editor. */
+async function addNoteAndWaitForEditor() {
+	await page.getByRole("button", { name: m.add_widget() }).click();
+	await page.getByRole("menuitem", { name: m.widget_note_title() }).click();
+	const dialog = page.getByRole("dialog", { name: m.note_editor_title() });
+	const text = dialog.getByRole("textbox", { name: m.note_editor_text() });
+	await expect.element(text, { timeout: 5000 }).toBeVisible();
+	return dialog;
+}
+
+test("adding a Note on the starter opens its editor on the copy", async () => {
+	registerWidgetType(noteType);
+	const { app, starter, context } = await starterApp();
+	await render(AddHarness, { context });
+	await addNoteAndWaitForEditor();
+	const copy = app.current.session!;
+	expect(copy).not.toBe(starter);
+	expect(app.current.isStarter).toBe(false);
+	const added = copy.doc.body.widgets.at(-1)!;
+	expect(added.type).toBe("note");
+	expect(noteEditor.widgetId).toBe(added.id);
+});
+
+test("adding a Note on the starter after cancelling Edit note opens the new Note", async () => {
+	registerWidgetType(noteType);
+	const { app, starter, context } = await starterApp();
+	await render(AddHarness, { context });
+	const welcome = starter.doc.body.widgets.find((w) => w.type === "note")!;
+	// The editor is mounted once, opened on the welcome Note and cancelled.
+	openNoteEditor({ widgetId: welcome.id });
+	const dialog = page.getByRole("dialog", { name: m.note_editor_title() });
+	await expect.element(dialog, { timeout: 5000 }).toBeVisible();
+	await dialog.getByRole("button", { name: m.note_editor_cancel() }).click();
+	await expect.poll(() => dialog.query()).toBeNull();
+	expect(app.current.session).toBe(starter);
+
+	await addNoteAndWaitForEditor();
+	const copy = app.current.session!;
+	expect(copy).not.toBe(starter);
+	const added = copy.doc.body.widgets.at(-1)!;
+	expect(added.type).toBe("note");
+	expect(noteEditor.widgetId).toBe(added.id);
 });

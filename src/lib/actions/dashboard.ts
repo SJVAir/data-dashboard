@@ -129,7 +129,13 @@ export function addWidget(app: AppContext, type: string): void {
 		widget,
 		index: widgets.length
 	});
-	widgetType.onAdded?.(app, widget.id);
+	const onAdded = widgetType.onAdded;
+	if (!onAdded) return;
+	// On the starter the edit lands in its copy once the hand-off resolves (the copy is current
+	// by then), so the widget is only there to find after that.
+	const handoff = session.handoff;
+	if (handoff) void handoff.then((copy) => copy && onAdded(app, widget.id));
+	else onAdded(app, widget.id);
 }
 
 /**
