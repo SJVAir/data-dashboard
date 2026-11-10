@@ -259,7 +259,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **The starter hand-off can set the current dashboard after the person has left for a shared
     page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
     in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
-    timing. **Revisit on a report, or when the hand-off is next changed.**
+    timing. **Revisit on a report, or when the hand-off is next changed.** _Looked at in step 4
+    spec 6, 2026-11-10: unchanged; Share on the starter now also uses the hand-off (through
+    `copyStarter`), so there is one more caller, with the same timing window._
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
@@ -751,7 +753,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   record (its queued edits) is never replayed; it stays until journal cleanup removes it.
   Needs the page to die in a window of a few milliseconds. **Revisit on** a report of lost
   first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
-  starter.
+  starter. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the hand-off is the same code,
+  though Share on the starter now hands off too (through `copyStarter`), a second way to start
+  it._
 - **A starter replay can take a live tab's journal record.** _Deferred 2026-10-25
   (Foundations spec 3, task 7 review)._ `replayPending` replays every other tab's `starter`
   journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
@@ -759,7 +763,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   it needs a storage failure or unlucky timing in the other tab. **Revisit on** a report of
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
-  two dashboards, which the person can delete or restore.
+  two dashboards, which the person can delete or restore. _Looked at in step 4 spec 6,
+  2026-11-10: unchanged; Share on the starter's hand-off adds one more way to hit it._
 - **Another tab's starter shows a new chosen place only after reload.** _Deferred 2026-11-10
   (step 4 spec 6, Task 4)._ The starter's chosen place is a per-space preference, read when the
   app opens (and after "Clear my data"); preferences have no change event, so a starter already
@@ -775,7 +780,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`droppedEdits` on the starter is never shown.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Edits that can't be carried over
   from an older format are counted on the starter session too, but only an opened dashboard's
   page tells the person. Nothing can be dropped until a format changes. **Revisit at** the
-  first `schemaVersion` bump.
+  first `schemaVersion` bump. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the real
+  starter doesn't change this, since nothing can be dropped yet._
 - **`files.open` can hang where the input's `cancel` event is missing.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Chrome 111–112
   don't fire `cancel` on a file input, so dismissing the picker there leaves "Import…" waiting
   forever. **Revisit if** a stuck import is
@@ -1558,7 +1564,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   fullscreen widget are mounted again once (a widget's own state, such as zoom, resets). Why:
   keeping the grid mounted across Home → the dashboard page needs a router restructure.
   **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
-  lost on the starter's first edit.
+  lost on the starter's first edit. _Looked at in step 4 spec 6, 2026-11-10: this may now apply.
+  The real starter has a chart (with zoom) and a month calendar (with a selection), so an edit
+  made in fullscreen resets them once. Not measured or reported; revisit if anyone notices._
 - **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
   2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
   between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
@@ -1616,8 +1624,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
   length the presets lack.
-- **Linking widgets**: _deferred 2026-09-28._ (The built-in starter's "Change place" bar
-  is a narrow, starter-only exception; design the two together.) First step: a **dashboard-wide place and date
+- **Linking widgets**: _deferred 2026-09-28._ (The "Change place" bar on the starter and its
+  copies is the narrow form, and "replace place A with place B across a dashboard"
+  (`src/lib/places/replace.ts`, built in step 4 spec 6, 2026-11-10) is the mechanism it uses.
+  A dashboard-wide place should build on both; design the two together.) First step: a **dashboard-wide place and date
   range** that widgets can choose to follow ("change the county once, everything
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
@@ -1627,6 +1637,25 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
   copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
   widgets" above. **Revisit with** "Linking widgets".
+- **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
+  built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
+  toast says so after the click (it is hidden on the open dashboard). **Revisit if** people find
+  it confusing; the fix is a replaceable-place flag on `DashboardSummary`.
+- **The Map joins the starter in step 6.** _Deferred 2026-11-10 (step 4 spec 6)._ It goes in as
+  a full-width row under the "now" row, pushing the chart and calendar down; the hour × weekday
+  heatmap's old slot stays empty until then (the year calendar does not take it). **Revisit
+  when** step 6 adds the Map widget.
+- **More Note formatting.** _Deferred 2026-11-10 (step 4 spec 6)._ Notes allow paragraphs, one
+  heading level, bold, italic, bulleted and numbered lists and links. Images, tables, code,
+  quotes and more heading levels show as plain text; images would also need CSP and privacy work
+  (remote loads from a shared page). **Revisit when** people ask.
+- **Nested lists in Notes flatten to text.** _Deferred 2026-11-10 (step 4 spec 6, Task 1
+  review)._ The viewer draws one list level; a nested list shows its inner lines as plain text.
+  **Revisit if** people ask for nested lists.
+- **Lexical is pre-1.0.** _Deferred 2026-11-10 (step 4 spec 6)._ The Notes editor uses Lexical
+  0.53.0, pinned exactly (with every `@lexical/*` package), so a minor release can't break
+  it unseen. **Revisit at** Lexical 1.0 or on any upgrade (re-run the editor round-trip tests).
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:

@@ -174,16 +174,17 @@ Installed:
 | `vitest-browser-svelte`            | Rendering components in Vitest browser mode        |
 | Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks |
 | `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)  |
+| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)        |
+| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)  |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 
-| Library                            | Purpose                                           |
-| ---------------------------------- | ------------------------------------------------- |
-| `uplot` (direct dependency)        | **All** charts (time-series-first)                |
-| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView`, data stores |
-| `terra-draw`                       | Drawn-shape map selection (via a map-sdk plugin)  |
-| A Markdown renderer (raw HTML off) | Safe Notes rendering                              |
-| JupyterLite + Pyodide              | Separate `/notebooks/` app (Release 3)            |
+| Library                     | Purpose                                           |
+| --------------------------- | ------------------------------------------------- |
+| `uplot` (direct dependency) | **All** charts (time-series-first)                |
+| `@sjvair/map-sdk`           | Map widget: core, plugins, `MapView`, data stores |
+| `terra-draw`                | Drawn-shape map selection (via a map-sdk plugin)  |
+| JupyterLite + Pyodide       | Separate `/notebooks/` app (Release 3)            |
 
 ## Environment Variables
 
