@@ -4,7 +4,9 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
 import { defaultStarterPlace } from "$lib/starter/place.svelte";
-import { STARTER_ID, blankDashboard } from "$lib/starter/starter";
+import type { ChosenPlace } from "$lib/data/schema";
+import { STARTER_ID, blankDashboard, copyOfStarter } from "$lib/starter/starter";
+import { DEFAULT_LAYER } from "$lib/widgets/defaults";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { createMemoryTabHub } from "./tab-channel";
 
@@ -124,6 +126,86 @@ describe("DashboardIndex", () => {
 		const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
 		expect(copy).toMatchObject({ name: "School", copiedFrom: "src", version: 0 });
 		expect(index.items).toHaveLength(2);
+	});
+
+	describe("duplicate with a place replaced", () => {
+		const FRESNO = DEFAULT_LAYER.place as ChosenPlace;
+		const SCHOOL: ChosenPlace = { kind: "location", source: "schools", code: "123" };
+		const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
+
+		function chart(id: string, places: ChosenPlace[], y: number) {
+			return {
+				id,
+				type: "chart",
+				title: null,
+				rect: { x: 0, y, w: 6, h: 4 },
+				data: { layers: places.map((place) => ({ ...DEFAULT_LAYER, place })) }
+			};
+		}
+
+		function places(doc: Dashboard) {
+			return doc.body.widgets.map((w) => w.data.layers.map((l) => l.place));
+		}
+
+		it("replaces one place in the copy; mixed and other places stay, the original is untouched", async () => {
+			const platform = createMemoryPlatform();
+			const now = clock();
+			const source: Dashboard = {
+				...blankDashboard(now()),
+				id: "src",
+				body: {
+					widgets: [chart("a", [FRESNO], 0), chart("b", [FRESNO, KERN], 4), chart("c", [KERN], 8)]
+				}
+			};
+			await store(platform, source, "src");
+			const index = new DashboardIndex({ platform, space: SPACE, now });
+			const id = await index.duplicate("src", { from: FRESNO, to: SCHOOL });
+			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
+			expect(places(copy)).toEqual([[SCHOOL], [FRESNO, KERN], [KERN]]);
+			expect(copy.copiedFrom).toBe("src");
+			// A dashboard without a bar doesn't gain one.
+			expect(copy.body.placeBar).toBeUndefined();
+			expect(places((await platform.documents.get(SPACE, "src")) as Dashboard)).toEqual(
+				places(source)
+			);
+		});
+
+		it("moves a starter copy's bar to the new place", async () => {
+			const platform = createMemoryPlatform();
+			const now = clock();
+			const mine = copyOfStarter(now(), FRESNO);
+			await store(platform, mine, mine.id);
+			const index = new DashboardIndex({ platform, space: SPACE, now });
+			const id = await index.duplicate(mine.id, { from: FRESNO, to: SCHOOL });
+			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
+			expect(copy.body.placeBar).toEqual({ place: SCHOOL });
+			expect(places(copy).flat()).not.toContainEqual(FRESNO);
+			expect(places(copy).flat()).toContainEqual(SCHOOL);
+		});
+
+		it("the starter duplicates with its chosen place replaced", async () => {
+			const platform = createMemoryPlatform();
+			const now = clock();
+			const index = new DashboardIndex({ platform, space: SPACE, now });
+			const id = await index.duplicate(STARTER_ID, { from: FRESNO, to: SCHOOL });
+			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
+			expect(copy).toMatchObject({ copiedFrom: STARTER_ID, body: { placeBar: { place: SCHOOL } } });
+			expect(places(copy).flat()).toContainEqual(SCHOOL);
+			expect(places(copy).flat()).not.toContainEqual(FRESNO);
+		});
+
+		it("the starter's plain Duplicate keeps its place (the same place twice)", async () => {
+			const platform = createMemoryPlatform();
+			const index = new DashboardIndex({ platform, space: SPACE, now: clock() });
+			const id = await index.duplicate(STARTER_ID, { from: SCHOOL, to: SCHOOL });
+			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
+			expect(copy.body.placeBar).toEqual({ place: SCHOOL });
+		});
+
+		it("the starter needs its place", async () => {
+			const index = new DashboardIndex({ platform: createMemoryPlatform(), space: SPACE });
+			await expect(index.duplicate(STARTER_ID)).rejects.toThrow();
+		});
 	});
 
 	it("refreshes when another tab commits", async () => {

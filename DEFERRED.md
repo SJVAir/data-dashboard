@@ -1622,6 +1622,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
   Creation, and undo. **Revisit when** pilot or private-preview users ask for it.
+- **A "Change place" bar for dashboards not made from the starter.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 8)._ "Duplicate for another place" works on any dashboard, but a copy of
+  one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
+  copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
+  widgets" above. **Revisit with** "Linking widgets".
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:

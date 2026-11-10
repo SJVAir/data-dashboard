@@ -3,6 +3,7 @@ import { displayNames, type DashboardSummary } from "$lib/documents/names";
 import type { ChosenPlace } from "$lib/data/schema";
 import { DashboardSchema, type Dashboard } from "$lib/documents/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { replacePlace } from "$lib/places/replace";
 import { forgetDocument } from "$lib/sharing/fingerprints";
 import {
 	STARTER_ID,
@@ -207,19 +208,23 @@ export class DashboardIndex {
 	}
 
 	/**
-	 * Copies the stored document (callers flush its session first), or the starter at
-	 * `starterPlace` (required for `STARTER_ID`).
+	 * Copies the stored document (callers flush its session first), or the starter. With
+	 * `replace`, the copy has `from` replaced by `to` (`replacePlace`: mixed widgets, widgets at
+	 * other places and the original stay as they are; a bar at `from` moves). The starter needs
+	 * `replace`: it is built at `from` (its chosen place), so its plain Duplicate passes that place
+	 * as both.
 	 */
-	async duplicate(id: string, starterPlace?: ChosenPlace): Promise<string> {
+	async duplicate(id: string, replace?: { from: ChosenPlace; to: ChosenPlace }): Promise<string> {
 		let source: Dashboard;
 		if (id === STARTER_ID) {
-			if (!starterPlace) throw new Error("Duplicating the starter needs its place");
-			source = starterDashboard(starterPlace);
+			if (!replace) throw new Error("Duplicating the starter needs its place");
+			source = starterDashboard(replace.from);
 		} else {
 			const loaded = loadDashboard(await this.#platform.documents.get(this.#space, id));
 			if (loaded.status !== "ok") throw new Error(`Dashboard ${id} can't be duplicated`);
 			source = loaded.doc;
 		}
+		if (replace) source = replacePlace(source, replace.from, replace.to, { others: false });
 		return this.#create(duplicateDashboard(source, this.#now()));
 	}
 

@@ -93,7 +93,10 @@ describe("every exit from the starter holds the chosen place", () => {
 
 	it("Duplicate of the starter", async () => {
 		const { platform, app } = await setup(SCHOOL);
-		const id = await app.index.duplicate(STARTER_ID, app.starterPlace);
+		const id = await app.index.duplicate(STARTER_ID, {
+			from: app.starterPlace,
+			to: app.starterPlace
+		});
 		expectFromStarter(await stored(platform, id), SCHOOL);
 	});
 

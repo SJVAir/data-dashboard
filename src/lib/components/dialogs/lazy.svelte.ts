@@ -2,6 +2,7 @@
 // Their code stays out of the initial bundle: each loads on its first opening and then stays
 // mounted. The `open…()` functions live here, so callers don't import the dialogs themselves.
 import type { Component } from "svelte";
+import type { ChosenPlace } from "$lib/data/schema";
 import type { DashboardSummary } from "$lib/documents/names";
 import { loadLazy } from "$lib/safety/lazy";
 import type { SwapSummary } from "$lib/sharing/points";
@@ -21,7 +22,8 @@ export const requested = $state({
 	existingCopy: false,
 	placePicker: false,
 	notifications: false,
-	noteEditor: false
+	noteEditor: false,
+	whichPlace: false
 });
 
 export type LazyDialog = keyof typeof requested | "moveToAccount";
@@ -36,7 +38,8 @@ export const dialogLoaders: Record<LazyDialog, () => Promise<{ default: Componen
 	moveToAccount: () => import("./MoveToAccountDialog.svelte"),
 	placePicker: () => import("$lib/places/PlacePickerDialog.svelte"),
 	notifications: () => import("./NotificationsDialog.svelte"),
-	noteEditor: () => import("$lib/notes/NoteEditorDialog.svelte")
+	noteEditor: () => import("$lib/notes/NoteEditorDialog.svelte"),
+	whichPlace: () => import("$lib/places/WhichPlaceDialog.svelte")
 };
 
 /** Loads made or under way, by loader (so a replaced loader loads anew). Not reactive state. */
@@ -91,6 +94,9 @@ function dismiss(key: LazyDialog): void {
 			break;
 		case "noteEditor":
 			noteEditor.open = false;
+			break;
+		case "whichPlace":
+			settleWhichPlace(null);
 			break;
 		case "moveToAccount":
 			// Asked again the next time the app starts.
@@ -278,28 +284,75 @@ export function askExistingCopy(copy: DashboardSummary): Promise<ExistingCopyCho
 
 export const placePicker = $state<{
 	open: boolean;
-	/** The widget whose place it changes; `null` for the dashboard's place (its bar). */
+	/** The widget whose place it changes; `null` for the dashboard's place or a pick. */
 	widgetId: string | null;
+	/** A pick for a copy: Done hands the place here and changes nothing. */
+	pick: ((place: ChosenPlace) => void) | null;
 	/** Counts the openings, so each one starts fresh. */
 	opening: number;
 	/** What had focus when it opened (focus returns there, or to the widget when it's gone). */
 	opener: HTMLElement | null;
-}>({ open: false, widgetId: null, opening: 0, opener: null });
+}>({ open: false, widgetId: null, pick: null, opening: 0, opener: null });
 
 /**
- * Opens the place picker for a widget, or with `dashboardPlace` for the dashboard's "Change
- * place" bar. Done changes a widget's place in one undoable edit; the bar's place changes the
- * starter (no copy, no undo) or, on a copy, its widgets at that place (one undoable edit).
+ * Opens the place picker for a widget, with `dashboardPlace` for the dashboard's "Change place"
+ * bar, or with `pick` for a place to use elsewhere ("Duplicate for another place"). Done changes
+ * a widget's place in one undoable edit; the bar's place changes the starter (no copy, no undo)
+ * or, on a copy, its widgets at that place (one undoable edit); a pick is handed to `pick` (one
+ * place, picked as PM2.5's are; nothing is changed). `opener` is where focus returns, when what
+ * has focus now is about to go (a dialog closing as this opens).
  */
-export function openPlacePicker(opts: { widgetId: string } | { dashboardPlace: true }): void {
+export function openPlacePicker(
+	opts:
+		| { widgetId: string }
+		| { dashboardPlace: true }
+		| { pick: (place: ChosenPlace) => void; opener?: HTMLElement | null }
+): void {
 	placePicker.widgetId = "widgetId" in opts ? opts.widgetId : null;
+	placePicker.pick = "pick" in opts ? opts.pick : null;
 	placePicker.opening++;
 	placePicker.opener =
+		"pick" in opts && opts.opener !== undefined
+			? opts.opener
+			: typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
+	placePicker.open = true;
+	requested.placePicker = true;
+}
+
+// Which place a copy replaces (a tie)
+
+export const whichPlace = $state<{
+	open: boolean;
+	places: ChosenPlace[];
+	/** Counts the openings, so each one starts fresh. */
+	opening: number;
+	/** What had focus when it opened (focus returns there when it's dismissed). */
+	opener: HTMLElement | null;
+}>({ open: false, places: [], opening: 0, opener: null });
+let whichResolver: ((place: ChosenPlace | null) => void) | null = null;
+
+/** Closes the question with the person's choice (`null`: none). */
+export function settleWhichPlace(place: ChosenPlace | null): void {
+	whichPlace.open = false;
+	const resolve = whichResolver;
+	whichResolver = null;
+	resolve?.(place);
+}
+
+/** Asks which of `places` (a tie for the main place) a copy should replace. */
+export function askWhichPlace(places: ChosenPlace[]): Promise<ChosenPlace | null> {
+	settleWhichPlace(null);
+	whichPlace.places = places;
+	whichPlace.opening++;
+	whichPlace.opener =
 		typeof document !== "undefined" && document.activeElement instanceof HTMLElement
 			? document.activeElement
 			: null;
-	placePicker.open = true;
-	requested.placePicker = true;
+	whichPlace.open = true;
+	requested.whichPlace = true;
+	return new Promise((resolve) => (whichResolver = resolve));
 }
 
 // The notifications switch

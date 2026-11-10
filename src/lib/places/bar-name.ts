@@ -10,7 +10,7 @@ import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import { directoryFor } from "./host";
 
 /** The place's name as the picker shows it; `null` when it doesn't resolve (gone, or unknown). */
-async function nameOf(place: ChosenPlace, signal: AbortSignal): Promise<string | null> {
+export async function placeName(place: ChosenPlace, signal: AbortSignal): Promise<string | null> {
 	const resolvers = getResolvers();
 	const directory = () => directoryFor(getMetadata(), resolvers.regions);
 	switch (place.kind) {
@@ -47,7 +47,7 @@ export async function placeBarText(
 	viewer: PlaceViewer,
 	signal: AbortSignal
 ): Promise<string> {
-	const name = await nameOf(place, signal).catch(() => null);
+	const name = await placeName(place, signal).catch(() => null);
 	if (signal.aborted) throw new DOMException("The operation was aborted.", "AbortError");
 	if (name) return m.place_bar_showing({ place: name });
 	if (place.kind === "point" && viewer === "owner") return m.place_bar_showing_your_location();

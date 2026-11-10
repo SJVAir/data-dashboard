@@ -57,6 +57,8 @@
 		recent: PlaceOption[];
 		/** The dashboard's place: how many widgets show other places ("Also change…"). */
 		others: number;
+		/** A pick for a copy: Done hands the place here and changes nothing. */
+		pick: ((place: ChosenPlace) => void) | null;
 	};
 
 	let ready = $state.raw<Ready | null>(null);
@@ -144,6 +146,11 @@
 			const found = await metadata.catalog(signal);
 			const catalog = found === "unavailable" ? undefined : found;
 			if (signal.aborted) return;
+			const pick = placePicker.pick;
+			if (pick) {
+				await loadPick({ directory, resolvers, catalog }, pick, signal);
+				return;
+			}
 			if (placePicker.widgetId === null) {
 				await loadDashboard({ directory, resolvers, catalog }, signal);
 				return;
@@ -178,6 +185,7 @@
 				purpose: { dataset: layer.dataset, entryType },
 				mode: max > 1 ? { kind: "multiple", max } : { kind: "single" },
 				others: 0,
+				pick: null,
 				...picks
 			};
 			phase = "ready";
@@ -218,6 +226,38 @@
 			mode: { kind: "single" },
 			// The starter's widgets all show its place; only a copy can have others.
 			others: app.current.isStarter ? 0 : othersCount(target.session.doc, target.place),
+			pick: null,
+			...picks
+		};
+		phase = "ready";
+	}
+
+	/** A pick for a copy: one place, picked as PM2.5's are, starting from nothing picked. */
+	async function loadPick(
+		ctx: Pick<Ready, "directory" | "resolvers" | "catalog">,
+		pick: (place: ChosenPlace) => void,
+		signal: AbortSignal
+	): Promise<void> {
+		const entryType = DEFAULT_LAYER.entryType as string;
+		const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
+			report(error);
+			return [];
+		});
+		const picks = await resolvePicks(
+			[],
+			recentRefs,
+			{ directory: ctx.directory, resolvers: ctx.resolvers, entryType },
+			signal
+		);
+		if (signal.aborted) return;
+		ready = {
+			...ctx,
+			widgetId: null,
+			max: 1,
+			purpose: { dataset: DEFAULT_LAYER.dataset, entryType },
+			mode: { kind: "single" },
+			others: 0,
+			pick,
 			...picks
 		};
 		phase = "ready";
@@ -275,6 +315,15 @@
 		if (!ctx || !signal || signal.aborted) return;
 		const run = ++doneRun;
 		const stale = () => signal.aborted || run !== doneRun;
+		if (ctx.pick) {
+			// The copy is the person's own and not shared yet: "your location" is kept as it is
+			// (sharing swaps it for its region on the way out).
+			const place = picks[0];
+			void remember(picks);
+			close();
+			if (place && place.kind !== "default-place") ctx.pick(place);
+			return;
+		}
 		if (ctx.widgetId === null) {
 			await doneDashboard(ctx, picks, signal, stale);
 			return;
