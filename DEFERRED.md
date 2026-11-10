@@ -450,7 +450,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   `camp/apps/monitors/cimis/test_restamp.py` calls `call_command('restamp_cimis', '--monitor',
 monitor.pk, ...)` in several tests (`RestampCommandTests`), so a random id starting with `-`
   (about 1 run in 64) makes argparse fail. Fix: `f'--monitor={monitor.pk}'`, per sjvair.com's
-  own CLAUDE.md rule. **Revisit when** the restamp tests are next touched, or on a CI flake.
+  own CLAUDE.md rule. **Fix open as sjvair.com #329** (2026-11-10, the user's request; tests
+  only); this entry leaves once #329 merges.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
