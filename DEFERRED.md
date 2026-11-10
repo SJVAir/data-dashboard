@@ -420,6 +420,19 @@ string`) now get the union return type. The mobile app passes a string token, so
   review)._ `ApiClient` has no `patch` wrapper, so `tests/test_csrf.py` calls Django's
   `Client.patch` directly. Cosmetic. **Revisit if** the resticus developer asks.
 
+- **Mobile's `/api/1.0` Vite dev proxy.** _Deferred 2026-11-09 (mobile on monitor-map 5.0,
+  a library-switch-only change)._ Mobile's `vite.config.ts` forwards `/api/1.0` to
+  `localhost:8000`, but SDK 5 calls `/api/2.0` on the origin set by `VITE_DEV_URL`, so the proxy
+  is no longer used. Left alone to keep that work to the library switch. **Revisit when**
+  mobile's dev setup is next touched, or after go-live.
+- **Mobile: README's missing-MapTiler-key note and `user.ts`'s import-order comment.**
+  _Deferred 2026-11-09 (mobile #114, final review, minor)._ `README.md` still says that without
+  `VITE_MAPTILER_KEY` the map falls back to a default style with a console warning, which was
+  monitor-map 4.x. With 5.0 the app passes `""` and map-sdk sends an empty `key=`, so the
+  basemap most likely fails to load without that warning. Separately, `src/lib/users/account/user.ts`
+  syncs the map login when it loads and relies on being imported only after `initPreferences()`;
+  a comment is the only guard, and it could point to `ARCHITECTURE.md`'s bootstrap-ordering note.
+  **Revisit when** mobile's README or bootstrap code is next touched.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
@@ -448,7 +461,21 @@ string`) now get the union return type. The mobile app passes a string token, so
     monitor tooltips, cluster renderer, icon manager and detail panel) and mobile (`Alerts.svelte`,
     `Subscriptions.svelte`, `alert-level.ts`) import `SJVAirEntryLevel` or use `asIter`, so both
     change when they move to that SDK beta; map-sdk and the dashboard don't use them. The dashboard reads `scale`; its e2e
-    fixtures still contain `levels`.
+    fixtures still contain `levels`. **Mobile done** (mobile #114 into its `release/5.0.0`,
+    2026-11-09): it reads `scale`, and a subscription level missing from the PM2.5 scale shows
+    "—" instead of disappearing; `MonitorSubscription.svelte` was removed.
+  - **Mobile 5.0.0 on the day, after `develop` is deployed** (the user, 2026-11-09). Each step
+    needs the user's own yes; none is done earlier. Mobile's 5.0 work waits on its
+    `release/5.0.0` branch (`main` stays on 4.x for hotfixes):
+    1. Switch mobile to the final `@sjvair/monitor-map` `5.0.0` and `@sjvair/sdk` `5.0.0`
+       (pinned exactly; PR into `release/5.0.0`).
+    2. Rerun `TZ=America/Los_Angeles npx vitest run` and the Android emulator map check (the
+       map renders, a panel opens, subscribing from the map works).
+    3. Date the `## [5.0.0]` CHANGELOG entry.
+    4. Merge `release/5.0.0` → `main`.
+    5. Create the GitHub Release `v5.0.0` targeting `main`'s full SHA. It ships to TestFlight and
+       the Play beta track.
+    6. The user tests on iOS.
   - **Before:** resticus #25 merged upstream (#297's cookie-authenticated writes need it; #26 and
     #27, the bad-id 404s and the 400 body, merge with it at go-live, as agreed with the code owner,
     the user, 2026-11-06); the
@@ -463,6 +490,31 @@ string`) now get the union return type. The mobile app passes a string token, so
     `monitors/<id>/alerts/current/` answers `pending` until the first 10-minute alert run (up to
     10 minutes), then real values. The Current conditions tile works against production only
     once this is deployed: SDK 5.0.0-beta.7 expects the new fields.
+  - **Scale averaging periods, daily peaks and open days (sjvair.com #320, #321, #323, merged into `develop` 2026-11-09;
+    steps from sjvair-com-64), in order:**
+    1. **Deploy** away from :40–:50 and with no `SummaryBackfillJob` running. The release phase runs
+       `summaries/0007_summary_peaks`, which sets `lock_timeout` to 10 s, so a blocked migration fails the release fast; rerun
+       it at a quiet time.
+    2. **AirNow -999 hours already stored** (found 2026-11-09): the importer has skipped AirNow's -999 missing-value code
+       since sjvair.com a7507e9d (2026-10-22, already on `main`), but earlier hours stay. Public data from www.sjvair.com
+       showed an O3 hourly summary of -999 (count 1, `is_complete` true) for Fresno – Garland at 2026-09-24 17:00 PT (spec 5
+       session, one read-only pull, with the user's yes). Run `backfill_airnow` (scoped) over the -999 range, then rebuild
+       those monitors' summaries. The daily peaks also skip hourly values ≤ -900 and print a skip count (the user,
+       2026-11-09: both the order and the skip).
+       2b. **Rebuild region summaries over the same -999 range,** after the AirNow monitor rebuild and before any region fill:
+       `rebuild_summaries <start> <end> --monitor=<id> --regions-only` per affected AirNow monitor (it rebuilds exactly that
+       monitor's regions; there's no region-type flag). Region hourly rows are weighted means, so a -999 monitor hour usually
+       lands above -900 and the skip doesn't catch it (sjvair-com-64's final review, 2026-11-09). Count the regions first (the
+       sum of `monitor.regions` over those monitors; the query comes with the PR).
+    3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix).
+    4. `fill_daily_peaks`, scoped, `--dry-run` first and then for real: monitor types `airnow`, `aqlite`, `vozbox`,
+       `purpleair`, `airgradient`, `aqview` and `bam1022`, then each region type (`mean_24h` makes PM types part of it).
+    5. Run the backfill **before announcing** the dashboard: settled daily responses are cached for 24 hours.
+       **Pass monitor ids as `--monitor=<id>`** in every command here and in the CIMIS steps: a sqid can start with `-`,
+       which argparse reads as a flag (suspected cause of a flaky `restamp_cimis` test, 2026-11-09). 6. **After the deploy, in sdk-js:** remove `ignore: isRemote` from the open-day integration steps in
+       `lib/monitors/mod_test.ts` and `lib/regions/mod_test.ts` (sdk-js #59), so `TEST_REMOTE` runs check production.
+       Exact commands come with the merged PR. **Why deferred:** nothing touches production until `develop` deploys.
+       **Revisit:** at the deploy.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
@@ -486,7 +538,7 @@ string`) now get the union return type. The mobile app passes a string token, so
        labels for a stored date, and a re-run is safe (also after a collision with the live
        import).
     2. Once all 23 are re-stamped, per station: `heroku run -a <app> -- python manage.py
-rebuild_summaries <first CIMIS date> <today> --monitor <id> --monitors-only`.
+rebuild_summaries <first CIMIS date> <today> --monitor=<id> --monitors-only`.
   - **Summaries repair (sjvair.com #305):** findings 2 and 3 of the 2026-11-03 rollup report.
     Production has backfill rows stamped an hour early (some correctly stamped months,
     quarters, seasons and years also hold one extra row), seasons starting May 1 from the old
@@ -511,7 +563,7 @@ timestamp)` index or the unique index's leading columns, not a full scan.
     4. **Size it:**
        - `check_summary_integrity.call_local()` gives the network-wide misaligned count and
          yesterday's skipped region hours, and logs its run time;
-       - then `repair_summaries <first summary date> <deploy date> --monitor <pk> --region
+       - then `repair_summaries <first summary date> <deploy date> --monitor=<pk> --region
 <pk> --region-hours --dry-run` for one monitor and one county (Fresno, `r6phe`). The
          first summary date is the earliest non-hourly row, or the old backfill's `--from`.
        - The dry run prints the spans it widens to, what it will delete and re-roll, and the
@@ -534,7 +586,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
        after its :50 run" warnings.
 
     Known leftovers: an hour where every monitor's health score is 0 correctly gets no region
-    row, and `--region-hours` keeps listing it. Retired regions need `--region <pk>`, since
+    row, and `--region-hours` keeps listing it. Retired regions need `--region=<pk>`, since
     `--region-type` covers current regions only. Misaligned rows of unfinished periods (such
     as the current year's) are deleted and come back at the scheduled rollup.
 
@@ -600,6 +652,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (step 3 spec 1)._ `regions/meta/` `count` can lag an import by up to an hour. **Revisit if**
   an import flow needs the new counts immediately (then invalidate the key from the import
   commands).
+
+- **sjvair.com: flaky `restamp_cimis` test (found 2026-11-09).** `camp/apps/monitors/cimis/test_restamp.py::test_command_restamps_and_prints_counts`
+  failed once in a full run (sjvair-com-64) and passed alone and on a rerun. Suspected cause, not yet confirmed: the test
+  calls `call_command('restamp_cimis', '--monitor', monitor.pk, ...)`, and a sqid starting with `-` reads as a flag. A fix
+  would be `--monitor=<id>` in the test and the docs (the deploy steps already say so). **Why deferred:** outside the
+  scale-averaging work and intermittent. **Revisit:** when `restamp_cimis` is next touched, or if it fails in CI.
+
+- **sjvair.com `CLAUDE.md`: monitor and region ids in command examples (found 2026-11-09).** The CIMIS section
+  (`restamp_cimis`, `rebuild_summaries`) and the `repair_summaries` example still show `--monitor <id>` / `--region <pk>`.
+  A sqid can start with `-`, which argparse reads as a flag, so the `=` form is safe. **Why deferred:** it predates the
+  scale-averaging branch and only affects ids that start with `-`. **Revisit:** the next time those docs are touched, or
+  before any production CIMIS re-stamp (the deploy steps here already use the `=` form).
 
 ## Documents & saving
 
@@ -1046,6 +1110,27 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
+
+- **monitor-map 5.0: an expanded legend can run under the zoom and compass buttons at 390 px (found 2026-11-09).**
+  monitor-map-18's legend fix (spec `docs/superpowers/specs/2026-11-09-user-contract-and-legend-design.md`) collapses the
+  legend when a monitor panel opens on narrow screens and caps its height so it never covers Options and Search. If the
+  user expands it again with the panel open, at 390 px wide the card can still reach under the zoom and compass buttons
+  on the right. **Why deferred:** minor, and it only happens after the user expands the legend with a panel open.
+  **Revisit:** if it's reported, or when monitor-map's map controls are next laid out.
+- **monitor-map 5.0: final-review minors from #131 and #132 (2026-11-09, monitor-map-18).**
+  (1) No test checks that subscribing sends the current token after a user switch. **Why:** the panel's
+  `{#key getApiToken()}` remounts the control, and that remount is tested. **Revisit:** if the subscribe path changes or
+  mobile reports a wrong-account subscription. (2) The README doesn't warn hosts against calling `monitorMapUserChanged()`
+  inside a `$derived` (it writes `$state`). **Why:** mobile calls it from event handlers. **Revisit:** if a host hits
+  Svelte's `state_unsafe_mutation` error. (3) No comment ties the legend wrapper's `top-18` / `md:top-32` offsets to
+  OptionsBar's height. **Why:** cosmetic. **Revisit:** when OptionsBar's height changes. (4) Ruling: two cookie-only users
+  (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
+  without a token.
+- **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
+  map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
+  than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
+  deferred:** console noise only, and the design is intended. **Revisit:** if a map-sdk feature starts relying on the
+  global config, or before map-sdk's first stable release, to silence the warning.
 
 ## Analysis & data
 
