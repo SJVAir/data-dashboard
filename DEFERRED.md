@@ -43,7 +43,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   Notifications item, and the `thresholds` field in the change schema; spec 5's is the two calendar
   descriptors, their date and place-spot helpers, and the registry's new fields (`defaultRange`,
   `menu(ctx, env)`, `accepts.onlyPollutant`); the calendars' own code is lazy. The user accepted
-  the spec 4 growth on 2026-11-08 and the calendars' on 2026-11-09 (no trim, budget unchanged).
+  the spec 4 growth on 2026-11-08 and the calendars' on 2026-11-09, and accepted the final
+  204.8 KB for now on 2026-11-09 (no trim, budget unchanged).
   Candidates if trimming later: lazy-load the widget type icons, drop the menu item's icon.
   **Revisit when** `check:budget` grows further, or before step 4 merges into `main`.
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
