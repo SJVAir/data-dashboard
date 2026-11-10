@@ -44,7 +44,7 @@
 		const { signal } = controller;
 		void loadLazy(() => import("$lib/places/bar-name"))
 			.then(({ placeBarText }) => placeBarText(place, viewer, signal))
-			.catch(() => m.place_bar_showing_unnamed())
+			.catch(() => m.place_bar_showing_this_dashboards_place())
 			.then((said) => {
 				if (signal.aborted) return;
 				const changed = named !== null && named.docId === docId && named.key !== k;

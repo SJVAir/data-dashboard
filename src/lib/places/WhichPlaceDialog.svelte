@@ -73,9 +73,9 @@
 >
 	<Dialog.Content data-which-place-dialog {onCloseAutoFocus}>
 		<Dialog.Header>
-			<Dialog.Title id="which-place-title">{m.which_place_title()}</Dialog.Title>
+			<Dialog.Title id="which-place-title">{m.which_place_replace_title()}</Dialog.Title>
 			<Dialog.Description id="which-place-description">
-				{m.which_place_description()}
+				{m.which_place_replace_description()}
 			</Dialog.Description>
 		</Dialog.Header>
 		{#if names}

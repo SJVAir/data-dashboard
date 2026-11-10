@@ -185,7 +185,7 @@ test.describe("the bar on a copy", () => {
 
 		await bar(page).getByRole("button", { name: "Change place" }).click();
 		const also = picker(page).getByRole("checkbox", {
-			name: "Also change the 1 widget showing another place"
+			name: "Also change the widget showing another place"
 		});
 		await expect(also).toBeVisible();
 		await also.check();
@@ -267,7 +267,7 @@ test.describe("Duplicate for another place", () => {
 		await expect(widgetTitles(page)).toHaveCount(2);
 		await openPicker(page, "Two counties");
 		await page.getByRole("menuitem", { name: "Duplicate for another place…" }).click();
-		const dialog = page.getByRole("dialog", { name: "Which place should change?" });
+		const dialog = page.getByRole("dialog", { name: "Which place do you want to replace?" });
 		await expect(dialog).toBeVisible();
 		await expect(dialog.getByRole("radio")).toHaveCount(2);
 		await expect(dialog.getByRole("radio", { name: "Fresno County" })).toBeVisible();

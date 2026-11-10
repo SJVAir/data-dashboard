@@ -195,7 +195,7 @@ async function duplicateForPlace(app: AppContext, id?: string): Promise<void> {
 	const candidates = placesToReplace(target.session.doc);
 	if (candidates.length === 0) {
 		// Only a list row gets here: the open dashboard's menu leaves the item out.
-		toast.info(m.dashboard_duplicate_for_another_place_none());
+		toast.info(m.dashboard_duplicate_no_single_place());
 		return;
 	}
 	const tie = candidates.length > 1;

@@ -38,9 +38,9 @@ export async function placeName(place: ChosenPlace, signal: AbortSignal): Promis
 }
 
 /**
- * "Showing Fresno County"; "Showing your location" for the owner's point; the generic
- * "Showing the chosen place" when the place can't be named (gone, or its lookup failed).
- * Rejects only when `signal` aborts.
+ * "Showing Fresno County"; "Showing your location" for the owner's point and "Showing a shared
+ * location" for someone else's; the generic "Showing this dashboard's place" when the place
+ * can't be named (gone, or its lookup failed). Rejects only when `signal` aborts.
  */
 export async function placeBarText(
 	place: ChosenPlace,
@@ -50,6 +50,10 @@ export async function placeBarText(
 	const name = await placeName(place, signal).catch(() => null);
 	if (signal.aborted) throw new DOMException("The operation was aborted.", "AbortError");
 	if (name) return m.place_bar_showing({ place: name });
-	if (place.kind === "point" && viewer === "owner") return m.place_bar_showing_your_location();
-	return m.place_bar_showing_unnamed();
+	if (place.kind === "point") {
+		return viewer === "owner"
+			? m.place_bar_showing_your_location()
+			: m.place_bar_showing_shared_location();
+	}
+	return m.place_bar_showing_this_dashboards_place();
 }

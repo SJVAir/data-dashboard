@@ -135,7 +135,7 @@ async function showCopy(widgets: WidgetInstance[], bar: ChosenPlace | null = COU
 
 const more = () => page.getByRole("button", { name: "Dashboard actions" });
 const picker = () => page.getByRole("dialog", { name: m.place_picker_dialog_title() });
-const which = () => page.getByRole("dialog", { name: m.which_place_title() });
+const which = () => page.getByRole("dialog", { name: m.which_place_replace_title() });
 const renameDialog = () => page.getByRole("dialog", { name: m.rename_dashboard_title() });
 const placesOf = (doc: Dashboard) =>
 	doc.body.widgets.map((w) => w.data.layers.map((l) => l.place ?? null));
@@ -194,7 +194,7 @@ test("a tie asks which place first, with a labeled radio group; the copy gains n
 	);
 	await start();
 	await expect.element(which()).toBeVisible();
-	const group = page.getByRole("radiogroup", { name: m.which_place_title() });
+	const group = page.getByRole("radiogroup", { name: m.which_place_replace_title() });
 	await expect.element(group).toBeVisible();
 	await expect.element(group.getByRole("radio", { name: "Fresno County" })).toBeChecked();
 	await group.getByRole("radio", { name: "City of Fresno" }).click();

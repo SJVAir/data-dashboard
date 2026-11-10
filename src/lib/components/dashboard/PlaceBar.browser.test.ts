@@ -242,7 +242,7 @@ test("Also change… switches the widgets showing other places too (comparisons 
 		"Also change the 2 widgets showing other places"
 	);
 	expect(m.place_picker_also_change({ count: "1", countValue: 1 })).toBe(
-		"Also change the 1 widget showing another place"
+		"Also change the widget showing another place"
 	);
 	await alsoChange(2).click();
 	await pick(/ZIP 93721/);
@@ -297,6 +297,15 @@ test("a live-share viewer sees Showing … without Change place", async () => {
 		.not.toBeInTheDocument();
 });
 
+test("an exact point reads as your location to its owner and a shared location to a viewer", async () => {
+	await makeApp();
+	const { placeBarText } = await import("$lib/places/bar-name");
+	const point: ChosenPlace = { kind: "point", lat: 36.75, lon: -119.79 };
+	const signal = new AbortController().signal;
+	expect(await placeBarText(point, "owner", signal)).toBe("Showing your location");
+	expect(await placeBarText(point, "shared", signal)).toBe("Showing a shared location");
+});
+
 test("starter bar during hand-off applies to the copy", async () => {
 	const { app, starter } = await showStarter();
 	await openBar();
@@ -317,8 +326,8 @@ test("an unknown place is named with the generic fallback, and can still be chan
 	const platform = createMemoryPlatform();
 	await saveStarterPlace(platform, "anonymous", { kind: "region", type: "county", code: "gone" });
 	await showStarter(platform);
-	await expect.poll(barText).toContain("Showing the chosen place");
-	expect(m.place_bar_showing_unnamed()).toBe("Showing the chosen place");
+	await expect.poll(barText).toContain("Showing this dashboard's place");
+	expect(m.place_bar_showing_this_dashboards_place()).toBe("Showing this dashboard's place");
 	await expect.element(changePlace()).toBeVisible();
 });
 
