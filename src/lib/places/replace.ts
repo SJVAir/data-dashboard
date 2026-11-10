@@ -36,7 +36,8 @@ function moved(widget: WidgetInstance, to: ChosenPlace): WidgetInstance {
 
 /**
  * Widgets at `from` (and, with `others`, every single-place widget) switch to `to`. Mixed
- * widgets and Notes never change. The bar moves when it is at `from`.
+ * widgets and Notes never change. The bar moves when it is at `from`. `doc` itself when `from`
+ * and `to` are the same place, so it gives no change.
  */
 export function replacePlace(
 	doc: Dashboard,
@@ -44,6 +45,7 @@ export function replacePlace(
 	to: ChosenPlace,
 	opts: { others: boolean }
 ): Dashboard {
+	if (sameRef(from, to)) return doc;
 	const widgets = doc.body.widgets.map((w) => {
 		const place = single(w);
 		if (!place) return w;
@@ -113,4 +115,18 @@ export function replaceChange(doc: Dashboard, next: Dashboard): Change | null {
 		};
 	}
 	return null;
+}
+
+/**
+ * The bar's "Change place" as one change: the widgets at the bar's place (and, with `others`,
+ * the other single-place widgets) and the bar switch to `to`. `null` with no bar, or no change.
+ */
+export function barChange(
+	doc: Dashboard,
+	to: ChosenPlace,
+	opts: { others: boolean }
+): Change | null {
+	const bar = doc.body.placeBar;
+	if (!bar) return null;
+	return replaceChange(doc, replacePlace(doc, bar.place, to, opts));
 }

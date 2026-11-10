@@ -278,7 +278,7 @@ export function askExistingCopy(copy: DashboardSummary): Promise<ExistingCopyCho
 
 export const placePicker = $state<{
 	open: boolean;
-	/** The widget whose place it changes. */
+	/** The widget whose place it changes; `null` for the dashboard's place (its bar). */
 	widgetId: string | null;
 	/** Counts the openings, so each one starts fresh. */
 	opening: number;
@@ -286,9 +286,13 @@ export const placePicker = $state<{
 	opener: HTMLElement | null;
 }>({ open: false, widgetId: null, opening: 0, opener: null });
 
-/** Opens the place picker for a widget; Done changes its place in one undoable edit. */
-export function openPlacePicker(opts: { widgetId: string }): void {
-	placePicker.widgetId = opts.widgetId;
+/**
+ * Opens the place picker for a widget, or with `dashboardPlace` for the dashboard's "Change
+ * place" bar. Done changes a widget's place in one undoable edit; the bar's place changes the
+ * starter (no copy, no undo) or, on a copy, its widgets at that place (one undoable edit).
+ */
+export function openPlacePicker(opts: { widgetId: string } | { dashboardPlace: true }): void {
+	placePicker.widgetId = "widgetId" in opts ? opts.widgetId : null;
 	placePicker.opening++;
 	placePicker.opener =
 		typeof document !== "undefined" && document.activeElement instanceof HTMLElement

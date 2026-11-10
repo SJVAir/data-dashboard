@@ -38,6 +38,7 @@
 	import AddWidgetButton from "./AddWidgetButton.svelte";
 	import DashboardHeader from "./DashboardHeader.svelte";
 	import EmptyState from "./EmptyState.svelte";
+	import PlaceBar from "./PlaceBar.svelte";
 	import Taskbar from "./Taskbar.svelte";
 	import WidgetFrame from "./WidgetFrame.svelte";
 
@@ -328,6 +329,10 @@
 							: m.doc_readonly_invalid()}
 				</p>
 			{:else}
+				<!-- "Showing … · Change place": the starter's, and its copies'. A view only shows it. -->
+				{#if doc}
+					<PlaceBar {doc} editable={!view && !!editable} inert={!!shownId} />
+				{/if}
 				{#if doc && watching}
 					{#await loadWatcher() then { default: ThresholdWatcher }}
 						{#key doc.id}

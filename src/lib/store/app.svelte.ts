@@ -10,7 +10,14 @@ import { StorageProtection } from "$lib/safety/protection.svelte";
 import { purgeExpired } from "$lib/safety/purge";
 import { report } from "$lib/safety/report";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
-import { defaultStarterPlace, readStarterPlace, type ChosenPlace } from "$lib/starter/place.svelte";
+import { barChange } from "$lib/places/replace";
+import { sameRef } from "$lib/places/types";
+import {
+	defaultStarterPlace,
+	readStarterPlace,
+	saveStarterPlace,
+	type ChosenPlace
+} from "$lib/starter/place.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
 import { hasPoints } from "$lib/sharing/point-layers";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -55,6 +62,12 @@ export type AppContext = {
 	 * "Clear my data" (Fresno County when unset).
 	 */
 	starterPlace: ChosenPlace;
+	/**
+	 * The starter's "Change place": saves `place` as the space's chosen place and shows a fresh
+	 * starter there (every widget at once; no copy, no undo). A starter whose first edit already
+	 * started its hand-off gives its copy the bar's change instead (an ordinary, undoable edit).
+	 */
+	changeStarterPlace(place: ChosenPlace): Promise<void>;
 	/** This tab's sync worker in an account space (`null`: not syncing). */
 	sync: SyncWorker | null;
 	/** The sessions this tab has open (the starter's included). */
@@ -336,10 +349,46 @@ class App implements AppContext {
 		this.#live.clear();
 		this.#open.clear();
 		this.current = { session: null, isStarter: false };
-		// Cleared with the rest: read again before the next starter is built.
-		this.starterPlace = await readStarterPlace(this.platform, this.space);
+		// Cleared with the rest, so unset. Set before anything awaits: a starter built from here on
+		// has this place and this reset's count.
+		this.starterPlace = defaultStarterPlace();
 		this.resetCount++;
 		await this.index.refresh();
+	}
+
+	async changeStarterPlace(place: ChosenPlace): Promise<void> {
+		const starter = this.#live.get(STARTER_ID) ?? null;
+		// The starter's first edit started (or finished: it's gone from here) its hand-off: the
+		// copy is what's shown, and its bar changes.
+		const handedOff = starter ? starter.edited : !this.current.isStarter && !!this.current.session;
+		if (handedOff) {
+			// A hand-off that failed keeps its edits queued on the starter: nothing to change then.
+			const copy = starter ? await starter.handoff : this.current.session;
+			const target = copy?.editTarget;
+			if (!target || target.readOnly) return;
+			const change = barChange(target.doc, place, { others: false });
+			if (change) target.apply(change);
+			return;
+		}
+		// The place it shows already: nothing to change.
+		if (sameRef(place, this.starterPlace)) return;
+		// Replaced before anything awaits, so an edit can't reach the old starter meanwhile.
+		this.starterPlace = place;
+		if (starter) {
+			starter.discard();
+			this.#live.delete(STARTER_ID);
+			const fresh = this.#starter();
+			this.#open.set(STARTER_ID, Promise.resolve(fresh));
+			if (this.current.isStarter) this.current = { session: fresh, isStarter: true };
+		} else {
+			this.#open.delete(STARTER_ID);
+		}
+		try {
+			await saveStarterPlace(this.platform, this.space, place);
+		} catch (error) {
+			// Shown for now; the next visit shows the place saved before.
+			report(error, { operation: "starter-place" });
+		}
 	}
 
 	#starter(): DocumentSession {

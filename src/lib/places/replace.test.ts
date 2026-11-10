@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChosenPlace, Layer } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import {
+	barChange,
 	barVisible,
 	mainPlaces,
 	othersCount,
@@ -136,5 +137,31 @@ describe("replaceChange", () => {
 		expect(replaceChange(single, replacePlace(single, A, C, { others: false }))?.op).toBe(
 			"replaceDocument"
 		);
+	});
+});
+
+describe("replacing a place with itself", () => {
+	it("leaves the document as it was, so there's no change (no undo step)", () => {
+		const d = doc([widget("a", [at(A)]), widget("b", [at(B)])], A);
+		const same = replacePlace(d, A, { ...A }, { others: true });
+		expect(same).toBe(d);
+		expect(replaceChange(d, same)).toBeNull();
+	});
+});
+
+describe("barChange", () => {
+	it("switches the bar's widgets (and with others, the rest) as one change", () => {
+		const d = doc([widget("a", [at(A)]), widget("b", [at(B)]), widget("c", [at(A)])], A);
+		const change = barChange(d, C, { others: false })!;
+		expect(change.op).toBe("replaceDocument");
+		const to = (change as { to: { body: Dashboard["body"] } }).to.body;
+		expect(to.placeBar).toEqual({ place: C });
+		expect(to.widgets.map((w) => w.data.layers[0].place)).toEqual([C, B, C]);
+		const all = (barChange(d, C, { others: true }) as { to: { body: Dashboard["body"] } }).to.body;
+		expect(all.widgets.map((w) => w.data.layers[0].place)).toEqual([C, C, C]);
+	});
+	it("is null with no bar, or at the bar's own place", () => {
+		expect(barChange(doc([widget("a", [at(A)])]), C, { others: false })).toBeNull();
+		expect(barChange(doc([widget("a", [at(A)])], A), A, { others: true })).toBeNull();
 	});
 });
