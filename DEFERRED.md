@@ -423,6 +423,11 @@ string`) now get the union return type. The mobile app passes a string token, so
   `current/`, `at/`, alerts); that needs a caller list and tests pinning each caller's rows.
   **Revisit when** the post-deploy check shows production has JIT on, or another endpoint's
   `EXPLAIN` shows JIT time dominating.
+- **`with_latest_entry()` picks a `LatestEntry` row without an order (sjvair.com).** _Deferred
+  2026-11-10 (closest-monitor work, #326)._ It takes the first `LatestEntry` row per monitor and
+  entry type with no `ORDER BY`; for a monitor with both cleaned and calibrated PM2.5 rows it
+  returns the calibrated one only because of index order. Unchanged by #326, which kept the
+  behavior. **Revisit when** anyone touches `LatestEntry` or the published-series logic.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
