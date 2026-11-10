@@ -90,7 +90,7 @@ afterEach(() => {
 });
 
 async function makeApp(platform: MemoryPlatform = createMemoryPlatform()) {
-	await platform.preferences.set("anonymous", RECENT_KEY, [CITY, ZIP]);
+	await platform.preferences.set("anonymous", RECENT_KEY, [CITY, ZIP, COUNTY]);
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
 	stubStarterTypes();
 	return { platform, app };
@@ -320,4 +320,28 @@ test("an unknown place is named with the generic fallback, and can still be chan
 	await expect.poll(barText).toContain("Showing the chosen place");
 	expect(m.place_bar_showing_unnamed()).toBe("Showing the chosen place");
 	await expect.element(changePlace()).toBeVisible();
+});
+
+test("on a copy, the bar's own place with Also change… brings the others to it in one undo step", async () => {
+	const { session } = await showCopy([
+		chart("a", [pm25(COUNTY)], 0),
+		chart("b", [pm25(CITY)], 4),
+		chart("c", [pm25(COUNTY), pm25(CITY)], 8)
+	]);
+	await openBar();
+	await alsoChange(1).click();
+	await pick(/Fresno County/);
+	expect(placesOf(session.doc)).toEqual([[COUNTY], [COUNTY], [COUNTY, CITY]]);
+	expect(session.doc.body.placeBar).toEqual({ place: COUNTY });
+	session.undo();
+	expect(placesOf(session.doc)).toEqual([[COUNTY], [CITY], [COUNTY, CITY]]);
+	expect(session.canUndo).toBe(false);
+});
+
+test("on a copy, the bar's own place without Also change… does nothing", async () => {
+	const { session } = await showCopy([chart("a", [pm25(COUNTY)], 0), chart("b", [pm25(CITY)], 4)]);
+	await openBar();
+	await pick(/Fresno County/);
+	expect(placesOf(session.doc)).toEqual([[COUNTY], [CITY]]);
+	expect(session.canUndo).toBe(false);
 });

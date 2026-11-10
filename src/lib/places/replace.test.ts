@@ -143,7 +143,7 @@ describe("replaceChange", () => {
 describe("replacing a place with itself", () => {
 	it("leaves the document as it was, so there's no change (no undo step)", () => {
 		const d = doc([widget("a", [at(A)]), widget("b", [at(B)])], A);
-		const same = replacePlace(d, A, { ...A }, { others: true });
+		const same = replacePlace(d, A, { ...A }, { others: false });
 		expect(same).toBe(d);
 		expect(replaceChange(d, same)).toBeNull();
 	});
@@ -163,5 +163,30 @@ describe("barChange", () => {
 	it("is null with no bar, or at the bar's own place", () => {
 		expect(barChange(doc([widget("a", [at(A)])]), C, { others: false })).toBeNull();
 		expect(barChange(doc([widget("a", [at(A)])], A), A, { others: true })).toBeNull();
+	});
+});
+
+describe("the bar's own place with Also change", () => {
+	it("brings the other single-place widgets to it as one change; the bar stays", () => {
+		const mixed = widget("m", [at(A), at(B)]);
+		const d = doc([widget("a", [at(A)]), widget("b", [at(B)]), widget("c", [at(C)]), mixed], A);
+		const next = replacePlace(d, A, A, { others: true });
+		expect(next.body.widgets[0]).toBe(d.body.widgets[0]);
+		expect(next.body.widgets[3]).toBe(mixed);
+		expect(next.body.placeBar).toBe(d.body.placeBar);
+		expect(next.body.widgets.map((w) => w.data.layers[0].place)).toEqual([A, A, A, A]);
+		const change = replaceChange(d, next)!;
+		expect(change.op).toBe("replaceDocument");
+		expect(barChange(d, A, { others: true })).toEqual(change);
+	});
+	it("is no change without Also change, or with nothing elsewhere", () => {
+		const d = doc([widget("a", [at(A)]), widget("b", [at(B)])], A);
+		expect(barChange(d, A, { others: false })).toBeNull();
+		const only = doc([widget("a", [at(A)])], A);
+		expect(barChange(only, A, { others: true })).toBeNull();
+	});
+	it("with one other widget, is that widget's change", () => {
+		const d = doc([widget("a", [at(A)]), widget("b", [at(B)])], A);
+		expect(barChange(d, A, { others: true })?.op).toBe("setWidgetData");
 	});
 });
