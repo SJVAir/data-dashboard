@@ -1,5 +1,8 @@
 import "../../../app.css";
 import { expect, test } from "vitest";
+import { createMemoryPlatform } from "$lib/platform/memory";
+import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
+import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { render } from "vitest-browser-svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
@@ -16,6 +19,17 @@ function note(options: Record<string, unknown>): WidgetInstance {
 		data: { layers: [] },
 		options
 	};
+}
+
+async function editableApp() {
+	const app = await initApp(createMemoryPlatform(), {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1"
+	});
+	const id = await app.index.createBlank();
+	const session = (await app.sessions.get(id))!;
+	app.current = { session, isStarter: false };
+	return { app, session, context: new Map([[APP_CONTEXT_KEY, app]]) };
 }
 
 test("each block kind renders as a real element", async () => {
@@ -71,11 +85,27 @@ test("the welcome message shows its text", async () => {
 	expect(screen.container.querySelector("strong")).not.toBeNull();
 });
 
-test("an empty or unknown Note shows the hint to its owner", async () => {
-	const empty = await render(NoteWidget, { widget: note({ text: "" }) });
-	await expect.element(empty.getByText(m.note_empty_hint())).toBeInTheDocument();
-	const unknown = await render(NoteWidget, { widget: note({ message: "no_such_message" }) });
-	await expect.element(unknown.getByText(m.note_empty_hint()).first()).toBeInTheDocument();
+test("an empty Note shows the hint where editing is possible", async () => {
+	const { context } = await editableApp();
+	const screen = await render(NoteWidget, { props: { widget: note({ text: "" }) }, context });
+	await expect.element(screen.getByText(m.note_empty_hint())).toBeInTheDocument();
+});
+
+test("an unknown message key reads as empty and shows the hint", async () => {
+	const { context } = await editableApp();
+	const screen = await render(NoteWidget, {
+		props: { widget: note({ message: "no_such_message" }) },
+		context
+	});
+	await expect.element(screen.getByText(m.note_empty_hint())).toBeInTheDocument();
+});
+
+test("an empty Note shows no hint on a read-only dashboard, reactively", async () => {
+	const { context, session } = await editableApp();
+	const screen = await render(NoteWidget, { props: { widget: note({ text: "" }) }, context });
+	await expect.element(screen.getByText(m.note_empty_hint())).toBeInTheDocument();
+	session.readOnly = "invalid";
+	await expect.poll(() => screen.getByText(m.note_empty_hint()).query()).toBeNull();
 });
 
 test("an empty Note shows nothing when read-only (a shared link)", async () => {

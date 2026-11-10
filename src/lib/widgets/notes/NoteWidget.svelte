@@ -3,6 +3,7 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { noteMarkdown } from "$lib/notes/messages";
 	import { toNoteBlocks } from "$lib/notes/markdown";
+	import { APP_CONTEXT_KEY, type AppContext } from "$lib/store/app.svelte";
 	import { noteOptions } from "$lib/notes/options";
 	import { m } from "$lib/paraglide/messages.js";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
@@ -11,6 +12,12 @@
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
+
+	const app = getContext<AppContext | undefined>(APP_CONTEXT_KEY);
+	// The hint invites an edit, so it shows only where the dashboard can be edited right now.
+	const editable = $derived(
+		viewer === "owner" && !!app?.current.session && !app.current.session.readOnly
+	);
 
 	const markdown = $derived(noteMarkdown(noteOptions(widget)));
 	const blocks = $derived(toNoteBlocks(markdown));
@@ -28,7 +35,7 @@
 >
 	{#if blocks.length > 0}
 		<NoteBlocks {blocks} />
-	{:else if viewer === "owner"}
+	{:else if editable}
 		<p class="text-muted-foreground">{m.note_empty_hint()}</p>
 	{/if}
 </div>
