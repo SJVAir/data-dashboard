@@ -104,12 +104,14 @@ export function addWidget(app: AppContext, type: string): void {
 	const widgetType = getWidgetType(type);
 	if (!session || !widgetType) return;
 	const widgets = session.doc.body.widgets;
+	const added = widgetType.addable?.() ?? { data: { layers: [] } };
 	const widget: WidgetInstance = {
 		id: crypto.randomUUID(),
 		type,
 		title: null,
 		rect: placeNewWidget(widgets, widgetType.defaultSize),
-		data: widgetType.addable?.() ?? { layers: [] }
+		data: added.data,
+		...(added.options ? { options: added.options } : {})
 	};
 	session.apply({
 		op: "addWidget",
@@ -117,6 +119,7 @@ export function addWidget(app: AppContext, type: string): void {
 		widget,
 		index: widgets.length
 	});
+	widgetType.onAdded?.(app, widget.id);
 }
 
 /**

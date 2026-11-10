@@ -1160,5 +1160,8 @@
 	"outside_no_pm25": "No PM2.5 data for this place",
 	"alert_pollutant_at_place_is_now_level": "{pollutant} at {place} is now {level}",
 	"taskbar_restore_named_alert_reached": "Restore {title} (alert level reached)",
-	"widget_fullscreen_named_alert_reached": "Show {title} fullscreen (alert level reached)"
+	"widget_fullscreen_named_alert_reached": "Show {title} fullscreen (alert level reached)",
+	"widget_note_title": "Note",
+	"note_empty_hint": "This note is empty. Choose Edit note to write something.",
+	"starter_note_welcome": "**Welcome to the SJVAir Dashboard.** These widgets show air quality for one place. Use **Change place** above to pick your school, city or ZIP Code. You can move, resize or add widgets, and your first change saves the dashboard as your own. This is a Note: edit it or delete it any time."
 }

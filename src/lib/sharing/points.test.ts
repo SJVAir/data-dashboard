@@ -72,6 +72,21 @@ describe("hasPoints and pointSwaps", () => {
 		expect(mocked.placeRegion).not.toHaveBeenCalled();
 	});
 
+	it("a Note has no places layer, so nothing is looked up for it", async () => {
+		const note: WidgetInstance = {
+			id: "n",
+			type: "note",
+			title: null,
+			rect: { x: 0, y: 0, w: 4, h: 3 },
+			data: { layers: [] },
+			options: { text: "hi" }
+		};
+		const doc = docWith(note);
+		expect(hasPoints(doc)).toBe(false);
+		expect(await pointSwaps(doc)).toEqual([]);
+		expect(mocked.placeRegion).not.toHaveBeenCalled();
+	});
+
 	it("looks a point layer's region up with the widget's own query", async () => {
 		const doc = docWith(dataWidget("p", [pm25(POINT)]));
 		expect(hasPoints(doc)).toBe(true);

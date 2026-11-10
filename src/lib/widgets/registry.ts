@@ -46,9 +46,12 @@ export type WidgetType = {
 	load: () => Promise<WidgetModule>;
 	/**
 	 * A direct add: Add widget lists the type (after the data types) and adds it with this data.
-	 * Data types (those with `accepts.datasets`) go through Get data instead.
+	 * Data types (those with `accepts.datasets`) go through Get data instead. Returns the new
+	 * widget's data and, if it has any, its `options`.
 	 */
-	addable?: () => WidgetDataConfig;
+	addable?: () => { data: WidgetDataConfig; options?: Record<string, unknown> };
+	/** Runs right after Add widget adds a widget of this type (e.g. opening its editor). */
+	onAdded?: (app: AppContext, widgetId: string) => void;
 };
 
 const types = new Map<string, WidgetType>();

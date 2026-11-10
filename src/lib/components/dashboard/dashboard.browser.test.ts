@@ -26,7 +26,7 @@ registerWidgetType({
 	...placeholderType,
 	type: "test-addable",
 	label: () => "Test widget",
-	addable: () => ({ layers: [] })
+	addable: () => ({ data: { layers: [] } })
 });
 
 /** Adds a widget through the "Add widget" menu. */
@@ -270,7 +270,7 @@ test("Add widget lists the addable types and adds the chosen one at the bottom",
 		label: () => "Titled test",
 		defaultSize: { w: 4, h: 5 },
 		load: () => gate.promise,
-		addable: () => structuredClone(data)
+		addable: () => ({ data: structuredClone(data) })
 	});
 	await renderGrid(app);
 	await page.getByRole("button", { name: "Add widget" }).click();
@@ -297,6 +297,23 @@ test("Add widget lists the addable types and adds the chosen one at the bottom",
 	// One undo step.
 	session.undo();
 	expect(session.doc.body.widgets.map((w) => w.id)).toEqual(["a"]);
+});
+
+test("Add widget lists Notes and adds an empty one with its options in one change", async () => {
+	const { app, session } = await setup();
+	await renderGrid(app);
+	await page.getByRole("button", { name: "Add widget" }).click();
+	await page.getByRole("menuitem", { name: "Note", exact: true }).click();
+	const widgets = session.doc.body.widgets;
+	expect(widgets).toHaveLength(1);
+	expect(widgets[0]).toMatchObject({
+		type: "note",
+		data: { layers: [] },
+		options: { text: "" },
+		rect: { w: 4, h: 3 }
+	});
+	session.undo();
+	expect(session.doc.body.widgets).toEqual([]);
 });
 
 test("the dashboard menu's Add widget offers the addable types", async () => {

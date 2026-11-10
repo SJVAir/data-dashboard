@@ -9,6 +9,7 @@ import {
 	type WidgetModule,
 	type WidgetType
 } from "./registry";
+import { noteType } from "./notes";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
 
 // A failed load sets the app-wide reload notice.
@@ -58,11 +59,17 @@ describe("widget registry", () => {
 		expect(names).not.toContain("registry-no-data");
 	});
 
+	test("the Notes type is addable but not a data type", () => {
+		registerWidgetType(noteType);
+		expect(addableWidgetTypes().map((t) => t.type)).toContain("note");
+		expect(dataTypes().map((t) => t.type)).not.toContain("note");
+	});
+
 	test("only types with `addable` are offered, in registration order", () => {
 		const data = { layers: [] };
-		registerWidgetType(type("registry-addable-a", { addable: () => data }));
+		registerWidgetType(type("registry-addable-a", { addable: () => ({ data }) }));
 		registerWidgetType(type("registry-not-addable"));
-		registerWidgetType(type("registry-addable-b", { addable: () => data }));
+		registerWidgetType(type("registry-addable-b", { addable: () => ({ data }) }));
 		const names = addableWidgetTypes().map((t) => t.type);
 		expect(names).toContain("registry-addable-a");
 		expect(names).toContain("registry-addable-b");
