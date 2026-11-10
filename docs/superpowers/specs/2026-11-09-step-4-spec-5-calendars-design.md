@@ -1,7 +1,10 @@
 # Release 1, step 4, spec 5: the calendars
 
 Status: approved by the user 2026-11-09 (brainstormed the same day). Checked by a fresh
-builder read; its questions are answered below (one by the user: today's cell).
+builder read; its questions are answered below (one by the user: today's cell). Built on
+`step-4-spec-5` and merged into `step-4` 2026-11-09 (#47, bfc0083), on `@sjvair/sdk`
+5.0.0-beta.8. Changes made during the build (Year calendar label, two-click selection, position
+numbers on small cells) are recorded in `ARCHITECTURE.md`.
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
 Mockups shown in the brainstorm (throwaway; this document is the record): the heatmap coloring
