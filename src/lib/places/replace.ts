@@ -93,7 +93,9 @@ export function mainPlaces(doc: Dashboard): ChosenPlace[] {
 
 /**
  * `next` as one change to `doc`: `setWidgetData` when one widget changed and the bar didn't
- * move, else one `replaceDocument`; `null` when nothing changed.
+ * move, else one `replaceDocument`; `null` when nothing changed. Widgets are compared by index,
+ * so `next` must keep `doc`'s widgets in the same order, one for one (as `replacePlace` does:
+ * it maps each widget and keeps the unchanged ones as the same objects).
  */
 export function replaceChange(doc: Dashboard, next: Dashboard): Change | null {
 	const changed = next.body.widgets.filter((w, i) => w !== doc.body.widgets[i]);

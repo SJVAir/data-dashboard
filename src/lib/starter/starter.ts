@@ -176,6 +176,8 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 			}
 			const doc = copyOfStarter(now(), place);
 			// Storage doesn't validate: a copy that would hold `default-place` fails here instead.
+			// The throw fails the hand-off, so the starter's session shows the save error
+			// (`errorKind: "unavailable"`) and its edits stay queued.
 			const valid = DashboardSchema.safeParse(doc);
 			if (!valid.success) throw new Error(`The starter's copy is invalid: ${valid.error.message}`);
 			const created = await platform.documents.commit(space, {

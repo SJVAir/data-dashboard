@@ -91,6 +91,43 @@ describe("toNoteBlocks", () => {
 		}
 		expect(toNoteBlocks("> quote")).toEqual([{ kind: "paragraph", children: [t("> quote")] }]);
 	});
+	it("keeps a `javascript:` autolink as text", () => {
+		expect(toNoteBlocks("<javascript:alert(1)>")).toEqual([
+			{ kind: "paragraph", children: [t("javascript:alert(1)")] }
+		]);
+	});
+	it("drops a reference link to `javascript:`; the definition shows as text", () => {
+		const blocks = toNoteBlocks("[x][r]\n\n[r]: javascript:alert(1)");
+		expect(JSON.stringify(blocks)).not.toContain('"kind":"link"');
+		expect(blocks).toEqual([
+			{ kind: "paragraph", children: [t("x")] },
+			{ kind: "paragraph", children: [t("[r]: javascript:alert(1)")] }
+		]);
+	});
+	it("keeps entities literal", () => {
+		expect(toNoteBlocks("&amp; &lt;b&gt; &#x41;")).toEqual([
+			{ kind: "paragraph", children: [t("&amp; &lt;b&gt; &#x41;")] }
+		]);
+	});
+	it("reads a loose list as a plain list", () => {
+		expect(toNoteBlocks("- a\n\n- b")).toEqual([
+			{ kind: "list", ordered: false, start: 1, items: [[t("a")], [t("b")]] }
+		]);
+	});
+	it("shows a task list's boxes as text, with no checkbox", () => {
+		const blocks = toNoteBlocks("- [ ] c\n- [x] d");
+		expect(blocks).toEqual([
+			{
+				kind: "list",
+				ordered: false,
+				start: 1,
+				items: [
+					[t("[ ]"), { kind: "break" }, t("c")],
+					[t("[x]"), { kind: "break" }, t("d")]
+				]
+			}
+		]);
+	});
 });
 
 describe("safeHref", () => {

@@ -228,7 +228,7 @@ test("a drop on the starter makes the copy", async ({ page }) => {
 
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(liveRegion(page)).toHaveText(
-		/^Dropped PM2\.5 · Fresno County at column 2, row 3\. \d+ other widgets? moved\.$/
+		"Dropped PM2.5 · Fresno County at column 2, row 3. 2 other widgets moved."
 	);
 	const moved = page.getByTestId("widget-starter-2");
 	await expect(moved.getByRole("group", { name: CURRENT, exact: true })).toBeFocused();

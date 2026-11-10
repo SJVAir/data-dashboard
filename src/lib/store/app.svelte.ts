@@ -71,9 +71,10 @@ export type AppContext = {
 	/**
 	 * Makes the shown starter this person's own dashboard with no edit (sharing it first makes
 	 * the copy), through the same hand-off as its first edit: the copy is stored (validated) and
-	 * made current, and the page showing the starter moves to its URL with the "Saved as your own
-	 * dashboard" toast. Resolves to the copy's session; `null` when the starter isn't shown or
-	 * the copy couldn't be stored.
+	 * made current. It doesn't navigate: `Home.svelte`'s hand-off effect, seeing the copy current,
+	 * replaces the URL with the copy's and shows the "Saved as your own dashboard" toast.
+	 * Resolves to the copy's session; `null` when the starter isn't shown or the copy couldn't be
+	 * stored.
 	 */
 	copyStarter(): Promise<DocumentSession | null>;
 	/** This tab's sync worker in an account space (`null`: not syncing). */
