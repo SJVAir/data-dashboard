@@ -1,5 +1,9 @@
 import "../../../app.css";
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
+import { page } from "vitest/browser";
+import { noteEditor, requested } from "$lib/components/dialogs/lazy.svelte";
+import { registerWidgetType } from "../registry";
+import AddHarness from "./test-harness/AddHarness.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
@@ -20,6 +24,12 @@ function note(options: Record<string, unknown>): WidgetInstance {
 		options
 	};
 }
+
+afterEach(() => {
+	noteEditor.open = false;
+	noteEditor.widgetId = null;
+	requested.noteEditor = false;
+});
 
 async function editableApp() {
 	const app = await initApp(createMemoryPlatform(), {
@@ -126,4 +136,76 @@ test("the descriptor is a time-less, direct-add type", () => {
 	expect(noteType.time).toBe("none");
 	expect(noteType.accepts).toBeUndefined();
 	expect(noteType.addable?.()).toEqual({ data: { layers: [] }, options: { text: "" } });
+});
+
+/** An editable app whose current dashboard holds `widget`. */
+async function withNote(widget: WidgetInstance) {
+	const setup = await editableApp();
+	setup.session.apply({ op: "addWidget", target: { widgetId: widget.id }, widget, index: 0 });
+	return setup;
+}
+
+const menuEnv = (app: Awaited<ReturnType<typeof editableApp>>["app"], widget: WidgetInstance) => ({
+	app,
+	widget: () => widget
+});
+const menuCtx = () => ({ target: document.body, payload: {} });
+
+test("double-clicking an empty, editable Note opens its editor", async () => {
+	const widget = note({ text: "" });
+	const { context } = await withNote(widget);
+	const screen = await render(NoteWidget, { props: { widget }, context });
+	await screen.getByRole("region").dblClick();
+	expect(noteEditor.open).toBe(true);
+	expect(noteEditor.widgetId).toBe("n1");
+});
+
+test("double-clicking a Note with text, or one that can't be edited, opens nothing", async () => {
+	const full = note({ text: "Hello" });
+	const { context, session } = await withNote(full);
+	const screen = await render(NoteWidget, { props: { widget: full }, context });
+	await screen.getByRole("region").dblClick();
+	expect(noteEditor.open).toBe(false);
+	screen.unmount();
+
+	const empty = note({ text: "" });
+	session.readOnly = "invalid";
+	const again = await render(NoteWidget, { props: { widget: empty }, context });
+	await again.getByRole("region").dblClick();
+	expect(noteEditor.open).toBe(false);
+	again.unmount();
+
+	const shared = await render(SharedHarness, { widget: empty });
+	await shared.getByRole("region").dblClick();
+	expect(noteEditor.open).toBe(false);
+});
+
+test("Edit note is in the menu only where the Note can be edited", async () => {
+	const widget = note({ text: "Hello" });
+	const { app, session } = await withNote(widget);
+	const items = noteType.menu(menuCtx(), menuEnv(app, widget));
+	expect(items.map((i) => i.label)).toEqual([m.widget_edit_note()]);
+	session.readOnly = "invalid";
+	expect(noteType.menu(menuCtx(), menuEnv(app, widget))).toEqual([]);
+	session.readOnly = false;
+	// Not in the current dashboard (a view of another one).
+	expect(noteType.menu(menuCtx(), menuEnv(app, { ...widget, id: "elsewhere" }))).toEqual([]);
+	app.current = { session: null, isStarter: false };
+	expect(noteType.menu(menuCtx(), menuEnv(app, widget))).toEqual([]);
+});
+
+test("adding a Note opens its editor at once, with focus in the text", async () => {
+	registerWidgetType(noteType);
+	const { session, context } = await editableApp();
+	await render(AddHarness, { context });
+	await page.getByRole("button", { name: m.add_widget() }).click();
+	await page.getByRole("menuitem", { name: m.widget_note_title() }).click();
+	const dialog = page.getByRole("dialog", { name: m.note_editor_title() });
+	const text = dialog.getByRole("textbox", { name: m.note_editor_text() });
+	await expect.element(text, { timeout: 5000 }).toBeVisible();
+	expect(noteEditor.widgetId).toBe(session.doc.body.widgets[0].id);
+	await expect.poll(() => text.element().contains(document.activeElement)).toBe(true);
+	// It stays there once the menu has finished closing.
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	expect(text.element().contains(document.activeElement)).toBe(true);
 });

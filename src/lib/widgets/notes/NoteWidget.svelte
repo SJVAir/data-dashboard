@@ -5,7 +5,9 @@
 	import { toNoteBlocks } from "$lib/notes/markdown";
 	import { APP_CONTEXT_KEY, type AppContext } from "$lib/store/app.svelte";
 	import { noteOptions } from "$lib/notes/options";
+	import { openNoteEditor } from "$lib/components/dialogs/lazy.svelte";
 	import { m } from "$lib/paraglide/messages.js";
+	import { noteEditable } from "./index";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import NoteBlocks from "./NoteBlocks.svelte";
 
@@ -21,6 +23,13 @@
 
 	const markdown = $derived(noteMarkdown(noteOptions(widget)));
 	const blocks = $derived(toNoteBlocks(markdown));
+
+	/** Double-clicking an empty Note that can be edited opens its editor. */
+	function ondblclick(): void {
+		if (blocks.length === 0 && editable && noteEditable(app, widget.id)) {
+			openNoteEditor({ widgetId: widget.id });
+		}
+	}
 </script>
 
 <!-- Scrolls inside the widget; focusable so a keyboard can scroll it. -->
@@ -32,6 +41,7 @@
 	tabindex="0"
 	role="region"
 	aria-label={widget.title ?? m.widget_note_title()}
+	{ondblclick}
 >
 	{#if blocks.length > 0}
 		<NoteBlocks {blocks} />

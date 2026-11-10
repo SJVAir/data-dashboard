@@ -7,11 +7,14 @@
 
 	let {
 		open,
-		ondecide
+		ondecide,
+		onCloseAutoFocus
 	}: {
 		open: boolean;
 		/** True for "Discard"; false for "Keep editing" or closing the dialog. */
 		ondecide: (discard: boolean) => void;
+		/** Where focus goes once it has closed (by default, back to what had it before). */
+		onCloseAutoFocus?: (event: Event) => void;
 	} = $props();
 </script>
 
@@ -25,6 +28,7 @@
 	<AlertDialog.Portal>
 		<Dialog.Overlay />
 		<AlertDialog.Content
+			{onCloseAutoFocus}
 			class="bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 border-card-border shadow-card duration-fast ease-standard fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%_-_2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border p-4 text-sm outline-none sm:max-w-sm"
 		>
 			<Dialog.Header>

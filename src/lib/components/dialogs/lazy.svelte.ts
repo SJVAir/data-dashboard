@@ -20,7 +20,8 @@ export const requested = $state({
 	privacy: false,
 	existingCopy: false,
 	placePicker: false,
-	notifications: false
+	notifications: false,
+	noteEditor: false
 });
 
 export type LazyDialog = keyof typeof requested | "moveToAccount";
@@ -34,7 +35,8 @@ export const dialogLoaders: Record<LazyDialog, () => Promise<{ default: Componen
 	existingCopy: () => import("./ExistingCopyDialog.svelte"),
 	moveToAccount: () => import("./MoveToAccountDialog.svelte"),
 	placePicker: () => import("$lib/places/PlacePickerDialog.svelte"),
-	notifications: () => import("./NotificationsDialog.svelte")
+	notifications: () => import("./NotificationsDialog.svelte"),
+	noteEditor: () => import("$lib/notes/NoteEditorDialog.svelte")
 };
 
 /** Loads made or under way, by loader (so a replaced loader loads anew). Not reactive state. */
@@ -86,6 +88,9 @@ function dismiss(key: LazyDialog): void {
 			break;
 		case "notifications":
 			notifications.open = false;
+			break;
+		case "noteEditor":
+			noteEditor.open = false;
 			break;
 		case "moveToAccount":
 			// Asked again the next time the app starts.
@@ -307,4 +312,28 @@ export function openNotifications(docId: string): void {
 	notifications.opening++;
 	notifications.open = true;
 	requested.notifications = true;
+}
+
+// The Note editor
+
+export const noteEditor = $state<{
+	open: boolean;
+	/** The Note it edits. */
+	widgetId: string | null;
+	/** Counts the openings, so each one starts fresh. */
+	opening: number;
+	/** What had focus when it opened (focus returns there, or to the widget when it's gone). */
+	opener: HTMLElement | null;
+}>({ open: false, widgetId: null, opening: 0, opener: null });
+
+/** Opens the Note editor for a Note; Save writes its text in one undoable edit. */
+export function openNoteEditor(opts: { widgetId: string }): void {
+	noteEditor.widgetId = opts.widgetId;
+	noteEditor.opening++;
+	noteEditor.opener =
+		typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+			? document.activeElement
+			: null;
+	noteEditor.open = true;
+	requested.noteEditor = true;
 }
