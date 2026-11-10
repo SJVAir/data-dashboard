@@ -92,6 +92,14 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
       of a starter copy keeps its bar; a copy of any other dashboard does not gain one. In the
       list it always shows, and toasts when there is nothing to replace.
     - `StarterHint` is gone: the bar and the welcome Note say what it said.
+    - **The welcome Note shows only to the dashboard's owner** (decided 2026-11-10). Its text
+      speaks to the owner ("Change place", "your first change saves…"), so a live share leaves
+      every built-in message Note (`{ message }`) out of the view (the grid closes the gap), and
+      a Note that can't be edited where it's shown renders a `{ message }` as nothing. A Note
+      with its own text always shows; "Make a copy" keeps the welcome Note for its new owner.
+    - **The starter's Current conditions and "Can we go outside?" tiles have no alert level**
+      (decided 2026-11-10): a first-time visitor isn't signed up for threshold watching
+      without asking, and the template is built without metadata. A copy's owner can add one.
 - Titles are generated from metadata, and the welcome Note references a **message key**
   (nothing English is stored in the template). A personal copy stores the Note's rendered
   text only once the user edits it.

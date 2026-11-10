@@ -114,6 +114,10 @@ PM2.5 chart, last 30 days (8 wide)        | Month calendar, "This month" (4 wide
   A personal copy keeps the reference; only when the user edits the Note does it store the
   Markdown they saved. The message's English is itself Markdown and goes through the same
   renderer.
+- **Only the owner sees it** (the user, at the final review): its text tells the owner what to
+  do, so a live share leaves `{ message }` Notes out of the view, and a Note that can't be
+  edited where it's shown renders a `{ message }` as nothing. A Note with its own text always
+  shows.
 
 ### Notes: writing
 

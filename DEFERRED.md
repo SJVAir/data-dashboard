@@ -1656,6 +1656,50 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **Lexical is pre-1.0.** _Deferred 2026-11-10 (step 4 spec 6)._ The Notes editor uses Lexical
   0.53.0, pinned exactly (with every `@lexical/*` package), so a minor release can't break
   it unseen. **Revisit at** Lexical 1.0 or on any upgrade (re-run the editor round-trip tests).
+- **Note toolbar tooltips don't show the keyboard shortcuts.** _Deferred 2026-11-10 (step 4
+  spec 6, copy review)._ Bold, Italic and Link carry `aria-keyshortcuts`, but their tooltips say
+  only "Bold", so sighted keyboard users never see Ctrl/⌘+B, I or K. The fix is a message with a
+  `{keys}` placeholder (say "Bold ({keys})"), the platform's key name coming from code.
+  **Revisit with** the next toolbar change, or with "Command palette (Ctrl+K) and per-action
+  keyboard shortcuts".
+- **Step 4 spec 6 review leftovers.** _Deferred 2026-11-10 (step 4 spec 6, per-task and final
+  reviews)._ Small things the reviews let stay; the first ones a person could meet:
+  - **A task list shows its box and label on separate lines.** `- [ ] c` reads as the text
+    "[ ]", a line break, then "c", with no checkbox. Only reachable by typing `[ ] ` at the
+    start of a list item. **Revisit if** people write checklists in Notes.
+  - **Link reference definitions show as their source.** `[r]: https://…` stays visible text
+    (its `[x][r]` link works when the address is allowed). Showing it is the safe choice.
+    **Revisit if** people paste Markdown with reference links.
+  - **`safeHref` accepts `https://user:pass@host`.** The link text is the author's anyway, so a
+    hostile link can already say anything; the userinfo adds no new power. **Revisit if** links
+    get a visible-host cue.
+  - **The editor's Markdown export escapes only line starts.** A typed `[ ]`, `\`, `<` or `&`
+    inside a line isn't escaped, so a typed `[docs](https://x.org)` becomes a link (the editor
+    reads it back as one too, so editor and viewer agree), `\#` loses its backslash, and `_x_`
+    shows italic in the viewer but text in the editor. (Line-start `--`, `==` and `<` are
+    escaped.) **Revisit if** someone's typed text changes meaning in the viewer.
+  - **The character counter counts Markdown,** so `**`, `## ` and each link's whole address
+    count but don't show; "too long" says "Formatting and link addresses count too". **Revisit
+    if** people find the count confusing (count visible text instead).
+  - **Change place on the starter drops the pick if the hand-off fails.** The session already
+    shows its save error and the edits stay queued. **Revisit on** a report.
+  - **A thrown hand-off on Share gives two failure signals** (the save status and a toast). Only
+    on a storage failure. **Revisit if** it happens outside storage failures.
+  - **Double-clicking Share opens the dialog twice** (one copy is made). Harmless. **Revisit
+    with** the next Share dialog change.
+  - **"Duplicate for another place…" edge cases:** a pick that resolves to `default-place` closes
+    silently (unreachable: the picker never offers it), and picking the same place makes a plain
+    copy with no feedback (still a correct copy). **Revisit if** someone is confused by either.
+  - **The welcome Note's bold "Change place" must match the bar's button** (`place_bar_change`)
+    in every translation, and Paraglide's message files have no comment field to say so. **Revisit
+    when** translation starts (put it in the translator hand-off, with `app_name_product`).
+  - **Test gaps:** `notes-excluded.test.ts` has no positive control, and `NoteWidget`'s imports
+    aren't in the usual order; the `setWidgetData` case in the `replaceChange` tests is muddled;
+    axe on "Which place?" runs only in the default scheme and viewport (the spec asks light and
+    dark only for the starter, a Note and its editor); a duplicate `toHaveText` in the starter
+    e2e; the starter chart layer's days aren't asserted; no browser test for
+    `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
+    next change to each.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
