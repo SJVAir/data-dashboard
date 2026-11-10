@@ -402,6 +402,14 @@ string`) now get the union return type. The mobile app passes a string token, so
   syncs the map login when it loads and relies on being imported only after `initPreferences()`;
   a comment is the only guard, and it could point to `ARCHITECTURE.md`'s bootstrap-ordering note.
   **Revisit when** mobile's README or bootstrap code is next touched.
+- **sjvair.com closest-monitor latency (and the full monitor list).** _Held by the user until
+  2026-11-10 (brief of 2026-10-12, `closest-endpoint.prompt.txt` in the workspace root); started
+  2026-11-10 in a sjvair.com session from the refreshed `prompt-server-closest-monitor.txt`._
+  `monitors/<entry_type>/closest/` (mobile's "My air" reading) took 0.5–6.5 s in production on
+  2026-10-08; the full `monitors/` list about 3 s. The investigation is local only (the user,
+  2026-11-10), with a fix as a PR into `develop`. **Still deferred:** measuring production
+  before and after, which waits for the `develop` deploy (step in the deploy entry below).
+  **Revisit when** the session reports findings, and on deploy day.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
