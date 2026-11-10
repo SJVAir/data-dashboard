@@ -593,7 +593,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Closest-monitor timing, after the deploy:** sample `monitors/pm25/closest/` (Fresno,
     Bakersfield, Stockton) and `monitors/` from production with curl, spaced out, and compare
     with the 2026-10-08 numbers (0.5–6.5 s; about 3 s for the list) and the local before/after
-    from the closest-monitor work (the user's yes needed for the production requests).
+    from the closest-monitor work (the user's yes needed for the production requests). Also
+    check whether production Postgres has JIT on (locally JIT was ~410 ms of the closest query's
+    ~460 ms, 2026-11-10) and whether `monitors/` responses are cache hits (`X-Cache-Status`).
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
