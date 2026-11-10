@@ -404,12 +404,25 @@ string`) now get the union return type. The mobile app passes a string token, so
   **Revisit when** mobile's README or bootstrap code is next touched.
 - **sjvair.com closest-monitor latency (and the full monitor list).** _Held by the user until
   2026-11-10 (brief of 2026-10-12, `closest-endpoint.prompt.txt` in the workspace root); started
-  2026-11-10 in a sjvair.com session from the refreshed `prompt-server-closest-monitor.txt`._
+  2026-11-10 in `sjvair-com-92` from the refreshed `prompt-server-closest-monitor.txt`._
   `monitors/<entry_type>/closest/` (mobile's "My air" reading) took 0.5–6.5 s in production on
-  2026-10-08; the full `monitors/` list about 3 s. The investigation is local only (the user,
-  2026-11-10), with a fix as a PR into `develop`. **Still deferred:** measuring production
-  before and after, which waits for the `develop` deploy (step in the deploy entry below).
-  **Revisit when** the session reports findings, and on deploy day.
+  2026-10-08. Found locally (verified by the coordinator): Postgres JIT compiled about 410 ms of
+  the query's 460 ms, because `get_active()`'s `LatestEntry` join and `DISTINCT` make the planner
+  overestimate rows (cost 2.0M against `jit_above_cost` 100k), and `with_latest_entry()` loaded
+  every candidate monitor before taking three. **Fix approved by the user 2026-11-10** (closest
+  queryset only: `EXISTS`, slice before attaching entries; about 15–18 ms locally, same output;
+  no migration), PR into `develop` in progress. **Still deferred:** production before/after
+  timing, which waits for the `develop` deploy (step in the deploy entry below).
+- **App-wide Postgres JIT off, or fixing the queries that trip it (sjvair.com).** _Deferred
+  2026-11-10 (the user, closest-monitor work)._ Option: `-c jit=off` in `DATABASES` `OPTIONS`
+  (`camp/settings/test.py` already sets it for tests), or rewriting the queries whose planner cost
+  crosses `jit_above_cost`. Deferred because it affects every query, summary rollups included, so
+  it needs its own measurement; the closest fix doesn't need it (its rewritten query costs about
+  16k, below the 100k threshold). Related: switching `get_active()` itself from the join and
+  `DISTINCT` to `EXISTS`, which may have the same cost in its other callers (the list,
+  `current/`, `at/`, alerts); that needs a caller list and tests pinning each caller's rows.
+  **Revisit when** the post-deploy check shows production has JIT on, or another endpoint's
+  `EXPLAIN` shows JIT time dominating.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
