@@ -426,6 +426,29 @@ test("Show as Chart is disabled with a reason at 7 places", async () => {
 	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
 });
 
+test("opens a Chart draft with 6 places without looping", async () => {
+	const errors: string[] = [];
+	const onError = (e: ErrorEvent) => {
+		errors.push(String(e.error?.message ?? e.message));
+		e.preventDefault();
+	};
+	window.addEventListener("error", onError);
+	const spy = vi.spyOn(console, "error").mockImplementation((...args) => {
+		errors.push(args.map(String).join(" "));
+	});
+	try {
+		const ids = ["m1", "m2", "m3", "m4", "m5", "m6"];
+		const { host } = await show(monitorsDraft(ids));
+		await drawn(host);
+		await new Promise((r) => setTimeout(r, 500));
+		expect(errors.filter((e) => e.includes("effect_update_depth_exceeded"))).toEqual([]);
+		expect(host.querySelector("[data-testid=get-data-preview]")).not.toBeNull();
+	} finally {
+		window.removeEventListener("error", onError);
+		spy.mockRestore();
+	}
+});
+
 test("Detail hides for a pinned type; Every measurement is disabled over 90 days with a reason", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };

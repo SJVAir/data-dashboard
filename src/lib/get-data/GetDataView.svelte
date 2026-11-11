@@ -191,13 +191,12 @@
 	});
 
 	// The same queries the preview runs (the query client shares them): every place's name for
-	// Where, the overlays' series for "Overlay for", and when the data has settled. A now tile
-	// sets its own generated title, so for those this runs under another id (two writers of one
-	// title would undo each other forever), and a Forecast strip's place is named through a PM2.5
-	// layer, as its picker offers places.
+	// Where, the overlays' series for "Overlay for", and when the data has settled. The preview
+	// sets its own generated title, so this always runs under another id (two writers of one title,
+	// with different caps, would undo each other forever), and a Forecast strip's place is named
+	// through a PM2.5 layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
-		if (!isNow) return previewWidget;
-		const layers = plain.data.layers.map(placesQueryLayer);
+		const layers = isNow ? plain.data.layers.map(placesQueryLayer) : plain.data.layers;
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
 	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
