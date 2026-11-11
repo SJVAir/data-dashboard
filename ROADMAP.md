@@ -143,7 +143,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   `docs/superpowers/specs/2026-11-03-design-pass-design.md`.
 
 4. **Widget Creation and the non-map widgets** (seven specs, stacked into `step-4`; see `TODO.md`;
-   spec 3b, the Get data layers, added after spec 3 by the user on 2026-11-05)
+   spec 3b, the Get data layers, added after spec 3 by the user on 2026-11-05). **All seven specs
+   merged into `step-4` by 2026-11-10** (#36, #38, #40, #43, #45, #47, #49); `step-4` → `main` next
+   (needs the user's yes), which brings this section's full update from `step-4`
    - **spec 3b:** Get data's overlay layers for monthly pesticide use, the nearest weather
      station, smoke per day and CIMIS weather summaries, on `@sjvair/sdk` `5.0.0-beta.5`
      (server and SDK done 2026-11-05: sjvair.com #310–#313, sdk-js #51–#54)
