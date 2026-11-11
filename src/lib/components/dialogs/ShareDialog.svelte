@@ -14,7 +14,7 @@
 	import { hasPoints, swapNotice } from "$lib/sharing/points";
 	import { tick, untrack } from "svelte";
 	import { serializeSearch } from "sv-router";
-	import { p, route } from "../../../router";
+	import { currentPathname, route } from "../../../router";
 	import { returnPath } from "../shell/AccountMenu.svelte";
 	import { confirmAction } from "./ConfirmDialog.svelte";
 
@@ -95,7 +95,7 @@
 	// Back to this page after signing in.
 	const signInHref = $derived(
 		app.platform.identity.signInUrl(
-			returnPath({ pathname: p(route.pathname), search: serializeSearch(route.search) ?? "" })
+			returnPath({ pathname: currentPathname(), search: serializeSearch(route.search) ?? "" })
 		)
 	);
 

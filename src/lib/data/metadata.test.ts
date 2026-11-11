@@ -21,7 +21,6 @@ import {
 	createWebMetadata,
 	levelFor,
 	mapScaleLevels,
-	withCatalog,
 	type CatalogEntry,
 	type Level
 } from "./metadata";
@@ -512,26 +511,6 @@ describe("dailyFigure", () => {
 		expect(await md.dailyFigure("co")).toEqual({ field: "max_8h", label: null });
 		expect(await md.dailyFigure("humidity")).toBeNull();
 		expect(await md.dailyFigure("nope")).toBeNull();
-	});
-
-	it("withCatalog forwards it", async () => {
-		const md = withCatalog(fixtureMetadata(), []);
-		expect((await md.dailyFigure("o3"))?.field).toBe("max_1h");
-	});
-});
-
-describe("withCatalog", () => {
-	const catalog: CatalogEntry[] = [
-		{ id: "air-quality", label: "Air quality", entryTypes: [], geographies: ["monitor"] }
-	];
-
-	it("returns the given catalog and delegates the rest", async () => {
-		const md = withCatalog(createWebMetadata(), catalog);
-		expect(await md.catalog()).toBe(catalog);
-		expect((await md.levels("pm25")).length).toBe(3);
-		expect(await md.defaultProcessor("purpleair", "pm25")).toBe("PM25_EPA_Calibration");
-		expect(await md.monitorType("m-bam")).toBe("bam1022");
-		expect((await md.monitors()).length).toBe(2);
 	});
 });
 

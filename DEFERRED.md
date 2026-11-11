@@ -92,18 +92,30 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   refreshes the entry files and reloads. Unknown whether real Safari does the same after a
   real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
   Safari after a missing chunk; if it stays broken, retry the import under a new URL.
-- **The SDK builds zod schemas outside the `jitless` wrapper.** _Deferred 2026-10-26 (Foundations
-  spec 5a, final fix-wave review)._ The dashboard imports zod only through `$lib/zod`, which sets
-  `z.config({ jitless: true })` so zod's eval probe never trips the CSP. `@sjvair/sdk` imports zod
-  itself and builds `z.object` schemas when its modules load (in 5.0.0-beta.8: the root
-  `schema.ts` and the schema modules of `account`, `calenviroscreen`, `calheatscore`,
-  `collocation_sites`, `forecasts`, `hms`, `meta`, `monitors`, `pesticides` and `regions`; the
-  documents schemas, once among them, moved into `src/lib/api/documents/` on 2026-11-11 and build under `$lib/zod`). Today that's harmless: production
-  reaches those modules only through the dev-only `/dev/data` route, after `$lib/zod` has run. If a
-  production route ever loads the SDK root before `$lib/zod`, every page load raises a `script-src`
-  eval violation (the E2E CSP fixture catches it only on the routes it exercises). **Revisit when**
-  the data layer first goes into a production route: fix it in sdk-js (build schemas lazily, or
-  set `jitless` there), not with an import-order workaround here.
+- **Check the built app for zod eval violations before go-live.** _Deferred 2026-10-26 (Foundations
+  spec 5a, final fix-wave review); reworded as a go-live check 2026-11-11 (the user)._ **Before
+  go-live**, check the built app for `script-src` eval violations from zod on every route,
+  including the routes and contexts the E2E CSP fixture doesn't cover (see "Gaps in the E2E CSP
+  checks" below). If any appear, fix it in sdk-js (build its schemas lazily, or set `jitless`
+  there), not with an import-order workaround here.
+  **Why it's safe today:** the dashboard imports zod only through `$lib/zod`, which sets
+  `z.config({ jitless: true })`. `@sjvair/sdk` (`5.0.0-beta.8`) imports zod itself and builds
+  `z.object` schemas when its modules load (the root `schema.ts` and the schema modules of
+  `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`, `forecasts`, `hms`, `meta`,
+  `monitors`, `pesticides` and `regions`; the documents schemas moved into `src/lib/api/documents/`
+  on 2026-11-11 and build under `$lib/zod`). Since step 4, the widgets load the SDK root in the
+  built app's initial bundle. There's only one copy of zod in `node_modules` (4.6.7), so the
+  `jitless` setting applies to the SDK's schemas too. zod 4.6.7 runs its `new Function` probe
+  when an object schema is created, unless `jitless` is already set
+  (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only because `$lib/zod`
+  runs before the SDK's schema modules, which is the import order that `$lib/zod` itself says not
+  to rely on. The E2E suite runs under the contract CSP and fails on any
+  `securitypolicyviolation` (`e2e/fixtures.ts`), and it passes. A one-off check on 2026-11-11 (the
+  built app in the E2E preview, every route in `src/router.ts` loaded fresh, on Chromium,
+  Firefox and WebKit) found no violations.
+  **Revisit:** before go-live (listed under "Production deploy of sjvair.com `develop` → `main`"
+  below); when the E2E CSP fixture reports the probe; or when someone next works on the SDK's
+  schemas.
 - **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
   review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
   `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
@@ -520,6 +532,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
     `forecast_zone_for:` cache keys after (see "Production deploy step for the place
     endpoints" below).
+  - **Dashboard CSP check, before:** check the built app for zod eval violations on every route
+    (see "Check the built app for zod eval violations before go-live" above).
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
