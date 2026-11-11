@@ -37,7 +37,7 @@ map's pollutants are the monitors meta's `available_pollutants`.
 - `@sjvair/sdk` pin unchanged: `npm:@jsr/sjvair__sdk@5.0.0-beta.8`. Anything missing goes to the
   coordinator (`data-dashboard-8a`, find it with ListAgents), never worked around.
 - `@sjvair/map-sdk` pinned **exactly** (no `^`, never a dist-tag). Start on `0.1.0-beta.6`. Before
-  the PR is marked ready, move to the beta carrying map-sdk changes 1 (telemetry/session off) and
+  the PR is marked ready, move to the beta carrying map-sdk changes 1 (telemetry off; sessions stay on, the user 2026-11-11) and
   2 (panels sized by the map), expected `0.1.0-beta.7`, and turn telemetry off with it (Task 6).
   **The PR must not merge without that.** Don't modify map-sdk; ask the coordinator.
 - **Nothing map-related in the initial bundle** beyond the descriptor (an icon and messages). Run
@@ -255,8 +255,8 @@ map's pollutants are the monitors meta's `available_pollutants`.
   while `platform().activity.visible()` is false, and `dispose()` after the last `release()`.
 - Produces: `mapConfig(): MapConfig | null`. `null` when `import.meta.env.VITE_MAPTILER_KEY` is
   empty. Otherwise `{ maptilerKey, projection: "mercator", cooperativeGestures: true }`, plus the
-  telemetry/session-off option once the pinned map-sdk has it (change 1). Until then, leave a
-  `// TODO(map-sdk change 1)` comment and an `it.todo("turns MapTiler telemetry and session off")`
+  `telemetry: false` once the pinned map-sdk has it (sessions stay on) (change 1). Until then, leave a
+  `// TODO(map-sdk change 1)` comment and an `it.todo("turns MapTiler telemetry off")`
   in `config.test.ts`. The PR checklist (Task 11) blocks on it.
 
 - [ ] **Step 1: Failing tests:**
@@ -451,7 +451,7 @@ map's pollutants are the monitors meta's `available_pollutants`.
   Also run with `TZ=America/New_York npm run test:unit` (CI isn't on Pacific).
 - [ ] **Step 3:** Commit `docs: the Map widget (step 5 spec 1)`. Push. Open a **draft** PR into
   `step-5`. The body lists the bundle numbers and these blockers as unchecked items:
-  - map-sdk beta with changes 1 and 2, pinned, with telemetry and session off (`config.test.ts`'s `todo` done);
+  - map-sdk beta with changes 1 and 2, pinned, with telemetry off (`config.test.ts`'s `todo` done);
   - sjvair.com CSP PR on `develop` (`camp/apps/workspace/csp-hosts.json`), so the map works on the local stack's `/workspace/`;
   - the tap result from Task 10.
 

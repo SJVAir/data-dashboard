@@ -93,7 +93,8 @@ monitors or regions precisely.
 - **MapLibre in the initial bundle**, or a map that keeps a WebGL context while hidden.
 - **Hardcoded labels, colors or scales**: everything from metadata or theme tokens (except
   map-sdk's fixed monitor defaults, which it owns).
-- **Tracking**: MapTiler's telemetry and session id must be off (see "Privacy").
+- **Tracking**: MapTiler's telemetry report must be off (see "Privacy"). Its session id and
+  tile cache stay on (the user, 2026-11-11).
 
 ## Decisions
 
@@ -343,10 +344,16 @@ Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is n
   on it, the tiles then requested reveal that spot to MapTiler; that's the owner's choice. A
   viewer of a live link where the owner chose "Share my exact location" sees the pin too and
   can zoom in the same way. That follows from the owner's choice under the live-link rule.
-- **MapTiler telemetry and session ids off.** `@maptiler/sdk` sends usage telemetry to MapTiler
-  and adds a session id (`mtsid`) to requests by default. The dashboard allows no analytics or
-  tracking, so both must be off. map-sdk doesn't expose these today (see "map-sdk changes").
-  **This blocks merging spec 1.**
+- **MapTiler telemetry off; sessions and the tile cache stay on** (the user, 2026-11-11,
+  changing the first version of this spec). `@maptiler/sdk` sends a usage telemetry report to
+  MapTiler by default, and the dashboard allows no analytics, so the report is off
+  (`MapConfig.telemetry: false`, map-sdk `0.1.0-beta.7`, map-sdk #22). The session id (`mtsid`)
+  stays on, because that's how MapTiler bills SDK maps. MapTiler's tile cache stays on too: it
+  saves requests and load time. **Turning telemetry off blocks merging spec 1.**
+- **Known side effect: the tile cache lives outside the platform adapter.** MapTiler stores
+  tiles and fonts in the browser's Cache Storage (cache `maptiler_sdk`), so "Clear my data"
+  doesn't remove it today. Whether it should is a question for the user, asked by the coordinator
+  on 2026-11-11 and not decided here.
 - **Geolocation** isn't used by the map in spec 1. A point reaches the map only through the
   picker, which already goes through the platform adapter.
 
@@ -359,15 +366,13 @@ monitor-map's `/routes` the mobile app.
 
 **Needed for spec 1 (small; ideally in the same beta as the restyle fix or the next one):**
 
-1. **Turn off MapTiler telemetry and the session id.** A `MapConfig` option (for example
-   `telemetry: false`) that sets `@maptiler/sdk`'s `config.telemetry` and `config.session` off
-   for that host. monitor-map's behavior is unchanged unless it opts in. Hosts can't do this
-   themselves without depending on `@maptiler/sdk` directly. `config` is a page-wide singleton
-   in `@maptiler/sdk`, and its telemetry timer fires 2 s after a map is created, so the setting
-   must take effect **before the first map is created**. With `session: false`, MapTiler's
-   Cache Storage tile cache is off too: MapTiler documents that it "works only ... when
-   sessions are enabled". That's a benefit for the dashboard, because that cache would persist
-   across browser sessions outside the platform adapter. The cost is reloading some tiles.
+1. **Turn off MapTiler telemetry** (only the telemetry report; sessions and the tile cache stay
+   on, the user, 2026-11-11). A `MapConfig` option, `telemetry: false`, sets `@maptiler/sdk`'s
+   `config.telemetry` off for that host. monitor-map's behavior is unchanged unless it opts in.
+   Hosts can't do this themselves without depending on `@maptiler/sdk` directly. `config` is a
+   page-wide singleton in `@maptiler/sdk`, and its telemetry timer fires 2 s after a map is
+   created, so the setting must take effect **before the first map is created**. **Done:**
+   map-sdk #22 (merged, main 7029792), shipping in `0.1.0-beta.7` (not yet published).
 2. **Panels sized by the map, not the window.** The feature-list panel's
    `max-width: calc(100vw - 2rem)` and the framed legend's fixed 21rem should size against the
    map's container, so a 300 px map widget on a wide screen doesn't overflow.
