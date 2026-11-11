@@ -2284,6 +2284,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   read-only, but the dashboard index carries no read-only flag, so Get data's target menu still
   lists it and adding fails with an error toast. Shared dashboards are never offered. **Revisit
   if** it's reported (then put a read-only flag on the index).
+- **A toast that appears under a still pointer can stay up forever in Firefox** (svelte-sonner
+  1.2.1–1.2.3). _Deferred 2026-11-10 (the Firefox e2e failure on PR #50)._ Firefox fires
+  `mouseenter` when a toast appears under the pointer, then `mouseleave` 1px away as the toast
+  settles; svelte-sonner's Firefox workaround ignores a leave within 1px of the last position,
+  so the toaster stays "expanded" (paused) until the pointer enters and leaves it again. Seen
+  after "Add to …" (the "Saved as your own dashboard" toast lands where the pointer was). Why
+  deferred: it's in the library, and since toasts now sit above Get data's action bar
+  (`toastClearance`) the stuck toast covers nothing the person is using; moving the mouse over
+  it and off dismisses it. **Revisit when** svelte-sonner changes that check (report it
+  upstream), or if people report toasts that don't go away.
 - **Visual and brand design system.** _Deferred 2026-09-14; **scheduled 2026-09-28** as its
   own sub-project before Release 1 step 4 (Foundations builds the theme-token layer it
   plugs into)._ It stays listed here until it ships.

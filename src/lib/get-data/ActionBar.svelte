@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from "$lib/components/ui/button";
+	import { toastClearance } from "$lib/components/ui/sonner/clearance.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { AddTarget } from "./add";
 	import TargetMenu from "./TargetMenu.svelte";
@@ -33,9 +34,19 @@
 	const uid = $props.id();
 	const reasonId = `${uid}-blocked`;
 	const describedBy = $derived(blocked ? reasonId : undefined);
+
+	// Toasts sit above the bar, so none covers "Add to …" or the other actions.
+	let height = $state(0);
+	$effect(() => {
+		toastClearance.bottom = height;
+		return () => {
+			toastClearance.bottom = 0;
+		};
+	});
 </script>
 
 <div
+	bind:offsetHeight={height}
 	class="bg-card border-card-border sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t px-3 py-2"
 >
 	{#if blocked}

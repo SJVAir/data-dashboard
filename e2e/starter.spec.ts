@@ -164,11 +164,11 @@ test.describe("the bar on a copy", () => {
 	test("Change place changes every widget; Also change brings the others along", async ({
 		page
 	}) => {
+		// Two picker flows over the six-widget starter: past 30 s on a slow WebKit runner.
+		test.slow();
 		await page.goto("./");
 		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
-		await renameWidget(page, NOTE, "My note");
-		await expect(page).toHaveURL(DASHBOARD_URL);
-		// One Chart shows another place now.
+		// One Chart shows another place now (the first edit, so the starter is saved as a copy).
 		await widgetMenuItem(page, CHART_TITLE, "Change place");
 		await picker(page).getByRole("button", { name: "Remove Fresno County" }).click();
 		await picker(page)
@@ -178,6 +178,7 @@ test.describe("the bar on a copy", () => {
 		await grid.getByRole("row", { name: /Madera County/ }).click();
 		await picker(page).getByRole("button", { name: "Done" }).click();
 		await expect(picker(page)).toBeHidden();
+		await expect(page).toHaveURL(DASHBOARD_URL);
 		await expect(widgetTitles(page)).toContainText(
 			["PM2.5 · Madera County · Last 30 days"].map((t) => t)
 		);
