@@ -3,7 +3,8 @@
 Status: brainstormed with the user 2026-11-11; checked by a fresh builder read (four
 contradictions with the code fixed and five questions settled as my calls, below; one question
 for the user, answered: exact points open on their region); reviewed by the coordinator
-(`data-dashboard-8a`, four additions folded in); **approved by the user 2026-11-11**. Branch
+(`data-dashboard-8a`, four additions folded in); **approved by the user 2026-11-11**; built
+2026-11-11; PR pending. Branch
 `step-5-spec-1` from `step-5`; its PR goes into `step-5`.
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
@@ -176,7 +177,8 @@ highlighted. **Undo** brings the region back; that's how it works for every widg
 - **Monitors:** `monitorsPlugin` fed by map-sdk's `createMonitorsStore()` (live readings, polls
   every 2 minutes). There's **one store per entry type, shared by every Map widget on the page**,
   and it's disposed when no map uses it. It pauses while the page is hidden
-  (`platform().activity`), as the query client does. **(my call)** Live readings come from
+  (the platform's `activity`, which the map takes from the app, `useApp()`), as the query client
+  does. **(my call)** Live readings come from
   map-sdk's store, because the dashboard's data layer has no "all monitors with positions"
   query, and Current conditions' latest-reading path is per place. Spec 3's date-range data goes
   on the dashboard's data layer, as the brief asks. `selectedStyle: "ring"` (map-sdk's default,
@@ -191,7 +193,9 @@ highlighted. **Undo** brings the region back; that's how it works for every widg
   `--highlight`). This is spec 1's stand-in for map-sdk's focus area. Spec 2 replaces it with
   the focus area (outline plus dimmed surround) once map-sdk has one.
 - **Pins** for a school or point: a `pointsPlugin` with one `feature:` ref (not selectable),
-  marked in theme tokens with an outlined marker and a text label, not color alone.
+  marked in theme tokens with an outlined marker, not color alone. Its visible text label is an
+  `aria-hidden` DOM label beside the pin, drawn through `maptilerMap(map)`'s `Marker`; the
+  accessible name comes from the feature list.
 - A place that no longer resolves (a retired monitor, a region with no geometry) shows the
   widget's existing unavailable state for that reason (`monitor-unlisted` and the others), and
   the map still draws.
@@ -239,7 +243,8 @@ refits.
 
 A generated title like the others'. One place: "PM2.5 · {placeLabel}" (`m.label_join`,
 `placeLabel` with the viewer, so "(your location)" and "(shared location)" read right).
-Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is never saved.
+Several: "PM2.5 · {n} places" (`m.label_join` and `get_data_places_count`, because
+`widget_title_places` needs a range). The generated title is never saved.
 **(my call: reuse the existing strings; the builder picks the closest helper.)**
 
 ### The three place-handling spots (project checklist)
@@ -256,8 +261,10 @@ Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is n
   selection on every type switch. So the map gets its own shape: switching **to** Map keeps all
   places (up to 25, with the existing "left out" note beyond). Switching **from** Map to a
   one-place "now" type keeps the first place with the existing `"places"` note. Switching from
-  Map to Chart or Table keeps up to their cap with the same note. Add the map to the "left out"
-  notes and to Show as.
+  Map to Chart or Table: while the selection is over their cap, Show as greys them out, as
+  today (choosing which places to keep comes in spec 5). Add the map to the "left out" notes and
+  to Show as. A Map draft on a pollutant the map doesn't show switches to the first allowed one,
+  with the existing note.
 - `src/lib/widgets/shared/input.ts`: the map reads its layer with `placesLayer`.
 - `registry.test.ts`: the type is in the size check.
 
@@ -271,7 +278,9 @@ Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is n
   `selectionBar={false}`: the title and the picker show the places.
 - The map's container needs a real height: it fills the widget body.
 - Resizing: MapLibre tracks its container. During the frame's FLIP or fullscreen animation, the
-  map waits for `ancestorAnimationsSettled` before refitting, as `TimeChart` does.
+  map waits for `ancestorAnimationsSettled` before refitting, as `TimeChart` does. Entering and
+  leaving fullscreen refits too. The "already fitted" flag resets when the map detaches, not on a
+  style reload, so a theme switch keeps the person's pan.
 
 ### Lifecycle and WebGL
 
@@ -292,12 +301,15 @@ Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is n
   is held at beta.1). Building starts on `0.1.0-beta.6`, the newest today. The pin moves up to
   the beta carrying map-sdk change 1 (telemetry off) before the PR merges, and that beta is
   expected to also carry the restyle fix (beta.7 or later). Check `npm view @sjvair/map-sdk
-  dist-tags` at each step. **(my call)** Its peer `@sjvair/sdk ^5.0.0-beta.2` accepts the
+  dist-tags` at each step. **As built:** pinned at `0.1.0-beta.7`, with `MapConfig.telemetry:
+  false`. `@maptiler/sdk` `~4.2.0` is also a direct dependency, for `Marker` (the pin's label),
+  kept in step with map-sdk's. **(my call)** Its peer `@sjvair/sdk ^5.0.0-beta.2` accepts the
   dashboard's exact `5.0.0-beta.8`. Its license is MIT; `@maptiler/sdk` and `maplibre-gl` are
   BSD-3-Clause; the build's license check must pass.
-- **Tailwind:** add map-sdk's `@source` for its dist (`README` → "Install"), and import
-  `@sjvair/map-sdk/theme.css` **in the map module**, so its CSS lands in the lazy chunk where
-  possible. Measure what `@source` adds to the initial CSS and report it.
+- **Tailwind:** add map-sdk's `@source` for its dist (`README` → "Install"). `theme.css` is
+  **not** imported: `app.css` already defines every token it adds, and Tailwind wouldn't compile
+  it from a JS import (see `module.ts`). Measure what `@source` adds to the initial CSS and report
+  it.
 - **Messages:** map-sdk's `messages` provider maps every `mapsdk_*` key to a Paraglide message.
   The keys are copied into `messages/en.json` with map-sdk's English text. There's an explicit
   key table (like `notes/messages.ts`), not `import * as m`, so only the map chunk pulls them in.
@@ -313,8 +325,9 @@ Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is n
   the whole env), declared in `src/vite-env.d.ts`. With no key, the map shows a short "Map
   unavailable" state. It's never printed or logged.
 - **CSP:** add `https://api.maptiler.com` to `connect-src` in `csp-hosts.json` (styles, tiles,
-  glyphs and sprites are fetched). `worker-src blob:` and `img-src data: blob:` are already
-  there. Update `src/csp-hosts.test.ts`'s contract, and let `scripts/check-build-output.mjs`
+  glyphs and sprites are fetched) and to `img-src` (MapTiler's logo, the user, 2026-11-11).
+  `worker-src blob:` and `img-src data: blob:` are already there. `cdn.maptiler.com` (MapTiler's
+  right-to-left text plugin) is not allowed; right-to-left labels are deferred. Update `src/csp-hosts.test.ts`'s contract, and let `scripts/check-build-output.mjs`
   find the hosts MapLibre and MapTiler bring and allowlist only what's needed. **sjvair.com holds
   the real CSP list** (`ARCHITECTURE.md` → "Deployment"), so the same host needs a server change
   on `develop`. That's a small sjvair.com change, raised with the coordinator, with its own

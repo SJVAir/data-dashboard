@@ -725,6 +725,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   scale-averaging branch and only affects ids that start with `-`. **Revisit:** the next time those docs are touched, or
   before any production CIMIS re-stamp (the deploy steps here already use the `=` form).
 
+- **MapTiler's cache name is internal.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ "Clear
+  my data" deletes MapTiler's tile cache by its Cache Storage name, `maptiler_sdk`
+  (`src/lib/platform/web/storage.ts`), because `@maptiler/sdk` 4.2 has no public way to clear it.
+  A later `@maptiler/sdk` could rename it, and the delete would then quietly stop working. The
+  dashboard's own `@maptiler/sdk` `~4.2.0` dependency (for `Marker`) must stay in step with
+  map-sdk's. **Revisit whenever** map-sdk moves to a new `@maptiler/sdk`: check the cache name and
+  move the dashboard's dependency with it.
+- **CI's Firefox has no WebGL, so the map E2E skips there.** _Deferred 2026-11-11 (step 5 spec
+  1)._ The Playwright container image's Firefox can't create a WebGL context, so `e2e/map.spec.ts`
+  skips on Firefox, saying why. Chromium and WebKit run it. **Revisit when** the image's Firefox
+  gains WebGL, or a Firefox-only map bug appears.
+
 ## Documents & saving
 
 - **Copying a shared dashboard with a point needs the network.** _Deferred 2026-11-04 (step 4
@@ -1158,7 +1170,28 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
 - **Globe-projection zoom precision.** _Noted 2026-09-16._ Large counties are under-zoomed
-  in the globe projection. **Revisit when** building the Map widget on `map-sdk`.
+  in the globe projection. **Revisit when** building the Map widget on `map-sdk`. _Noted
+  2026-11-11 (step 5 spec 1): the Map widget uses the Mercator projection (no globe, no space
+  backdrop), since a widget is a small flat view, so it doesn't hit this. It still applies to
+  maps on the globe (monitor-map)._
+- **Saving the Map widget's camera.** _Deferred 2026-11-11 (step 5 spec 1)._ Not saved, by
+  design: a map always fits its places when it opens, so a document never holds coordinates the
+  person didn't choose, and a shared map opens on its places. Panning and zooming last only for
+  the moment. **Revisit if** people ask to keep a view they framed by hand.
+- **Pollutants beyond the monitor map's `available_pollutants` on the Map widget.** _Deferred
+  2026-11-11 (step 5 spec 1)._ The map takes only the monitors meta's `available_pollutants`
+  (today PM2.5 and ozone). CO and other ppm-scale pollutants would read wrong, because map-sdk
+  cuts readings to whole numbers ("map-sdk milestone 2 review leftovers"), and the server
+  doesn't list them. **Revisit when** map-sdk shows readings at the metadata's precision (map-sdk
+  change 8 in the spec), or the server lists more pollutants.
+- **Year-over-year change on the map** (a diverging scale). _Deferred 2026-11-11 (step 5 spec
+  1)._ It comes after step 5 spec 4 (pesticide use). **Revisit when** a researcher or agency asks
+  for trends on the map.
+- **The Map widget's 25-place cap.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ A map
+  holds at most 25 places (`accepts.maxPlaces`). Picking more than 25 by hand is rare, but every
+  ZIP code in Fresno County (about 60) would go over it. The document-wide `SELECTION_MAX` (500)
+  is unchanged. **Revisit when** drawn shapes (method C) or a "select all in this region" option
+  arrive: raise the cap then.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
@@ -1264,6 +1297,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (Facility Emissions Explorer, merged 2026-10-13) moved the API to
   `/api/2.0/emissions/…` and added CEPAM, dairies, wells, and toxics, so anything we build
   uses `emissions`. **Revisit when** an emissions or facility-proximity use case comes up.
+  _Map ideas added 2026-11-11 (step 5 spec 1):_ on the Map widget, facilities sized by their
+  emissions, plus wells, dairies and methane plumes, as on sjvair.com's emissions explorer. Same
+  trigger.
 - **Combined heat + air-quality tier bump** (raise the tier by one when both conditions
   are at tier ≥ 2, reflecting combined heat and ozone effects). _Deferred 2026-09-28._ It
   is a health claim needing expert backing. **Revisit when** the user or a health advisor
@@ -1691,6 +1727,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
   copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
   widgets" above. **Revisit with** "Linking widgets".
+- **Which widgets "Change place" moves isn't shown anywhere.** _Deferred 2026-11-11 (step 5
+  spec 1; the user raised it as a dashboard-wide issue)._ A widget with one place follows the
+  bar; a widget with several keeps its own, and nothing tells the person which did what. It
+  applies to every widget, not just the Map. Ideas: a toast after the change ("Moved 5 widgets
+  to Tulare County. 1 kept its own places.", with Undo), or a "Dashboard place" tag on widgets
+  that follow the bar. Why deferred: it's a dashboard-wide design question, outside the Map
+  widget. **Revisit at** the first usability testing or the step 6 starter review, whichever
+  comes first.
 - **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
   (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
   built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
@@ -2270,6 +2314,20 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   provider but ships English defaults). Health guidance
   and alert text need human translation or review, not machine-only. **Revisit when**
   translators or funding for translation are available.
+- **Right-to-left map labels.** _Deferred 2026-11-11 (step 5 spec 1, the user: "we will deal
+  with RTL if we end up needing it")._
+  - **Meanwhile:** a map tile with right-to-left labels makes MapTiler try to load its text
+    plugin from `cdn.maptiler.com`. The CSP blocks that, so those labels draw unshaped and the
+    browser sends a CSP report. `check:build` allowlists the host as "library default, blocked
+    on purpose".
+  - **Plan if needed:** serve `@mapbox/mapbox-gl-rtl-text` (BSD-2-Clause) ourselves as a static
+    file, through a map-sdk option for the plugin's address. Never allow the CDN.
+  - **Revisit when** the dashboard adds a right-to-left UI language (Arabic, Hebrew, Persian,
+    Urdu, Punjabi in Shahmukhi), or right-to-left map labels are wanted.
+- **The map's relative times use map-sdk's English default.** _Deferred 2026-11-11 (step 5 spec
+  1)._ The map's `format` provider wraps the dashboard's `format` module, except relative time
+  ("5 minutes ago"), which stays map-sdk's en-US `Intl.RelativeTimeFormat`, because `$lib/format`
+  has no relative-time helper. **Revisit when** `$lib/format` gains one, or with translation.
 
 ## UI & UX
 
