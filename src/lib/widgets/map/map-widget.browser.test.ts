@@ -239,6 +239,16 @@ test("idle shows Choose a place and opens the picker", async () => {
 	expect(openPlacePicker).toHaveBeenCalledWith({ widgetId: widget.id });
 });
 
+test("an idle map creates no map and acquires no store", async () => {
+	const screen = await show(mapWidget({}));
+	await expect
+		.element(screen.getByRole("button", { name: m.widget_state_choose_place() }))
+		.toBeVisible();
+	await new Promise((r) => setTimeout(r, 100));
+	expect(fakeMaps.made).toHaveLength(0);
+	expect(fakeStores.held.size).toBe(0);
+});
+
 test("one region outlines and fits it", async () => {
 	await show(mapWidget(region("019")));
 	const map = await madeMap();
@@ -522,6 +532,22 @@ test("an entry type the map doesn't offer is unavailable, with no map", async ()
 	expect(fakeMaps.made).toHaveLength(0);
 });
 
+test("a failed pollutant list shows Try again, and retrying recovers", async () => {
+	const mapPollutants = vi
+		.fn<() => Promise<string[] | "unavailable">>()
+		.mockResolvedValueOnce("unavailable")
+		.mockResolvedValue(["o3", "pm25"]);
+	const { getMetadata } = await import("$lib/data");
+	vi.mocked(getMetadata).mockReturnValue(fixtureMetadata({ mapPollutants }));
+	const screen = await show(mapWidget(region("019")));
+	await expect.element(screen.getByText(m.widget_state_error())).toBeVisible();
+	expect(fakeMaps.made).toHaveLength(0);
+	await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+	await madeMap();
+	expect(mapPollutants).toHaveBeenCalledTimes(2);
+	await expect.poll(() => screen.getByText(m.widget_state_error()).query()).toBeNull();
+});
+
 test("a failed store load shows the error, and a retry re-syncs pausing", async () => {
 	const screen = await show(mapWidget(region("019")));
 	await madeMap();
@@ -544,6 +570,12 @@ test("a monitor the store doesn't list is no longer available, and the map still
 	fakeStores.held.get("pm25")!.load([["a", -120, 36]]);
 	await expect.element(screen.getByText(m.widget_state_gone_title())).toBeVisible();
 	expect(frame.querySelector(`[data-fake-map="${map.uid}"]`)).toBeTruthy();
+	// A compact banner at the top: clicks pass through to the map, but for its buttons.
+	const banner = frame.querySelector<HTMLElement>("[data-map-note]")!;
+	expect(getComputedStyle(banner.firstElementChild!).pointerEvents).toBe("none");
+	expect(banner.getBoundingClientRect().height).toBeLessThan(frame.clientHeight / 2);
+	const button = banner.querySelector("button")!;
+	expect(getComputedStyle(button).pointerEvents).toBe("auto");
 });
 
 test("a failed place lookup shows the error, and a retry looks it up again", async () => {

@@ -452,9 +452,14 @@ describe("createWebMetadata", () => {
 		expect(await createWebMetadata().mapPollutants()).toEqual(["o3", "pm25"]);
 	});
 
-	it("mapPollutants is [] when the meta fails", async () => {
-		vi.mocked(getMonitorsMeta).mockRejectedValue(new Error("boom"));
+	it("mapPollutants is [] when the meta lists none", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({ ...META, available_pollutants: [] } as never);
 		expect(await createWebMetadata().mapPollutants()).toEqual([]);
+	});
+
+	it('mapPollutants is "unavailable" when the meta fails', async () => {
+		vi.mocked(getMonitorsMeta).mockRejectedValue(new Error("boom"));
+		expect(await createWebMetadata().mapPollutants()).toBe("unavailable");
 	});
 
 	it("does not cache a failed fetch", async () => {

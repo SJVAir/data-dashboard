@@ -52,12 +52,19 @@
 
 	let catalog = $state.raw<CatalogEntry[] | "unavailable" | undefined>();
 	void metadata.catalog().then((c) => (catalog = c));
-	/** The pollutants the server puts on its map (`available_pollutants`); `[]` if unknown. */
-	let pollutants = $state.raw<string[] | undefined>();
-	metadata.mapPollutants().then(
-		(p) => (pollutants = p),
-		() => (pollutants = [])
-	);
+	/**
+	 * The pollutants the server puts on its map (`available_pollutants`); `"unavailable"` when
+	 * they can't be loaded, which shows the error state ("Try again" asks again).
+	 */
+	let pollutants = $state.raw<string[] | "unavailable" | undefined>();
+	function loadPollutants(): void {
+		pollutants = undefined;
+		metadata.mapPollutants().then(
+			(p) => (pollutants = p),
+			() => (pollutants = "unavailable")
+		);
+	}
+	loadPollutants();
 
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
 	const layer = $derived(placesLayer(widget.data, known));
@@ -70,9 +77,10 @@
 	 * Whether the map can show the layer's pollutant. One the server's map doesn't offer is never
 	 * drawn: map-sdk's store would silently swap it for its default under this layer's title.
 	 */
-	const support = $derived.by<"loading" | "ok" | UnavailableReason>(() => {
+	const support = $derived.by<"loading" | "ok" | "pollutants-failed" | UnavailableReason>(() => {
 		if (catalog === "unavailable") return "catalog-unavailable";
 		if (catalog === undefined || pollutants === undefined) return "loading";
+		if (pollutants === "unavailable") return "pollutants-failed";
 		if (!entryType || !entryLabel || !pollutants.includes(entryType)) return "unknown-entry-type";
 		return "ok";
 	});
@@ -106,7 +114,8 @@
 
 	$effect(() => {
 		void mapTries;
-		if (!config || !supported) return;
+		// An idle map (no places yet) makes no map: no GL context, and no store below.
+		if (!config || !supported || idle) return;
 		const made = untrack(() => {
 			try {
 				const created = createMap({
@@ -184,7 +193,7 @@
 		const current = map;
 		const type = entryType;
 		const label = entryLabel;
-		if (!current || !type || !label || !supported) return;
+		if (!current || !type || !label || !supported || idle) return;
 		const held = acquireMonitors(type, app.platform.activity);
 		untrack(() =>
 			current.addPlugin(
@@ -329,6 +338,9 @@
 	const instead = $derived.by<QueryState | null>(() => {
 		if (idle) return { status: "idle" };
 		if (support === "loading") return { status: "loading" };
+		if (support === "pollutants-failed") {
+			return { status: "error", error: new Error("Map pollutants unavailable") };
+		}
 		if (support !== "ok") return { status: "unavailable", reason: support };
 		if (mapError) return { status: "error", error: mapError.error };
 		const s = frame.state;
@@ -338,7 +350,8 @@
 	});
 
 	function retry(): void {
-		if (mapError) retryMap();
+		if (pollutants === "unavailable") loadPollutants();
+		else if (mapError) retryMap();
 		else if (typeof frame.state === "object" && "error" in frame.state) frame.retry();
 		else if (typeof storeState === "object") storeTries++;
 	}
@@ -410,9 +423,10 @@
 			</div>
 		{/if}
 		{#if note}
-			<div class="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+			<!-- A compact banner over the map's top: the map stays usable, but for its buttons. -->
+			<div class="pointer-events-none absolute inset-x-0 top-0 p-2" data-map-note>
 				<div
-					class="bg-card text-card-foreground border-border shadow-card pointer-events-auto max-w-80 rounded-(--radius-control) border p-3"
+					class="bg-card text-card-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 [&_button]:pointer-events-auto"
 				>
 					<WidgetState
 						state={note}

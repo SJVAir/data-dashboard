@@ -60,7 +60,7 @@
 	import NowControls from "./NowControls.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
-	import { formatDateRange, formatList } from "$lib/format";
+	import { formatDateRange, formatList, formatNumber } from "$lib/format";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { detailChoices } from "./resolution-offer";
@@ -120,16 +120,21 @@
 	});
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
 
-	/** The Map's pollutants (the monitors meta's `available_pollutants`), once loaded. */
+	/**
+	 * The Map's pollutants (the monitors meta's `available_pollutants`), once loaded; `[]` when
+	 * they can't be loaded, the same as a server that lists none.
+	 */
 	let mapPollutants = $state.raw<string[] | undefined>();
+	const loadMapPollutants = async () => {
+		const p = await getMetadata().mapPollutants();
+		return p === "unavailable" ? [] : p;
+	};
 	$effect(() => {
 		if (plain.type !== MAP_TYPE || mapPollutants) return;
 		let active = true;
-		void getMetadata()
-			.mapPollutants()
-			.then((p) => {
-				if (active) mapPollutants = p;
-			});
+		void loadMapPollutants().then((p) => {
+			if (active) mapPollutants = p;
+		});
 		return () => {
 			active = false;
 		};
@@ -338,7 +343,7 @@
 		if (what.includes("places")) {
 			out.push(
 				cap > 1
-					? m.get_data_places_over_cap_left_out({ count: cap, countValue: cap })
+					? m.get_data_places_over_cap_left_out({ count: formatNumber(cap), countValue: cap })
 					: m.get_data_extra_places_left_out()
 			);
 		}
@@ -411,7 +416,7 @@
 	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
 		const id = ++changeId;
 		// The Map offers only the monitor map's pollutants (memoized, so loaded once).
-		const allowed = next.type === MAP_TYPE ? await getMetadata().mapPollutants() : undefined;
+		const allowed = next.type === MAP_TYPE ? await loadMapPollutants() : undefined;
 		if (id !== changeId) return;
 		if (allowed) mapPollutants = allowed;
 		const pollutant = nowPollutant($state.snapshot(draft) as Draft, next, catalog, allowed);
