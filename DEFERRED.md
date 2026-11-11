@@ -1827,11 +1827,23 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     e2e; the starter chart layer's days aren't asserted; no browser test for
     `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
     next change to each.
+- **The map pin's label is the dashboard's own stop-gap.** _Deferred 2026-11-11 (step 5 spec 1;
+  the user)._ The label beside a school or point pin is a DOM `Marker` the dashboard draws itself
+  (`src/lib/widgets/map/pin-label.svelte.ts`). That's why the dashboard depends on
+  `@maptiler/sdk` directly. map-sdk's focus area (its options-toolbar spec, part 3: "an
+  outlined pin with a label") will provide a labeled pin. Then drop `pin-label.svelte.ts` and
+  the direct `@maptiler/sdk` dependency. **Revisit with** the map-sdk release that ships the
+  labeled pin.
 - **Step 5 spec 1 review leftovers.** _Deferred 2026-11-11 (step 5 spec 1, per-task and final
   reviews)._ Small things the reviews let stay; the first ones a person could meet:
   - **Some places fit silently, with no note.** A selection with retired or missing monitors, or
     with some regions missing, fits to what it finds. A single unlisted monitor does get a note.
     **Revisit if** someone is confused by a map that shows fewer places than they picked.
+  - **The map's note banner can sit under map-sdk's zoom buttons** on a narrow map. The buttons
+    stay clickable and nothing is hidden from focus; it only looks crowded. **Revisit with** the
+    shared toolbar (step 5 spec 2), which moves the map's controls.
+  - **No Get data test for a failed map pollutant list.** Get data treats `"unavailable"` like an
+    empty list, the same as before. **Revisit with** the next change to Get data's Map path.
   - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
     "Choose a place". Only a build without a MapTiler key shows it. **Revisit with** the next
     change to the widget's states.
