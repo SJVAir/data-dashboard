@@ -73,6 +73,22 @@ const KEY_PREFIX = "sjvair-workspace:";
 const GENERATION_KEY = `${KEY_PREFIX}generation`;
 
 /**
+ * The Cache Storage name MapTiler's SDK keeps map tiles under. It is MapTiler-internal
+ * (@maptiler/sdk 4.2, no public way to clear it): re-check it whenever map-sdk bumps @maptiler/sdk.
+ */
+const MAPTILER_CACHE_NAME = "maptiler_sdk";
+
+/** Deletes MapTiler's tile cache. Never rejects: a failure must not stop the rest of the reset. */
+async function clearTileCache(): Promise<void> {
+	try {
+		// Missing in insecure contexts and some test environments.
+		await globalThis.caches?.delete(MAPTILER_CACHE_NAME);
+	} catch {
+		// The tiles are a cache; the reset goes on without them.
+	}
+}
+
+/**
  * The generation lives in `localStorage` so every tab sees a reset. `clearAll` writes the new one
  * first, synchronously, so other tabs stop saving before the slower erasing finishes.
  */
@@ -99,6 +115,7 @@ function createWebReset(run: Run): ResetAccess {
 			} catch {
 				// Blocked storage: this tab still knows the new generation.
 			}
+			const tiles = clearTileCache();
 			await run(async (db) => {
 				const tx = db.transaction([...STORES], "readwrite");
 				// Every promise is settled, so a failing transaction leaves no rejection unhandled.
@@ -108,7 +125,7 @@ function createWebReset(run: Run): ResetAccess {
 				]);
 				const failed = results.find((r) => r.status === "rejected");
 				if (failed) throw failed.reason;
-			});
+			}).finally(() => tiles);
 			try {
 				const doomed: string[] = [];
 				for (let i = 0; i < localStorage.length; i++) {
