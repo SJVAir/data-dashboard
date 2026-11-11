@@ -11,7 +11,7 @@
  */
 import { describe, test } from "vitest";
 import { getUserDetails } from "@sjvair/sdk/account/details";
-import { deleteDocument, getDocument, saveDocument } from "@sjvair/sdk/documents";
+import { deleteDocument, getDocument, saveDocument } from "$lib/api/documents";
 import { setOrigin, type RequestOptions } from "@sjvair/sdk/http";
 import { runRemoteContract } from "./remote-contract";
 import { createSdkRemote } from "./remote-sdk";

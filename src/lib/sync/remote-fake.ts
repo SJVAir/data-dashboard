@@ -5,7 +5,7 @@
  *
  * Not modelled: the snapshot storage cap.
  */
-import type { RefusalCode } from "@sjvair/sdk/documents";
+import type { RefusalCode } from "$lib/api/documents";
 import {
 	RemoteRefusal,
 	RemoteUnavailable,
