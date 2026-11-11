@@ -35,6 +35,7 @@
 	import { mapMessages } from "./host/messages";
 	import { acquireMonitors, sharedMetadata } from "./host/stores";
 	import { OnScreen } from "./on-screen.svelte";
+	import { pinLabel as showPinLabel } from "./pin-label.svelte";
 	import { regionKey } from "./regions";
 	import { featureSource, monitorPositions, pinFeatures, pinIcon, shapeFeatures } from "./sources";
 
@@ -96,6 +97,11 @@
 	);
 	const pinCollection = $derived(pinFeatures(pin, pinLabel));
 	const pinSource = featureSource(() => pinCollection);
+	// Its visible text label (the shape and this text mark it, not color alone).
+	showPinLabel(
+		() => map,
+		() => (pin ? { lngLat: [pin.lon, pin.lat], text: pinLabel } : null)
+	);
 
 	$effect(() => {
 		void mapTries;

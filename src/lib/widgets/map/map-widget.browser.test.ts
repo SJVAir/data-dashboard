@@ -21,7 +21,13 @@ import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import { mapConfig } from "./host/config";
 import { regionShapes } from "./regions";
-import { fakeMaps, fakeStores, type FakeMap } from "./test-harness/fake-map.svelte";
+import {
+	FakeGl,
+	fakeMaps,
+	fakeMarkers,
+	fakeStores,
+	type FakeMap
+} from "./test-harness/fake-map.svelte";
 import MapWidget from "./MapWidget.svelte";
 
 vi.mock("@sjvair/map-sdk", async () => {
@@ -47,8 +53,13 @@ vi.mock("@sjvair/map-sdk", async () => {
 		shapesPlugin: plugin("shapes"),
 		pointsPlugin: plugin("points"),
 		monitorsPlugin: plugin("monitors"),
+		maptilerMap: (map: { gl: unknown }) => map.gl,
 		geometryBbox
 	};
+});
+vi.mock("@maptiler/sdk", async () => {
+	const { FakeMarker } = await import("./test-harness/fake-map.svelte");
+	return { Marker: FakeMarker };
 });
 vi.mock("./host/stores", async () => {
 	const { fakeStores } = await import("./test-harness/fake-map.svelte");
@@ -145,6 +156,7 @@ beforeEach(async () => {
 	await page.viewport(1280, 800);
 	fakeMaps.reset();
 	fakeStores.reset();
+	fakeMarkers.reset();
 	vi.mocked(mapConfig).mockReturnValue({ maptilerKey: "test", projection: "mercator" });
 	const { getMetadata, getQueryClient } = await import("$lib/data");
 	vi.mocked(getMetadata).mockReturnValue(fixtureMetadata());
@@ -285,6 +297,62 @@ test("a point fits its region and pins the point, labeled for owner and shared v
 	await expect.poll(() => pinName(map)).toEqual([m.map_pin_shared_location()]);
 });
 
+test("the pin shows a visible label for the owner and a shared viewer", async () => {
+	const point = { place: { kind: "point" as const, lat: 36.7, lon: -119.8 } };
+	const owner = await show(mapWidget(point));
+	let map = await madeMap();
+	map.gl = new FakeGl();
+	await expect.poll(() => fakeMarkers.on(map.gl).length).toBe(1);
+	let [label] = fakeMarkers.on(map.gl);
+	expect(label.element.textContent).toBe(m.map_pin_your_location());
+	expect(label.element.getAttribute("aria-hidden")).toBe("true");
+	expect(label.lngLat).toEqual([-119.8, 36.7]);
+	await owner.unmount();
+
+	fakeMaps.reset();
+	fakeMarkers.reset();
+	await show(mapWidget(point), "shared");
+	map = await madeMap();
+	map.gl = new FakeGl();
+	await expect.poll(() => fakeMarkers.on(map.gl).length).toBe(1);
+	[label] = fakeMarkers.on(map.gl);
+	expect(label.element.textContent).toBe(m.map_pin_shared_location());
+});
+
+test("a school's pin is labeled with its name", async () => {
+	await show(mapWidget({ place: { kind: "location", source: "schools", code: "s1" } }));
+	const map = await madeMap();
+	map.gl = new FakeGl();
+	await expect.poll(() => fakeMarkers.on(map.gl).length).toBe(1);
+	expect(fakeMarkers.on(map.gl)[0].element.textContent).toBe("Roosevelt High School");
+});
+
+test("the pin label is removed on detach and on unmount", async () => {
+	const screen = await show(mapWidget({ place: { kind: "point", lat: 36.7, lon: -119.8 } }));
+	const map = await madeMap();
+	const first = new FakeGl();
+	map.gl = first;
+	await expect.poll(() => fakeMarkers.on(first).length).toBe(1);
+	// Detached: the label goes with the GL map.
+	map.gl = null;
+	await expect.poll(() => fakeMarkers.shown.length).toBe(0);
+	// Re-attached to a new GL map: one label, on the new one.
+	const second = new FakeGl();
+	map.gl = second;
+	await expect.poll(() => fakeMarkers.on(second).length).toBe(1);
+	expect(fakeMarkers.shown).toHaveLength(1);
+	await screen.unmount();
+	expect(fakeMarkers.shown).toHaveLength(0);
+});
+
+test("a region has no pin label", async () => {
+	await show(mapWidget(region("019")));
+	const map = await madeMap();
+	map.gl = new FakeGl();
+	await expect.poll(() => map.selections.get("places")).toBeTruthy();
+	expect(fakeMarkers.made).toHaveLength(0);
+});
+
 test("a monitor selection highlights them with the ring style", async () => {
 	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }));
 	const map = await madeMap();
@@ -390,6 +458,19 @@ test("shows the error state when the map can't get WebGL", async () => {
 	await expect
 		.poll(() => frame.querySelector(`[data-fake-map="${fakeMaps.last.uid}"]`))
 		.toBeTruthy();
+});
+
+test("a lost WebGL context shows the error state, and Retry makes a new map", async () => {
+	const screen = await show(mapWidget(region("019")));
+	const map = await madeMap();
+	const gl = new FakeGl();
+	map.gl = gl;
+	await expect.poll(() => gl.listeners.get("webglcontextlost")?.size).toBe(1);
+	gl.fire("webglcontextlost");
+	await expect.element(screen.getByText(m.widget_state_error())).toBeVisible();
+	await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+	await expect.poll(() => fakeMaps.made).toHaveLength(2);
+	expect(map.destroyed).toBe(true);
 });
 
 test("an off-screen map stays detached", async () => {
