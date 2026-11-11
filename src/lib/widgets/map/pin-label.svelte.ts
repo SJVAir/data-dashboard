@@ -2,7 +2,7 @@ import { Marker } from "@maptiler/sdk";
 import { maptilerMap, type MapContext } from "@sjvair/map-sdk";
 
 /** Where the pin's label sits: right of the marker, level with its head. */
-const LABEL_OFFSET: [number, number] = [16, -14];
+const LABEL_OFFSET: [number, number] = [16, -4];
 
 /**
  * The pin's visible text label ("Your location", "Shared location", or the school's name), a DOM

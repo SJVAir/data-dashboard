@@ -17,8 +17,8 @@ const shared = new Map<string, Shared>();
 /**
  * The page's monitors store for an entry type, shared by every map showing it: created and
  * loaded on the first acquire, paused while the page is hidden, and disposed after the last
- * `release()`. The first acquire's `activity` drives the store's pausing. A map that wants the load's outcome awaits `store.init(entryType)` itself (it
- * joins the same run).
+ * `release()`. The first acquire's `activity` drives the store's pausing. A map that wants the
+ * load's outcome awaits `store.init(entryType)` itself (it joins the same run).
  */
 export function acquireMonitors(
 	entryType: string,

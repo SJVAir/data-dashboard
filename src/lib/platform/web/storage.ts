@@ -125,7 +125,7 @@ function createWebReset(run: Run): ResetAccess {
 				]);
 				const failed = results.find((r) => r.status === "rejected");
 				if (failed) throw failed.reason;
-			}).finally(() => tiles);
+			}).finally(() => tiles); // Relies on `clearTileCache` never rejecting.
 			try {
 				const doomed: string[] = [];
 				for (let i = 0; i < localStorage.length; i++) {
