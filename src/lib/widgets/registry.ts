@@ -67,11 +67,6 @@ export function getWidgetType(type: string): WidgetType | undefined {
 	return types.get(type);
 }
 
-/** The non-data types Add widget adds directly, in registration order. */
-export function addableWidgetTypes(): WidgetType[] {
-	return [...types.values()].filter((t) => t.addable);
-}
-
 /**
  * What Add widget lists, each type once, in registration order: data types open Get data
  * (`direct: false`) unless they're also `addable`, which adds them directly (`direct: true`).

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Component } from "svelte";
 import {
-	addableWidgetTypes,
 	addWidgetEntries,
 	dataTypes,
 	getWidgetType,
@@ -60,18 +59,18 @@ describe("widget registry", () => {
 		expect(names).not.toContain("registry-no-data");
 	});
 
-	test("the Notes type is addable but not a data type", () => {
+	test("the Notes type is added directly but not a data type", () => {
 		registerWidgetType(noteType);
-		expect(addableWidgetTypes().map((t) => t.type)).toContain("note");
+		expect(addWidgetEntries().find((e) => e.type.type === "note")?.direct).toBe(true);
 		expect(dataTypes().map((t) => t.type)).not.toContain("note");
 	});
 
-	test("only types with `addable` are offered, in registration order", () => {
+	test("only types with `addable` are added directly, in registration order", () => {
 		const data = { layers: [] };
 		registerWidgetType(type("registry-addable-a", { addable: () => ({ data }) }));
 		registerWidgetType(type("registry-not-addable"));
 		registerWidgetType(type("registry-addable-b", { addable: () => ({ data }) }));
-		const names = addableWidgetTypes().map((t) => t.type);
+		const names = addWidgetEntries().map((e) => e.type.type);
 		expect(names).toContain("registry-addable-a");
 		expect(names).toContain("registry-addable-b");
 		expect(names).not.toContain("registry-not-addable");
