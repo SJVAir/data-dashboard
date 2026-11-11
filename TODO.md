@@ -424,7 +424,8 @@ and the copyright holder (Central California Asthma Collaborative).
     "CSRF protection").
 - **Spec 2 (the data layer) is done: merged into `foundations` as PR [#7](https://github.com/SJVAir/data-dashboard/pull/7) (2026-10-25).** Dataset
   adapters, the query client with live polling, resolution and period stitching, the `format`
-  module, `readableColor`, and a dev-only data page at `/workspace/dev/data`. Design and plan:
+  module, `readableColor`, and a dev-only data page at `/workspace/dev/data` (removed
+  2026-11-11; widgets and tests cover the data layer now). Design and plan:
   `docs/superpowers/{specs,plans}/2026-10-22-foundations-2-data-layer*`. Its deferrals are in
   `DEFERRED.md`.
 - **PR #7 now uses @sjvair/sdk 4.8.0-beta.1 (2026-10-25)**: raw entries, the dataset catalog,

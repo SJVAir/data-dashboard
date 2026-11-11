@@ -36,7 +36,7 @@
 	import { tick, untrack } from "svelte";
 	import { toast } from "svelte-sonner";
 	import { serializeSearch } from "sv-router";
-	import { route } from "../../../router";
+	import { currentPathname, route } from "../../../router";
 
 	const app = useApp();
 	const identity = $derived(app.account.identity);
@@ -44,7 +44,7 @@
 	// follows client-side navigation and is the path the browser shows (never the fragment).
 	const signInHref = $derived(
 		app.platform.identity.signInUrl(
-			returnPath({ pathname: p(route.pathname), search: serializeSearch(route.search) ?? "" })
+			returnPath({ pathname: currentPathname(), search: serializeSearch(route.search) ?? "" })
 		)
 	);
 

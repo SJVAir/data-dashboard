@@ -382,7 +382,3 @@ export function createWebMetadata(): MetadataSource {
 		}
 	};
 }
-
-export function withCatalog(base: MetadataSource, catalog: CatalogEntry[]): MetadataSource {
-	return { ...base, catalog: async () => catalog };
-}
