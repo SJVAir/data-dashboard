@@ -85,6 +85,10 @@ const NOT_FETCHED = {
 	// Library code in the Map widget's lazy chunk (map-sdk, @maptiler/sdk, maplibre-gl). The map
 	// fetches only from api.maptiler.com (listed in csp-hosts.json).
 	"maplibre.org": "MapLibre's attribution and logo links (navigation, not a fetch; the Map chunk)",
+	// Library default: the right-to-left text plugin URL, fetched only for right-to-left labels.
+	// Deliberately NOT in csp-hosts.json: our CSP blocks it on purpose until map-sdk offers an
+	// option to turn it off.
+	"cdn.maptiler.com": "MapTiler's default right-to-left text plugin URL (the Map chunk)",
 	"www.maptiler.com": "MapTiler's logo link (navigation, not a fetch; the Map chunk)",
 	"maptiler.com": "text of @maptiler/sdk's missing-key warnings (the Map chunk)",
 	"developer.mozilla.org": "documentation link in @maptiler/sdk's cache warning (the Map chunk)",

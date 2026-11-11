@@ -14,9 +14,13 @@ describe("map config", () => {
 		expect(mapConfig()).toEqual({
 			maptilerKey: "test-key",
 			projection: "mercator",
-			cooperativeGestures: true
+			cooperativeGestures: true,
+			telemetry: false
 		});
 	});
 
-	it.todo("turns MapTiler telemetry and session off");
+	it("turns MapTiler telemetry off", () => {
+		vi.stubEnv("VITE_MAPTILER_KEY", "test-key");
+		expect(mapConfig()?.telemetry).toBe(false);
+	});
 });

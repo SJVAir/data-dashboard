@@ -8,7 +8,5 @@ import type { MapConfig } from "@sjvair/map-sdk";
 export function mapConfig(): MapConfig | null {
 	const maptilerKey = import.meta.env.VITE_MAPTILER_KEY;
 	if (!maptilerKey) return null;
-	// TODO(map-sdk change 1): turn MapTiler telemetry and session off once the pinned map-sdk
-	// has the option (expected 0.1.0-beta.7); the PR doesn't merge without it.
-	return { maptilerKey, projection: "mercator", cooperativeGestures: true };
+	return { maptilerKey, projection: "mercator", cooperativeGestures: true, telemetry: false };
 }
