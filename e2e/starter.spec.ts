@@ -226,9 +226,9 @@ test.describe("Duplicate for another place", () => {
 			.click();
 		const done = picker(page).getByRole("button", { name: "Done" });
 		if (await done.isVisible()) await done.click();
-		// The copy opens, with its rename dialog.
+		// The copy opens, with its rename dialog (waiting for the URL to leave the original's).
+		await expect(page).not.toHaveURL(original);
 		await expect(page).toHaveURL(DASHBOARD_URL);
-		expect(page.url()).not.toBe(original);
 		await page.keyboard.press("Escape");
 		await expect(widgetTitles(page).filter({ hasText: "Tulare County" })).toHaveCount(
 			STARTER_TITLES.length - 1
