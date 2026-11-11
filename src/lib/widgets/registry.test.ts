@@ -139,7 +139,8 @@ describe("every widget type", () => {
 			(await import("./current")).currentType,
 			(await import("./forecast")).forecastType,
 			(await import("./outside")).outsideType,
-			(await import("./table")).dataTableType
+			(await import("./table")).dataTableType,
+			(await import("./map")).mapType
 		];
 		for (const t of all) {
 			expect(t.defaultSize.w, t.type).toBeGreaterThanOrEqual(t.minSize.w);

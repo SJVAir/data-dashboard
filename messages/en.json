@@ -1146,6 +1146,7 @@
 	"edit_data_unavailable": "This widget's data can't be edited here.",
 	"widget_edit_data": "Edit data",
 	"widget_current_title": "Current conditions",
+	"widget_map_title": "Map",
 	"current_trend_rising": "Rising",
 	"current_trend_falling": "Falling",
 	"current_trend_steady": "Steady",
