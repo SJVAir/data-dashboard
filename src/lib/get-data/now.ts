@@ -188,11 +188,22 @@ export function toNowDraft(
 
 /**
  * A now draft as `type` (a range type): its layer over the default range (a Forecast strip's
- * place on a PM2.5 layer, as a new widget's). The alert level is kept only when `type` has
- * thresholds; otherwise `dropped` says it was left out.
+ * place on a PM2.5 layer, as a new widget's), its places cut to `type`'s `maxPlaces` (a Map's
+ * selection to a Chart's five, say; `dropped` then says so). The alert level is kept only when
+ * `type` has thresholds; otherwise `dropped` says it was left out.
  */
 export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
-	const layers = draft.data.layers.map((l) => structuredClone(placesQueryLayer(l)));
+	const cap = type.accepts?.maxPlaces;
+	let cut = false;
+	const layers = draft.data.layers.map((l) => {
+		const layer = structuredClone(placesQueryLayer(l));
+		const picks = fromLayer(layer);
+		if (cap === undefined || picks.length <= cap) return layer;
+		cut = true;
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
+		const { place, selection, ...rest } = layer;
+		return { ...rest, ...toLayerPlaces(picks.slice(0, cap)) };
+	});
 	// A Chart's line is its own opt-in, so a tile's alert level isn't carried to it; a calendar's
 	// threshold is the same alert level, so it is.
 	const thresholds =
@@ -205,7 +216,10 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 			data: { dateRange: structuredClone(type.defaultRange ?? DEFAULT_RANGE), layers },
 			...(thresholds ? { thresholds: structuredClone(thresholds) } : {})
 		},
-		dropped: !thresholds && draft.thresholds?.length ? ["alert"] : []
+		dropped: [
+			...(cut ? (["places"] as const) : []),
+			...(!thresholds && draft.thresholds?.length ? (["alert"] as const) : [])
+		]
 	};
 }
 
