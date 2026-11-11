@@ -560,3 +560,26 @@ platform through the app (`useApp().platform`).
 - [ ] **Step 2:** Implement. Pass `activity` in. No global `platform()` calls are left under `src/lib/widgets/map/`.
 - [ ] **Step 3:** Run `npm run test:browser` (the whole browser project, to confirm zero unhandled errors) and `npm run test:unit`. Expected: PASS, with no unhandled errors.
 - [ ] **Step 4:** Commit `fix(map): take the platform from the app, not the global`.
+
+### Task 17: Turn on map-sdk's pinned card (when `0.1.0-beta.8` is published)
+
+Added 2026-11-11. This is spec 1's last merge blocker: a tap on a phone must show a monitor's
+reading. map-sdk `0.1.0-beta.8` (branch `feat/pinned-card`, in review, not yet published) adds
+MapView `card` (boolean), MapContext `pinned` (`Hovered | null`) and `unpin()`, and the message
+key `mapsdk_card_close`. The tap bug's cause: Chromium fires a compatibility `mouseout` about
+8 ms after a tap's click, which cleared the hover. The pin doesn't depend on hover.
+
+**Files:**
+- Modify: `package.json`, `package-lock.json` (`"@sjvair/map-sdk": "0.1.0-beta.8"`, exact; `@maptiler/sdk` stays in step with map-sdk's range)
+- Modify: `src/lib/widgets/map/MapWidget.svelte` (`<MapView card …>`)
+- Modify: `messages/en.json`, `src/lib/widgets/map/host/messages.ts` (`mapsdk_card_close`, map-sdk's English text verbatim)
+- Modify: `e2e/map.spec.ts` (lift the tap `fixme`; add the deferred E2Es below)
+- Modify: `DEFERRED.md` (close the "Step 5 spec 1 review leftovers" line for final #10/#11 once done), `TODO.md` (spec 1 blockers)
+
+- [ ] **Step 1: Failing tests:**
+  - Browser: `a click pins the card and never selects` (selection mode `"none"`: after a click, `setSelection` isn't called by the map and the layer is unchanged).
+  - E2E: lift the `fixme` on `a tap on a monitor shows its reading` (Chromium and WebKit).
+- [ ] **Step 2:** Bump to beta.8, set `card`, and add the message key. The coverage test must pass.
+- [ ] **Step 3:** Add the two deferred E2Es: `no MapTiler metrics request after a map draws` (none within about 3 s, from the stub's `seen` list), and `a map scrolled off screen and back draws again` (real GL).
+- [ ] **Step 4:** Run the full checks (unit, browser with 0 unhandled errors, build, check:build, check:budget, `CI=1 npm run test:e2e`, and WebKit in podman). Expected: PASS.
+- [ ] **Step 5:** Commit `feat(map): tap pins the reading card (map-sdk 0.1.0-beta.8)`.
