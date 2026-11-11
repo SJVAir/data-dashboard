@@ -1656,12 +1656,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **Lexical is pre-1.0.** _Deferred 2026-11-10 (step 4 spec 6)._ The Notes editor uses Lexical
   0.53.0, pinned exactly (with every `@lexical/*` package), so a minor release can't break
   it unseen. **Revisit at** Lexical 1.0 or on any upgrade (re-run the editor round-trip tests).
-- **Note toolbar tooltips don't show the keyboard shortcuts.** _Deferred 2026-11-10 (step 4
-  spec 6, copy review)._ Bold, Italic and Link carry `aria-keyshortcuts`, but their tooltips say
-  only "Bold", so sighted keyboard users never see Ctrl/⌘+B, I or K. The fix is a message with a
-  `{keys}` placeholder (say "Bold ({keys})"), the platform's key name coming from code.
-  **Revisit with** the next toolbar change, or with "Command palette (Ctrl+K) and per-action
-  keyboard shortcuts".
 - **A content fit applied during an effect flush remounts widgets.** _Deferred 2026-11-10
   (step 4 spec 6, phone Note fit)._ A Note reports its text's height through `FitContent`, and
   the frame applies it to the grid in a microtask. Applied during an effect flush instead, the
@@ -1670,12 +1664,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   comment guard against it, but the frame's load block is still fragile. **Revisit when**
   another widget type adopts `FitContent`, or the frame's load block changes (e.g. hold the
   loaded module in state instead of an `{#await}`).
-- **Resizing a grown Note on a phone shows no change at first.** _Deferred 2026-11-10 (step 4
-  spec 6, phone Note fit)._ Shift+Up/Down and the touch handle change the stored height, which
-  is less than the rows the Note's text gets, so nothing visible changes until the height passes
-  them. The announced height is also the stored one. An option is to start a phone resize from
-  the larger of the stored height and the shown rows. **Revisit if** people resize Notes on
-  phones.
 - **A Note fitted on a phone can leave a gap under its text.** _Deferred 2026-11-10 (step 4
   spec 6, phone Note fit)._ It grows in whole rows (4 rem plus a gap), so up to about 75 px can
   stay blank under the text. **Revisit if** it looks odd (e.g. finer rows on phones).
@@ -1701,11 +1689,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **`safeHref` accepts `https://user:pass@host`.** The link text is the author's anyway, so a
     hostile link can already say anything; the userinfo adds no new power. **Revisit if** links
     get a visible-host cue.
-  - **The editor's Markdown export escapes only line starts.** A typed `[ ]`, `\`, `<` or `&`
-    inside a line isn't escaped, so a typed `[docs](https://x.org)` becomes a link (the editor
-    reads it back as one too, so editor and viewer agree), `\#` loses its backslash, and `_x_`
-    shows italic in the viewer but text in the editor. (Line-start `--`, `==` and `<` are
-    escaped.) **Revisit if** someone's typed text changes meaning in the viewer.
   - **The character counter counts Markdown,** so `**`, `## ` and each link's whole address
     count but don't show; "too long" says "Formatting and link addresses count too". **Revisit
     if** people find the count confusing (count visible text instead).
