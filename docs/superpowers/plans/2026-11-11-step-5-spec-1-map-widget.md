@@ -524,3 +524,17 @@ width (`--mapsdk-map-width`). This clears spec 1's map-sdk blocker.
 - [ ] **Step 2:** `npm install --save-exact @sjvair/map-sdk@0.1.0-beta.7`. Confirm one `@sjvair/sdk` (5.0.0-beta.8). Add `telemetry: false`.
 - [ ] **Step 3:** Run `npx vitest run src/lib/widgets/map` and `npm run test:browser -- src/lib/widgets/map`, then `npm run check`, `npm run build && npm run check:build && npm run check:budget`. Expected: PASS. Report any new hosts check:build flags and the bundle numbers.
 - [ ] **Step 4:** Commit `build: map-sdk 0.1.0-beta.7, MapTiler telemetry off`.
+
+### Task 15: Allow MapTiler's logo in img-src (run right after Task 9)
+
+Added 2026-11-11 by the user's decision (via the coordinator): MapTiler draws its logo as an
+`<img>` from `https://api.maptiler.com/…/resources/logo.svg` when the key's plan requires it.
+
+**Files:**
+- Modify: `csp-hosts.json` (`img-src` gains `"https://api.maptiler.com"`, appended last)
+- Modify: `src/csp-hosts.test.ts` (`CONTRACT["img-src"]`)
+
+- [ ] **Step 1:** Update the contract test first: `CONTRACT["img-src"]` equals `["'self'", "{static}", "data:", "blob:", "https://api.maptiler.com"]`. Run `npx vitest run src/csp-hosts.test.ts`. Expected: FAIL.
+- [ ] **Step 2:** Add the host to `csp-hosts.json` in the same position. Keep the file's existing formatting (sjvair.com mirrors it byte for byte). Re-run. Expected: PASS.
+- [ ] **Step 3:** `npm run build && npm run check:build`. Expected: PASS.
+- [ ] **Step 4:** Commit `build(csp): allow MapTiler's logo image`. Report the commit SHA, so the controller can send it to the sjvair.com session (#330).
