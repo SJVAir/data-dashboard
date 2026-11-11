@@ -1942,7 +1942,9 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   single-column stack derived from the desktop layout's reading order. Only the desktop
   layout is persisted in a saved dashboard config. Rearranging works on phones and changes the
   desktop layout (a widget moved above another takes its spot); on a phone only height can be
-  resized. A separate tablet layout is deferred (see `DEFERRED.md`).
+  resized. A separate tablet layout is deferred (see `DEFERRED.md`). On the phone stack a Note
+  grows to fit its text, up to 12 rows (decided 2026-11-10, for WCAG reflow); this is display
+  only, the stored height never changes, and a longer Note scrolls inside as before.
 - **Touch** (decided 2026-10-28, step 2): a long-press on the title bar picks a widget up to
   drag it; lifting without moving leaves it selected with touch-sized resize handles and a
   "Done" button. The design is in

@@ -39,6 +39,8 @@ export type PointerDragOptions = {
 	release?: (moved: boolean) => void;
 	/** The drag replaced another arrangement in progress (another widget's, or another input's). */
 	replaced?: (id: string) => void;
+	/** A widget's rows on a phone, for its height `h` (a Note may grow to fit); `h` if unset. */
+	span?: (id: string, h: number) => number;
 	/** Called once when the drag is torn down, however it ends. */
 	onEnd?: () => void;
 };
@@ -68,14 +70,19 @@ function toPage(p: Point): Point {
 
 /**
  * The reading-order index (on one column) whose slot top is nearest `row`: `others` are the
- * widgets other than the dragged one, in reading order, and each takes its height in rows.
+ * widgets other than the dragged one, in reading order, and each takes its height in rows (or
+ * its phone `span`).
  */
-export function nearestIndex(others: readonly { rect: Rect }[], row: number): number {
+export function nearestIndex(
+	others: readonly { id: string; rect: Rect }[],
+	row: number,
+	span: (id: string, h: number) => number = (_id, h) => h
+): number {
 	let best = 0;
 	let bestDistance = Math.abs(row);
 	let top = 0;
 	others.forEach((other, i) => {
-		top += other.rect.h;
+		top += span(other.id, other.rect.h);
 		const distance = Math.abs(row - top);
 		if (distance < bestDistance) {
 			best = i + 1;
@@ -221,7 +228,7 @@ export function startPointerDrag(
 		const pitchY = metrics.rowHeight + metrics.gap;
 		if (metrics.columns === 1) {
 			const others = arrangement.preview?.filter((i) => i.id !== id) ?? [];
-			const index = nearestIndex(others, (topLeft.y - metrics.top) / pitchY);
+			const index = nearestIndex(others, (topLeft.y - metrics.top) / pitchY, opts.span);
 			const key = `#${index}`;
 			if (key === lastTarget) return false;
 			lastTarget = key;

@@ -44,7 +44,8 @@
 		loadedWidget,
 		type WidgetModule
 	} from "$lib/widgets/registry";
-	import { REMOVE_WIDGET_KEY } from "$lib/widgets/shared/context";
+	import { PHONE_FIT_KEY, rowsFor, type PhoneFit } from "$lib/layout/phone-fit.svelte";
+	import { FIT_CONTENT_KEY, REMOVE_WIDGET_KEY, type FitContent } from "$lib/widgets/shared/context";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 	import WidgetSkeleton from "$lib/widgets/shared/WidgetSkeleton.svelte";
 	import ResizeHandles from "./ResizeHandles.svelte";
@@ -53,6 +54,7 @@
 		widget,
 		rect,
 		phoneRow,
+		phoneSpan,
 		fullscreen = false,
 		inert = false,
 		readOnly = false,
@@ -65,6 +67,8 @@
 		rect: Rect;
 		/** Its first row (0-based) in the phone's one-column layout. */
 		phoneRow: number;
+		/** Its rows in the phone's one-column layout (a Note may grow to fit); `rect.h` if unset. */
+		phoneSpan?: number;
 		/** Lifted over the dashboard area (a view: the layout underneath is unchanged). */
 		fullscreen?: boolean;
 		/** Another widget is fullscreen. */
@@ -89,6 +93,41 @@
 		removeWidget(app, widget.id);
 	});
 	const arrangement = useArrangement();
+
+	// A Note fits its text on a phone: it reports its content's natural height, and the frame
+	// turns that (plus its own title bar, padding, and border) into grid rows for the grid's
+	// one-column layout. Not measured while fullscreen (another width); the stored rect never
+	// changes. Reports reach the grid outside the effect flush (from a ResizeObserver callback,
+	// or a microtask when it's going): a write during the flush would redo every frame's
+	// widget-loading block, remounting the widgets.
+	const phoneFit = getContext<PhoneFit | undefined>(PHONE_FIT_KEY);
+	let content = $state<HTMLElement | null>(null);
+	/** Whether this frame has reported rows (so only it clears them). */
+	let reported = false;
+	function clearFit(): void {
+		if (!reported) return;
+		reported = false;
+		const id = widget.id;
+		queueMicrotask(() => phoneFit?.report(id, null));
+	}
+	setContext<FitContent>(FIT_CONTENT_KEY, (height) => {
+		if (!phoneFit) return;
+		if (height === null) return clearFit();
+		const grid = section?.parentElement;
+		if (fullscreen || !section || !content || !grid) return;
+		const body = getComputedStyle(content);
+		const inner =
+			content.clientHeight - parseFloat(body.paddingTop) - parseFloat(body.paddingBottom);
+		const chrome = section.offsetHeight - inner;
+		const style = getComputedStyle(grid);
+		const rowHeight = parseFloat(style.gridAutoRows) || 0;
+		const gap = parseFloat(style.rowGap) || 0;
+		phoneFit.report(widget.id, rowsFor(height + chrome, rowHeight, gap));
+		reported = true;
+	});
+	onDestroy(clearFit);
+	/** A widget's rows on a phone, for the phone's drag slots. */
+	const span = phoneFit ? (id: string, h: number) => phoneFit.span(id, h) : undefined;
 	const type = $derived(getWidgetType(widget.type));
 	const title = $derived(widgetTitle(widget));
 	const titleId = $derived(`widget-title-${widget.id}`);
@@ -309,7 +348,8 @@
 			threshold: DRAG_THRESHOLD,
 			drop,
 			cancel,
-			replaced
+			replaced,
+			span
 		});
 	}
 
@@ -336,6 +376,7 @@
 			kind,
 			input: "touch",
 			lifted: true,
+			span,
 			threshold: fromLongPress ? LONG_PRESS_TOLERANCE : DRAG_THRESHOLD,
 			drop,
 			cancel,
@@ -561,7 +602,7 @@
 	{onfocusout}
 	style:--col="{rect.x + 1} / span {rect.w}"
 	style:--row="{rect.y + 1} / span {rect.h}"
-	style:--prow="{phoneRow + 1} / span {rect.h}"
+	style:--prow="{phoneRow + 1} / span {phoneSpan ?? rect.h}"
 	data-testid="widget-{widget.id}"
 	data-flip-id={widget.id}
 	{@attach menuScope(provider)}
@@ -635,7 +676,10 @@
 		{/if}
 	</div>
 	<!-- During a touch selection, touches on the body (and its handles and Done) don't scroll. -->
-	<div class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}>
+	<div
+		bind:this={content}
+		class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}
+	>
 		{#snippet body(mod: WidgetModule)}
 			<mod.component {widget} {fullscreen} />
 		{/snippet}

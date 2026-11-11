@@ -320,6 +320,15 @@ for (const colorScheme of ["light", "dark"] as const) {
 				await expectNoViolations(page);
 				// The headings are in document order, so this is the reading order.
 				await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+				if (size === "phone") {
+					// The welcome Note grows to fit its text on a phone (WCAG reflow): none of it is
+					// hidden behind a scroll inside the Note.
+					const note = page.getByRole("region", { name: NOTE });
+					await expect(note).toContainText(/\S/);
+					await expect
+						.poll(() => note.evaluate((el) => el.scrollHeight - el.clientHeight))
+						.toBeLessThanOrEqual(0);
+				}
 			});
 		});
 	}

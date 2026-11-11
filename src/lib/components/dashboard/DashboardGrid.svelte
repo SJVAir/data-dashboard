@@ -29,6 +29,7 @@
 	} from "$lib/layout/fullscreen";
 	import { holdFullscreen } from "$lib/layout/fullscreen-view.svelte";
 	import { shownLayout } from "$lib/layout/items";
+	import { PHONE_FIT_KEY, PhoneFit } from "$lib/layout/phone-fit.svelte";
 	import { taskbarWidgets } from "$lib/layout/windowing";
 	import { loadLazy } from "$lib/safety/lazy";
 	import { STARTER_ID } from "$lib/starter/starter";
@@ -100,22 +101,27 @@
 		arrangement
 	);
 	onDestroy(() => arrangement.dispose());
+	// On a phone a Note grows to fit its text (its frame reports the rows): display only.
+	const phoneFit = new PhoneFit();
+	setContext(PHONE_FIT_KEY, phoneFit);
 
 	// The shown (tidied) layout, always in desktop coordinates and in reading order, so the
 	// single-column layout and the tab order follow it.
 	const shown = $derived(doc ? shownLayout(doc.body.widgets) : []);
 	const byId = $derived(new Map(doc?.body.widgets.map((w) => [w.id, w]) ?? []));
 	// Each widget's place: the arrangement's preview while one is in progress, else the shown
-	// layout. On a phone each widget is placed on explicit rows (its height, in the placed
-	// layout's reading order), so the drop target can overlay a slot without moving the others.
+	// layout. On a phone each widget is placed on explicit rows (its height, or a Note's rows
+	// for its text, in the placed layout's reading order), so the drop target can overlay a slot
+	// without moving the others.
 	const places = $derived.by(() => {
 		// Rebuilt whole on every change, never mutated after.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const out = new Map<string, { rect: Rect; phoneRow: number }>();
+		const out = new Map<string, { rect: Rect; phoneRow: number; phoneSpan: number }>();
 		let phoneRow = 0;
 		for (const item of arrangement.preview ?? shown) {
-			out.set(item.id, { rect: item.rect, phoneRow });
-			phoneRow += item.rect.h;
+			const phoneSpan = phone.current ? phoneFit.span(item.id, item.rect.h) : item.rect.h;
+			out.set(item.id, { rect: item.rect, phoneRow, phoneSpan });
+			phoneRow += phoneSpan;
 		}
 		return out;
 	});
@@ -143,9 +149,15 @@
 	const flip = new Flip();
 	// The widget being arranged, kept for the update that ends it (a cancel resizes it back).
 	let arranged: string | null = null;
+	// A Note growing to fit its text isn't a move: the widgets it pushes down jump, not slide.
+	let fitVersion = 0;
 	$effect.pre(() => {
 		void placed;
-		untrack(() => flip.measure(grid, arrangement.columns));
+		untrack(() => {
+			const fitted = phoneFit.version !== fitVersion;
+			fitVersion = phoneFit.version;
+			flip.measure(grid, arrangement.columns, fitted);
+		});
 	});
 	$effect(() => {
 		void placed;
@@ -357,11 +369,12 @@
 						bind:this={grid}
 						class="grid auto-rows-[var(--grid-row-height)] grid-cols-1 gap-(--grid-gap) md:grid-cols-[repeat(12,minmax(0,1fr))]"
 					>
-						{#each placed as { widget, rect, phoneRow } (widget.id)}
+						{#each placed as { widget, rect, phoneRow, phoneSpan } (widget.id)}
 							<WidgetFrame
 								{widget}
 								{rect}
 								{phoneRow}
+								{phoneSpan}
 								fullscreen={widget.id === shownId}
 								inert={!!shownId && widget.id !== shownId}
 								readOnly={!!view}
@@ -378,7 +391,7 @@
 								class="border-ring pointer-events-none [grid-column:1/-1] [grid-row:var(--prow)] rounded-lg border-2 border-dashed md:[grid-column:var(--col)] md:[grid-row:var(--row)]"
 								style:--col="{target.rect.x + 1} / span {target.rect.w}"
 								style:--row="{target.rect.y + 1} / span {target.rect.h}"
-								style:--prow="{target.phoneRow + 1} / span {target.rect.h}"
+								style:--prow="{target.phoneRow + 1} / span {target.phoneSpan}"
 							></div>
 						{/if}
 					</div>
