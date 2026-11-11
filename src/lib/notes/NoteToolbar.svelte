@@ -12,6 +12,7 @@
 	import { mergeProps } from "bits-ui";
 	import type { Component } from "svelte";
 	import { Button } from "$lib/components/ui/button";
+	import { formatShortcut } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { ToolbarState } from "./editor";
 	import LinkPopover from "./LinkPopover.svelte";
@@ -38,7 +39,8 @@
 		label: () => string;
 		icon: Component;
 		pressed: (s: ToolbarState) => boolean;
-		keys?: string;
+		/** The letter of its Ctrl/⌘ shortcut, if it has one. */
+		key?: string;
 	};
 
 	const TOOLS: Tool[] = [
@@ -47,14 +49,14 @@
 			label: m.note_editor_bold,
 			icon: Bold,
 			pressed: (s) => s.bold,
-			keys: "Control+B Meta+B"
+			key: "B"
 		},
 		{
 			action: "italic",
 			label: m.note_editor_italic,
 			icon: Italic,
 			pressed: (s) => s.italic,
-			keys: "Control+I Meta+I"
+			key: "I"
 		},
 		{ action: "heading", label: m.note_editor_heading, icon: Heading, pressed: (s) => s.heading },
 		{
@@ -70,6 +72,13 @@
 			pressed: (s) => s.list === "number"
 		}
 	];
+	/** `aria-keyshortcuts` for a Ctrl/⌘ plus `key` shortcut. */
+	const ariaKeys = (key: string) => `Control+${key} Meta+${key}`;
+
+	/** A tooltip's text: the label, with the shortcut when there is one ("Bold (Ctrl+B)"). */
+	const tipText = (label: string, key?: string) =>
+		key ? m.note_editor_tooltip_shortcut({ label, keys: formatShortcut(key) }) : label;
+
 	/** The Link button comes after the tools. */
 	const LINK_INDEX = TOOLS.length;
 
@@ -147,7 +156,7 @@ The button's own label names it, so the tooltip is hidden from screen readers. -
 				size="icon-sm"
 				aria-label={tool.label()}
 				aria-pressed={tool.pressed(formats)}
-				aria-keyshortcuts={tool.keys}
+				aria-keyshortcuts={tool.key ? ariaKeys(tool.key) : undefined}
 				tabindex={active === i ? 0 : -1}
 				class="aria-pressed:bg-secondary aria-pressed:text-foreground"
 				onmousedown={keepSelection}
@@ -157,7 +166,7 @@ The button's own label names it, so the tooltip is hidden from screen readers. -
 			>
 				<tool.icon aria-hidden="true" />
 			</Button>
-			{@render tip(tool.label(), i)}
+			{@render tip(tipText(tool.label(), tool.key), i)}
 		</span>
 	{/each}
 	<span
@@ -183,7 +192,7 @@ The button's own label names it, so the tooltip is hidden from screen readers. -
 					size="icon-sm"
 					aria-label={m.note_editor_link()}
 					aria-pressed={formats.link !== null}
-					aria-keyshortcuts="Control+K Meta+K"
+					aria-keyshortcuts={ariaKeys("K")}
 					tabindex={active === LINK_INDEX ? 0 : -1}
 					class="aria-pressed:bg-secondary aria-pressed:text-foreground"
 				>
@@ -191,6 +200,6 @@ The button's own label names it, so the tooltip is hidden from screen readers. -
 				</Button>
 			{/snippet}
 		</LinkPopover>
-		{#if !linkOpen}{@render tip(m.note_editor_link(), LINK_INDEX)}{/if}
+		{#if !linkOpen}{@render tip(tipText(m.note_editor_link(), "K"), LINK_INDEX)}{/if}
 	</span>
 </div>

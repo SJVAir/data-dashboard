@@ -237,9 +237,11 @@ test("a toolbar button's tooltip shows on keyboard focus; Escape hides it, then 
 	await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
 	const bold = dialog().getByRole("button", { name: m.note_editor_bold(), exact: true });
 	await expect.element(bold).toHaveFocus();
+	// The tooltip shows the shortcut too (the button's name stays "Bold").
+	const shown = MOD === "Meta" ? "Bold (⌘B)" : "Bold (Ctrl+B)";
 	const tooltip = () =>
 		[...bold.element().parentElement!.querySelectorAll("span[aria-hidden=true]")].find(
-			(el) => el.textContent?.trim() === m.note_editor_bold()
+			(el) => el.textContent?.trim() === shown
 		);
 	await expect.poll(() => tooltip() && getComputedStyle(tooltip()!).visibility).toBe("visible");
 	await userEvent.keyboard("{Escape}");
@@ -247,6 +249,27 @@ test("a toolbar button's tooltip shows on keyboard focus; Escape hides it, then 
 	await expect.element(dialog()).toBeVisible();
 	await userEvent.keyboard("{Escape}");
 	await expect.element(dialog()).not.toBeInTheDocument();
+});
+
+test("the tooltips name the shortcuts; buttons without one show just the label", async () => {
+	await setup({ text: "word" });
+	await open();
+	const tipOf = (name: string) =>
+		dialog()
+			.getByRole("button", { name, exact: true })
+			.element()
+			.closest("span.group")
+			?.querySelector(":scope > span[aria-hidden=true]")
+			?.textContent?.trim();
+	const keys = (key: string) => (MOD === "Meta" ? `⌘${key}` : `Ctrl+${key}`);
+	expect(tipOf(m.note_editor_bold())).toBe(`Bold (${keys("B")})`);
+	expect(tipOf(m.note_editor_italic())).toBe(`Italic (${keys("I")})`);
+	expect(tipOf(m.note_editor_link())).toBe(`Link (${keys("K")})`);
+	expect(tipOf(m.note_editor_heading())).toBe("Heading");
+	const bold = dialog().getByRole("button", { name: m.note_editor_bold(), exact: true });
+	await expect.element(bold).toHaveAttribute("aria-keyshortcuts", "Control+B Meta+B");
+	const link = dialog().getByRole("button", { name: m.note_editor_link(), exact: true });
+	await expect.element(link).toHaveAttribute("aria-keyshortcuts", "Control+K Meta+K");
 });
 
 test("Ctrl/⌘+B and I format; Ctrl/⌘+K asks for a link address", async () => {

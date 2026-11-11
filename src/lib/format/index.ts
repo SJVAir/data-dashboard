@@ -301,4 +301,15 @@ export function formatList(items: string[], locale: string = LOCALE): string {
 	return new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(items);
 }
 
+/** Whether shortcuts use ⌘ rather than Ctrl here (macOS, iPadOS, iOS). */
+export function usesCommandKey(): boolean {
+	if (typeof navigator === "undefined") return false;
+	return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+}
+
+/** A Ctrl/⌘ plus `key` shortcut as this platform names it ("Ctrl+B", or "⌘B" on a Mac). */
+export function formatShortcut(key: string, command: boolean = usesCommandKey()): string {
+	return command ? m.shortcut_command({ key }) : m.shortcut_control({ key });
+}
+
 export * from "./calendar";
