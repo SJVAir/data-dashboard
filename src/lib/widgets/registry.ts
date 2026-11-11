@@ -1,7 +1,7 @@
 import type { Component } from "svelte";
 import type { MenuContext, MenuItem } from "$lib/actions/types";
 import type { DateRangeSpec, Resolution, WidgetDataConfig } from "$lib/data/schema";
-import type { WidgetInstance } from "$lib/documents/schema";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
 import type { AppContext } from "$lib/store/app.svelte";
 
@@ -45,11 +45,12 @@ export type WidgetType = {
 	/** A dynamic `import()` of the type's code; `loadWidget` caches it after the first call. */
 	load: () => Promise<WidgetModule>;
 	/**
-	 * A direct add: Add widget lists the type (after the data types) and adds it with this data.
-	 * Data types (those with `accepts.datasets`) go through Get data instead. Returns the new
-	 * widget's data and, if it has any, its `options`.
+	 * A direct add: Add widget adds the type with this data. Data types (those with
+	 * `accepts.datasets`) go through Get data unless they're also `addable`, which adds them
+	 * directly. Gets the dashboard it's added to; returns the new widget's data and, if it has
+	 * any, its `options`.
 	 */
-	addable?: () => { data: WidgetDataConfig; options?: Record<string, unknown> };
+	addable?: (doc: Dashboard) => { data: WidgetDataConfig; options?: Record<string, unknown> };
 	/** Runs right after Add widget adds a widget of this type (e.g. opening its editor). */
 	onAdded?: (app: AppContext, widgetId: string) => void;
 };
@@ -69,6 +70,16 @@ export function getWidgetType(type: string): WidgetType | undefined {
 /** The non-data types Add widget adds directly, in registration order. */
 export function addableWidgetTypes(): WidgetType[] {
 	return [...types.values()].filter((t) => t.addable);
+}
+
+/**
+ * What Add widget lists, each type once, in registration order: data types open Get data
+ * (`direct: false`) unless they're also `addable`, which adds them directly (`direct: true`).
+ */
+export function addWidgetEntries(): { type: WidgetType; direct: boolean }[] {
+	return [...types.values()]
+		.filter((t) => t.addable || (t.accepts?.datasets?.length ?? 0) > 0)
+		.map((t) => ({ type: t, direct: !!t.addable }));
 }
 
 /** The types that take data from Get data (any `accepts.datasets`), in registration order. */

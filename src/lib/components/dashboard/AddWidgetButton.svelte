@@ -5,20 +5,20 @@
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { addableWidgetTypes, dataTypes } from "$lib/widgets/registry";
+	import { addWidgetEntries } from "$lib/widgets/registry";
 
 	let { variant = "outline" }: { variant?: "outline" | "default" } = $props();
 
 	const app = useApp();
 	// Types register when the app starts, before this renders.
-	// Data types open Get data; the others are added directly.
-	const types = [
-		...dataTypes().map((type) => ({ type, run: () => startGetData(app, type.type) })),
-		...addableWidgetTypes().map((type) => ({ type, run: () => addWidget(app, type.type) }))
-	];
+	// Data types open Get data unless they're also addable; the others are added directly.
+	const types = addWidgetEntries().map(({ type, direct }) => ({
+		type,
+		run: () => (direct ? addWidget(app, type.type) : startGetData(app, type.type))
+	}));
 </script>
 
-<!-- The types that can be added (data types first); until one registers, nothing can be, so it's disabled. -->
+<!-- The types that can be added (in registration order); until one registers, nothing can be, so it's disabled. -->
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger class={buttonVariants({ variant })} disabled={types.length === 0}>
 		<Plus aria-hidden="true" />

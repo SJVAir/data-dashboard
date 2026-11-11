@@ -31,7 +31,7 @@ import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
-import { addableWidgetTypes, dataTypes, getWidgetType } from "$lib/widgets/registry";
+import { addWidgetEntries, getWidgetType } from "$lib/widgets/registry";
 import { navigate } from "../../router";
 import type { MenuContext, MenuProvider } from "./types";
 
@@ -114,7 +114,7 @@ export function addWidget(app: AppContext, type: string): void {
 	const widgetType = getWidgetType(type);
 	if (!session || !widgetType) return;
 	const widgets = session.doc.body.widgets;
-	const added = widgetType.addable?.() ?? { data: { layers: [] } };
+	const added = widgetType.addable?.(session.doc) ?? { data: { layers: [] } };
 	const widget: WidgetInstance = {
 		id: crypto.randomUUID(),
 		type,
@@ -364,11 +364,11 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 			session !== null &&
 			!session.readOnly &&
 			(session.hasOriginal || app.sync?.states[session.doc.id]?.onServer === true);
-		// Data types open Get data; the others are added directly.
-		const entries = [
-			...dataTypes().map((t) => ({ type: t, run: () => startGetData(app, t.type) })),
-			...addableWidgetTypes().map((t) => ({ type: t, run: () => addWidget(app, t.type) }))
-		];
+		// Data types open Get data unless they're also addable; the others are added directly.
+		const entries = addWidgetEntries().map(({ type: t, direct }) => ({
+			type: t,
+			run: () => (direct ? addWidget(app, t.type) : startGetData(app, t.type))
+		}));
 		return [
 			{
 				id: "add-widget",

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Component } from "svelte";
 import {
 	addableWidgetTypes,
+	addWidgetEntries,
 	dataTypes,
 	getWidgetType,
 	loadWidget,
@@ -144,5 +145,24 @@ describe("every widget type", () => {
 			expect(t.defaultSize.w, t.type).toBeGreaterThanOrEqual(t.minSize.w);
 			expect(t.defaultSize.h, t.type).toBeGreaterThanOrEqual(t.minSize.h);
 		}
+	});
+
+	test("addWidgetEntries lists a data type that is also addable once, as direct", () => {
+		registerWidgetType(
+			type("registry-entry-both", {
+				accepts: { datasets: ["monitors"] },
+				addable: () => ({ data: { layers: [] } })
+			})
+		);
+		const entries = addWidgetEntries().filter((e) => e.type.type === "registry-entry-both");
+		expect(entries).toHaveLength(1);
+		expect(entries[0].direct).toBe(true);
+	});
+
+	test("addWidgetEntries keeps data types without addable as Get data", () => {
+		registerWidgetType(type("registry-entry-data", { accepts: { datasets: ["monitors"] } }));
+		const entries = addWidgetEntries().filter((e) => e.type.type === "registry-entry-data");
+		expect(entries).toHaveLength(1);
+		expect(entries[0].direct).toBe(false);
 	});
 });
