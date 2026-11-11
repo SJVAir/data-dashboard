@@ -118,8 +118,12 @@
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const out = new Map<string, { rect: Rect; phoneRow: number; phoneSpan: number }>();
 		let phoneRow = 0;
+		// The phone query is read only while some Note has rows: otherwise crossing the breakpoint
+		// would re-render the grid on the new layout, using up the FLIP's breakpoint jump before
+		// the next real change (which would then slide everything).
+		const fitting = phoneFit.size > 0 && phone.current;
 		for (const item of arrangement.preview ?? shown) {
-			const phoneSpan = phone.current ? phoneFit.span(item.id, item.rect.h) : item.rect.h;
+			const phoneSpan = fitting ? phoneFit.span(item.id, item.rect.h) : item.rect.h;
 			out.set(item.id, { rect: item.rect, phoneRow, phoneSpan });
 			phoneRow += phoneSpan;
 		}

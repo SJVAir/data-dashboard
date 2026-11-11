@@ -6,7 +6,7 @@ import { commands, page, userEvent } from "vitest/browser";
 import { handleUndoShortcut } from "$lib/actions/global";
 import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
-import { MAX_HEIGHT } from "$lib/layout/config";
+import { MAX_HEIGHT, PHONE_QUERY } from "$lib/layout/config";
 import { shownLayout } from "$lib/layout/items";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
@@ -75,6 +75,14 @@ const announced = (text: string) => expect.poll(liveText).toBe(text);
 async function focusBar(name: string) {
 	await expect.element(titleBar(name)).toBeVisible();
 	(titleBar(name).element() as HTMLElement).focus();
+}
+
+/** Waits `n` animation frames. */
+function animationFrames(n: number): Promise<void> {
+	return new Promise((resolve) => {
+		const step = (left: number) => (left ? requestAnimationFrame(() => step(left - 1)) : resolve());
+		step(n);
+	});
 }
 
 async function press(key: string, times = 1) {
@@ -214,8 +222,14 @@ test("nothing animates across the phone breakpoint", async () => {
 	for (const el of frames()) for (const a of el.getAnimations()) a.finish();
 	await page.viewport(400, 800);
 	await expect.poll(() => getComputedStyle(frames()[1]).gridColumnStart).toBe("1");
-	// The arrangement ends: on one column every widget changes place, and none animates.
+	// The grid re-renders on the new layout first (the phone query's change event). That render
+	// moves nothing, so it mustn't use up the breakpoint's jump.
+	await expect.poll(() => window.matchMedia(PHONE_QUERY).matches).toBe(true);
+	await animationFrames(3);
+	// The arrangement ends: on one column every widget changes place, and none animates (checked
+	// at once, while a slide would still be running).
 	await press("{Escape}");
+	for (const el of frames()) expect(el.getAnimations()).toEqual([]);
 	await announced("Cancelled. Readings is back where it was.");
 	for (const el of frames()) expect(el.getAnimations()).toEqual([]);
 });

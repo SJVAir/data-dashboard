@@ -40,6 +40,11 @@ export class PhoneFit {
 		this.version++;
 	}
 
+	/** How many widgets have rows (reactive): with none, the grid needn't watch the phone query. */
+	get size(): number {
+		return this.#rows.size;
+	}
+
 	/** `id`'s row span on a phone, for its own height `h`. */
 	span(id: string, h: number): number {
 		const rows = this.#rows.get(id);
