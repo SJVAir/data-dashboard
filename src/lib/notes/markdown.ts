@@ -44,8 +44,16 @@ const LOCAL_PART_END = /[A-Za-z0-9._+-]+$/;
  * links only `last@x.org`): the local part before it, in the text just pushed, is taken back in.
  */
 function pushBareAutolink(out: NoteInline[], t: Tokens.Link): void {
-	let shown = t.text.replace(ESCAPED, "$1");
-	let address = t.href.replace(ESCAPED, "$1");
+	let raw = t.text;
+	let rawHref = t.href;
+	// GFM trims a trailing `_` or `~` off an address but keeps the backslash escaping it: an
+	// unpaired `\` at the end belongs to the text after the link.
+	if (/(?:^|[^\\])(?:\\\\)*\\$/.test(raw)) {
+		raw = raw.slice(0, -1);
+		rawHref = rawHref.slice(0, -1);
+	}
+	let shown = raw.replace(ESCAPED, "$1");
+	let address = rawHref.replace(ESCAPED, "$1");
 	if (address.startsWith("mailto:")) {
 		let local = "";
 		while (out.length > 0) {

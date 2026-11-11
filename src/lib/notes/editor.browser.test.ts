@@ -395,3 +395,21 @@ test("a `!` right before a link stays text (not an image)", async () => {
 	root.remove();
 	expect(start("Wow!").markdown()).toBe("Wow!");
 });
+
+test("a typed bare address ending in `_` or `~` shows no stray backslash", async () => {
+	for (const end of ["_", "~"]) {
+		const typed = `see https://x.org/a${end} now`;
+		const markdown = await pasteAndReopen(typed);
+		expect(root.textContent, markdown).toBe(typed);
+		const block = toNoteBlocks(markdown)[0];
+		expect(block.kind, markdown).toBe("paragraph");
+		if (block.kind !== "paragraph") continue;
+		// GFM leaves the trailing `_` or `~` out of the link.
+		expect(viewerText(block.children), markdown).toBe(`see <link:https://x.org/a>${end} now`);
+		const link = block.children.find((c) => c.kind === "link");
+		expect(link?.kind === "link" && link.href, markdown).toBe("https://x.org/a");
+		editor?.destroy();
+		editor = null;
+		root.remove();
+	}
+});

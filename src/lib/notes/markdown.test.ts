@@ -169,6 +169,19 @@ describe("bare addresses as the editor saves them", () => {
 			}
 		]);
 	});
+	it("leaves the escape of a trailing `_` GFM trims to the text after the link", () => {
+		expect(toNoteBlocks("https://x.org/a\\_ and https://x.org/b\\\\")).toEqual([
+			{
+				kind: "paragraph",
+				children: [
+					{ kind: "link", href: "https://x.org/a", children: [t("https://x.org/a")] },
+					t("_ and "),
+					// A typed (escaped) final `\\` stays in the link; the URL reads it as `/`.
+					{ kind: "link", href: "https://x.org/b/", children: [t("https://x.org/b\\")] }
+				]
+			}
+		]);
+	});
 	it("keeps an email address whole across an escaped `_`", () => {
 		expect(toNoteBlocks("hi first\\_last@x.org.")).toEqual([
 			{
