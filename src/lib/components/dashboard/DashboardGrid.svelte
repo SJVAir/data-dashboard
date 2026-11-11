@@ -89,21 +89,25 @@
 		));
 
 	const phone = new MediaQuery(PHONE_QUERY);
+	// On a phone a Note grows to fit its text (its frame reports the rows): display only. A
+	// phone resize grows from those rows.
+	const phoneFit = new PhoneFit();
+	setContext(PHONE_FIT_KEY, phoneFit);
 	// The active widget's title, kept from pickup on: when it goes, it's no longer in the document.
 	let activeTitle = "";
 	const arrangement = new Arrangement(
 		() => editable,
 		() => (phone.current ? 1 : GRID_COLUMNS),
-		{ onGone: () => announce(m.layout_gone({ title: activeTitle })) }
+		{
+			onGone: () => announce(m.layout_gone({ title: activeTitle })),
+			span: (id, h) => phoneFit.span(id, h)
+		}
 	);
 	setContext(ARRANGEMENT_KEY, arrangement);
 	getContext<((arrangement: Arrangement) => void) | undefined>(ARRANGEMENT_PROBE_KEY)?.(
 		arrangement
 	);
 	onDestroy(() => arrangement.dispose());
-	// On a phone a Note grows to fit its text (its frame reports the rows): display only.
-	const phoneFit = new PhoneFit();
-	setContext(PHONE_FIT_KEY, phoneFit);
 
 	// The shown (tidied) layout, always in desktop coordinates and in reading order, so the
 	// single-column layout and the tab order follow it.

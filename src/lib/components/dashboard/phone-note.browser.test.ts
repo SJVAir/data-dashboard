@@ -225,3 +225,124 @@ test("crossing to a phone re-fits the Note, and back to a desktop it keeps its o
 	await expect.poll(() => rowSpan("n")).toEqual(["1", "span 2"]);
 	expect(rowSpan("t")).toEqual(["3", "span 3"]);
 });
+
+const liveText = () =>
+	document.querySelector('[role="status"][aria-live="polite"][aria-atomic="true"]')?.textContent;
+const announced = (text: string) => expect.poll(liveText).toBe(text);
+const storedH = (session: DocumentSession, id: string) =>
+	session.doc.body.widgets.find((w) => w.id === id)!.rect.h;
+const rowsTall = (n: number) => `${n} ${n === 1 ? "row" : "rows"} tall.`;
+
+/** A phone with a Note shown taller than its own height (2), and the rows it shows. */
+async function grownNote() {
+	await page.viewport(390, 844);
+	const seeded = await seed([
+		note("n", { x: 0, y: 0, w: 12, h: 2 }, `${PARAGRAPH}\n\n${PARAGRAPH}`),
+		tile("t", { x: 0, y: 2, w: 12, h: 3 })
+	]);
+	await expect.poll(() => spanOf("n")).toBeGreaterThan(3);
+	await frames();
+	return { ...seeded, shown: spanOf("n") };
+}
+
+test("on a phone, Shift+Down on a grown Note grows it a row from the height shown", async () => {
+	const { session, shown } = await grownNote();
+	await focusBar("Note");
+	await userEvent.keyboard("{Enter}");
+	await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
+	// The announcement says what's shown, and it shows at once.
+	await announced(rowsTall(shown + 1));
+	await expect.poll(() => spanOf("n")).toBe(shown + 1);
+	// Nothing is written until the drop.
+	expect(storedH(session, "n")).toBe(2);
+	await userEvent.keyboard("{Enter}");
+	await expect.poll(() => storedH(session, "n")).toBe(shown + 1);
+	expect(spanOf("n")).toBe(shown + 1);
+});
+
+test("on a phone, Shift+Up on a grown Note says the height shown and doesn't raise its own", async () => {
+	const { session, shown } = await grownNote();
+	await focusBar("Note");
+	await userEvent.keyboard("{Enter}");
+	await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
+	await announced(rowsTall(shown));
+	expect(spanOf("n")).toBe(shown);
+	await userEvent.keyboard("{Enter}");
+	await frames();
+	expect(storedH(session, "n")).toBe(2);
+});
+
+test("on a phone, Size ▸ Taller on a grown Note grows it a row from the height shown", async () => {
+	const { session, shown } = await grownNote();
+	await page.getByRole("button", { name: "Actions for Note" }).click();
+	await page.getByRole("menuitem", { name: "Size", exact: true }).click();
+	await page.getByRole("menuitem", { name: "Taller", exact: true }).click();
+	await expect.poll(() => storedH(session, "n")).toBe(shown + 1);
+	await announced(`Resized Note to ${rowsTall(shown + 1)}`);
+	await expect.poll(() => spanOf("n")).toBe(shown + 1);
+	await userEvent.keyboard("{Escape}");
+	await userEvent.keyboard("{Escape}");
+});
+
+function touch(el: Element, type: string, x: number, y: number) {
+	const pressed = type !== "pointerup" && type !== "pointercancel";
+	el.dispatchEvent(
+		new PointerEvent(type, {
+			bubbles: true,
+			cancelable: true,
+			composed: true,
+			pointerId: 1,
+			pointerType: "touch",
+			isPrimary: true,
+			button: type === "pointermove" ? -1 : 0,
+			buttons: pressed ? 1 : 0,
+			clientX: x,
+			clientY: y
+		})
+	);
+}
+const center = (el: Element) => {
+	const r = el.getBoundingClientRect();
+	return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+};
+
+test("on a phone, the touch handle grows a grown Note a row from the height shown", async () => {
+	const { session, shown } = await grownNote();
+	const style = getComputedStyle(frame("n").parentElement!);
+	const pitch = parseFloat(style.gridAutoRows) + parseFloat(style.rowGap);
+	// Lift (a long-press) and release without sliding: the touch selection, with its handle.
+	const bar = page.getByRole("group", { name: "Note" }).element();
+	const at = center(bar);
+	touch(bar, "pointerdown", at.x, at.y);
+	await new Promise((r) => setTimeout(r, 600));
+	touch(bar, "pointerup", at.x, at.y);
+	const done = page.getByRole("button", { name: "Done" });
+	await expect.element(done).toBeVisible();
+	const handle = frame("n").querySelector<HTMLElement>('[data-resize="bottom"]')!;
+	const h = center(handle);
+	touch(handle, "pointerdown", h.x, h.y);
+	for (let i = 1; i <= 4; i++) {
+		touch(handle, "pointermove", h.x, h.y + (pitch * i) / 4);
+		await frames(1);
+	}
+	touch(handle, "pointerup", h.x, h.y + pitch);
+	// One row's drag shows one row more at once; nothing is written until Done.
+	await expect.poll(() => spanOf("n")).toBe(shown + 1);
+	expect(storedH(session, "n")).toBe(2);
+	(done.element() as HTMLElement).click();
+	await expect.poll(() => storedH(session, "n")).toBe(shown + 1);
+});
+
+test("on a desktop a Note's Shift+Down still grows from its own height", async () => {
+	await page.viewport(1280, 800);
+	const { session } = await seed([
+		note("n", { x: 0, y: 0, w: 6, h: 2 }, Array(4).fill(PARAGRAPH).join("\n\n"))
+	]);
+	await expect.poll(() => body("n")?.textContent ?? "").toContain("every change saves itself");
+	await focusBar("Note");
+	await userEvent.keyboard("{Enter}");
+	await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
+	await announced("6 columns wide, 3 rows tall.");
+	await userEvent.keyboard("{Enter}");
+	await expect.poll(() => storedH(session, "n")).toBe(3);
+});

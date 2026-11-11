@@ -206,7 +206,11 @@ export function startPointerDrag(
 		const p = toPage(client);
 		if (kind.mode === "resize") {
 			const d = snapDelta(metrics, p.x - startPage.x, p.y - startPage.y);
-			const rect = resizedRect(startRect, minSize, kind.edge, d, metrics.columns);
+			// On a phone a Note may show more rows than its height (to fit its text): growing
+			// starts from the rows shown, so the first step down shows; shrinking from its own.
+			const shown = metrics.columns === 1 && opts.span ? opts.span(id, startRect.h) : startRect.h;
+			const from = d.dy > 0 ? { ...startRect, h: Math.max(startRect.h, shown) } : startRect;
+			const rect = resizedRect(from, minSize, kind.edge, d, metrics.columns);
 			const key = `${rect.x},${rect.w},${rect.h}`;
 			if (key === lastTarget) return;
 			lastTarget = key;

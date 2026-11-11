@@ -262,7 +262,7 @@
 			if (event.shiftKey) {
 				arrangement.grow(dir);
 				const preview = arrangement.preview;
-				if (preview) announce(sizeText(preview, widget.id, phone()));
+				if (preview) announce(sizeText(preview, widget.id, phone(), arrangement.span));
 				return;
 			}
 			const result = arrangement.step(dir);
