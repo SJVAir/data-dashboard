@@ -202,8 +202,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      1. **The widget core:** live PM2.5 monitors around the widget's places, the places outlined
         and framed, picker sync, "Change place", the location-privacy rules, lazy-loaded and
         torn down when off screen. **Built and reviewed 2026-11-11** (on map-sdk
-        `0.1.0-beta.7`); it merges after map-sdk's pinned card on a tap and sjvair.com #330
-        (the CSP mirror).
+        `0.1.0-beta.7`); it merges after map-sdk's pinned card on a tap (sjvair.com #330,
+        the CSP mirror, is merged into `develop`).
      2. The options toolbar and the reading card's Select/Remove, on map-sdk's shared toolbar.
      3. A date-range mode and region fills.
      4. Pesticide use by section and township, and spray notices.
