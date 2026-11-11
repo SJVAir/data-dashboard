@@ -5,6 +5,7 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { CURRENT_TYPE, currentType } from "$lib/widgets/current";
 import { FORECAST_TYPE, forecastType } from "$lib/widgets/forecast";
+import { MAP_TYPE, mapType } from "$lib/widgets/map";
 import { MONTH_CALENDAR_TYPE } from "$lib/calendars/input";
 import { makeDoc } from "./fixtures.test-util";
 import {
@@ -56,6 +57,7 @@ const pm25 = (place: Layer["place"]): Layer => ({
 beforeEach(() => {
 	registerWidgetType(currentType);
 	registerWidgetType(forecastType);
+	registerWidgetType(mapType);
 	mocked.placeRegion.mockReset();
 	mocked.resolve.mockReset();
 	mocked.placeRegion.mockResolvedValue({ type: "zipcode", code: "93721" });
@@ -137,6 +139,52 @@ describe("hasPoints and pointSwaps", () => {
 			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
 			pin: "hour"
 		});
+	});
+
+	it("a Map holding a point shares as the region the now lookup gives", async () => {
+		const map: WidgetInstance = {
+			id: "m",
+			type: MAP_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: { layers: [pm25(POINT)] }
+		};
+		const doc = docWith(map);
+		const swaps = await pointSwaps(doc);
+		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
+			layer: pm25(POINT),
+			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+			pin: "hour"
+		});
+		const swapped = withSwaps(doc, swaps);
+		expect(swapped.body.widgets[1].data.layers[0].place).toEqual({
+			kind: "region",
+			type: "zipcode",
+			code: "93721"
+		});
+		expect(hasPoints(swapped)).toBe(false);
+	});
+
+	it("a Map selection is left alone", async () => {
+		const map: WidgetInstance = {
+			id: "m",
+			type: MAP_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: {
+				layers: [
+					{
+						dataset: "air-quality",
+						entryType: "pm25",
+						selection: { kind: "monitors", ids: ["a", "b"] }
+					}
+				]
+			}
+		};
+		const doc = docWith(map);
+		expect(hasPoints(doc)).toBe(false);
+		expect(await pointSwaps(doc)).toEqual([]);
+		expect(mocked.placeRegion).not.toHaveBeenCalled();
 	});
 
 	it("keeps a Forecast strip's place: its point is looked up as a PM2.5 one", async () => {
