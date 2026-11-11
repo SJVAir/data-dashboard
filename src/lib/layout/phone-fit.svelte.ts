@@ -24,11 +24,16 @@ export function rowsFor(height: number, rowHeight: number, gap: number): number 
  */
 export class PhoneFit {
 	#rows = new SvelteMap<string, number>();
-	/** Bumped on every change, so the grid can tell a fit from an arrangement (it doesn't animate). */
+	/**
+	 * Bumped on every change, so the grid can tell a fit from an arrangement (it doesn't animate).
+	 * Reports come only on a phone, so on a desktop it doesn't move.
+	 */
 	version = $state(0);
 
 	/** The rows `id`'s content needs now, or `null` when it asks for none (it's gone). */
 	report(id: string, rows: number | null): void {
+		// Past the cap every count gives the same span.
+		if (rows !== null) rows = Math.min(rows, PHONE_FIT_MAX_ROWS);
 		if (rows === null ? !this.#rows.has(id) : this.#rows.get(id) === rows) return;
 		if (rows === null) this.#rows.delete(id);
 		else this.#rows.set(id, rows);
@@ -38,6 +43,6 @@ export class PhoneFit {
 	/** `id`'s row span on a phone, for its own height `h`. */
 	span(id: string, h: number): number {
 		const rows = this.#rows.get(id);
-		return rows === undefined ? h : Math.max(h, Math.min(rows, PHONE_FIT_MAX_ROWS));
+		return rows === undefined ? h : Math.max(h, rows);
 	}
 }

@@ -96,25 +96,27 @@
 
 	// A Note fits its text on a phone: it reports its content's natural height, and the frame
 	// turns that (plus its own title bar, padding, and border) into grid rows for the grid's
-	// one-column layout. Not measured while fullscreen (another width); the stored rect never
-	// changes. Reports reach the grid outside the effect flush (from a ResizeObserver callback,
-	// or a microtask when it's going): a write during the flush would redo every frame's
+	// one-column layout. Only on a phone (elsewhere its rows are cleared), and not while
+	// fullscreen (another width); the stored rect never changes. Reports always reach the grid in
+	// a microtask, outside any effect flush: a write during the flush would redo every frame's
 	// widget-loading block, remounting the widgets.
 	const phoneFit = getContext<PhoneFit | undefined>(PHONE_FIT_KEY);
 	let content = $state<HTMLElement | null>(null);
 	/** Whether this frame has reported rows (so only it clears them). */
 	let reported = false;
-	function clearFit(): void {
-		if (!reported) return;
-		reported = false;
-		const id = widget.id;
-		queueMicrotask(() => phoneFit?.report(id, null));
-	}
-	setContext<FitContent>(FIT_CONTENT_KEY, (height) => {
-		if (!phoneFit) return;
-		if (height === null) return clearFit();
+	/** The latest report not yet applied (`undefined`: none queued). */
+	let pending: number | null | undefined;
+	function applyFit(): void {
+		const height = pending;
+		pending = undefined;
+		if (!phoneFit || height === undefined) return;
 		const grid = section?.parentElement;
-		if (fullscreen || !section || !content || !grid) return;
+		if (height === null || !phone() || !section || !content || !grid) {
+			if (reported) phoneFit.report(widget.id, null);
+			reported = false;
+			return;
+		}
+		if (fullscreen) return;
 		const body = getComputedStyle(content);
 		const inner =
 			content.clientHeight - parseFloat(body.paddingTop) - parseFloat(body.paddingBottom);
@@ -124,8 +126,19 @@
 		const gap = parseFloat(style.rowGap) || 0;
 		phoneFit.report(widget.id, rowsFor(height + chrome, rowHeight, gap));
 		reported = true;
+	}
+	setContext<FitContent>(FIT_CONTENT_KEY, (height) => {
+		if (!phoneFit) return;
+		const queued = pending !== undefined;
+		pending = height;
+		if (!queued) queueMicrotask(applyFit);
 	});
-	onDestroy(clearFit);
+	onDestroy(() => {
+		if (!reported || !phoneFit) return;
+		reported = false;
+		const id = widget.id;
+		queueMicrotask(() => phoneFit.report(id, null));
+	});
 	/** A widget's rows on a phone, for the phone's drag slots. */
 	const span = phoneFit ? (id: string, h: number) => phoneFit.span(id, h) : undefined;
 	const type = $derived(getWidgetType(widget.type));

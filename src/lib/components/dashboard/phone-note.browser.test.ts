@@ -1,7 +1,7 @@
 import "../../../app.css";
 import { afterEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import { PHONE_FIT_MAX_ROWS } from "$lib/layout/phone-fit.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -23,6 +23,16 @@ const PARAGRAPH =
 
 function note(id: string, rect: Rect, text: string): WidgetInstance {
 	return { id, type: "note", title: null, rect, data: { layers: [] }, options: { text } };
+}
+function setText(session: DocumentSession, id: string, text: string): void {
+	const widget = session.doc.body.widgets.find((w) => w.id === id)!;
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: id },
+		from: widget.data,
+		to: widget.data,
+		options: { from: widget.options, to: { text } }
+	});
 }
 function tile(id: string, rect: Rect): WidgetInstance {
 	return { id, type: PLACEHOLDER_TYPE, title: "Next", rect, data: { layers: [] } };
@@ -120,4 +130,78 @@ test("on a desktop a Note keeps its own height", async () => {
 	expect(rowSpan("t")).toEqual(["3", "span 3"]);
 	const el = body("n");
 	expect(el.scrollHeight).toBeGreaterThan(el.clientHeight);
+});
+
+/** Lets ResizeObserver callbacks and their microtasks run. */
+const frames = (n = 3) =>
+	new Promise<void>((resolve) => {
+		const step = (left: number) => (left ? requestAnimationFrame(() => step(left - 1)) : resolve());
+		step(n);
+	});
+/** The FLIP animations (scripted ones, not CSS transitions like the pick-up ring) on frames. */
+const animating = (...ids: string[]) =>
+	ids.reduce(
+		(sum, id) =>
+			sum +
+			frame(id)
+				.getAnimations()
+				.filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation)).length,
+		0
+	);
+async function focusBar(name: string) {
+	const bar = page.getByRole("group", { name });
+	await expect.element(bar).toBeVisible();
+	(bar.element() as HTMLElement).focus();
+}
+
+test("on a desktop a Note's text changing doesn't make the next layout change jump", async () => {
+	await page.viewport(1280, 800);
+	const { session } = await seed([
+		note("n", { x: 0, y: 0, w: 6, h: 2 }, PARAGRAPH),
+		tile("t", { x: 6, y: 0, w: 6, h: 2 })
+	]);
+	await expect.poll(() => body("n")?.textContent ?? "").toContain("every change saves itself");
+	await frames();
+	// Much more text: on a phone it would need more rows.
+	setText(session, "n", Array(6).fill(PARAGRAPH).join("\n\n"));
+	await frames();
+	// A layout change that isn't an arrangement (no pick-up first): another tab's, or an undo.
+	session.apply({
+		op: "setLayout",
+		target: { widgetIds: ["t"] },
+		from: { t: { rect: { x: 6, y: 0, w: 6, h: 2 }, minimized: null } },
+		to: { t: { rect: { x: 0, y: 2, w: 6, h: 2 }, minimized: null } }
+	});
+	await expect.poll(() => animating("t")).toBeGreaterThan(0);
+});
+
+test("on a desktop each snap of a Note's resize animates", async () => {
+	await page.viewport(1280, 800);
+	await seed([note("n", { x: 0, y: 0, w: 6, h: 2 }, Array(3).fill(PARAGRAPH).join("\n\n"))]);
+	await expect.poll(() => body("n")?.textContent ?? "").toContain("every change saves itself");
+	await frames();
+	await focusBar("Note");
+	await userEvent.keyboard("{Enter}");
+	for (let i = 0; i < 3; i++) {
+		await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
+		await expect.poll(() => animating("n")).toBeGreaterThan(0);
+		for (const a of frame("n").getAnimations()) a.finish();
+		// The wider text reflows (its ResizeObserver runs) before the next snap.
+		await frames();
+	}
+	await userEvent.keyboard("{Escape}");
+});
+
+test("on a phone the text is as wide whether or not it scrolls (no flip-flop)", async () => {
+	await page.viewport(390, 844);
+	await seed([
+		note("short", { x: 0, y: 0, w: 12, h: 2 }, "Short."),
+		note("long", { x: 0, y: 2, w: 12, h: 2 }, Array(20).fill(PARAGRAPH).join("\n\n"))
+	]);
+	await expect.poll(() => spanOf("long")).toBe(PHONE_FIT_MAX_ROWS);
+	const long = body("long");
+	expect(long.scrollHeight).toBeGreaterThan(long.clientHeight);
+	// The scrollbar's gutter is kept either way, so the width (and so the rows) can't flip.
+	expect(long.clientWidth).toBe(body("short").clientWidth);
+	expect(getComputedStyle(long).scrollbarGutter).toBe("stable");
 });

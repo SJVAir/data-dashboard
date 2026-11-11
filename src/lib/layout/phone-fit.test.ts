@@ -40,5 +40,9 @@ describe("PhoneFit", () => {
 		expect(fit.version).toBe(v);
 		fit.report("a", 4);
 		expect(fit.version).toBe(v + 1);
+		// Past the cap every count is the same span.
+		fit.report("a", PHONE_FIT_MAX_ROWS + 5);
+		fit.report("a", PHONE_FIT_MAX_ROWS + 9);
+		expect(fit.version).toBe(v + 2);
 	});
 });

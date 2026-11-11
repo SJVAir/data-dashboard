@@ -154,7 +154,9 @@
 	$effect.pre(() => {
 		void placed;
 		untrack(() => {
-			const fitted = phoneFit.version !== fitVersion;
+			// Only on a phone: a change seen late (a Note's rows cleared on leaving the phone
+			// width) must not make a desktop move jump.
+			const fitted = arrangement.columns === 1 && phoneFit.version !== fitVersion;
 			fitVersion = phoneFit.version;
 			flip.measure(grid, arrangement.columns, fitted);
 		});

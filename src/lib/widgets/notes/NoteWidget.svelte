@@ -31,7 +31,9 @@
 	/**
 	 * Reports the text's natural height (it grows to fit on a phone). It measures the content,
 	 * not the scroller, so the frame growing doesn't feed back; it changes with the text, the
-	 * width (rotation, resizing), and fonts loading.
+	 * width (rotation, resizing), and fonts loading. Below the phone breakpoint the scrollbar's
+	 * gutter is always kept, so the text's width (and height) doesn't change when it starts or
+	 * stops scrolling: no flip-flop between two row counts with classic scrollbars.
 	 */
 	function measure(content: HTMLElement) {
 		if (!fit) return;
@@ -61,7 +63,7 @@
 <!-- Scrolls inside the widget; focusable so a keyboard can scroll it. -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-	class="h-full overflow-y-auto p-3 text-sm"
+	class="h-full overflow-y-auto p-3 text-sm max-md:[scrollbar-gutter:stable]"
 	data-widget={widget.id}
 	data-fullscreen={fullscreen}
 	tabindex="0"

@@ -1662,6 +1662,23 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `{keys}` placeholder (say "Bold ({keys})"), the platform's key name coming from code.
   **Revisit with** the next toolbar change, or with "Command palette (Ctrl+K) and per-action
   keyboard shortcuts".
+- **A content fit applied during an effect flush remounts widgets.** _Deferred 2026-11-10
+  (step 4 spec 6, phone Note fit)._ A Note reports its text's height through `FitContent`, and
+  the frame applies it to the grid in a microtask. Applied during an effect flush instead, the
+  state write re-runs every frame's `{#await loadWidget(type)}` block, remounting the widgets
+  (and looping, for a widget that measures on mount). The microtask and the `FitContent` doc
+  comment guard against it, but the frame's load block is still fragile. **Revisit when**
+  another widget type adopts `FitContent`, or the frame's load block changes (e.g. hold the
+  loaded module in state instead of an `{#await}`).
+- **Resizing a grown Note on a phone shows no change at first.** _Deferred 2026-11-10 (step 4
+  spec 6, phone Note fit)._ Shift+Up/Down and the touch handle change the stored height, which
+  is less than the rows the Note's text gets, so nothing visible changes until the height passes
+  them. The announced height is also the stored one. An option is to start a phone resize from
+  the larger of the stored height and the shown rows. **Revisit if** people resize Notes on
+  phones.
+- **A Note fitted on a phone can leave a gap under its text.** _Deferred 2026-11-10 (step 4
+  spec 6, phone Note fit)._ It grows in whole rows (4 rem plus a gap), so up to about 75 px can
+  stay blank under the text. **Revisit if** it looks odd (e.g. finer rows on phones).
 - **Step 4 spec 6 review leftovers.** _Deferred 2026-11-10 (step 4 spec 6, per-task and final
   reviews)._ Small things the reviews let stay; the first ones a person could meet:
   - **A task list shows its box and label on separate lines.** `- [ ] c` reads as the text
