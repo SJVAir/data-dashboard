@@ -8,7 +8,7 @@ const CONTRACT: Record<string, string[]> = {
 	"script-src": ["'self'", "{static}"],
 	"style-src": ["'self'", "{static}", "'unsafe-inline'"],
 	"font-src": ["'self'", "{static}"],
-	"img-src": ["'self'", "{static}", "data:", "blob:"],
+	"img-src": ["'self'", "{static}", "data:", "blob:", "https://api.maptiler.com"],
 	"connect-src": [
 		"'self'",
 		"{static}",
