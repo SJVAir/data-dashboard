@@ -1664,6 +1664,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   comment guard against it, but the frame's load block is still fragile. **Revisit when**
   another widget type adopts `FitContent`, or the frame's load block changes (e.g. hold the
   loaded module in state instead of an `{#await}`).
+- **"Shorter" on a phone Note grown to fit its text changes nothing you can see.** _Ruled
+  acceptable 2026-11-10 (step 4 spec 6 follow-ups)._ Shift+Up, Size ▸ Shorter or the handle
+  dragged up shrink the Note's own height (growing starts from the rows shown), but its text still
+  needs the rows it shows, so the Note looks the same and the announcement repeats its height.
+  The drop still writes the smaller height: an undo step, and a shorter Note on a desktop.
+  Starting from the rows shown instead would raise the desktop height on "Shorter". **Revisit if**
+  people find it confusing.
 - **A Note fitted on a phone can leave a gap under its text.** _Deferred 2026-11-10 (step 4
   spec 6, phone Note fit)._ It grows in whole rows (4 rem plus a gap), so up to about 75 px can
   stay blank under the text. **Revisit if** it looks odd (e.g. finer rows on phones).
@@ -1681,17 +1688,22 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **Step 4 spec 6 review leftovers.** _Deferred 2026-11-10 (step 4 spec 6, per-task and final
   reviews)._ Small things the reviews let stay; the first ones a person could meet:
   - **A task list shows its box and label on separate lines.** `- [ ] c` reads as the text
-    "[ ]", a line break, then "c", with no checkbox. Only reachable by typing `[ ] ` at the
-    start of a list item. **Revisit if** people write checklists in Notes.
+    "[ ]", a line break, then "c", with no checkbox. Only in a document the editor didn't save
+    (the editor writes a typed `[ ]` as `\[ \]`, which is text). **Revisit if** people write
+    checklists in Notes.
   - **Link reference definitions show as their source.** `[r]: https://…` stays visible text
     (its `[x][r]` link works when the address is allowed). Showing it is the safe choice.
     **Revisit if** people paste Markdown with reference links.
   - **`safeHref` accepts `https://user:pass@host`.** The link text is the author's anyway, so a
     hostile link can already say anything; the userinfo adds no new power. **Revisit if** links
     get a visible-host cue.
-  - **The character counter counts Markdown,** so `**`, `## ` and each link's whole address
-    count but don't show; "too long" says "Formatting and link addresses count too". **Revisit
-    if** people find the count confusing (count visible text instead).
+  - **The character counter counts Markdown,** so `**`, `## `, each link's whole address and
+    the backslashes that keep typed `[`, `_`, `*`, `\` and the like as text count but don't
+    show; "too long" says "Formatting and link addresses count too". **Revisit if** people find
+    the count confusing (count visible text instead).
+  - **A typed email address with `_` after the `@` doesn't link** (the editor escapes the `_`,
+    which ends the address there); it shows as typed, as text. Hostnames can't hold `_`, so no
+    real address is affected. **Revisit if** one turns up.
   - **Change place on the starter drops the pick if the hand-off fails.** The session already
     shows its save error and the edits stay queued. **Revisit on** a report.
   - **A thrown hand-off on Share gives two failure signals** (the save status and a toast). Only
