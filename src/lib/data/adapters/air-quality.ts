@@ -2,17 +2,27 @@ import { periodStart, type Period } from "$lib/format/range";
 import { aggregate } from "../aggregate";
 import { runLimited } from "../chunks";
 import { downsampleInWorker } from "../downsample-client";
-import { planSegments } from "../periods";
-import type { QueryData, Series, SeriesPoint, Target } from "../types";
+import { finerLevel, planSegments, type Segment } from "../periods";
+import { worstHours } from "../worst-hour";
+import type { PlaceInfo, QueryData, Series, SeriesPoint, Target } from "../types";
 import {
+	bulkOpenDays,
 	bulkSummaryTasks,
+	monitorOpenDays,
 	monitorSummaryTasks,
 	rawTasks,
 	type Fetched,
+	type SummaryOptions,
 	type FetchTask
 } from "./air-quality-fetch";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { layerTarget, regionPlace, resolveRegionKeys } from "./targets";
+
+/** `load`, called at most once: later calls share its promise. */
+function once<T>(load: () => Promise<T>): () => Promise<T> {
+	let promise: Promise<T> | undefined;
+	return () => (promise ??= load());
+}
 
 /** Requests in flight at once for one query. */
 const CONCURRENCY = 3;
@@ -24,15 +34,30 @@ async function placesOf(
 	target: Target,
 	ctx: AdapterContext,
 	signal: AbortSignal
-): Promise<Place[]> {
-	if (target.kind === "monitors") return target.ids.map((id) => ({ place: `monitor:${id}`, id }));
-	if (target.kind === "all") return [];
-	const ids = await resolveRegionKeys(target.keys, ctx.regions, signal);
-	return target.keys.map((key, i) => {
-		const id = ids[i];
-		if (id === null) throw new Error(`Region ${key} can't be looked up`);
-		return { place: regionPlace(key), id };
+): Promise<{ places: Place[]; info: PlaceInfo[] }> {
+	if (target.kind === "monitors") {
+		const monitors = await ctx.metadata.monitors(signal);
+		const names = new Map(monitors.map((m) => [m.id, m.name]));
+		return {
+			places: target.ids.map((id) => ({ place: `monitor:${id}`, id })),
+			info: target.ids.map((id) => ({ place: `monitor:${id}`, name: names.get(id) ?? id }))
+		};
+	}
+	if (target.kind === "all") return { places: [], info: [] };
+	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);
+	const places: Place[] = [];
+	const info: PlaceInfo[] = [];
+	target.keys.forEach((key, i) => {
+		const region = found[i];
+		if (region === null) throw new Error(`Region ${key} can't be looked up`);
+		places.push({ place: regionPlace(key), id: region.id });
+		info.push({
+			place: regionPlace(key),
+			name: region.name,
+			...(region.retired && { retired: region.retired })
+		});
 	});
+	return { places, info };
 }
 
 /**
@@ -130,47 +155,134 @@ async function rawSeries(
  * one and closed in the other). The last completed period, backfilled from a finer level, is
  * used only where the coarse response lacks it (its rollup hasn't run yet); it is complete data,
  * so not partial. A place a response leaves out has no data: an empty series.
+ *
+ * `opts` (totals, completeness) is for monitor targets only: bulk endpoints return means, and
+ * summing them would be wrong.
+ *
+ * A daily figure request (a calendar's) takes every day from the server: daily rows over the
+ * whole range, plus the open-day rows (today so far, yesterday while unsettled) when the range
+ * reaches them. Nothing is filled or backfilled from finer levels, so no day is computed here.
  */
-async function summarySeries(
+export async function summarySeries(
 	req: AdapterRequest,
 	places: Place[],
 	processors: Array<string | null>,
-	signal: AbortSignal
+	signal: AbortSignal,
+	opts?: SummaryOptions
 ): Promise<Series[]> {
 	const { target, entryType, now } = req;
+	// Bulk (region) endpoints return means, so only a monitor target reads sums.
+	const how = opts?.total && target.kind === "monitors" ? "sum" : "mean";
+	const figure = !!opts?.figure;
 	const segments = planSegments({
 		resolution: req.resolution,
 		range: req.range,
 		now,
-		offered: req.offered
+		// Nothing finer offered: one segment at the requested level, up to now.
+		offered: figure ? [req.resolution] : req.offered
 	});
 	const regionIds = target.kind === "regions" ? places.map((p) => p.id) : undefined;
+	// Open days, fetched only when a unit reaches them, once per place (or once for bulk).
+	const monitorOpen = new Map(
+		places.map((p, i) => [
+			p.id,
+			once(() => monitorOpenDays(p.id, entryType, processors[i], signal))
+		])
+	);
+	const bulkOpen = once(() => bulkOpenDays(entryType, regionIds, signal));
 
-	const tasksFor = (seg: (typeof segments)[number]): FetchTask[] => {
+	// Bulk rows are means: only the figure applies to them, not totals or completeness.
+	const bulkOpts: SummaryOptions | undefined = opts?.figure ? { figure: opts.figure } : undefined;
+
+	// Tasks for a segment; `only` limits monitors to some ids (bulk requests can't be limited).
+	const tasksFor = (seg: Segment, only?: Set<string>): FetchTask[] => {
+		const chosen = only ? places.filter((p) => only.has(p.id)) : places;
+		const procs = chosen.map((p) => processors[places.indexOf(p)]);
 		if (seg.resolution === "raw") {
-			return places.flatMap((p, i) =>
-				rawTasks(p.id, entryType, processors[i], seg.start, seg.end, signal)
+			return chosen.flatMap((p, i) =>
+				rawTasks(p.id, entryType, procs[i], seg.start, seg.end, signal)
 			);
 		}
 		// Monitors one by one, each with its own published series: the bulk monitor endpoint
 		// can't be scoped to monitor ids, so it is used only for the whole layer.
 		if (target.kind === "monitors") {
-			return places.flatMap((p, i) =>
-				monitorSummaryTasks(p.id, entryType, processors[i], seg, now, signal)
+			return chosen.flatMap((p, i) =>
+				monitorSummaryTasks(
+					p.id,
+					entryType,
+					procs[i],
+					seg,
+					now,
+					signal,
+					opts,
+					figure ? monitorOpen.get(p.id) : undefined
+				)
 			);
 		}
-		return bulkSummaryTasks(entryType, regionIds, seg, now, signal);
+		return bulkSummaryTasks(
+			entryType,
+			regionIds,
+			seg,
+			now,
+			signal,
+			bulkOpts,
+			figure ? bulkOpen : undefined
+		);
 	};
-	const [complete, fill, backfill] = await collect(
+	// Complete and fill together; the backfill waits to see which places lack the last period.
+	const [complete, fill] = await collect(
 		[
-			segments.filter((s) => !s.aggregateTo).flatMap(tasksFor),
-			segments.filter((s) => s.aggregateTo && !s.backfill).flatMap(tasksFor),
-			segments.filter((s) => s.backfill).flatMap(tasksFor)
+			segments.filter((s) => !s.aggregateTo).flatMap((s) => tasksFor(s)),
+			segments.filter((s) => s.aggregateTo && !s.backfill).flatMap((s) => tasksFor(s))
 		],
 		signal
 	);
-
 	const to = req.resolution as Period;
+	const knownIds = (): string[] =>
+		target.kind === "all"
+			? [...new Set([...complete.keys(), ...fill.keys()])]
+			: places.map((p) => p.id);
+
+	const backfill = new Map<string, SeriesPoint[]>();
+	const seg = segments.find((s) => s.backfill);
+	if (seg) {
+		const lastT = periodStart(seg.start, to).getTime();
+		const lacking = (byId: Map<string, SeriesPoint[]>, t: number, ids: string[]) =>
+			ids.filter((id) => !(byId.get(id) ?? []).some((p) => p.t === t));
+		const ids = knownIds();
+		// With nothing known (a whole-layer response that is empty) the backfill still runs.
+		const need = ids.length === 0 ? [] : lacking(complete, lastT, ids);
+		if (ids.length === 0 || need.length > 0) {
+			const needed = new Set(need);
+			const [first] = await collect(
+				[tasksFor(seg, target.kind === "monitors" ? needed : undefined)],
+				signal
+			);
+			const take = (id: string) => ids.length === 0 || needed.has(id);
+			for (const [id, pts] of first) if (take(id)) backfill.set(id, pts);
+
+			// The backfill's own last sub-period may lack its rollup too: one level finer.
+			const finer = finerLevel(seg.resolution, req.offered);
+			if (finer) {
+				const subStart = periodStart(new Date(seg.end.getTime() - 1), seg.resolution as Period);
+				const sub: Segment = { ...seg, resolution: finer, start: subStart };
+				const subIds = ids.length === 0 ? [...first.keys()] : need;
+				const short = lacking(first, subStart.getTime(), subIds);
+				if (short.length > 0) {
+					const [extra] = await collect(
+						[tasksFor(sub, target.kind === "monitors" ? new Set(short) : undefined)],
+						signal
+					);
+					const shortSet = new Set(short);
+					for (const [id, pts] of extra) {
+						if (!shortSet.has(id)) continue;
+						backfill.set(id, [...(backfill.get(id) ?? []), ...pts]);
+					}
+				}
+			}
+		}
+	}
+
 	const all =
 		target.kind === "all"
 			? [...new Set([...complete.keys(), ...fill.keys(), ...backfill.keys()])].map((id) => ({
@@ -181,22 +293,64 @@ async function summarySeries(
 	return all.map(({ place, id }) => {
 		const coarse = complete.get(id) ?? [];
 		const have = new Set(coarse.map((p) => p.t));
-		const missing = aggregate(backfill.get(id) ?? [], to, now).filter((p) => !have.has(p.t));
+		const missing = aggregate(backfill.get(id) ?? [], to, now, how).filter((p) => !have.has(p.t));
 		return {
 			place,
-			points: [...coarse, ...missing, ...aggregate(fill.get(id) ?? [], to, now)].sort(
+			points: [...coarse, ...missing, ...aggregate(fill.get(id) ?? [], to, now, how)].sort(
 				(a, b) => a.t - b.t
 			)
 		};
 	});
 }
 
-async function fetchAirQuality(
+/** Summary options asking for the daily figure, only at the daily level. */
+function figureOpts(req: AdapterRequest): SummaryOptions | undefined {
+	return req.dailyFigure && req.resolution === "day" ? { figure: req.dailyFigure } : undefined;
+}
+
+/**
+ * Daily summaries, each day point also carrying its worst hourly average when asked: the same
+ * query run again at hour resolution (a failure fails the whole query, never partial data).
+ */
+async function summarySeriesWithWorstHour(
+	req: AdapterRequest,
+	places: Place[],
+	processors: Array<string | null>,
+	signal: AbortSignal
+): Promise<Series[]> {
+	if (!req.worstHour || req.resolution !== "day") {
+		return summarySeries(req, places, processors, signal, figureOpts(req));
+	}
+	const hourlyReq: AdapterRequest = {
+		...req,
+		resolution: "hour",
+		worstHour: false,
+		offered: req.offered.filter((r) => r === "raw" || r === "hour")
+	};
+	const [daily, hourly] = await Promise.all([
+		summarySeries(req, places, processors, signal, figureOpts(req)),
+		summarySeries(hourlyReq, places, processors, signal)
+	]);
+	const hourlyByPlace = new Map(hourly.map((s) => [s.place, s.points]));
+	return daily.map((series) => {
+		const worst = worstHours(hourlyByPlace.get(series.place) ?? []);
+		return {
+			place: series.place,
+			points: series.points.map((p) => {
+				const w = worst.get(p.t);
+				return w ? { ...p, worstHour: w } : p;
+			})
+		};
+	});
+}
+
+async function fetchTarget(
 	req: AdapterRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
-	const [places, processors] = await Promise.all([
+	if (req.target.kind === "fallback") throw new Error("A fallback is fetched one key at a time");
+	const [{ places, info }, processors] = await Promise.all([
 		placesOf(req.target, ctx, signal),
 		placeProcessors(req, ctx, signal)
 	]);
@@ -206,9 +360,19 @@ async function fetchAirQuality(
 	const series =
 		req.resolution === "raw" || req.downsampleFromRaw
 			? await rawSeries(req, places, processors, signal)
-			: await summarySeries(req, places, processors, signal);
+			: await summarySeriesWithWorstHour(req, places, processors, signal);
+	let placeInfo = info;
+	if (req.target.kind === "all") {
+		const monitors = await ctx.metadata.monitors(signal);
+		const names = new Map(monitors.map((m) => [m.id, m.name]));
+		placeInfo = series.map((s) => ({
+			place: s.place,
+			name: names.get(s.place.slice("monitor:".length)) ?? s.place.slice("monitor:".length)
+		}));
+	}
 	return {
 		series,
+		places: placeInfo,
 		resolution: req.resolution,
 		fromRaw: req.downsampleFromRaw,
 		processor,
@@ -216,11 +380,50 @@ async function fetchAirQuality(
 	};
 }
 
+/**
+ * A point's or a school's data: its candidate regions fetched in order, each through the region
+ * path (the same request units), stopping at the first with any point in the range; the last
+ * candidate's (empty) data when none has any. `key` is the region used. One series, never several.
+ */
+export async function fallbackFetch(
+	req: AdapterRequest,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<{ key: string; data: QueryData }> {
+	const { target } = req;
+	if (target.kind !== "fallback") throw new Error("Not a fallback target");
+	let used: { key: string; data: QueryData } | undefined;
+	for (const key of target.keys) {
+		const data = await fetchTarget(
+			{ ...req, target: { kind: "regions", keys: [key] } },
+			ctx,
+			signal
+		);
+		used = { key, data };
+		if (data.series.some((s) => s.points.length > 0)) break;
+	}
+	if (!used) throw new Error("A fallback target has no regions");
+	return used;
+}
+
+async function fetchAirQuality(
+	req: AdapterRequest,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<QueryData> {
+	const { target } = req;
+	if (target.kind !== "fallback") return fetchTarget(req, ctx, signal);
+	const { data } = await fallbackFetch(req, ctx, signal);
+	return { ...data, places: data.places.map((p) => ({ ...p, via: target.via })) };
+}
+
 /** SJVAir's monitors and regions, through `@sjvair/sdk`; always the published series. */
 export const airQualityAdapter: DatasetAdapter = {
 	id: "air-quality",
-	target: (layer, ctx) => layerTarget(layer, ctx.regions),
-	// Regions and the whole layer have no raw entries.
+	target: (layer, ctx) => layerTarget(layer, ctx),
+	// Regions (and so points and schools) and the whole layer have no raw entries.
 	offered: (base, target) => (target.kind === "monitors" ? base : base.filter((r) => r !== "raw")),
+	// No overlays yet: its temperature and humidity are raw-only, which regions can't serve, and
+	// have no scale to draw as bands (they wait for the weather summaries).
 	fetch: fetchAirQuality
 };

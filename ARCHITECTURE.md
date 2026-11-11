@@ -67,58 +67,253 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
     and a toast says "Saved as your own dashboard". The built-in template is never
     modified.
   - **Sharing the starter** first makes a copy, then shares that.
+  - **As built (step 4 spec 6, 2026-11-10):**
+    - The template's layers hold `{ kind: "default-place" }`. **The starter's session is the
+      template resolved with the chosen place** when it is built, so every widget, the data
+      layer, the picker and sharing see an ordinary place; the data layer never receives
+      `default-place`. One resolve function runs at every exit (the first edit's copy, New from
+      starter, duplicating, Export, sharing).
+    - **The bar stays on copies made from the starter.** The copy saves the bar's place (a
+      validated dashboard field); "Change place" there is an ordinary edit that switches the
+      widgets showing the bar's place, in one undo step. Widgets pointed at another place are
+      left alone, and the picker offers an unchecked **"Also change the N widgets showing other
+      places"**; with the bar's own place picked, "Also change" brings the other widgets to it.
+      A widget comparing several places, or holding a place-tied choice (a weather station),
+      is never switched. The bar hides when no widget shows its place, and a live share link
+      shows "Showing …" without "Change place".
+    - **The bar's place travels with the dashboard** (links, Export, live shares, copies from
+      shares) and is a place like a layer's, so the exact-point rules (point-to-region swap,
+      live-link prompt, upload guard) cover it too.
+    - **Sharing the starter copies it first** through `copyStarter`, the same hand-off as a
+      first edit.
+    - **"Duplicate for another place…"** (dashboard menu and list rows, any dashboard) asks for
+      a place and copies with the dashboard's main place replaced (the bar's place when there is
+      a visible bar; otherwise the place most switchable widgets show, asking on a tie). A copy
+      of a starter copy keeps its bar; a copy of any other dashboard does not gain one. In the
+      list it always shows, and toasts when there is nothing to replace.
+    - `StarterHint` is gone: the bar and the welcome Note say what it said.
+    - **The welcome Note shows only to the dashboard's owner** (decided 2026-11-10). Its text
+      speaks to the owner ("Change place", "your first change saves…"), so a live share leaves
+      every built-in message Note (`{ message }`) out of the view (the grid closes the gap), and
+      a Note that can't be edited where it's shown renders a `{ message }` as nothing. A Note
+      with its own text always shows; "Make a copy" keeps the welcome Note for its new owner.
+    - **The starter's Current conditions and "Can we go outside?" tiles have no alert level**
+      (decided 2026-11-10): a first-time visitor isn't signed up for threshold watching
+      without asking, and the template is built without metadata. A copy's owner can add one.
 - Titles are generated from metadata, and the welcome Note references a **message key**
   (nothing English is stored in the template). A personal copy stores the Note's rendered
   text only once the user edits it.
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
-  day-colored calendar (this month), the hour × weekday heatmap, and a short welcome Note.
-  The Map widget joins in step 6.
+  day-colored calendar (this month), and a short welcome Note. (The hour × weekday heatmap was
+  dropped on 2026-11-09, step 4 spec 5.) **Layout as built (spec 6, 12 columns):** the welcome
+  Note full width on top; then Current conditions, "Can we go outside?" and the Forecast strip
+  in a row; then the chart (8 wide) beside the month calendar (4 wide). The heatmap's old slot
+  stays empty. The Map joins in step 6 as a full-width row under the "now" row. The welcome
+  Note is a message reference (`{ message }`); a copy keeps it until the person edits the Note.
 
-### Widget Creation view
+### Get data (formerly the Data Explorer and "Widget Creation view")
 
-Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter options
-(e.g. pollutant, regions), now living inside the new dataset accordions:
+**Renamed 2026-11-05 (the user, step 4 spec 3, which built it; spec:
+`docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).** The top nav says
+**"Data"**; the page heading is **"Get data"**, or **"Edit data"** when opened from a widget. In
+docs it's "the Get data view". Older text saying "Widget Creation" or "Data Explorer" means this
+view. People mostly know what they want, so it isn't an explorer (sjvair.com's Pesticide and
+Facility Emissions explorers are "the explorers"). It doesn't overlap Release 3's Analysis view.
 
-- **Date selection sits above** the option accordions. **One date range per widget**
-  (dashboard display widgets only — time-offset/lag comparison belongs to Analysis).
-- **Three date-range methods**, one visible at a time, toggled via a dropdown (unless
-  something more elegant fits; decided in the Widget Creation spec, see `DEFERRED.md` →
-  "Open decisions"):
-  - **Set ranges** — year, month, week, day
-  - **Rolling ranges** — two groups in the same control:
-    - _To date:_ year-to-date, month-to-date, week-to-date (IDEA.md's list).
-    - _Last_ (trailing; added 2026-10-13): 24 hours, 3 days, 7 days, 30 days, 90 days,
-      12 months. IDEA.md's three methods couldn't express "the last 30 days", which the
-      starter chart, the "now" widgets' window, and Collections all use, and to-date
-      ranges are nearly empty at the start of a period. This extends the Rolling method;
-      there are still three methods.
-    - **Meaning (Pacific time):** "last 30 days" is today plus the 29 days before it, by
-      Pacific calendar day, so today's partial data is included; "last 12 months" counts
-      calendar days back one year. "Last 24 hours" is exact hours ending now.
-    - **Stored as an amount and a unit** (`{ kind: "trailing", amount: 30, unit: "day" }`;
-      units `hour` | `day` | `month`), so any length is representable although the UI
-      offers only the presets.
-    - Trailing ranges behave like the other rolling ranges: they move forward with time,
-      "Mark for analysis" freezes them, and "keep rolling" applies.
-  - **Custom ranges** — user-selected
-- **The v1 sidebar tabs themselves become accordion sections** (decided 2026-09-24).
-  No tab view or side menu survives. Where v1 had a "Monitors" tab leading to a page of
-  Monitors filters, Widget Creation has a **"Monitors" accordion** that expands to those
-  options (pollutant, monitors/regions). The same goes for "HMS Smoke/Fire" and the
-  others. The accordion list is **generated from the `meta/datasets/` catalog**, so new
-  data types (Pesticides, Weather, Forecasts, …) appear as new accordions without code
-  changes.
-- **Multiple accordions per widget.** A widget combines dataset **layers**, one per
-  accordion used, e.g. a map with PM2.5 plus smoke, or a chart overlaying PM2.5 with
-  smoke days. All layers share the widget's single date range.
-- **Pollutants: at most one pollutant layer per widget** (no mixing O3 and PM2.5 in one
-  widget). Non-pollutant layers can be combined freely.
-- Which accordions a widget offers, and whether the date section appears at all, comes
-  from its **widget type** (see "Widget catalog" → "Widget-type contract"). For example,
-  Notes has no date or data, and Current conditions picks a place instead of a range.
-- **Live preview on the right**, itself a drag-and-drop, resizable area matching
-  dashboard behavior.
+**Data first, and never blank.** Pick _what_ data, _where_ and _when_, watch the live preview,
+choose how to show it, then **Add to dashboard** or **Download CSV** (no widget needed just to
+download). It opens already filled in: from the nav or "Add widget", the last draft, or for a
+first-timer **Fresno County · PM2.5 · last 30 days**; from a widget's **"Edit data"**, that
+widget's data. Notes (and later the Map) are added directly from "Add widget", since they don't
+start from data. Built fresh; the only carry-over from v1 is the idea of per-dataset options,
+now inside the dataset sections.
+
+**Layout (option A).**
+
+- **Left column, top to bottom:** **When** (the date control), **Where** (the places, with
+  "Change", which opens the shared place picker in `multiple` mode up to the widget type's
+  `maxPlaces`), **What** (one collapsible section per dataset; Air Quality starts open), and
+  **More options** → **Show values** (the resolution override, with a "?" toggletip).
+- **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
+  **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
+  It's the real widget component in a view-only frame, so its states (loading, "No data",
+  errors, retired) look exactly as on the dashboard. No drag-to-resize. Changes are announced
+  politely once the preview settles ("Showing PM2.5 · Fresno County · Last 30 days").
+- **Bottom:** a bar that stays in view: **Cancel**, **Download CSV**, and **Add to _dashboard_
+  ▾** (or **Save changes** when editing).
+- **Phones:** the same parts stacked (controls, then preview), with the bar pinned.
+
+**Dates: one preset list** (option C; replaces the earlier method toggle). One date range per
+widget (dashboard display widgets only; time-offset/lag comparison belongs to Analysis). No
+method switch; one grouped list:
+
+- **Last:** 24 hours, 3 days, 7 days, 30 days, 90 days, 12 months (each type shows the subset
+  its `span` allows).
+- **To date:** This week, This month, This year.
+- **A specific…:** Day…, Week…, Month…, Year… (each opens its own date input).
+- **Custom range…** (start and end dates).
+
+The resolved dates always show underneath ("Oct 7 – Nov 5, 2026"), with "moves forward each
+day" for rolling ranges. A type's `dateMethods` and `span` hide what doesn't apply; a range
+outside `span` can't be chosen, and the reason is shown. Underneath, the saved shape is still
+the **three methods** of `DateRangeSpec`:
+
+- **Set ranges** (`set`): a year, month, week, or day.
+- **Rolling ranges**: _to date_ (`to-date`: year, month, week) and _last_ (`trailing`; added
+  2026-10-13 because IDEA.md's three methods couldn't express "the last 30 days", which the
+  starter chart, the "now" widgets' window, and Collections all use).
+  - **Meaning (Pacific time):** "last 30 days" is today plus the 29 days before it, by Pacific
+    calendar day, so today's partial data is included; "last 12 months" counts calendar days
+    back one year. "Last 24 hours" is exact hours ending now.
+  - **Stored as an amount and a unit** (`{ kind: "trailing", amount: 30, unit: "day" }`; units
+    `hour` | `day` | `month`), so any length is representable although the list offers only
+    the presets (an unlisted length shows as Custom range).
+  - Rolling ranges move forward with time; "Mark for analysis" freezes them, and "keep
+    rolling" applies.
+- **Custom ranges** (`custom`): start and end dates.
+
+Weeks start on Sunday.
+
+**Which datasets appear** (revises the earlier "without code changes" promise). The **What**
+sections are the `meta/datasets/` catalog's datasets that (1) the query client has a data
+adapter for and (2) at least one offered widget type's `accepts.datasets` lists. Labels, entry
+types, units, and descriptions come from the catalog, so a new entry type inside a listed
+dataset still appears without code changes; a new dataset needs an adapter and a type that
+lists it. In a section, entry types no offered type can show are left out, and a `retired` or
+`available: false` entry type isn't offered for new picks (an existing widget that uses one
+keeps showing it, with its retired state). **The adapter decides fit**, not the catalog's
+`geographies`: it says whether it can serve a layer for the main layer's places (the forecasts
+adapter takes monitors and regions and lets the server map them to a forecast zone). Spec 3
+offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (2026-11-07) adds
+**Weather** (`weather`), **Wildfire Smoke** (`hms-smoke`) and **Pesticide Use** (`pesticide-use`).
+
+**Layers.**
+
+- A widget combines dataset **layers** sharing its one date range: **at most one pollutant
+  layer** (by the catalog's `kind`; no mixing O3 and PM2.5), plus **up to two overlays**.
+- **Two kinds of layer (spec 3b).** A **level layer** draws day bands: burn status, AQI
+  forecast and smoke density. A **number layer** has a value with units: a pollutant, a weather
+  reading or total, or a pesticide measure. Which kind a layer is comes from the dataset's
+  adapter (`drawsAsBands`, in the dependency-free `src/lib/data/adapters/bands.ts`: `forecasts`
+  and `hms-smoke` do), not from the catalog, which gives the AQI forecast units and
+  `chart: "bar"`; a metadata test would misclassify it.
+- **The main layer** is the pollutant if there is one, else the first **number layer**
+  (`mainLayer`): a weather reading or total, or a pesticide measure. **A number layer can stand
+  alone**: Air Quality has a "None" choice, and a widget needs at least one number layer. The
+  last one can't be removed (the places move to the next number layer when the main one goes). A
+  widget of only level layers can't be added or downloaded; the reason shows.
+- **Number overlays draw in strips under the chart** (the user, option B, spec 3b), each with
+  its own axis labeled with the entry type's label and units, sharing the chart's dates;
+  nothing is drawn on a second axis inside the main plot. Bars or a line follow the catalog's
+  `display.chart`, from `y_min`. Each strip takes a fixed share of the height and the main chart
+  keeps at least half. The legend names each layer and its source ("Temperature · CIMIS #80 -
+  Fresno State", "Pounds applied · Sulfur"), with no correlation wording. A strip can be
+  coarser than the chart: pesticide use is monthly or yearly, so under a daily chart it is one
+  bar per month spanning that month's days ("Monthly total"; a month only partly in the range
+  shows its whole-month total, marked). An empty pesticide strip says "No pesticide use
+  reported for these dates."
+- **Overlays borrow the main layer's places.** Only the main layer stores places (the shared
+  place picker's `place` or `selection`), so "Change" re-targets every layer at once. An overlay
+  is fetched for each of the main layer's places; the **Data table** shows a column per place
+  per layer, and the **CSV** has every place's overlay rows (categorical values get
+  `level_key` and `level_label` columns). An overlay the Table can't show (it failed, or the
+  periods are longer than a day) gets a note under the table, so the Table never silently
+  disagrees with the Chart.
+- **The adapter decides which entry types can be overlays** (`DatasetAdapter.overlays`): the
+  forecasts adapter offers all of its own; air quality offers none (its temperature and
+  humidity are raw-only). One already in a widget stays listed, checked, so it can be removed.
+- **Spec 3's overlays:** Air Quality Forecasts' **burn status** and **AQI forecast**, one value
+  per Pacific day (the latest issue) from `forecasts/place/`. On the Chart they're **labeled,
+  patterned day bands** behind the line, with levels, labels, and colors from `forecasts/meta/`
+  scales; in the Table they're columns. The legend names each layer ("Burn Status in Fresno
+  County") and never claims a link (no correlation wording or fitted lines).
+- **"Overlay for" is a Chart option.** When all the places share the overlay's source (the
+  same forecast zone), the Chart draws it once and no choice appears. When they don't, an
+  **"Overlay for: [place ▾]"** choice picks whose overlay the Chart draws; it's saved on the
+  widget as a Chart option (`options.overlayFor`, a validated place ref), not on the layer, and
+  falls back to the first place when that place leaves the widget.
+- **Weather (spec 3b):** every catalog entry type with summary levels except `raw` (no "Every
+  measurement": CIMIS readings are hourly, so Hourly shows the same values; entry types left
+  with nothing, such as wind direction, aren't offered). The data is the place's nearest CIMIS
+  station's monitor summaries, one station per request. **The station** defaults to the first
+  one `getWeatherStationsForPlace` lists; with one place, "Station" in the Weather section lists
+  them (inactive ones with "no recent data") and the choice is saved as `Layer.station` (a
+  monitor id; the default stores nothing). One station serves every weather layer of the widget
+  (saved on each, kept in step). With several places each uses its own default; changing the
+  place drops the override; a saved station no longer listed falls back to the first. A row with
+  `is_complete: false` is partial. Schools and "my location" use the region they fall back to,
+  so no coordinates leave the browser.
+- **Wildfire smoke (spec 3b):** a level layer, one band per Pacific day from `hms/smoke/place/`
+  (levels, labels and colors from `hms/meta`), requests split to at most 366 days. Alone it
+  can't make a widget.
+- **Pesticide use (spec 3b):** pounds applied, acres treated and applications per region, from
+  `months` (Monthly; a month the server omits is 0 inside the dataset's coverage, no point
+  outside it) and `years` (Yearly, the server's year totals, which include undated records).
+  **Filters belong to each layer** (`Layer.filters`: chemical, commodity and product ids,
+  categories, cancer group, method, narrow-to): a "Filters" area under each layer, with a
+  summary line, and "Add a/another pesticide layer", so one chart can hold all use and
+  carcinogens only. Labels come from `pesticides/meta/` and `display_name`; the legend, Table
+  header and CSV name the active filters. A saved id the server no longer has makes the layer
+  unavailable ("filter-gone").
+- **Table and CSV:** the CSV gains `source_id` and `source_name` (the weather station) and
+  `filters` (the pesticide filters) after `level_label`, then `aggregate` (the catalog's `sum`,
+  `mean`, or empty) last, so a total reads as one. The legend, strip tags, Table caption and
+  cells say "Daily total" for a summed layer at every resolution, "Daily average" for a mean,
+  and the entry type's label for a layer that never rolls up. Weather offers no "Every
+  measurement" (see `DEFERRED.md`).
+- A saved pesticide category, cancer group, method or narrowing that `pesticides/meta/` no
+  longer lists is "filter-gone" too.
+- One chart row per place is in `DEFERRED.md`.
+
+**Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
+the current data (too many places, a dataset it doesn't accept, a span outside its `span`) is
+greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars
+appear by registering descriptors (see "Widget-type contract"), with no change here.
+
+**Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
+the last-opened one; the menu lists the others and **"New dashboard"**. A read-only (shared)
+dashboard is never a target. The widget goes into the first free spot at the type's
+`defaultSize`, and you land on that dashboard with the new widget focused and briefly
+highlighted (respecting `prefers-reduced-motion`); the add is one `applyChange`, so one undo
+step. "Add widget" on the starter opens `/dashboards/starter/widgets/new`, and from `/data`
+with no saved dashboards the target is the starter (named as in the nav): adding is an edit,
+so it makes the personal copy as any first edit does, with the same "Saved as your own
+dashboard" toast.
+
+**Edit data.** Every data widget's ⋯ menu has **"Edit data"**, opening the view with that
+widget's data and **Save changes**, which applies one `setWidgetData` change (one undo step,
+including a switched type and a size clamped to the new type's `minSize`; the widget keeps its
+id, position, and title) and returns to the dashboard. "Choose another" on a retired dataset or
+entry type opens Edit data; "Change place" and "Choose a place" still open the place picker
+directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discard changes?"**
+(an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
+its link it goes to the dashboard (or `/` from `/data`), never off the app.
+
+**Show values ("More options"; was "Detail" until spec 3b).** **Automatic** (spec 1's
+resolution rule, the default), or **Every measurement**, **Hourly**, **Daily**, **Monthly**,
+**Yearly**, stored on the main layer as `resolution` (Automatic stores nothing). A "?"
+toggletip beside it (a button on the bits-ui popover: opens on click, tap or Enter, also on
+hover, closes on Escape or a click outside, announced) explains it. Only levels the entry type's catalog `resolutions` offer are listed; one the point
+budget (places × periods) can't serve for the current range is greyed with the reason. No
+level has a range cap of its own: the server's 31-day cap on raw and hourly is per request,
+and the adapters ask a calendar month (or 31 raw days) at a time (and a stored one that becomes blocked goes back to Automatic). A type with a pinned
+`resolution` hides it. Collapsed by default.
+
+**Routes** (see "Routing, URL state & undo"): `/data` (from the top nav),
+`/dashboards/:id/widgets/new` (from "Add widget"; `?type=` picks the starting Show as), and
+`/dashboards/:id/widgets/:widgetId/edit` (Edit data). The URL holds only where you are: **the
+draft never goes in the URL**, so coordinates never do. An unknown dashboard or widget id shows
+the not-found page.
+
+**The draft.** Kept in memory on the view and saved through the platform adapter as a
+preference (device-local, never synced) so a reload or later visit starts from it: one draft
+for `/data` and `…/widgets/new`; Edit data starts from the widget each time. It's a
+`WidgetDataConfig` plus the chosen type (and Chart options), validated with the same schemas on
+read (drafts are untrusted input); an invalid one is dropped for the default.
+
+**Loading.** The view is a lazily loaded route: none of its code, nor the place picker's,
+reaches the initial bundle.
 
 ### Shared widget behavior
 
@@ -197,6 +392,16 @@ Built fresh. The only carry-over from v1 is the _idea_ of per-data-type filter o
 **uPlot for all charts.** Nearly all data is time series, so chart configuration should
 converge on a consistent, shared pattern.
 
+**The Chart's look** (decided 2026-11-04, the user, step 4 spec 1, mockup option A): faint level
+bands from the scale metadata behind a navy line with dots; each day's worst hour as a light
+stick (single place only); band labels are the **full** level names, wrapped, never
+abbreviations (the server has none; a band too thin for its label goes unlabeled); a level key
+with outlined swatches and full names **always** shows under the chart; a hover/tap/arrow-key
+readout gives date, value, level, and worst hour; several places (at most 5) differ by series
+color plus dash or marker; gaps break the line. No zoom or pan in Release 1 (`DEFERRED.md`).
+The Chart and the Data table open at **3×6** grid cells (3 of 12 columns, 6 rows) and shrink to
+at least 3×4 (as built, step 4 spec 1).
+
 ### Alerts
 
 The server already has an alert/notification system; **extend it** for dashboard
@@ -217,6 +422,34 @@ opt-in browser notification **while the dashboard is open** (through the platfor
 adapter). **Desktop browsers only in Release 1:** Android Chrome and iOS need a service
 worker to show notifications, and that arrives with web push (see `DEFERRED.md`). Thresholds default to metadata levels and are overridable per widget. Needs
 no server changes; ships with the widgets.
+
+**Part 1 as built (step 4 spec 4, 2026-11-08).** Thresholds are per widget; Off is the default
+until a person picks a level (Get data's "Alert me at" choice). They apply to the two live tiles
+(Current conditions and "Can we go outside?", the two `thresholds: true` "now" types; the Forecast strip has none);
+**Charts only display** a level-colored threshold line (keyed in the legend) and never toast or
+notify.
+
+- **Firing rule** (pure `decide`, `src/lib/thresholds/firing.ts`). The first value a browser
+  sees sets the starting point and never fires. After that a toast fires only when the level is
+  **worse than the last one told** (worse is later in the scale, by order, and at or above the
+  chosen level). It re-arms when a value arrives **below the threshold at least 2 hours after
+  the last toast**. There are **no improvement messages** and no all-clear; the tile and the
+  taskbar mark show the current state. An unknown level key never fires.
+- **Told state is per browser** (the last level told and when, kept through the platform
+  adapter, pruned when a widget leaves the dashboard). **Once per browser**: a lock keeps two
+  open tabs of the same dashboard from both toasting.
+- **The mark.** A tile at or above its threshold shows a level mark (text as well as color), and
+  its taskbar entry when minimized; it pulses only when a toast fires and respects
+  `prefers-reduced-motion`. Marks clear on a reading with no current value and stay across a
+  fetch error that still holds the last good reading.
+- **Browser notifications** are a **per-browser, per-dashboard switch** in a "Notifications"
+  dialog from the dashboard's ⋯ menu (also on read-only and shared views, since notifications
+  belong to the viewer). A notification shows only when the switch is on **and** the browser
+  permission is granted; the permission is asked for only when the switch is turned on. **Desktop
+  only** (no service worker, as above); `permission()` reads `"unsupported"` elsewhere.
+- **The watcher** is a dashboard-level component (lazy-loaded) that subscribes to every widget
+  with a threshold, so a minimized or off-screen tile still fires; it shares each widget's query
+  with the tile, so there is one fetch per place.
 
 **2. Automated alerting — server-side, requires an account.** The dashboard only
 _creates rules_; the server evaluates them on its periodic task and delivers through a
@@ -461,9 +694,23 @@ Tauri-ready seams required **from day one**:
   event. Blocked or full storage reads as `"system"` and makes saving a no-op, so the switch
   still works for the page. A memory version backs the tests; a Tauri build can keep the choice
   in its own settings.
+- **`notifications` capability** (built 2026-11-08, step 4 spec 4). `platform.notifications`
+  has `permission()` (`"granted"`, `"denied"`, `"default"`, or `"unsupported"` where pages
+  cannot show notifications, such as phones), `request()` (asks the browser; only from a
+  person's action), and `show({ title, body, tag })` (a no-op unless granted; the same `tag`
+  replaces an earlier notification). Components never call `Notification` directly. A memory
+  version with scripted permission backs the tests; a Tauri build can supply native
+  notifications.
 - **`online` capability** (built 2026-10-26, spec 5a). `platform.online` has `online()` and
   `onChange(cb)`; on the web it follows `navigator.onLine` and the `online`/`offline` events,
   and drives the offline banner. A Tauri build can report real connectivity.
+- **`geolocation` capability** (built 2026-11-04, step 4 spec 2). `platform.geolocation.locate(signal?)`
+  asks once, only when "Use my location" is pressed, and resolves `{ ok: true, lat, lon }` or
+  `{ ok: false, reason: "denied" | "unavailable" | "timeout" | "unsupported" }` (it rejects
+  only on abort). On the web it is one `getCurrentPosition` call (low accuracy, 15 s timeout,
+  a position up to 5 minutes old is fine); the memory version takes a scripted position for
+  tests; a Tauri build can supply its own. Coordinates are never logged or reported. The place
+  picker's **recent places** use the existing per-space `preferences` (`places.recent`).
 - **Documents are local-first; fetched data is not** (revised 2026-09-28). Saved documents
   live locally (IndexedDB), which is required for anonymous users and autosave. Fetched
   air-quality data uses an **in-memory cache** shared across widgets, plus the
@@ -702,7 +949,17 @@ files, and server documents.
      and when arranging (a drop past the caps applies nothing). The layout engine's work
      grows with rows, so an uncapped `y` or `h` in a shared document could hang the tab.
 2. **Safe Markdown:** Notes render with **raw HTML off** and a link allowlist (`http`,
-   `https`, `mailto`).
+   `https`, `mailto`). **As built (step 4 spec 6, 2026-11-10):** the viewer runs `marked`'s
+   lexer only and draws its tokens as a **closed model of blocks** (paragraphs, the one heading
+   level, bulleted and numbered lists, bold, italic, links) with Svelte components; **no HTML
+   string is ever built or injected**. Raw HTML tokens, images, tables, code, quotes and other
+   headings show as plain text, and nested lists flatten to text (`DEFERRED.md`). Links are
+   checked at render time (`http:`, `https:`, `mailto:` only; they open in a new tab with
+   `rel="ugc nofollow noopener"`), whatever the saved text says. The editor (Lexical) is
+   limited to the same set, and pasted content is reduced to it. The Note's saved options are
+   validated with the document (`src/lib/notes/options.ts`): `{ text }` of at most 5,000
+   characters, or `{ message }` (a key-shaped reference, allowlisted at render). Lexical and
+   `marked` load only when a Note is shown or edited.
 3. **A content security policy on `/workspace/*`**, sent by the Django view: the
    browser-enforced backstop if a bug slips past 1–2.
    - `script-src 'self'` plus **the dashboard's own folder** on the static host (production
@@ -898,12 +1155,21 @@ caching), not per widget.
 
 **Automatic resolution by range span** (bounds fetch size):
 
-| Range span | Resolution        |
-| ---------- | ----------------- |
-| ≤ 2 days   | Raw entries       |
-| ≤ ~60 days | Hourly summaries  |
-| ≤ ~2 years | Daily summaries   |
-| longer     | Monthly summaries |
+| Range span       | Resolution        |
+| ---------------- | ----------------- |
+| ≤ 3 days         | Raw entries       |
+| ≤ 7 days         | Hourly summaries  |
+| ≤ 1 year (365 d) | Daily summaries   |
+| longer           | Monthly summaries |
+
+Revised 2026-11-04 (step 4 spec 1, the user; was raw ≤ 2 days, hourly ≤ ~60 days, daily ≤ ~2
+years): a month of hourly points reads as alarming spikes to a parent, and monthly points hide
+a week of wildfire smoke. Daily views of up to 92 days also carry each day's **worst hourly
+average** (computed in the browser from hourly summaries, single place only), not the daily
+summary's `maximum`, which is one raw reading. Spec:
+`docs/superpowers/specs/2026-11-04-step-4-spec-1-groundwork-chart-table-design.md`. **As
+built:** the span is counted in Pacific calendar days, first date to last inclusive ("last 30
+days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
 
 - **Datasets without summaries** (decided 2026-09-25). Only pm25, o3, no2, so2 and co have
   server summaries, so the ladder only uses levels the catalog lists in each entry type's `resolutions`:
@@ -913,8 +1179,20 @@ caching), not per widget.
     (about 1 year per request, split into chunks) and **downsampled in a Web Worker** (built inline, since static files are cross-origin) to
     the resolution the ladder would pick. The table and exports say "computed from raw
     data".
-  - **Pesticide use** stays yearly (sub-yearly is deferred).
-  - Server summaries for weather/PM10 are deferred (see `DEFERRED.md`).
+  - **Pesticide use** is monthly and yearly (the server's `months` and `years`; spec 3b).
+  - Weather now has server summaries (CIMIS stations, sjvair.com #313, used by spec 3b); PM10's are deferred (see `DEFERRED.md`).
+- **Number overlays and coarser strips (spec 3b).** A number overlay's strip is pinned to the
+  main data's resolution (`pin`): `chooseResolution` falls back to the nearest coarser level the
+  overlay's entry type offers (a daily chart gets monthly pesticide bars). An overlay's own saved
+  `resolution` is ignored. Level overlays keep spec 3's behavior (no pin).
+- **Totals follow the catalog's `aggregate` (the user, 2026-11-07, `@sjvair/sdk` 5.0.0-beta.6;
+  decision 2 of spec 3b's plan).** Each catalog entry type has a top-level `aggregate`: `"sum"`
+  (weather precipitation, ETo, ETr; pounds applied, acres treated, applications) reads the
+  summary's `sum`, and rolling values into an open period sums them; `"mean"` (pollutants, the
+  other weather entries) reads `mean` and an open period averages; `null` (wind direction,
+  forecasts, smoke density, and others) never rolls up. `display.chart` picks bars or a line
+  and nothing else. Pesticide Yearly still reads the server's `years[]`, since summing months can
+  fall short of a year; summing is only for an open month.
 - **Incomplete periods are stitched from finer data** — e.g. the current month (no
   monthly rollup until it ends) is computed from daily summaries so far, today from
   hourly. Fixes the "current month shows nothing" problem for every widget.
@@ -926,13 +1204,15 @@ caching), not per widget.
   where the coarse response lacks that period (computed client-side, and complete, so not
   partial); once the server's rollup exists, the coarse value wins. Where no finer level is
   offered (regions at hour, which have no raw entries) there is no backfill, and that period
-  stays empty until the server task runs. The backfill is one level deep (see `DEFERRED.md`).
+  stays empty until the server task runs. Since step 4 spec 1 the backfill's own last
+  sub-period is filled one level finer again, and the backfill is skipped for places whose
+  coarse value has arrived.
 - Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
   exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28): each layer (and so each
   `QueryDescriptor`) carries `resolution` (`"auto"` by default), so Collections and exports
-  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"`, the hour × weekday
-  heatmap `"hour"` (long hourly fetches still use span caps and chunking). **Priority:
+  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"` (the hour × weekday
+  heatmap's `"hour"` pin went with the widget, dropped 2026-11-09). **Priority:
   widget-type pin → user override → automatic ladder.** Pinned widgets don't show the
   override.
 - Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
@@ -957,6 +1237,12 @@ caching), not per widget.
 - **Minimized widgets refresh only if they have thresholds configured** — so their
   taskbar entry can flash when a threshold is crossed (self-monitoring). Minimized
   widgets without thresholds don't poll.
+  **As built (step 4 spec 4, 2026-11-08):** the dashboard-level threshold watcher is what keeps
+  a minimized widget with an alert level refreshing (it holds the same shared query as the tile).
+- **The "now" client** (step 4 spec 4, 2026-11-08; `src/lib/data/now/`). The live tiles read
+  through one shared client that plugs into the same poller: the **alert value polls every 3
+  minutes** (`raw` cadence), and **forecast days and today's heat poll hourly** (at :55 Pacific,
+  like summaries). Sources are keyed without coordinates; a key idle for an hour is dropped.
 - **Caching:** an in-memory cache keyed by descriptor, shared across widgets. Across
   reloads, the **browser's HTTP cache** does the work: completed periods are immutable, so
   the server sends a long `Cache-Control`; open periods get a short one. The server's
@@ -972,6 +1258,11 @@ caching), not per widget.
   - **Stable URLs:** the browser reuses its cache only for the same URL, so the data layer
     requests settled periods with stable URLs (fixed start and end) separately from the live
     tail. One request spanning "up to now" changes URL every time and never hits the cache.
+    **Request units as built** (step 4 spec 1): requests cover whole Pacific calendar units, a
+    **month** for hourly and daily summaries (and the worst hour's hourly fetch) and a **year**
+    for monthly, quarterly, and seasonal ones (yearly is one call); each past unit is its own
+    request and only the unit containing now is live, so "last 30 days" is last month (long
+    cache) plus this month so far (60 s). Rows outside the range are dropped in the browser.
 - In-flight requests are superseded by newer ones for the same widget
   (last-requested wins, not last-to-finish).
 
@@ -997,9 +1288,10 @@ home (`/shared` redirects to `/`; `/shared/:token` is built, sync spec 3).
 /                                                last-opened dashboard (preference) or the starter
 /dashboards                                      all dashboards (list)
 /dashboards/:id                                  a dashboard
-/dashboards/:id/widgets/new?type=map             Widget Creation for a new widget
+/dashboards/:id/widgets/new?type=chart           Get data, adding to that dashboard (from Add widget)
 /dashboards/:id?widget=:widgetId                 that widget fullscreen (deep-linkable)
-/dashboards/:id/widgets/:widgetId/edit           Widget Creation editing an existing widget
+/dashboards/:id/widgets/:widgetId/edit           Get data editing a widget's data ("Edit data")
+/data                                            Get data, from the top nav ("Data")
 /analysis                                        Analysis home (your Collections)
 /analysis/collections/:id                        a Collection
 /analysis/collections/:id/analyses/:analysisId   an analysis run on it
@@ -1007,10 +1299,12 @@ home (`/shared` redirects to `/`; `/shared/:token` is built, sync spec 3).
 /import#<lz-compressed document>                 URL-fragment share → opens a copy (fork on open)
 ```
 
-The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
+The `/analysis` routes arrive with Collections in Release 3 (see "Collections"). The three
+Get data routes were built in step 4 spec 3; `/dashboards/:id/widgets` (trimmed) goes to the
+dashboard, and the Get data draft never goes in the URL (see "Get data").
 
-- **Back/forward navigates between places** (dashboards, fullscreen, Widget Creation,
-  Analysis) — never between edits.
+- **Back/forward navigates between places** (dashboards, fullscreen, Get data, Analysis) —
+  never between edits.
 - **Ephemeral UI state stays out of the URL** (open accordions, in-progress map
   selection, calendar drag range).
 - **Opening a document from another device:** for signed-in users, synced documents
@@ -1019,8 +1313,8 @@ The `/analysis` routes arrive with Collections in Release 3 (see "Collections").
   or documents that were never synced.
 - **Embedding:** same routes, held in memory when the host owns the URL (see
   "Embedding").
-- The v1 per-tab URL seeding is gone. Preferences hold the "last-opened dashboard" and
-  Widget Creation defaults (through the platform adapter).
+- The v1 per-tab URL seeding is gone. Preferences hold the "last-opened dashboard" and the
+  Get data draft (through the platform adapter).
 
 **Undo/redo (first release).** A **document-level undo/redo stack** (Ctrl+Z /
 Ctrl+Shift+Z, plus menu actions via the shared action list), separate from browser
@@ -1062,14 +1356,14 @@ Decided 2026-09-23 (IDEA.md Open Question #2).
 
 **What gets staged is a query descriptor, not copied data.** This is the **single
 definition** used by Collections, saved documents, and export manifests. A widget's
-config is **one shared date range plus a list of layers** (see "Widget Creation view"),
+config is **one shared date range plus a list of layers** (see "Get data"),
 and each layer resolves to one descriptor:
 
 ```ts
 type QueryDescriptor = {
 	dataset: string; // from the meta/datasets/ catalog
 	entryType?: string; // pollutant/entry type where applicable
-	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Widget Creation view")
+	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Get data")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	place?: PlaceRef; // one place (any kind), the common case; or…
 	selection?: SpatialSelection; // …several monitors or regions. Never both; neither = whole layer
@@ -1112,7 +1406,7 @@ type DateRangeSpec =
   not on each layer's descriptor: the range is per widget. A layer resolves to a
   `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
 - **Dates are Pacific calendar dates** (`YYYY-MM-DD`). `"to-date"` and `"trailing"` are the
-  two groups of the Rolling method (see "Widget Creation view").
+  two groups of the Rolling method (see "Get data").
 - **A layer holds one place or a multi-selection** (decided 2026-10-13): `place` takes any
   `PlaceRef`, including a point or a school, which is how a chart keeps "my location";
   `selection` is for several monitors or regions (maps, comparisons).
@@ -1206,6 +1500,22 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
   (ZIP for heat, forecast zone for the Forecast strip). The region is resolved when the
   widget renders. **"Mark for analysis" freezes it** to the region actually used, staged as
   a normal region item ("ZIP 93721 (from your location)").
+  - **Built in step 4 spec 2 (2026-11-04).** A point gets its candidate regions from the
+    coordinate lookup (`lookupRegionPlace({ lat, lon, type: ["zipcode", "city", "county"] })`,
+    cached in memory per rounded point); a school uses its own linked regions
+    (`getLocationsByCode`, batched per source, no coordinate lookup). `layerTarget` returns a
+    `fallback` target with those candidates, and the adapter fetches them in order through
+    the region path, **stopping at the first that has any point in the widget's date range**
+    ("has data"; a ZIP with gaps stays the ZIP), else the last candidate's empty data.
+    `QueryData.places` names the region used with `via` (the point, or the school's name), and
+    `placeLabel` renders it: "93721 (your location)", "93702 (Roosevelt High)", and
+    "(shared location)" in a live link's read-only view; the table header and the CSV place
+    column read the same, and the CSV never carries coordinates. A point the lookup puts in no
+    ZIP, city or county is "Your location is outside the area SJVAir covers." A school that no
+    longer resolves gets the "no longer available" card; a retired one keeps its data with
+    "<name> is no longer listed (since <date>)" and, when replaced, "Switch to the replacement".
+    `placeRegion(input)` gives the region a point or school widget uses now, through the same
+    query and cache (the share swap and the live-link save use it).
 - **Location privacy** (decided 2026-09-28). Exact coordinates are often a home or school,
   and the audience includes students.
   - **The owner's own document keeps the exact point**, private to their browser or
@@ -1220,8 +1530,125 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     with a notice: "Your location is shared as ZIP 93721, not your exact position." The
     notice offers an explicit **"Share my exact location instead"** option, off by
     default and chosen per share, with a warning that anyone with the link will see it.
+    The region is the one the point's widget shows now (`placeRegion`); a point with no region
+    is left out of the shared content (its widget shows the idle state). The exact option
+    lives only in the Share dialog: the ⋯ menu's **Export** always exports the regions, with
+    the same notice. If a region can't be looked up, nothing is offered until Retry succeeds
+    (never a silent fallback to the point). Copies made from a share, including imported
+    files, always swap points for their regions (no option). **The full backup keeps exact
+    points**: it is the owner's own restore file, not a share (Step 4 spec 2).
+  - **Live share links** can't swap in transit (viewers read the owner's synced document), so
+    before turning one on the Share dialog asks: "Use ZIP 93721 instead" (one undoable edit:
+    `setWidgetData` when one widget has points, else one `replaceDocument`) or "Share my
+    exact location" (with the warning). Viewers' labels read "(shared location)".
+    **The live link is guarded three ways** (step 4 spec 2):
+    - _When the link goes on:_ the share uploads first, then checks, under the document lock,
+      that the stored version has no point (unless the owner chose "Share my exact location");
+      a failed check, or edits still waiting to upload, refuses the share. An already-on link
+      whose dashboard holds a point shows the same prompt.
+    - _Every edit while it's on_ (the user, 2026-11-05): any of this tab's edits, Undo and Redo
+      included, that leaves a point on a live-shared dashboard saves its region instead, with
+      the "saved as" notice (a toast, announced). `DocumentSession`'s `onEdit` hook hands the
+      session to the app, which loads `src/lib/sharing/live-points.ts` only for a dashboard
+      with a point (and a live link, once the worker's states know); it looks the regions up (`placeRegion`, 20 s), and applies the swap with
+      `amend`: stored like any edit but not an undo step of its own, so Undo goes past it
+      (the stacks' changes set values, and an inverse is taken from what was there, so it
+      ends; a redo that would land on the swapped point lands on the region). The app also
+      runs it when a live-shared dashboard opens holding a point, uploaded or not (another
+      tab's journal replayed here, a lookup that failed before a reload, a point shared before
+      this rule), and when the sync worker reports one (`onPointsHeld`): a held upload, or a
+      link that starts guarding points in its states (turned on here or elsewhere, learned by
+      a poll or pull, or first known at start). So a device that uploaded a point before it
+      knew of the link swaps it as soon as it learns. The swap checks the stored dashboard
+      (`worker.pointsShown`), whatever is unsynced. One run per dashboard per tab; a Web Lock and a stored-version check
+      keep two tabs from both swapping. A failed lookup shows "Can't look up your area right
+      now." with Retry (and tries again when the connection returns).
+    - _Every upload:_ `pointsHeld` (`src/lib/sync/points.ts`) is the check every save of a
+      stored document makes first (`uploadDocument`'s loop, after each merge too, and
+      settling a conflict, which refuses with `PointsHeld`): with the link on and not exact, a
+      document holding a point isn't sent (`points`), whichever path asks (autosave, a replayed
+      journal, the sweep, another tab). It goes once the swap is stored. A batch whose changes
+      mention a point (the pick and its undo) is sent as one `replaceDocument` from the
+      server's copy instead, so not even the change log gets it. Server snapshots kept before
+      a restore or a "use theirs" are the owner's only, never shown on the link, and aren't
+      held (`DEFERRED.md`).
+    - **"Share my exact location" is remembered per link**: `shareExact` in the sync record,
+      next to `shareToken`, set by the Share dialog's choice (on a new link with the share; on
+      an on link first, so its held points go up), and kept by every record write for the
+      same token (`withShareToken`). Turning the link off, or a different token arriving,
+      clears it; "Use … instead" sets it back to false. It's this device's record: another
+      device swaps the points on its next edit (`DEFERRED.md`).
+  - **"Use my location" on a dashboard with a live link** (the picker reads the sync record's
+    `shareToken` and `shareExact` at Done; with exact chosen it keeps the point) saves the region the widget would use (ZIP, else city, else county)
+    instead of the point, and says so: "This dashboard is shared by link, so your location is
+    saved as 93721." Turning the link off later doesn't restore the point. A pick identical to
+    the current place makes no edit (and no notice).
 - **Geolocation** is a platform-adapter capability: an opt-in "Use my location" button,
   never automatic, with the browser's usual permission prompt. Tauri can supply its own.
+- **The shared place picker** (built in step 4 spec 2, 2026-11-04; spec
+  `docs/superpowers/specs/2026-11-04-step-4-spec-2-place-picker-design.md`). A lazily loaded
+  component (`src/lib/places/`) that a dialog hosts today (full screen on a phone) and spec 3's
+  Get data view and spec 6's starter bar can place inline. Its code never reaches the initial
+  bundle; the menu item and idle button reach it through `lazy.svelte.ts`.
+  - **Getting there:** "Change place" in a Chart's or Data table's ⋯ menu (and its taskbar
+    menu when minimized), only on an editable dashboard; "Choose a place" on the idle state;
+    "Choose another" on the "no longer available" card. A saved place that no longer resolves
+    isn't offered back as a pick (so "Choose another" replaces it); one whose lookup failed
+    stays, unnamed. Every change is one `setWidgetData` edit (Undo restores the old place);
+    Cancel, Escape, or closing makes none, and neither does a pick identical to the current
+    place.
+  - **What it's for:** the host passes the dataset and entry type (the widget's pollutant
+    layer), the mode, and the cap. **Single** mode closes on the first pick; **multiple** mode
+    (`accepts.maxPlaces`: Chart 5, Data table 10) keeps picks as removable chips until
+    **Done**, which needs at least one pick (an empty Done would idle the widget; Remove widget
+    exists for that), and **Cancel** discards them.
+  - **One kind at a time:** several places are one `SpatialSelection` (all monitors or all
+    regions, region ids `"type:code"`), the shape the Map widget syncs with. The first pick
+    sets the kind; rows of the other kind stay visible but are `aria-disabled` with a reason
+    ("This widget compares regions. Remove the regions to compare monitors."). The reasons say
+    "This widget …", since the picker serves every widget type. **Schools and "your location"
+    are single-place only:** either can be the only pick. With exactly one place picked (of any
+    kind, a school or your location too), choosing one replaces it (the user's decision,
+    2026-11-05); with two or more picked they are greyed out with a reason. With a school or
+    your location picked, regions and monitors are greyed out; another school or your location
+    replaces it. At the cap, the rest read "This widget shows up to 5 places." One pick is
+    stored as the layer's `place`, two or more as its `selection`; removing back to one stores
+    a `place` again.
+  - **Pollutant fit:** monitors whose type can't supply the entry type (`monitors/meta/`
+    `monitors[<type>].entries`) are hidden, not greyed out. Regions, schools, and points aren't
+    filtered (no bulk coverage; see `DEFERRED.md`); a place with no data shows "No data".
+  - **Monitors** come from the memoized `monitors/` list (every public monitor, active or not;
+    the health filter applies only to current readings), active first, then by name; stopped
+    ones are tagged "Not reporting" in text. An `activeOnly` option (for spec 4's "now"
+    widgets) leaves them out. **A saved monitor missing from a list that loaded** gets the "no
+    longer available" card (`monitor-unlisted`), not an uncalibrated series; when the list
+    can't load, the error with Retry stays.
+  - **Search:** one box, from 2 characters, debounced 250 ms, each query aborting the last.
+    Three searches run at once and load and fail on their own ("Couldn't search places.
+    Retry"): schools and child care (`searchLocations`), places (`searchRegionPlaces`, reading
+    only id, name, type, code and retirement, never `boundary.geometry`), and monitors (in the
+    browser: name starts, then word starts, then substrings; active first). Groups show in that
+    order, up to 10 rows each, with "More matches. Keep typing to narrow them down." when the
+    server says `more` (or more than 10 monitors match). A row whose type has no label in
+    `regions/meta/` is dropped, never shown with a raw key. Retired regions aren't offered.
+  - **Browse:** the `regions/meta/` types with `browsable: true` and `count > 0`, in the
+    server's order with their counts, plus Monitors. A type whose `parents` includes `county` gets an "In:" control
+    (`regions/?within=`), and so does Monitors (`monitors/?region=`); every list has a filter
+    box; a county row's **"Inside ›"** lists the child types and Monitors, and opens one already
+    narrowed to it. Headings use `label_plural` from the metadata.
+  - **Recent places:** up to 8, newest first, per space through `preferences` (this browser
+    only, never in documents); every monitor, region, or school pick is added, "your location"
+    never is. Read back through a schema (a malformed list is dropped) and shown with current
+    names; a place that no longer resolves is left out.
+  - **Accessibility:** the search box and results follow the W3C ARIA combobox pattern
+    (editable combobox with a listbox popup; labeled groups; arrow keys across groups, Enter
+    picks, Escape clears, then closes); the result count and a failed group are announced in a
+    polite live region. **Browse lists are a W3C APG grid**, not a listbox (changed during the
+    build, because rows carry a separate "Inside ›" button): `role="grid"`
+    (`aria-multiselectable` in multiple mode), each row a `row` with `aria-selected` /
+    `aria-disabled`, a name cell and an Inside cell; ↑/↓ move between rows, ←/→ to and from
+    Inside, Space/Enter picks. Greyed-out rows stay focusable with their reason as the
+    description; chips have a labeled remove button.
 
 "Mark for analysis" on a multi-layer widget adds **one Collection item per layer**, each
 with the widget's date range and any current time sub-range or selection.
@@ -1515,7 +1942,9 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   single-column stack derived from the desktop layout's reading order. Only the desktop
   layout is persisted in a saved dashboard config. Rearranging works on phones and changes the
   desktop layout (a widget moved above another takes its spot); on a phone only height can be
-  resized. A separate tablet layout is deferred (see `DEFERRED.md`).
+  resized. A separate tablet layout is deferred (see `DEFERRED.md`). On the phone stack a Note
+  grows to fit its text, up to 12 rows (decided 2026-11-10, for WCAG reflow); this is display
+  only, the stored height never changes, and a longer Note scrolls inside as before.
 - **Touch** (decided 2026-10-28, step 2): a long-press on the title bar picks a widget up to
   drag it; lifting without moving leaves it selected with touch-sized resize handles and a
   "Done" button. The design is in
@@ -1536,11 +1965,81 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
 | Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Any `PlaceRef`               |
 | "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
-| Forecast strip            | Next days' AQI category + burn-day status                                                              | SDK+ (forecasts)             |
+| Forecast strip            | Today and tomorrow's AQI category + burn-day status, plus any active Air Alert                         | SDK+ (forecasts)             |
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
-| Data table                | Sortable table + CSV export; the accessibility fallback for maps/charts                                |                              |
-| Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
-| Hour × weekday heatmap    | Diurnal/weekly pattern (widget form of starter analysis #2)                                            |                              |
+| Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
+| Notes                     | Markdown text for annotating shared dashboards (built in step 4 spec 6)                                | No data source; see below    |
+
+**Notes as built (step 4 spec 6, 2026-11-10).** Spec:
+`docs/superpowers/specs/2026-11-10-step-4-spec-6-notes-and-starter-design.md`. A Note is a
+`time: "none"` widget with no layers (`data` is `{ layers: [] }`), 3 × 2 at minimum and 4 × 3 by
+default, not analyzable or downloadable, with generated title "Note". Its text lives in the
+widget's **`options`** as `{ text }` (Markdown, at most 5,000 characters) or `{ message }` (a
+message-key reference, used by the starter's welcome Note so no English is stored); the document
+schema validates `options` for `note` widgets. People write in a dialog ("Edit note" in the
+widget menu, double-click on an empty Note, or at once after "Add widget" → Notes): Lexical,
+formatted as you type, a toolbar of Bold, Italic, Heading (one level), bulleted and numbered
+lists and Link. Saving stores the normalized Markdown as one undo step. Read-only views offer no
+editing. Viewing is described in "Security baseline for untrusted content".
+
+**The hour × weekday heatmap widget was dropped** (the user, 2026-11-09, step 4 spec 5: "just do
+the two calendars"; an average of every Tuesday at 3 pm didn't seem useful). Starter analysis #2
+(Release 3) is a separate item and is unchanged. A heatmap _layer over the map_, of daily values,
+is a map idea instead (see `DEFERRED.md` → "Map plugins").
+
+**The three "now" widgets as built (step 4 spec 4, 2026-11-08).**
+
+- **Forecast strip:** today and tomorrow, each with its AQI category and burn status (the
+  feed's text; "No Burning For All" has no level of its own yet), and an **Air Alert banner**
+  when a declared alert's dates overlap today or tomorrow (Pacific).
+- **"Can we go outside?":** always reads PM2.5 and the school activity guidelines from
+  `monitors/meta/`, and adds today's CalHeatScore. **The heat needs no SDK work**:
+  `getHeatForPlace` already exists. A heat failure only blanks the heat line, never the card.
+- **Current conditions' number:** for monitor types and pollutants the server evaluates alerts
+  for, the number is the **server's alert value** (the same trailing 60-minute figure the server
+  alerts on, from `getMonitorAlertCurrent` in `@sjvair/sdk` 5.0.0-beta.7; the meta `alerts` block
+  says which pairs are evaluated); otherwise it is the **latest complete
+  hourly average**. The tile says which it is ("updated N min ago", an averaging note), and a
+  reading older than 3 hours is marked stale. Regions always use hourly averages.
+
+**The two calendars as built (step 4 spec 5, 2026-11-09).** Both are `time: "range"` types with
+the resolution pinned to `"day"`, lazily loaded, set up in Get data, and limited to **one place
+and one air-quality pollutant** (`accepts.onlyPollutant`; other data layers are in `DEFERRED.md`).
+Show as greys them out with the reason for two places, a weather or other non-pollutant layer, or
+a date range outside their span.
+
+- **Day-colored calendar:** month grids (weeks as rows, Sunday first), several side by side for a
+  longer range. Default range "This month"; the whole month is drawn with days still to come left
+  blank. Span 1 day to 12 months. A rated cell shows the level color, the day number, the value
+  and the level label. When the label doesn't fit, the cell shows the level's position in the scale
+  instead (1 for the first level, so every level has its own number; not `tier`, which levels can
+  share), and the legend's chips then carry the same numbers ("3 · Unhealthy for Sensitive
+  Groups"); the user, 2026-11-09.
+- **Contribution calendar** (type `calendar-contribution`; its user-facing label is **"Year calendar"**, the user, 2026-11-09): GitHub's layout (a column per week, Sunday at the top, month labels
+  above). Default range "Last 12 months"; span 1 week to about 2 years; long ranges scroll
+  sideways from the latest week. A **Show patterns** switch (on by default) adds a per-tier
+  pattern over each color; see "Accessibility".
+- **A day's figure comes from server metadata, never from the dashboard.** Each day is colored by
+  the daily figure matching its pollutant's scale, **because that is how EPA computes the daily
+  AQI**: the 24-hour scales (PM2.5, PM10) use the 24-hour average, the 1-hour scales (O3, NO2, SO2)
+  the day's highest hourly average, and CO's 8-hour scale its highest 8-hour average. A daily mean
+  against a 1-hour scale would almost never leave Good. `monitors/meta/` `scale.daily_statistic`
+  names the daily summary field to read (`mean_24h`, `max_1h`, `max_8h`) and
+  `scale.daily_statistic_label` its name; the calendar never maps pollutants itself. A null value
+  is "Not enough data" (EPA's completeness rule, applied by the server). Until the metadata
+  carries `daily_statistic`, every past day is unrated and the widget says so once. It never falls
+  back to the mean. Today is colored "so far" from the server's running figure, and a day whose
+  rollup hasn't finished shows "Not final yet" (`is_final`).
+- **Selecting days uses a two-click range for every pointer:** click a day, then click another to
+  extend the range; a third click starts anew; clicking the only selected day clears it. Mouse
+  drag and Shift-click also work, and the keyboard follows the date-grid pattern (one Tab stop,
+  arrows, Home/End, Page Up/Down, Space or Enter, Shift+arrows, Esc). The selection is stored as
+  `timeSubRange` and summarised under the grid; **Open these days in a chart** (a widget menu item
+  while days are selected) adds a separate Chart over them.
+- **The tooltip and each cell's accessible name** give the date, the figure's name, the value,
+  unit and level, and whether the day is selected, at or above the threshold, partial or not final.
+- **The display-only threshold** (`thresholds: true`, off by default) marks and counts rated days
+  at or above a level; no alerts or notifications.
 
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
@@ -1551,7 +2050,7 @@ widget". Linking is deferred (see `DEFERRED.md`).
 
 ### Widget-type contract
 
-Each widget type declares what Widget Creation shows and how the dashboard treats it:
+Each widget type declares what Get data shows and how the dashboard treats it:
 
 ```ts
 type WidgetType = {
@@ -1559,28 +2058,47 @@ type WidgetType = {
 	label: MessageKey; // i18n: message key, never literal English
 	minSize: { w: number; h: number }; // grid cells
 	time: "range" | "now" | "none"; // the date section is shown only for "range"
-	accepts: DatasetFilter; // which accordions/layers apply (enforces ≤ 1 pollutant)
+	accepts?: {
+		datasets?: string[];
+		maxPollutantLayers?: number;
+		maxPlaces?: number;
+		onlyPollutant?: boolean; // only a pollutant (a layer with a daily scale) can be added
+	}; // explicit
+	addable?: () => WidgetDataConfig; // non-data types only: a direct add from "Add widget"
 	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
-	resolution?: Resolution; // pinned resolution (e.g. calendars "day", heatmap "hour"); hides the override
+	resolution?: Resolution; // pinned resolution (e.g. calendars "day"); hides the override
 	dateMethods?: DateRangeSpec["kind"][]; // allowed date methods (default: all); only for time: "range"
 	span?: { min?: Duration; max?: Duration }; // e.g. contribution calendar: min 1 week
+	defaultRange?: DateRangeSpec; // the range a new widget (and one with none of its own) shows
 	defaultTitle(config: WidgetDataConfig, meta: Metadata): string; // generated, not stored
-	menu: MenuProvider; // widget-scoped actions (see "Actions & context menu")
+	menu: (ctx: MenuContext, env: WidgetMenuEnv) => MenuItem[]; // widget-scoped actions (see
+	// "Actions & context menu"); `env` reads the live widget, so a menu can depend on its data
 	component: Component;
 };
 ```
 
-Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **Forecast
+Examples: **Notes** is `time: "none"` with no layers; it uses `addable`,
+and keeps its content in the widget's free-form **`options`** (`{ text }` or `{ message }`),
+which the document schema checks for `note` widgets (it is not left free-form). **Current conditions**, **Forecast
 strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`; for those,
-Widget Creation hides the date section and shows **the shared place picker** instead of
+Get data hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
 "Can we go outside?" (gated by available pollutants); in `WidgetDataConfig` that's a
 **single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
 `target` field was removed so every widget type stores places the same way). Current
 conditions and "Can we go outside?" have one pollutant layer (heat for "Can we go
 outside?" follows from the same place); the Forecast strip has one forecasts layer. **Map** and **Chart** are `time: "range"` and accept multiple layers.
+
+**`accepts.datasets` is explicit** (decided 2026-11-05, step 4 spec 3). It lists the catalog
+dataset ids a type can show; a type with no list accepts no datasets, so a new type can't
+accidentally offer everything. Chart and Data table declare
+`["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"]` (spec 3b);
+Notes declares none. The types with a list are the **data types**: "Add widget" opens Get data
+for them, and Get data's **What** sections and **Show as** choices come from their lists (see
+"Get data"). **`addable`** is only for non-data types (Notes, later the Map), which "Add widget"
+adds directly with the data it returns; Chart and Data table dropped it in spec 3.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
 for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date
@@ -1647,7 +2165,8 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
     Sign in / out.
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
-  - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), Edit
+  - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), **Download
+    data (CSV)** on every data widget (decided 2026-11-04, step 4 spec 1), Edit
     (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move ▸ / Size ▸
     (single-click alternatives to dragging), Delete. From Release 3: **Mark for analysis**,
     **Analyze**, Add to collection ▸.
@@ -1858,6 +2377,13 @@ type WidgetInstance = {
 };
 ```
 
+**`thresholds` as built (step 4 spec 4, 2026-11-08).** The saved shape is an array of **at most
+one `{ level }` entry** (a level key from the pollutant's scale); **no entry means Off**.
+Live tiles use it as their alert level; Charts use it for the threshold line (a Chart whose
+pollutant's scale lacks the key draws no line and says so). Switching a widget's type carries
+the level where the new type can hold it and says what was dropped. The `SelfMonitorThreshold`
+name above is `Threshold` in the code.
+
 Widget Creation offers only the date methods and spans a type declares (`dateMethods`,
 `span` in the widget-type contract), so a saved widget can't hold a range its type can't
 show. **A `span` is checked against a range's full unit** (decided 2026-10-14): week-to-date
@@ -2024,7 +2550,7 @@ rest are the builder's calls, and the user kept them.
    sees it. It is shown with the existing three-choice `ConflictDialog`.
 5. **"Use the other version" keeps the local version as a separate snapshot request:**
    `POST documents/<id>/snapshots/` (sjvair.com #298), through `createSnapshot` in
-   `@sjvair/sdk` 4.8.0-beta.3. "Use the other version" and "Discard" after a delete elsewhere
+   `@sjvair/sdk` 4.8.0-beta.6. "Use the other version" and "Discard" after a delete elsewhere
    keep the local version this way, with no save. (The plan first called for an extra
    snapshot field on a save.)
 6. **A lost save answer is recognized.** The record notes the batch in flight; if the server's
@@ -2055,7 +2581,7 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@4.8.0-beta.3` (exact). The documents code lives in
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.3` (exact; step 4 spec 2). The documents code lives in
     `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
     `DEFERRED.md`).
 
@@ -2083,6 +2609,13 @@ rest are the builder's calls, and the user kept them.
 9. **A dashboard with unsynced changes still shares** (its last synced version) after one
    upload attempt; the dialog says so. One that has never reached the server can't share yet,
    and the dialog says why.
+10. **A dashboard with an exact location asks before its link goes on** (step 4 spec 2): "Use
+    93721 instead" or "Share my exact location". Unless the owner chose exact, the share runs
+    with a check (`onlyIf`, after the upload and under the document lock) that the stored
+    version has no point; a failed check or edits still waiting to upload refuse it
+    (`check-failed`). While the link is on, every edit and every upload is guarded too, and
+    the exact choice is remembered (`shareExact`) until the link is off. See "Widget data
+    selection" → "Location privacy".
 
 **Recovery (built in sync spec 4, 2026-11-03).** The builder's calls, in the plan
 `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`:
@@ -2173,6 +2706,11 @@ stay local; built in Foundations spec 3):
   invalid) dashboards in a backup are restored as stored, still read-only. Links and Export
   files refuse newer or invalid documents; a read-only dashboard's Export file is its stored
   value as it is (unknown top-level fields kept), less the local-only fields.
+- **Exact locations (step 4 spec 2):** a link or Export file carries each point as the region
+  its widget shows ("Your location is shared as 93721, not your exact position."); only the
+  Share dialog's "Share my exact location instead" keeps it, per share. A copy made from a link
+  or file always swaps any point for its region. A backup keeps exact points (a restore, not a
+  share). Details: "Widget data selection" → "Location privacy".
 - **"You already have a copy."** If a non-deleted local copy was made from the same
   contents, the app asks first: "Open my copy" or "Make a new copy" (equal prominence). "Same
   contents" is a **local content fingerprint** (a hash of the document's canonical JSON,
@@ -2248,8 +2786,8 @@ at America/Los_Angeles boundaries** (`settings.DEFAULT_TIMEZONE`, used in
 `summaries/tasks.py`). The dashboard matches that.
 
 - **Pacific time (America/Los_Angeles) everywhere, whatever the viewer's zone.** This
-  covers "today", calendar day cells, set ranges (day/week/month/year), rolling ranges,
-  and the hour × weekday heatmap. It keeps day boundaries identical to the server's daily
+  covers "today", calendar day cells, set ranges (day/week/month/year), and rolling
+  ranges. It keeps day boundaries identical to the server's daily
   and monthly summaries.
 - **Timestamps display in Pacific time.** A "PT" label appears only when the viewer's
   device is in a different zone.
@@ -2457,6 +2995,21 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    0–4 or `null` (no severity). `description` is the official wording (credited by `source`),
    `guidance` is SJVAir's own. Level `key`s are permanent.
 
+   **Daily figure** (SDK 5.0.0-beta.8, used by the calendars): a `monitors/meta/` scale also
+   carries `averaging_hours` (`24 | 1 | 8 | null`, the averaging period its breakpoints assume),
+   `daily_statistic` (`"mean_24h" | "max_1h" | "max_8h" | null`: the summary field a whole day
+   is rated by) and `daily_statistic_label` (its words, e.g. "24-hour average"; `null` falls back
+   to the dashboard's "Daily value"). Summary rows (every resolution) carry `mean_24h`, `max_1h`
+   and `max_8h` (`number | null`; on a daily row, only the field its scale's `daily_statistic`
+   names is filled, and `null` means too few hours to rate) and `is_final` (`false` while the
+   day can still change). **Open-day rows** (`…/summaries/daily/open/`, single monitor, bulk
+   monitors and bulk regions) are today so far, plus yesterday until its nightly row exists
+   (about 03:00 Pacific); `mergeOpenDays` / `mergeBulkOpenDays` add them to the stored rows
+   (the stored row wins on a shared day). The dashboard asks for them only for calendar
+   requests whose range reaches yesterday or today, never reads their `expected_count` or
+   `is_complete`, and never computes a daily figure itself. A scale with levels but no
+   `daily_statistic` leaves every day unrated, with one note.
+
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).
 5. **Region hierarchy** — nesting between region types, counts, which regions have
@@ -2559,13 +3112,16 @@ wrap simple.
   Tailwind CSS v4, shadcn-svelte (bits-ui), `@lucide/svelte`, `svelte-sonner` (toasts),
   `date-fns`, `@date-fns/tz` (Pacific-time math), Paraglide JS (i18n-ready messages),
   `zod` (document validation), `idb` (IndexedDB, inside the platform adapter),
-  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, and for testing
+  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, **Lexical** (`lexical`
+  and the `@lexical/*` packages it needs; the Notes editor) and **`marked`** (the Notes Markdown
+  lexer), both added in step 4 spec 6 (2026-11-10), pinned exactly (Lexical 0.53.0, `marked`
+  18.2.0) and loaded lazily, and for testing
   Vitest (unit and browser mode with `vitest-browser-svelte`), Playwright, and
   `@axe-core/playwright`.
 - **Planned additions (decided):** `uplot` (a direct dependency, for all charts),
   `lz-string` (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw`
-  (drawn-shape selection, via a map-sdk plugin), a Markdown renderer with raw HTML off
-  (Notes), the Sentry browser SDK (via the platform adapter), and JupyterLite + Pyodide
+  (drawn-shape selection, via a map-sdk plugin), the Sentry browser SDK (via the platform
+  adapter), and JupyterLite + Pyodide
   (separate notebook app).
 
 ## Browser support & performance budget
@@ -2580,8 +3136,9 @@ Decided 2026-09-28.
   floor (`CSS.registerProperty` for `@property`, and `CSS.supports` for `color-mix()`) before
   loading the app, so older browsers never parse the app bundle.
   Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
-- **Performance budget, checked in CI as a soft limit:** about **200 KB compressed** of
-  initial JS for the app shell. Going over prints a warning (a GitHub Actions annotation in CI)
+- **Performance budget, checked in CI as a soft limit:** about **250 KB compressed** of
+  initial JS for the app shell (200 KB until 2026-11-10, when the user raised it: "It's a soft
+  limit for now anyways. Do the work, and if the bundle is too big, we will address that later"). Going over prints a warning (a GitHub Actions annotation in CI)
   and does not fail the build (decided with the user, 2026-11-02: "I'd like it to load quick,
   but it won't be the end of the world if it's a bit over"). **Each widget type loads its
   own code only when used** (the map library only with a Map widget, uPlot only with charts,
@@ -2686,6 +3243,22 @@ and views.
     `format`/theme module (mobile already uses it). No `text_color` metadata field.
   - axe checks and manual passes cover these states (e.g. a yellow-level tile, the
     calendar).
+  - **The one exception: the contribution calendar's "Show patterns" switch** (step 4 spec 5).
+    With it on (the default), each cell also carries a per-tier pattern, so the level does not
+    rest on color. A viewer may switch it off for themselves (a per-viewer preference, not saved in
+    the document) and then sees color only; the tooltip and each cell's accessible name still give
+    the level. This is the user's informed choice, recorded here as the only place color alone is
+    allowed.
+- **The year calendar's day cells are smaller than 24 px** (WCAG 2.2 2.5.8, Target Size
+  (Minimum), step 4 spec 5). Its cells are about 12–16 px, so a whole year fits across a
+  dashboard-wide widget, as GitHub's contribution graph does. A year at a glance is essential to
+  that view (2.5.8's "essential" exception), and larger cells would mean scrolling sideways
+  through the year. Other routes to the same days: the keyboard (arrows, Page Up/Down, Shift+arrows),
+  the month calendar (cells at least 3rem tall), and the CSV. A deliberate exception: the user's
+  decision (the user, 2026-11-09).
+- **Range selection without dragging** (WCAG 2.5.7). On the calendars, the two-click range
+  (click a day, click another) is the single-pointer alternative to dragging across days; the
+  keyboard has its own (Shift+arrows).
 
 - **Both modes are checked** (design pass, 2026-11-03). The axe checks (`e2e/a11y.spec.ts` and
   the per-feature ones) run in light and dark. `src/lib/theme/contrast.test.ts` checks the token

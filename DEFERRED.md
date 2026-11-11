@@ -11,6 +11,46 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **Initial bundle: the hand-kept `BARRELED` list and further trims.** _Deferred 2026-11-04
+  (step 4 spec 1, Task 15)._ The build keeps the app chunk's modules in one file
+  (`appGroup()` in `vite.config.ts`), found by walking the static imports from `src/main.ts`.
+  Packages reached through a barrel (today date-fns' index and Paraglide's `m`) are listed by
+  hand in `BARRELED` and left to the bundler, since the walk reaches all of them but only the
+  used ones are bundled; a new barrel-imported package used only by lazy code would otherwise
+  land in the initial bundle. Further trims found but not needed to get under budget (195.7 KB
+  after Task 15): Conflict and Remote decision as on-demand dialogs (about 1.5 KB), mounting
+  the toaster at idle (about 8 KB), and `zod/mini` in place of classic zod (whose
+  `toJSONSchema` processors add about 8.5 KB; a bigger change). **Revisit when**
+  `check:budget` jumps after adding a package (check whether it needs a `BARRELED` entry), or
+  when the budget is next over.
+- **bits-ui helpers in `BARRELED` (initial bundle near the budget).** _Deferred 2026-11-05
+  (step 4 spec 3, Tasks 9–11)._ To keep Get data's bits-ui primitives (Select, Accordion,
+  Collapsible, Toggle Group, Alert Dialog) out of the initial bundle, `vite.config.ts`'s
+  `BARRELED` names them and some bits-ui helpers by hand (some used only by Select); a bits-ui
+  upgrade that renames or moves them may pull them back into the app chunk. After this spec the
+  initial bundle is about 199.6 KB of the 200 KB soft budget. **Revisit on** a bits-ui upgrade (re-run
+  `check:budget`), or a change to how `appGroup()` treats re-exports.
+- **The initial bundle over 200 KB again.** _Trimmed 2026-11-04 (step 4 spec 1)_, this once:
+  from 213.9 KB gzip (the design pass plus the SDK bump and the widget groundwork) to 195.9 KB,
+  by loading rarely used dialogs and the dashboards list on demand and keeping uPlot, the data
+  layer, and each widget type's code out of the initial bundle. The budget is a soft limit
+  (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
+  decide then, trim or raise the budget, rather than trimming every time).
+- **The initial bundle size (soft budget raised to 250 KB, 2026-11-10).** The user, during step
+  4 spec 6 (205.3 KB then): change the limit to 250 KB "so this question stops being a pain
+  point halting our work"; if the bundle is too big, address it later. Sessions no longer stop to
+  ask about growth under 250 KB. History below.
+  **Earlier: a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
+  _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14); updated 2026-11-09 (spec 5)._
+  `check:budget` reads 204.8 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
+  202.1 KB after it). Spec 4's growth is the three widget descriptors, the dashboard menu's
+  Notifications item, and the `thresholds` field in the change schema; spec 5's is the two calendar
+  descriptors, their date and place-spot helpers, and the registry's new fields (`defaultRange`,
+  `menu(ctx, env)`, `accepts.onlyPollutant`); the calendars' own code is lazy. The user accepted
+  the spec 4 growth on 2026-11-08 and the calendars' on 2026-11-09, and accepted the final
+  204.8 KB for now on 2026-11-09 (no trim, budget unchanged).
+  Candidates if trimming later: lazy-load the widget type icons, drop the menu item's icon.
+  **Revisit when** `check:budget` grows further, or before step 4 merges into `main`.
 - **Upload compression, cache headers, ordered upload passes, and a post-deploy header
   check for the dashboard's static files.** _Deferred 2026-10-26 (the user, in the hosting
   track and Foundations spec 5a)._ The dashboard is uploaded to S3 exactly as monitor-map is
@@ -39,11 +79,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   nothing checks the envelope the SDK actually sends (no `user`, `infer_ip: "never"`, the
   scrubbed fields). A test with a capturing transport would. **Revisit when** the dashboard's
   Sentry project exists, together with the hand check of a real report.
-- **The error reports' route list duplicates the router's.** _Deferred 2026-10-26
-  (Foundations spec 5a, final review)._ `routePattern` in `src/lib/errors/scrub.ts` keeps its
-  own copy of the route patterns, so a new route reports as `/other` until it is added there
-  too. **Revisit when** the Widget Creation or Analysis routes are added: derive it from the
-  router, or add a test comparing it to the router's route keys.
 - **CSP violations before IndexedDB opens aren't seen by the app.** _Deferred 2026-10-26
   (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
   only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
@@ -224,7 +259,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **The starter hand-off can set the current dashboard after the person has left for a shared
     page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
     in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
-    timing. **Revisit on a report, or when the hand-off is next changed.**
+    timing. **Revisit on a report, or when the hand-off is next changed.** _Looked at in step 4
+    spec 6, 2026-11-10: unchanged; Share on the starter now also uses the hand-off (through
+    `copyStarter`), so there is one more caller, with the same timing window._
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
@@ -245,7 +282,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     public SDK's exports. How the dashboard installs it is decided when the move is planned: JSR has
     no private packages, so GitHub Packages or a git dependency, with read access in CI, local
     dev, and sjvair.com's Heroku build (which installs the dashboard). Until then the dashboard keeps using `@sjvair/sdk/documents`
-    (4.8.0 prereleases; `createSnapshot` is in the pinned 4.8.0-beta.3). The move changes the
+    (4.8.0 and 5.0.0 prereleases; `createSnapshot` is in them; `step-4` pins 4.8.0-beta.6 until step 4 spec 2 pins 5.0.0-beta.2). The move changes the
     dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
     (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 5.0.0 final is tagged (the next stable release, renamed from 4.8.0 on 2026-11-04), since
     removing it after a stable release has to wait for 6.0; sdk-js's own `DEFERRED.md` ("Before
@@ -331,7 +368,7 @@ string`) now get the union return type. The mobile app passes a string token, so
   only reaches a target that explicitly allows it, and the API's writes don't redirect.
   **Revisit when** the API starts redirecting writes or the dashboard is deployed
   cross-origin; the fix then is `redirect: "error"` on requests that carry the CSRF header.
-- **`@sjvair/sdk` is pinned to the 4.8.0-beta.1 pre-release.** _Deferred 2026-10-22
+- **`@sjvair/sdk` is pinned to a 4.8.0 pre-release (now 4.8.0-beta.6).** _Deferred 2026-10-22
   (Foundations spec 2, PR #7 follow-up)._ The data layer needs `getDatasetCatalog`,
   `getRegionsByCode`, and `getMonitorEntries` with `processor`, `Date` bounds, and `exact`, which
   are only in that pre-release; it is pinned exactly because a caret range skips pre-releases.
@@ -657,6 +694,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   feed's exact `status` string for it is unconfirmed, so the `burn-status` scale has no level
   for it. The server stores unknown values as received and logs them. **Revisit when** the
   ingest log shows the new value: add the level in sjvair.com `camp/apps/forecasts/scales.py`.
+  Meanwhile the Forecast strip shows the feed's text (step 4 spec 4, 2026-11-08).
 
 - **Production deploy step for the place endpoints.** _Deferred 2026-11-03 (step 3 spec 1)._
   `forecasts/place/` caches its zone answers for 24 hours, so a place resolved before the 3
@@ -684,6 +722,75 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Documents & saving
 
+- **Copying a shared dashboard with a point needs the network.** _Deferred 2026-11-04 (step 4
+  spec 2, Task 13 review)._ A copy made from a share (link, file, or live link) always swaps a
+  point for its region, and that lookup needs the server; offline the copy fails with the
+  generic "couldn't save" message. **Revisit on** reports of people copying shared dashboards
+  offline, or if a share starts carrying the region along with the point.
+- **The live-link point check trusts the stored copy.** _Deferred 2026-11-04 (step 4 spec 2,
+  Task 13 review)._ Before a live link goes on without "Share my exact location", the share
+  checks the stored dashboard for points (`onlyIf`) and refuses while edits wait to upload. When
+  nothing is waiting it assumes the server's copy equals the stored one; if another device
+  uploaded a newer version with a point and this device's swap was a no-op, that version could
+  be shared. Why: needs two devices, a point added on one, and a share from the other within a
+  sync interval. **Revisit if** multi-device sharing is common: check the server's copy (or its
+  version) instead.
+- **The Share dialog reads a dashboard's points once, when it opens.** _Deferred 2026-11-04
+  (step 4 spec 2, Task 13 review)._ The notice and the live-link prompt come from the points
+  present at opening, so a point added in another tab before "Create link" gets no prompt and
+  skips the point check, and could be shared. Why: needs a second tab editing the same
+  dashboard while the dialog is open. **Revisit if** it's seen: reread the points when the
+  stored document changes while the dialog is open (or always pass the check).
+- **"Share my exact location" is remembered on one device.** _Deferred 2026-11-05 (step 4
+  spec 2, Task 16)._ The choice lives in this device's sync record (`shareExact`), not on the
+  server. Another signed-in device sees the link as not exact, so its next edit of that
+  dashboard (or a held upload there) swaps the exact points the owner chose for their regions.
+  Why: it errs toward privacy, and needs the owner editing one live-shared dashboard from two
+  devices after choosing exact. **Revisit if** that's seen, or when the server can store the
+  choice with the link.
+- **Server snapshots of a live-shared dashboard aren't held for points.** _Deferred 2026-11-05
+  (step 4 spec 2, Task 16)._ The snapshot kept before restoring a version, and the one kept for
+  "use theirs" or "discard" when settling a hold, send the local dashboard as it is, so an exact
+  point waiting to be swapped can reach the account's snapshots. Why: snapshots are the owner's
+  only (like the account copy of a dashboard without a link) and never shown on the link; holding
+  them would lose the safety copy. **Revisit if** snapshots ever become visible to link viewers
+  (or shareable), or the server starts reading points out of them.
+- **A lookup that never succeeds leaves the dashboard unsynced.** _Deferred 2026-11-05 (step 4
+  spec 2, Task 16)._ On a live-shared dashboard, a point whose region can't be looked up stays
+  held: retried with the toast's Retry, when the connection returns, on the next edit, and when
+  the dashboard opens, but not on a timer, and a held dashboard is only shown as having changes
+  waiting. Why: the lookup fails only offline or with the server down, which those retries
+  cover. **Revisit on** reports of a live-shared dashboard stuck unsynced with a point.
+- **The live-point guard's retry outlives its session.** _Deferred 2026-11-05 (step 4 spec
+  2, final review)._ After a failed lookup, the `online` listener and the persistent Retry toast
+  stay after the dashboard is closed, so the toast can show on another dashboard, and a
+  reconnect runs a guard on a closed session (harmless: the version check makes it a no-op).
+  Why: needs a failed lookup and then leaving the dashboard before reconnecting. **Revisit if**
+  it confuses anyone: tie the listener and toast to the session and drop them when it closes.
+- **"Keep mine" during a failed lookup shows a generic error.** _Deferred 2026-11-05 (step 4
+  spec 2, final review)._ In a conflict on a live-shared dashboard whose point can't be looked
+  up, "Keep mine" fails with the generic error, not "Can't look up your area right now." Why:
+  needs a conflict and a lookup failure at once; nothing exact is shared either way. **Revisit
+  on** a report of it, or when the conflict dialog's messages are next reworked.
+- **Exporting with points reports no errors.** _Deferred 2026-11-05 (step 4 spec 2, final
+  review)._ `exportDashboard`'s catch turns every error from the swap (a bug included) into
+  "Can't look up your area" with Retry, without `report()`. Telling a lookup failure from a bug
+  needs a typed lookup error from `pointSwaps`, used by its four callers (export, copy link,
+  copies from shares, the live-point guard). **Revisit when** the swap code is next touched, or
+  on a report of an export that always fails with the lookup message.
+- **A shared exact point outside SJVAir's area reads as the viewer's location.** _Deferred
+  2026-11-05 (step 4 spec 2, final review)._ A viewer of an exact share whose point is outside
+  the area sees "Your location is outside the area SJVAir covers.", worded as if it were the
+  viewer's own location. Why: an owner can only pick a point inside the area, so it needs an
+  edited or very old document. **Revisit on** a report of it: word it for the place, not the
+  viewer, when the document isn't the viewer's own.
+- **Points in a newer-format dashboard's export.** _Deferred 2026-11-04 (step 4 spec 2, Task 13)._
+  A read-only (newer or invalid) dashboard is exported as stored; the location-privacy swap
+  finds only points in today's shape (`body.widgets[].data.layers[].place`). A future format
+  that keeps an exact location elsewhere would be exported as is by this build. **Revisit on**
+  any schema change that stores a coordinate in a new place (that build's own export swaps it,
+  but older builds sharing the same storage won't).
+
 - **Deleting an unreadable dashboard is local only.** _Deferred 2026-11-03 (design pass, Task 15)._
   The list's Delete for a dashboard that can't be opened removes only this browser's copy; in an
   account space, sync may download a valid server copy again (arguably a repair). **Revisit on** a
@@ -695,7 +802,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   record (its queued edits) is never replayed; it stays until journal cleanup removes it.
   Needs the page to die in a window of a few milliseconds. **Revisit on** a report of lost
   first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
-  starter.
+  starter. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the hand-off is the same code,
+  though Share on the starter now hands off too (through `copyStarter`), a second way to start
+  it._
 - **A starter replay can take a live tab's journal record.** _Deferred 2026-10-25
   (Foundations spec 3, task 7 review)._ `replayPending` replays every other tab's `starter`
   journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
@@ -703,7 +812,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   it needs a storage failure or unlucky timing in the other tab. **Revisit on** a report of
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
-  two dashboards, which the person can delete or restore.
+  two dashboards, which the person can delete or restore. _Looked at in step 4 spec 6,
+  2026-11-10: unchanged; Share on the starter's hand-off adds one more way to hit it._
+- **Another tab's starter shows a new chosen place only after reload.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 4)._ The starter's chosen place is a per-space preference, read when the
+  app opens (and after "Clear my data"); preferences have no change event, so a starter already
+  open in another tab keeps the place it opened with until that tab reloads (its first edit's
+  copy keeps that place too). **Revisit if** people notice, or when preferences gain a change
+  event.
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size
@@ -713,7 +829,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`droppedEdits` on the starter is never shown.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Edits that can't be carried over
   from an older format are counted on the starter session too, but only an opened dashboard's
   page tells the person. Nothing can be dropped until a format changes. **Revisit at** the
-  first `schemaVersion` bump.
+  first `schemaVersion` bump. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the real
+  starter doesn't change this, since nothing can be dropped yet._
 - **`files.open` can hang where the input's `cancel` event is missing.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Chrome 111–112
   don't fire `cancel` on a file input, so dismissing the picker there leaves "Import…" waiting
   forever. **Revisit if** a stuck import is
@@ -892,22 +1009,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   lines) and `app.svelte.ts` (about 390) could be split; `#onMessage` checks `SYNC_TAB`
   redundantly; and `beginSignOut` checks for the anonymous space twice. **Revisit when** that
   code is next changed.
-- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._
-  (4) The initial bundle is about 205.5 KB gzip after the design pass, over the 200 KB soft
-  budget (199.2 KB after spec 4; the restyle and Part 2's announcer, restore dialog, unreadable
-  list, and resize animation added the rest). (5) After a restore's keep pulls in another device's
-  change (stale base), the restore's `from` is built from the open session's document, which may
-  lag the merged storage for a moment; undoing that restore could then drop the other device's
-  merged-in edit, which stays recoverable from the conflict snapshot just kept. Rare. (6) Test
-  gaps: the keep's `not_found` refusal (shares the `gone` branch); restoring with the keep
-  skipped (anonymous or never uploaded); the "newer" message reaching the dialog;
-  flush-before-load order; "Delete now" pulling in a real concurrent restore (the test uses a
-  synthetic `not_deleted`); the two-tab "switches away" half of the account-gone flow (pinned by
-  `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error wording, the
-  loading line and focus, and the "Delete now" wording) were done in the design pass, part 2._
-  **Revisit** (4) before step 4 adds widget code (trim the initial bundle, or the user raises the
-  budget), (5) if an undo after a
-  restore is reported to lose an edit, and (6) when next touching those files.
+- **Code tidy-ups from sync spec 4.** _Deferred 2026-11-03 (sync spec 4, task reviews)._ (5) After a
+  restore's keep pulls in another device's change (stale base), the restore's `from` is built from
+  the open session's document, which may lag the merged storage for a moment; undoing that restore
+  could then drop the other device's merged-in edit, which stays recoverable from the conflict
+  snapshot just kept. Rare. (6) Test gaps: the keep's `not_found` refusal (shares the `gone`
+  branch); restoring with the keep skipped (anonymous or never uploaded); the "newer" message
+  reaching the dialog; flush-before-load order; "Delete now" pulling in a real concurrent restore
+  (the test uses a synthetic `not_deleted`); the two-tab "switches away" half of the account-gone
+  flow (pinned by `space-switch` closing the old app first, not by a test). _Items (1)-(3) (error
+  wording, the loading line and focus, and the "Delete now" wording) were done in the design pass,
+  part 2; item (4), the initial bundle over budget, was done in step 4 spec 1._ **Revisit** (5) if
+  an undo after a restore is reported to lose an edit, and (6) when next touching those files.
 - **"Delete now" isn't queued offline in an account space.** _Deferred 2026-11-02 (sync spec 4
   plan, call 4)._ A permanent delete is destructive and rare, so offline it says it couldn't
   reach the account and leaves the dashboard in Recently deleted, rather than holding a pending
@@ -926,6 +1039,43 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   account menu's link to the account page.
 
 ## Map & selection
+
+- **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
+  school, a monitor and a county side by side in one Chart: several places are one
+  `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other
+  kind (with a reason) and schools and "your location" are single-place only. Mixing needs a new
+  shape across map-sdk and the data layer. **Revisit if** users ask, or when Release 3 analysis
+  needs it.
+- **Per-monitor pollutant coverage in the place picker.** _Deferred 2026-11-04 (step 4 spec
+  2)._ Monitors are offered by type (`monitors/meta/` `monitors[<type>].entries`), so a site
+  whose type takes a pollutant but that doesn't measure it (an AirNow site without ozone) can be
+  picked and then shows "No data". **Revisit when** the server exposes per-monitor entry types.
+- **Location type and region filters in the place picker.** _Deferred 2026-11-04 (step 4 spec
+  2)._ One search box covers the brief; `searchLocations`' `type` and `region` options stay
+  unused. **Revisit if** school searches return too many unrelated rows.
+- **Recent places don't follow the account across devices.** _Deferred 2026-11-04 (step 4 spec
+  2)._ They're kept per space in this browser's preferences, never sent to the server or saved
+  in documents. **Revisit if** people ask for them on another device.
+
+- **Per-type counts in Browse's "Inside" list.** _Deferred 2026-11-04 (step 4 spec 2)._ The
+  list of child types under a region ("Inside Tulare County") shows names only; counts would
+  need one `regionsIn` fetch per child type. **Revisit when** people need the counts, or the
+  server adds counts within a parent.
+
+- **A picked region whose type has no metadata label is dropped on Done.** _Deferred
+  2026-11-05 (step 4 spec 2, final review)._ The picker names a picked region with its type's
+  label from `regions/meta/`; a region whose type has none resolves as gone, so it isn't picked
+  again and Done saves the widget without it. Why: every region type the server serves has a
+  label today, and a gone place is already handled (see `ARCHITECTURE.md`). **Revisit if** the
+  server adds a region type without a label, or a saved region vanishes after "Change place".
+
+- **Browse's list state and paging semantics.** _Deferred 2026-11-05 (step 4 spec 2, final
+  review)._ Back returns to a list with its filter cleared and only the first page shown; the
+  paged grid (50 rows drawn of, say, ~1,160 ZIP codes) has no `aria-rowcount` or
+  `aria-setsize`, so a screen reader hears the rows drawn, not the total (the count is
+  announced once in the status); and Browse's "Loading…" isn't announced (the count is, when
+  the list settles). Why: minor next to the rest of the picker; each is a small change. **Revisit
+  on** a screen-reader or usability report about Browse, or with the accessibility audit.
 
 - **Map views and shapes across the antimeridian.** _Deferred 2026-11-08 (map-sdk in-view
   shapes fix, `docs/superpowers/specs/2026-11-08-in-view-shapes-design.md`)._ map-sdk's
@@ -994,6 +1144,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   data. A place without data shows a "no data for this range" state once chosen.
   **Revisit when** users struggle to find places with data; it would need a bulk coverage
   mode, probably backed by a precomputed table on the server.
+- **Region display names: ZIPs and tracts show bare codes ("93702"), and a city, urban area and
+  CDP can share a name ("Arvin").** _Deferred 2026-11-05 (step 4 spec 2, the user)._ The server
+  names these regions bare, so the picker, chips and titles show "93702"; the user wants "ZIP
+  93702" built from metadata, not hardcoded. **Revisit when** sjvair.com adds a display name or
+  a per-type name template to `regions/meta/`.
 - **Drawn-shape map selection (box/lasso/radius).** _Sequenced later 2026-09-23 (IDEA.md
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
@@ -1050,6 +1205,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   row). That was a deliberate call, but no test pins it. **Revisit when** someone next touches
   `camp/api/v2/hms/` (add the test to `DateRangeTestsMixin`).
 
+- **Places in one forecast zone share no request.** _Deferred 2026-11-05 (step 4 spec 3, Task
+  5)._ The forecasts overlay asks once per place per month, even when several places map to
+  the same zone (the spec's "one request per distinct source"): the zone is only known from the
+  answer. A 10-place Data table makes up to 10 small requests a month. **Revisit if** request
+  counts matter, or the server returns the zone up front (then group places by zone first).
+
 - **`calenviroscreen/meta/`.** _Deferred 2026-11-04 (step 3 spec 4, the coordinator and the
   user)._ The sdk-js CalEnviroScreen wrapper takes the version (`4.0`/`5.0`) as a required
   argument and returns raw indicator fields, because no metadata describes them: the catalog's
@@ -1070,12 +1231,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `defaultCollectionId` stays an optional field. **Revisit with** the Release 3 step 1 spec
   (Collections and the analysis engine), or sooner if people ask to gather data across
   dashboards before then.
-- **"Download data (CSV)" on every data widget.** _Suggested 2026-10-25 (Foundations spec 4
-  planning), not yet decided._ With Collections in Release 3, the only planned Release 1
-  download is the Data table widget's CSV export. A per-widget download action would cover
-  "get this widget's data out" on every data widget, using the spec 2 data layer.
-  **Decide in** the Release 1 step 4 spec (Widget Creation and the first widget set).
-
 - **Outside health data (HCAI ED visits, CDC PLACES, etc.) and the "smoke → ER visits"
   lag analysis.** _Deferred 2026-09-23 (IDEA.md Q6)._ The server holds no ER,
   hospitalization, or incidence data, so health analysis is limited to CalEnviroScreen's
@@ -1205,17 +1360,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   PurpleAir) and reports which one it used; `QueryDescriptor` has no processor field. An
   optional field can be added later without a document migration. **Revisit when**
   researchers ask for uncalibrated or alternative-calibration data.
-- **Refetch keeps the resolution chosen at creation.** _Deferred 2026-10-22 (Foundations spec
-  2)._ A query entry picks its resolution from the range span once, when it is created; a
-  to-date range (e.g. "this month") can grow across a ladder boundary over time without the
-  entry switching. **Revisit when** widgets show to-date ranges (Release 1 step 4).
 - **The query client has no `dispose()`, and its poller is never stopped.** _Deferred
   2026-10-22 (Foundations spec 2)._ `getQueryClient()` returns one app-wide client, so nothing
   needed teardown. **Revisit when** HMR or tests recreate clients, or anything creates more
   than one.
-- **`LiveQuery` has no idle state for a null input.** _Deferred 2026-10-22 (Foundations spec
-  2)._ A widget with nothing to show yet (no place picked) has to avoid constructing the query
-  rather than pass `null`. **Revisit when** building widgets (Release 1 step 4).
 - **`adapter.target` takes no `AbortSignal`.** _Deferred 2026-10-22 (Foundations spec 2 final
   review)._ Resolving a layer's target can't be cancelled when its subscriber moves on; today
   it makes no network calls (the web region resolver answers at once), so nothing is wasted.
@@ -1226,33 +1374,57 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   input that resolves to the same cache key (e.g. a selection's ids reordered) shows
   `loading` for a moment and, if it was the entry's only subscriber with a fetch in flight,
   aborts and restarts that fetch. **Revisit when** widgets edit selections in place (Release
-  1 step 4) and the flash or the extra fetch shows.
+  1 step 4) and the flash or the extra fetch shows. The same detach shows when a poll finds the
+  range has grown across a resolution boundary (_noted 2026-11-04, step 4 spec 1 final
+  review_): the subscribers move to the new resolution's entry and the widget shows loading
+  once, without the old data, until it arrives. **Revisit** both together: keep the old data
+  showing while the new entry loads.
 - **A new subscriber refetches an errored entry at once.** _Deferred 2026-10-22 (Foundations
   spec 2 final review)._ Attaching to a cache entry whose last fetch failed refetches
   immediately, skipping the poller's backoff, so widgets opening one after another against a
   failing server each send a request. **Revisit if** that shows up as load during an outage;
   the fix is to respect the entry's backoff when attaching.
-- **The idle cache cap counts entries, not bytes.** _Deferred 2026-10-22 (Foundations spec 2
-  final review)._ Up to 200 idle entries stay cached whatever their size, so large raw
-  selections could hold a lot of memory. **Revisit with** step 4's large selections: cap by
-  approximate size (points held) instead.
 - **Midnight race on rolling keys.** _Deferred 2026-10-22 (Foundations spec 2 final review)._
   A subscriber that attaches across midnight to a rolling entry ("last 7 days") whose fetch
   started before midnight gets the older dates until the next poll. **Revisit if** a widget
   shows yesterday's window after midnight for longer than a poll; the fix is to compare the
   in-flight request's dates when attaching.
-- **A monitor missing from the monitors list gets the uncalibrated series silently.**
-  _Deferred 2026-10-22 (Foundations spec 2 final review)._ Without its type the adapter
-  can't name the published processor, so the request names none and the server returns the
-  type's default stage. **Revisit when** step 3's metadata work lands: report the query as
-  `unavailable`, or refresh the monitors list and try again.
-- **The rollup-lag backfill is one level deep and fetched on every poll.** _Deferred
-  2026-10-22 (Foundations spec 2 final review)._ The last completed period is backed up from
-  the next finer level only, so a day backfilled from hourly summaries just after midnight
-  lacks its final hour until that hour's rollup runs (about 00:45), yet reads as complete;
-  and the backfill is fetched with every poll even once the coarse rollup exists. **Revisit
-  when** widgets show daily data live (Release 1 step 4): backfill the backfill's own last
-  period from the next level down, and skip the backfill once the coarse value has arrived.
+- **A point's or school's fallback isn't shared with plain region widgets, and re-runs each
+  poll.** _Deferred 2026-11-04 (step 4 spec 2, Task 7 review)._ A fallback query (ZIP → city →
+  county) is its own cache entry, so a ZIP widget and a point widget using that ZIP fetch it
+  separately, and each poll walks the chain again from the ZIP (a point with data only at the
+  county makes 3 requests per poll). Why: correct, and the HTTP cache absorbs most repeats.
+  **Revisit if** point or school widgets show up as load, or the polls are slow: share the
+  per-region entries, or remember the region used until the range changes.
+- **The monitors list is fetched once per session.** _Deferred 2026-11-04 (step 4 spec 2, Task
+  9 review)._ It's memoized, so a monitor added to the server after the page loaded isn't in it:
+  a widget saved with it elsewhere reads "no longer available" here, and the picker doesn't
+  offer it, until a reload. Why: new monitors are rare, and a reload fixes it. **Revisit if**
+  it's reported, or a long-lived page (Tauri, a kiosk) needs it: refresh the list on a miss, or
+  on a timer.
+- **A failure fetching monitor names fails the whole data query.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ Monitor places are named from the monitors list; if that fetch fails,
+  the query fails with it, though the readings themselves came back. Why: the list is memoized
+  and shared with the processor lookup, so it rarely fails alone. **Revisit if** it's seen: fall
+  back to the monitor ids as names and let the next poll fill them in.
+- **Yearly requests' `fetchEnd` is the segment end.** _Deferred 2026-11-04 (step 4 spec 1 final
+  review)._ Yearly summaries come in one call whose end date is the segment's end, not a whole
+  year's, so the same fixed past range can produce different request URLs depending on where its
+  segment ends, and those URLs don't cache as stable ones. Why: correctness is fine, only
+  caching suffers, and yearly views are rare. **Revisit when** HTTP caching of past summaries
+  matters (the server or a CDN caches them): round the end up to the year.
+- **The seasonal `{year}` path for a winter season is unverified.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ Single-monitor seasonal summaries are fetched by year from the unit's
+  first month (`pathConfig` in `src/lib/data/adapters/air-quality-fetch.ts`), so the season
+  starting December 2025 goes to the 2025 path, while the dashboard's own season rules put that
+  season in 2026 (`seasonStartMonth` in `src/lib/format/range.ts`). Not checked against the
+  server. **Revisit when** a seasonal view is first tested against sjvair.com (check which year
+  the server files December under, and fix the path or the rule).
+- **Whole-layer backfill gaps.** _Deferred 2026-11-04 (step 4 spec 1 final review)._ For a
+  whole-layer (every monitor) query, the backfill that fills recent periods drops a monitor that
+  appears only in the backfill response, and a place with no data in the window costs a backfill
+  request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
+  when** the map widget uses whole-layer queries (Release 1 step 5).
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -1308,6 +1480,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   monitors were out of that work's scope. **Revisit when** monitor values or list formatting
   are next touched, or a user reports a number that disagrees with its level: turn on
   `truncateValues` for monitors (rows would then read "9.0").
+- **A heatmap layer over the map, of daily values.** _Deferred 2026-11-09 (step 4 spec 5
+  brainstorm; the user's idea)._ What the user means by "heatmap": a map layer shading the area
+  by each day's values, the way GitHub shades a day by its commits, not an hour × weekday grid
+  (that widget was dropped; see "Dropped"). It belongs to the Map widget and map-sdk (step 5),
+  not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
+  values where nothing was measured; the day it shows; and which daily figure (spec 5's
+  per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
+  (step 4 → step 5/6), or map-sdk takes on a new layer type.
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1427,18 +1607,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   probably counts a multi-ingredient record's acres once per ingredient (not yet proven
   with data). Research and widget ideas: `docs/reference/pesticides-explorer-research.md`.
   **Revisit when** step 3's spec 1 is done, or pesticide widgets are planned.
-- **Weak tests in the widget registry and `applyChange`.** _Deferred 2026-10-20 (Foundations
-  spec 1 review)._ Widget-type registration and lookup are untested, and the tests for
-  `applyChange`'s index clamping and for never mutating its input are weak. Both are
-  exercised indirectly by other tests. **Revisit when** a second widget type registers
-  (Release 1 step 4), or `applyChange` gains an operation.
 - **Widget state across the starter's first edit in fullscreen.** _Deferred 2026-10-29 (spec
   2b)._ An edit made while a starter widget is fullscreen hands off to the copy and keeps
   `?widget`, but the page moves from Home to the copy's dashboard page, so the grid and the
   fullscreen widget are mounted again once (a widget's own state, such as zoom, resets). Why:
   keeping the grid mounted across Home → the dashboard page needs a router restructure.
   **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
-  lost on the starter's first edit.
+  lost on the starter's first edit. _Looked at in step 4 spec 6, 2026-11-10: this may now apply.
+  The real starter has a chart (with zoom) and a month calendar (with a selection), so an edit
+  made in fullscreen resets them once. Not measured or reported; revisit if anyone notices._
 - **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
   2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
   between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
@@ -1467,16 +1644,134 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   another tab drops focus to the page, as before. Why: the hand-off has no widget left to
   target, and choosing a neighbour is a separate design question. **Revisit when** cross-tab
   editing gets its keyboard and screen-reader pass, or it's reported.
+- **Zoom and pan on charts.** _Deferred 2026-11-04 (step 4 spec 1, the user)._ Changing the
+  date range covers looking closer, and zoom needs its own keyboard design. **Revisit when**
+  people ask to zoom, or with the Analysis view (Release 3).
+- **The worst hour beyond 3 months, or with several places.** _Deferred 2026-11-04 (step 4
+  spec 1)._ Daily views show each day's worst hourly average only up to 92 days and for a single
+  place (chart, Data table, and CSV): longer or multi-place views would fetch up to 8,760 hourly
+  points per place, and overlapping sticks are unreadable. **Revisit if** people ask for it, or
+  if sjvair.com adds a daily worst-hourly-average to its summaries (the better fix; tell the
+  coordinator).
+- **"Stopped reporting" for monitors.** _Deferred 2026-11-04 (step 4 spec 1, builder check)._
+  Retired regions get the "stopped reporting" note and "Switch to the replacement", but there's
+  no server lookup telling a retired monitor from one that never existed. **Revisit when**
+  sjvair.com adds that lookup.
+- **Generated widget titles are never cleared.** _Deferred 2026-11-04 (step 4 spec 1 final
+  review)._ The map of generated titles (`src/lib/widgets/titles.svelte.ts`) only gains
+  entries: an undone delete can briefly show the old generated title until the widget's data is
+  ready again, and the map grows by one entry per data widget opened in a session. Why: each
+  entry is a short string, and a stale one is replaced as soon as data arrives. **Revisit if** a
+  stale title is noticed, or long sessions open many widgets (clear an entry when its widget
+  unmounts or is deleted).
+- **A widget whose code fails to load has no Retry button.** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ When a widget type's lazily loaded file can't load (offline, a deploy
+  replaced it), the widget shows the failure without a Retry; remounting it (minimize and
+  restore, switch dashboards) or reloading the page tries again. Why: rare, and a reload is the
+  usual fix after a deploy. **Revisit if** it's reported, or with the offline work.
 - **A free "last N days" entry for trailing ranges.** _Deferred 2026-10-13._ The Rolling
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
   length the presets lack.
-- **Linking widgets**: _deferred 2026-09-28._ (The built-in starter's "Change place" bar
-  is a narrow, starter-only exception; design the two together.) First step: a **dashboard-wide place and date
+- **Linking widgets**: _deferred 2026-09-28._ (The "Change place" bar on the starter and its
+  copies is the narrow form, and "replace place A with place B across a dashboard"
+  (`src/lib/places/replace.ts`, built in step 4 spec 6, 2026-11-10) is the mechanism it uses.
+  A dashboard-wide place should build on both; design the two together.) First step: a **dashboard-wide place and date
   range** that widgets can choose to follow ("change the county once, everything
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
   Creation, and undo. **Revisit when** pilot or private-preview users ask for it.
+- **A "Change place" bar for dashboards not made from the starter.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 8)._ "Duplicate for another place" works on any dashboard, but a copy of
+  one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
+  copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
+  widgets" above. **Revisit with** "Linking widgets".
+- **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
+  built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
+  toast says so after the click (it is hidden on the open dashboard). **Revisit if** people find
+  it confusing; the fix is a replaceable-place flag on `DashboardSummary`.
+- **The Map joins the starter in step 6.** _Deferred 2026-11-10 (step 4 spec 6)._ It goes in as
+  a full-width row under the "now" row, pushing the chart and calendar down; the hour × weekday
+  heatmap's old slot stays empty until then (the year calendar does not take it). **Revisit
+  when** step 6 adds the Map widget.
+- **More Note formatting.** _Deferred 2026-11-10 (step 4 spec 6)._ Notes allow paragraphs, one
+  heading level, bold, italic, bulleted and numbered lists and links. Images, tables, code,
+  quotes and more heading levels show as plain text; images would also need CSP and privacy work
+  (remote loads from a shared page). **Revisit when** people ask.
+- **Nested lists in Notes flatten to text.** _Deferred 2026-11-10 (step 4 spec 6, Task 1
+  review)._ The viewer draws one list level; a nested list shows its inner lines as plain text.
+  **Revisit if** people ask for nested lists.
+- **Lexical is pre-1.0.** _Deferred 2026-11-10 (step 4 spec 6)._ The Notes editor uses Lexical
+  0.53.0, pinned exactly (with every `@lexical/*` package), so a minor release can't break
+  it unseen. **Revisit at** Lexical 1.0 or on any upgrade (re-run the editor round-trip tests).
+- **A content fit applied during an effect flush remounts widgets.** _Deferred 2026-11-10
+  (step 4 spec 6, phone Note fit)._ A Note reports its text's height through `FitContent`, and
+  the frame applies it to the grid in a microtask. Applied during an effect flush instead, the
+  state write re-runs every frame's `{#await loadWidget(type)}` block, remounting the widgets
+  (and looping, for a widget that measures on mount). The microtask and the `FitContent` doc
+  comment guard against it, but the frame's load block is still fragile. **Revisit when**
+  another widget type adopts `FitContent`, or the frame's load block changes (e.g. hold the
+  loaded module in state instead of an `{#await}`).
+- **"Shorter" on a phone Note grown to fit its text changes nothing you can see.** _Ruled
+  acceptable 2026-11-10 (step 4 spec 6 follow-ups)._ Shift+Up, Size ▸ Shorter or the handle
+  dragged up shrink the Note's own height (growing starts from the rows shown), but its text still
+  needs the rows it shows, so the Note looks the same and the announcement repeats its height.
+  The drop still writes the smaller height: an undo step, and a shorter Note on a desktop.
+  Starting from the rows shown instead would raise the desktop height on "Shorter". **Revisit if**
+  people find it confusing.
+- **A Note fitted on a phone can leave a gap under its text.** _Deferred 2026-11-10 (step 4
+  spec 6, phone Note fit)._ It grows in whole rows (4 rem plus a gap), so up to about 75 px can
+  stay blank under the text. **Revisit if** it looks odd (e.g. finer rows on phones).
+- **Crossing the phone breakpoint mid-arrangement can slide widgets on a dashboard with a
+  Note.** _Deferred 2026-11-10 (step 4 spec 6, phone Note fit, CI fix)._ The grid watches the
+  phone query while some Note has phone rows, which is most real dashboards, the starter
+  included (its welcome Note). Then crossing the breakpoint in either direction re-renders the
+  grid, which uses up the FLIP's breakpoint jump, so the drop or cancel that follows slides
+  every widget instead of jumping. It happens only when the breakpoint is crossed while a
+  widget is being arranged (e.g. rotating a phone or resizing the window mid-drag); dashboards
+  without a fitted Note are unchanged. A sticky jump (kept until a play that moves something)
+  was tried, but a spurious column change at startup then made the first real move jump.
+  **Revisit if** someone sees it, or the FLIP's breakpoint handling changes (e.g. tie the jump
+  to the arrangement that spans the breakpoint).
+- **Step 4 spec 6 review leftovers.** _Deferred 2026-11-10 (step 4 spec 6, per-task and final
+  reviews)._ Small things the reviews let stay; the first ones a person could meet:
+  - **A task list shows its box and label on separate lines.** `- [ ] c` reads as the text
+    "[ ]", a line break, then "c", with no checkbox. Only in a document the editor didn't save
+    (the editor writes a typed `[ ]` as `\[ \]`, which is text). **Revisit if** people write
+    checklists in Notes.
+  - **Link reference definitions show as their source.** `[r]: https://…` stays visible text
+    (its `[x][r]` link works when the address is allowed). Showing it is the safe choice.
+    **Revisit if** people paste Markdown with reference links.
+  - **`safeHref` accepts `https://user:pass@host`.** The link text is the author's anyway, so a
+    hostile link can already say anything; the userinfo adds no new power. **Revisit if** links
+    get a visible-host cue.
+  - **The character counter counts Markdown,** so `**`, `## `, each link's whole address and
+    the backslashes that keep typed `[`, `_`, `*`, `\` and the like as text count but don't
+    show; "too long" says "Formatting and link addresses count too". **Revisit if** people find
+    the count confusing (count visible text instead).
+  - **A typed email address with `_` after the `@` doesn't link** (the editor escapes the `_`,
+    which ends the address there); it shows as typed, as text. Hostnames can't hold `_`, so no
+    real address is affected. **Revisit if** one turns up.
+  - **Change place on the starter drops the pick if the hand-off fails.** The session already
+    shows its save error and the edits stay queued. **Revisit on** a report.
+  - **A thrown hand-off on Share gives two failure signals** (the save status and a toast). Only
+    on a storage failure. **Revisit if** it happens outside storage failures.
+  - **Double-clicking Share opens the dialog twice** (one copy is made). Harmless. **Revisit
+    with** the next Share dialog change.
+  - **"Duplicate for another place…" edge cases:** a pick that resolves to `default-place` closes
+    silently (unreachable: the picker never offers it), and picking the same place makes a plain
+    copy with no feedback (still a correct copy). **Revisit if** someone is confused by either.
+  - **The welcome Note's bold "Change place" must match the bar's button** (`place_bar_change`)
+    in every translation, and Paraglide's message files have no comment field to say so. **Revisit
+    when** translation starts (put it in the translator hand-off, with `app_name_product`).
+  - **Test gaps:** `notes-excluded.test.ts` has no positive control, and `NoteWidget`'s imports
+    aren't in the usual order; the `setWidgetData` case in the `replaceChange` tests is muddled;
+    axe on "Which place?" runs only in the default scheme and viewport (the spec asks light and
+    dark only for the starter, a Note and its editor); a duplicate `toHaveText` in the starter
+    e2e; the starter chart layer's days aren't asserted; no browser test for
+    `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
+    next change to each.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
@@ -1491,9 +1786,285 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Pesticide notices**: upcoming/recent SprayDays applications near a place (list or
     timeline).
   - **Monitor health**: QA/QC scores and sensor agreement (research).
+- **Chart axis numbers aren't tabular figures.** _Deferred 2026-11-04 (step 4 spec 1, Task 11)._
+  uPlot draws its axes on a canvas, and canvas text can't turn on font features, so Inter's
+  tabular figures (`tnum`) aren't used there; value-axis labels are right-aligned, so they still
+  line up at the right. The readout, keys, and table are HTML and use `tabular-nums`. **Revisit
+  if** the axes look uneven in testing (then draw the axis labels as HTML, or bundle a font face
+  with tabular digits as the default).
+- **A fifth place's partial dot isn't hollow.** _Deferred 2026-11-04 (step 4 spec 1, Task 11)._
+  The fifth series' marker is a cross, which has no fill to leave out, so its partial (today so
+  far) point looks like any other; the readout still says it's incomplete. **Revisit if** five-
+  place charts are common, or when the series markers are reviewed.
+
+- **Air monitors' temperature and humidity as Get data overlays.** _Deferred 2026-11-05 (step 4
+  spec 3)._ They stay unsummarized on the server (raw readings only), so the weather summaries
+  work (CIMIS stations only) doesn't bring them. **Revisit if** the server summarizes them, or a
+  raw-only overlay is wanted.
+- **Fires near a place or per day, TEMPO, and emissions series in Get data.** _Deferred
+  2026-11-05 (step 4 spec 3)._ None has a per-place time series today: TEMPO isn't in the SDK,
+  and emissions are yearly snapshots. **Revisit when** a widget needs one of them, or the Map
+  widget (fires) is built.
+- **An overlay on its own.** _Deferred 2026-11-05 (step 4 spec 3); updated 2026-11-07 (step 4
+  spec 3b)._ Number layers (a temperature-only chart, pesticide use alone) are done in spec 3b.
+  Level layers alone (smoke days, no-burn days) still can't make a widget or a CSV: the reason
+  shows. Spec 5's calendars kept to pollutants, so this waits on "Other data in the calendars"
+  (under Widgets). **Revisit with** that item.
+- **Wind direction in Get data.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
+  compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
+  summarizes it (a prevailing direction), or someone asks for a wind rose.
+- **"Every measurement" for weather.** _Deferred 2026-11-07 (step 4 spec 3b)._ Weather offers
+  no raw level: "Show values" lists Hourly and coarser, and the raw CIMIS readings (with their
+  dew point and soil temperature `*_f`/`*_c` fields) aren't offered. CIMIS readings are hourly,
+  so Hourly shows the same values, and raw rows carry no `value`. A small narrowing of the spec
+  ("read the °F field when Every measurement is chosen"). **Revisit if** someone asks for the
+  raw CIMIS readings, or the server adds `value` to them.
+- **Pesticide breakdowns** ("top chemicals, products or crops here", by method, biggest
+  movers). _Deferred 2026-11-07 (step 4 spec 3b)._ Needs a ranked-list widget and a server
+  breakdown endpoint. **Revisit when** a later step adds ranked-list widgets, or users ask.
+- **The school "within about a mile" pesticide block, and buffer or radius.** _Deferred
+  2026-11-07 (step 4 spec 3b)._ Server-side deferrals (the coordinator records them). The
+  dashboard side (a school uses its ZIP, then city, then county) **revisits when** the server
+  adds a location place.
+- **A note on when pesticide data is released.** _Deferred 2026-11-07 (step 4 spec 3b)._ A
+  neutral note in the dataset's catalog description (server text), offered and not taken.
+  **Revisit if** people ask why recent months are empty.
+- **Choosing a weather station per place or per layer.** _Deferred 2026-11-07 (step 4 spec
+  3b)._ One station per Weather section, and the choice shows only for one place (rain from two
+  stations, or a station for each of several places, can't be asked for). **Revisit if**
+  researchers ask to compare stations.
+- **One chart row per place (small multiples) for overlays.** _Deferred 2026-11-05 (step 4 spec
+  3)._ When a Chart's places fall in different forecast zones, the Chart's "Overlay for" choice
+  picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
+  when** users ask to compare overlays across places, or with spec 5's chart work.
+- **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
+  "More options" → Detail greys out levels using guessed limits: places × periods over 50 000
+  blocked, and 720 raw readings a day per place. No level has a range cap of its own: the
+  server's 31-day cap is per request, and the adapters ask a month (or 31 raw days) at a time
+  (settled in the final review). **Revisit after** real use, or when the metadata gives reading
+  intervals.
+- **A possible bug in the custom date range picker with the year calendar.** _Noted
+  2026-11-09 (the user, after spec 5)._ The user saw what looks like an error when choosing a
+  custom range of 8/10/24 to 10/09/24 (read as Aug 10 – Oct 9, 2024) while the year calendar
+  (the contribution calendar, `calendar-contribution`) was shown. Not investigated yet: the
+  exact symptom and the cause are unknown. **Revisit when** the user picks it up (they said "we
+  will revisit this later"): reproduce with that range on a year calendar in Get data first.
+- **Get data review leftovers.** _Deferred 2026-11-05 (step 4 spec 3, final review)._ Small
+  things the review let stay, each rare or harmless today:
+  - **A forecasts 404 gives an empty series, not "unavailable"** (Task 5 ruling): `fetch` can't
+    return unavailable per place, so "this place isn't covered" reads the same as "no forecasts
+    yet". **Revisit if** users ask, or the server says which it is.
+  - **One month's 404 drops every month** of that place's forecasts (it assumes a 404 means the
+    region, not the dates). **Revisit if** the server ever 404s for a date range.
+  - **A failed overlay can't be retried on its own:** Retry also refetches the main layer's
+    levels (the shared `#levelsTry`). **Revisit if** overlay failures are reported.
+  - **The overlay legend's highlight matches level keys across overlay lanes.** **Revisit
+    when** two overlays share level keys.
+  - **Overlay rows carry the main place's columns**, not the zone or region the value came from
+    (by design: "a column per place"). **Revisit if** researchers want the source zone's id.
+  - **The draft's debounce timer is module-level, shared across spaces.** **Revisit if** a
+    draft is lost on a space switch.
+  - **A `?type=` override keeps Chart options on a Data table draft** (harmless; Show as does
+    the same by design). **Revisit when** a non-Chart type has options of its own.
+  - **Dashboard size measures the whole view's width,** so a wide `defaultSize` may clip.
+    **Revisit with** spec 5's wider types.
+  - **Rare storage failures when adding:** a failed starter hand-off keeps the add queued (a
+    retry adds two widgets), and `createBlank` followed by a session-open failure leaves an
+    empty dashboard. **Revisit if** reported.
+  - **Edit data edges:** a replayed size clamp overwrites a concurrent move (last wins); Back
+    while dirty flickers the URL, and a second Back while the dialog is open isn't handled; a
+    dataset gone entirely shows no "Choose another" (⋯ Edit data still works); the
+    unknown-widget page links only to "Your dashboards". **Revisit if** reported, or with
+    sv-router's next `blockNavigation` change.
+  - **Two `regions/meta` fetches** (the resolver's and the directory's), and `regionsMeta()`
+    adds a `.catch` per call (harmless). **Revisit if** request counts matter.
+  - **The Add widget list is built twice** (`src/lib/actions/dashboard.ts` and
+    `AddWidgetButton.svelte`). **Revisit when** a third caller appears.
+  - **The Data table shows an AQI forecast's level, not its number** (the CSV has the number in
+    `mean`). Showing "Moderate (72)" needs a wording choice and the value in `TableRow`.
+    **Revisit when** the new strings go to the user with the PR, or someone asks for the number.
+  - **Test gaps and one duplication** (the user kept these 2026-11-06 out of the review's
+    eight nits): no test pins the Add widget menu's order (data types first) or `typeBlock`
+    with no layers; the Chart's "borrowed place" test doesn't prove the overlay asked for the
+    main layer's place, and nothing tests an overlay whose levels fail to load; Edit data
+    repeats `DashboardPage.svelte`'s fetch-a-server-only-dashboard steps and its not-found
+    markup (`src/routes/GetData.svelte`), so the two can drift. **Revisit when** those files
+    are next touched (the duplication first: a shared helper and not-found component).
+- **Get data layers review leftovers.** _Deferred 2026-11-07 (step 4 spec 3b, final review)._
+  Small things the review let stay, each rare or harmless today:
+  - **With the catalog down, `mainLayer` falls back to the first layer with an entry type,**
+    which can be a level layer, so the place picker could write places onto an overlay.
+    **Revisit with** the next place-picker change.
+  - **The weather station fallback from ZIP to city is untested** (when the first region key
+    has no stations). **Revisit at** the next weather adapter change.
+  - **Smoke chunks are fetched with `Promise.all`** (not `runLimited`), and a 404 on one chunk
+    drops that place's whole smoke series. **Revisit if** multi-year smoke ranges become common
+    or users report missing smoke.
+  - **Pesticide filter labels are fetched in the same `Promise.all` as the data,** so a
+    transient meta failure fails the fetch (Retry), and an id removed mid-session can loop on
+    Retry instead of showing "filter gone". **Revisit if** seen.
+  - **The last covered pesticide month is marked complete** even when coverage ends mid-month.
+    **Revisit when** coverage stops being month-aligned.
+  - **Main-chart month bars are centred on the month's start,** while strip bars span
+    `[start, next)`, and a strip's value axis counts points outside the visible range.
+    **Revisit in** the next chart design pass.
+  - **The pesticide empty text is keyed on the dataset id** in `ChartWidget` and `DataTable`.
+    **Revisit when** a second dataset needs its own empty text (then the adapter supplies it).
+  - **The category checkbox at `CATEGORIES_MAX` is disabled without a visible reason**
+    (unreachable today: 6 categories are in use). **Revisit if** the server has more than 10
+    in-use categories.
+  - **Pesticide layer rows are keyed by index:** after Remove, a neighbour's open "Filters"
+    and typed query shift rows. **Revisit if** layers get stable ids, or users report it.
+  - **The filter search shows an empty input when a saved id's name lookup fails** (the layer
+    itself shows "filter gone"). **Revisit with** the next picker change.
+  - **The Data table's note for an unavailable number overlay doesn't name the layer** (it reads
+    "A filter this widget uses is no longer available."), so with two number overlays it's
+    unclear which one it means. The Chart shows it in that layer's own strip. **Revisit with**
+    the next Data table change, or if users report it.
+  - **Missing `layers.ts` unit tests** for removing a middle layer, and for removing the
+    pollutant when the next number layer is a pesticide layer. **Add with** the next
+    `layers.ts` change.
+  - **No smoke e2e coverage:** the `hms` fixtures are there, but the e2e catalog has no
+    `hms-smoke`. **Revisit at** the next smoke change.
+- **Other data in the calendars** (weather, smoke days, pesticide use, forecasts). _Deferred
+  2026-11-09 (step 4 spec 5, the user: "keep it to air quality and defer the rest")._ Each kind
+  needs its own daily figure named in metadata (as `daily_statistic` does for pollutants), and
+  coloring for scales without levels (temperature); a "smoke day" at a point or school needs an
+  area rule; pesticide use is monthly; forecasts must not be confused with measured days. The
+  calendars read their datasets and day figure from the type and metadata, so adding one is
+  registration. Smoke days (HMS, one category per day with levels) are the likely first.
+  **Revisit when** someone asks for a non-pollutant calendar.
+- **The Chart's worst hour could use the server's `max_1h`.** _Deferred 2026-11-09 (step 4 spec
+  5)._ The Chart computes each day's worst hourly average in the browser from hourly summaries
+  (`src/lib/data/worst-hour.ts`, up to 92 days, no completeness rule). The server's daily
+  `max_1h` (SDK 5.0.0-beta.8) could replace it and save the hourly fetch, but it's only published
+  for 1-hour scales and is null on incomplete days, so the Chart's meaning would change. **Revisit
+  when** beta.8 is pinned and the Chart's daily view is next touched.
+- **The Data table's column for the day's figure.** _Deferred 2026-11-09 (step 4 spec 5, builder
+  check)._ The calendars' CSV gets the figure that colors a day and whether it was rated; the
+  Data table still shows the daily mean, which for ozone, NO2, SO2 and CO isn't the colored
+  number. **Revisit when** the Data table is next touched, or a screen-reader user needs the
+  figure in the table.
+- **Several places in one calendar** (a row of calendars per place). _Deferred 2026-11-09 (step
+  4 spec 5)._ One place keeps cells readable, and `maxPlaces: 1` greys the calendars out for a
+  multi-place draft. **Revisit if** people ask to compare places day by day.
+- **Dragging across days by touch.** _Deferred 2026-11-09 (step 4 spec 5, Task 8; Ruling 12)._
+  A swipe over a calendar scrolls the widget (the month calendar stacks months on phones and
+  needs it), so a touch drag doesn't extend the selection. Touch already has a full alternative:
+  tap a day, then tap another to select the days between (the range-picker pattern every pointer
+  uses); a mouse can also drag or Shift-click, and the keyboard uses Shift+arrows. A
+  long-press-then-drag (like the title bar's lift) would add touch dragging without taking the
+  scroll. **Revisit if** phone or tablet users find tap-tap slow for long ranges, or ask to drag.
+- **Calendars review leftovers.** _Deferred 2026-11-09 (step 4 spec 5, per-task reviews and the
+  final review)._ Small things the reviews let stay; the first ones a person could meet:
+  - **The narrowest month calendar scrolls.** At 3 columns and the default height the legend wraps
+    to four lines, so the last week sits below the fold (the default 4 columns fits). **Revisit
+    if** people use the month calendar that narrow, or with the next legend change.
+  - **A saved selection the range has moved past stays saved.** "This month" on the 1st no longer
+    shows last month's days (and no longer offers "Open these days in a chart"), but the stored
+    `timeSubRange` stays until the next selection replaces it, and Escape can't clear what isn't
+    shown. Harmless, but a shared copy carries it. **Revisit if** it confuses anyone, or with the
+    next selection change (clear it on the next pick, or when the range moves).
+  - **The tooltip holds while the pointer is on it** (WCAG 1.4.13, final review M8). It lets clicks
+    through, but moving the pointer across it (say up a column) keeps the first day's tip until
+    the pointer leaves the tip's box. **Revisit if** that feels sticky in the year calendar.
+  - **Leaving the grid with the pointer clears a tooltip the focused day was showing.** Moving
+    focus brings it back. **Revisit with** the next tooltip change.
+  - **The year calendar scrolls back to the latest week at midnight** (its range moves). **Revisit
+    if** someone scrolled back loses their place.
+  - **The live region can announce a selection again when its values refresh,** at most hourly
+    (the summary poll) and only while the selection includes today. **Revisit if** screen-reader
+    users find it noisy.
+  - **Small month cells drop the words for days that aren't rated** (Not rated, No data so far):
+    the number shows, and the name and tooltip carry the state. **Revisit if** people miss it.
+  - **Selected days are named ", selected" with no `aria-selected`** (chosen in Task 8 so the state
+    reads with the rest of the name; not yet tried with screen readers). **Revisit at** the manual
+    screen-reader pass.
+  - **The year calendar's patterns are drawn in full ink** (the user's visual review is pending).
+    **Revisit with** that review.
+  - **Switching a calendar whose range is exactly "Last 30 days"** (the app default) to the other
+    calendar gives it the new type's default range, as an untouched range would (Ruling 9's
+    `wasDefault`). **Revisit if** someone loses a chosen 30-day range that way.
+  - **Get data keeps one note slot:** a range note replaces an earlier conversion note.
+    **Revisit if** both are needed at once.
+  - **`moveFocus` assumes the selectable days run first ≤ last.** Today a range with no selectable
+    day (all still to come) sets `selectable: null`, so the grid never calls it then. **Revisit
+    if** `selectable` is ever built another way, or with the next keyboard-navigation change (add
+    the guard and a test).
+  - **Code tidying:** the hardcoded ring widths in the selection shadow (token discipline, low
+    risk), the year calendar's `pt-5.5` label offset, the `$derived.by` comment in
+    `calendar-data.svelte.ts` stating a cause as fact, the `hidden: 0` that wants a comment, the
+    `export *` at the bottom of `format/index.ts`, `final` copying `is_final` without a boolean
+    check (the SDK types it), `dailyFigure` in the query key at non-day resolutions (a harmless
+    extra key), and open-day loaders built for non-figure requests (cheap closures). **Revisit
+    with** the next change to each file.
+  - **Test gaps:** `daysInclusive` across spring-forward and with start after end, an all-null
+    column, six-row months; `ratedForCount`'s positive cases, pending and today days in a summary
+    fixture, the `unrated` doc comment, duplicate same-date points (the later wins); a selection
+    after a range change; Home/End/Page Up/Page Down, drag and Shift-click in the year calendar's
+    weeks layout; the cross-widget patterns on-again check and the misnamed "a fresh space starts
+    with patterns on" test; races and midnight rollover in the calendar data; real (not synthetic)
+    drags, including a release outside the grid; Escape's `stopPropagation`; the Get data keyboard
+    Show-as test (loose), its weather case using census, and the span reason; the adapter's bulk
+    all-places path, figure at non-day resolutions, with `worstHour`, and the client carrying
+    `dailyFigure`; an open-days call failing the whole query (deliberate: no partial data), a
+    monitor with no published processor, the bulk memo across units, and a yesterday-only open
+    row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the next
+    change to each.
+
+- **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
+  brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide
+  the ones a school does not have was offered and left out. **Revisit if** schools ask to hide
+  activities.
+- **Now widgets review leftovers.** _Deferred 2026-11-08 (step 4 spec 4, per-task reviews)._
+  Small things the reviews let stay; the first ones a person could meet:
+  - **A failed `setNotifyEnabled` write is not handled:** the Notifications switch should revert
+    and say so. **Revisit if** storage write failures are reported.
+  - **The now client reports a throwing listener with `console.error`,** not
+    `platform().errors` as the project rule says; its subscribe-time and `changed()` listener
+    calls are unguarded. **Revisit with** the next now client change.
+  - **A failed watcher chunk load retries only on the next dashboard or watched-set change.**
+    **Revisit if** seen on flaky connections.
+  - **A fell-back default alert level cannot be confirmed in the form** (a stored bad key
+    persists until the person picks a level). **Revisit with** the next thresholds form change.
+  - **The Forecast strip's Where list is filtered to PM2.5 monitors** (coverage unconfirmed), and
+    a names-only Data widget runs a 30-day query. **Revisit** when coverage is checked, or if
+    seen.
+  - **Air Alert dates are evaluated at fetch time,** so the banner can be stale across midnight
+    until the next hourly poll; a heat score with an unknown level reads "No heat score today".
+    **Revisit if** seen.
+  - **The Chart threshold label on the canvas is not accessible text** (the key item under the
+    chart is). **Revisit with** the chart accessibility pass.
+  - **Unit-test gaps:** re-arm through the watcher and after firing, `decide` with a threshold
+    missing from the scale, the alert banner's timestamp bounds, a retired-school tile, and
+    `convertToNow` edit-during-load. **Add with** the next change to each.
+  - **A live stack check of a PurpleAir tile at `ok` ("60-minute average") did not run;**
+    browser tests and `e2e/current.spec.ts` cover it. PurpleAir's alert series is PM2.5
+    `PM25_UnivariateLinearRegression`, and the local stack has no trained calibrations (no rows
+    with that processor, and no calibration rows). So every local PurpleAir alert row reads
+    `no_data`, even though raw and `PM25_EPA_Oct2021` data are current. **Revisit** when the
+    local stack has a trained linear calibration, at the first check against production after
+    the develop deploy, or before step 4 merges into `main`.
+  - **While a tile has fallen back from the alert value to hourly averages** (the alert request
+    failed or timed out), a crossing can be told up to about an hour late: the watcher skips
+    hourly readings older than the last alert evaluation. The tile's mark stays right meanwhile,
+    and nothing is told twice. **Revisit if** alert-request failures turn out to be common.
 
 ## Alerts
 
+- **Thresholds on the Forecast strip** (tomorrow's category or a no-burn day). _(step 4 spec 4, 2026-11-08)_ Left out
+  of spec 4 so the strip stays plain display; Release 2's server forecast rules cover it with
+  the dashboard closed. **Revisit with** Release 2's rule UI, or if people ask for an
+  in-dashboard heads-up.
+- **Toasts or notifications from Chart threshold lines.** _(step 4 spec 4, 2026-11-08)_ Charts only display the line,
+  to avoid noise from widgets people are not watching. **Revisit if** people ask to be told
+  from a Chart.
+- **A client-side daily "still bad" reminder.** _(step 4 spec 4, 2026-11-08)_ The server's 10 AM reminder is for
+  texts; the dashboard tells you once per rise. **Revisit if** people keep a dashboard open all
+  day and ask for one.
+- **A sub-hourly value for regions.** _(step 4 spec 4, 2026-11-08)_ Regions show hourly averages in Current
+  conditions, and Release 2's region alerts use the same. **Revisit if** people find region
+  tiles too slow to react.
 - **Additional automated-alert sources and targets.** _Deferred 2026-09-24 (alerting
   design)._ First server iteration covers pollutants (monitor/region targets),
   forecasts, and nearby pesticide notices. Deferred: **HMS smoke** over an area
@@ -1629,6 +2200,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   focus to Sign in; and the sign-out lock is exclusive, so a second tab signing out at the
   same moment waits its turn. **Revisit if** people report a tab stuck in the wrong account,
   a confusing failed sign-out, or lost focus after the dialog.
+- **A sign-out dialog that fails to load says only "reload".** _Deferred 2026-11-04 (step 4
+  spec 1 final review)._ The sign-out dialog now loads on demand; if its file can't load, the
+  sign-out is cancelled and only the generic reload bar shows, with nothing saying the sign-out
+  didn't happen. Why: rare (offline or a deploy replacing the file), and the person is still
+  signed in, so nothing is lost. **Revisit if** it's reported, or with the offline work (add a
+  message that sign-out didn't happen).
 - **Returning to the dashboard after sign-up and verification.** _Deferred 2026-10-27
   (Foundations spec 5b)._ A new account still goes sign-up, the "enter your code" page, then
   the profile page. During the preview `/workspace/` is behind `beta_tools`, so only people who
@@ -1695,6 +2272,28 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
   registry and the widget "⋯" menus have shipped.
+- **Asking before closing the tab or reloading with unsaved Edit data changes** (a browser
+  `beforeunload` prompt). _Deferred 2026-11-05 (step 4 spec 3, Edit data; ruled out of scope
+  for the task)._ Cancel, Back, forward and in-app links ask "Discard changes?"; closing the
+  tab or reloading drops the unsaved edit without asking (the dashboard itself is untouched,
+  since nothing is applied before Save changes). sv-router's `blockNavigation` already takes a
+  `beforeUnload` callback. **Revisit when** people report losing Edit data work to a closed tab
+  or reload, or when Edit data grows long-running edits.
+- **Rare read-only dashboards in Get data's "Add to" menu.** _Deferred 2026-11-05 (step 4 spec
+  3, Task 10)._ A dashboard saved by a newer build, or one that couldn't keep its original, opens
+  read-only, but the dashboard index carries no read-only flag, so Get data's target menu still
+  lists it and adding fails with an error toast. Shared dashboards are never offered. **Revisit
+  if** it's reported (then put a read-only flag on the index).
+- **A toast that appears under a still pointer can stay up forever in Firefox** (svelte-sonner
+  1.2.1–1.2.3). _Deferred 2026-11-10 (the Firefox e2e failure on PR #50)._ Firefox fires
+  `mouseenter` when a toast appears under the pointer, then `mouseleave` 1px away as the toast
+  settles; svelte-sonner's Firefox workaround ignores a leave within 1px of the last position,
+  so the toaster stays "expanded" (paused) until the pointer enters and leaves it again. Seen
+  after "Add to …" (the "Saved as your own dashboard" toast lands where the pointer was). Why
+  deferred: it's in the library, and since toasts now sit above Get data's action bar
+  (`toastClearance`) the stuck toast covers nothing the person is using; moving the mouse over
+  it and off dismisses it. **Revisit when** svelte-sonner changes that check (report it
+  upstream), or if people report toasts that don't go away.
 - **Visual and brand design system.** _Deferred 2026-09-14; **scheduled 2026-09-28** as its
   own sub-project before Release 1 step 4 (Foundations builds the theme-token layer it
   plugs into)._ It stays listed here until it ships.
@@ -1802,6 +2401,35 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   tolerances; the perf check's throttle reset not in `finally` and idle frames in its sample;
   engine calls with unknown ids; and `items.test` not unregistering its test widget type.
   **Revisit when** touching each area, or if any of these tests flakes.
+- **"The live region is polite and announces" flakes under full-suite load.** _Noted 2026-11-05
+  (step 4 spec 2 final checks)._ `src/lib/components/dashboard/dashboard.browser.test.ts`
+  checks the region is still empty two animation frames after a repeated `announce`, assuming
+  both frames land inside `ANNOUNCE_GAP_MS` (100 ms). Under a loaded full `npm run test` run
+  they sometimes don't, so the text is already back; it failed in 2 of 4 local full runs and
+  passes alone (3/3). Neither the test nor the announcer changed in spec 2; the suite just grew.
+  **Revisit when** it flakes in CI, or when touching the announcer: assert against the gap with
+  fake timers instead of frames.
+- **Two more browser tests flake under full-suite load.** _Noted 2026-11-08 (step 4 spec 3b)._
+  Each failed once in six back-to-back local `npm run test` runs and passed in the rest; neither
+  file changed in spec 3b:
+  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a keyboard resize animates the
+    frame's size, not under reduced motion": the 200 ms width animation can finish before the
+    poll first sees it (0 animations, not 1).
+  - `src/lib/components/a11y/live-region.browser.test.ts`, "a toast shown just before its dialog
+    closes is read once, from the page": the page region was still empty when checked.
+
+  **Revisit when** either flakes in CI, or when touching that test: check the animation is
+  started with a paused or longer-running animation, and wait on the announcement rather than a
+  fixed moment.
+
+- **A chart browser test flakes under full-suite load.** _Noted 2026-11-08 (step 4 spec 4,
+  Task 13)._ `src/lib/charts/time-chart.browser.test.ts`, "keyboard stepping moves the strips'
+  cursors" (added in spec 3b), failed in 2 of 3 full local `npm run test` runs and passes alone
+  (6 of 6); Task 13 did not touch charts. It fails at line 410: after `{End}` the strip's
+  cursor is still where `{Home}` put it, so the key seems not to reach the focused chart under
+  load (the `{Home}` check, `>= 0`, does not prove it did). **Revisit when** it flakes in CI, or
+  when touching that test: assert the chart has focus and that `{Home}` moved the cursor before
+  pressing `{End}`.
 
 - **Livelier motion.** _Deferred 2026-11-03 (design pass spec)._ Motion is quick and subtle
   for now: menus, dialogs, toasts, the taskbar, and the theme switch use the two motion tokens.
@@ -1823,13 +2451,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   renders in the right mode. Ruling it out needs sjvair.com's template to render the theme on the
   server (for example from a cookie), which needs a plan in that repo. **Revisit if** people
   notice the flash.
-- **Chart and map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
+- **Map widgets redraw every frame of a resize animation.** _Deferred 2026-11-03
   (design pass, Task 20 review)._ The widget being resized animates its width and height for
   `--motion-duration-base` (200 ms), so its content reflows rather than being stretched. A
   widget that redraws on a `ResizeObserver` (uPlot charts, map-sdk's `MapView`) would redraw on
-  every frame of it. Placeholders don't redraw, so nothing does today. **Revisit when** uPlot or
-  map widgets land: throttle their redraw to the animation's end, or switch to scale with
-  counter-scaled content for those types.
+  every frame of it. Placeholders don't redraw, so nothing does today. **Charts are done**
+  (step 4 spec 1, Task 11: the shared `TimeChart` waits for the frame's animations to finish
+  before it redraws). **Revisit when** map widgets land: throttle their redraw the same way, or
+  switch to scale with counter-scaled content.
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.
@@ -1937,14 +2566,11 @@ point.
   attribution text for air-quality, weather, pesticide-use, pesticide-notices, forecasts,
   calheatscore, calenviroscreen, and emissions must come from the user and must not be
   guessed. Meanwhile the dashboard handles an empty `license` gracefully (shows the `source`
-  alone, never a placeholder). **Decide before** dashboard go-live (and before exports or
-  shared pages show attribution).
+  alone, never a placeholder). **Decide before** dashboard go-live (and before exports,
+  CSV downloads, or shared pages show attribution; the step 4 CSV carries none until then).
 - **Optional `sjvair` Python helper package** — own published package (PyPI) or a small
   file embedded in notebook bundles? Notebook bundles work without it. **Decide in** the
   Release 3 export-bundle spec.
-- **Date-range method toggle in Widget Creation**: a dropdown (IDEA.md's default) or
-  something more elegant (e.g. a segmented control) for set / rolling / custom.
-  **Decide in** the Widget Creation spec (Release 1 step 4), with a mockup.
 - **Does email get its own rollout switch for alerts?** (2026-10-14) Text alerts open to
   everyone before Release 2; email is a new channel. The per-account channel list carries
   either answer. **Decide in** the Release 2 server alerting plan.
@@ -2164,3 +2790,25 @@ Dropped 2026-11-05 by the user (monitor-map 5.0 spec):
 - **monitor-map: cancelling one-off loads** (deferred 2026-10-21, monitor-map SDK 4.7 design).
   Closed because HMS smoke and fire and collocation sites move to map-sdk's load-once stores in
   5.0, which already handle a caller's cancel; they still load once.
+
+Dropped 2026-11-06 by the user (step 4 spec 3 final review nits, harmless polish or process
+notes):
+
+- **`as never` casts around `regionDisplayName`** (`src/lib/places/directory.ts`,
+  `src/lib/data/adapters/registry.ts` and their tests).
+- **The "weeks start on Sunday" test lives in `date-presets.test.ts`** but exercises the shared
+  range code.
+- **The forecasts test fixtures' nested ternary and casts** (`src/lib/data/testing/fixtures.ts`).
+- **The Get data view's tests were written after the components** (test-first order skipped;
+  the tests cover the behavior).
+- **`e2e/get-data.spec.ts` parses CSV by splitting on commas** (fine for its fixtures, which
+  have no quoted commas).
+
+Dropped 2026-11-09 by the user (step 4 spec 5 brainstorm, "drop it, just do the two calendars"):
+
+- **The hour × weekday heatmap widget** (planned 2026-09-23 in the first widget set, the widget
+  form of starter analysis #2). Each cell averaged one weekday-hour over the range ("every
+  Tuesday at 3 pm over 90 days"), which the user didn't find useful. Spec 5 builds only the two
+  calendars; spec 6's starter drops the heatmap's slot. Starter analysis #2 (Release 3) is not
+  affected. The mockup is kept in
+  `docs/superpowers/mockups/2026-11-09-step-4-spec-5-heatmap-coloring.html`.

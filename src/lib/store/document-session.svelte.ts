@@ -33,9 +33,10 @@ export type DocumentSessionOptions = {
 	now?: () => Date;
 	/**
 	 * Called with the first edit instead of applying it here (the starter dashboard, which is
-	 * never stored). It returns the session that took the edit; later edits go there too.
+	 * never stored), or with `null` from `handOff` (a copy with no edit, for sharing). It returns
+	 * the session that took the edit; later edits go there too.
 	 */
-	onBeforeFirstEdit?: (change: Change) => Promise<DocumentSession | null>;
+	onBeforeFirstEdit?: (change: Change | null) => Promise<DocumentSession | null>;
 	/**
 	 * Storage holds a document or log entry from a newer format than this app knows (another
 	 * tab runs a newer version). The session suspends itself right after.
@@ -45,6 +46,11 @@ export type DocumentSessionOptions = {
 	onCleared?: () => void;
 	/** The migration chain for older stored documents and changes (tests inject one). */
 	chain?: Migration[];
+	/**
+	 * Called after each of this tab's edits lands in `doc` (`apply`, `undo`, `redo`; not `amend`
+	 * or another tab's changes), so the app can finish it with `amend` (a live link's points).
+	 */
+	onEdit?: (session: DocumentSession) => void;
 };
 
 type Listener = { target: EventTarget; type: string; fn: (event: Event) => void };
@@ -121,6 +127,7 @@ export class DocumentSession {
 	readonly #generation: string;
 	readonly #onNeedsReload: (() => void) | undefined;
 	readonly #onCleared: (() => void) | undefined;
+	readonly #onEdit: ((session: DocumentSession) => void) | undefined;
 	#conflictBase: ConflictBase | null = null;
 	#unsubscribe: () => void = () => {};
 	#stopActivity: () => void = () => {};
@@ -166,6 +173,7 @@ export class DocumentSession {
 		this.#generation = opts.platform.reset.generation();
 		this.#onNeedsReload = opts.onNeedsReload;
 		this.#onCleared = opts.onCleared;
+		this.#onEdit = opts.onEdit;
 		if (this.#channel) this.#unsubscribe = this.#channel.subscribe((msg) => this.#onMessage(msg));
 
 		if (typeof window !== "undefined") {
@@ -200,7 +208,7 @@ export class DocumentSession {
 		tabId: string,
 		options: Pick<
 			DocumentSessionOptions,
-			"channel" | "debounceMs" | "now" | "onNeedsReload" | "onCleared" | "chain"
+			"channel" | "debounceMs" | "now" | "onNeedsReload" | "onCleared" | "chain" | "onEdit"
 		> = {}
 	): Promise<DocumentSession | null> {
 		const raw = await platform.documents.get(space, id);
@@ -263,6 +271,27 @@ export class DocumentSession {
 		return this.#queued.length > 0 || this.#handoff !== null || this.#successor !== null;
 	}
 
+	/**
+	 * A starter's hand-off to its copy, once its first edit started it: resolves the copy, or
+	 * `null` if it failed (the edits stay queued). `null` when no hand-off was started.
+	 */
+	get handoff(): Promise<DocumentSession | null> | null {
+		return this.#handoff;
+	}
+
+	/**
+	 * Hands a starter off to its copy now, with no edit (sharing it first makes the copy): the
+	 * copy, or `null` if it failed or there is nothing to hand off. A hand-off already started
+	 * (or finished) gives its copy.
+	 */
+	handOff(): Promise<DocumentSession | null> {
+		if (this.#successor) return Promise.resolve(this.#successor);
+		if (this.#handoff) return this.#handoff;
+		if (!this.#onBeforeFirstEdit || this.readOnly || this.#stopped) return Promise.resolve(null);
+		this.#startHandoff();
+		return this.#handoff!;
+	}
+
 	/** The session this one's edits land in: itself, or the copy a starter handed off to. */
 	get editTarget(): DocumentSession {
 		return this.#successor?.editTarget ?? this;
@@ -282,6 +311,7 @@ export class DocumentSession {
 		this.#record(result.doc, appliedChange(result.inverse));
 		this.#undoStack.push(appliedChange(result.inverse), result.inverse);
 		this.#syncUndoState();
+		this.#onEdit?.(this);
 	}
 
 	undo(): void {
@@ -289,6 +319,7 @@ export class DocumentSession {
 		const result = this.#undoStack.takeUndo(this.doc);
 		if (result) this.#record(result.doc, result.change);
 		this.#syncUndoState();
+		if (result) this.#onEdit?.(this);
 	}
 
 	redo(): void {
@@ -296,6 +327,28 @@ export class DocumentSession {
 		const result = this.#undoStack.takeRedo(this.doc);
 		if (result) this.#record(result.doc, result.change);
 		this.#syncUndoState();
+		if (result) this.#onEdit?.(this);
+	}
+
+	/**
+	 * Applies a change that finishes the edit before it (a live link's points swapped for their
+	 * regions): stored like any edit, but not an undo step of its own, and not passed to
+	 * `onEdit`. Undo goes past it: the stacks' changes set values, so the next undo restores what
+	 * was there before the edit it finished, and a redo stays offered.
+	 */
+	amend(change: Change): void {
+		if (this.readOnly) return;
+		if (this.#successor) {
+			this.#successor.amend(change);
+			return;
+		}
+		// A starter's edits all go to its copy first.
+		if (this.#onBeforeFirstEdit || this.#handoff) {
+			this.#handOff(change);
+			return;
+		}
+		const result = applyChange(this.doc, change);
+		this.#record(result.doc, appliedChange(result.inverse));
 	}
 
 	/** Empties the undo and redo stacks (after the document was replaced under them). */
@@ -618,23 +671,27 @@ export class DocumentSession {
 		if (!this.#handoff) this.#startHandoff();
 	}
 
-	/** Offer the oldest queued edit to the hook; the rest follow it to the session it returns. */
+	/**
+	 * Offer the oldest queued edit to the hook (none: `handOff`'s copy with no edit); the rest
+	 * follow it to the session it returns.
+	 */
 	#startHandoff(): void {
 		const hook = this.#onBeforeFirstEdit!;
 		this.#onBeforeFirstEdit = undefined;
+		const first = this.#queued.length > 0 ? this.#queued[0] : null;
 		const reset = () => {
 			// Nobody took the edits: they stay queued, and the next edit tries again.
 			this.#handoff = null;
 			this.#onBeforeFirstEdit = hook;
 		};
-		this.#handoff = hook(this.#queued[0]).then(
+		this.#handoff = hook(first).then(
 			(successor) => {
 				if (!successor) {
 					reset();
 					return null;
 				}
 				// Taken all at once, so they reach the successor before any edit made on it.
-				const rest = this.#queued.slice(1);
+				const rest = this.#queued.slice(first ? 1 : 0);
 				this.#queued = [];
 				this.#successor = successor;
 				this.status = "saved";

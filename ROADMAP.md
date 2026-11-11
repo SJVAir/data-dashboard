@@ -142,23 +142,24 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   switch, and the wording and behavior fixes parked for it. Spec
   `docs/superpowers/specs/2026-11-03-design-pass-design.md`.
 
-4. **Widget Creation and the non-map widgets** (seven specs, stacked into `step-4`; see `TODO.md`;
-   spec 3b, the Get data layers, added after spec 3 by the user on 2026-11-05). **All seven specs
-   merged into `step-4` by 2026-11-10** (#36, #38, #40, #43, #45, #47, #49); `step-4` → `main` next
-   (needs the user's yes), which brings this section's full update from `step-4`
-   - **spec 3b:** Get data's overlay layers for monthly pesticide use, the nearest weather
-     station, smoke per day and CIMIS weather summaries, on `@sjvair/sdk` `5.0.0-beta.5`
-     (server and SDK done 2026-11-05: sjvair.com #310–#313, sdk-js #51–#54)
-   - the **Data Explorer** (renamed from Widget Creation view, 2026-11-04: data first, then how
-     to show it; Add to dashboard or Download CSV; catalog-driven dataset accordions, layers,
-     advanced resolution override)
+4. **Get data (formerly Widget Creation) and the non-map widgets** (seven specs, stacked into
+   `step-4`; see `TODO.md`; spec 3b, the Get data layers, added after spec 3 by the user on
+   2026-11-05). **All seven specs merged into `step-4` by 2026-11-10** (#36, #38, #40, #43, #45,
+   #47, #49), and `step-4` merged into `main` with the user's yes
+   - **Get data** (formerly the Data Explorer and Widget Creation view; renamed 2026-11-05:
+     data first, then how to show it; Add to dashboard or Download CSV; catalog-driven dataset
+     sections, layers and overlays, advanced resolution override; built in spec 3)
+   - **spec 3b:** Get data's layers for weather (CIMIS station summaries, with a station choice),
+     smoke per day, and monthly pesticide use (with the explorer's filters); number layers in
+     strips under the chart and on their own; on `@sjvair/sdk` `5.0.0-beta.6` (the pesticide
+     filters; server and SDK first done 2026-11-05: sjvair.com #310–#313, sdk-js #51–#54)
    - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
      "Change place" bar; the first edit makes a personal copy) with non-map widgets: Current
-     conditions, Forecast strip, "Can we go outside?", a chart, a calendar, the heatmap, and
-     a welcome Note. Until it
+     conditions, Forecast strip, "Can we go outside?", a chart, a calendar, and
+     a welcome Note (the heatmap was dropped 2026-11-09). Until it
      exists, `/` and "new from starter" open a blank dashboard
    - the `WidgetType` registry and `WidgetDataConfig`, including optional resolution pins
-     (calendars `day`, heatmap `hour`; pin → override → ladder)
+     (calendars `day`; pin → override → ladder)
    - the "Duplicate widget" action
    - point places resolved to the smallest containing region with data (labeled; frozen
      on staging)
@@ -167,18 +168,18 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      `PlaceRef`), reused by the Map widget
      (step 5) and alert rules (Release 2)
    - Chart
-   - Calendar (day-colored)
-   - Calendar (contribution)
+   - Calendar (day-colored) (built on `step-4-spec-5`, 2026-11-09; colored by the daily figure since SDK beta.8)
+   - Calendar (contribution) (built on `step-4-spec-5`, 2026-11-09; colored by the daily figure since SDK beta.8)
    - Current conditions
    - Data table
-   - Notes (safe Markdown: raw HTML off, link allowlist)
+   - Notes (safe Markdown: raw HTML off, link allowlist) (built on `step-4-spec-6`, 2026-11-10; PR into `step-4` pending)
    - heat for areas larger than a ZIP (highest ZIP score, labeled); forecasts via the
      containing zone
    - location privacy: rounded points to lookups; shares default to the region, with a
      per-share "share exact location" option
    - starter details: lives at `/workspace/`, "Change place" is a preference, a real edit
      copies and replaces the URL, and sharing copies first
-   - Hour × weekday heatmap
+   - ~~Hour × weekday heatmap~~ (dropped 2026-11-09)
    - Forecast strip
    - "Can we go outside?"
    - client-side self-monitoring thresholds (in-browser notifications are desktop-only in

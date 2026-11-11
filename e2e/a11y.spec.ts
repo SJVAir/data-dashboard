@@ -1,7 +1,9 @@
 import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
-	PLACEHOLDER,
+	NOTE,
+	STARTER_TITLES,
+	addWidget,
 	dashboardHeading,
 	expectNoViolations,
 	makeOwnCopy,
@@ -22,12 +24,30 @@ for (const colorScheme of ["light", "dark"] as const) {
 
 		test("the starter", async ({ page }) => {
 			await page.goto("./");
-			await expect(widgetTitles(page)).toHaveCount(3);
+			await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 			await expectNoViolations(page);
 		});
 
 		test("a dashboard with widgets", async ({ page }) => {
 			await makeOwnCopy(page);
+			await expectNoViolations(page);
+		});
+
+		test("a Chart and a Data table", async ({ page }) => {
+			await page.goto("./");
+			await addWidget(page, "Chart");
+			await addWidget(page, "Data table");
+			// The one just added (the starter has a Chart of its own).
+			const chart = page.getByRole("group", { name: "Chart of Fresno County" }).last();
+			await expect(chart.getByRole("list", { name: "Series" })).toBeVisible();
+			await expect(chart.getByRole("list", { name: "Levels" })).toBeAttached();
+			await expect(
+				page.getByRole("region", { name: "Data table values" }).getByRole("rowheader")
+			).not.toHaveCount(0);
+			// With the readout showing.
+			await chart.focus();
+			await page.keyboard.press("End");
+			await expect(chart.locator("[aria-live=polite]")).not.toBeEmpty();
 			await expectNoViolations(page);
 		});
 
@@ -47,14 +67,14 @@ for (const colorScheme of ["light", "dark"] as const) {
 
 		test("the context menu open", async ({ page }) => {
 			await page.goto("./");
-			await page.getByRole("group", { name: PLACEHOLDER }).first().click({ button: "right" });
+			await page.getByRole("group", { name: NOTE }).click({ button: "right" });
 			await expect(page.getByRole("menu")).toBeVisible();
 			await expectNoViolations(page);
 		});
 
 		test("the rename dialog", async ({ page }) => {
 			await page.goto("./");
-			await widgetMenuItem(page, PLACEHOLDER, "Rename widget…");
+			await widgetMenuItem(page, NOTE, "Rename widget…");
 			await expect(page.getByRole("dialog", { name: "Rename widget" })).toBeVisible();
 			await expectNoViolations(page);
 		});
@@ -116,7 +136,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
 		test("the storage popover open", async ({ page }) => {
 			await page.goto("./");
-			await expect(widgetTitles(page)).toHaveCount(3);
+			await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 			await page.getByRole("button", { name: /Storage status/ }).click();
 			await expect(page.getByText("Dashboards are stored in this browser.")).toBeVisible();
 			await expectNoViolations(page);
@@ -152,7 +172,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
 test("menus and dialogs don't animate under reduced motion", async ({ page }) => {
 	await page.goto("./");
-	await widgetMenuItem(page, PLACEHOLDER, "Rename widget…");
+	await widgetMenuItem(page, NOTE, "Rename widget…");
 	const dialog = page.getByRole("dialog", { name: "Rename widget" });
 	await expect(dialog).toBeVisible();
 	const durations = await dialog.evaluate((el) => {
@@ -165,12 +185,13 @@ test("menus and dialogs don't animate under reduced motion", async ({ page }) =>
 test("the context menu opens with Shift+F10 on a focused widget title bar", async ({ page }) => {
 	await page.goto("./");
 	await expect(dashboardHeading(page, "Starter dashboard")).toBeAttached();
-	await page.getByRole("group", { name: PLACEHOLDER }).first().focus();
+	await page.getByRole("group", { name: NOTE }).focus();
 	await page.keyboard.press("Shift+F10");
 	const menu = page.getByRole("menu");
 	await expect(menu).toBeVisible();
-	// The first item (the Move submenu, ahead of Rename widget…) takes focus.
-	await expect(menu.getByRole("menuitem", { name: "Move", exact: true })).toBeFocused();
+	// The first item (the Note's Edit note, ahead of the Move submenu) takes focus.
+	await expect(menu.getByRole("menuitem").first()).toHaveAccessibleName("Edit note");
+	await expect(menu.getByRole("menuitem", { name: "Edit note", exact: true })).toBeFocused();
 	await page.keyboard.press("Escape");
 	await expect(menu).toBeHidden();
 });

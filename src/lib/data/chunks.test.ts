@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CHUNK_DAYS, runLimited, splitChunks } from "./chunks";
+import { CHUNK_DAYS, calendarUnits, runLimited, splitChunks } from "./chunks";
+import { pacificDay } from "$lib/format";
 
 describe("splitChunks", () => {
 	it("covers the segment exactly with no gaps or overlaps", () => {
@@ -9,7 +10,7 @@ describe("splitChunks", () => {
 			end: new Date("2026-10-22T07:00:00Z"),
 			aggregateTo: "month" as const
 		};
-		const chunks = splitChunks(seg, CHUNK_DAYS.day);
+		const chunks = splitChunks(seg, 366);
 		expect(chunks).toHaveLength(3);
 		expect(chunks[0].start).toEqual(seg.start);
 		expect(chunks[2].end).toEqual(seg.end);
@@ -29,9 +30,8 @@ describe("splitChunks", () => {
 		expect(splitChunks(seg, 31)).toEqual([seg]);
 	});
 
-	it("matches the server span caps", () => {
-		expect(CHUNK_DAYS.hour).toBe(31);
-		expect(CHUNK_DAYS.day).toBe(366);
+	it("matches the server hourly span cap", () => {
+		expect(CHUNK_DAYS.raw).toBe(31);
 	});
 });
 
@@ -78,5 +78,53 @@ describe("runLimited", () => {
 		await expect(
 			runLimited([async () => 1, async () => Promise.reject(new Error("x"))], 1)
 		).rejects.toThrow("x");
+	});
+});
+
+describe("calendarUnits", () => {
+	const at = (d: string) => pacificDay(d);
+
+	it("splits a daily segment into whole months with the clipped part", () => {
+		const seg = { resolution: "day" as const, start: at("2026-10-06"), end: at("2026-11-05") };
+		const units = calendarUnits(seg);
+		expect(units).toEqual([
+			{
+				fetchStart: at("2026-10-01"),
+				fetchEnd: at("2026-11-01"),
+				start: seg.start,
+				end: at("2026-11-01")
+			},
+			{
+				fetchStart: at("2026-11-01"),
+				fetchEnd: at("2026-12-01"),
+				start: at("2026-11-01"),
+				end: seg.end
+			}
+		]);
+	});
+
+	it("uses whole years for monthly segments", () => {
+		const seg = { resolution: "month" as const, start: at("2025-03-01"), end: at("2026-03-01") };
+		const units = calendarUnits(seg);
+		expect(units.map((u) => [u.fetchStart, u.fetchEnd])).toEqual([
+			[at("2025-01-01"), at("2026-01-01")],
+			[at("2026-01-01"), at("2027-01-01")]
+		]);
+		expect(units[0].start).toEqual(seg.start);
+		expect(units[1].end).toEqual(seg.end);
+	});
+
+	it("is one unit for a yearly segment", () => {
+		const seg = { resolution: "year" as const, start: at("2019-01-01"), end: at("2026-01-01") };
+		expect(calendarUnits(seg)).toEqual([
+			{ fetchStart: seg.start, fetchEnd: seg.end, start: seg.start, end: seg.end }
+		]);
+	});
+
+	it("starts units at Pacific midnight across the November DST change", () => {
+		const seg = { resolution: "hour" as const, start: at("2026-10-31"), end: at("2026-11-03") };
+		const units = calendarUnits(seg);
+		expect(units[1].fetchStart.toISOString()).toBe("2026-11-01T07:00:00.000Z");
+		expect(units[1].fetchEnd.toISOString()).toBe("2026-12-01T08:00:00.000Z");
 	});
 });

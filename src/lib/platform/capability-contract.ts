@@ -15,6 +15,15 @@ export function runCapabilityContract(name: string, make: () => Promise<Platform
 			p = await make();
 		});
 
+		test("notifications: show before granting is a harmless no-op", async () => {
+			expect(["granted", "denied", "default", "unsupported"]).toContain(
+				p.notifications.permission()
+			);
+			if (p.notifications.permission() !== "granted") {
+				expect(() => p.notifications.show({ title: "t", body: "b", tag: "x" })).not.toThrow();
+			}
+		});
+
 		test("originals round-trip as clones", async () => {
 			const raw = { id: "a", nested: { n: 1 } };
 			const kept = original("a", raw);

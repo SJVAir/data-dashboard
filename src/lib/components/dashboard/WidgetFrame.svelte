@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, untrack } from "svelte";
+	import { getContext, onDestroy, setContext, untrack } from "svelte";
 	import { on } from "svelte/events";
 	import { prefersReducedMotion } from "svelte/motion";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
@@ -9,8 +9,21 @@
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { menuScope } from "$lib/actions/scope";
 	import type { MenuProvider } from "$lib/actions/types";
-	import { minimizeWidget, viewActions, widgetActions, widgetTitle } from "$lib/actions/widget";
-	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
+	import {
+		minimizeWidget,
+		removeWidget,
+		viewActions,
+		downloadItems,
+		placeItems,
+		widgetActions,
+		widgetTitle
+	} from "$lib/actions/widget";
+	import {
+		ADDED_HIGHLIGHT_MS,
+		pendingFocusTarget,
+		requestFocus,
+		takeFocus
+	} from "$lib/layout/focus-request.svelte";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { Rect, WidgetInstance } from "$lib/documents/schema";
@@ -25,13 +38,23 @@
 	} from "$lib/layout/pointer-drag.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { getWidgetType } from "$lib/widgets/registry";
+	import {
+		getWidgetType,
+		loadWidget,
+		loadedWidget,
+		type WidgetModule
+	} from "$lib/widgets/registry";
+	import { PHONE_FIT_KEY, rowsFor, type PhoneFit } from "$lib/layout/phone-fit.svelte";
+	import { FIT_CONTENT_KEY, REMOVE_WIDGET_KEY, type FitContent } from "$lib/widgets/shared/context";
+	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
+	import WidgetSkeleton from "$lib/widgets/shared/WidgetSkeleton.svelte";
 	import ResizeHandles from "./ResizeHandles.svelte";
 
 	let {
 		widget,
 		rect,
 		phoneRow,
+		phoneSpan,
 		fullscreen = false,
 		inert = false,
 		readOnly = false,
@@ -44,6 +67,8 @@
 		rect: Rect;
 		/** Its first row (0-based) in the phone's one-column layout. */
 		phoneRow: number;
+		/** Its rows in the phone's one-column layout (a Note may grow to fit); `rect.h` if unset. */
+		phoneSpan?: number;
 		/** Lifted over the dashboard area (a view: the layout underneath is unchanged). */
 		fullscreen?: boolean;
 		/** Another widget is fullscreen. */
@@ -60,16 +85,78 @@
 	} = $props();
 
 	const app = useApp();
+	/** Who is looking (a share link's page says "shared"): names a point in a CSV file. */
+	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
+	// A widget's own Remove (the "no longer available" card) takes the menu Delete's path.
+	setContext(REMOVE_WIDGET_KEY, () => {
+		if (fullscreen) onexit();
+		removeWidget(app, widget.id);
+	});
 	const arrangement = useArrangement();
+
+	// A Note fits its text on a phone: it reports its content's natural height, and the frame
+	// turns that (plus its own title bar, padding, and border) into grid rows for the grid's
+	// one-column layout. Only on a phone (elsewhere its rows are cleared), and not while
+	// fullscreen (another width); the stored rect never changes. Reports always reach the grid in
+	// a microtask, outside any effect flush: a write during the flush would redo every frame's
+	// widget-loading block, remounting the widgets.
+	const phoneFit = getContext<PhoneFit | undefined>(PHONE_FIT_KEY);
+	let content = $state<HTMLElement | null>(null);
+	/** Whether this frame has reported rows (so only it clears them). */
+	let reported = false;
+	/** The latest report not yet applied (`undefined`: none queued). */
+	let pending: number | null | undefined;
+	function applyFit(): void {
+		const height = pending;
+		pending = undefined;
+		if (!phoneFit || height === undefined) return;
+		const grid = section?.parentElement;
+		if (height === null || !phone() || !section || !content || !grid) {
+			if (reported) phoneFit.report(widget.id, null);
+			reported = false;
+			return;
+		}
+		if (fullscreen) return;
+		const body = getComputedStyle(content);
+		const inner =
+			content.clientHeight - parseFloat(body.paddingTop) - parseFloat(body.paddingBottom);
+		const chrome = section.offsetHeight - inner;
+		const style = getComputedStyle(grid);
+		const rowHeight = parseFloat(style.gridAutoRows) || 0;
+		const gap = parseFloat(style.rowGap) || 0;
+		phoneFit.report(widget.id, rowsFor(height + chrome, rowHeight, gap));
+		reported = true;
+	}
+	setContext<FitContent>(FIT_CONTENT_KEY, (height) => {
+		if (!phoneFit) return;
+		const queued = pending !== undefined;
+		pending = height;
+		if (!queued) queueMicrotask(applyFit);
+	});
+	onDestroy(() => {
+		if (!reported || !phoneFit) return;
+		reported = false;
+		const id = widget.id;
+		queueMicrotask(() => phoneFit.report(id, null));
+	});
+	/** A widget's rows on a phone, for the phone's drag slots. */
+	const span = phoneFit ? (id: string, h: number) => phoneFit.span(id, h) : undefined;
 	const type = $derived(getWidgetType(widget.type));
 	const title = $derived(widgetTitle(widget));
 	const titleId = $derived(`widget-title-${widget.id}`);
 
 	// The type's own items first, then the common widget actions. Read-only: Fullscreen only.
 	const provider: MenuProvider = (ctx) =>
-		readOnly ? viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx) : editProvider(ctx);
+		readOnly
+			? [
+					...downloadItems(app, () => widget, viewer),
+					...viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx)
+				]
+			: editProvider(ctx);
 	const editProvider: MenuProvider = (ctx) => [
-		...(type?.menu(ctx) ?? []),
+		...(type?.menu(ctx, { app, widget: () => widget }) ?? []),
+		...placeItems(app, () => widget),
+		...downloadItems(app, () => widget, viewer),
 		...widgetActions(app, widget.id, arrangement, {
 			fullscreen: () => onfullscreen(),
 			inFullscreen: fullscreen,
@@ -85,7 +172,7 @@
 	/** Arranging is offered: not in fullscreen, and not in view mode. */
 	const arrangeable = $derived(!fullscreen && !readOnly);
 	/** The ⋯ menu has something in it (a read-only fullscreen frame's has nothing). */
-	const hasMenu = $derived(!(readOnly && fullscreen));
+	const hasMenu = $derived(!(readOnly && fullscreen && !type?.downloadable));
 	const shortcuts = $derived(arrangeable ? "Enter Shift+F10" : hasMenu ? "Shift+F10" : undefined);
 
 	const ARROWS: Record<string, ArrangeDirection> = {
@@ -175,7 +262,7 @@
 			if (event.shiftKey) {
 				arrangement.grow(dir);
 				const preview = arrangement.preview;
-				if (preview) announce(sizeText(preview, widget.id, phone()));
+				if (preview) announce(sizeText(preview, widget.id, phone(), arrangement.span));
 				return;
 			}
 			const result = arrangement.step(dir);
@@ -274,7 +361,8 @@
 			threshold: DRAG_THRESHOLD,
 			drop,
 			cancel,
-			replaced
+			replaced,
+			span
 		});
 	}
 
@@ -301,6 +389,7 @@
 			kind,
 			input: "touch",
 			lifted: true,
+			span,
 			threshold: fromLongPress ? LONG_PRESS_TOLERANCE : DRAG_THRESHOLD,
 			drop,
 			cancel,
@@ -435,13 +524,25 @@
 		arrangement.pendingFocus = null;
 	});
 
-	// After a restore: focus the title bar and bring the widget into view.
+	/** Just added from Get data: highlighted for `ADDED_HIGHLIGHT_MS` (the CSS fades it; none with reduced motion). */
+	let added = $state(false);
+	let addedTimer: ReturnType<typeof setTimeout> | undefined;
+	onDestroy(() => clearTimeout(addedTimer));
+
+	// After a restore (or an add from Get data): focus the title bar and bring the widget into view.
 	$effect(() => {
 		const request = pendingFocusTarget();
-		if (!bar || request?.kind !== "title" || request.id !== widget.id) return;
+		if (!bar || request?.id !== widget.id) return;
+		if (request.kind !== "title" && request.kind !== "added") return;
+		const kind = request.kind;
 		untrack(() => {
-			if (!takeFocus({ kind: "title", id: widget.id })) return;
+			if (!takeFocus({ kind, id: widget.id })) return;
 			bar!.focus();
+			if (kind === "added") {
+				added = true;
+				clearTimeout(addedTimer);
+				addedTimer = setTimeout(() => (added = false), ADDED_HIGHLIGHT_MS);
+			}
 			if (fullscreen) return;
 			const behavior = prefersReducedMotion.current ? "instant" : "smooth";
 			section?.scrollIntoView({ block: "nearest", behavior });
@@ -507,13 +608,14 @@
 				: "shadow-card")
 	]}
 	data-picked-up={pickedUp ? "" : undefined}
+	data-added={added ? "" : undefined}
 	{inert}
 	onkeydown={trapTab}
 	{onfocusin}
 	{onfocusout}
 	style:--col="{rect.x + 1} / span {rect.w}"
 	style:--row="{rect.y + 1} / span {rect.h}"
-	style:--prow="{phoneRow + 1} / span {rect.h}"
+	style:--prow="{phoneRow + 1} / span {phoneSpan ?? rect.h}"
 	data-testid="widget-{widget.id}"
 	data-flip-id={widget.id}
 	{@attach menuScope(provider)}
@@ -587,9 +689,29 @@
 		{/if}
 	</div>
 	<!-- During a touch selection, touches on the body (and its handles and Done) don't scroll. -->
-	<div class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}>
+	<div
+		bind:this={content}
+		class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}
+	>
+		{#snippet body(mod: WidgetModule)}
+			<mod.component {widget} {fullscreen} />
+		{/snippet}
 		{#if type}
-			<type.component {widget} {fullscreen} />
+			{@const loaded = loadedWidget(type)}
+			{#if loaded}
+				{@render body(loaded)}
+			{:else}
+				<!-- The type's code loads the first time one of its widgets is shown. -->
+				{#await loadWidget(type)}
+					<WidgetSkeleton />
+				{:then mod}
+					{@render body(mod)}
+				{:catch}
+					<p class="text-muted-foreground flex h-full items-center justify-center text-sm">
+						{m.widget_load_failed()}
+					</p>
+				{/await}
+			{/if}
 		{/if}
 		{#if keyboardActive && !fullscreen}
 			<!-- Over the content, so the layout doesn't change. Hidden from assistive tech: the

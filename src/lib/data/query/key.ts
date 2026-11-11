@@ -1,5 +1,5 @@
 import type { ResolvedRange } from "$lib/format/range";
-import type { DateRangeSpec, Resolution } from "../schema";
+import type { DateRangeSpec, PesticideFilters, Resolution } from "../schema";
 import type { Target } from "../types";
 
 export type KeyRange = DateRangeSpec | { firstDate: string; lastDate: string };
@@ -18,6 +18,9 @@ function sortedTarget(target: Target): Target {
 			return { kind: "monitors", ids: [...target.ids].sort() };
 		case "regions":
 			return { kind: "regions", keys: [...target.keys].sort() };
+		// A fallback's keys are tried in order, so their order is part of the request.
+		case "fallback":
+			return target;
 		default:
 			return { kind: "all" };
 	}
@@ -44,6 +47,19 @@ export function queryKey(parts: {
 	resolution: Resolution;
 	downsampleFromRaw: boolean;
 	range: KeyRange;
+	/** Left out of the key unless true. */
+	worstHour?: boolean;
+	/** Left out of the key when absent. */
+	dailyFigure?: string;
+	/** Left out of the key when absent, so layers saved before these existed keep their keys. */
+	station?: string;
+	filters?: PesticideFilters;
 }): string {
-	return stableJson({ ...parts, target: sortedTarget(parts.target) });
+	const { worstHour, dailyFigure, ...rest } = parts;
+	return stableJson({
+		...rest,
+		...(worstHour && { worstHour: true }),
+		...(dailyFigure && { dailyFigure }),
+		target: sortedTarget(parts.target)
+	});
 }

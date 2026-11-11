@@ -91,3 +91,51 @@ describe("createMemoryIdentity", () => {
 		expect(heard.at(-1)).toEqual([{ state: "signed-out" }, "sign-out"]);
 	});
 });
+
+describe("memory geolocation", () => {
+	it("is unsupported until scripted, then returns the scripted result", async () => {
+		const p = createMemoryPlatform();
+		expect(await p.geolocation.locate()).toEqual({ ok: false, reason: "unsupported" });
+		p.geolocation.script({ ok: true, lat: 36.7, lon: -119.8 });
+		expect(await p.geolocation.locate()).toEqual({ ok: true, lat: 36.7, lon: -119.8 });
+	});
+
+	it("rejects with the reason of an aborted signal", async () => {
+		const p = createMemoryPlatform();
+		const controller = new AbortController();
+		controller.abort(new Error("stop"));
+		await expect(p.geolocation.locate(controller.signal)).rejects.toThrow("stop");
+	});
+});
+
+describe("memory notifications", () => {
+	it("records shown notifications only once granted", async () => {
+		const p = createMemoryPlatform();
+		const n = { title: "T", body: "B", tag: "k" };
+		expect(p.notifications.permission()).toBe("default");
+		p.notifications.show(n);
+		expect(p.notifications.shown).toEqual([]);
+		expect(await p.notifications.request()).toBe("granted");
+		p.notifications.show(n);
+		expect(p.notifications.shown).toEqual([n]);
+	});
+
+	it("script sets what the next request answers", async () => {
+		const p = createMemoryPlatform();
+		p.notifications.script("denied");
+		expect(await p.notifications.request()).toBe("denied");
+		p.notifications.script("unsupported");
+		expect(await p.notifications.request()).toBe("unsupported");
+		expect(p.notifications.permission()).toBe("unsupported");
+		p.notifications.show({ title: "T", body: "B", tag: "k" });
+		expect(p.notifications.shown).toEqual([]);
+	});
+
+	it("scripting anything after unsupported lifts it", async () => {
+		const p = createMemoryPlatform();
+		p.notifications.script("unsupported");
+		p.notifications.script("granted");
+		expect(p.notifications.permission()).toBe("default");
+		expect(await p.notifications.request()).toBe("granted");
+	});
+});

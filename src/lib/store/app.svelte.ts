@@ -10,8 +10,25 @@ import { StorageProtection } from "$lib/safety/protection.svelte";
 import { purgeExpired } from "$lib/safety/purge";
 import { report } from "$lib/safety/report";
 import { updateNotice } from "$lib/safety/update-notice.svelte";
+import { barChange } from "$lib/places/replace";
+import { sameRef } from "$lib/places/types";
+import {
+	defaultStarterPlace,
+	readStarterPlace,
+	saveStarterPlace,
+	type ChosenPlace
+} from "$lib/starter/place.svelte";
 import { STARTER_ID, resolveHome, starterSession, type HomeTarget } from "$lib/starter/starter";
+import { hasPoints } from "$lib/sharing/point-layers";
 import { registerWidgetType } from "$lib/widgets/registry";
+import { monthCalendarType } from "$lib/widgets/calendars/month";
+import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
+import { chartType } from "$lib/widgets/chart";
+import { currentType } from "$lib/widgets/current";
+import { forecastType } from "$lib/widgets/forecast";
+import { outsideType } from "$lib/widgets/outside";
+import { dataTableType } from "$lib/widgets/table";
+import { noteType } from "$lib/widgets/notes";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
 import { DashboardIndex } from "./dashboard-index.svelte";
@@ -40,10 +57,35 @@ export type AppContext = {
 		get(id: string, opts?: { remember?: boolean }): Promise<DocumentSession | null>;
 	};
 	current: CurrentDashboard;
+	/**
+	 * The place the starter shows: the space's preference, read when the app opens and after
+	 * "Clear my data" (Fresno County when unset).
+	 */
+	starterPlace: ChosenPlace;
+	/**
+	 * The starter's "Change place": saves `place` as the space's chosen place and shows a fresh
+	 * starter there (every widget at once; no copy, no undo). A starter whose first edit already
+	 * started its hand-off gives its copy the bar's change instead (an ordinary, undoable edit).
+	 */
+	changeStarterPlace(place: ChosenPlace): Promise<void>;
+	/**
+	 * Makes the shown starter this person's own dashboard with no edit (sharing it first makes
+	 * the copy), through the same hand-off as its first edit: the copy is stored (validated) and
+	 * made current. It doesn't navigate: `Home.svelte`'s hand-off effect, seeing the copy current,
+	 * replaces the URL with the copy's and shows the "Saved as your own dashboard" toast.
+	 * Resolves to the copy's session; `null` when the starter isn't shown or the copy couldn't be
+	 * stored.
+	 */
+	copyStarter(): Promise<DocumentSession | null>;
 	/** This tab's sync worker in an account space (`null`: not syncing). */
 	sync: SyncWorker | null;
 	/** The sessions this tab has open (the starter's included). */
 	openSessions(): DocumentSession[];
+	/**
+	 * `docId` may hold a point its live link mustn't show (`SyncContext.onPointsHeld`: a held
+	 * upload, or a link this device just learned of): swapped here if this tab has it open.
+	 */
+	pointsHeld(docId: string): void;
 	/**
 	 * Leaving this space (the app is remounted for another): stores and disposes every open
 	 * session, stops the sync worker, and stops following the other tabs.
@@ -91,6 +133,8 @@ class App implements AppContext {
 	current = $state<CurrentDashboard>({ session: null, isStarter: false });
 	sync = $state.raw<SyncWorker | null>(null);
 	resetCount = $state(0);
+	// Raw: places are cloned into documents, and a deep proxy can't be.
+	starterPlace = $state.raw<ChosenPlace>(defaultStarterPlace());
 	readonly index: DashboardIndex;
 	readonly protection: StorageProtection;
 	readonly account: AccountState;
@@ -127,14 +171,38 @@ class App implements AppContext {
 		this.sessions = { get: (id, opts) => this.#get(id, opts?.remember ?? true) };
 	}
 
-	/** Given to every session: storage moved to a newer format, or was cleared, elsewhere. */
+	/**
+	 * Given to every session: storage moved to a newer format, or was cleared, elsewhere; and
+	 * each edit, for a live link's points.
+	 */
 	readonly #guards = {
 		onNeedsReload: () => {
 			updateNotice.show("newer-data");
 			this.suspendAll();
 		},
-		onCleared: () => void this.resetAfterClear()
+		onCleared: () => void this.resetAfterClear(),
+		onEdit: (session: DocumentSession) => this.#guardPoints(session)
 	};
+
+	/**
+	 * A dashboard with an exact location, unless the worker knows it has no live link (`held`:
+	 * the worker said it may, whatever its states say yet): the live-link rule (loaded only
+	 * then) swaps its points if the link mustn't show them.
+	 */
+	#guardPoints(session: DocumentSession, held = false): void {
+		const doc = session.editTarget.doc;
+		if (!this.sync || !hasPoints(doc)) return;
+		const state = this.sync.states[doc.id];
+		if (!held && state && !state.shareToken) return;
+		void import("$lib/sharing/live-points")
+			.then(({ guardLivePoints }) => guardLivePoints(this, session))
+			.catch((error) => report(error, { operation: "live-points" }));
+	}
+
+	pointsHeld(docId: string): void {
+		const session = this.#live.get(docId);
+		if (session) this.#guardPoints(session, true);
+	}
 
 	async #get(id: string, remember: boolean): Promise<DocumentSession | null> {
 		// Closed: its sessions are gone, and a new one would never be stored or disposed.
@@ -155,7 +223,10 @@ class App implements AppContext {
 			const own = opening;
 			void own.then(
 				(session) => {
-					if (session && this.#open.get(id) === own) this.#live.set(id, session);
+					if (!session || this.#open.get(id) !== own) return;
+					this.#live.set(id, session);
+					// Opened holding a point its live link mustn't show (uploaded or not).
+					this.#guardPoints(session);
 				},
 				// Told to the caller, who awaits `opening`.
 				() => {}
@@ -223,7 +294,8 @@ class App implements AppContext {
 				tabId: this.tabId,
 				buildId: BUILD_ID,
 				now,
-				onBlocked: () => updateNotice.show("build-blocked")
+				onBlocked: () => updateNotice.show("build-blocked"),
+				onPointsHeld: (docId) => this.pointsHeld(docId)
 			});
 			if (this.#closed) return;
 			this.sync = worker;
@@ -286,8 +358,54 @@ class App implements AppContext {
 		this.#live.clear();
 		this.#open.clear();
 		this.current = { session: null, isStarter: false };
+		// Cleared with the rest, so unset. Set before anything awaits: a starter built from here on
+		// has this place and this reset's count.
+		this.starterPlace = defaultStarterPlace();
 		this.resetCount++;
 		await this.index.refresh();
+	}
+
+	async changeStarterPlace(place: ChosenPlace): Promise<void> {
+		const starter = this.#live.get(STARTER_ID) ?? null;
+		// The starter's first edit started (or finished: it's gone from here) its hand-off: the
+		// copy is what's shown, and its bar changes.
+		const handedOff = starter ? starter.edited : !this.current.isStarter && !!this.current.session;
+		if (handedOff) {
+			// A hand-off that failed keeps its edits queued on the starter: nothing to change then.
+			const copy = starter ? await starter.handoff : this.current.session;
+			const target = copy?.editTarget;
+			if (!target || target.readOnly) return;
+			const change = barChange(target.doc, place, { others: false });
+			if (change) target.apply(change);
+			return;
+		}
+		// The place it shows already: nothing to change.
+		if (sameRef(place, this.starterPlace)) return;
+		// Replaced before anything awaits, so an edit can't reach the old starter meanwhile.
+		this.starterPlace = place;
+		if (starter) {
+			starter.discard();
+			this.#live.delete(STARTER_ID);
+			const fresh = this.#starter();
+			this.#open.set(STARTER_ID, Promise.resolve(fresh));
+			if (this.current.isStarter) this.current = { session: fresh, isStarter: true };
+		} else {
+			this.#open.delete(STARTER_ID);
+		}
+		try {
+			await saveStarterPlace(this.platform, this.space, place);
+		} catch (error) {
+			// Shown for now; the next visit shows the place saved before.
+			report(error, { operation: "starter-place" });
+		}
+	}
+
+	async copyStarter(): Promise<DocumentSession | null> {
+		const { session, isStarter } = this.current;
+		if (!session || !isStarter) return null;
+		const copy = await session.handOff();
+		// Not kept (the data was cleared meanwhile): nothing to share.
+		return copy && this.#live.get(copy.doc.id) === copy ? copy : null;
 	}
 
 	#starter(): DocumentSession {
@@ -300,6 +418,7 @@ class App implements AppContext {
 			channel: this.channel,
 			debounceMs,
 			now,
+			place: this.starterPlace,
 			...this.#guards,
 			onCopied: (copy) => {
 				// A hand-off that finished after the data was cleared mustn't come back.
@@ -335,6 +454,14 @@ async function housekeeping(task: () => Promise<void>): Promise<void> {
  */
 export async function initApp(platform: Platform, options: AppOptions = {}): Promise<AppContext> {
 	registerWidgetType(placeholderType);
+	registerWidgetType(chartType);
+	registerWidgetType(monthCalendarType);
+	registerWidgetType(contributionCalendarType);
+	registerWidgetType(currentType);
+	registerWidgetType(forecastType);
+	registerWidgetType(outsideType);
+	registerWidgetType(dataTableType);
+	registerWidgetType(noteType);
 	// The space is whoever is signed in, known once the identity has started.
 	platform.identity.start();
 	const space = await platform.identity.currentSpace();
@@ -361,6 +488,8 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	const identityKnown = identity.state !== "unknown" && spaceFor(identity) === space;
 	await housekeeping(() => tidySpaces(platform, space, now, { identityKnown }));
 	await housekeeping(() => purgeExpired(platform, space, now));
+	// Before the first starter session is built.
+	app.starterPlace = await readStarterPlace(platform, space);
 	await app.index.refresh();
 	await app.protection.refresh();
 	app.listen();

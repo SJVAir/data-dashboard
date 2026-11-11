@@ -1,3 +1,4 @@
+import type { ResolvedRegion } from "./adapters/registry";
 import type { DateRangeSpec, Layer, Resolution, TimeSubRange } from "./schema";
 
 /** `t` is the period start in epoch ms. A raw point has `mean = min = max = value`, `count = 1`. */
@@ -8,6 +9,17 @@ export type SeriesPoint = {
 	max: number;
 	count: number;
 	partial: boolean;
+	/** A daily point's highest hourly mean and that hour's start (epoch ms); see `worstHours`. */
+	worstHour?: { t: number; value: number };
+	/** A daily point's server figure (`QueryInput.dailyFigure`): `null` when the row has it null. */
+	figure?: number | null;
+	/** The row's `is_final`, read together with `figure`; absent when the row has none. */
+	final?: boolean;
+	/**
+	 * A category point's scale level key (forecasts). A category point (burn status) has no
+	 * number: `mean = min = max = NaN`, so nothing may aggregate, downsample or plot it as a value.
+	 */
+	level?: string;
 };
 
 /**
@@ -18,8 +30,52 @@ export type SeriesPoint = {
  */
 export type Series = { place: string; points: SeriesPoint[] };
 
+/** Orders by `order`'s index; places it doesn't list come last, keeping their order. */
+export function byPlaceOrder(order: Map<string, number>) {
+	return (a: { place: string }, b: { place: string }): number => {
+		const x = order.get(a.place);
+		const y = order.get(b.place);
+		if (x === undefined || y === undefined) {
+			return x === undefined ? (y === undefined ? 0 : 1) : -1;
+		}
+		return x - y;
+	};
+}
+
+/**
+ * How a point or a school reached the region it shows: `name` is the school's (and `retired` its
+ * retirement); a point carries nothing, so its coordinates never travel with the data.
+ */
+export type Via =
+	| { kind: "point" }
+	| {
+			kind: "location";
+			/** The school's document reference, so a replacement can swap the layer's place. */
+			source: string;
+			code: string;
+			name: string;
+			retired?: { since: string; replacedBy: { source: string; code: string } | null };
+	  };
+
+/** A requested place's display name and, for a retired region, its retirement. */
+export type PlaceInfo = {
+	/** Same key as `Series.place`. */
+	place: string;
+	/** The region's (or monitor's) name; for a point or a school, the region it shows. */
+	name: string;
+	retired?: ResolvedRegion["retired"];
+	/** Set when the place is the region a point or a school fell back to. */
+	via?: Via;
+	/** A weather series' station: for the legend and the CSV (`name` stays the place's). */
+	source?: { id: string; name: string; distance: number; inside: boolean };
+	/** A pesticide series' active filters, as labels, for the legend, table header and CSV. */
+	filters?: string[];
+};
+
 export type QueryData = {
 	series: Series[];
+	/** One per requested place in request order; for the whole layer, one per monitor returned. */
+	places: PlaceInfo[];
 	resolution: Resolution;
 	fromRaw: boolean;
 	processor: string | null;
@@ -34,18 +90,27 @@ export const UNAVAILABLE_REASONS = [
 	"no-resolution",
 	"place-unsupported",
 	"region-unresolved",
-	"whole-layer-raw"
+	"location-unresolved",
+	"point-outside",
+	"monitor-unlisted",
+	"whole-layer-raw",
+	"filter-gone"
 ] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
 export type QueryState =
+	| { status: "idle"; data?: undefined }
 	| { status: "loading"; data?: QueryData }
 	| { status: "ready"; data: QueryData }
 	| { status: "error"; error: unknown; data?: QueryData }
 	| { status: "unavailable"; reason: UnavailableReason };
 
 export type Target =
-	{ kind: "monitors"; ids: string[] } | { kind: "regions"; keys: string[] } | { kind: "all" };
+	| { kind: "monitors"; ids: string[] }
+	| { kind: "regions"; keys: string[] }
+	/** A point or a school: its region keys tried in order (ZIP, city, county); one series. */
+	| { kind: "fallback"; via: Via; keys: string[] }
+	| { kind: "all" };
 
 /**
  * `timeSubRange` only filters the data delivered (whole Pacific days for dates, `[start, end]`
@@ -55,5 +120,15 @@ export type QueryInput = {
 	layer: Layer;
 	dateRange: DateRangeSpec;
 	pin?: Resolution;
+	/**
+	 * Asks for each day's worst hourly average; honored only for one place on a daily view of at
+	 * most `WORST_HOUR_MAX_DAYS` days, and ignored otherwise (it doesn't change the cache key then).
+	 */
+	worstHour?: boolean;
+	/**
+	 * A summary field name (such as `mean_24h`) each daily point carries as `figure`; honored only
+	 * at resolution `"day"`, and part of the cache key when set.
+	 */
+	dailyFigure?: string;
 	timeSubRange?: TimeSubRange;
 };

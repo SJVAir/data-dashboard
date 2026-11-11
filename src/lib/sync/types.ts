@@ -28,4 +28,10 @@ export type SyncRecord = {
 	 * a copy (a new id) starts without one.
 	 */
 	shareToken: string | null;
+	/**
+	 * The owner chose "Share my exact location" for this link: its exact locations upload as
+	 * they are. Only with a token, and only for the token it was chosen with (`withShareToken`);
+	 * otherwise a live-shared dashboard's points never upload (`pointsHeld`).
+	 */
+	shareExact: boolean;
 };

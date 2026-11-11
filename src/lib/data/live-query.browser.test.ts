@@ -11,6 +11,7 @@ describe("LiveQuery in the browser", () => {
 	it("keeps the data it is given rather than a deep proxy of it", async () => {
 		const data: QueryData = {
 			series: [{ place: "monitor:m-pa", points: [] }],
+			places: [],
 			resolution: "hour",
 			fromRaw: false,
 			processor: null,

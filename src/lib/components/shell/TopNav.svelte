@@ -36,6 +36,13 @@
 		>
 			{m.nav_dashboards()}
 		</a>
+		<a
+			href={p("/data")}
+			aria-current={isActive("/data") ? "page" : undefined}
+			class="text-foreground hover:text-primary aria-[current=page]:text-primary py-1 text-sm aria-[current=page]:shadow-[inset_0_-2px_var(--color-primary)] dark:aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
+		>
+			{m.nav_data()}
+		</a>
 		<div class="min-w-0 flex-1 sm:flex-none"><DashboardPicker /></div>
 		<div class="ml-auto flex items-center gap-2">
 			<SavedIndicator />

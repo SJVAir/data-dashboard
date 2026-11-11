@@ -1,0 +1,16 @@
+{
+	"data": {
+		"id": "gs65e",
+		"chem_code": 560,
+		"name": "SULFUR",
+		"preferred_name": "Sulfur",
+		"display_name": "Sulfur",
+		"cas_number": "7704-34-9",
+		"dtxsid": "DTXSID8029684",
+		"iarc_group": "",
+		"categories": [],
+		"placeholder": false,
+		"products": [],
+		"commodities": []
+	}
+}

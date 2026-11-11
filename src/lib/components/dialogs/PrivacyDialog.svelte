@@ -1,19 +1,10 @@
-<script module lang="ts">
-	const privacy = $state({ open: false });
-
-	/** Opens the "Your data and privacy" dialog (one is mounted in the app root). */
-	export function openPrivacy(): void {
-		privacy.open = true;
-	}
-</script>
-
 <script lang="ts">
+	import { openClearData, privacy } from "./lazy.svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { openClearData } from "./ClearDataDialog.svelte";
 
 	const app = useApp();
 	const noticesUrl = $derived(new URL("THIRD-PARTY-NOTICES.txt", app.staticBase).href);

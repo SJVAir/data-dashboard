@@ -1,4 +1,5 @@
 import type { Change } from "./types";
+import { canonicalJson } from "$lib/sharing/fingerprint";
 
 /**
  * Whether two changes made on different sides touch the same thing, so neither can be
@@ -19,6 +20,18 @@ export function changesOverlap(a: Change, b: Change): boolean {
 		}
 		return (
 			a.target.widgetId === b.target.widgetId && a.target.path === b.target.path && a.to !== b.to
+		);
+	}
+	// Two data replacements of one widget overlap unless they agree: the same resulting data, and
+	// the same type, options and thresholds where both set them. A size clamp is a layout move (last wins).
+	if (a.op === "setWidgetData" && b.op === "setWidgetData") {
+		if (a.target.widgetId !== b.target.widgetId) return false;
+		const differ = (x: unknown, y: unknown) => canonicalJson(x) !== canonicalJson(y);
+		return (
+			differ(a.to, b.to) ||
+			(!!a.type && !!b.type && a.type.to !== b.type.to) ||
+			(!!a.options && !!b.options && differ(a.options.to ?? null, b.options.to ?? null)) ||
+			(!!a.thresholds && !!b.thresholds && differ(a.thresholds.to ?? null, b.thresholds.to ?? null))
 		);
 	}
 	// Layout moves never overlap another move or a removal: the last save wins, and a move of

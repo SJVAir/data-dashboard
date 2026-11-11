@@ -6,7 +6,8 @@ export const LIMITS = {
 	CODE_MAX: 64,
 	LABEL_MAX: 200,
 	LAYERS_MAX: 8,
-	SELECTION_MAX: 500
+	SELECTION_MAX: 500,
+	CATEGORIES_MAX: 10
 } as const;
 
 export const ResolutionSchema = z.enum([
@@ -52,14 +53,14 @@ export const DateRangeSpecSchema = z.discriminatedUnion("kind", [
 export type DateRangeSpec = z.infer<typeof DateRangeSpecSchema>;
 
 const IdSchema = z.string().min(1).max(LIMITS.ID_MAX);
-const CodeSchema = z.string().min(1).max(LIMITS.CODE_MAX);
+export const CodeSchema = z.string().min(1).max(LIMITS.CODE_MAX);
 /** Monitor ids and entry types go into API paths, so they keep to a safe character set. */
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 const SafeIdSchema = IdSchema.regex(SAFE_ID);
 /** A region type, also the part of a selection's `type:code` id before the colon. */
 const REGION_TYPE = /^[a-z0-9_]+$/;
 
-export const PlaceRefSchema = z.discriminatedUnion("kind", [
+const CHOSEN_PLACES = [
 	z.object({ kind: z.literal("monitor"), id: SafeIdSchema }),
 	z.object({ kind: z.literal("region"), type: CodeSchema.regex(REGION_TYPE), code: CodeSchema }),
 	z.object({ kind: z.literal("location"), source: CodeSchema, code: CodeSchema }),
@@ -68,10 +69,18 @@ export const PlaceRefSchema = z.discriminatedUnion("kind", [
 		lat: z.number().min(-90).max(90),
 		lon: z.number().min(-180).max(180),
 		label: z.string().max(LIMITS.LABEL_MAX).optional()
-	}),
+	})
+] as const;
+
+export const PlaceRefSchema = z.discriminatedUnion("kind", [
+	...CHOSEN_PLACES,
 	z.object({ kind: z.literal("default-place") })
 ]);
 export type PlaceRef = z.infer<typeof PlaceRefSchema>;
+
+/** A place someone chose (the starter's place, its bar's): any place but `default-place`. */
+export const ChosenPlaceSchema = z.discriminatedUnion("kind", [...CHOSEN_PLACES]);
+export type ChosenPlace = Exclude<PlaceRef, { kind: "default-place" }>;
 
 const REGION_ID = /^[a-z0-9_]+:[^:]+$/;
 
@@ -127,13 +136,29 @@ export const TimeSubRangeSchema = z
 	});
 export type TimeSubRange = z.infer<typeof TimeSubRangeSchema>;
 
+/** A pesticide layer's saved filters: ids from the server's search, codes from its meta. */
+export const PesticideFiltersSchema = z.object({
+	chemical: IdSchema.optional(),
+	commodity: IdSchema.optional(),
+	product: IdSchema.optional(),
+	category: z.array(CodeSchema).min(1).max(LIMITS.CATEGORIES_MAX).optional(),
+	iarcGroup: CodeSchema.optional(),
+	method: CodeSchema.optional(),
+	narrow: CodeSchema.optional()
+});
+export type PesticideFilters = z.infer<typeof PesticideFiltersSchema>;
+
 export const LayerSchema = z
 	.object({
 		dataset: z.string().min(1).max(LIMITS.ID_MAX),
 		entryType: SafeIdSchema.optional(),
 		place: PlaceRefSchema.optional(),
 		selection: SpatialSelectionSchema.optional(),
-		resolution: z.union([z.literal("auto"), ResolutionSchema]).optional()
+		resolution: z.union([z.literal("auto"), ResolutionSchema]).optional(),
+		/** A weather layer's station (the catalog's station id). */
+		station: SafeIdSchema.optional(),
+		/** A pesticide layer's filters. */
+		filters: PesticideFiltersSchema.optional()
 	})
 	.refine((l) => !(l.place && l.selection), {
 		message: "A layer has a place or a selection, not both",

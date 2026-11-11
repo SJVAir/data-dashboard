@@ -1,4 +1,5 @@
 import { z } from "$lib/zod";
+import { WidgetDataConfigSchema } from "$lib/data/schema";
 import {
 	DashboardBodySchema,
 	NAME_MAX,
@@ -62,6 +63,26 @@ const SetFieldSchema = z
 		}
 	});
 
+const WidgetOptionsSchema = WidgetInstanceSchema.shape.options;
+const WidgetThresholdsSchema = WidgetInstanceSchema.shape.thresholds;
+
+/**
+ * A widget's data, and with Edit data its type, options and thresholds (no `to` removes them)
+ * and the size its new type needs, as one change.
+ */
+const SetWidgetDataSchema = z.object({
+	op: z.literal("setWidgetData"),
+	target: z.object({ widgetId: z.string().min(1) }),
+	from: WidgetDataConfigSchema,
+	to: WidgetDataConfigSchema,
+	type: z
+		.object({ from: WidgetInstanceSchema.shape.type, to: WidgetInstanceSchema.shape.type })
+		.optional(),
+	options: z.object({ from: WidgetOptionsSchema, to: WidgetOptionsSchema }).optional(),
+	thresholds: z.object({ from: WidgetThresholdsSchema, to: WidgetThresholdsSchema }).optional(),
+	rect: z.object({ from: RectSchema, to: RectSchema }).optional()
+});
+
 const DocContentSchema = z.object({
 	name: z.string().max(NAME_MAX).nullable(),
 	body: DashboardBodySchema
@@ -113,8 +134,10 @@ export const ChangeSchema = z.discriminatedUnion("op", [
 	AddWidgetSchema,
 	RemoveWidgetSchema,
 	SetFieldSchema,
+	SetWidgetDataSchema,
 	SetLayoutSchema,
 	ReplaceDocumentSchema
 ]);
 export type Change = z.infer<typeof ChangeSchema>;
 export type SetLayoutChange = Extract<Change, { op: "setLayout" }>;
+export type SetWidgetDataChange = Extract<Change, { op: "setWidgetData" }>;

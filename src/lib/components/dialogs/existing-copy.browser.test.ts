@@ -2,7 +2,8 @@ import { expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import type { DashboardSummary } from "$lib/documents/names";
-import ExistingCopyDialog, { askExistingCopy } from "./ExistingCopyDialog.svelte";
+import ExistingCopyDialog from "./ExistingCopyDialog.svelte";
+import { askExistingCopy } from "./lazy.svelte";
 
 const copy: DashboardSummary = {
 	id: "c1",

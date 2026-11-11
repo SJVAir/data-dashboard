@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WidgetInstance } from "$lib/documents/schema";
-import type { Change } from "./types";
+import type { Change, SetWidgetDataChange } from "./types";
 import { changesOverlap } from "./overlap";
 
 function widget(id: string): WidgetInstance {
@@ -18,6 +18,12 @@ const title = (widgetId: string, to: string): Change => ({
 	target: { widgetId, path: "title" },
 	from: null,
 	to
+});
+const data = (widgetId: string, amount: number): Change => ({
+	op: "setWidgetData",
+	target: { widgetId },
+	from: { layers: [] },
+	to: { dateRange: { kind: "trailing", amount, unit: "day" }, layers: [] }
 });
 const name = (to: string): Change => ({ op: "setField", target: { path: "name" }, from: null, to });
 const remove = (id: string): Change => ({
@@ -191,5 +197,64 @@ describe("changesOverlap on deletedAt", () => {
 		expect(
 			changesOverlap(del(null, "2026-10-22T00:00:00.000Z"), del("2026-10-22T00:00:00.000Z", null))
 		).toBe(true);
+	});
+
+	it("setWidgetData overlaps a removal of the same widget, not another widget's", () => {
+		expect(changesOverlap(data("a", 7), remove("a"))).toBe(true);
+		expect(changesOverlap(remove("a"), data("a", 7))).toBe(true);
+		expect(changesOverlap(data("a", 7), remove("b"))).toBe(false);
+	});
+
+	it("setWidgetData overlaps another on the same widget unless they agree", () => {
+		expect(changesOverlap(data("a", 7), data("a", 14))).toBe(true);
+		expect(changesOverlap(data("a", 7), data("a", 7))).toBe(false);
+		expect(changesOverlap(data("a", 7), data("b", 14))).toBe(false);
+	});
+
+	it("setWidgetData with a type or options overlaps only where both set the same field differently", () => {
+		const typed = (to: string, amount = 7): Change => ({
+			...(data("a", amount) as SetWidgetDataChange),
+			type: { from: "chart", to }
+		});
+		const opts = (to: Record<string, unknown> | undefined): Change => ({
+			...(data("a", 7) as SetWidgetDataChange),
+			options: { to }
+		});
+		expect(changesOverlap(typed("data-table"), typed("chart"))).toBe(true);
+		expect(changesOverlap(typed("data-table"), typed("data-table"))).toBe(false);
+		// Only one side changes the type, and the data agrees.
+		expect(changesOverlap(typed("data-table"), data("a", 7))).toBe(false);
+		expect(changesOverlap(typed("data-table", 14), data("a", 7))).toBe(true);
+		expect(changesOverlap(opts({ x: 1 }), opts({ x: 2 }))).toBe(true);
+		expect(changesOverlap(opts({ x: 1 }), opts(undefined))).toBe(true);
+		expect(changesOverlap(opts({ x: 1 }), opts({ x: 1 }))).toBe(false);
+		expect(changesOverlap(opts({ x: 1 }), data("a", 7))).toBe(false);
+		const alert = (level: string | undefined): Change => ({
+			...(data("a", 7) as SetWidgetDataChange),
+			thresholds: { to: level ? [{ level }] : undefined }
+		});
+		expect(changesOverlap(alert("moderate"), alert("unhealthy"))).toBe(true);
+		expect(changesOverlap(alert("moderate"), alert(undefined))).toBe(true);
+		expect(changesOverlap(alert("moderate"), alert("moderate"))).toBe(false);
+		expect(changesOverlap(alert("moderate"), data("a", 7))).toBe(false);
+	});
+
+	it("setWidgetData's size clamp, like a layout move, never overlaps a move", () => {
+		const clamped: Change = {
+			...(data("a", 7) as SetWidgetDataChange),
+			rect: { from: { x: 0, y: 0, w: 2, h: 2 }, to: { x: 0, y: 0, w: 3, h: 4 } }
+		};
+		const move: Change = {
+			op: "setLayout",
+			target: { widgetIds: ["a"] },
+			from: { a: { rect: { x: 0, y: 0, w: 2, h: 2 }, minimized: null } },
+			to: { a: { rect: { x: 4, y: 0, w: 2, h: 2 }, minimized: null } }
+		};
+		expect(changesOverlap(clamped, move)).toBe(false);
+		expect(changesOverlap(move, clamped)).toBe(false);
+	});
+
+	it("setWidgetData and a title edit of the same widget do not overlap", () => {
+		expect(changesOverlap(data("a", 7), title("a", "T"))).toBe(false);
 	});
 });

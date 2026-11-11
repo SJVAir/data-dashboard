@@ -1,0 +1,7 @@
+{
+	"data": {
+		"place": { "region": { "type": "county", "external_id": "06019", "name": "Fresno County" } },
+		"zip_count": 58,
+		"days": [{ "date": "2026-11-10", "score": 0, "score_display": "Low", "zipcode": "93210" }]
+	}
+}

@@ -1,16 +1,28 @@
 <script lang="ts">
-	import { onDestroy, untrack } from "svelte";
+	import { getContext, onDestroy, untrack } from "svelte";
 	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
+	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import { menuScope } from "$lib/actions/scope";
-	import { restoreWidget, taskbarActions, viewActions, widgetTitle } from "$lib/actions/widget";
+	import {
+		downloadItems,
+		placeItems,
+		restoreWidget,
+		taskbarActions,
+		viewActions,
+		widgetTitle
+	} from "$lib/actions/widget";
 	import { openMenuFor } from "$lib/components/menu/menu-state.svelte";
 	import { Button } from "$lib/components/ui/button";
+	import type { MenuProvider } from "$lib/actions/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
+	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
+	import MarkPulse from "$lib/thresholds/MarkPulse.svelte";
 	import { getWidgetType } from "$lib/widgets/registry";
+	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 
 	let {
 		widgets,
@@ -28,9 +40,22 @@
 	} = $props();
 
 	const app = useApp();
+	/** Who is looking (a share link's page says "shared"): names a point in a CSV file. */
+	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 	let bar = $state<HTMLElement | null>(null);
 	// The one button in the tab order (roving tabindex); index into all buttons.
 	let stop = $state(0);
+	function menuFor(widget: WidgetInstance): MenuProvider {
+		const base = readOnly
+			? viewActions(widget.id, onfullscreen)
+			: taskbarActions(app, widget.id, onfullscreen);
+		return (ctx) => [
+			...placeItems(app, () => widget),
+			...downloadItems(app, () => widget, viewer),
+			...base(ctx)
+		];
+	}
+
 	const count = $derived(widgets.length * 2);
 	const current = $derived(Math.min(stop, Math.max(0, count - 1)));
 
@@ -148,24 +173,33 @@
 		{#each widgets as widget, i (widget.id)}
 			{@const title = widgetTitle(widget)}
 			{@const Icon = getWidgetType(widget.type)?.icon ?? CircleQuestionMark}
+			{@const mark = thresholdMarks[widget.id]}
+			<!-- At its alert level: an outline in the level's color, a warning icon, and the name says
+			     so; it flashes once per crossing (steady under reduced motion). -->
 			<div
-				class="border-border animate-in fade-in-0 zoom-in-95 duration-fast ease-standard flex shrink-0 items-center rounded-(--radius-control) border"
+				class="border-border animate-in fade-in-0 zoom-in-95 duration-fast ease-standard relative flex shrink-0 items-center rounded-(--radius-control) border"
 				data-testid="taskbar-{widget.id}"
-				{@attach menuScope(
-					readOnly
-						? viewActions(widget.id, onfullscreen)
-						: taskbarActions(app, widget.id, onfullscreen)
-				)}
+				data-mark={mark ? "" : undefined}
+				style:outline-style={mark ? "solid" : undefined}
+				style:outline-width={mark ? "2px" : undefined}
+				style:outline-color={mark ? (mark.level.color ?? "var(--foreground)") : undefined}
+				{@attach menuScope(menuFor(widget))}
 			>
+				<MarkPulse {mark} width="2px" />
 				<Button
 					variant="ghost"
 					size="sm"
 					tabindex={current === i * 2 ? 0 : -1}
 					aria-label={readOnly
-						? m.widget_fullscreen_named({ title })
-						: m.taskbar_restore_named({ title })}
+						? mark
+							? m.widget_fullscreen_named_alert_reached({ title })
+							: m.widget_fullscreen_named({ title })
+						: mark
+							? m.taskbar_restore_named_alert_reached({ title })
+							: m.taskbar_restore_named({ title })}
 					onclick={() => (readOnly ? onfullscreen(widget.id) : restoreWidget(app, widget.id))}
 				>
+					{#if mark}<TriangleAlert data-mark-icon aria-hidden="true" />{/if}
 					<Icon aria-hidden="true" />
 					<span class="max-w-40 truncate">{title}</span>
 				</Button>

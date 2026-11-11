@@ -3,12 +3,12 @@ import type { QueryInput, QueryState } from "./types";
 
 /**
  * One subscriber's query as reactive state, for components. `set` switches the input (the last
- * one wins); `null` means nothing to show, which drops the subscription and reads as loading.
+ * one wins); `null` means nothing to show, which drops the subscription and reads as idle.
  * Call `destroy` when the component goes away.
  */
 export class LiveQuery {
 	/** Not deeply reactive: each change assigns a new state, and the data stays unproxied. */
-	state = $state.raw<QueryState>({ status: "loading" });
+	state = $state.raw<QueryState>({ status: "idle" });
 	readonly #client: QueryClient;
 	#sub: Subscription | null = null;
 	#polling = true;
@@ -21,7 +21,7 @@ export class LiveQuery {
 	set(input: QueryInput | null): void {
 		if (!input) {
 			this.destroy();
-			this.state = { status: "loading" };
+			this.state = { status: "idle" };
 		} else if (this.#sub) {
 			this.#sub.update(input);
 		} else {

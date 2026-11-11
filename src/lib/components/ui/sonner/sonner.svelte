@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import { Toaster as Sonner, toast, type ToasterProps as SonnerProps } from "svelte-sonner";
 	import { announce } from "$lib/a11y/announcer.svelte";
+	import { toastClearance } from "./clearance.svelte";
 	import Loader2Icon from "@lucide/svelte/icons/loader-2";
 	import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
 	import OctagonXIcon from "@lucide/svelte/icons/octagon-x";
@@ -9,6 +10,13 @@
 	import TriangleAlertIcon from "@lucide/svelte/icons/triangle-alert";
 
 	let { ...restProps }: SonnerProps = $props();
+
+	// svelte-sonner's own distances from the window's edge (24px, 16px on phones), plus the room
+	// a bar pinned at the bottom keeps free (see `toastClearance`).
+	const offset = $derived({ bottom: `calc(var(--spacing) * 6 + ${toastClearance.bottom}px)` });
+	const mobileOffset = $derived({
+		bottom: `calc(var(--spacing) * 4 + ${toastClearance.bottom}px)`
+	});
 
 	// Toasts follow the page's mode: the `data-theme` override on <html>, else the system scheme.
 	// (Not mode-watcher: it keeps its own choice in localStorage, which throws when storage is
@@ -56,6 +64,8 @@
 <Sonner
 	{theme}
 	class="toaster group"
+	{offset}
+	{mobileOffset}
 	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-card-border); --border-radius: var(--radius);"
 	toastOptions={{
 		classes: {

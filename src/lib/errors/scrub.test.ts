@@ -62,6 +62,9 @@ describe("routePattern", () => {
 		expect(routePattern("/workspace")).toBe("/");
 		expect(routePattern("/workspace/dashboards")).toBe("/dashboards");
 		expect(routePattern("/workspace/dashboards/abc/widgets/x")).toBe("/other");
+		expect(routePattern("/workspace/dashboards/x/widgets/y/edit")).toBe(
+			"/dashboards/:id/widgets/:widgetId/edit"
+		);
 		expect(routePattern("/workspace/ana@example.org")).toBe("/other");
 		expect(routePattern("/elsewhere")).toBe("/other");
 	});

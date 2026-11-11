@@ -61,12 +61,12 @@ describe("initialFiles", () => {
 
 describe("budgetWarnings", () => {
 	it("is quiet within budget", () => {
-		expect(budgetWarnings(200 * 1024)).toEqual([]);
+		expect(budgetWarnings(250 * 1024)).toEqual([]);
 	});
 
 	it("warns over budget, with an Actions annotation in CI", () => {
-		expect(budgetWarnings(201 * 1024)).toHaveLength(1);
-		const lines = budgetWarnings(201 * 1024, true);
+		expect(budgetWarnings(251 * 1024)).toHaveLength(1);
+		const lines = budgetWarnings(251 * 1024, true);
 		expect(lines[0]).toMatch(/^::warning /);
 		expect(lines).toHaveLength(2);
 	});
@@ -82,7 +82,7 @@ describe("check-budget script", () => {
 		};
 		writeFileSync(join(dir, "dist/.vite/manifest.json"), JSON.stringify(m));
 		writeFileSync(join(dir, "dist/app.js"), "x");
-		// Random bytes do not compress, so this passes the 200 KB budget.
+		// Random bytes do not compress, so this passes the 250 KB budget.
 		const big = Buffer.from(
 			Array.from({ length: 300 * 1024 }, () => Math.floor(Math.random() * 256))
 		);

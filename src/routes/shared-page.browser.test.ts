@@ -14,11 +14,26 @@ import { saveFields } from "$lib/sync/merge";
 import type { RemoteDocuments } from "$lib/sync/remote";
 import { createFakeRemote, type FakeRemote } from "$lib/sync/remote-fake";
 import { makeDoc, widget } from "$lib/sync/test-support";
+import type { AdapterRequest } from "$lib/data/adapters/registry";
+import { createQueryClient, type QueryClient } from "$lib/data/query/client";
+import { fixtureMetadata } from "$lib/data/testing/fixtures";
+import type { MetadataSource } from "$lib/data/metadata";
+import { m } from "$lib/paraglide/messages.js";
+import { notifyEnabled } from "$lib/thresholds/notify-pref";
+import { chartWidget, fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
 import { navigate } from "../router";
 import SharedHarness from "./test-harness/SharedHarness.svelte";
 
 const mocked = vi.hoisted(() => ({ remote: null as RemoteDocuments | null }));
 vi.mock("$lib/shared/remote", () => ({ sharedRemote: async () => mocked.remote }));
+const data = vi.hoisted(() => ({
+	client: undefined as QueryClient | undefined,
+	metadata: undefined as MetadataSource | undefined
+}));
+vi.mock("$lib/data", () => ({
+	getQueryClient: () => data.client!,
+	getMetadata: () => data.metadata!
+}));
 
 const OWNER = "owner";
 const originalUrl = location.href;
@@ -320,11 +335,11 @@ test("on the routed page, fullscreen then Escape goes back", async () => {
 	const token = await publish();
 	await openShared(token, { routed: true });
 	await expect.element(titleBar("Readings")).toBeVisible();
-	const entries = history.length;
 	await page.getByRole("button", { name: "Show Readings fullscreen" }).click();
 	await expect.poll(() => location.search).toBe("?widget=a");
 	await expect.poll(() => isFullscreen("a")).toBe(true);
-	expect(history.length).toBe(entries + 1);
+	// Not asserting history.length: browsers cap session history (Chromium: 50), so in a long
+	// shared-tab run a push leaves it unchanged. Going back to the shared page proves a push.
 	await userEvent.keyboard("{Escape}");
 	await expect.poll(() => location.search).toBe("");
 	await expect.poll(() => isFullscreen("a")).toBe(false);
@@ -342,5 +357,89 @@ test("the shown and unavailable pages pass axe", async () => {
 
 	await openShared("no-such-token");
 	await expect.element(heading("This shared dashboard is no longer available.")).toBeVisible();
+	expect((await axe.run(document.querySelector("main")!)).violations).toEqual([]);
+});
+
+test("a point shared live reads as the shared location, in its title and its CSV", async () => {
+	// The data says the place is a point shown through ZIP 93721.
+	const base = fakeAdapter([] as AdapterRequest[]);
+	data.metadata = fixtureMetadata();
+	data.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				async fetch(req, ctx, signal) {
+					const fetched = await base.fetch(req, ctx, signal);
+					return {
+						...fetched,
+						places: fetched.places.map((p) => ({ ...p, name: "ZIP 93721", via: { kind: "point" } }))
+					};
+				}
+			}
+		],
+		metadata: data.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const token = await publish({
+		...makeDoc("s1"),
+		name: "Class dashboard",
+		body: { widgets: [{ ...chartWidget(["m1"]), id: "c", rect: { x: 0, y: 0, w: 6, h: 8 } }] }
+	});
+	const { platform } = await openShared(token);
+	const actions = page.getByRole("button", {
+		name: /^Actions for .*ZIP 93721 \(shared location\)/
+	});
+	await expect.element(actions).toBeVisible();
+	expect(document.body.textContent).not.toContain("(your location)");
+	await actions.click();
+	await page.getByRole("menuitem", { name: "Download data (CSV)" }).click();
+	await expect.poll(() => platform.files.saved.length).toBe(1);
+	expect(platform.files.saved[0].contents).toContain("ZIP 93721 (shared location)");
+	expect(platform.files.saved[0].name).toContain("shared-location");
+});
+
+test("a viewer reaches their own notifications switch when a widget has an alert level", async () => {
+	data.metadata = fixtureMetadata();
+	data.client = createQueryClient({
+		adapters: [fakeAdapter([] as AdapterRequest[])],
+		metadata: data.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const notifications = page.getByRole("button", { name: "Notifications…" });
+	// No widget with an alert level: no switch to offer.
+	const plain = await openShared(await publish());
+	await expect.element(heading("Class dashboard")).toBeVisible();
+	await expect.element(notifications).not.toBeInTheDocument();
+	await plain.unmount();
+
+	const token = await publish({
+		...makeDoc("s1"),
+		name: "Class dashboard",
+		body: {
+			widgets: [
+				{
+					id: "n",
+					type: "current-conditions",
+					title: "Air now",
+					rect: { x: 0, y: 0, w: 3, h: 5 },
+					data: {
+						layers: [
+							{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+						]
+					},
+					thresholds: [{ level: "unhealthy_sensitive" }]
+				}
+			]
+		}
+	});
+	const { app, platform } = await openShared(token);
+	platform.notifications.script("granted");
+	await notifications.click();
+	const toggle = page.getByRole("switch", { name: m.notifications_switch_desktop() });
+	await expect.element(toggle).toBeVisible();
+	await toggle.click();
+	await expect.element(toggle).toBeChecked();
+	// The viewer's own preference, for the dashboard shown.
+	await expect.poll(() => notifyEnabled(platform, app.space, "s1")).toBe(true);
 	expect((await axe.run(document.querySelector("main")!)).violations).toEqual([]);
 });

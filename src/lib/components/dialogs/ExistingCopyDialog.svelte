@@ -1,28 +1,5 @@
-<script module lang="ts">
-	import type { DashboardSummary } from "$lib/documents/names";
-
-	export type ExistingCopyChoice = "open" | "new";
-
-	const ask = $state<{ open: boolean; copy: DashboardSummary | null }>({ open: false, copy: null });
-	let resolver: ((choice: ExistingCopyChoice | null) => void) | null = null;
-
-	function settle(choice: ExistingCopyChoice | null): void {
-		ask.open = false;
-		const resolve = resolver;
-		resolver = null;
-		resolve?.(choice);
-	}
-
-	/** Asks what to do about a copy already made (one dialog is mounted in the app root). */
-	export function askExistingCopy(copy: DashboardSummary): Promise<ExistingCopyChoice | null> {
-		settle(null);
-		ask.copy = copy;
-		ask.open = true;
-		return new Promise((resolve) => (resolver = resolve));
-	}
-</script>
-
 <script lang="ts">
+	import { existingCopy as ask, settleExistingCopy as settle } from "./lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { formatDate } from "$lib/format";

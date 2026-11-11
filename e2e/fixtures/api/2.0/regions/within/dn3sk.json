@@ -1,0 +1,56 @@
+{
+	"data": [
+		{
+			"id": "7fryx",
+			"name": "93274",
+			"slug": "93274",
+			"type": "zipcode",
+			"external_id": "93274",
+			"retired": null,
+			"boundary": {
+				"id": "f3txq",
+				"version": "2020",
+				"bbox": [-119.536489, 36.065385, -119.181251, 36.27642]
+			}
+		},
+		{
+			"id": "9yy4e",
+			"name": "93277",
+			"slug": "93277",
+			"type": "zipcode",
+			"external_id": "93277",
+			"retired": null,
+			"boundary": {
+				"id": "j55y3",
+				"version": "2020",
+				"bbox": [-119.475364, 36.254749, -119.287172, 36.32902]
+			}
+		},
+		{
+			"id": "zw8ca",
+			"name": "93291",
+			"slug": "93291",
+			"type": "zipcode",
+			"external_id": "93291",
+			"retired": null,
+			"boundary": {
+				"id": "pdhcs",
+				"version": "2020",
+				"bbox": [-119.475481, 36.326893999999996, -119.28628499999999, 36.487054]
+			}
+		},
+		{
+			"id": "4ghjm",
+			"name": "Visalia",
+			"slug": "visalia",
+			"type": "city",
+			"external_id": "0682954",
+			"retired": null,
+			"boundary": {
+				"id": "narqf",
+				"version": "2023",
+				"bbox": [-119.47483459656318, 36.26943502334578, -119.23382055842119, 36.37086702692919]
+			}
+		}
+	]
+}

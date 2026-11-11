@@ -3,6 +3,7 @@
 	import Undo2 from "@lucide/svelte/icons/undo-2";
 	import { handleUndoShortcut } from "$lib/actions/global";
 	import { Button } from "$lib/components/ui/button";
+	import { formatShortcut } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 
@@ -17,7 +18,7 @@
 		variant="ghost"
 		size="icon"
 		aria-label={m.undo()}
-		title={m.shortcut_undo()}
+		title={formatShortcut("Z")}
 		disabled={!session?.canUndo}
 		onclick={() => app.current.session?.undo()}
 	>
@@ -27,7 +28,7 @@
 		variant="ghost"
 		size="icon"
 		aria-label={m.redo()}
-		title={m.shortcut_redo()}
+		title={formatShortcut("Z", { shift: true })}
 		disabled={!session?.canRedo}
 		onclick={() => app.current.session?.redo()}
 	>

@@ -1,7 +1,9 @@
 import { loadDashboard } from "$lib/documents/load";
 import { displayNames, type DashboardSummary } from "$lib/documents/names";
-import type { Dashboard } from "$lib/documents/schema";
+import type { ChosenPlace } from "$lib/data/schema";
+import { DashboardSchema, type Dashboard } from "$lib/documents/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
+import { replacePlace } from "$lib/places/replace";
 import { forgetDocument } from "$lib/sharing/fingerprints";
 import {
 	STARTER_ID,
@@ -200,19 +202,29 @@ export class DashboardIndex {
 		return this.#create(blankDashboard(this.#now()));
 	}
 
-	createFromStarter(): Promise<string> {
-		return this.#create(copyOfStarter(this.#now()));
+	/** "New from starter": the starter at `place` (the space's chosen place). */
+	createFromStarter(place: ChosenPlace): Promise<string> {
+		return this.#create(copyOfStarter(this.#now(), place));
 	}
 
-	/** Copies the stored document (callers flush its session first), or the starter. */
-	async duplicate(id: string): Promise<string> {
+	/**
+	 * Copies the stored document (callers flush its session first), or the starter. With
+	 * `replace`, the copy has `from` replaced by `to` (`replacePlace`: mixed widgets, widgets at
+	 * other places and the original stay as they are; a bar at `from` moves). The starter needs
+	 * `replace`: it is built at `from` (its chosen place), so its plain Duplicate passes that place
+	 * as both.
+	 */
+	async duplicate(id: string, replace?: { from: ChosenPlace; to: ChosenPlace }): Promise<string> {
 		let source: Dashboard;
-		if (id === STARTER_ID) source = starterDashboard();
-		else {
+		if (id === STARTER_ID) {
+			if (!replace) throw new Error("Duplicating the starter needs its place");
+			source = starterDashboard(replace.from);
+		} else {
 			const loaded = loadDashboard(await this.#platform.documents.get(this.#space, id));
 			if (loaded.status !== "ok") throw new Error(`Dashboard ${id} can't be duplicated`);
 			source = loaded.doc;
 		}
+		if (replace) source = replacePlace(source, replace.from, replace.to, { others: false });
 		return this.#create(duplicateDashboard(source, this.#now()));
 	}
 
@@ -226,6 +238,9 @@ export class DashboardIndex {
 	}
 
 	async #create(doc: Dashboard): Promise<string> {
+		// Storage doesn't validate: a document that mustn't be stored (`default-place`) fails here.
+		const valid = DashboardSchema.safeParse(doc);
+		if (!valid.success) throw new Error(`Dashboard ${doc.id} is invalid: ${valid.error.message}`);
 		const result = await this.#platform.documents.commit(this.#space, {
 			docId: doc.id,
 			baseVersion: null,

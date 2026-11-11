@@ -12,6 +12,7 @@ import type { TabMessage } from "$lib/store/tab-channel";
 import type { SyncContext } from "./context";
 import { emptyRecord, readLocal } from "./local";
 import { finishMoves } from "./move";
+import { pointsHeld } from "./points";
 import { fetchMissing, pollList } from "./pull";
 import {
 	RemoteRefusal,
@@ -21,7 +22,7 @@ import {
 	type RemoteSnapshotMeta
 } from "./remote";
 import { resolveHold, type RemoteChoice } from "./resolve";
-import { shareDocument, unshareDocument, type ShareResult } from "./share";
+import { shareDocument, unshareDocument, type ShareOptions, type ShareResult } from "./share";
 import { SYNC_TAB, type SyncHold } from "./types";
 import { deletePermanently, type DeleteResult } from "./trash";
 import { uploadDocument, type UploadResult } from "./upload";
@@ -34,6 +35,8 @@ export type DocSyncState = {
 	onServer: boolean;
 	/** The share link's token while it's on, else `null`. */
 	shareToken: string | null;
+	/** The owner chose "Share my exact location" for that link. */
+	shareExact: boolean;
 };
 
 /** At most one save per document this often while editing. */
@@ -124,7 +127,7 @@ export class SyncWorker {
 		await this.#sweep(true);
 		const states = await this.#readStates();
 		// Fresh for the caller, who may read why some are left (an offline save posts nothing).
-		if (!this.#stopped) this.states = states;
+		if (!this.#stopped) this.#setStates(states);
 		return Object.values(states).filter((s) => s.state !== "synced").length;
 	}
 
@@ -144,6 +147,16 @@ export class SyncWorker {
 		return record !== null && record !== undefined && record.serverVersion !== null;
 	}
 
+	/**
+	 * Whether `docId`'s live link (on, without "Share my exact location") would show a point the
+	 * stored dashboard holds: whether or not it's uploaded yet (a point that went up before this
+	 * device knew of the link is swapped too).
+	 */
+	async pointsShown(docId: string): Promise<boolean> {
+		const local = await readLocal(this.#ctx, docId);
+		return typeof local !== "string" && pointsHeld(local.record, local.doc);
+	}
+
 	/** The server's snapshots of `docId`, newest first; throws as the remote does. */
 	versions(docId: string): Promise<RemoteSnapshotMeta[]> {
 		return serverVersions(this.#ctx, docId);
@@ -159,7 +172,7 @@ export class SyncWorker {
 			return await keepBeforeRestore(this.#ctx, docId);
 		} finally {
 			// A pull or a `gone` hold may have changed the document's standing.
-			this.states = await this.#readStates();
+			this.#setStates(await this.#readStates());
 		}
 	}
 
@@ -168,7 +181,7 @@ export class SyncWorker {
 		try {
 			return await deletePermanently(this.#ctx, docId);
 		} finally {
-			this.states = await this.#readStates();
+			this.#setStates(await this.#readStates());
 		}
 	}
 
@@ -179,25 +192,25 @@ export class SyncWorker {
 	 */
 	async resolve(docId: string, choice: RemoteChoice): Promise<string | null> {
 		const id = await resolveHold(this.#ctx, docId, choice);
-		this.states = await this.#readStates();
+		this.#setStates(await this.#readStates());
 		void this.#sweep(false);
 		return id;
 	}
 
 	/**
 	 * Uploads what's pending, then turns `docId`'s share link on (the last synced version, when
-	 * an edit couldn't upload).
+	 * an edit couldn't upload). With `opts.onlyIf`, only when the uploaded version passes it.
 	 */
-	async share(docId: string): Promise<ShareResult> {
-		const result = await shareDocument(this.#ctx, docId);
-		this.states = await this.#readStates();
+	async share(docId: string, opts?: ShareOptions): Promise<ShareResult> {
+		const result = await shareDocument(this.#ctx, docId, opts);
+		this.#setStates(await this.#readStates());
 		return result;
 	}
 
 	/** Turns `docId`'s share link off; throws `RemoteUnavailable` / `RemoteRefusal` on failure. */
 	async unshare(docId: string): Promise<void> {
 		await unshareDocument(this.#ctx, docId);
-		this.states = await this.#readStates();
+		this.#setStates(await this.#readStates());
 	}
 
 	/** The account's display name on shared dashboards (`null`: none). */
@@ -327,6 +340,11 @@ export class SyncWorker {
 				this.signedOut = true;
 				this.#cancelUploads();
 				return;
+			case "points":
+				// Uploaded once the point is swapped (a commit schedules it), not on a timer.
+				this.#retries.delete(docId);
+				this.#ctx.onPointsHeld?.(docId);
+				return;
 			default:
 				this.#retries.delete(docId);
 		}
@@ -425,12 +443,26 @@ export class SyncWorker {
 				this.#refreshAgain = false;
 				const states = await this.#readStates();
 				if (this.#stopped) return;
-				this.states = states;
+				this.#setStates(states);
 			} while (this.#refreshAgain);
 		} catch (error) {
 			report(error, { operation: "sync-states" });
 		} finally {
 			this.#refreshing = false;
+		}
+	}
+
+	/**
+	 * Takes new states; a document whose link starts guarding points here (turned on without
+	 * "Share my exact location", by any device, or first known at start) goes to
+	 * `ctx.onPointsHeld`, so its points are swapped where it's open.
+	 */
+	#setStates(states: Record<string, DocSyncState>): void {
+		const before = this.states;
+		this.states = states;
+		const guards = (s: DocSyncState | undefined) => !!s?.shareToken && !s.shareExact;
+		for (const [docId, state] of Object.entries(states)) {
+			if (guards(state) && !guards(before[docId])) this.#ctx.onPointsHeld?.(docId);
 		}
 	}
 
@@ -459,7 +491,8 @@ export class SyncWorker {
 				hold,
 				confirmedAt: record.confirmedAt,
 				onServer: record.serverVersion !== null,
-				shareToken: record.shareToken
+				shareToken: record.shareToken,
+				shareExact: record.shareExact
 			};
 		}
 		return states;

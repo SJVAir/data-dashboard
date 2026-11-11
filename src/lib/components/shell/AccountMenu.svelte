@@ -17,9 +17,8 @@
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import { spaceFor } from "$lib/account/identity";
 	import { displayName, greetingName, initials } from "$lib/account/names";
-	import { openPrivacy } from "$lib/components/dialogs/PrivacyDialog.svelte";
+	import { openPrivacy } from "$lib/components/dialogs/lazy.svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
-	import SignOutDialog from "$lib/components/dialogs/SignOutDialog.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import {
@@ -29,6 +28,7 @@
 		takeFocus
 	} from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
+	import { loadLazy } from "$lib/safety/lazy";
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { beginSignOut, keepFocusOnlyIfSignedOut } from "$lib/sync/sign-out";
@@ -84,12 +84,28 @@
 	/** Changes not yet in the account: the dialog asks what to do (`unsynced` is its count). */
 	let asking = $state(false);
 	let unsynced = $state(0);
+	// The dialog's code loads the first time it's needed, and then it stays mounted.
+	let SignOutDialog =
+		$state<typeof import("$lib/components/dialogs/SignOutDialog.svelte").default>();
 
 	async function signOut() {
 		requestFocus(SIGN_IN_FOCUS);
 		try {
 			const result = await beginSignOut(app);
 			if ("unsynced" in result) {
+				if (!SignOutDialog) {
+					try {
+						const module = await loadLazy(
+							() => import("$lib/components/dialogs/SignOutDialog.svelte")
+						);
+						SignOutDialog = module.default;
+					} catch {
+						// `loadLazy` offered a reload. Not asking means not signing out: the
+						// unsynced changes stay, and the person is still signed in.
+						void afterDialog();
+						return;
+					}
+				}
 				unsynced = result.unsynced;
 				asking = true;
 			}
@@ -161,4 +177,6 @@
 	</DropdownMenu.Root>
 {/if}
 
-<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />
+{#if SignOutDialog}
+	<SignOutDialog bind:open={asking} count={unsynced} onclosed={() => void afterDialog()} />
+{/if}

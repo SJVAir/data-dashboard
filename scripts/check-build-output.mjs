@@ -77,6 +77,8 @@ const NOT_FETCHED = {
 	"paraglidejs.com": "documentation link in the Paraglide runtime",
 	"tailwindcss.com": "license banner comment",
 	"docs.sentry.io": "documentation link in @sentry/browser",
+	"github.com": "bug-report link in marked's error message (the Notes viewer's chunk)",
+	"lexical.dev": "error-code documentation link in Lexical (the Note editor's chunk)",
 	"www.sjvair.com": "a link the person follows (navigation, not a fetch)",
 	"example.com": "dummy base for URL parsing in a dependency",
 	"fallback.com": "dummy base for URL parsing in a dependency"

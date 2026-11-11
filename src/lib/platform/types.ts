@@ -175,6 +175,28 @@ export interface ClipboardAccess {
 	writeText(text: string): Promise<boolean>;
 }
 
+export type GeoResult =
+	| { ok: true; lat: number; lon: number }
+	| { ok: false; reason: "denied" | "unavailable" | "timeout" | "unsupported" };
+
+/** The device's position. Coordinates must never be logged or reported. */
+export interface GeolocationAccess {
+	/** Asks once (the browser may prompt). Rejects only with the signal's reason when aborted. */
+	locate(signal?: AbortSignal): Promise<GeoResult>;
+}
+
+export type NotifyPermission = "granted" | "denied" | "default" | "unsupported";
+
+/** Desktop notifications. Components never call `Notification` directly. */
+export interface NotificationAccess {
+	/** "unsupported" where pages can't show notifications (phones, tablets, no API). */
+	permission(): NotifyPermission;
+	/** Asks the browser; call only from a person's action. */
+	request(): Promise<NotifyPermission>;
+	/** No-op unless granted. Same `tag` replaces an earlier notification. */
+	show(n: { title: string; body: string; tag: string }): void;
+}
+
 export type OpenedFile = { name: string; size: number; text(): Promise<string> };
 
 export interface FileAccess {
@@ -243,6 +265,8 @@ export type Platform = {
 	display: DisplayPreferences;
 	locks: LockAccess;
 	clipboard: ClipboardAccess;
+	geolocation: GeolocationAccess;
+	notifications: NotificationAccess;
 	files: FileAccess;
 	persistence: PersistenceAccess;
 	reset: ResetAccess;

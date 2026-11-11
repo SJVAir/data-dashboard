@@ -10,12 +10,20 @@ import { CURRENT_SCHEMA_VERSION, type Dashboard } from "$lib/documents/schema";
 import { forgetDocument } from "$lib/sharing/fingerprints";
 import type { ConflictChoice } from "$lib/store/document-session.svelte";
 import { docLock, type SyncContext } from "./context";
-import { currentChanges, postSync, readLocal, writeLocal, type LocalState } from "./local";
+import {
+	currentChanges,
+	postSync,
+	readLocal,
+	withShareToken,
+	writeLocal,
+	type LocalState
+} from "./local";
 import { fromRemote, saveFields, theirChanges } from "./merge";
 import { finishMoveLocked, moveLocked } from "./move";
+import { guardsPoints, mentionsPoint, PointsHeld, pointsHeld } from "./points";
 import { pullIntoLocked, type ServerState } from "./pull";
 import { RemoteRefusal, type SaveInput } from "./remote";
-import { SYNC_TAB, type SyncHold } from "./types";
+import { SYNC_TAB, type SyncHold, type SyncRecord } from "./types";
 import { oversized, remoteCall, replacing } from "./upload";
 
 export type RemoteChoice = ConflictChoice | "restore" | "discard" | "keep-as-new";
@@ -99,6 +107,7 @@ async function settle(
 	}
 	if (remote.status !== "ok") throw new Error(`Dashboard ${docId} from the server can't be loaded`);
 	const theirs = remote.doc;
+	const shared = withShareToken(local.record, server.document.shareToken);
 	const mine = currentChanges(local.unsynced);
 	try {
 		switch (choice) {
@@ -106,7 +115,7 @@ async function settle(
 				// Their deletes of widgets I changed are undone, so my changes to them stand.
 				const restores = keepMineRestores(theirChanges(server.changes).changes ?? [], mine);
 				const { doc, applied } = applyForced(theirs, [...restores, ...mine]);
-				const saved = await saveOver(ctx, server, doc, applied, "conflict");
+				const saved = await saveOver(ctx, shared, server, doc, applied, "conflict");
 				await commitSettled(ctx, local, doc, saved, server.document.shareToken);
 				return null;
 			}
@@ -118,7 +127,7 @@ async function settle(
 					to: null
 				};
 				const { doc, applied } = applyForced(theirs, [restore, ...mine]);
-				const saved = await saveOver(ctx, server, doc, applied, null);
+				const saved = await saveOver(ctx, shared, server, doc, applied, null);
 				await commitSettled(ctx, local, doc, saved, server.document.shareToken);
 				return null;
 			}
@@ -167,19 +176,27 @@ async function fetchServer(
 	return { version: document.version, changes: document.version === base ? [] : null, document };
 }
 
-/** Saves `doc` (the server's version with `applied` on top) on the server's version. */
+/**
+ * Saves `doc` (the server's version with `applied` on top) on the server's version. Like every
+ * upload, refused (`PointsHeld`, nothing sent) while `doc` holds a point its live link mustn't
+ * show; `record` is the document's (with the server's token).
+ */
 async function saveOver(
 	ctx: SyncContext,
+	record: SyncRecord,
 	server: ServerState,
 	doc: Dashboard,
 	applied: Change[],
 	snapshot: SaveInput["snapshot"]
 ): Promise<number> {
+	if (pointsHeld(record, doc)) throw new PointsHeld();
 	let changes: SaveInput["changes"] = applied.map((change) => ({
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		change
 	}));
-	if (oversized(changes)) changes = replacing(server.document, doc);
+	if (oversized(changes) || (guardsPoints(record) && mentionsPoint(changes))) {
+		changes = replacing(server.document, doc);
+	}
 	const answer = await remoteCall(() =>
 		ctx.remote.save(doc.id, {
 			...saveFields(doc),
@@ -235,14 +252,13 @@ async function commitSettled(
 		const later = local.unsynced.filter((e) => e.version > read.doc.version);
 		const target = later.length === 0 ? doc : applyForced(doc, currentChanges(later)).doc;
 		const written = await writeLocal(ctx, local, target, null, (version) => ({
-			...read.record,
+			...withShareToken(read.record, shareToken),
 			serverVersion,
 			// With later edits, only the ones settled here count as synced.
 			syncedThrough: later.length === 0 ? version : read.doc.version,
 			confirmedAt,
 			inFlight: null,
-			hold: null,
-			shareToken
+			hold: null
 		}));
 		if (written) return;
 	}

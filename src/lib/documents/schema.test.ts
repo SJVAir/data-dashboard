@@ -109,3 +109,63 @@ describe("minimized", () => {
 		expect(DashboardSchema.safeParse(old).success).toBe(false);
 	});
 });
+
+describe("widget thresholds", () => {
+	const widget = (thresholds: unknown) => ({
+		id: "w1",
+		type: "placeholder",
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 4 },
+		data: { layers: [] },
+		thresholds
+	});
+	it("accepts one threshold", () => {
+		expect(DashboardSchema.safeParse(withWidgets([widget([{ level: "unhealthy" }])])).success).toBe(
+			true
+		);
+	});
+	it("rejects two thresholds", () => {
+		expect(
+			DashboardSchema.safeParse(withWidgets([widget([{ level: "a" }, { level: "b" }])])).success
+		).toBe(false);
+	});
+	it("rejects a level key over the code limit", () => {
+		expect(
+			DashboardSchema.safeParse(withWidgets([widget([{ level: "x".repeat(65) }])])).success
+		).toBe(false);
+	});
+});
+
+describe("note widgets", () => {
+	const note = (options: unknown) => ({
+		id: "n1",
+		type: "note",
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 4 },
+		data: { layers: [] },
+		options
+	});
+
+	it("accepts valid note options", () => {
+		expect(DashboardSchema.safeParse(withWidgets([note({ text: "hi" })])).success).toBe(true);
+		expect(
+			DashboardSchema.safeParse(withWidgets([note({ message: "starter_note_welcome" })])).success
+		).toBe(true);
+	});
+
+	it("rejects invalid note options at the widget's options path", () => {
+		for (const options of [{ text: "a".repeat(5001) }, {}, undefined]) {
+			const r = DashboardSchema.safeParse(withWidgets([note(options)]));
+			expect(r.success).toBe(false);
+			if (!r.success)
+				expect(r.error.issues.some((i) => i.path.join(".") === "body.widgets.0.options")).toBe(
+					true
+				);
+		}
+	});
+
+	it("leaves other types' options free-form", () => {
+		const w = { ...note({ anything: 1 }), type: "other" };
+		expect(DashboardSchema.safeParse(withWidgets([w])).success).toBe(true);
+	});
+});

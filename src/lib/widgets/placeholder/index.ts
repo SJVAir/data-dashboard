@@ -3,7 +3,6 @@ import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { FALLBACK_MIN_SIZE, placeNewWidget } from "$lib/layout/items";
 import type { WidgetType } from "../registry";
-import Placeholder from "./Placeholder.svelte";
 
 export const PLACEHOLDER_TYPE = "placeholder";
 
@@ -15,11 +14,13 @@ export const placeholderType: WidgetType = {
 	time: "none",
 	thresholds: false,
 	analyzable: false,
-	defaultTitle: () => m.widget_placeholder_title(),
+	downloadable: false,
 	// Type-specific items only; the widget frame adds the common widget actions.
 	menu: () => [],
 	icon: SquareDashed,
-	component: Placeholder
+	load: () => import("./Placeholder.svelte").then((mod) => ({ component: mod.default }))
+	// Not `addable`: it's for tests (and dashboards copied from an early starter), never offered
+	// in Add widget.
 };
 
 export function newPlaceholder(widgets: WidgetInstance[]): WidgetInstance {

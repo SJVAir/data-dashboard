@@ -55,7 +55,8 @@
 		if (!hasDashboards) return;
 		untrack(() => {
 			const { session, isStarter } = app.current;
-			if (starter && isStarter && session === starter && !starter.edited) resolves++;
+			// The current starter (Change place replaces the one this page opened).
+			if (starter && isStarter && session && !session.edited) resolves++;
 		});
 	});
 

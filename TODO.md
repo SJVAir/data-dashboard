@@ -76,7 +76,7 @@ Earlier tracks, in order (new dashboard work branches from `main`):
 5. ~~Sync spec 4 (recovery)~~ **done** (PR
    [#29](https://github.com/SJVAir/data-dashboard/pull/29), merged into `main` 2026-11-03 with
    the user's yes). Plan: `docs/superpowers/plans/2026-11-02-sync-4-recovery.md`. The sync
-   track's dashboard specs are all on `main`. The dashboard pins **@sjvair/sdk 4.8.0-beta.3**.
+   track's dashboard specs are all on `main`. The dashboard pins **@sjvair/sdk 4.8.0-beta.6** (bumped with step 4).
 6. ~~The sjvair.com `deletedAccount` change~~ **done** (sjvair.com PR
    [#299](https://github.com/SJVAir/sjvair.com/pull/299), merged into `develop` 2026-11-03 with
    the user's yes), and spec 4's hand check 3 passed (see "Sync track" below).
@@ -1176,7 +1176,7 @@ research in `docs/reference/pesticides-explorer-research.md`).
 - ✅ Production regions verified 2026-11-04 on the public API: 201 `school_district` regions
   and the 3 `custom` forecast-zone regions.
 
-**Release 1, step 4: Widget Creation and non-map widgets** (now "the Data Explorer and non-map widgets")
+**Release 1, step 4: Widget Creation and non-map widgets** (now "Get data and non-map widgets")
 
 **Split into six specs (agreed with the user 2026-11-04)**, each its own spec → plan → stacked PR
 into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes:
@@ -1194,12 +1194,53 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    cache headers right, the chart spans the whole range with gaps where local data is missing.
    Its `ARCHITECTURE.md` and `DEFERRED.md` changes are on `step-4` and reach `main` when
    `step-4` merges.
-2. The **shared place picker** — **next**, in a fresh session (prompt: `prompt-spec-2.txt` at the
-   top of the checkout, untracked). Branch `step-4-spec-2` from `step-4`; its first commit pins
-   `@sjvair/sdk` exactly to `5.0.0-beta.2` and drops `exact`. sjvair.com's location name search
-   (#302) and the SDK's `searchLocations` are out.
-3. The **Data Explorer** (renamed from Widget Creation, the user, 2026-11-04; data first, then
-   how to show it, then Add to dashboard or Download CSV).
+2. The **shared place picker** — **merged into `step-4` 2026-11-05**
+   ([#38](https://github.com/SJVAir/data-dashboard/pull/38), with the user's yes): spec
+   `docs/superpowers/specs/2026-11-04-step-4-spec-2-place-picker-design.md`, plan
+   `docs/superpowers/plans/2026-11-04-step-4-spec-2-place-picker.md`. Built: SDK pinned exactly
+   to `5.0.0-beta.3` (`exact` dropped; the user approved the beta.3 pin 2026-11-05);
+   `origin/main` merged into `step-4` (#37); the lazily loaded picker (search across schools,
+   places and monitors; browse by type with county narrowing and "Inside ›"; recent places;
+   "Use my location" through a new `geolocation` platform capability; single and multiple
+   modes with greyed-out reasons); "Change place", "Choose a place", and "Choose another" on
+   Chart and Data table; points and schools showing their ZIP → city → county region with data,
+   labeled; "no longer available" for unlisted monitors and gone schools; and location privacy
+   (copy links and exports swap points for their region, copies from shares always swap, a
+   guarded live-link prompt, "Use my location" on a live-shared dashboard saves the region;
+   after review, a guard on every edit so an exact point never reaches a live link by any
+   path, and with exactly one place picked, of any kind, a school or "your location" replaces
+   it). E2E: `e2e/place-picker.spec.ts`. Stack check against `develop`: "fre" and "roo" searches,
+   ZIP Codes in Tulare County, Roosevelt High's chart (ZIP 93702), and a scripted position
+   (ZIP 93721). The user approved its new share and picker wording 2026-11-05. Its deferrals are in `DEFERRED.md`. After
+   the merge, `prompt-map-widget.txt` (untracked) was refreshed for the Map widget session.
+3. **Get data** (formerly the Data Explorer and Widget Creation; renamed by the user
+   2026-11-05) — **built on `step-4-spec-3`, its PR into `step-4` pending the user's yes**: spec
+   `docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`, plan
+   `docs/superpowers/plans/2026-11-05-step-4-spec-3-get-data.md`. Built: SDK pinned exactly to
+   `5.0.0-beta.4`, with region display names ("ZIP 93702"); the "Data" nav link and the routes
+   `/data`, `/dashboards/:id/widgets/new` and `/dashboards/:id/widgets/:widgetId/edit` (the error
+   reports' route list now checked against the router); the lazily loaded view (When: one
+   grouped preset list over the three saved methods; Where: the shared picker in multiple
+   mode; What: catalog-driven dataset sections, offered by adapter and the types' explicit
+   `accepts.datasets`; More options → Detail; a live preview with Show as and Dashboard size);
+   the forecasts adapter, with burn status and AQI forecast as overlays (labeled day bands on
+   the Chart, columns in the Data table, "Overlay for" when places' zones differ); CSV from any
+   data config, with overlay rows and `level_key`/`level_label`; the draft kept in this
+   browser; "Add widget" on data types opens Get data; **Add to dashboard** (target menu, the
+   starter's copy, highlight, one undo step); and **Edit data** with Save changes (one undo
+   step) and "Discard changes?". Initial bundle 199.6 KB of the 200 KB soft budget. E2E:
+   `e2e/get-data.spec.ts`. Stack check against `develop` (local forecasts start 2026-10-20, so
+   October 2026, not January): Fresno County PM2.5 with burn status, ZIP 93702 reads "ZIP
+   93702", and the CSV has the overlay rows. Its deferrals are in `DEFERRED.md`.
+   3b. **Get data layers** (added by the user 2026-11-05) ✅ built 2026-11-07, merged into `step-4`
+   2026-11-08 ([#43](https://github.com/SJVAir/data-dashboard/pull/43), 8641480): `@sjvair/sdk` `5.0.0-beta.6`, and the layers for weather (nearest CIMIS station, with
+   a station choice), smoke per day, and monthly and yearly pesticide use (per-layer filters);
+   number layers in strips under the chart and on their own; "Show values" with a "?"; the CSV's
+   `source_id`, `source_name`, `filters` and `aggregate`. E2E in `e2e/get-data.spec.ts`; initial bundle
+   199.7 KB of the 200 KB soft budget. Its deferrals are in `DEFERRED.md`. Before merge (2026-11-08)
+   the user approved the new strings after a copy review (smoke help, "Filters", "no recent data",
+   message keys renamed to match their text), accepted plan decision 3 (weather has no "Every
+   measurement") and the build's calls, and a pesticide search overlap bug was fixed.
 4. The "now" widgets (Current conditions, Forecast strip, "Can we go outside?") and thresholds. **Merged into `step-4`
    2026-11-08 (#45, a22e994)**, built on `step-4-spec-4` with the server's alert value through
    `@sjvair/sdk` 5.0.0-beta.7; the user approved its 62 new strings. Spec `docs/superpowers/specs/2026-11-08-step-4-spec-4-now-widgets-design.md`, plan
@@ -1215,14 +1256,22 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    `5.0.0-beta.8`: days are colored by the server's `daily_statistic`, with today and an
    unsettled yesterday from the open-day rows. Spec
    `docs/superpowers/specs/2026-11-09-step-4-spec-5-calendars-design.md`.
-6. Notes and the starter dashboard.
+6. Notes and the starter dashboard. **Built on `step-4-spec-6`; the PR into `step-4` is
+   pending the user's yes.** The Notes widget (Lexical editor in a dialog, `marked` viewer
+   drawn as a closed block model, saved in the widget's `options`), the real starter (welcome
+   Note, the three "now" widgets, a 30-day chart, the month calendar) resolved with the chosen
+   place, the "Change place" bar on starter copies with "Also change the other widgets",
+   sharing the starter copying it first, and "Duplicate for another place…". The user raised
+   the initial-bundle soft budget to 250 KB (2026-11-10). Spec
+   `docs/superpowers/specs/2026-11-10-step-4-spec-6-notes-and-starter-design.md`. Its
+   deferrals are in `DEFERRED.md`.
 
 The checklist below is the whole step's scope.
 
 - **Widget types default to about 3 of 12 columns wide**, so a laptop shows about four across
   (the design pass's density). Placeholder already does.
 - Each widget type declares its allowed date methods and span (`dateMethods`, `span`);
-  Widget Creation hides what doesn't apply.
+  Get data hides what doesn't apply.
 - **Retired or missing references** in every widget type: the "stopped reporting" note,
   "Switch to the replacement", and the "no longer available" card with "Choose another" /
   "Remove" (`ARCHITECTURE.md` → "Stable ids and retirement").
@@ -1233,8 +1282,10 @@ The checklist below is the whole step's scope.
   location) that re-targets all its widgets, and a personal copy on first edit. It lives at `/workspace/`; "Change place" is a preference (no
   copy); a real edit makes a copy and replaces the URL with `/workspace/dashboards/:id`; sharing
   copies first. It has non-map widgets, including a
-  calendar; the Map widget joins in step 6.
-- The Data Explorer (formerly the Widget Creation view; including the advanced resolution override): date methods above catalog-driven dataset accordions (the v1
+  calendar; the Map widget joins in step 6. (Built on `step-4-spec-6`, 2026-11-10; the
+  bar also stays on copies, with "Also change the other widgets" and "Duplicate for another
+  place…".)
+- Get data (formerly the Data Explorer and the Widget Creation view; including the advanced resolution override): dates above catalog-driven dataset sections (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.
 - The "Duplicate widget" action (used to put several widgets on the same place).
@@ -1248,7 +1299,7 @@ The checklist below is the whole step's scope.
   hierarchy browsing, single or multiple selection; built on step 3's region-hierarchy
   metadata and `v1-lessons.md`. It's reused by the Map widget and Release 2 alert rules.
 - The `WidgetType` registry (including `analyzable` and an optional pinned `resolution`:
-  calendars `day`, heatmap `hour`); layers and `QueryDescriptor` carry `resolution`
+  calendars `day`); layers and `QueryDescriptor` carry `resolution`
   (pin → override → ladder) and `WidgetDataConfig`; "now" widgets
   stage a 3-day trailing window for analysis (Forecast strip only where past forecasts
   exist), and Notes offers no analysis actions (`ARCHITECTURE.md` → "Widget-type
@@ -1261,7 +1312,7 @@ The checklist below is the whole step's scope.
   - Data table
   - Notes (safe Markdown: raw HTML off, link allowlist, links open in a new tab with
     `rel="ugc nofollow noopener"`)
-  - Hour × weekday heatmap
+  - ~~Hour × weekday heatmap~~ (dropped 2026-11-09, step 4 spec 5; see `DEFERRED.md` → "Dropped")
   - Forecast strip
   - "Can we go outside?"
 - Client-side self-monitoring thresholds. These need no server work and ship with the
@@ -1569,6 +1620,9 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **The error reports' route list** (step 4 spec 3, 2026-11-05): a test compares
+      `routePattern` to the router's route keys (`ROUTE_KEYS`). Removed from `DEFERRED.md`: "The
+      error reports' route list duplicates the router's".
 - [x] **sjvair.com: flaky CIMIS restamp tests** (fixed in sjvair.com #329, merged into
       `develop` 2026-11-10; every `call_command` monitor id uses `--monitor=<id>`, and the restamp
       tests always use an id starting with `-`). Removed from `DEFERRED.md`: "Flaky CIMIS restamp
@@ -1580,6 +1634,19 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
       `DEFERRED.md`: "Shared date-range helper home" (the chart uses `@sjvair/sdk`'s Pacific
       day helpers; no new shared module), and "monitor-map: cancelling one-off loads" (HMS and
       collocation data move to map-sdk's load-once stores).
+- [x] **The place picker on SDK 5.0.0-beta.3** (step 4 spec 2, 2026-11-05): Browse headings and
+      filters use `label_plural` ("Counties", "ZIP Codes"); search rows show their county;
+      Monitors browse has an "In:" county control and a Monitors entry under "Inside ›"
+      (`getMonitorsList({ region })`); the e2e fixture `monitors/meta.json` dropped `levels` and
+      gained `school_guidelines`. Removed from `DEFERRED.md`: "The place picker's SDK
+      5.0.0-beta.3 follow-ups". Browse rows from the regions list still show no county (the
+      list rows don't carry it).
+- [x] **Unlisted monitors and retired schools** (step 4 spec 2, 2026-11-04): a monitor, or a
+      monitor selection, with an id missing from the loaded monitors list is `unavailable`
+      ("monitor-unlisted", the "no longer available" card); a monitors list that fails to load
+      still runs the query as before. Removed from `DEFERRED.md`: "A monitor missing from the
+      monitors list gets the uncalibrated series silently" and "An unknown monitor shows the
+      error (with Retry) or 'No data', not 'no longer available'".
 - [x] **Design pass, part 1: the look** (built 2026-11-03; merged into `main` 2026-11-04,
       PR [#33](https://github.com/SJVAir/data-dashboard/pull/33)): light and dark tokens, the theme switch, restyled primitives and shell,
       four-across density, brand assets and app icons. Removed from `DEFERRED.md`: the maskable

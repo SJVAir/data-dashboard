@@ -5,10 +5,13 @@ import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import ArrowUpToLine from "@lucide/svelte/icons/arrow-up-to-line";
+import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
+import Database from "@lucide/svelte/icons/database";
 import FoldHorizontal from "@lucide/svelte/icons/fold-horizontal";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import Minus from "@lucide/svelte/icons/minus";
+import MapPin from "@lucide/svelte/icons/map-pin";
 import Maximize2 from "@lucide/svelte/icons/maximize-2";
 import Move from "@lucide/svelte/icons/move";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -22,10 +25,12 @@ import { announce } from "$lib/a11y/announcer.svelte";
 import { ChangeTargetMissing } from "$lib/changes/apply";
 import { replaceIfOverlapping } from "$lib/changes/rebase";
 import type { Change } from "$lib/changes/types";
+import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { afterMenuClose, closeMenus } from "$lib/components/menu/menu-state.svelte";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
+import { report } from "$lib/safety/report";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { movedText, resizedText } from "$lib/layout/announcements";
@@ -34,16 +39,33 @@ import { GRID_COLUMNS } from "$lib/layout/config";
 import type { Layout } from "$lib/layout/engine";
 import { requestFocus } from "$lib/layout/focus-request.svelte";
 import { shownLayout } from "$lib/layout/items";
-import { actionLayout, dropChange, sameRect, type LayoutAction } from "$lib/layout/steps";
+import {
+	actionLayout,
+	dropChange,
+	sameRect,
+	type LayoutAction,
+	type PhoneSpan
+} from "$lib/layout/steps";
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
+import { generatedTitle } from "$lib/widgets/titles.svelte";
+import type { PlaceViewer } from "$lib/widgets/shared/viewer";
+import { navigate } from "../../router";
 import type { MenuItem, MenuProvider } from "./types";
 
-/** A widget's display title: its own, else its type's generated one. */
-export function widgetTitle(widget: WidgetInstance): string {
+/**
+ * A widget's generated title: the one its component worked out once loaded, else its type's
+ * label.
+ */
+function generated(widget: WidgetInstance): string {
 	return (
-		widget.title ?? getWidgetType(widget.type)?.defaultTitle(widget) ?? m.widget_unknown_title()
+		generatedTitle(widget.id) ?? getWidgetType(widget.type)?.label() ?? m.widget_unknown_title()
 	);
+}
+
+/** A widget's display title: its own, else its generated one. */
+export function widgetTitle(widget: WidgetInstance): string {
+	return widget.title ?? generated(widget);
 }
 
 /** The editable current session and the widget in it, read when an action runs. */
@@ -62,11 +84,10 @@ function rename(app: AppContext, widgetId: string): void {
 	const found = find(app, widgetId);
 	if (!found) return;
 	const { widget } = found;
-	const generated = getWidgetType(widget.type)?.defaultTitle(widget) ?? m.widget_unknown_title();
 	openRename({
 		title: m.rename_widget_title(),
 		initial: widget.title ?? "",
-		placeholder: generated,
+		placeholder: generated(widget),
 		onSave(value) {
 			// Re-read: the starter may have handed off to its copy meanwhile.
 			const current = find(app, widgetId);
@@ -97,7 +118,8 @@ function duplicate(app: AppContext, widgetId: string): void {
 	});
 }
 
-function remove(app: AppContext, widgetId: string): void {
+/** Deletes the widget in one undo step, with an Undo toast. */
+export function removeWidget(app: AppContext, widgetId: string): void {
 	const found = find(app, widgetId);
 	if (!found) return;
 	const { session, widget, index } = found;
@@ -131,7 +153,8 @@ function arranged(
 	app: AppContext,
 	widgetId: string,
 	action: LayoutAction,
-	columns: number
+	columns: number,
+	span?: PhoneSpan
 ): { session: DocumentSession; change: Change; before: Layout; after: Layout } | null {
 	const found = find(app, widgetId);
 	if (!found) return null;
@@ -139,14 +162,23 @@ function arranged(
 	const widgets = found.session.editTarget.doc.body.widgets;
 	if (!widgets.some((w) => w.id === widgetId && !w.minimized)) return null;
 	const before = shownLayout(widgets, GRID_COLUMNS);
-	const after = actionLayout(before, widgetId, action, columns);
+	const after = actionLayout(before, widgetId, action, columns, span);
 	const change = after && dropChange(widgets, before, after, widgetId);
 	return change && after ? { session: found.session, change, before, after } : null;
 }
 
-/** Apply a Move or Size submenu item (one `setLayout`, one undo step) and announce it. */
-function arrangeBy(app: AppContext, widgetId: string, action: LayoutAction, columns: number) {
-	const result = arranged(app, widgetId, action, columns);
+/**
+ * Apply a Move or Size submenu item (one `setLayout`, one undo step) and announce it. `span`:
+ * the rows a widget shows on a phone (a Note grown to fit its text grows from those).
+ */
+function arrangeBy(
+	app: AppContext,
+	widgetId: string,
+	action: LayoutAction,
+	columns: number,
+	span?: PhoneSpan
+) {
+	const result = arranged(app, widgetId, action, columns, span);
 	if (!result) return;
 	const { session, change, before, after } = result;
 	const title = widgetTitle(find(app, widgetId)!.widget);
@@ -168,7 +200,7 @@ function arrangeBy(app: AppContext, widgetId: string, action: LayoutAction, colu
 	}
 	announce(
 		action.kind === "grow"
-			? resizedText(after, widgetId, phone, title)
+			? resizedText(after, widgetId, phone, title, span)
 			: movedText(after, widgetId, phone, title, pushed)
 	);
 }
@@ -201,11 +233,11 @@ function layoutSubmenus(app: AppContext, widgetId: string, arrangement: Arrangem
 				if (memo?.session === session && memo.doc === doc && memo.readOnly === readOnly) {
 					return memo.disabled;
 				}
-				const disabled = arranged(app, widgetId, action, columns) === null;
+				const disabled = arranged(app, widgetId, action, columns, arrangement.span) === null;
 				memo = { session, doc, readOnly, disabled };
 				return disabled;
 			},
-			run: () => arrangeBy(app, widgetId, action, columns)
+			run: () => arrangeBy(app, widgetId, action, columns, arrangement.span)
 		};
 	};
 	const step = (dir: "up" | "down" | "left" | "right") => ({ kind: "step", dir }) as const;
@@ -296,6 +328,7 @@ export function widgetActions(
 		return [
 			...layout,
 			...windowing,
+			...editDataItems(app, widgetId),
 			{
 				id: "rename-widget",
 				label: m.widget_rename(),
@@ -321,11 +354,101 @@ export function widgetActions(
 				run: () => {
 					// Leaving first means the page knows the widget's going (no missing-widget notice).
 					if (window?.inFullscreen) window.exit?.();
-					remove(app, widgetId);
+					removeWidget(app, widgetId);
 				}
 			}
 		];
 	};
+}
+
+/**
+ * "Download data (CSV)" for a widget whose type is `downloadable` (none otherwise). The data
+ * layer comes with a dynamic import, so it stays out of the initial bundle. `widget` is read
+ * when the item runs. Not an edit: offered on a read-only dashboard too. `viewer` names a point's
+ * place in the file ("shared" on a share link's page).
+ */
+export function downloadItems(
+	app: AppContext,
+	widget: () => WidgetInstance | null,
+	viewer: PlaceViewer = "owner"
+): MenuItem[] {
+	const current = widget();
+	if (!current || !getWidgetType(current.type)?.downloadable) return [];
+	return [
+		{
+			id: "download-csv",
+			label: m.widget_download_csv(),
+			icon: Download,
+			group: "data",
+			run: () => {
+				const latest = widget();
+				if (!latest) return;
+				const files = app.platform.files;
+				void import("$lib/data/csv").then(
+					(csv) =>
+						csv.saveWidgetCsv(
+							latest,
+							(name, contents, type) => files.save(name, contents, type),
+							viewer
+						),
+					(error: unknown) => {
+						report(error);
+						toast.error(m.widget_download_csv_failed());
+					}
+				);
+			}
+		}
+	];
+}
+
+/**
+ * "Change place" for an editable widget whose type has `accepts.maxPlaces`; none otherwise. The
+ * picker opens once the menu has closed, from what opened the menu (focus returns there).
+ */
+export function placeItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
+	const current = widget();
+	if (!current || !getWidgetType(current.type)?.accepts?.maxPlaces) return [];
+	if (!find(app, current.id)) return [];
+	const widgetId = current.id;
+	return [
+		{
+			id: "change-place",
+			label: m.widget_change_place(),
+			icon: MapPin,
+			group: "data",
+			run: (ctx) =>
+				afterMenuClose(() => {
+					// Focus goes back to what opened the menu first, so the picker returns it there.
+					(ctx.target as Partial<HTMLElement>).focus?.();
+					openPlacePicker({ widgetId });
+				})
+		}
+	];
+}
+
+/**
+ * "Edit data" for an editable widget whose type takes data from Get data (`accepts.datasets`);
+ * none otherwise. Opens Get data on the widget's data, with Save changes.
+ */
+function editDataItems(app: AppContext, widgetId: string): MenuItem[] {
+	const found = find(app, widgetId);
+	if (!found || !getWidgetType(found.widget.type)?.accepts?.datasets?.length) return [];
+	return [
+		{
+			id: "edit-data",
+			label: m.widget_edit_data(),
+			icon: Database,
+			group: "data",
+			run: () => {
+				// Re-read: the starter may have handed off to its copy meanwhile.
+				const current = find(app, widgetId);
+				if (!current) return;
+				void navigate("/dashboards/:id/widgets/:widgetId/edit", {
+					params: { id: current.session.doc.id, widgetId }
+				});
+			}
+		}
+	];
 }
 
 /** Minimize to the taskbar; announces and moves focus to its taskbar item. */

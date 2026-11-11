@@ -155,6 +155,36 @@ describe("DocumentSession", () => {
 		]);
 	});
 
+	it("onEdit hears apply, undo, and redo, not amend", async () => {
+		const edits: string[] = [];
+		const { session } = await setup({ onEdit: (s) => edits.push(s.doc.name ?? "none") });
+		session.apply(rename("One"));
+		session.undo();
+		session.redo();
+		session.amend(rename("Amended", "One"));
+		// Nothing to undo or redo: nothing heard.
+		session.redo();
+		expect(edits).toEqual(["One", "none", "One"]);
+	});
+
+	it("amend is stored but isn't an undo step: Undo goes past it, Redo stays offered", async () => {
+		const { platform, session } = await setup();
+		session.apply(rename("One"));
+		session.apply(title("a", "Map"));
+		session.undo();
+		expect(session.canRedo).toBe(true);
+		// Finishes the undo: the edit it landed on is changed again.
+		session.amend(rename("Amended", "One"));
+		expect(session.doc.name).toBe("Amended");
+		expect(session.canRedo).toBe(true);
+		await vi.advanceTimersByTimeAsync(500);
+		expect((await stored(platform)).name).toBe("Amended");
+		// The next undo is the rename's: back to before it, not to "One".
+		session.undo();
+		expect(session.doc.name).toBeNull();
+		expect(session.canUndo).toBe(false);
+	});
+
 	it("flushes pending changes on pagehide", async () => {
 		const win = new EventTarget();
 		vi.stubGlobal("window", win);
@@ -453,8 +483,8 @@ describe("DocumentSession", () => {
 			doc: makeDoc(),
 			tabId: "tab-1"
 		});
-		const hook = vi.fn(async (change: Change) => {
-			successor.apply(change);
+		const hook = vi.fn(async (change: Change | null) => {
+			if (change) successor.apply(change);
 			return successor;
 		});
 		const starter = new DocumentSession({
@@ -497,7 +527,7 @@ describe("DocumentSession", () => {
 			onBeforeFirstEdit: (change) =>
 				new Promise((resolve) => {
 					finish = () => {
-						successor.apply(change);
+						if (change) successor.apply(change);
 						resolve(successor);
 					};
 				})
@@ -525,11 +555,46 @@ describe("DocumentSession", () => {
 		]);
 	});
 
+	it("handOff hands off with no edit; edits made meanwhile follow it", async () => {
+		const { platform } = await setup();
+		const successor = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t" });
+		let finish!: () => void;
+		const hook = vi.fn(
+			(change: Change | null) =>
+				new Promise<DocumentSession>((resolve) => {
+					finish = () => {
+						if (change) successor.apply(change);
+						resolve(successor);
+					};
+				})
+		);
+		const starter = new DocumentSession({
+			platform,
+			space: SPACE,
+			doc: { ...makeDoc(), id: "starter" },
+			tabId: "tab-1",
+			onBeforeFirstEdit: hook
+		});
+		const handing = starter.handOff();
+		expect(hook).toHaveBeenCalledWith(null);
+		expect(starter.edited).toBe(true);
+		starter.apply(rename("Home"));
+		// Asked again while it runs: the same hand-off.
+		expect(starter.handOff()).toBe(handing);
+		finish();
+		expect(await handing).toBe(successor);
+		expect(hook).toHaveBeenCalledTimes(1);
+		expect(successor.doc.name).toBe("Home");
+		expect(await starter.handOff()).toBe(successor);
+		// A session that isn't a starter has nothing to hand off.
+		expect(await successor.handOff()).toBeNull();
+	});
+
 	it("replayPending does nothing once the hand-off has succeeded", async () => {
 		const { platform } = await setup();
 		const successor = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t" });
-		const hook = vi.fn(async (change: Change) => {
-			successor.apply(change);
+		const hook = vi.fn(async (change: Change | null) => {
+			if (change) successor.apply(change);
 			return successor;
 		});
 		const starter = new DocumentSession({

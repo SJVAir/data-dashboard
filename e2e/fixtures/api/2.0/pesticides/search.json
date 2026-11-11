@@ -1,0 +1,23 @@
+{
+	"results": [
+		{
+			"id": "gs65e",
+			"name": "Sulfur",
+			"detail": "CDPR chem code 560",
+			"placeholder": false
+		},
+		{
+			"id": "ugzrp",
+			"name": "Sulfluramid",
+			"detail": "CDPR chem code 2314",
+			"placeholder": false
+		},
+		{
+			"id": "hqcxn",
+			"name": "Sulfoxaflor",
+			"detail": "CDPR chem code 6109",
+			"placeholder": false
+		}
+	],
+	"more": true
+}

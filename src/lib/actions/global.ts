@@ -1,5 +1,6 @@
 import Redo2 from "@lucide/svelte/icons/redo-2";
 import Undo2 from "@lucide/svelte/icons/undo-2";
+import { formatShortcut } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { MenuProvider } from "./types";
@@ -13,7 +14,7 @@ export function historyActions(app: AppContext): MenuProvider {
 				id: "undo",
 				label: m.undo(),
 				icon: Undo2,
-				shortcut: m.shortcut_undo(),
+				shortcut: formatShortcut("Z"),
 				group: "history",
 				disabled: !session?.canUndo,
 				// Read at run time: the starter hands off to its copy on the first edit.
@@ -23,7 +24,7 @@ export function historyActions(app: AppContext): MenuProvider {
 				id: "redo",
 				label: m.redo(),
 				icon: Redo2,
-				shortcut: m.shortcut_redo(),
+				shortcut: formatShortcut("Z", { shift: true }),
 				group: "history",
 				disabled: !session?.canRedo,
 				run: () => app.current.session?.redo()

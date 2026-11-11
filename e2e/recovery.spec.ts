@@ -9,7 +9,8 @@ import {
 	DASHBOARD_URL,
 	expectNoViolations,
 	maria,
-	PLACEHOLDER,
+	NOTE,
+	STARTER_TITLES,
 	nav,
 	openPicker,
 	renameWidget,
@@ -21,11 +22,11 @@ test.use({ reducedMotion: "reduce", account: maria });
 
 const NAME = "My dashboard";
 
-/** The starter's first widget renamed, which saves it as Maria's own copy in her account. */
+/** The starter's welcome Note renamed, which saves it as Maria's own copy in her account. */
 async function ownCopy(page: Page, title = "My first widget"): Promise<void> {
 	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
-	await renameWidget(page, PLACEHOLDER, title);
+	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
+	await renameWidget(page, NOTE, title);
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(savedToAccount(page)).toBeVisible();
 }

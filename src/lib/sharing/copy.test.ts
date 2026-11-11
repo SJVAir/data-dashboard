@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Dashboard } from "$lib/documents/schema";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { initApp, type AppContext } from "$lib/store/app.svelte";
@@ -8,6 +8,11 @@ import { fingerprintOf, forgetDocument, rememberCopy, copiesOf } from "./fingerp
 import { documentFileJson } from "./export";
 import { makeDoc } from "./fixtures.test-util";
 import { parseIncoming } from "./incoming";
+
+const mocked = vi.hoisted(() => ({
+	placeRegion: vi.fn(async () => ({ type: "zipcode", code: "93721" }))
+}));
+vi.mock("$lib/data", () => ({ placeRegion: mocked.placeRegion }));
 
 const now = new Date("2026-10-25T12:00:00Z");
 
@@ -91,6 +96,49 @@ describe("copies", () => {
 		const other = await initApp(platform, { channel: hub.channel(), tabId: "t2" });
 		const id = await saveCopy(app, await incomingOf(makeDoc()));
 		await expect.poll(() => other.index.items.map((d) => d.id)).toContain(id);
+	});
+});
+
+describe("a copy of a share with an exact location", () => {
+	const point = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
+	const withPoint = (): Dashboard => {
+		const doc = makeDoc(1);
+		return {
+			...doc,
+			body: {
+				widgets: [
+					{
+						...doc.body.widgets[0],
+						type: "chart",
+						data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: point }] }
+					}
+				]
+			}
+		};
+	};
+
+	it("always stores the region, never the point", async () => {
+		const { app } = await setup();
+		const incoming = await incomingOf(withPoint());
+		const id = await saveCopy(app, incoming);
+		const stored = (await app.platform.documents.get(app.space, id)) as Dashboard;
+		expect(stored.body.widgets[0].data.layers[0].place).toEqual({
+			kind: "region",
+			type: "zipcode",
+			code: "93721"
+		});
+		expect(JSON.stringify(stored)).not.toContain("36.7378");
+		// Still found as a copy of what was shared.
+		expect((await findExistingCopy(app, incoming.fingerprint))?.id).toBe(id);
+	});
+
+	it("saves nothing when the region can't be looked up", async () => {
+		const { app } = await setup();
+		mocked.placeRegion.mockRejectedValueOnce(new Error("offline"));
+		const incoming = await incomingOf(withPoint());
+		await expect(saveCopy(app, incoming)).rejects.toThrow();
+		await app.index.refresh();
+		expect(app.index.items).toEqual([]);
 	});
 });
 

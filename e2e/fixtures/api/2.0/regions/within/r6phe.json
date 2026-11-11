@@ -1,0 +1,43 @@
+{
+	"data": [
+		{
+			"id": "njyup",
+			"name": "Fresno",
+			"slug": "fresno",
+			"type": "city",
+			"external_id": "0627000",
+			"retired": null,
+			"boundary": {
+				"id": "b9268",
+				"version": "2023",
+				"bbox": [-119.93440971171536, 36.66216702177423, -119.65052167400698, 36.91154105642143]
+			}
+		},
+		{
+			"id": "c85na",
+			"name": "93702",
+			"slug": "93702",
+			"type": "zipcode",
+			"external_id": "93702",
+			"retired": null,
+			"boundary": {
+				"id": "yskz4",
+				"version": "2020",
+				"bbox": [-119.77477, 36.71842, -119.727442, 36.761351]
+			}
+		},
+		{
+			"id": "yd7ru",
+			"name": "93721",
+			"slug": "93721",
+			"type": "zipcode",
+			"external_id": "93721",
+			"retired": null,
+			"boundary": {
+				"id": "ysjz4",
+				"version": "2020",
+				"bbox": [-119.80579399999999, 36.713051, -119.771767, 36.746829999999996]
+			}
+		}
+	]
+}

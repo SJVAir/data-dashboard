@@ -1,13 +1,5 @@
-<script module lang="ts">
-	const clear = $state({ open: false });
-
-	/** Opens the "Clear my data" dialog (one is mounted in the app root). */
-	export function openClearData(): void {
-		clear.open = true;
-	}
-</script>
-
 <script lang="ts">
+	import { clearData as clear } from "./lazy.svelte";
 	import { tick } from "svelte";
 	import { toast } from "svelte-sonner";
 	import { downloadBackupFile, prefetchSharing } from "$lib/actions/dashboard";

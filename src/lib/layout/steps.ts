@@ -90,20 +90,30 @@ export function stepMoved(before: Layout, after: Layout, id: string, columns: nu
 }
 
 /**
+ * A widget's rows on a phone for its height `h` (a Note may show more, to fit its text): `h`
+ * when not given.
+ */
+export type PhoneSpan = (id: string, h: number) => number;
+
+/**
  * A Shift+arrow step's new size: Right/Left change the width by one, Down/Up the height
  * (height only on one column), clamped to the widget's minimum size and the grid. Null when
- * it wouldn't change.
+ * it wouldn't change. On one column, Down grows from the rows the widget shows (`span`), so a
+ * Note grown to fit its text gets one row taller at once; Up shrinks its own height (it can't
+ * show fewer rows than its text needs).
  */
 export function growSize(
 	layout: Layout,
 	id: string,
 	dir: ArrangeDirection,
-	columns: number
+	columns: number,
+	span?: PhoneSpan
 ): Size | null {
 	const { rect, minSize } = itemOf(layout, id);
 	let { w, h } = rect;
+	const shown = columns === 1 && span ? Math.max(h, span(id, h)) : h;
 	if (dir === "up") h = Math.max(h - 1, minSize.h);
-	else if (dir === "down") h = Math.min(h + 1, MAX_HEIGHT);
+	else if (dir === "down") h = Math.min(shown + 1, MAX_HEIGHT);
 	else if (columns === 1) return null;
 	else if (dir === "left") w = Math.max(w - 1, minSize.w);
 	else w = Math.min(w + 1, GRID_COLUMNS - rect.x);
@@ -144,12 +154,13 @@ export function actionLayout(
 	layout: Layout,
 	id: string,
 	action: LayoutAction,
-	columns: number
+	columns: number,
+	span?: PhoneSpan
 ): Layout | null {
 	let op: Op | "at-bottom" | "blocked";
 	if (action.kind === "step") op = stepOp(layout, id, action.dir, columns);
 	else if (action.kind === "grow") {
-		const size = growSize(layout, id, action.dir, columns);
+		const size = growSize(layout, id, action.dir, columns, span);
 		op = size ? { kind: "size", ...size } : "blocked";
 	} else if (columns === 1) {
 		const index = action.end === "top" ? 0 : layout.length - 1;

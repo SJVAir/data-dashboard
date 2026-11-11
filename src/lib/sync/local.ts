@@ -31,8 +31,18 @@ export function emptyRecord(docId: string): SyncRecord {
 		confirmedAt: null,
 		inFlight: null,
 		hold: null,
-		shareToken: null
+		shareToken: null,
+		shareExact: false
 	};
+}
+
+/**
+ * `record` with the link's token as the server (or a share) says it is now. The exact choice
+ * belongs to the link it was made for: a link turned off, or a different one, starts without it.
+ */
+export function withShareToken(record: SyncRecord, shareToken: string | null): SyncRecord {
+	const shareExact = record.shareExact && shareToken !== null && shareToken === record.shareToken;
+	return { ...record, shareToken, shareExact };
 }
 
 export async function readLocal(

@@ -72,6 +72,78 @@ function devProxy(mode: string) {
 	};
 }
 
+const src = (path: string) => fileURLToPath(new URL(`./src/${path}`, import.meta.url));
+
+type ModuleInfoLookup = (id: string) => { importedIds: readonly string[] } | null;
+
+/**
+ * Modules imported through a barrel (date-fns' index, Paraglide's `m`): the static import graph
+ * reaches every one of them, but only what's used is bundled, so the app group would take in the
+ * ones only lazy chunks use. They are left to the bundler's own splitting.
+ */
+const BARRELED = [
+	"/node_modules/date-fns/",
+	"/src/lib/paraglide/messages/",
+	// bits-ui's barrel reaches every primitive, so all of them count as the app chunk's. These,
+	// and the helpers only they use, are used by lazy code alone (Get data, the "Which place?"
+	// question); left in the group, they'd be bundled into the app chunk.
+	...[
+		"accordion",
+		"alert-dialog",
+		"collapsible",
+		"combobox",
+		"radio-group",
+		"select",
+		"toggle-group"
+	].map((bit) => `/node_modules/bits-ui/dist/bits/${bit}/`),
+	"/node_modules/bits-ui/dist/bits/utilities/hidden-input.svelte",
+	"/node_modules/bits-ui/dist/bits/utilities/mounted.svelte",
+	"/node_modules/bits-ui/dist/internal/data-typeahead.svelte.js",
+	"/node_modules/svelte-toolbelt/dist/utils/on-mount-effect.svelte.js",
+	"/node_modules/svelte-toolbelt/dist/utils/sr-only-styles.js"
+];
+
+/**
+ * Keeps the app chunk's modules (what `src/main.ts` imports statically, directly or not) in one
+ * file. Left to itself the bundler splits out each part a lazy chunk also uses (the Svelte runtime,
+ * the dialog primitives, messages, …) into its own initial file, and each extra file compresses
+ * worse on its own. Lazy chunks import what they share from this one, which is always loaded
+ * before them. Three kinds of module stay out: `main.ts` itself (it stays the app chunk the
+ * manifest names), what the build entry `app.js` also imports (it stays in `app.js`, which must
+ * not import the app chunk), and `BARRELED`.
+ */
+function appGroup() {
+	let modules: Set<string> | null = null;
+	return {
+		name(id: string, ctx: { getModuleInfo: ModuleInfoLookup }) {
+			if (!modules) {
+				const getModuleInfo: ModuleInfoLookup = (m) => ctx.getModuleInfo(m);
+				const entry = closure(getModuleInfo, src("bootstrap.ts"));
+				modules = closure(getModuleInfo, src("main.ts"));
+				for (const id of entry) modules.delete(id);
+				modules.delete(src("main.ts"));
+			}
+			if (BARRELED.some((path) => id.includes(path))) return null;
+			return modules.has(id) ? "app" : null;
+		},
+		// Off, so the modules `app.js` also imports aren't pulled in as dependencies; every other
+		// dependency is in the group already.
+		includeDependenciesRecursively: false
+	};
+}
+
+/** `start` and every module it imports statically, directly or not. */
+function closure(getModuleInfo: ModuleInfoLookup, start: string): Set<string> {
+	const seen = new Set<string>();
+	const visit = (id: string) => {
+		if (seen.has(id)) return;
+		seen.add(id);
+		for (const next of getModuleInfo(id)?.importedIds ?? []) visit(next);
+	};
+	visit(start);
+	return seen;
+}
+
 export default defineConfig(({ command, mode, isPreview }) => ({
 	// Built files find each other by relative reference (see the hosting contract), so one build
 	// serves from any origin or folder. The dev server keeps the real mount path; the preview serves
@@ -102,6 +174,7 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 			output: {
 				entryFileNames: "workspace/app.js",
 				chunkFileNames: "workspace/assets/[name]-[hash].js",
+				codeSplitting: { groups: [appGroup()] },
 				// The entry stylesheet is the only CSS Vite names after the HTML entry (`index.css`).
 				assetFileNames: (info) =>
 					(info.names ?? []).includes("index.css")
@@ -112,7 +185,7 @@ export default defineConfig(({ command, mode, isPreview }) => ({
 	},
 	server: { proxy: devProxy(mode) },
 	preview: { headers: { "Content-Security-Policy": contractCsp() } },
-	optimizeDeps: { include: ["axe-core"] },
+	optimizeDeps: { include: ["axe-core", "uplot"] },
 	resolve: {
 		alias: [{ find: "$lib", replacement: fileURLToPath(new URL("./src/lib", import.meta.url)) }]
 	},

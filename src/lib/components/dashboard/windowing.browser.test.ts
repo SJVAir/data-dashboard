@@ -13,10 +13,12 @@ import { FULLSCREEN_STATE } from "$lib/layout/fullscreen";
 import { minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { PLACEHOLDER_TYPE } from "$lib/widgets/placeholder";
+import { PLACEHOLDER_TYPE, placeholderType } from "$lib/widgets/placeholder";
+import { registerWidgetType } from "$lib/widgets/registry";
 import App from "../../../App.svelte";
 import { navigate, route } from "../../../router";
 import Harness from "./test-harness/Harness.svelte";
+import { stubStarterTypes } from "./test-harness/stub-starter-types";
 
 declare module "vitest/browser" {
 	interface BrowserCommands {
@@ -43,6 +45,7 @@ function widget(id: string, rect: Rect, title: string): WidgetInstance {
 async function seed(widgets: WidgetInstance[], onArrangement?: (a: Arrangement) => void) {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
 	await platform.documents.commit(app.space, {
@@ -179,11 +182,10 @@ test("a widget picked up by keyboard is cancelled by minimizing it", async () =>
 test("minimize on the starter makes the copy and focuses the taskbar item", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", "/workspace/");
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	const starter = app.current.session!;
 	await page
 		.getByTestId("widget-starter-1")
@@ -201,11 +203,10 @@ test("minimize on the starter makes the copy and focuses the taskbar item", asyn
 test("restore on the starter makes the copy and focuses the restored title bar", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", "/workspace/");
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	const starter = app.current.session!;
 	// The built-in starter has no minimized widget, so one is minimized in its shown document
 	// (not an edit, so no copy yet).
@@ -251,6 +252,7 @@ async function seedApp(
 	const platform = createMemoryPlatform();
 	const hub = createMemoryTabHub();
 	const app = await initApp(platform, { channel: hub.channel(), tabId: "t1" });
+	stubStarterTypes();
 	prepare?.(app);
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
@@ -434,6 +436,7 @@ test("a minimized widget opens fullscreen and stays minimized", async () => {
 test("a deep link waits for the dashboard to load", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
 	await platform.documents.commit(app.space, {
@@ -558,6 +561,34 @@ test("Delete in fullscreen exits with one toast and no extra history entry", asy
 	expect(frame("b").element().closest("[inert]")).toBeNull();
 });
 
+test("Remove on the no-longer-available card in fullscreen exits first", async () => {
+	registerWidgetType({
+		...placeholderType,
+		type: "gone-test",
+		label: () => "Gone",
+		load: () =>
+			import("$lib/widgets/shared/test-harness/GoneWidget.svelte").then((mod) => ({
+				component: mod.default
+			}))
+	});
+	const gone: WidgetInstance = {
+		id: "g",
+		type: "gone-test",
+		title: "Gone one",
+		rect: { x: 0, y: 4, w: 6, h: 4 },
+		data: { layers: [] }
+	};
+	const { app } = await seedApp([...halves(), gone]);
+	await expect.element(titleBar("Gone one")).toBeVisible();
+	await page.getByRole("button", { name: "Show Gone one fullscreen" }).click();
+	await expect.poll(() => location.search).toBe("?widget=g");
+	await page.getByRole("button", { name: "Remove" }).click();
+	await expect.poll(() => location.search).toBe("");
+	expect(app.current.session!.doc.body.widgets.map((x) => x.id)).toEqual(["a", "b"]);
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	expect(toastTexts().some((t) => t.includes("isn't on this dashboard"))).toBe(false);
+});
+
 test("a deep link on a read-only dashboard drops the parameter silently", async () => {
 	const { id } = await seedApp(
 		halves(),
@@ -638,11 +669,10 @@ test("restored in another tab stays fullscreen, with focus kept", async () => {
 async function starterApp(url: string) {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", url);
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	return app;
 }
 

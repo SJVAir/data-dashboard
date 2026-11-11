@@ -174,16 +174,17 @@ Installed:
 | `vitest-browser-svelte`            | Rendering components in Vitest browser mode        |
 | Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks |
 | `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)  |
+| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)        |
+| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)  |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 
-| Library                            | Purpose                                           |
-| ---------------------------------- | ------------------------------------------------- |
-| `uplot` (direct dependency)        | **All** charts (time-series-first)                |
-| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView`, data stores |
-| `terra-draw`                       | Drawn-shape map selection (via a map-sdk plugin)  |
-| A Markdown renderer (raw HTML off) | Safe Notes rendering                              |
-| JupyterLite + Pyodide              | Separate `/notebooks/` app (Release 3)            |
+| Library                     | Purpose                                           |
+| --------------------------- | ------------------------------------------------- |
+| `uplot` (direct dependency) | **All** charts (time-series-first)                |
+| `@sjvair/map-sdk`           | Map widget: core, plugins, `MapView`, data stores |
+| `terra-draw`                | Drawn-shape map selection (via a map-sdk plugin)  |
+| JupyterLite + Pyodide       | Separate `/notebooks/` app (Release 3)            |
 
 ## Environment Variables
 
@@ -248,8 +249,8 @@ Decided 2026-09-28.
   drag interaction needs a keyboard alternative; animations respect
   `prefers-reduced-motion`.
 - **Supported browsers:** Chrome/Edge 111+, Safari 16.4+, Firefox 128+ (Tailwind v4). Keep the
-  initial bundle around 200 KB compressed and lazy-load each widget type's code (CI warns
-  when over; a soft limit, decided 2026-11-02).
+  initial bundle around 250 KB compressed and lazy-load each widget type's code (CI warns
+  when over; a soft limit, decided 2026-11-02; raised from 200 KB on 2026-11-10).
 - **Never convey meaning by color alone**: always show the level label or tier. Use the
   shared `readableColor` helper for text on level colors, and outline colored swatches.
 - Animations for transitions are encouraged; responsive layouts are required (phones

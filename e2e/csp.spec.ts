@@ -1,4 +1,4 @@
-import { DASHBOARD_URL } from "./helpers";
+import { CHART_TITLE, DASHBOARD_URL, addWidget, widgetTitles } from "./helpers";
 import { expect, test } from "./fixtures";
 
 test("the preview sends the contract CSP, without 'unsafe-eval'", async ({ page }) => {
@@ -17,6 +17,15 @@ test("loading, listing, and making a dashboard raise no CSP violation", async ({
 	await page.getByRole("button", { name: "New blank dashboard" }).click();
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	// The fixture fails the test on any violation; wait for the page to settle first.
+	await page.waitForLoadState("networkidle");
+});
+
+test("a Chart (uPlot and the data layer) raises no CSP violation", async ({ page }) => {
+	await page.goto("./");
+	await addWidget(page);
+	// The one just added (the starter has a Chart of its own).
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" }).last()).toBeVisible();
+	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
 	await page.waitForLoadState("networkidle");
 });
 

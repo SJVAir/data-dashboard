@@ -1,27 +1,5 @@
-<script module lang="ts">
-	export type ShareOptions = {
-		/** The copy link, or `null` when the dashboard is too big for one. */
-		url: string | null;
-		/** Why there is no copy link: `"read-only"` (a newer or invalid document) or `"too-big"`. */
-		linkUnavailable: "too-big" | "read-only" | null;
-		onDownload(): void;
-		/**
-		 * The dashboard a live link shares; `null` signed out, for the starter, or for a read-only
-		 * dashboard (the copy link and file only).
-		 */
-		live: { docId: string } | null;
-	};
-
-	const share = $state<{ open: boolean; opts: ShareOptions | null }>({ open: false, opts: null });
-
-	/** Opens the Share dialog (one is mounted in the app root). */
-	export function openShare(opts: ShareOptions): void {
-		share.opts = opts;
-		share.open = true;
-	}
-</script>
-
 <script lang="ts">
+	import { share, type ShareCopy, type SharePoints } from "./lazy.svelte";
 	import { refusedMessage } from "$lib/components/shell/sync-messages";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
@@ -31,7 +9,9 @@
 	import { BASE } from "$lib/routing";
 	import { useApp } from "$lib/store/app.svelte";
 	import { RemoteRefusal, RemoteUnavailable } from "$lib/sync/remote";
-	import type { ShareResult } from "$lib/sync/share";
+	import type { ShareOptions, ShareResult } from "$lib/sync/share";
+	import type { Dashboard } from "$lib/documents/schema";
+	import { hasPoints, swapNotice } from "$lib/sharing/points";
 	import { tick, untrack } from "svelte";
 	import { serializeSearch } from "sv-router";
 	import { p, route } from "../../../router";
@@ -65,17 +45,51 @@
 	let nameBusy = $state(false);
 	let nameLoad = 0;
 
+	/** An exact location's regions: being looked up, failed, or found (`SharePoints`). */
+	let lookup = $state.raw<"none" | "looking" | "failed" | SharePoints>("none");
+	let lookupController: AbortController | null = null;
+	/** "Share my exact location instead" for the copy link and file (each opening). */
+	let exact = $state(false);
+	/** "Use … instead" swapped the owner's points: the dashboard holds none now. */
+	let regionUsed = $state(false);
+	/** "Share my exact location" for the live link. */
+	let exactLive = $state(false);
+
+	const points = $derived(typeof lookup === "string" ? null : lookup);
+	/** The copy link and file on offer; none while an exact location's region is unknown. */
+	const copyOffer = $derived.by<ShareCopy | null>(() => {
+		const opts = share.opts;
+		if (!opts) return null;
+		if (!opts.points) return opts;
+		if (!points) return null;
+		return exact && !regionUsed ? points.exact : points.swapped;
+	});
+	/** Before a live link, a dashboard holding an exact location asks how to share it. */
+	const asksBeforeLink = $derived(!!share.opts?.points && !regionUsed && !exactLive);
+	const useRegionLabel = $derived.by(() => {
+		switch (points?.summary.kind) {
+			case "one":
+				return m.share_points_use_region({ region: points.summary.region });
+			case "removed":
+				return m.share_points_leave_out();
+			default:
+				return m.share_points_use_regions();
+		}
+	});
+
 	const live = $derived(share.opts?.live ?? null);
 	// Signed out meanwhile: the copy link only.
 	const sync = $derived(live ? app.sync : null);
 	const token = $derived(live && sync ? (sync.states[live.docId]?.shareToken ?? null) : null);
 	const liveUrl = $derived(token ? `${location.origin}${BASE}/shared/${token}` : null);
 	const linkNote = $derived(
-		share.opts?.url
-			? m.share_note()
-			: share.opts?.linkUnavailable === "read-only"
-				? m.share_read_only()
-				: m.share_too_big()
+		!copyOffer
+			? ""
+			: copyOffer.url
+				? m.share_note()
+				: copyOffer.linkUnavailable === "read-only"
+					? m.share_read_only()
+					: m.share_too_big()
 	);
 	const signedOut = $derived(!sync && app.account.identity.state !== "signed-in");
 	// Back to this page after signing in.
@@ -96,8 +110,77 @@
 			nameLoad++;
 			nameState = "loading";
 			if (open && opts?.live && app.sync) void loadName();
+			lookupController?.abort();
+			lookupController = null;
+			if (!open) return;
+			exact = false;
+			regionUsed = false;
+			// Chosen for the link that's on: remembered until it's turned off.
+			const state = opts?.live ? app.sync?.states[opts.live.docId] : undefined;
+			exactLive = !!state?.shareToken && state.shareExact;
+			lookup = "none";
+			if (opts?.points) startLookup(opts.points);
 		});
 	});
+
+	// Unmounted mid-lookup: it's no longer wanted.
+	$effect(() => () => lookupController?.abort());
+
+	function startLookup(load: (signal: AbortSignal) => Promise<SharePoints>) {
+		lookupController?.abort();
+		const controller = new AbortController();
+		lookupController = controller;
+		lookup = "looking";
+		load(controller.signal).then(
+			(found) => {
+				if (lookupController === controller) lookup = found;
+			},
+			() => {
+				if (lookupController === controller) lookup = "failed";
+			}
+		);
+	}
+
+	function retryLookup() {
+		const load = share.opts?.points;
+		if (load) startLookup(load);
+	}
+
+	/**
+	 * "Use … instead": the owner's points become their regions (one undoable edit, stored), then
+	 * the link is turned on, or an existing link's copy updated, only once the uploaded version
+	 * holds no point. A point added or re-picked since the lookup looks up again first.
+	 */
+	async function useRegionAndShare() {
+		if (!points || busy) return;
+		busy = true;
+		status = "";
+		notes = [];
+		let applied: "applied" | "stale";
+		try {
+			applied = await points.useRegion();
+		} catch {
+			notes = [m.share_live_failed()];
+			return;
+		} finally {
+			busy = false;
+		}
+		if (applied === "stale") {
+			retryLookup();
+			return;
+		}
+		// Until it succeeds, the choice stays offered (pressing it again retries).
+		if (await shareLink()) regionUsed = true;
+	}
+
+	/**
+	 * "Share my exact location": the warning stays shown, and the choice is remembered for the
+	 * link until it's turned off (it's created first when there's none), so its points upload.
+	 */
+	async function shareExact() {
+		exactLive = true;
+		await shareLink();
+	}
 
 	// While the name is missing, a return to being online loads it again.
 	$effect(() => {
@@ -142,7 +225,7 @@
 	}
 
 	function download() {
-		share.opts?.onDownload();
+		copyOffer?.onDownload();
 		status = m.share_downloaded();
 	}
 
@@ -179,23 +262,40 @@
 				return [m.share_live_blocked()];
 			case "offline":
 				return [m.share_live_offline()];
+			case "check-failed":
+				return [sync?.offline ? m.share_live_offline() : m.share_points_not_saved()];
 		}
 	}
 
-	async function createLink() {
-		if (!live || !sync) return;
+	function createLink() {
+		void shareLink();
+	}
+
+	/**
+	 * Uploads, then turns the link on (or keeps it, with the uploaded version); resolves whether it
+	 * did. Unless the owner chose "Share my exact location" (remembered for the link), a dashboard
+	 * that held an exact location is shared only if the uploaded version holds none.
+	 */
+	async function shareLink(): Promise<boolean> {
+		if (!live || !sync) return false;
+		const opts: ShareOptions | undefined = !share.opts?.points
+			? undefined
+			: exactLive
+				? { exact: true }
+				: { exact: false, onlyIf: (doc: Dashboard) => !hasPoints(doc) };
 		busy = true;
 		status = "";
 		notes = [];
 		try {
-			const result = await sync.share(live.docId);
+			const result = await sync.share(live.docId, opts);
 			notes = notesFor(result);
-			if (result.kind === "shared") {
-				await tick();
-				select(liveInput);
-			}
+			if (result.kind !== "shared") return false;
+			await tick();
+			select(liveInput);
+			return true;
 		} catch {
 			notes = [m.share_live_failed()];
+			return false;
 		} finally {
 			busy = false;
 		}
@@ -248,21 +348,50 @@
 </script>
 
 {#snippet copyLink()}
-	{#if share.opts?.url}
+	{#if copyOffer?.url}
 		<div class="grid gap-2">
 			<Label for={copyId}>{m.share_link_label()}</Label>
-			<Input id={copyId} bind:ref={copyInput} readonly value={share.opts.url} />
+			<Input id={copyId} bind:ref={copyInput} readonly value={copyOffer.url} />
 		</div>
 	{/if}
 {/snippet}
 
 {#snippet copyButtons()}
-	{#if share.opts?.url}
-		<Button onclick={() => copy(share.opts?.url ?? null, copyInput)}>{m.share_copy()}</Button>
+	{#if copyOffer?.url}
+		<Button onclick={() => copy(copyOffer?.url ?? null, copyInput)}>{m.share_copy()}</Button>
 	{/if}
-	<Button variant="outline" onclick={download}>
-		{m.share_download_instead()}
-	</Button>
+	{#if copyOffer}
+		<Button variant="outline" onclick={download}>
+			{m.share_download_instead()}
+		</Button>
+	{/if}
+{/snippet}
+
+{#snippet lookupStatus()}
+	{#if share.opts?.points}
+		<!-- Rendered empty first, so its messages are announced. -->
+		<div class="flex flex-wrap items-center gap-2 text-sm">
+			<p role="status">
+				{#if lookup === "looking"}{m.share_points_looking()}{:else if lookup === "failed"}{m.share_points_failed()}{/if}
+			</p>
+			{#if lookup === "failed"}
+				<Button variant="outline" size="sm" onclick={retryLookup}>{m.share_points_retry()}</Button>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet pointsNotice()}
+	{#if points && !regionUsed}
+		<div class="grid gap-2 text-sm">
+			<p>{swapNotice(points.summary)}</p>
+			<label class="flex items-center gap-2">
+				<input type="checkbox" class="accent-primary size-4" bind:checked={exact} />
+				{m.share_points_exact()}
+			</label>
+			<p role="status">{exact ? m.share_points_exact_warning() : ""}</p>
+		</div>
+	{/if}
 {/snippet}
 
 <Dialog.Root bind:open={share.open}>
@@ -270,7 +399,7 @@
 		class="max-h-[90dvh] overflow-y-auto"
 		onOpenAutoFocus={(event) => {
 			// The live link when there is one; signed out, the copy link.
-			const input = sync ? (liveUrl ? liveInput : null) : share.opts?.url ? copyInput : null;
+			const input = sync ? (liveUrl ? liveInput : null) : copyOffer?.url ? copyInput : null;
 			if (!input) return;
 			event.preventDefault();
 			select(input);
@@ -278,12 +407,13 @@
 	>
 		<Dialog.Header>
 			<Dialog.Title>{m.share_title()}</Dialog.Title>
-			{#if !sync}
+			{#if !sync && linkNote}
 				<Dialog.Description>
 					{linkNote}
 				</Dialog.Description>
 			{/if}
 		</Dialog.Header>
+		{@render lookupStatus()}
 		{#if sync}
 			<section aria-labelledby={liveHeadingId} class="grid gap-3">
 				<h3 id={liveHeadingId} class="text-base font-semibold">{m.share_live_heading()}</h3>
@@ -295,12 +425,24 @@
 				{:else}
 					<p class="text-muted-foreground text-sm">{m.share_live_description()}</p>
 				{/if}
+				{#if asksBeforeLink && points}
+					<p class="text-sm">{m.share_points_live_notice()}</p>
+				{/if}
+				{#if exactLive}
+					<p class="text-sm">{m.share_points_exact_warning()}</p>
+				{/if}
 				<div role="status" class="grid gap-1 text-sm">
 					{#each notes as note (note)}
 						<p>{note}</p>
 					{/each}
 				</div>
 				<div class="flex flex-wrap gap-2">
+					{#if asksBeforeLink && points}
+						<Button disabled={busy} onclick={useRegionAndShare}>{useRegionLabel}</Button>
+						<Button variant="outline" disabled={busy} onclick={shareExact}>
+							{m.share_points_share_exact()}
+						</Button>
+					{/if}
 					{#if liveUrl}
 						<Button disabled={busy} onclick={() => copy(liveUrl, liveInput)}>
 							{m.share_copy()}
@@ -308,6 +450,8 @@
 						<Button variant="outline" disabled={busy} onclick={stopSharing}>
 							{m.share_live_stop()}
 						</Button>
+					{:else if asksBeforeLink}
+						<!-- Asked first (above), once the regions are known. -->
 					{:else}
 						<Button bind:ref={createButton} disabled={busy} onclick={createLink}>
 							{m.share_live_create()}
@@ -345,9 +489,12 @@
 			</section>
 			<section aria-labelledby={copyHeadingId} class="grid gap-3">
 				<h3 id={copyHeadingId} class="text-base font-semibold">{m.share_copy_heading()}</h3>
-				<p class="text-muted-foreground text-sm">
-					{linkNote}
-				</p>
+				{#if linkNote}
+					<p class="text-muted-foreground text-sm">
+						{linkNote}
+					</p>
+				{/if}
+				{@render pointsNotice()}
 				{@render copyLink()}
 				<div class="flex flex-wrap gap-2">
 					{@render copyButtons()}
@@ -355,6 +502,7 @@
 			</section>
 			<p role="status" class="text-muted-foreground text-sm">{status}</p>
 		{:else}
+			{@render pointsNotice()}
 			{@render copyLink()}
 			{#if signedOut}
 				<p class="text-sm">

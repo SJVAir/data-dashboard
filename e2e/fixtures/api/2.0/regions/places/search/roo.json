@@ -1,0 +1,58 @@
+{
+	"data": [
+		{
+			"id": "h4xvc",
+			"name": "Rodriguez Camp",
+			"slug": "rodriguez-camp",
+			"type": "cdp",
+			"external_id": "0662496",
+			"retired": null,
+			"boundary": {
+				"id": "upf5w",
+				"version": "2023",
+				"bbox": [-119.14331349242397, 35.8051589878165, -119.13434949076634, 35.812820988500334]
+			},
+			"county": {
+				"name": "Tulare County",
+				"type": "county",
+				"external_id": "06107"
+			}
+		},
+		{
+			"id": "k7net",
+			"name": "Rolling Hills",
+			"slug": "rolling-hills",
+			"type": "cdp",
+			"external_id": "0662625",
+			"retired": null,
+			"boundary": {
+				"id": "hb5jz",
+				"version": "2023",
+				"bbox": [-119.80318971155269, 36.89204705122795, -119.79265371025014, 36.913188053304275]
+			},
+			"county": {
+				"name": "Madera County",
+				"type": "county",
+				"external_id": "06039"
+			}
+		},
+		{
+			"id": "w68ay",
+			"name": "Rosamond",
+			"slug": "rosamond",
+			"type": "cdp",
+			"external_id": "0662826",
+			"retired": null,
+			"boundary": {
+				"id": "6uk7p",
+				"version": "2023",
+				"bbox": [-118.2936502661014, 34.82008593904927, -118.14008623541656, 34.92294095626312]
+			},
+			"county": {
+				"name": "Kern County",
+				"type": "county",
+				"external_id": "06029"
+			}
+		}
+	]
+}

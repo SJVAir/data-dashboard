@@ -44,6 +44,10 @@ export async function loadDevCatalog(): Promise<CatalogEntry[]> {
 				units: entries[id]?.units ?? "",
 				kind: "pollutant",
 				resolutions,
+				precision: null,
+				yMin: null,
+				chart: null,
+				aggregate: "mean",
 				available: true
 			})),
 			geographies: ["monitor", "region"]

@@ -55,3 +55,52 @@ describe("queryKey", () => {
 		expect(ids).toEqual(["b", "a"]);
 	});
 });
+
+describe("queryKey station and filters", () => {
+	const parts = {
+		dataset: "forecasts",
+		entryType: "burn-status",
+		target: { kind: "regions", keys: ["county:2", "county:1"] } as Target,
+		resolution: "day" as const,
+		downsampleFromRaw: false,
+		range: { kind: "trailing", amount: 7, unit: "day" } as DateRangeSpec
+	};
+
+	it("old layers keep their keys and kinds", () => {
+		expect(queryKey(parts)).toBe(
+			'{"dataset":"forecasts","downsampleFromRaw":false,"entryType":"burn-status","range":{"amount":7,"kind":"trailing","unit":"day"},"resolution":"day","target":{"keys":["county:1","county:2"],"kind":"regions"}}'
+		);
+		expect(
+			queryKey({
+				dataset: "air-quality",
+				entryType: "pm25",
+				target: { kind: "monitors", ids: ["b", "a"] },
+				resolution: "day",
+				downsampleFromRaw: false,
+				range: { firstDate: "2026-10-01", lastDate: "2026-10-31" },
+				worstHour: true
+			})
+		).toBe(
+			'{"dataset":"air-quality","downsampleFromRaw":false,"entryType":"pm25","range":{"firstDate":"2026-10-01","lastDate":"2026-10-31"},"resolution":"day","target":{"ids":["a","b"],"kind":"monitors"},"worstHour":true}'
+		);
+	});
+
+	it("a daily figure changes the key, and an absent one leaves it alone", () => {
+		const plain = queryKey(parts);
+		const withFigure = queryKey({ ...parts, dailyFigure: "mean_24h" });
+		expect(withFigure).not.toBe(plain);
+		expect(queryKey({ ...parts, dailyFigure: "max_1h" })).not.toBe(withFigure);
+		expect(queryKey({ ...parts, dailyFigure: undefined })).toBe(plain);
+	});
+
+	it("station and filters change the key", () => {
+		const plain = queryKey(parts);
+		const withStation = queryKey({ ...parts, station: "80" });
+		const withFilters = queryKey({ ...parts, filters: { chemical: "1" } });
+		expect(withStation).not.toBe(plain);
+		expect(withFilters).not.toBe(plain);
+		expect(withStation).not.toBe(withFilters);
+		expect(queryKey({ ...parts, filters: { chemical: "2" } })).not.toBe(withFilters);
+		expect(queryKey({ ...parts, station: undefined, filters: undefined })).toBe(plain);
+	});
+});

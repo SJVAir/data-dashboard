@@ -6,7 +6,8 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import ClearDataDialog from "./ClearDataDialog.svelte";
-import PrivacyDialog, { openPrivacy } from "./PrivacyDialog.svelte";
+import PrivacyDialog from "./PrivacyDialog.svelte";
+import { openPrivacy } from "./lazy.svelte";
 import HelpMenu from "../shell/HelpMenu.svelte";
 
 async function setup() {

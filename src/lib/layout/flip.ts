@@ -18,11 +18,11 @@ export class Flip {
 
 	/**
 	 * Record where every item is now (as shown, so an interrupted animation continues), on a
-	 * grid of `columns`.
+	 * grid of `columns`. `jump`: the next `play` jumps anyway (a change that isn't a move).
 	 */
-	measure(container: HTMLElement | null, columns: number): void {
+	measure(container: HTMLElement | null, columns: number, jump = false): void {
 		this.#before.clear();
-		this.#jump = this.#columns !== null && this.#columns !== columns;
+		this.#jump = jump || (this.#columns !== null && this.#columns !== columns);
 		this.#columns = columns;
 		if (!container) return;
 		for (const [id, el] of items(container)) this.#before.set(id, el.getBoundingClientRect());

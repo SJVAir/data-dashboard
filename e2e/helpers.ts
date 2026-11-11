@@ -57,6 +57,43 @@ export async function widgetMenuItem(
 	await page.getByRole("menuitem", { name: item }).click();
 }
 
+/** A new Chart's generated title (its data: Fresno County PM2.5, from the API fixtures). */
+export const CHART_TITLE = "PM2.5 · Fresno County · Last 30 days";
+
+/** The starter's welcome Note's title. */
+export const NOTE = "Note";
+
+/** The starter's widgets' generated titles, in reading order (PM2.5 in Fresno County). */
+export const STARTER_TITLES = [
+	NOTE,
+	"PM2.5 · Fresno County",
+	"Can we go outside? · Fresno County",
+	"Forecast · Fresno County",
+	CHART_TITLE,
+	"PM2.5 · Fresno County · This month so far"
+];
+
+/** The data types, which "Add widget" opens in Get data rather than adding directly. */
+const DATA_TYPES = ["Chart", "Data table"];
+
+/** Get data's "Add to {dashboard}" button (not the arrow listing the other dashboards). */
+export function addToButton(page: Page): Locator {
+	return page.getByRole("button", { name: /^Add to (?!another dashboard$)/ });
+}
+
+/**
+ * Adds a widget through "Add widget" ▸ `type`. A data type opens Get data, which starts filled
+ * in (the default or the last draft); "Add to …" puts it on the dashboard as it stands.
+ */
+export async function addWidget(page: Page, type = "Chart"): Promise<void> {
+	await page.getByRole("button", { name: "Add widget" }).click();
+	await page.getByRole("menuitem", { name: type, exact: true }).click();
+	if (!DATA_TYPES.includes(type)) return;
+	await expect(page.getByRole("heading", { level: 1, name: "Get data" })).toBeVisible();
+	await addToButton(page).click();
+	await expect(page.getByRole("heading", { level: 1, name: "Get data" })).toBeHidden();
+}
+
 /** Fills the open rename dialog with `value` and saves. */
 export async function saveRename(page: Page, value: string): Promise<void> {
 	const dialog = page.getByRole("dialog");
@@ -81,13 +118,20 @@ export async function openPicker(page: Page, current: string): Promise<void> {
 	await expect(page.getByRole("menu")).toBeVisible();
 }
 
-/** From the starter: rename its first widget, which saves it as the person's own copy. */
+/** From the starter: rename its welcome Note, which saves it as the person's own copy. */
 export async function makeOwnCopy(page: Page, title = "My first widget"): Promise<void> {
 	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
-	await renameWidget(page, PLACEHOLDER, title);
+	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
+	await renameWidget(page, NOTE, title);
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expectSaved(page);
+}
+
+/** Makes a new blank dashboard from the list page and opens it. */
+export async function newBlankDashboard(page: Page): Promise<void> {
+	await page.goto("./dashboards");
+	await page.getByRole("button", { name: "New blank dashboard" }).click();
+	await expect(page).toHaveURL(DASHBOARD_URL);
 }
 
 /** The taskbar of minimized widgets. */
@@ -178,7 +222,8 @@ export async function dragTitleBar(
 
 /** The page's polite live region (where arranging is announced). */
 export function liveRegion(page: Page): Locator {
-	return page.locator("[role=status][aria-live=polite][aria-atomic=true]");
+	// The app's own, not a widget's (a calendar has one for its selection).
+	return page.locator("#SJVAirDataDashboard > [role=status][aria-live=polite][aria-atomic=true]");
 }
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
