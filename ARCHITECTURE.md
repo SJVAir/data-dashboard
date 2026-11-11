@@ -1148,6 +1148,24 @@ for last-requested-wins), no single place to set headers (`X-CSRFToken`, a futur
 - **Nothing breaks:** every addition is optional (monitor-map, mobile, and existing code
   are unaffected).
 
+## The dashboard's own API code
+
+Decided 2026-11-11 (the user). **`src/lib/api/` holds calls to sjvair.com endpoints that only
+the dashboard uses**, one folder per server area; the first is `src/lib/api/documents/` (saved
+documents, change logs, share links, snapshots, the display name). It's built on
+`@sjvair/sdk/http`, so the origin and request defaults that `configureSdk`
+(`src/lib/sdk-setup.ts`) sets, and the http module's built-in CSRF header, apply to it as to the
+rest of the SDK.
+
+- **Public data stays in `@sjvair/sdk`** (monitors, HMS, regions and the rest), as do site-wide
+  account features (sign-in, profile, subscriptions, alerts). `src/lib/api/` never duplicates
+  something the SDK has; when the dashboard needs public data the SDK lacks, the SDK gets it.
+- **An endpoint moves into the SDK once a second app needs it.**
+- This is the dashboard's side of sdk-js's matching rule in its `CLAUDE.md` (the user,
+  2026-11-11): the public SDK covers public data plus site-wide account features, and an endpoint
+  backing only one app's own feature lives in that app, built on `@sjvair/sdk/http`.
+- ESLint rejects imports of `@sjvair/sdk/documents` (the module left the public SDK).
+
 ## Data resolution & live refresh
 
 Decided 2026-09-24. Implemented once in the data layer (in-memory cache plus HTTP
@@ -2693,9 +2711,9 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.3` (exact; step 4 spec 2). The documents code lives in
-    `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
-    `DEFERRED.md`).
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.8` (exact). The documents client lives
+    in this repo, in `src/lib/api/documents/` (copied 2026-11-11 from sdk-js 819d152, the code in
+    `@sjvair/sdk` 5.0.0-beta.8, when it left the public SDK; see "The dashboard's own API code").
 
 **Live share links (built in sync spec 3, 2026-11-02).** The builder's calls, in the plan
 `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`:
