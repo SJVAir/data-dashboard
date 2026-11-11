@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { readTokens } from "../src/lib/theme/tokens";
 import { expect, test } from "./fixtures";
-import { widgetTitles } from "./helpers";
+import { STARTER_TITLES, widgetTitles } from "./helpers";
 
 const CSS = readFileSync(new URL("../src/app.css", import.meta.url), "utf8");
 const DARK_BACKGROUND = readTokens(CSS, "dark-system")["--background"];
@@ -55,7 +55,7 @@ test.describe("system dark, no saved choice", () => {
 			});
 		}, DARK_BACKGROUND);
 		await page.goto("./");
-		await expect(widgetTitles(page)).toHaveCount(3);
+		await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 		const first = await page.evaluate(() => (window as Probe).__firstPaint);
 		expect(first).toBeDefined();
 		expect(first!.mounted).toBe(false);
@@ -65,7 +65,7 @@ test.describe("system dark, no saved choice", () => {
 
 	test("the theme-color meta follows the computed background after load", async ({ page }) => {
 		await page.goto("./");
-		await expect(widgetTitles(page)).toHaveCount(3);
+		await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 		// The meta exists once the built stylesheet has loaded, and carries the computed color.
 		const dark = await themeColor(page);
 		expect(dark.meta).toBeTruthy();
@@ -88,11 +88,11 @@ test("a chosen theme survives a reload, set before the app mounts", async ({ pag
 		}).observe(document, { childList: true, subtree: true });
 	});
 	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 	await chooseTheme(page, "Light");
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 	await page.reload();
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 	expect(await page.evaluate(() => (window as Probe).__themeAtMount)).toBe("light");
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
@@ -102,7 +102,7 @@ test("switching in one page updates another page of the same browser", async ({
 	context
 }) => {
 	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 	const other = await context.newPage();
 	await other.goto("./dashboards");
 	await expect(other.getByRole("heading", { level: 1, name: "Your dashboards" })).toBeVisible();
@@ -123,7 +123,7 @@ test("with storage blocked, the app boots and the switch still works", async ({ 
 		});
 	});
 	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
+	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 	await chooseTheme(page, "Dark");
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 	await chooseTheme(page, "Light");

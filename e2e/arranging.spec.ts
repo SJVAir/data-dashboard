@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
-	PLACEHOLDER,
+	STARTER_TITLES,
 	dragTitleBar,
 	expectNoViolations,
 	expectSaved,
@@ -214,29 +214,32 @@ test("a keyboard pickup shows the outline and key hint", async ({ page }) => {
 	await expect(page.getByTestId("widget-w0")).not.toHaveAttribute("data-picked-up");
 });
 
+/** The starter's Current conditions. */
+const CURRENT = STARTER_TITLES[1];
+
 test("a drop on the starter makes the copy", async ({ page }) => {
 	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
-	// The first widget, one column to the right, over the second.
-	await titleBar(page, PLACEHOLDER, 0).focus();
+	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
+	// Current conditions, one column to the right, over "Can we go outside?".
+	await titleBar(page, CURRENT, 0).focus();
 	await page.keyboard.press("Enter");
 	await page.keyboard.press("ArrowRight");
 	await page.keyboard.press("Enter");
 
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(liveRegion(page)).toHaveText(
-		"Dropped Placeholder widget at column 2, row 1. 1 other widget moved."
+		"Dropped PM2.5 · Fresno County at column 2, row 3. 2 other widgets moved."
 	);
-	const moved = page.getByTestId("widget-starter-1");
-	await expect(moved.getByRole("group", { name: PLACEHOLDER })).toBeFocused();
-	const [first, second] = await Promise.all(
-		["widget-starter-1", "widget-starter-2"].map((id) => box(page, id))
+	const moved = page.getByTestId("widget-starter-2");
+	await expect(moved.getByRole("group", { name: CURRENT, exact: true })).toBeFocused();
+	const [current, outside] = await Promise.all(
+		["widget-starter-2", "widget-starter-3"].map((id) => box(page, id))
 	);
-	expect(second.y).toBeGreaterThan(first.y);
+	expect(outside.y).toBeGreaterThan(current.y);
 	await expectSaved(page);
 	await page.reload();
-	expect((await box(page, "widget-starter-2")).y).toBeGreaterThan(
-		(await box(page, "widget-starter-1")).y
+	expect((await box(page, "widget-starter-3")).y).toBeGreaterThan(
+		(await box(page, "widget-starter-2")).y
 	);
 });
 

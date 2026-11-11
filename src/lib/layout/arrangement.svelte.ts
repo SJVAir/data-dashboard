@@ -14,6 +14,7 @@ import {
 	stepOp,
 	type ArrangeDirection,
 	type Op,
+	type PhoneSpan,
 	type StepResult
 } from "./steps";
 
@@ -107,6 +108,7 @@ export class Arrangement {
 	readonly #session: () => DocumentSession | null;
 	readonly #columns: () => number;
 	readonly #onGone: ((id: string) => void) | undefined;
+	readonly #span: PhoneSpan | undefined;
 	readonly #stop: () => void;
 	/** The starter this page showed, once a drop here handed it off to a copy. */
 	#starter: DocumentSession | null = null;
@@ -124,11 +126,16 @@ export class Arrangement {
 	constructor(
 		session: () => DocumentSession | null,
 		columns: () => number,
-		opts: { onGone?: (id: string) => void } = {}
+		opts: {
+			onGone?: (id: string) => void;
+			/** A widget's rows on a phone (a Note may show more than its height). */
+			span?: PhoneSpan;
+		} = {}
 	) {
 		this.#session = session;
 		this.#columns = columns;
 		this.#onGone = opts.onGone;
+		this.#span = opts.span;
 		// A new page for the copy a starter's drop handed off to: focus the moved widget there.
 		const from = carried;
 		carried = null;
@@ -154,6 +161,17 @@ export class Arrangement {
 	get preview(): Layout | null {
 		return this.#preview;
 	}
+
+	/**
+	 * The rows widget `id` of height `h` shows: on a phone a Note may show more (to fit its
+	 * text), elsewhere `h`. What a resize grows from, and what its announcement says.
+	 */
+	shownHeight(id: string, h: number): number {
+		return this.#columns() === 1 && this.#span ? Math.max(h, this.#span(id, h)) : h;
+	}
+
+	/** `shownHeight` as a `PhoneSpan` (for the layout steps and announcements). */
+	readonly span: PhoneSpan = (id, h) => this.shownHeight(id, h);
 
 	/** Widgets other than the active one whose previewed rect differs from the document's. */
 	get pushedCount(): number {
@@ -222,13 +240,14 @@ export class Arrangement {
 
 	/**
 	 * Shift+arrows: Right/Left change the width by one, Down/Up the height (height only on one
-	 * column), clamped to the widget's minimum size and the grid.
+	 * column), clamped to the widget's minimum size and the grid. On a phone, Down grows from the
+	 * rows the widget shows (`growSize`).
 	 */
 	grow(dir: ArrangeDirection): void {
 		const id = this.#live();
 		const preview = this.#preview;
 		if (!id || !preview) return;
-		const size = growSize(preview, id, dir, this.#columns());
+		const size = growSize(preview, id, dir, this.#columns(), this.span);
 		if (!size) return;
 		this.#size = size;
 		this.#setTarget([...this.#target, { kind: "size", ...size }]);

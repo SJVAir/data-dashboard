@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DashboardSchema, StarterDashboardSchema } from "$lib/documents/schema";
-import { starterDashboard } from "$lib/starter/starter";
+import { starterDashboard, starterTemplate } from "$lib/starter/starter";
+import { defaultStarterPlace } from "$lib/starter/place.svelte";
 import {
 	DateRangeSpecSchema,
 	LIMITS,
@@ -133,7 +134,7 @@ describe("TimeSubRangeSchema", () => {
 
 describe("default-place", () => {
 	const withPlace = (place: unknown) => {
-		const doc = starterDashboard();
+		const doc = starterDashboard(defaultStarterPlace());
 		doc.body.widgets[0].data = { layers: [{ dataset: "monitors", place }] } as never;
 		return doc;
 	};
@@ -144,10 +145,13 @@ describe("default-place", () => {
 		expect(StarterDashboardSchema.safeParse(doc).success).toBe(true);
 	});
 
-	it("leaves other places and the placeholder starter valid", () => {
+	it("leaves other places and the resolved starter valid; only the template holds it", () => {
 		expect(DashboardSchema.safeParse(withPlace({ kind: "monitor", id: "a" })).success).toBe(true);
-		expect(DashboardSchema.safeParse(starterDashboard()).success).toBe(true);
-		expect(StarterDashboardSchema.safeParse(starterDashboard()).success).toBe(true);
+		const starter = starterDashboard(defaultStarterPlace());
+		expect(DashboardSchema.safeParse(starter).success).toBe(true);
+		expect(StarterDashboardSchema.safeParse(starter).success).toBe(true);
+		expect(DashboardSchema.safeParse(starterTemplate()).success).toBe(false);
+		expect(StarterDashboardSchema.safeParse(starterTemplate()).success).toBe(true);
 	});
 });
 

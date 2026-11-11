@@ -1,12 +1,13 @@
 // Checks the initial bundle budget (spec 5a, "What gets built" section 6): the gzip size of the
 // bootstrap entry, the app chunk it dynamically imports, and everything they statically import.
 // The budget is a soft limit (decided with the user, 2026-11-02): going over prints a warning
-// (and a GitHub Actions annotation in CI) but still exits 0.
+// (and a GitHub Actions annotation in CI) but still exits 0. Raised from 200 KB to 250 KB by the user
+// on 2026-11-10 so the soft limit stops halting work; the size gets addressed later if needed.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-const BUDGET = 200 * 1024;
+const BUDGET = 250 * 1024;
 const ENTRY_KEY = "index.html";
 const APP_CHUNK_KEY = "src/main.ts";
 

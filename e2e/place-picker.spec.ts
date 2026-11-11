@@ -259,6 +259,46 @@ test("a copy link shares the point as its ZIP unless the owner chooses exact", a
 	expect(exact.body.widgets[0].data.layers[0].place).toMatchObject({ kind: "point" });
 });
 
+test("Use my location on the starter, then Share: the copy keeps it, the link has its ZIP", async ({
+	page,
+	context
+}) => {
+	await context.grantPermissions(["geolocation"]);
+	await context.setGeolocation(POSITION);
+	await page.goto("./");
+	const bar = page.getByRole("region", { name: "This dashboard's place" });
+	await bar.getByRole("button", { name: "Change place" }).click();
+	await picker(page).getByRole("button", { name: "Use my location" }).click();
+	await expect(picker(page)).toBeHidden();
+	await expect(bar.getByText("Showing your location")).toBeVisible();
+
+	await openPicker(page, "Starter dashboard");
+	await page.getByRole("menuitem", { name: "Share…" }).click();
+	// The toast itself: with the Share dialog open, its live region holds the same text.
+	await expect(
+		page.getByRole("region", { name: /Notifications/ }).getByText("Saved as your own dashboard")
+	).toBeVisible();
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	const dialog = shareDialog(page);
+	await expect(
+		dialog.getByText("Your location is shared as ZIP 93721, not your exact position.")
+	).toBeVisible();
+	const link = dialog.getByRole("textbox", { name: "Link", exact: true });
+	await expect(link).toHaveValue(/#1\./);
+	const shared = linkDocument(await link.inputValue()) as unknown as {
+		body: { placeBar?: { place: Place }; widgets: { data: { layers: { place?: Place }[] } }[] };
+	};
+	const zip = { kind: "region", type: "zipcode", code: "93721" };
+	expect(shared.body.placeBar).toEqual({ place: zip });
+	expect(JSON.stringify(shared)).not.toContain('"kind":"point"');
+	const places = shared.body.widgets.flatMap((w) => w.data.layers.flatMap((l) => l.place ?? []));
+	expect(places.length).toBeGreaterThan(0);
+	for (const place of places) expect(place).toEqual(zip);
+	// This person's own copy keeps the point.
+	await page.keyboard.press("Escape");
+	await expect(bar.getByText("Showing your location")).toBeVisible();
+});
+
 test("a copy made from a link with an exact point gets the region", async ({ page }) => {
 	await openDoc(page, dataDoc("chart", { kind: "point", lat: 36.7372, lon: -119.7871 }));
 	// Not "(your location)": the copy holds ZIP 93721, not the sender's point.

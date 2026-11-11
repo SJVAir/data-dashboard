@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Layer } from "$lib/data/schema";
+import type { ChosenPlace, Layer } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -13,6 +13,7 @@ import {
 	pointsCovered,
 	swapNotice,
 	summarizeSwaps,
+	swapChange,
 	withSwaps
 } from "./points";
 
@@ -67,6 +68,21 @@ describe("hasPoints and pointSwaps", () => {
 			dataWidget("c", [pm25({ kind: "region", type: "county", code: "019" })]),
 			dataWidget("s", [pm25({ kind: "location", source: "cde", code: "1062166" })])
 		);
+		expect(hasPoints(doc)).toBe(false);
+		expect(await pointSwaps(doc)).toEqual([]);
+		expect(mocked.placeRegion).not.toHaveBeenCalled();
+	});
+
+	it("a Note has no places layer, so nothing is looked up for it", async () => {
+		const note: WidgetInstance = {
+			id: "n",
+			type: "note",
+			title: null,
+			rect: { x: 0, y: 0, w: 4, h: 3 },
+			data: { layers: [] },
+			options: { text: "hi" }
+		};
+		const doc = docWith(note);
 		expect(hasPoints(doc)).toBe(false);
 		expect(await pointSwaps(doc)).toEqual([]);
 		expect(mocked.placeRegion).not.toHaveBeenCalled();
@@ -248,6 +264,77 @@ describe("pointsCovered", () => {
 				swaps
 			)
 		).toBe(false);
+	});
+});
+
+describe("the Change place bar's point", () => {
+	const ZIP = { kind: "region", type: "zipcode", code: "93721" } as const;
+	const withBar = (doc: Dashboard, place: ChosenPlace): Dashboard => ({
+		...doc,
+		body: { ...doc.body, placeBar: { place } }
+	});
+
+	it("counts as a point, even with no point layer", () => {
+		const doc = withBar(docWith(dataWidget("c", [pm25(ZIP)])), POINT);
+		expect(hasPoints(doc)).toBe(true);
+		expect(hasPoints(withBar(doc, ZIP))).toBe(false);
+	});
+
+	it("becomes the same region as a swapped layer holding the same point", async () => {
+		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		const swapped = withSwaps(doc, await pointSwaps(doc));
+		expect(swapped.body.placeBar).toEqual({ place: ZIP });
+		expect(hasPoints(swapped)).toBe(false);
+	});
+
+	it("is dropped when no layer holds its point", async () => {
+		const other = { ...POINT, lat: 36.8 };
+		for (const doc of [
+			withBar(docWith(dataWidget("p", [pm25(other)])), POINT),
+			withBar(docWith(dataWidget("c", [pm25(ZIP)])), POINT)
+		]) {
+			const swapped = withSwaps(doc, await pointSwaps(doc));
+			expect(swapped.body.placeBar).toBeUndefined();
+			expect("placeBar" in swapped.body).toBe(false);
+			expect(hasPoints(swapped)).toBe(false);
+		}
+	});
+
+	it("is dropped when its layer's point has no region", async () => {
+		mocked.placeRegion.mockResolvedValue(null);
+		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		const swapped = withSwaps(doc, await pointSwaps(doc));
+		expect("placeBar" in swapped.body).toBe(false);
+	});
+
+	it("leaves a bar that isn't a point alone", async () => {
+		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), ZIP);
+		const swapped = withSwaps(doc, await pointSwaps(doc));
+		expect(swapped.body.placeBar).toBe(doc.body.placeBar);
+	});
+
+	it("is covered by its layer's swap, or needs none", async () => {
+		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		expect(pointsCovered(doc, await pointSwaps(doc))).toBe(true);
+		expect(pointsCovered(withBar(docWith(), POINT), [])).toBe(true);
+	});
+
+	it("a swap that moves the bar is one replaceDocument", async () => {
+		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		const change = swapChange(doc, await pointSwaps(doc));
+		expect(change?.op).toBe("replaceDocument");
+		const to = (change as Extract<typeof change, { op: "replaceDocument" }>)!.to;
+		expect(to.body.placeBar).toEqual({ place: ZIP });
+		expect(to.body.widgets[1].data.layers[0].place).toEqual(ZIP);
+		// A bar-only point: its removal alone.
+		const barOnly = withBar(docWith(), POINT);
+		const removal = swapChange(barOnly, []);
+		expect(removal?.op).toBe("replaceDocument");
+		expect(
+			"placeBar" in (removal as Extract<typeof removal, { op: "replaceDocument" }>)!.to.body
+		).toBe(false);
+		// No bar point, nothing to change.
+		expect(swapChange(withBar(docWith(), ZIP), [])).toBeNull();
 	});
 });
 

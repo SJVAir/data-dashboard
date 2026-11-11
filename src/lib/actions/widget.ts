@@ -39,7 +39,13 @@ import { GRID_COLUMNS } from "$lib/layout/config";
 import type { Layout } from "$lib/layout/engine";
 import { requestFocus } from "$lib/layout/focus-request.svelte";
 import { shownLayout } from "$lib/layout/items";
-import { actionLayout, dropChange, sameRect, type LayoutAction } from "$lib/layout/steps";
+import {
+	actionLayout,
+	dropChange,
+	sameRect,
+	type LayoutAction,
+	type PhoneSpan
+} from "$lib/layout/steps";
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { getWidgetType } from "$lib/widgets/registry";
 import { generatedTitle } from "$lib/widgets/titles.svelte";
@@ -147,7 +153,8 @@ function arranged(
 	app: AppContext,
 	widgetId: string,
 	action: LayoutAction,
-	columns: number
+	columns: number,
+	span?: PhoneSpan
 ): { session: DocumentSession; change: Change; before: Layout; after: Layout } | null {
 	const found = find(app, widgetId);
 	if (!found) return null;
@@ -155,14 +162,23 @@ function arranged(
 	const widgets = found.session.editTarget.doc.body.widgets;
 	if (!widgets.some((w) => w.id === widgetId && !w.minimized)) return null;
 	const before = shownLayout(widgets, GRID_COLUMNS);
-	const after = actionLayout(before, widgetId, action, columns);
+	const after = actionLayout(before, widgetId, action, columns, span);
 	const change = after && dropChange(widgets, before, after, widgetId);
 	return change && after ? { session: found.session, change, before, after } : null;
 }
 
-/** Apply a Move or Size submenu item (one `setLayout`, one undo step) and announce it. */
-function arrangeBy(app: AppContext, widgetId: string, action: LayoutAction, columns: number) {
-	const result = arranged(app, widgetId, action, columns);
+/**
+ * Apply a Move or Size submenu item (one `setLayout`, one undo step) and announce it. `span`:
+ * the rows a widget shows on a phone (a Note grown to fit its text grows from those).
+ */
+function arrangeBy(
+	app: AppContext,
+	widgetId: string,
+	action: LayoutAction,
+	columns: number,
+	span?: PhoneSpan
+) {
+	const result = arranged(app, widgetId, action, columns, span);
 	if (!result) return;
 	const { session, change, before, after } = result;
 	const title = widgetTitle(find(app, widgetId)!.widget);
@@ -184,7 +200,7 @@ function arrangeBy(app: AppContext, widgetId: string, action: LayoutAction, colu
 	}
 	announce(
 		action.kind === "grow"
-			? resizedText(after, widgetId, phone, title)
+			? resizedText(after, widgetId, phone, title, span)
 			: movedText(after, widgetId, phone, title, pushed)
 	);
 }
@@ -217,11 +233,11 @@ function layoutSubmenus(app: AppContext, widgetId: string, arrangement: Arrangem
 				if (memo?.session === session && memo.doc === doc && memo.readOnly === readOnly) {
 					return memo.disabled;
 				}
-				const disabled = arranged(app, widgetId, action, columns) === null;
+				const disabled = arranged(app, widgetId, action, columns, arrangement.span) === null;
 				memo = { session, doc, readOnly, disabled };
 				return disabled;
 			},
-			run: () => arrangeBy(app, widgetId, action, columns)
+			run: () => arrangeBy(app, widgetId, action, columns, arrangement.span)
 		};
 	};
 	const step = (dir: "up" | "down" | "left" | "right") => ({ kind: "step", dir }) as const;

@@ -1,6 +1,7 @@
 import { formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import type { Layout } from "./engine";
+import type { PhoneSpan } from "./steps";
 
 /**
  * What the live region says while a widget is arranged. Positions are 1-based: a column and
@@ -27,11 +28,22 @@ function size(layout: Layout, id: string): { w: number; h: number } | null {
 	return layout.find((i) => i.id === id)?.rect ?? null;
 }
 
-/** On a phone (one column) only the height can change, so only the height is said. */
-export function sizeText(layout: Layout, id: string, phone: boolean): string {
+/** The height said on a phone: the rows shown (`span`: a Note may show more than its height). */
+function phoneHeight(id: string, h: number, span: PhoneSpan | undefined): number {
+	return span ? Math.max(h, span(id, h)) : h;
+}
+
+/**
+ * On a phone (one column) only the height can change, so only the height is said: the rows
+ * shown (`span`).
+ */
+export function sizeText(layout: Layout, id: string, phone: boolean, span?: PhoneSpan): string {
 	const s = size(layout, id);
 	if (!s) return "";
-	if (phone) return m.layout_height({ height: formatNumber(s.h), heightValue: s.h });
+	if (phone) {
+		const h = phoneHeight(id, s.h, span);
+		return m.layout_height({ height: formatNumber(h), heightValue: h });
+	}
 	return m.layout_size({
 		width: formatNumber(s.w),
 		widthValue: s.w,
@@ -94,12 +106,19 @@ export function movedText(
 	});
 }
 
-/** A Size submenu item's change (only the height on a phone). */
-export function resizedText(layout: Layout, id: string, phone: boolean, title: string): string {
+/** A Size submenu item's change (only the height on a phone: the rows shown, `span`). */
+export function resizedText(
+	layout: Layout,
+	id: string,
+	phone: boolean,
+	title: string,
+	span?: PhoneSpan
+): string {
 	const s = size(layout, id);
 	if (!s) return "";
 	if (phone) {
-		return m.layout_resized_phone({ title, height: formatNumber(s.h), heightValue: s.h });
+		const h = phoneHeight(id, s.h, span);
+		return m.layout_resized_phone({ title, height: formatNumber(h), heightValue: h });
 	}
 	return m.layout_resized({
 		title,

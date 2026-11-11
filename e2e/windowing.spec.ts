@@ -1,7 +1,8 @@
 import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
-	PLACEHOLDER,
+	NOTE,
+	STARTER_TITLES,
 	expectNoViolations,
 	expectSaved,
 	fullscreenFrame,
@@ -74,14 +75,11 @@ test.describe("with reduced motion", () => {
 
 	test("minimize on the starter makes the copy", async ({ page }) => {
 		await page.goto("./");
-		await expect(widgetTitles(page)).toHaveCount(3);
-		await page
-			.getByRole("button", { name: `Minimize ${PLACEHOLDER}` })
-			.first()
-			.click();
+		await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
+		await page.getByRole("button", { name: `Minimize ${NOTE}` }).click();
 		await expect(page).toHaveURL(DASHBOARD_URL);
-		await expect(widgetTitles(page)).toHaveCount(2);
-		await expect(taskbarItem(page, PLACEHOLDER)).toBeFocused();
+		await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length - 1);
+		await expect(taskbarItem(page, NOTE)).toBeFocused();
 	});
 
 	test("a deep link on the starter opens fullscreen and makes no copy", async ({ page }) => {
@@ -90,7 +88,7 @@ test.describe("with reduced motion", () => {
 		await expect(page).toHaveURL(/\/workspace\/\?widget=starter-1$/);
 		await page.keyboard.press("Escape");
 		await expect(page).toHaveURL(/\/workspace\/$/);
-		await expect(widgetTitles(page)).toHaveCount(3);
+		await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
 	});
 
 	test("fullscreen does not animate with reduced motion", async ({ page }) => {

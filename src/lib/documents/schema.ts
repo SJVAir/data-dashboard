@@ -1,6 +1,7 @@
-import { WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
+import { ChosenPlaceSchema, WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
 import { ThresholdSchema } from "$lib/thresholds/schema";
 import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "$lib/layout/config";
+import { NOTE_TYPE, NoteOptionsSchema } from "$lib/notes/options";
 import { z } from "$lib/zod";
 
 export { GRID_COLUMNS };
@@ -33,10 +34,22 @@ export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>;
 export const DashboardBodySchema = z
 	.object({
 		widgets: z.array(WidgetInstanceSchema),
-		defaultCollectionId: z.string().optional()
+		defaultCollectionId: z.string().optional(),
+		/** The "Change place" bar's place: the starter's chosen place, kept on copies of it. */
+		placeBar: z.object({ place: ChosenPlaceSchema }).optional()
 	})
 	.refine((b) => new Set(b.widgets.map((w) => w.id)).size === b.widgets.length, {
 		message: "Widget ids must be unique"
+	})
+	.superRefine((b, ctx) => {
+		b.widgets.forEach((w, i) => {
+			if (w.type === NOTE_TYPE && !NoteOptionsSchema.safeParse(w.options).success)
+				ctx.addIssue({
+					code: "custom",
+					message: "Invalid note options",
+					path: ["widgets", i, "options"]
+				});
+		});
 	});
 export type DashboardBody = z.infer<typeof DashboardBodySchema>;
 

@@ -301,4 +301,22 @@ export function formatList(items: string[], locale: string = LOCALE): string {
 	return new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(items);
 }
 
+/** Whether shortcuts use ⌘ rather than Ctrl here (macOS, iPadOS, iOS). */
+export function usesCommandKey(): boolean {
+	if (typeof navigator === "undefined") return false;
+	return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+}
+
+/**
+ * A Ctrl/⌘ plus `key` shortcut (with Shift too when `shift`) as this platform names it:
+ * "Ctrl+B" and "Ctrl+Shift+Z", or "⌘B" and "⇧⌘Z" on a Mac.
+ */
+export function formatShortcut(
+	key: string,
+	{ shift = false, command = usesCommandKey() }: { shift?: boolean; command?: boolean } = {}
+): string {
+	if (shift) return command ? m.shortcut_command_shift({ key }) : m.shortcut_control_shift({ key });
+	return command ? m.shortcut_command({ key }) : m.shortcut_control({ key });
+}
+
 export * from "./calendar";

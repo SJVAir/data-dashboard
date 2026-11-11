@@ -12,6 +12,7 @@ import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACEHOLDER_TYPE, placeholderType } from "$lib/widgets/placeholder";
 import { registerWidgetType, type WidgetModule } from "$lib/widgets/registry";
+import { defaultStarterPlace } from "$lib/starter/place.svelte";
 import { starterDashboard } from "$lib/starter/starter";
 import { rectsOverlap } from "$lib/layout/engine";
 import { announce } from "$lib/a11y/announcer.svelte";
@@ -20,13 +21,16 @@ import type { Arrangement } from "$lib/layout/arrangement.svelte";
 import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
 import TitledWidget from "./test-harness/TitledWidget.svelte";
+import { stubStarterTypes } from "./test-harness/stub-starter-types";
+
+const FRESNO = defaultStarterPlace();
 
 // No production type is addable yet (Chart and Data table come later): a test-only one is.
 registerWidgetType({
 	...placeholderType,
 	type: "test-addable",
 	label: () => "Test widget",
-	addable: () => ({ layers: [] })
+	addable: () => ({ data: { layers: [] } })
 });
 
 /** Adds a widget through the "Add widget" menu. */
@@ -49,6 +53,7 @@ afterEach(() => {
 async function setup() {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	const id = await app.index.createBlank();
 	const session = (await app.sessions.get(id))!;
 	app.current = { session, isStarter: false };
@@ -270,7 +275,7 @@ test("Add widget lists the addable types and adds the chosen one at the bottom",
 		label: () => "Titled test",
 		defaultSize: { w: 4, h: 5 },
 		load: () => gate.promise,
-		addable: () => structuredClone(data)
+		addable: () => ({ data: structuredClone(data) })
 	});
 	await renderGrid(app);
 	await page.getByRole("button", { name: "Add widget" }).click();
@@ -297,6 +302,23 @@ test("Add widget lists the addable types and adds the chosen one at the bottom",
 	// One undo step.
 	session.undo();
 	expect(session.doc.body.widgets.map((w) => w.id)).toEqual(["a"]);
+});
+
+test("Add widget lists Notes and adds an empty one with its options in one change", async () => {
+	const { app, session } = await setup();
+	await renderGrid(app);
+	await page.getByRole("button", { name: "Add widget" }).click();
+	await page.getByRole("menuitem", { name: "Note", exact: true }).click();
+	const widgets = session.doc.body.widgets;
+	expect(widgets).toHaveLength(1);
+	expect(widgets[0]).toMatchObject({
+		type: "note",
+		data: { layers: [] },
+		options: { text: "" },
+		rect: { w: 4, h: 3 }
+	});
+	session.undo();
+	expect(session.doc.body.widgets).toEqual([]);
 });
 
 test("the dashboard menu's Add widget offers the addable types", async () => {
@@ -356,6 +378,14 @@ test("the dashboard's own menu has its actions plus Undo and Redo", async () => 
 	for (const name of [/^Add widget/, /^Rename dashboard…/, /^Undo/, /^Redo/]) {
 		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
 	}
+	// With this platform's shortcuts.
+	const mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+	await expect
+		.element(page.getByRole("menuitem", { name: /^Undo/ }))
+		.toHaveTextContent(mac ? "Undo ⌘Z" : "Undo Ctrl+Z");
+	await expect
+		.element(page.getByRole("menuitem", { name: /^Redo/ }))
+		.toHaveTextContent(mac ? "Redo ⇧⌘Z" : "Redo Ctrl+Shift+Z");
 });
 
 test("a widget is a named group announcing its shortcuts, not a region landmark", async () => {
@@ -421,11 +451,10 @@ test("a widget's undo after its row was taken puts it back below, not on top", a
 test("editing the starter creates a copy, replaces the URL, and shows the toast", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", "/workspace/");
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	const starter = app.current.session!;
 	const historyLength = history.length;
 
@@ -438,15 +467,12 @@ test("editing the starter creates a copy, replaces the URL, and shows the toast"
 	expect(history.length).toBe(historyLength);
 
 	// The navigation keeps the copy's session and its undo history.
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.not.toBeInTheDocument();
+	await expect.poll(() => app.current.isStarter).toBe(false);
 	expect(app.current.session).toBe(copy);
-	expect(app.current.isStarter).toBe(false);
-	expect(copy.doc.body.widgets).toHaveLength(4);
+	expect(copy.doc.body.widgets).toHaveLength(7);
 	expect(copy.canUndo).toBe(true);
 	copy.undo();
-	expect(copy.doc.body.widgets).toHaveLength(3);
+	expect(copy.doc.body.widgets).toHaveLength(6);
 });
 
 test("empty dashboard shows the empty state", async () => {
@@ -636,9 +662,7 @@ test("it's shown on the starter and on an empty dashboard", async () => {
 	await renderGrid(app);
 	await expect.element(dashboardMore()).toBeVisible();
 	app.current = { ...app.current, isStarter: true };
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await tick();
 	await expect.element(dashboardMore()).toBeVisible();
 });
 
@@ -673,24 +697,26 @@ test("the dashboard ⋯ shows on a read-only dashboard", async () => {
 	await expect.element(page.getByRole("menuitem", { name: /^New blank dashboard/ })).toBeVisible();
 });
 
-test("the starter's first two widgets render at most 320px wide on a desktop", async () => {
-	const { app } = await seed(starterDashboard().body.widgets);
+test("the starter's narrow widgets render at most 320px wide on a desktop", async () => {
+	const { app } = await seed(starterDashboard(FRESNO).body.widgets);
 	await renderGrid(app);
-	await expect.element(frame("starter-2")).toBeVisible();
-	for (const id of ["starter-1", "starter-2"]) {
+	await expect.element(frame("starter-3")).toBeVisible();
+	// Current conditions and "Can we go outside?", three columns each.
+	for (const id of ["starter-2", "starter-3"]) {
 		expect(frame(id).element().getBoundingClientRect().width).toBeLessThanOrEqual(320);
 	}
 });
 
 test("on a phone every starter widget spans the grid and the menu button is tappable", async () => {
 	await page.viewport(390, 844);
-	const { app } = await seed(starterDashboard().body.widgets);
+	const { app } = await seed(starterDashboard(FRESNO).body.widgets);
 	await renderGrid(app);
-	await expect.element(frame("starter-3")).toBeVisible();
+	await expect.element(frame("starter-6")).toBeVisible();
 	const grid = frame("starter-1").element().parentElement!;
 	await expect.poll(() => getComputedStyle(grid).gridTemplateColumns.split(" ")).toHaveLength(1);
 	const gridWidth = grid.getBoundingClientRect().width;
-	for (const id of ["starter-1", "starter-2", "starter-3"]) {
+	const ids = ["starter-1", "starter-2", "starter-3", "starter-4", "starter-5", "starter-6"];
+	for (const id of ids) {
 		expect(frame(id).element().getBoundingClientRect().width).toBeCloseTo(gridWidth, 0);
 	}
 	const menu = frame("starter-1")

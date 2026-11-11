@@ -4,6 +4,7 @@
 	import { dashboardActions } from "$lib/actions/dashboard";
 	import type { MenuContext } from "$lib/actions/types";
 	import MenuItems from "$lib/components/menu/MenuItems.svelte";
+	import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 	import { m } from "$lib/paraglide/messages.js";
@@ -17,6 +18,15 @@
 	const currentName = $derived(currentDashboardName(app));
 
 	const actions = dashboardActions(app);
+
+	// An item that opens its own dialog (Duplicate for another place) does so once the menu has
+	// closed, with focus moved there instead of back to the trigger.
+	function onCloseAutoFocus(event: Event) {
+		const after = takeAfterMenuClose();
+		if (!after) return;
+		event.preventDefault();
+		after();
+	}
 	let trigger = $state<HTMLElement | null>(null);
 	const ctx = $derived<MenuContext | null>(trigger ? { target: trigger, payload: {} } : null);
 	// The registered dashboard actions, less "Add widget" (that belongs on the dashboard).
@@ -37,7 +47,7 @@
 		<span class="truncate">{currentName ?? m.picker_choose()}</span>
 		<ChevronDown aria-hidden="true" />
 	</DropdownMenu.Trigger>
-	<DropdownMenu.Content align="start" class="max-w-sm min-w-56">
+	<DropdownMenu.Content align="start" class="max-w-sm min-w-56" {onCloseAutoFocus}>
 		{#each app.index.items as item (item.id)}
 			{@const current = item.id === currentId}
 			<DropdownMenu.Item>

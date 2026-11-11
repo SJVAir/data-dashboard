@@ -18,6 +18,7 @@ import {
 	renameWidget,
 	setVisibility,
 	sharedDoc,
+	STARTER_TITLES,
 	widgetTitles
 } from "./helpers";
 
@@ -144,6 +145,31 @@ test("a teacher's link opens for a student with no account", async ({
 	await expectNoViolations(student.page);
 	await student.page.getByRole("button", { name: "Actions for Alpha", exact: true }).click();
 	await expect(student.page.getByRole("menuitem")).toHaveText(["Fullscreen"]);
+});
+
+test("a live link made from the starter doesn't show its welcome Note to viewers", async ({
+	page,
+	documentsServer
+}) => {
+	const welcome = "Welcome to the SJVAir Dashboard.";
+	await page.goto("./");
+	await expect(page.getByText(welcome)).toBeVisible();
+	await openPicker(page, "Starter dashboard");
+	await page.getByRole("menuitem", { name: "Share…" }).click();
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await expect(savedToAccount(page)).toBeVisible();
+	await shareDialog(page).getByRole("button", { name: "Create link" }).click();
+	await expect(liveLink(page)).toHaveValue(SHARED_URL);
+	const url = await liveLink(page).inputValue();
+	await page.keyboard.press("Escape");
+	// The owner still sees it.
+	await expect(page.getByText(welcome)).toBeVisible();
+
+	const student = await viewer(documentsServer, null);
+	await student.page.goto(url);
+	await expect(student.page).toHaveURL(SHARED_URL);
+	await expect(widgetTitles(student.page)).toHaveText(STARTER_TITLES.slice(1));
+	await expect(student.page.getByText(welcome)).toHaveCount(0);
 });
 
 test("the viewer sees the owner's change after a poll", async ({ page, documentsServer }) => {

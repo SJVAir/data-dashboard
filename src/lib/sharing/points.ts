@@ -7,13 +7,15 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { getWidgetType } from "$lib/widgets/registry";
 import { chartInput, nowInput, placesLayer, placesQueryLayer } from "$lib/widgets/shared/input";
-import { hasPoints, pointLayers } from "./point-layers";
+import { barHasPoint, hasPoints, pointLayers } from "./point-layers";
 
 export { hasPoints };
 
 /**
  * Location privacy when sharing: an exact location (a `point` place in any widget layer) leaves
- * the owner's browser as the region its widget shows now, unless the owner chooses otherwise.
+ * the owner's browser as the region its widget shows now, unless the owner chooses otherwise. The
+ * Change place bar's point goes with them: it becomes the region of a layer holding the same
+ * point, or is dropped when none does.
  * `$lib/data` is reached with a dynamic import, and only for a dashboard that has a point.
  */
 
@@ -58,7 +60,8 @@ function bounded(signal?: AbortSignal): { signal: AbortSignal; done(): void } {
 
 /**
  * Whether `swaps` covers every point `doc` holds now (same widget, layer, and point): false when
- * one was added, re-picked, or moved since the lookup, so the lookup has to run again.
+ * one was added, re-picked, or moved since the lookup, so the lookup has to run again. The bar's
+ * point needs no lookup of its own (it takes its layer's region, or is dropped).
  */
 export function pointsCovered(doc: Dashboard, swaps: PointSwap[]): boolean {
 	return pointLayers(doc).every(({ widget, layer, layerIndex }) =>
@@ -110,51 +113,69 @@ export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<
 	}
 }
 
-/** A copy of `doc` with each point replaced by its region, or the place cleared when `region` is null. */
+/**
+ * The bar's place once `swaps` are applied: the region of a swapped layer holding its point (so
+ * the bar still matches its widgets), else none. `applied` are the swaps that applied.
+ */
+function swappedBar(
+	bar: Dashboard["body"]["placeBar"],
+	applied: PointSwap[]
+): Dashboard["body"]["placeBar"] {
+	// Read defensively, as `pointLayers` (a read-only document is unvalidated).
+	if (bar?.place?.kind !== "point") return bar;
+	const region = applied.find((s) => s.region && samePoint(bar.place, s))?.region;
+	return region ? { place: { kind: "region", ...region } } : undefined;
+}
+
+/**
+ * A copy of `doc` with each point replaced by its region, or the place cleared when `region` is
+ * null; the bar's point becomes the same region as a layer holding it, or is dropped.
+ */
 export function withSwaps(doc: Dashboard, swaps: PointSwap[]): Dashboard {
-	if (swaps.length === 0) return doc;
+	if (swaps.length === 0 && !barHasPoint(doc)) return doc;
+	const applied: PointSwap[] = [];
 	const byWidget = new Map<string, Map<number, PointSwap>>();
 	for (const swap of swaps) {
 		const layers = byWidget.get(swap.widgetId) ?? new Map<number, PointSwap>();
 		layers.set(swap.layerIndex, swap);
 		byWidget.set(swap.widgetId, layers);
 	}
-	return {
-		...doc,
-		body: {
-			...doc.body,
-			widgets: doc.body.widgets.map((widget) => {
-				const regions = widget && byWidget.get(widget.id);
-				if (!regions) return widget;
-				return {
-					...widget,
-					data: {
-						...widget.data,
-						layers: widget.data.layers.map((layer, i) => {
-							// Only a layer still holding the point looked up (it may have changed since).
-							const swap = regions.get(i);
-							if (!swap || !samePoint(layer.place, swap)) return layer;
-							const { region } = swap;
-							// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
-							const { place, ...rest } = layer;
-							return region ? { ...rest, place: { kind: "region" as const, ...region } } : rest;
-						})
-					}
-				};
-			})
-		}
-	};
+	const widgets = doc.body.widgets.map((widget) => {
+		const regions = widget && byWidget.get(widget.id);
+		if (!regions) return widget;
+		return {
+			...widget,
+			data: {
+				...widget.data,
+				layers: widget.data.layers.map((layer, i) => {
+					// Only a layer still holding the point looked up (it may have changed since).
+					const swap = regions.get(i);
+					if (!swap || !samePoint(layer.place, swap)) return layer;
+					applied.push(swap);
+					const { region } = swap;
+					// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+					const { place, ...rest } = layer;
+					return region ? { ...rest, place: { kind: "region" as const, ...region } } : rest;
+				})
+			}
+		};
+	});
+	const { placeBar, ...body } = doc.body;
+	const bar = swappedBar(placeBar, applied);
+	return { ...doc, body: { ...body, widgets, ...(bar ? { placeBar: bar } : {}) } };
 }
 
 /**
- * `withSwaps` as one change to `doc`: `setWidgetData` when one widget has points (so edits
- * elsewhere, from this or another device, aren't touched), else one `replaceDocument` (no other
- * single change covers several widgets). `null` when nothing would change.
+ * `withSwaps` as one change to `doc`: `setWidgetData` when one widget has points and the bar
+ * holds none (so edits elsewhere, from this or another device, aren't touched), else one
+ * `replaceDocument` (no other single change covers several widgets, or the bar). `null` when
+ * nothing would change.
  */
 export function swapChange(doc: Dashboard, swaps: PointSwap[]): Change | null {
 	const next = withSwaps(doc, swaps);
 	const changed = next.body.widgets.filter((w, i) => w !== doc.body.widgets[i]);
-	if (changed.length === 1) {
+	const barMoved = next.body.placeBar !== doc.body.placeBar;
+	if (changed.length === 1 && !barMoved) {
 		const widget = changed[0];
 		return {
 			op: "setWidgetData",
@@ -163,7 +184,7 @@ export function swapChange(doc: Dashboard, swaps: PointSwap[]): Change | null {
 			to: widget.data
 		};
 	}
-	if (changed.length > 1) {
+	if (changed.length > 1 || barMoved) {
 		return {
 			op: "replaceDocument",
 			target: {},

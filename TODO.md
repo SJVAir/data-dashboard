@@ -1256,7 +1256,15 @@ into the `step-4` branch (from `main`); `step-4` → `main` needs the user's yes
    `5.0.0-beta.8`: days are colored by the server's `daily_statistic`, with today and an
    unsettled yesterday from the open-day rows. Spec
    `docs/superpowers/specs/2026-11-09-step-4-spec-5-calendars-design.md`.
-6. Notes and the starter dashboard.
+6. Notes and the starter dashboard. **Built on `step-4-spec-6`; the PR into `step-4` is
+   pending the user's yes.** The Notes widget (Lexical editor in a dialog, `marked` viewer
+   drawn as a closed block model, saved in the widget's `options`), the real starter (welcome
+   Note, the three "now" widgets, a 30-day chart, the month calendar) resolved with the chosen
+   place, the "Change place" bar on starter copies with "Also change the other widgets",
+   sharing the starter copying it first, and "Duplicate for another place…". The user raised
+   the initial-bundle soft budget to 250 KB (2026-11-10). Spec
+   `docs/superpowers/specs/2026-11-10-step-4-spec-6-notes-and-starter-design.md`. Its
+   deferrals are in `DEFERRED.md`.
 
 The checklist below is the whole step's scope.
 
@@ -1274,7 +1282,9 @@ The checklist below is the whole step's scope.
   location) that re-targets all its widgets, and a personal copy on first edit. It lives at `/workspace/`; "Change place" is a preference (no
   copy); a real edit makes a copy and replaces the URL with `/workspace/dashboards/:id`; sharing
   copies first. It has non-map widgets, including a
-  calendar; the Map widget joins in step 6.
+  calendar; the Map widget joins in step 6. (Built on `step-4-spec-6`, 2026-11-10; the
+  bar also stays on copies, with "Also change the other widgets" and "Duplicate for another
+  place…".)
 - Get data (formerly the Data Explorer and the Widget Creation view; including the advanced resolution override): dates above catalog-driven dataset sections (the v1
   tabs become accordions), multiple layers per widget (≤ 1 pollutant), the shared place
   picker (plus a pollutant control) for "now" widgets, and a live preview.

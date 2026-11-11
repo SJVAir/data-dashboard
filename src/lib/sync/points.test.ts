@@ -103,6 +103,21 @@ describe("pointsHeld: a live link never gets a point the owner didn't choose", (
 		expect(await platform.sync.get(SPACE, "d1")).toMatchObject({ syncedThrough: 3 });
 	});
 
+	it("a point only in the Change place bar is held too", async () => {
+		const { platform, fake, ctx, saves } = await synced();
+		const doc = await stored(platform);
+		const bar: Change = {
+			op: "replaceDocument",
+			target: {},
+			from: { name: doc.name, body: doc.body },
+			to: { name: doc.name, body: { ...doc.body, placeBar: { place: POINT } } }
+		};
+		await edit(platform, [bar]);
+		expect(await uploadDocument(ctx, "d1")).toBe("points");
+		expect(fake.requests).toEqual([]);
+		expect(saves).toEqual([]);
+	});
+
 	it("without a live link, a point uploads as it is (the owner's own account copy)", async () => {
 		const { platform, fake, ctx, saves } = await synced({ link: false });
 		await edit(platform, [pick(ZIP, POINT)]);

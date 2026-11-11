@@ -44,7 +44,8 @@ type Target = {
 
 /**
  * What to share or export: the dashboard `id`'s stored document, or the current one (the
- * starter's built-in document, or the open session's after storing this tab's edits).
+ * starter's built-in document, for Export only, or the open session's after storing this tab's
+ * edits).
  */
 async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 	if (id === undefined) {
@@ -52,7 +53,7 @@ async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 		if (!session) return null;
 		if (isStarter)
 			return {
-				doc: starterDashboard(),
+				doc: starterDashboard(app.starterPlace),
 				name: currentDashboardName(app) ?? "",
 				readOnly: false,
 				isStarter: true,
@@ -156,7 +157,21 @@ async function useRegions(
 	return "applied";
 }
 
+/**
+ * Opens the Share dialog for the dashboard. The starter is never shared itself: it becomes this
+ * person's own copy first (as its first edit would make it), and that copy is shared, so a live
+ * link is offered too.
+ */
 export async function shareDashboard(app: AppContext, id?: string): Promise<void> {
+	if (id === undefined && app.current.isStarter) {
+		const copy = await app.copyStarter();
+		if (!copy) {
+			toast.error(m.share_failed());
+			return;
+		}
+		// The person moved on meanwhile: the copy is kept, but not shared.
+		if (app.current.session !== copy) return;
+	}
 	const target = await targetOf(app, id);
 	if (!target) return;
 	// A live link needs the account's sync and a dashboard it can read and upload.

@@ -123,12 +123,25 @@ test("a link copied from the Share dialog opens as a copy in a new browser", asy
 	}
 });
 
-test("the starter can be shared too", async ({ page }) => {
+test("sharing the starter saves it as your own dashboard first, then shares that", async ({
+	page
+}) => {
 	await page.goto("./");
+	const entries = await page.evaluate(() => history.length);
 	await chooseMenuItem(page, "Starter dashboard", "Share…");
-	await expect(page.getByRole("dialog").getByRole("textbox", { name: "Link" })).toHaveValue(
-		/\/import#1\./
-	);
+	// The toast itself: with the Share dialog open, its live region holds the same text.
+	await expect(
+		page.getByRole("region", { name: /Notifications/ }).getByText("Saved as your own dashboard")
+	).toBeVisible();
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	const dialog = page.getByRole("dialog", { name: "Share dashboard" });
+	await expect(dialog.getByRole("textbox", { name: "Link" })).toHaveValue(/\/import#1\./);
+	// The URL is replaced, not pushed.
+	expect(await page.evaluate(() => history.length)).toBe(entries);
+	await page.keyboard.press("Escape");
+	await expect(dialog).toBeHidden();
+	await nav(page).getByRole("link", { name: "Dashboards" }).click();
+	await expect(page.getByRole("list").getByRole("link")).toHaveCount(1);
 });
 
 test("Export then Import makes a copy", async ({ page }) => {

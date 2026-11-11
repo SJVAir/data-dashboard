@@ -5,6 +5,7 @@ import {
 	DASHBOARD_URL,
 	addWidget,
 	expectSaved,
+	newBlankDashboard,
 	widgetMenuItem,
 	widgetTitles
 } from "./helpers";
@@ -18,17 +19,17 @@ const CSV_HEADER =
 	"level_key,level_label,source_id,source_name,filters,aggregate";
 
 test("a Chart and a Data table: data, readout, CSV, duplicate, reload", async ({ page }) => {
-	await page.goto("./");
-	await expect(widgetTitles(page)).toHaveCount(3);
+	// A blank dashboard: the starter has a Chart of its own.
+	await newBlankDashboard(page);
 
 	// A Chart and a Data table, both on the default layer (Fresno County PM2.5, last 30 days).
 	await addWidget(page, "Chart");
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await addWidget(page, "Data table");
-	await expect(widgetTitles(page)).toHaveCount(5);
+	await expect(widgetTitles(page)).toHaveCount(2);
 	const chart = page.getByRole("group", { name: CHART });
 	await expect(chart).toBeVisible();
-	await expect(widgetTitles(page).nth(3)).toHaveText(CHART_TITLE);
+	await expect(widgetTitles(page).first()).toHaveText(CHART_TITLE);
 	await expect(chart.getByRole("list", { name: "Series" })).toBeVisible();
 	await expect(chart.getByRole("list", { name: "Levels" }).getByRole("listitem")).not.toHaveCount(
 		0
@@ -72,12 +73,12 @@ test("a Chart and a Data table: data, readout, CSV, duplicate, reload", async ({
 
 	// Duplicate the Chart; the copy draws its own data.
 	await widgetMenuItem(page, CHART_TITLE, "Duplicate widget");
-	await expect(widgetTitles(page)).toHaveCount(6);
+	await expect(widgetTitles(page)).toHaveCount(3);
 	await expect(page.getByRole("group", { name: CHART })).toHaveCount(2);
 	await expectSaved(page);
 
 	await page.reload();
-	await expect(widgetTitles(page)).toHaveCount(6);
+	await expect(widgetTitles(page)).toHaveCount(3);
 	await expect(page.getByRole("group", { name: CHART })).toHaveCount(2);
 	await expect(table.getByRole("rowheader")).toHaveCount(30);
 });

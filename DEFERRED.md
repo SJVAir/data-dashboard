@@ -36,7 +36,11 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   layer, and each widget type's code out of the initial bundle. The budget is a soft limit
   (`check:budget` warns, never fails). **Revisit when** `check:budget` warns again (the user:
   decide then, trim or raise the budget, rather than trimming every time).
-- **The initial bundle is a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
+- **The initial bundle size (soft budget raised to 250 KB, 2026-11-10).** The user, during step
+  4 spec 6 (205.3 KB then): change the limit to 250 KB "so this question stops being a pain
+  point halting our work"; if the bundle is too big, address it later. Sessions no longer stop to
+  ask about growth under 250 KB. History below.
+  **Earlier: a little over 200 KB after step 4 specs 4 and 5 (accepted for now).**
   _Deferred 2026-11-08 (step 4 spec 4, Task 10 and Task 14); updated 2026-11-09 (spec 5)._
   `check:budget` reads 204.8 KB gzip against the 200 KB soft budget (199.7 KB before spec 4,
   202.1 KB after it). Spec 4's growth is the three widget descriptors, the dashboard menu's
@@ -255,7 +259,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **The starter hand-off can set the current dashboard after the person has left for a shared
     page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
     in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
-    timing. **Revisit on a report, or when the hand-off is next changed.**
+    timing. **Revisit on a report, or when the hand-off is next changed.** _Looked at in step 4
+    spec 6, 2026-11-10: unchanged; Share on the starter now also uses the hand-off (through
+    `copyStarter`), so there is one more caller, with the same timing window._
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
@@ -747,7 +753,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   record (its queued edits) is never replayed; it stays until journal cleanup removes it.
   Needs the page to die in a window of a few milliseconds. **Revisit on** a report of lost
   first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
-  starter.
+  starter. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the hand-off is the same code,
+  though Share on the starter now hands off too (through `copyStarter`), a second way to start
+  it._
 - **A starter replay can take a live tab's journal record.** _Deferred 2026-10-25
   (Foundations spec 3, task 7 review)._ `replayPending` replays every other tab's `starter`
   journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
@@ -755,7 +763,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   it needs a storage failure or unlucky timing in the other tab. **Revisit on** a report of
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
-  two dashboards, which the person can delete or restore.
+  two dashboards, which the person can delete or restore. _Looked at in step 4 spec 6,
+  2026-11-10: unchanged; Share on the starter's hand-off adds one more way to hit it._
+- **Another tab's starter shows a new chosen place only after reload.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 4)._ The starter's chosen place is a per-space preference, read when the
+  app opens (and after "Clear my data"); preferences have no change event, so a starter already
+  open in another tab keeps the place it opened with until that tab reloads (its first edit's
+  copy keeps that place too). **Revisit if** people notice, or when preferences gain a change
+  event.
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size
@@ -765,7 +780,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`droppedEdits` on the starter is never shown.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Edits that can't be carried over
   from an older format are counted on the starter session too, but only an opened dashboard's
   page tells the person. Nothing can be dropped until a format changes. **Revisit at** the
-  first `schemaVersion` bump.
+  first `schemaVersion` bump. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the real
+  starter doesn't change this, since nothing can be dropped yet._
 - **`files.open` can hang where the input's `cancel` event is missing.** _Deferred 2026-10-25 (Foundations spec 3, final review)._ Chrome 111–112
   don't fire `cancel` on a file input, so dismissing the picker there leaves "Import…" waiting
   forever. **Revisit if** a stuck import is
@@ -1548,7 +1564,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   fullscreen widget are mounted again once (a widget's own state, such as zoom, resets). Why:
   keeping the grid mounted across Home → the dashboard page needs a router restructure.
   **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
-  lost on the starter's first edit.
+  lost on the starter's first edit. _Looked at in step 4 spec 6, 2026-11-10: this may now apply.
+  The real starter has a chart (with zoom) and a month calendar (with a selection), so an edit
+  made in fullscreen resets them once. Not measured or reported; revisit if anyone notices._
 - **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
   2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
   between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
@@ -1606,12 +1624,105 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   method offers presets (24 hours to 12 months) and Custom covers anything else; the
   saved format already holds any amount and unit. **Revisit when** people ask for a
   length the presets lack.
-- **Linking widgets**: _deferred 2026-09-28._ (The built-in starter's "Change place" bar
-  is a narrow, starter-only exception; design the two together.) First step: a **dashboard-wide place and date
+- **Linking widgets**: _deferred 2026-09-28._ (The "Change place" bar on the starter and its
+  copies is the narrow form, and "replace place A with place B across a dashboard"
+  (`src/lib/places/replace.ts`, built in step 4 spec 6, 2026-11-10) is the mechanism it uses.
+  A dashboard-wide place should build on both; design the two together.) First step: a **dashboard-wide place and date
   range** that widgets can choose to follow ("change the county once, everything
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
   Creation, and undo. **Revisit when** pilot or private-preview users ask for it.
+- **A "Change place" bar for dashboards not made from the starter.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 8)._ "Duplicate for another place" works on any dashboard, but a copy of
+  one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
+  copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
+  widgets" above. **Revisit with** "Linking widgets".
+- **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
+  (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
+  built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
+  toast says so after the click (it is hidden on the open dashboard). **Revisit if** people find
+  it confusing; the fix is a replaceable-place flag on `DashboardSummary`.
+- **The Map joins the starter in step 6.** _Deferred 2026-11-10 (step 4 spec 6)._ It goes in as
+  a full-width row under the "now" row, pushing the chart and calendar down; the hour × weekday
+  heatmap's old slot stays empty until then (the year calendar does not take it). **Revisit
+  when** step 6 adds the Map widget.
+- **More Note formatting.** _Deferred 2026-11-10 (step 4 spec 6)._ Notes allow paragraphs, one
+  heading level, bold, italic, bulleted and numbered lists and links. Images, tables, code,
+  quotes and more heading levels show as plain text; images would also need CSP and privacy work
+  (remote loads from a shared page). **Revisit when** people ask.
+- **Nested lists in Notes flatten to text.** _Deferred 2026-11-10 (step 4 spec 6, Task 1
+  review)._ The viewer draws one list level; a nested list shows its inner lines as plain text.
+  **Revisit if** people ask for nested lists.
+- **Lexical is pre-1.0.** _Deferred 2026-11-10 (step 4 spec 6)._ The Notes editor uses Lexical
+  0.53.0, pinned exactly (with every `@lexical/*` package), so a minor release can't break
+  it unseen. **Revisit at** Lexical 1.0 or on any upgrade (re-run the editor round-trip tests).
+- **A content fit applied during an effect flush remounts widgets.** _Deferred 2026-11-10
+  (step 4 spec 6, phone Note fit)._ A Note reports its text's height through `FitContent`, and
+  the frame applies it to the grid in a microtask. Applied during an effect flush instead, the
+  state write re-runs every frame's `{#await loadWidget(type)}` block, remounting the widgets
+  (and looping, for a widget that measures on mount). The microtask and the `FitContent` doc
+  comment guard against it, but the frame's load block is still fragile. **Revisit when**
+  another widget type adopts `FitContent`, or the frame's load block changes (e.g. hold the
+  loaded module in state instead of an `{#await}`).
+- **"Shorter" on a phone Note grown to fit its text changes nothing you can see.** _Ruled
+  acceptable 2026-11-10 (step 4 spec 6 follow-ups)._ Shift+Up, Size ▸ Shorter or the handle
+  dragged up shrink the Note's own height (growing starts from the rows shown), but its text still
+  needs the rows it shows, so the Note looks the same and the announcement repeats its height.
+  The drop still writes the smaller height: an undo step, and a shorter Note on a desktop.
+  Starting from the rows shown instead would raise the desktop height on "Shorter". **Revisit if**
+  people find it confusing.
+- **A Note fitted on a phone can leave a gap under its text.** _Deferred 2026-11-10 (step 4
+  spec 6, phone Note fit)._ It grows in whole rows (4 rem plus a gap), so up to about 75 px can
+  stay blank under the text. **Revisit if** it looks odd (e.g. finer rows on phones).
+- **Crossing the phone breakpoint mid-arrangement can slide widgets on a dashboard with a
+  Note.** _Deferred 2026-11-10 (step 4 spec 6, phone Note fit, CI fix)._ The grid watches the
+  phone query while some Note has phone rows, which is most real dashboards, the starter
+  included (its welcome Note). Then crossing the breakpoint in either direction re-renders the
+  grid, which uses up the FLIP's breakpoint jump, so the drop or cancel that follows slides
+  every widget instead of jumping. It happens only when the breakpoint is crossed while a
+  widget is being arranged (e.g. rotating a phone or resizing the window mid-drag); dashboards
+  without a fitted Note are unchanged. A sticky jump (kept until a play that moves something)
+  was tried, but a spurious column change at startup then made the first real move jump.
+  **Revisit if** someone sees it, or the FLIP's breakpoint handling changes (e.g. tie the jump
+  to the arrangement that spans the breakpoint).
+- **Step 4 spec 6 review leftovers.** _Deferred 2026-11-10 (step 4 spec 6, per-task and final
+  reviews)._ Small things the reviews let stay; the first ones a person could meet:
+  - **A task list shows its box and label on separate lines.** `- [ ] c` reads as the text
+    "[ ]", a line break, then "c", with no checkbox. Only in a document the editor didn't save
+    (the editor writes a typed `[ ]` as `\[ \]`, which is text). **Revisit if** people write
+    checklists in Notes.
+  - **Link reference definitions show as their source.** `[r]: https://…` stays visible text
+    (its `[x][r]` link works when the address is allowed). Showing it is the safe choice.
+    **Revisit if** people paste Markdown with reference links.
+  - **`safeHref` accepts `https://user:pass@host`.** The link text is the author's anyway, so a
+    hostile link can already say anything; the userinfo adds no new power. **Revisit if** links
+    get a visible-host cue.
+  - **The character counter counts Markdown,** so `**`, `## `, each link's whole address and
+    the backslashes that keep typed `[`, `_`, `*`, `\` and the like as text count but don't
+    show; "too long" says "Formatting and link addresses count too". **Revisit if** people find
+    the count confusing (count visible text instead).
+  - **A typed email address with `_` after the `@` doesn't link** (the editor escapes the `_`,
+    which ends the address there); it shows as typed, as text. Hostnames can't hold `_`, so no
+    real address is affected. **Revisit if** one turns up.
+  - **Change place on the starter drops the pick if the hand-off fails.** The session already
+    shows its save error and the edits stay queued. **Revisit on** a report.
+  - **A thrown hand-off on Share gives two failure signals** (the save status and a toast). Only
+    on a storage failure. **Revisit if** it happens outside storage failures.
+  - **Double-clicking Share opens the dialog twice** (one copy is made). Harmless. **Revisit
+    with** the next Share dialog change.
+  - **"Duplicate for another place…" edge cases:** a pick that resolves to `default-place` closes
+    silently (unreachable: the picker never offers it), and picking the same place makes a plain
+    copy with no feedback (still a correct copy). **Revisit if** someone is confused by either.
+  - **The welcome Note's bold "Change place" must match the bar's button** (`place_bar_change`)
+    in every translation, and Paraglide's message files have no comment field to say so. **Revisit
+    when** translation starts (put it in the translator hand-off, with `app_name_product`).
+  - **Test gaps:** `notes-excluded.test.ts` has no positive control, and `NoteWidget`'s imports
+    aren't in the usual order; the `setWidgetData` case in the `replaceChange` tests is muddled;
+    axe on "Which place?" runs only in the default scheme and viewport (the spec asks light and
+    dark only for the starter, a Note and its editor); a duplicate `toHaveText` in the starter
+    e2e; the starter chart layer's days aren't asserted; no browser test for
+    `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
+    next change to each.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:

@@ -12,7 +12,9 @@
 		"existingCopy",
 		"moveToAccount",
 		"placePicker",
-		"notifications"
+		"notifications",
+		"noteEditor",
+		"whichPlace"
 	];
 
 	/** Opened at least once; Move to account is asked once the app starts in an account space. */

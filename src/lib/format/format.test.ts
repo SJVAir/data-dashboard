@@ -7,6 +7,7 @@ import {
 	formatDateTime,
 	formatHourRange,
 	formatList,
+	formatShortcut,
 	formatLongWeekdayDate,
 	formatMonthName,
 	formatMonthShort,
@@ -145,6 +146,17 @@ describe("format", () => {
 	it("formatList joins names as a sentence list", () => {
 		expect(formatList(["A"])).toBe("A");
 		expect(formatList(["A", "B", "C"])).toBe("A, B, and C");
+	});
+	it("formatShortcut names Ctrl, or ⌘ on Apple platforms", () => {
+		expect(formatShortcut("B", { command: false })).toBe("Ctrl+B");
+		expect(formatShortcut("K", { command: true })).toBe("⌘K");
+		expect(formatShortcut("Z", { shift: true, command: false })).toBe("Ctrl+Shift+Z");
+		expect(formatShortcut("Z", { shift: true, command: true })).toBe("⇧⌘Z");
+		vi.stubGlobal("navigator", { platform: "MacIntel" });
+		expect(formatShortcut("I")).toBe("⌘I");
+		vi.stubGlobal("navigator", { platform: "Win32" });
+		expect(formatShortcut("I")).toBe("Ctrl+I");
+		vi.unstubAllGlobals();
 	});
 	it("formatDayOfMonth gives the Pacific day of the month", () => {
 		expect(formatDayOfMonth("2026-11-06")).toBe("6");

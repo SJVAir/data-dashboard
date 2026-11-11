@@ -1,5 +1,6 @@
 import Download from "@lucide/svelte/icons/download";
 import Copy from "@lucide/svelte/icons/copy";
+import CopyPlus from "@lucide/svelte/icons/copy-plus";
 import FilePlus from "@lucide/svelte/icons/file-plus";
 import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 import Bell from "@lucide/svelte/icons/bell";
@@ -11,10 +12,19 @@ import Upload from "@lucide/svelte/icons/upload";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { toast } from "svelte-sonner";
 import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
-import { openNotifications, openRestoreVersion } from "$lib/components/dialogs/lazy.svelte";
+import {
+	askWhichPlace,
+	openNotifications,
+	openPlacePicker,
+	openRestoreVersion,
+	whichPlace
+} from "$lib/components/dialogs/lazy.svelte";
+import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
+import type { ChosenPlace } from "$lib/data/schema";
+import { barVisible, mainPlaces } from "$lib/places/replace";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
-import type { WidgetInstance } from "$lib/documents/schema";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
 import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
@@ -23,7 +33,7 @@ import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
 import { addableWidgetTypes, dataTypes, getWidgetType } from "$lib/widgets/registry";
 import { navigate } from "../../router";
-import type { MenuProvider } from "./types";
+import type { MenuContext, MenuProvider } from "./types";
 
 /** The share, export, and import handlers load on first use, keeping `lz-string` out of the entry chunk. */
 type Sharing = typeof import("$lib/sharing/actions");
@@ -104,12 +114,14 @@ export function addWidget(app: AppContext, type: string): void {
 	const widgetType = getWidgetType(type);
 	if (!session || !widgetType) return;
 	const widgets = session.doc.body.widgets;
+	const added = widgetType.addable?.() ?? { data: { layers: [] } };
 	const widget: WidgetInstance = {
 		id: crypto.randomUUID(),
 		type,
 		title: null,
 		rect: placeNewWidget(widgets, widgetType.defaultSize),
-		data: widgetType.addable?.() ?? { layers: [] }
+		data: added.data,
+		...(added.options ? { options: added.options } : {})
 	};
 	session.apply({
 		op: "addWidget",
@@ -117,6 +129,13 @@ export function addWidget(app: AppContext, type: string): void {
 		widget,
 		index: widgets.length
 	});
+	const onAdded = widgetType.onAdded;
+	if (!onAdded) return;
+	// On the starter the edit lands in its copy once the hand-off resolves (the copy is current
+	// by then), so the widget is only there to find after that.
+	const handoff = session.handoff;
+	if (handoff) void handoff.then((copy) => copy && onAdded(app, widget.id));
+	else onAdded(app, widget.id);
 }
 
 /**
@@ -148,7 +167,57 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	if (!target || target.session.readOnly) return;
 	// The index copies the stored document, so store this tab's edits first.
 	if (!target.isStarter) await target.session.flush();
-	const copyId = await app.index.duplicate(target.isStarter ? STARTER_ID : target.session.doc.id);
+	const copyId = target.isStarter
+		? await app.index.duplicate(STARTER_ID, { from: app.starterPlace, to: app.starterPlace })
+		: await app.index.duplicate(target.session.doc.id);
+	await openDashboard(copyId);
+	await nameOpenedCopy(app, copyId);
+}
+
+/**
+ * The places "Duplicate for another place" could replace: the bar's when it shows (that's what
+ * the dashboard is about), else the main place, all of a tie (in reading order); empty when no
+ * widget shows a single place.
+ */
+export function placesToReplace(doc: Dashboard): ChosenPlace[] {
+	const bar = doc.body.placeBar;
+	return bar && barVisible(doc) ? [bar.place] : mainPlaces(doc);
+}
+
+/**
+ * "Duplicate for another place": which place to replace (asked on a tie), then the new place,
+ * then a copy with that one place replaced, opened and named as Duplicate's is. The original
+ * is untouched.
+ */
+async function duplicateForPlace(app: AppContext, id?: string): Promise<void> {
+	const target = await resolveTarget(app, id);
+	if (!target || target.session.readOnly) return;
+	const candidates = placesToReplace(target.session.doc);
+	if (candidates.length === 0) {
+		// Only a list row gets here: the open dashboard's menu leaves the item out.
+		toast.info(m.dashboard_duplicate_no_single_place());
+		return;
+	}
+	const tie = candidates.length > 1;
+	const from = tie ? await askWhichPlace(candidates) : candidates[0];
+	if (!from) return;
+	const pick = (to: ChosenPlace) => void copyWithPlace(app, target, from, to);
+	// After the question, focus returns to what asked it, not to the question that's gone.
+	openPlacePicker(tie ? { pick, opener: whichPlace.opener } : { pick });
+}
+
+async function copyWithPlace(
+	app: AppContext,
+	target: { session: DocumentSession; isStarter: boolean },
+	from: ChosenPlace,
+	to: ChosenPlace
+): Promise<void> {
+	const { session, isStarter } = target;
+	if (session.readOnly) return;
+	// The index copies the stored document, so store this tab's edits first.
+	if (!isStarter) await session.flush();
+	// The starter is built at its chosen place, the bar's place `from`.
+	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, { from, to });
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
 }
@@ -328,7 +397,8 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				label: m.dashboard_new_from_starter(),
 				icon: LayoutTemplate,
 				group: "create",
-				run: () => void app.index.createFromStarter().then((id) => openDashboard(id))
+				run: () =>
+					void app.index.createFromStarter(app.starterPlace).then((id) => openDashboard(id))
 			},
 			{
 				id: "import",
@@ -345,6 +415,24 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				disabled: locked,
 				run: () => void duplicateDashboard(app, id)
 			},
+			// A row's dashboard isn't open: it says when there's nothing to replace.
+			...(id !== undefined || (session && placesToReplace(session.doc).length > 0)
+				? [
+						{
+							id: "duplicate-for-another-place",
+							label: m.dashboard_duplicate_for_another_place(),
+							icon: CopyPlus,
+							group: "manage" as const,
+							disabled: locked,
+							run: (ctx: MenuContext) =>
+								afterMenuClose(() => {
+									// Focus goes back to what opened the menu, so the dialogs return it there.
+									(ctx.target as Partial<HTMLElement>).focus?.();
+									void duplicateForPlace(app, id);
+								})
+						}
+					]
+				: []),
 			{
 				id: "rename-dashboard",
 				label: m.dashboard_rename(),

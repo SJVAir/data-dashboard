@@ -85,11 +85,17 @@ const BARRELED = [
 	"/node_modules/date-fns/",
 	"/src/lib/paraglide/messages/",
 	// bits-ui's barrel reaches every primitive, so all of them count as the app chunk's. These,
-	// and the helpers only they use, are used by lazy code alone (Get data); left in the group,
-	// they'd be bundled into the app chunk.
-	...["accordion", "alert-dialog", "collapsible", "combobox", "select", "toggle-group"].map(
-		(bit) => `/node_modules/bits-ui/dist/bits/${bit}/`
-	),
+	// and the helpers only they use, are used by lazy code alone (Get data, the "Which place?"
+	// question); left in the group, they'd be bundled into the app chunk.
+	...[
+		"accordion",
+		"alert-dialog",
+		"collapsible",
+		"combobox",
+		"radio-group",
+		"select",
+		"toggle-group"
+	].map((bit) => `/node_modules/bits-ui/dist/bits/${bit}/`),
 	"/node_modules/bits-ui/dist/bits/utilities/hidden-input.svelte",
 	"/node_modules/bits-ui/dist/bits/utilities/mounted.svelte",
 	"/node_modules/bits-ui/dist/internal/data-typeahead.svelte.js",

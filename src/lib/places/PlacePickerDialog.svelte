@@ -12,8 +12,9 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import type { Layer, WidgetDataConfig } from "$lib/data/schema";
-	import type { WidgetInstance } from "$lib/documents/schema";
+	import type { ChosenPlace, Layer, WidgetDataConfig } from "$lib/data/schema";
+	import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+	import { formatNumber } from "$lib/format";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { report } from "$lib/safety/report";
@@ -21,6 +22,7 @@
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
 	import { calendarInput } from "$lib/calendars/input";
 	import { isCalendarType } from "$lib/calendars/types";
+	import { DEFAULT_LAYER } from "$lib/widgets/defaults";
 	import { getWidgetType } from "$lib/widgets/registry";
 	import {
 		chartInput,
@@ -34,14 +36,16 @@
 	import { directoryFor, resolvePicks, type Resolvers } from "./host";
 	import PlacePicker from "./PlacePicker.svelte";
 	import { addRecent, readRecent } from "./recent";
+	import { barChange, othersCount, widgetPlace } from "./replace";
 	import { regionName as nameOf } from "./region-name";
 	import { fromLayer, type PickerMode, type Picks } from "./selection";
-	import type { PlaceOption, PointPlace } from "./types";
+	import { sameRef, type PlaceOption, type PointPlace } from "./types";
 
 	const app = useApp();
 
 	type Ready = {
-		widgetId: string;
+		/** `null`: the dashboard's place (its "Change place" bar). */
+		widgetId: string | null;
 		directory: PlaceDirectory;
 		resolvers: Resolvers;
 		catalog: CatalogEntry[] | undefined;
@@ -51,6 +55,10 @@
 		initial: Picks;
 		known: PlaceOption[];
 		recent: PlaceOption[];
+		/** The dashboard's place: how many widgets show other places ("Also change…"). */
+		others: number;
+		/** A pick for a copy: Done hands the place here and changes nothing. */
+		pick: ((place: ChosenPlace) => void) | null;
 	};
 
 	let ready = $state.raw<Ready | null>(null);
@@ -60,6 +68,8 @@
 	let lookup = $state<"idle" | "looking" | "failed">("idle");
 	/** Kept mounted through the close animation; unmounted once closed. */
 	let mounted = $state(false);
+	/** The dashboard's place: also switch the widgets showing other places. */
+	let alsoOthers = $state(false);
 	/** The picks of a Done whose lookup failed, for Retry. */
 	let pending: Picks | null = null;
 	/** Counts Done presses, so only the latest one applies. */
@@ -100,6 +110,25 @@
 		return widget ? { session, widget } : null;
 	}
 
+	/**
+	 * The bar's dashboard and place, read when needed: the current editable session (the starter,
+	 * or a dashboard with a bar).
+	 */
+	function findDashboard(): { session: DocumentSession; place: ChosenPlace } | null {
+		const session = app.current.session;
+		if (!session || session.readOnly || placePicker.widgetId !== null) return null;
+		const bar = session.doc.body.placeBar;
+		return bar ? { session, place: bar.place } : null;
+	}
+
+	/** The first widget the bar's change switches (at the bar's place), for a point's lookup. */
+	function firstSwitching(doc: Dashboard, place: ChosenPlace): WidgetInstance | undefined {
+		return doc.body.widgets.find((w) => {
+			const at = widgetPlace(w);
+			return at !== null && at !== "mixed" && sameRef(at, place);
+		});
+	}
+
 	function close(): void {
 		placePicker.open = false;
 	}
@@ -109,6 +138,7 @@
 		ready = null;
 		lookup = "idle";
 		pending = null;
+		alsoOthers = false;
 		try {
 			const metadata = getMetadata();
 			const resolvers = getResolvers();
@@ -116,6 +146,15 @@
 			const found = await metadata.catalog(signal);
 			const catalog = found === "unavailable" ? undefined : found;
 			if (signal.aborted) return;
+			const pick = placePicker.pick;
+			if (pick) {
+				await loadPick({ directory, resolvers, catalog }, pick, signal);
+				return;
+			}
+			if (placePicker.widgetId === null) {
+				await loadDashboard({ directory, resolvers, catalog }, signal);
+				return;
+			}
 			const target = find();
 			const max = target ? (getWidgetType(target.widget.type)?.accepts?.maxPlaces ?? 0) : 0;
 			const layer = target ? placesLayer(target.widget.data, catalog) : undefined;
@@ -145,6 +184,8 @@
 				max,
 				purpose: { dataset: layer.dataset, entryType },
 				mode: max > 1 ? { kind: "multiple", max } : { kind: "single" },
+				others: 0,
+				pick: null,
 				...picks
 			};
 			phase = "ready";
@@ -153,6 +194,73 @@
 			report(error);
 			phase = "failed";
 		}
+	}
+
+	/** The dashboard's place: one place, picked as PM2.5's are (as a new widget's). */
+	async function loadDashboard(
+		ctx: Pick<Ready, "directory" | "resolvers" | "catalog">,
+		signal: AbortSignal
+	): Promise<void> {
+		const target = findDashboard();
+		if (!target) {
+			close();
+			return;
+		}
+		const entryType = DEFAULT_LAYER.entryType as string;
+		const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
+			report(error);
+			return [];
+		});
+		const picks = await resolvePicks(
+			[target.place],
+			recentRefs,
+			{ directory: ctx.directory, resolvers: ctx.resolvers, entryType },
+			signal
+		);
+		if (signal.aborted) return;
+		ready = {
+			...ctx,
+			widgetId: null,
+			max: 1,
+			purpose: { dataset: DEFAULT_LAYER.dataset, entryType },
+			mode: { kind: "single" },
+			// The starter's widgets all show its place; only a copy can have others.
+			others: app.current.isStarter ? 0 : othersCount(target.session.doc, target.place),
+			pick: null,
+			...picks
+		};
+		phase = "ready";
+	}
+
+	/** A pick for a copy: one place, picked as PM2.5's are, starting from nothing picked. */
+	async function loadPick(
+		ctx: Pick<Ready, "directory" | "resolvers" | "catalog">,
+		pick: (place: ChosenPlace) => void,
+		signal: AbortSignal
+	): Promise<void> {
+		const entryType = DEFAULT_LAYER.entryType as string;
+		const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
+			report(error);
+			return [];
+		});
+		const picks = await resolvePicks(
+			[],
+			recentRefs,
+			{ directory: ctx.directory, resolvers: ctx.resolvers, entryType },
+			signal
+		);
+		if (signal.aborted) return;
+		ready = {
+			...ctx,
+			widgetId: null,
+			max: 1,
+			purpose: { dataset: DEFAULT_LAYER.dataset, entryType },
+			mode: { kind: "single" },
+			others: 0,
+			pick,
+			...picks
+		};
+		phase = "ready";
 	}
 
 	/** The data with the main layer's places swapped for `point`. */
@@ -207,6 +315,19 @@
 		if (!ctx || !signal || signal.aborted) return;
 		const run = ++doneRun;
 		const stale = () => signal.aborted || run !== doneRun;
+		if (ctx.pick) {
+			// The copy is the person's own and not shared yet: "your location" is kept as it is
+			// (sharing swaps it for its region on the way out).
+			const place = picks[0];
+			void remember(picks);
+			close();
+			if (place && place.kind !== "default-place") ctx.pick(place);
+			return;
+		}
+		if (ctx.widgetId === null) {
+			await doneDashboard(ctx, picks, signal, stale);
+			return;
+		}
 		const target = find();
 		if (!target) {
 			close();
@@ -269,6 +390,78 @@
 		}
 	}
 
+	/**
+	 * The bar's Done. On the starter: its place changes (every widget, no copy, no undo; a starter
+	 * already handing off changes its copy). On a dashboard with a bar: the widgets at the bar's
+	 * place (and, when asked, the others) switch in one undoable edit. A point on a live link
+	 * without "Share my exact location" is saved as its region, looked up as the first switching
+	 * widget reads it.
+	 */
+	async function doneDashboard(
+		ctx: Ready,
+		picks: Picks,
+		signal: AbortSignal,
+		stale: () => boolean
+	): Promise<void> {
+		const pick = picks[0];
+		const target = findDashboard();
+		if (!target || !pick || pick.kind === "default-place") {
+			close();
+			return;
+		}
+		if (app.current.isStarter) {
+			void remember(picks);
+			close();
+			await app.changeStarterPlace(pick);
+			return;
+		}
+		pending = picks;
+		const { session } = target;
+		const state = app.sync?.states[session.doc.id];
+		const liveLink = !!state?.shareToken && !state.shareExact;
+		let place: ChosenPlace = pick;
+		let regionName: string | null = null;
+		if (liveLink && pick.kind === "point") {
+			lookup = "looking";
+			const widget = firstSwitching(session.doc, target.place);
+			const max = widget ? (getWidgetType(widget.type)?.accepts?.maxPlaces ?? 1) : 1;
+			let region: { type: string; code: string } | null;
+			try {
+				region = widget
+					? await regionOf({ ...ctx, max }, widget.type, widget.data, pick, signal)
+					: null;
+			} catch {
+				// Failed or aborted: Retry offers another try.
+				region = null;
+			}
+			if (stale()) return;
+			if (!region) {
+				lookup = "failed";
+				return;
+			}
+			place = { kind: "region", type: region.type, code: region.code };
+			regionName = await nameOf(ctx.resolvers.regions, region, signal);
+			if (stale()) return;
+		}
+		// Applied to the dashboard as it is now (an edit made meanwhile isn't undone).
+		let applied = false;
+		const latest = findDashboard();
+		if (latest && !app.current.isStarter) {
+			const change = barChange(latest.session.doc, place, { others: alsoOthers });
+			if (change) {
+				latest.session.apply(change);
+				applied = true;
+			}
+		}
+		void remember(picks);
+		close();
+		if (applied && regionName) {
+			const text = m.place_picker_saved_as_region({ region: regionName });
+			toast(text);
+			announce(text, { onlyInDialog: true });
+		}
+	}
+
 	/** Adds the picks to Recent, the first newest ("your location" never is). */
 	async function remember(picks: Picks): Promise<void> {
 		try {
@@ -323,6 +516,16 @@
 			</div>
 		</Dialog.Header>
 		{#if showPicker && ready}
+			{#if ready.widgetId === null && ready.others > 0}
+				<!-- Before the search: a single pick is Done, so this is set first. -->
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={alsoOthers} class="accent-primary size-4 shrink-0" />
+					{m.place_picker_also_change({
+						count: formatNumber(ready.others),
+						countValue: ready.others
+					})}
+				</label>
+			{/if}
 			<PlacePicker
 				directory={ready.directory}
 				purpose={ready.purpose}

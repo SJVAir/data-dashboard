@@ -18,6 +18,7 @@ import { registerWidgetType } from "$lib/widgets/registry";
 import App from "../../../App.svelte";
 import { navigate, route } from "../../../router";
 import Harness from "./test-harness/Harness.svelte";
+import { stubStarterTypes } from "./test-harness/stub-starter-types";
 
 declare module "vitest/browser" {
 	interface BrowserCommands {
@@ -44,6 +45,7 @@ function widget(id: string, rect: Rect, title: string): WidgetInstance {
 async function seed(widgets: WidgetInstance[], onArrangement?: (a: Arrangement) => void) {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
 	await platform.documents.commit(app.space, {
@@ -180,11 +182,10 @@ test("a widget picked up by keyboard is cancelled by minimizing it", async () =>
 test("minimize on the starter makes the copy and focuses the taskbar item", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", "/workspace/");
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	const starter = app.current.session!;
 	await page
 		.getByTestId("widget-starter-1")
@@ -202,11 +203,10 @@ test("minimize on the starter makes the copy and focuses the taskbar item", asyn
 test("restore on the starter makes the copy and focuses the restored title bar", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", "/workspace/");
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	const starter = app.current.session!;
 	// The built-in starter has no minimized widget, so one is minimized in its shown document
 	// (not an edit, so no copy yet).
@@ -252,6 +252,7 @@ async function seedApp(
 	const platform = createMemoryPlatform();
 	const hub = createMemoryTabHub();
 	const app = await initApp(platform, { channel: hub.channel(), tabId: "t1" });
+	stubStarterTypes();
 	prepare?.(app);
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
@@ -435,6 +436,7 @@ test("a minimized widget opens fullscreen and stays minimized", async () => {
 test("a deep link waits for the dashboard to load", async () => {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	const id = await app.index.createBlank();
 	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
 	await platform.documents.commit(app.space, {
@@ -667,11 +669,10 @@ test("restored in another tab stays fullscreen, with focus kept", async () => {
 async function starterApp(url: string) {
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
 	history.replaceState(null, "", url);
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-	await expect
-		.element(page.getByText("This is the starter dashboard.", { exact: false }))
-		.toBeVisible();
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
 	return app;
 }
 

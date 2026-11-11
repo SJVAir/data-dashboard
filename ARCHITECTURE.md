@@ -67,14 +67,50 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
     and a toast says "Saved as your own dashboard". The built-in template is never
     modified.
   - **Sharing the starter** first makes a copy, then shares that.
+  - **As built (step 4 spec 6, 2026-11-10):**
+    - The template's layers hold `{ kind: "default-place" }`. **The starter's session is the
+      template resolved with the chosen place** when it is built, so every widget, the data
+      layer, the picker and sharing see an ordinary place; the data layer never receives
+      `default-place`. One resolve function runs at every exit (the first edit's copy, New from
+      starter, duplicating, Export, sharing).
+    - **The bar stays on copies made from the starter.** The copy saves the bar's place (a
+      validated dashboard field); "Change place" there is an ordinary edit that switches the
+      widgets showing the bar's place, in one undo step. Widgets pointed at another place are
+      left alone, and the picker offers an unchecked **"Also change the N widgets showing other
+      places"**; with the bar's own place picked, "Also change" brings the other widgets to it.
+      A widget comparing several places, or holding a place-tied choice (a weather station),
+      is never switched. The bar hides when no widget shows its place, and a live share link
+      shows "Showing …" without "Change place".
+    - **The bar's place travels with the dashboard** (links, Export, live shares, copies from
+      shares) and is a place like a layer's, so the exact-point rules (point-to-region swap,
+      live-link prompt, upload guard) cover it too.
+    - **Sharing the starter copies it first** through `copyStarter`, the same hand-off as a
+      first edit.
+    - **"Duplicate for another place…"** (dashboard menu and list rows, any dashboard) asks for
+      a place and copies with the dashboard's main place replaced (the bar's place when there is
+      a visible bar; otherwise the place most switchable widgets show, asking on a tie). A copy
+      of a starter copy keeps its bar; a copy of any other dashboard does not gain one. In the
+      list it always shows, and toasts when there is nothing to replace.
+    - `StarterHint` is gone: the bar and the welcome Note say what it said.
+    - **The welcome Note shows only to the dashboard's owner** (decided 2026-11-10). Its text
+      speaks to the owner ("Change place", "your first change saves…"), so a live share leaves
+      every built-in message Note (`{ message }`) out of the view (the grid closes the gap), and
+      a Note that can't be edited where it's shown renders a `{ message }` as nothing. A Note
+      with its own text always shows; "Make a copy" keeps the welcome Note for its new owner.
+    - **The starter's Current conditions and "Can we go outside?" tiles have no alert level**
+      (decided 2026-11-10): a first-time visitor isn't signed up for threshold watching
+      without asking, and the template is built without metadata. A copy's owner can add one.
 - Titles are generated from metadata, and the welcome Note references a **message key**
   (nothing English is stored in the template). A personal copy stores the Note's rendered
   text only once the user edits it.
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
   day-colored calendar (this month), and a short welcome Note. (The hour × weekday heatmap was
-  dropped on 2026-11-09, step 4 spec 5; spec 6 settles what, if anything, takes its slot.)
-  The Map widget joins in step 6.
+  dropped on 2026-11-09, step 4 spec 5.) **Layout as built (spec 6, 12 columns):** the welcome
+  Note full width on top; then Current conditions, "Can we go outside?" and the Forecast strip
+  in a row; then the chart (8 wide) beside the month calendar (4 wide). The heatmap's old slot
+  stays empty. The Map joins in step 6 as a full-width row under the "now" row. The welcome
+  Note is a message reference (`{ message }`); a copy keeps it until the person edits the Note.
 
 ### Get data (formerly the Data Explorer and "Widget Creation view")
 
@@ -913,7 +949,17 @@ files, and server documents.
      and when arranging (a drop past the caps applies nothing). The layout engine's work
      grows with rows, so an uncapped `y` or `h` in a shared document could hang the tab.
 2. **Safe Markdown:** Notes render with **raw HTML off** and a link allowlist (`http`,
-   `https`, `mailto`).
+   `https`, `mailto`). **As built (step 4 spec 6, 2026-11-10):** the viewer runs `marked`'s
+   lexer only and draws its tokens as a **closed model of blocks** (paragraphs, the one heading
+   level, bulleted and numbered lists, bold, italic, links) with Svelte components; **no HTML
+   string is ever built or injected**. Raw HTML tokens, images, tables, code, quotes and other
+   headings show as plain text, and nested lists flatten to text (`DEFERRED.md`). Links are
+   checked at render time (`http:`, `https:`, `mailto:` only; they open in a new tab with
+   `rel="ugc nofollow noopener"`), whatever the saved text says. The editor (Lexical) is
+   limited to the same set, and pasted content is reduced to it. The Note's saved options are
+   validated with the document (`src/lib/notes/options.ts`): `{ text }` of at most 5,000
+   characters, or `{ message }` (a key-shaped reference, allowlisted at render). Lexical and
+   `marked` load only when a Note is shown or edited.
 3. **A content security policy on `/workspace/*`**, sent by the Django view: the
    browser-enforced backstop if a bug slips past 1–2.
    - `script-src 'self'` plus **the dashboard's own folder** on the static host (production
@@ -1896,7 +1942,9 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   single-column stack derived from the desktop layout's reading order. Only the desktop
   layout is persisted in a saved dashboard config. Rearranging works on phones and changes the
   desktop layout (a widget moved above another takes its spot); on a phone only height can be
-  resized. A separate tablet layout is deferred (see `DEFERRED.md`).
+  resized. A separate tablet layout is deferred (see `DEFERRED.md`). On the phone stack a Note
+  grows to fit its text, up to 12 rows (decided 2026-11-10, for WCAG reflow); this is display
+  only, the stored height never changes, and a longer Note scrolls inside as before.
 - **Touch** (decided 2026-10-28, step 2): a long-press on the title bar picks a widget up to
   drag it; lifting without moving leaves it selected with touch-sized resize handles and a
   "Done" button. The design is in
@@ -1920,7 +1968,19 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 | Forecast strip            | Today and tomorrow's AQI category + burn-day status, plus any active Air Alert                         | SDK+ (forecasts)             |
 | Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
 | Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
-| Notes                     | Markdown text for annotating shared dashboards                                                         | No data source               |
+| Notes                     | Markdown text for annotating shared dashboards (built in step 4 spec 6)                                | No data source; see below    |
+
+**Notes as built (step 4 spec 6, 2026-11-10).** Spec:
+`docs/superpowers/specs/2026-11-10-step-4-spec-6-notes-and-starter-design.md`. A Note is a
+`time: "none"` widget with no layers (`data` is `{ layers: [] }`), 3 × 2 at minimum and 4 × 3 by
+default, not analyzable or downloadable, with generated title "Note". Its text lives in the
+widget's **`options`** as `{ text }` (Markdown, at most 5,000 characters) or `{ message }` (a
+message-key reference, used by the starter's welcome Note so no English is stored); the document
+schema validates `options` for `note` widgets. People write in a dialog ("Edit note" in the
+widget menu, double-click on an empty Note, or at once after "Add widget" → Notes): Lexical,
+formatted as you type, a toolbar of Bold, Italic, Heading (one level), bulleted and numbered
+lists and Link. Saving stores the normalized Markdown as one undo step. Read-only views offer no
+editing. Viewing is described in "Security baseline for untrusted content".
 
 **The hour × weekday heatmap widget was dropped** (the user, 2026-11-09, step 4 spec 5: "just do
 the two calendars"; an average of every Tuesday at 3 pm didn't seem useful). Starter analysis #2
@@ -2019,7 +2079,9 @@ type WidgetType = {
 };
 ```
 
-Examples: **Notes** is `time: "none"` with no layers. **Current conditions**, **Forecast
+Examples: **Notes** is `time: "none"` with no layers; it uses `addable`,
+and keeps its content in the widget's free-form **`options`** (`{ text }` or `{ message }`),
+which the document schema checks for `note` widgets (it is not left free-form). **Current conditions**, **Forecast
 strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`; for those,
 Get data hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
@@ -3050,13 +3112,16 @@ wrap simple.
   Tailwind CSS v4, shadcn-svelte (bits-ui), `@lucide/svelte`, `svelte-sonner` (toasts),
   `date-fns`, `@date-fns/tz` (Pacific-time math), Paraglide JS (i18n-ready messages),
   `zod` (document validation), `idb` (IndexedDB, inside the platform adapter),
-  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, and for testing
+  `@sveltejs/enhanced-img`, `color2k` (`readableColor`), `@sjvair/sdk`, **Lexical** (`lexical`
+  and the `@lexical/*` packages it needs; the Notes editor) and **`marked`** (the Notes Markdown
+  lexer), both added in step 4 spec 6 (2026-11-10), pinned exactly (Lexical 0.53.0, `marked`
+  18.2.0) and loaded lazily, and for testing
   Vitest (unit and browser mode with `vitest-browser-svelte`), Playwright, and
   `@axe-core/playwright`.
 - **Planned additions (decided):** `uplot` (a direct dependency, for all charts),
   `lz-string` (URL-fragment sharing), `@sjvair/map-sdk` (the map library), `terra-draw`
-  (drawn-shape selection, via a map-sdk plugin), a Markdown renderer with raw HTML off
-  (Notes), the Sentry browser SDK (via the platform adapter), and JupyterLite + Pyodide
+  (drawn-shape selection, via a map-sdk plugin), the Sentry browser SDK (via the platform
+  adapter), and JupyterLite + Pyodide
   (separate notebook app).
 
 ## Browser support & performance budget
@@ -3071,8 +3136,9 @@ Decided 2026-09-28.
   floor (`CSS.registerProperty` for `@property`, and `CSS.supports` for `color-mix()`) before
   loading the app, so older browsers never parse the app bundle.
   Dropping to Tailwind v3 was decided against (see `DEFERRED.md`).
-- **Performance budget, checked in CI as a soft limit:** about **200 KB compressed** of
-  initial JS for the app shell. Going over prints a warning (a GitHub Actions annotation in CI)
+- **Performance budget, checked in CI as a soft limit:** about **250 KB compressed** of
+  initial JS for the app shell (200 KB until 2026-11-10, when the user raised it: "It's a soft
+  limit for now anyways. Do the work, and if the bundle is too big, we will address that later"). Going over prints a warning (a GitHub Actions annotation in CI)
   and does not fail the build (decided with the user, 2026-11-02: "I'd like it to load quick,
   but it won't be the end of the world if it's a bit over"). **Each widget type loads its
   own code only when used** (the map library only with a Map widget, uPlot only with charts,

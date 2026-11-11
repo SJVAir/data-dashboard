@@ -1,10 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Change } from "$lib/changes/types";
 import type { DashboardSummary } from "$lib/documents/names";
-import { DashboardSchema, type Dashboard } from "$lib/documents/schema";
+import type { ChosenPlace } from "$lib/data/schema";
+import { FIXTURE_CATALOG } from "$lib/data/testing/fixtures";
+import {
+	DashboardSchema,
+	StarterDashboardSchema,
+	type Dashboard,
+	type Rect
+} from "$lib/documents/schema";
+import { defaultDraft } from "$lib/get-data/draft.svelte";
+import { switchRange, toNowDraft } from "$lib/get-data/now";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import type { SpaceId } from "$lib/platform/types";
 import { newPlaceholder } from "$lib/widgets/placeholder";
+import { monthCalendarType } from "$lib/widgets/calendars/month";
+import { chartType } from "$lib/widgets/chart";
+import { currentType } from "$lib/widgets/current";
+import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { forecastType } from "$lib/widgets/forecast";
+import { noteType } from "$lib/widgets/notes";
+import { outsideType } from "$lib/widgets/outside";
+import type { WidgetType } from "$lib/widgets/registry";
+import { FORECASTS_ENTRY, PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
 import { report } from "$lib/safety/report";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import {
@@ -14,13 +32,16 @@ import {
 	duplicateDashboard,
 	resolveHome,
 	starterDashboard,
-	starterSession
+	starterSession,
+	starterTemplate
 } from "./starter";
+import { resolveDefaultPlace } from "./resolve";
 
 vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 
 const SPACE: SpaceId = "anonymous";
 const NOW = new Date("2026-10-21T12:00:00.000Z");
+const CATALOG = [FIXTURE_CATALOG[0], FORECASTS_ENTRY];
 
 function summary(overrides: Partial<DashboardSummary> & { id: string }): DashboardSummary {
 	return {
@@ -38,32 +59,146 @@ const renameWidget = (widgetId: string, to: string): Change => ({
 	to
 });
 
-describe("starter dashboard", () => {
-	it("starter is schema-valid and has three placeholders", () => {
-		const starter = starterDashboard();
-		expect(DashboardSchema.safeParse(starter).success).toBe(true);
-		expect(starter.id).toBe(STARTER_ID);
-		expect(starter.name).toBeNull();
-		expect(starter.version).toBe(0);
-		expect(starter.body.widgets.map((w) => [w.id, w.type, w.title, w.rect])).toEqual([
-			["starter-1", "placeholder", null, { x: 0, y: 0, w: 3, h: 4 }],
-			["starter-2", "placeholder", null, { x: 3, y: 0, w: 3, h: 4 }],
-			["starter-3", "placeholder", null, { x: 6, y: 0, w: 6, h: 4 }]
-		]);
+const FRESNO = DEFAULT_LAYER.place as ChosenPlace;
+const PLACES: ChosenPlace[] = [
+	{ kind: "region", type: "city", code: "0614218" },
+	{ kind: "monitor", id: "abc123" },
+	{ kind: "location", source: "schools", code: "123" },
+	{ kind: "point", lat: 36.7378, lon: -119.7871 }
+];
+const SCHOOL = PLACES[2];
+const TYPES: WidgetType[] = [
+	noteType,
+	currentType,
+	outsideType,
+	forecastType,
+	chartType,
+	monthCalendarType
+];
+const typeOf = (type: string) => TYPES.find((t) => t.type === type)!;
+
+const places = (doc: Dashboard) =>
+	doc.body.widgets.flatMap((w) => w.data.layers.map((l) => l.place));
+const overlaps = (a: Rect, b: Rect) =>
+	a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** A document made from the starter: the chosen place everywhere, the bar, valid. */
+function expectFromStarter(doc: Dashboard, place: ChosenPlace) {
+	expect(DashboardSchema.safeParse(doc).success).toBe(true);
+	expect(doc.copiedFrom).toBe(STARTER_ID);
+	expect(doc.body.placeBar).toEqual({ place });
+	const shown = places(doc).filter((p) => p !== undefined);
+	expect(shown.length).toBeGreaterThan(0);
+	for (const p of shown) expect(p).toEqual(place);
+}
+
+describe("starter template", () => {
+	it("holds the six widgets in reading order, each at default-place", () => {
+		const template = starterTemplate();
+		expect(StarterDashboardSchema.safeParse(template).success).toBe(true);
+		expect(DashboardSchema.safeParse(template).success).toBe(false);
+		expect(template).toMatchObject({ id: STARTER_ID, name: null, version: 0 });
+		expect(template.body.placeBar).toBeUndefined();
+		expect(template.body.widgets.map((w) => w.type)).toEqual(TYPES.map((t) => t.type));
+		expect(template.body.widgets.every((w) => w.title === null)).toBe(true);
+		const note = template.body.widgets[0];
+		expect(note.options).toEqual({ message: "starter_note_welcome" });
+		expect(note.data).toEqual({ layers: [] });
+		const shown = places(template);
+		expect(shown).toHaveLength(5);
+		for (const p of shown) expect(p).toEqual({ kind: "default-place" });
+	});
+
+	it("lays the widgets out in rows, each at least its type's minimum, with no overlaps", () => {
+		const [note, current, outside, forecast, chart, calendar] = starterTemplate().body.widgets.map(
+			(w) => w.rect
+		);
+		expect(note).toEqual({ x: 0, y: 0, w: 12, h: 2 });
+		// The "now" row: one height that fits "Can we go outside?".
+		expect([current.w, outside.w, forecast.w]).toEqual([3, 3, 6]);
+		expect(new Set([current.h, outside.h, forecast.h]).size).toBe(1);
+		expect(new Set([current.y, outside.y, forecast.y])).toEqual(new Set([note.y + note.h]));
+		expect(current.h).toBeGreaterThanOrEqual(outsideType.minSize.h);
+		expect([current.x, outside.x, forecast.x]).toEqual([0, 3, 6]);
+		// The chart and the month calendar share one height of at least 6.
+		expect([chart.w, calendar.w]).toEqual([8, 4]);
+		expect([chart.x, calendar.x]).toEqual([0, 8]);
+		expect(chart.y).toBe(current.y + current.h);
+		expect(calendar.y).toBe(chart.y);
+		expect(chart.h).toBe(calendar.h);
+		expect(chart.h).toBeGreaterThanOrEqual(6);
+
+		const widgets = starterTemplate().body.widgets;
+		for (const w of widgets) {
+			const { minSize } = typeOf(w.type);
+			expect(w.rect.w).toBeGreaterThanOrEqual(minSize.w);
+			expect(w.rect.h).toBeGreaterThanOrEqual(minSize.h);
+		}
+		for (const [i, a] of widgets.entries())
+			for (const b of widgets.slice(i + 1)) expect(overlaps(a.rect, b.rect)).toBe(false);
+	});
+
+	it("each widget's data is what Get data stores for its type (PM2.5, Fresno County)", () => {
+		const resolved = resolveDefaultPlace(starterTemplate(), FRESNO);
+		const [, current, outside, forecast, chart, calendar] = resolved.body.widgets;
+		const draft = defaultDraft();
+		const now = (type: WidgetType) => toNowDraft(draft, type, CATALOG, PM25_LEVELS).draft.data;
+		expect(current.data).toEqual(now(currentType));
+		expect(outside.data).toEqual(now(outsideType));
+		expect(forecast.data).toEqual(now(forecastType));
+		expect(chart.data).toEqual(draft.data);
+		expect(chart.data.dateRange).toEqual(DEFAULT_RANGE);
+		const moved = switchRange(draft.data, chartType, monthCalendarType, NOW);
+		expect(calendar.data).toEqual({ layers: draft.data.layers, dateRange: moved.dateRange });
+		expect(calendar.data.dateRange).toEqual({ kind: "to-date", unit: "month" });
+		for (const w of [current, outside, chart, calendar])
+			expect(w.data.layers[0].entryType).toBe("pm25");
+	});
+
+	it("returns a fresh object each time", () => {
+		const a = starterTemplate();
+		a.body.widgets.pop();
+		expect(starterTemplate().body.widgets).toHaveLength(6);
 	});
 
 	it("a new placeholder is three columns wide", () => {
 		expect(newPlaceholder([]).rect.w).toBe(3);
 	});
+});
 
-	it("returns a fresh object each time", () => {
-		const a = starterDashboard();
-		a.body.widgets.pop();
-		expect(starterDashboard().body.widgets).toHaveLength(3);
+describe("starter dashboard", () => {
+	it("is the template at the chosen place, with the bar, for every kind of place", () => {
+		for (const place of [FRESNO, ...PLACES]) {
+			const starter = starterDashboard(place);
+			expect(DashboardSchema.safeParse(starter).success).toBe(true);
+			expect(starter.id).toBe(STARTER_ID);
+			expect(starter.body.placeBar).toEqual({ place });
+			expect(places(starter).filter((p) => p !== undefined)).toEqual(Array(5).fill(place));
+			expect(JSON.stringify(starter)).not.toContain("default-place");
+		}
+	});
+
+	it("starter with a gone place still builds", () => {
+		// A removed monitor, a closed school: the starter doesn't look them up.
+		for (const place of [
+			{ kind: "monitor", id: "removed-monitor" },
+			{ kind: "location", source: "schools", code: "closed-1999" }
+		] as const) {
+			const starter = starterDashboard(place);
+			expect(DashboardSchema.safeParse(starter).success).toBe(true);
+			expect(starter.body.placeBar).toEqual({ place });
+		}
+	});
+
+	it("rejects default-place in the bar", () => {
+		const starter = starterDashboard(FRESNO);
+		starter.body.placeBar = { place: { kind: "default-place" } as unknown as ChosenPlace };
+		expect(DashboardSchema.safeParse(starter).success).toBe(false);
+		expect(StarterDashboardSchema.safeParse(starter).success).toBe(false);
 	});
 
 	it("copies, blanks, and duplicates are schema-valid new documents", () => {
-		const copy = copyOfStarter(NOW);
+		const copy = copyOfStarter(NOW, SCHOOL);
 		expect(copy.id).not.toBe(STARTER_ID);
 		expect(copy).toMatchObject({
 			copiedFrom: STARTER_ID,
@@ -72,10 +207,11 @@ describe("starter dashboard", () => {
 			createdAt: NOW.toISOString(),
 			updatedAt: NOW.toISOString()
 		});
-		expect(copy.body.widgets).toHaveLength(3);
+		expect(copy.body.widgets).toHaveLength(6);
+		expectFromStarter(copy, SCHOOL);
 
 		const blank = blankDashboard(NOW);
-		expect(blank.body.widgets).toEqual([]);
+		expect(blank.body).toEqual({ widgets: [] });
 		expect(blank.copiedFrom).toBeUndefined();
 
 		const source: Dashboard = { ...copy, name: "School", version: 7 };
@@ -138,6 +274,7 @@ describe("starterSession", () => {
 			space: SPACE,
 			tabId: "tab-1",
 			now: () => NOW,
+			place: SCHOOL,
 			onCopied: (session) => copies.push(session.doc.id)
 		});
 		starter.apply(renameWidget("starter-1", "Fresno"));
@@ -152,6 +289,7 @@ describe("starterSession", () => {
 			expect(stored.copiedFrom).toBe(STARTER_ID);
 			expect(stored.name).toBeNull();
 			expect(stored.body.widgets[0].title).toBe("Fresno");
+			expectFromStarter(stored, SCHOOL);
 		});
 		expect(await platform.documents.list(SPACE)).toHaveLength(1);
 	});
@@ -165,6 +303,7 @@ describe("starterSession", () => {
 			space: SPACE,
 			tabId: "tab-1",
 			now: () => NOW,
+			place: SCHOOL,
 			onCleared,
 			onCopied
 		});
@@ -176,9 +315,30 @@ describe("starterSession", () => {
 		expect(await platform.documents.list(SPACE)).toEqual([]);
 	});
 
+	it("the hand-off validates the copy before storing it", async () => {
+		const platform = createMemoryPlatform();
+		const commit = vi.spyOn(platform.documents, "commit");
+		const onCopied = vi.fn();
+		const starter = starterSession({
+			platform,
+			space: SPACE,
+			tabId: "tab-1",
+			now: () => NOW,
+			// A place that slipped past the types: the copy would hold default-place.
+			place: { kind: "default-place" } as unknown as ChosenPlace,
+			onCopied
+		});
+		starter.apply(renameWidget("starter-1", "Fresno"));
+		await vi.waitFor(() => expect(starter.status).toBe("error"));
+		expect(report).toHaveBeenCalledWith(expect.any(Error), { operation: "hand-off" });
+		expect(commit).not.toHaveBeenCalled();
+		expect(onCopied).not.toHaveBeenCalled();
+		expect(await platform.documents.list(SPACE)).toEqual([]);
+	});
+
 	it("the starter stays unchanged", async () => {
 		const { platform, starter } = await setup();
-		expect(starter.doc).toEqual(starterDashboard());
+		expect(starter.doc).toEqual(starterDashboard(SCHOOL));
 		expect(await platform.documents.get(SPACE, STARTER_ID)).toBeUndefined();
 	});
 
@@ -208,6 +368,7 @@ describe("starterSession", () => {
 			space: SPACE,
 			tabId: "tab-1",
 			now: () => NOW,
+			place: SCHOOL,
 			onCopied: (session) => (copied.session = session)
 		});
 		starter.apply(renameWidget("starter-1", "Fresno"));
@@ -236,6 +397,7 @@ describe("starterSession", () => {
 			space: SPACE,
 			tabId: "tab-1",
 			now: () => NOW,
+			place: SCHOOL,
 			onCopied: (session) => (copied.session = session)
 		});
 		starter.apply(renameWidget("starter-1", "Fresno"));
@@ -270,6 +432,7 @@ describe("starterSession", () => {
 			space: SPACE,
 			tabId: "tab-1",
 			now: () => NOW,
+			place: SCHOOL,
 			onCopied: (session) => (copied.session = session)
 		});
 		return { platform, starter, copied, release };
@@ -294,7 +457,11 @@ describe("starterSession", () => {
 			const copy = copied.session!;
 			await copy.flush();
 			const stored = (await platform.documents.get(SPACE, copy.doc.id)) as Dashboard;
-			expect(stored.body.widgets.map((w) => w.title)).toEqual(["Fresno", "Visalia", "Merced"]);
+			expect(stored.body.widgets.slice(0, 3).map((w) => w.title)).toEqual([
+				"Fresno",
+				"Visalia",
+				"Merced"
+			]);
 			const log = (await platform.documents.readLog(SPACE, copy.doc.id, 0)) as { change: Change }[];
 			expect(log.map((e) => e.change)).toEqual([
 				renameWidget("starter-1", "Fresno"),
@@ -313,7 +480,13 @@ describe("starterSession", () => {
 			// The copy is never stored: the page goes away mid-hand-off.
 			const commit = platform.documents.commit;
 			platform.documents.commit = () => new Promise(() => {});
-			const starter = starterSession({ platform, space: SPACE, tabId: "gone", now: () => NOW });
+			const starter = starterSession({
+				platform,
+				space: SPACE,
+				tabId: "gone",
+				now: () => NOW,
+				place: SCHOOL
+			});
 			starter.apply(renameWidget("starter-1", "Fresno"));
 			starter.apply(renameWidget("starter-2", "Visalia"));
 			win.dispatchEvent(new Event("pagehide"));
@@ -337,6 +510,7 @@ describe("starterSession", () => {
 				space: SPACE,
 				tabId: "tab-2",
 				now: () => NOW,
+				place: SCHOOL,
 				onCopied: (session) => (copied.session = session)
 			});
 			await next.replayPending();
@@ -345,7 +519,11 @@ describe("starterSession", () => {
 			await copy.flush();
 			const stored = (await platform.documents.get(SPACE, copy.doc.id)) as Dashboard;
 			expect(stored.copiedFrom).toBe(STARTER_ID);
-			expect(stored.body.widgets.map((w) => w.title)).toEqual(["Fresno", "Visalia", null]);
+			expect(stored.body.widgets.slice(0, 3).map((w) => w.title)).toEqual([
+				"Fresno",
+				"Visalia",
+				null
+			]);
 			expect(platform.journal.readAll(SPACE, STARTER_ID)).toEqual([]);
 			// Replaying again finds nothing.
 			await next.replayPending();

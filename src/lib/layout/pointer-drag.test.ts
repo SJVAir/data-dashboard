@@ -2,7 +2,8 @@ import { describe, expect, test } from "vitest";
 import { MAX_HEIGHT } from "./config";
 import { nearestIndex, resizedRect } from "./pointer-drag.svelte";
 
-const rows = (...hs: number[]) => hs.map((h) => ({ rect: { x: 0, y: 0, w: 12, h } }));
+const rows = (...hs: number[]) =>
+	hs.map((h, i) => ({ id: `w${i}`, rect: { x: 0, y: 0, w: 12, h } }));
 
 describe("nearestIndex", () => {
 	test("picks the slot whose top is nearest", () => {
@@ -12,6 +13,14 @@ describe("nearestIndex", () => {
 		expect(nearestIndex(others, 2.1)).toBe(1);
 		expect(nearestIndex(others, 5.5)).toBe(2);
 		expect(nearestIndex(others, 50)).toBe(3);
+	});
+
+	test("a phone span (a Note grown to fit) moves the slots below it down", () => {
+		const others = rows(2, 2);
+		const span = (id: string, h: number) => (id === "w0" ? 6 : h);
+		expect(nearestIndex(others, 2.1)).toBe(1);
+		expect(nearestIndex(others, 2.1, span)).toBe(0);
+		expect(nearestIndex(others, 5.5, span)).toBe(1);
 	});
 });
 
