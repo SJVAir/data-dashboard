@@ -1153,8 +1153,9 @@ for last-requested-wins), no single place to set headers (`X-CSRFToken`, a futur
 Decided 2026-11-11 (the user). **`src/lib/api/` holds calls to sjvair.com endpoints that only
 the dashboard uses**, one folder per server area; the first is `src/lib/api/documents/` (saved
 documents, change logs, share links, snapshots, the display name). It's built on
-`@sjvair/sdk/http`, so the origin, credentials, CSRF and request defaults set by
-`configureSdk` (`src/lib/sdk-setup.ts`) apply to it as to the rest of the SDK.
+`@sjvair/sdk/http`, so the origin and request defaults that `configureSdk`
+(`src/lib/sdk-setup.ts`) sets, and the http module's built-in CSRF header, apply to it as to the
+rest of the SDK.
 
 - **Public data stays in `@sjvair/sdk`** (monitors, HMS, regions and the rest), as do site-wide
   account features (sign-in, profile, subscriptions, alerts). `src/lib/api/` never duplicates

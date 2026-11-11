@@ -96,8 +96,9 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   spec 5a, final fix-wave review)._ The dashboard imports zod only through `$lib/zod`, which sets
   `z.config({ jitless: true })` so zod's eval probe never trips the CSP. `@sjvair/sdk` imports zod
   itself and builds `z.object` schemas when its modules load (in 5.0.0-beta.8: the root
-  `schema.ts`, `account/schema.ts` and `collocation_sites/schema.ts`; the documents schemas, once
-  among them, moved into `src/lib/api/documents/` on 2026-11-11 and build under `$lib/zod`). Today that's harmless: production
+  `schema.ts` and the schema modules of `account`, `calenviroscreen`, `calheatscore`,
+  `collocation_sites`, `forecasts`, `hms`, `meta`, `monitors`, `pesticides` and `regions`; the
+  documents schemas, once among them, moved into `src/lib/api/documents/` on 2026-11-11 and build under `$lib/zod`). Today that's harmless: production
   reaches those modules only through the dev-only `/dev/data` route, after `$lib/zod` has run. If a
   production route ever loads the SDK root before `$lib/zod`, every page load raises a `script-src`
   eval violation (the E2E CSP fixture catches it only on the routes it exercises). **Revisit when**
