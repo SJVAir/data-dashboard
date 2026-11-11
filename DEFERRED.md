@@ -1679,14 +1679,17 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **A Note fitted on a phone can leave a gap under its text.** _Deferred 2026-11-10 (step 4
   spec 6, phone Note fit)._ It grows in whole rows (4 rem plus a gap), so up to about 75 px can
   stay blank under the text. **Revisit if** it looks odd (e.g. finer rows on phones).
-- **Crossing the phone breakpoint mid-arrangement can slide widgets when a Note has fitted
-  rows.** _Deferred 2026-11-10 (step 4 spec 6, phone Note fit, CI fix)._ The grid watches the
-  phone query only while some Note has phone rows. Then crossing the breakpoint re-renders the
+- **Crossing the phone breakpoint mid-arrangement can slide widgets on a dashboard with a
+  Note.** _Deferred 2026-11-10 (step 4 spec 6, phone Note fit, CI fix)._ The grid watches the
+  phone query while some Note has phone rows, which is most real dashboards, the starter
+  included (its welcome Note). Then crossing the breakpoint in either direction re-renders the
   grid, which uses up the FLIP's breakpoint jump, so the drop or cancel that follows slides
-  instead of jumping. Without fitted Notes, nothing changed. A sticky jump (kept until a play
-  that moves something) was tried, but a spurious column change at startup then made the first
-  real move jump. **Revisit if** someone sees it, or the FLIP's breakpoint handling changes
-  (e.g. tie the jump to the arrangement that spans the breakpoint).
+  every widget instead of jumping. It happens only when the breakpoint is crossed while a
+  widget is being arranged (e.g. rotating a phone or resizing the window mid-drag); dashboards
+  without a fitted Note are unchanged. A sticky jump (kept until a play that moves something)
+  was tried, but a spurious column change at startup then made the first real move jump.
+  **Revisit if** someone sees it, or the FLIP's breakpoint handling changes (e.g. tie the jump
+  to the arrangement that spans the breakpoint).
 - **Step 4 spec 6 review leftovers.** _Deferred 2026-11-10 (step 4 spec 6, per-task and final
   reviews)._ Small things the reviews let stay; the first ones a person could meet:
   - **A task list shows its box and label on separate lines.** `- [ ] c` reads as the text

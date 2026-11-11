@@ -205,3 +205,23 @@ test("on a phone the text is as wide whether or not it scrolls (no flip-flop)", 
 	expect(long.clientWidth).toBe(body("short").clientWidth);
 	expect(getComputedStyle(long).scrollbarGutter).toBe("stable");
 });
+
+test("crossing to a phone re-fits the Note, and back to a desktop it keeps its own height", async () => {
+	await page.viewport(1280, 800);
+	await seed([
+		note("n", { x: 0, y: 0, w: 12, h: 2 }, Array(3).fill(PARAGRAPH).join("\n\n")),
+		tile("t", { x: 0, y: 2, w: 12, h: 3 })
+	]);
+	await expect.poll(() => body("n")?.textContent ?? "").toContain("every change saves itself");
+	await frames();
+	expect(rowSpan("n")).toEqual(["1", "span 2"]);
+	// No other trigger: only the width changes.
+	await page.viewport(390, 844);
+	await expect.poll(() => spanOf("n")).toBeGreaterThan(2);
+	await expect.poll(() => rowSpan("t")[0]).toBe(String(1 + spanOf("n")));
+	const el = body("n");
+	expect(el.scrollHeight).toBeLessThanOrEqual(el.clientHeight);
+	await page.viewport(1280, 800);
+	await expect.poll(() => rowSpan("n")).toEqual(["1", "span 2"]);
+	expect(rowSpan("t")).toEqual(["3", "span 3"]);
+});
