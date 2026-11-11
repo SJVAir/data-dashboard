@@ -396,6 +396,7 @@ test("refits to the current layer after re-attach", async () => {
 	map.ready = true;
 	await expect.poll(() => map.camera).toHaveLength(1);
 	// Detached (off-screen), the layer changes; nothing moves until the map is back.
+	map.attached = false;
 	map.ready = false;
 	await screen.rerender({ widget: { ...widget, data: mapWidget(region("029")).data } });
 	await expect
@@ -409,6 +410,36 @@ test("refits to the current layer after re-attach", async () => {
 		bounds: { west: 5, south: 5, east: 6, north: 6 },
 		options: { padding: 32 }
 	});
+	expect(fakeMaps.made).toHaveLength(1);
+});
+
+test("a style reload doesn't refit (the person's pan stays)", async () => {
+	await show(mapWidget(region("019")));
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => map.camera).toHaveLength(1);
+	// Still attached: a basemap or theme change reloads the style.
+	map.ready = false;
+	await new Promise((r) => setTimeout(r, 20));
+	map.ready = true;
+	await new Promise((r) => setTimeout(r, 100));
+	expect(map.camera).toHaveLength(1);
+});
+
+test("refits when entering fullscreen", async () => {
+	const widget = mapWidget(region("019"));
+	const screen = await show(widget);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => map.camera).toHaveLength(1);
+	const fit = map.camera[0];
+	await screen.rerender({ widget, fullscreen: true });
+	await expect.poll(() => map.camera).toHaveLength(2);
+	expect(map.camera[1]).toEqual(fit);
+	// And again on leaving it.
+	await screen.rerender({ widget, fullscreen: false });
+	await expect.poll(() => map.camera).toHaveLength(3);
+	expect(map.camera[2]).toEqual(fit);
 	expect(fakeMaps.made).toHaveLength(1);
 });
 

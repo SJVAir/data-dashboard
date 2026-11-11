@@ -39,7 +39,7 @@
 	import { regionKey } from "./regions";
 	import { featureSource, monitorPositions, pinFeatures, pinIcon, shapeFeatures } from "./sources";
 
-	let { widget }: { widget: WidgetInstance } = $props();
+	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
 
 	/** Below this widget width the legend folds into a "Legend" button. */
 	const NARROW_PX = 360;
@@ -230,6 +230,8 @@
 		current.setSelection("places", regionSelection);
 	});
 
+	const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
 	// The camera: fitted to the places on each change and on each (re-)attach, never saved.
 	let body = $state<HTMLDivElement>();
 	const positions = $derived(
@@ -238,23 +240,34 @@
 			: new Map<string, [number, number]>()
 	);
 	const target = $derived(frame.frame ? fitTarget(frame.frame, frame.shapes, positions) : null);
-	/** What was last fitted while attached (reset on detach, so re-attaching refits). */
+	/**
+	 * What was last fitted, and in which size (fullscreen or not), while attached. Reset on detach,
+	 * so re-attaching refits; a style reload (ready false while still attached) keeps it, so the
+	 * person's pan survives a basemap or theme change.
+	 */
 	let fitted: string | null = null;
 
 	$effect(() => {
 		const current = map;
 		const t = target;
-		if (!current?.ready) {
+		const big = fullscreen;
+		if (!current?.attached) {
 			fitted = null;
 			return;
 		}
+		if (!current.ready) return;
 		// A null target leaves the camera where it is (the Valley's view on opening).
 		if (!t) return;
-		const key = JSON.stringify(t);
+		// Entering or leaving fullscreen refits too: the same map, in another size.
+		const key = JSON.stringify([t, big]);
 		if (key === fitted) return;
 		fitted = key;
 		const el = body;
-		void (el ? ancestorAnimationsSettled(el) : Promise.resolve()).then(() => {
+		void (el ? ancestorAnimationsSettled(el) : Promise.resolve()).then(async () => {
+			// MapLibre takes its container's new size in a ResizeObserver, which runs after the
+			// next frame's animation callbacks: fit after that, at the size the map now has.
+			await nextFrame();
+			await nextFrame();
 			if (fitted !== key || !current.ready) return;
 			if ("bbox" in t) {
 				const [west, south, east, north] = t.bbox;

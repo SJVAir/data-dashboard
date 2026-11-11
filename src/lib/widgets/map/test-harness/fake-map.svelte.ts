@@ -68,7 +68,16 @@ export const fakeMarkers = {
 };
 
 export class FakeMap {
-	ready = $state(false);
+	#ready = $state(false);
+	/** Attached to a GL map. Set by the test; setting `ready` attaches too (map-sdk: ready implies attached). */
+	attached = $state(false);
+	get ready(): boolean {
+		return this.#ready;
+	}
+	set ready(value: boolean) {
+		this.#ready = value;
+		if (value) this.attached = true;
+	}
 	/** The attached GL map (`maptilerMap`), null while detached. */
 	gl = $state.raw<FakeGl | null>(null);
 	uid = crypto.randomUUID();

@@ -22,20 +22,31 @@ import {
 test.use({ reducedMotion: "reduce" });
 
 // Firefox in Playwright's container (CI and `test:e2e:podman`) has no WebGL, so a map can only
-// show its error state there; these tests skip, saying why, in a browser without it. The probe
-// runs in a page of its own, so the test's page is untouched.
-test.beforeEach(async ({ browser }) => {
+// show its error state there: these tests skip there, saying why. Chromium and WebKit must have
+// WebGL, and fail without it. Asked once per worker, in a page of its own (about:blank, no
+// requests), so the tests' pages are untouched.
+test.beforeAll(async ({ browser, browserName }) => {
 	const probe = await browser.newPage();
-	const webgl = await probe.evaluate(() => !!document.createElement("canvas").getContext("webgl2"));
+	const webgl = await probe.evaluate(() => {
+		const canvas = document.createElement("canvas");
+		return !!(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+	});
 	await probe.close();
-	test.skip(!webgl, "This browser has no WebGL here, so it can't draw a map");
+	if (browserName === "firefox") {
+		test.skip(!webgl, "Firefox has no WebGL here, so it can't draw a map");
+		return;
+	}
+	expect(webgl, `${browserName} has no WebGL, so it can't draw a map`).toBe(true);
 });
 
 const FRESNO_MAP = "PM2.5 · Fresno County";
 const THREE_MAP = "PM2.5 · 3 places";
 /** In view when the map frames Fresno County: its two monitors and Porterville, not Bakersfield. */
 const FRESNO_VIEW = "PM2.5: 2 Good, 1 Moderate";
-/** In view when it frames Drummond Street, Porterville and Bakersfield (and the Science Building). */
+/**
+ * In view when it frames Drummond Street, Porterville and Bakersfield, or is zoomed out from the
+ * county: all four monitors.
+ */
 const THREE_VIEW = "PM2.5: 2 Good, 1 Moderate, 1 Unhealthy for Sensitive Groups";
 
 /** The map of the widget titled `title` (its region, which holds the GL map and its UI). */
@@ -165,17 +176,20 @@ test("fullscreen keeps the map", async ({ page }) => {
 	expect(await canvas!.evaluate((el) => el.isConnected)).toBe(true);
 });
 
-// FIXME (the widget, not this test): fullscreen doesn't refit. The spec ("Resizing": the map
-// waits for `ancestorAnimationsSettled` before refitting) has the map refit after the fullscreen
-// animation, but MapWidget only fits when its places change or the map re-attaches, and
-// fullscreen keeps the same mounted map. In fullscreen it stays at the small widget's zoom, so
-// the county sits small in the middle and Bakersfield comes into view (seen 2026-11-11).
-test.fixme("fullscreen refits the map to its places", async ({ page }) => {
+test("fullscreen refits the map to its places, and so does leaving it", async ({ page }) => {
 	const map = await addMap(page);
+	const zoomOut = map.getByRole("button", { name: "Zoom out" });
+	// Zoomed out, the view takes in Bakersfield too; only a refit brings back the county's view.
+	await zoomOut.click();
+	await expect(inView(map)).toHaveText(THREE_VIEW);
+
 	await enterFullscreen(page, map);
-	// Past the summary's debounce (750 ms), so the line describes the bigger view. At the small
-	// widget's camera, the bigger view would take in Bakersfield too.
-	await page.waitForTimeout(1_000);
+	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+
+	await zoomOut.click();
+	await expect(inView(map)).toHaveText(THREE_VIEW);
+	await fullscreenFrame(page).getByRole("button", { name: "Exit fullscreen" }).click();
+	await expect(fullscreenFrame(page)).toHaveCount(0);
 	await expect(inView(map)).toHaveText(FRESNO_VIEW);
 });
 
