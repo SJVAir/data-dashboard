@@ -2,7 +2,8 @@
 
 Status: brainstormed with the user 2026-11-11; checked by a fresh builder read (four
 contradictions with the code fixed and five questions settled as my calls, below; one question
-for the user, answered: exact points open on their region); not yet approved. Branch
+for the user, answered: exact points open on their region); reviewed by the coordinator
+(`data-dashboard-8a`, four additions folded in); **approved by the user 2026-11-11**. Branch
 `step-5-spec-1` from `step-5`; its PR goes into `step-5`.
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
@@ -338,6 +339,10 @@ Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is n
   you think?")**. It's drawn locally and adds no requests. The owner sees "Your location". A viewer
   sees "Shared location" only when the owner chose "Share my exact location" for a live link.
   Every other share has already swapped the point for its region, so there's no pin.
+- **Zooming in on the pin reveals it.** The pin sits at the exact spot. If the owner zooms in
+  on it, the tiles then requested reveal that spot to MapTiler; that's the owner's choice. A
+  viewer of a live link where the owner chose "Share my exact location" sees the pin too and
+  can zoom in the same way. That follows from the owner's choice under the live-link rule.
 - **MapTiler telemetry and session ids off.** `@maptiler/sdk` sends usage telemetry to MapTiler
   and adds a session id (`mtsid`) to requests by default. The dashboard allows no analytics or
   tracking, so both must be off. map-sdk doesn't expose these today (see "map-sdk changes").
@@ -357,7 +362,12 @@ monitor-map's `/routes` the mobile app.
 1. **Turn off MapTiler telemetry and the session id.** A `MapConfig` option (for example
    `telemetry: false`) that sets `@maptiler/sdk`'s `config.telemetry` and `config.session` off
    for that host. monitor-map's behavior is unchanged unless it opts in. Hosts can't do this
-   themselves without depending on `@maptiler/sdk` directly.
+   themselves without depending on `@maptiler/sdk` directly. `config` is a page-wide singleton
+   in `@maptiler/sdk`, and its telemetry timer fires 2 s after a map is created, so the setting
+   must take effect **before the first map is created**. With `session: false`, MapTiler's
+   Cache Storage tile cache is off too: MapTiler documents that it "works only ... when
+   sessions are enabled". That's a benefit for the dashboard, because that cache would persist
+   across browser sessions outside the platform adapter. The cost is reloading some tiles.
 2. **Panels sized by the map, not the window.** The feature-list panel's
    `max-width: calc(100vw - 2rem)` and the framed legend's fixed 21rem should size against the
    map's container, so a 300 px map widget on a wide screen doesn't overflow.
@@ -440,6 +450,13 @@ turn it off in fullscreen without rebuilding its map.
 - No `localStorage`, `navigator.geolocation` or the like outside the platform adapter.
 - Every deferral goes into `DEFERRED.md` in the same change.
 - No production touches. The sjvair.com CSP change goes on `develop`.
+- **Blockers outside this repo:**
+  - A map-sdk beta with changes 1 and 2. The coordinator proposes putting both in the
+    restyle-fix beta.7, so one map-sdk release lands before spec 1 merges.
+  - A separate small sjvair.com PR on `develop` that adds `https://api.maptiler.com` to
+    sjvair.com's own copy of the CSP hosts (`camp/apps/workspace/csp-hosts.json`). Without it, the map
+    doesn't work on the local stack's `/workspace/` (and later production), not just the merge.
+    The coordinator arranges that session.
 
 ## Testing (what must be shown)
 
