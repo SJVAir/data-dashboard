@@ -21,7 +21,7 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { platform } from "$lib/platform";
+	import { useApp } from "$lib/store/app.svelte";
 	import { entryMeta, nowInput, placesLayer } from "../shared/input";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
@@ -40,6 +40,7 @@
 	import { featureSource, monitorPositions, pinFeatures, pinIcon, shapeFeatures } from "./sources";
 
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
+	const app = useApp();
 
 	/** Below this widget width the legend folds into a "Legend" button. */
 	const NARROW_PX = 360;
@@ -184,7 +185,7 @@
 		const type = entryType;
 		const label = entryLabel;
 		if (!current || !type || !label || !supported) return;
-		const held = acquireMonitors(type);
+		const held = acquireMonitors(type, app.platform.activity);
 		untrack(() =>
 			current.addPlugin(
 				monitorsPlugin({ source: held.store.dataSource, layerLabel: label, selectedStyle: "ring" }),
@@ -212,7 +213,7 @@
 			() => {
 				if (!live) return;
 				storeState = "ready";
-				if (!platform().activity.visible()) current.pauseAutoUpdate();
+				if (!app.platform.activity.visible()) current.pauseAutoUpdate();
 			},
 			(error: unknown) => {
 				if (live) storeState = { error };
@@ -278,7 +279,7 @@
 		});
 	});
 
-	const onScreen = new OnScreen(() => body);
+	const onScreen = new OnScreen(() => body, { activity: app.platform.activity });
 	onDestroy(() => onScreen.destroy());
 
 	// The title: the one place's label (from the "now" lookup), or how many places.

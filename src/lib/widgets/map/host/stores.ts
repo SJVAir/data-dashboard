@@ -1,6 +1,6 @@
 import { createDefaultMetadata, type MetadataProvider } from "@sjvair/map-sdk/data";
 import { createMonitorsStore, type MonitorsStore } from "@sjvair/map-sdk/stores";
-import { platform } from "$lib/platform";
+import type { ActivitySource } from "$lib/platform/types";
 
 let metadata: MetadataProvider | undefined;
 
@@ -17,14 +17,16 @@ const shared = new Map<string, Shared>();
 /**
  * The page's monitors store for an entry type, shared by every map showing it: created and
  * loaded on the first acquire, paused while the page is hidden, and disposed after the last
- * `release()`. A map that wants the load's outcome awaits `store.init(entryType)` itself (it
+ * `release()`. The first acquire's `activity` drives the store's pausing. A map that wants the load's outcome awaits `store.init(entryType)` itself (it
  * joins the same run).
  */
-export function acquireMonitors(entryType: string): { store: MonitorsStore; release(): void } {
+export function acquireMonitors(
+	entryType: string,
+	activity: ActivitySource
+): { store: MonitorsStore; release(): void } {
 	let entry = shared.get(entryType);
 	if (!entry) {
 		const store = createMonitorsStore();
-		const { activity } = platform();
 		const sync = (visible: boolean) => {
 			if (visible) store.resumeAutoUpdate();
 			else store.pauseAutoUpdate();

@@ -27,11 +27,6 @@ vi.mock("@sjvair/sdk");
 
 type Region = { type: string; code: string } | null;
 
-vi.mock("$lib/widgets/map/module", async () => {
-	const { default: component } = await import("./test-harness/StubWidget.svelte");
-	return { component };
-});
-
 const fake = vi.hoisted(() => ({
 	client: undefined as QueryClient | undefined,
 	metadata: undefined as MetadataSource | undefined,

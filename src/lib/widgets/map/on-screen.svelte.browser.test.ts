@@ -1,6 +1,5 @@
 import { flushSync } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform, type MemoryActivity } from "$lib/platform/memory";
 import { OnScreen } from "./on-screen.svelte";
 
@@ -30,7 +29,7 @@ let screens: OnScreen[] = [];
 const el = document.createElement("div");
 
 function track(): OnScreen {
-	const s = new OnScreen(() => el, { detachDelayMs: 5000 });
+	const s = new OnScreen(() => el, { activity, detachDelayMs: 5000 });
 	screens.push(s);
 	flushSync();
 	return s;
@@ -42,7 +41,6 @@ beforeEach(() => {
 	observers = [];
 	const platform = createMemoryPlatform();
 	activity = platform.activity;
-	setPlatform(platform);
 });
 
 afterEach(() => {

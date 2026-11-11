@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
-import { setPlatform } from "$lib/platform";
 
 const created: ReturnType<typeof fakeStore>[] = [];
 
@@ -28,15 +27,14 @@ let memory: MemoryPlatform;
 beforeEach(() => {
 	created.length = 0;
 	memory = createMemoryPlatform();
-	setPlatform(memory);
 });
 
 afterEach(() => vi.clearAllMocks());
 
 describe("shared monitors stores", () => {
 	it("store is shared and disposed after the last release", async () => {
-		const a = acquireMonitors("pm25");
-		const b = acquireMonitors("pm25");
+		const a = acquireMonitors("pm25", memory.activity);
+		const b = acquireMonitors("pm25", memory.activity);
 		expect(a.store).toBe(b.store);
 		expect(created).toHaveLength(1);
 		expect(created[0].init).toHaveBeenCalledTimes(1);
@@ -46,15 +44,15 @@ describe("shared monitors stores", () => {
 		expect(created[0].dispose).not.toHaveBeenCalled();
 		b.release();
 		expect(created[0].dispose).toHaveBeenCalledTimes(1);
-		const c = acquireMonitors("pm25");
+		const c = acquireMonitors("pm25", memory.activity);
 		expect(created).toHaveLength(2);
 		expect(c.store).not.toBe(a.store);
 		c.release();
 	});
 
 	it("two entry types get two stores", () => {
-		const pm = acquireMonitors("pm25");
-		const o3 = acquireMonitors("o3");
+		const pm = acquireMonitors("pm25", memory.activity);
+		const o3 = acquireMonitors("o3", memory.activity);
 		expect(pm.store).not.toBe(o3.store);
 		expect(created[1].init).toHaveBeenCalledWith("o3");
 		pm.release();
@@ -64,7 +62,7 @@ describe("shared monitors stores", () => {
 	});
 
 	it("pauses while the page is hidden and resumes", async () => {
-		const handle = acquireMonitors("pm25");
+		const handle = acquireMonitors("pm25", memory.activity);
 		await Promise.resolve();
 		const store = created[0];
 		memory.activity.setVisible(false);
@@ -78,7 +76,7 @@ describe("shared monitors stores", () => {
 
 	it("starts paused when the page is hidden at acquire", async () => {
 		memory.activity.setVisible(false);
-		const handle = acquireMonitors("pm25");
+		const handle = acquireMonitors("pm25", memory.activity);
 		await vi.waitFor(() => expect(created[0].pauseAutoUpdate).toHaveBeenCalled());
 		memory.activity.setVisible(true);
 		expect(created[0].resumeAutoUpdate).toHaveBeenCalledTimes(1);

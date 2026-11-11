@@ -1,5 +1,5 @@
 import { untrack } from "svelte";
-import { platform } from "$lib/platform";
+import type { ActivitySource } from "$lib/platform/types";
 
 /**
  * Whether an element is worth a live map: the page is visible and the element is on screen
@@ -12,11 +12,11 @@ export class OnScreen {
 
 	constructor(
 		el: () => Element | undefined,
-		opts: { detachDelayMs?: number; rootMargin?: string } = {}
+		opts: { activity: ActivitySource; detachDelayMs?: number; rootMargin?: string }
 	) {
 		const delay = opts.detachDelayMs ?? 5000;
 		const rootMargin = opts.rootMargin ?? "200px";
-		const { activity } = platform();
+		const { activity } = opts;
 		let visible = $state(activity.visible());
 		let intersecting = $state(false);
 		this.#stop = $effect.root(() => {

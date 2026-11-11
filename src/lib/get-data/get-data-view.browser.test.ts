@@ -905,6 +905,25 @@ describe("now widgets", () => {
 		});
 	});
 
+	test("a Map preview raises no unhandled errors", async () => {
+		const errors: unknown[] = [];
+		const onError = (e: ErrorEvent) => errors.push(e.error ?? e.message);
+		const onRejection = (e: PromiseRejectionEvent) => errors.push(e.reason);
+		window.addEventListener("error", onError);
+		window.addEventListener("unhandledrejection", onRejection);
+		try {
+			const { host } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await expect
+				.poll(() => host.querySelector("[data-testid=get-data-preview]"), { timeout: 5000 })
+				.not.toBeNull();
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			expect(errors).toEqual([]);
+		} finally {
+			window.removeEventListener("error", onError);
+			window.removeEventListener("unhandledrejection", onRejection);
+		}
+	});
+
 	test("Outside has the alert level but no pollutant control; the Forecast strip has neither", async () => {
 		const { current } = await show(monitorsDraft(["m1"]));
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
