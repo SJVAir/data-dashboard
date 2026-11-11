@@ -537,6 +537,9 @@ string`) now get the union return type. The mobile app passes a string token, so
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
     `forecast_zone_for:` cache keys after (see "Production deploy step for the place
     endpoints" below).
+  - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
+    sjvair.com's Heroku build of the dashboard, and that the key's domain restriction covers
+    `/workspace/`. Without it, every Map widget says the map is unavailable.
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
@@ -1465,7 +1468,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   whole-layer (every monitor) query, the backfill that fills recent periods drops a monitor that
   appears only in the backfill response, and a place with no data in the window costs a backfill
   request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
-  when** the map widget uses whole-layer queries (Release 1 step 5).
+  when** the map widget uses whole-layer queries (Release 1 step 5). _Noted 2026-11-11 (step 5
+  spec 1): the Map widget uses map-sdk's live monitors store, not whole-layer queries, so this
+  doesn't bite yet. Step 5 spec 3's date-range data is where it does._
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -1528,7 +1533,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
   values where nothing was measured; the day it shows; and which daily figure (spec 5's
   per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
-  (step 4 → step 5/6), or map-sdk takes on a new layer type.
+  (step 4 → step 5/6), or map-sdk takes on a new layer type. _Noted 2026-11-11 (step 5 spec 1):
+  the Map widget shows the live readings only. **Revisit with** step 5 spec 3 (date ranges)._
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1821,6 +1827,36 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     e2e; the starter chart layer's days aren't asserted; no browser test for
     `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
     next change to each.
+- **Step 5 spec 1 review leftovers.** _Deferred 2026-11-11 (step 5 spec 1, per-task and final
+  reviews)._ Small things the reviews let stay; the first ones a person could meet:
+  - **Some places fit silently, with no note.** A selection with retired or missing monitors, or
+    with some regions missing, fits to what it finds. A single unlisted monitor does get a note.
+    **Revisit if** someone is confused by a map that shows fewer places than they picked.
+  - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
+    "Choose a place". Only a build without a MapTiler key shows it. **Revisit with** the next
+    change to the widget's states.
+  - **The legend toggle has no `aria-controls`,** and the feature list is tabbable under the
+    loading skeleton. **Revisit with** the next accessibility pass on the map.
+  - **eslint is a runtime dependency** through `@maptiler/sdk`'s `eslint-plugin-compat`. The
+    license check passes and nothing is bundled. **Revisit when** raised upstream with MapTiler.
+  - **Code and type gaps:** `isNowShaped` doesn't check a Map draft's pollutant (the widget
+    guards it); the Pollutant group is empty while the list loads; `now.ts` has a long doc
+    comment and an `eslint-disable`; `messages.ts` casts params to `never`; the `RegionType`
+    cast; maps don't share a region fetch in flight; the two-frame fit wait
+    isn't cancelled on unmount. **Fix with** the next change to each file.
+  - **Test gaps:** no test that `addWidget` passes the doc (the registry tests register types
+    globally); the abort-rethrow branch of `mapPollutants` has no test; `start.test.ts` builds
+    docs with `as unknown as` casts; the browser test's absent-note check; the messages coverage
+    loop checks only `count`; no test that a failed region fetch isn't cached; `points.test.ts`
+    indexes `widgets[1]`; the loop test doesn't assert the title, and it uses
+    `setTimeout(500)`. **Add with** the next change to each.
+  - **E2E gaps:** the "fullscreen keeps the map" identity check is weak; the fixme tests use
+    `waitForTimeout`; stubbed MapTiler 404s are ignored; `reuseExistingServer` may reuse a
+    preview built with the real key; the WebGL probe falls back to webgl1. **Add with** the next
+    change to `e2e/map.spec.ts`.
+  - **No E2E that no `api.maptiler.com/metrics` request appears after a map draws, and no
+    real-GL off-screen-and-back E2E.** **Revisit with** the pin-on-tap map-sdk release, when the
+    tap fixme is lifted.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
@@ -2538,7 +2574,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   every frame of it. Placeholders don't redraw, so nothing does today. **Charts are done**
   (step 4 spec 1, Task 11: the shared `TimeChart` waits for the frame's animations to finish
   before it redraws). **Revisit when** map widgets land: throttle their redraw the same way, or
-  switch to scale with counter-scaled content.
+  switch to scale with counter-scaled content. _Noted 2026-11-11 (step 5 spec 1): the Map waits
+  for `ancestorAnimationsSettled` before it refits, but MapLibre's own `ResizeObserver` still
+  re-renders on every frame of the 200 ms animation. Accepted for now. **Revisit if** jank shows
+  on low-end devices._
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.

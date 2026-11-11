@@ -1715,8 +1715,8 @@ pollutant is drawn; the places only decide what's highlighted and where the came
   leaves a several-place map alone, as for every widget.
 - **Clicks don't select in spec 1.** Hover shows map-sdk's tooltip, and the feature list reaches
   every monitor by keyboard. A tap on a phone shows no reading yet: that waits on map-sdk's
-  pinned card for a click or tap, its own map-sdk release, which spec 1 needs before it merges. Feature picking (method A: the card's Select/Remove and
-  Shift-click) comes in spec 2.
+  pinned card for a click or tap, its own map-sdk release, which spec 1 needs before it merges.
+  Feature picking (method A: the card's Select/Remove and Shift-click) comes in spec 2.
 
 ## Map SDK: `@sjvair/map-sdk` + monitor-map rebuilt on it
 
@@ -1971,8 +1971,9 @@ spec lists the exact map-sdk changes.
   only for the moment (it survives a theme switch's style reload). A map holding an exact point
   frames the point's region, never the point (see "Widget data selection").
 - **Layers:** the monitors (`selectedStyle: "ring"`, selection mode `"none"`), region outlines
-  in one plain `shapesPlugin` below them (geometry from `getRegionsGeoJSON` through the query
-  client, one request per region type), and a pin for a school or point. The pin has a visible
+  in one plain `shapesPlugin` below them (geometry from `getRegionsGeoJSON`, kept in a page-wide
+  in-memory cache in `src/lib/widgets/map/regions.ts`: each region is fetched once, with one
+  request per region type), and a pin for a school or point. The pin has a visible
   text label beside it, drawn with `Marker` and hidden from screen readers; its accessible name
   comes from the feature list. `featureList={{ reveal: "focus" }}` is the keyboard path, and the
   legend sits in the widget's card (a button on narrow maps).

@@ -80,7 +80,7 @@ reuse existing code only if it's exactly what the new design needs.
   integrations). This repo no longer depends on it (the v1 Monitors tab that embedded its
   `MapShell` was removed in Foundations spec 1). The new dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
-  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestone 1 in progress) holds the per-map core, plugins, `MapView`, and data
+  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestones 1 and 2 merged, published betas through `0.1.0-beta.7`) holds the per-map core, plugins, `MapView`, and data
   stores, while monitor-map is rebuilt on it (as its **5.0**) as the monitor-map
   _experience_ (MapShell, routes, panels, options toolbar, legend, the standalone build
   sjvair.com imports), keeping the `/core` and `/routes` entry points the mobile app uses. **Dashboard map widgets use

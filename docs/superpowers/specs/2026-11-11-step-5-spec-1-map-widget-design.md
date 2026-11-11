@@ -186,9 +186,10 @@ highlighted. **Undo** brings the region back; that's how it works for every widg
   map-sdk still draws a selection the host sets (`setSelection`), and clicks don't change it.
 - **Region outlines:** one `shapesPlugin` in `"plain"` mode, `listed: false`, `selectable:
   false`, `hoverable: false`, added **below** the monitors so its fill never takes their clicks.
-  Geometry comes from the SDK's `getRegionsGeoJSON({ type, external_id, simplify })`, through
-  the dashboard's query client (cached; region ids are `type:code` with `code` the external id,
-  matching map-sdk's `region:<type>:<external_id>` refs). A selection of regions groups its codes
+  Geometry comes from the SDK's `getRegionsGeoJSON({ type, external_id, simplify })`, kept in a
+  page-wide in-memory cache in `src/lib/widgets/map/regions.ts`, so each region is fetched once
+  (region ids are `type:code` with `code` the external id, matching map-sdk's
+  `region:<type>:<external_id>` refs). A selection of regions groups its codes
   by type and makes one request per type. The highlight is map-sdk's selected outline (3 px
   `--highlight`). This is spec 1's stand-in for map-sdk's focus area. Spec 2 replaces it with
   the focus area (outline plus dimmed surround) once map-sdk has one.
