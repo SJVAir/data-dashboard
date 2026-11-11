@@ -439,6 +439,49 @@ string`) now get the union return type. The mobile app passes a string token, so
   syncs the map login when it loads and relies on being imported only after `initPreferences()`;
   a comment is the only guard, and it could point to `ARCHITECTURE.md`'s bootstrap-ordering note.
   **Revisit when** mobile's README or bootstrap code is next touched.
+- **sjvair.com closest-monitor latency (and the full monitor list).** _Held by the user until
+  2026-11-10 (brief of 2026-10-12, `closest-endpoint.prompt.txt` in the workspace root); started
+  2026-11-10 in `sjvair-com-92` from the refreshed `prompt-server-closest-monitor.txt`._
+  `monitors/<entry_type>/closest/` (mobile's "My air" reading) took 0.5–6.5 s in production on
+  2026-10-08. Found locally (verified by the coordinator): Postgres JIT compiled about 410 ms of
+  the query's 460 ms, because `get_active()`'s `LatestEntry` join and `DISTINCT` make the planner
+  overestimate rows (cost 2.0M against `jit_above_cost` 100k), and `with_latest_entry()` loaded
+  every candidate monitor before taking three. **Fix approved by the user 2026-11-10** (closest
+  queryset only: `EXISTS`, slice before attaching entries; about 15–18 ms locally, same output;
+  no migration), merged into `develop` 2026-11-10 as #326, with follow-ups #327 (the full list: N+1 fixed, cached as encoded bytes) and #328 (`current/`: `EXISTS` active check). **Still deferred:** production before/after
+  timing, which waits for the `develop` deploy (step in the deploy entry below).
+- **App-wide Postgres JIT off, or fixing the queries that trip it (sjvair.com).** _Deferred
+  2026-11-10 (the user, closest-monitor work)._ Option: `-c jit=off` in `DATABASES` `OPTIONS`
+  (`camp/settings/test.py` already sets it for tests), or rewriting the queries whose planner cost
+  crosses `jit_above_cost`. Deferred because it affects every query, summary rollups included, so
+  it needs its own measurement; the closest fix doesn't need it (its rewritten query costs about
+  16k, below the 100k threshold). Related: switching `get_active()` itself from the join and
+  `DISTINCT` to `EXISTS`, which may have the same cost in its other callers (the list,
+  `current/`, `at/`, alerts); that needs a caller list and tests pinning each caller's rows.
+  A likely candidate (sjvair.com #327's measurements, 2026-11-10): `pm25/current/` cache misses still
+  take about 950 ms with 4 queries locally, probably the same join plus `filter_healthy`; it's
+  prewarmed, so most readers hit the cache. Its join was replaced in `CurrentData` by #328
+  (2026-11-10), but JIT still fires on the new `current/` plans for about 25–50 ms (cost
+  320k–410k), so this entry still covers it.
+  **Revisit when** the post-deploy check shows production has JIT on, or another endpoint's
+  `EXPLAIN` shows JIT time dominating.
+- **`with_latest_entry()` picks a `LatestEntry` row without an order (sjvair.com).** _Deferred
+  2026-11-10 (closest-monitor work, #326)._ It takes the first `LatestEntry` row per monitor and
+  entry type with no `ORDER BY`; for a monitor with both cleaned and calibrated PM2.5 rows it
+  returns the calibrated one only because of index order. Unchanged by #326, which kept the
+  behavior. **Revisit when** anyone touches `LatestEntry` or the published-series logic.
+- **resticus streams JSON one token at a time (django-resticus).** _Deferred 2026-11-10 (the
+  user, sjvair.com monitor-list work)._ `StreamingJSONResponse` (`resticus/http.py`) passes
+  `JSON_ENCODER().iterencode(data)` straight to `StreamingHttpResponse`, so the 486 KB monitor
+  list goes out as about 87,000 pieces; the per-piece cost in Django's streaming path and
+  `GZipMiddleware` is about 160 ms of a 170 ms cache hit locally. Fix in resticus: group the
+  pieces into chunks of about 64 KB. Deferred because it's a change to the resticus fork (a
+  separate repo; sjvair.com installs `develop` unpinned, and the local stack mounts the
+  `go-live` branch); sjvair.com's follow-up PR (`select_related('airgradient__place')` in
+  `MonitorMixin`, and `CachedEndpointMixin` caching encoded bytes, opt-in for `MonitorList` and
+  `CurrentData`) sidesteps it for those two endpoints. **Revisit when** another large streaming
+  endpoint (such as entries JSON lists) shows slow body time, or at the next resticus release
+  work.
 - **Production deploy of sjvair.com `develop` → `main` (the "everything ready" deploy).**
   _Deferred 2026-11-04 (the user): `develop` is not deployed until the data dashboard is
   done._ It carries #292, #293, #295, #296, #297, #298, #299, #300 and #301 (and whatever else
@@ -619,6 +662,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04). Note: JSR's npm mirror (npm.jsr.io) lists the newest beta as `dist-tags.latest` (5.0.0-beta.3 on
     2026-11-05) while JSR's own `latest` stays 4.7.0, so an unpinned `npm i @jsr/sjvair__sdk` gets the
     beta; ranges and exact pins are unaffected. Check both read 5.0.0 after the final release.
+  - **Closest-monitor timing, after the deploy:** sample `monitors/pm25/closest/` (Fresno,
+    Bakersfield, Stockton) and `monitors/` from production with curl, spaced out, and compare
+    with the 2026-10-08 numbers (0.5–6.5 s; about 3 s for the list) and the local before/after
+    from the closest-monitor work (the user's yes needed for the production requests). Also
+    check whether production Postgres has JIT on (locally JIT was ~410 ms of the closest query's
+    ~460 ms, 2026-11-10) and whether `monitors/` and `current/` responses are cache hits with a `Content-Length` (`X-Cache-Status`; #327), and that the refresh worker's per-minute `current/` runs no longer take about 0.4–0.6 s each (#328).
 
   **Revisit when** the data dashboard (Release 1) is done, or the user decides to deploy
   sooner. Related: the summaries follow-up (standard-time period starts, missing region
