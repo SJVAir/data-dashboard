@@ -31,10 +31,10 @@
 	"save_recovered": "Saved again",
 	"undo": "Undo",
 	"redo": "Redo",
-	"shortcut_undo": "Ctrl+Z",
-	"shortcut_redo": "Ctrl+Shift+Z",
 	"shortcut_control": "Ctrl+{key}",
 	"shortcut_command": "⌘{key}",
+	"shortcut_control_shift": "Ctrl+Shift+{key}",
+	"shortcut_command_shift": "⇧⌘{key}",
 	"storage_unavailable": "This browser isn't letting SJVAir Dashboard save anything, so it can't open. Check that site data is allowed, or try another browser.",
 	"startup_failed": "Something went wrong while starting SJVAir Dashboard. Reloading the page may help.",
 	"storage_blocked": "SJVAir Dashboard is waiting on another of its tabs. Please close other SJVAir Dashboard tabs and reload this page.",
@@ -973,8 +973,8 @@
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "Also change the widget showing another place",
-				"countPlural=other": "Also change the {count} widgets showing other places"
+				"countPlural=one": "Also change the widget showing another place to the new one",
+				"countPlural=other": "Also change the {count} widgets showing other places to the new one"
 			}
 		}
 	],
@@ -985,7 +985,7 @@
 	"place_bar_showing_this_dashboards_place": "Showing this dashboard's place",
 	"place_bar_change": "Change place",
 	"which_place_replace_title": "Which place do you want to replace?",
-	"which_place_replace_description": "This dashboard shows each of these places equally. Choose the one to replace in the copy. You'll choose the new place next.",
+	"which_place_replace_description": "The same number of widgets show each of these places. Choose the one to replace in the copy. You'll choose the new place next.",
 	"which_place_your_location": "Your location",
 	"which_place_unnamed": "Unnamed place {number}",
 	"which_place_continue": "Continue",
@@ -1206,6 +1206,6 @@
 	"note_link_address": "Web or email address",
 	"note_link_apply": "Apply",
 	"note_link_remove": "Remove link",
-	"note_link_invalid": "Enter a web address (such as https://example.com) or an email address.",
+	"note_link_invalid": "Enter a web address (such as example.com) or an email address.",
 	"starter_note_welcome": "**Welcome to the SJVAir Dashboard.** These widgets show air quality for one place. Use **Change place** above to pick your school, city or ZIP Code. You can move, resize or add widgets, and your first change saves the dashboard as your own. This is a Note: edit it or delete it any time."
 }

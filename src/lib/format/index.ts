@@ -307,8 +307,15 @@ export function usesCommandKey(): boolean {
 	return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 
-/** A Ctrl/⌘ plus `key` shortcut as this platform names it ("Ctrl+B", or "⌘B" on a Mac). */
-export function formatShortcut(key: string, command: boolean = usesCommandKey()): string {
+/**
+ * A Ctrl/⌘ plus `key` shortcut (with Shift too when `shift`) as this platform names it:
+ * "Ctrl+B" and "Ctrl+Shift+Z", or "⌘B" and "⇧⌘Z" on a Mac.
+ */
+export function formatShortcut(
+	key: string,
+	{ shift = false, command = usesCommandKey() }: { shift?: boolean; command?: boolean } = {}
+): string {
+	if (shift) return command ? m.shortcut_command_shift({ key }) : m.shortcut_control_shift({ key });
 	return command ? m.shortcut_command({ key }) : m.shortcut_control({ key });
 }
 

@@ -185,7 +185,7 @@ test.describe("the bar on a copy", () => {
 
 		await bar(page).getByRole("button", { name: "Change place" }).click();
 		const also = picker(page).getByRole("checkbox", {
-			name: "Also change the widget showing another place"
+			name: "Also change the widget showing another place to the new one"
 		});
 		await expect(also).toBeVisible();
 		await also.check();

@@ -45,6 +45,14 @@ test("nav shows the app name, picker, saved status, and undo/redo", async () => 
 	await expect.element(nav.getByText("Saved")).toBeVisible();
 	await expect.element(nav.getByRole("button", { name: "Undo" })).toBeVisible();
 	await expect.element(nav.getByRole("button", { name: "Redo" })).toBeVisible();
+	// Their tooltips name this platform's shortcuts.
+	const mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+	await expect
+		.element(nav.getByRole("button", { name: "Undo" }))
+		.toHaveAttribute("title", mac ? "⌘Z" : "Ctrl+Z");
+	await expect
+		.element(nav.getByRole("button", { name: "Redo" }))
+		.toHaveAttribute("title", mac ? "⇧⌘Z" : "Ctrl+Shift+Z");
 });
 
 test("undo shortcut ignored in text inputs", async () => {

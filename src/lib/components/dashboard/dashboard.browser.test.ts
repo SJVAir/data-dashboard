@@ -378,6 +378,14 @@ test("the dashboard's own menu has its actions plus Undo and Redo", async () => 
 	for (const name of [/^Add widget/, /^Rename dashboard…/, /^Undo/, /^Redo/]) {
 		await expect.element(page.getByRole("menuitem", { name })).toBeVisible();
 	}
+	// With this platform's shortcuts.
+	const mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+	await expect
+		.element(page.getByRole("menuitem", { name: /^Undo/ }))
+		.toHaveTextContent(mac ? "Undo ⌘Z" : "Undo Ctrl+Z");
+	await expect
+		.element(page.getByRole("menuitem", { name: /^Redo/ }))
+		.toHaveTextContent(mac ? "Redo ⇧⌘Z" : "Redo Ctrl+Shift+Z");
 });
 
 test("a widget is a named group announcing its shortcuts, not a region landmark", async () => {

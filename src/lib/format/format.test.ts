@@ -148,8 +148,10 @@ describe("format", () => {
 		expect(formatList(["A", "B", "C"])).toBe("A, B, and C");
 	});
 	it("formatShortcut names Ctrl, or ⌘ on Apple platforms", () => {
-		expect(formatShortcut("B", false)).toBe("Ctrl+B");
-		expect(formatShortcut("K", true)).toBe("⌘K");
+		expect(formatShortcut("B", { command: false })).toBe("Ctrl+B");
+		expect(formatShortcut("K", { command: true })).toBe("⌘K");
+		expect(formatShortcut("Z", { shift: true, command: false })).toBe("Ctrl+Shift+Z");
+		expect(formatShortcut("Z", { shift: true, command: true })).toBe("⇧⌘Z");
 		vi.stubGlobal("navigator", { platform: "MacIntel" });
 		expect(formatShortcut("I")).toBe("⌘I");
 		vi.stubGlobal("navigator", { platform: "Win32" });

@@ -239,10 +239,10 @@ test("Also change… switches the widgets showing other places too (comparisons 
 	]);
 	await openBar();
 	expect(m.place_picker_also_change({ count: "2", countValue: 2 })).toBe(
-		"Also change the 2 widgets showing other places"
+		"Also change the 2 widgets showing other places to the new one"
 	);
 	expect(m.place_picker_also_change({ count: "1", countValue: 1 })).toBe(
-		"Also change the widget showing another place"
+		"Also change the widget showing another place to the new one"
 	);
 	await alsoChange(2).click();
 	await pick(/ZIP 93721/);
