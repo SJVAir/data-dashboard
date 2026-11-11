@@ -350,10 +350,16 @@ Several: "PM2.5 · {n} places" (`widget_title_places`). The generated title is n
   (`MapConfig.telemetry: false`, map-sdk `0.1.0-beta.7`, map-sdk #22). The session id (`mtsid`)
   stays on, because that's how MapTiler bills SDK maps. MapTiler's tile cache stays on too: it
   saves requests and load time. **Turning telemetry off blocks merging spec 1.**
-- **Known side effect: the tile cache lives outside the platform adapter.** MapTiler stores
-  tiles and fonts in the browser's Cache Storage (cache `maptiler_sdk`), so "Clear my data"
-  doesn't remove it today. Whether it should is a question for the user, asked by the coordinator
-  on 2026-11-11 and not decided here.
+- **"Clear my data" also deletes MapTiler's tile cache** (the user, 2026-11-11). MapTiler stores
+  tiles and fonts in the browser's Cache Storage under the cache name `maptiler_sdk`.
+  `@maptiler/sdk` 4.2 has no public clear function, so the web platform adapter's
+  `reset.clearAll()` (`src/lib/platform/web/storage.ts`) calls `caches.delete("maptiler_sdk")`,
+  never a component. It's skipped where `caches` doesn't exist, and a failure never stops the
+  rest of the reset. The cache trims itself to about 1,000 entries and strips the key and
+  `mtsid` from its cache keys.
+- **The cache name is MapTiler-internal**, so a future `@maptiler/sdk` could rename it, and the
+  delete would then silently stop working. `DEFERRED.md` gets a revisit trigger: check the name
+  whenever map-sdk bumps `@maptiler/sdk`.
 - **Geolocation** isn't used by the map in spec 1. A point reaches the map only through the
   picker, which already goes through the platform adapter.
 

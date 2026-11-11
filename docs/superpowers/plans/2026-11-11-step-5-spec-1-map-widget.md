@@ -486,3 +486,23 @@ selections over 5 places more common.
   current title untracked in `setGeneratedTitle`.
 - [ ] **Step 4:** Run the Get data browser tests and `npm run test:unit`. Expected: PASS.
 - [ ] **Step 5:** Commit `fix(get-data): no title loop when a chart draft holds more than its cap`.
+
+### Task 13: "Clear my data" deletes MapTiler's tile cache (run before Task 11)
+
+Added 2026-11-11 by the user's decision (spec → "Privacy").
+
+**Files:**
+- Modify: `src/lib/platform/web/storage.ts` (its `reset.clearAll()`)
+- Test: the web storage/reset test next to it (find the existing `clearAll` test)
+- Modify: `DEFERRED.md` (in Task 11): the revisit trigger "check the `maptiler_sdk` cache name whenever map-sdk bumps `@maptiler/sdk`"
+
+- [ ] **Step 1: Failing tests:**
+  - `clearAll deletes MapTiler's tile cache` (stub `globalThis.caches` with a `delete` spy; expect `delete("maptiler_sdk")`);
+  - `clearAll works where caches is missing` (no `caches`; resolves, the rest is still cleared);
+  - `clearAll finishes the reset when deleting the cache fails` (the `delete` rejects; the other stores are still cleared, and it still resolves).
+- [ ] **Step 2:** Run. Expected: FAIL.
+- [ ] **Step 3:** Implement inside the adapter only. Keep the cache name in one named constant
+  with a comment that it's MapTiler-internal (`@maptiler/sdk` 4.2).
+- [ ] **Step 4:** Run the platform tests and `npm run test:unit`. Expected: PASS. The memory
+  platform needs no change.
+- [ ] **Step 5:** Commit `feat(platform): Clear my data also deletes MapTiler's tile cache`.
