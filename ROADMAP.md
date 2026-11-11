@@ -172,7 +172,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    - Calendar (contribution) (built on `step-4-spec-5`, 2026-11-09; colored by the daily figure since SDK beta.8)
    - Current conditions
    - Data table
-   - Notes (safe Markdown: raw HTML off, link allowlist) (built on `step-4-spec-6`, 2026-11-10; PR into `step-4` pending)
+   - Notes (safe Markdown: raw HTML off, link allowlist) (built in spec 6, merged 2026-11-10, #49)
    - heat for areas larger than a ZIP (highest ZIP score, labeled); forecasts via the
      containing zone
    - location privacy: rounded points to lookups; shares default to the region, with a
