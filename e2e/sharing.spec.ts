@@ -178,6 +178,8 @@ test("a file that isn't a dashboard shows an error and saves nothing", async ({ 
 });
 
 test("a dashboard too big for a link offers only the file", async ({ page }) => {
+	// Importing and drawing 1,000 widgets takes several seconds on a slow WebKit runner.
+	test.slow();
 	const titles = Array.from({ length: 1000 }, () => randomBytes(16).toString("hex"));
 	const envelope = {
 		format: "sjvair-workspace",
@@ -197,6 +199,12 @@ test("a dashboard too big for a link offers only the file", async ({ page }) => 
 		buffer: Buffer.from(JSON.stringify(envelope))
 	});
 	await expect(page).toHaveURL(DASHBOARD_URL);
+	// Share builds and compresses the link before the dialog opens. Clicking while the 1,000
+	// widgets still draw left too little of the 5 s check for that on CI's WebKit, so wait
+	// until every widget's body is drawn (about 2 s locally, several times that on the runner).
+	await expect(page.getByText("This is a placeholder widget.")).toHaveCount(titles.length, {
+		timeout: 30_000
+	});
 
 	await chooseMenuItem(page, "Huge", "Share…");
 	const dialog = page.getByRole("dialog", { name: "Share dashboard" });
