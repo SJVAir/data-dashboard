@@ -458,3 +458,31 @@ map's pollutants are the monitors meta's `available_pollutants`.
   Check `gh pr checks` after pushing.
 - [ ] **Step 4:** Tell the coordinator: the PR number, the bundle numbers, the tap result, and
   any map-sdk need found. Ask the user for the yes before marking it ready or merging.
+
+### Task 12: Get data's title loop with more than 5 places (run before Task 11)
+
+Added 2026-11-11 by the user's decision: fix it in spec 1, not deferred. The Map makes
+selections over 5 places more common.
+
+**Files:**
+- Modify: `src/lib/get-data/GetDataView.svelte` (the `namesWidget` around line 198-203)
+- Test: the Get data browser test file (find the one with Show as / preview cases)
+
+**Cause (diagnosed in Task 5, confirmed by the coordinator):**
+- For non-now types, `namesWidget` is `previewWidget` (same id). The names lookup's
+  `DataWidget` (cap 500) and the preview chart's (`ChartWidget.svelte:24`, cap 5) both write
+  that id's generated title through `data-widget.svelte.ts:188-202`.
+- `setGeneratedTitle` (`titles.svelte.ts:11`) reads the current title tracked, so past 5 places
+  the two writers keep re-triggering each other (`effect_update_depth_exceeded`).
+- The separate-id fix was applied only to now types (see the comment above `namesWidget`).
+
+- [ ] **Step 1: Failing test:** `opens a Chart draft with 6 places without looping`. Open Get data
+  on a Chart draft (`?type=chart` link or a stored draft) whose layer selection has 6 monitors.
+  Assert the preview renders, the page logs no `effect_update_depth_exceeded` error, and the
+  preview's title says 6 places, or whatever the existing title rule gives with the cap.
+- [ ] **Step 2:** Run it. Expected: FAIL (the loop).
+- [ ] **Step 3:** Give the names lookup its own id for every type (`${PREVIEW_ID}-names`), as
+  now types already do. Keep the comment accurate. Only if the test still fails, also read the
+  current title untracked in `setGeneratedTitle`.
+- [ ] **Step 4:** Run the Get data browser tests and `npm run test:unit`. Expected: PASS.
+- [ ] **Step 5:** Commit `fix(get-data): no title loop when a chart draft holds more than its cap`.
