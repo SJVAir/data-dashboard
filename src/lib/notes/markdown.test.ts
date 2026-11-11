@@ -152,3 +152,41 @@ describe("safeHref", () => {
 			expect(safeHref(u)).toBeNull();
 	});
 });
+
+describe("bare addresses as the editor saves them", () => {
+	it("reads the editor's escapes back in a web address", () => {
+		expect(toNoteBlocks("see https://x.org/San\\_J\\~u?q=\\[1\\]&a=\\\\b")).toEqual([
+			{
+				kind: "paragraph",
+				children: [
+					t("see "),
+					{
+						kind: "link",
+						href: "https://x.org/San_J~u?q=[1]&a=\\b",
+						children: [t("https://x.org/San_J~u?q=[1]&a=\\b")]
+					}
+				]
+			}
+		]);
+	});
+	it("keeps an email address whole across an escaped `_`", () => {
+		expect(toNoteBlocks("hi first\\_last@x.org.")).toEqual([
+			{
+				kind: "paragraph",
+				children: [
+					t("hi "),
+					{ kind: "link", href: "mailto:first_last@x.org", children: [t("first_last@x.org")] },
+					t(".")
+				]
+			}
+		]);
+	});
+	it("leaves a `[text](url)` link's escapes to marked", () => {
+		expect(toNoteBlocks("[a\\_b](https://x.org/c_d)")).toEqual([
+			{
+				kind: "paragraph",
+				children: [{ kind: "link", href: "https://x.org/c_d", children: [t("a"), t("_"), t("b")] }]
+			}
+		]);
+	});
+});

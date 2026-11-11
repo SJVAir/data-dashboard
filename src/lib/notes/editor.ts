@@ -85,11 +85,18 @@ export function escapeInline(text: string): string {
 	return text.replace(/[\\[\]]|<(?=\S|$)|&(?=#|[a-z][a-z0-9]*;|$)/gi, "\\$&");
 }
 
-/** Export only: each plain text run goes out through `escapeInline` (then Lexical's own pass). */
+/**
+ * Export only: each plain text run goes out through `escapeInline` (then Lexical's own pass). A
+ * `!` right before a link is escaped too, or `Wow![site](…)` would read as an image.
+ */
 const ESCAPED_TEXT: TextMatchTransformer = {
 	dependencies: [],
-	export: (node, _exportChildren, exportFormat) =>
-		$isTextNode(node) ? exportFormat(node, escapeInline(node.getTextContent())) : null,
+	export: (node, _exportChildren, exportFormat) => {
+		if (!$isTextNode(node)) return null;
+		let text = escapeInline(node.getTextContent());
+		if ($isLinkNode(node.getNextSibling())) text = text.replace(/!$/, "\\!");
+		return exportFormat(node, text);
+	},
 	// Never matches: nothing is imported or typed through this transformer.
 	regExp: /(?!)/,
 	type: "text-match"

@@ -343,3 +343,55 @@ test("escaped text next to real bold, italic and a link keeps both", async () =>
 	expect(root.querySelector("a")?.textContent).toBe("x_[y]");
 	expect(again.markdown()).toBe("*it* [x\\_\\[y\\]](https://example.com/a) **b**");
 });
+
+test("a typed bare address with `_`, `~` or brackets links to exactly what was typed", async () => {
+	const cases: [string, string, string][] = [
+		[
+			"https://en.wikipedia.org/wiki/San_Joaquin_Valley",
+			"https://en.wikipedia.org/wiki/San_Joaquin_Valley",
+			"https://en.wikipedia.org/wiki/San_Joaquin_Valley"
+		],
+		["https://x.org/~u", "https://x.org/~u", "https://x.org/~u"],
+		["https://x.org/?q=[1]", "https://x.org/?q=[1]", "https://x.org/?q=[1]"],
+		["www.x.org/a_b", "www.x.org/a_b", "http://www.x.org/a_b"],
+		["first_last@x.org", "first_last@x.org", "mailto:first_last@x.org"],
+		["a.b_c+d@x.org", "a.b_c+d@x.org", "mailto:a.b_c+d@x.org"]
+	];
+	for (const [address, shown, href] of cases) {
+		// Typed among other words (a paste of the address alone would make it a link at once).
+		const typed = `see ${address} now`;
+		const markdown = await pasteAndReopen(typed);
+		expect(root.textContent, markdown).toBe(typed);
+		expect(root.querySelector("a"), markdown).toBeNull();
+		const blocks = toNoteBlocks(markdown);
+		const block = blocks[0];
+		expect(block.kind, markdown).toBe("paragraph");
+		if (block.kind !== "paragraph") continue;
+		expect(viewerText(block.children), markdown).toBe(`see <link:${shown}> now`);
+		const link = block.children.find((c) => c.kind === "link");
+		expect(link?.kind === "link" && link.href, markdown).toBe(href);
+		editor?.destroy();
+		editor = null;
+		root.remove();
+	}
+});
+
+test("a `!` right before a link stays text (not an image)", async () => {
+	const e = start("Wow!");
+	await caretAtEnd();
+	await paste("", "https://example.com/site");
+	const markdown = e.markdown();
+	expect(markdown).toBe("Wow\\![https://example.com/site](https://example.com/site)");
+	const block = toNoteBlocks(markdown)[0];
+	if (block.kind === "paragraph") {
+		expect(viewerText(block.children)).toBe("Wow!<link:https://example.com/site>");
+	}
+	e.destroy();
+	root.remove();
+	expect(start(markdown).markdown()).toBe(markdown);
+	expect(root.textContent).toBe("Wow!https://example.com/site");
+	// Only before a link: a `!` ending a line stays as it is.
+	editor?.destroy();
+	root.remove();
+	expect(start("Wow!").markdown()).toBe("Wow!");
+});
