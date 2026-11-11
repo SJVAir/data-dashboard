@@ -506,3 +506,21 @@ Added 2026-11-11 by the user's decision (spec → "Privacy").
 - [ ] **Step 4:** Run the platform tests and `npm run test:unit`. Expected: PASS. The memory
   platform needs no change.
 - [ ] **Step 5:** Commit `feat(platform): Clear my data also deletes MapTiler's tile cache`.
+
+### Task 14: Move to map-sdk 0.1.0-beta.7, telemetry off (run right after Task 8)
+
+Added 2026-11-11: `@sjvair/map-sdk` `0.1.0-beta.7` is published (npm `next`; checked by the
+coordinator). It has `MapConfig.telemetry: false` (telemetry only; sessions and the tile cache
+stay on), the style.load restore fix, and the feature list and framed legend capped at the map's
+width (`--mapsdk-map-width`). This clears spec 1's map-sdk blocker.
+
+**Files:**
+- Modify: `package.json`, `package-lock.json` (`"@sjvair/map-sdk": "0.1.0-beta.7"`, exact)
+- Modify: `src/lib/widgets/map/host/config.ts` (add `telemetry: false`; remove the TODO)
+- Modify: `src/lib/widgets/map/host/config.test.ts` (the `it.todo` becomes a real test)
+- Modify: `messages/en.json` and `host/messages.ts` only if beta.7 adds or removes message keys (the coverage test says so)
+
+- [ ] **Step 1:** Replace the todo with `turns MapTiler telemetry off` (`mapConfig()` with a key has `telemetry: false`). Run it. Expected: FAIL.
+- [ ] **Step 2:** `npm install --save-exact @sjvair/map-sdk@0.1.0-beta.7`. Confirm one `@sjvair/sdk` (5.0.0-beta.8). Add `telemetry: false`.
+- [ ] **Step 3:** Run `npx vitest run src/lib/widgets/map` and `npm run test:browser -- src/lib/widgets/map`, then `npm run check`, `npm run build && npm run check:build && npm run check:budget`. Expected: PASS. Report any new hosts check:build flags and the bundle numbers.
+- [ ] **Step 4:** Commit `build: map-sdk 0.1.0-beta.7, MapTiler telemetry off`.
