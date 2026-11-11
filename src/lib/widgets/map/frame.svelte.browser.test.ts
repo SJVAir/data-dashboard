@@ -142,4 +142,20 @@ describe("MapFrame", () => {
 		await flush();
 		expect(f.state).toEqual({ error: boom });
 	});
+
+	it("retry looks the layer up again", async () => {
+		vi.mocked(regionShapes).mockRejectedValueOnce(new Error("offline"));
+		vi.mocked(regionShapes).mockImplementation(
+			async (refs) => new Map(refs.map((r) => [`${r.type}:${r.code}`, shape]))
+		);
+		const f = track(() => ({ ...base, place: { kind: "region", type: "county", code: "x" } }));
+		flushSync();
+		await flush();
+		expect(f.state).toHaveProperty("error");
+		f.retry();
+		flushSync();
+		await flush();
+		expect(f.state).toBe("ready");
+		expect([...f.shapes.keys()]).toEqual(["county:x"]);
+	});
 });

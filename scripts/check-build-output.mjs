@@ -81,13 +81,21 @@ const NOT_FETCHED = {
 	"lexical.dev": "error-code documentation link in Lexical (the Note editor's chunk)",
 	"www.sjvair.com": "a link the person follows (navigation, not a fetch)",
 	"example.com": "dummy base for URL parsing in a dependency",
-	"fallback.com": "dummy base for URL parsing in a dependency"
+	"fallback.com": "dummy base for URL parsing in a dependency",
+	// Library code in the Map widget's lazy chunk (map-sdk, @maptiler/sdk, maplibre-gl). The map
+	// fetches only from api.maptiler.com (listed in csp-hosts.json).
+	"maplibre.org": "MapLibre's attribution and logo links (navigation, not a fetch; the Map chunk)",
+	"www.maptiler.com": "MapTiler's logo link (navigation, not a fetch; the Map chunk)",
+	"maptiler.com": "text of @maptiler/sdk's missing-key warnings (the Map chunk)",
+	"developer.mozilla.org": "documentation link in @maptiler/sdk's cache warning (the Map chunk)",
+	"inlang.com": "$schema id in map-sdk's bundled English messages, not fetched (the Map chunk)"
 };
 // Exact literals (not bare hosts) that are never fetched, so a real request to the same host
 // still fails the scan.
 const NOT_FETCHED_LITERALS = {
 	"http://x": "dummy base for URL parsing (src/lib/platform/web/errors.ts)",
-	"http://localhost/": "dummy base for URL parsing (src/lib/store/app.svelte.ts)"
+	"http://localhost/": "dummy base for URL parsing (src/lib/store/app.svelte.ts)",
+	"https://maplibre.invalid/": "dummy base for URL parsing in maplibre-gl (the Map chunk)"
 };
 const cspListed = new Set(
 	Object.values(JSON.parse(readFileSync(join(ROOT, "..", "..", "csp-hosts.json"), "utf8")))

@@ -29,12 +29,14 @@ export class MapFrame {
 	frame = $state.raw<Frame | null>(null);
 	shapes = $state.raw<Map<string, Feature>>(noShapes());
 	state = $state.raw<FrameState>("idle");
+	#tries = $state(0);
 	#stop: () => void;
 
 	constructor(layer: () => Layer | undefined) {
 		this.#stop = $effect.root(() => {
 			$effect(() => {
 				const current = layer();
+				void this.#tries;
 				const controller = new AbortController();
 				this.#load(current, controller.signal);
 				return () => controller.abort();
@@ -44,6 +46,11 @@ export class MapFrame {
 
 	destroy(): void {
 		this.#stop();
+	}
+
+	/** Looks the current layer up again (after an error). */
+	retry(): void {
+		this.#tries++;
 	}
 
 	#set(frame: Frame, shapes: Map<string, Feature>, state: FrameState) {
