@@ -538,3 +538,25 @@ Added 2026-11-11 by the user's decision (via the coordinator): MapTiler draws it
 - [ ] **Step 2:** Add the host to `csp-hosts.json` in the same position. Keep the file's existing formatting (sjvair.com mirrors it byte for byte). Re-run. Expected: PASS.
 - [ ] **Step 3:** `npm run build && npm run check:build`. Expected: PASS.
 - [ ] **Step 4:** Commit `build(csp): allow MapTiler's logo image`. Report the commit SHA, so the controller can send it to the sjvair.com session (#330).
+
+### Task 16: The map takes its platform from the app (run after Task 12)
+
+Added 2026-11-11 (controller ruling). The map's code reads the global `platform()` when it
+mounts, at `MapWidget.svelte:215`, `on-screen.svelte.ts:19` and `host/stores.ts:27`. Browser
+tests that render a real Map without the global adapter (Get data's Preview, the picker's grid)
+then raise an unhandled "Platform adapter has not been set" error. Other widgets reach the
+platform through the app (`useApp().platform`).
+
+**Files:**
+- Modify: `src/lib/widgets/map/MapWidget.svelte`, `src/lib/widgets/map/on-screen.svelte.ts`, `src/lib/widgets/map/host/stores.ts` and their tests
+- Modify: `src/lib/places/place-picker-dialog.browser.test.ts` (drop the map-module stub Task 9 added, if it's no longer needed)
+
+**Interfaces:**
+- `acquireMonitors(entryType: string, activity: ActivitySource)`, where the first acquire's `activity` drives the shared store's pausing.
+- `new OnScreen(el, { activity, detachDelayMs?, rootMargin? })`.
+- `MapWidget` gets `activity` from `useApp().platform.activity`.
+
+- [ ] **Step 1: Failing test:** in the Get data browser tests, `a Map preview raises no unhandled errors` (open a Map draft; no unhandled error is reported). Run it. Expected: FAIL.
+- [ ] **Step 2:** Implement. Pass `activity` in. No global `platform()` calls are left under `src/lib/widgets/map/`.
+- [ ] **Step 3:** Run `npm run test:browser` (the whole browser project, to confirm zero unhandled errors) and `npm run test:unit`. Expected: PASS, with no unhandled errors.
+- [ ] **Step 4:** Commit `fix(map): take the platform from the app, not the global`.
