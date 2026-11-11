@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import { createNoteEditor, type NoteEditor } from "./editor";
-import { toNoteBlocks } from "./markdown";
+import { toNoteBlocks, type NoteInline } from "./markdown";
 
 let root: HTMLElement;
 let editor: NoteEditor | null = null;
@@ -268,4 +268,78 @@ test("a pasted web address becomes a link", async () => {
 	await caretAtEnd();
 	await paste("", "https://example.com/page");
 	expect(e.markdown()).toBe("see [https://example.com/page](https://example.com/page)");
+});
+
+/** The viewer's inlines as text, a link as `<link:its text>`; marks anything else. */
+function viewerText(inlines: NoteInline[]): string {
+	return inlines
+		.map((c) =>
+			c.kind === "text"
+				? c.text
+				: c.kind === "link"
+					? `<link:${viewerText(c.children)}>`
+					: c.kind === "break"
+						? "\n"
+						: `<${c.kind}>`
+		)
+		.join("");
+}
+
+test("text that looks like inline Markdown stays text, in the editor and the viewer", async () => {
+	// Typed text, and what the viewer shows: the same characters (a bare web address still
+	// shows as a link, as intended).
+	const cases: [string, string][] = [
+		["[docs](https://x.org)", "[docs](<link:https://x.org>)"],
+		["\\#", "\\#"],
+		["_x_", "_x_"],
+		["a*b*c", "a*b*c"],
+		["**not bold**", "**not bold**"],
+		["`code`", "`code`"],
+		["<b>", "<b>"],
+		["<https://x.org>", "<https://x.org>"],
+		["&amp;", "&amp;"],
+		["&#65; &#x41;", "&#65; &#x41;"],
+		["~~x~~", "~~x~~"],
+		["ends with \\", "ends with \\"],
+		["a \\*b\\* c", "a \\*b\\* c"],
+		["[a]: x", "[a]: x"],
+		["![i](x.png) [y]", "![i](x.png) [y]"],
+		["Tom & Jerry < 3", "Tom & Jerry < 3"]
+	];
+	for (const [text, shown] of cases) {
+		const markdown = await pasteAndReopen(text);
+		// The editor reads it back as the same plain text.
+		expect(root.textContent, markdown).toBe(text);
+		expect(root.querySelector("a, strong, em, b, i, code, s"), markdown).toBeNull();
+		// The viewer shows the typed characters, with no formatting.
+		const blocks = toNoteBlocks(markdown);
+		expect(
+			blocks.map((b) => b.kind),
+			markdown
+		).toEqual(["paragraph"]);
+		const block = blocks[0];
+		if (block.kind === "paragraph") expect(viewerText(block.children), markdown).toBe(shown);
+		editor?.destroy();
+		editor = null;
+		root.remove();
+	}
+});
+
+test("escaped text next to real bold, italic and a link keeps both", async () => {
+	const e = start("");
+	await caretAtEnd();
+	await paste("", "a_b [c] bold");
+	await select("span", 8, 12);
+	e.toggle("bold");
+	const markdown = e.markdown();
+	expect(markdown).toBe("a\\_b \\[c\\] **bold**");
+	const blocks = toNoteBlocks(markdown);
+	if (blocks[0].kind === "paragraph")
+		expect(viewerText(blocks[0].children)).toBe("a_b [c] <strong>");
+	e.destroy();
+	root.remove();
+	const again = start("*it* [x_[y]](https://example.com/a) **b**");
+	expect(root.querySelector("em")?.textContent).toBe("it");
+	expect(root.querySelector("a")?.textContent).toBe("x_[y]");
+	expect(again.markdown()).toBe("*it* [x\\_\\[y\\]](https://example.com/a) **b**");
 });

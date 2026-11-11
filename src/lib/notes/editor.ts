@@ -3,6 +3,7 @@
 import {
 	$createParagraphNode,
 	$createTextNode,
+	$isTextNode,
 	$getRoot,
 	$getSelection,
 	$isElementNode,
@@ -50,6 +51,7 @@ import {
 	registerMarkdownShortcuts,
 	UNORDERED_LIST,
 	type ElementTransformer,
+	type TextMatchTransformer,
 	type Transformer
 } from "@lexical/markdown";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
@@ -72,6 +74,27 @@ const NOTE_HEADING: ElementTransformer = {
 	type: "element"
 };
 
+/**
+ * A run of typed text with the characters that would start inline Markdown escaped, so it reads
+ * back as the same text in the editor and the viewer: `\\`, `[`, `]`, a `<` that could open a
+ * tag or an autolink, and an `&` that could start a character reference. (Lexical itself escapes
+ * `*`, `_`, `` ` `` and `~`; line starts are `escapeLine`'s.) A typed bare web address isn't
+ * escaped: the viewer shows it as a link, as intended.
+ */
+export function escapeInline(text: string): string {
+	return text.replace(/[\\[\]]|<(?=\S|$)|&(?=#|[a-z][a-z0-9]*;|$)/gi, "\\$&");
+}
+
+/** Export only: each plain text run goes out through `escapeInline` (then Lexical's own pass). */
+const ESCAPED_TEXT: TextMatchTransformer = {
+	dependencies: [],
+	export: (node, _exportChildren, exportFormat) =>
+		$isTextNode(node) ? exportFormat(node, escapeInline(node.getTextContent())) : null,
+	// Never matches: nothing is imported or typed through this transformer.
+	regExp: /(?!)/,
+	type: "text-match"
+};
+
 /** The Markdown a Note may hold: what the viewer renders, and nothing else. */
 export const NOTE_TRANSFORMERS: Transformer[] = [
 	NOTE_HEADING,
@@ -79,7 +102,9 @@ export const NOTE_TRANSFORMERS: Transformer[] = [
 	ORDERED_LIST,
 	LINK,
 	BOLD_STAR,
-	ITALIC_STAR
+	ITALIC_STAR,
+	// Last, so the link transformer exports links first.
+	ESCAPED_TEXT
 ];
 
 /** The text formats a Note keeps (Lexical's bit flags for bold and italic). */

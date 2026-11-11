@@ -109,6 +109,19 @@ describe("toNoteBlocks", () => {
 			{ kind: "paragraph", children: [t("&amp; &lt;b&gt; &#x41;")] }
 		]);
 	});
+	it("shows escaped characters as typed (the editor's export of plain text)", () => {
+		const blocks = toNoteBlocks(
+			"\\[docs\\](x) \\_x\\_ a\\*b\\*c \\`c\\` \\<b> \\&#65; \\&amp; \\~\\~s\\~\\~ \\\\#"
+		);
+		expect(blocks).toHaveLength(1);
+		const block = blocks[0];
+		expect(block.kind).toBe("paragraph");
+		if (block.kind !== "paragraph") return;
+		expect(block.children.every((c) => c.kind === "text")).toBe(true);
+		expect(block.children.map((c) => (c.kind === "text" ? c.text : "")).join("")).toBe(
+			"[docs](x) _x_ a*b*c `c` <b> &#65; &amp; ~~s~~ \\#"
+		);
+	});
 	it("reads a loose list as a plain list", () => {
 		expect(toNoteBlocks("- a\n\n- b")).toEqual([
 			{ kind: "list", ordered: false, start: 1, items: [[t("a")], [t("b")]] }
