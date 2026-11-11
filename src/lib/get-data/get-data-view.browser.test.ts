@@ -842,6 +842,46 @@ describe("now widgets", () => {
 		expect("thresholds" in (await current())).toBe(false);
 	});
 
+	test("Show as Map keeps the chart's places", async () => {
+		const { current } = await show(monitorsDraft(["m1", "m2", "m3"]));
+		await page.getByRole("radio", { name: "Map" }).click();
+		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect
+			.element(page.getByText(m.get_data_extra_places_left_out()))
+			.not.toBeInTheDocument();
+		// The map's pollutants only, in the monitors meta's order.
+		const pollutant = page.getByRole("group", { name: "Pollutant" });
+		await expect.element(pollutant.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		await expect.element(pollutant.getByRole("radio", { name: "Ozone" })).toBeVisible();
+		await expect.element(pollutant.getByRole("radio", { name: "PM10" })).not.toBeInTheDocument();
+		await expect.element(alert()).not.toBeInTheDocument();
+		expect(await current()).toEqual({
+			type: "map",
+			data: {
+				layers: [
+					{
+						dataset: "air-quality",
+						entryType: "pm25",
+						selection: { kind: "monitors", ids: ["m1", "m2", "m3"] }
+					}
+				]
+			}
+		});
+	});
+
+	test("a Map link with 30 places opens cut to 25, and says so", async () => {
+		const ids = Array.from({ length: 30 }, (_, i) => `m${i + 1}`);
+		const { current } = await show(monitorsDraft(ids, { type: "map" }));
+		await expect
+			.element(page.getByText(m.get_data_places_over_cap_left_out({ count: 25, countValue: 25 })))
+			.toBeVisible();
+		expect((await current()).data.layers[0].selection).toEqual({
+			kind: "monitors",
+			ids: ids.slice(0, 25)
+		});
+	});
+
 	test("Outside has the alert level but no pollutant control; the Forecast strip has neither", async () => {
 		const { current } = await show(monitorsDraft(["m1"]));
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();

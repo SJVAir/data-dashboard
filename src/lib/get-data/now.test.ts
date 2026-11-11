@@ -7,6 +7,7 @@ import { currentType } from "$lib/widgets/current";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { dataTableType } from "$lib/widgets/table";
 import { forecastType } from "$lib/widgets/forecast";
+import { mapType } from "$lib/widgets/map";
 import { outsideType } from "$lib/widgets/outside";
 import { FORECASTS_ENTRY, PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
 import type { Draft } from "./draft.svelte";
@@ -350,5 +351,75 @@ describe("calendar conversions", () => {
 		const sel = { start: "2026-11-02", end: "2026-11-03" };
 		expect(selectionFits(sel, MONTH, NOW)).toBe(true);
 		expect(selectionFits(sel, { kind: "trailing", amount: 1, unit: "day" }, NOW)).toBe(false);
+	});
+});
+
+describe("a Map: several places, the map's pollutants", () => {
+	const monitors = (n: number) => Array.from({ length: n }, (_, i) => `m${i + 1}`);
+	const chartOf = (ids: string[]): Draft => ({
+		type: CHART_TYPE,
+		data: {
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			layers: [
+				{
+					dataset: "air-quality",
+					entryType: "pm25",
+					resolution: "day",
+					selection: { kind: "monitors", ids }
+				}
+			]
+		}
+	});
+	const ALLOWED = ["o3", "pm25"];
+
+	it("toNowDraft to Map keeps three monitors as a selection", () => {
+		const out = toNowDraft(chartOf(monitors(3)), mapType, CATALOG, [], chartType, ALLOWED);
+		expect(out.draft).toEqual({
+			type: "map",
+			data: {
+				layers: [
+					{
+						dataset: "air-quality",
+						entryType: "pm25",
+						selection: { kind: "monitors", ids: ["m1", "m2", "m3"] }
+					}
+				]
+			}
+		});
+		expect(out.dropped).not.toContain("places");
+	});
+
+	it("toNowDraft to Map cuts at 25 with a places note", () => {
+		const out = toNowDraft(chartOf(monitors(30)), mapType, CATALOG, [], chartType, ALLOWED);
+		expect(out.draft.data.layers[0].selection).toEqual({ kind: "monitors", ids: monitors(25) });
+		expect(out.dropped).toContain("places");
+	});
+
+	it("toNowDraft to Current conditions still keeps one", () => {
+		const out = toNowDraft(chartOf(monitors(3)), currentType, CATALOG, [], chartType);
+		expect(out.draft.data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+		]);
+		expect(out.dropped).toContain("places");
+	});
+
+	it('nowPollutant for Map with allowed ["o3","pm25"] turns co into the first allowed', () => {
+		const co: Draft = {
+			type: CHART_TYPE,
+			data: { layers: [{ dataset: "air-quality", entryType: "co", place: CLOVIS }] }
+		};
+		expect(nowPollutant(co, mapType, CATALOG, ALLOWED)).toBe("o3");
+		expect(nowPollutant(chartOf(["m1"]), mapType, CATALOG, ALLOWED)).toBe("pm25");
+		expect(nowPollutant(chartOf(["m1"]), mapType, CATALOG, ["o3"])).toBe("o3");
+		const out = toNowDraft(co, mapType, CATALOG, [], chartType, ALLOWED);
+		expect(out.draft.data.layers[0].entryType).toBe("o3");
+		expect(out.dropped).toContain("pollutant");
+		expect(out.pollutant).toEqual({ from: { dataset: "air-quality", entryType: "co" }, to: "o3" });
+	});
+
+	it("isNowShaped accepts a Map selection of 3", () => {
+		const map = toNowDraft(chartOf(monitors(3)), mapType, CATALOG, [], chartType, ALLOWED).draft;
+		expect(isNowShaped(map, mapType)).toBe(true);
+		expect(isNowShaped({ ...map, type: "current-conditions" }, currentType)).toBe(false);
 	});
 });

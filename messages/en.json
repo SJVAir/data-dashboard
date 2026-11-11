@@ -1061,6 +1061,17 @@
 	"get_data_dates_left_out": "Dates don't apply to this widget, so they were left out.",
 	"get_data_overlays_left_out": "Other data layers don't apply to this widget, so they were left out.",
 	"get_data_extra_places_left_out": "This widget shows one place, so the others were left out.",
+	"get_data_places_over_cap_left_out": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} place, so the others were left out.",
+				"countPlural=other": "This widget shows up to {count} places, so the others were left out."
+			}
+		}
+	],
+	"get_data_map_pollutant_instead": "The map shows {pollutants} only, so it uses {pollutant} instead of {previous}.",
 	"get_data_level_left_out": "This widget can't show a level, so the one you chose was left out.",
 	"get_data_alert_level_from_low_line": "The chart's line was at {level}, so the alert level starts there. At that level you'd be told even when the air is fine for most people. You can change it under Alert level.",
 	"get_data_pollutant_instead": "This widget shows only {pollutant}, so it uses that instead of {previous}.",

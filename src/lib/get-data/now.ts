@@ -1,7 +1,8 @@
 /**
  * Get data for the "now" widget types (Current conditions, the Forecast strip, "Can we go
- * outside?"): converting a draft to and from their shape, one layer whose `place` holds the one
- * picked place (no dates, no overlays), and the pollutants and alert level they offer.
+ * outside?", the Map): converting a draft to and from their shape, one layer holding up to the
+ * type's `maxPlaces` picks (one for all but the Map; no dates, no overlays), and the pollutants
+ * and alert level they offer.
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
@@ -10,7 +11,7 @@ import type { DateRangeSpec, Layer, TimeSubRange } from "$lib/data/schema";
 import { fitsRange } from "$lib/calendars/selection";
 import { isCalendarType } from "$lib/calendars/types";
 import { resolveRange } from "$lib/format/range";
-import { fromLayer } from "$lib/places/selection";
+import { fromLayer, toLayerPlaces } from "$lib/places/selection";
 import { defaultThresholdLevel } from "$lib/thresholds/levels";
 import type { Threshold } from "$lib/thresholds/schema";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
@@ -37,6 +38,21 @@ export function nowPollutants(catalog: CatalogEntry[]): EntryTypeMeta[] {
 	);
 }
 
+/** How many places `type` holds: its `maxPlaces`, else one. */
+function placeCap(type: WidgetType): number {
+	return type.accepts?.maxPlaces ?? 1;
+}
+
+/**
+ * The pollutants a now type offers: `nowPollutants`, or with `allowed` only those it names, in
+ * `allowed`'s order.
+ */
+export function offeredPollutants(catalog: CatalogEntry[], allowed?: string[]): EntryTypeMeta[] {
+	const all = nowPollutants(catalog);
+	if (!allowed) return all;
+	return allowed.flatMap((id) => all.filter((e) => e.id === id));
+}
+
 /** The layer holding the draft's places: its main layer, or a Forecast strip's one layer. */
 function sourceLayer(draft: Draft, catalog: CatalogEntry[] | undefined): Layer | undefined {
 	return mainLayer(draft.data, catalog) ?? draft.data.layers[0];
@@ -45,15 +61,18 @@ function sourceLayer(draft: Draft, catalog: CatalogEntry[] | undefined): Layer |
 /**
  * The pollutant `draft` has once it's `type`: none for the Forecast strip, PM2.5 for "Can we go
  * outside?", else the main layer's when it's an offered pollutant, or the first offered one.
+ * With `allowed` (the Map's: the monitors meta's `available_pollutants`), only those are offered,
+ * in `allowed`'s order.
  */
 export function nowPollutant(
 	draft: Draft,
 	type: WidgetType,
-	catalog: CatalogEntry[]
+	catalog: CatalogEntry[],
+	allowed?: string[]
 ): string | undefined {
 	if (type.type === FORECAST_TYPE) return undefined;
 	if (type.type === OUTSIDE_TYPE) return OUTSIDE_POLLUTANT;
-	const offered = nowPollutants(catalog);
+	const offered = offeredPollutants(catalog, allowed);
 	const main = mainLayer(draft.data, catalog);
 	if (main?.dataset === AIR_QUALITY && offered.some((e) => e.id === main.entryType)) {
 		return main.entryType;
@@ -99,8 +118,8 @@ export type NowConversion = {
 };
 
 /**
- * `draft` (a `fromType` draft) as `type` (a now type): the main layer's first place and its
- * pollutant (`nowPollutant`) on one layer, with no dates, overlays or options. A threshold type
+ * `draft` (a `fromType` draft) as `type` (a now type): the main layer's first `maxPlaces` places
+ * (one, but for the Map) and its pollutant (`nowPollutant`, with `allowed`) on one layer, with no dates, overlays or options. A threshold type
  * keeps the alert level `keptThreshold` gives with `levels` (the new pollutant's scale); a draft
  * from a type without thresholds (a range type, the Forecast strip) gets the default, and one
  * from a threshold type keeps Off. With `levels` unavailable the alert level is kept as it is.
@@ -111,22 +130,24 @@ export function toNowDraft(
 	type: WidgetType,
 	catalog: CatalogEntry[],
 	levels: Level[] | "unavailable",
-	fromType?: WidgetType
+	fromType?: WidgetType,
+	allowed?: string[]
 ): NowConversion {
 	const from = sourceLayer(draft, catalog);
 	const picks = from ? fromLayer(from) : [];
+	const cap = placeCap(type);
 	// A starter's `default-place` reads as no picks, but it's kept as the one place.
-	const place = from?.place ?? picks[0];
-	const entryType = nowPollutant(draft, type, catalog);
+	const places = from?.place ? { place: from.place } : toLayerPlaces(picks.slice(0, cap));
+	const entryType = nowPollutant(draft, type, catalog, allowed);
 	const layer: Layer = {
 		dataset: entryType === undefined ? FORECASTS : AIR_QUALITY,
 		...(entryType === undefined ? {} : { entryType }),
-		...(place ? { place } : {})
+		...places
 	};
 	const dropped: NowDropped[] = [];
 	if (draft.data.dateRange || draft.data.timeSubRange) dropped.push("dates");
 	if (draft.data.layers.some((l) => l !== from)) dropped.push("overlays");
-	if (picks.length > 1) dropped.push("places");
+	if (picks.length > cap) dropped.push("places");
 	const changed =
 		entryType !== undefined && from?.entryType !== undefined && from.entryType !== entryType;
 	if (changed) dropped.push("pollutant");
@@ -189,15 +210,15 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 }
 
 /**
- * Whether `draft` already has `type`'s now shape (one layer of its dataset, at most one place,
- * no dates), so opening it as `type` converts nothing. The alert level isn't part of the shape:
+ * Whether `draft` already has `type`'s now shape (one layer of its dataset, at most `maxPlaces`
+ * places, no dates), so opening it as `type` converts nothing. The alert level isn't part of the shape:
  * none is Off.
  */
 export function isNowShaped(draft: Draft, type: WidgetType): boolean {
 	const { data } = draft;
 	if (data.dateRange || data.timeSubRange || data.layers.length !== 1) return false;
 	const layer = data.layers[0];
-	if (fromLayer(layer).length > 1) return false;
+	if (fromLayer(layer).length > placeCap(type)) return false;
 	return type.type === FORECAST_TYPE
 		? layer.dataset === FORECASTS && !layer.entryType
 		: layer.dataset === AIR_QUALITY && !!layer.entryType;
