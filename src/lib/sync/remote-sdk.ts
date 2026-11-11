@@ -1,7 +1,8 @@
 /**
- * `RemoteDocuments` over `@sjvair/sdk/documents`. The SDK's wire names (snake_case) stay in
- * this file; refusals become `RemoteRefusal`, and anything else that goes wrong (no network, an
- * abort, a response the SDK can't use) becomes `RemoteUnavailable`.
+ * `RemoteDocuments` over the documents client (`$lib/api/documents`, built on `@sjvair/sdk/http`).
+ * The client's wire names (snake_case) stay in this file; refusals become `RemoteRefusal`, and
+ * anything else that goes wrong (no network, an abort, a response the client can't use) becomes
+ * `RemoteUnavailable`.
  */
 import {
 	createShareLink,
@@ -27,7 +28,7 @@ import {
 	type RefusalCode,
 	type SavedDocument,
 	type SharedDocument
-} from "@sjvair/sdk/documents";
+} from "$lib/api/documents";
 import type { RequestOptions } from "@sjvair/sdk/http";
 import { report } from "$lib/safety/report";
 import {
@@ -88,7 +89,7 @@ function toChanges(changes: ChangeEntry[] | null): RemoteChange[] | null {
 	);
 }
 
-/** The error a failed call throws, reporting a response the SDK couldn't use. */
+/** The error a failed call throws, reporting a response the client couldn't use. */
 function toRemoteError(error: unknown, operation: string): Error {
 	if (error instanceof DocumentRefusal) {
 		const code = error.code as RefusalCode;
@@ -110,7 +111,7 @@ function toRemoteError(error: unknown, operation: string): Error {
 }
 
 /**
- * Reports a response that didn't match the SDK's schema. The SDK's error is not sent: its
+ * Reports a response that didn't match the client's schema. The client's error is not sent: its
  * cause can hold the response, and a document's name or body must never reach a report.
  */
 function unusable(operation: string): RemoteUnavailable {
@@ -234,7 +235,7 @@ export function createSdkRemote(
 
 		sharedChanges: (token, since) =>
 			call("documents.sharedChanges", async () => {
-				// The SDK answers `{ version }` or the whole shared document, with no wrapper.
+				// The client answers `{ version }` or the whole shared document, with no wrapper.
 				const answer = await getSharedDocumentChanges(token, since, options);
 				if (!("body" in answer)) return { version: answer.version };
 				return { version: answer.version, document: toShared(answer) };

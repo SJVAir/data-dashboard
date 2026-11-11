@@ -1,11 +1,11 @@
 /**
  * The dashboard's view of the server's saved documents (sjvair.com `documents/`), in camelCase.
- * `createSdkRemote` (remote-sdk.ts) talks to the server through `@sjvair/sdk/documents`;
+ * `createSdkRemote` (remote-sdk.ts) talks to the server through `$lib/api/documents`;
  * `createFakeRemote` (remote-fake.ts) behaves like it in memory, for tests.
  *
  * Imports nothing from `$lib` at runtime, so Playwright can load the fake.
  */
-import type { RefusalCode } from "@sjvair/sdk/documents";
+import type { RefusalCode } from "$lib/api/documents";
 
 export type { RefusalCode };
 
@@ -102,7 +102,7 @@ export type StaleBase = {
 	document: RemoteDocument;
 };
 
-/** A refusal (`code` from the SDK's `RefusalCode`); `staleBase` set for `stale_base`. */
+/** A refusal (`code` is the documents client's `RefusalCode`); `staleBase` set for `stale_base`. */
 export class RemoteRefusal extends Error {
 	code: RefusalCode;
 	status: number;

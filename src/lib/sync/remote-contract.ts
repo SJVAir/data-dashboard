@@ -538,7 +538,8 @@ export function runRemoteContract(
 
 				await remote.deletePermanently(id);
 
-				expect((await refusal(remote.get(id))).code).toBe("gone");
+				const gone = await refusal(remote.get(id));
+				expect([gone.code, gone.status]).toEqual(["gone", 410]);
 				expect((await remote.list(cursor)).purged).toContain(id);
 			});
 

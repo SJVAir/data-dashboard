@@ -95,7 +95,10 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 - **The SDK builds zod schemas outside the `jitless` wrapper.** _Deferred 2026-10-26 (Foundations
   spec 5a, final fix-wave review)._ The dashboard imports zod only through `$lib/zod`, which sets
   `z.config({ jitless: true })` so zod's eval probe never trips the CSP. `@sjvair/sdk` imports zod
-  itself and builds `z.object` schemas when its modules load. Today that's harmless: production
+  itself and builds `z.object` schemas when its modules load (in 5.0.0-beta.8: the root
+  `schema.ts` and the schema modules of `account`, `calenviroscreen`, `calheatscore`,
+  `collocation_sites`, `forecasts`, `hms`, `meta`, `monitors`, `pesticides` and `regions`; the
+  documents schemas, once among them, moved into `src/lib/api/documents/` on 2026-11-11 and build under `$lib/zod`). Today that's harmless: production
   reaches those modules only through the dev-only `/dev/data` route, after `$lib/zod` has run. If a
   production route ever loads the SDK root before `$lib/zod`, every page load raises a `script-src`
   eval violation (the E2E CSP fixture catches it only on the routes it exercises). **Revisit when**
@@ -273,26 +276,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     the shared-page report. This was part of the removed "Pre-filling sjvair.com's contact form"
     entry. It needs a small server change to accept a Feedback topic. **Revisit with** the next
     sjvair.com contact-form change.
-  - **Moving the documents SDK code out of the public `@sjvair/sdk` before go-live.** _Decided
-    2026-11-02 (the user, in the sdk-js session)._ `@sjvair/sdk/documents` wraps the private
-    `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public
-    air data. It moves to an internal package built on the public SDK's exports (`httpRequest`,
-    `setOrigin`, request defaults), or into this repo while the dashboard stays the only caller;
-    where it goes: **decided 2026-11-11 (the user): into this repo** (option 1 of three; this
-    replaces the 2026-11-04 plan for a new `internal-sdk-js` repo). Why: `data-dashboard`,
-    `sdk-js` and `sjvair.com` are all public and the client ships in the dashboard's JavaScript,
-    so a private package would hide nothing and would need read tokens in CI, local dev and
-    sjvair.com's Heroku build; the module imports only the public `@sjvair/sdk/http` and zod,
-    and the dashboard is its only caller (checked 2026-11-11: mobile, map-sdk and monitor-map
-    don't import it). Two halves: sdk-js removes it from `release/5.0.0`
-    (`prompt-sdk-remove-documents.txt`), and this repo takes the code in and switches its
-    imports (`prompt-documents-move.txt`). Until then the dashboard keeps using `@sjvair/sdk/documents`
-    (4.8.0 and 5.0.0 prereleases; `createSnapshot` is in them; `step-4` pins 4.8.0-beta.6 until step 4 spec 2 pins 5.0.0-beta.2). The move changes the
-    dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
-    (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 5.0.0 final is tagged (the next stable release, renamed from 4.8.0 on 2026-11-04), since
-    removing it after a stable release has to wait for 6.0; sdk-js's own `DEFERRED.md` ("Before
-    4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 5.0.0 final is being
-    planned, whichever comes first. **Blocks go-live.**
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
   sync in Release 1; preferences stay local per device (they're conveniences, and devices

@@ -28,11 +28,76 @@ export default defineConfig(
 	{
 		// `$lib/zod` turns off Zod's eval probe before any schema is built (the CSP has no
 		// 'unsafe-eval'); importing "zod" directly could build a schema first.
+		// The documents client moved out of the public SDK into `$lib/api/documents` (2026-11-11).
 		ignores: ["src/lib/zod.ts"],
 		rules: {
 			"no-restricted-imports": [
 				"error",
-				{ paths: [{ name: "zod", message: 'Import `z` from "$lib/zod" instead.' }] }
+				{
+					paths: [
+						{ name: "zod", message: 'Import `z` from "$lib/zod" instead.' },
+						{
+							name: "@sjvair/sdk/documents",
+							message: 'Import from "$lib/api/documents" instead.'
+						},
+						{
+							// The SDK root re-exports the documents module until sdk-js drops it.
+							name: "@sjvair/sdk",
+							importNames: [
+								"deleteDocument",
+								"getDocument",
+								"getDocumentChanges",
+								"listDocuments",
+								"saveDocument",
+								"createShareLink",
+								"getDocumentCredit",
+								"getSharedDocument",
+								"getSharedDocumentChanges",
+								"revokeShareLink",
+								"createSnapshot",
+								"getSnapshot",
+								"listSnapshots",
+								"getDocumentProfile",
+								"updateDocumentProfile",
+								"DocumentRefusal",
+								"DocumentResponseError",
+								"isDocumentRefusal",
+								"REFUSAL_CODES",
+								"RefusalCode",
+								"staleBaseDataSchema",
+								"DocumentVisibility",
+								"SavedDocument",
+								"DocumentMeta",
+								"DocumentList",
+								"ChangeEntry",
+								"DocumentVersion",
+								"ChangedDocument",
+								"DocumentChanges",
+								"SaveResult",
+								"ShareLink",
+								"SharedDocument",
+								"SharedDocumentChanges",
+								"DocumentCredit",
+								"SnapshotReason",
+								"SnapshotMeta",
+								"Snapshot",
+								"DocumentProfile",
+								"StaleBaseData",
+								"SaveChange",
+								"SaveDocumentForm",
+								"CreateSnapshotForm",
+								"DocumentListParams"
+							],
+							message: 'Import from "$lib/api/documents" instead.'
+						}
+					],
+					patterns: [
+						{
+							group: ["@sjvair/sdk/documents/*"],
+							message: 'Import from "$lib/api/documents" instead.'
+						}
+					]
+				}
 			]
 		}
 	},
