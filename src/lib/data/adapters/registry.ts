@@ -37,6 +37,8 @@ export interface LocationResolver {
 		keys: string[];
 		/** What a place picker row shows: its type (`regions/meta/` `location_types`) and where. */
 		details?: { type: string; city: string; zip: string; address: string };
+		/** Where the place is (never put in a URL, log, or error message). */
+		point?: { lat: number; lon: number };
 		retired?: { since: string; replacedBy: { source: string; code: string } | null };
 	} | null>;
 }

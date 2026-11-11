@@ -122,6 +122,8 @@ export interface MetadataSource {
 	): Promise<{ windowMinutes: number; expectedIntervalMinutes: number | null } | null>;
 	/** The entry type's daily figure (`scale.daily_statistic`); `null` when it has none. */
 	dailyFigure(entryType: string, signal?: AbortSignal): Promise<DailyFigure | null>;
+	/** The monitors meta's `available_pollutants`, in server order; `[]` when it can't be loaded. */
+	mapPollutants(signal?: AbortSignal): Promise<string[]>;
 	monitorType(monitorId: string, signal?: AbortSignal): Promise<string | null>;
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
@@ -360,6 +362,14 @@ export function createWebMetadata(): MetadataSource {
 				windowMinutes,
 				expectedIntervalMinutes: parseMinutes(alerts.expected_interval ?? monitor.expected_interval)
 			};
+		},
+		async mapPollutants(signal) {
+			try {
+				return [...((await meta(signal)).available_pollutants ?? [])];
+			} catch (error) {
+				if (signal?.aborted) throw error;
+				return [];
+			}
 		},
 		async monitorType(monitorId, signal) {
 			return (await list(signal)).find((m) => m.id === monitorId)?.type ?? null;

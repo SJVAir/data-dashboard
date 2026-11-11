@@ -97,6 +97,7 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 						? { windowMinutes: 60, expectedIntervalMinutes: 60 }
 						: null,
 		dailyFigure: async (entryType) => FIXTURE_DAILY_FIGURES[entryType] ?? null,
+		mapPollutants: async () => ["o3", "pm25"],
 		schoolGuidelines: async () => null,
 		scaleSource: async () => null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,
