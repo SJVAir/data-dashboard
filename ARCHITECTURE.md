@@ -1908,6 +1908,16 @@ option the Map widget can use too:
   that is its category level's code (smoke density, burn status, the heat score's 0–4) shows only
   the level label, in rows, tooltips and accessible names (the user chose label only).
 
+**Shared options toolbar (decided by the user 2026-11-11, in the Map widget brainstorm).** map-sdk
+gets a shared, host-controlled options toolbar: plugins declare a group (Pollutant, Monitors,
+Layers, Overlays, Settings) and their options, the host owns the values, and the toolbar sizes
+itself by the map's box. The dashboard's Map widget uses it (step 5 spec 2), and **monitor-map 5.0
+moves onto it** in place of its own options toolbar. That also changes mobile's map: mobile
+renders monitor-map through `monitorMapRoutes` (`@sjvair/monitor-map/routes`), whose
+`MonitorMapLayout` includes the options toolbar, so mobile re-pins and is re-tested after the move.
+map-sdk also adds an actions slot on the pinned card (the widget's Select/Remove). The Map widget's
+spec lists the exact map-sdk changes.
+
 ## Dashboard layout mechanics
 
 Decided 2026-09-23 (IDEA.md Open Question #4).
