@@ -1164,6 +1164,8 @@
 	"map_legend_toggle": "Legend",
 	"map_label": "{title} map",
 	"map_layer_places": "Places",
+	"map_no_monitors_here": "No monitors here report this pollutant right now.",
+	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
 	"current_trend_rising": "Rising",
 	"current_trend_falling": "Falling",
 	"current_trend_steady": "Steady",

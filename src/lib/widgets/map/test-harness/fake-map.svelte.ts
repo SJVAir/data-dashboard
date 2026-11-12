@@ -5,7 +5,7 @@
  */
 export type FakePlugin = {
 	id: string;
-	kind: "focus" | "monitors";
+	kind: string;
 	options: Record<string, unknown>;
 	addOptions?: Record<string, unknown>;
 };
@@ -112,67 +112,3 @@ export function createFakeMap(): FakeMap {
 	fakeMaps.made.push(map);
 	return map;
 }
-
-type Features = { type: "FeatureCollection"; features: unknown[] } | null;
-
-/** A stand-in for a shared monitors store: the test settles `init` and sets the features. */
-export class FakeStore {
-	features = $state.raw<Features>(null);
-	monitors = $state.raw(new Map<string, unknown>());
-	initCalls: string[] = [];
-	pauses = 0;
-	#settle: { resolve: () => void; reject: (e: unknown) => void } | null = null;
-	readonly dataSource;
-
-	constructor(readonly entryType: string) {
-		const features = () => this.features;
-		this.dataSource = {
-			status: { state: "ready" },
-			get features() {
-				return features();
-			},
-			scale: { dataset: "air-quality", entryType }
-		};
-	}
-
-	init(entryType: string): Promise<void> {
-		this.initCalls.push(entryType);
-		return new Promise((resolve, reject) => (this.#settle = { resolve, reject }));
-	}
-	/** Finishes the pending `init` with these monitors (`[id, lon, lat]`). */
-	load(monitors: [string, number, number][]) {
-		this.monitors = new Map(monitors.map(([id]) => [id, { id }]));
-		this.features = {
-			type: "FeatureCollection",
-			features: monitors.map(([id, lon, lat]) => ({
-				type: "Feature",
-				geometry: { type: "Point", coordinates: [lon, lat] },
-				properties: { refKey: `monitor:${id}`, name: id, value: 1 }
-			}))
-		};
-		this.#settle?.resolve();
-	}
-	fail(error: unknown) {
-		this.#settle?.reject(error);
-	}
-	pauseAutoUpdate() {
-		this.pauses++;
-	}
-}
-
-export const fakeStores = {
-	held: new Map<string, FakeStore>(),
-	releases: 0,
-	reset() {
-		this.held = new Map();
-		this.releases = 0;
-	},
-	acquire(entryType: string) {
-		let store = this.held.get(entryType);
-		if (!store) {
-			store = new FakeStore(entryType);
-			this.held.set(entryType, store);
-		}
-		return { store, release: () => this.releases++ };
-	}
-};

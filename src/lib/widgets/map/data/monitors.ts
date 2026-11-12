@@ -88,8 +88,9 @@ export function createMonitorsEntry(
 	};
 }
 
+/** The app's monitors entry; the resolvers are looked up on use, not on import. */
 export const monitorsEntry = createMonitorsEntry({
-	regions: getResolvers().regions,
+	regions: { resolve: (type, code, signal) => getResolvers().regions.resolve(type, code, signal) },
 	placeRegion,
 	now: () => new Date()
 });
