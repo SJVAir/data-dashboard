@@ -26,8 +26,6 @@ const routes = {
 	"/shared/:token": () => import("./routes/SharedPage.svelte"),
 	// A trimmed share link goes home, as other trimmed paths do.
 	"/shared": NotFound,
-	// The hidden dev data page: dev builds only, loaded on demand, never linked.
-	...(import.meta.env.DEV ? { "/dev/data": () => import("./routes/dev/DevData.svelte") } : {}),
 	"*": NotFound
 };
 
@@ -38,3 +36,11 @@ const routes = {
 export const ROUTE_KEYS = Object.keys(routes).filter((key) => key !== "hooks" && key !== "*");
 
 export const { route, navigate, p, isActive } = createRouter(routes, { base: BASE });
+
+/**
+ * The current address's path, with the base (for return-to links). It's a concrete path with no
+ * `:param` left to fill, which `p`'s route-key types don't model.
+ */
+export function currentPathname(): string {
+	return (p as (path: string) => string)(route.pathname);
+}

@@ -21,17 +21,17 @@ import {
 } from "$lib/components/dialogs/lazy.svelte";
 import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { ChosenPlace } from "$lib/data/schema";
-import { barVisible, mainPlaces } from "$lib/places/replace";
+import { placesToReplace } from "$lib/places/replace";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
-import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import type { WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
 import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
-import { addableWidgetTypes, dataTypes, getWidgetType } from "$lib/widgets/registry";
+import { addWidgetEntries, getWidgetType } from "$lib/widgets/registry";
 import { navigate } from "../../router";
 import type { MenuContext, MenuProvider } from "./types";
 
@@ -114,7 +114,7 @@ export function addWidget(app: AppContext, type: string): void {
 	const widgetType = getWidgetType(type);
 	if (!session || !widgetType) return;
 	const widgets = session.doc.body.widgets;
-	const added = widgetType.addable?.() ?? { data: { layers: [] } };
+	const added = widgetType.addable?.(session.doc) ?? { data: { layers: [] } };
 	const widget: WidgetInstance = {
 		id: crypto.randomUUID(),
 		type,
@@ -172,16 +172,6 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 		: await app.index.duplicate(target.session.doc.id);
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
-}
-
-/**
- * The places "Duplicate for another place" could replace: the bar's when it shows (that's what
- * the dashboard is about), else the main place, all of a tie (in reading order); empty when no
- * widget shows a single place.
- */
-export function placesToReplace(doc: Dashboard): ChosenPlace[] {
-	const bar = doc.body.placeBar;
-	return bar && barVisible(doc) ? [bar.place] : mainPlaces(doc);
 }
 
 /**
@@ -364,11 +354,11 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 			session !== null &&
 			!session.readOnly &&
 			(session.hasOriginal || app.sync?.states[session.doc.id]?.onServer === true);
-		// Data types open Get data; the others are added directly.
-		const entries = [
-			...dataTypes().map((t) => ({ type: t, run: () => startGetData(app, t.type) })),
-			...addableWidgetTypes().map((t) => ({ type: t, run: () => addWidget(app, t.type) }))
-		];
+		// Data types open Get data unless they're also addable; the others are added directly.
+		const entries = addWidgetEntries().map(({ type: t, direct }) => ({
+			type: t,
+			run: () => (direct ? addWidget(app, t.type) : startGetData(app, t.type))
+		}));
 		return [
 			{
 				id: "add-widget",

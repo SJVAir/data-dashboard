@@ -122,6 +122,11 @@ export interface MetadataSource {
 	): Promise<{ windowMinutes: number; expectedIntervalMinutes: number | null } | null>;
 	/** The entry type's daily figure (`scale.daily_statistic`); `null` when it has none. */
 	dailyFigure(entryType: string, signal?: AbortSignal): Promise<DailyFigure | null>;
+	/**
+	 * The monitors meta's `available_pollutants`, in server order; `[]` when it lists none, and
+	 * `"unavailable"` when it can't be loaded. Never rejects except for `signal`'s abort.
+	 */
+	mapPollutants(signal?: AbortSignal): Promise<string[] | "unavailable">;
 	monitorType(monitorId: string, signal?: AbortSignal): Promise<string | null>;
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
@@ -361,6 +366,15 @@ export function createWebMetadata(): MetadataSource {
 				expectedIntervalMinutes: parseMinutes(alerts.expected_interval ?? monitor.expected_interval)
 			};
 		},
+		async mapPollutants(signal) {
+			try {
+				return [...((await meta(signal)).available_pollutants ?? [])];
+			} catch (error) {
+				// The memo is cleared on failure, so the next call asks again.
+				if (signal?.aborted) throw error;
+				return "unavailable";
+			}
+		},
 		async monitorType(monitorId, signal) {
 			return (await list(signal)).find((m) => m.id === monitorId)?.type ?? null;
 		},
@@ -381,8 +395,4 @@ export function createWebMetadata(): MetadataSource {
 			}));
 		}
 	};
-}
-
-export function withCatalog(base: MetadataSource, catalog: CatalogEntry[]): MetadataSource {
-	return { ...base, catalog: async () => catalog };
 }

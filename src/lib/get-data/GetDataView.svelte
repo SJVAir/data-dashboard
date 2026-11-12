@@ -25,6 +25,7 @@
 	import { CHART_TYPE } from "$lib/widgets/chart";
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
+	import { MAP_TYPE } from "$lib/widgets/map";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
 	import {
@@ -49,6 +50,7 @@
 		keptThreshold,
 		nowPollutant,
 		nowPollutants,
+		offeredPollutants,
 		selectionFits,
 		switchRange,
 		toNowDraft,
@@ -58,7 +60,7 @@
 	import NowControls from "./NowControls.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
-	import { formatDateRange } from "$lib/format";
+	import { formatDateRange, formatList, formatNumber } from "$lib/format";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { detailChoices } from "./resolution-offer";
@@ -118,6 +120,26 @@
 	});
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
 
+	/**
+	 * The Map's pollutants (the monitors meta's `available_pollutants`), once loaded; `[]` when
+	 * they can't be loaded, the same as a server that lists none.
+	 */
+	let mapPollutants = $state.raw<string[] | undefined>();
+	const loadMapPollutants = async () => {
+		const p = await getMetadata().mapPollutants();
+		return p === "unavailable" ? [] : p;
+	};
+	$effect(() => {
+		if (plain.type !== MAP_TYPE || mapPollutants) return;
+		let active = true;
+		void loadMapPollutants().then((p) => {
+			if (active) mapPollutants = p;
+		});
+		return () => {
+			active = false;
+		};
+	});
+
 	const type = $derived(getWidgetType(plain.type));
 	/** A "now" type: no dates, one layer with one place (see `now.ts`). */
 	const isNow = $derived(type?.time === "now");
@@ -174,13 +196,12 @@
 	});
 
 	// The same queries the preview runs (the query client shares them): every place's name for
-	// Where, the overlays' series for "Overlay for", and when the data has settled. A now tile
-	// sets its own generated title, so for those this runs under another id (two writers of one
-	// title would undo each other forever), and a Forecast strip's place is named through a PM2.5
-	// layer, as its picker offers places.
+	// Where, the overlays' series for "Overlay for", and when the data has settled. The preview
+	// sets its own generated title, so this always runs under another id (two writers of one title,
+	// with different caps, would undo each other forever), and a Forecast strip's place is named
+	// through a PM2.5 layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
-		if (!isNow) return previewWidget;
-		const layers = plain.data.layers.map(placesQueryLayer);
+		const layers = isNow ? plain.data.layers.map(placesQueryLayer) : plain.data.layers;
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
 	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
@@ -318,15 +339,27 @@
 		const out: string[] = [];
 		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
 		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
-		if (what.includes("places")) out.push(m.get_data_extra_places_left_out());
+		const cap = getWidgetType(plain.type)?.accepts?.maxPlaces ?? 1;
+		if (what.includes("places")) {
+			out.push(
+				cap > 1
+					? m.get_data_places_over_cap_left_out({ count: formatNumber(cap), countValue: cap })
+					: m.get_data_extra_places_left_out()
+			);
+		}
 		if (pollutant) {
 			const label = (dataset: string, entryType: string) =>
 				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
+			const previous = label(pollutant.from.dataset, pollutant.from.entryType);
+			const to = label("air-quality", pollutant.to);
 			out.push(
-				m.get_data_pollutant_instead({
-					pollutant: label("air-quality", pollutant.to),
-					previous: label(pollutant.from.dataset, pollutant.from.entryType)
-				})
+				plain.type === MAP_TYPE && mapPollutants?.length
+					? m.get_data_map_pollutant_instead({
+							pollutants: formatList(mapPollutants.map((e) => label("air-quality", e))),
+							pollutant: to,
+							previous
+						})
+					: m.get_data_pollutant_instead({ pollutant: to, previous })
 			);
 		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
@@ -382,14 +415,20 @@
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
 	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
 		const id = ++changeId;
-		const pollutant = nowPollutant($state.snapshot(draft) as Draft, next, catalog);
+		// The Map offers only the monitor map's pollutants (memoized, so loaded once).
+		const allowed = next.type === MAP_TYPE ? await loadMapPollutants() : undefined;
+		if (id !== changeId) return;
+		if (allowed) mapPollutants = allowed;
+		const pollutant = nowPollutant($state.snapshot(draft) as Draft, next, catalog, allowed);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
 		// An edit made while the scale loaded counts: convert the draft as it is now (again, when
 		// that edit changed the pollutant).
 		const fresh = $state.snapshot(draft) as Draft;
-		if (nowPollutant(fresh, next, catalog) !== pollutant) return convertToNow(next, catalog);
-		const converted = toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
+		if (nowPollutant(fresh, next, catalog, allowed) !== pollutant) {
+			return convertToNow(next, catalog);
+		}
+		const converted = toNowDraft(fresh, next, catalog, levels, sourceType(fresh), allowed);
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
 		replaceDraft(converted.draft);
@@ -600,13 +639,17 @@
 			{#if isNow}
 				{#if !known}
 					{@render catalogState()}
-				{:else if plain.type === CURRENT_TYPE || type?.thresholds}
+				{:else if plain.type === CURRENT_TYPE || plain.type === MAP_TYPE || type?.thresholds}
 					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
 						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
 							{m.get_data_what()}
 						</h2>
 						<NowControls
-							pollutants={plain.type === CURRENT_TYPE ? nowPollutants(known) : null}
+							pollutants={plain.type === CURRENT_TYPE
+								? nowPollutants(known)
+								: plain.type === MAP_TYPE
+									? offeredPollutants(known, mapPollutants ?? [])
+									: null}
 							entryType={main?.entryType}
 							levels={type?.thresholds ? shownLevels : null}
 							thresholds={plain.thresholds}

@@ -133,3 +133,13 @@ export function barChange(
 	if (!bar) return null;
 	return replaceChange(doc, replacePlace(doc, bar.place, to, opts));
 }
+
+/**
+ * The places "Duplicate for another place" could replace: the bar's when it shows (that's what
+ * the dashboard is about), else the main place, all of a tie (in reading order); empty when no
+ * widget shows a single place.
+ */
+export function placesToReplace(doc: Dashboard): ChosenPlace[] {
+	const bar = doc.body.placeBar;
+	return bar && barVisible(doc) ? [bar.place] : mainPlaces(doc);
+}

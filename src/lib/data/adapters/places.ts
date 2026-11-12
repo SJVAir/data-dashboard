@@ -45,7 +45,8 @@ function resolvedLocation(location: Location): NonNullable<Resolved> {
 			city: location.city_name,
 			zip: location.zip,
 			address: location.address
-		}
+		},
+		point: { lat: location.point.lat, lon: location.point.lng }
 	};
 	if (location.retired) {
 		const by = location.retired.replaced_by;

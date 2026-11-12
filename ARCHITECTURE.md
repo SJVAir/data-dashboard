@@ -1148,6 +1148,24 @@ for last-requested-wins), no single place to set headers (`X-CSRFToken`, a futur
 - **Nothing breaks:** every addition is optional (monitor-map, mobile, and existing code
   are unaffected).
 
+## The dashboard's own API code
+
+Decided 2026-11-11 (the user). **`src/lib/api/` holds calls to sjvair.com endpoints that only
+the dashboard uses**, one folder per server area; the first is `src/lib/api/documents/` (saved
+documents, change logs, share links, snapshots, the display name). It's built on
+`@sjvair/sdk/http`, so the origin and request defaults that `configureSdk`
+(`src/lib/sdk-setup.ts`) sets, and the http module's built-in CSRF header, apply to it as to the
+rest of the SDK.
+
+- **Public data stays in `@sjvair/sdk`** (monitors, HMS, regions and the rest), as do site-wide
+  account features (sign-in, profile, subscriptions, alerts). `src/lib/api/` never duplicates
+  something the SDK has; when the dashboard needs public data the SDK lacks, the SDK gets it.
+- **An endpoint moves into the SDK once a second app needs it.**
+- This is the dashboard's side of sdk-js's matching rule in its `CLAUDE.md` (the user,
+  2026-11-11): the public SDK covers public data plus site-wide account features, and an endpoint
+  backing only one app's own feature lives in that app, built on `@sjvair/sdk/http`.
+- ESLint rejects imports of `@sjvair/sdk/documents` (the module left the public SDK).
+
 ## Data resolution & live refresh
 
 Decided 2026-09-24. Implemented once in the data layer (in-memory cache plus HTTP
@@ -1697,6 +1715,27 @@ Build order: A and B first (both share one selection state); C
 later. Drawing tools belong in `@sjvair/map-sdk` as an **opt-in plugin, off by
 default**, so sjvair.com's map and the mobile app are unaffected (see Open Question #3).
 
+**A map's places are its places layer (step 5 spec 1, built 2026-11-11; Option A, the user,
+2026-11-11).** The Map widget has one layer, `{ dataset: "air-quality", entryType, place |
+selection }`, read through `placesLayer` like every other type. There's no separate focus field
+and no saved camera: what the map frames is always what the picker saved. Every monitor for the
+pollutant is drawn; the places only decide what's highlighted and where the camera goes.
+
+- A **region** is outlined and highlighted, and the map fits its bounds. A **monitor** is
+  highlighted and centered (zoom 12 at least). A **school or child-care site** gets a labeled
+  pin (zoom 13). Several monitors or regions are all highlighted and fitted.
+- An **exact point** frames **its region** (the one its data uses), outlined, with a pin inside
+  reading "Your location" for the owner or "Shared location" for a viewer. The tiles asked for
+  are the region's, so MapTiler never learns the point unless the person zooms in on it. When
+  the region can't be found, the map opens on the Valley's view, not the point.
+- The picker reads and writes the layer through `applyChange` (undoable). A picker change, undo,
+  "Change place" or another tab re-targets the map. "Change place" moves a one-place map and
+  leaves a several-place map alone, as for every widget.
+- **Clicks don't select in spec 1.** Hover shows map-sdk's tooltip, and the feature list reaches
+  every monitor by keyboard. A tap on a phone shows no reading yet: that waits on map-sdk's
+  pinned card for a click or tap, its own map-sdk release, which spec 1 needs before it merges.
+  Feature picking (method A: the card's Select/Remove and Shift-click) comes in spec 2.
+
 ## Map SDK: `@sjvair/map-sdk` + monitor-map rebuilt on it
 
 Decided 2026-09-23 (IDEA.md Open Question #3), **restructured 2026-09-24**. IDEA.md calls
@@ -1918,6 +1957,52 @@ renders monitor-map through `monitorMapRoutes` (`@sjvair/monitor-map/routes`), w
 map-sdk also adds an actions slot on the pinned card (the widget's Select/Remove). The Map widget's
 spec lists the exact map-sdk changes.
 
+**The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
+(code in `src/lib/widgets/map/`, the host pieces in `host/`):
+
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.9` (never a range or a dist-tag). The
+  dashboard also depends on `@maptiler/sdk` `~4.2.0` directly, for `Marker` (the pin's label),
+  and keeps it in step with map-sdk's own `@maptiler/sdk`.
+- **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection
+  (no globe), `cooperativeGestures: true` (Ctrl/⌘-scroll or two fingers zoom, so scrolling the
+  page never zooms a map; also in fullscreen) and `telemetry: false`. MapTiler's usage report is
+  off, because the dashboard allows no analytics; its session id and tile cache stay on (the
+  user, 2026-11-11). With no `VITE_MAPTILER_KEY` the widget shows "Map unavailable". The key is
+  never logged.
+- **One monitors store per entry type, shared by every map on the page** (`host/stores.ts`).
+  It's map-sdk's `createMonitorsStore()` (live readings, polled), created on the first map that
+  needs it and disposed after the last one lets go. It pauses while the page is hidden, through
+  the platform's `activity`, which the map takes from the app (`useApp()`).
+- **Providers:** `messages` maps every `mapsdk_*` key to a Paraglide message through an explicit
+  table (a test fails when map-sdk adds a key the table lacks); `format` wraps the dashboard's
+  `format` module (Pacific, " PT" off-Pacific), except relative time, which stays map-sdk's
+  (see `DEFERRED.md`); `metadata` is one `createDefaultMetadata()` shared by every map.
+- **map-sdk's `theme.css` isn't imported.** It's Tailwind source, which only `app.css` compiles,
+  and `app.css` already defines every token it adds. `app.css` has map-sdk's `@source`.
+- **On screen only.** `MapView active` is true only while the widget is on screen (an
+  IntersectionObserver with a 200 px margin) and the page is visible. Off screen or hidden for
+  about 5 seconds, the map detaches and frees its WebGL context; coming back rebuilds it and
+  refits. Unmounting destroys it. A map that fails to start shows the widget's error state with
+  "Try again".
+- **The camera is never saved.** The map fits its places when it opens, when they change, and
+  on entering or leaving fullscreen, after the frame's animations settle. A pan or zoom lasts
+  only for the moment (it survives a theme switch's style reload). A map holding an exact point
+  frames the point's region, never the point (see "Widget data selection").
+- **Layers:** the monitors (`selectedStyle: "ring"`, selection mode `"none"`), region outlines
+  in one plain `shapesPlugin` below them (geometry from `getRegionsGeoJSON`, kept in a page-wide
+  in-memory cache in `src/lib/widgets/map/regions.ts`: each region is fetched once, with one
+  request per region type), and a pin for a school or point. The pin has a visible
+  text label beside it, drawn with `Marker` and hidden from screen readers; its accessible name
+  comes from the feature list. `featureList={{ reveal: "focus" }}` is the keyboard path, and the
+  legend sits in the widget's card (a button on narrow maps).
+- **CSP:** `connect-src` and `img-src` both include `https://api.maptiler.com` (styles, tiles,
+  glyphs, sprites, and the logo; the user, 2026-11-11). sjvair.com holds the real list, so it
+  gets the same host (sjvair.com #330, on `develop`). `cdn.maptiler.com`, MapTiler's default
+  right-to-left text plugin, is blocked on purpose (see `DEFERRED.md` → "Right-to-left map
+  labels"); `check:build` allowlists it as a library default.
+- **"Clear my data" also deletes MapTiler's tile cache** (Cache Storage `maptiler_sdk`), in the
+  web platform adapter's reset (the user, 2026-11-11).
+
 ## Dashboard layout mechanics
 
 Decided 2026-09-23 (IDEA.md Open Question #4).
@@ -2051,6 +2136,38 @@ a date range outside their span.
 - **The display-only threshold** (`thresholds: true`, off by default) marks and counts rated days
   at or above a level; no alerts or notifications.
 
+**The Map as built (step 5 spec 1, 2026-11-11).** Spec:
+`docs/superpowers/specs/2026-11-11-step-5-spec-1-map-widget-design.md`. Code:
+`src/lib/widgets/map/`. The descriptor (`index.ts`) is in the initial bundle and imports only an
+icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
+
+- **The descriptor:** `type: "map"`, label "Map", `time: "now"` (spec 3 adds a date range and
+  may redefine this), `accepts: { datasets: ["air-quality"], maxPollutantLayers: 1, maxPlaces:
+25, onlyPollutant: true }`, `thresholds`, `analyzable` and `downloadable` all `false`,
+  `menu: () => []`. "Change place" and "Edit data" come from the generic items. Sizes: 6 × 6 by
+  default, 3 × 4 at minimum.
+- **The pollutants come from metadata:** the map accepts only the monitors meta's
+  `available_pollutants` (today PM2.5 and ozone), because that's what map-sdk's monitors store
+  draws. Get data greys out the rest with a reason. A draft on another pollutant that becomes a
+  Map switches to the first allowed one, with a note.
+- **25 places at most.** A chart's data can become a map in Get data's Show as, keeping all its
+  places (up to 25, with the "left out" note beyond). Leaving a Map for a one-place "now" type
+  keeps the first place, with the same note. While a selection is over Chart's or Table's cap,
+  Show as greys them out, as before (choosing which places to keep comes in step 5 spec 5).
+- **`addable(doc)`.** `addable` now gets the dashboard it's added to. The Map's gives one PM2.5
+  layer whose place is the bar's place when the bar shows, else the dashboard's most common
+  single place, else Fresno County (`placesToReplace(doc)[0]`, then `DEFAULT_LAYER`). Notes
+  ignores the argument.
+- **Add widget lists each type once.** A type with `addable` is added directly even if it is
+  also a data type, so the Map appears once, as a direct add, and isn't in Add widget's Get
+  data list (`addWidgetEntries()` in `registry.ts`).
+- **Title:** generated, never saved. One place reads "PM2.5 · {place}" (`label_join`, with the
+  viewer, so "(your location)" and "(shared location)" read right); several read "PM2.5 · {n}
+  places" (`label_join` and `get_data_places_count`).
+
+How the widget hosts map-sdk is in "Map SDK" → "The dashboard's Map widget"; what its places are
+is in "Widget data selection".
+
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
 **Widgets are independent in Release 1** (decided 2026-09-28). Each widget has its own data,
@@ -2074,7 +2191,7 @@ type WidgetType = {
 		maxPlaces?: number;
 		onlyPollutant?: boolean; // only a pollutant (a layer with a daily scale) can be added
 	}; // explicit
-	addable?: () => WidgetDataConfig; // non-data types only: a direct add from "Add widget"
+	addable?: (doc: Dashboard) => { data: WidgetDataConfig; options?: Record<string, unknown> }; // a direct add from "Add widget"
 	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
@@ -2099,7 +2216,8 @@ the dataset accordions, plus a **separate pollutant control** for Current condit
 **single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
 `target` field was removed so every widget type stores places the same way). Current
 conditions and "Can we go outside?" have one pollutant layer (heat for "Can we go
-outside?" follows from the same place); the Forecast strip has one forecasts layer. **Map** and **Chart** are `time: "range"` and accept multiple layers.
+outside?" follows from the same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "now"` in step 5
+spec 1, with one pollutant layer holding up to 25 places (spec 3 adds a date range).
 
 **`accepts.datasets` is explicit** (decided 2026-11-05, step 4 spec 3). It lists the catalog
 dataset ids a type can show; a type with no list accepts no datasets, so a new type can't
@@ -2107,8 +2225,10 @@ accidentally offer everything. Chart and Data table declare
 `["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"]` (spec 3b);
 Notes declares none. The types with a list are the **data types**: "Add widget" opens Get data
 for them, and Get data's **What** sections and **Show as** choices come from their lists (see
-"Get data"). **`addable`** is only for non-data types (Notes, later the Map), which "Add widget"
-adds directly with the data it returns; Chart and Data table dropped it in spec 3.
+"Get data"). **`addable`** is a direct add: "Add widget" adds the type with the data it returns,
+given the open dashboard (`addable(doc)`, step 5 spec 1). Notes has it, and so does the Map,
+which is also a data type: a type with `addable` is added directly and listed once, not also
+through Get data. Chart and Data table dropped it in spec 3.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
 for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date
@@ -2591,9 +2711,9 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.3` (exact; step 4 spec 2). The documents code lives in
-    `@sjvair/sdk/documents` for now; it moves out of the public SDK before go-live (see
-    `DEFERRED.md`).
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.8` (exact). The documents client lives
+    in this repo, in `src/lib/api/documents/` (copied 2026-11-11 from sdk-js 819d152, the code in
+    `@sjvair/sdk` 5.0.0-beta.8, when it left the public SDK; see "The dashboard's own API code").
 
 **Live share links (built in sync spec 3, 2026-11-02).** The builder's calls, in the plan
 `docs/superpowers/plans/2026-11-02-sync-3-share-links.md`:

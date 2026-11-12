@@ -76,7 +76,8 @@ describe("createWebLocationResolver", () => {
 		expect(await createWebLocationResolver().resolve("cde-public", "1")).toEqual({
 			name: "School 1",
 			keys: ["zipcode:93702", "city:0627000", "county:06019"],
-			details: { type: "public_school", city: "", zip: "", address: "" }
+			details: { type: "public_school", city: "", zip: "", address: "" },
+			point: { lat: 0, lon: 0 }
 		});
 		expect(getLocationsByCode).toHaveBeenCalledExactlyOnceWith("cde-public", ["1"]);
 	});
@@ -85,8 +86,17 @@ describe("createWebLocationResolver", () => {
 		expect(await createWebLocationResolver().resolve("cde-public", "2")).toEqual({
 			name: "School 2",
 			keys: ["county:06019"],
-			details: { type: "public_school", city: "", zip: "", address: "" }
+			details: { type: "public_school", city: "", zip: "", address: "" },
+			point: { lat: 0, lon: 0 }
 		});
+	});
+
+	it("resolvedLocation carries the point", async () => {
+		vi.mocked(getLocationsByCode).mockResolvedValueOnce([
+			{ ...SCHOOLS["1"], point: { lat: 36.7, lng: -119.8 } }
+		] as never);
+		const found = await createWebLocationResolver().resolve("cde-public", "1");
+		expect(found?.point).toEqual({ lat: 36.7, lon: -119.8 });
 	});
 
 	it("matches a code that is one of the location's aliases", async () => {
@@ -100,6 +110,7 @@ describe("createWebLocationResolver", () => {
 			name: "School 3",
 			keys: ["zipcode:93721", "county:06019"],
 			details: { type: "public_school", city: "", zip: "", address: "" },
+			point: { lat: 0, lon: 0 },
 			retired: { since: "2026-06-30", replacedBy: { source: "cde-public", code: "1" } }
 		});
 	});

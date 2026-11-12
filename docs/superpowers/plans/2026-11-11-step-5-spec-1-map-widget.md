@@ -37,7 +37,7 @@ map's pollutants are the monitors meta's `available_pollutants`.
 - `@sjvair/sdk` pin unchanged: `npm:@jsr/sjvair__sdk@5.0.0-beta.8`. Anything missing goes to the
   coordinator (`data-dashboard-8a`, find it with ListAgents), never worked around.
 - `@sjvair/map-sdk` pinned **exactly** (no `^`, never a dist-tag). Start on `0.1.0-beta.6`. Before
-  the PR is marked ready, move to the beta carrying map-sdk changes 1 (telemetry/session off) and
+  the PR is marked ready, move to the beta carrying map-sdk changes 1 (telemetry off; sessions stay on, the user 2026-11-11) and
   2 (panels sized by the map), expected `0.1.0-beta.7`, and turn telemetry off with it (Task 6).
   **The PR must not merge without that.** Don't modify map-sdk; ask the coordinator.
 - **Nothing map-related in the initial bundle** beyond the descriptor (an icon and messages). Run
@@ -255,8 +255,8 @@ map's pollutants are the monitors meta's `available_pollutants`.
   while `platform().activity.visible()` is false, and `dispose()` after the last `release()`.
 - Produces: `mapConfig(): MapConfig | null`. `null` when `import.meta.env.VITE_MAPTILER_KEY` is
   empty. Otherwise `{ maptilerKey, projection: "mercator", cooperativeGestures: true }`, plus the
-  telemetry/session-off option once the pinned map-sdk has it (change 1). Until then, leave a
-  `// TODO(map-sdk change 1)` comment and an `it.todo("turns MapTiler telemetry and session off")`
+  `telemetry: false` once the pinned map-sdk has it (sessions stay on) (change 1). Until then, leave a
+  `// TODO(map-sdk change 1)` comment and an `it.todo("turns MapTiler telemetry off")`
   in `config.test.ts`. The PR checklist (Task 11) blocks on it.
 
 - [ ] **Step 1: Failing tests:**
@@ -451,10 +451,151 @@ map's pollutants are the monitors meta's `available_pollutants`.
   Also run with `TZ=America/New_York npm run test:unit` (CI isn't on Pacific).
 - [ ] **Step 3:** Commit `docs: the Map widget (step 5 spec 1)`. Push. Open a **draft** PR into
   `step-5`. The body lists the bundle numbers and these blockers as unchecked items:
-  - map-sdk beta with changes 1 and 2, pinned, with telemetry and session off (`config.test.ts`'s `todo` done);
+  - map-sdk beta with changes 1 and 2, pinned, with telemetry off (`config.test.ts`'s `todo` done);
   - sjvair.com CSP PR on `develop` (`camp/apps/workspace/csp-hosts.json`), so the map works on the local stack's `/workspace/`;
   - the tap result from Task 10.
 
   Check `gh pr checks` after pushing.
 - [ ] **Step 4:** Tell the coordinator: the PR number, the bundle numbers, the tap result, and
   any map-sdk need found. Ask the user for the yes before marking it ready or merging.
+
+### Task 12: Get data's title loop with more than 5 places (run before Task 11)
+
+Added 2026-11-11 by the user's decision: fix it in spec 1, not deferred. The Map makes
+selections over 5 places more common.
+
+**Files:**
+- Modify: `src/lib/get-data/GetDataView.svelte` (the `namesWidget` around line 198-203)
+- Test: the Get data browser test file (find the one with Show as / preview cases)
+
+**Cause (diagnosed in Task 5, confirmed by the coordinator):**
+- For non-now types, `namesWidget` is `previewWidget` (same id). The names lookup's
+  `DataWidget` (cap 500) and the preview chart's (`ChartWidget.svelte:24`, cap 5) both write
+  that id's generated title through `data-widget.svelte.ts:188-202`.
+- `setGeneratedTitle` (`titles.svelte.ts:11`) reads the current title tracked, so past 5 places
+  the two writers keep re-triggering each other (`effect_update_depth_exceeded`).
+- The separate-id fix was applied only to now types (see the comment above `namesWidget`).
+
+- [ ] **Step 1: Failing test:** `opens a Chart draft with 6 places without looping`. Open Get data
+  on a Chart draft (`?type=chart` link or a stored draft) whose layer selection has 6 monitors.
+  Assert the preview renders, the page logs no `effect_update_depth_exceeded` error, and the
+  preview's title says 6 places, or whatever the existing title rule gives with the cap.
+- [ ] **Step 2:** Run it. Expected: FAIL (the loop).
+- [ ] **Step 3:** Give the names lookup its own id for every type (`${PREVIEW_ID}-names`), as
+  now types already do. Keep the comment accurate. Only if the test still fails, also read the
+  current title untracked in `setGeneratedTitle`.
+- [ ] **Step 4:** Run the Get data browser tests and `npm run test:unit`. Expected: PASS.
+- [ ] **Step 5:** Commit `fix(get-data): no title loop when a chart draft holds more than its cap`.
+
+### Task 13: "Clear my data" deletes MapTiler's tile cache (run before Task 11)
+
+Added 2026-11-11 by the user's decision (spec → "Privacy").
+
+**Files:**
+- Modify: `src/lib/platform/web/storage.ts` (its `reset.clearAll()`)
+- Test: the web storage/reset test next to it (find the existing `clearAll` test)
+- Modify: `DEFERRED.md` (in Task 11): the revisit trigger "check the `maptiler_sdk` cache name whenever map-sdk bumps `@maptiler/sdk`"
+
+- [ ] **Step 1: Failing tests:**
+  - `clearAll deletes MapTiler's tile cache` (stub `globalThis.caches` with a `delete` spy; expect `delete("maptiler_sdk")`);
+  - `clearAll works where caches is missing` (no `caches`; resolves, the rest is still cleared);
+  - `clearAll finishes the reset when deleting the cache fails` (the `delete` rejects; the other stores are still cleared, and it still resolves).
+- [ ] **Step 2:** Run. Expected: FAIL.
+- [ ] **Step 3:** Implement inside the adapter only. Keep the cache name in one named constant
+  with a comment that it's MapTiler-internal (`@maptiler/sdk` 4.2).
+- [ ] **Step 4:** Run the platform tests and `npm run test:unit`. Expected: PASS. The memory
+  platform needs no change.
+- [ ] **Step 5:** Commit `feat(platform): Clear my data also deletes MapTiler's tile cache`.
+
+### Task 14: Move to map-sdk 0.1.0-beta.7, telemetry off (run right after Task 8)
+
+Added 2026-11-11: `@sjvair/map-sdk` `0.1.0-beta.7` is published (npm `next`; checked by the
+coordinator). It has `MapConfig.telemetry: false` (telemetry only; sessions and the tile cache
+stay on), the style.load restore fix, and the feature list and framed legend capped at the map's
+width (`--mapsdk-map-width`). This clears spec 1's map-sdk blocker.
+
+**Files:**
+- Modify: `package.json`, `package-lock.json` (`"@sjvair/map-sdk": "0.1.0-beta.7"`, exact)
+- Modify: `src/lib/widgets/map/host/config.ts` (add `telemetry: false`; remove the TODO)
+- Modify: `src/lib/widgets/map/host/config.test.ts` (the `it.todo` becomes a real test)
+- Modify: `messages/en.json` and `host/messages.ts` only if beta.7 adds or removes message keys (the coverage test says so)
+
+- [ ] **Step 1:** Replace the todo with `turns MapTiler telemetry off` (`mapConfig()` with a key has `telemetry: false`). Run it. Expected: FAIL.
+- [ ] **Step 2:** `npm install --save-exact @sjvair/map-sdk@0.1.0-beta.7`. Confirm one `@sjvair/sdk` (5.0.0-beta.8). Add `telemetry: false`.
+- [ ] **Step 3:** Run `npx vitest run src/lib/widgets/map` and `npm run test:browser -- src/lib/widgets/map`, then `npm run check`, `npm run build && npm run check:build && npm run check:budget`. Expected: PASS. Report any new hosts check:build flags and the bundle numbers.
+- [ ] **Step 4:** Commit `build: map-sdk 0.1.0-beta.7, MapTiler telemetry off`.
+
+### Task 15: Allow MapTiler's logo in img-src (run right after Task 9)
+
+Added 2026-11-11 by the user's decision (via the coordinator): MapTiler draws its logo as an
+`<img>` from `https://api.maptiler.com/…/resources/logo.svg` when the key's plan requires it.
+
+**Files:**
+- Modify: `csp-hosts.json` (`img-src` gains `"https://api.maptiler.com"`, appended last)
+- Modify: `src/csp-hosts.test.ts` (`CONTRACT["img-src"]`)
+
+- [ ] **Step 1:** Update the contract test first: `CONTRACT["img-src"]` equals `["'self'", "{static}", "data:", "blob:", "https://api.maptiler.com"]`. Run `npx vitest run src/csp-hosts.test.ts`. Expected: FAIL.
+- [ ] **Step 2:** Add the host to `csp-hosts.json` in the same position. Keep the file's existing formatting (sjvair.com mirrors it byte for byte). Re-run. Expected: PASS.
+- [ ] **Step 3:** `npm run build && npm run check:build`. Expected: PASS.
+- [ ] **Step 4:** Commit `build(csp): allow MapTiler's logo image`. Report the commit SHA, so the controller can send it to the sjvair.com session (#330).
+
+### Task 16: The map takes its platform from the app (run after Task 12)
+
+Added 2026-11-11 (controller ruling). The map's code reads the global `platform()` when it
+mounts, at `MapWidget.svelte:215`, `on-screen.svelte.ts:19` and `host/stores.ts:27`. Browser
+tests that render a real Map without the global adapter (Get data's Preview, the picker's grid)
+then raise an unhandled "Platform adapter has not been set" error. Other widgets reach the
+platform through the app (`useApp().platform`).
+
+**Files:**
+- Modify: `src/lib/widgets/map/MapWidget.svelte`, `src/lib/widgets/map/on-screen.svelte.ts`, `src/lib/widgets/map/host/stores.ts` and their tests
+- Modify: `src/lib/places/place-picker-dialog.browser.test.ts` (drop the map-module stub Task 9 added, if it's no longer needed)
+
+**Interfaces:**
+- `acquireMonitors(entryType: string, activity: ActivitySource)`, where the first acquire's `activity` drives the shared store's pausing.
+- `new OnScreen(el, { activity, detachDelayMs?, rootMargin? })`.
+- `MapWidget` gets `activity` from `useApp().platform.activity`.
+
+- [ ] **Step 1: Failing test:** in the Get data browser tests, `a Map preview raises no unhandled errors` (open a Map draft; no unhandled error is reported). Run it. Expected: FAIL.
+- [ ] **Step 2:** Implement. Pass `activity` in. No global `platform()` calls are left under `src/lib/widgets/map/`.
+- [ ] **Step 3:** Run `npm run test:browser` (the whole browser project, to confirm zero unhandled errors) and `npm run test:unit`. Expected: PASS, with no unhandled errors.
+- [ ] **Step 4:** Commit `fix(map): take the platform from the app, not the global`.
+
+### Task 17: Turn on map-sdk's pinned card (when `0.1.0-beta.8` is published)
+
+Added 2026-11-11. This is spec 1's last merge blocker: a tap on a phone must show a monitor's
+reading. map-sdk `0.1.0-beta.8` (branch `feat/pinned-card`, in review, not yet published) adds
+MapView `card` (boolean), MapContext `pinned` (`Hovered | null`) and `unpin()`, and the message
+key `mapsdk_card_close`. The tap bug's cause: Chromium fires a compatibility `mouseout` about
+8 ms after a tap's click, which cleared the hover. The pin doesn't depend on hover.
+
+**Files:**
+- Modify: `package.json`, `package-lock.json` (`"@sjvair/map-sdk": "0.1.0-beta.8"`, exact; `@maptiler/sdk` stays in step with map-sdk's range)
+- Modify: `src/lib/widgets/map/MapWidget.svelte` (`<MapView card …>`)
+- Modify: `messages/en.json`, `src/lib/widgets/map/host/messages.ts` (`mapsdk_card_close`, map-sdk's English text verbatim)
+- Modify: `e2e/map.spec.ts` (lift the tap `fixme`; add the deferred E2Es below)
+- Modify: `DEFERRED.md` (close the "Step 5 spec 1 review leftovers" line for final #10/#11 once done), `TODO.md` (spec 1 blockers)
+
+- [ ] **Step 1: Failing tests:**
+  - Browser: `a click pins the card and never selects` (selection mode `"none"`: after a click, `setSelection` isn't called by the map and the layer is unchanged).
+  - E2E: lift the `fixme` on `a tap on a monitor shows its reading` (Chromium and WebKit).
+- [ ] **Step 2:** Bump to beta.8, set `card`, and add the message key. The coverage test must pass.
+- [ ] **Step 3:** Add the two deferred E2Es: `no MapTiler metrics request after a map draws` (none within about 3 s, from the stub's `seen` list), and `a map scrolled off screen and back draws again` (real GL).
+- [ ] **Step 4:** Run the full checks (unit, browser with 0 unhandled errors, build, check:build, check:budget, `CI=1 npm run test:e2e`, and WebKit in podman). Expected: PASS.
+- [ ] **Step 5:** Commit `feat(map): tap pins the reading card (map-sdk 0.1.0-beta.8)`.
+
+### Task 18: Move to `@sjvair/map-sdk` `0.1.0-beta.9`; the off-screen test runs
+
+Added 2026-11-11. `@sjvair/map-sdk` `0.1.0-beta.9` (published; the coordinator checked it)
+fixes the MapTooltip detach bug Task 17 found, and nothing else. Before this fix, a
+`tooltip="pointer"` map that detached threw an error and never drew again.
+
+**Files:**
+- Modify: `package.json`, `package-lock.json` (`"@sjvair/map-sdk": "0.1.0-beta.9"`, exact; one `@maptiler/sdk`, in step with map-sdk's range)
+- Modify: `e2e/map.spec.ts` (lift the `fixme` on `a map scrolled off screen and back draws again`)
+- Modify: `DEFERRED.md`, `TODO.md` (the off-screen item and the spec 1 blocker are done; a TODO Done entry, following DEFERRED's rule), and the `@sjvair/map-sdk` pin in `CLAUDE.md`, `ARCHITECTURE.md` and the spec (only where they state the current pin)
+
+- [ ] **Step 1:** `npm install --save-exact @sjvair/map-sdk@0.1.0-beta.9`. Confirm one `@maptiler/sdk` and one `@sjvair/sdk` (`5.0.0-beta.8`; spec 1 stays on it, the user, 2026-11-11). The message coverage test must still pass.
+- [ ] **Step 2:** Lift the `fixme`. Run `CI=1 npx playwright test --project=chromium e2e/map.spec.ts`, and WebKit through `npm run test:e2e:podman -- e2e/map.spec.ts`. Expected: the off-screen test PASSES.
+- [ ] **Step 3:** Full checks (lint, check, unit, browser with 0 unhandled errors, build, check:build, check:budget, full Chromium E2E). Update the docs, then `npx prettier --write TODO.md DEFERRED.md`.
+- [ ] **Step 4:** Commit `build: @sjvair/map-sdk 0.1.0-beta.9; the off-screen test runs`.

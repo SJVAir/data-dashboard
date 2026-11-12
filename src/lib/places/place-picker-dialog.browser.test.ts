@@ -17,6 +17,7 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { MAP_TYPE } from "$lib/widgets/map";
 import { fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
 import { animationsSettled } from "../../test/animations";
 import { readRecent, RECENT_KEY } from "./recent";
@@ -295,6 +296,21 @@ test("on a live-shared dashboard, a now tile's location is looked up as the tile
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
 		pin: "hour"
 	});
+});
+
+test("a Map's point on a live link saves its region", async () => {
+	const { app, platform, session } = await show(widget({}, MAP_TYPE));
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(placeRegion.mock.calls[0][0]).toEqual({
+		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
+		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+		pin: "hour"
+	});
+	expect(layerOf(session).place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
 });
 
 test("a calendar's location is looked up one row per day, with no sub-range or worst hour", async () => {

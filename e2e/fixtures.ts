@@ -12,6 +12,7 @@ import { createFakeRemote, type FakeRemote } from "../src/lib/sync/remote-fake";
 import { CSRF_TOKEN, routeDocuments } from "./documents-server";
 import { routeForecasts } from "./forecasts-server";
 import { routeHeat } from "./heat-server";
+import { routeMapTiler, type MapTilerRequests } from "./maptiler";
 import { routePlaces } from "./places-server";
 import { routeSummaries } from "./summaries-server";
 
@@ -140,7 +141,8 @@ async function addCsrfCookie(context: BrowserContext, baseURL: string): Promise<
  * requested day, and the place searches and region lists, which
  * `routePlaces` answers from fixture files picked by the query. The account server answers the session account
  * (`api/2.0/account/`: 401 signed out, or the `account` option's user) and the site's logout,
- * which signs out. The documents server (`api/2.0/documents/…`) is an in-memory fake shared by
+ * which signs out. MapTiler is stubbed (`e2e/maptiler.ts`), and a MapTiler request that gets past the
+ * stub fails the test. The documents server (`api/2.0/documents/…`) is an in-memory fake shared by
  * every context in the test (`documentsServer.newDevice()` makes another). Specs import `test`
  * and `expect` from here.
  */
@@ -150,6 +152,7 @@ export const test = base.extend<{
 	accountServer: AccountServer;
 	cspViolations: CspViolation[];
 	documentsServer: DocumentsServer;
+	mapTiler: MapTilerRequests;
 }>({
 	account: [null, { option: true }],
 	cspViolations: [
@@ -174,6 +177,17 @@ export const test = base.extend<{
 		},
 		{ auto: true }
 	],
+	// MapTiler is stubbed in every test (the test build has a dummy key), and nothing gets past it.
+	mapTiler: [
+		async ({ context }, use) => {
+			const requests: MapTilerRequests = { seen: [], stubbed: [], notFound: [] };
+			await routeMapTiler(context, requests);
+			await use(requests);
+			const missed = requests.seen.filter((r) => !requests.stubbed.includes(r));
+			expect(missed, "MapTiler requests that got past the stub").toEqual([]);
+		},
+		{ auto: true }
+	],
 	// Depends on apiFixtures so its routes are registered later and take precedence.
 	accountServer: [
 		async ({ context, account, apiFixtures }, use) => {
@@ -191,6 +205,7 @@ export const test = base.extend<{
 				apiFixtures,
 				accountServer,
 				cspViolations,
+				mapTiler,
 				baseURL,
 				viewport,
 				reducedMotion,
@@ -225,6 +240,7 @@ export const test = base.extend<{
 				const device = await browser.newContext(options);
 				devices.push(device);
 				await watchCsp(device, cspViolations);
+				await routeMapTiler(device, mapTiler);
 				await addCsrfCookie(device, origin);
 				await routeApiFixtures(device, apiFixtures);
 				await routeSummaries(device);

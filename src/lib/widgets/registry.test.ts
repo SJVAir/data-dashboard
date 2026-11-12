@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Component } from "svelte";
 import {
-	addableWidgetTypes,
+	addWidgetEntries,
 	dataTypes,
 	getWidgetType,
 	loadWidget,
@@ -59,18 +59,18 @@ describe("widget registry", () => {
 		expect(names).not.toContain("registry-no-data");
 	});
 
-	test("the Notes type is addable but not a data type", () => {
+	test("the Notes type is added directly but not a data type", () => {
 		registerWidgetType(noteType);
-		expect(addableWidgetTypes().map((t) => t.type)).toContain("note");
+		expect(addWidgetEntries().find((e) => e.type.type === "note")?.direct).toBe(true);
 		expect(dataTypes().map((t) => t.type)).not.toContain("note");
 	});
 
-	test("only types with `addable` are offered, in registration order", () => {
+	test("only types with `addable` are added directly, in registration order", () => {
 		const data = { layers: [] };
 		registerWidgetType(type("registry-addable-a", { addable: () => ({ data }) }));
 		registerWidgetType(type("registry-not-addable"));
 		registerWidgetType(type("registry-addable-b", { addable: () => ({ data }) }));
-		const names = addableWidgetTypes().map((t) => t.type);
+		const names = addWidgetEntries().map((e) => e.type.type);
 		expect(names).toContain("registry-addable-a");
 		expect(names).toContain("registry-addable-b");
 		expect(names).not.toContain("registry-not-addable");
@@ -138,11 +138,31 @@ describe("every widget type", () => {
 			(await import("./current")).currentType,
 			(await import("./forecast")).forecastType,
 			(await import("./outside")).outsideType,
-			(await import("./table")).dataTableType
+			(await import("./table")).dataTableType,
+			(await import("./map")).mapType
 		];
 		for (const t of all) {
 			expect(t.defaultSize.w, t.type).toBeGreaterThanOrEqual(t.minSize.w);
 			expect(t.defaultSize.h, t.type).toBeGreaterThanOrEqual(t.minSize.h);
 		}
+	});
+
+	test("addWidgetEntries lists a data type that is also addable once, as direct", () => {
+		registerWidgetType(
+			type("registry-entry-both", {
+				accepts: { datasets: ["monitors"] },
+				addable: () => ({ data: { layers: [] } })
+			})
+		);
+		const entries = addWidgetEntries().filter((e) => e.type.type === "registry-entry-both");
+		expect(entries).toHaveLength(1);
+		expect(entries[0].direct).toBe(true);
+	});
+
+	test("addWidgetEntries keeps data types without addable as Get data", () => {
+		registerWidgetType(type("registry-entry-data", { accepts: { datasets: ["monitors"] } }));
+		const entries = addWidgetEntries().filter((e) => e.type.type === "registry-entry-data");
+		expect(entries).toHaveLength(1);
+		expect(entries[0].direct).toBe(false);
 	});
 });

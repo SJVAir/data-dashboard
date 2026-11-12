@@ -13,7 +13,7 @@
 	import { updateNotice } from "$lib/safety/update-notice.svelte";
 	import { useApp } from "$lib/store/app.svelte";
 	import { serializeSearch } from "sv-router";
-	import { isActive, p, route } from "../../../router";
+	import { currentPathname, isActive, p, route } from "../../../router";
 	import { returnPath } from "./AccountMenu.svelte";
 	import { REFUSAL_CODES, heldMessage, type RefusalCode } from "./sync-messages";
 
@@ -43,7 +43,7 @@
 	// Back to the page the reminder was shown on, after signing in.
 	const signInHref = $derived(
 		app.platform.identity.signInUrl(
-			returnPath({ pathname: p(route.pathname), search: serializeSearch(route.search) ?? "" })
+			returnPath({ pathname: currentPathname(), search: serializeSearch(route.search) ?? "" })
 		)
 	);
 

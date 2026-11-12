@@ -21,7 +21,6 @@ import {
 	createWebMetadata,
 	levelFor,
 	mapScaleLevels,
-	withCatalog,
 	type CatalogEntry,
 	type Level
 } from "./metadata";
@@ -444,6 +443,24 @@ describe("createWebMetadata", () => {
 		expect(getMonitorsList).toHaveBeenCalledTimes(1);
 	});
 
+	it("mapPollutants returns available_pollutants", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			...META,
+			available_pollutants: ["o3", "pm25"]
+		} as never);
+		expect(await createWebMetadata().mapPollutants()).toEqual(["o3", "pm25"]);
+	});
+
+	it("mapPollutants is [] when the meta lists none", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({ ...META, available_pollutants: [] } as never);
+		expect(await createWebMetadata().mapPollutants()).toEqual([]);
+	});
+
+	it('mapPollutants is "unavailable" when the meta fails', async () => {
+		vi.mocked(getMonitorsMeta).mockRejectedValue(new Error("boom"));
+		expect(await createWebMetadata().mapPollutants()).toBe("unavailable");
+	});
+
 	it("does not cache a failed fetch", async () => {
 		vi.mocked(getMonitorsMeta).mockRejectedValueOnce(new Error("boom"));
 		const md = createWebMetadata();
@@ -512,26 +529,6 @@ describe("dailyFigure", () => {
 		expect(await md.dailyFigure("co")).toEqual({ field: "max_8h", label: null });
 		expect(await md.dailyFigure("humidity")).toBeNull();
 		expect(await md.dailyFigure("nope")).toBeNull();
-	});
-
-	it("withCatalog forwards it", async () => {
-		const md = withCatalog(fixtureMetadata(), []);
-		expect((await md.dailyFigure("o3"))?.field).toBe("max_1h");
-	});
-});
-
-describe("withCatalog", () => {
-	const catalog: CatalogEntry[] = [
-		{ id: "air-quality", label: "Air quality", entryTypes: [], geographies: ["monitor"] }
-	];
-
-	it("returns the given catalog and delegates the rest", async () => {
-		const md = withCatalog(createWebMetadata(), catalog);
-		expect(await md.catalog()).toBe(catalog);
-		expect((await md.levels("pm25")).length).toBe(3);
-		expect(await md.defaultProcessor("purpleair", "pm25")).toBe("PM25_EPA_Calibration");
-		expect(await md.monitorType("m-bam")).toBe("bam1022");
-		expect((await md.monitors()).length).toBe(2);
 	});
 });
 

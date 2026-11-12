@@ -17,6 +17,8 @@ import { drawBars, drawMarkers, drawSticks, type Bar, type Project } from "./sti
 import { periodSpan, type ChartStrip } from "./strips";
 import { drawThresholdLine, type ThresholdLine } from "./threshold-line";
 
+export { ancestorAnimationsSettled } from "./settled";
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 /** Axis and band-label type, in CSS px. */
@@ -593,23 +595,4 @@ export function cursorTo(u: uPlot, idx: number, value: number): void {
 		true,
 		true
 	);
-}
-
-/**
- * Resolves once every finite animation running on an ancestor of `el` (e.g. its widget frame's
- * resize animation) has finished; at once when none are running (and under reduced motion, where
- * the frame doesn't animate). Endless animations are ignored, since they never finish.
- */
-export async function ancestorAnimationsSettled(el: Element): Promise<void> {
-	const running = document.getAnimations().filter((a) => {
-		const effect = a.effect as KeyframeEffect | null;
-		const target = effect?.target;
-		return (
-			target instanceof Element &&
-			target !== el &&
-			target.contains(el) &&
-			Number.isFinite(effect!.getComputedTiming().endTime)
-		);
-	});
-	await Promise.all(running.map((a) => a.finished.catch(() => {})));
 }

@@ -8,8 +8,13 @@ const CONTRACT: Record<string, string[]> = {
 	"script-src": ["'self'", "{static}"],
 	"style-src": ["'self'", "{static}", "'unsafe-inline'"],
 	"font-src": ["'self'", "{static}"],
-	"img-src": ["'self'", "{static}", "data:", "blob:"],
-	"connect-src": ["'self'", "{static}", "https://o270131.ingest.us.sentry.io"],
+	"img-src": ["'self'", "{static}", "data:", "blob:", "https://api.maptiler.com"],
+	"connect-src": [
+		"'self'",
+		"{static}",
+		"https://o270131.ingest.us.sentry.io",
+		"https://api.maptiler.com"
+	],
 	"worker-src": ["'self'", "blob:"],
 	"manifest-src": ["'self'"],
 	"frame-ancestors": ["'none'"],
@@ -21,7 +26,9 @@ const CONTRACT: Record<string, string[]> = {
 // Hosts that appear in source but are never fetched.
 const NOT_FETCHED = new Set([
 	// A link the person follows (navigation, not a fetch).
-	"www.sjvair.com"
+	"www.sjvair.com",
+	// The SVG namespace in the Map's pin marker (src/lib/widgets/map/sources.ts).
+	"www.w3.org"
 ]);
 
 // Exact dummy strings used as URL bases, ending at the closing quote so any other use of the same

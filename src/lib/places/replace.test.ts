@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChosenPlace, Layer } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { MAP_TYPE } from "$lib/widgets/map";
 import {
 	barChange,
 	barVisible,
@@ -91,6 +92,29 @@ describe("replacePlace", () => {
 		const next = replacePlace(e, A, C, { others: false });
 		expect(next.body.placeBar).toEqual({ place: B });
 		expect(next.body.widgets[0].data.layers.map((l) => l.place)).toEqual([C, C]);
+	});
+});
+
+describe("a Map and Change place", () => {
+	const mapWidget = (id: string, layers: Layer[]): WidgetInstance => ({
+		...widget(id, layers),
+		type: MAP_TYPE
+	});
+	const several: Layer = {
+		dataset: "air-quality",
+		selection: { kind: "monitors", ids: ["a", "b"] }
+	};
+	it("a one-place Map moves with the bar", () => {
+		const d = doc([mapWidget("m", [at(A, "air-quality")])], A);
+		const next = replacePlace(d, A, C, { others: false });
+		expect(next.body.widgets[0].data.layers[0].place).toEqual(C);
+		expect(next.body.placeBar).toEqual({ place: C });
+	});
+	it("a several-place Map stays", () => {
+		const d = doc([mapWidget("m", [several])], A);
+		expect(widgetPlace(d.body.widgets[0])).toBe("mixed");
+		const next = replacePlace(d, A, C, { others: true });
+		expect(next.body.widgets[0]).toBe(d.body.widgets[0]);
 	});
 });
 

@@ -5,6 +5,8 @@ interface ImportMetaEnv {
 	readonly VITE_PROD_URL?: string;
 	/** The dashboard's Sentry project DSN; unset = error reporting off. */
 	readonly VITE_SENTRY_DSN?: string;
+	/** MapTiler basemap key (public in the build; domain-restricted); unset = no basemap. */
+	readonly VITE_MAPTILER_KEY?: string;
 }
 
 /** The git commit this build came from (`"dev"` under `vite dev`); set by the build-info plugin. */

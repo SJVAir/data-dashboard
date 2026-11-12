@@ -426,6 +426,29 @@ test("Show as Chart is disabled with a reason at 7 places", async () => {
 	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
 });
 
+test("opens a Chart draft with 6 places without looping", async () => {
+	const errors: string[] = [];
+	const onError = (e: ErrorEvent) => {
+		errors.push(String(e.error?.message ?? e.message));
+		e.preventDefault();
+	};
+	window.addEventListener("error", onError);
+	const spy = vi.spyOn(console, "error").mockImplementation((...args) => {
+		errors.push(args.map(String).join(" "));
+	});
+	try {
+		const ids = ["m1", "m2", "m3", "m4", "m5", "m6"];
+		const { host } = await show(monitorsDraft(ids));
+		await drawn(host);
+		await new Promise((r) => setTimeout(r, 500));
+		expect(errors.filter((e) => e.includes("effect_update_depth_exceeded"))).toEqual([]);
+		expect(host.querySelector("[data-testid=get-data-preview]")).not.toBeNull();
+	} finally {
+		window.removeEventListener("error", onError);
+		spy.mockRestore();
+	}
+});
+
 test("Detail hides for a pinned type; Every measurement is disabled over 90 days with a reason", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };
@@ -840,6 +863,65 @@ describe("now widgets", () => {
 		await alert().selectOptions("Off");
 		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
 		expect("thresholds" in (await current())).toBe(false);
+	});
+
+	test("Show as Map keeps the chart's places", async () => {
+		const { current } = await show(monitorsDraft(["m1", "m2", "m3"]));
+		await page.getByRole("radio", { name: "Map" }).click();
+		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect
+			.element(page.getByText(m.get_data_extra_places_left_out()))
+			.not.toBeInTheDocument();
+		// The map's pollutants only, in the monitors meta's order.
+		const pollutant = page.getByRole("group", { name: "Pollutant" });
+		await expect.element(pollutant.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		await expect.element(pollutant.getByRole("radio", { name: "Ozone" })).toBeVisible();
+		await expect.element(pollutant.getByRole("radio", { name: "PM10" })).not.toBeInTheDocument();
+		await expect.element(alert()).not.toBeInTheDocument();
+		expect(await current()).toEqual({
+			type: "map",
+			data: {
+				layers: [
+					{
+						dataset: "air-quality",
+						entryType: "pm25",
+						selection: { kind: "monitors", ids: ["m1", "m2", "m3"] }
+					}
+				]
+			}
+		});
+	});
+
+	test("a Map link with 30 places opens cut to 25, and says so", async () => {
+		const ids = Array.from({ length: 30 }, (_, i) => `m${i + 1}`);
+		const { current } = await show(monitorsDraft(ids, { type: "map" }));
+		await expect
+			.element(page.getByText(m.get_data_places_over_cap_left_out({ count: 25, countValue: 25 })))
+			.toBeVisible();
+		expect((await current()).data.layers[0].selection).toEqual({
+			kind: "monitors",
+			ids: ids.slice(0, 25)
+		});
+	});
+
+	test("a Map preview raises no unhandled errors", async () => {
+		const errors: unknown[] = [];
+		const onError = (e: ErrorEvent) => errors.push(e.error ?? e.message);
+		const onRejection = (e: PromiseRejectionEvent) => errors.push(e.reason);
+		window.addEventListener("error", onError);
+		window.addEventListener("unhandledrejection", onRejection);
+		try {
+			const { host } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await expect
+				.poll(() => host.querySelector("[data-testid=get-data-preview]"), { timeout: 5000 })
+				.not.toBeNull();
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			expect(errors).toEqual([]);
+		} finally {
+			window.removeEventListener("error", onError);
+			window.removeEventListener("unhandledrejection", onRejection);
+		}
 	});
 
 	test("Outside has the alert level but no pollutant control; the Forecast strip has neither", async () => {

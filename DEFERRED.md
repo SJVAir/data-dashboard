@@ -92,15 +92,30 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   refreshes the entry files and reloads. Unknown whether real Safari does the same after a
   real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
   Safari after a missing chunk; if it stays broken, retry the import under a new URL.
-- **The SDK builds zod schemas outside the `jitless` wrapper.** _Deferred 2026-10-26 (Foundations
-  spec 5a, final fix-wave review)._ The dashboard imports zod only through `$lib/zod`, which sets
-  `z.config({ jitless: true })` so zod's eval probe never trips the CSP. `@sjvair/sdk` imports zod
-  itself and builds `z.object` schemas when its modules load. Today that's harmless: production
-  reaches those modules only through the dev-only `/dev/data` route, after `$lib/zod` has run. If a
-  production route ever loads the SDK root before `$lib/zod`, every page load raises a `script-src`
-  eval violation (the E2E CSP fixture catches it only on the routes it exercises). **Revisit when**
-  the data layer first goes into a production route: fix it in sdk-js (build schemas lazily, or
-  set `jitless` there), not with an import-order workaround here.
+- **Check the built app for zod eval violations before go-live.** _Deferred 2026-10-26 (Foundations
+  spec 5a, final fix-wave review); reworded as a go-live check 2026-11-11 (the user)._ **Before
+  go-live**, check the built app for `script-src` eval violations from zod on every route,
+  including the routes and contexts the E2E CSP fixture doesn't cover (see "Gaps in the E2E CSP
+  checks" below). If any appear, fix it in sdk-js (build its schemas lazily, or set `jitless`
+  there), not with an import-order workaround here.
+  **Why it's safe today:** the dashboard imports zod only through `$lib/zod`, which sets
+  `z.config({ jitless: true })`. `@sjvair/sdk` (`5.0.0-beta.8`) imports zod itself and builds
+  `z.object` schemas when its modules load (the root `schema.ts` and the schema modules of
+  `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`, `forecasts`, `hms`, `meta`,
+  `monitors`, `pesticides` and `regions`; the documents schemas moved into `src/lib/api/documents/`
+  on 2026-11-11 and build under `$lib/zod`). Since step 4, the widgets load the SDK root in the
+  built app's initial bundle. There's only one copy of zod in `node_modules` (4.6.7), so the
+  `jitless` setting applies to the SDK's schemas too. zod 4.6.7 runs its `new Function` probe
+  when an object schema is created, unless `jitless` is already set
+  (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only because `$lib/zod`
+  runs before the SDK's schema modules, which is the import order that `$lib/zod` itself says not
+  to rely on. The E2E suite runs under the contract CSP and fails on any
+  `securitypolicyviolation` (`e2e/fixtures.ts`), and it passes. A one-off check on 2026-11-11 (the
+  built app in the E2E preview, every route in `src/router.ts` loaded fresh, on Chromium,
+  Firefox and WebKit) found no violations.
+  **Revisit:** before go-live (listed under "Production deploy of sjvair.com `develop` → `main`"
+  below); when the E2E CSP fixture reports the probe; or when someone next works on the SDK's
+  schemas.
 - **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
   review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
   `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
@@ -273,26 +288,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     the shared-page report. This was part of the removed "Pre-filling sjvair.com's contact form"
     entry. It needs a small server change to accept a Feedback topic. **Revisit with** the next
     sjvair.com contact-form change.
-  - **Moving the documents SDK code out of the public `@sjvair/sdk` before go-live.** _Decided
-    2026-11-02 (the user, in the sdk-js session)._ `@sjvair/sdk/documents` wraps the private
-    `/documents/` endpoints, and the dashboard is its only caller; the rest of the SDK is public
-    air data. It moves to an internal package built on the public SDK's exports (`httpRequest`,
-    `setOrigin`, request defaults), or into this repo while the dashboard stays the only caller;
-    where it goes: **decided 2026-11-11 (the user): into this repo** (option 1 of three; this
-    replaces the 2026-11-04 plan for a new `internal-sdk-js` repo). Why: `data-dashboard`,
-    `sdk-js` and `sjvair.com` are all public and the client ships in the dashboard's JavaScript,
-    so a private package would hide nothing and would need read tokens in CI, local dev and
-    sjvair.com's Heroku build; the module imports only the public `@sjvair/sdk/http` and zod,
-    and the dashboard is its only caller (checked 2026-11-11: mobile, map-sdk and monitor-map
-    don't import it). Two halves: sdk-js removes it from `release/5.0.0`
-    (`prompt-sdk-remove-documents.txt`), and this repo takes the code in and switches its
-    imports (`prompt-documents-move.txt`). Until then the dashboard keeps using `@sjvair/sdk/documents`
-    (4.8.0 and 5.0.0 prereleases; `createSnapshot` is in them; `step-4` pins 4.8.0-beta.6 until step 4 spec 2 pins 5.0.0-beta.2). The move changes the
-    dashboard's pin and the imports in its `RemoteDocuments` SDK adapter
-    (`src/lib/sync/remote-sdk.ts`). It should happen before sdk-js 5.0.0 final is tagged (the next stable release, renamed from 4.8.0 on 2026-11-04), since
-    removing it after a stable release has to wait for 6.0; sdk-js's own `DEFERRED.md` ("Before
-    4.8.0 final") tracks the same item. **Revisit when** go-live or sdk-js 5.0.0 final is being
-    planned, whichever comes first. **Blocks go-live.**
 - **Server-synced preferences** (last-opened dashboard, active Collection, Widget
   Creation defaults). _Deferred 2026-09-14 (v1 spec); re-confirmed 2026-09-25._ Documents
   sync in Release 1; preferences stay local per device (they're conveniences, and devices
@@ -537,6 +532,11 @@ string`) now get the union return type. The mobile app passes a string token, so
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
     `forecast_zone_for:` cache keys after (see "Production deploy step for the place
     endpoints" below).
+  - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
+    sjvair.com's Heroku build of the dashboard, and that the key's domain restriction covers
+    `/workspace/`. Without it, every Map widget says the map is unavailable.
+  - **Dashboard CSP check, before:** check the built app for zod eval violations on every route
+    (see "Check the built app for zod eval violations before go-live" above).
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
@@ -724,6 +724,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   A sqid can start with `-`, which argparse reads as a flag, so the `=` form is safe. **Why deferred:** it predates the
   scale-averaging branch and only affects ids that start with `-`. **Revisit:** the next time those docs are touched, or
   before any production CIMIS re-stamp (the deploy steps here already use the `=` form).
+
+- **MapTiler's cache name is internal.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ "Clear
+  my data" deletes MapTiler's tile cache by its Cache Storage name, `maptiler_sdk`
+  (`src/lib/platform/web/storage.ts`), because `@maptiler/sdk` 4.2 has no public way to clear it.
+  A later `@maptiler/sdk` could rename it, and the delete would then quietly stop working. The
+  dashboard's own `@maptiler/sdk` `~4.2.0` dependency (for `Marker`) must stay in step with
+  map-sdk's. **Revisit whenever** map-sdk moves to a new `@maptiler/sdk`: check the cache name and
+  move the dashboard's dependency with it.
+- **CI's Firefox has no WebGL, so the map E2E skips there.** _Deferred 2026-11-11 (step 5 spec
+  1)._ The Playwright container image's Firefox can't create a WebGL context, so `e2e/map.spec.ts`
+  skips on Firefox, saying why. Chromium and WebKit run it. **Revisit when** the image's Firefox
+  gains WebGL, or a Firefox-only map bug appears.
 
 ## Documents & saving
 
@@ -1158,7 +1170,28 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
 - **Globe-projection zoom precision.** _Noted 2026-09-16._ Large counties are under-zoomed
-  in the globe projection. **Revisit when** building the Map widget on `map-sdk`.
+  in the globe projection. **Revisit when** building the Map widget on `map-sdk`. _Noted
+  2026-11-11 (step 5 spec 1): the Map widget uses the Mercator projection (no globe, no space
+  backdrop), since a widget is a small flat view, so it doesn't hit this. It still applies to
+  maps on the globe (monitor-map)._
+- **Saving the Map widget's camera.** _Deferred 2026-11-11 (step 5 spec 1)._ Not saved, by
+  design: a map always fits its places when it opens, so a document never holds coordinates the
+  person didn't choose, and a shared map opens on its places. Panning and zooming last only for
+  the moment. **Revisit if** people ask to keep a view they framed by hand.
+- **Pollutants beyond the monitor map's `available_pollutants` on the Map widget.** _Deferred
+  2026-11-11 (step 5 spec 1)._ The map takes only the monitors meta's `available_pollutants`
+  (today PM2.5 and ozone). CO and other ppm-scale pollutants would read wrong, because map-sdk
+  cuts readings to whole numbers ("map-sdk milestone 2 review leftovers"), and the server
+  doesn't list them. **Revisit when** map-sdk shows readings at the metadata's precision (map-sdk
+  change 8 in the spec), or the server lists more pollutants.
+- **Year-over-year change on the map** (a diverging scale). _Deferred 2026-11-11 (step 5 spec
+  1)._ It comes after step 5 spec 4 (pesticide use). **Revisit when** a researcher or agency asks
+  for trends on the map.
+- **The Map widget's 25-place cap.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ A map
+  holds at most 25 places (`accepts.maxPlaces`). Picking more than 25 by hand is rare, but every
+  ZIP code in Fresno County (about 60) would go over it. The document-wide `SELECTION_MAX` (500)
+  is unchanged. **Revisit when** drawn shapes (method C) or a "select all in this region" option
+  arrive: raise the cap then.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
@@ -1264,6 +1297,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (Facility Emissions Explorer, merged 2026-10-13) moved the API to
   `/api/2.0/emissions/…` and added CEPAM, dairies, wells, and toxics, so anything we build
   uses `emissions`. **Revisit when** an emissions or facility-proximity use case comes up.
+  _Map ideas added 2026-11-11 (step 5 spec 1):_ on the Map widget, facilities sized by their
+  emissions, plus wells, dairies and methane plumes, as on sjvair.com's emissions explorer. Same
+  trigger.
 - **Combined heat + air-quality tier bump** (raise the tier by one when both conditions
   are at tier ≥ 2, reflecting combined heat and ozone effects). _Deferred 2026-09-28._ It
   is a health claim needing expert backing. **Revisit when** the user or a health advisor
@@ -1429,7 +1465,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   whole-layer (every monitor) query, the backfill that fills recent periods drops a monitor that
   appears only in the backfill response, and a place with no data in the window costs a backfill
   request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
-  when** the map widget uses whole-layer queries (Release 1 step 5).
+  when** the map widget uses whole-layer queries (Release 1 step 5). _Noted 2026-11-11 (step 5
+  spec 1): the Map widget uses map-sdk's live monitors store, not whole-layer queries, so this
+  doesn't bite yet. Step 5 spec 3's date-range data is where it does._
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -1492,7 +1530,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
   values where nothing was measured; the day it shows; and which daily figure (spec 5's
   per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
-  (step 4 → step 5/6), or map-sdk takes on a new layer type.
+  (step 4 → step 5/6), or map-sdk takes on a new layer type. _Noted 2026-11-11 (step 5 spec 1):
+  the Map widget shows the live readings only. **Revisit with** step 5 spec 3 (date ranges)._
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1699,6 +1738,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
   copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
   widgets" above. **Revisit with** "Linking widgets".
+- **Which widgets "Change place" moves isn't shown anywhere.** _Deferred 2026-11-11 (step 5
+  spec 1; the user raised it as a dashboard-wide issue)._ A widget with one place follows the
+  bar; a widget with several keeps its own, and nothing tells the person which did what. It
+  applies to every widget, not just the Map. Ideas: a toast after the change ("Moved 5 widgets
+  to Tulare County. 1 kept its own places.", with Undo), or a "Dashboard place" tag on widgets
+  that follow the bar. Why deferred: it's a dashboard-wide design question, outside the Map
+  widget. **Revisit at** the first usability testing or the step 6 starter review, whichever
+  comes first.
 - **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
   (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
   built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
@@ -1785,6 +1832,45 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     e2e; the starter chart layer's days aren't asserted; no browser test for
     `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
     next change to each.
+- **The map pin's label is the dashboard's own stop-gap.** _Deferred 2026-11-11 (step 5 spec 1;
+  the user)._ The label beside a school or point pin is a DOM `Marker` the dashboard draws itself
+  (`src/lib/widgets/map/pin-label.svelte.ts`). That's why the dashboard depends on
+  `@maptiler/sdk` directly. map-sdk's focus area (its options-toolbar spec, part 3: "an
+  outlined pin with a label") will provide a labeled pin. Then drop `pin-label.svelte.ts` and
+  the direct `@maptiler/sdk` dependency. **Revisit with** the map-sdk release that ships the
+  labeled pin.
+- **Step 5 spec 1 review leftovers.** _Deferred 2026-11-11 (step 5 spec 1, per-task and final
+  reviews)._ Small things the reviews let stay; the first ones a person could meet:
+  - **Some places fit silently, with no note.** A selection with retired or missing monitors, or
+    with some regions missing, fits to what it finds. A single unlisted monitor does get a note.
+    **Revisit if** someone is confused by a map that shows fewer places than they picked.
+  - **The map's note banner can sit under map-sdk's zoom buttons** on a narrow map. The buttons
+    stay clickable and nothing is hidden from focus; it only looks crowded. **Revisit with** the
+    shared toolbar (step 5 spec 2), which moves the map's controls.
+  - **No Get data test for a failed map pollutant list.** Get data treats `"unavailable"` like an
+    empty list, the same as before. **Revisit with** the next change to Get data's Map path.
+  - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
+    "Choose a place". Only a build without a MapTiler key shows it. **Revisit with** the next
+    change to the widget's states.
+  - **The legend toggle has no `aria-controls`,** and the feature list is tabbable under the
+    loading skeleton. **Revisit with** the next accessibility pass on the map.
+  - **eslint is a runtime dependency** through `@maptiler/sdk`'s `eslint-plugin-compat`. The
+    license check passes and nothing is bundled. **Revisit when** raised upstream with MapTiler.
+  - **Code and type gaps:** `isNowShaped` doesn't check a Map draft's pollutant (the widget
+    guards it); the Pollutant group is empty while the list loads; `now.ts` has a long doc
+    comment and an `eslint-disable`; `messages.ts` casts params to `never`; the `RegionType`
+    cast; maps don't share a region fetch in flight; the two-frame fit wait
+    isn't cancelled on unmount. **Fix with** the next change to each file.
+  - **Test gaps:** no test that `addWidget` passes the doc (the registry tests register types
+    globally); the abort-rethrow branch of `mapPollutants` has no test; `start.test.ts` builds
+    docs with `as unknown as` casts; the browser test's absent-note check; the messages coverage
+    loop checks only `count`; no test that a failed region fetch isn't cached; `points.test.ts`
+    indexes `widgets[1]`; the loop test doesn't assert the title, and it uses
+    `setTimeout(500)`. **Add with** the next change to each.
+  - **E2E gaps:** the "fullscreen keeps the map" identity check is weak; the fixme tests use
+    `waitForTimeout`; stubbed MapTiler 404s are ignored; `reuseExistingServer` may reuse a
+    preview built with the real key; the WebGL probe falls back to webgl1. **Add with** the next
+    change to `e2e/map.spec.ts`.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
@@ -2278,6 +2364,20 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   provider but ships English defaults). Health guidance
   and alert text need human translation or review, not machine-only. **Revisit when**
   translators or funding for translation are available.
+- **Right-to-left map labels.** _Deferred 2026-11-11 (step 5 spec 1, the user: "we will deal
+  with RTL if we end up needing it")._
+  - **Meanwhile:** a map tile with right-to-left labels makes MapTiler try to load its text
+    plugin from `cdn.maptiler.com`. The CSP blocks that, so those labels draw unshaped and the
+    browser sends a CSP report. `check:build` allowlists the host as "library default, blocked
+    on purpose".
+  - **Plan if needed:** serve `@mapbox/mapbox-gl-rtl-text` (BSD-2-Clause) ourselves as a static
+    file, through a map-sdk option for the plugin's address. Never allow the CDN.
+  - **Revisit when** the dashboard adds a right-to-left UI language (Arabic, Hebrew, Persian,
+    Urdu, Punjabi in Shahmukhi), or right-to-left map labels are wanted.
+- **The map's relative times use map-sdk's English default.** _Deferred 2026-11-11 (step 5 spec
+  1)._ The map's `format` provider wraps the dashboard's `format` module, except relative time
+  ("5 minutes ago"), which stays map-sdk's en-US `Intl.RelativeTimeFormat`, because `$lib/format`
+  has no relative-time helper. **Revisit when** `$lib/format` gains one, or with translation.
 
 ## UI & UX
 
@@ -2444,16 +2544,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   when touching that test: assert the chart has focus and that `{Home}` moved the cursor before
   pressing `{End}`.
 
-- **The WebKit E2E job is slow on CI, and a heavy share test flaked there once.** _Noted
-  2026-11-10 (the `step-4` → `main` PR, #50)._ The `e2e-full (webkit)` job takes 10–13 minutes
-  on GitHub's runner, against about 4 for Chromium and 6 for Firefox, and about 2 minutes for
-  the same suite locally in the same Playwright image (podman). Two WebKit-only timeouts came
-  from it:
+- **The WebKit E2E job is slow on CI.** _Noted 2026-11-10 (the `step-4` → `main` PR, #50)._ The
+  `e2e-full (webkit)` job takes 10–13 minutes on GitHub's runner, against about 4 for Chromium
+  and 6 for Firefox, and about 2 minutes for the same suite locally in the same Playwright image
+  (podman). Two WebKit-only flakes came from it, both fixed:
   - the starter's "the bar on a copy" test, about 30 s of clicks on the runner (fixed in #50:
     one step fewer and `test.slow()`);
   - `e2e/sharing.spec.ts`, "a dashboard too big for a link offers only the file" (1,000 widgets),
-    whose Share dialog didn't show "too big to share as a link" within the 5 s expect timeout. It
-    passed on a re-run of the job, and the test hasn't changed since spec 3.
+    which failed on #50, #51 and #52 and passed on each re-run. Share builds and compresses the
+    link before the dialog opens, and the test clicked Share while the 1,000 widgets were still
+    drawing, so the dialog didn't open within the 5 s check. Fixed 2026-11-11: the test waits
+    until every widget is drawn and is marked `test.slow()`. Measured locally in the Playwright
+    image, once drawn, Share to dialog takes about 0.3 s on WebKit at 1,000 widgets.
 
   The user found the WebKit job too slow (2026-11-10). Candidate speed-ups, none tried yet: shard
   the WebKit job, set its workers explicitly, or add `--ipc=host` to the container options (a
@@ -2488,7 +2590,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   every frame of it. Placeholders don't redraw, so nothing does today. **Charts are done**
   (step 4 spec 1, Task 11: the shared `TimeChart` waits for the frame's animations to finish
   before it redraws). **Revisit when** map widgets land: throttle their redraw the same way, or
-  switch to scale with counter-scaled content.
+  switch to scale with counter-scaled content. _Noted 2026-11-11 (step 5 spec 1): the Map waits
+  for `ancestorAnimationsSettled` before it refits, but MapLibre's own `ResizeObserver` still
+  re-renders on every frame of the 200 ms animation. Accepted for now. **Revisit if** jank shows
+  on low-end devices._
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.
