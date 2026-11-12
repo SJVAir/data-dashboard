@@ -1885,7 +1885,9 @@ release ships the same day (see `DEFERRED.md` → the deploy entry).
   back to hardcoded values; they show `unavailable` on a server without the meta.
 - **Plugins never fetch.** The dashboard feeds its own data layer's results in as data
   sources. map-sdk's stores (`createMonitorsStore()`, in a `/stores` entry that can't reach the
-  map engine) are for live data.
+  map engine) are for live data in monitor-map and mobile. The dashboard's Map widget doesn't
+  use them: it loads all of its data, live data too, through the dashboard's data layer and
+  passes it in as plain data sources (the user, 2026-11-12, step 5 spec 2).
 - **`MapContext` outlives the GL map.** `MapView`'s `active={false}` (or unmounting) releases
   the WebGL context; showing it again rebuilds with the same camera, basemap, plugins, and
   selections. The core re-runs plugin setup after basemap changes, so plugins never check a
