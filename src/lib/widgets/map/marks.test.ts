@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ChangeSchema } from "$lib/changes/types";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { canMark, hiddenMarks, marksChange } from "./marks";
+import { canMark, hiddenMarks, marksChange, sameIds } from "./marks";
 import { MAP_MARKS_MAX } from "./options";
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
@@ -25,6 +25,15 @@ describe("canMark", () => {
 
 	it("refuses a 26th mark with the limit message", () => {
 		expect(canMark({ kind: "monitors", ids: ids(26) }, "L")).toBe("L");
+	});
+});
+
+describe("sameIds", () => {
+	it("is true for the same ids in the same order only", () => {
+		expect(sameIds([], [])).toBe(true);
+		expect(sameIds(["a", "b"], ["a", "b"])).toBe(true);
+		expect(sameIds(["a", "b"], ["b", "a"])).toBe(false);
+		expect(sameIds(["a"], ["a", "b"])).toBe(false);
 	});
 });
 

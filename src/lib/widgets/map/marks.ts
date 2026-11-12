@@ -13,10 +13,15 @@ export function hiddenMarks(marks: readonly string[], drawn: ReadonlySet<string>
 	return marks.filter((id) => !drawn.has(id));
 }
 
+/** Whether two id lists hold the same ids in the same order. */
+export function sameIds(a: readonly string[], b: readonly string[]): boolean {
+	return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
 /** The setWidgetData change that saves `marks`, or null when unchanged. */
 export function marksChange(widget: WidgetInstance, marks: string[]): Change | null {
 	const current = mapOptions(widget).marks ?? [];
-	if (current.length === marks.length && current.every((id, i) => id === marks[i])) return null;
+	if (sameIds(current, marks)) return null;
 	// The other options stay as they are; no marks leaves no `marks` key.
 	const rest: Record<string, unknown> = { ...widget.options };
 	delete rest.marks;

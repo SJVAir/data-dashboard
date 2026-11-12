@@ -51,7 +51,7 @@
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
-	import { canMark, hiddenMarks, marksChange } from "./marks";
+	import { canMark, hiddenMarks, marksChange, sameIds } from "./marks";
 	import { MAP_MARKS_MAX, drawableShowing, mapOptions, pollutantLayers } from "./options";
 	import { monitorIds, monitorPositions } from "./sources";
 
@@ -425,10 +425,8 @@
 		const selection = marksSelection;
 		if (!current || !current.plugins.some((p) => p.id === "monitors")) return;
 		const shown = untrack(() => current.getSelection("monitors"));
-		const same =
-			(shown?.ids.length ?? 0) === (selection?.ids.length ?? 0) &&
-			(selection?.ids ?? []).every((id, i) => shown?.ids[i] === id);
-		if (!same) current.setSelection("monitors", selection);
+		if (!sameIds(shown?.ids ?? [], selection?.ids ?? []))
+			current.setSelection("monitors", selection);
 	});
 
 	/** Under the monitors when they're on the map, else on top. */
