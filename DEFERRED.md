@@ -1639,6 +1639,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Widgets
 
+- **Share opens its dialog only after the link is built.** _Noted 2026-11-11 (the WebKit share
+  test fix, #54); left as it is by the user._ With no exact points, `shareDashboard`
+  (`src/lib/sharing/actions.ts`) awaits `copyOf` (building and compressing the link) before
+  `openShare`, so nothing shows until it's done. Measured locally after drawing: about 25–50 ms
+  at 50 widgets, about 0.3 s at 1,000 on WebKit (roughly 5× slower on CI). The points path
+  already opens at once and fills in later. **Revisit when** someone reports Share feeling slow on
+  a large dashboard: open the dialog first and build the link inside it, as the points path does.
+
 - **Pesticide widgets and `pesticides/meta/`.** _Deferred 2026-11-03 (step 3 second batch,
   agreed with the user)._ No step 4 widget shows pesticide data, and widgets need more than
   metadata: the numbers the Pesticides Explorer shows (year-over-year change, month × year
