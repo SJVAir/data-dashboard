@@ -18,3 +18,15 @@ export function monitorPositions(
 	}
 	return positions;
 }
+
+/** The ids of the monitors `features` draws. */
+export function monitorIds(
+	features: FeatureCollection<Geometry, MapFeatureProperties>
+): Set<string> {
+	const ids = new Set<string>();
+	for (const f of features.features) {
+		const ref = decodeRef(f.properties.refKey);
+		if (ref?.kind === "monitor") ids.add(ref.id);
+	}
+	return ids;
+}

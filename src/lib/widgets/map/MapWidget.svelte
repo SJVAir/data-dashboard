@@ -8,6 +8,7 @@
 		Legend,
 		MapView,
 		monitorsPlugin,
+		type CardContext,
 		type FocusAreaPlugin,
 		type MapContext
 	} from "@sjvair/map-sdk";
@@ -15,7 +16,8 @@
 		DataSource,
 		DataStatus,
 		FireFeatureProperties,
-		MonitorFeatureProperties
+		MonitorFeatureProperties,
+		SpatialSelection
 	} from "@sjvair/map-sdk/data";
 	import type { MonitorLatest } from "@sjvair/sdk";
 	import { ancestorAnimationsSettled } from "$lib/charts/settled";
@@ -49,8 +51,9 @@
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
-	import { mapOptions, pollutantLayers, showingOf } from "./options";
-	import { monitorPositions } from "./sources";
+	import { canMark, hiddenMarks, marksChange } from "./marks";
+	import { MAP_MARKS_MAX, mapOptions, pollutantLayers, showingOf } from "./options";
+	import { monitorIds, monitorPositions } from "./sources";
 
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
 	const app = useApp();
@@ -361,18 +364,62 @@
 	const fireLabel = $derived(datasetLabel(HMS_FIRE));
 	const hmsFailed = $derived(hmsState.status === "error");
 
+	// Marks: monitors the person marks, saved in the options (one undo step each).
+	const marks = $derived(mapOptions(widget).marks ?? []);
+	const marksSelection = $derived<SpatialSelection | null>(
+		marks.length ? { kind: "monitors", ids: marks } : null
+	);
+	/** Whether marks can be changed: the widget is in the current, editable dashboard. */
+	const markable = $derived.by(() => {
+		const session = app.current.session;
+		return (
+			!!session && !session.readOnly && session.doc.body.widgets.some((w) => w.id === widget.id)
+		);
+	});
+	const limitMessage = () =>
+		m.map_marks_limit({ count: formatNumber(MAP_MARKS_MAX), countValue: MAP_MARKS_MAX });
+
+	/** A person's mark or unmark on the map, saved (a starter's edit goes to its copy). */
+	function saveMarks(selection: SpatialSelection | null): void {
+		const session = app.current.session;
+		if (!session || session.readOnly) return;
+		const current = session.doc.body.widgets.find((w) => w.id === widget.id);
+		if (!current) return;
+		const change = marksChange(current, selection?.kind === "monitors" ? selection.ids : []);
+		if (change) session.apply(change);
+	}
+
 	// The plugins, added and removed as the layers change: smoke and fire under the monitors.
 	$effect(() => {
 		const current = map;
 		const label = entryLabel;
+		const selectionMode = markable ? "multiple" : "none";
 		if (!current || !label || !loads) return;
 		untrack(() =>
 			current.addPlugin(
 				monitorsPlugin({ source: monitorsSource, layerLabel: label, selectedStyle: "ring" }),
-				{ selectionMode: "none" }
+				{
+					selectionMode,
+					pickWith: "modifier",
+					canSelect: (next) => canMark(next, limitMessage()),
+					selection: marksSelection,
+					onselectionchange: saveMarks
+				}
 			)
 		);
 		return () => current.removePlugin("monitors");
+	});
+
+	// The document's marks on the map (undo, redo, another tab): setSelection fires nothing.
+	$effect(() => {
+		const current = map;
+		const selection = marksSelection;
+		if (!current || !current.plugins.some((p) => p.id === "monitors")) return;
+		const shown = untrack(() => current.getSelection("monitors"));
+		const same =
+			(shown?.ids.length ?? 0) === (selection?.ids.length ?? 0) &&
+			(selection?.ids ?? []).every((id, i) => shown?.ids[i] === id);
+		if (!same) current.setSelection("monitors", selection);
 	});
 
 	/** Under the monitors when they're on the map, else on top. */
@@ -488,6 +535,21 @@
 	});
 	const title = $derived(widget.title ?? generatedTitle(widget.id));
 
+	/** The marked monitors not drawn now; none until the monitors for now have loaded. */
+	const hidden = $derived.by(() => {
+		const features = monitorsSource.features;
+		return features ? hiddenMarks(marks, monitorIds(features)) : [];
+	});
+	const hiddenCount = $derived({ count: formatNumber(hidden.length), countValue: hidden.length });
+	/** The map's accessible name, which also says how many marks aren't shown. */
+	const mapLabel = $derived(
+		!title
+			? undefined
+			: hidden.length
+				? m.map_label_marks_hidden({ title, ...hiddenCount })
+				: m.map_label({ title })
+	);
+
 	/** A monitor place the loaded readings don't list (retired, say): the map still draws. */
 	const unlisted = $derived.by(() => {
 		const place = layer?.place;
@@ -545,6 +607,14 @@
 
 {#snippet nothing()}{/snippet}
 
+{#snippet cardActions(ctx: CardContext)}
+	{#if ctx.selectable}
+		<Button size="sm" variant="outline" onclick={() => ctx.toggle()}>
+			{ctx.selected ? m.map_mark_remove() : m.map_mark_select()}
+		</Button>
+	{/if}
+{/snippet}
+
 {#snippet overlays()}
 	{#if map}
 		<div
@@ -587,19 +657,28 @@
 		/>
 	{:else if map}
 		<!-- No WebGL: MapView fails to make its GL map, and the error state offers "Retry". -->
-		<svelte:boundary onerror={(error) => (mapError = { error })}>
-			<MapView
-				{map}
-				class="h-full w-full"
-				active={onScreen.active}
-				label={title ? m.map_label({ title }) : undefined}
-				featureList={{ reveal: "focus" }}
-				selectionBar={false}
-				tooltip="pointer"
-				card
-				{overlays}
-			/>
-		</svelte:boundary>
+		<div class="flex h-full w-full flex-col">
+			<svelte:boundary onerror={(error) => (mapError = { error })}>
+				<MapView
+					{map}
+					class="min-h-0 w-full flex-1"
+					active={onScreen.active}
+					label={mapLabel}
+					featureList={{ reveal: "focus" }}
+					selectionBar={false}
+					tooltip="pointer"
+					card={{ actions: cardActions }}
+					{overlays}
+				/>
+			</svelte:boundary>
+			<p
+				class={["text-muted-foreground text-xs", hidden.length && "px-2 pt-1"]}
+				role="status"
+				data-map-marks-hidden
+			>
+				{hidden.length ? m.map_marks_hidden(hiddenCount) : ""}
+			</p>
+		</div>
 		{#if !map.ready || monitorsLoading}
 			<div class="bg-card absolute inset-0 p-2">
 				<WidgetSkeleton />

@@ -1,4 +1,11 @@
 /* eslint-disable svelte/prefer-svelte-reactivity -- test records the test reads; reactive state uses $state */
+import {
+	applyPick,
+	toggleInSelection,
+	type FeatureRef,
+	type SelectionMode,
+	type SpatialSelection
+} from "@sjvair/map-sdk/data";
 /**
  * A stand-in for map-sdk's `createMap` in browser tests (no WebGL, no MapTiler): it records the
  * plugins, selections and camera moves a widget asks for, and its `ready` is set by the test.
@@ -44,7 +51,8 @@ export class FakeMap {
 	gl = $state.raw<FakeGl | null>(null);
 	uid = crypto.randomUUID();
 	plugins: FakePlugin[] = [];
-	selections = new Map<string, unknown>();
+	/** Each plugin's selection, as map-sdk holds it. Reactive, for the card's `selected`. */
+	selections = $state<Record<string, SpatialSelection | null>>({});
 	/** Every `setSelection` call, in order (`[pluginId, selection]`). */
 	selectionCalls: [string, unknown][] = [];
 	/** The pinned card's feature (map-sdk's `Hovered`), set by a click on the fake MapView with `card`. */
@@ -63,13 +71,61 @@ export class FakeMap {
 		if (options?.before && at < 0) throw new Error(`no plugin ${String(options.before)}`);
 		if (at < 0) this.plugins.push(added);
 		else this.plugins.splice(at, 0, added);
+		this.selections[plugin.id] = (options?.selection as SpatialSelection | undefined) ?? null;
 	}
 	removePlugin(id: string) {
 		this.plugins = this.plugins.filter((p) => p.id !== id);
+		delete this.selections[id];
 	}
-	setSelection(id: string, selection: unknown) {
+	setSelection(id: string, selection: SpatialSelection | null) {
 		this.selectionCalls.push([id, selection]);
-		this.selections.set(id, selection);
+		this.selections[id] = selection;
+	}
+	getSelection(id: string): SpatialSelection | null {
+		return this.selections[id] ?? null;
+	}
+	getSelectionMode(id: string): SelectionMode {
+		const plugin = this.plugins.find((p) => p.id === id);
+		if (!plugin) return "none";
+		return (plugin.addOptions?.selectionMode as SelectionMode | undefined) ?? "single";
+	}
+	getPickWith(id: string): "click" | "modifier" {
+		const plugin = this.plugins.find((p) => p.id === id);
+		return plugin?.addOptions?.pickWith === "modifier" ? "modifier" : "click";
+	}
+	/** The latest refused pick's message, as map-sdk's `notice`. */
+	notice = $state.raw<{ message: string; id: number } | null>(null);
+	#notices = 0;
+	/** A user's pick that would give `next`: map-sdk's `canSelect`, then `onselectionchange`. */
+	#userPick(id: string, ref: FeatureRef, next: SpatialSelection | null) {
+		const options = this.plugins.find((p) => p.id === id)?.addOptions ?? {};
+		const canSelect = options.canSelect as
+			((n: SpatialSelection | null, r: FeatureRef) => true | string) | undefined;
+		const verdict = canSelect ? canSelect(next, ref) : true;
+		if (verdict !== true) {
+			this.notice = { message: verdict, id: ++this.#notices };
+			return;
+		}
+		this.notice = null;
+		this.selections[id] = next;
+		(options.onselectionchange as ((s: SpatialSelection | null) => void) | undefined)?.(next);
+	}
+	/** map-sdk's `togglePick` (the card's Select/Remove). */
+	togglePick(id: string, ref: FeatureRef) {
+		const mode = this.getSelectionMode(id);
+		if (mode === "none" || ref.kind === "feature") return;
+		this.#userPick(id, ref, toggleInSelection(this.getSelection(id), ref, mode));
+	}
+	/** A Shift-click on a feature: a toggle for `"modifier"` plugins, nothing on the map otherwise. */
+	shiftClick(id: string, ref: FeatureRef) {
+		if (this.getPickWith(id) === "modifier") this.togglePick(id, ref);
+	}
+	/** Shift+Enter on a feature-list row: a toggle for `"modifier"` plugins, else an additive pick. */
+	listShiftEnter(id: string, ref: FeatureRef) {
+		if (this.getPickWith(id) === "modifier") return this.togglePick(id, ref);
+		const mode = this.getSelectionMode(id);
+		if (mode === "none" || ref.kind === "feature") return;
+		this.#userPick(id, ref, applyPick(this.getSelection(id), ref, mode, { additive: true }));
 	}
 	unpin() {
 		this.pinned = null;

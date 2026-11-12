@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
+	import type { CardContext } from "@sjvair/map-sdk";
+	import { decodeRef, selectionKeys } from "@sjvair/map-sdk/data";
 	import { fakeMaps, type FakeMap } from "./fake-map.svelte";
 
 	let {
@@ -20,7 +22,7 @@
 		featureList?: unknown;
 		selectionBar?: boolean;
 		tooltip?: string;
-		card?: boolean;
+		card?: boolean | { actions?: Snippet<[CardContext]> };
 		class?: string;
 	} = $props();
 
@@ -34,6 +36,28 @@
 			fakeMaps.failView = false;
 			throw new Error("Failed to initialize WebGL");
 		}
+	});
+
+	const actions = $derived(typeof card === "object" ? card.actions : undefined);
+	/** The pinned card's context, as map-sdk builds it (`selectable`, `selected`, `toggle`). */
+	const cardContext = $derived.by<CardContext | null>(() => {
+		const hit = map.pinned?.hit;
+		const ref = hit ? decodeRef(hit.refKey) : null;
+		if (!hit || !ref) return null;
+		const { pluginId, refKey } = hit;
+		return {
+			pluginId,
+			ref,
+			refKey,
+			item: null,
+			get selectable() {
+				return map.getSelectionMode(pluginId) !== "none" && ref.kind !== "feature";
+			},
+			get selected() {
+				return selectionKeys(map.getSelection(pluginId)).has(refKey);
+			},
+			toggle: () => map.togglePick(pluginId, ref)
+		};
 	});
 </script>
 
@@ -51,3 +75,12 @@
 >
 	{@render overlays?.()}
 </div>
+{#if cardContext && actions}
+	<!-- Over the map, as map-sdk pins it. -->
+	<div class="absolute top-0 right-0 z-10" data-fake-card={cardContext.refKey}>
+		{@render actions(cardContext)}
+	</div>
+{/if}
+{#if map.notice}
+	<p data-fake-notice>{map.notice.message}</p>
+{/if}

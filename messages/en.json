@@ -1163,10 +1163,47 @@
 	"map_pin_shared_location": "Shared location",
 	"map_legend_toggle": "Legend",
 	"map_label": "{title} map",
+	"map_label_marks_hidden": [
+		{
+			"declarations": [
+				"input title",
+				"input count",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{title} map. {count} marked monitor isn't shown",
+				"countPlural=other": "{title} map. {count} marked monitors aren't shown"
+			}
+		}
+	],
 	"map_layer_places": "Places",
 	"map_no_monitors_here": "No monitors here report this pollutant right now.",
 	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
 	"map_refresh_failed": "Couldn't refresh. Showing earlier readings.",
+	"map_mark_select": "Select",
+	"map_mark_remove": "Remove",
+	"map_marks_limit": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Limit reached: up to {count} marked monitor",
+				"countPlural=other": "Limit reached: up to {count} marked monitors"
+			}
+		}
+	],
+	"map_marks_hidden": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} marked monitor isn't shown",
+				"countPlural=other": "{count} marked monitors aren't shown"
+			}
+		}
+	],
 	"current_trend_rising": "Rising",
 	"current_trend_falling": "Falling",
 	"current_trend_steady": "Steady",

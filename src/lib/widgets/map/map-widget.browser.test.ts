@@ -24,9 +24,11 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import { mapConfig } from "./host/config";
+import { mapOptions } from "./options";
 import { regionShapes } from "./regions";
 import { FakeGl, fakeMaps, type FakeMap } from "./test-harness/fake-map.svelte";
 import MapWidget from "./MapWidget.svelte";
+import SessionMap from "./test-harness/SessionMap.svelte";
 
 vi.mock("@sjvair/map-sdk", async () => {
 	const { createFakeMap } = await import("./test-harness/fake-map.svelte");
@@ -250,6 +252,29 @@ function mapWidget(layer: Partial<Layer>): WidgetInstance {
 }
 
 async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
+	await openSession(widget);
+	return render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, shownApp],
+			...(viewer ? [[PLACE_VIEWER_KEY, viewer] as const] : [])
+		])
+	});
+}
+
+/** Shows the Map as the session's document holds it, following its changes (undo, redo). */
+async function showLive(widget: WidgetInstance) {
+	await openSession(widget);
+	return render(SessionMap, {
+		target: frame,
+		props: { widgetId: widget.id },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, shownApp]])
+	});
+}
+
+/** An app with a dashboard holding `widget`, open in an editable session. */
+async function openSession(widget: WidgetInstance) {
 	platform = createMemoryPlatform();
 	setPlatform(platform);
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
@@ -264,14 +289,7 @@ async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	const session = (await DocumentSession.open(platform, app.space, id, "t2"))!;
 	app.current = { session, isStarter: false };
 	shownApp = app;
-	return render(MapWidget, {
-		target: frame,
-		props: { widget },
-		context: new Map<unknown, unknown>([
-			[APP_CONTEXT_KEY, app],
-			...(viewer ? [[PLACE_VIEWER_KEY, viewer] as const] : [])
-		])
-	});
+	return session;
 }
 
 /** The map, once the widget has made it. */
@@ -382,13 +400,18 @@ test("monitor places get no focus area", async () => {
 	expect(focusOf(map).geometry).toBeNull();
 });
 
-test("the monitors plugin takes no selection, and nothing is highlighted", async () => {
+test("the monitors plugin's selection is the marks, not the places", async () => {
 	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }));
 	const map = await madeMap();
 	await expect.poll(() => map.plugins.find((p) => p.id === "monitors")).toBeTruthy();
 	const monitors = map.plugins.find((p) => p.id === "monitors")!;
 	expect(monitors.options).toMatchObject({ layerLabel: "PM2.5" });
-	expect(monitors.addOptions).toEqual({ selectionMode: "none" });
+	expect(monitors.addOptions).toMatchObject({
+		selectionMode: "multiple",
+		pickWith: "modifier",
+		selection: null
+	});
+	expect(map.getSelection("monitors")).toBeNull();
 	expect(map.selectionCalls).toEqual([]);
 });
 
@@ -630,11 +653,11 @@ test("a click pins the card and never selects", async () => {
 	const widget = mapWidget({ place: { kind: "monitor", id: "a" } });
 	await show(widget);
 	const map = await madeMap();
-	await expect.poll(() => map.view.card).toBe(true);
+	await expect.poll(() => map.view.card).toEqual({ actions: expect.any(Function) });
 	await expect.poll(() => map.plugins.find((p) => p.id === "monitors")).toBeTruthy();
-	// The monitors take no selection from the map: a click only pins.
+	// Marks take a modifier: a plain click only pins.
 	expect(map.plugins.find((p) => p.id === "monitors")!.addOptions).toMatchObject({
-		selectionMode: "none"
+		pickWith: "modifier"
 	});
 	map.ready = true;
 	await new Promise((r) => setTimeout(r, 50));
@@ -923,4 +946,236 @@ test("a failed refresh keeps the earlier readings, with a note and Retry", async
 	await frame.querySelector<HTMLElement>("[data-map-refresh-note] button")!.click();
 	await expect.poll(() => drawn(map)).toEqual(["b"]);
 	expect(screen.getByText(m.map_refresh_failed()).query()).toBeNull();
+});
+
+/** The marks the current session's document holds for its first widget. */
+const marksOf = () => mapOptions(app().current.session!.doc.body.widgets[0]).marks;
+/** Pins `refKey`'s card, as a click or a feature-list row does. */
+function pin(map: FakeMap, refKey: string, pluginId = "monitors") {
+	map.pinned = { hit: { pluginId, refKey, name: refKey } };
+}
+const monitor = (id: string) => ({ kind: "monitor" as const, id });
+const hiddenNote = () => frame.querySelector("[data-map-marks-hidden]")?.textContent?.trim();
+
+test("marks from the card's Select and unmarks with Remove, undoable", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
+	const screen = await showLive(mapWidget(region("019")));
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	pin(map, "monitor:a");
+	await screen.getByRole("button", { name: m.map_mark_select() }).click();
+	await expect.poll(marksOf).toEqual(["a"]);
+	const remove = screen.getByRole("button", { name: m.map_mark_remove() });
+	await expect.element(remove).toBeVisible();
+
+	// Undo and redo set the map's selection (which fires nothing).
+	const session = app().current.session!;
+	session.undo();
+	expect(marksOf()).toBeUndefined();
+	await expect.poll(() => map.selectionCalls.at(-1)).toEqual(["monitors", null]);
+	await expect.element(screen.getByRole("button", { name: m.map_mark_select() })).toBeVisible();
+	session.redo();
+	await expect
+		.poll(() => map.selectionCalls.at(-1))
+		.toEqual(["monitors", { kind: "monitors", ids: ["a"] }]);
+	await screen.getByRole("button", { name: m.map_mark_remove() }).click();
+	await expect.poll(marksOf).toBeUndefined();
+	session.undo();
+	expect(marksOf()).toEqual(["a"]);
+});
+
+test("marks with Shift-click and with Shift+Enter in the feature list", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
+	await showLive(mapWidget(region("019")));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	map.shiftClick("monitors", monitor("a"));
+	await expect.poll(marksOf).toEqual(["a"]);
+	map.listShiftEnter("monitors", monitor("b"));
+	await expect.poll(marksOf).toEqual(["a", "b"]);
+	// One undo step each.
+	app().current.session!.undo();
+	expect(marksOf()).toEqual(["a"]);
+	await expect.poll(() => map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a"] });
+	map.shiftClick("monitors", monitor("a"));
+	await expect.poll(marksOf).toBeUndefined();
+});
+
+test("refuses a 26th mark with the limit message, counting hidden marks", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const marks = Array.from({ length: 25 }, (_, i) => `m${i}`);
+	await showLive({ ...mapWidget(region("019")), options: { marks } });
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: marks });
+	map.shiftClick("monitors", monitor("a"));
+	const limit = m.map_marks_limit({ count: "25", countValue: 25 });
+	await expect.poll(() => map.notice?.message).toBe(limit);
+	expect(marksOf()).toEqual(marks);
+});
+
+test("keeps marks when the pollutant showing changes, and counts the hidden ones", async () => {
+	vi.mocked(getMonitors).mockImplementation(
+		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
+	);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [{ entryType: "o3" }]),
+		options: { showing: "pm25", marks: ["a", "b"] }
+	};
+	await showLive(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(hiddenNote()).toBe("");
+	const session = app().current.session!;
+	const current = () => session.doc.body.widgets[0];
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: widget.id },
+		from: current().data,
+		to: current().data,
+		options: { from: current().options, to: { showing: "o3", marks: ["a", "b"] } }
+	});
+	await expect.poll(() => drawn(map)).toEqual(["b"]);
+	const one = { count: "1", countValue: 1 };
+	await expect.poll(hiddenNote).toBe(m.map_marks_hidden(one));
+	expect(frame.querySelector("[data-map-marks-hidden]")!.getAttribute("role")).toBe("status");
+	await expect
+		.poll(() => map.view.label)
+		.toBe(m.map_label_marks_hidden({ title: "Ozone · Fresno County", ...one }));
+	expect(marksOf()).toEqual(["a", "b"]);
+	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a", "b"] });
+	session.undo();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	await expect.poll(hiddenNote).toBe("");
+});
+
+test("keeps marks when the places change, and undo shows them again", async () => {
+	vi.mocked(getMonitors).mockImplementation(
+		async (_type, options) =>
+			(options?.region?.[0] === "r019" ? [reading("a"), reading("b")] : [reading("c")]) as never
+	);
+	const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
+	await showLive(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	const session = app().current.session!;
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: widget.id },
+		from: session.doc.body.widgets[0].data,
+		to: mapWidget(region("029")).data
+	});
+	await expect.poll(() => drawn(map)).toEqual(["c"]);
+	await expect.poll(hiddenNote).toBe(m.map_marks_hidden({ count: "1", countValue: 1 }));
+	expect(marksOf()).toEqual(["a"]);
+	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a"] });
+	session.undo();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	await expect.poll(hiddenNote).toBe("");
+	expect(marksOf()).toEqual(["a"]);
+});
+
+test("hides Select/Remove and ignores Shift-click on a view-only dashboard", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
+	const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
+	const session = await openSession(widget);
+	session.readOnly = "invalid";
+	const screen = await render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+	});
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	// The saved marks still show.
+	expect(map.plugins.find((p) => p.id === "monitors")!.addOptions).toMatchObject({
+		selectionMode: "none",
+		selection: { kind: "monitors", ids: ["a"] }
+	});
+	pin(map, "monitor:b");
+	await expect.poll(() => frame.querySelector("[data-fake-card]")).toBeTruthy();
+	expect(screen.getByRole("button", { name: m.map_mark_select() }).query()).toBeNull();
+	pin(map, "monitor:a");
+	await expect.poll(() => frame.querySelector('[data-fake-card="monitor:a"]')).toBeTruthy();
+	expect(screen.getByRole("button", { name: m.map_mark_remove() }).query()).toBeNull();
+	map.shiftClick("monitors", monitor("b"));
+	map.listShiftEnter("monitors", monitor("b"));
+	await new Promise((r) => setTimeout(r, 50));
+	expect(marksOf()).toEqual(["a"]);
+});
+
+test("a widget not in the session's document (a shared view) takes no marks", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await openSession(mapWidget(region("029")));
+	const shown = mapWidget(region("019"));
+	await render(MapWidget, {
+		target: frame,
+		props: { widget: shown },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+	});
+	const map = await madeMap();
+	await expect.poll(() => map.plugins.find((p) => p.id === "monitors")).toBeTruthy();
+	expect(map.plugins.find((p) => p.id === "monitors")!.addOptions).toMatchObject({
+		selectionMode: "none"
+	});
+});
+
+test("hands a mark on the starter off to its copy", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = mapWidget(region("019"));
+	// The stored dashboard stands in for the starter's copy.
+	const copy = await openSession(widget);
+	const handedOff: unknown[] = [];
+	const starter = new DocumentSession({
+		platform,
+		space: app().space,
+		tabId: "t3",
+		doc: { ...copy.doc, id: "starter" },
+		onBeforeFirstEdit: async (change) => {
+			handedOff.push(change);
+			copy.apply(change!);
+			app().current = { session: copy, isStarter: false };
+			return copy;
+		}
+	});
+	app().current = { session: starter, isStarter: true };
+	await render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+	});
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	map.shiftClick("monitors", monitor("a"));
+	await expect.poll(() => handedOff.length).toBe(1);
+	await expect.poll(() => mapOptions(copy.doc.body.widgets[0]).marks).toEqual(["a"]);
+	expect(mapOptions(starter.doc.body.widgets[0]).marks).toBeUndefined();
+	expect(app().current.session).toBe(copy);
+});
+
+test("shows no buttons on smoke, fire or the focus pin", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const screen = await showLive({ ...mapWidget({}), data: layers(region("019"), [], true) });
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	const buttons = () =>
+		[
+			screen.getByRole("button", { name: m.map_mark_select() }),
+			screen.getByRole("button", { name: m.map_mark_remove() })
+		].map((b) => b.query());
+	for (const [pluginId, refKey] of [
+		["hms-smoke", "feature:s1"],
+		["hms-fire", "feature:f1"],
+		["focus", "feature:focus"]
+	]) {
+		pin(map, refKey, pluginId);
+		await expect.poll(() => frame.querySelector(`[data-fake-card="${refKey}"]`)).toBeTruthy();
+		expect(buttons()).toEqual([null, null]);
+	}
+	// A monitor's card does show Select.
+	pin(map, "monitor:a");
+	await expect.element(screen.getByRole("button", { name: m.map_mark_select() })).toBeVisible();
 });
