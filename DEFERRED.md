@@ -1265,6 +1265,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   behave as before, and their documented "Shift-click adds" in `"multiple"` mode has never worked
   there. Cmd/Ctrl-click and a touch tap still add. **Revisit if** a host wants Shift-click in the
   default mode (extend the box-zoom pick to `"click"` plugins).
+- **map-sdk: no schools store (`createSchoolsStore`).** _Deferred 2026-11-12 (the user, map-sdk
+  part 4)._ The spec's section 4 called for a store in `./stores` on `getPesticideLocations`, with a
+  region mode and a follow-the-view mode. Why: the dashboard loads its own data and passes plain
+  `DataSource`s, and no other host (monitor-map 5.0, mobile) draws schools. The schools preset
+  documents the feature properties a host supplies. **Revisit if** monitor-map, mobile, or another
+  host wants schools without its own data layer.
 - **map-sdk: map-sdk's dev `@sjvair/sdk` is `5.0.0-beta.3`.** _Deferred 2026-11-12 (map-sdk part
   4)._ `5.0.0-beta.9` adds required `averaging_hours`, `daily_statistic` and `daily_statistic_label`
   to the SDK's `Scale`, which map-sdk's public `Scale` follows, so moving is a breaking type change
