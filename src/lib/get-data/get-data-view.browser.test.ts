@@ -901,7 +901,7 @@ describe("now widgets", () => {
 		const ozone = group.getByRole("checkbox", { name: "Ozone" });
 		await expect.element(pm25).toBeChecked();
 		await expect.element(pm25).toBeDisabled();
-		await expect.element(page.getByText(m.get_data_keep_one())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_map_keep_one())).toBeVisible();
 		await expect.element(group.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
 		await expect.element(group.getByRole("radio")).not.toBeInTheDocument();
 		const boxes = group.getByRole("checkbox").elements();
@@ -928,7 +928,7 @@ describe("now widgets", () => {
 		const what = host.querySelector("[aria-labelledby$=-what]")!;
 		expect((await axe.run(what)).violations).toEqual([]);
 		await expect
-			.element(page.getByRole("button", { name: m.get_data_smoke_help_label() }))
+			.element(page.getByRole("button", { name: m.get_data_map_smoke_help_label() }))
 			.toBeVisible();
 		await smoke.click();
 		expect((await current()).data.layers.slice(1)).toEqual([
@@ -980,6 +980,21 @@ describe("now widgets", () => {
 			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
 		]);
 		expect("options" in out).toBe(false);
+	});
+
+	test("an unshaped Map draft with marks, switched to Current conditions, notes the marks left out", async () => {
+		await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+				],
+				dateRange: { kind: "trailing", amount: 7, unit: "day" }
+			},
+			options: { marks: ["m1"] }
+		});
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
 	});
 
 	test("saves a Map edit as one undo step", async () => {

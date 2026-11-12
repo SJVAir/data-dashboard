@@ -1984,6 +1984,34 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     `waitForTimeout`; stubbed MapTiler 404s are ignored; `reuseExistingServer` may reuse a
     preview built with the real key; the WebGL probe falls back to webgl1. **Add with** the next
     change to `e2e/map.spec.ts`.
+- **Step 5 spec 2 review leftovers.** _Deferred 2026-11-12 (step 5 spec 2, per-task and final
+  reviews)._ Small things the reviews let stay:
+  - **`support` checks only the pollutant showing** (`MapWidget.svelte`): a tile whose showing
+    pollutant left `available_pollutants` shows unavailable even if another layer's pollutant is
+    drawable. **Revisit with** spec 3's Pollutant toolbar (which switches showing).
+  - **Monitor-place tiles each fetch the whole Valley's current list** under their own key and
+    filter client-side (`data/monitors.ts`); keying by entry type would share one request.
+    **Revisit when** a dashboard has several monitor-place maps, or in a performance pass.
+  - **The previous focus area stays drawn while a new place resolves** (`MapFrame` keeps the old
+    frame). **Revisit with** spec 3 or a polish pass.
+  - **`MapWidget.svelte` is about 750 lines;** move the data blocks to
+    `map/data/loaded.svelte.ts`. **Do at** the start of spec 3 (the toolbar adds more).
+  - **The hidden-marks note gives no reason** ("aren't shown") where the spec's example names one
+    ("don't report ozone"). **Revisit on** the user's call (asked at the end of spec 2), or with
+    spec 3's Pollutant toolbar.
+  - **Test gaps kept:** `pollutantLayers` with an unknown-kind layer; the "unsupported" region
+    resolver path; the HMS fetch's abort signal; `mapMetadata` abort paths other than
+    `serverScale`; the starter hand-off uses a hand-built session; the Shift-click E2E doesn't
+    assert the card stays closed (map-sdk part 5). **Add with** the next change to each.
+  - **Small code duplications kept:** `scope.ts` sort/dedupe; `sameIds` in `marks.ts` and
+    `MapWidget`; `MapSections` copies `WhatSections`' Accordion trigger markup. **Fix with** the
+    next change to each.
+  - **Small behaviours kept:** `serverScale` falls back to the monitors meta for unknown datasets
+    (guard on air-quality); `mapMetadata.entryType` reads the catalog only (no scale fallback);
+    `monitorsUnavailable` is written inside a now-client fetch; the HMS cache key's date is fixed
+    when resolved (harmless: the fetch asks for the server's today); the raw "air-quality" id is
+    the fallback section label without a catalog; the e2e point test has a 3 s hard sleep
+    (MapTiler's metrics timer). **Fix with** the next change to each.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:

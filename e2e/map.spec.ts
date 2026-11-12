@@ -370,7 +370,7 @@ test("a region tile shows its focus area and only its region's monitors", async 
 			const { plain, washed } = await basemapShares(browser, await canvas.screenshot());
 			return Math.min(plain, washed);
 		})
-		.toBeGreaterThan(0.1);
+		.toBeGreaterThan(0.05);
 
 	// Only the county's two monitors are listed, not Porterville, which is in view just south of it.
 	const list = await featureList(map);

@@ -194,13 +194,17 @@ describe("converting to and from the Map", () => {
 		expect(isMapShaped(draft)).toBe(false);
 	});
 
-	it("keeps the places on the first pollutant layer through a Get data round trip", () => {
+	it("Map → Chart → Map keeps the place on the first pollutant layer", () => {
 		const draft = mapDraft(["pm25", "o3"], { showing: "o3" }, true);
 		const there = fromMapDraft(draft, chartType, CATALOG);
+		expect(there.draft.data.layers).toHaveLength(1);
 		const back = toMapDraft(there.draft, CATALOG, ALLOWED);
-		// Back to a Map from the Chart: the place is on the first (only) pollutant layer.
 		expect(back.draft.data.layers[0].place).toEqual(FRESNO);
-		// A Map to a Map keeps pm25 holding the place and the rest place-less.
+	});
+
+	it("Map → Map keeps every layer and drops nothing", () => {
+		const draft = mapDraft(["pm25", "o3"], { showing: "o3" }, true);
+		// pm25 holds the place and the rest are place-less.
 		const again = toMapDraft(draft, CATALOG, ALLOWED);
 		expect(again.draft.data.layers.map((l) => [l.entryType ?? l.dataset, !!l.place])).toEqual([
 			["pm25", true],

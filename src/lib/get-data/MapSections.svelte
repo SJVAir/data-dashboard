@@ -105,7 +105,7 @@
 							<span class={[(kept || capped) && "text-muted-foreground"]}>{entry.label}</span>
 						</label>
 						{#if kept}
-							{@render reason(reasonId, m.get_data_keep_one())}
+							{@render reason(reasonId, m.get_data_map_keep_one())}
 						{:else if capped}
 							{@render reason(
 								reasonId,
@@ -136,7 +136,7 @@
 					/>
 					<span>{m.get_data_smoke_and_fire()}</span>
 				</label>
-				<Toggletip label={m.get_data_smoke_help_label()} text={m.get_data_smoke_help()} />
+				<Toggletip label={m.get_data_map_smoke_help_label()} text={m.get_data_map_smoke_help()} />
 			</div>
 		</Accordion.Content>
 	</Accordion.Item>

@@ -450,7 +450,7 @@
 			return;
 		}
 		// From a Map, the pollutant showing is the one that converts.
-		const base = (d: Draft) => (isMapDraft(d) ? mapShowingOnly(d, catalog).draft : d);
+		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
 		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
@@ -460,9 +460,10 @@
 		if (nowPollutant(base(fresh), next, catalog) !== pollutant) {
 			return convertToNow(next, catalog);
 		}
-		const converted = isMapDraft(fresh)
-			? fromMapDraft(fresh, next, catalog, levels)
-			: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
+		const converted =
+			fresh.type === MAP_TYPE
+				? fromMapDraft(fresh, next, catalog, levels)
+				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
 		replaceDraft(converted.draft);
@@ -479,9 +480,8 @@
 		changeId++;
 		defaultOwed = false;
 		if (to.time !== "now" && isNow) {
-			const converted = isMapDraft(plain)
-				? fromMapDraft(plain, to, known ?? [])
-				: fromNowDraft(plain, to);
+			const converted =
+				plain.type === MAP_TYPE ? fromMapDraft(plain, to, known ?? []) : fromNowDraft(plain, to);
 			replaceDraft(converted.draft);
 			noteConversion(converted);
 		}
