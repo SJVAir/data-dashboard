@@ -224,6 +224,11 @@ Decided 2026-09-28.
   `package.json`), but only when the user asks. Once sjvair.com builds this repo's `main`
   (after the hosting track goes live), even these are production deploys and need
   explicit approval.
+- **Build each spec straight toward its step's final design** (the user, 2026-11-12, for every
+  remaining Release 1 step and most likely Release 2; this repo only). No stop-gap UI or interim
+  behaviour to make a feature usable between specs: a step branch merges into `main` once, at the
+  end. Between specs, keep the test suite green, every other widget working, and saved documents
+  opening without errors.
 - **`main` is not branch-protected** for now (see `DEFERRED.md`).
 - **The `planning` branch was merged into `main` on 2026-10-19** (PR #5), with the user's
   approval, once planning was finished.
