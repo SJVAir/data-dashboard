@@ -1166,6 +1166,7 @@
 	"map_layer_places": "Places",
 	"map_no_monitors_here": "No monitors here report this pollutant right now.",
 	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
+	"map_refresh_failed": "Couldn't refresh. Showing earlier readings.",
 	"current_trend_rising": "Rising",
 	"current_trend_falling": "Falling",
 	"current_trend_steady": "Steady",

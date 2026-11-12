@@ -184,10 +184,14 @@
 		plugin.set({ geometry: focusGeometry(current, frame.shapes), label: pinLabel });
 	});
 
-	/** A now state as map-sdk's data status; an error offers `retry`. */
-	function dataStatus(state: NowState<unknown>, retry: () => void): DataStatus {
-		if (state.status === "error") return { state: "error", error: state.error, retry };
-		return state.data === undefined ? { state: "loading" } : { state: "ready" };
+	/**
+	 * A now state as map-sdk's data status. Errors are the widget's to show (its error state or
+	 * its notes, each with one Retry), so map-sdk never sees one: held data reads as ready.
+	 */
+	function dataStatus(state: NowState<unknown>): DataStatus {
+		return state.data === undefined && state.status !== "error"
+			? { state: "loading" }
+			: { state: "ready" };
 	}
 
 	const nowClient = getNowClient();
@@ -203,9 +207,13 @@
 	const placesKey = $derived(
 		layer ? JSON.stringify([layer.place ?? null, layer.selection ?? null]) : ""
 	);
+	/** What the monitors are wanted for now: the places and the pollutant showing. */
+	const wantedKey = $derived(`${placesKey}|${entryType ?? ""}`);
+	/** What the monitors query was resolved for; while it isn't `wantedKey`, its data is stale. */
+	let resolvedFor = $state<string | null>(null);
 
 	$effect(() => {
-		void placesKey;
+		const wanted = wantedKey;
 		const type = entryType;
 		if (!loads || !type) {
 			monitorsUnavailable = null;
@@ -222,12 +230,14 @@
 				if (cancelled) return;
 				monitorsUnavailable = source && "unavailable" in source ? source.unavailable : null;
 				monitorsFor = type;
+				resolvedFor = wanted;
 				monitorsQuery.set(source && "fetch" in source ? source : null);
 			},
 			(error: unknown) => {
 				if (cancelled) return;
 				monitorsUnavailable = null;
 				monitorsFor = type;
+				resolvedFor = wanted;
 				// The scope couldn't be resolved: keyed by widget (never by the places), and Retry
 				// resolves it again before fetching.
 				let failedOnce = false;
@@ -256,11 +266,16 @@
 		};
 	});
 
+	/**
+	 * Whether the query is for the places and pollutant wanted now. After a change, until the new
+	 * scope resolves, the old readings are neither drawn nor counted.
+	 */
+	const monitorsCurrent = $derived(resolvedFor === wantedKey);
 	const monitorsState = $derived(monitorsQuery.state);
 	const monitorsData = $derived(monitorsState.data);
 	/** The monitors as map-sdk data; before they load, with no features but the scale. */
 	const monitorsDrawn = $derived.by(() => {
-		const type = monitorsFor ?? entryType;
+		const type = monitorsCurrent ? (monitorsFor ?? entryType) : entryType;
 		if (!type) return null;
 		return monitorsEntry.toDataSources(monitorsData ?? [], {
 			messages: mapMessages,
@@ -269,11 +284,13 @@
 	});
 	/** One source for the monitors plugin, reading the query's current state. */
 	const monitorsSource: DataSource<MonitorFeatureProperties> = {
-		get status() {
-			return dataStatus(monitorsState, () => monitorsQuery.retry());
+		get status(): DataStatus {
+			return monitorsCurrent ? dataStatus(monitorsState) : { state: "loading" };
 		},
 		get features() {
-			return monitorsData === undefined ? null : (monitorsDrawn?.features ?? null);
+			return !monitorsCurrent || monitorsData === undefined
+				? null
+				: (monitorsDrawn?.features ?? null);
 		},
 		get scale() {
 			return monitorsDrawn?.scale ?? null;
@@ -282,6 +299,10 @@
 	/** Loading the monitors for the first time (the skeleton shows over the map). */
 	const monitorsLoading = $derived(
 		loads && !monitorsUnavailable && monitorsData === undefined && monitorsState.status !== "error"
+	);
+	/** A refresh failed: the earlier readings stay drawn, with a note and Retry. */
+	const monitorsRefreshFailed = $derived(
+		monitorsCurrent && monitorsState.status === "error" && monitorsData !== undefined
 	);
 
 	// Smoke and fire: today's, over the whole map, when on.
@@ -321,7 +342,7 @@
 	): DataSource<P> {
 		return {
 			get status() {
-				return dataStatus(hmsState, () => hmsQuery.retry());
+				return dataStatus(hmsState);
 			},
 			get features() {
 				return hmsState.data === undefined
@@ -470,7 +491,9 @@
 	/** A monitor place the loaded readings don't list (retired, say): the map still draws. */
 	const unlisted = $derived.by(() => {
 		const place = layer?.place;
-		if (monitorsState.status !== "ready" || place?.kind !== "monitor") return false;
+		if (!monitorsCurrent || monitorsState.status !== "ready" || place?.kind !== "monitor") {
+			return false;
+		}
 		return !monitorsState.data.some((reading) => reading.id === place.id);
 	});
 	/** Why the places can't all be shown, over a map that still draws. */
@@ -479,12 +502,14 @@
 		if (typeof s === "object" && "unavailable" in s) {
 			return { status: "unavailable", reason: s.unavailable };
 		}
-		if (monitorsUnavailable) return { status: "unavailable", reason: monitorsUnavailable };
+		if (monitorsCurrent && monitorsUnavailable)
+			return { status: "unavailable", reason: monitorsUnavailable };
 		return unlisted ? { status: "unavailable", reason: "monitor-unlisted" } : null;
 	});
 	/** The places are scoped and loaded, but no monitor there reports the pollutant showing. */
 	const noMonitors = $derived(
 		!note &&
+			monitorsCurrent &&
 			monitorsState.status === "ready" &&
 			(monitorsDrawn?.features?.features.length ?? 0) === 0
 	);
@@ -580,7 +605,7 @@
 				<WidgetSkeleton />
 			</div>
 		{/if}
-		{#if note || noMonitors || hmsFailed}
+		{#if note || noMonitors || monitorsRefreshFailed || hmsFailed}
 			<!-- A compact banner over the map's top: the map stays usable, but for its buttons. -->
 			<div
 				class="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-1 p-2"
@@ -606,10 +631,28 @@
 						{m.map_no_monitors_here()}
 					</p>
 				{/if}
+				{#if monitorsRefreshFailed}
+					<div
+						class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+						role="status"
+						data-map-refresh-note
+					>
+						<p class="text-muted-foreground">{m.map_refresh_failed()}</p>
+						<Button
+							size="sm"
+							variant="outline"
+							class="pointer-events-auto"
+							onclick={() => monitorsQuery.retry()}
+						>
+							{m.widget_state_retry()}
+						</Button>
+					</div>
+				{/if}
 				{#if hmsFailed}
 					<div
 						class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
 						role="status"
+						data-map-hms-note
 					>
 						<p class="text-muted-foreground">{m.map_smoke_fire_failed()}</p>
 						<Button

@@ -796,6 +796,16 @@ test("keeps the monitors when smoke and fire fail, with a note", async () => {
 	await expect.element(screen.getByText(m.map_smoke_fire_failed())).toBeVisible();
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
+	// map-sdk sees no error, so its legend offers no second Retry: only the note's.
+	const smoke = map.plugins.find((p) => p.id === "hms-smoke")!.options;
+	const fire = map.plugins.find((p) => p.id === "hms-fire")!.options;
+	expect((smoke.source as { status: unknown }).status).toEqual({ state: "ready" });
+	expect((fire.source as { status: unknown }).status).toEqual({ state: "ready" });
+	expect((fire.hotspots as { status: unknown }).status).toEqual({ state: "ready" });
+	const retries = [...frame.querySelectorAll("button")].filter(
+		(b) => b.textContent?.trim() === m.widget_state_retry()
+	);
+	expect(retries).toHaveLength(1);
 	// Its Retry loads smoke and fire again.
 	await frame.querySelector<HTMLElement>("[data-map-note] button")!.click();
 	await expect.poll(() => screen.getByText(m.map_smoke_fire_failed()).query()).toBeNull();
@@ -825,4 +835,92 @@ test("stops polling while off screen", async () => {
 	frame.style.top = "0px";
 	await expect.poll(() => map.view.active).toBe(true);
 	await expect.poll(() => monitors()?.polling).toBe(true);
+});
+
+/** Region resolves that wait while `held` is set, until `release()`; `calls` counts them. */
+function holdableRegions() {
+	const gate = { held: false, calls: 0, release: () => {} };
+	vi.mocked(getResolvers).mockReturnValue({
+		locations: { resolve: async () => null },
+		regions: {
+			resolve: async (_type: string, code: string) => {
+				gate.calls++;
+				if (gate.held) await new Promise<void>((r) => (gate.release = r));
+				return { id: `r${code}`, name: code };
+			}
+		}
+	} as never);
+	return gate;
+}
+
+type Watched = { features: { features: unknown[] } | null; status: unknown };
+const monitorsSourceOf = (map: FakeMap) =>
+	map.plugins.find((p) => p.id === "monitors")?.options.source as Watched | undefined;
+
+test("a pollutant switch draws none of the old readings while the new scope resolves", async () => {
+	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
+	const gate = holdableRegions();
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [{ entryType: "o3" }]),
+		options: { showing: "pm25" }
+	};
+	const screen = await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	gate.held = true;
+	const before = gate.calls;
+	await screen.rerender({ widget: { ...widget, options: { showing: "o3" } } });
+	await expect.poll(() => gate.calls).toBeGreaterThan(before);
+	await expect
+		.poll(() => map.plugins.find((p) => p.id === "monitors")?.options.layerLabel)
+		.toBe("Ozone");
+	// Under the new label: no PM2.5 readings drawn, listed or fitted to.
+	expect(drawn(map)).toBeUndefined();
+	expect(monitorsSourceOf(map)?.status).toEqual({ state: "loading" });
+	gate.release();
+	await expect.poll(() => drawn(map)).toEqual(["o3"]);
+});
+
+test("a place change draws none of the old places' readings while the new scope resolves", async () => {
+	vi.mocked(getMonitors).mockImplementation(
+		async (_type, options) =>
+			(options?.region?.[0] === "r019" ? [] : [reading(String(options?.region?.[0]))]) as never
+	);
+	const gate = holdableRegions();
+	const widget = mapWidget(region("019"));
+	const screen = await show(widget);
+	const map = await madeMap();
+	// The first places hold no monitors: the note says so.
+	await expect.element(screen.getByText(m.map_no_monitors_here())).toBeVisible();
+	gate.held = true;
+	const before = gate.calls;
+	await screen.rerender({ widget: { ...widget, data: mapWidget(region("029")).data } });
+	await expect.poll(() => gate.calls).toBeGreaterThan(before);
+	// The old scope's note and readings don't stand for the new places.
+	await expect.poll(() => screen.getByText(m.map_no_monitors_here()).query()).toBeNull();
+	expect(drawn(map)).toBeUndefined();
+	expect(frame.querySelector("[data-map-note]")).toBeNull();
+	gate.release();
+	await expect.poll(() => drawn(map)).toEqual(["r029"]);
+});
+
+test("a failed refresh keeps the earlier readings, with a note and Retry", async () => {
+	vi.mocked(getMonitors)
+		.mockResolvedValueOnce([reading("a")] as never)
+		.mockRejectedValueOnce(new Error("offline"))
+		.mockResolvedValue([reading("b")] as never);
+	const screen = await show(mapWidget(region("019")));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	const key = nowClient.entries().find((e) => e.key.startsWith("map-monitors"))!.key;
+	nowClient.refetch(key);
+	await expect.element(screen.getByText(m.map_refresh_failed())).toBeVisible();
+	expect(drawn(map)).toEqual(["a"]);
+	// map-sdk sees the held readings as ready: its legend offers no second Retry.
+	expect(monitorsSourceOf(map)?.status).toEqual({ state: "ready" });
+	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
+	await frame.querySelector<HTMLElement>("[data-map-refresh-note] button")!.click();
+	await expect.poll(() => drawn(map)).toEqual(["b"]);
+	expect(screen.getByText(m.map_refresh_failed()).query()).toBeNull();
 });
