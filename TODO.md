@@ -1631,6 +1631,12 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **The chart keyboard-stepping test no longer flakes** (2026-11-11, after it failed in CI on
+      PR #53): "keyboard stepping moves the strips' cursors" in
+      `src/lib/charts/time-chart.browser.test.ts` now waits for the chart to have focus and
+      proves each key arrived (the readout's date) before reading the strip's cursor. "A chart
+      browser test flakes under full-suite load" removed from `DEFERRED.md`.
+
 - [x] **The error reports' route list** (step 4 spec 3, 2026-11-05): a test compares
       `routePattern` to the router's route keys (`ROUTE_KEYS`). Removed from `DEFERRED.md`: "The
       error reports' route list duplicates the router's".
