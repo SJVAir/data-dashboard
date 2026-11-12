@@ -1716,6 +1716,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (`destroy_effect_children` keeps `next`; `Batch#traverse` climbs past the root). Why deferred:
   filing on Svelte's GitHub is public and needs the user's yes. Revisit: when the user says to
   file it, or when a Svelte release fixes it. map-sdk's microtask setup stays either way.
+- **map-sdk: a middle, icons-only toolbar layout.** _Deferred 2026-11-11 (map-sdk's options
+  toolbar spec, `docs/superpowers/specs/2026-11-11-options-toolbar-and-widget-needs-design.md` →
+  "Deferrals"; recorded here 2026-11-12)._ The shared toolbar has two layouts, wide (joined
+  dropdown buttons) and narrow (one options button and a panel), chosen by the map's width. A
+  third layout between them, showing only the group icons, is left out. Why: two layouts are
+  simpler to get right. **Revisit when** a tile width shows the wide layout cramped or wrapping
+  badly (map-sdk part 5's screenshots are the first look).
+- **map-sdk: no faint tint inside the focus area.** _Deferred 2026-11-11 (the same spec →
+  "Deferrals"; recorded here 2026-11-12)._ sjvair.com's pesticides explorer tints the inside of
+  its focus shape; map-sdk's focus area (part 3, `0.1.0-beta.11`) draws only the line, casing and
+  the fade outside. Why: a tint would sit over the data, and the line and fade suffice. **Revisit
+  if** the user wants the explorers' exact look.
 
 ## Widgets
 
