@@ -238,7 +238,11 @@ as one place (one swap, one region), and the tests from spec 1 extend to a multi
 - **`sharedMetadata()`'s `createDefaultMetadata()` (my call):** it has map-sdk fetch the monitors
   meta, the dataset catalog and the HMS meta itself. It's replaced by a `MetadataProvider`
   adapter over the dashboard's own metadata module, so map-sdk fetches nothing and the metadata is
-  loaded once, through the same cache as every other widget.
+  loaded once, through the same cache as every other widget. The adapter grows with each new
+  map-sdk `MetadataProvider` hook. The first is map-sdk part 4's schools' location type labels
+  (from `getRegionsMeta` → `location_types`), arriving with `@sjvair/map-sdk` `0.1.0-beta.12`;
+  its shape is agreed with `map-sdk-c0`, and the adapter implements it when the dashboard moves
+  to that beta.
 - `DEFERRED.md` → "The map pin's label is the dashboard's own stop-gap" is done.
 
 ### Packages
