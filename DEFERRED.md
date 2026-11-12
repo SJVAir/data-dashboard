@@ -2600,15 +2600,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   started with a paused or longer-running animation, and wait on the announcement rather than a
   fixed moment.
 
-- **A chart browser test flakes under full-suite load.** _Noted 2026-11-08 (step 4 spec 4,
-  Task 13)._ `src/lib/charts/time-chart.browser.test.ts`, "keyboard stepping moves the strips'
-  cursors" (added in spec 3b), failed in 2 of 3 full local `npm run test` runs and passes alone
-  (6 of 6); Task 13 did not touch charts. It fails at line 410: after `{End}` the strip's
-  cursor is still where `{Home}` put it, so the key seems not to reach the focused chart under
-  load (the `{Home}` check, `>= 0`, does not prove it did). **Revisit when** it flakes in CI, or
-  when touching that test: assert the chart has focus and that `{Home}` moved the cursor before
-  pressing `{End}`.
-
+- **Some browser tests flake under full-suite load.** _Noted 2026-11-11 (step 5 spec 1)._ In
+  full local `npm run test` runs on a busy machine (other sessions' checks plus the local
+  stack's heavy :40 window), one or two of these failed per run and each passed alone:
+  `src/lib/widgets/chart/chart-size.browser.test.ts` ("with two strips the main plot keeps half
+  the plot area"), `src/lib/components/dashboard/PlaceBar.browser.test.ts` ("the starter shows
+  Showing Fresno County · Change place") and `src/lib/components/dashboard/arranging.browser.test.ts`
+  ("a keyboard resize animates the frame's size, not under reduced motion"). They're timing
+  checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
+  CI, or when touching the test: wait on the settled state (a poll on the final size, or the
+  animation's end) instead of a fixed moment.
 - **The WebKit E2E job is slow on CI.** _Noted 2026-11-10 (the `step-4` → `main` PR, #50)._ The
   `e2e-full (webkit)` job takes 10–13 minutes on GitHub's runner, against about 4 for Chromium
   and 6 for Firefox, and about 2 minutes for the same suite locally in the same Playwright image
