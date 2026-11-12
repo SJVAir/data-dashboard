@@ -4,7 +4,7 @@ Status: brainstormed with the user 2026-11-11 and 2026-11-12, on `step-5-spec-2-
 (from `step-5`, with `origin/main` merged in for #55, the user's yes). Checked by a fresh
 builder read: one question for the user (marks outside the tile's data are kept hidden, the
 user's choice of my recommendation), the rest settled as my calls below, and five contradictions
-with the code fixed.
+with the code fixed. **Approved by the user 2026-11-12.**
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
 
