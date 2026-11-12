@@ -177,7 +177,6 @@ Installed:
 | `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                                            |
 | `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                                      |
 | `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView`, data stores (0.1.0-beta.9, pinned exactly; lazy) |
-| `@maptiler/sdk`                    | The map pin's `Marker` (~4.2.0, in step with map-sdk's; lazy)                          |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 

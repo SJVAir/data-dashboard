@@ -26,9 +26,7 @@ const CONTRACT: Record<string, string[]> = {
 // Hosts that appear in source but are never fetched.
 const NOT_FETCHED = new Set([
 	// A link the person follows (navigation, not a fetch).
-	"www.sjvair.com",
-	// The SVG namespace in the Map's pin marker (src/lib/widgets/map/sources.ts).
-	"www.w3.org"
+	"www.sjvair.com"
 ]);
 
 // Exact dummy strings used as URL bases, ending at the closing quote so any other use of the same

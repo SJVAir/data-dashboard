@@ -5,7 +5,7 @@
  */
 export type FakePlugin = {
 	id: string;
-	kind: "shapes" | "points" | "monitors";
+	kind: "focus" | "monitors";
 	options: Record<string, unknown>;
 	addOptions?: Record<string, unknown>;
 };
@@ -13,7 +13,7 @@ export type FakePlugin = {
 export type CameraCall =
 	{ kind: "fitBounds"; bounds: unknown; options: unknown } | { kind: "easeTo"; target: unknown };
 
-/** The attached GL map's stand-in: only what a host marker touches. */
+/** The attached GL map's stand-in: only what the widget touches (its context-lost listener). */
 export class FakeGl {
 	readonly id = crypto.randomUUID();
 	listeners = new Map<string, Set<(e: unknown) => void>>();
@@ -28,44 +28,6 @@ export class FakeGl {
 		for (const l of [...(this.listeners.get(type) ?? [])]) l({ type });
 	}
 }
-
-/** A stand-in for @maptiler/sdk's `Marker`: records where it is and which GL map holds it. */
-export class FakeMarker {
-	lngLat: [number, number] | null = null;
-	gl: FakeGl | null = null;
-	constructor(readonly options: { element: HTMLElement; anchor?: string; offset?: unknown }) {
-		fakeMarkers.made.push(this);
-	}
-	get element(): HTMLElement {
-		return this.options.element;
-	}
-	setLngLat(lngLat: [number, number]) {
-		this.lngLat = lngLat;
-		return this;
-	}
-	addTo(gl: FakeGl) {
-		this.gl = gl;
-		return this;
-	}
-	remove() {
-		this.gl = null;
-		return this;
-	}
-}
-
-export const fakeMarkers = {
-	made: [] as FakeMarker[],
-	reset() {
-		this.made = [];
-	},
-	/** The markers on a GL map now. */
-	on(gl: FakeGl | null): FakeMarker[] {
-		return this.made.filter((m) => m.gl !== null && m.gl === gl);
-	},
-	get shown(): FakeMarker[] {
-		return this.made.filter((m) => m.gl !== null);
-	}
-};
 
 export class FakeMap {
 	#ready = $state(false);

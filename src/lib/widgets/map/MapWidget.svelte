@@ -2,14 +2,13 @@
 	import { getContext, onDestroy, untrack } from "svelte";
 	import {
 		createMap,
+		focusAreaPlugin,
 		Legend,
 		MapView,
 		monitorsPlugin,
-		pointsPlugin,
-		shapesPlugin,
+		type FocusAreaPlugin,
 		type MapContext
 	} from "@sjvair/map-sdk";
-	import type { SpatialSelection } from "@sjvair/map-sdk/data";
 	import type { MonitorsStore } from "@sjvair/map-sdk/stores";
 	import { ancestorAnimationsSettled } from "$lib/charts/settled";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
@@ -29,6 +28,7 @@
 	import { placeLabel } from "../title";
 	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
 	import { MapFrame } from "./frame.svelte";
+	import { focusGeometry } from "./focus";
 	import { fitTarget } from "./framing";
 	import { mapConfig } from "./host/config";
 	import { mapFormat } from "./host/format";
@@ -36,9 +36,7 @@
 	import { acquireMonitors } from "./host/stores";
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
-	import { pinLabel as showPinLabel } from "./pin-label.svelte";
-	import { regionKey } from "./regions";
-	import { featureSource, monitorPositions, pinFeatures, pinIcon, shapeFeatures } from "./sources";
+	import { monitorPositions } from "./sources";
 
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
 	const app = useApp();
@@ -94,23 +92,16 @@
 	let map = $state.raw<MapContext | null>(null);
 	let mapError = $state.raw<{ error: unknown } | null>(null);
 	let mapTries = $state(0);
+	let focusArea = $state.raw<FocusAreaPlugin | null>(null);
 
-	const placesFeatures = $derived(shapeFeatures(frame.shapes));
-	const placesSource = featureSource(() => placesFeatures);
 	const pin = $derived(frame.frame?.pin ?? null);
+	/** A school's name, or "Your location" / "Shared location" for an exact point. */
 	const pinLabel = $derived(
 		pin?.kind === "location"
 			? pin.name
 			: viewer === "shared"
 				? m.map_pin_shared_location()
 				: m.map_pin_your_location()
-	);
-	const pinCollection = $derived(pinFeatures(pin, pinLabel));
-	const pinSource = featureSource(() => pinCollection);
-	// Its visible text label (the shape and this text mark it, not color alone).
-	showPinLabel(
-		() => map,
-		() => (pin ? { lngLat: [pin.lon, pin.lat], text: pinLabel } : null)
 	);
 
 	$effect(() => {
@@ -125,26 +116,10 @@
 					messages: mapMessages,
 					format: mapFormat
 				});
-				created.addPlugin(
-					shapesPlugin({
-						id: "places",
-						source: placesSource,
-						layerLabel: m.map_layer_places(),
-						mode: "plain",
-						listed: false,
-						selectable: false,
-						hoverable: false
-					})
-				);
-				created.addPlugin(
-					pointsPlugin({
-						id: "pin",
-						source: pinSource,
-						layerLabel: m.map_layer_places(),
-						selectable: false,
-						icon: pinIcon
-					})
-				);
+				// First, so everything else draws over it.
+				const focus = focusAreaPlugin({ id: "focus", layerLabel: m.map_layer_places() });
+				created.addPlugin(focus);
+				focusArea = focus;
 				return created;
 			} catch (error) {
 				return { error };
@@ -158,6 +133,7 @@
 		map = made;
 		return () => {
 			made.destroy();
+			focusArea = null;
 			map = null;
 		};
 	});
@@ -176,16 +152,15 @@
 		mapTries++;
 	}
 
-	const monitorSelection = $derived<SpatialSelection | null>(
-		frame.frame?.monitors.length ? { kind: "monitors", ids: frame.frame.monitors } : null
-	);
-	const regionSelection = $derived<SpatialSelection | null>(
-		frame.frame?.regions.length
-			? { kind: "regions", ids: frame.frame.regions.map(regionKey) }
-			: null
-	);
+	// The focus area: the places' outline, or the pin, set again on each change of frame.
+	$effect(() => {
+		const plugin = focusArea;
+		const current = frame.frame;
+		if (!plugin || !current) return;
+		plugin.set({ geometry: focusGeometry(current, frame.shapes), label: pinLabel });
+	});
 
-	// The page's shared store for the pollutant, under the outlines and the pin.
+	// The page's shared store for the pollutant.
 	let store = $state.raw<MonitorsStore | null>(null);
 	let storeState = $state.raw<"loading" | "ready" | { error: unknown }>("loading");
 	let storeTries = $state(0);
@@ -199,7 +174,7 @@
 		untrack(() =>
 			current.addPlugin(
 				monitorsPlugin({ source: held.store.dataSource, layerLabel: label, selectedStyle: "ring" }),
-				{ before: "pin", selectionMode: "none", selection: monitorSelection }
+				{ selectionMode: "none" }
 			)
 		);
 		store = held.store;
@@ -232,13 +207,6 @@
 		return () => {
 			live = false;
 		};
-	});
-
-	$effect(() => {
-		const current = map;
-		if (!current) return;
-		current.setSelection("monitors", monitorSelection);
-		current.setSelection("places", regionSelection);
 	});
 
 	const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

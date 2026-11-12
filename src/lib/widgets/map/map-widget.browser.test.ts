@@ -21,13 +21,7 @@ import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import { mapConfig } from "./host/config";
 import { regionShapes } from "./regions";
-import {
-	FakeGl,
-	fakeMaps,
-	fakeMarkers,
-	fakeStores,
-	type FakeMap
-} from "./test-harness/fake-map.svelte";
+import { FakeGl, fakeMaps, fakeStores, type FakeMap } from "./test-harness/fake-map.svelte";
 import MapWidget from "./MapWidget.svelte";
 
 vi.mock("@sjvair/map-sdk", async () => {
@@ -50,16 +44,20 @@ vi.mock("@sjvair/map-sdk", async () => {
 		createMap: createFakeMap,
 		MapView,
 		Legend,
-		shapesPlugin: plugin("shapes"),
-		pointsPlugin: plugin("points"),
+		focusAreaPlugin: (options: { id?: string }) => {
+			const focus = { geometry: null as unknown, label: undefined as string | undefined };
+			return {
+				id: options.id ?? "focus-area",
+				kind: "focus",
+				options,
+				focus,
+				set: (next: { geometry: unknown; label?: string }) => Object.assign(focus, next)
+			};
+		},
 		monitorsPlugin: plugin("monitors"),
 		maptilerMap: (map: { gl: unknown }) => map.gl,
 		geometryBbox
 	};
-});
-vi.mock("@maptiler/sdk", async () => {
-	const { FakeMarker } = await import("./test-harness/fake-map.svelte");
-	return { Marker: FakeMarker };
 });
 vi.mock("./host/stores", async () => {
 	const { fakeStores } = await import("./test-harness/fake-map.svelte");
@@ -159,7 +157,6 @@ beforeEach(async () => {
 	await page.viewport(1280, 800);
 	fakeMaps.reset();
 	fakeStores.reset();
-	fakeMarkers.reset();
 	vi.mocked(mapConfig).mockReturnValue({ maptilerKey: "test", projection: "mercator" });
 	const { getMetadata, getQueryClient } = await import("$lib/data");
 	vi.mocked(getMetadata).mockReturnValue(fixtureMetadata());
@@ -253,19 +250,20 @@ test("an idle map creates no map and acquires no store", async () => {
 	expect(fakeStores.held.size).toBe(0);
 });
 
-test("one region outlines and fits it", async () => {
+/** What a map's focus area shows now. */
+const focusOf = (map: FakeMap) =>
+	(map.plugins.find((p) => p.id === "focus") as unknown as { focus: Record<string, unknown> })
+		?.focus;
+
+test("one region is the focus area, and fits", async () => {
 	await show(mapWidget(region("019")));
 	const map = await madeMap();
-	await expect.poll(() => map.plugins.map((p) => p.id)).toEqual(["places", "monitors", "pin"]);
-	expect(map.plugins[0].options).toMatchObject({
-		mode: "plain",
-		listed: false,
-		selectable: false,
-		hoverable: false
-	});
-	await expect
-		.poll(() => map.selections.get("places"))
-		.toEqual({ kind: "regions", ids: ["county:019"] });
+	await expect.poll(() => map.plugins.map((p) => p.id)).toEqual(["focus", "monitors"]);
+	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
+	// No outline, pin or DOM pin label of spec 1's.
+	expect(map.plugins.map((p) => p.id)).not.toContain("places");
+	expect(map.plugins.map((p) => p.id)).not.toContain("pin");
+	expect(document.querySelector("[data-pin-label]")).toBeNull();
 	expect(map.camera).toEqual([]);
 	map.ready = true;
 	await expect
@@ -277,21 +275,18 @@ test("one region outlines and fits it", async () => {
 				options: { padding: 32 }
 			}
 		]);
-	const source = map.plugins[0].options.source as { features: { features: unknown[] } };
-	expect(source.features.features).toHaveLength(1);
 });
 
-test("a point fits its region and pins the point, labeled for owner and shared viewer", async () => {
+test("a point fits its region and focuses the point, labeled for owner and shared viewer", async () => {
 	const point = { place: { kind: "point" as const, lat: 36.7, lon: -119.8 } };
-	const pinName = (map: FakeMap) => {
-		const pin = map.plugins.find((p) => p.id === "pin")!;
-		const fc = (pin.options.source as { features: { features: Feature[] } }).features;
-		return fc.features.map((f) => f.properties?.name);
-	};
 	const owner = await show(mapWidget(point));
 	let map = await madeMap();
-	await expect.poll(() => pinName(map)).toEqual([m.map_pin_your_location()]);
-	expect(map.plugins.find((p) => p.id === "pin")!.options.selectable).toBe(false);
+	await expect
+		.poll(() => focusOf(map))
+		.toEqual({
+			geometry: { type: "Point", coordinates: [-119.8, 36.7] },
+			label: m.map_pin_your_location()
+		});
 	map.ready = true;
 	await expect
 		.poll(() => map.camera)
@@ -308,75 +303,41 @@ test("a point fits its region and pins the point, labeled for owner and shared v
 	fakeMaps.reset();
 	await show(mapWidget(point), "shared");
 	map = await madeMap();
-	await expect.poll(() => pinName(map)).toEqual([m.map_pin_shared_location()]);
+	await expect.poll(() => focusOf(map).label).toBe(m.map_pin_shared_location());
 });
 
-test("the pin shows a visible label for the owner and a shared viewer", async () => {
-	const point = { place: { kind: "point" as const, lat: 36.7, lon: -119.8 } };
-	const owner = await show(mapWidget(point));
-	let map = await madeMap();
-	map.gl = new FakeGl();
-	await expect.poll(() => fakeMarkers.on(map.gl).length).toBe(1);
-	let [label] = fakeMarkers.on(map.gl);
-	expect(label.element.textContent).toBe(m.map_pin_your_location());
-	expect(label.element.getAttribute("aria-hidden")).toBe("true");
-	expect(label.lngLat).toEqual([-119.8, 36.7]);
-	await owner.unmount();
-
-	fakeMaps.reset();
-	fakeMarkers.reset();
-	await show(mapWidget(point), "shared");
-	map = await madeMap();
-	map.gl = new FakeGl();
-	await expect.poll(() => fakeMarkers.on(map.gl).length).toBe(1);
-	[label] = fakeMarkers.on(map.gl);
-	expect(label.element.textContent).toBe(m.map_pin_shared_location());
-});
-
-test("a school's pin is labeled with its name", async () => {
+test("a school's focus point is labeled with its name", async () => {
 	await show(mapWidget({ place: { kind: "location", source: "schools", code: "s1" } }));
 	const map = await madeMap();
-	map.gl = new FakeGl();
-	await expect.poll(() => fakeMarkers.on(map.gl).length).toBe(1);
-	expect(fakeMarkers.on(map.gl)[0].element.textContent).toBe("Roosevelt High School");
+	await expect
+		.poll(() => focusOf(map))
+		.toEqual({
+			geometry: { type: "Point", coordinates: [-119.8, 36.7] },
+			label: "Roosevelt High School"
+		});
 });
 
-test("the pin label is removed on detach and on unmount", async () => {
-	const screen = await show(mapWidget({ place: { kind: "point", lat: 36.7, lon: -119.8 } }));
+test("several regions are one MultiPolygon focus area", async () => {
+	await show(mapWidget({ selection: { kind: "regions", ids: ["county:019", "county:029"] } }));
 	const map = await madeMap();
-	const first = new FakeGl();
-	map.gl = first;
-	await expect.poll(() => fakeMarkers.on(first).length).toBe(1);
-	// Detached: the label goes with the GL map.
-	map.gl = null;
-	await expect.poll(() => fakeMarkers.shown.length).toBe(0);
-	// Re-attached to a new GL map: one label, on the new one.
-	const second = new FakeGl();
-	map.gl = second;
-	await expect.poll(() => fakeMarkers.on(second).length).toBe(1);
-	expect(fakeMarkers.shown).toHaveLength(1);
-	await screen.unmount();
-	expect(fakeMarkers.shown).toHaveLength(0);
+	await expect.poll(() => (focusOf(map).geometry as { type: string })?.type).toBe("MultiPolygon");
 });
 
-test("a region has no pin label", async () => {
-	await show(mapWidget(region("019")));
+test("monitor places get no focus area", async () => {
+	await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
 	const map = await madeMap();
-	map.gl = new FakeGl();
-	await expect.poll(() => map.selections.get("places")).toBeTruthy();
-	expect(fakeMarkers.made).toHaveLength(0);
+	await expect.poll(() => map.plugins.map((p) => p.id)).toEqual(["focus", "monitors"]);
+	expect(focusOf(map).geometry).toBeNull();
 });
 
-test("a monitor selection highlights them with the ring style", async () => {
+test("the monitors plugin takes no selection, and nothing is highlighted", async () => {
 	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }));
 	const map = await madeMap();
-	await expect
-		.poll(() => map.selections.get("monitors"))
-		.toEqual({ kind: "monitors", ids: ["a", "b"] });
 	await expect.poll(() => map.plugins.find((p) => p.id === "monitors")).toBeTruthy();
 	const monitors = map.plugins.find((p) => p.id === "monitors")!;
-	expect(monitors.options).toMatchObject({ selectedStyle: "ring", layerLabel: "PM2.5" });
-	expect(monitors.addOptions).toMatchObject({ selectionMode: "none", before: "pin" });
+	expect(monitors.options).toMatchObject({ layerLabel: "PM2.5" });
+	expect(monitors.addOptions).toEqual({ selectionMode: "none" });
+	expect(map.selectionCalls).toEqual([]);
 });
 
 test("fits once the store has the monitors", async () => {
@@ -413,9 +374,7 @@ test("refits to the current layer after re-attach", async () => {
 	map.attached = false;
 	map.ready = false;
 	await screen.rerender({ widget: { ...widget, data: mapWidget(region("029")).data } });
-	await expect
-		.poll(() => map.selections.get("places"))
-		.toEqual({ kind: "regions", ids: ["county:029"] });
+	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:029"].geometry);
 	expect(map.camera).toHaveLength(1);
 	map.ready = true;
 	await expect.poll(() => map.camera).toHaveLength(2);
@@ -588,9 +547,7 @@ test("a failed place lookup shows the error, and a retry looks it up again", asy
 	await expect.element(screen.getByText(m.widget_state_error())).toBeVisible();
 	await screen.getByRole("button", { name: m.widget_state_retry() }).click();
 	const map = await madeMap();
-	await expect
-		.poll(() => map.selections.get("places"))
-		.toEqual({ kind: "regions", ids: ["county:019"] });
+	await expect.poll(() => focusOf(map)?.geometry).toEqual(SHAPES["county:019"].geometry);
 	await expect.poll(() => screen.getByText(m.widget_state_error()).query()).toBeNull();
 });
 
@@ -635,14 +592,10 @@ test("a click pins the card and never selects", async () => {
 	map.ready = true;
 	await new Promise((r) => setTimeout(r, 50));
 	const calls = map.selectionCalls.length;
-	// The monitor place's own highlight, which the click must leave as it is.
-	const selected = map.selections.get("monitors");
-	expect(selected).toEqual({ kind: "monitors", ids: ["a"] });
 	const before = JSON.parse(JSON.stringify(app().current!.session!.doc.body));
 	frame.querySelector<HTMLElement>(`[data-fake-map="${map.uid}"]`)!.click();
 	await expect.poll(() => map.pinned?.hit.refKey).toBe("monitor:a");
 	await new Promise((r) => setTimeout(r, 100));
 	expect(map.selectionCalls).toHaveLength(calls);
-	expect(map.selections.get("monitors")).toEqual(selected);
 	expect(app().current!.session!.doc.body).toEqual(before);
 });
