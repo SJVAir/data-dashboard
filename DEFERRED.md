@@ -2543,16 +2543,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   when touching that test: assert the chart has focus and that `{Home}` moved the cursor before
   pressing `{End}`.
 
-- **The WebKit E2E job is slow on CI, and a heavy share test flaked there once.** _Noted
-  2026-11-10 (the `step-4` → `main` PR, #50)._ The `e2e-full (webkit)` job takes 10–13 minutes
-  on GitHub's runner, against about 4 for Chromium and 6 for Firefox, and about 2 minutes for
-  the same suite locally in the same Playwright image (podman). Two WebKit-only timeouts came
-  from it:
+- **The WebKit E2E job is slow on CI.** _Noted 2026-11-10 (the `step-4` → `main` PR, #50)._ The
+  `e2e-full (webkit)` job takes 10–13 minutes on GitHub's runner, against about 4 for Chromium
+  and 6 for Firefox, and about 2 minutes for the same suite locally in the same Playwright image
+  (podman). Two WebKit-only flakes came from it, both fixed:
   - the starter's "the bar on a copy" test, about 30 s of clicks on the runner (fixed in #50:
     one step fewer and `test.slow()`);
   - `e2e/sharing.spec.ts`, "a dashboard too big for a link offers only the file" (1,000 widgets),
-    whose Share dialog didn't show "too big to share as a link" within the 5 s expect timeout. It
-    passed on a re-run of the job, and the test hasn't changed since spec 3.
+    which failed on #50, #51 and #52 and passed on each re-run. Share builds and compresses the
+    link before the dialog opens, and the test clicked Share while the 1,000 widgets were still
+    drawing, so the dialog didn't open within the 5 s check. Fixed 2026-11-11: the test waits
+    until every widget is drawn and is marked `test.slow()`. Measured locally in the Playwright
+    image, once drawn, Share to dialog takes about 0.3 s on WebKit at 1,000 widgets.
 
   The user found the WebKit job too slow (2026-11-10). Candidate speed-ups, none tried yet: shard
   the WebKit job, set its workers explicitly, or add `--ipc=host` to the container options (a
