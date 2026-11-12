@@ -2036,6 +2036,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     can't start from a starter holding a Map until a starter preset has one); the Shift-click
     E2E doesn't assert the card stays closed (map-sdk part 5). **Add with** the next change to
     each.
+  - **Show as converts by the saved `showing`:** when the tile falls back to another pollutant
+    because the saved `showing` isn't offered, Get data's "Show as" (`mapShowingOnly` in
+    `src/lib/get-data/map.ts`) still converts by the saved `showing`, so the chart or table can
+    show a pollutant the tile isn't drawing. **Revisit with** spec 3's Pollutant toolbar or
+    spec 6 ("Show in a chart/table").
   - **Small behaviours kept:** `serverScale` falls back to the monitors meta for unknown datasets
     (guard on air-quality); `mapMetadata.entryType` reads the catalog only (no scale fallback);
     `monitorsUnavailable` is written inside a now-client fetch; the HMS cache key's date is fixed
