@@ -1300,6 +1300,61 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `/pesticides/locations/` fail to parse in the SDK. **Revisit when** sjvair.com adds a location
   source: add the value to `locationSourceSchema` in the same change.
 
+- **The Map refreshes only when its date range includes today.** _Deferred 2026-11-12 (step 5
+  spec 2; the user)._ A past-only range loads once and never polls. Why: spec 2 has no date range
+  (the Map keeps `time: "now"`). **Revisit with** spec 4's date-range mode.
+
+- **The focus school drawn twice.** _Deferred 2026-11-12 (step 5 spec 2)._ A school is both the
+  focus pin and, once schools are a Map data set, a school badge. The user's lean (not a decision)
+  is to keep it in the schools data with the focus ring around the badge and one feature-list row.
+  map-sdk-c0 says both fit: the badge (about 20 px) sits inside the ring's hole (about 26 px), and
+  the focus row drops only on an exact coordinate match, so the focus point must take the school
+  feature's own coordinates. **Revisit with** the dashboard's schools spec.
+
+- **Schools and child care as a Map data set.** _Deferred 2026-11-12 (step 5 spec 2; the user)._
+  `@sjvair/map-sdk` `0.1.0-beta.12` (map-sdk #28, published) adds `schoolsPlugin({ id?, source,
+layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, `external_id`),
+  the `--school-marker` and `--child-care-marker` tokens, six new `mapsdk_*` keys
+  (`location_type_unknown`, `school_address`, `school_district`, `school_grades`,
+  `schools_cluster_line`, `schools_legend_school`) for `host/messages.ts`, and the optional
+  `MetadataProvider.locationTypeLabel?(type, signal?)`, which the dashboard's `mapMetadata`
+  adapter must implement from the regions meta's `location_types`. Why: not in spec 2. **Revisit
+  with** the first spec that draws schools: it moves to `0.1.0-beta.12` and adds an entry in
+  `src/lib/widgets/map/data/`.
+
+- **Spec 6 charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
+  kept but hidden (outside the places, or not reporting the pollutant showing) are not sent to a
+  chart or table. **Revisit with** spec 6.
+
+- **More than 6 pollutants on one Map.** _Deferred 2026-11-12 (step 5 spec 2)._ A tile holds at
+  most `LAYERS_MAX` (8) less smoke and fire, so 6 pollutants, and Get data stops offering more.
+  The server offers 6 or fewer today. **Revisit when** the server's `available_pollutants` grows
+  past 6.
+
+- **Shift-click on the Map also opens the reading card.** _Found 2026-11-12 (step 5 spec 2)._
+  `@sjvair/map-sdk` `0.1.0-beta.11` pins the card on every pick, but the spec says Shift-click
+  marks without opening it. The user decided 2026-11-12: folded into map-sdk part 5, no hotfix, and
+  spec 2 doesn't work around it. **Revisit when** it is fixed in map-sdk part 5 (`@sjvair/map-sdk`
+  `0.1.0-beta.13`); spec 3 adopts it, then asserts the card stays closed in `e2e/map.spec.ts`'s
+  Shift-click test.
+
+- **map-sdk's spoken view summary goes stale.** _Found 2026-11-12 (step 5 spec 2)._ "PM2.5: 2
+  Good" isn't recalculated when a source's features change, only on view or selection changes, so
+  it can be wrong after a refresh or a place change that doesn't move the camera. The user decided
+  2026-11-12: folded into map-sdk part 5, no hotfix, and spec 2 doesn't work around it. **Revisit
+  when** it is fixed in map-sdk part 5 (`@sjvair/map-sdk` `0.1.0-beta.13`); spec 3 adopts it.
+
+- **The hidden-marks note isn't in map-sdk's feature list.** _Found 2026-11-12 (step 5 spec 2)._
+  The list is named by `mapsdk_list_label`, so a screen-reader user hears the note once
+  (`role="status"`) and in the map's accessible name, not in the list. It needs a map-sdk list
+  description or footer slot. **Revisit with** map-sdk part 5 (the toolbar) or an accessibility
+  pass.
+
+- **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
+  (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn
+  (layer labels come from metadata, the source of truth). The real catalog has both. **Revisit
+  if** the server's catalog drops either, or with spec 3's toolbar, which needs the same labels.
+
 ## Analysis & data
 
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
@@ -1897,13 +1952,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     e2e; the starter chart layer's days aren't asserted; no browser test for
     `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
     next change to each.
-- **The map pin's label is the dashboard's own stop-gap.** _Deferred 2026-11-11 (step 5 spec 1;
-  the user)._ The label beside a school or point pin is a DOM `Marker` the dashboard draws itself
-  (`src/lib/widgets/map/pin-label.svelte.ts`). That's why the dashboard depends on
-  `@maptiler/sdk` directly. map-sdk's focus area (its options-toolbar spec, part 3: "an
-  outlined pin with a label") will provide a labeled pin. Then drop `pin-label.svelte.ts` and
-  the direct `@maptiler/sdk` dependency. **Revisit with** the map-sdk release that ships the
-  labeled pin.
 - **Step 5 spec 1 review leftovers.** _Deferred 2026-11-11 (step 5 spec 1, per-task and final
   reviews)._ Small things the reviews let stay; the first ones a person could meet:
   - **Some places fit silently, with no note.** A selection with retired or missing monitors, or

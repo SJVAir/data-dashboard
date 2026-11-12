@@ -155,28 +155,28 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 Installed:
 
-| Library                            | Purpose                                                                                |
-| ---------------------------------- | -------------------------------------------------------------------------------------- |
-| `sv-router`                        | Client-side routing                                                                    |
-| `@sjvair/sdk`                      | Air quality data API                                                                   |
-| `date-fns`                         | Date handling                                                                          |
-| `@date-fns/tz`                     | Pacific-time date math (via the `format` module)                                       |
-| Paraglide JS (inlang)              | UI message catalog (English-only today)                                                |
-| `zod`                              | Validating every incoming document                                                     |
-| `idb`                              | IndexedDB (inside the platform adapter only)                                           |
-| `lz-string`                        | URL-fragment document sharing                                                          |
-| shadcn-svelte / bits-ui            | Accessible UI primitives                                                               |
-| `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)                                                  |
-| `@lucide/svelte`                   | Icons                                                                                  |
-| `@sveltejs/enhanced-img`           | Optimized images                                                                       |
-| `color2k`                          | `readableColor` for text on level colors                                               |
-| Vitest                             | Unit tests and browser-mode component tests                                            |
-| `vitest-browser-svelte`            | Rendering components in Vitest browser mode                                            |
-| Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks                                     |
-| `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)                                      |
-| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                                            |
-| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                                      |
-| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView`, data stores (0.1.0-beta.9, pinned exactly; lazy) |
+| Library                            | Purpose                                                                    |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `sv-router`                        | Client-side routing                                                        |
+| `@sjvair/sdk`                      | Air quality data API                                                       |
+| `date-fns`                         | Date handling                                                              |
+| `@date-fns/tz`                     | Pacific-time date math (via the `format` module)                           |
+| Paraglide JS (inlang)              | UI message catalog (English-only today)                                    |
+| `zod`                              | Validating every incoming document                                         |
+| `idb`                              | IndexedDB (inside the platform adapter only)                               |
+| `lz-string`                        | URL-fragment document sharing                                              |
+| shadcn-svelte / bits-ui            | Accessible UI primitives                                                   |
+| `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)                                      |
+| `@lucide/svelte`                   | Icons                                                                      |
+| `@sveltejs/enhanced-img`           | Optimized images                                                           |
+| `color2k`                          | `readableColor` for text on level colors                                   |
+| Vitest                             | Unit tests and browser-mode component tests                                |
+| `vitest-browser-svelte`            | Rendering components in Vitest browser mode                                |
+| Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks                         |
+| `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)                          |
+| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                                |
+| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                          |
+| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (0.1.0-beta.11, pinned exactly; lazy) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 
