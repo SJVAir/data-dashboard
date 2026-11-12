@@ -33,7 +33,7 @@ export async function monitorScope(
 	let refs: { type: string; code: string }[];
 	if (selection?.kind === "regions") {
 		refs = selection.ids.map((id) => {
-			const at = id.indexOf(":");
+			const at = Math.max(id.indexOf(":"), 0);
 			return { type: id.slice(0, at), code: id.slice(at + 1) };
 		});
 	} else if (place?.kind === "region") {

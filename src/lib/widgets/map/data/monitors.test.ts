@@ -1,3 +1,6 @@
+import type { MonitorLatest } from "@sjvair/sdk";
+import type { NowSource } from "$lib/data/now/client";
+type Src = NowSource<MonitorLatest[]>;
 import { getMonitors } from "@sjvair/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -72,22 +75,27 @@ describe("monitorsEntry", () => {
 			data({ place: { kind: "region", type: "county", code: "06019" } })
 		);
 		expect(source).toMatchObject({ key: "map-monitors:pm25:r1", cadence: "raw" });
-		await source!.fetch(new AbortController().signal);
+		await (source as Src).fetch(new AbortController().signal);
 		expect(get).toHaveBeenCalledWith("pm25", { timestamp: now, region: ["r1"] }, expect.anything());
 	});
 
 	it("filters a monitors scope to its ids", async () => {
 		get.mockResolvedValue([monitor("a"), monitor("b"), monitor("c")]);
 		const source = await entry().source(data({ selection: { kind: "monitors", ids: ["c", "a"] } }));
-		const found = await source!.fetch(new AbortController().signal);
+		const found = await (source as Src).fetch(new AbortController().signal);
 		expect(found.map((m) => m.id)).toEqual(["a", "c"]);
 		expect(get).toHaveBeenCalledWith("pm25", undefined, expect.anything());
 	});
 
-	it("has no source when the scope is unavailable", async () => {
+	it("says why when the scope is unavailable", async () => {
 		const source = await entry(null).source(
 			data({ place: { kind: "region", type: "county", code: "x" } })
 		);
+		expect(source).toEqual({ unavailable: "region-unresolved" });
+	});
+
+	it("has no source when there is no pollutant layer", async () => {
+		const source = await entry().source({ data: { layers: [] }, entryType: "pm25" });
 		expect(source).toBeNull();
 	});
 

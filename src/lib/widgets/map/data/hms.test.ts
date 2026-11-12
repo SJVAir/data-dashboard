@@ -1,3 +1,6 @@
+import type { NowSource } from "$lib/data/now/client";
+import type { HmsData } from "./hms";
+type Src = NowSource<HmsData>;
 import { getHMSFire, getHMSSmoke } from "@sjvair/sdk";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,8 +22,8 @@ const messages = ((key: string, params?: { count?: number }) =>
 describe("hmsEntry", () => {
 	it("keys on today's Pacific date, refreshed hourly", async () => {
 		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
-		expect(source?.key).toMatch(/^map-hms:\d{4}-\d{2}-\d{2}$/);
-		expect(source?.cadence).toBe("hour");
+		expect((source as Src | null)?.key).toMatch(/^map-hms:\d{4}-\d{2}-\d{2}$/);
+		expect((source as Src | null)?.cadence).toBe("hour");
 	});
 
 	it("gives today's smoke and grouped fires", async () => {
@@ -42,7 +45,7 @@ describe("hmsEntry", () => {
 			}
 		] as never);
 		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
-		const value = await source!.fetch(new AbortController().signal);
+		const value = await (source as Src).fetch(new AbortController().signal);
 		const out = hmsEntry.toDataSources(value, { messages, entryType: "pm25" });
 		expect(Object.keys(out).sort()).toEqual(["fireGroups", "fireHotspots", "smoke"]);
 		expect(out.smoke.scale).toEqual({ dataset: "hms-smoke", entryType: "smoke-density" });

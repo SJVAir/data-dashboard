@@ -56,7 +56,7 @@ export function createMonitorsEntry(
 			const layer = pollutantLayers(data, undefined)[0];
 			if (!layer) return null;
 			const scope = await monitorScope(layer, ctx, signal);
-			if ("unavailable" in scope) return null;
+			if ("unavailable" in scope) return scope;
 			const type = entryType as MonitorEntryType;
 			const source: NowSource<MonitorLatest[]> = {
 				key: `map-monitors:${entryType}:${scope.key}`,
