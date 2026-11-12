@@ -1660,6 +1660,11 @@ Release 1's Foundations step (a fresh start). Its deferred follow-ups are in `DE
 
 ## Done
 
+- [x] **No MapTiler telemetry report from a map** (step 5 spec 1, Task 17, 2026-11-11): the
+      "Step 5 spec 1 review leftovers" item asking for an E2E that no `api.maptiler.com/metrics`
+      request goes out after a map draws is done (`e2e/map.spec.ts`, with map-sdk
+      `0.1.0-beta.8`). Removed from `DEFERRED.md`.
+
 - [x] **The error reports' route list** (step 4 spec 3, 2026-11-05): a test compares
       `routePattern` to the router's route keys (`ROUTE_KEYS`). Removed from `DEFERRED.md`: "The
       error reports' route list duplicates the router's".
