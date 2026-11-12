@@ -1463,7 +1463,7 @@ The checklist below is the whole step's scope.
     2026-11-11), plan `docs/superpowers/plans/2026-11-11-step-5-spec-1-map-widget.md`. **Built
     and reviewed 2026-11-11** on `step-5-spec-1`: live PM2.5 (or ozone) monitors, the places
     outlined or highlighted and framed, picker sync, "Change place", exact points framed on their
-    region, on screen only, on map-sdk `0.1.0-beta.8` with MapTiler telemetry off. Also fixed
+    region, on screen only, on `@sjvair/map-sdk` `0.1.0-beta.9` with MapTiler telemetry off. Also fixed
     here: Get data's title loop with more than 5 places, and "Clear my data" deletes MapTiler's
     tile cache (the user, 2026-11-11). Draft PR [#53](https://github.com/SJVAir/data-dashboard/pull/53) into `step-5`. **Blockers before it merges:**
     - ✅ map-sdk's pinned card on a click or tap (map-sdk `0.1.0-beta.8`, plan Task 17): the
