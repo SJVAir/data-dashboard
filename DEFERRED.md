@@ -2721,6 +2721,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
+- **"A resize animation redraws once, after it ends" flaked in CI.** _Noted 2026-11-12 (step 5
+  spec 2, PR #56)._ `src/lib/charts/time-chart.browser.test.ts` failed once with "expected 640 to
+  be less than 640" (the frame's width read before the 640 → 400 px animation's first frame had
+  moved it) and passed on rerun. Neither the test nor the chart changed in spec 2. **Revisit
+  when** it fails again, or when touching the test: wait for the frame to start shrinking (a poll)
+  instead of reading its width once.
 - **The WebKit E2E job is slow on CI.** _Noted 2026-11-10 (the `step-4` → `main` PR, #50)._ The
   `e2e-full (webkit)` job takes 10–13 minutes on GitHub's runner, against about 4 for Chromium
   and 6 for Firefox, and about 2 minutes for the same suite locally in the same Playwright image
