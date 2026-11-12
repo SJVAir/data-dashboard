@@ -76,21 +76,24 @@ describe("hmsEntry", () => {
 		await (source as Src).fetch(controller.signal);
 		expect(vi.mocked(getHMSSmoke).mock.calls[0][1]).toEqual({ signal: controller.signal });
 		expect(vi.mocked(getHMSFire).mock.calls[0][1]).toEqual({ signal: controller.signal });
-		expect(vi.mocked(getHMSSmoke).mock.calls[0][1]?.signal).toBe(controller.signal);
 	});
 
-	it("rejects when a fetch rejects on abort", async () => {
+	it("honours its abort signal: aborting rejects the fetch", async () => {
 		const controller = new AbortController();
-		vi.mocked(getHMSSmoke).mockImplementation((async (
-			_q: unknown,
-			o?: { signal?: AbortSignal }
-		) => {
-			controller.abort();
-			if (o?.signal?.aborted) throw new DOMException("aborted", "AbortError");
-			return [];
-		}) as never);
-		vi.mocked(getHMSFire).mockResolvedValue([] as never);
+		// Rejects only when the signal it receives aborts; with none it resolves, so a fetch that
+		// ignored the signal would not reject.
+		const honouring = (async (_q: unknown, o?: { signal?: AbortSignal }) => {
+			const signal = o?.signal;
+			if (!signal) return [];
+			return new Promise((_resolve, reject) => {
+				signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+			});
+		}) as never;
+		vi.mocked(getHMSSmoke).mockImplementation(honouring);
+		vi.mocked(getHMSFire).mockImplementation(honouring);
 		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
-		await expect((source as Src).fetch(controller.signal)).rejects.toThrow("aborted");
+		const pending = (source as Src).fetch(controller.signal);
+		controller.abort();
+		await expect(pending).rejects.toMatchObject({ name: "AbortError" });
 	});
 });

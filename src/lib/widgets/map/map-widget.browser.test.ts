@@ -576,12 +576,13 @@ test("draws another layer's pollutant when the one showing isn't offered, saving
 		{ dataset: "air-quality", entryType: "pm25" }
 	];
 	widget.options = { showing: "pm100" };
-	const screen = await show(widget);
+	const screen = await showLive(widget);
 	await madeMap();
 	await expect.poll(() => vi.mocked(getMonitors).mock.calls.length).toBeGreaterThan(0);
 	expect(JSON.stringify(vi.mocked(getMonitors).mock.calls[0])).toContain("pm25");
 	expect(screen.getByText(m.widget_state_unavailable_unknown_entry_type()).query()).toBeNull();
-	expect(widget.options).toEqual({ showing: "pm100" });
+	// The session's stored widget keeps the owner's choice.
+	expect(app().current.session!.doc.body.widgets[0].options).toEqual({ showing: "pm100" });
 });
 
 test("a failed pollutant list shows Try again, and retrying recovers", async () => {

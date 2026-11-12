@@ -132,12 +132,13 @@ describe("mapMetadata", () => {
 					},
 					monitorTypes: async () => {
 						throw new Error("offline");
+					},
+					monitorTypeInterval: async () => {
+						throw new Error("offline");
 					}
 				})
 			);
-			expect(await read(quiet, new AbortController().signal)).toBe(
-				name === "monitorTypeInterval" ? "2 min" : "unavailable"
-			);
+			expect(await read(quiet, new AbortController().signal), name).toBe("unavailable");
 		}
 	});
 
