@@ -198,13 +198,10 @@ test.describe("on a touch screen", () => {
 	// Firefox has no touch emulation in Playwright (`hasTouch` is ignored there).
 	test.skip(({ browserName }) => browserName === "firefox", "no touch emulation");
 
-	// FIXME (map-sdk change 4, the pinned card): a tap doesn't reliably leave the reading showing.
-	// The tap's emulated mousemove shows map-sdk's hover tooltip, and it's gone again right after
-	// the tap's click (Chromium, every run). Yet the same test passes on Chromium and WebKit when
-	// anything is evaluated in the page before it navigates, so emulation decides the outcome, not
-	// the map. Hover isn't a dependable tap path; the pinned card (shown on click or tap) is. Not
-	// worked around in the dashboard (seen 2026-11-11).
-	test.fixme("a tap on a monitor shows its reading", async ({ page }) => {
+	// map-sdk's pinned card (MapView `card`): a tap pins the reading, which then stays (a tap's
+	// emulated `mouseout` hid the hover card right after the tap). The monitors take no selection
+	// from the map (selection mode "none"), so the tap only pins: the layer is unchanged.
+	test("a tap on a monitor shows its reading", async ({ page }) => {
 		await openSharedDoc(page, monitorDoc);
 		const title = "PM2.5 · Fresno - Drummond Street";
 		await expect(widgetTitles(page)).toHaveText([title]);
@@ -213,15 +210,94 @@ test.describe("on a touch screen", () => {
 		// A one-monitor map centers on its monitor.
 		const gl = map.getByRole("region", { name: "Map", exact: true });
 		const box = (await gl.boundingBox())!;
+		// The monitor place is highlighted (one selected) before the tap, and only it after.
+		const selected = map.getByText(/^PM2\.5: \d+ selected$/);
+		await expect(selected).toHaveText("PM2.5: 1 selected");
 		await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+		const card = map.getByRole("group", { name: "Fresno - Drummond Street" });
+		await expect(card).toBeVisible();
 		// The reading stays (not just a flash between the tap's mousemove and its click).
 		await page.waitForTimeout(1_000);
-		const tooltip = page.getByRole("tooltip");
-		await expect(tooltip).toBeVisible({ timeout: 0 });
-		await expect(tooltip).toContainText("Fresno - Drummond Street");
-		await expect(tooltip).toContainText("8");
-		await expect(tooltip).toContainText("Good");
+		await expect(card).toBeVisible({ timeout: 0 });
+		await expect(card).toContainText("8");
+		await expect(card).toContainText("Good");
+		// Only pinned: the selection is as it was, and the dashboard didn't change (nothing to undo).
+		await expect(selected).toHaveText("PM2.5: 1 selected");
+		await expect(widgetTitles(page)).toHaveText([title]);
+		await expect(nav(page).getByRole("button", { name: "Undo" })).toBeDisabled();
+		// Close takes it away.
+		await card.getByRole("button", { name: "Close" }).click();
+		await expect(card).toBeHidden();
 	});
+});
+
+test("no MapTiler metrics request after a map draws", async ({ page, mapTiler }) => {
+	const map = await addMap(page);
+	await expect(map.locator("canvas")).toBeVisible();
+	// MapTiler's SDK sends its usage report (POST api.maptiler.com/metrics) 2 s after a map is
+	// made, unless telemetry is off: wait past that.
+	await page.waitForTimeout(3_000);
+	expect(mapTiler.seen.filter((url) => url === "api.maptiler.com/metrics")).toEqual([]);
+	// The stub did see the map's other requests, so it was watching.
+	expect(mapTiler.seen).toContain("api.maptiler.com/maps/streets-v4/style.json");
+});
+
+/** A shared dashboard with the Fresno County Map at the top and a tall Note below it. */
+const tallDoc = {
+	kind: "dashboard",
+	schemaVersion: 1,
+	id: "shared-map-tall",
+	name: "Tall map",
+	body: {
+		widgets: [
+			{
+				id: "w0",
+				type: "map",
+				title: null,
+				rect: { x: 0, y: 0, w: 6, h: 6 },
+				data: {
+					layers: [
+						{
+							dataset: "air-quality",
+							entryType: "pm25",
+							place: { kind: "region", type: "county", code: "06019" }
+						}
+					]
+				}
+			},
+			{
+				id: "w1",
+				type: "note",
+				title: null,
+				rect: { x: 0, y: 6, w: 6, h: 40 },
+				data: { layers: [] },
+				options: { text: "Below the map" }
+			}
+		]
+	}
+};
+
+// FIXME (map-sdk): detaching an off-screen map throws in map-sdk's MapTooltip (beta.7 and beta.8):
+// with `tooltip="pointer"`, its `zoomstart` cleanup reads the `gl` prop after MapView has set it to
+// null ("Cannot read properties of null (reading 'off')"), and the map never comes back. Taking
+// `gl` into a local in that effect fixes it (checked by patching it locally: this test passes).
+// Not worked around in the dashboard; lift when map-sdk ships the fix (seen 2026-11-11).
+test.fixme("a map scrolled off screen and back draws again", async ({ page }) => {
+	await openSharedDoc(page, tallDoc);
+	const map = mapOf(page, FRESNO_MAP);
+	await expect(map.locator("canvas")).toBeVisible();
+	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+
+	// Off screen (past the Note's bottom) for longer than the detach delay (5 s): the GL map goes.
+	await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+	await expect(map).not.toBeInViewport();
+	await expect(map.locator("canvas")).toHaveCount(0, { timeout: 15_000 });
+
+	// Back on screen: a new GL map, drawing its monitors again.
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await expect(map).toBeInViewport();
+	await expect(map.locator("canvas")).toBeVisible();
+	await expect(inView(map)).toHaveText(FRESNO_VIEW);
 });
 
 test("a Map raises no CSP violation", async ({ page }) => {

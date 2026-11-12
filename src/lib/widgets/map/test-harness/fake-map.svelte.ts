@@ -83,6 +83,10 @@ export class FakeMap {
 	uid = crypto.randomUUID();
 	plugins: FakePlugin[] = [];
 	selections = new Map<string, unknown>();
+	/** Every `setSelection` call, in order (`[pluginId, selection]`). */
+	selectionCalls: [string, unknown][] = [];
+	/** The pinned card's feature (map-sdk's `Hovered`), set by a click on the fake MapView with `card`. */
+	pinned = $state.raw<{ hit: { pluginId: string; refKey: string; name: string } } | null>(null);
 	camera: CameraCall[] = [];
 	destroyed = false;
 	/** What the last MapView showing this map was given. */
@@ -102,7 +106,11 @@ export class FakeMap {
 		this.plugins = this.plugins.filter((p) => p.id !== id);
 	}
 	setSelection(id: string, selection: unknown) {
+		this.selectionCalls.push([id, selection]);
 		this.selections.set(id, selection);
+	}
+	unpin() {
+		this.pinned = null;
 	}
 	fitBounds(bounds: unknown, options: unknown) {
 		this.camera.push({ kind: "fitBounds", bounds, options });

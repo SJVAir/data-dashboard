@@ -82,7 +82,7 @@
 		"@lucide/svelte": "^1.60.0",
 		"@maptiler/sdk": "~4.2.0",
 		"@sentry/browser": "^11.9.0",
-		"@sjvair/map-sdk": "0.1.0-beta.7",
+		"@sjvair/map-sdk": "0.1.0-beta.8",
 		"@sjvair/sdk": "npm:@jsr/sjvair__sdk@5.0.0-beta.8",
 		"bits-ui": "^2.19.2",
 		"clsx": "^2.1.1",

@@ -302,7 +302,7 @@ Several: "PM2.5 · {n} places" (`m.label_join` and `get_data_places_count`, beca
   is held at beta.1). Building starts on `0.1.0-beta.6`, the newest today. The pin moves up to
   the beta carrying map-sdk change 1 (telemetry off) before the PR merges, and that beta is
   expected to also carry the restyle fix (beta.7 or later). Check `npm view @sjvair/map-sdk
-  dist-tags` at each step. **As built:** pinned at `0.1.0-beta.7`, with `MapConfig.telemetry:
+  dist-tags` at each step. **As built:** pinned at `0.1.0-beta.8` (the pinned card), with `MapConfig.telemetry:
   false`. `@maptiler/sdk` `~4.2.0` is also a direct dependency, for `Marker` (the pin's label),
   kept in step with map-sdk's. **(my call)** Its peer `@sjvair/sdk ^5.0.0-beta.2` accepts the
   dashboard's exact `5.0.0-beta.8`. Its license is MIT; `@maptiler/sdk` and `maplibre-gl` are

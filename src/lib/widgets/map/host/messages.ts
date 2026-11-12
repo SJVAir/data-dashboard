@@ -93,7 +93,8 @@ export const MAP_MESSAGES: Record<MessageKey, Message> = {
 	mapsdk_collocation_reference: fill(m.mapsdk_collocation_reference),
 	mapsdk_collocation_colocated: fill(m.mapsdk_collocation_colocated),
 	mapsdk_collocation_interval_avg: fill(m.mapsdk_collocation_interval_avg),
-	mapsdk_collocation_updated: fill(m.mapsdk_collocation_updated)
+	mapsdk_collocation_updated: fill(m.mapsdk_collocation_updated),
+	mapsdk_card_close: fill(m.mapsdk_card_close)
 };
 
 /** map-sdk's `messages` provider over the dashboard's Paraglide catalog. */

@@ -151,6 +151,9 @@ function namingClient(): QueryClient {
 
 let frame: HTMLDivElement;
 let platform: MemoryPlatform;
+let shownApp: Awaited<ReturnType<typeof initApp>>;
+/** The app the last `show` rendered into. */
+const app = () => shownApp;
 
 beforeEach(async () => {
 	await page.viewport(1280, 800);
@@ -212,6 +215,7 @@ async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	});
 	const session = (await DocumentSession.open(platform, app.space, id, "t2"))!;
 	app.current = { session, isStarter: false };
+	shownApp = app;
 	return render(MapWidget, {
 		target: frame,
 		props: { widget },
@@ -616,4 +620,29 @@ test("passes axe in light and dark", async () => {
 		const results = await axe.run(frame);
 		expect(results.violations).toEqual([]);
 	}
+});
+
+test("a click pins the card and never selects", async () => {
+	const widget = mapWidget({ place: { kind: "monitor", id: "a" } });
+	await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => map.view.card).toBe(true);
+	await expect.poll(() => map.plugins.find((p) => p.id === "monitors")).toBeTruthy();
+	// The monitors take no selection from the map: a click only pins.
+	expect(map.plugins.find((p) => p.id === "monitors")!.addOptions).toMatchObject({
+		selectionMode: "none"
+	});
+	map.ready = true;
+	await new Promise((r) => setTimeout(r, 50));
+	const calls = map.selectionCalls.length;
+	// The monitor place's own highlight, which the click must leave as it is.
+	const selected = map.selections.get("monitors");
+	expect(selected).toEqual({ kind: "monitors", ids: ["a"] });
+	const before = JSON.parse(JSON.stringify(app().current!.session!.doc.body));
+	frame.querySelector<HTMLElement>(`[data-fake-map="${map.uid}"]`)!.click();
+	await expect.poll(() => map.pinned?.hit.refKey).toBe("monitor:a");
+	await new Promise((r) => setTimeout(r, 100));
+	expect(map.selectionCalls).toHaveLength(calls);
+	expect(map.selections.get("monitors")).toEqual(selected);
+	expect(app().current!.session!.doc.body).toEqual(before);
 });

@@ -414,6 +414,7 @@
 				featureList={{ reveal: "focus" }}
 				selectionBar={false}
 				tooltip="pointer"
+				card
 				{overlays}
 			/>
 		</svelte:boundary>

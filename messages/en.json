@@ -1283,5 +1283,6 @@
 	"mapsdk_collocation_colocated": "Collocated monitor",
 	"mapsdk_collocation_interval_avg": "({interval} avg)",
 	"mapsdk_collocation_updated": "Last updated {when}",
+	"mapsdk_card_close": "Close",
 	"time_zone_label": "PT"
 }

@@ -1863,9 +1863,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     `waitForTimeout`; stubbed MapTiler 404s are ignored; `reuseExistingServer` may reuse a
     preview built with the real key; the WebGL probe falls back to webgl1. **Add with** the next
     change to `e2e/map.spec.ts`.
-  - **No E2E that no `api.maptiler.com/metrics` request appears after a map draws, and no
-    real-GL off-screen-and-back E2E.** **Revisit with** the pin-on-tap map-sdk release, when the
-    tap fixme is lifted.
+  - **The real-GL off-screen-and-back E2E is `fixme`** (the metrics E2E was added with map-sdk
+    `0.1.0-beta.8`, Task 17). Written in Task 17, it found a map-sdk bug: detaching a map scrolled
+    off screen throws in map-sdk's `MapTooltip` (beta.7 and beta.8; with `tooltip="pointer"`, its
+    `zoomstart` cleanup reads the `gl` prop after MapView has set it to null), and the map never
+    draws again until the page reloads. Taking `gl` into a local in that effect fixes it (checked
+    by patching map-sdk locally: the test passes). Not worked around in the dashboard. **Revisit
+    when** map-sdk ships the fix: pin it and lift the `fixme`.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
