@@ -1265,16 +1265,39 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   behave as before, and their documented "Shift-click adds" in `"multiple"` mode has never worked
   there. Cmd/Ctrl-click and a touch tap still add. **Revisit if** a host wants Shift-click in the
   default mode (extend the box-zoom pick to `"click"` plugins).
-- **map-sdk: a focus point that is also a school is drawn and listed twice.** _Deferred 2026-11-11
-  (map-sdk part 3, the focus area)._ Once part 4's schools layer exists, a school picked as the
-  focus shows its own marker and row under the focus ring and its row. Why: the schools layer isn't
-  built yet. **Revisit with** map-sdk part 4 (hide the school's marker under the focus).
 - **map-sdk: no schools store (`createSchoolsStore`).** _Deferred 2026-11-12 (the user, map-sdk
   part 4)._ The spec's section 4 called for a store in `./stores` on `getPesticideLocations`, with a
   region mode and a follow-the-view mode. Why: the dashboard loads its own data and passes plain
   `DataSource`s, and no other host (monitor-map 5.0, mobile) draws schools. The schools preset
   documents the feature properties a host supplies. **Revisit if** monitor-map, mobile, or another
   host wants schools without its own data layer.
+- **map-sdk: map-sdk's dev `@sjvair/sdk` is `5.0.0-beta.3`.** _Deferred 2026-11-12 (map-sdk part
+  4)._ `5.0.0-beta.9` adds required `averaging_hours`, `daily_statistic` and `daily_statistic_label`
+  to the SDK's `Scale`, which map-sdk's public `Scale` follows, so moving is a breaking type change
+  for hosts that build scales. Meanwhile `beta.3`'s parser drops schools' `source`/`external_id`,
+  so map-sdk's demo fetches `/api/2.0/pesticides/locations/` itself (the library never fetches).
+  **Revisit when** map-sdk next needs a newer SDK type, or before 1.0 (decide whether map-sdk's
+  `Scale` follows the SDK's new fields).
+- **map-sdk: a focus point under a school, edge cases.** _Deferred 2026-11-12 (map-sdk part 4,
+  reviews)._ The focus row is left out only while the school's badge is drawn at exactly the focus
+  point's coordinates: a camera on a world copy (longitude past ±180), focus coordinates that lost
+  digits (a URL, `toFixed`), or a basemap/theme switch (until the map settles) bring the row back.
+  The view summary may still count the place twice right after a bubble splits, until the next
+  move. Why: the dashboard takes the focus point from the school feature itself, at SJV zooms.
+  **Revisit if** the dashboard's schools spec shows the place twice in practice.
+- **map-sdk: schools' count bubbles, small gaps.** _Deferred 2026-11-12 (map-sdk part 4, final
+  review)._ A type a newer server adds is drawn (no filter) and counted in a bubble's number but has
+  no line in the bubble's tooltip; and `drawnAt` keeps every focus point it was asked about until
+  teardown, re-checking each when the map settles. Why: three known types today, one focus point
+  per tile. Also, a points plugin's `drawnAt` doesn't guard against a point layer missing from the
+  style (unreachable today: teardown runs before every style change). **Revisit when** the server
+  adds a location type, or a host moves the focus point often.
+- **map-sdk: the child-care bubble count's contrast.** _Deferred 2026-11-12 (map-sdk part 4, final
+  review; the user chose bold)._ White 12px text on `#1c9099` is about 3.6:1; WCAG's 4.5:1 for
+  small text isn't met even bold (bold counts as large only from 14pt). The user picked a bold count
+  over a darker teal for the bubbles, after seeing both weights. **Now folded into map-sdk part 5**
+  (the user, 2026-11-12): darken the child-care color (and the school one with it, so they still
+  match) to pass 4.5:1; this entry goes when part 5 does that.
 - **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
   part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
   the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
@@ -1756,6 +1779,18 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (`destroy_effect_children` keeps `next`; `Batch#traverse` climbs past the root). Why deferred:
   filing on Svelte's GitHub is public and needs the user's yes. Revisit: when the user says to
   file it, or when a Svelte release fixes it. map-sdk's microtask setup stays either way.
+- **map-sdk: a middle, icons-only toolbar layout.** _Deferred 2026-11-11 (map-sdk's options
+  toolbar spec, `docs/superpowers/specs/2026-11-11-options-toolbar-and-widget-needs-design.md` →
+  "Deferrals"; recorded here 2026-11-12)._ The shared toolbar has two layouts, wide (joined
+  dropdown buttons) and narrow (one options button and a panel), chosen by the map's width. A
+  third layout between them, showing only the group icons, is left out. Why: two layouts are
+  simpler to get right. **Revisit when** a tile width shows the wide layout cramped or wrapping
+  badly (map-sdk part 5's screenshots are the first look).
+- **map-sdk: no faint tint inside the focus area.** _Deferred 2026-11-11 (the same spec →
+  "Deferrals"; recorded here 2026-11-12)._ sjvair.com's pesticides explorer tints the inside of
+  its focus shape; map-sdk's focus area (part 3, `0.1.0-beta.11`) draws only the line, casing and
+  the fade outside. Why: a tint would sit over the data, and the line and fade suffice. **Revisit
+  if** the user wants the explorers' exact look.
 
 ## Widgets
 
