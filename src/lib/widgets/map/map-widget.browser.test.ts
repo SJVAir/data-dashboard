@@ -64,10 +64,10 @@ vi.mock("@maptiler/sdk", async () => {
 vi.mock("./host/stores", async () => {
 	const { fakeStores } = await import("./test-harness/fake-map.svelte");
 	return {
-		acquireMonitors: (entryType: string) => fakeStores.acquire(entryType),
-		sharedMetadata: () => ({})
+		acquireMonitors: (entryType: string) => fakeStores.acquire(entryType)
 	};
 });
+vi.mock("./host/metadata", () => ({ mapMetadata: () => ({}) }));
 vi.mock("./host/config", () => ({ mapConfig: vi.fn() }));
 vi.mock("$lib/data", () => ({
 	getMetadata: vi.fn(),

@@ -1,14 +1,5 @@
-import { createDefaultMetadata, type MetadataProvider } from "@sjvair/map-sdk/data";
 import { createMonitorsStore, type MonitorsStore } from "@sjvair/map-sdk/stores";
 import type { ActivitySource } from "$lib/platform/types";
-
-let metadata: MetadataProvider | undefined;
-
-/** One metadata provider for every map on the page, so two maps don't fetch metadata twice. */
-export function sharedMetadata(): MetadataProvider {
-	metadata ??= createDefaultMetadata();
-	return metadata;
-}
 
 type Shared = { store: MonitorsStore; holders: number; stopWatching: () => void };
 

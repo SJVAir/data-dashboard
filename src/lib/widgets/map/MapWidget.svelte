@@ -33,7 +33,8 @@
 	import { mapConfig } from "./host/config";
 	import { mapFormat } from "./host/format";
 	import { mapMessages } from "./host/messages";
-	import { acquireMonitors, sharedMetadata } from "./host/stores";
+	import { acquireMonitors } from "./host/stores";
+	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
 	import { pinLabel as showPinLabel } from "./pin-label.svelte";
 	import { regionKey } from "./regions";
@@ -120,7 +121,7 @@
 			try {
 				const created = createMap({
 					config,
-					metadata: sharedMetadata(),
+					metadata: mapMetadata(metadata),
 					messages: mapMessages,
 					format: mapFormat
 				});
