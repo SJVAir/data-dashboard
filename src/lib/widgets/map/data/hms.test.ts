@@ -63,4 +63,34 @@ describe("hmsEntry", () => {
 		expect(out.fireGroups.scale).toEqual({ dataset: "hms-fire", entryType: "fire-frp" });
 		expect(out.fireHotspots.features?.features).toHaveLength(2);
 	});
+
+	it("passes its abort signal to both fetches", async () => {
+		vi.mocked(getHMSSmoke)
+			.mockClear()
+			.mockResolvedValue([] as never);
+		vi.mocked(getHMSFire)
+			.mockClear()
+			.mockResolvedValue([] as never);
+		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
+		const controller = new AbortController();
+		await (source as Src).fetch(controller.signal);
+		expect(vi.mocked(getHMSSmoke).mock.calls[0][1]).toEqual({ signal: controller.signal });
+		expect(vi.mocked(getHMSFire).mock.calls[0][1]).toEqual({ signal: controller.signal });
+		expect(vi.mocked(getHMSSmoke).mock.calls[0][1]?.signal).toBe(controller.signal);
+	});
+
+	it("rejects when a fetch rejects on abort", async () => {
+		const controller = new AbortController();
+		vi.mocked(getHMSSmoke).mockImplementation((async (
+			_q: unknown,
+			o?: { signal?: AbortSignal }
+		) => {
+			controller.abort();
+			if (o?.signal?.aborted) throw new DOMException("aborted", "AbortError");
+			return [];
+		}) as never);
+		vi.mocked(getHMSFire).mockResolvedValue([] as never);
+		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
+		await expect((source as Src).fetch(controller.signal)).rejects.toThrow("aborted");
+	});
 });

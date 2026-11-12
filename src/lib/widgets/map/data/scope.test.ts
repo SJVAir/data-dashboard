@@ -71,6 +71,19 @@ describe("monitorScope", () => {
 		expect(s).toEqual({ unavailable: "region-unresolved" });
 	});
 
+	it("is unavailable when the region resolver doesn't support the region", async () => {
+		const s = await monitorScope(
+			layer({ place: { kind: "region", type: "county", code: "x" } }),
+			ctx(() => "unsupported")
+		);
+		expect(s).toEqual({ unavailable: "place-unsupported" });
+		const several = await monitorScope(
+			layer({ selection: { kind: "regions", ids: ["county:a", "city:b"] } }),
+			ctx((type) => (type === "city" ? "unsupported" : known(type, "a")))
+		);
+		expect(several).toEqual({ unavailable: "place-unsupported" });
+	});
+
 	it("is unavailable with no place", async () => {
 		expect(await monitorScope(layer({}), ctx(known))).toEqual({ unavailable: "place-unsupported" });
 	});

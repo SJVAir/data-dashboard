@@ -98,6 +98,49 @@ describe("mapMetadata", () => {
 		).rejects.toThrow();
 	});
 
+	it("rejects on abort from every read, and resolves unavailable when only the read failed", async () => {
+		const abortThrow = (controller: AbortController) => async () => {
+			controller.abort();
+			throw new DOMException("aborted", "AbortError");
+		};
+		const ref = { dataset: "air-quality", entryType: "pm25" };
+		const reads: [
+			string,
+			(md: ReturnType<typeof mapMetadata>, s: AbortSignal) => Promise<unknown>
+		][] = [
+			["entryType", (md, s) => md.entryType(ref, s)],
+			["attribution", (md, s) => md.attribution("air-quality", s)],
+			["monitorTypeLabel", (md, s) => md.monitorTypeLabel("purpleair", s)],
+			["monitorTypeInterval", (md, s) => md.monitorTypeInterval!("purpleair", s)]
+		];
+		for (const [name, read] of reads) {
+			const controller = new AbortController();
+			const thrower = abortThrow(controller);
+			const md = mapMetadata(
+				stub({
+					catalog: thrower,
+					monitorTypes: thrower,
+					monitorTypeInterval: thrower
+				})
+			);
+			await expect(read(md, controller.signal), name).rejects.toThrow();
+			// The same failure with no abort reads as unavailable.
+			const quiet = mapMetadata(
+				stub({
+					catalog: async () => {
+						throw new Error("offline");
+					},
+					monitorTypes: async () => {
+						throw new Error("offline");
+					}
+				})
+			);
+			expect(await read(quiet, new AbortController().signal)).toBe(
+				name === "monitorTypeInterval" ? "2 min" : "unavailable"
+			);
+		}
+	});
+
 	it("is one provider per source", () => {
 		const source = stub();
 		expect(mapMetadata(source)).toBe(mapMetadata(source));
