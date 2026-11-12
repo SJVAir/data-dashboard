@@ -165,12 +165,11 @@
 			? offeredDatasets(known, adapterOffers(), dataTypes()).filter((s) => s.entryTypes.length > 0)
 			: []
 	);
-	/** Whether `d` is a Map in its own shape (several pollutants, smoke and fire). */
-	const isMapDraft = (d: Draft) => d.type === MAP_TYPE && isMapShaped(d);
-	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map is checked
-	// as what it converts to: the pollutant showing, at its places.
+	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map, in its
+	// shape or not, is checked as what `fromMapDraft` converts it to: the pollutant showing, at its
+	// places.
 	const blockData = $derived(
-		known && isMapDraft(plain) ? mapShowingOnly(plain, known).draft.data : plain.data
+		known && plain.type === MAP_TYPE ? mapShowingOnly(plain, known).draft.data : plain.data
 	);
 	const showAs = $derived(
 		dataTypes().map((t) => ({

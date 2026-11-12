@@ -997,6 +997,32 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
 	});
 
+	test("a Map draft not yet in the Map's shape, with several pollutants and smoke, can switch to Chart or Data table", async () => {
+		// Holding the map's pollutant list back keeps the draft as the link gave it (with dates).
+		let release!: (p: string[]) => void;
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			mapPollutants: () => new Promise<string[]>((r) => (release = r))
+		});
+		const { current } = await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "o3" },
+					{ dataset: "hms-smoke" }
+				],
+				dateRange: { kind: "trailing", amount: 7, unit: "day" }
+			}
+		});
+		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeEnabled();
+		await expect.element(page.getByRole("radio", { name: "Data table" })).toBeEnabled();
+		await expect.poll(() => release).toBeTypeOf("function");
+		release(["o3", "pm25"]);
+		await page.getByRole("radio", { name: "Chart" }).click();
+		expect((await current()).type).toBe("chart");
+	});
+
 	test("saves a Map edit as one undo step", async () => {
 		const platform = createMemoryPlatform();
 		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
