@@ -1,9 +1,10 @@
 import Map from "@lucide/svelte/icons/map";
 import { m } from "$lib/paraglide/messages.js";
 import type { WidgetType } from "../registry";
+import { MAP_TYPE } from "./options";
 import { mapStartData } from "./start";
 
-export const MAP_TYPE = "map";
+export { MAP_TYPE } from "./options";
 
 /** A map of the air quality monitors, with one pollutant's layer at a time. */
 export const mapType: WidgetType = {

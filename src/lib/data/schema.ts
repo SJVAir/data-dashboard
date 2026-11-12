@@ -56,7 +56,7 @@ const IdSchema = z.string().min(1).max(LIMITS.ID_MAX);
 export const CodeSchema = z.string().min(1).max(LIMITS.CODE_MAX);
 /** Monitor ids and entry types go into API paths, so they keep to a safe character set. */
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
-const SafeIdSchema = IdSchema.regex(SAFE_ID);
+export const SafeIdSchema = IdSchema.regex(SAFE_ID);
 /** A region type, also the part of a selection's `type:code` id before the colon. */
 const REGION_TYPE = /^[a-z0-9_]+$/;
 
