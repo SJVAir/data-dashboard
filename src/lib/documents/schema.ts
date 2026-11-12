@@ -2,6 +2,7 @@ import { ChosenPlaceSchema, WidgetDataConfigSchema, hasDefaultPlace } from "$lib
 import { ThresholdSchema } from "$lib/thresholds/schema";
 import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "$lib/layout/config";
 import { NOTE_TYPE, NoteOptionsSchema } from "$lib/notes/options";
+import { MAP_TYPE, MapOptionsSchema } from "$lib/widgets/map/options";
 import { z } from "$lib/zod";
 
 export { GRID_COLUMNS };
@@ -47,6 +48,16 @@ export const DashboardBodySchema = z
 				ctx.addIssue({
 					code: "custom",
 					message: "Invalid note options",
+					path: ["widgets", i, "options"]
+				});
+			if (
+				w.type === MAP_TYPE &&
+				w.options !== undefined &&
+				!MapOptionsSchema.safeParse(w.options).success
+			)
+				ctx.addIssue({
+					code: "custom",
+					message: "Invalid map options",
 					path: ["widgets", i, "options"]
 				});
 		});

@@ -58,6 +58,15 @@
 		type NowDropped
 	} from "./now";
 	import NowControls from "./NowControls.svelte";
+	import {
+		fromMapDraft,
+		isMapShaped,
+		mapShowingOnly,
+		setMapPollutant,
+		setSmokeAndFire,
+		toMapDraft
+	} from "./map";
+	import MapSections from "./MapSections.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { formatDateRange, formatList, formatNumber } from "$lib/format";
@@ -156,11 +165,16 @@
 			? offeredDatasets(known, adapterOffers(), dataTypes()).filter((s) => s.entryTypes.length > 0)
 			: []
 	);
-	// A now type is never blocked: choosing it converts the draft (`toNowDraft`).
+	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map, in its
+	// shape or not, is checked as what `fromMapDraft` converts it to: the pollutant showing, at its
+	// places.
+	const blockData = $derived(
+		known && plain.type === MAP_TYPE ? mapShowingOnly(plain, known).draft.data : plain.data
+	);
 	const showAs = $derived(
 		dataTypes().map((t) => ({
 			type: t,
-			block: known && t.time !== "now" ? typeBlock(t, plain.data, known, now) : null
+			block: known && t.time !== "now" ? typeBlock(t, blockData, known, now) : null
 		}))
 	);
 	const choices = $derived.by(() => {
@@ -201,7 +215,8 @@
 	// with different caps, would undo each other forever), and a Forecast strip's place is named
 	// through a PM2.5 layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
-		const layers = isNow ? plain.data.layers.map(placesQueryLayer) : plain.data.layers;
+		// A now type's places are on its places layer (a Map's other layers have none).
+		const layers = isNow ? (main ? [placesQueryLayer(main)] : []) : plain.data.layers;
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
 	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
@@ -362,6 +377,7 @@
 					: m.get_data_pollutant_instead({ pollutant: to, previous })
 			);
 		}
+		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		const days = dropped.conversion.selection;
 		if (days) {
@@ -406,29 +422,47 @@
 	 */
 	let defaultOwed = false;
 
+	/** Whether `d` already has now type `t`'s shape (the Map's own, for the Map). */
+	function shaped(d: Draft, t: WidgetType): boolean {
+		return t.type === MAP_TYPE ? isMapShaped(d) : isNowShaped(d, t);
+	}
+
 	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
 	function sourceType(snapshot: Draft): WidgetType | undefined {
 		const from = getWidgetType(snapshot.type);
-		return from?.time === "now" && !isNowShaped(snapshot, from) ? undefined : from;
+		return from?.time === "now" && !shaped(snapshot, from) ? undefined : from;
 	}
 
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
 	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
 		const id = ++changeId;
-		// The Map offers only the monitor map's pollutants (memoized, so loaded once).
-		const allowed = next.type === MAP_TYPE ? await loadMapPollutants() : undefined;
-		if (id !== changeId) return;
-		if (allowed) mapPollutants = allowed;
-		const pollutant = nowPollutant($state.snapshot(draft) as Draft, next, catalog, allowed);
+		if (next.type === MAP_TYPE) {
+			// The Map offers only the monitor map's pollutants (memoized, so loaded once), and has no
+			// alert level, so no scale to wait for.
+			const allowed = await loadMapPollutants();
+			if (id !== changeId) return;
+			mapPollutants = allowed;
+			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed);
+			defaultOwed = false;
+			replaceDraft(converted.draft);
+			noteConversion(converted);
+			return;
+		}
+		// From a Map, the pollutant showing is the one that converts.
+		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
+		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
 		// An edit made while the scale loaded counts: convert the draft as it is now (again, when
 		// that edit changed the pollutant).
 		const fresh = $state.snapshot(draft) as Draft;
-		if (nowPollutant(fresh, next, catalog, allowed) !== pollutant) {
+		if (nowPollutant(base(fresh), next, catalog) !== pollutant) {
 			return convertToNow(next, catalog);
 		}
-		const converted = toNowDraft(fresh, next, catalog, levels, sourceType(fresh), allowed);
+		const converted =
+			fresh.type === MAP_TYPE
+				? fromMapDraft(fresh, next, catalog, levels)
+				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
 		replaceDraft(converted.draft);
@@ -445,7 +479,8 @@
 		changeId++;
 		defaultOwed = false;
 		if (to.time !== "now" && isNow) {
-			const converted = fromNowDraft(plain, to);
+			const converted =
+				plain.type === MAP_TYPE ? fromMapDraft(plain, to, known ?? []) : fromNowDraft(plain, to);
 			replaceDraft(converted.draft);
 			noteConversion(converted);
 		}
@@ -478,7 +513,7 @@
 	$effect(() => {
 		const to = type;
 		if (!known || to?.time !== "now") return;
-		if (!untrack(() => isNowShaped(plain, to))) void convertToNow(to, known);
+		if (!untrack(() => shaped(plain, to))) void convertToNow(to, known);
 	});
 
 	// The alert level: the pollutant's scale ("Can we go outside?" reads PM2.5 whatever's saved).
@@ -639,17 +674,26 @@
 			{#if isNow}
 				{#if !known}
 					{@render catalogState()}
-				{:else if plain.type === CURRENT_TYPE || plain.type === MAP_TYPE || type?.thresholds}
+				{:else if plain.type === MAP_TYPE}
+					<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
+						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
+							{m.get_data_what()}
+						</h2>
+						<MapSections
+							data={plain.data}
+							catalog={known}
+							offered={offeredPollutants(known, mapPollutants ?? [])}
+							onpollutant={(e, on) => setMapPollutant(draft.data, known, e, on)}
+							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
+						/>
+					</section>
+				{:else if plain.type === CURRENT_TYPE || type?.thresholds}
 					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
 						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
 							{m.get_data_what()}
 						</h2>
 						<NowControls
-							pollutants={plain.type === CURRENT_TYPE
-								? nowPollutants(known)
-								: plain.type === MAP_TYPE
-									? offeredPollutants(known, mapPollutants ?? [])
-									: null}
+							pollutants={plain.type === CURRENT_TYPE ? nowPollutants(known) : null}
 							entryType={main?.entryType}
 							levels={type?.thresholds ? shownLevels : null}
 							thresholds={plain.thresholds}

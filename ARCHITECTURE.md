@@ -1962,23 +1962,51 @@ spec lists the exact map-sdk changes.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.9` (never a range or a dist-tag). The
-  dashboard also depends on `@maptiler/sdk` `~4.2.0` directly, for `Marker` (the pin's label),
-  and keeps it in step with map-sdk's own `@maptiler/sdk`.
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.11` (never a range or a dist-tag). The
+  dashboard no longer depends on `@maptiler/sdk` directly: the pin's label comes from map-sdk's
+  focus area.
 - **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection
   (no globe), `cooperativeGestures: true` (Ctrl/⌘-scroll or two fingers zoom, so scrolling the
   page never zooms a map; also in fullscreen) and `telemetry: false`. MapTiler's usage report is
   off, because the dashboard allows no analytics; its session id and tile cache stay on (the
   user, 2026-11-11). With no `VITE_MAPTILER_KEY` the widget shows "Map unavailable". The key is
   never logged.
-- **One monitors store per entry type, shared by every map on the page** (`host/stores.ts`).
-  It's map-sdk's `createMonitorsStore()` (live readings, polled), created on the first map that
-  needs it and disposed after the last one lets go. It pauses while the page is hidden, through
-  the platform's `activity`, which the map takes from the app (`useApp()`).
+- **The dashboard loads, map-sdk draws** (step 5 spec 2, built 2026-11-12). The widget uses no
+  map-sdk store. Each map data set is one **entry** in `src/lib/widgets/map/data/` (monitors in
+  `monitors.ts`, smoke and fire in `hms.ts`) that says how it loads, how it becomes a plain
+  `DataSource`, and what it needs; `types.ts` has the interface. Loading goes through the data
+  layer's **now client** (`src/lib/data/now/`): a shared cache, polling paused while the page is
+  hidden (through the platform's `activity`, which the map takes from `useApp()`), retries and
+  error states. Live monitors refresh on the `"raw"` cadence (3 minutes), smoke and fire on
+  `"hour"`. Adding a data set later (schools, pesticides) means adding an entry. The Map
+  refreshes only when its date range includes today (a rule for spec 4; see `DEFERRED.md`).
+- **What a Map tile holds.** One set of places (on the first pollutant layer only, so every
+  place-handling path sees one place), one or more pollutants (one `air-quality` layer each, from
+  the monitors meta's `available_pollutants`; at most 6, since `LAYERS_MAX` is 8 less smoke and
+  fire), and smoke and fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added
+  and removed together). Saved options (`options.ts`, `MapOptionsSchema`): `showing` (the entry
+  type drawn now; the first pollutant until spec 3's toolbar switches it) and `marks` (monitor
+  ids, at most 25, unique). Invalid or missing options read as none.
+- **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
+  those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
+  in its `placeRegion` region, the one the frame uses), and only those reporting the pollutant
+  showing. Smoke and fire are drawn everywhere, never clipped to the places. A tile never draws
+  another pollutant's or an earlier place's readings while a load is pending. A load error shows
+  one Retry.
+- **Marks.** A tap or click opens map-sdk's pinned card; its **Select** and **Remove** buttons,
+  Shift-click, and Shift+Enter in the feature list mark and unmark a monitor (`selectionMode:
+"multiple"`, `pickWith: "modifier"`, `card.actions`, `canSelect`). Marks are saved in
+  `options.marks` through `applyChange`, so they undo, and `setSelection` follows the document
+  (undo, redo, other tabs). At most 25, counting every mark: a 26th gets map-sdk's notice. Only
+  monitors can be marked, and view-only dashboards hide the buttons. Marks are kept when a
+  monitor leaves the tile's data (a place change, another pollutant showing, a pollutant
+  unchecked): the mark stays, hidden, and a note under the map counts the hidden marks. Marks
+  are dropped, with a note, when converting away from the Map.
 - **Providers:** `messages` maps every `mapsdk_*` key to a Paraglide message through an explicit
   table (a test fails when map-sdk adds a key the table lacks); `format` wraps the dashboard's
   `format` module (Pacific, " PT" off-Pacific), except relative time, which stays map-sdk's
-  (see `DEFERRED.md`); `metadata` is one `createDefaultMetadata()` shared by every map.
+  (see `DEFERRED.md`); `metadata` is the dashboard's own adapter over its metadata cache (`host/metadata.ts`), so map
+  levels, colors, units and labels come from the same source as every other widget.
 - **map-sdk's `theme.css` isn't imported.** It's Tailwind source, which only `app.css` compiles,
   and `app.css` already defines every token it adds. `app.css` has map-sdk's `@source`.
 - **On screen only.** `MapView active` is true only while the widget is on screen (an
@@ -1990,13 +2018,14 @@ spec lists the exact map-sdk changes.
   on entering or leaving fullscreen, after the frame's animations settle. A pan or zoom lasts
   only for the moment (it survives a theme switch's style reload). A map holding an exact point
   frames the point's region, never the point (see "Widget data selection").
-- **Layers:** the monitors (`selectedStyle: "ring"`, selection mode `"none"`), region outlines
-  in one plain `shapesPlugin` below them (geometry from `getRegionsGeoJSON`, kept in a page-wide
-  in-memory cache in `src/lib/widgets/map/regions.ts`: each region is fetched once, with one
-  request per region type), and a pin for a school or point. The pin has a visible
-  text label beside it, drawn with `Marker` and hidden from screen readers; its accessible name
-  comes from the feature list. `featureList={{ reveal: "focus" }}` is the keyboard path, and the
-  legend sits in the widget's card (a button on narrow maps).
+- **Layers:** the monitors, smoke and fire as the tile's entries give them (`selectedStyle:
+"ring"` marks the marked monitors), and map-sdk's **focus area** (`focusAreaPlugin`, `focus.ts`):
+  the places' outline with the surround dimmed, or a labelled pin for a school or exact point. It
+  replaces spec 1's outline layer, pin layer and the dashboard's own pin label. Monitor places get
+  no focus area (only those monitors are drawn and the camera fits them). Region geometry comes
+  from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
+  (each region fetched once, one request per region type). `featureList={{ reveal: "focus" }}` is
+  the keyboard path, and the legend sits in the widget's card (a button on narrow maps).
 - **CSP:** `connect-src` and `img-src` both include `https://api.maptiler.com` (styles, tiles,
   glyphs, sprites, and the logo; the user, 2026-11-11). sjvair.com holds the real list, so it
   gets the same host (sjvair.com #330, on `develop`). `cdn.maptiler.com`, MapTiler's default

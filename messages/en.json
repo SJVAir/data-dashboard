@@ -1052,6 +1052,18 @@
 		}
 	],
 	"get_data_overlay_for": "Overlay for",
+	"get_data_map_pollutant_limit": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Up to {count} pollutant",
+				"countPlural=other": "Up to {count} pollutants"
+			}
+		}
+	],
+	"get_data_smoke_and_fire": "Smoke and fire",
+	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
 	"get_data_show_as": "Show as",
 	"get_data_pollutant": "Pollutant",
 	"get_data_alert_level": "Alert level",
@@ -1127,6 +1139,9 @@
 	"get_data_discard": "Discard",
 	"get_data_keep_editing": "Keep editing",
 	"get_data_none": "None",
+	"get_data_map_keep_one": "Keep at least one pollutant.",
+	"get_data_map_smoke_help_label": "About smoke and fire",
+	"get_data_map_smoke_help": "Shows today's smoke plumes and fire detections seen by satellite, everywhere on the map, not only at this map's places.",
 	"get_data_keep_one": "Keep at least one pollutant, weather or pesticide layer.",
 	"get_data_level_only": "Add a pollutant, weather or pesticide layer to chart this.",
 	"get_data_station": "Station",
@@ -1163,7 +1178,47 @@
 	"map_pin_shared_location": "Shared location",
 	"map_legend_toggle": "Legend",
 	"map_label": "{title} map",
+	"map_label_marks_hidden": [
+		{
+			"declarations": [
+				"input title",
+				"input count",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{title} map. {count} marked monitor isn't shown",
+				"countPlural=other": "{title} map. {count} marked monitors aren't shown"
+			}
+		}
+	],
 	"map_layer_places": "Places",
+	"map_no_monitors_here": "No monitors here report this pollutant right now.",
+	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
+	"map_refresh_failed": "Couldn't refresh. Showing earlier readings.",
+	"map_mark_select": "Select",
+	"map_mark_remove": "Remove",
+	"map_marks_limit": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Limit reached: up to {count} marked monitor",
+				"countPlural=other": "Limit reached: up to {count} marked monitors"
+			}
+		}
+	],
+	"map_marks_hidden": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} marked monitor isn't shown",
+				"countPlural=other": "{count} marked monitors aren't shown"
+			}
+		}
+	],
 	"current_trend_rising": "Rising",
 	"current_trend_falling": "Falling",
 	"current_trend_steady": "Steady",

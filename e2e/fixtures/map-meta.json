@@ -1,0 +1,187 @@
+{
+	"ozone": {
+		"catalog": {
+			"id": "o3",
+			"label": "Ozone",
+			"kind": "pollutant",
+			"units": "ppb",
+			"resolutions": ["raw", "hour", "day", "month", "quarter", "season", "year"],
+			"aggregate": "mean",
+			"display": {
+				"precision": 1,
+				"chart": "line",
+				"y_min": 0
+			},
+			"retired": null,
+			"available": true
+		},
+		"entry": {
+			"label": "Ozone",
+			"type": "o3",
+			"units": "ppb",
+			"epa_aqs_code": 44201,
+			"scale": {
+				"id": "o3",
+				"label": "Ozone",
+				"units": "ppb",
+				"kind": "range",
+				"source": {
+					"name": "US EPA AirNow, AQI Basics",
+					"url": "https://www.airnow.gov/aqi/aqi-basics/"
+				},
+				"averaging_hours": 1,
+				"daily_statistic": "max_1h",
+				"daily_statistic_label": "Highest 1-hour average",
+				"levels": [
+					{
+						"key": "good",
+						"label": "Good",
+						"color": "#00e400",
+						"tier": 0,
+						"description": "Air quality is satisfactory, and air pollution poses little or no risk.",
+						"guidance": "",
+						"min": 0.0,
+						"max": 125,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "unhealthy_sensitive",
+						"label": "Unhealthy for Sensitive Groups",
+						"color": "#ff7e00",
+						"tier": 2,
+						"description": "Members of sensitive groups may experience health effects. The general public is less likely to be affected.",
+						"guidance": "Sensitive groups should stay indoors and avoid outdoor activities.",
+						"min": 125,
+						"max": 165,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "unhealthy",
+						"label": "Unhealthy",
+						"color": "#ff0000",
+						"tier": 3,
+						"description": "Some members of the general public may experience health effects; members of sensitive groups may experience more serious health effects.",
+						"guidance": "Everyone should reduce prolonged or heavy exertion.",
+						"min": 165,
+						"max": 205,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "very_unhealthy",
+						"label": "Very Unhealthy",
+						"color": "#8f3f97",
+						"tier": 4,
+						"description": "Health alert: The risk of health effects is increased for everyone.",
+						"guidance": "Everyone should avoid prolonged or heavy exertion.",
+						"min": 205,
+						"max": 405,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "hazardous",
+						"label": "Hazardous",
+						"color": "#7e0023",
+						"tier": 4,
+						"description": "Health warning of emergency conditions: everyone is more likely to be affected.",
+						"guidance": "Everyone should stay indoors and avoid physical outdoor activities.",
+						"min": 405,
+						"max": 605,
+						"value": null,
+						"opacity": null
+					},
+					{
+						"key": "very_hazardous",
+						"label": "Very Hazardous",
+						"color": "#7e0023",
+						"tier": 4,
+						"description": "Health warning of emergency conditions: everyone is more likely to be affected.",
+						"guidance": "Everyone should stay indoors and avoid physical outdoor activities.",
+						"min": 605,
+						"max": null,
+						"value": null,
+						"opacity": null
+					}
+				]
+			},
+			"school_guidelines": null,
+			"fields": ["timestamp", "sensor", "stage", "processor", "value"]
+		},
+		"monitors": {
+			"airnow": {
+				"sensors": null,
+				"published": true,
+				"allowed_stages": ["raw", "calibrated"],
+				"default_stage": "raw",
+				"default_calibration": "",
+				"processors": {},
+				"alerts": {
+					"window": "60 min",
+					"min_coverage": 0.5,
+					"stage": "raw",
+					"processor": null,
+					"expected_interval": null
+				}
+			}
+		}
+	},
+	"datasets": [
+		{
+			"id": "hms-smoke",
+			"label": "Wildfire Smoke",
+			"description": "Daily smoke plume outlines and density from satellite imagery.",
+			"source": "NOAA Hazard Mapping System",
+			"license": "Public domain",
+			"geographies": ["polygon"],
+			"meta_url": "/api/2.0/hms/meta/",
+			"places_url": "",
+			"entry_types": [
+				{
+					"id": "smoke-density",
+					"label": "Smoke Density",
+					"kind": "other",
+					"units": "",
+					"resolutions": ["day"],
+					"aggregate": null,
+					"display": {
+						"precision": null,
+						"chart": null,
+						"y_min": null
+					},
+					"retired": null
+				}
+			],
+			"retired": null
+		},
+		{
+			"id": "hms-fire",
+			"label": "Fire Detections",
+			"description": "Satellite-detected active fire points with fire radiative power.",
+			"source": "NOAA Hazard Mapping System",
+			"license": "Public domain",
+			"geographies": ["point"],
+			"meta_url": "/api/2.0/hms/meta/",
+			"places_url": "",
+			"entry_types": [
+				{
+					"id": "fire-frp",
+					"label": "Fire Radiative Power",
+					"kind": "other",
+					"units": "MW",
+					"resolutions": ["raw"],
+					"aggregate": null,
+					"display": {
+						"precision": 1,
+						"chart": "bar",
+						"y_min": 0
+					},
+					"retired": null
+				}
+			],
+			"retired": null
+		}
+	]
+}

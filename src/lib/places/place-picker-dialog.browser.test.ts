@@ -313,6 +313,39 @@ test("a Map's point on a live link saves its region", async () => {
 	expect(layerOf(session).place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
 });
 
+test("saves a point picked for a multi-pollutant Map on a live link as its region", async () => {
+	const map = widget({}, MAP_TYPE);
+	map.data.layers.push(
+		{ dataset: "air-quality", entryType: "o3" },
+		{ dataset: "hms-smoke" },
+		{ dataset: "hms-fire" }
+	);
+	const { app, platform, session } = await show(map);
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(placeRegion).toHaveBeenCalledTimes(1);
+	expect(placeRegion.mock.calls[0][0]).toEqual({
+		layer: expect.objectContaining({
+			entryType: "pm25",
+			place: { kind: "point", lat: 36.75, lon: -119.79 }
+		}),
+		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+		pin: "hour"
+	});
+	const layers = session.doc.body.widgets[0].data.layers;
+	expect(layers[0].place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
+	expect(layers.slice(1).every((l) => l.place === undefined)).toBe(true);
+	expect(layers.map((l) => l.entryType ?? l.dataset)).toEqual([
+		"pm25",
+		"o3",
+		"hms-smoke",
+		"hms-fire"
+	]);
+});
+
 test("a calendar's location is looked up one row per day, with no sub-range or worst hour", async () => {
 	const cal = widget({}, "calendar-month");
 	cal.data.timeSubRange = { start: "2026-01-05", end: "2026-01-12" };

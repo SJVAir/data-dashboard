@@ -402,11 +402,17 @@ test("keyboard stepping moves the strips' cursors with the main one", async () =
 		const el = root.querySelector<HTMLElement>(".u-cursor-x");
 		return new DOMMatrixReadOnly(getComputedStyle(el!).transform).m41;
 	};
-	(chart.element() as HTMLElement).focus();
+	const el = chart.element() as HTMLElement;
+	el.focus();
+	// Under full-suite load the key can land before the chart has focus; wait for it, and prove
+	// each key arrived through the readout before reading the strip's cursor.
+	await expect.poll(() => document.activeElement).toBe(el);
 	await userEvent.keyboard("{Home}");
-	await expect.poll(() => cursorX(strips()[0])).toBeGreaterThanOrEqual(0);
+	await expect.poll(() => readout().textContent).toContain("Oct 1, 2026");
 	const home = cursorX(strips()[0]);
+	await expect.poll(() => document.activeElement).toBe(el);
 	await userEvent.keyboard("{End}");
+	await expect.poll(() => readout().textContent).toContain("Oct 10, 2026");
 	await expect.poll(() => cursorX(strips()[0])).toBeGreaterThan(home);
 	// The strip's cursor sits where the main plot's does.
 	const main = frame.querySelector(".u-over")!.parentElement!;

@@ -3,6 +3,7 @@ import { WidgetDataConfigSchema } from "$lib/data/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { dataTypes } from "$lib/widgets/registry";
+import { MapOptionsSchema } from "$lib/widgets/map/options";
 import { ChartOptionsSchema } from "$lib/widgets/shared/overlays";
 import { ThresholdSchema } from "$lib/thresholds/schema";
 import { CHART_TYPE } from "$lib/widgets/chart";
@@ -15,7 +16,8 @@ const SAVE_DELAY_MS = 500;
 export const DraftSchema = z.object({
 	type: z.string().max(64),
 	data: WidgetDataConfigSchema,
-	options: ChartOptionsSchema.optional(),
+	/** A Map's options (marks, the pollutant showing), else a Chart's (the overlay's place). */
+	options: z.union([MapOptionsSchema, ChartOptionsSchema]).optional(),
 	/** The alert level (threshold types); none means Off. */
 	thresholds: z.array(ThresholdSchema).max(1).optional()
 });

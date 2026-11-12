@@ -94,6 +94,14 @@ export interface MetadataSource {
 	 * scales for `"hms-smoke"`, the CalHeatScore scales for `"calheatscore"`, otherwise the same as `levels`. `[]` if no scale.
 	 */
 	datasetLevels(dataset: string, entryType: string, signal?: AbortSignal): Promise<Level[]>;
+	/**
+	 * The server's raw scale for a dataset's entry type, as the meta serves it: routes like
+	 * `datasetLevels` (and `"hms-fire"` to the HMS meta too), otherwise the monitors meta's.
+	 * `null` when there is none.
+	 */
+	serverScale(dataset: string, entryType: string, signal?: AbortSignal): Promise<unknown | null>;
+	/** How often a monitor type reports (the monitors meta's `expected_interval`); `null` when it has none. */
+	monitorTypeInterval(type: string, signal?: AbortSignal): Promise<string | null>;
 	/** The meta's `default_calibration`; `""` and unknown map to `null`. */
 	defaultProcessor(
 		monitorType: string,
@@ -330,6 +338,22 @@ export function createWebMetadata(): MetadataSource {
 				return mapScaleLevels((await heatMeta(signal)).scales[entryType]?.levels);
 			}
 			return monitorLevels(entryType, signal);
+		},
+		async serverScale(dataset, entryType, signal) {
+			const scales = async () =>
+				dataset === "forecasts"
+					? (await forecastsMeta(signal)).scales
+					: dataset === "hms-smoke" || dataset === "hms-fire"
+						? (await hmsMeta(signal)).scales
+						: dataset === "calheatscore"
+							? (await heatMeta(signal)).scales
+							: undefined;
+			const own = await scales();
+			if (own) return Object.hasOwn(own, entryType) ? own[entryType] : null;
+			return (await meta(signal)).entries[entryType]?.scale ?? null;
+		},
+		async monitorTypeInterval(type, signal) {
+			return (await meta(signal)).monitors[type]?.expected_interval || null;
 		},
 		async dailyFigure(entryType, signal) {
 			const scale = (await meta(signal)).entries[entryType]?.scale;

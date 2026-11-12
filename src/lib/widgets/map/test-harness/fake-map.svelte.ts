@@ -1,11 +1,18 @@
 /* eslint-disable svelte/prefer-svelte-reactivity -- test records the test reads; reactive state uses $state */
+import {
+	applyPick,
+	toggleInSelection,
+	type FeatureRef,
+	type SelectionMode,
+	type SpatialSelection
+} from "@sjvair/map-sdk/data";
 /**
  * A stand-in for map-sdk's `createMap` in browser tests (no WebGL, no MapTiler): it records the
  * plugins, selections and camera moves a widget asks for, and its `ready` is set by the test.
  */
 export type FakePlugin = {
 	id: string;
-	kind: "shapes" | "points" | "monitors";
+	kind: string;
 	options: Record<string, unknown>;
 	addOptions?: Record<string, unknown>;
 };
@@ -13,7 +20,7 @@ export type FakePlugin = {
 export type CameraCall =
 	{ kind: "fitBounds"; bounds: unknown; options: unknown } | { kind: "easeTo"; target: unknown };
 
-/** The attached GL map's stand-in: only what a host marker touches. */
+/** The attached GL map's stand-in: only what the widget touches (its context-lost listener). */
 export class FakeGl {
 	readonly id = crypto.randomUUID();
 	listeners = new Map<string, Set<(e: unknown) => void>>();
@@ -28,44 +35,6 @@ export class FakeGl {
 		for (const l of [...(this.listeners.get(type) ?? [])]) l({ type });
 	}
 }
-
-/** A stand-in for @maptiler/sdk's `Marker`: records where it is and which GL map holds it. */
-export class FakeMarker {
-	lngLat: [number, number] | null = null;
-	gl: FakeGl | null = null;
-	constructor(readonly options: { element: HTMLElement; anchor?: string; offset?: unknown }) {
-		fakeMarkers.made.push(this);
-	}
-	get element(): HTMLElement {
-		return this.options.element;
-	}
-	setLngLat(lngLat: [number, number]) {
-		this.lngLat = lngLat;
-		return this;
-	}
-	addTo(gl: FakeGl) {
-		this.gl = gl;
-		return this;
-	}
-	remove() {
-		this.gl = null;
-		return this;
-	}
-}
-
-export const fakeMarkers = {
-	made: [] as FakeMarker[],
-	reset() {
-		this.made = [];
-	},
-	/** The markers on a GL map now. */
-	on(gl: FakeGl | null): FakeMarker[] {
-		return this.made.filter((m) => m.gl !== null && m.gl === gl);
-	},
-	get shown(): FakeMarker[] {
-		return this.made.filter((m) => m.gl !== null);
-	}
-};
 
 export class FakeMap {
 	#ready = $state(false);
@@ -82,7 +51,8 @@ export class FakeMap {
 	gl = $state.raw<FakeGl | null>(null);
 	uid = crypto.randomUUID();
 	plugins: FakePlugin[] = [];
-	selections = new Map<string, unknown>();
+	/** Each plugin's selection, as map-sdk holds it. Reactive, for the card's `selected`. */
+	selections = $state<Record<string, SpatialSelection | null>>({});
 	/** Every `setSelection` call, in order (`[pluginId, selection]`). */
 	selectionCalls: [string, unknown][] = [];
 	/** The pinned card's feature (map-sdk's `Hovered`), set by a click on the fake MapView with `card`. */
@@ -101,13 +71,61 @@ export class FakeMap {
 		if (options?.before && at < 0) throw new Error(`no plugin ${String(options.before)}`);
 		if (at < 0) this.plugins.push(added);
 		else this.plugins.splice(at, 0, added);
+		this.selections[plugin.id] = (options?.selection as SpatialSelection | undefined) ?? null;
 	}
 	removePlugin(id: string) {
 		this.plugins = this.plugins.filter((p) => p.id !== id);
+		delete this.selections[id];
 	}
-	setSelection(id: string, selection: unknown) {
+	setSelection(id: string, selection: SpatialSelection | null) {
 		this.selectionCalls.push([id, selection]);
-		this.selections.set(id, selection);
+		this.selections[id] = selection;
+	}
+	getSelection(id: string): SpatialSelection | null {
+		return this.selections[id] ?? null;
+	}
+	getSelectionMode(id: string): SelectionMode {
+		const plugin = this.plugins.find((p) => p.id === id);
+		if (!plugin) return "none";
+		return (plugin.addOptions?.selectionMode as SelectionMode | undefined) ?? "single";
+	}
+	getPickWith(id: string): "click" | "modifier" {
+		const plugin = this.plugins.find((p) => p.id === id);
+		return plugin?.addOptions?.pickWith === "modifier" ? "modifier" : "click";
+	}
+	/** The latest refused pick's message, as map-sdk's `notice`. */
+	notice = $state.raw<{ message: string; id: number } | null>(null);
+	#notices = 0;
+	/** A user's pick that would give `next`: map-sdk's `canSelect`, then `onselectionchange`. */
+	#userPick(id: string, ref: FeatureRef, next: SpatialSelection | null) {
+		const options = this.plugins.find((p) => p.id === id)?.addOptions ?? {};
+		const canSelect = options.canSelect as
+			((n: SpatialSelection | null, r: FeatureRef) => true | string) | undefined;
+		const verdict = canSelect ? canSelect(next, ref) : true;
+		if (verdict !== true) {
+			this.notice = { message: verdict, id: ++this.#notices };
+			return;
+		}
+		this.notice = null;
+		this.selections[id] = next;
+		(options.onselectionchange as ((s: SpatialSelection | null) => void) | undefined)?.(next);
+	}
+	/** map-sdk's `togglePick` (the card's Select/Remove). */
+	togglePick(id: string, ref: FeatureRef) {
+		const mode = this.getSelectionMode(id);
+		if (mode === "none" || ref.kind === "feature") return;
+		this.#userPick(id, ref, toggleInSelection(this.getSelection(id), ref, mode));
+	}
+	/** A Shift-click on a feature: a toggle for `"modifier"` plugins, nothing on the map otherwise. */
+	shiftClick(id: string, ref: FeatureRef) {
+		if (this.getPickWith(id) === "modifier") this.togglePick(id, ref);
+	}
+	/** Shift+Enter on a feature-list row: a toggle for `"modifier"` plugins, else an additive pick. */
+	listShiftEnter(id: string, ref: FeatureRef) {
+		if (this.getPickWith(id) === "modifier") return this.togglePick(id, ref);
+		const mode = this.getSelectionMode(id);
+		if (mode === "none" || ref.kind === "feature") return;
+		this.#userPick(id, ref, applyPick(this.getSelection(id), ref, mode, { additive: true }));
 	}
 	unpin() {
 		this.pinned = null;
@@ -150,67 +168,3 @@ export function createFakeMap(): FakeMap {
 	fakeMaps.made.push(map);
 	return map;
 }
-
-type Features = { type: "FeatureCollection"; features: unknown[] } | null;
-
-/** A stand-in for a shared monitors store: the test settles `init` and sets the features. */
-export class FakeStore {
-	features = $state.raw<Features>(null);
-	monitors = $state.raw(new Map<string, unknown>());
-	initCalls: string[] = [];
-	pauses = 0;
-	#settle: { resolve: () => void; reject: (e: unknown) => void } | null = null;
-	readonly dataSource;
-
-	constructor(readonly entryType: string) {
-		const features = () => this.features;
-		this.dataSource = {
-			status: { state: "ready" },
-			get features() {
-				return features();
-			},
-			scale: { dataset: "air-quality", entryType }
-		};
-	}
-
-	init(entryType: string): Promise<void> {
-		this.initCalls.push(entryType);
-		return new Promise((resolve, reject) => (this.#settle = { resolve, reject }));
-	}
-	/** Finishes the pending `init` with these monitors (`[id, lon, lat]`). */
-	load(monitors: [string, number, number][]) {
-		this.monitors = new Map(monitors.map(([id]) => [id, { id }]));
-		this.features = {
-			type: "FeatureCollection",
-			features: monitors.map(([id, lon, lat]) => ({
-				type: "Feature",
-				geometry: { type: "Point", coordinates: [lon, lat] },
-				properties: { refKey: `monitor:${id}`, name: id, value: 1 }
-			}))
-		};
-		this.#settle?.resolve();
-	}
-	fail(error: unknown) {
-		this.#settle?.reject(error);
-	}
-	pauseAutoUpdate() {
-		this.pauses++;
-	}
-}
-
-export const fakeStores = {
-	held: new Map<string, FakeStore>(),
-	releases: 0,
-	reset() {
-		this.held = new Map();
-		this.releases = 0;
-	},
-	acquire(entryType: string) {
-		let store = this.held.get(entryType);
-		if (!store) {
-			store = new FakeStore(entryType);
-			this.held.set(entryType, store);
-		}
-		return { store, release: () => this.releases++ };
-	}
-};

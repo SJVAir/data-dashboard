@@ -1,0 +1,28 @@
+{
+	"data": [
+		{
+			"id": "f1reDetectionSierra1",
+			"ecosystem": 22,
+			"frp": 42.5,
+			"method": "FDC",
+			"satellite": "GOES-WEST",
+			"date": "2026-11-11",
+			"timestamp": "2026-11-11T19:20:00Z",
+			"geometry": { "type": "Point", "coordinates": [-119.2, 37.1] }
+		},
+		{
+			"id": "f1reDetectionSierra2",
+			"ecosystem": 22,
+			"frp": 18.1,
+			"method": "FDC",
+			"satellite": "GOES-WEST",
+			"date": "2026-11-11",
+			"timestamp": "2026-11-11T19:30:00Z",
+			"geometry": { "type": "Point", "coordinates": [-119.205, 37.105] }
+		}
+	],
+	"page": 1,
+	"count": 2,
+	"pages": 1,
+	"has_next_page": false
+}

@@ -646,3 +646,26 @@ describe("now-widget metadata", () => {
 		expect(await md.scaleSource("forecasts", "nope")).toBeNull();
 	});
 });
+
+describe("serverScale and monitorTypeInterval", () => {
+	it("routes the raw scale like datasetLevels, with hms-fire on the HMS meta", async () => {
+		const smoke = { levels: [lvl("light", "Light", "#ccc", 0, null, 10)] };
+		const fire = { levels: [lvl("fire", "Fire", "#f00", 0, null, null)] };
+		vi.mocked(getHMSMeta).mockResolvedValue({
+			scales: { "smoke-density": smoke, "fire-radiative-power": fire }
+		} as never);
+		const md = createWebMetadata();
+		expect(await md.serverScale("air-quality", "pm25")).toBe(META.entries.pm25.scale);
+		expect(await md.serverScale("air-quality", "humidity")).toBeNull();
+		expect(await md.serverScale("hms-smoke", "smoke-density")).toBe(smoke);
+		expect(await md.serverScale("hms-fire", "fire-radiative-power")).toBe(fire);
+		expect(await md.serverScale("hms-fire", "nope")).toBeNull();
+		expect(getHMSMeta).toHaveBeenCalledTimes(1);
+	});
+
+	it("reads a monitor type's reporting interval", async () => {
+		const md = createWebMetadata();
+		expect(await md.monitorTypeInterval("purpleair")).toBe("2 min");
+		expect(await md.monitorTypeInterval("nope")).toBeNull();
+	});
+});
