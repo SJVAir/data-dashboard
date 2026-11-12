@@ -1265,6 +1265,27 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   behave as before, and their documented "Shift-click adds" in `"multiple"` mode has never worked
   there. Cmd/Ctrl-click and a touch tap still add. **Revisit if** a host wants Shift-click in the
   default mode (extend the box-zoom pick to `"click"` plugins).
+- **map-sdk: a focus point that is also a school is drawn and listed twice.** _Deferred 2026-11-11
+  (map-sdk part 3, the focus area)._ Once part 4's schools layer exists, a school picked as the
+  focus shows its own marker and row under the focus ring and its row. Why: the schools layer isn't
+  built yet. **Revisit with** map-sdk part 4 (hide the school's marker under the focus).
+- **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
+  part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
+  the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
+  Why: neither is visible at the SJV zooms the dashboard uses. **Revisit if** a host shows a focus
+  area zoomed out to the whole globe.
+- **map-sdk: focus-area geometry checks are shallow.** _Deferred 2026-11-11 (map-sdk part 3, final
+  review)._ `focusAreaPlugin` checks the geometry type and a Point's coordinates, not each polygon
+  position: bad positions fail in MapLibre's worker, not with a clear error. Its winding test
+  assumes closed rings (GeoJSON requires them), so an unclosed ring could leave the area washed
+  too. Overlapping or nested MultiPolygon parts punch overlapping holes, which may draw oddly.
+  Why: sjvair.com's GeoJSON is valid and its region parts don't overlap. **Revisit if** a host
+  passes hand-made or third-party shapes.
+- **map-sdk: the focus point's list row has no "place" cue.** _Deferred 2026-11-11 (map-sdk part 3,
+  final review)._ Its row and accessible name are the label alone ("Lincoln Elementary"), among the
+  monitors, so a screen-reader user can't tell it isn't a monitor. Why: the user chose the label
+  alone (no reading, no "No level"). **Revisit on** an accessibility pass of the map, or with part 5
+  if the list gets per-layer groups.
 
 - **The SDK's school and child-care source list is strict.** _Noted 2026-11-11 (sdk-js #61; the
   user: record it)._ `@sjvair/sdk`'s `locationSourceSchema` accepts only `cde-public`,
