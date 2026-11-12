@@ -2028,9 +2028,15 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     frame). **Revisit with** spec 3 or a polish pass.
   - **`MapWidget.svelte` is about 750 lines;** move the data blocks to
     `map/data/loaded.svelte.ts`. **Do at** the start of spec 3 (the toolbar adds more).
-  - **The hidden-marks note gives no reason** ("aren't shown") where the spec's example names one
-    ("don't report ozone"). **Revisit on** the user's call (asked at the end of spec 2), or with
-    spec 3's Pollutant toolbar.
+  - **The hidden-marks note gives no reason** ("aren't shown"), though spec 2 asked for one ("2
+    marked monitors don't report ozone"). This is a spec 2 miss, not an open question. The user
+    agreed 2026-11-12 to finish it at the start of spec 3. First check whether the widget can
+    tell the two reasons apart: a mark can be hidden because the monitor is outside the tile's
+    places, or because it doesn't report the pollutant showing, and today the code only knows
+    it isn't drawn. Then name each reason the widget can tell ("don't report ozone", "are outside
+    this map's places"), with one line per reason when both apply. Keep "aren't shown" only for
+    marks whose reason can't be told. Use the same wording in the map's accessible name.
+    **Do at** the start of spec 3, alongside the `MapWidget.svelte` split.
   - **Test gaps kept:** the starter hand-off test uses a hand-built session (the real starter
     holds no Map widget, and adding one is itself the first edit that hands off, so the test
     can't start from a starter holding a Map until a starter preset has one); the Shift-click
