@@ -1235,6 +1235,37 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   deferred:** console noise only, and the design is intended. **Revisit:** if a map-sdk feature starts relying on the
   global config, or before map-sdk's first stable release, to silence the warning.
 
+- **map-sdk: Tab order to a click-pinned card.** _Deferred 2026-11-11 (map-sdk part 1, pinned
+  card, final review; [map-sdk #23](https://github.com/SJVAir/map-sdk/pull/23))._ After a mouse
+  click pins the card, Tab reaches the zoom controls and the List button before the card. Nothing
+  announces how to reach it. From the feature list, Tab reaches it next. Why: non-modal and AA as
+  it is. **Revisit on** an accessibility pass of the map or a screen-reader report.
+- **map-sdk: the pinned card covers what's under it.** _Deferred 2026-11-11 (map-sdk part 1,
+  final review)._ The card (z-index 3, taking the pointer) can sit over list rows and controls and
+  takes wheel zoom over itself. Closing it with focus inside can leave `tabindex="-1"` on the map
+  root. Why: that's what a pinned card does, and both are harmless. **Revisit with** map-sdk part 5,
+  the shared toolbar, which reworks what sits over the map.
+- **map-sdk: a fire group pinned below zoom 10 stays pinned past it.** _Deferred 2026-11-11
+  (map-sdk part 1, final review)._ HMS fire draws groups below zoom 10 and hotspots from it. A
+  group's card pinned before zooming in stays after its layer stops drawing, until the next click
+  elsewhere or Esc. **Revisit when** the HMS fire preset is next changed.
+- **map-sdk: `MapContext`'s new members break hand-written fakes.** _Deferred 2026-11-11
+  (map-sdk parts 1–2, final reviews)._ `pinned`, `unpin`, `setCardEnabled`, `togglePick`,
+  `getPickWith`, `notice` and `clearNotice` are required members. A host test that builds a fake
+  `MapContext` by hand gets a type error. Why: expected in a beta. **Revisit if** a host reports
+  it, or before 1.0 (make internal members optional or move them off the public interface).
+- **map-sdk: no warning for `pickWith: "modifier"` without the card.** _Deferred 2026-11-11
+  (map-sdk part 2, final review; [map-sdk #25](https://github.com/SJVAir/map-sdk/pull/25))._ With
+  the card off, a plain click in modifier mode only fires `featureclick`, so nothing visible
+  happens. The README says to use them together. **Revisit if** a host gets caught by it (a dev-only
+  `console.warn` on the first such click).
+- **map-sdk: Shift-click does nothing on `pickWith: "click"` maps.** _Deferred 2026-11-11 (map-sdk
+  part 2)._ MapLibre's box zoom takes every Shift press and suppresses the click. map-sdk turns a
+  Shift release in place into a pick for `"modifier"` plugins only, so other maps (monitor-map)
+  behave as before, and their documented "Shift-click adds" in `"multiple"` mode has never worked
+  there. Cmd/Ctrl-click and a touch tap still add. **Revisit if** a host wants Shift-click in the
+  default mode (extend the box-zoom pick to `"click"` plugins).
+
 ## Analysis & data
 
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
