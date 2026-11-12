@@ -4,8 +4,8 @@ Status: brainstormed with the user 2026-11-11; checked by a fresh builder read (
 contradictions with the code fixed and five questions settled as my calls, below; one question
 for the user, answered: exact points open on their region); reviewed by the coordinator
 (`data-dashboard-8a`, four additions folded in); **approved by the user 2026-11-11**; built
-2026-11-11; PR pending. Branch
-`step-5-spec-1` from `step-5`; its PR goes into `step-5`.
+2026-11-11 on `step-5-spec-1` (plan Tasks 1–18); **merged into `step-5` 2026-11-12** (PR #53,
+919ca6d, the user's yes), on `@sjvair/map-sdk` `0.1.0-beta.9` and `@sjvair/sdk` `5.0.0-beta.8`.
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's.
 
