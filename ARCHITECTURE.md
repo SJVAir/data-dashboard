@@ -1960,7 +1960,7 @@ spec lists the exact map-sdk changes.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.8` (never a range or a dist-tag). The
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.9` (never a range or a dist-tag). The
   dashboard also depends on `@maptiler/sdk` `~4.2.0` directly, for `Marker` (the pin's label),
   and keeps it in step with map-sdk's own `@maptiler/sdk`.
 - **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection

@@ -277,12 +277,7 @@ const tallDoc = {
 	}
 };
 
-// FIXME (map-sdk): detaching an off-screen map throws in map-sdk's MapTooltip (beta.7 and beta.8):
-// with `tooltip="pointer"`, its `zoomstart` cleanup reads the `gl` prop after MapView has set it to
-// null ("Cannot read properties of null (reading 'off')"), and the map never comes back. Taking
-// `gl` into a local in that effect fixes it (checked by patching it locally: this test passes).
-// Not worked around in the dashboard; lift when map-sdk ships the fix (seen 2026-11-11).
-test.fixme("a map scrolled off screen and back draws again", async ({ page }) => {
+test("a map scrolled off screen and back draws again", async ({ page }) => {
 	await openSharedDoc(page, tallDoc);
 	const map = mapOf(page, FRESNO_MAP);
 	await expect(map.locator("canvas")).toBeVisible();
