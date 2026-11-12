@@ -197,17 +197,22 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      monitor-map 5.0 needs a published `0.x`.
    - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
-     ways with step 4's shared place picker (method B). **Five specs** (the user, 2026-11-11),
+     ways with step 4's shared place picker (method B). **Six specs** (the user, 2026-11-11;
+     spec 2 split into 2 and 3 on 2026-11-12),
      each a PR into a `step-5` branch, which merges into `main` once at the end:
      1. **The widget core:** live PM2.5 monitors around the widget's places, the places outlined
         and framed, picker sync, "Change place", the location-privacy rules, lazy-loaded and
-        torn down when off screen. **Built and reviewed 2026-11-11** (on map-sdk
-        `0.1.0-beta.7`); it merges after map-sdk's pinned card on a tap (sjvair.com #330,
-        the CSP mirror, is merged into `develop`).
-     2. The options toolbar and the reading card's Select/Remove, on map-sdk's shared toolbar.
-     3. A date-range mode and region fills.
-     4. Pesticide use by section and township, and spray notices.
-     5. "Show in a chart" / "Show in a table" from a map's selection.
+        torn down when off screen. **Merged into `step-5` 2026-11-12** (#53, on map-sdk
+        `0.1.0-beta.9`).
+     2. The Map's data per tile (several data sets, monitors limited to the tile's places,
+        chosen in Get data and loaded through the dashboard's data layer), the saved map
+        selection, the reading card's Select/Remove and Shift-click, and the focus area (map-sdk
+        `0.1.0-beta.11`).
+     3. The options toolbar, built from the tile's data, plus Settings, on map-sdk's shared
+        toolbar (after map-sdk part 5).
+     4. A date-range mode and region fills.
+     5. Pesticide use by section and township, and spray notices.
+     6. "Show in a chart" / "Show in a table" from a map's selection.
    - **Critical path (decided 2026-09-28): only `map-sdk` → the dashboard's Map widget.**
      There is no interim single-map build on monitor-map 4.x.
    - **Parallel, not blocking:** monitor-map rebuilt on `map-sdk` on a branch. **The Map

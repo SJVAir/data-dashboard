@@ -1185,7 +1185,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   doesn't list them. **Revisit when** map-sdk shows readings at the metadata's precision (map-sdk
   change 8 in the spec), or the server lists more pollutants.
 - **Year-over-year change on the map** (a diverging scale). _Deferred 2026-11-11 (step 5 spec
-  1)._ It comes after step 5 spec 4 (pesticide use). **Revisit when** a researcher or agency asks
+  1)._ It comes after step 5 spec 5 (pesticide use). **Revisit when** a researcher or agency asks
   for trends on the map.
 - **The Map widget's 25-place cap.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ A map
   holds at most 25 places (`accepts.maxPlaces`). Picking more than 25 by hand is rare, but every
@@ -1526,7 +1526,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
   when** the map widget uses whole-layer queries (Release 1 step 5). _Noted 2026-11-11 (step 5
   spec 1): the Map widget uses map-sdk's live monitors store, not whole-layer queries, so this
-  doesn't bite yet. Step 5 spec 3's date-range data is where it does._
+  doesn't bite yet. Step 5 spec 4's date-range data is where it does._
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -1590,7 +1590,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   values where nothing was measured; the day it shows; and which daily figure (spec 5's
   per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
   (step 4 → step 5/6), or map-sdk takes on a new layer type. _Noted 2026-11-11 (step 5 spec 1):
-  the Map widget shows the live readings only. **Revisit with** step 5 spec 3 (date ranges)._
+  the Map widget shows the live readings only. **Revisit with** step 5 spec 4 (date ranges)._
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1905,7 +1905,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     **Revisit if** someone is confused by a map that shows fewer places than they picked.
   - **The map's note banner can sit under map-sdk's zoom buttons** on a narrow map. The buttons
     stay clickable and nothing is hidden from focus; it only looks crowded. **Revisit with** the
-    shared toolbar (step 5 spec 2), which moves the map's controls.
+    shared toolbar (step 5 spec 3), which moves the map's controls.
   - **No Get data test for a failed map pollutant list.** Get data treats `"unavailable"` like an
     empty list, the same as before. **Revisit with** the next change to Get data's Map path.
   - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's

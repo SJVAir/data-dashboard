@@ -1952,7 +1952,7 @@ option the Map widget can use too:
 **Shared options toolbar (decided by the user 2026-11-11, in the Map widget brainstorm).** map-sdk
 gets a shared, host-controlled options toolbar: plugins declare a group (Pollutant, Monitors,
 Layers, Overlays, Settings) and their options, the host owns the values, and the toolbar sizes
-itself by the map's box. The dashboard's Map widget uses it (step 5 spec 2), and **monitor-map 5.0
+itself by the map's box. The dashboard's Map widget uses it (step 5 spec 3), and **monitor-map 5.0
 moves onto it** in place of its own options toolbar. That also changes mobile's map: mobile
 renders monitor-map through `monitorMapRoutes` (`@sjvair/monitor-map/routes`), whose
 `MonitorMapLayout` includes the options toolbar, so mobile re-pins and is re-tested after the move.
@@ -2155,7 +2155,7 @@ icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
 - **25 places at most.** A chart's data can become a map in Get data's Show as, keeping all its
   places (up to 25, with the "left out" note beyond). Leaving a Map for a one-place "now" type
   keeps the first place, with the same note. While a selection is over Chart's or Table's cap,
-  Show as greys them out, as before (choosing which places to keep comes in step 5 spec 5).
+  Show as greys them out, as before (choosing which places to keep comes in step 5 spec 6).
 - **`addable(doc)`.** `addable` now gets the dashboard it's added to. The Map's gives one PM2.5
   layer whose place is the bar's place when the bar shows, else the dashboard's most common
   single place, else Fresno County (`placesToReplace(doc)[0]`, then `DEFAULT_LAYER`). Notes
