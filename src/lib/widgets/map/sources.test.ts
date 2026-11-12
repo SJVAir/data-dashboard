@@ -69,7 +69,10 @@ describe("map sources", () => {
 			highlight: "var-highlight",
 			highlightForeground: "var-on-highlight",
 			foreground: "var-foreground",
-			mutedForeground: "m"
+			mutedForeground: "m",
+			focusArea: "f",
+			focusAreaCasing: "fc",
+			focusAreaWash: "fw"
 		});
 		expect(svg).toContain('fill="var-highlight"');
 		expect(svg).toContain('stroke="var-foreground"');
