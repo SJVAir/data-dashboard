@@ -2012,6 +2012,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     when resolved (harmless: the fetch asks for the server's today); the raw "air-quality" id is
     the fallback section label without a catalog; the e2e point test has a 3 s hard sleep
     (MapTiler's metrics timer). **Fix with** the next change to each.
+  - **Show as can grey out Chart or Table for an unusual Map draft:** `GetDataView`'s `blockData`
+    still checks `isMapDraft`, so a Map draft that isn't in the Map's shape (from a link with
+    dates, say) and holds several pollutants or smoke and fire is blocked for Chart or Table,
+    though `fromMapDraft` would convert it. Rare, and nothing is lost. **Fix with** spec 4 (dates
+    on the Map), or the next change to `GetDataView`'s type switching.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
