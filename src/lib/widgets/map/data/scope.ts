@@ -11,9 +11,10 @@ export type MonitorScope =
 
 export type ScopeContext = { regions: RegionResolver; placeRegion: typeof placeRegion };
 
-function monitors(ids: string[]): MonitorScope {
+/** A scope of `kind` over `ids`, deduplicated and sorted so the key is stable. */
+function scopeOf(kind: MonitorScope["kind"], ids: string[]): MonitorScope {
 	const sorted = [...new Set(ids)].sort();
-	return { kind: "monitors", ids: sorted, key: sorted.join(",") };
+	return { kind, ids: sorted, key: sorted.join(",") };
 }
 
 /**
@@ -27,8 +28,8 @@ export async function monitorScope(
 	signal?: AbortSignal
 ): Promise<MonitorScope | { unavailable: UnavailableReason }> {
 	const { place, selection } = layer;
-	if (selection?.kind === "monitors") return monitors(selection.ids);
-	if (place?.kind === "monitor") return monitors([place.id]);
+	if (selection?.kind === "monitors") return scopeOf("monitors", selection.ids);
+	if (place?.kind === "monitor") return scopeOf("monitors", [place.id]);
 
 	let refs: { type: string; code: string }[];
 	if (selection?.kind === "regions") {
@@ -54,6 +55,5 @@ export async function monitorScope(
 		if (!found) return { unavailable: "region-unresolved" };
 		ids.push(found.id);
 	}
-	const sorted = [...new Set(ids)].sort();
-	return { kind: "regions", ids: sorted, key: sorted.join(",") };
+	return scopeOf("regions", ids);
 }
