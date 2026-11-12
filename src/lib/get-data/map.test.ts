@@ -194,6 +194,23 @@ describe("converting to and from the Map", () => {
 		expect(isMapShaped(draft)).toBe(false);
 	});
 
+	it("keeps the places on the first pollutant layer through a Get data round trip", () => {
+		const draft = mapDraft(["pm25", "o3"], { showing: "o3" }, true);
+		const there = fromMapDraft(draft, chartType, CATALOG);
+		const back = toMapDraft(there.draft, CATALOG, ALLOWED);
+		// Back to a Map from the Chart: the place is on the first (only) pollutant layer.
+		expect(back.draft.data.layers[0].place).toEqual(FRESNO);
+		// A Map to a Map keeps pm25 holding the place and the rest place-less.
+		const again = toMapDraft(draft, CATALOG, ALLOWED);
+		expect(again.draft.data.layers.map((l) => [l.entryType ?? l.dataset, !!l.place])).toEqual([
+			["pm25", true],
+			["o3", false],
+			[HMS_SMOKE, false],
+			[HMS_FIRE, false]
+		]);
+		expect(again.dropped).toEqual([]);
+	});
+
 	it("converts a Map with PM2.5, ozone (showing) and smoke and fire to a Chart with ozone only, noting what's left out", () => {
 		const c = fromMapDraft(
 			mapDraft(["pm25", "o3"], { showing: "o3", marks: ["a"] }, true),

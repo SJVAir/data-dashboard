@@ -165,6 +165,41 @@ describe("hasPoints and pointSwaps", () => {
 		expect(hasPoints(swapped)).toBe(false);
 	});
 
+	it("shares a Map holding a point with PM2.5 and ozone as one region swap on the places layer", async () => {
+		const map: WidgetInstance = {
+			id: "m",
+			type: MAP_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: {
+				layers: [
+					pm25(POINT),
+					{ dataset: "air-quality", entryType: "o3" },
+					{ dataset: "hms-smoke" },
+					{ dataset: "hms-fire" }
+				]
+			}
+		};
+		const doc = docWith(map);
+		expect(hasPoints(doc)).toBe(true);
+		const swaps = await pointSwaps(doc);
+		expect(swaps).toEqual([
+			{
+				widgetId: "m",
+				layerIndex: 0,
+				point: { lat: POINT.lat, lon: POINT.lon },
+				region: { type: "zipcode", code: "93721" }
+			}
+		]);
+		expect(mocked.placeRegion).toHaveBeenCalledTimes(1);
+		const swapped = withSwaps(doc, swaps);
+		const layers = swapped.body.widgets[1].data.layers;
+		expect(layers[0].place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
+		expect(layers.slice(1).every((l) => l.place === undefined)).toBe(true);
+		expect(layers).toHaveLength(4);
+		expect(hasPoints(swapped)).toBe(false);
+	});
+
 	it("a Map selection is left alone", async () => {
 		const map: WidgetInstance = {
 			id: "m",
