@@ -1,5 +1,4 @@
 <script lang="ts">
-	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Accordion } from "bits-ui";
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import type { PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
@@ -18,6 +17,7 @@
 	} from "./layers";
 	import type { OfferedDataset } from "./offer";
 	import PesticideLayers from "./PesticideLayers.svelte";
+	import SectionTrigger from "./SectionTrigger.svelte";
 	import StationChoice from "./StationChoice.svelte";
 
 	const SMOKE = "hms-smoke";
@@ -122,22 +122,7 @@
 		{@const boxes = id === PESTICIDES ? [] : checkboxesIn(section)}
 		{@const summary = chosen(section)}
 		<Accordion.Item value={id} class="border-card-border rounded-(--radius-control) border">
-			<Accordion.Header level={3}>
-				<Accordion.Trigger
-					class="hover:bg-secondary flex min-h-8 w-full items-center gap-2 rounded-(--radius-control) px-2 py-1 text-left text-sm font-medium [&[data-state=open]>svg]:rotate-180"
-				>
-					<span class="flex min-w-0 flex-1 flex-col">
-						<span>{section.dataset.label}</span>
-						{#if summary}
-							<span class="text-muted-foreground text-xs font-normal">{summary}</span>
-						{/if}
-					</span>
-					<ChevronDownIcon
-						class="text-muted-foreground duration-fast ease-standard size-4 shrink-0 transition-transform"
-						aria-hidden="true"
-					/>
-				</Accordion.Trigger>
-			</Accordion.Header>
+			<SectionTrigger label={section.dataset.label} detail={summary} />
 			<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
 				{#if section.dataset.description || id === SMOKE || id === PESTICIDES}
 					<div class="flex items-start gap-1">
