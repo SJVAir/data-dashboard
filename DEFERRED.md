@@ -1266,6 +1266,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   there. Cmd/Ctrl-click and a touch tap still add. **Revisit if** a host wants Shift-click in the
   default mode (extend the box-zoom pick to `"click"` plugins).
 
+- **The SDK's school and child-care source list is strict.** _Noted 2026-11-11 (sdk-js #61; the
+  user: record it)._ `@sjvair/sdk`'s `locationSourceSchema` accepts only `cde-public`,
+  `cde-private` and `cdss-ccl`, but sjvair.com's `Location.source` is a plain CharField
+  (`camp/apps/regions/models.py`), so a new source would make `/regions/locations/` and
+  `/pesticides/locations/` fail to parse in the SDK. **Revisit when** sjvair.com adds a location
+  source: add the value to `locationSourceSchema` in the same change.
+
 ## Analysis & data
 
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
