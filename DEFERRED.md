@@ -1269,6 +1269,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (map-sdk part 3, the focus area)._ Once part 4's schools layer exists, a school picked as the
   focus shows its own marker and row under the focus ring and its row. Why: the schools layer isn't
   built yet. **Revisit with** map-sdk part 4 (hide the school's marker under the focus).
+- **map-sdk: no schools store (`createSchoolsStore`).** _Deferred 2026-11-12 (the user, map-sdk
+  part 4)._ The spec's section 4 called for a store in `./stores` on `getPesticideLocations`, with a
+  region mode and a follow-the-view mode. Why: the dashboard loads its own data and passes plain
+  `DataSource`s, and no other host (monitor-map 5.0, mobile) draws schools. The schools preset
+  documents the feature properties a host supplies. **Revisit if** monitor-map, mobile, or another
+  host wants schools without its own data layer.
 - **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
   part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
   the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
