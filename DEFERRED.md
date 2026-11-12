@@ -1295,8 +1295,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **map-sdk: the child-care bubble count's contrast.** _Deferred 2026-11-12 (map-sdk part 4, final
   review; the user chose bold)._ White 12px text on `#1c9099` is about 3.6:1; WCAG's 4.5:1 for
   small text isn't met even bold (bold counts as large only from 14pt). The user picked a bold count
-  over a darker teal for the bubbles, after seeing both weights. **Revisit on** an accessibility
-  pass of the map, or if `--child-care-marker` changes.
+  over a darker teal for the bubbles, after seeing both weights. **Now folded into map-sdk part 5**
+  (the user, 2026-11-12): darken the child-care color (and the school one with it, so they still
+  match) to pass 4.5:1; this entry goes when part 5 does that.
 - **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
   part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
   the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
