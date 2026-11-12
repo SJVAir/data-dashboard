@@ -583,3 +583,19 @@ key `mapsdk_card_close`. The tap bug's cause: Chromium fires a compatibility `mo
 - [ ] **Step 3:** Add the two deferred E2Es: `no MapTiler metrics request after a map draws` (none within about 3 s, from the stub's `seen` list), and `a map scrolled off screen and back draws again` (real GL).
 - [ ] **Step 4:** Run the full checks (unit, browser with 0 unhandled errors, build, check:build, check:budget, `CI=1 npm run test:e2e`, and WebKit in podman). Expected: PASS.
 - [ ] **Step 5:** Commit `feat(map): tap pins the reading card (map-sdk 0.1.0-beta.8)`.
+
+### Task 18: Move to `@sjvair/map-sdk` `0.1.0-beta.9`; the off-screen test runs
+
+Added 2026-11-11. `@sjvair/map-sdk` `0.1.0-beta.9` (published; the coordinator checked it)
+fixes the MapTooltip detach bug Task 17 found, and nothing else. Before this fix, a
+`tooltip="pointer"` map that detached threw an error and never drew again.
+
+**Files:**
+- Modify: `package.json`, `package-lock.json` (`"@sjvair/map-sdk": "0.1.0-beta.9"`, exact; one `@maptiler/sdk`, in step with map-sdk's range)
+- Modify: `e2e/map.spec.ts` (lift the `fixme` on `a map scrolled off screen and back draws again`)
+- Modify: `DEFERRED.md`, `TODO.md` (the off-screen item and the spec 1 blocker are done; a TODO Done entry, following DEFERRED's rule), and the `@sjvair/map-sdk` pin in `CLAUDE.md`, `ARCHITECTURE.md` and the spec (only where they state the current pin)
+
+- [ ] **Step 1:** `npm install --save-exact @sjvair/map-sdk@0.1.0-beta.9`. Confirm one `@maptiler/sdk` and one `@sjvair/sdk` (`5.0.0-beta.8`; spec 1 stays on it, the user, 2026-11-11). The message coverage test must still pass.
+- [ ] **Step 2:** Lift the `fixme`. Run `CI=1 npx playwright test --project=chromium e2e/map.spec.ts`, and WebKit through `npm run test:e2e:podman -- e2e/map.spec.ts`. Expected: the off-screen test PASSES.
+- [ ] **Step 3:** Full checks (lint, check, unit, browser with 0 unhandled errors, build, check:build, check:budget, full Chromium E2E). Update the docs, then `npx prettier --write TODO.md DEFERRED.md`.
+- [ ] **Step 4:** Commit `build: @sjvair/map-sdk 0.1.0-beta.9; the off-screen test runs`.
