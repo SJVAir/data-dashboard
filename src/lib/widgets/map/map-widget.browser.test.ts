@@ -569,6 +569,21 @@ test("an entry type the map doesn't offer is unavailable, with no map", async ()
 	expect(fakeMaps.made).toHaveLength(0);
 });
 
+test("draws another layer's pollutant when the one showing isn't offered, saving nothing", async () => {
+	const widget = mapWidget(region("019"));
+	widget.data.layers = [
+		{ ...widget.data.layers[0], entryType: "pm100" },
+		{ dataset: "air-quality", entryType: "pm25" }
+	];
+	widget.options = { showing: "pm100" };
+	const screen = await show(widget);
+	await madeMap();
+	await expect.poll(() => vi.mocked(getMonitors).mock.calls.length).toBeGreaterThan(0);
+	expect(JSON.stringify(vi.mocked(getMonitors).mock.calls[0])).toContain("pm25");
+	expect(screen.getByText(m.widget_state_unavailable_unknown_entry_type()).query()).toBeNull();
+	expect(widget.options).toEqual({ showing: "pm100" });
+});
+
 test("a failed pollutant list shows Try again, and retrying recovers", async () => {
 	const mapPollutants = vi
 		.fn<() => Promise<string[] | "unavailable">>()

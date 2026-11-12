@@ -52,7 +52,7 @@
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
 	import { canMark, hiddenMarks, marksChange } from "./marks";
-	import { MAP_MARKS_MAX, mapOptions, pollutantLayers, showingOf } from "./options";
+	import { MAP_MARKS_MAX, drawableShowing, mapOptions, pollutantLayers } from "./options";
 	import { monitorIds, monitorPositions } from "./sources";
 
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
@@ -84,8 +84,18 @@
 
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
 	const layer = $derived(placesLayer(widget.data, known));
-	/** The pollutant drawn now. */
-	const entryType = $derived(showingOf(widget.data, mapOptions(widget), known));
+	/**
+	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
+	 * first layer pollutant it does. Never saved back into the options.
+	 */
+	const entryType = $derived(
+		drawableShowing(
+			widget.data,
+			mapOptions(widget),
+			known,
+			Array.isArray(pollutants) ? pollutants : undefined
+		)
+	);
 	const entryLabel = $derived(
 		entryMeta(
 			known,
@@ -98,8 +108,7 @@
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
 	);
 	/**
-	 * Whether the map can show the pollutant showing. One the server's map doesn't offer is never
-	 * drawn.
+	 * Whether the map can show a pollutant of the tile: none the server's map offers is never drawn.
 	 */
 	const support = $derived.by<"loading" | "ok" | "pollutants-failed" | UnavailableReason>(() => {
 		if (catalog === "unavailable") return "catalog-unavailable";

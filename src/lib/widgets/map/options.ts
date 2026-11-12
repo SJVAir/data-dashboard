@@ -52,3 +52,22 @@ export function showingOf(
 	const wanted = layers.find((l) => l.entryType && l.entryType === options.showing);
 	return (wanted ?? layers[0])?.entryType;
 }
+
+/**
+ * The pollutant to draw: the one showing when the server's map draws it, else the first of the
+ * layers' pollutants it does. With none drawable (or the list not known yet) it is `showingOf`,
+ * so the caller reports it unavailable. Never saved: the owner's `showing` stays as chosen.
+ */
+export function drawableShowing(
+	data: WidgetDataConfig,
+	options: MapOptions,
+	catalog: CatalogEntry[] | undefined,
+	drawable: readonly string[] | undefined
+): string | undefined {
+	const showing = showingOf(data, options, catalog);
+	if (!drawable || (showing && drawable.includes(showing))) return showing;
+	const first = pollutantLayers(data, catalog).find(
+		(l) => l.entryType && drawable.includes(l.entryType)
+	);
+	return first?.entryType ?? showing;
+}
