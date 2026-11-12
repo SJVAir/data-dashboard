@@ -1289,7 +1289,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   review)._ A type a newer server adds is drawn (no filter) and counted in a bubble's number but has
   no line in the bubble's tooltip; and `drawnAt` keeps every focus point it was asked about until
   teardown, re-checking each when the map settles. Why: three known types today, one focus point
-  per tile. **Revisit when** the server adds a location type, or a host moves the focus point often.
+  per tile. Also, a points plugin's `drawnAt` doesn't guard against a point layer missing from the
+  style (unreachable today: teardown runs before every style change). **Revisit when** the server
+  adds a location type, or a host moves the focus point often.
+- **map-sdk: the child-care bubble count's contrast.** _Deferred 2026-11-12 (map-sdk part 4, final
+  review; the user chose bold)._ White 12px text on `#1c9099` is about 3.6:1; WCAG's 4.5:1 for
+  small text isn't met even bold (bold counts as large only from 14pt). The user picked a bold count
+  over a darker teal for the bubbles, after seeing both weights. **Revisit on** an accessibility
+  pass of the map, or if `--child-care-marker` changes.
 - **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
   part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
   the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
