@@ -57,7 +57,7 @@ function offeredFor(catalog: CatalogEntry[] | undefined, layer: Layer): Resoluti
  * the new one when the main changed. A level the new main doesn't offer (`offeredFor`: weather
  * has no "Every measurement") is dropped.
  */
-function keepingPlaces(
+export function keepingPlaces(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined,
 	change: () => void

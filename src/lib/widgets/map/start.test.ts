@@ -33,6 +33,14 @@ describe("mapStartData", () => {
 		]);
 	});
 
+	it("starts as PM2.5 only, with no smoke and fire and no options", () => {
+		const data = mapStartData(doc([]));
+		expect(data.layers).toHaveLength(1);
+		expect(data.layers[0].entryType).toBe("pm25");
+		expect(data.layers.some((l) => l.dataset.startsWith("hms-"))).toBe(false);
+		expect(data).not.toHaveProperty("options");
+	});
+
 	it("ignores a bar no widget shows", () => {
 		const data = mapStartData(doc([widget("a", KERN)], TULARE));
 		expect(data.layers?.[0].place).toEqual(KERN);
