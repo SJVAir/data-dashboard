@@ -1603,24 +1603,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   plugin, or sooner if fire icons go missing on a map. Milestone 2 (map-sdk #4) couldn't
   reproduce it in the Chromium e2e, a probe spec, or the browser tests; the suspect is
   `pointsPlugin` adding icon images in `image.onload` after its layers.
-- **map-sdk pinned card and card actions: review leftovers.** _Deferred 2026-11-11 (map-sdk
-  #23 and #25 reviews, `@sjvair/map-sdk` `0.1.0-beta.8` and `0.1.0-beta.10`)._ Minors the
-  whole-branch reviews graded as unlikely to bite:
-  - After a mouse click, Tab reaches the zoom controls and the List button before the pinned
-    card, and nothing announces how to reach it.
-  - `pinned`, `unpin` and `setCardEnabled` are required `MapContext` members, a type break for
-    hosts' hand-written fakes.
-  - The card (z-index 3) can cover list rows and controls, and closing it can leave
-    `tabindex="-1"` on the map root.
-  - A fire group pinned below zoom 10 stays pinned past it.
-  - No dev warning when a `"modifier"` plugin is clicked with the card off.
-  - Shift-click still does nothing on `pickWith: "click"` maps, because MapLibre's box zoom
-    swallows it (as it always has).
-
-  **Revisit when** the Map widget's spec 2 builds its card and Shift-click (check the first and
-  third against the widget), the screen-reader check before go-live, or map-sdk next touches the
-  card.
-
 - **map-sdk milestone 2 review leftovers.** _Deferred 2026-11-04 (map-sdk #4 reviews)._ Small
   gaps the reviews found that don't affect today's maps:
   - A collocation site whose collocated monitor isn't in the store shows no name for it (its
