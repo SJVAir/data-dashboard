@@ -89,8 +89,11 @@ Teachers' moments that drive the card (the user picked these two):
 
 **How it's saved (my call; the builder may refine names):**
 
-- `data.layers`: one `air-quality` layer per pollutant, each with the **same** `place` or
-  `selection` (the tile's places). Smoke and fire are two place-less layers, `hms-smoke` and
+- `data.layers`: one `air-quality` layer per pollutant. The tile's places (`place` or
+  `selection`) live on the **first** pollutant layer only, the main layer, as a Chart's do
+  (`mainLayer`/`placesLayer`, `keepingPlaces` in `get-data/layers.ts`); the other pollutant
+  layers use them (planning check: this replaces "each layer carries the same places", so every
+  place-handling path already sees one place). Smoke and fire are two place-less layers, `hms-smoke` and
   `hms-fire` (both are in the server's dataset catalog); one Get data checkbox adds or removes
   both together.
 - `options`: a validated Map options object, like Notes' `NoteOptionsSchema`, holding
@@ -118,7 +121,7 @@ Teachers' moments that drive the card (the user picked these two):
   `placeRegion` gives for the tile's places layer (`placesLayer`, the first pollutant layer),
   whichever pollutant is showing. It's what the frame, sharing's point swap and the picker's
   `regionOf` already use, so a switch never moves the camera or changes which monitors are in
-  scope. Sharing does one swap for the tile's place and applies it to every pollutant layer.
+  scope. Sharing does one swap, on the layer that holds the places.
 - **Smoke plumes and fire detections**, drawn everywhere when on, never clipped to the places.
 - **The focus area** (`focusAreaPlugin`, `@sjvair/map-sdk` `0.1.0-beta.11`): the places'
   outline with the surround dimmed, or the pin for a school or point. Always on, not an option.
@@ -133,8 +136,10 @@ Teachers' moments that drive the card (the user picked these two):
 ### Loading (the user: the dashboard loads, map-sdk draws)
 
 - The widget drops `createMonitorsStore` and `host/stores.ts`'s `acquireMonitors`. Loading goes
-  through the dashboard's data layer and query client, which already give caching, pausing while
-  the page is hidden, retries and error states.
+  through the dashboard's data layer: its **now client** (`src/lib/data/now/`, `NowSource`), which
+  already serves non-series "now" data (forecasts, alerts) with a shared cache, polling paused
+  while the page is hidden, retries and error states (planning check: the query client is
+  series-only, so the now client is the fit).
 - **One entry per map data set** (monitors; smoke and fire), in `src/lib/widgets/map/`. Each
   entry holds:
   - **load:** the SDK calls, through the data layer. For monitors, the SDK already scopes by
@@ -143,8 +148,9 @@ Teachers' moments that drive the card (the user picked these two):
     list for the whole Valley. The builder picks the calls; the dashboard's region keys are
     `type:code`, so they go through the region resolver to get server ids. For smoke and fire:
     `getHMSSmoke` / `getHMSFire` for today.
-  - **refresh:** live readings about every 2 minutes, paused while the page is hidden. Smoke and
-    fire as their data changes (the builder checks the server's update cadence).
+  - **refresh:** live readings on the now client's `"raw"` cadence (every 3 minutes, the
+    dashboard's standard for live readings), paused while the page is hidden. Smoke and fire on
+    its `"hour"` cadence.
   - **to a `DataSource`:** map-sdk exports no monitor-to-feature converter, so the dashboard
     writes its own into map-sdk's `MonitorFeatureProperties` shape (and the HMS shapes). If a
     shared converter would help, list it for the coordinator; don't change map-sdk.
@@ -222,8 +228,8 @@ and no marks.
 ### The three place-handling spots
 
 The Map stays wired into `src/lib/sharing/points.ts`, `PlacePickerDialog`'s `regionOf`, and Get
-data. With several pollutant layers sharing one place, each place-handling path must treat them
-as one place (one swap, one region), and the tests from spec 1 extend to a multi-pollutant tile.
+data. The places live on the first pollutant layer only, so each place-handling path sees one
+place; the tests from spec 1 extend to a multi-pollutant tile to prove it.
 
 ### Dropped from spec 1
 
@@ -282,7 +288,8 @@ before this spec).
 - A spec 1 saved Map tile opens and converts.
 - The focus area replaces the pin and outline (E2E with the MapTiler stub; WebGL may be skipped
   only in Firefox).
-- Polling: monitors refresh about every 2 minutes and pause while the page is hidden.
+- Polling: monitors refresh on the now client's `"raw"` cadence and pause while the page is
+  hidden.
 - The three place-handling spots with a multi-pollutant tile.
 
 ## Deferrals (added to `DEFERRED.md` in the same change)
