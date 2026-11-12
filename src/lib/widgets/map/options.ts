@@ -1,11 +1,16 @@
 import { layerKind } from "$lib/data/layer-kind";
 import type { CatalogEntry } from "$lib/data/metadata";
-import { SafeIdSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
+import { LIMITS, SafeIdSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { z } from "$lib/zod";
 
 export const MAP_TYPE = "map";
 export const MAP_MARKS_MAX = 25;
+/** The Map's smoke and fire layers: place-less, drawn over the whole map. */
+export const HMS_SMOKE = "hms-smoke";
+export const HMS_FIRE = "hms-fire";
+/** The most pollutants a Map holds: the layer limit less the smoke and fire layers. */
+export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 2;
 
 export const MapOptionsSchema = z.strictObject({
 	/** The entry type drawn now (one of the pollutant layers'). */

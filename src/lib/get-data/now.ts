@@ -23,7 +23,7 @@ import type { Draft } from "./draft.svelte";
 
 /** What a conversion left out or changed, for the form's notes. */
 export type NowDropped =
-	"dates" | "overlays" | "places" | "alert" | "pollutant" | "selection" | "outside";
+	"dates" | "overlays" | "places" | "alert" | "pollutant" | "selection" | "outside" | "marks";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";

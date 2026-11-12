@@ -34,7 +34,10 @@ import {
 	fakeNumberAdapter
 } from "$lib/widgets/shared/test-harness/fake-data";
 import { animationsSettled } from "../../test/animations";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { makeDoc } from "$lib/sync/test-support";
 import { defaultDraft, type Draft } from "./draft.svelte";
+import { editDraft, saveEdit } from "./edit";
 import GetDataView from "./GetDataView.svelte";
 
 type Hit = { id: string; name: string; detail: string; placeholder?: boolean };
@@ -414,7 +417,7 @@ test("Overlay for appears only when places are in different zones", async () => 
 	const choice = page.getByRole("combobox", { name: "Overlay for" });
 	await expect.element(choice).toBeVisible();
 	await choice.selectOptions("Monitor m2");
-	expect((await second.current()).options?.overlayFor).toEqual({ kind: "monitor", id: "m2" });
+	expect((await second.current()).options).toEqual({ overlayFor: { kind: "monitor", id: "m2" } });
 });
 
 test("Show as Chart is disabled with a reason at 7 places", async () => {
@@ -873,12 +876,8 @@ describe("now widgets", () => {
 		await expect
 			.element(page.getByText(m.get_data_extra_places_left_out()))
 			.not.toBeInTheDocument();
-		// The map's pollutants only, in the monitors meta's order.
-		const pollutant = page.getByRole("group", { name: "Pollutant" });
-		await expect.element(pollutant.getByRole("radio", { name: "PM2.5" })).toBeChecked();
-		await expect.element(pollutant.getByRole("radio", { name: "Ozone" })).toBeVisible();
-		await expect.element(pollutant.getByRole("radio", { name: "PM10" })).not.toBeInTheDocument();
 		await expect.element(alert()).not.toBeInTheDocument();
+		await expect.element(page.getByRole("button", { name: /^Dates/ })).not.toBeInTheDocument();
 		expect(await current()).toEqual({
 			type: "map",
 			data: {
@@ -891,6 +890,148 @@ describe("now widgets", () => {
 				]
 			}
 		});
+	});
+
+	test("shows the Map pollutant checkboxes, and the last one can't be unchecked", async () => {
+		const { current } = await show(monitorsDraft(["m1"]));
+		await page.getByRole("radio", { name: "Map" }).click();
+		// The map's pollutants only, in the monitors meta's order.
+		const group = page.getByRole("group", { name: "Air quality" });
+		const pm25 = group.getByRole("checkbox", { name: "PM2.5" });
+		const ozone = group.getByRole("checkbox", { name: "Ozone" });
+		await expect.element(pm25).toBeChecked();
+		await expect.element(pm25).toBeDisabled();
+		await expect.element(page.getByText(m.get_data_keep_one())).toBeVisible();
+		await expect.element(group.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
+		await expect.element(group.getByRole("radio")).not.toBeInTheDocument();
+		const boxes = group.getByRole("checkbox").elements();
+		expect(boxes.map((b) => b.closest("label")?.textContent?.trim())).toEqual(["Ozone", "PM2.5"]);
+		await ozone.click();
+		await expect.element(pm25).toBeEnabled();
+		expect((await current()).data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+			{ dataset: "air-quality", entryType: "o3" }
+		]);
+		// Unchecking the first moves the places to the next.
+		await pm25.click();
+		await expect.element(ozone).toBeDisabled();
+		expect((await current()).data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
+		]);
+	});
+
+	test("turns smoke and fire on and off together", async () => {
+		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		const smoke = page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() });
+		await expect.element(smoke).not.toBeChecked();
+		await animationsSettled(host);
+		const what = host.querySelector("[aria-labelledby$=-what]")!;
+		expect((await axe.run(what)).violations).toEqual([]);
+		await expect
+			.element(page.getByRole("button", { name: m.get_data_smoke_help_label() }))
+			.toBeVisible();
+		await smoke.click();
+		expect((await current()).data.layers.slice(1)).toEqual([
+			{ dataset: "hms-smoke" },
+			{ dataset: "hms-fire" }
+		]);
+		await smoke.click();
+		expect((await current()).data.layers).toHaveLength(1);
+	});
+
+	test("a Chart's smoke turns smoke and fire on; back to a Chart notes what's left out", async () => {
+		const chart = monitorsDraft(["m1"]);
+		chart.data.layers.push({ dataset: "hms-smoke", entryType: "smoke-density" });
+		const { current } = await show(chart);
+		await page.getByRole("radio", { name: "Map" }).click();
+		await expect
+			.element(page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }))
+			.toBeChecked();
+		await expect.element(page.getByText(m.get_data_overlays_left_out())).not.toBeInTheDocument();
+		await page.getByRole("checkbox", { name: "Ozone" }).click();
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
+		const out = await current();
+		expect(out.type).toBe("chart");
+		expect(out.data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+		]);
+	});
+
+	test("Show as Current conditions from a Map uses the pollutant showing and drops the marks", async () => {
+		const { current } = await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "o3" }
+				]
+			},
+			options: { showing: "o3", marks: ["m1"] }
+		});
+		await expect.element(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
+		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
+		const out = await current();
+		expect(out.type).toBe("current-conditions");
+		expect(out.data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
+		]);
+		expect("options" in out).toBe(false);
+	});
+
+	test("saves a Map edit as one undo step", async () => {
+		const platform = createMemoryPlatform();
+		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+		const widget: WidgetInstance = {
+			id: "w1",
+			type: "map",
+			title: null,
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+				]
+			},
+			options: { marks: ["m1"] }
+		};
+		const doc: Dashboard = { ...makeDoc("d1"), body: { widgets: [widget] } };
+		await platform.documents.commit("anonymous", {
+			docId: doc.id,
+			baseVersion: null,
+			doc,
+			entries: []
+		});
+		const session = (await app.sessions.get("d1"))!;
+		const host = document.createElement("div");
+		host.dataset.getDataHost = "";
+		document.body.appendChild(host);
+		render(GetDataView, {
+			target: host,
+			props: {
+				mode: { kind: "edit", dashboardId: "d1", widgetId: "w1" },
+				initial: editDraft(widget),
+				onSave: (draft: Draft) => saveEdit(session, "w1", draft),
+				onCancel: () => {}
+			},
+			context: new Map([[APP_CONTEXT_KEY, app]])
+		});
+		await page.getByRole("checkbox", { name: "Ozone" }).click();
+		await page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }).click();
+		await page.getByRole("button", { name: "Save changes" }).click();
+		const saved = session.doc.body.widgets[0];
+		expect(saved.data.layers.map((l) => l.entryType ?? l.dataset)).toEqual([
+			"pm25",
+			"o3",
+			"hms-smoke",
+			"hms-fire"
+		]);
+		expect(saved.options).toEqual({ marks: ["m1"] });
+		session.undo();
+		expect(session.doc.body.widgets[0].data).toEqual(widget.data);
+		expect(session.canUndo).toBe(false);
 	});
 
 	test("a Map link with 30 places opens cut to 25, and says so", async () => {

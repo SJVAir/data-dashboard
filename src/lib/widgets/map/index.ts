@@ -1,8 +1,7 @@
 import Map from "@lucide/svelte/icons/map";
 import { m } from "$lib/paraglide/messages.js";
 import type { WidgetType } from "../registry";
-import { HMS_FIRE, HMS_SMOKE, MAP_POLLUTANTS_MAX } from "$lib/get-data/map";
-import { MAP_TYPE } from "./options";
+import { HMS_FIRE, HMS_SMOKE, MAP_POLLUTANTS_MAX, MAP_TYPE } from "./options";
 import { mapStartData } from "./start";
 
 export { MAP_TYPE } from "./options";

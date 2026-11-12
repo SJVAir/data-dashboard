@@ -1052,6 +1052,18 @@
 		}
 	],
 	"get_data_overlay_for": "Overlay for",
+	"get_data_map_pollutant_limit": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Up to {count} pollutant",
+				"countPlural=other": "Up to {count} pollutants"
+			}
+		}
+	],
+	"get_data_smoke_and_fire": "Smoke and fire",
+	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
 	"get_data_show_as": "Show as",
 	"get_data_pollutant": "Pollutant",
 	"get_data_alert_level": "Alert level",
