@@ -12,6 +12,7 @@ import { createFakeRemote, type FakeRemote } from "../src/lib/sync/remote-fake";
 import { CSRF_TOKEN, routeDocuments } from "./documents-server";
 import { routeForecasts } from "./forecasts-server";
 import { routeHeat } from "./heat-server";
+import { routeMapData } from "./map-data-server";
 import { routeMapTiler, type MapTilerRequests } from "./maptiler";
 import { routePlaces } from "./places-server";
 import { routeSummaries } from "./summaries-server";
@@ -138,8 +139,9 @@ async function addCsrfCookie(context: BrowserContext, baseURL: string): Promise<
  * request with no fixture file fails the test, except the summaries endpoints, which
  * `routeSummaries` answers from the query, the forecasts for a place, which `routeForecasts`
  * answers for the requested days, the heat for a place, which `routeHeat` answers for the
- * requested day, and the place searches and region lists, which
- * `routePlaces` answers from fixture files picked by the query. The account server answers the session account
+ * requested day, the place searches and region lists, which `routePlaces` answers from fixture
+ * files picked by the query, and the Map's region-scoped readings, which `routeMapData` answers
+ * from the readings file for the regions asked for. The account server answers the session account
  * (`api/2.0/account/`: 401 signed out, or the `account` option's user) and the site's logout,
  * which signs out. MapTiler is stubbed (`e2e/maptiler.ts`), and a MapTiler request that gets past the
  * stub fails the test. The documents server (`api/2.0/documents/…`) is an in-memory fake shared by
@@ -172,6 +174,7 @@ export const test = base.extend<{
 			await routeForecasts(context);
 			await routeHeat(context);
 			await routePlaces(context);
+			await routeMapData(context);
 			await use(unmatched);
 			expect(unmatched, "API requests with no fixture file").toEqual([]);
 		},
@@ -247,6 +250,7 @@ export const test = base.extend<{
 				await routeForecasts(device);
 				await routeHeat(device);
 				await routePlaces(device);
+				await routeMapData(device);
 				const deviceAccount = await routeAccount(device, account);
 				await routeDocuments(device, fake, () => deviceAccount.get()?.id ?? null, unmatched);
 				await routeOffline(device);

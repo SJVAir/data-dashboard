@@ -40,3 +40,14 @@ chemical search and Fresno County's pesticide use (`2.0/pesticides/…`; the mon
 A weather station's own summaries
 (`2.0/monitors/<id>/summaries/<entry>/{daily,hourly}/<year>/<month>[/<day>]/`) are answered by
 `e2e/summaries-server.ts` like the bulk ones.
+
+The Map's readings: `2.0/monitors/<type>/current.json` is the whole Valley's list (`o3` written
+from the `pm25` file: the three AirNow monitors, with made-up ozone readings), and the
+region-scoped `2.0/monitors/<type>/at/?region=` is answered by `e2e/map-data-server.ts` from that
+file, keeping the monitors in the regions asked for (Fresno County's two, Tulare County's
+Porterville, and Drummond Street for the city of Fresno and ZIP 93721). Today's smoke and fire
+(`2.0/hms/smoke.json`, `2.0/hms/fire.json`) are written by hand: one light plume over Fresno and
+two fire detections close together in the Sierra. Ozone and the smoke and fire datasets aren't in
+the catalog or monitors meta files here (other specs' Get data offers only PM2.5);
+`routeMapMeta` adds them for the Map specs from `../map-meta.json` (trimmed from `sdk-js`'s
+dataset catalog and monitors meta fixtures).
