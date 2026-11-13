@@ -234,8 +234,10 @@ The tile's options (`MapOptionsSchema`, `options.ts`) gain, next to `showing` an
   presets' defaults for clusters, Inactive and Inside **off** (monitor-map's defaults; the user,
   2026-11-13: a Map no longer draws inactive or indoor monitors until someone turns them on), smoke
   and fire shown.
-- **Invalid or missing options read as none** (as today, per field where possible: one bad field
-  doesn't drop the marks) **(my call)**.
+- **Missing options read as none**, as today. There is no per-field fallback for invalid ones
+  (changed while planning, 2026-11-13): the document schema already rejects any invalid Map options
+  (`DashboardBodySchema`'s refine, `src/lib/documents/schema.ts`), so such a dashboard opens
+  read-only and a per-field fallback could never run.
 - **Undo:** each toolbar action is one `applyChange` (one undo step); a select-all heading and
   Reset are one step each, matching map-sdk's one `onchange` per action.
 - **A choice equal to its default is stored as missing** **(my call, from the builder check)**:
