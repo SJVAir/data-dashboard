@@ -3,7 +3,7 @@
 Status: brainstormed with the user 2026-11-13, on `step-5-spec-3` (from `step-5` at e6f20c1).
 Checked by a fresh builder read: two questions for the user (read-only views that show no tiles;
 Inactive and Inside defaults), the rest settled as my calls below, and four contradictions with
-the code fixed. **Not yet approved.**
+the code fixed. **Approved by the user 2026-11-13.**
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's
 (from this brainstorm, or from the spec 2 brainstorm on 2026-11-12, recorded in
