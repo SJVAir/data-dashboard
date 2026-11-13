@@ -1957,7 +1957,9 @@ moves onto it** in place of its own options toolbar. That also changes mobile's 
 renders monitor-map through `monitorMapRoutes` (`@sjvair/monitor-map/routes`), whose
 `MonitorMapLayout` includes the options toolbar, so mobile re-pins and is re-tested after the move.
 map-sdk also adds an actions slot on the pinned card (the widget's Select/Remove). The Map widget's
-spec lists the exact map-sdk changes.
+spec lists the exact map-sdk changes. **Built for monitor-map (5.0.0-beta.2, 2026-11-13):**
+`MonitorMapLayout` renders map-sdk's `OptionsToolbar` from map-sdk's presets (monitors, HMS,
+settings), plus its own EV charger and Wind groups, with the host's values in one flat record.
 
 **The Map tile's toolbar (decided by the user 2026-11-12, in the step 5 spec 2 brainstorm; built
 in spec 3).** A Map tile is not a copy of monitor-map: its toolbar offers options only for the

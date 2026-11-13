@@ -1219,14 +1219,20 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   legend when a monitor panel opens on narrow screens and caps its height so it never covers Options and Search. If the
   user expands it again with the panel open, at 390 px wide the card can still reach under the zoom and compass buttons
   on the right. **Why deferred:** minor, and it only happens after the user expands the legend with a panel open.
-  **Revisit:** if it's reported, or when monitor-map's map controls are next laid out.
+  **Revisit:** if it's reported, or when monitor-map's map controls are next laid out. _Fixed in monitor-map #134; remove
+  when it merges into `release/5.0.0`._
+- **monitor-map 5.0: the toolbar's layout root (map-sdk) is not wired yet (found 2026-11-13).** The approved spec has the
+  toolbar's wide/narrow switch follow `MapShell`'s outer box through a map-sdk layout root (proposed `MapView` prop
+  `layoutRoot`); map-sdk had not published it as of 2026-11-13, so monitor-map's toolbar still switches on the screen
+  width. **Why deferred:** waiting on map-sdk. **Revisit:** when map-sdk publishes it, before monitor-map's next npm beta.
 - **monitor-map 5.0: final-review minors from #131 and #132 (2026-11-09, monitor-map-18).**
   (1) No test checks that subscribing sends the current token after a user switch. **Why:** the panel's
   `{#key getApiToken()}` remounts the control, and that remount is tested. **Revisit:** if the subscribe path changes or
   mobile reports a wrong-account subscription. (2) The README doesn't warn hosts against calling `monitorMapUserChanged()`
   inside a `$derived` (it writes `$state`). **Why:** mobile calls it from event handlers. **Revisit:** if a host hits
   Svelte's `state_unsafe_mutation` error. (3) No comment ties the legend wrapper's `top-18` / `md:top-32` offsets to
-  OptionsBar's height. **Why:** cosmetic. **Revisit:** when OptionsBar's height changes. (4) Ruling: two cookie-only users
+  OptionsBar's height. **Why:** cosmetic. **Revisit:** when OptionsBar's height changes. _Fixed in monitor-map #134 (the
+  legend sits below map-sdk's `--mapsdk-toolbar-height`); remove when it merges into `release/5.0.0`._ (4) Ruling: two cookie-only users
   (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
   without a token.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
@@ -1797,7 +1803,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   run other reference monitors) and is every BAM's `device` fallback in the monitor API. Why held:
   those side effects. **Fix when wanted:** a separate public label read only by
   `/api/2.0/monitors/meta/`, leaving `verbose_name` alone. **Revisit when** SJVAir branding for
-  BAMs is wanted on the map or the dashboard.
+  BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
+  Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
+  spec): a known difference from 4.3 for the parity review.
 
 ## Widgets
 
