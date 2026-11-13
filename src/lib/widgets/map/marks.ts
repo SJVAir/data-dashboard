@@ -33,3 +33,41 @@ export function marksChange(widget: WidgetInstance, marks: string[]): Change | n
 		options: { from: widget.options, to: marks.length ? { ...rest, marks: [...marks] } : rest }
 	};
 }
+
+/** Why a marked monitor isn't drawn. */
+export type HiddenReason = "pollutant" | "options" | "places" | "unknown";
+
+/** The reasons in the order their lines are shown. */
+export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
+	"pollutant",
+	"options",
+	"places",
+	"unknown"
+];
+
+/**
+ * Counts the hidden marks by reason. A mark whose monitor the metadata doesn't list is
+ * `unknown`; one whose type doesn't report the pollutant drawn is `pollutant`; one among the
+ * loaded monitors (so in the places) that the toolbar's filters hide is `options`; the rest are
+ * outside the places. `monitors` is null while the metadata is loading (or failed).
+ */
+export function hiddenReasons(
+	hidden: readonly string[],
+	monitors: ReadonlyMap<string, { type: string }> | null,
+	reports: (type: string) => boolean | undefined,
+	loadedIds: ReadonlySet<string>
+): Map<HiddenReason, number> {
+	const counts = new Map<HiddenReason, number>();
+	for (const id of hidden) {
+		const monitor = monitors?.get(id);
+		const reason: HiddenReason = !monitor
+			? "unknown"
+			: reports(monitor.type) === false
+				? "pollutant"
+				: loadedIds.has(id)
+					? "options"
+					: "places";
+		counts.set(reason, (counts.get(reason) ?? 0) + 1);
+	}
+	return counts;
+}

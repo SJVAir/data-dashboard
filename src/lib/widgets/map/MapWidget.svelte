@@ -19,7 +19,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { getMetadata, getQueryClient } from "$lib/data";
 	import { LiveQuery } from "$lib/data/live-query.svelte";
-	import type { CatalogEntry } from "$lib/data/metadata";
+	import type { CatalogEntry, MonitorTypeInfo } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
@@ -43,7 +43,14 @@
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
-	import { canMark, hiddenMarks, marksChange, sameIds } from "./marks";
+	import {
+		HIDDEN_REASON_ORDER,
+		canMark,
+		hiddenMarks,
+		hiddenReasons,
+		marksChange,
+		sameIds
+	} from "./marks";
 	import { MAP_MARKS_MAX, mapOptions, pollutantLayers } from "./options";
 	import { monitorIds, monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
@@ -434,13 +441,57 @@
 		const features = monitorsSource.features;
 		return features ? hiddenMarks(marks, monitorIds(features)) : [];
 	});
-	const hiddenCount = $derived({ count: formatNumber(hidden.length), countValue: hidden.length });
-	/** The map's accessible name, which also says how many marks aren't shown. */
+	// Every monitor the server lists and the types' reported pollutants, for the hidden marks'
+	// reasons; null while loading or when they can't be loaded (the plain wording then).
+	let monitorList = $state.raw<ReadonlyMap<string, { type: string }> | null>(null);
+	let monitorTypes = $state.raw<MonitorTypeInfo[] | null>(null);
+	void metadata.monitors().then(
+		(list) => (monitorList = new Map(list.map((x) => [x.id, x]))),
+		() => (monitorList = null)
+	);
+	void metadata.monitorTypes().then(
+		(types) => (monitorTypes = types),
+		() => (monitorTypes = null)
+	);
+	/** Whether a type reports the pollutant drawn; undefined when that isn't known. */
+	function reports(type: string): boolean | undefined {
+		const info = monitorTypes?.find((t) => t.type === type);
+		if (!info || !entryType) return undefined;
+		return info.published.includes(entryType) || (info.unflagged?.includes(entryType) ?? false);
+	}
+	/** One line per reason the marks are hidden, in order. */
+	const hiddenLines = $derived.by(() => {
+		if (!hidden.length) return [];
+		const loaded = data.monitorsLoaded;
+		const reasons = hiddenReasons(
+			hidden,
+			monitorList && monitorTypes ? monitorList : null,
+			reports,
+			loaded ? monitorIds(loaded) : new Set()
+		);
+		return HIDDEN_REASON_ORDER.filter((r) => reasons.has(r)).map((reason) => {
+			const n = reasons.get(reason)!;
+			return m.map_marks_hidden({
+				reason,
+				pollutant: entryLabel ?? "",
+				count: formatNumber(n),
+				countValue: n
+			});
+		});
+	});
+	/** The lines as one text, for the map's list and its name. */
+	const hiddenText = $derived(
+		hiddenLines.reduce(
+			(all, line) => (all ? m.sentence_join({ first: all, second: line }) : line),
+			""
+		)
+	);
+	/** The map's accessible name, which also says which marks aren't shown and why. */
 	const mapLabel = $derived(
 		!title
 			? undefined
 			: hidden.length
-				? m.map_label_marks_hidden({ title, ...hiddenCount })
+				? m.map_label_marks_hidden({ title, notes: hiddenText })
 				: m.map_label({ title })
 	);
 
@@ -630,7 +681,7 @@
 					class="min-h-0 w-full flex-1"
 					active={onScreen.active}
 					label={mapLabel}
-					featureList={{ reveal: "focus" }}
+					featureList={{ reveal: "focus", note: hiddenText || undefined }}
 					selectionBar={false}
 					tooltip="pointer"
 					card={{ actions: cardActions }}
@@ -643,7 +694,9 @@
 				role="status"
 				data-map-marks-hidden
 			>
-				{hidden.length ? m.map_marks_hidden(hiddenCount) : ""}
+				{#each hiddenLines as line (line)}
+					<span class="block">{line}</span>
+				{/each}
 			</p>
 		</div>
 	{/if}

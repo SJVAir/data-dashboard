@@ -1066,7 +1066,37 @@ test("refuses a 26th mark with the limit message, counting hidden marks", async 
 	expect(marksOf()).toEqual(marks);
 });
 
+/** Metadata that lists monitors "a" (PurpleAir, PM2.5 only), "b" (AirNow, reports ozone) and "c" (AirNow). */
+async function listedMonitors(): Promise<void> {
+	const { getMetadata } = await import("$lib/data");
+	const types = (type: string, published: string[]) => ({
+		type,
+		label: type,
+		entryTypes: published,
+		group: null,
+		published
+	});
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({
+			catalog: async () => CATALOG,
+			monitors: async () =>
+				[
+					{ id: "a", type: "purpleair" },
+					{ id: "b", type: "airnow" },
+					{ id: "c", type: "airnow" }
+				].map((x) => ({ ...x, name: x.id, county: "Fresno", active: true, inside: false })),
+			monitorTypes: async () => [types("purpleair", ["pm25"]), types("airnow", ["pm25", "o3"])]
+		})
+	);
+}
+
+const hiddenLines = () =>
+	[...frame.querySelectorAll("[data-map-marks-hidden] > span")].map((e) => e.textContent?.trim());
+const reasonLine = (reason: "pollutant" | "options" | "places" | "unknown", n = 1) =>
+	m.map_marks_hidden({ reason, pollutant: "Ozone", count: String(n), countValue: n });
+
 test("keeps marks when the pollutant showing changes, and counts the hidden ones", async () => {
+	await listedMonitors();
 	vi.mocked(getMonitors).mockImplementation(
 		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
 	);
@@ -1089,12 +1119,13 @@ test("keeps marks when the pollutant showing changes, and counts the hidden ones
 		options: { from: current().options, to: { showing: "o3", marks: ["a", "b"] } }
 	});
 	await expect.poll(() => drawn(map)).toEqual(["b"]);
-	const one = { count: "1", countValue: 1 };
-	await expect.poll(hiddenNote).toBe(m.map_marks_hidden(one));
+	await expect.poll(hiddenNote).toBe(reasonLine("pollutant"));
 	expect(frame.querySelector("[data-map-marks-hidden]")!.getAttribute("role")).toBe("status");
 	await expect
 		.poll(() => map.view.label)
-		.toBe(m.map_label_marks_hidden({ title: "Ozone · Fresno County", ...one }));
+		.toBe(
+			m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes: reasonLine("pollutant") })
+		);
 	expect(marksOf()).toEqual(["a", "b"]);
 	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a", "b"] });
 	session.undo();
@@ -1102,11 +1133,37 @@ test("keeps marks when the pollutant showing changes, and counts the hidden ones
 	await expect.poll(hiddenNote).toBe("");
 });
 
+test("gives each reason its own line, in order, in the list note and the map's name", async () => {
+	await listedMonitors();
+	vi.mocked(getMonitors).mockImplementation(
+		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
+	);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [{ entryType: "o3" }]),
+		options: { showing: "o3", marks: ["a", "c", "zz"] }
+	};
+	await showLive(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["b"]);
+	const lines = [reasonLine("pollutant"), reasonLine("places"), reasonLine("unknown")];
+	await expect.poll(hiddenLines).toEqual(lines);
+	const notes = m.sentence_join({
+		first: m.sentence_join({ first: lines[0], second: lines[1] }),
+		second: lines[2]
+	});
+	await expect
+		.poll(() => map.view.label)
+		.toBe(m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes }));
+	expect((map.view.featureList as { note?: string }).note).toBe(notes);
+});
+
 test("keeps marks when the places change, and undo shows them again", async () => {
 	vi.mocked(getMonitors).mockImplementation(
 		async (_type, options) =>
 			(options?.region?.[0] === "r019" ? [reading("a"), reading("b")] : [reading("c")]) as never
 	);
+	await listedMonitors();
 	const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
 	await showLive(widget);
 	const map = await madeMap();
@@ -1119,7 +1176,7 @@ test("keeps marks when the places change, and undo shows them again", async () =
 		to: mapWidget(region("029")).data
 	});
 	await expect.poll(() => drawn(map)).toEqual(["c"]);
-	await expect.poll(hiddenNote).toBe(m.map_marks_hidden({ count: "1", countValue: 1 }));
+	await expect.poll(hiddenNote).toBe(reasonLine("places"));
 	expect(marksOf()).toEqual(["a"]);
 	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a"] });
 	session.undo();
