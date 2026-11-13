@@ -1959,6 +1959,24 @@ renders monitor-map through `monitorMapRoutes` (`@sjvair/monitor-map/routes`), w
 map-sdk also adds an actions slot on the pinned card (the widget's Select/Remove). The Map widget's
 spec lists the exact map-sdk changes.
 
+**The Map tile's toolbar (decided by the user 2026-11-12, in the step 5 spec 2 brainstorm; built
+in spec 3).** A Map tile is not a copy of monitor-map: its toolbar offers options only for the
+data that tile holds.
+
+- **A group appears only when it has a choice.** Pollutant, Monitors, Layers and Overlays each
+  show only when the tile's data gives that group more than one option. Settings always shows,
+  because its options set up the map itself.
+- **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
+  inactive or indoor ones.
+- **Settings** keeps monitor-map's set: marker clusters, basemap, basemap theme (the variant), and
+  Reset to defaults.
+- **Values are saved with the tile**, in its options.
+- **The theme can differ from the dashboard's.** It opens on the basemap style's own default
+  variant, as monitor-map does today. There is no "Follow the dashboard" option: the list offers
+  only the variants MapTiler defines.
+- **The basemap is one saved value**, the variant id, which map-sdk stores. An unknown id falls
+  back to a default and never throws.
+
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
