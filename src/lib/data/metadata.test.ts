@@ -508,9 +508,15 @@ describe("createWebMetadata", () => {
 		expect(await md.locationTypeLabel("nope")).toBeNull();
 	});
 
-	it("monitorGroups is [] when the meta has none", async () => {
-		vi.mocked(getMonitorsMeta).mockResolvedValue({ monitors: {}, entries: {} } as never);
+	it("monitorGroups is [] for none and null when the field is absent", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			monitor_groups: {},
+			monitors: {},
+			entries: {}
+		} as never);
 		expect(await createWebMetadata().monitorGroups()).toEqual([]);
+		vi.mocked(getMonitorsMeta).mockResolvedValue({ monitors: {}, entries: {} } as never);
+		expect(await createWebMetadata().monitorGroups()).toBeNull();
 	});
 
 	it("flags entries without a published flag as unflagged", async () => {

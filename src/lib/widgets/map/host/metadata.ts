@@ -40,7 +40,7 @@ export function mapMetadata(source: MetadataSource): MetadataProvider {
 					source.monitorGroups(signal)
 				]);
 				const key = types.find((t) => t.type === type)?.group;
-				return key && groups.some((g) => g.key === key) ? key : undefined;
+				return key && groups?.some((g) => g.key === key) ? key : undefined;
 			}),
 		monitorTypeReports: async (type, entryType, signal) => {
 			try {

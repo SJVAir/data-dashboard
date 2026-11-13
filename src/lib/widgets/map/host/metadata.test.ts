@@ -119,6 +119,12 @@ describe("mapMetadata toolbar reads", () => {
 		expect(await m.monitorGroups?.()).toEqual([]);
 	});
 
+	it("gives unavailable for absent groups", async () => {
+		const m = mapMetadata(stub({ monitorGroups: async () => null }));
+		expect(await m.monitorGroups?.()).toBe("unavailable");
+		expect(await m.monitorTypeGroup?.("purpleair")).toBe("unavailable");
+	});
+
 	it("rejects on abort and not otherwise", async () => {
 		const controller = new AbortController();
 		const thrower = async () => {

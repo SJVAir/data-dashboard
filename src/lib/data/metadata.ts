@@ -153,8 +153,11 @@ export interface MetadataSource {
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
 	monitorTypes(signal?: AbortSignal): Promise<MonitorTypeInfo[]>;
-	/** The monitor groups (Reference-grade, Low-cost sensors) sorted by `order`; `[]` when none. */
-	monitorGroups(signal?: AbortSignal): Promise<MonitorGroup[]>;
+	/**
+	 * The monitor groups (Reference-grade, Low-cost sensors) sorted by `order`; `[]` when the meta
+	 * has none, `null` when it lacks the field.
+	 */
+	monitorGroups(signal?: AbortSignal): Promise<MonitorGroup[] | null>;
 	/** The monitors meta's help text for an entry type; `null` when it has none. */
 	entryTypeHelp(entryType: string, signal?: AbortSignal): Promise<string | null>;
 	/** The regions meta's label for a location type; `null` when unknown. */
@@ -448,9 +451,9 @@ export function createWebMetadata(): MetadataSource {
 			}));
 		},
 		async monitorGroups(signal) {
-			return Object.values((await meta(signal)).monitor_groups ?? {}).sort(
-				(a, b) => a.order - b.order
-			);
+			const groups = (await meta(signal)).monitor_groups as
+				Record<string, MonitorGroup> | undefined;
+			return groups ? Object.values(groups).sort((a, b) => a.order - b.order) : null;
 		},
 		async entryTypeHelp(entryType, signal) {
 			return (await meta(signal)).entries[entryType]?.description || null;
