@@ -71,15 +71,19 @@
 	// In view mode there's no session: the document is shown, never edited.
 	const session = $derived(view ? null : app.current.session);
 	const editable = $derived(session && !session.readOnly ? session : null);
-	/** The document whose widgets are shown: the view's, or the editable session's. */
-	const doc = $derived(view ?? editable?.doc ?? null);
-	/** The view's widgets, read by its frames and taskbar in place of the app's session. */
-	const viewWidgets = $derived(view ? () => view.body.widgets : undefined);
+	// An "unkept" session is valid, only read-only: its tiles are shown the way a view's are.
+	const unkept = $derived(session?.readOnly === "unkept" ? session : null);
+	/** Shown read-only: someone else's document, or one's own that couldn't be backed up first. */
+	const viewing = $derived(!!view || !!unkept);
+	/** The document whose widgets are shown: the view's, or the session's (editable or unkept). */
+	const doc = $derived(view ?? editable?.doc ?? unkept?.doc ?? null);
+	/** The shown widgets, read by its frames and taskbar in place of the app's session. */
+	const viewWidgets = $derived(viewing && doc ? () => doc.body.widgets : undefined);
 
 	// A tile's own changes (the Map's toolbar): saved with undo on an editable dashboard, held for
 	// the visit on a read-only view. One stable object with getters, read once by each widget.
 	// A read-only "unkept" session (its tiles shown read-only) gets its own per session id.
-	const unkeptId = $derived(session?.readOnly === "unkept" ? session.doc.id : null);
+	const unkeptId = $derived(unkept ? unkept.doc.id : null);
 	// Made here only when the page passes none (a view) or for an unkept session.
 	const ownChangesFor = $derived(view ? (viewerChanges ? null : "view") : unkeptId);
 	const ownChanges = $derived(ownChangesFor ? new ViewerChanges() : null);
@@ -233,7 +237,15 @@
 	});
 	const check = $derived(
 		requested
-			? checkDeepLink(view ? { doc: view, readOnly: false } : session, loaded, requested)
+			? checkDeepLink(
+					view
+						? { doc: view, readOnly: false }
+						: unkept
+							? { doc: unkept.doc, readOnly: false }
+							: session,
+					loaded,
+					requested
+				)
 			: null
 	);
 	const shownId = $derived(check === "show" ? requested : null);
@@ -379,7 +391,6 @@
 				<DashboardHeader inert={!!shownId} />
 			{/if}
 			{#if session?.readOnly}
-				<!-- A read-only document may not be valid, so its widgets aren't rendered. -->
 				<p role="status" class="bg-muted rounded-lg px-4 py-2 text-sm">
 					{session.readOnly === "newer"
 						? m.doc_readonly_newer()
@@ -387,10 +398,12 @@
 							? m.doc_readonly_unkept()
 							: m.doc_readonly_invalid()}
 				</p>
-			{:else}
+			{/if}
+			<!-- A newer or invalid read-only document may not be valid, so its widgets aren't rendered. -->
+			{#if !session?.readOnly || unkept}
 				<!-- "Showing … · Change place": the starter's, and its copies'. A view only shows it. -->
 				{#if doc}
-					<PlaceBar {doc} editable={!view && !!editable} inert={!!shownId} />
+					<PlaceBar {doc} editable={!viewing && !!editable} inert={!!shownId} />
 				{/if}
 				{#if doc && watching}
 					{#await loadWatcher() then { default: ThresholdWatcher }}
@@ -403,11 +416,11 @@
 				{/if}
 				{#if placed.length === 0}
 					<div class="contents" inert={!!shownId}>
-						<EmptyState allMinimized={minimized.length > 0} readOnly={!!view} />
+						<EmptyState allMinimized={minimized.length > 0} readOnly={viewing} />
 						<Taskbar
 							widgets={minimized}
 							onfullscreen={openFullscreen}
-							readOnly={!!view}
+							readOnly={viewing}
 							{viewWidgets}
 						/>
 					</div>
@@ -424,7 +437,7 @@
 								{phoneSpan}
 								fullscreen={widget.id === shownId}
 								inert={!!shownId && widget.id !== shownId}
-								readOnly={!!view}
+								readOnly={viewing}
 								{viewWidgets}
 								onfullscreen={() => openFullscreen(widget.id)}
 								onexit={exitFullscreen}
@@ -442,7 +455,7 @@
 							></div>
 						{/if}
 					</div>
-					{#if !view}
+					{#if !viewing}
 						<div inert={!!shownId}>
 							<AddWidgetButton />
 						</div>
@@ -451,7 +464,7 @@
 						<Taskbar
 							widgets={minimized}
 							onfullscreen={openFullscreen}
-							readOnly={!!view}
+							readOnly={viewing}
 							{viewWidgets}
 						/>
 					</div>
@@ -465,7 +478,7 @@
 						rect={lifted.rect}
 						phoneRow={0}
 						fullscreen={true}
-						readOnly={!!view}
+						readOnly={viewing}
 						{viewWidgets}
 						onfullscreen={() => {}}
 						onexit={exitFullscreen}

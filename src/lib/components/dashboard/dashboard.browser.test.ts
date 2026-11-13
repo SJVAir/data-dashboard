@@ -2,6 +2,7 @@ import "../../../app.css";
 import { tick } from "svelte";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { toast } from "svelte-sonner";
+import { m } from "$lib/paraglide/messages.js";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import type { Change } from "$lib/changes/types";
@@ -496,6 +497,46 @@ test("a dashboard whose original couldn't be kept says so", async () => {
 		)
 		.toBeVisible();
 	await expect.element(page.getByRole("button", { name: "Add widget" })).not.toBeInTheDocument();
+});
+
+test("an unkept dashboard shows its tiles read-only under the message", async () => {
+	const { app, session } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	session.apply(
+		add({ ...widget("b", { x: 6, y: 0, w: 6, h: 4 }, "Smoke"), minimized: { order: 0 } }, 1)
+	);
+	session.readOnly = "unkept";
+	await renderGrid(app);
+	await expect.element(page.getByText(m.doc_readonly_unkept())).toBeVisible();
+	await expect.element(frame("a")).toBeVisible();
+	await expect.element(page.getByTestId("taskbar-b")).toBeVisible();
+	expect(document.querySelector("[data-resize]")).toBeNull();
+	expect(document.querySelector('button[aria-label^="Minimize "]')).toBeNull();
+	await expect.element(page.getByRole("button", { name: "Add widget" })).not.toBeInTheDocument();
+	// Its widget menu offers Fullscreen only.
+	await page.getByRole("button", { name: "Actions for Readings" }).click();
+	await expect.element(page.getByRole("menuitem", { name: "Fullscreen" })).toBeVisible();
+	expect(
+		[...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent?.trim())
+	).toEqual(["Fullscreen"]);
+	// Nothing was written.
+	expect(session.doc.body.widgets).toHaveLength(2);
+});
+
+test("a newer or invalid read-only dashboard shows no tiles", async () => {
+	for (const readOnly of ["newer", "invalid"] as const) {
+		const { app, session } = await setup();
+		session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+		session.readOnly = readOnly;
+		const screen = await renderGrid(app);
+		await expect
+			.element(
+				page.getByText(readOnly === "newer" ? m.doc_readonly_newer() : m.doc_readonly_invalid())
+			)
+			.toBeVisible();
+		await expect.element(frame("a")).not.toBeInTheDocument();
+		await screen.unmount();
+	}
 });
 
 test("read-only dashboard shows the message and no edit actions", async () => {
