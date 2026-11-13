@@ -1952,7 +1952,9 @@ option the Map widget can use too:
 **Shared options toolbar (decided by the user 2026-11-11, in the Map widget brainstorm).** map-sdk
 gets a shared, host-controlled options toolbar: plugins declare a group (Pollutant, Monitors,
 Layers, Overlays, Settings) and their options, the host owns the values, and the toolbar sizes
-itself by the map's box. The dashboard's Map widget uses it (step 5 spec 3), and **monitor-map 5.0
+itself by the map's box, or by a box the host passes as `MapView`'s `layoutRoot` (`0.1.0-beta.14`,
+2026-11-13; monitor-map's map plus its detail panel, so opening a monitor doesn't flip it to the
+options button). The dashboard's Map widget uses it (step 5 spec 3), and **monitor-map 5.0
 moves onto it** in place of its own options toolbar. That also changes mobile's map: mobile
 renders monitor-map through `monitorMapRoutes` (`@sjvair/monitor-map/routes`), whose
 `MonitorMapLayout` includes the options toolbar, so mobile re-pins and is re-tested after the move.
