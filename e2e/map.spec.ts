@@ -15,6 +15,7 @@
 import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
+	DASHBOARD_URL,
 	expectNoViolations,
 	expectSaved,
 	fullscreenFrame,
@@ -26,7 +27,7 @@ import {
 	widgetMenuItem,
 	widgetTitles
 } from "./helpers";
-import { routeMapMeta } from "./map-data-server";
+import { routeMapMeta, routeMapReadings } from "./map-data-server";
 
 test.use({ reducedMotion: "reduce" });
 
@@ -153,6 +154,34 @@ const monitorDoc = {
 	}
 };
 
+const FRESNO_COUNTY = { kind: "region", type: "county", code: "06019" };
+
+/**
+ * A shared dashboard holding one full-width Map of Fresno County's PM2.5 (wide enough for the
+ * toolbar's dropdowns), with `more` layers after it.
+ */
+function wideDoc(more: Array<Record<string, string>> = []) {
+	return {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "shared-map-wide",
+		name: "County map",
+		body: {
+			widgets: [
+				{
+					id: "w0",
+					type: "map",
+					title: null,
+					rect: { x: 0, y: 0, w: 12, h: 8 },
+					data: {
+						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO_COUNTY }, ...more]
+					}
+				}
+			]
+		}
+	};
+}
+
 test("adds a Map from Add widget at the dashboard's place", async ({ page, mapTiler }) => {
 	await newBlankDashboard(page);
 	await page.getByRole("button", { name: "Add widget" }).click();
@@ -210,6 +239,43 @@ async function showInactiveAndInside(map: Locator): Promise<void> {
 	await toolbar.getByRole("checkbox", { name: "Inside", exact: true }).check();
 	await map.page().keyboard.press("Escape");
 	await expect(narrow ? open : monitors).toHaveAttribute("aria-expanded", "false");
+}
+
+/** The map's options toolbar (map-sdk's `OptionsToolbar`). */
+function toolbarOf(map: Locator): Locator {
+	return map.getByRole("group", { name: "Map options", exact: true });
+}
+
+/**
+ * Opens the wide toolbar's dropdown named `name` (its group: Monitors, Layers, Settings, or the
+ * pollutant showing), unless it's open already.
+ */
+async function openMenu(map: Locator, name: string): Promise<void> {
+	const button = toolbarOf(map).getByRole("button", { name, exact: true });
+	// The layout settles a frame after mount.
+	await expect(button).toBeVisible();
+	if ((await button.getAttribute("aria-expanded")) !== "true") await button.click();
+	await expect(button).toHaveAttribute("aria-expanded", "true");
+}
+
+/**
+ * Switches AirNow off in the Monitors dropdown. It's the only type in its group, so the group's
+ * own checkbox (Reference-grade) goes off with it, and folds its rows away.
+ */
+async function hideAirNow(map: Locator): Promise<void> {
+	await openMenu(map, "Monitors");
+	await toolbarOf(map).getByRole("checkbox", { name: "AirNow", exact: true }).click();
+	await expect(referenceGrade(map)).not.toBeChecked();
+}
+
+/** The Monitors group's Reference-grade checkbox (on while AirNow is). */
+function referenceGrade(map: Locator): Locator {
+	return toolbarOf(map).getByRole("checkbox", { name: "Reference-grade", exact: true });
+}
+
+/** The Settings dropdown's Basemap select (its value is the variant id drawn). */
+function basemapSelect(map: Locator): Locator {
+	return toolbarOf(map).getByRole("combobox", { name: "Basemap", exact: true });
 }
 
 /** Shows the Map fullscreen and waits until its GL map has grown into the bigger frame. */
@@ -337,6 +403,37 @@ test("a point tile sends no coordinates and no MapTiler metrics", async ({
 	expect(urls.filter((url) => coordinates.test(decodeURIComponent(url)))).toEqual([]);
 });
 
+test("the view summary follows a refresh while the view stays still", async ({ page, context }) => {
+	// A fake clock, to bring the next poll (every 3 minutes) on at once.
+	await page.clock.install();
+	const map = await addMap(page);
+
+	// The server's next readings for the county add Porterville (Moderate).
+	await routeMapReadings(context, "pm25", ["4Mb0j33kTnS0qzeE4iDGWw", "6qEHS0fITHOQYHLN4c9GKA"]);
+	await page.clock.fastForward("04:00");
+	await expect(inView(map)).toHaveText("PM2.5: 1 Good, 1 Moderate");
+});
+
+test("the view summary follows a place change that leaves the view still", async ({
+	page,
+	context
+}) => {
+	await context.grantPermissions(["geolocation"]);
+	await context.setGeolocation(POSITION);
+	const map = await addMap(page);
+	await showInactiveAndInside(map);
+	await expect(inView(map)).toHaveText(FRESNO_ALL_VIEW);
+
+	// ZIP 93721 frames as the county did (the fixtures' one outline), and holds Drummond Street
+	// only.
+	await widgetMenuItem(page, FRESNO_MAP, "Change place");
+	await picker(page).getByRole("button", { name: "Remove Fresno County" }).click();
+	await picker(page).getByRole("button", { name: "Use my location" }).click();
+	const title = "PM2.5 · ZIP 93721 (your location)";
+	await expect(widgetTitles(page)).toHaveText([title]);
+	await expect(inView(mapOf(page, title))).toHaveText("PM2.5: 1 Good");
+});
+
 /** The basemap's color in the MapTiler stub's blank style (`fixtures/maptiler-style.json`). */
 const BASEMAP = [0xdf, 0xe6, 0xe9];
 
@@ -424,10 +521,12 @@ test("Shift-click marks a monitor, the card's Remove unmarks it, and undo marks 
 	await expect(selectionLine(map)).toHaveCount(0);
 	const gl = glMap(map);
 
-	// A one-monitor map centers on its monitor: Shift-click there marks it (the ring).
+	// A one-monitor map centers on its monitor: Shift-click there marks it (the ring), and leaves
+	// the reading card closed.
 	await gl.click({ modifiers: ["Shift"] });
 	await expect(selectionLine(map)).toHaveText("PM2.5: 1 selected");
 	await expectSaved(page);
+	await expect(readingCard(map)).toBeHidden({ timeout: 0 });
 
 	// A plain click pins the card, which offers Remove; Remove unmarks.
 	await gl.click();
@@ -451,23 +550,74 @@ test("Shift-click marks a monitor, the card's Remove unmarks it, and undo marks 
 test.describe("shared by a live link", () => {
 	test.use({ account: maria });
 
-	test("a viewer sees the card and the saved mark, with no Select or Remove", async ({
-		page,
-		documentsServer
-	}) => {
-		const [widget] = monitorDoc.body.widgets;
-		await openSharedDoc(page, {
-			...monitorDoc,
-			body: { widgets: [{ ...widget, options: { marks: [DRUMMOND] } }] }
-		});
+	/** Saves `doc` to Maria's account, shares it, and returns its live link. */
+	async function liveLinkTo(page: Page, doc: { name: string }): Promise<string> {
+		await openSharedDoc(page, doc as typeof monitorDoc);
 		await expect(nav(page).getByText("Saved to your account", { exact: true })).toBeVisible();
-		await openPicker(page, monitorDoc.name);
+		await openPicker(page, doc.name);
 		await page.getByRole("menuitem", { name: "Share…" }).click();
 		const share = page.getByRole("dialog", { name: "Share dashboard" });
 		await share.getByRole("button", { name: "Create link" }).click();
 		const link = share.getByRole("textbox", { name: "Live link" });
 		await expect(link).toHaveValue(/\/workspace\/shared\/[^/]+$/);
-		const url = await link.inputValue();
+		return link.inputValue();
+	}
+
+	test("a viewer's toolbar changes stay in the page, and Make a copy keeps them", async ({
+		page,
+		documentsServer
+	}) => {
+		const url = await liveLinkTo(page, wideDoc());
+		const viewer = await documentsServer.newDevice();
+		viewer.account.set(null);
+		// Every write the viewer's page sends to the documents API.
+		const writes: string[] = [];
+		viewer.page.on("request", (request) => {
+			const { pathname } = new URL(request.url());
+			if (request.method() !== "GET" && pathname.includes("/api/2.0/documents/")) {
+				writes.push(`${request.method()} ${pathname}`);
+			}
+		});
+		await viewer.page.goto(url);
+		const map = mapOf(viewer.page, FRESNO_MAP);
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+
+		// A type and the basemap: both drawn.
+		await hideAirNow(map);
+		await expect(inView(map)).toHaveCount(0);
+		await openMenu(map, "Settings");
+		await basemapSelect(map).selectOption({ label: "Satellite" });
+		await expect(basemapSelect(map)).toHaveValue("satellite-v4");
+		// Past the autosave delay (500 ms): nothing was sent, and the owner's document is as it was.
+		await viewer.page.waitForTimeout(1_500);
+		expect(writes).toEqual([]);
+		const token = url.split("/").pop()!;
+		documentsServer.fake.signedInAs = null;
+		const shared = await documentsServer.fake.shared(token);
+		expect(shared.version).toBe(1);
+		expect((shared.body as typeof monitorDoc.body).widgets[0]).not.toHaveProperty("options");
+
+		// The copy keeps both.
+		await viewer.page.getByRole("button", { name: "Make a copy" }).click();
+		await expect(viewer.page).toHaveURL(DASHBOARD_URL);
+		const copy = mapOf(viewer.page, FRESNO_MAP);
+		await expect(copy.locator("canvas")).toBeVisible();
+		await openMenu(copy, "Settings");
+		await expect(basemapSelect(copy)).toHaveValue("satellite-v4");
+		await openMenu(copy, "Monitors");
+		await expect(referenceGrade(copy)).not.toBeChecked();
+		await expect(inView(copy)).toHaveCount(0);
+	});
+
+	test("a viewer sees the card and the saved mark, with no Select or Remove", async ({
+		page,
+		documentsServer
+	}) => {
+		const [widget] = monitorDoc.body.widgets;
+		const url = await liveLinkTo(page, {
+			...monitorDoc,
+			body: { widgets: [{ ...widget, options: { marks: [DRUMMOND] } }] }
+		});
 
 		const viewer = await documentsServer.newDevice();
 		viewer.account.set(null);
@@ -523,6 +673,78 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await expect(page.getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Smoke and fire" })).toBeChecked();
+	});
+
+	test("the toolbar's changes are one undo step each, and stay after a reload", async ({
+		page,
+		mapTiler
+	}) => {
+		await openSharedDoc(
+			page,
+			wideDoc([
+				{ dataset: "air-quality", entryType: "o3" },
+				{ dataset: "hms-smoke" },
+				{ dataset: "hms-fire" }
+			])
+		);
+		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
+		// Named after its title, which follows the pollutant showing.
+		const map = page.getByRole("region", { name: / · Fresno County map$/ });
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		const toolbar = toolbarOf(map);
+		const fireAndSmoke = toolbar.getByRole("checkbox", { name: "Fire & Smoke", exact: true });
+		const undo = nav(page).getByRole("button", { name: "Undo" });
+		const redo = nav(page).getByRole("button", { name: "Redo" });
+		await expect(undo).toBeDisabled();
+
+		// A type: AirNow off takes Drummond Street away.
+		await hideAirNow(map);
+		await expect(inView(map)).toHaveCount(0);
+		// Fire & Smoke hidden.
+		await openMenu(map, "Layers");
+		await fireAndSmoke.click();
+		await expect(fireAndSmoke).not.toBeChecked();
+		// The basemap.
+		await openMenu(map, "Settings");
+		await basemapSelect(map).selectOption({ label: "Satellite" });
+		await expect(basemapSelect(map)).toHaveValue("satellite-v4");
+		expect(mapTiler.stubbed).toContain("api.maptiler.com/maps/satellite-v4/style.json");
+		// The pollutant.
+		await openMenu(map, "PM2.5");
+		await toolbar.getByRole("radio", { name: /^Ozone/ }).click();
+		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
+		await expectSaved(page);
+
+		// Four changes, four undo steps, back to where it opened.
+		for (let i = 0; i < 4; i++) await undo.click();
+		await expect(undo).toBeDisabled();
+		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		await openMenu(map, "Settings");
+		await expect(basemapSelect(map)).toHaveValue("streets-v4");
+		await openMenu(map, "Layers");
+		await expect(fireAndSmoke).toBeChecked();
+		await openMenu(map, "Monitors");
+		await expect(referenceGrade(map)).toBeChecked();
+
+		// Redone, saved, and kept after a reload.
+		for (let i = 0; i < 4; i++) await redo.click();
+		await expect(redo).toBeDisabled();
+		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
+		await expectSaved(page);
+		await page.reload();
+		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
+		await openMenu(map, "Settings");
+		await expect(basemapSelect(map)).toHaveValue("satellite-v4");
+		await openMenu(map, "Layers");
+		await expect(fireAndSmoke).not.toBeChecked();
+		// Back on PM2.5, AirNow is still off.
+		await openMenu(map, "Ozone");
+		await toolbar.getByRole("radio", { name: /^PM2\.5/ }).click();
+		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
+		await openMenu(map, "Monitors");
+		await expect(referenceGrade(map)).not.toBeChecked();
+		await expect(inView(map)).toHaveCount(0);
 	});
 });
 
@@ -586,12 +808,62 @@ test("a Map raises no CSP violation", async ({ page }) => {
 	await page.waitForLoadState("networkidle");
 });
 
+/** Opens a narrow map's options panel (waiting for the layout) and returns its open button. */
+async function openPanel(map: Locator): Promise<Locator> {
+	const open = toolbarOf(map).getByRole("button", { name: "Open map options", exact: true });
+	// The narrow layout settles a frame after mount.
+	await expect(open).toBeVisible();
+	await open.click();
+	await expect(open).toHaveAttribute("aria-expanded", "true");
+	await expect(toolbarOf(map).getByRole("region", { name: "Map Options" })).toBeVisible();
+	return open;
+}
+
+test("a narrow Map's options open in a panel, and Esc closes it and returns focus", async ({
+	page
+}) => {
+	// A half-width tile is narrower than the wide toolbar's 48rem.
+	const map = await addMap(page);
+	const open = await openPanel(map);
+	const toolbar = toolbarOf(map);
+	await expect(toolbar.getByRole("button", { name: "Close map options" })).toBeFocused();
+	await toolbar.getByRole("button", { name: "Monitors", exact: true }).click();
+	await expect(toolbar.getByRole("checkbox", { name: "Inactive", exact: true })).toBeVisible();
+
+	await page.keyboard.press("Escape");
+	await expect(open).toHaveAttribute("aria-expanded", "false");
+	await expect(toolbar.getByRole("region", { name: "Map Options" })).toBeHidden();
+	await expect(open).toBeFocused();
+});
+
 for (const colorScheme of ["light", "dark"] as const) {
 	test(`a dashboard with a Map has no WCAG 2.2 AA violations (${colorScheme})`, async ({
 		page
 	}) => {
 		await page.emulateMedia({ colorScheme });
 		await addMap(page);
+		await expectNoViolations(page);
+	});
+
+	test(`a Map's open toolbar has no WCAG 2.2 AA violations (${colorScheme})`, async ({
+		page,
+		context
+	}) => {
+		await routeMapMeta(context);
+		await page.emulateMedia({ colorScheme });
+		// Wide: a dropdown open.
+		await openSharedDoc(page, wideDoc([{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]));
+		const wide = mapOf(page, FRESNO_MAP);
+		await expect(inView(wide)).toHaveText(FRESNO_VIEW);
+		await openMenu(wide, "Monitors");
+		await expectNoViolations(page);
+		await openMenu(wide, "Settings");
+		await expectNoViolations(page);
+
+		// Narrow: the panel open, with its Monitors section.
+		const narrow = await addMap(page);
+		await openPanel(narrow);
+		await toolbarOf(narrow).getByRole("button", { name: "Monitors", exact: true }).click();
 		await expectNoViolations(page);
 	});
 }

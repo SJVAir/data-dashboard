@@ -526,6 +526,18 @@ test("an unkept dashboard shows its tiles read-only under the message", async ()
 	expect(session.doc.body.widgets).toHaveLength(2);
 });
 
+test("a ?widget= link on an unkept dashboard opens that tile fullscreen", async () => {
+	const { app, session, id } = await setup();
+	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	session.readOnly = "unkept";
+	history.replaceState(null, "", `/workspace/dashboards/${id}?widget=a`);
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByText(m.doc_readonly_unkept())).toBeVisible();
+	await expect.element(page.getByRole("button", { name: "Exit fullscreen" })).toBeVisible();
+	expect(location.search).toBe("?widget=a");
+	expect(session.doc.body.widgets).toHaveLength(1);
+});
+
 test("a newer or invalid read-only dashboard shows no tiles", async () => {
 	for (const readOnly of ["newer", "invalid"] as const) {
 		const { app, session } = await setup();

@@ -52,6 +52,24 @@ export async function routeMapData(context: BrowserContext): Promise<void> {
 	);
 }
 
+/**
+ * From now on, answers every region-scoped readings request for `type` with the fixture monitors
+ * `ids`, whatever regions it asks for: the server's next readings, say, after a monitor reports
+ * in. Routed after `routeMapData`, so it wins.
+ */
+export async function routeMapReadings(
+	context: BrowserContext,
+	type: string,
+	ids: string[]
+): Promise<void> {
+	const file = await json<{ data: Monitor[] }>(`${API_FIXTURES}monitors/${type}/current.json`);
+	const data = (file?.data ?? []).filter((m) => ids.includes(m.id));
+	await context.route(
+		(url) => AT.exec(url.pathname)?.[1] === type,
+		(route) => route.fulfill({ json: { data } })
+	);
+}
+
 type MapMeta = {
 	ozone: { catalog: { id: string }; entry: unknown; monitors: Record<string, unknown> };
 	datasets: unknown[];
