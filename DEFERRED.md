@@ -1225,12 +1225,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   toolbar's wide/narrow switch follow `MapShell`'s outer box through a map-sdk layout root (proposed `MapView` prop
   `layoutRoot`); map-sdk had not published it as of 2026-11-13, so monitor-map's toolbar still switches on the screen
   width. **Why deferred:** waiting on map-sdk. **Revisit:** when map-sdk publishes it, before monitor-map's next npm beta.
+  _Fixed in monitor-map #134 (map-sdk `0.1.0-beta.14`'s `layoutRoot`); remove when it merges into `release/5.0.0`._
 - **monitor-map 5.0: final-review minors from #131 and #132 (2026-11-09, monitor-map-18).**
   (1) No test checks that subscribing sends the current token after a user switch. **Why:** the panel's
   `{#key getApiToken()}` remounts the control, and that remount is tested. **Revisit:** if the subscribe path changes or
   mobile reports a wrong-account subscription. (2) The README doesn't warn hosts against calling `monitorMapUserChanged()`
   inside a `$derived` (it writes `$state`). **Why:** mobile calls it from event handlers. **Revisit:** if a host hits
-  Svelte's `state_unsafe_mutation` error. (3) No comment ties the legend wrapper's `top-18` / `md:top-32` offsets to
+  Svelte's `state_unsafe_mutation` error. _Fixed in monitor-map #134 (a README note); remove when it merges into
+  `release/5.0.0`._ (3) No comment ties the legend wrapper's `top-18` / `md:top-32` offsets to
   OptionsBar's height. **Why:** cosmetic. **Revisit:** when OptionsBar's height changes. _Fixed in monitor-map #134 (the
   legend sits below map-sdk's `--mapsdk-toolbar-height`); remove when it merges into `release/5.0.0`._ (4) Ruling: two cookie-only users
   (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
