@@ -60,7 +60,7 @@ describe("mapMetadata toolbar reads", () => {
 						type: "purpleair",
 						label: "PurpleAir",
 						entryTypes: ["pm25"],
-						group: "lowcost",
+						group: "low-cost",
 						published: ["pm25"]
 					},
 					{
@@ -72,7 +72,7 @@ describe("mapMetadata toolbar reads", () => {
 					}
 				],
 				monitorGroups: async () => [
-					{ key: "lowcost", label: "Low-cost", order: 1 },
+					{ key: "low-cost", label: "Low-cost", order: 1 },
 					{ key: "reference", label: "Reference", order: 0 }
 				]
 			})
@@ -83,7 +83,7 @@ describe("mapMetadata toolbar reads", () => {
 	});
 
 	it("gives a type's group, unavailable for none or an unknown key", async () => {
-		expect(await md().monitorTypeGroup?.("purpleair")).toBe("lowcost");
+		expect(await md().monitorTypeGroup?.("purpleair")).toBe("low-cost");
 		expect(await md().monitorTypeGroup?.("bam1022")).toBe("unavailable");
 		expect(await md().monitorTypeGroup?.("nope")).toBe("unavailable");
 	});

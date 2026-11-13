@@ -39,6 +39,9 @@ import {
 	fakeToolbars,
 	type FakeMap
 } from "./test-harness/fake-map.svelte";
+import Preview from "$lib/get-data/Preview.svelte";
+import { registerWidgetType } from "../registry";
+import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
@@ -1377,7 +1380,7 @@ test("the toolbar's clusters and basemap drive the map, and Reset removes every 
 	expect(map.basemap.selected.at(-1)).toBe("satellite");
 	expect(map.plugins.find((p) => p.id === "monitors")!.options).toMatchObject({ clustered: false });
 	expect(fakeToolbars.last?.basemapKey).toBe("basemap");
-	expect(fakeToolbars.last?.readonly).toBeUndefined();
+	expect(fakeToolbars.last?.readonly).toBe(false);
 	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
 	await expect.poll(optionsOf).toEqual({ marks: ["a"] });
 	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
@@ -1427,6 +1430,141 @@ test("a viewer's change is held for the visit, kept through fullscreen, and Rese
 	expect(optionsOf()).toEqual({ hiddenTypes: ["airnow"] });
 });
 
+/** Shows `widget` to a viewer of a read-only view, holding their changes in `changes`. */
+async function showViewer(widget: WidgetInstance, changes: ViewerChanges) {
+	await openSession(widget);
+	return render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, app()],
+			[TILE_OPTIONS_KEY, { mode: "view", changes } satisfies TileOptionsContext]
+		])
+	});
+}
+
+test("a viewer back at a default the owner changed sees it, and Reset puts the owner's back", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		...twoTypes(),
+		{ ...reading("c"), is_active: false }
+	] as never);
+	const widget = { ...mapWidget(region("019")), options: { clustered: false, inactive: true } };
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b", "c"]);
+	const monitorsOf = () => map.plugins.find((p) => p.id === "monitors")!.options;
+	expect(monitorsOf()).toMatchObject({ clustered: false });
+	const clusters = screen.getByRole("checkbox", {
+		name: mapMessages("mapsdk_options_marker_clusters")
+	});
+	const inactive = screen.getByRole("checkbox", { name: mapMessages("mapsdk_options_inactive") });
+
+	// Marker Clusters back on (the preset's default): checked, and the map clusters.
+	await clusters.click();
+	await expect.element(clusters).toBeChecked();
+	await expect.poll(() => fakeToolbars.last?.values.clustered).toBe(true);
+	await expect.poll(monitorsOf).toMatchObject({ clustered: true });
+	// Inactive back off (the preset's default): unchecked, and the inactive monitor hidden.
+	await inactive.click();
+	await expect.element(inactive).not.toBeChecked();
+	await expect.poll(() => fakeToolbars.last?.values.inactive).toBe(false);
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(changes.get(widget.id)).toEqual({ clustered: undefined, inactive: undefined });
+
+	// Reset puts the owner's values back and forgets the held keys.
+	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
+	await expect.element(clusters).not.toBeChecked();
+	await expect.element(inactive).toBeChecked();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b", "c"]);
+	await expect.poll(monitorsOf).toMatchObject({ clustered: false });
+	expect(changes.get(widget.id)).toBeUndefined();
+	expect(optionsOf()).toEqual({ clustered: false, inactive: true });
+});
+
+test("a viewer back at the owner's pollutant holds nothing, though the owner saved it", async () => {
+	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [{ entryType: "o3" }]),
+		// Saved as the first pollutant (explicit, not missing).
+		options: { showing: "pm25" }
+	};
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	await screen.getByRole("radio", { name: "Ozone" }).click();
+	await expect.poll(() => drawn(map)).toEqual(["o3"]);
+	expect(changes.get(widget.id)).toEqual({ showing: "o3" });
+	await screen.getByRole("radio", { name: "PM2.5" }).click();
+	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	expect(changes.get(widget.id)).toBeUndefined();
+});
+
+test("Get data's preview shows the toolbar read-only: its rows are disabled and change nothing", async () => {
+	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
+	registerWidgetType(mapType);
+	const widget = mapWidget(region("019"));
+	await openSession(widget);
+	const screen = await render(Preview, {
+		target: frame,
+		props: { widget, title: "Map", size: "large", gridWidth: 1200, phone: false, onsize() {} },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+	});
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(fakeToolbars.last?.readonly).toBe(true);
+	const airnow = screen.getByRole("checkbox", { name: "airnow" });
+	const clusters = screen.getByRole("checkbox", {
+		name: mapMessages("mapsdk_options_marker_clusters")
+	});
+	await expect.element(airnow).toHaveAttribute("aria-disabled", "true");
+	await expect.element(clusters).toHaveAttribute("aria-disabled", "true");
+	// A pointer's click (Playwright won't click a disabled-looking control).
+	(airnow.element() as HTMLElement).click();
+	(clusters.element() as HTMLElement).click();
+	await new Promise((r) => setTimeout(r, 50));
+	await expect.element(airnow).toBeChecked();
+	await expect.element(clusters).toBeChecked();
+	expect(drawn(map)).toEqual(["a", "b"]);
+	expect(map.plugins.find((p) => p.id === "monitors")!.options).toMatchObject({ clustered: true });
+	expect(optionsOf()).toBeUndefined();
+});
+
+test("the toolbar's filters never hide the tile's own monitors", async () => {
+	// A monitor place whose monitor is indoors: drawn with the defaults (Inside off).
+	vi.mocked(getMonitors).mockResolvedValue([{ ...reading("a"), location: "inside" }] as never);
+	const first = await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
+	let map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toContain("monitors");
+	expect(fakeToolbars.last?.values.inside).toBe(false);
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await first.unmount();
+
+	// Hand-picked monitors, one inactive and one of a hidden type: both drawn.
+	fakeMaps.reset();
+	vi.mocked(getMonitors).mockResolvedValue([
+		{ ...reading("a"), is_active: false },
+		{ ...reading("b"), type: "airnow" }
+	] as never);
+	await show({
+		...mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }),
+		options: { hiddenTypes: ["airnow"], marks: ["b"] }
+	});
+	map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toContain("monitors");
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	// The marked one is drawn, so no "hidden by the options" line.
+	await new Promise((r) => setTimeout(r, 50));
+	expect(frame.querySelector("[data-map-marks-hidden]")?.textContent?.trim()).toBe("");
+});
+
 test("the note banner sits below the toolbar", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([] as never);
 	const screen = await show(mapWidget(region("019")));
@@ -1464,13 +1602,12 @@ test("switching a type off leaves the camera where it is", async () => {
 		reading("a", -120, 36),
 		{ ...reading("b", -119, 37), type: "airnow" }
 	] as never);
-	const screen = await showLive(
-		mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }),
-		editing()
-	);
+	// A region's monitors (hand-picked ones are never filtered).
+	const screen = await showLive(mapWidget(region("019")), editing());
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => map.camera).toHaveLength(1);
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
 	await screen.getByRole("checkbox", { name: "airnow" }).click();
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	await new Promise((r) => setTimeout(r, 100));

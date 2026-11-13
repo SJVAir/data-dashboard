@@ -5,6 +5,7 @@ import type { FeatureCollection, Point } from "geojson";
 import {
 	activeFilters,
 	filterMonitors,
+	placeMonitors,
 	groupsShown,
 	toOptions,
 	toValues,
@@ -154,10 +155,16 @@ describe("withoutToolbar", () => {
 });
 
 describe("filterMonitors", () => {
-	const feature = (type: string, isActive: boolean, location: "inside" | "outside") => ({
+	let n = 0;
+	const feature = (
+		type: string,
+		isActive: boolean,
+		location: "inside" | "outside",
+		id = `m${n++}`
+	) => ({
 		type: "Feature" as const,
 		geometry: { type: "Point" as const, coordinates: [0, 0] },
-		properties: { type, isActive, location } as unknown as MonitorFeatureProperties
+		properties: { type, isActive, location, refKey: `monitor:${id}` } as MonitorFeatureProperties
 	});
 	const fc: FeatureCollection<Point, MonitorFeatureProperties> = {
 		type: "FeatureCollection",
@@ -186,5 +193,41 @@ describe("filterMonitors", () => {
 		expect(
 			filterMonitors(fc, { hiddenTypes: new Set(), hideInactive: false, hideInside: false })
 		).toEqual(fc);
+	});
+	it("never hides the tile's own monitors (inactive, inside or of a hidden type)", () => {
+		const own: FeatureCollection<Point, MonitorFeatureProperties> = {
+			type: "FeatureCollection",
+			features: [
+				feature("purpleair", true, "outside", "near"),
+				feature("airnow", false, "outside", "old"),
+				feature("airnow", true, "inside", "indoor"),
+				feature("purpleair", true, "outside", "picked")
+			]
+		};
+		const out = filterMonitors(
+			own,
+			{ hiddenTypes: new Set(["purpleair"]), hideInactive: true, hideInside: true },
+			new Set(["old", "indoor", "picked"])
+		);
+		expect(out?.features.map((f) => f.properties.refKey)).toEqual([
+			"monitor:old",
+			"monitor:indoor",
+			"monitor:picked"
+		]);
+	});
+});
+
+describe("placeMonitors", () => {
+	it("is a monitor place's id, or a monitors selection's ids", () => {
+		expect([...placeMonitors({ place: { kind: "monitor", id: "x" } })]).toEqual(["x"]);
+		expect([...placeMonitors({ selection: { kind: "monitors", ids: ["a", "b"] } })]).toEqual([
+			"a",
+			"b"
+		]);
+	});
+	it("is empty for regions, points and no places", () => {
+		expect(placeMonitors(undefined).size).toBe(0);
+		expect(placeMonitors({ place: { kind: "region", type: "county", code: "019" } }).size).toBe(0);
+		expect(placeMonitors({ selection: { kind: "regions", ids: ["r019"] } }).size).toBe(0);
 	});
 });

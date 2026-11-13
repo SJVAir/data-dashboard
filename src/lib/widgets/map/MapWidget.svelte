@@ -91,6 +91,10 @@
 	// The toolbar: the options it shows (a viewer's held keys over the saved ones), its changes,
 	// and the filters it puts on the monitors. Its presets are made with the map.
 	let toolbar = $state.raw<MapToolbar | null>(null);
+	/**
+	 * Where the toolbar's changes go. None (Get data's preview, say): the toolbar is read-only, its
+	 * rows readable but changing nothing; a preview isn't a place to set options.
+	 */
 	const tileOptionsContext = useTileOptions();
 	const wiring: MapToolbarWiring = new MapToolbarWiring({
 		get widget() {
@@ -559,6 +563,7 @@
 			values={wiring.state.values}
 			defaults={wiring.state.defaults}
 			basemapKey="basemap"
+			readonly={!tileOptionsContext}
 			onchange={wiring.onchange}
 		/>
 	{/if}

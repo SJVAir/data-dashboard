@@ -49,7 +49,8 @@ export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
  * Counts the hidden marks by reason. A mark whose monitor the metadata doesn't list is
  * `unknown`; one whose type doesn't report the pollutant drawn is `pollutant`; one among the
  * loaded monitors (so in the places) that the toolbar's filters hide is `options`; the rest are
- * outside the places. `monitors` is null while the metadata is loading (or failed).
+ * outside the places. `monitors` is null while the metadata is loading (or failed). The tile's
+ * own monitors (its places) are never filtered, so never hidden, so never `options`.
  */
 export function hiddenReasons(
 	hidden: readonly string[],

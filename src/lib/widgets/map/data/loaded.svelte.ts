@@ -13,7 +13,7 @@ import type { UnavailableReason } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { hasSmokeAndFire } from "$lib/get-data/map";
 import { mapMessages } from "../host/messages";
-import { filterMonitors, type MonitorFilters } from "../toolbar/values";
+import { filterMonitors, placeMonitors, type MonitorFilters } from "../toolbar/values";
 import { hmsEntry, type HmsData } from "./hms";
 import { monitorsEntry } from "./monitors";
 
@@ -133,11 +133,17 @@ export class MapData {
 			: (this.monitorsDrawn?.features ?? null)
 	);
 	readonly #filters = $derived.by(() => this.#getInput().filters);
-	/** The monitors drawn: those loaded, after the toolbar's filters. */
+	/** The monitors that are the tile's own places: the filters never hide them. */
+	readonly #exempt = $derived.by(() => {
+		// Keyed by the places, so a new layer object with the same places changes nothing.
+		void this.#placesKey;
+		return untrack(() => placeMonitors(this.#getInput().layer));
+	});
+	/** The monitors drawn: those loaded, after the toolbar's filters (the places' own kept). */
 	readonly monitorsShown = $derived.by(() => {
 		const features = this.monitorsLoaded;
 		const filters = this.#filters;
-		return filters ? filterMonitors(features, filters) : features;
+		return filters ? filterMonitors(features, filters, this.#exempt) : features;
 	});
 	/** One source for the monitors plugin, reading the query's current state. */
 	readonly monitorsSource: DataSource<MonitorFeatureProperties>;

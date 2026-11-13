@@ -18,7 +18,7 @@ export type MapToolbarInput = {
 	/** The pollutant drawn (the saved `showing`, or its fallback). */
 	drawn: string | undefined;
 	options: MapOptions;
-	/** A viewer's toolbar: the owner's values are what Reset puts back. */
+	/** A viewer's toolbar: the owner's values are what Reset puts back (never what's shown). */
 	ownerValues?: OptionValues;
 };
 
@@ -92,7 +92,7 @@ export class MapToolbar {
 		}
 		groups.push(...forSettings.groups);
 
-		const defaults: OptionValues = ownerValues ?? {
+		const presets: OptionValues = {
 			...forMonitors.defaults,
 			...forSettings.defaults,
 			...hms?.defaults
@@ -102,6 +102,13 @@ export class MapToolbar {
 			inactive: shown.monitors && offered.includes("inactive"),
 			inside: shown.monitors && offered.includes("inside")
 		};
-		return { groups, defaults, values: toValues(options, offer, defaults, drawn), rows };
+		// The values are the options over the presets' defaults, as the map draws them: a viewer's
+		// key held as missing shows the default, not the owner's value. Reset puts back `defaults`.
+		return {
+			groups,
+			defaults: ownerValues ?? presets,
+			values: toValues(options, offer, presets, drawn),
+			rows
+		};
 	}
 }

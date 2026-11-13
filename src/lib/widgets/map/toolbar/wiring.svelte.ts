@@ -176,7 +176,16 @@ export class MapToolbarWiring {
 			return;
 		}
 		const saved = this.saved;
-		const back = keys.filter((key) => sameOption(key, options[key], saved[key]));
+		const { data } = widget;
+		const { catalog, drawable } = this.#in;
+		// The pollutant is back when the one drawn is the owner's (a saved `showing` equal to the
+		// first pollutant is stored as missing here, so the options alone would differ).
+		const drawnOf = (o: MapOptions) => drawableShowing(data, o, catalog, drawable);
+		const back = keys.filter((key) =>
+			key === "showing"
+				? drawnOf(options) === drawnOf(saved)
+				: sameOption(key, options[key], saved[key])
+		);
 		const held = keys.filter((key) => !back.includes(key));
 		if (back.length) viewerReset(ctx, widget, back);
 		if (held.length) changeTileOptions(ctx, widget, options, held);

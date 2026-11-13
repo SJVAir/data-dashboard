@@ -15,7 +15,7 @@ vi.mock("@sjvair/map-sdk", async (original) => {
 	return { ...sdk, monitorsOptions: vi.fn(sdk.monitorsOptions) };
 });
 
-const GROUPS = { pm25: "reference", "sjvair-purple": "lowcost", "sjvair-inspire": "lowcost" };
+const GROUPS = { pm25: "reference", "sjvair-purple": "low-cost", "sjvair-inspire": "low-cost" };
 
 function stubMap(): MapContext {
 	const metadata = {
@@ -28,7 +28,7 @@ function stubMap(): MapContext {
 		attribution: async () => "unavailable",
 		monitorGroups: async () => [
 			{ key: "reference", label: "Reference-grade", order: 1 },
-			{ key: "lowcost", label: "Low-cost sensors", order: 2 }
+			{ key: "low-cost", label: "Low-cost sensors", order: 2 }
 		],
 		monitorTypeGroup: async (type: string) => GROUPS[type as keyof typeof GROUPS] ?? "unavailable",
 		monitorTypeReports: async () => true
@@ -158,16 +158,17 @@ describe("MapToolbar", () => {
 		});
 	});
 
-	it("a viewer's defaults are the owner's values", () => {
+	it("a viewer's defaults are the owner's values; the values are the options over the presets", () => {
 		const ownerValues = { pollutant: "pm25", clustered: false, basemap: "satellite" };
 		const { defaults, values } = new MapToolbar(stubMap()).build({
 			offer: offer(),
 			drawn: "pm25",
-			options: {},
+			options: { basemap: "satellite" },
 			ownerValues
 		});
 		expect(defaults).toEqual(ownerValues);
-		expect(values).toMatchObject({ clustered: false, basemap: "satellite" });
+		// `clustered` is missing (held as missing, say): the preset's default, as the map draws it.
+		expect(values).toMatchObject({ clustered: true, basemap: "satellite" });
 	});
 
 	it("gives every group and row an icon snippet where the spec names one", () => {

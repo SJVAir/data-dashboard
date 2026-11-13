@@ -1,6 +1,7 @@
 import type { OptionValues } from "@sjvair/map-sdk";
-import type { MonitorFeatureProperties } from "@sjvair/map-sdk/data";
+import { decodeRef, type MonitorFeatureProperties } from "@sjvair/map-sdk/data";
 import type { FeatureCollection, Geometry } from "geojson";
+import type { Layer } from "$lib/data/schema";
 import { MAP_TOOLBAR_KEYS, type MapOptions } from "../options";
 
 /** What the tile's data offers the toolbar. */
@@ -107,16 +108,39 @@ export function groupsShown(
 	};
 }
 
-/** The monitors left after the filters (other fields kept; `null` stays `null`). */
+/**
+ * The monitors that are the tile's own places: a monitor place, or a hand-picked monitors
+ * selection. The toolbar's filters never hide them (ruling, 2026-11-13).
+ */
+export function placeMonitors(
+	layer: Pick<Layer, "place" | "selection"> | undefined
+): ReadonlySet<string> {
+	if (layer?.place?.kind === "monitor") return new Set([layer.place.id]);
+	if (layer?.selection?.kind === "monitors") return new Set(layer.selection.ids);
+	return new Set();
+}
+
+/**
+ * The monitors left after the filters (other fields kept; `null` stays `null`). The `exempt`
+ * monitors (the tile's own places) are always kept: the filters hide incidental monitors around
+ * a place, never one the owner chose.
+ */
 export function filterMonitors<T extends FeatureCollection<Geometry, MonitorFeatureProperties>>(
 	features: T | null,
-	filters: MonitorFilters
+	filters: MonitorFilters,
+	exempt: ReadonlySet<string> = new Set()
 ): T | null {
 	if (!features) return null;
+	const own = (refKey: string) => {
+		if (exempt.size === 0) return false;
+		const ref = decodeRef(refKey);
+		return ref?.kind === "monitor" && exempt.has(ref.id);
+	};
 	return {
 		...features,
 		features: features.features.filter((f) => {
 			const p = f.properties;
+			if (own(p.refKey)) return true;
 			if (filters.hiddenTypes.has(p.type)) return false;
 			if (filters.hideInactive && p.isActive === false) return false;
 			if (filters.hideInside && p.location === "inside") return false;

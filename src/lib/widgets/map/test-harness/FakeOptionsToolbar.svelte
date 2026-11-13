@@ -4,7 +4,8 @@
 
 	/**
 	 * A stand-in for map-sdk's `OptionsToolbar`: every row as a plain control, calling `onchange`
-	 * once per action with the whole new values and the changed keys, as map-sdk does.
+	 * once per action with the whole new values and the changed keys, as map-sdk does. Read-only,
+	 * as map-sdk's: every row stays focusable with `aria-disabled`, and nothing changes.
 	 */
 	let {
 		groups,
@@ -26,13 +27,19 @@
 		fakeToolbars.last = { groups, values, defaults, basemapKey, readonly };
 	});
 
+	const ro = $derived(readonly || undefined);
+	/** Read-only: a click changes nothing (not even the box's own checked state). */
+	const hold = (e: Event) => {
+		if (readonly) e.preventDefault();
+	};
+
 	function set(id: string, value: boolean | string) {
-		if (values[id] === value) return;
+		if (readonly || values[id] === value) return;
 		onchange({ ...values, [id]: value }, [id]);
 	}
 
 	function reset() {
-		if (!defaults) return;
+		if (readonly || !defaults) return;
 		const changed = Object.keys(defaults).filter((key) => values[key] !== defaults[key]);
 		if (changed.length) onchange({ ...values, ...defaults }, changed);
 	}
@@ -59,6 +66,8 @@
 								name="{group.id}-{row.id}"
 								value={choice.value}
 								checked={values[row.id] === choice.value}
+								aria-disabled={ro}
+								onclick={hold}
 								onchange={() => set(row.id, choice.value)}
 							/>
 							{choice.label}
@@ -70,6 +79,7 @@
 						<select
 							data-option={row.id}
 							value={values[row.id]}
+							aria-disabled={ro}
 							onchange={(e) => set(row.id, e.currentTarget.value)}
 						>
 							{#each row.choices as choice (choice.value)}
@@ -78,7 +88,7 @@
 						</select>
 					</label>
 				{:else if row.kind === "reset"}
-					<button type="button" onclick={reset}>{row.label}</button>
+					<button type="button" aria-disabled={ro} onclick={reset}>{row.label}</button>
 				{:else}
 					{#each checkboxes(row) as box (box.id)}
 						<label>
@@ -86,6 +96,8 @@
 								type="checkbox"
 								data-option={box.id}
 								checked={values[box.id] === true}
+								aria-disabled={ro}
+								onclick={hold}
 								onchange={(e) => set(box.id, e.currentTarget.checked)}
 							/>
 							{box.label}
