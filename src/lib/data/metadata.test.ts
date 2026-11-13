@@ -54,12 +54,18 @@ function lvl(
 }
 
 const META = {
+	monitor_groups: {
+		reference: { key: "reference", label: "Reference-grade", order: 0 },
+		"low-cost": { key: "low-cost", label: "Low-cost sensors", order: 1 }
+	},
 	monitors: {
 		purpleair: {
 			label: "PurpleAir",
+			group: "low-cost",
 			expected_interval: "2 min",
 			entries: {
 				pm25: {
+					published: true,
 					default_calibration: "PM25_EPA_Calibration",
 					alerts: {
 						window: "60 min",
@@ -73,9 +79,11 @@ const META = {
 		},
 		bam1022: {
 			label: "BAM 1022",
+			group: null,
 			expected_interval: "1 hour",
 			entries: {
 				pm25: {
+					published: true,
 					default_calibration: "",
 					alerts: {
 						window: "60 min",
@@ -86,6 +94,7 @@ const META = {
 					}
 				},
 				o3: {
+					published: false,
 					default_calibration: "",
 					alerts: {
 						window: "1h",
@@ -95,12 +104,13 @@ const META = {
 						expected_interval: "30 min"
 					}
 				},
-				pm10: { default_calibration: "", alerts: null }
+				pm10: { published: false, default_calibration: "", alerts: null }
 			}
 		}
 	},
 	entries: {
 		pm25: {
+			description: "Fine particles from smoke, dust, and vehicle exhaust.",
 			scale: {
 				levels: [
 					lvl("moderate", "Moderate", "#ffff00", 1, 9, 35.4),
@@ -109,7 +119,7 @@ const META = {
 				]
 			}
 		},
-		humidity: { scale: null }
+		humidity: { description: null, scale: null }
 	}
 };
 
