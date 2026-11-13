@@ -58,7 +58,11 @@ const shared: Pair[] = [
 	["--chart-2", "--card", 3],
 	["--chart-3", "--card", 3],
 	["--chart-4", "--card", 3],
-	["--chart-5", "--card", 3]
+	["--chart-5", "--card", 3],
+	// The Map toolbar's icons, on its background (map-sdk's toolbar draws on --background).
+	...["monitors", "layers", "basemap", "theme", "settings", "clusters", "fire"].map(
+		(icon): Pair => [`--map-icon-${icon}`, "--background", 3]
+	)
 ];
 
 describe("dark tokens", () => {
