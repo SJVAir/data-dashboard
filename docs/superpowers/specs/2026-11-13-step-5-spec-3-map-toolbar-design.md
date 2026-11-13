@@ -255,6 +255,12 @@ The tile's options (`MapOptionsSchema`, `options.ts`) gain, next to `showing` an
   shows that row. If the tile's data later leaves that row out (the group has fewer than two
   options), nothing filters by it, so a tile can never hide monitors with no visible way back. The
   value stays saved and applies again when the row returns.
+- **The filters never hide the tile's own monitors** **(a ruling made while building,
+  2026-11-13)**: a monitor place or a hand-picked monitors selection is always drawn, even when
+  inactive, indoors or of a type switched off. The Inactive and Inside defaults (and the type
+  switches) hide incidental monitors around a place, never one the owner chose; without this, a
+  tile whose one monitor is indoors would draw nothing by default. Such a monitor is never given
+  the hidden-marks note's "options" reason.
 - Other tabs and undo/redo set `values` (no `onchange`), as marks already follow the document.
 - Converting away from the Map drops these options, as it already drops `marks`.
 

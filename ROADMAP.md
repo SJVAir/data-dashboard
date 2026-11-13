@@ -210,8 +210,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
         `0.1.0-beta.11`).
      3. The options toolbar, built from the tile's data, plus Settings, on map-sdk's shared
         toolbar (after map-sdk part 5), and viewer changes on read-only dashboards. **Built
-        2026-11-13** on map-sdk `0.1.0-beta.13` and `@sjvair/sdk` `5.0.0-beta.10`; its PR is about
-        to open.
+        2026-11-13** on map-sdk `0.1.0-beta.13` and `@sjvair/sdk` `5.0.0-beta.10`; built on
+        `step-5-spec-3`; PR into `step-5`.
      4. A date-range mode and region fills.
      5. Pesticide use by section and township, and spray notices.
      6. "Show in a chart" / "Show in a table" from a map's selection.

@@ -1384,8 +1384,31 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     pattern; the hidden-marks note's `pollutant: entryLabel ?? ""`; `routeOneOutline`'s non-null
     assertion. **Fix with** the next change to each.
   - **Test gaps:** no browser test for the "options" reason of the hidden-marks note; the E2E
-    `expectStill` passes on its first sample; the pixel-tolerance checks were run only on
-    Chromium. **Add with** the next change to each.
+    `expectStill` passes on its first sample. **Add with** the next change to each.
+  - **From the final review** (2026-11-13), one line each; **add or fix with** the next change to
+    each:
+    - `firstPollutant` (the first drawable layer) is the `showing` default, but `showingOf` falls
+      back to the first layer (they differ when the first layer isn't drawable).
+    - The test-only `TILE_OPTIONS_PROBE_KEY` lookup in `DashboardGrid`, and its
+      `as TileOptionsContext` cast.
+    - The icon tokens' contrast is checked only against `--background`, not the menu surfaces or
+      the hovered `--accent`.
+    - `MonitorTypeInfo.unflagged` is optional, so a stub that omits it reads as false.
+    - `MapData`'s `unlisted` and `smokeAndFire` derive from the whole input, and `monitorsQuery`
+      and `hmsQuery` are public.
+    - The old unused `eslint-disable` warning in `sonner.svelte`.
+    - The options schema test sits under the wrong `describe`, and `toOptions` builds an untyped
+      `Record`.
+    - The equal/read-only tile-options test has no real read-only session, and `SharedPage`'s doc
+      comment sits above the `token` derived.
+    - The newer/invalid grid test asserts only the frame's absence, and the deep-link source is a
+      nested ternary.
+    - The hidden Monitors group's defaults are still merged, and no test covers `drawn`
+      undefined.
+    - A toolbar change whose next options fail validation is skipped silently.
+    - The hidden-marks reasons read "isn't shown" briefly while the metadata loads.
+    - No test for `drawable` `[]`.
+    - The E2E `waitForTimeout(1500)`, the `fake.signedInAs` reach-in, and the `liveLinkTo` cast.
   - **Contrast:** the fire tint is 2.9998:1 on a hovered row, a hair under 3:1. **Revisit with**
     the next change to the Map's icon tokens.
 
