@@ -5,7 +5,9 @@ import {
 	getHMSMeta,
 	getMonitorsList,
 	getMonitorsMeta,
+	getRegionsMeta,
 	type DatasetCatalog,
+	type MonitorGroup,
 	type SchoolGuidelines,
 	type Retired
 } from "@sjvair/sdk";
@@ -77,9 +79,19 @@ export type MonitorSummary = {
 	/** The monitor's county; empty when the server has none. */
 	county: string;
 	active: boolean;
+	/** An indoor monitor (the list's `location` is `"inside"`). */
+	inside: boolean;
 };
 
-export type MonitorTypeInfo = { type: string; label: string; entryTypes: string[] };
+export type MonitorTypeInfo = {
+	type: string;
+	label: string;
+	entryTypes: string[];
+	/** The key of the monitor group it is listed under; `null` for none. */
+	group: string | null;
+	/** The entry types the map publishes for this type. */
+	published: string[];
+};
 
 /** The summary field that colors a day, with its label; `label` is `null` when the server has none. */
 export type DailyFigure = { field: string; label: string | null };
@@ -139,6 +151,12 @@ export interface MetadataSource {
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
 	monitorTypes(signal?: AbortSignal): Promise<MonitorTypeInfo[]>;
+	/** The monitor groups (Reference-grade, Low-cost sensors) sorted by `order`; `[]` when none. */
+	monitorGroups(signal?: AbortSignal): Promise<MonitorGroup[]>;
+	/** The monitors meta's help text for an entry type; `null` when it has none. */
+	entryTypeHelp(entryType: string, signal?: AbortSignal): Promise<string | null>;
+	/** The regions meta's label for a location type; `null` when unknown. */
+	locationTypeLabel(type: string, signal?: AbortSignal): Promise<string | null>;
 }
 
 const UNIT_MINUTES: Record<string, number> = {
@@ -310,6 +328,7 @@ export function createWebMetadata(): MetadataSource {
 	const forecastsMeta = memoize(() => getForecastsMeta());
 	const monitorLevels = async (entryType: string, signal?: AbortSignal) =>
 		mapScaleLevels((await meta(signal)).entries[entryType]?.scale?.levels);
+	const regionsMeta = memoize(() => getRegionsMeta());
 	const hmsMeta = memoize(() => getHMSMeta());
 	const heatMeta = memoize(() => getCalHeatScoreMeta());
 	const catalog = memoize(async () => mapDatasetCatalog(await getDatasetCatalog()));
@@ -408,15 +427,33 @@ export function createWebMetadata(): MetadataSource {
 				name: m.name,
 				type: m.type,
 				county: m.county ?? "",
-				active: m.is_active ?? true
+				active: m.is_active ?? true,
+				inside: m.location === "inside"
 			}));
 		},
 		async monitorTypes(signal) {
 			return Object.entries((await meta(signal)).monitors).map(([type, m]) => ({
 				type,
 				label: m.label,
-				entryTypes: Object.keys(m.entries ?? {})
+				entryTypes: Object.keys(m.entries ?? {}),
+				group: m.group ?? null,
+				published: Object.entries(m.entries ?? {})
+					.filter(([, entry]) => entry?.published === true)
+					.map(([id]) => id)
 			}));
+		},
+		async monitorGroups(signal) {
+			return Object.values((await meta(signal)).monitor_groups ?? {}).sort(
+				(a, b) => a.order - b.order
+			);
+		},
+		async entryTypeHelp(entryType, signal) {
+			return (await meta(signal)).entries[entryType]?.description || null;
+		},
+		async locationTypeLabel(type, signal) {
+			const types: Partial<Record<string, { label: string }>> = (await regionsMeta(signal))
+				.location_types;
+			return (Object.hasOwn(types, type) && types[type]?.label) || null;
 		}
 	};
 }

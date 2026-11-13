@@ -6,7 +6,8 @@ vi.mock("@sjvair/sdk", () => ({
 	getMonitorsList: vi.fn(),
 	getHMSMeta: vi.fn(),
 	getForecastsMeta: vi.fn(),
-	getCalHeatScoreMeta: vi.fn()
+	getCalHeatScoreMeta: vi.fn(),
+	getRegionsMeta: vi.fn()
 }));
 
 import {
@@ -15,7 +16,8 @@ import {
 	getForecastsMeta,
 	getHMSMeta,
 	getMonitorsList,
-	getMonitorsMeta
+	getMonitorsMeta,
+	getRegionsMeta
 } from "@sjvair/sdk";
 import {
 	createWebMetadata,
@@ -130,9 +132,17 @@ const LIST = [
 		type: "purpleair",
 		device: "PA-II",
 		county: "Fresno",
+		location: "outside",
 		is_active: true
 	},
-	{ id: "m-bam", name: "BAM One", type: "bam1022", county: "", is_active: false }
+	{
+		id: "m-bam",
+		name: "BAM One",
+		type: "bam1022",
+		county: "",
+		location: "inside",
+		is_active: false
+	}
 ];
 
 beforeEach(() => {
@@ -443,14 +453,62 @@ describe("createWebMetadata", () => {
 		expect(await md.monitorType("m-pa")).toBe("purpleair");
 		expect(await md.monitorType("unknown")).toBeNull();
 		expect(await md.monitors()).toEqual([
-			{ id: "m-pa", name: "PA One", type: "purpleair", county: "Fresno", active: true },
-			{ id: "m-bam", name: "BAM One", type: "bam1022", county: "", active: false }
+			{
+				id: "m-pa",
+				name: "PA One",
+				type: "purpleair",
+				county: "Fresno",
+				active: true,
+				inside: false
+			},
+			{
+				id: "m-bam",
+				name: "BAM One",
+				type: "bam1022",
+				county: "",
+				active: false,
+				inside: true
+			}
 		]);
 		expect(await md.monitorTypes()).toEqual([
-			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25"] },
-			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25", "o3", "pm10"] }
+			{
+				type: "purpleair",
+				label: "PurpleAir",
+				entryTypes: ["pm25"],
+				group: "low-cost",
+				published: ["pm25"]
+			},
+			{
+				type: "bam1022",
+				label: "BAM 1022",
+				entryTypes: ["pm25", "o3", "pm10"],
+				group: null,
+				published: ["pm25"]
+			}
 		]);
 		expect(getMonitorsList).toHaveBeenCalledTimes(1);
+	});
+
+	it("reads monitor groups, entry help and location type labels", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_types: { child_care: { label: "Child care" } }
+		} as never);
+		const md = createWebMetadata();
+		expect(await md.monitorGroups()).toEqual([
+			{ key: "reference", label: "Reference-grade", order: 0 },
+			{ key: "low-cost", label: "Low-cost sensors", order: 1 }
+		]);
+		expect(await md.entryTypeHelp("pm25")).toBe(
+			"Fine particles from smoke, dust, and vehicle exhaust."
+		);
+		expect(await md.entryTypeHelp("humidity")).toBeNull();
+		expect(await md.locationTypeLabel("child_care")).toBe("Child care");
+		expect(await md.locationTypeLabel("nope")).toBeNull();
+	});
+
+	it("monitorGroups is [] when the meta has none", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({ monitors: {}, entries: {} } as never);
+		expect(await createWebMetadata().monitorGroups()).toEqual([]);
 	});
 
 	it("mapPollutants returns available_pollutants", async () => {

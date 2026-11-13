@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@sjvair/sdk", () => ({
 	getDatasetCatalog: vi.fn(),
 	getMonitorsMeta: vi.fn(),
-	getHMSMeta: vi.fn()
+	getHMSMeta: vi.fn(),
+	getRegionsMeta: vi.fn()
 }));
 
 import { getDatasetCatalog, getHMSMeta, getMonitorsMeta } from "@sjvair/sdk";
@@ -49,6 +50,75 @@ function stub(overrides: Partial<MetadataSource> = {}): MetadataSource {
 		...overrides
 	});
 }
+
+describe("mapMetadata toolbar reads", () => {
+	const md = () =>
+		mapMetadata(
+			stub({
+				monitorTypes: async () => [
+					{
+						type: "purpleair",
+						label: "PurpleAir",
+						entryTypes: ["pm25"],
+						group: "lowcost",
+						published: ["pm25"]
+					},
+					{
+						type: "bam1022",
+						label: "BAM 1022",
+						entryTypes: ["pm25", "o3"],
+						group: null,
+						published: ["pm25"]
+					}
+				],
+				monitorGroups: async () => [
+					{ key: "lowcost", label: "Low-cost", order: 1 },
+					{ key: "reference", label: "Reference", order: 0 }
+				]
+			})
+		);
+
+	it("lists the groups", async () => {
+		expect(await md().monitorGroups?.()).toHaveLength(2);
+	});
+
+	it("gives a type's group, unavailable for none or an unknown key", async () => {
+		expect(await md().monitorTypeGroup?.("purpleair")).toBe("lowcost");
+		expect(await md().monitorTypeGroup?.("bam1022")).toBe("unavailable");
+		expect(await md().monitorTypeGroup?.("nope")).toBe("unavailable");
+	});
+
+	it("says whether a type reports an entry type", async () => {
+		expect(await md().monitorTypeReports?.("purpleair", "pm25")).toBe(true);
+		expect(await md().monitorTypeReports?.("bam1022", "o3")).toBe(false);
+		expect(await md().monitorTypeReports?.("purpleair", "o3")).toBe(false);
+	});
+
+	it("gives air-quality help, unavailable for none or another dataset", async () => {
+		const m = md();
+		expect(await m.entryTypeHelp?.({ dataset: "air-quality", entryType: "pm25" })).toBe(
+			"Fine particles from smoke, dust, and vehicle exhaust."
+		);
+		expect(await m.entryTypeHelp?.({ dataset: "air-quality", entryType: "humidity" })).toBe(
+			"unavailable"
+		);
+		expect(await m.entryTypeHelp?.({ dataset: "hms-smoke", entryType: "pm25" })).toBe(
+			"unavailable"
+		);
+	});
+
+	it("gives a location type's label, unavailable on failure", async () => {
+		expect(await md().locationTypeLabel?.("child_care")).toBe("Child care");
+		const failing = mapMetadata(
+			stub({
+				locationTypeLabel: async () => {
+					throw new Error("offline");
+				}
+			})
+		);
+		expect(await failing.locationTypeLabel?.("child_care")).toBe("unavailable");
+	});
+});
 
 describe("mapMetadata", () => {
 	beforeEach(() => vi.clearAllMocks());
