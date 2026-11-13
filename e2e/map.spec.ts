@@ -13,6 +13,7 @@
  * selected"), which map-sdk keeps in step with the ring it draws.
  */
 import type { Browser, Locator, Page } from "@playwright/test";
+import type { AccountUser } from "../src/lib/account/identity";
 import { expect, test } from "./fixtures";
 import {
 	DASHBOARD_URL,
@@ -27,7 +28,7 @@ import {
 	widgetMenuItem,
 	widgetTitles
 } from "./helpers";
-import { routeMapMeta, routeMapReadings } from "./map-data-server";
+import { routeMapMeta, routeMapReadings, routeOneOutline } from "./map-data-server";
 
 test.use({ reducedMotion: "reduce" });
 
@@ -385,9 +386,7 @@ test("a point tile sends no coordinates and no MapTiler metrics", async ({
 	await expect(widgetTitles(page)).toHaveText([title]);
 	const map = mapOf(page, title);
 	// The point's region's monitors (ZIP 93721's: Drummond Street), and the pin (the focus area's
-	// point, a list row named by its label). Read from the list, not the summary line: map-sdk
-	// works the summary out again only when the view or the selection changes, and the view
-	// doesn't move here (the fixtures' one outline frames ZIP 93721 as it did the county).
+	// point, a list row named by its label), read from the feature list.
 	const list = await featureList(map);
 	await expect(list.getByRole("option")).toHaveText([/Fresno - Drummond Street/, /Your location/]);
 
@@ -403,35 +402,50 @@ test("a point tile sends no coordinates and no MapTiler metrics", async ({
 	expect(urls.filter((url) => coordinates.test(decodeURIComponent(url)))).toEqual([]);
 });
 
-test("the view summary follows a refresh while the view stays still", async ({ page, context }) => {
+test("the view summary follows a refresh while the view stays still", async ({
+	page,
+	context,
+	browser
+}) => {
 	// A fake clock, to bring the next poll (every 3 minutes) on at once.
 	await page.clock.install();
 	const map = await addMap(page);
+	const before = await map.locator("canvas").screenshot();
 
 	// The server's next readings for the county add Porterville (Moderate).
 	await routeMapReadings(context, "pm25", ["4Mb0j33kTnS0qzeE4iDGWw", "6qEHS0fITHOQYHLN4c9GKA"]);
 	await page.clock.fastForward("04:00");
 	await expect(inView(map)).toHaveText("PM2.5: 1 Good, 1 Moderate");
+	await expectStill(browser, map, before);
 });
 
 test("the view summary follows a place change that leaves the view still", async ({
 	page,
-	context
+	context,
+	browser
 }) => {
-	await context.grantPermissions(["geolocation"]);
-	await context.setGeolocation(POSITION);
+	// Every region gets the county's outline, so the city of Fresno frames as the county does.
+	await routeOneOutline(context);
 	const map = await addMap(page);
 	await showInactiveAndInside(map);
 	await expect(inView(map)).toHaveText(FRESNO_ALL_VIEW);
+	const before = await map.locator("canvas").screenshot();
 
-	// ZIP 93721 frames as the county did (the fixtures' one outline), and holds Drummond Street
-	// only.
+	// The city holds Drummond Street only.
 	await widgetMenuItem(page, FRESNO_MAP, "Change place");
 	await picker(page).getByRole("button", { name: "Remove Fresno County" }).click();
-	await picker(page).getByRole("button", { name: "Use my location" }).click();
-	const title = "PM2.5 · ZIP 93721 (your location)";
-	await expect(widgetTitles(page)).toHaveText([title]);
-	await expect(inView(mapOf(page, title))).toHaveText("PM2.5: 1 Good");
+	await picker(page).getByRole("combobox", { name: "Search for a place" }).fill("fre");
+	await picker(page)
+		.getByRole("listbox", { name: "Places found" })
+		.getByRole("group", { name: "Places" })
+		.getByRole("option", { name: /^Fresno(?! County| Unified)/ })
+		.click();
+	await picker(page).getByRole("button", { name: "Done" }).click();
+	await expect(picker(page)).toBeHidden();
+	await expect(widgetTitles(page)).toHaveText([/^PM2\.5 · (?!Fresno County)/]);
+	const after = page.getByRole("region", { name: /^PM2\.5 · .+ map$/ });
+	await expect(inView(after)).toHaveText("PM2.5: 1 Good");
+	await expectStill(browser, after, before);
 });
 
 /** The basemap's color in the MapTiler stub's blank style (`fixtures/maptiler-style.json`). */
@@ -478,6 +492,64 @@ async function basemapShares(
 	}
 }
 
+/**
+ * How many of the pixels of `a` and `b` (same-sized PNGs) differ in kind: plain basemap, basemap
+ * under the focus area's wash, or anything else. A camera move shifts the focus area's edge and
+ * the wash with it; a few markers coming or going change only their own pixels.
+ */
+async function washDifference(browser: Browser, a: Buffer, b: Buffer): Promise<number> {
+	const probe = await browser.newPage();
+	try {
+		return await probe.evaluate(
+			async ({ pngs, basemap }) => {
+				const wash = basemap.map((c) => c + (255 - c) * 0.55);
+				const near = (rgb: number[], to: number[]) => rgb.every((c, j) => Math.abs(c - to[j]) <= 3);
+				const kinds = await Promise.all(
+					pngs.map(async (data) => {
+						const img = new Image();
+						img.src = `data:image/png;base64,${data}`;
+						await img.decode();
+						const canvas = document.createElement("canvas");
+						canvas.width = img.width;
+						canvas.height = img.height;
+						const ctx = canvas.getContext("2d")!;
+						ctx.drawImage(img, 0, 0);
+						const px = ctx.getImageData(0, 0, img.width, img.height).data;
+						const out = new Uint8Array(px.length / 4);
+						for (let i = 0; i < px.length; i += 4) {
+							const rgb = [px[i], px[i + 1], px[i + 2]];
+							out[i / 4] = near(rgb, basemap) ? 1 : near(rgb, wash) ? 2 : 0;
+						}
+						return out;
+					})
+				);
+				const [x, y] = kinds;
+				if (x.length !== y.length) return 1;
+				let differ = 0;
+				for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) differ++;
+				return differ / x.length;
+			},
+			{ pngs: [a.toString("base64"), b.toString("base64")], basemap: BASEMAP }
+		);
+	} finally {
+		await probe.close();
+	}
+}
+
+/**
+ * Checks that the camera didn't move since `before` (a screenshot of the map's canvas): there is no
+ * handle on the GL map's center and zoom in E2E, so the focus area's wash stands in for them. It
+ * must cover the same pixels, give or take the markers (under 2% of the map).
+ */
+async function expectStill(browser: Browser, map: Locator, before: Buffer): Promise<void> {
+	const canvas = map.locator("canvas");
+	// The focus area is part of the comparison, so it must be drawn.
+	expect((await basemapShares(browser, before)).washed).toBeGreaterThan(0.05);
+	await expect
+		.poll(async () => washDifference(browser, before, await canvas.screenshot()))
+		.toBeLessThan(0.02);
+}
+
 test("a region tile shows its focus area and only its region's monitors", async ({
 	page,
 	browser
@@ -507,6 +579,16 @@ test("a region tile shows its focus area and only its region's monitors", async 
 		/Science Building Room 74/
 	]);
 });
+
+/** Another account, viewing Maria's live link. */
+const sam: AccountUser = {
+	id: "q2Xr7VbcS0mWm2pTj9Lk3A",
+	full_name: "Sam Chen",
+	email: "sam@example.com",
+	phone: null,
+	phone_verified: false,
+	language: "en"
+};
 
 /** The Drummond Street monitor's id. */
 const DRUMMOND = "4Mb0j33kTnS0qzeE4iDGWw";
@@ -568,8 +650,9 @@ test.describe("shared by a live link", () => {
 		documentsServer
 	}) => {
 		const url = await liveLinkTo(page, wideDoc());
+		// Signed in as someone else, so Make a copy uploads: the listener's positive control.
 		const viewer = await documentsServer.newDevice();
-		viewer.account.set(null);
+		viewer.account.set(sam);
 		// Every write the viewer's page sends to the documents API.
 		const writes: string[] = [];
 		viewer.page.on("request", (request) => {
@@ -600,6 +683,11 @@ test.describe("shared by a live link", () => {
 		// The copy keeps both.
 		await viewer.page.getByRole("button", { name: "Make a copy" }).click();
 		await expect(viewer.page).toHaveURL(DASHBOARD_URL);
+		// The copy's upload went through the same listener, so it was listening.
+		await expect(
+			nav(viewer.page).getByText("Saved to your account", { exact: true })
+		).toBeVisible();
+		expect(writes.length).toBeGreaterThan(0);
 		const copy = mapOf(viewer.page, FRESNO_MAP);
 		await expect(copy.locator("canvas")).toBeVisible();
 		await openMenu(copy, "Settings");
@@ -864,6 +952,9 @@ for (const colorScheme of ["light", "dark"] as const) {
 		const narrow = await addMap(page);
 		await openPanel(narrow);
 		await toolbarOf(narrow).getByRole("button", { name: "Monitors", exact: true }).click();
+		await expect(
+			toolbarOf(narrow).getByRole("checkbox", { name: "Inactive", exact: true })
+		).toBeVisible();
 		await expectNoViolations(page);
 	});
 }

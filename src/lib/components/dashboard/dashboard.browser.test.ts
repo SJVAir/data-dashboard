@@ -529,13 +529,18 @@ test("an unkept dashboard shows its tiles read-only under the message", async ()
 test("a ?widget= link on an unkept dashboard opens that tile fullscreen", async () => {
 	const { app, session, id } = await setup();
 	session.apply(add(widget("a", { x: 0, y: 0, w: 6, h: 4 }, "Readings")));
+	// The widget's own save lands first, so anything pending later is the read-only page's.
+	await expect.poll(() => session.hasPending, { timeout: 3_000 }).toBe(false);
 	session.readOnly = "unkept";
+	const doc = JSON.parse(JSON.stringify(session.doc));
 	history.replaceState(null, "", `/workspace/dashboards/${id}?widget=a`);
 	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await expect.element(page.getByText(m.doc_readonly_unkept())).toBeVisible();
 	await expect.element(page.getByRole("button", { name: "Exit fullscreen" })).toBeVisible();
 	expect(location.search).toBe("?widget=a");
-	expect(session.doc.body.widgets).toHaveLength(1);
+	// Nothing was written: the same document, at the same version, with nothing pending.
+	expect(session.doc).toEqual(doc);
+	expect(session.hasPending).toBe(false);
 });
 
 test("a newer or invalid read-only dashboard shows no tiles", async () => {

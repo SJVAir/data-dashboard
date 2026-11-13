@@ -70,6 +70,34 @@ export async function routeMapReadings(
 	);
 }
 
+const GEOJSON = /\/api\/2\.0\/regions\/geojson\/$/;
+
+type Outline = { type: string; features: { properties: Record<string, unknown> }[] };
+
+/**
+ * Answers every region shape request with the fixture's one outline (Fresno County's,
+ * `regions/geojson.json`), once for each region asked for, under that region's type and code. Any
+ * region then frames as the county does, so a place change can leave the view still. Without it,
+ * only the county has a shape (another region's place says it's unavailable).
+ */
+export async function routeOneOutline(context: BrowserContext): Promise<void> {
+	const file = (await json<Outline>(`${API_FIXTURES}regions/geojson.json`))!;
+	await context.route(
+		(url) => GEOJSON.test(url.pathname),
+		async (route) => {
+			const url = new URL(route.request().url());
+			const type = url.searchParams.get("type");
+			const codes = url.searchParams.getAll("external_id").flatMap((c) => c.split(","));
+			const [outline] = file.features;
+			const features = codes.map((code) => ({
+				...outline,
+				properties: { ...outline.properties, type, external_id: code }
+			}));
+			await route.fulfill({ json: { type: file.type, features } });
+		}
+	);
+}
+
 type MapMeta = {
 	ozone: { catalog: { id: string }; entry: unknown; monitors: Record<string, unknown> };
 	datasets: unknown[];
