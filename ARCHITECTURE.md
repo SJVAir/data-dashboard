@@ -1962,14 +1962,24 @@ spec lists the exact map-sdk changes. **Built for monitor-map (5.0.0-beta.2, 202
 settings), plus its own EV charger and Wind groups, with the host's values in one flat record.
 
 **The Map tile's toolbar (decided by the user 2026-11-12, in the step 5 spec 2 brainstorm; built
-in spec 3).** A Map tile is not a copy of monitor-map: its toolbar offers options only for the
-data that tile holds.
+in spec 3, 2026-11-13).** A Map tile is not a copy of monitor-map: its toolbar offers options only
+for the data that tile holds.
 
-- **A group appears only when it has a choice.** Pollutant, Monitors, Layers and Overlays each
-  show only when the tile's data gives that group more than one option. Settings always shows,
-  because its options set up the map itself.
+- **A group appears only when it has a choice.** Pollutant, Monitors and Layers each show only
+  when the tile's data gives that group a choice (Pollutant and Monitors: two or more options;
+  Layers: the tile has smoke and fire, and its one row counts as a choice). There is no Overlays
+  group: wind belongs to monitor-map, outside map-sdk, and the tile has no overlay data. Settings
+  always shows, because its options set up the map itself.
+- **Layers holds only Fire & Smoke** (the user, 2026-11-13): a show/hide switch for both layers.
+  It doesn't add or remove the data, which stays a Get data choice (the layers' data stays loaded
+  while hidden, so showing again is instant). The places' outline (focus area) is always drawn,
+  with no row.
 - **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
-  inactive or indoor ones.
+  inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
+  draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor
+  among the loaded ones for the pollutant showing isn't offered.
+- **Left out on purpose:** a search slot (the place picker does that job), a "None" pollutant (a
+  Map tile always draws one), and Collocation Sites (the dashboard loads none).
 - **Settings** keeps monitor-map's set: marker clusters, basemap, basemap theme (the variant), and
   Reset to defaults.
 - **Values are saved with the tile**, in its options.
@@ -1977,14 +1987,46 @@ data that tile holds.
   variant, as monitor-map does today. There is no "Follow the dashboard" option: the list offers
   only the variants MapTiler defines.
 - **The basemap is one saved value**, the variant id, which map-sdk stores. An unknown id falls
-  back to a default and never throws.
+  back to a default and never throws. Every MapTiler basemap is offered at its newest version; it
+  opens on Streets v4 without POI layers.
+- **The saved shape** (`MapOptionsSchema`, `src/lib/widgets/map/options.ts`), next to `showing` and
+  `marks`: `basemap`, `clustered`, `fireAndSmoke`, `inactive`, `inside`, and `hiddenTypes` (the
+  monitor types switched off, unique and bounded). Types are saved as the ones switched **off**, so
+  a type the server adds later shows as on with nothing to fix in old dashboards.
+- **Missing means default, and a default is never written.** A missing option is drawn as its
+  default; a choice equal to its default is stored as missing (a type switched back on leaves
+  `hiddenTypes`, an empty list is removed). So **Reset Map Options** needs no special handling:
+  putting each key back to its default removes it. `showing` resets to the first pollutant; marks
+  and places stay.
+- **A saved value applies only while its row is offered.** A type switched off, or Inactive or
+  Inside off, filters the monitors only when the Monitors group shows that row. If the tile's data
+  later leaves the row out, nothing filters by it, so a tile can never hide monitors with no
+  visible way back. The value stays saved and applies again when the row returns.
+- **No per-field fallback for invalid options** (changed while planning, 2026-11-13): the document
+  schema already rejects any invalid Map options (`DashboardBodySchema`'s refine), so such a
+  dashboard opens read-only and a per-field fallback could never run. A missing or invalid
+  options value read at a tile reads as none.
+- **One `applyChange` per toolbar action** (one undo step); a select-all heading and Reset are one
+  step each, matching map-sdk's one `onchange` per action. Converting away from the Map drops
+  these options, as it drops `marks`.
+- **Icons** are Lucide icons tinted with theme tokens, `--map-icon-monitors`, `-layers`,
+  `-basemap`, `-theme`, `-settings`, `-clusters` and `-fire` in `src/app.css`, each with a
+  dark-mode value, picked for at least 3:1 against the toolbar's background in both schemes.
+  The light values are monitor-map's hex colors, except clusters: `#1c86ee` (dodgerblue2), one
+  step darker than monitor-map's `#1e90ff`, to meet 3:1.
+- **The hidden-marks note gives its reasons.** A hidden mark's monitor type is looked up once
+  (page-wide cache), so the note names each reason that applies, one line each: the type doesn't
+  report the pollutant showing; the mark is hidden by the map's options (its type switched off, or
+  inactive or indoor and those hidden); it is outside the map's places; or its reason can't be told
+  ("aren't shown"). The same lines are the map's accessible name and map-sdk's feature-list note.
 
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.11` (never a range or a dist-tag). The
-  dashboard no longer depends on `@maptiler/sdk` directly: the pin's label comes from map-sdk's
-  focus area.
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.13` (never a range or a dist-tag; moved from
+  `0.1.0-beta.11` in step 5 spec 3, 2026-11-13) and `@sjvair/sdk` `5.0.0-beta.10`
+  (`npm:@jsr/sjvair__sdk@5.0.0-beta.10`). The dashboard no longer depends on `@maptiler/sdk`
+  directly: the pin's label comes from map-sdk's focus area.
 - **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection
   (no globe), `cooperativeGestures: true` (Ctrl/⌘-scroll or two fingers zoom, so scrolling the
   page never zooms a map; also in fullscreen) and `telemetry: false`. MapTiler's usage report is
@@ -2005,7 +2047,7 @@ data that tile holds.
   the monitors meta's `available_pollutants`; at most 6, since `LAYERS_MAX` is 8 less smoke and
   fire), and smoke and fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added
   and removed together). Saved options (`options.ts`, `MapOptionsSchema`): `showing` (the entry
-  type drawn now; the first pollutant until spec 3's toolbar switches it) and `marks` (monitor
+  type drawn now; the first pollutant until the toolbar switches it, which spec 3 added) and `marks` (monitor
   ids, at most 25, unique). Invalid or missing options read as none.
 - **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
   those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
@@ -2022,11 +2064,35 @@ data that tile holds.
   monitor leaves the tile's data (a place change, another pollutant showing, a pollutant
   unchecked): the mark stays, hidden, and a note under the map counts the hidden marks. Marks
   are dropped, with a note, when converting away from the Map.
+- **The toolbar's wiring** (step 5 spec 3, `src/lib/widgets/map/toolbar/`). The Map's options
+  toolbar is map-sdk's `OptionsToolbar` in `MapView`'s `toolbar` snippet. `values.ts` turns saved
+  options into the toolbar's full effective record and back (saved values over defaults; a choice
+  equal to its default is stored as missing); `toolbar.svelte.ts` builds map-sdk's groups from the
+  tile's data (one `monitorsOptions` per map, its groups made inside a `$derived`); `wiring.svelte.ts`
+  connects them to the widget and to `changeTileOptions`. How each key drives the map: `pollutant`
+  is the saved `showing`; `type:*`, `inactive` and `inside` are **filters the dashboard applies to
+  the monitors' features inside `MapData`** (map-sdk never filters a host's data), and
+  `monitorsDrawn`, which the hidden-marks note reads, stays unfiltered; `clustered` is the
+  monitors plugin's clustering; `basemap` is `map.basemap.select`; `fireAndSmoke` adds or removes
+  the smoke and fire plugins. The pollutant shown is the one **drawn**, including
+  `drawableShowing`'s fallback, which is drawn and never saved. The dashboard doesn't subscribe to
+  `map.basemap.onFallback`: fallbacks are drawn, not saved. The toolbar and the List button show
+  above the loading skeleton, and so do the map's notes (under the toolbar, using
+  `--mapsdk-toolbar-height`, which ends the banner crowding the zoom buttons).
+  Get data's "Show as" converts by the pollutant drawn, not the saved `showing`.
 - **Providers:** `messages` maps every `mapsdk_*` key to a Paraglide message through an explicit
   table (a test fails when map-sdk adds a key the table lacks); `format` wraps the dashboard's
   `format` module (Pacific, " PT" off-Pacific), except relative time, which stays map-sdk's
   (see `DEFERRED.md`); `metadata` is the dashboard's own adapter over its metadata cache (`host/metadata.ts`), so map
-  levels, colors, units and labels come from the same source as every other widget.
+  levels, colors, units and labels come from the same source as every other widget. Since step 5
+  spec 3 it also implements `monitorGroups`, `monitorTypeGroup`, `monitorTypeReports` (each entry's
+  `published`), `entryTypeHelp` (the entry's `description`) and `locationTypeLabel` (`"unavailable"`
+  on failure), so the toolbar's rows, groups, help and colors all come from the metadata, never
+  hardcoded. In the data layer's `MetadataSource`: `monitorGroups` (null when the server sends
+  none), `entryTypeHelp` and `locationTypeLabel` are new, `MonitorSummary` gains `inside`, and
+  `MonitorTypeInfo` gains `group`, `published` and `unflagged` (entries the meta lists without a
+  `published` flag: unknown, not false). `getMonitorsMeta()` needs `monitor_groups`; the fixtures
+  carry it.
 - **map-sdk's `theme.css` isn't imported.** It's Tailwind source, which only `app.css` compiles,
   and `app.css` already defines every token it adds. `app.css` has map-sdk's `@source`.
 - **On screen only.** `MapView active` is true only while the widget is on screen (an
@@ -2628,6 +2694,17 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
      standalone build shows "update required" instead.
   6. **Fixtures for every past `schemaVersion` are kept permanently**, and CI runs the
      whole migration chain against all of them.
+
+  **Read-only states** (`DocumentSession.readOnly`):
+  - `"unkept"` is a **valid** document that is read-only only because the untouched original
+    couldn't be stored first. It shows its message bar and its tiles below it, read-only, the way
+    the shared view renders them: no editing, moving, resizing, adding or marks; fullscreen
+    and viewer changes work as on a shared view (step 5 spec 3, 2026-11-13). Nothing is
+    written: autosave and the journal stay off.
+  - `"newer"` (saved by a newer version) and `"invalid"` (couldn't be read) show only their
+    message, no tiles: an older app can't draw a newer format faithfully, and an invalid document
+    is never drawn (the security baseline), so recovery is their path.
+
 - **References, not data.** Documents store query descriptors, never fetched data, so
   they stay small and a recipient sees the same _query_ run against current data.
 
@@ -2919,6 +2996,33 @@ documents }`, with its own version separate from `schemaVersion`. A shared docum
   independent document.
 - **Server share → live link.** Recipients see the owner's current version read-only,
   with **"Make a copy"** to edit their own. Fits teacher → class and SJVAir → public.
+- **Viewer changes: a viewer can change what a tile shows, never what it holds** (the user,
+  2026-11-13; step 5 spec 3). On a read-only view that shows tiles, a widget's in-tile switches
+  (the Map's toolbar is the first user) work for the visit and are never saved, stored, sent or
+  logged. The module is `src/lib/widgets/shared/tile-options.svelte.ts`:
+  - `ViewerChanges` holds, in memory and per widget id, only the keys the viewer changed. A held
+    key set to `undefined` means "missing" (the drawn default). `SharedPage` owns one per share
+    token, so fullscreen and remounts keep the changes and leaving the page or opening another
+    dashboard drops them. An unkept dashboard (below) gets one per session.
+  - `tileOptions` reads a widget's options (saved, with the viewer's held keys on top);
+    `changeTileOptions` writes them: on an editable dashboard one undoable `applyChange` (a
+    starter's edit goes to its copy), on a read-only view held in memory; `viewerReset` drops held
+    keys. There is no undo for viewer changes.
+  - **Reset Map Options, for a viewer,** goes back to the owner's view, not the bare defaults: the
+    toolbar's defaults are the owner's effective values, so Reset reports only the keys where the
+    viewer differs, and those held keys are dropped.
+  - **A live update keeps only changed keys:** a value the viewer changed keeps the viewer's
+    choice, and everything else follows the owner. Held changes for a widget the owner removed are
+    dropped, and **a held value that fails validation is left out key by key** (a pollutant the
+    owner took out, say), so the drawn fallback applies.
+  - **"Make a copy" keeps the viewer's changes:** `makeCopy` saves `ViewerChanges.applyTo` of the
+    shared document it copies today (`view.doc`), with the held changes applied to the widgets'
+    options and validated like any document. Matching an existing copy stays by source id.
+  - **Marks stay owner-only:** Select and Remove stay hidden for viewers.
+  - **It is not "Show patterns".** The contribution calendar's "Show patterns" switch is a
+    personal display preference (device-wide, never in a document); viewer changes are per tile,
+    per visit, about the tile's own data, and can become part of a copy.
+  - Other widgets adopting it: see `DEFERRED.md`.
 
 ## Internationalization: English-only, translation-ready
 

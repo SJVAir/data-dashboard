@@ -186,7 +186,8 @@ drawn") **(my call)**.
   Clusters `Network` (dodger blue), Basemap `Map` and Theme `Contrast` (slate grey), Fire & Smoke
   `Flame` (orange-red). Token names (e.g. `--map-icon-monitors`) and the dark-mode values are the
   builder's, picked for at least 3:1 against the toolbar's background in both schemes **(my
-  call)**. The light values are monitor-map's hex colors.
+  call)**. The light values are monitor-map's hex colors, except Marker Clusters
+  (as built): `#1c86ee` (dodgerblue2), one step darker than monitor-map's `#1e90ff`, to meet 3:1.
 - The toolbar itself follows the dashboard's dark mode (map-sdk uses only theme tokens, except the
   fixed Inactive and Inside swatches, as on every map).
 - Wide (≥ 48rem map width) joined dropdowns, narrow one options button and a panel: map-sdk's.

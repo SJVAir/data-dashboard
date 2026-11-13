@@ -209,7 +209,9 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
         selection, the reading card's Select/Remove and Shift-click, and the focus area (map-sdk
         `0.1.0-beta.11`).
      3. The options toolbar, built from the tile's data, plus Settings, on map-sdk's shared
-        toolbar (after map-sdk part 5).
+        toolbar (after map-sdk part 5), and viewer changes on read-only dashboards. **Built
+        2026-11-13** on map-sdk `0.1.0-beta.13` and `@sjvair/sdk` `5.0.0-beta.10`; its PR is about
+        to open.
      4. A date-range mode and region fills.
      5. Pesticide use by section and township, and spray notices.
      6. "Show in a chart" / "Show in a table" from a map's selection.

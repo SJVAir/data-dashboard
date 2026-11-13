@@ -1335,9 +1335,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (`location_type_unknown`, `school_address`, `school_district`, `school_grades`,
   `schools_cluster_line`, `schools_legend_school`) for `host/messages.ts`, and the optional
   `MetadataProvider.locationTypeLabel?(type, signal?)`, which the dashboard's `mapMetadata`
-  adapter must implement from the regions meta's `location_types`. Why: not in spec 2. **Revisit
-  with** the first spec that draws schools: it moves to `0.1.0-beta.12` and adds an entry in
-  `src/lib/widgets/map/data/`.
+  adapter must implement from the regions meta's `location_types`. Why: not in spec 2, and
+  deferred again 2026-11-13 (step 5 spec 3, the user): it would be a new data set in Get data and
+  a second Layers row. Spec 3 moved the pin to `0.1.0-beta.13` and the adapter now implements
+  `locationTypeLabel`, so what is left is the schools data set itself, an entry in
+  `src/lib/widgets/map/data/` and its Layers row. **Revisit when** spec 5's design starts.
 
 - **Spec 6 charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
   kept but hidden (outside the places, or not reporting the pollutant showing) are not sent to a
@@ -1348,28 +1350,44 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   The server offers 6 or fewer today. **Revisit when** the server's `available_pollutants` grows
   past 6.
 
-- **Shift-click on the Map also opens the reading card.** _Found 2026-11-12 (step 5 spec 2)._
-  Fixed in `@sjvair/map-sdk` `0.1.0-beta.13` ([map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29)):
-  a `pickWith: "modifier"` Shift-click marks without opening the card. Spec 3 adopts it: move to
-  `0.1.0-beta.13` and assert the card stays closed in `e2e/map.spec.ts`'s Shift-click test.
-  **Revisit with** step 5 spec 3, which removes this entry once adopted.
-
-- **map-sdk's spoken view summary goes stale.** _Found 2026-11-12 (step 5 spec 2)._ Fixed in
-  `@sjvair/map-sdk` `0.1.0-beta.13` ([map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29)):
-  the summary re-counts when a plugin's features change or a plugin is added or removed at a still
-  view. Spec 3 adopts it: check the summary updates after a refresh or a place change that doesn't
-  move the camera. **Revisit with** step 5 spec 3, which removes this entry once adopted.
-
-- **The hidden-marks note isn't in map-sdk's feature list.** _Found 2026-11-12 (step 5 spec 2)._
-  Fixed in `@sjvair/map-sdk` `0.1.0-beta.13` ([map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29)):
-  `featureList={{ note }}` shows a host note in the open list and describes the listbox. Spec 3
-  adopts it: put the "N marked monitors aren't shown" note there. **Revisit with** step 5 spec 3,
-  which removes this entry once adopted.
-
 - **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
   (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn
-  (layer labels come from metadata, the source of truth). The real catalog has both. **Revisit
-  if** the server's catalog drops either, or with spec 3's toolbar, which needs the same labels.
+  (layer labels come from metadata, the source of truth). The real catalog has both. Since step 5
+  spec 3 the toolbar's Fire & Smoke row uses map-sdk's own message, so only the layer labels need
+  the catalog. **Revisit if** the server's catalog drops either.
+
+- **Collocation sites on the Map.** _Deferred 2026-11-13 (step 5 spec 3, my call)._ The dashboard
+  loads none, so the toolbar leaves `monitorsOptions`' Collocation Sites row out
+  (`collocation: false`). **Revisit if** someone asks for them, or with a later Map data-set spec.
+
+- **Other widgets adopting viewer changes.** _Deferred 2026-11-13 (step 5 spec 3)._ The mechanism
+  is general (`src/lib/widgets/shared/tile-options.svelte.ts`), but no other widget has an
+  in-tile switch for it yet; the calendars' day selection and the Map's marks are the only in-tile
+  edits, and marks stay owner-only. **Revisit with** the next widget that gets an in-tile switch
+  (a chart's series toggle, say).
+
+- **The narrow options panel makes the Map's note banner inert.** _Found 2026-11-13 (step 5 spec
+  3)._ map-sdk inerts its overlays while the options panel covers a narrow map, so the note's
+  Retry button and status drop out of reach until the panel closes. **Revisit with** the next
+  accessibility pass on the map, or if the panel stops inerting the overlays.
+
+- **"Show as" from a Map uses the saved pollutant while the map's pollutant list hasn't loaded.**
+  _Found 2026-11-13 (step 5 spec 3)._ Get data's "Show as" converts by the pollutant the map draws
+  (`drawableShowing`), but in a narrow window of its synchronous path the list isn't loaded yet
+  and the saved `showing` is used. **Revisit if** someone reports a converted chart showing the
+  wrong pollutant.
+
+- **Step 5 spec 3 review leftovers.** _Deferred 2026-11-13 (step 5 spec 3, per-task and final
+  reviews)._ Small things the reviews let stay:
+  - **Code:** `activeFilters`' optional `defaults` should become required; its unused `offer`
+    parameter; the unique refine and the bare `max(32)` on `hiddenTypes` duplicate `marks`'
+    pattern; the hidden-marks note's `pollutant: entryLabel ?? ""`; `routeOneOutline`'s non-null
+    assertion. **Fix with** the next change to each.
+  - **Test gaps:** no browser test for the "options" reason of the hidden-marks note; the E2E
+    `expectStill` passes on its first sample; the pixel-tolerance checks were run only on
+    Chromium. **Add with** the next change to each.
+  - **Contrast:** the fire tint is 2.9998:1 on a hovered row, a hair under 3:1. **Revisit with**
+    the next change to the Map's icon tokens.
 
 ## Analysis & data
 
@@ -2007,9 +2025,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   - **Some places fit silently, with no note.** A selection with retired or missing monitors, or
     with some regions missing, fits to what it finds. A single unlisted monitor does get a note.
     **Revisit if** someone is confused by a map that shows fewer places than they picked.
-  - **The map's note banner can sit under map-sdk's zoom buttons** on a narrow map. The buttons
-    stay clickable and nothing is hidden from focus; it only looks crowded. **Revisit with** the
-    shared toolbar (step 5 spec 3), which moves the map's controls.
   - **No Get data test for a failed map pollutant list.** Get data treats `"unavailable"` like an
     empty list, the same as before. **Revisit with** the next change to Get data's Map path.
   - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
@@ -2039,29 +2054,10 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   - **Monitor-place tiles each fetch the whole Valley's current list** under their own key and
     filter client-side (`data/monitors.ts`); keying by entry type would share one request.
     **Revisit when** a dashboard has several monitor-place maps, or in a performance pass.
-  - **The previous focus area stays drawn while a new place resolves** (`MapFrame` keeps the old
-    frame). **Revisit with** spec 3 or a polish pass.
-  - **`MapWidget.svelte` is about 750 lines;** move the data blocks to
-    `map/data/loaded.svelte.ts`. **Do at** the start of spec 3 (the toolbar adds more).
-  - **The hidden-marks note gives no reason** ("aren't shown"), though spec 2 asked for one ("2
-    marked monitors don't report ozone"). This is a spec 2 miss, not an open question. The user
-    agreed 2026-11-12 to finish it at the start of spec 3. First check whether the widget can
-    tell the two reasons apart: a mark can be hidden because the monitor is outside the tile's
-    places, or because it doesn't report the pollutant showing, and today the code only knows
-    it isn't drawn. Then name each reason the widget can tell ("don't report ozone", "are outside
-    this map's places"), with one line per reason when both apply. Keep "aren't shown" only for
-    marks whose reason can't be told. Use the same wording in the map's accessible name.
-    **Do at** the start of spec 3, alongside the `MapWidget.svelte` split.
   - **Test gaps kept:** the starter hand-off test uses a hand-built session (the real starter
     holds no Map widget, and adding one is itself the first edit that hands off, so the test
-    can't start from a starter holding a Map until a starter preset has one); the Shift-click
-    E2E doesn't assert the card stays closed (map-sdk part 5). **Add with** the next change to
-    each.
-  - **Show as converts by the saved `showing`:** when the tile falls back to another pollutant
-    because the saved `showing` isn't offered, Get data's "Show as" (`mapShowingOnly` in
-    `src/lib/get-data/map.ts`) still converts by the saved `showing`, so the chart or table can
-    show a pollutant the tile isn't drawing. **Revisit with** spec 3's Pollutant toolbar or
-    spec 6 ("Show in a chart/table").
+    can't start from a starter holding a Map until a starter preset has one). **Add with** the
+    next change to it.
   - **Small behaviours kept:** `serverScale` falls back to the monitors meta for unknown datasets
     (guard on air-quality); `mapMetadata.entryType` reads the catalog only (no scale fallback);
     `monitorsUnavailable` is written inside a now-client fetch; the HMS cache key's date is fixed
