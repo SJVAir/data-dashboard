@@ -291,8 +291,16 @@ they are.
 - **Only changed values are held.** A live link's update from the owner changes everything the
   viewer didn't touch; a value the viewer changed keeps the viewer's choice.
 - **No undo** for viewer changes (read-only views have no undo list) **(my call)**.
-- **Reset Map Options, for a viewer,** drops their changes, going back to the owner's view (the
-  owner's saved values), not the bare defaults **(my call)**.
+- **Reset Map Options, for a viewer,** drops their changes, going back to the owner's view, not
+  the bare defaults **(my call)**. For a viewer, the toolbar's `defaults` are the owner's
+  effective values (saved values over the defaults), so map-sdk's Reset reports exactly the keys
+  where the viewer's values differ from the owner's, and the dashboard drops those held keys. When
+  the viewer changed nothing, nothing differs and Reset does nothing (map-sdk calls no `onchange`);
+  it stays enabled, as it is for an owner whose values are all defaults.
+- **A live-link update removes what no longer fits** **(my call, from the coordinator's review)**:
+  held changes for a widget the owner removed are dropped; a held value that no longer validates
+  against the widget's options (a pollutant the owner took out, say) is left out of the effective
+  options, so the drawn fallback applies, and left out of `withViewerChanges` too.
 - **"Make a copy" keeps the viewer's changes** (the user, 2026-11-13): `makeCopy` copies the
   shared document it copies today (`view.doc`, the full document, welcome Note included) with the
   held changes applied to its widgets' options, validated like any document. Matching an existing
@@ -348,6 +356,23 @@ tiles with no edit affordances, and that newer and invalid still render none.
   options button); Shift-click leaves the card closed; axe in light and dark.
 - `npm run check`, `npm run lint`, `npm run build`, `check:build`, `check:budget` (report the
   number).
+
+## `ARCHITECTURE.md` changes in this spec
+
+- **Map SDK → "The Map tile's toolbar":** Layers holds only Fire & Smoke (a show/hide switch; the
+  data stays a Get data choice); the saved shape; missing means default and a default-equal choice
+  is stored as missing; a saved value applies only while its row is offered; Inactive and Inside
+  off by default; the icon tint tokens; no search, no None, no Collocation Sites; the hidden-marks
+  reasons.
+- **Map SDK → "The dashboard's Map widget":** the new pins, the `MetadataProvider` methods, and
+  the toolbar wiring (one `monitorsOptions` per map; the dashboard filters the monitors' features).
+- **The viewer-changes rule** ("a viewer can change what a tile shows, never what it holds"), with
+  the tile-options module, next to "Server share → live link" (the live link's "read-only + Make
+  a copy"), including that "Make a copy" keeps the viewer's changes, how a live update treats
+  them, and how it differs from "Show patterns".
+- **The `"unkept"` read-only state**, next to "Recovery from a bad upgrade": valid but read-only
+  because the original couldn't be kept; it shows its tiles under its message (Part 5). `"newer"`
+  and `"invalid"` show only their message.
 
 ## `DEFERRED.md` changes in this spec
 
