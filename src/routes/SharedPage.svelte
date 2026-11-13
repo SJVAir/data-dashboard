@@ -15,6 +15,7 @@
 	import { fingerprint } from "$lib/sharing/fingerprint";
 	import { useApp } from "$lib/store/app.svelte";
 	import { watchesThresholds } from "$lib/thresholds/watched";
+	import { ViewerChanges } from "$lib/widgets/shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 	import { navigate, p, route } from "../router";
 
@@ -29,6 +30,11 @@
 	/** The remote's file won't load: `loadLazy` has shown the reload bar, so the page adds nothing. */
 	let chunkFailed = $state(false);
 	let busy = $state(false);
+	/** The viewer's tile changes, for this link's visit only: in memory, never saved or sent. */
+	const viewerChanges = $derived.by(() => {
+		void route.params.token;
+		return new ViewerChanges();
+	});
 
 	const view = $derived<SharedView>(shared?.doc.view ?? { kind: "loading" });
 	// Without the welcome Note: it tells the owner what to do, not a viewer.
@@ -70,7 +76,9 @@
 		if (current.kind !== "shown" || busy) return;
 		busy = true;
 		try {
-			const { doc, sourceId } = current;
+			const { sourceId } = current;
+			// The viewer's tile changes come along (each merge validated, as any document's).
+			const doc = viewerChanges.applyTo(current.doc);
 			// Matched by source id, not content: a live link's content changes.
 			const existing = await findCopyOf(app, sourceId);
 			if (existing) {
@@ -134,7 +142,7 @@
 		</div>
 	</div>
 	{#if viewerDoc}
-		<DashboardGrid view={viewerDoc} />
+		<DashboardGrid view={viewerDoc} {viewerChanges} />
 	{/if}
 {:else}
 	<div class="flex flex-col items-start gap-2 p-4">

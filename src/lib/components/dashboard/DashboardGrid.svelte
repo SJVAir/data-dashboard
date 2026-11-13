@@ -35,6 +35,12 @@
 	import { STARTER_ID } from "$lib/starter/starter";
 	import { watchesThresholds } from "$lib/thresholds/watched";
 	import { useApp } from "$lib/store/app.svelte";
+	import {
+		TILE_OPTIONS_KEY,
+		TILE_OPTIONS_PROBE_KEY,
+		ViewerChanges,
+		type TileOptionsContext
+	} from "$lib/widgets/shared/tile-options.svelte";
 	import { navigate, route } from "../../../router";
 	import AddWidgetButton from "./AddWidgetButton.svelte";
 	import DashboardHeader from "./DashboardHeader.svelte";
@@ -44,13 +50,16 @@
 	import WidgetFrame from "./WidgetFrame.svelte";
 
 	let {
-		view
+		view,
+		viewerChanges
 	}: {
 		/**
 		 * View mode: show this document read-only (someone else's, on the shared page), ignoring
 		 * the app's current dashboard. Nothing arranges, and the only action is Fullscreen.
 		 */
 		view?: Dashboard;
+		/** View mode: where the viewer's tile changes are held for the visit (the page owns it). */
+		viewerChanges?: ViewerChanges;
 	} = $props();
 
 	const app = useApp();
@@ -66,6 +75,38 @@
 	const doc = $derived(view ?? editable?.doc ?? null);
 	/** The view's widgets, read by its frames and taskbar in place of the app's session. */
 	const viewWidgets = $derived(view ? () => view.body.widgets : undefined);
+
+	// A tile's own changes (the Map's toolbar): saved with undo on an editable dashboard, held for
+	// the visit on a read-only view. One stable object with getters, read once by each widget.
+	// A read-only "unkept" session (its tiles shown read-only) gets its own per session id.
+	const unkeptId = $derived(session?.readOnly === "unkept" ? session.doc.id : null);
+	const ownChangesFor = $derived(view ? "view" : unkeptId);
+	const ownChanges = $derived.by(() => {
+		void ownChangesFor;
+		return new ViewerChanges();
+	});
+	const shownChanges = $derived(
+		view ? (viewerChanges ?? ownChanges) : unkeptId ? ownChanges : null
+	);
+	const tileOptionsContext = {
+		get mode() {
+			return shownChanges ? "view" : "edit";
+		},
+		get changes() {
+			return shownChanges;
+		},
+		session: () => app.current.session
+	} as TileOptionsContext;
+	setContext(TILE_OPTIONS_KEY, tileOptionsContext);
+	getContext<((ctx: TileOptionsContext) => void) | undefined>(TILE_OPTIONS_PROBE_KEY)?.(
+		tileOptionsContext
+	);
+	// A live update: held changes for widgets no longer shown are forgotten.
+	$effect(() => {
+		const changes = shownChanges;
+		const shownDoc = doc ?? session?.doc;
+		if (changes && shownDoc) untrack(() => changes.prune(shownDoc));
+	});
 
 	// The threshold watcher (its own chunk), loaded once some widget has an alert level. It runs
 	// here, not in the tiles, since minimized widgets aren't on the grid.
