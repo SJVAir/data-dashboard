@@ -339,8 +339,8 @@ upgraded and passed validation, and it's read-only only because the untouched or
 be stored first. Its message says "it's open read-only", but `DashboardGrid.svelte` renders no
 widgets for any read-only session. Fix: for `"unkept"`, keep the message bar and render the tiles
 below it, read-only, the way the shared view renders them (no editing, moving, resizing, adding
-or marks; minimize, fullscreen and viewer changes work as on a shared view) **(my call on which
-view affordances carry over)**. Whatever the bar offers today (downloading a backup, the reload)
+or marks; fullscreen and viewer changes work as on a shared view, and minimize isn't offered
+because it writes the document, a ruling made while building, 2026-11-13). Whatever the bar offers today (downloading a backup, the reload)
 stays. `"newer"` and `"invalid"` are unchanged. Nothing is written: autosave and the journal stay
 off for a read-only session, as today. Tests: a browser test that an unkept session renders its
 tiles with no edit affordances, and that newer and invalid still render none.

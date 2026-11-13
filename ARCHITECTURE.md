@@ -2047,8 +2047,8 @@ for the data that tile holds.
   the monitors meta's `available_pollutants`; at most 6, since `LAYERS_MAX` is 8 less smoke and
   fire), and smoke and fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added
   and removed together). Saved options (`options.ts`, `MapOptionsSchema`): `showing` (the entry
-  type drawn now; the first pollutant until the toolbar switches it, which spec 3 added) and `marks` (monitor
-  ids, at most 25, unique). Invalid or missing options read as none.
+  type drawn now; the first pollutant until the toolbar switches it, which spec 3 added) and
+  `marks` (monitor ids, at most 25, unique). Invalid or missing options read as none.
 - **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
   those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
   in its `placeRegion` region, the one the frame uses), and only those reporting the pollutant
@@ -2699,7 +2699,8 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
   - `"unkept"` is a **valid** document that is read-only only because the untouched original
     couldn't be stored first. It shows its message bar and its tiles below it, read-only, the way
     the shared view renders them: no editing, moving, resizing, adding or marks; fullscreen
-    and viewer changes work as on a shared view (step 5 spec 3, 2026-11-13). Nothing is
+    and viewer changes work as on a shared view (step 5 spec 3, 2026-11-13), and minimize isn't
+    offered because it writes the document. Nothing is
     written: autosave and the journal stay off.
   - `"newer"` (saved by a newer version) and `"invalid"` (couldn't be read) show only their
     message, no tiles: an older app can't draw a newer format faithfully, and an invalid document
