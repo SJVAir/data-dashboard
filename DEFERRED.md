@@ -2552,8 +2552,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   caching; a formatting fallback
   for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and mobile (`map-sdk` is translation-ready via its `messages`
   provider but ships English defaults). Health guidance
-  and alert text need human translation or review, not machine-only. **Revisit when**
-  translators or funding for translation are available.
+  and alert text need human translation or review, not machine-only. **Includes the monitor
+  meta's new strings** (the user, 2026-11-12, sjvair.com #332 follow-up): the two
+  `monitor_groups` labels and the 8 pollutant descriptions are `gettext_lazy`, so
+  `makemessages` picks them up, but they aren't translated now: the catalogs have no
+  translations yet, and translating only these would mix languages in the meta. **Revisit when**
+  translators or funding for translation are available (the es/hmn/tl translation work).
 - **Right-to-left map labels.** _Deferred 2026-11-11 (step 5 spec 1, the user: "we will deal
   with RTL if we end up needing it")._
   - **Meanwhile:** a map tile with right-to-left labels makes MapTiler try to load its text
