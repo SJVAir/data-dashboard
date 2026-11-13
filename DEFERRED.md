@@ -1791,6 +1791,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   its focus shape; map-sdk's focus area (part 3, `0.1.0-beta.11`) draws only the line, casing and
   the fade outside. Why: a tint would sit over the data, and the line and fade suffice. **Revisit
   if** the user wants the explorers' exact look.
+- **The BAM 1022's map label stays "BAM 1022", not "SJVAir".** _Held 2026-11-12 (the user, in
+  the sjvair.com monitor-meta groups session `sjvair-com-8d`)._ The user first meant to rename the
+  `bam1022` type to "SJVAir" on the server. That label is the model's `verbose_name`, which also
+  names the type in the admin's choices (the user wants those to stay "BAM 1022", since SJVAir may
+  run other reference monitors) and is every BAM's `device` fallback in the monitor API. Why held:
+  those side effects. **Fix when wanted:** a separate public label read only by
+  `/api/2.0/monitors/meta/`, leaving `verbose_name` alone. **Revisit when** SJVAir branding for
+  BAMs is wanted on the map or the dashboard.
 
 ## Widgets
 
