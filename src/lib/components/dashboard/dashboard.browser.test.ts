@@ -519,6 +519,9 @@ test("an unkept dashboard shows its tiles read-only under the message", async ()
 	expect(
 		[...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent?.trim())
 	).toEqual(["Fullscreen"]);
+	// Closed again: an open menu would leave the page's pointer events off for later tests.
+	await userEvent.keyboard("{Escape}");
+	await expect.element(page.getByRole("menuitem")).not.toBeInTheDocument();
 	// Nothing was written.
 	expect(session.doc.body.widgets).toHaveLength(2);
 });
