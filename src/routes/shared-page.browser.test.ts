@@ -249,6 +249,26 @@ test("a viewer's tile change is kept by Make a copy, and the owner's document is
 	expect(JSON.stringify(owners)).not.toContain("satellite");
 });
 
+test("a viewer's change and the shared view survive entering and leaving fullscreen", async () => {
+	const token = await publish();
+	const sharedCalls = vi.spyOn(fake, "shared");
+	let ctx: TileOptionsContext | undefined;
+	await renderShared(await openApp(), token, { routed: true, onTileOptions: (c) => (ctx = c) });
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const calls = sharedCalls.mock.calls.length;
+	const held = () => (ctx?.mode === "view" ? ctx.changes.get("a") : undefined);
+	changeTileOptions(ctx, widget("a"), { basemap: "satellite" }, ["basemap"]);
+	expect(held()).toEqual({ basemap: "satellite" });
+	await page.getByRole("button", { name: "Show Readings fullscreen" }).click();
+	await expect.poll(() => isFullscreen("a")).toBe(true);
+	expect(held()).toEqual({ basemap: "satellite" });
+	await userEvent.keyboard("{Escape}");
+	await expect.poll(() => isFullscreen("a")).toBe(false);
+	expect(held()).toEqual({ basemap: "satellite" });
+	// The page kept its shared view: no new fetch of the link.
+	expect(sharedCalls.mock.calls.length).toBe(calls);
+});
+
 test("a second copy asks, even after the source changed", async () => {
 	const token = await publish();
 	const opened = await openApp();

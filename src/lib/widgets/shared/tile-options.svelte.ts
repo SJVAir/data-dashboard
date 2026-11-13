@@ -42,14 +42,14 @@ export class ViewerChanges {
 		else if (Object.keys(rest).length !== Object.keys(held).length) this.#held.set(widgetId, rest);
 	}
 
-	/** `doc` with the held changes over its widgets' options (each merge validated, else as saved). */
+	/** `doc` with the held changes over its widgets' options (a held key that doesn't validate is left out). */
 	applyTo(doc: Dashboard): Dashboard {
 		let changed = false;
 		const widgets = doc.body.widgets.map((widget) => {
 			const held = this.#held.get(widget.id);
 			if (!held) return widget;
 			const merged = merge(widget, held);
-			if (merged === invalid) return widget;
+			if (merged === widget.options) return widget;
 			changed = true;
 			const next: WidgetInstance = { ...widget };
 			if (merged === undefined) delete next.options;
@@ -94,8 +94,7 @@ export function tileOptions(
 	if (ctx?.mode !== "view") return widget.options;
 	const held = ctx.changes.get(widget.id);
 	if (!held) return widget.options;
-	const merged = merge(widget, held);
-	return merged === invalid ? widget.options : merged;
+	return merge(widget, held);
 }
 
 /**
@@ -146,14 +145,26 @@ function optionsChange(widget: WidgetInstance, next: Options | undefined): Chang
 	};
 }
 
-const invalid = Symbol("invalid");
-
-/** `widget`'s options with `held` over (missing keys left out), or `invalid`. */
-function merge(widget: WidgetInstance, held: Options): Options | undefined | typeof invalid {
-	const merged: Options = { ...widget.options, ...held };
-	for (const key of Object.keys(merged)) if (merged[key] === undefined) delete merged[key];
-	const options = normalize(widget.type, merged);
-	return widgetOptionsValid(widget.type, options) ? options : invalid;
+/**
+ * `widget`'s options with `held` over (keys held as missing left out). When that doesn't
+ * validate, the held keys are added one at a time (in key order), each kept only if the options
+ * still validate. Nothing kept: the saved options themselves (the same object).
+ */
+function merge(widget: WidgetInstance, held: Options): Options | undefined {
+	const over = (keys: Options) => {
+		const merged: Options = { ...widget.options, ...keys };
+		for (const key of Object.keys(merged)) if (merged[key] === undefined) delete merged[key];
+		return normalize(widget.type, merged);
+	};
+	const valid = (options: Options | undefined) => widgetOptionsValid(widget.type, options);
+	const full = over(held);
+	if (valid(full)) return full;
+	let kept: Options = {};
+	for (const key of Object.keys(held).sort()) {
+		const next = { ...kept, [key]: held[key] };
+		if (valid(over(next))) kept = next;
+	}
+	return Object.keys(kept).length ? over(kept) : widget.options;
 }
 
 /** No keys and no options are one thing: missing, where the type allows it. */

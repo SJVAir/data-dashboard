@@ -159,6 +159,15 @@ describe("view mode", () => {
 		expect(changes.applyTo(doc).body.widgets[0].options).toEqual({ basemap: "a" });
 	});
 
+	it("only the held keys that fail are left out", () => {
+		const changes = new ViewerChanges();
+		changes.set("m", { basemap: "x", hiddenTypes: ["a", "a"] });
+		const widget = map({ clustered: false });
+		const expected = { clustered: false, basemap: "x" };
+		expect(tileOptions(view(changes), widget)).toEqual(expected);
+		expect(changes.applyTo(makeDoc([widget])).body.widgets[0].options).toEqual(expected);
+	});
+
 	it("applyTo puts the held keys on, keeping a Note", () => {
 		const changes = new ViewerChanges();
 		changes.set("m", { basemap: "x" });

@@ -80,14 +80,10 @@
 	// the visit on a read-only view. One stable object with getters, read once by each widget.
 	// A read-only "unkept" session (its tiles shown read-only) gets its own per session id.
 	const unkeptId = $derived(session?.readOnly === "unkept" ? session.doc.id : null);
-	const ownChangesFor = $derived(view ? "view" : unkeptId);
-	const ownChanges = $derived.by(() => {
-		void ownChangesFor;
-		return new ViewerChanges();
-	});
-	const shownChanges = $derived(
-		view ? (viewerChanges ?? ownChanges) : unkeptId ? ownChanges : null
-	);
+	// Made here only when the page passes none (a view) or for an unkept session.
+	const ownChangesFor = $derived(view ? (viewerChanges ? null : "view") : unkeptId);
+	const ownChanges = $derived(ownChangesFor ? new ViewerChanges() : null);
+	const shownChanges = $derived(view && viewerChanges ? viewerChanges : ownChanges);
 	const tileOptionsContext = {
 		get mode() {
 			return shownChanges ? "view" : "edit";
