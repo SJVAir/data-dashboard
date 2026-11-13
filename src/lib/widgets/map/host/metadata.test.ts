@@ -94,6 +94,50 @@ describe("mapMetadata toolbar reads", () => {
 		expect(await md().monitorTypeReports?.("purpleair", "o3")).toBe(false);
 	});
 
+	it("treats an unknown type or an unflagged entry as unavailable", async () => {
+		const m = mapMetadata(
+			stub({
+				monitorTypes: async () => [
+					{
+						type: "old",
+						label: "Old",
+						entryTypes: ["pm25"],
+						group: null,
+						published: [],
+						unflagged: ["pm25"]
+					}
+				]
+			})
+		);
+		expect(await m.monitorTypeReports?.("nope", "pm25")).toBe("unavailable");
+		expect(await m.monitorTypeReports?.("old", "pm25")).toBe("unavailable");
+		expect(await m.monitorTypeReports?.("old", "o3")).toBe(false);
+	});
+
+	it("gives [] for empty groups", async () => {
+		const m = mapMetadata(stub({ monitorGroups: async () => [] }));
+		expect(await m.monitorGroups?.()).toEqual([]);
+	});
+
+	it("rejects on abort and not otherwise", async () => {
+		const controller = new AbortController();
+		const thrower = async () => {
+			controller.abort();
+			throw new DOMException("aborted", "AbortError");
+		};
+		const m = mapMetadata(stub({ monitorTypes: thrower, locationTypeLabel: thrower }));
+		await expect(m.locationTypeLabel?.("x", controller.signal)).rejects.toThrow();
+		await expect(m.monitorTypeReports?.("purpleair", "pm25", controller.signal)).rejects.toThrow();
+		const quiet = mapMetadata(
+			stub({
+				monitorTypes: async () => {
+					throw new Error("offline");
+				}
+			})
+		);
+		expect(await quiet.monitorTypeReports?.("purpleair", "pm25")).toBe("unavailable");
+	});
+
 	it("gives air-quality help, unavailable for none or another dataset", async () => {
 		const m = md();
 		expect(await m.entryTypeHelp?.({ dataset: "air-quality", entryType: "pm25" })).toBe(

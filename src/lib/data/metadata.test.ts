@@ -476,14 +476,16 @@ describe("createWebMetadata", () => {
 				label: "PurpleAir",
 				entryTypes: ["pm25"],
 				group: "low-cost",
-				published: ["pm25"]
+				published: ["pm25"],
+				unflagged: []
 			},
 			{
 				type: "bam1022",
 				label: "BAM 1022",
 				entryTypes: ["pm25", "o3", "pm10"],
 				group: null,
-				published: ["pm25"]
+				published: ["pm25"],
+				unflagged: []
 			}
 		]);
 		expect(getMonitorsList).toHaveBeenCalledTimes(1);
@@ -509,6 +511,16 @@ describe("createWebMetadata", () => {
 	it("monitorGroups is [] when the meta has none", async () => {
 		vi.mocked(getMonitorsMeta).mockResolvedValue({ monitors: {}, entries: {} } as never);
 		expect(await createWebMetadata().monitorGroups()).toEqual([]);
+	});
+
+	it("flags entries without a published flag as unflagged", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			monitors: { old: { label: "Old", entries: { pm25: {}, o3: { published: false } } } },
+			entries: {}
+		} as never);
+		const [type] = await createWebMetadata().monitorTypes();
+		expect(type.published).toEqual([]);
+		expect(type.unflagged).toEqual(["pm25"]);
 	});
 
 	it("mapPollutants returns available_pollutants", async () => {

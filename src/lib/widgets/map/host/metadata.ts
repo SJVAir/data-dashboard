@@ -32,11 +32,7 @@ export function mapMetadata(source: MetadataSource): MetadataProvider {
 		return catalog.find((d) => d.id === dataset)?.entryTypes.find((e) => e.id === entryType);
 	};
 	provider = {
-		monitorGroups: (signal) =>
-			guarded(signal, async () => {
-				const groups = await source.monitorGroups(signal);
-				return groups.length ? groups : undefined;
-			}),
+		monitorGroups: (signal) => guarded(signal, () => source.monitorGroups(signal)),
 		monitorTypeGroup: (type, signal) =>
 			guarded(signal, async () => {
 				const [types, groups] = await Promise.all([
@@ -49,7 +45,9 @@ export function mapMetadata(source: MetadataSource): MetadataProvider {
 		monitorTypeReports: async (type, entryType, signal) => {
 			try {
 				const info = (await source.monitorTypes(signal)).find((t) => t.type === type);
-				return !!info && info.published.includes(entryType);
+				// An unknown type, or an entry without the flag (an older server's), is unknown.
+				if (!info || info.unflagged?.includes(entryType)) return UNAVAILABLE;
+				return info.published.includes(entryType);
 			} catch (error) {
 				if (signal?.aborted) throw error;
 				return UNAVAILABLE;

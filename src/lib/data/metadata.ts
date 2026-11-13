@@ -91,6 +91,8 @@ export type MonitorTypeInfo = {
 	group: string | null;
 	/** The entry types the map publishes for this type. */
 	published: string[];
+	/** Entry types the meta lists without a `published` flag (an older server's); unknown, not false. */
+	unflagged?: string[];
 };
 
 /** The summary field that colors a day, with its label; `label` is `null` when the server has none. */
@@ -439,6 +441,9 @@ export function createWebMetadata(): MetadataSource {
 				group: m.group ?? null,
 				published: Object.entries(m.entries ?? {})
 					.filter(([, entry]) => entry?.published === true)
+					.map(([id]) => id),
+				unflagged: Object.entries(m.entries ?? {})
+					.filter(([, entry]) => typeof entry?.published !== "boolean")
 					.map(([id]) => id)
 			}));
 		},
