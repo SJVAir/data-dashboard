@@ -36,6 +36,43 @@ function dataStatus(state: NowState<unknown>): DataStatus {
 		: { state: "ready" };
 }
 
+/** One source for the monitors plugin, reading the query's current state. */
+function monitorsSourceOf(d: MapData): DataSource<MonitorFeatureProperties> {
+	return {
+		get status(): DataStatus {
+			return d.monitorsCurrent ? dataStatus(d.monitorsState) : { state: "loading" };
+		},
+		get features() {
+			return !d.monitorsCurrent || d.monitorsData === undefined
+				? null
+				: (d.monitorsDrawn?.features ?? null);
+		},
+		get scale() {
+			return d.monitorsDrawn?.scale ?? null;
+		}
+	};
+}
+
+/** One source per smoke and fire plugin source, reading the query's current state. */
+function hmsSourceOf<P extends FireFeatureProperties>(
+	d: MapData,
+	key: "smoke" | "fireGroups" | "fireHotspots"
+): DataSource<P> {
+	return {
+		get status() {
+			return dataStatus(d.hmsState);
+		},
+		get features() {
+			return d.hmsState.data === undefined
+				? null
+				: (d.hmsDrawn[key].features as DataSource<P>["features"]);
+		},
+		get scale() {
+			return d.hmsDrawn[key].scale;
+		}
+	};
+}
+
 /**
  * The map widget's loaded data: the monitors (the pollutant showing's readings, limited by the
  * places) and smoke and fire. Its effects run in their own root; `destroy()` ends them and the
@@ -126,23 +163,10 @@ export class MapData {
 		this.monitorsQuery = new NowQuery<MonitorLatest[]>(deps.now);
 		this.hmsQuery = new NowQuery<HmsData>(deps.now);
 
-		const self = this;
-		this.monitorsSource = {
-			get status(): DataStatus {
-				return self.monitorsCurrent ? dataStatus(self.monitorsState) : { state: "loading" };
-			},
-			get features() {
-				return !self.monitorsCurrent || self.monitorsData === undefined
-					? null
-					: (self.monitorsDrawn?.features ?? null);
-			},
-			get scale() {
-				return self.monitorsDrawn?.scale ?? null;
-			}
-		};
-		this.smokeSource = this.#hmsSource("smoke");
-		this.fireSource = this.#hmsSource("fireGroups");
-		this.hotspotsSource = this.#hmsSource("fireHotspots");
+		this.monitorsSource = monitorsSourceOf(this);
+		this.smokeSource = hmsSourceOf(this, "smoke");
+		this.fireSource = hmsSourceOf(this, "fireGroups");
+		this.hotspotsSource = hmsSourceOf(this, "fireHotspots");
 
 		this.#stopEffects = $effect.root(() => {
 			this.#resolveMonitors();
@@ -173,25 +197,6 @@ export class MapData {
 		this.#stopEffects();
 		this.monitorsQuery.destroy();
 		this.hmsQuery.destroy();
-	}
-
-	#hmsSource<P extends FireFeatureProperties>(
-		key: "smoke" | "fireGroups" | "fireHotspots"
-	): DataSource<P> {
-		const self = this;
-		return {
-			get status() {
-				return dataStatus(self.hmsState);
-			},
-			get features() {
-				return self.hmsState.data === undefined
-					? null
-					: (self.hmsDrawn[key].features as DataSource<P>["features"]);
-			},
-			get scale() {
-				return self.hmsDrawn[key].scale;
-			}
-		};
 	}
 
 	#resolveMonitors(): void {

@@ -12,14 +12,7 @@
 		type FocusAreaPlugin,
 		type MapContext
 	} from "@sjvair/map-sdk";
-	import type {
-		DataSource,
-		DataStatus,
-		FireFeatureProperties,
-		MonitorFeatureProperties,
-		SpatialSelection
-	} from "@sjvair/map-sdk/data";
-	import type { MonitorLatest } from "@sjvair/sdk";
+	import type { SpatialSelection } from "@sjvair/map-sdk/data";
 	import { ancestorAnimationsSettled } from "$lib/charts/settled";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -27,11 +20,10 @@
 	import { LiveQuery } from "$lib/data/live-query.svelte";
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
-	import type { NowState } from "$lib/data/now/client";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
-	import { hasSmokeAndFire, HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
+	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { entryMeta, nowInput, placesLayer } from "../shared/input";
