@@ -1243,8 +1243,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **map-sdk: the pinned card covers what's under it.** _Deferred 2026-11-11 (map-sdk part 1,
   final review)._ The card (z-index 3, taking the pointer) can sit over list rows and controls and
   takes wheel zoom over itself. Closing it with focus inside can leave `tabindex="-1"` on the map
-  root. Why: that's what a pinned card does, and both are harmless. **Revisit with** map-sdk part 5,
-  the shared toolbar, which reworks what sits over the map.
+  root. Why: that's what a pinned card does, and both are harmless. Part 5's toolbar (`0.1.0-beta.13`)
+  sits above the card (its dropdowns and narrow panel), so the card no longer covers it. **Revisit**
+  on an accessibility pass of the map, or if users report the card in the way.
 - **map-sdk: a fire group pinned below zoom 10 stays pinned past it.** _Deferred 2026-11-11
   (map-sdk part 1, final review)._ HMS fire draws groups below zoom 10 and hotspots from it. A
   group's card pinned before zooming in stays after its layer stops drawing, until the next click
@@ -1271,13 +1272,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `DataSource`s, and no other host (monitor-map 5.0, mobile) draws schools. The schools preset
   documents the feature properties a host supplies. **Revisit if** monitor-map, mobile, or another
   host wants schools without its own data layer.
-- **map-sdk: map-sdk's dev `@sjvair/sdk` is `5.0.0-beta.3`.** _Deferred 2026-11-12 (map-sdk part
-  4)._ `5.0.0-beta.9` adds required `averaging_hours`, `daily_statistic` and `daily_statistic_label`
-  to the SDK's `Scale`, which map-sdk's public `Scale` follows, so moving is a breaking type change
-  for hosts that build scales. Meanwhile `beta.3`'s parser drops schools' `source`/`external_id`,
-  so map-sdk's demo fetches `/api/2.0/pesticides/locations/` itself (the library never fetches).
-  **Revisit when** map-sdk next needs a newer SDK type, or before 1.0 (decide whether map-sdk's
-  `Scale` follows the SDK's new fields).
 - **map-sdk: a focus point under a school, edge cases.** _Deferred 2026-11-12 (map-sdk part 4,
   reviews)._ The focus row is left out only while the school's badge is drawn at exactly the focus
   point's coordinates: a camera on a world copy (longitude past ±180), focus coordinates that lost
@@ -1292,12 +1286,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   per tile. Also, a points plugin's `drawnAt` doesn't guard against a point layer missing from the
   style (unreachable today: teardown runs before every style change). **Revisit when** the server
   adds a location type, or a host moves the focus point often.
-- **map-sdk: the child-care bubble count's contrast.** _Deferred 2026-11-12 (map-sdk part 4, final
-  review; the user chose bold)._ White 12px text on `#1c9099` is about 3.6:1; WCAG's 4.5:1 for
-  small text isn't met even bold (bold counts as large only from 14pt). The user picked a bold count
-  over a darker teal for the bubbles, after seeing both weights. **Now folded into map-sdk part 5**
-  (the user, 2026-11-12): darken the child-care color (and the school one with it, so they still
-  match) to pass 4.5:1; this entry goes when part 5 does that.
 - **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
   part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
   the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
@@ -1355,23 +1343,22 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   past 6.
 
 - **Shift-click on the Map also opens the reading card.** _Found 2026-11-12 (step 5 spec 2)._
-  `@sjvair/map-sdk` `0.1.0-beta.11` pins the card on every pick, but the spec says Shift-click
-  marks without opening it. The user decided 2026-11-12: folded into map-sdk part 5, no hotfix, and
-  spec 2 doesn't work around it. **Revisit when** it is fixed in map-sdk part 5 (`@sjvair/map-sdk`
-  `0.1.0-beta.13`); spec 3 adopts it, then asserts the card stays closed in `e2e/map.spec.ts`'s
-  Shift-click test.
+  Fixed in `@sjvair/map-sdk` `0.1.0-beta.13` ([map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29)):
+  a `pickWith: "modifier"` Shift-click marks without opening the card. Spec 3 adopts it: move to
+  `0.1.0-beta.13` and assert the card stays closed in `e2e/map.spec.ts`'s Shift-click test.
+  **Revisit with** step 5 spec 3, which removes this entry once adopted.
 
-- **map-sdk's spoken view summary goes stale.** _Found 2026-11-12 (step 5 spec 2)._ "PM2.5: 2
-  Good" isn't recalculated when a source's features change, only on view or selection changes, so
-  it can be wrong after a refresh or a place change that doesn't move the camera. The user decided
-  2026-11-12: folded into map-sdk part 5, no hotfix, and spec 2 doesn't work around it. **Revisit
-  when** it is fixed in map-sdk part 5 (`@sjvair/map-sdk` `0.1.0-beta.13`); spec 3 adopts it.
+- **map-sdk's spoken view summary goes stale.** _Found 2026-11-12 (step 5 spec 2)._ Fixed in
+  `@sjvair/map-sdk` `0.1.0-beta.13` ([map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29)):
+  the summary re-counts when a plugin's features change or a plugin is added or removed at a still
+  view. Spec 3 adopts it: check the summary updates after a refresh or a place change that doesn't
+  move the camera. **Revisit with** step 5 spec 3, which removes this entry once adopted.
 
 - **The hidden-marks note isn't in map-sdk's feature list.** _Found 2026-11-12 (step 5 spec 2)._
-  The list is named by `mapsdk_list_label`, so a screen-reader user hears the note once
-  (`role="status"`) and in the map's accessible name, not in the list. It needs a map-sdk list
-  description or footer slot. **Revisit with** map-sdk part 5 (the toolbar) or an accessibility
-  pass.
+  Fixed in `@sjvair/map-sdk` `0.1.0-beta.13` ([map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29)):
+  `featureList={{ note }}` shows a host note in the open list and describes the listbox. Spec 3
+  adopts it: put the "N marked monitors aren't shown" note there. **Revisit with** step 5 spec 3,
+  which removes this entry once adopted.
 
 - **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
   (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn
@@ -1784,8 +1771,20 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   "Deferrals"; recorded here 2026-11-12)._ The shared toolbar has two layouts, wide (joined
   dropdown buttons) and narrow (one options button and a panel), chosen by the map's width. A
   third layout between them, showing only the group icons, is left out. Why: two layouts are
-  simpler to get right. **Revisit when** a tile width shows the wide layout cramped or wrapping
-  badly (map-sdk part 5's screenshots are the first look).
+  simpler to get right. Part 5's screenshots (2026-11-13) showed all five groups fitting on an
+  ~800px map, just over 48rem, with no wrapping. **Revisit when** a tile width shows the wide
+  layout cramped or wrapping badly (long host labels, or more groups).
+- **map-sdk: toolbar edge cases left for later.** _Deferred 2026-11-13 (map-sdk part 5 reviews,
+  [map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29))._ A dropdown's height cap and side
+  are measured only when it opens (a resize while open leaves them stale); a tile with less than
+  about 12px below a trigger shows an empty dropdown; changing a group's `cluster` remounts it and
+  loses focus; pieces mounted while the narrow panel is open aren't made inert; a Reset can write
+  pollutant `"none"` when a host has no pollutants and no None row. Why: each is rare and
+  harmless. **Revisit if** a host hits one, or on an accessibility pass of the map.
+- **map-sdk: `basemap.resolve` and ids without a version.** _Deferred 2026-11-13 (map-sdk part 5
+  checkpoint review)._ A saved id is matched to its basemap by the id without `-v<n>`; an id with no
+  version at all goes to the default basemap rather than its own. MapTiler's ids all carry a
+  version today. **Revisit if** MapTiler adds unversioned style ids.
 - **map-sdk: no faint tint inside the focus area.** _Deferred 2026-11-11 (the same spec →
   "Deferrals"; recorded here 2026-11-12)._ sjvair.com's pesticides explorer tints the inside of
   its focus shape; map-sdk's focus area (part 3, `0.1.0-beta.11`) draws only the line, casing and
