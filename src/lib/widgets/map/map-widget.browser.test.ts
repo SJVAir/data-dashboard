@@ -71,12 +71,18 @@ vi.mock("@sjvair/map-sdk", async (original) => {
 		hmsOptions: sdk.hmsOptions,
 		focusAreaPlugin: (options: { id?: string }) => {
 			const focus = { geometry: null as unknown, label: undefined as string | undefined };
+			/** Every geometry set, in order. */
+			const history: unknown[] = [];
 			return {
 				id: options.id ?? "focus-area",
 				kind: "focus",
 				options,
 				focus,
-				set: (next: { geometry: unknown; label?: string }) => Object.assign(focus, next)
+				history,
+				set: (next: { geometry: unknown; label?: string }) => {
+					history.push(next.geometry);
+					Object.assign(focus, next);
+				}
 			};
 		},
 		monitorsPlugin: plugin("monitors"),
@@ -1412,4 +1418,99 @@ test("switching a type off leaves the camera where it is", async () => {
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	await new Promise((r) => setTimeout(r, 100));
 	expect(map.camera).toHaveLength(1);
+});
+
+/** Every geometry the map's focus area was set to, in order. */
+const focusHistory = (map: FakeMap) =>
+	(map.plugins.find((p) => p.id === "focus") as unknown as { history: unknown[] }).history;
+
+test("an options-only change (the same places) never clears the focus area", async () => {
+	const screen = await showLive(mapWidget(region("019")), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
+	const before = focusHistory(map).length;
+	// The same places looked up again resolve slowly: the outline must stay meanwhile.
+	vi.mocked(regionShapes).mockImplementation(() => new Promise(() => {}));
+	await screen
+		.getByRole("checkbox", { name: mapMessages("mapsdk_options_marker_clusters") })
+		.click();
+	await expect.poll(optionsOf).toEqual({ clustered: false });
+	// Another tab's (or a live link's) copy: the same places, in a new data object.
+	const session = app().current.session!;
+	const current = session.doc.body.widgets[0];
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: current.id },
+		from: current.data,
+		to: JSON.parse(JSON.stringify(current.data)),
+		options: { from: current.options, to: { clustered: true } }
+	});
+	await expect.poll(optionsOf).toEqual({ clustered: true });
+	await new Promise((r) => setTimeout(r, 100));
+	expect(focusHistory(map).slice(before)).not.toContain(null);
+	expect(focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
+	expect(map.camera).toHaveLength(1);
+});
+
+test("another tab's change sets the toolbar's values and applies nothing", async () => {
+	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
+	const widget = mapWidget(region("019"));
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	const session = app().current.session!;
+	const current = session.doc.body.widgets[0];
+	// As another tab's change arrives: straight into the session, not through the toolbar.
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: widget.id },
+		from: current.data,
+		to: current.data,
+		options: { from: current.options, to: { hiddenTypes: ["airnow"], clustered: false } }
+	});
+	const apply = vi.spyOn(session, "apply");
+	await expect.poll(() => fakeToolbars.last?.values["type:airnow"]).toBe(false);
+	expect(fakeToolbars.last?.values.clustered).toBe(false);
+	await expect.element(screen.getByRole("checkbox", { name: "airnow" })).not.toBeChecked();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(apply).not.toHaveBeenCalled();
+	expect(optionsOf()).toEqual({ hiddenTypes: ["airnow"], clustered: false });
+});
+
+test("a note shows over the loading skeleton", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([] as never);
+	const screen = await show(mapWidget(region("019")));
+	const map = await madeMap();
+	// Not ready: the skeleton covers the map.
+	expect(map.ready).toBe(false);
+	await expect.element(screen.getByText(m.map_no_monitors_here())).toBeVisible();
+	const note = screen.getByText(m.map_no_monitors_here()).element();
+	// The banner lets the pointer through; let it be hit, to see what paints on top.
+	note.closest<HTMLElement>("[data-map-note]")!.style.pointerEvents = "auto";
+	const box = note.getBoundingClientRect();
+	const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+	expect(note.contains(top)).toBe(true);
+	expect(getComputedStyle(frame.querySelector<HTMLElement>("[data-map-note]")!).top).toBe(
+		`${FAKE_TOOLBAR_HEIGHT}px`
+	);
+});
+
+test("no smoke and fire failure note while Fire & Smoke is off", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getHMSSmoke).mockRejectedValue(new Error("offline"));
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [], true),
+		options: { fireAndSmoke: false }
+	};
+	await show(widget);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => getHMSSmoke).toHaveBeenCalled();
+	await new Promise((r) => setTimeout(r, 50));
+	expect(frame.querySelector("[data-map-hms-note]")).toBeNull();
 });

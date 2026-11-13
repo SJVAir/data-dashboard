@@ -248,6 +248,8 @@
 	// Smoke and fire: today's, over the whole map, when on (the toolbar's switch hides them, their
 	// data still loading).
 	const smokeAndFire = $derived(data.smokeAndFire && shown.fireAndSmoke !== false);
+	/** Smoke and fire failed to load, while they're shown. */
+	const hmsFailed = $derived(data.hmsFailed && shown.fireAndSmoke !== false);
 	/** Marker clusters: the saved choice, else the preset's default. */
 	const clustered = $derived(shown.clustered ?? wiring.state?.presetDefaults.clustered !== false);
 	const smokeLabel = $derived(datasetLabel(HMS_SMOKE));
@@ -512,7 +514,37 @@
 {/snippet}
 
 {#snippet overlays()}
-	{#if note || noMonitors || data.monitorsRefreshFailed || data.hmsFailed}
+	{#if map}
+		<div
+			class="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-col items-start gap-1"
+		>
+			{#if narrow}
+				<Button
+					size="sm"
+					variant="outline"
+					class="pointer-events-auto"
+					aria-expanded={legendOpen}
+					onclick={() => (legendOpen = !legendOpen)}
+				>
+					{m.map_legend_toggle()}
+				</Button>
+			{/if}
+			{#if !narrow || legendOpen}
+				<div
+					class="bg-card text-card-foreground border-border shadow-card pointer-events-auto max-w-72 rounded-(--radius-control) border p-2 text-xs"
+				>
+					<Legend {map} framed={false} />
+				</div>
+			{/if}
+		</div>
+	{/if}
+	{#if map && (!map.ready || data.monitorsLoading)}
+		<!-- Over the map and its legend, under the notes (the toolbar and list stay usable). -->
+		<div class="bg-card absolute inset-0 p-2">
+			<WidgetSkeleton />
+		</div>
+	{/if}
+	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed}
 		<!-- A compact banner under the toolbar: the map stays usable, but for its buttons. -->
 		<div
 			class="pointer-events-none absolute inset-x-0 top-[var(--mapsdk-toolbar-height,0px)] flex flex-col gap-1 p-2"
@@ -555,7 +587,7 @@
 					</Button>
 				</div>
 			{/if}
-			{#if data.hmsFailed}
+			{#if hmsFailed}
 				<div
 					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
 					role="status"
@@ -570,30 +602,6 @@
 					>
 						{m.widget_state_retry()}
 					</Button>
-				</div>
-			{/if}
-		</div>
-	{/if}
-	{#if map}
-		<div
-			class="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-col items-start gap-1"
-		>
-			{#if narrow}
-				<Button
-					size="sm"
-					variant="outline"
-					class="pointer-events-auto"
-					aria-expanded={legendOpen}
-					onclick={() => (legendOpen = !legendOpen)}
-				>
-					{m.map_legend_toggle()}
-				</Button>
-			{/if}
-			{#if !narrow || legendOpen}
-				<div
-					class="bg-card text-card-foreground border-border shadow-card pointer-events-auto max-w-72 rounded-(--radius-control) border p-2 text-xs"
-				>
-					<Legend {map} framed={false} />
 				</div>
 			{/if}
 		</div>
@@ -638,10 +646,5 @@
 				{hidden.length ? m.map_marks_hidden(hiddenCount) : ""}
 			</p>
 		</div>
-		{#if !map.ready || data.monitorsLoading}
-			<div class="bg-card absolute inset-0 p-2">
-				<WidgetSkeleton />
-			</div>
-		{/if}
 	{/if}
 </div>

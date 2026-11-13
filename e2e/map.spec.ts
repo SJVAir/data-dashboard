@@ -4,7 +4,8 @@
  * shapes come from the API fixtures: Fresno County's outline, and four monitors with PM2.5
  * readings (Drummond Street and the Science Building, Good, in Fresno County; Porterville,
  * Moderate, just south of it in Tulare County; Bakersfield, Unhealthy for Sensitive Groups, well
- * south). A tile draws only its places' monitors: a region's come from the region-scoped readings
+ * south). The Science Building is inactive and indoors, so a Map draws it only once the toolbar's
+ * Inactive and Inside are on (both off by default). A tile draws only its places' monitors: a region's come from the region-scoped readings
  * (`e2e/map-data-server.ts`), monitor places' from the current list.
  *
  * What's on screen is read from map-sdk's summary line, which counts the monitors in view by level,
@@ -50,10 +51,12 @@ test.beforeAll(async ({ browser, browserName }) => {
 const FRESNO_MAP = "PM2.5 · Fresno County";
 const THREE_MAP = "PM2.5 · 3 places";
 /**
- * Drawn when the map shows Fresno County: its two monitors only (Porterville is in view, just
- * outside the county, but isn't drawn).
+ * Drawn when the map shows Fresno County: Drummond Street only (Porterville is in view, just
+ * outside the county, but isn't drawn; the Science Building is inactive and indoors).
  */
-const FRESNO_VIEW = "PM2.5: 2 Good";
+const FRESNO_VIEW = "PM2.5: 1 Good";
+/** Drawn when it shows Fresno County with Inactive and Inside on: its two monitors. */
+const FRESNO_ALL_VIEW = "PM2.5: 2 Good";
 /** Drawn when it shows Drummond Street, Porterville and Bakersfield: those three only. */
 const THREE_VIEW = "PM2.5: 1 Good, 1 Moderate, 1 Unhealthy for Sensitive Groups";
 /** In view when zoomed in twice on the county: Drummond Street only. */
@@ -185,6 +188,30 @@ test("the picker frames three monitors, and undo brings the region back", async 
 	await expect(inView(mapOf(page, FRESNO_MAP))).toHaveText(FRESNO_VIEW);
 });
 
+/**
+ * Turns the toolbar's Inactive and Inside on (the Monitors dropdown on a wide map, the Map
+ * Options panel on a narrow one), then closes it.
+ */
+async function showInactiveAndInside(map: Locator): Promise<void> {
+	const toolbar = map.getByRole("group", { name: "Map options", exact: true });
+	const open = toolbar.getByRole("button", { name: "Open map options", exact: true });
+	const monitors = toolbar.getByRole("button", { name: "Monitors", exact: true });
+	// The layout settles a frame after mount.
+	await expect(open.or(monitors).first()).toBeVisible();
+	const narrow = await open.isVisible();
+	if (narrow) {
+		await open.click();
+		await expect(open).toHaveAttribute("aria-expanded", "true");
+	}
+	// The Monitors dropdown, or the panel's Monitors section.
+	await monitors.click();
+	await expect(monitors).toHaveAttribute("aria-expanded", "true");
+	await toolbar.getByRole("checkbox", { name: "Inactive", exact: true }).check();
+	await toolbar.getByRole("checkbox", { name: "Inside", exact: true }).check();
+	await map.page().keyboard.press("Escape");
+	await expect(narrow ? open : monitors).toHaveAttribute("aria-expanded", "false");
+}
+
 /** Shows the Map fullscreen and waits until its GL map has grown into the bigger frame. */
 async function enterFullscreen(page: Page, map: Locator): Promise<Locator> {
 	const small = (await map.boundingBox())!;
@@ -214,6 +241,8 @@ test("fullscreen keeps the map", async ({ page }) => {
 
 test("fullscreen refits the map to its places, and so does leaving it", async ({ page }) => {
 	const map = await addMap(page);
+	await showInactiveAndInside(map);
+	await expect(inView(map)).toHaveText(FRESNO_ALL_VIEW);
 	/** Zoomed in on the county's middle, the view leaves the Science Building out. */
 	async function zoomIn(): Promise<void> {
 		const button = map.getByRole("button", { name: "Zoom in" });
@@ -226,12 +255,12 @@ test("fullscreen refits the map to its places, and so does leaving it", async ({
 	await zoomIn();
 
 	await enterFullscreen(page, map);
-	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+	await expect(inView(map)).toHaveText(FRESNO_ALL_VIEW);
 
 	await zoomIn();
 	await fullscreenFrame(page).getByRole("button", { name: "Exit fullscreen" }).click();
 	await expect(fullscreenFrame(page)).toHaveCount(0);
-	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+	await expect(inView(map)).toHaveText(FRESNO_ALL_VIEW);
 });
 
 test.describe("on a touch screen", () => {
@@ -372,7 +401,9 @@ test("a region tile shows its focus area and only its region's monitors", async 
 		})
 		.toBeGreaterThan(0.05);
 
-	// Only the county's two monitors are listed, not Porterville, which is in view just south of it.
+	// Only the county's two monitors are listed, not Porterville, which is in view just south of it
+	// (the Science Building once Inactive and Inside are on).
+	await showInactiveAndInside(map);
 	const list = await featureList(map);
 	await expect(list.getByRole("option")).toHaveText([
 		/Fresno - Drummond Street/,
