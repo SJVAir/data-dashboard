@@ -1,6 +1,6 @@
 import type { OptionValues } from "@sjvair/map-sdk";
 import type { MonitorFeatureProperties } from "@sjvair/map-sdk/data";
-import type { FeatureCollection, Point } from "geojson";
+import type { FeatureCollection, Geometry } from "geojson";
 import { MAP_TOOLBAR_KEYS, type MapOptions } from "../options";
 
 /** What the tile's data offers the toolbar. */
@@ -108,7 +108,7 @@ export function groupsShown(
 }
 
 /** The monitors left after the filters (other fields kept; `null` stays `null`). */
-export function filterMonitors<T extends FeatureCollection<Point, MonitorFeatureProperties>>(
+export function filterMonitors<T extends FeatureCollection<Geometry, MonitorFeatureProperties>>(
 	features: T | null,
 	filters: MonitorFilters
 ): T | null {

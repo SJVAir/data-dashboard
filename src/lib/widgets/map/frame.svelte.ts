@@ -26,6 +26,7 @@ const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortEr
  * can't be completed still holds what's known (its pin, its monitors), so the map still draws.
  */
 export class MapFrame {
+	/** The places' frame; null while a new one resolves. */
 	frame = $state.raw<Frame | null>(null);
 	shapes = $state.raw<Map<string, Feature>>(noShapes());
 	state = $state.raw<FrameState>("idle");
@@ -66,6 +67,9 @@ export class MapFrame {
 			this.#set(frame, noShapes(), frame.focus === "none" ? "idle" : "ready");
 			return;
 		}
+		// The old places' frame is gone while the new one resolves (no stale outline; with no
+		// target, the camera stays where it is).
+		this.frame = null;
 		this.state = "loading";
 		this.#resolve(frame, needs, signal).then(
 			({ frame, shapes, state }) => {

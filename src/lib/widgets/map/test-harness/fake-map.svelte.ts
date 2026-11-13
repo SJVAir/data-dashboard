@@ -6,6 +6,8 @@ import {
 	type SelectionMode,
 	type SpatialSelection
 } from "@sjvair/map-sdk/data";
+import type { OptionGroup, OptionValues } from "@sjvair/map-sdk";
+import { mapMessages } from "../host/messages";
 /**
  * A stand-in for map-sdk's `createMap` in browser tests (no WebGL, no MapTiler): it records the
  * plugins, selections and camera moves a widget asks for, and its `ready` is set by the test.
@@ -36,6 +38,23 @@ export class FakeGl {
 	}
 }
 
+const ENTRY_LABELS: Record<string, string> = { pm25: "PM2.5", o3: "Ozone" };
+
+export class FakeBasemap {
+	readonly styles = [
+		{ id: "streets-v4", basemap: "Streets", isDefault: true },
+		{ id: "satellite", basemap: "Satellite" }
+	];
+	readonly defaultId = "streets-v4";
+	current = $state("streets-v4");
+	/** Every `select` call, in order. */
+	selected: string[] = [];
+	select(id: string) {
+		this.selected.push(id);
+		this.current = id;
+	}
+}
+
 export class FakeMap {
 	#ready = $state(false);
 	/** Attached to a GL map. Set by the test; setting `ready` attaches too (map-sdk: ready implies attached). */
@@ -61,7 +80,19 @@ export class FakeMap {
 	destroyed = false;
 	/** What the last MapView showing this map was given. */
 	view = $state.raw<Record<string, unknown>>({});
-	messages = (key: string) => key;
+	/** The host's messages, as `createMap` was given them. */
+	messages = mapMessages;
+	/** The metadata the toolbar's presets ask: labels only (every type reports every pollutant). */
+	metadata = {
+		entryType: async ({ entryType }: { entryType: string }) => ({
+			label: ENTRY_LABELS[entryType] ?? entryType,
+			units: ""
+		}),
+		monitorTypeLabel: async (type: string) => type,
+		scale: async () => "unavailable"
+	};
+	/** map-sdk's basemap state: two basemaps, the first the default; `select` is recorded. */
+	basemap = new FakeBasemap();
 
 	addPlugin(plugin: FakePlugin, options?: Record<string, unknown>) {
 		if (this.plugins.some((p) => p.id === plugin.id)) throw new Error(`duplicate ${plugin.id}`);
@@ -140,6 +171,23 @@ export class FakeMap {
 		this.destroyed = true;
 	}
 }
+
+/** The `--mapsdk-toolbar-height` the fake MapView sets when it has a toolbar. */
+export const FAKE_TOOLBAR_HEIGHT = 44;
+
+/** What the last fake `OptionsToolbar` was given. */
+export const fakeToolbars = {
+	last: null as null | {
+		groups: OptionGroup[];
+		values: OptionValues;
+		defaults?: OptionValues;
+		basemapKey?: string;
+		readonly?: boolean;
+	},
+	reset() {
+		this.last = null;
+	}
+};
 
 export const fakeMaps = {
 	made: [] as FakeMap[],

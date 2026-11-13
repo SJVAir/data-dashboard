@@ -8,6 +8,7 @@
 		Legend,
 		MapView,
 		monitorsPlugin,
+		OptionsToolbar,
 		type CardContext,
 		type FocusAreaPlugin,
 		type MapContext
@@ -27,6 +28,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { entryMeta, nowInput, placesLayer } from "../shared/input";
+	import { useTileOptions } from "../shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -42,8 +44,10 @@
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
 	import { canMark, hiddenMarks, marksChange, sameIds } from "./marks";
-	import { MAP_MARKS_MAX, drawableShowing, mapOptions, pollutantLayers } from "./options";
+	import { MAP_MARKS_MAX, mapOptions, pollutantLayers } from "./options";
 	import { monitorIds, monitorPositions } from "./sources";
+	import { MapToolbar } from "./toolbar/toolbar.svelte";
+	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
 
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
 	const app = useApp();
@@ -74,26 +78,47 @@
 
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
 	const layer = $derived(placesLayer(widget.data, known));
+	/** A dataset's name from the catalog (smoke and fire's layer labels). */
+	const datasetLabel = (id: string) => known?.find((d) => d.id === id)?.label;
+
+	// The toolbar: the options it shows (a viewer's held keys over the saved ones), its changes,
+	// and the filters it puts on the monitors. Its presets are made with the map.
+	let toolbar = $state.raw<MapToolbar | null>(null);
+	const tileOptionsContext = useTileOptions();
+	const wiring: MapToolbarWiring = new MapToolbarWiring({
+		get widget() {
+			return widget;
+		},
+		tileOptions: tileOptionsContext,
+		get catalog() {
+			return known;
+		},
+		get drawable() {
+			return Array.isArray(pollutants) ? pollutants : undefined;
+		},
+		get monitors(): MapToolbarWiringInput["monitors"] {
+			return data.monitorsDrawn?.features ?? null;
+		},
+		get smokeAndFireNamed() {
+			return !!datasetLabel(HMS_SMOKE) && !!datasetLabel(HMS_FIRE);
+		},
+		get toolbar() {
+			return toolbar;
+		}
+	});
+	/** The options the tile shows (a viewer's held keys over the saved ones). */
+	const shown = $derived(wiring.options);
 	/**
 	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
 	 * first layer pollutant it does. Never saved back into the options.
 	 */
-	const entryType = $derived(
-		drawableShowing(
-			widget.data,
-			mapOptions(widget),
-			known,
-			Array.isArray(pollutants) ? pollutants : undefined
-		)
-	);
+	const entryType: string | undefined = $derived(wiring.drawn);
 	const entryLabel = $derived(
 		entryMeta(
 			known,
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
 		)?.entryType.label
 	);
-	/** A dataset's name from the catalog (smoke and fire's layer labels). */
-	const datasetLabel = (id: string) => known?.find((d) => d.id === id)?.label;
 	const idle = $derived(
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
 	);
@@ -146,6 +171,7 @@
 				const focus = focusAreaPlugin({ id: "focus", layerLabel: m.map_layer_places() });
 				created.addPlugin(focus);
 				focusArea = focus;
+				toolbar = new MapToolbar(created);
 				return created;
 			} catch (error) {
 				return { error };
@@ -160,6 +186,7 @@
 		return () => {
 			made.destroy();
 			focusArea = null;
+			toolbar = null;
 			map = null;
 		};
 	});
@@ -178,20 +205,51 @@
 		mapTries++;
 	}
 
-	// The focus area: the places' outline, or the pin, set again on each change of frame.
+	// The focus area: the places' outline, or the pin, set again on each change of frame; none
+	// while new places resolve.
 	$effect(() => {
 		const plugin = focusArea;
 		const current = frame.frame;
-		if (!plugin || !current) return;
-		plugin.set({ geometry: focusGeometry(current, frame.shapes), label: pinLabel });
+		if (!plugin) return;
+		if (!current) plugin.set({ geometry: null });
+		else plugin.set({ geometry: focusGeometry(current, frame.shapes), label: pinLabel });
 	});
 
-	const data = new MapData(() => ({ widget, layer, entryType, loads }), { now: getNowClient() });
+	// The basemap the options name (undo, another tab and a viewer's Reset follow too).
+	$effect(() => {
+		const current = map;
+		const id = shown.basemap;
+		if (!current) return;
+		untrack(() => current.basemap.select(id ?? current.basemap.defaultId));
+	});
+
+	// The input's fields are getters, each read on its own.
+	const dataInput = {
+		get widget() {
+			return widget;
+		},
+		get layer() {
+			return layer;
+		},
+		get entryType(): string | undefined {
+			return entryType;
+		},
+		get loads() {
+			return loads;
+		},
+		get filters() {
+			return wiring.filters;
+		}
+	};
+	const data: MapData = new MapData(() => dataInput, { now: getNowClient() });
 	onDestroy(() => data.destroy());
 	const { monitorsSource, smokeSource, fireSource, hotspotsSource } = data;
 
-	// Smoke and fire: today's, over the whole map, when on.
-	const smokeAndFire = $derived(data.smokeAndFire);
+	// Smoke and fire: today's, over the whole map, when on (the toolbar's switch hides them, their
+	// data still loading).
+	const smokeAndFire = $derived(data.smokeAndFire && shown.fireAndSmoke !== false);
+	/** Marker clusters: the saved choice, else the preset's default. */
+	const clustered = $derived(shown.clustered ?? wiring.state?.presetDefaults.clustered !== false);
 	const smokeLabel = $derived(datasetLabel(HMS_SMOKE));
 	const fireLabel = $derived(datasetLabel(HMS_FIRE));
 
@@ -225,10 +283,16 @@
 		const current = map;
 		const label = entryLabel;
 		const selectionMode = markable ? "multiple" : "none";
+		const clusters = clustered;
 		if (!current || !label || !loads) return;
 		untrack(() =>
 			current.addPlugin(
-				monitorsPlugin({ source: monitorsSource, layerLabel: label, selectedStyle: "ring" }),
+				monitorsPlugin({
+					source: monitorsSource,
+					layerLabel: label,
+					selectedStyle: "ring",
+					clustered: clusters
+				}),
 				{
 					selectionMode,
 					pickWith: "modifier",
@@ -286,7 +350,7 @@
 	let body = $state<HTMLDivElement>();
 	const positions = $derived(
 		frame.frame?.focus === "monitor"
-			? monitorPositions(monitorsSource.features, frame.frame.monitors)
+			? monitorPositions(data.monitorsLoaded, frame.frame.monitors)
 			: new Map<string, [number, number]>()
 	);
 	const target = $derived(frame.frame ? fitTarget(frame.frame, frame.shapes, positions) : null);
@@ -435,7 +499,81 @@
 	{/if}
 {/snippet}
 
+{#snippet toolbarSlot()}
+	{#if wiring.state}
+		<OptionsToolbar
+			groups={wiring.state.groups}
+			values={wiring.state.values}
+			defaults={wiring.state.defaults}
+			basemapKey="basemap"
+			onchange={wiring.onchange}
+		/>
+	{/if}
+{/snippet}
+
 {#snippet overlays()}
+	{#if note || noMonitors || data.monitorsRefreshFailed || data.hmsFailed}
+		<!-- A compact banner under the toolbar: the map stays usable, but for its buttons. -->
+		<div
+			class="pointer-events-none absolute inset-x-0 top-[var(--mapsdk-toolbar-height,0px)] flex flex-col gap-1 p-2"
+			data-map-note
+		>
+			{#if note}
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 [&_button]:pointer-events-auto"
+				>
+					<WidgetState
+						state={note}
+						{widget}
+						onretry={retry}
+						onchoose={() => openPlacePicker({ widgetId: widget.id })}
+						children={nothing}
+					/>
+				</div>
+			{:else if noMonitors}
+				<p
+					class="bg-card text-muted-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 text-center text-sm"
+					role="status"
+				>
+					{m.map_no_monitors_here()}
+				</p>
+			{/if}
+			{#if data.monitorsRefreshFailed}
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+					role="status"
+					data-map-refresh-note
+				>
+					<p class="text-muted-foreground">{m.map_refresh_failed()}</p>
+					<Button
+						size="sm"
+						variant="outline"
+						class="pointer-events-auto"
+						onclick={() => data.retryMonitors()}
+					>
+						{m.widget_state_retry()}
+					</Button>
+				</div>
+			{/if}
+			{#if data.hmsFailed}
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+					role="status"
+					data-map-hms-note
+				>
+					<p class="text-muted-foreground">{m.map_smoke_fire_failed()}</p>
+					<Button
+						size="sm"
+						variant="outline"
+						class="pointer-events-auto"
+						onclick={() => data.retryHms()}
+					>
+						{m.widget_state_retry()}
+					</Button>
+				</div>
+			{/if}
+		</div>
+	{/if}
 	{#if map}
 		<div
 			class="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-col items-start gap-1"
@@ -488,6 +626,7 @@
 					selectionBar={false}
 					tooltip="pointer"
 					card={{ actions: cardActions }}
+					toolbar={toolbarSlot}
 					{overlays}
 				/>
 			</svelte:boundary>
@@ -502,68 +641,6 @@
 		{#if !map.ready || data.monitorsLoading}
 			<div class="bg-card absolute inset-0 p-2">
 				<WidgetSkeleton />
-			</div>
-		{/if}
-		{#if note || noMonitors || data.monitorsRefreshFailed || data.hmsFailed}
-			<!-- A compact banner over the map's top: the map stays usable, but for its buttons. -->
-			<div
-				class="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-1 p-2"
-				data-map-note
-			>
-				{#if note}
-					<div
-						class="bg-card text-card-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 [&_button]:pointer-events-auto"
-					>
-						<WidgetState
-							state={note}
-							{widget}
-							onretry={retry}
-							onchoose={() => openPlacePicker({ widgetId: widget.id })}
-							children={nothing}
-						/>
-					</div>
-				{:else if noMonitors}
-					<p
-						class="bg-card text-muted-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 text-center text-sm"
-						role="status"
-					>
-						{m.map_no_monitors_here()}
-					</p>
-				{/if}
-				{#if data.monitorsRefreshFailed}
-					<div
-						class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
-						role="status"
-						data-map-refresh-note
-					>
-						<p class="text-muted-foreground">{m.map_refresh_failed()}</p>
-						<Button
-							size="sm"
-							variant="outline"
-							class="pointer-events-auto"
-							onclick={() => data.retryMonitors()}
-						>
-							{m.widget_state_retry()}
-						</Button>
-					</div>
-				{/if}
-				{#if data.hmsFailed}
-					<div
-						class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
-						role="status"
-						data-map-hms-note
-					>
-						<p class="text-muted-foreground">{m.map_smoke_fire_failed()}</p>
-						<Button
-							size="sm"
-							variant="outline"
-							class="pointer-events-auto"
-							onclick={() => data.retryHms()}
-						>
-							{m.widget_state_retry()}
-						</Button>
-					</div>
-				{/if}
 			</div>
 		{/if}
 	{/if}

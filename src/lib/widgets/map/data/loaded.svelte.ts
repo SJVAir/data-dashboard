@@ -13,6 +13,7 @@ import type { UnavailableReason } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { hasSmokeAndFire } from "$lib/get-data/map";
 import { mapMessages } from "../host/messages";
+import { filterMonitors, type MonitorFilters } from "../toolbar/values";
 import { hmsEntry, type HmsData } from "./hms";
 import { monitorsEntry } from "./monitors";
 
@@ -24,6 +25,8 @@ export type MapDataInput = {
 	entryType: string | undefined;
 	/** Whether the tile loads its data: a map is (or will be) drawn. */
 	loads: boolean;
+	/** What the drawn monitors are filtered by (the toolbar's); null filters nothing. */
+	filters: MonitorFilters | null;
 };
 
 /**
@@ -43,9 +46,7 @@ function monitorsSourceOf(d: MapData): DataSource<MonitorFeatureProperties> {
 			return d.monitorsCurrent ? dataStatus(d.monitorsState) : { state: "loading" };
 		},
 		get features() {
-			return !d.monitorsCurrent || d.monitorsData === undefined
-				? null
-				: (d.monitorsDrawn?.features ?? null);
+			return d.monitorsShown;
 		},
 		get scale() {
 			return d.monitorsDrawn?.scale ?? null;
@@ -76,7 +77,8 @@ function hmsSourceOf<P extends FireFeatureProperties>(
 /**
  * The map widget's loaded data: the monitors (the pollutant showing's readings, limited by the
  * places) and smoke and fire. Its effects run in their own root; `destroy()` ends them and the
- * queries.
+ * queries. Give the input as an object of getters, so each field is read on its own (the filters
+ * follow the loaded monitors: reading them with the places would be a cycle).
  */
 export class MapData {
 	readonly monitorsQuery: NowQuery<MonitorLatest[]>;
@@ -119,6 +121,23 @@ export class MapData {
 			messages: mapMessages,
 			entryType: type
 		}).monitors;
+	});
+	/**
+	 * The monitors loaded for the places and pollutant wanted now, before the toolbar's filters;
+	 * null until they load. Like `monitorsDrawn`, unfiltered ("no monitors here" isn't "all
+	 * filtered out", and the camera doesn't follow the filters).
+	 */
+	readonly monitorsLoaded = $derived(
+		!this.monitorsCurrent || this.monitorsData === undefined
+			? null
+			: (this.monitorsDrawn?.features ?? null)
+	);
+	readonly #filters = $derived.by(() => this.#getInput().filters);
+	/** The monitors drawn: those loaded, after the toolbar's filters. */
+	readonly monitorsShown = $derived.by(() => {
+		const features = this.monitorsLoaded;
+		const filters = this.#filters;
+		return filters ? filterMonitors(features, filters) : features;
 	});
 	/** One source for the monitors plugin, reading the query's current state. */
 	readonly monitorsSource: DataSource<MonitorFeatureProperties>;

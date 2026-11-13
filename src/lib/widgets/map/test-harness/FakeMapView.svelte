@@ -2,13 +2,14 @@
 	import type { Snippet } from "svelte";
 	import type { CardContext } from "@sjvair/map-sdk";
 	import { decodeRef, selectionKeys } from "@sjvair/map-sdk/data";
-	import { fakeMaps, type FakeMap } from "./fake-map.svelte";
+	import { FAKE_TOOLBAR_HEIGHT, fakeMaps, type FakeMap } from "./fake-map.svelte";
 
 	let {
 		map,
 		active = true,
 		label,
 		overlays,
+		toolbar,
 		featureList,
 		selectionBar,
 		tooltip,
@@ -19,6 +20,7 @@
 		active?: boolean;
 		label?: string;
 		overlays?: Snippet;
+		toolbar?: Snippet;
 		featureList?: unknown;
 		selectionBar?: boolean;
 		tooltip?: string;
@@ -69,10 +71,17 @@
 	aria-label={label ?? "Map"}
 	data-fake-map={map.uid}
 	data-active={active}
+	style:position="relative"
+	style:--mapsdk-toolbar-height={toolbar ? `${FAKE_TOOLBAR_HEIGHT}px` : undefined}
 	onclick={() => {
 		if (card) map.pinned = { hit: { pluginId: "monitors", refKey: "monitor:a", name: "a" } };
 	}}
 >
+	{#if toolbar}
+		<!-- A click on the toolbar never reaches the map (pins no card). -->
+		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+		<div data-fake-toolbar-slot onclick={(e) => e.stopPropagation()}>{@render toolbar()}</div>
+	{/if}
 	{@render overlays?.()}
 </div>
 {#if cardContext && actions}
