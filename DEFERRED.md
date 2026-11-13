@@ -1797,7 +1797,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   run other reference monitors) and is every BAM's `device` fallback in the monitor API. Why held:
   those side effects. **Fix when wanted:** a separate public label read only by
   `/api/2.0/monitors/meta/`, leaving `verbose_name` alone. **Revisit when** SJVAir branding for
-  BAMs is wanted on the map or the dashboard.
+  BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
+  Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
+  spec): a known difference from 4.3 for the parity review.
 
 ## Widgets
 
