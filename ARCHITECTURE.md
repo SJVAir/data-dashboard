@@ -2006,7 +2006,8 @@ for the data that tile holds.
   made while building, 2026-11-13). A monitor place, or a hand-picked monitors selection, is
   always drawn, even when inactive, indoors or of a type switched off: the Inactive and Inside
   defaults and the type switches hide incidental monitors around a place, never one the owner
-  chose. So such a monitor is never "hidden by the map's options" in the hidden-marks note.
+  chose, and the toolbar offers no filter rows for them, since they can't be filtered (the user,
+  2026-11-13). So such a monitor is never "hidden by the map's options" in the hidden-marks note.
 - **No per-field fallback for invalid options** (changed while planning, 2026-11-13): the document
   schema already rejects any invalid Map options (`DashboardBodySchema`'s refine), so such a
   dashboard opens read-only and a per-field fallback could never run. A missing or invalid
