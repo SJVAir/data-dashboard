@@ -134,7 +134,7 @@ export class MapData {
 	);
 	readonly #filters = $derived.by(() => this.#getInput().filters);
 	/** The monitors that are the tile's own places: the filters never hide them. */
-	readonly #exempt = $derived.by(() => {
+	readonly exempt = $derived.by(() => {
 		// Keyed by the places, so a new layer object with the same places changes nothing.
 		void this.#placesKey;
 		return untrack(() => placeMonitors(this.#getInput().layer));
@@ -143,7 +143,7 @@ export class MapData {
 	readonly monitorsShown = $derived.by(() => {
 		const features = this.monitorsLoaded;
 		const filters = this.#filters;
-		return filters ? filterMonitors(features, filters, this.#exempt) : features;
+		return filters ? filterMonitors(features, filters, this.exempt) : features;
 	});
 	/** One source for the monitors plugin, reading the query's current state. */
 	readonly monitorsSource: DataSource<MonitorFeatureProperties>;

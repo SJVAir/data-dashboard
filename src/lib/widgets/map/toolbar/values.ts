@@ -121,6 +121,16 @@ export function placeMonitors(
 }
 
 /**
+ * Whether the monitor `refKey` names is one of the tile's own (`exempt`): never filtered, and
+ * the toolbar offers no filter rows for it.
+ */
+export function isExempt(refKey: string, exempt: ReadonlySet<string>): boolean {
+	if (exempt.size === 0) return false;
+	const ref = decodeRef(refKey);
+	return ref?.kind === "monitor" && exempt.has(ref.id);
+}
+
+/**
  * The monitors left after the filters (other fields kept; `null` stays `null`). The `exempt`
  * monitors (the tile's own places) are always kept: the filters hide incidental monitors around
  * a place, never one the owner chose.
@@ -131,16 +141,11 @@ export function filterMonitors<T extends FeatureCollection<Geometry, MonitorFeat
 	exempt: ReadonlySet<string> = new Set()
 ): T | null {
 	if (!features) return null;
-	const own = (refKey: string) => {
-		if (exempt.size === 0) return false;
-		const ref = decodeRef(refKey);
-		return ref?.kind === "monitor" && exempt.has(ref.id);
-	};
 	return {
 		...features,
 		features: features.features.filter((f) => {
 			const p = f.properties;
-			if (own(p.refKey)) return true;
+			if (isExempt(p.refKey, exempt)) return true;
 			if (filters.hiddenTypes.has(p.type)) return false;
 			if (filters.hideInactive && p.isActive === false) return false;
 			if (filters.hideInside && p.location === "inside") return false;

@@ -1535,15 +1535,15 @@ test("Get data's preview shows the toolbar read-only: its rows are disabled and 
 	expect(optionsOf()).toBeUndefined();
 });
 
-test("the toolbar's filters never hide the tile's own monitors", async () => {
-	// A monitor place whose monitor is indoors: drawn with the defaults (Inside off).
+test("the toolbar's filters never hide the tile's own monitors, and offer no rows for them", async () => {
+	// A monitor place whose monitor is indoors: drawn with the defaults, and no Monitors group
+	// (its rows couldn't filter it).
 	vi.mocked(getMonitors).mockResolvedValue([{ ...reading("a"), location: "inside" }] as never);
 	const first = await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
 	let map = await madeMap();
 	map.ready = true;
-	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toContain("monitors");
-	expect(fakeToolbars.last?.values.inside).toBe(false);
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toEqual(["settings"]);
 	await first.unmount();
 
 	// Hand-picked monitors, one inactive and one of a hidden type: both drawn.
@@ -1558,8 +1558,8 @@ test("the toolbar's filters never hide the tile's own monitors", async () => {
 	});
 	map = await madeMap();
 	map.ready = true;
-	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toContain("monitors");
 	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toEqual(["settings"]);
 	// The marked one is drawn, so no "hidden by the options" line.
 	await new Promise((r) => setTimeout(r, 50));
 	expect(frame.querySelector("[data-map-marks-hidden]")?.textContent?.trim()).toBe("");
@@ -1602,7 +1602,8 @@ test("switching a type off leaves the camera where it is", async () => {
 		reading("a", -120, 36),
 		{ ...reading("b", -119, 37), type: "airnow" }
 	] as never);
-	// A region's monitors (hand-picked ones are never filtered).
+	// A region's monitors. That the camera uses the unfiltered monitors is guaranteed by
+	// construction under ruling 3: the monitors it fits to (a tile's own) are never filtered.
 	const screen = await showLive(mapWidget(region("019")), editing());
 	const map = await madeMap();
 	map.ready = true;

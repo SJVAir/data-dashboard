@@ -110,6 +110,9 @@
 		get monitors(): MapToolbarWiringInput["monitors"] {
 			return data.monitorsDrawn?.features ?? null;
 		},
+		get exempt() {
+			return data.exempt;
+		},
 		get smokeAndFireNamed() {
 			return !!datasetLabel(HMS_SMOKE) && !!datasetLabel(HMS_FIRE);
 		},

@@ -19,7 +19,7 @@ import {
 	type MapOptions
 } from "../options";
 import type { MapToolbar, MapToolbarBuild } from "./toolbar.svelte";
-import { activeFilters, toOptions, type MapOffer, type MonitorFilters } from "./values";
+import { activeFilters, isExempt, toOptions, type MapOffer, type MonitorFilters } from "./values";
 
 /** What the wiring reads from the widget: an object of getters, each read on its own. */
 export type MapToolbarWiringInput = {
@@ -30,6 +30,8 @@ export type MapToolbarWiringInput = {
 	readonly drawable: readonly string[] | undefined;
 	/** The loaded monitors for the pollutant drawn, before the toolbar's filters. */
 	readonly monitors: FeatureCollection<Geometry, MonitorFeatureProperties> | null;
+	/** The tile's own monitors (its places): never filtered, so they offer no filter rows. */
+	readonly exempt: ReadonlySet<string>;
 	/** Whether the catalog names both smoke and fire (their rows' and layers' labels). */
 	readonly smokeAndFireNamed: boolean;
 	/** The map's toolbar presets; null until the map is made. */
@@ -100,7 +102,11 @@ export class MapToolbarWiring {
 		const pollutants = pollutantLayers(widget.data, catalog).flatMap((l) =>
 			l.entryType && drawable?.includes(l.entryType) ? [l.entryType] : []
 		);
-		const features = this.#in.monitors?.features ?? [];
+		// Only the monitors a filter could hide give the Monitors group its rows.
+		const exempt = this.#in.exempt;
+		const features = (this.#in.monitors?.features ?? []).filter(
+			(f) => !isExempt(f.properties.refKey, exempt)
+		);
 		const offer: MapOffer = {
 			pollutants: unique(pollutants),
 			types: unique(features.map((f) => f.properties.type)),
