@@ -32,6 +32,17 @@ export const WidgetInstanceSchema = z.object({
 });
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>;
 
+/**
+ * Whether `options` are valid for a widget of `type`: a Note's must parse (they're required), a
+ * Map's must parse when present, and other types' aren't checked here.
+ */
+export function widgetOptionsValid(type: string, options: unknown): boolean {
+	if (type === NOTE_TYPE) return NoteOptionsSchema.safeParse(options).success;
+	if (type === MAP_TYPE)
+		return options === undefined || MapOptionsSchema.safeParse(options).success;
+	return true;
+}
+
 export const DashboardBodySchema = z
 	.object({
 		widgets: z.array(WidgetInstanceSchema),
@@ -44,20 +55,10 @@ export const DashboardBodySchema = z
 	})
 	.superRefine((b, ctx) => {
 		b.widgets.forEach((w, i) => {
-			if (w.type === NOTE_TYPE && !NoteOptionsSchema.safeParse(w.options).success)
+			if (!widgetOptionsValid(w.type, w.options))
 				ctx.addIssue({
 					code: "custom",
-					message: "Invalid note options",
-					path: ["widgets", i, "options"]
-				});
-			if (
-				w.type === MAP_TYPE &&
-				w.options !== undefined &&
-				!MapOptionsSchema.safeParse(w.options).success
-			)
-				ctx.addIssue({
-					code: "custom",
-					message: "Invalid map options",
+					message: w.type === NOTE_TYPE ? "Invalid note options" : "Invalid map options",
 					path: ["widgets", i, "options"]
 				});
 		});

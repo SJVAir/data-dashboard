@@ -43,14 +43,26 @@ const regions: RegionResolver = {
 function directory() {
 	const metadata = fixtureMetadata({
 		monitors: async () => [
-			{ id: "a", name: "Zed", type: "purpleair", county: "Fresno", active: true },
-			{ id: "b", name: "Amy", type: "purpleair", county: "", active: false },
-			{ id: "c", name: "Bob", type: "airnow", county: "Kern", active: true },
-			{ id: "d", name: "Cat", type: "purpleair", county: "Kern", active: true }
+			{ id: "a", name: "Zed", type: "purpleair", county: "Fresno", active: true, inside: false },
+			{ id: "b", name: "Amy", type: "purpleair", county: "", active: false, inside: false },
+			{ id: "c", name: "Bob", type: "airnow", county: "Kern", active: true, inside: false },
+			{ id: "d", name: "Cat", type: "purpleair", county: "Kern", active: true, inside: false }
 		],
 		monitorTypes: async () => [
-			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25"] },
-			{ type: "airnow", label: "AirNow", entryTypes: ["pm25", "o3"] }
+			{
+				type: "purpleair",
+				label: "PurpleAir",
+				entryTypes: ["pm25"],
+				group: null,
+				published: ["pm25"]
+			},
+			{
+				type: "airnow",
+				label: "AirNow",
+				entryTypes: ["pm25", "o3"],
+				group: null,
+				published: ["pm25", "o3"]
+			}
 		]
 	});
 	return createPlaceDirectory({ metadata, regions });

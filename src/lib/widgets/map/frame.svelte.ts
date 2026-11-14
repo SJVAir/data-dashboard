@@ -18,6 +18,10 @@ export type FrameState =
 /** No shapes. The frame's maps are replaced whole (`$state.raw`), never changed in place. */
 const noShapes = (): Map<string, Feature> => new Map();
 
+/** A layer's places, as a key (another tab's copy of the same places is the same key). */
+const placesKey = (layer: Layer | undefined) =>
+	JSON.stringify([layer?.place ?? null, layer?.selection ?? null]);
+
 const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
 
 /**
@@ -26,11 +30,14 @@ const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortEr
  * can't be completed still holds what's known (its pin, its monitors), so the map still draws.
  */
 export class MapFrame {
+	/** The places' frame; null while a new one resolves. */
 	frame = $state.raw<Frame | null>(null);
 	shapes = $state.raw<Map<string, Feature>>(noShapes());
 	state = $state.raw<FrameState>("idle");
 	#tries = $state(0);
 	#stop: () => void;
+	/** The places `frame` was made for. */
+	#frameFor: string | null = null;
 
 	constructor(layer: () => Layer | undefined) {
 		this.#stop = $effect.root(() => {
@@ -53,27 +60,35 @@ export class MapFrame {
 		this.#tries++;
 	}
 
-	#set(frame: Frame, shapes: Map<string, Feature>, state: FrameState) {
+	#set(key: string, frame: Frame, shapes: Map<string, Feature>, state: FrameState) {
+		this.#frameFor = key;
 		this.frame = frame;
 		this.shapes = shapes;
 		this.state = state;
 	}
 
 	#load(layer: Layer | undefined, signal: AbortSignal) {
+		const key = placesKey(layer);
 		const { needs, ...rest } = frameOf(layer);
 		const frame: Frame = { ...rest, regions: [], pin: null };
 		if (needs.length === 0) {
-			this.#set(frame, noShapes(), frame.focus === "none" ? "idle" : "ready");
+			this.#set(key, frame, noShapes(), frame.focus === "none" ? "idle" : "ready");
 			return;
+		}
+		// Other places' frame is gone while the new one resolves (no stale outline; with no
+		// target, the camera stays where it is). The same places keep theirs meanwhile.
+		if (key !== this.#frameFor) {
+			this.frame = null;
+			this.#frameFor = null;
 		}
 		this.state = "loading";
 		this.#resolve(frame, needs, signal).then(
 			({ frame, shapes, state }) => {
-				if (!signal.aborted) this.#set(frame, shapes, state);
+				if (!signal.aborted) this.#set(key, frame, shapes, state);
 			},
 			(error: unknown) => {
 				if (signal.aborted || isAbort(error)) return;
-				this.#set(frame, noShapes(), { error });
+				this.#set(key, frame, noShapes(), { error });
 			}
 		);
 	}

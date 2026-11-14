@@ -1,0 +1,304 @@
+import { untrack } from "svelte";
+import type {
+	DataSource,
+	DataStatus,
+	FireFeatureProperties,
+	MonitorFeatureProperties
+} from "@sjvair/map-sdk/data";
+import type { MonitorLatest } from "@sjvair/sdk";
+import type { NowClient, NowState } from "$lib/data/now/client";
+import { NowQuery } from "$lib/data/now/now-query.svelte";
+import type { Layer } from "$lib/data/schema";
+import type { UnavailableReason } from "$lib/data/types";
+import type { WidgetInstance } from "$lib/documents/schema";
+import { hasSmokeAndFire } from "$lib/get-data/map";
+import { mapMessages } from "../host/messages";
+import { filterMonitors, placeMonitors, type MonitorFilters } from "../toolbar/values";
+import { hmsEntry, type HmsData } from "./hms";
+import { monitorsEntry } from "./monitors";
+
+/** What the data blocks read from the widget, each time they run. */
+export type MapDataInput = {
+	widget: WidgetInstance;
+	layer: Layer | undefined;
+	/** The pollutant drawn now. */
+	entryType: string | undefined;
+	/** Whether the tile loads its data: a map is (or will be) drawn. */
+	loads: boolean;
+	/** What the drawn monitors are filtered by (the toolbar's); null filters nothing. */
+	filters: MonitorFilters | null;
+};
+
+/**
+ * A now state as map-sdk's data status. Errors are the widget's to show (its error state or
+ * its notes, each with one Retry), so map-sdk never sees one: held data reads as ready.
+ */
+function dataStatus(state: NowState<unknown>): DataStatus {
+	return state.data === undefined && state.status !== "error"
+		? { state: "loading" }
+		: { state: "ready" };
+}
+
+/** One source for the monitors plugin, reading the query's current state. */
+function monitorsSourceOf(d: MapData): DataSource<MonitorFeatureProperties> {
+	return {
+		get status(): DataStatus {
+			return d.monitorsCurrent ? dataStatus(d.monitorsState) : { state: "loading" };
+		},
+		get features() {
+			return d.monitorsShown;
+		},
+		get scale() {
+			return d.monitorsDrawn?.scale ?? null;
+		}
+	};
+}
+
+/** One source per smoke and fire plugin source, reading the query's current state. */
+function hmsSourceOf<P extends FireFeatureProperties>(
+	d: MapData,
+	key: "smoke" | "fireGroups" | "fireHotspots"
+): DataSource<P> {
+	return {
+		get status() {
+			return dataStatus(d.hmsState);
+		},
+		get features() {
+			return d.hmsState.data === undefined
+				? null
+				: (d.hmsDrawn[key].features as DataSource<P>["features"]);
+		},
+		get scale() {
+			return d.hmsDrawn[key].scale;
+		}
+	};
+}
+
+/**
+ * The map widget's loaded data: the monitors (the pollutant showing's readings, limited by the
+ * places) and smoke and fire. Its effects run in their own root; `destroy()` ends them and the
+ * queries. Give the input as an object of getters, so each field is read on its own (the filters
+ * follow the loaded monitors: reading them with the places would be a cycle).
+ */
+export class MapData {
+	readonly monitorsQuery: NowQuery<MonitorLatest[]>;
+	readonly hmsQuery: NowQuery<HmsData>;
+
+	#getInput: () => MapDataInput;
+	#stopEffects: () => void;
+
+	/** The pollutant the monitors query loads (the readings' scale). */
+	#monitorsFor = $state<string | undefined>();
+	/** Why the places can't be scoped to monitors, if they can't. */
+	#monitorsUnavailable = $state.raw<UnavailableReason | null>(null);
+	/** What the monitors query was resolved for; while it isn't `wantedKey`, its data is stale. */
+	#resolvedFor = $state<string | null>(null);
+
+	/** The places, as a key: the monitors' scope is resolved again only when they change. */
+	readonly #placesKey = $derived.by(() => {
+		const layer = this.#getInput().layer;
+		return layer ? JSON.stringify([layer.place ?? null, layer.selection ?? null]) : "";
+	});
+	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
+	readonly #entryType = $derived.by(() => this.#getInput().entryType);
+	readonly #loads = $derived.by(() => this.#getInput().loads);
+	/** What the monitors are wanted for now: the places and the pollutant showing. */
+	readonly #wantedKey = $derived(`${this.#placesKey}|${this.#entryType ?? ""}`);
+
+	/**
+	 * Whether the query is for the places and pollutant wanted now. After a change, until the new
+	 * scope resolves, the old readings are neither drawn nor counted.
+	 */
+	readonly monitorsCurrent = $derived(this.#resolvedFor === this.#wantedKey);
+	readonly monitorsState = $derived.by(() => this.monitorsQuery.state);
+	readonly monitorsData = $derived(this.monitorsState.data);
+	/** The monitors as map-sdk data; before they load, with no features but the scale. */
+	readonly monitorsDrawn = $derived.by(() => {
+		const entryType = this.#entryType;
+		const type = this.monitorsCurrent ? (this.#monitorsFor ?? entryType) : entryType;
+		if (!type) return null;
+		return monitorsEntry.toDataSources(this.monitorsData ?? [], {
+			messages: mapMessages,
+			entryType: type
+		}).monitors;
+	});
+	/**
+	 * The monitors loaded for the places and pollutant wanted now, before the toolbar's filters;
+	 * null until they load. Like `monitorsDrawn`, unfiltered ("no monitors here" isn't "all
+	 * filtered out", and the camera doesn't follow the filters).
+	 */
+	readonly monitorsLoaded = $derived(
+		!this.monitorsCurrent || this.monitorsData === undefined
+			? null
+			: (this.monitorsDrawn?.features ?? null)
+	);
+	readonly #filters = $derived.by(() => this.#getInput().filters);
+	/** The monitors that are the tile's own places: the filters never hide them. */
+	readonly exempt = $derived.by(() => {
+		// Keyed by the places, so a new layer object with the same places changes nothing.
+		void this.#placesKey;
+		return untrack(() => placeMonitors(this.#getInput().layer));
+	});
+	/** The monitors drawn: those loaded, after the toolbar's filters (the places' own kept). */
+	readonly monitorsShown = $derived.by(() => {
+		const features = this.monitorsLoaded;
+		const filters = this.#filters;
+		return filters ? filterMonitors(features, filters, this.exempt) : features;
+	});
+	/** One source for the monitors plugin, reading the query's current state. */
+	readonly monitorsSource: DataSource<MonitorFeatureProperties>;
+	/** Loading the monitors for the first time (the skeleton shows over the map). */
+	readonly monitorsLoading = $derived(
+		this.#loads &&
+			!this.#monitorsUnavailable &&
+			this.monitorsData === undefined &&
+			this.monitorsState.status !== "error"
+	);
+	/** A refresh failed: the earlier readings stay drawn, with a note and Retry. */
+	readonly monitorsRefreshFailed = $derived(
+		this.monitorsCurrent && this.monitorsState.status === "error" && this.monitorsData !== undefined
+	);
+	/** A monitor place the loaded readings don't list (retired, say): the map still draws. */
+	readonly unlisted = $derived.by(() => {
+		const place = this.#getInput().layer?.place;
+		const state = this.monitorsState;
+		if (!this.monitorsCurrent || state.status !== "ready" || place?.kind !== "monitor") {
+			return false;
+		}
+		return !state.data.some((reading) => reading.id === place.id);
+	});
+
+	/** Whether smoke and fire are on. */
+	readonly smokeAndFire = $derived.by(() => hasSmokeAndFire(this.#getInput().widget.data));
+	readonly hmsState = $derived.by(() => this.hmsQuery.state);
+	/** Smoke and fire as map-sdk data; before they load, with no features but the scales. */
+	readonly hmsDrawn = $derived(
+		hmsEntry.toDataSources(this.hmsState.data ?? { smoke: [], fires: [] }, {
+			messages: mapMessages,
+			entryType: this.#entryType ?? ""
+		})
+	);
+	readonly smokeSource: DataSource<FireFeatureProperties>;
+	readonly fireSource: DataSource<FireFeatureProperties>;
+	readonly hotspotsSource: DataSource<FireFeatureProperties>;
+	readonly hmsFailed = $derived(this.hmsState.status === "error");
+
+	constructor(getInput: () => MapDataInput, deps: { now: NowClient }) {
+		this.#getInput = getInput;
+		this.monitorsQuery = new NowQuery<MonitorLatest[]>(deps.now);
+		this.hmsQuery = new NowQuery<HmsData>(deps.now);
+
+		this.monitorsSource = monitorsSourceOf(this);
+		this.smokeSource = hmsSourceOf(this, "smoke");
+		this.fireSource = hmsSourceOf(this, "fireGroups");
+		this.hotspotsSource = hmsSourceOf(this, "fireHotspots");
+
+		this.#stopEffects = $effect.root(() => {
+			this.#resolveMonitors();
+			this.#resolveHms();
+		});
+	}
+
+	/** Why the places can't be scoped to monitors, if they can't. */
+	get monitorsUnavailable(): UnavailableReason | null {
+		return this.#monitorsUnavailable;
+	}
+
+	/** Polls the live data only while the map is worth drawing. */
+	setPolling(on: boolean): void {
+		this.monitorsQuery.setPolling(on);
+		this.hmsQuery.setPolling(on);
+	}
+
+	retryMonitors(): void {
+		this.monitorsQuery.retry();
+	}
+
+	retryHms(): void {
+		this.hmsQuery.retry();
+	}
+
+	destroy(): void {
+		this.#stopEffects();
+		this.monitorsQuery.destroy();
+		this.hmsQuery.destroy();
+	}
+
+	#resolveMonitors(): void {
+		$effect(() => {
+			const wanted = this.#wantedKey;
+			const type = this.#entryType;
+			const loads = this.#loads;
+			const widget = untrack(() => this.#getInput().widget);
+			if (!loads || !type) {
+				this.#monitorsUnavailable = null;
+				this.monitorsQuery.set(null);
+				return;
+			}
+			const data = untrack(() => $state.snapshot(widget.data));
+			let cancelled = false;
+			const abort = new AbortController();
+			const resolve = (signal?: AbortSignal) =>
+				monitorsEntry.source({ data, entryType: type }, signal);
+			resolve(abort.signal).then(
+				(source) => {
+					if (cancelled) return;
+					this.#monitorsUnavailable = source && "unavailable" in source ? source.unavailable : null;
+					this.#monitorsFor = type;
+					this.#resolvedFor = wanted;
+					this.monitorsQuery.set(source && "fetch" in source ? source : null);
+				},
+				(error: unknown) => {
+					if (cancelled) return;
+					this.#monitorsUnavailable = null;
+					this.#monitorsFor = type;
+					this.#resolvedFor = wanted;
+					// The scope couldn't be resolved: keyed by widget (never by the places), and Retry
+					// resolves it again before fetching.
+					let failedOnce = false;
+					this.monitorsQuery.set({
+						key: `map-monitors:unresolved:${widget.id}`,
+						cadence: "raw",
+						fetch: async (signal) => {
+							// The first fetch reports the failure that got us here; later ones try again.
+							if (!failedOnce) {
+								failedOnce = true;
+								throw error;
+							}
+							const source = await resolve(signal);
+							if (!source || "unavailable" in source) {
+								this.#monitorsUnavailable = source?.unavailable ?? null;
+								return [];
+							}
+							return source.fetch(signal);
+						}
+					});
+				}
+			);
+			return () => {
+				cancelled = true;
+				abort.abort();
+			};
+		});
+	}
+
+	#resolveHms(): void {
+		$effect(() => {
+			if (!this.#loads || !this.smokeAndFire) {
+				this.hmsQuery.set(null);
+				return;
+			}
+			const input = untrack(() => ({
+				data: $state.snapshot(this.#getInput().widget.data),
+				entryType: this.#entryType ?? ""
+			}));
+			let cancelled = false;
+			void hmsEntry.source(input).then((source) => {
+				if (!cancelled) this.hmsQuery.set(source && "fetch" in source ? source : null);
+			});
+			return () => {
+				cancelled = true;
+			};
+		});
+	}
+}

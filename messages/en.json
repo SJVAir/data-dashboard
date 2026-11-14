@@ -686,6 +686,7 @@
 	"chart_overlay_failed": "Couldn't load {layer}.",
 	"chart_strip_axis": "{label} ({unit})",
 	"label_join": "{first} · {second}",
+	"sentence_join": "{first}. {second}",
 	"chart_strip_station": "{station} ({distance} mi away)",
 	"chart_strip_value": "{layer}: {value}",
 	"chart_whole_period": "Total for all of {period}",
@@ -1178,21 +1179,7 @@
 	"map_pin_shared_location": "Shared location",
 	"map_legend_toggle": "Legend",
 	"map_label": "{title} map",
-	"map_label_marks_hidden": [
-		{
-			"declarations": [
-				"input title",
-				"input count",
-				"input countValue",
-				"local countPlural = countValue: plural"
-			],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "{title} map. {count} marked monitor isn't shown",
-				"countPlural=other": "{title} map. {count} marked monitors aren't shown"
-			}
-		}
-	],
+	"map_label_marks_hidden": "{title} map. {notes}",
 	"map_layer_places": "Places",
 	"map_no_monitors_here": "No monitors here report this pollutant right now.",
 	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
@@ -1211,11 +1198,23 @@
 	],
 	"map_marks_hidden": [
 		{
-			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input reason",
+				"input pollutant",
+				"input count",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["reason", "countPlural"],
 			"match": {
-				"countPlural=one": "{count} marked monitor isn't shown",
-				"countPlural=other": "{count} marked monitors aren't shown"
+				"reason=pollutant, countPlural=one": "{count} marked monitor doesn't report {pollutant}",
+				"reason=pollutant, countPlural=other": "{count} marked monitors don't report {pollutant}",
+				"reason=options, countPlural=one": "{count} marked monitor is hidden by the map's options",
+				"reason=options, countPlural=other": "{count} marked monitors are hidden by the map's options",
+				"reason=places, countPlural=one": "{count} marked monitor is outside this map's places",
+				"reason=places, countPlural=other": "{count} marked monitors are outside this map's places",
+				"reason=unknown, countPlural=one": "{count} marked monitor isn't shown",
+				"reason=unknown, countPlural=other": "{count} marked monitors aren't shown"
 			}
 		}
 	],
@@ -1339,5 +1338,29 @@
 	"mapsdk_collocation_interval_avg": "({interval} avg)",
 	"mapsdk_collocation_updated": "Last updated {when}",
 	"mapsdk_card_close": "Close",
+	"mapsdk_location_type_unknown": "Location",
+	"mapsdk_school_address": "{address}, {city}",
+	"mapsdk_school_district": "District: {district}",
+	"mapsdk_school_grades": "Grades: {grades}",
+	"mapsdk_schools_cluster_line": "{type}: {count}",
+	"mapsdk_schools_legend_school": "School",
+	"mapsdk_options_toolbar_label": "Map options",
+	"mapsdk_options_open": "Open map options",
+	"mapsdk_options_close": "Close map options",
+	"mapsdk_options_title": "Map Options",
+	"mapsdk_options_monitors": "Monitors",
+	"mapsdk_options_layers": "Layers",
+	"mapsdk_options_overlays": "Overlays",
+	"mapsdk_options_settings": "Settings",
+	"mapsdk_options_inactive": "Inactive",
+	"mapsdk_options_inside": "Inside",
+	"mapsdk_options_collocation_sites": "Collocation Sites",
+	"mapsdk_options_fire_smoke": "Fire & Smoke",
+	"mapsdk_options_schools": "Schools & Child Care",
+	"mapsdk_options_marker_clusters": "Marker Clusters",
+	"mapsdk_options_basemap": "Basemap",
+	"mapsdk_options_theme": "Theme",
+	"mapsdk_options_reset": "Reset Map Options",
+	"mapsdk_options_none": "None",
 	"time_zone_label": "PT"
 }

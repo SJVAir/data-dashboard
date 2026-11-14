@@ -103,11 +103,31 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 		schoolGuidelines: async () => null,
 		scaleSource: async () => null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,
-		monitors: async () => FIXTURE_MONITORS.map((m) => ({ ...m, county: "Fresno", active: true })),
+		monitors: async () =>
+			FIXTURE_MONITORS.map((m) => ({ ...m, county: "Fresno", active: true, inside: false })),
 		monitorTypes: async () => [
-			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25", "pm100"] },
-			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25"] }
+			{
+				type: "purpleair",
+				label: "PurpleAir",
+				entryTypes: ["pm25", "pm100"],
+				group: "low-cost",
+				published: ["pm25", "pm100"]
+			},
+			{
+				type: "bam1022",
+				label: "BAM 1022",
+				entryTypes: ["pm25"],
+				group: "reference",
+				published: ["pm25"]
+			}
 		],
+		monitorGroups: async () => [
+			{ key: "reference", label: "Reference-grade", order: 0 },
+			{ key: "low-cost", label: "Low-cost sensors", order: 1 }
+		],
+		entryTypeHelp: async (entryType) =>
+			entryType === "pm25" ? "Fine particles from smoke, dust, and vehicle exhaust." : null,
+		locationTypeLabel: async (type) => (type === "child_care" ? "Child care" : null),
 		...overrides
 	};
 }

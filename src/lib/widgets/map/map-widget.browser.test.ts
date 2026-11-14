@@ -21,19 +21,36 @@ import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory"
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import {
+	TILE_OPTIONS_KEY,
+	ViewerChanges,
+	type TileOptionsContext
+} from "../shared/tile-options.svelte";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import { mapConfig } from "./host/config";
+import { mapMessages } from "./host/messages";
 import { mapOptions } from "./options";
 import { regionShapes } from "./regions";
-import { FakeGl, fakeMaps, type FakeMap } from "./test-harness/fake-map.svelte";
+import {
+	FAKE_TOOLBAR_HEIGHT,
+	FakeGl,
+	fakeMaps,
+	fakeToolbars,
+	type FakeMap
+} from "./test-harness/fake-map.svelte";
+import Preview from "$lib/get-data/Preview.svelte";
+import { registerWidgetType } from "../registry";
+import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
-vi.mock("@sjvair/map-sdk", async () => {
+vi.mock("@sjvair/map-sdk", async (original) => {
+	const sdk = await original<typeof import("@sjvair/map-sdk")>();
 	const { createFakeMap } = await import("./test-harness/fake-map.svelte");
 	const { default: MapView } = await import("./test-harness/FakeMapView.svelte");
 	const { default: Legend } = await import("./test-harness/FakeLegend.svelte");
+	const { default: OptionsToolbar } = await import("./test-harness/FakeOptionsToolbar.svelte");
 	const plugin = (kind: string) => (options: { id?: string }) => ({
 		id: options.id ?? kind,
 		kind,
@@ -50,14 +67,25 @@ vi.mock("@sjvair/map-sdk", async () => {
 		createMap: createFakeMap,
 		MapView,
 		Legend,
+		OptionsToolbar,
+		// The real presets, over the fake map's metadata and basemaps.
+		monitorsOptions: sdk.monitorsOptions,
+		settingsGroup: sdk.settingsGroup,
+		hmsOptions: sdk.hmsOptions,
 		focusAreaPlugin: (options: { id?: string }) => {
 			const focus = { geometry: null as unknown, label: undefined as string | undefined };
+			/** Every geometry set, in order. */
+			const history: unknown[] = [];
 			return {
 				id: options.id ?? "focus-area",
 				kind: "focus",
 				options,
 				focus,
-				set: (next: { geometry: unknown; label?: string }) => Object.assign(focus, next)
+				history,
+				set: (next: { geometry: unknown; label?: string }) => {
+					history.push(next.geometry);
+					Object.assign(focus, next);
+				}
 			};
 		},
 		monitorsPlugin: plugin("monitors"),
@@ -198,6 +226,7 @@ const app = () => shownApp;
 beforeEach(async () => {
 	await page.viewport(1280, 800);
 	fakeMaps.reset();
+	fakeToolbars.reset();
 	nowClient = createNowClient();
 	vi.mocked(getNowClient).mockReturnValue(nowClient);
 	vi.mocked(getMonitors).mockResolvedValue([] as never);
@@ -263,15 +292,24 @@ async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	});
 }
 
-/** Shows the Map as the session's document holds it, following its changes (undo, redo). */
-async function showLive(widget: WidgetInstance) {
+/**
+ * Shows the Map as the session's document holds it, following its changes (undo, redo); with
+ * `tileOptions`, its toolbar's changes go there (the grid's context).
+ */
+async function showLive(widget: WidgetInstance, tileOptions?: TileOptionsContext) {
 	await openSession(widget);
 	return render(SessionMap, {
 		target: frame,
 		props: { widgetId: widget.id },
-		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, shownApp]])
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, shownApp],
+			...(tileOptions ? [[TILE_OPTIONS_KEY, tileOptions] as const] : [])
+		])
 	});
 }
+
+/** The grid's context on an editable dashboard: changes go to the app's current session. */
+const editing = (): TileOptionsContext => ({ mode: "edit", session: () => app().current.session });
 
 /** An app with a dashboard holding `widget`, open in an editable session. */
 async function openSession(widget: WidgetInstance) {
@@ -1031,7 +1069,37 @@ test("refuses a 26th mark with the limit message, counting hidden marks", async 
 	expect(marksOf()).toEqual(marks);
 });
 
+/** Metadata that lists monitors "a" (PurpleAir, PM2.5 only), "b" (AirNow, reports ozone) and "c" (AirNow). */
+async function listedMonitors(): Promise<void> {
+	const { getMetadata } = await import("$lib/data");
+	const types = (type: string, published: string[]) => ({
+		type,
+		label: type,
+		entryTypes: published,
+		group: null,
+		published
+	});
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({
+			catalog: async () => CATALOG,
+			monitors: async () =>
+				[
+					{ id: "a", type: "purpleair" },
+					{ id: "b", type: "airnow" },
+					{ id: "c", type: "airnow" }
+				].map((x) => ({ ...x, name: x.id, county: "Fresno", active: true, inside: false })),
+			monitorTypes: async () => [types("purpleair", ["pm25"]), types("airnow", ["pm25", "o3"])]
+		})
+	);
+}
+
+const hiddenLines = () =>
+	[...frame.querySelectorAll("[data-map-marks-hidden] > span")].map((e) => e.textContent?.trim());
+const reasonLine = (reason: "pollutant" | "options" | "places" | "unknown", n = 1) =>
+	m.map_marks_hidden({ reason, pollutant: "Ozone", count: String(n), countValue: n });
+
 test("keeps marks when the pollutant showing changes, and counts the hidden ones", async () => {
+	await listedMonitors();
 	vi.mocked(getMonitors).mockImplementation(
 		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
 	);
@@ -1054,12 +1122,13 @@ test("keeps marks when the pollutant showing changes, and counts the hidden ones
 		options: { from: current().options, to: { showing: "o3", marks: ["a", "b"] } }
 	});
 	await expect.poll(() => drawn(map)).toEqual(["b"]);
-	const one = { count: "1", countValue: 1 };
-	await expect.poll(hiddenNote).toBe(m.map_marks_hidden(one));
+	await expect.poll(hiddenNote).toBe(reasonLine("pollutant"));
 	expect(frame.querySelector("[data-map-marks-hidden]")!.getAttribute("role")).toBe("status");
 	await expect
 		.poll(() => map.view.label)
-		.toBe(m.map_label_marks_hidden({ title: "Ozone · Fresno County", ...one }));
+		.toBe(
+			m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes: reasonLine("pollutant") })
+		);
 	expect(marksOf()).toEqual(["a", "b"]);
 	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a", "b"] });
 	session.undo();
@@ -1067,11 +1136,37 @@ test("keeps marks when the pollutant showing changes, and counts the hidden ones
 	await expect.poll(hiddenNote).toBe("");
 });
 
+test("gives each reason its own line, in order, in the list note and the map's name", async () => {
+	await listedMonitors();
+	vi.mocked(getMonitors).mockImplementation(
+		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
+	);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [{ entryType: "o3" }]),
+		options: { showing: "o3", marks: ["a", "c", "zz"] }
+	};
+	await showLive(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["b"]);
+	const lines = [reasonLine("pollutant"), reasonLine("places"), reasonLine("unknown")];
+	await expect.poll(hiddenLines).toEqual(lines);
+	const notes = m.sentence_join({
+		first: m.sentence_join({ first: lines[0], second: lines[1] }),
+		second: lines[2]
+	});
+	await expect
+		.poll(() => map.view.label)
+		.toBe(m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes }));
+	expect((map.view.featureList as { note?: string }).note).toBe(notes);
+});
+
 test("keeps marks when the places change, and undo shows them again", async () => {
 	vi.mocked(getMonitors).mockImplementation(
 		async (_type, options) =>
 			(options?.region?.[0] === "r019" ? [reading("a"), reading("b")] : [reading("c")]) as never
 	);
+	await listedMonitors();
 	const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
 	await showLive(widget);
 	const map = await madeMap();
@@ -1084,7 +1179,7 @@ test("keeps marks when the places change, and undo shows them again", async () =
 		to: mapWidget(region("029")).data
 	});
 	await expect.poll(() => drawn(map)).toEqual(["c"]);
-	await expect.poll(hiddenNote).toBe(m.map_marks_hidden({ count: "1", countValue: 1 }));
+	await expect.poll(hiddenNote).toBe(reasonLine("places"));
 	expect(marksOf()).toEqual(["a"]);
 	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a"] });
 	session.undo();
@@ -1194,4 +1289,423 @@ test("shows no buttons on smoke, fire or the focus pin", async () => {
 	// A monitor's card does show Select.
 	pin(map, "monitor:a");
 	await expect.element(screen.getByRole("button", { name: m.map_mark_select() })).toBeVisible();
+});
+
+/** The options the current session's document holds for its first widget. */
+const optionsOf = () => app().current.session!.doc.body.widgets[0].options;
+const pluginIds = (map: FakeMap) => map.plugins.map((p) => p.id);
+/** Two monitors: "a" a PurpleAir, "b" an AirNow. */
+const twoTypes = () => [reading("a"), { ...reading("b"), type: "airnow" }];
+
+test("the toolbar's pollutant is saved with undo, and its radio follows undo", async () => {
+	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
+	const widget = { ...mapWidget({}), data: layers(region("019"), [{ entryType: "o3" }]) };
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	const session = app().current.session!;
+	const apply = vi.spyOn(session, "apply");
+	await screen.getByRole("radio", { name: "Ozone" }).click();
+	await expect.poll(optionsOf).toEqual({ showing: "o3" });
+	await expect.poll(() => drawn(map)).toEqual(["o3"]);
+	session.undo();
+	await expect.element(screen.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	expect(optionsOf()).toBeUndefined();
+	// Undo set the toolbar's values: no change of its own.
+	await new Promise((r) => setTimeout(r, 50));
+	expect(apply).toHaveBeenCalledTimes(1);
+});
+
+test("Fire & Smoke off removes the smoke and fire layers, and on adds them again", async () => {
+	const widget = { ...mapWidget({}), data: layers(region("019"), [], true) };
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "hms-smoke", "hms-fire", "monitors"]);
+	const box = screen.getByRole("checkbox", { name: mapMessages("mapsdk_options_fire_smoke") });
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(optionsOf()).toEqual({ fireAndSmoke: false });
+	// Their data keeps loading (switching back on draws at once).
+	const hms = () => nowClient.entries().find((e) => e.key.startsWith("map-hms"));
+	expect(hms()?.subscribers ?? 0).toBeGreaterThan(0);
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "hms-smoke", "hms-fire", "monitors"]);
+	expect(optionsOf()).toBeUndefined();
+});
+
+test("switching a type off hides its monitors; with only that type, they draw", async () => {
+	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
+	const screen = await showLive(mapWidget(region("019")), editing());
+	let map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	await screen.getByRole("checkbox", { name: "purpleair" }).click();
+	await expect.poll(() => drawn(map)).toEqual(["b"]);
+	expect(optionsOf()).toEqual({ hiddenTypes: ["purpleair"] });
+	await screen.unmount();
+
+	// Only PurpleAirs here: no Monitors group, so the saved switch filters nothing.
+	fakeMaps.reset();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await showLive(
+		{ ...mapWidget(region("029")), options: { hiddenTypes: ["purpleair"] } },
+		editing()
+	);
+	map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(fakeToolbars.last?.groups.map((g) => g.id)).not.toContain("monitors");
+});
+
+test("the toolbar's clusters and basemap drive the map, and Reset removes every toolbar key", async () => {
+	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [{ entryType: "o3" }], true),
+		options: {
+			showing: "o3",
+			marks: ["a"],
+			basemap: "satellite",
+			clustered: false,
+			fireAndSmoke: false,
+			hiddenTypes: ["airnow"]
+		}
+	};
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(map.basemap.selected.at(-1)).toBe("satellite");
+	expect(map.plugins.find((p) => p.id === "monitors")!.options).toMatchObject({ clustered: false });
+	expect(fakeToolbars.last?.basemapKey).toBe("basemap");
+	expect(fakeToolbars.last?.readonly).toBe(false);
+	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
+	await expect.poll(optionsOf).toEqual({ marks: ["a"] });
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(map.basemap.selected.at(-1)).toBe("streets-v4");
+	expect(map.plugins.find((p) => p.id === "monitors")!.options).toMatchObject({ clustered: true });
+	expect(pluginIds(map)).toEqual(["focus", "hms-smoke", "hms-fire", "monitors"]);
+	// Undo is one step back to all of them.
+	app().current.session!.undo();
+	await expect.poll(() => optionsOf()?.basemap).toBe("satellite");
+	await expect.poll(() => map.basemap.selected.at(-1)).toBe("satellite");
+});
+
+test("a viewer's change is held for the visit, kept through fullscreen, and Reset drops it", async () => {
+	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
+	const widget = { ...mapWidget(region("019")), options: { hiddenTypes: ["airnow"] } };
+	await openSession(widget);
+	const changes = new ViewerChanges();
+	const screen = await render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, app()],
+			[TILE_OPTIONS_KEY, { mode: "view", changes } satisfies TileOptionsContext]
+		])
+	});
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await screen.getByRole("checkbox", { name: "airnow" }).click();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	// Held as missing (the drawn default); the document is untouched.
+	expect(changes.get(widget.id)).toEqual({ hiddenTypes: undefined });
+	expect(optionsOf()).toEqual({ hiddenTypes: ["airnow"] });
+
+	await screen.rerender({ widget, fullscreen: true });
+	await new Promise((r) => setTimeout(r, 50));
+	expect(drawn(map)).toEqual(["a", "b"]);
+	await screen.rerender({ widget, fullscreen: false });
+	await new Promise((r) => setTimeout(r, 50));
+	expect(drawn(map)).toEqual(["a", "b"]);
+	await expect.element(screen.getByRole("checkbox", { name: "airnow" })).toBeChecked();
+
+	// Reset puts the owner's view back, forgetting the held key.
+	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(changes.get(widget.id)).toBeUndefined();
+	expect(optionsOf()).toEqual({ hiddenTypes: ["airnow"] });
+});
+
+/** Shows `widget` to a viewer of a read-only view, holding their changes in `changes`. */
+async function showViewer(widget: WidgetInstance, changes: ViewerChanges) {
+	await openSession(widget);
+	return render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, app()],
+			[TILE_OPTIONS_KEY, { mode: "view", changes } satisfies TileOptionsContext]
+		])
+	});
+}
+
+test("a viewer back at a default the owner changed sees it, and Reset puts the owner's back", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		...twoTypes(),
+		{ ...reading("c"), is_active: false }
+	] as never);
+	const widget = { ...mapWidget(region("019")), options: { clustered: false, inactive: true } };
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b", "c"]);
+	const monitorsOf = () => map.plugins.find((p) => p.id === "monitors")!.options;
+	expect(monitorsOf()).toMatchObject({ clustered: false });
+	const clusters = screen.getByRole("checkbox", {
+		name: mapMessages("mapsdk_options_marker_clusters")
+	});
+	const inactive = screen.getByRole("checkbox", { name: mapMessages("mapsdk_options_inactive") });
+
+	// Marker Clusters back on (the preset's default): checked, and the map clusters.
+	await clusters.click();
+	await expect.element(clusters).toBeChecked();
+	await expect.poll(() => fakeToolbars.last?.values.clustered).toBe(true);
+	await expect.poll(monitorsOf).toMatchObject({ clustered: true });
+	// Inactive back off (the preset's default): unchecked, and the inactive monitor hidden.
+	await inactive.click();
+	await expect.element(inactive).not.toBeChecked();
+	await expect.poll(() => fakeToolbars.last?.values.inactive).toBe(false);
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(changes.get(widget.id)).toEqual({ clustered: undefined, inactive: undefined });
+
+	// Reset puts the owner's values back and forgets the held keys.
+	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
+	await expect.element(clusters).not.toBeChecked();
+	await expect.element(inactive).toBeChecked();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b", "c"]);
+	await expect.poll(monitorsOf).toMatchObject({ clustered: false });
+	expect(changes.get(widget.id)).toBeUndefined();
+	expect(optionsOf()).toEqual({ clustered: false, inactive: true });
+});
+
+test("a viewer back at the owner's pollutant holds nothing, though the owner saved it", async () => {
+	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [{ entryType: "o3" }]),
+		// Saved as the first pollutant (explicit, not missing).
+		options: { showing: "pm25" }
+	};
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	await screen.getByRole("radio", { name: "Ozone" }).click();
+	await expect.poll(() => drawn(map)).toEqual(["o3"]);
+	expect(changes.get(widget.id)).toEqual({ showing: "o3" });
+	await screen.getByRole("radio", { name: "PM2.5" }).click();
+	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	expect(changes.get(widget.id)).toBeUndefined();
+});
+
+test("Get data's preview shows the toolbar read-only: its rows are disabled and change nothing", async () => {
+	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
+	registerWidgetType(mapType);
+	const widget = mapWidget(region("019"));
+	await openSession(widget);
+	const screen = await render(Preview, {
+		target: frame,
+		props: { widget, title: "Map", size: "large", gridWidth: 1200, phone: false, onsize() {} },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+	});
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(fakeToolbars.last?.readonly).toBe(true);
+	const airnow = screen.getByRole("checkbox", { name: "airnow" });
+	const clusters = screen.getByRole("checkbox", {
+		name: mapMessages("mapsdk_options_marker_clusters")
+	});
+	await expect.element(airnow).toHaveAttribute("aria-disabled", "true");
+	await expect.element(clusters).toHaveAttribute("aria-disabled", "true");
+	// A pointer's click (Playwright won't click a disabled-looking control).
+	(airnow.element() as HTMLElement).click();
+	(clusters.element() as HTMLElement).click();
+	await new Promise((r) => setTimeout(r, 50));
+	await expect.element(airnow).toBeChecked();
+	await expect.element(clusters).toBeChecked();
+	expect(drawn(map)).toEqual(["a", "b"]);
+	expect(map.plugins.find((p) => p.id === "monitors")!.options).toMatchObject({ clustered: true });
+	expect(optionsOf()).toBeUndefined();
+});
+
+test("the toolbar's filters never hide the tile's own monitors, and offer no rows for them", async () => {
+	// A monitor place whose monitor is indoors: drawn with the defaults, and no Monitors group
+	// (its rows couldn't filter it).
+	vi.mocked(getMonitors).mockResolvedValue([{ ...reading("a"), location: "inside" }] as never);
+	const first = await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
+	let map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toEqual(["settings"]);
+	await first.unmount();
+
+	// Hand-picked monitors, one inactive and one of a hidden type: both drawn.
+	fakeMaps.reset();
+	vi.mocked(getMonitors).mockResolvedValue([
+		{ ...reading("a"), is_active: false },
+		{ ...reading("b"), type: "airnow" }
+	] as never);
+	await show({
+		...mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }),
+		options: { hiddenTypes: ["airnow"], marks: ["b"] }
+	});
+	map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toEqual(["settings"]);
+	// The marked one is drawn, so no "hidden by the options" line.
+	await new Promise((r) => setTimeout(r, 50));
+	expect(frame.querySelector("[data-map-marks-hidden]")?.textContent?.trim()).toBe("");
+});
+
+test("the note banner sits below the toolbar", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([] as never);
+	const screen = await show(mapWidget(region("019")));
+	await madeMap();
+	await expect.element(screen.getByText(m.map_no_monitors_here())).toBeVisible();
+	const note = frame.querySelector<HTMLElement>("[data-map-note]")!;
+	expect(getComputedStyle(note).top).toBe(`${FAKE_TOOLBAR_HEIGHT}px`);
+});
+
+test("a place change clears the focus area until the new frame arrives", async () => {
+	const widget = mapWidget(region("019"));
+	const screen = await show(widget);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
+	await expect.poll(() => map.camera).toHaveLength(1);
+	let release = () => {};
+	vi.mocked(regionShapes).mockImplementationOnce(
+		() =>
+			new Promise((r) => {
+				release = () => r(new Map([["county:029", SHAPES["county:029"]]]));
+			})
+	);
+	await screen.rerender({ widget: { ...widget, data: mapWidget(region("029")).data } });
+	await expect.poll(() => focusOf(map).geometry).toBeNull();
+	// The camera stays where it was meanwhile.
+	expect(map.camera).toHaveLength(1);
+	release();
+	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:029"].geometry);
+	await expect.poll(() => map.camera).toHaveLength(2);
+});
+
+test("switching a type off leaves the camera where it is", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		reading("a", -120, 36),
+		{ ...reading("b", -119, 37), type: "airnow" }
+	] as never);
+	// A region's monitors. That the camera uses the unfiltered monitors is guaranteed by
+	// construction under ruling 3: the monitors it fits to (a tile's own) are never filtered.
+	const screen = await showLive(mapWidget(region("019")), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => map.camera).toHaveLength(1);
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	await screen.getByRole("checkbox", { name: "airnow" }).click();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await new Promise((r) => setTimeout(r, 100));
+	expect(map.camera).toHaveLength(1);
+});
+
+/** Every geometry the map's focus area was set to, in order. */
+const focusHistory = (map: FakeMap) =>
+	(map.plugins.find((p) => p.id === "focus") as unknown as { history: unknown[] }).history;
+
+test("an options-only change (the same places) never clears the focus area", async () => {
+	const screen = await showLive(mapWidget(region("019")), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
+	const before = focusHistory(map).length;
+	// The same places looked up again resolve slowly: the outline must stay meanwhile.
+	vi.mocked(regionShapes).mockImplementation(() => new Promise(() => {}));
+	await screen
+		.getByRole("checkbox", { name: mapMessages("mapsdk_options_marker_clusters") })
+		.click();
+	await expect.poll(optionsOf).toEqual({ clustered: false });
+	// Another tab's (or a live link's) copy: the same places, in a new data object.
+	const session = app().current.session!;
+	const current = session.doc.body.widgets[0];
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: current.id },
+		from: current.data,
+		to: JSON.parse(JSON.stringify(current.data)),
+		options: { from: current.options, to: { clustered: true } }
+	});
+	await expect.poll(optionsOf).toEqual({ clustered: true });
+	await new Promise((r) => setTimeout(r, 100));
+	expect(focusHistory(map).slice(before)).not.toContain(null);
+	expect(focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
+	expect(map.camera).toHaveLength(1);
+});
+
+test("another tab's change sets the toolbar's values and applies nothing", async () => {
+	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
+	const widget = mapWidget(region("019"));
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	const session = app().current.session!;
+	const current = session.doc.body.widgets[0];
+	// As another tab's change arrives: straight into the session, not through the toolbar.
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: widget.id },
+		from: current.data,
+		to: current.data,
+		options: { from: current.options, to: { hiddenTypes: ["airnow"], clustered: false } }
+	});
+	const apply = vi.spyOn(session, "apply");
+	await expect.poll(() => fakeToolbars.last?.values["type:airnow"]).toBe(false);
+	expect(fakeToolbars.last?.values.clustered).toBe(false);
+	await expect.element(screen.getByRole("checkbox", { name: "airnow" })).not.toBeChecked();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(apply).not.toHaveBeenCalled();
+	expect(optionsOf()).toEqual({ hiddenTypes: ["airnow"], clustered: false });
+});
+
+test("a note shows over the loading skeleton", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([] as never);
+	const screen = await show(mapWidget(region("019")));
+	const map = await madeMap();
+	// Not ready: the skeleton covers the map.
+	expect(map.ready).toBe(false);
+	await expect.element(screen.getByText(m.map_no_monitors_here())).toBeVisible();
+	const note = screen.getByText(m.map_no_monitors_here()).element();
+	// The banner lets the pointer through; let it be hit, to see what paints on top.
+	note.closest<HTMLElement>("[data-map-note]")!.style.pointerEvents = "auto";
+	const box = note.getBoundingClientRect();
+	const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+	expect(note.contains(top)).toBe(true);
+	expect(getComputedStyle(frame.querySelector<HTMLElement>("[data-map-note]")!).top).toBe(
+		`${FAKE_TOOLBAR_HEIGHT}px`
+	);
+});
+
+test("no smoke and fire failure note while Fire & Smoke is off", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getHMSSmoke).mockRejectedValue(new Error("offline"));
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		data: layers(region("019"), [], true),
+		options: { fireAndSmoke: false }
+	};
+	await show(widget);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => getHMSSmoke).toHaveBeenCalled();
+	await new Promise((r) => setTimeout(r, 50));
+	expect(frame.querySelector("[data-map-hms-note]")).toBeNull();
 });

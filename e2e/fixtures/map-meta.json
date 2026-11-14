@@ -20,6 +20,7 @@
 			"type": "o3",
 			"units": "ppb",
 			"epa_aqs_code": 44201,
+			"description": null,
 			"scale": {
 				"id": "o3",
 				"label": "Ozone",

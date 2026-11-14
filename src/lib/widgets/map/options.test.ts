@@ -107,4 +107,21 @@ describe("drawableShowing", () => {
 	it("is the plain showing while the drawable list isn't known", () => {
 		expect(drawableShowing(three, { showing: "o3" }, CATALOG, undefined)).toBe("o3");
 	});
+
+	it("accepts the toolbar fields and rejects bad hiddenTypes or unknown keys", () => {
+		expect(
+			MapOptionsSchema.safeParse({
+				basemap: "satellite",
+				clustered: false,
+				fireAndSmoke: true,
+				inactive: true,
+				inside: true,
+				hiddenTypes: ["purpleair"]
+			}).success
+		).toBe(true);
+		expect(MapOptionsSchema.safeParse({ hiddenTypes: ["a", "a"] }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ hiddenTypes: ids(33) }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ hiddenTypes: ids(32) }).success).toBe(true);
+		expect(MapOptionsSchema.safeParse({ nope: 1 }).success).toBe(false);
+	});
 });

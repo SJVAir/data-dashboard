@@ -12,6 +12,7 @@ import {
 	HMS_FIRE,
 	HMS_SMOKE,
 	isMapShaped,
+	mapShowingOnly,
 	MAP_POLLUTANTS_MAX,
 	setMapPollutant,
 	setSmokeAndFire,
@@ -227,6 +228,15 @@ describe("converting to and from the Map", () => {
 		expect(c.dropped).toEqual(expect.arrayContaining(["overlays", "marks"]));
 		expect(mapOptions(c.draft).marks).toBeUndefined();
 		expect(c.draft.options).toBeUndefined();
+	});
+
+	it("converts by the pollutant the Map draws when the saved showing isn't offered", () => {
+		const draft = mapDraft(["pm25", "no2"], { showing: "no2" }, false);
+		const one = mapShowingOnly(draft, CATALOG, ["pm25", "o3"]);
+		expect(one.draft.data.layers.map((l) => l.entryType)).toEqual(["pm25"]);
+		expect(mapShowingOnly(draft, CATALOG, undefined).draft.data.layers[0].entryType).toBe("no2");
+		const c = fromMapDraft(draft, chartType, CATALOG, "unavailable", ["pm25", "o3"]);
+		expect(c.draft.data.layers[0].entryType).toBe("pm25");
 	});
 
 	it("says nothing was left out from a Map of one pollutant with no marks", () => {

@@ -21,6 +21,11 @@ import type { MetadataSource } from "$lib/data/metadata";
 import { m } from "$lib/paraglide/messages.js";
 import { notifyEnabled } from "$lib/thresholds/notify-pref";
 import { chartWidget, fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
+import { MAP_TYPE } from "$lib/widgets/map/options";
+import {
+	changeTileOptions,
+	type TileOptionsContext
+} from "$lib/widgets/shared/tile-options.svelte";
 import { navigate } from "../router";
 import SharedHarness from "./test-harness/SharedHarness.svelte";
 
@@ -113,14 +118,18 @@ async function openApp(prepare?: (app: AppContext) => Promise<void>) {
 async function renderShared(
 	opened: { app: AppContext; platform: MemoryPlatform },
 	token: string,
-	opts: { widget?: string; routed?: boolean } = {}
+	opts: {
+		widget?: string;
+		routed?: boolean;
+		onTileOptions?: (ctx: TileOptionsContext) => void;
+	} = {}
 ): Promise<Opened> {
 	await navigate("/shared/:token", {
 		params: { token },
 		...(opts.widget ? { search: { widget: opts.widget } } : {})
 	});
 	const screen = await render(SharedHarness, {
-		props: { routed: opts.routed ?? false },
+		props: { routed: opts.routed ?? false, onTileOptions: opts.onTileOptions },
 		context: new Map([[APP_CONTEXT_KEY, opened.app]])
 	});
 	return { ...opened, unmount: () => screen.unmount() };
@@ -210,6 +219,54 @@ test("make a copy saves it and opens it", async () => {
 	expect(stored).toMatchObject({ copiedFrom: "s1", name: "Class dashboard" });
 	expect(stored.body.widgets.map((w) => w.title)).toEqual(["Readings", "Map"]);
 	await expect.element(page.getByText("Saved a copy to your dashboards")).toBeVisible();
+});
+
+test("a viewer's tile change is kept by Make a copy, and the owner's document is unchanged", async () => {
+	// Minimized, so no map is drawn: the change goes in as a widget's would.
+	const mapWidget = {
+		...widget("c", { x: 0, y: 4, w: 6, h: 4 }),
+		type: MAP_TYPE,
+		title: "Monitors",
+		minimized: { order: 0 },
+		options: { clustered: false }
+	};
+	const doc = { ...classDoc(), body: { widgets: [...classDoc().body.widgets, mapWidget] } };
+	const token = await publish(doc);
+	let ctx: TileOptionsContext | undefined;
+	const { app } = await renderShared(await openApp(), token, { onTileOptions: (c) => (ctx = c) });
+	await expect.element(heading("Class dashboard")).toBeVisible();
+	expect(ctx?.mode).toBe("view");
+	changeTileOptions(ctx, mapWidget, { clustered: false, basemap: "satellite" }, ["basemap"]);
+	await page.getByRole("button", { name: "Make a copy" }).click();
+	await expect.poll(() => location.pathname).toMatch(/^\/workspace\/dashboards\//);
+	const id = location.pathname.split("/").at(-1)!;
+	const stored = (await app.platform.documents.get(app.space, id)) as Dashboard;
+	expect(stored.body.widgets.find((w) => w.type === MAP_TYPE)?.options).toEqual({
+		clustered: false,
+		basemap: "satellite"
+	});
+	const owners = await asOwner(() => fake.get("s1"));
+	expect(JSON.stringify(owners)).not.toContain("satellite");
+});
+
+test("a viewer's change and the shared view survive entering and leaving fullscreen", async () => {
+	const token = await publish();
+	const sharedCalls = vi.spyOn(fake, "shared");
+	let ctx: TileOptionsContext | undefined;
+	await renderShared(await openApp(), token, { routed: true, onTileOptions: (c) => (ctx = c) });
+	await expect.element(titleBar("Readings")).toBeVisible();
+	const calls = sharedCalls.mock.calls.length;
+	const held = () => (ctx?.mode === "view" ? ctx.changes.get("a") : undefined);
+	changeTileOptions(ctx, widget("a"), { basemap: "satellite" }, ["basemap"]);
+	expect(held()).toEqual({ basemap: "satellite" });
+	await page.getByRole("button", { name: "Show Readings fullscreen" }).click();
+	await expect.poll(() => isFullscreen("a")).toBe(true);
+	expect(held()).toEqual({ basemap: "satellite" });
+	await userEvent.keyboard("{Escape}");
+	await expect.poll(() => isFullscreen("a")).toBe(false);
+	expect(held()).toEqual({ basemap: "satellite" });
+	// The page kept its shared view: no new fetch of the link.
+	expect(sharedCalls.mock.calls.length).toBe(calls);
 });
 
 test("a second copy asks, even after the source changed", async () => {

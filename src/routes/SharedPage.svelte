@@ -15,6 +15,7 @@
 	import { fingerprint } from "$lib/sharing/fingerprint";
 	import { useApp } from "$lib/store/app.svelte";
 	import { watchesThresholds } from "$lib/thresholds/watched";
+	import { ViewerChanges } from "$lib/widgets/shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 	import { navigate, p, route } from "../router";
 
@@ -29,6 +30,13 @@
 	/** The remote's file won't load: `loadLazy` has shown the reload bar, so the page adds nothing. */
 	let chunkFailed = $state(false);
 	let busy = $state(false);
+	/** The viewer's tile changes, for this link's visit only: in memory, never saved or sent. */
+	// The router replaces `params` on every navigation (fullscreen too): keyed on the token itself.
+	const token = $derived(route.params.token);
+	const viewerChanges = $derived.by(() => {
+		void token;
+		return new ViewerChanges();
+	});
 
 	const view = $derived<SharedView>(shared?.doc.view ?? { kind: "loading" });
 	// Without the welcome Note: it tells the owner what to do, not a viewer.
@@ -37,9 +45,10 @@
 	const watched = $derived(view.kind === "shown" && view.doc.body.widgets.some(watchesThresholds));
 
 	$effect(() => {
-		const token = route.params.token;
+		// The token, not `route.params`: a fullscreen navigation keeps the same view.
+		const linkToken = token;
 		// Leaving the page (a copy opened): the router unmounts it; until then the view stays.
-		if (!token) return;
+		if (!linkToken) return;
 		let active = true;
 		let doc: SharedDocumentView | null = null;
 		shared = null;
@@ -48,8 +57,8 @@
 			try {
 				const remote = await loadLazy(sharedRemote);
 				if (!active) return;
-				doc = new SharedDocumentView(remote, token);
-				shared = { token, doc };
+				doc = new SharedDocumentView(remote, linkToken);
+				shared = { token: linkToken, doc };
 				doc.start();
 			} catch {
 				if (active) chunkFailed = true;
@@ -70,7 +79,9 @@
 		if (current.kind !== "shown" || busy) return;
 		busy = true;
 		try {
-			const { doc, sourceId } = current;
+			const { sourceId } = current;
+			// The viewer's tile changes come along (each merge validated, as any document's).
+			const doc = viewerChanges.applyTo(current.doc);
 			// Matched by source id, not content: a live link's content changes.
 			const existing = await findCopyOf(app, sourceId);
 			if (existing) {
@@ -134,7 +145,7 @@
 		</div>
 	</div>
 	{#if viewerDoc}
-		<DashboardGrid view={viewerDoc} />
+		<DashboardGrid view={viewerDoc} {viewerChanges} />
 	{/if}
 {:else}
 	<div class="flex flex-col items-start gap-2 p-4">
