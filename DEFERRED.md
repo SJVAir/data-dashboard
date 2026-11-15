@@ -1220,6 +1220,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   mobile reports a wrong-account subscription. (4) Ruling: two cookie-only users
   (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
   without a token.
+- **monitor-map: the detail panel shows an empty county badge.** _Found 2026-11-15 (mobile #117
+  emulator QA, mobile-09; checked by the coordinator)._ `MonitorDetailPanel.svelte` renders
+  `badge("location-on", monitor.county)` unconditionally, so a monitor whose `county` is `""`
+  (e.g. "NEON D17 SJER", a PurpleAir; 613 of 801 monitors on the local stack) shows an empty
+  grey pill between the device and location badges. Not new in 5.0: 4.3.0's panel has the same
+  line. **Why deferred:** cosmetic and pre-existing (no hotfix urgency before go-live).
+  **Revisit with** the next monitor-map change to the detail panel, or before monitor-map 5.0.0
+  final; whether `county` should be filled server-side is a separate question.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
