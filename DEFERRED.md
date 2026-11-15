@@ -1364,10 +1364,19 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 - **Step 5 spec 3 review leftovers.** _Deferred 2026-11-13 (step 5 spec 3, per-task and final
   reviews)._ Small things the reviews let stay:
-  - **Code:** `activeFilters`' optional `defaults` should become required; its unused `offer`
-    parameter; the unique refine and the bare `max(32)` on `hiddenTypes` duplicate `marks`'
-    pattern; the hidden-marks note's `pollutant: entryLabel ?? ""`; `routeOneOutline`'s non-null
-    assertion. **Fix with** the next change to each.
+  - **Do at the start of spec 4** (the user, 2026-11-15, as with spec 2's leftovers at the start
+    of spec 3), because a person could notice them:
+    - The hidden-marks note's `pollutant: entryLabel ?? ""` would read "doesn't report " with no
+      name if the label were missing: fall back to the "aren't shown" line.
+    - The fire tint is 2.9998:1 on a hovered row (the light `--accent`), a hair under 3:1: darken
+      `--map-icon-fire`'s light value one step and add the hovered surface to the contrast test.
+    - The hidden-marks reasons read "isn't shown" briefly while the metadata loads, then change:
+      hold the note until the monitors lookup settles (still "aren't shown" if it fails).
+    - `activeFilters`' optional `defaults` falls back silently when a caller forgets it: make it
+      required.
+  - **Code:** `activeFilters`' unused `offer` parameter; the unique refine and the bare `max(32)`
+    on `hiddenTypes` duplicate `marks`' pattern; `routeOneOutline`'s non-null assertion. **Fix
+    with** the next change to each.
   - **Test gaps:** no browser test for the "options" reason of the hidden-marks note; the E2E
     `expectStill` passes on its first sample. **Add with** the next change to each.
   - **From the final review** (2026-11-13), one line each; **add or fix with** the next change to
@@ -1391,11 +1400,8 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - The hidden Monitors group's defaults are still merged, and no test covers `drawn`
       undefined.
     - A toolbar change whose next options fail validation is skipped silently.
-    - The hidden-marks reasons read "isn't shown" briefly while the metadata loads.
     - No test for `drawable` `[]`.
     - The E2E `waitForTimeout(1500)`, the `fake.signedInAs` reach-in, and the `liveLinkTo` cast.
-  - **Contrast:** the fire tint is 2.9998:1 on a hovered row, a hair under 3:1. **Revisit with**
-    the next change to the Map's icon tokens.
 
 ## Analysis & data
 
@@ -2758,6 +2764,15 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   animation at its midpoint (`animation.pause()`, set `currentTime`) instead of a fixed 120 ms
   wait, check the frame shrank and the canvas didn't redraw, then let it finish. **Revisit
   when** it fails again, or with the next change to the charts (a small PR into `main`, as #55).
+- **"Keyboard stepping moves the strips' cursors with the main one" flaked in CI.** _Noted
+  2026-11-14 (step 5 spec 3, PR #57)._ `src/lib/charts/time-chart.browser.test.ts` failed once in
+  #57's first CI run (run 43532224724, Chromium) with "expected 0 to be greater than 0" ("Matcher
+  did not succeed in time"), passed 22/22 run alone locally, and passed on rerun. The branch
+  changed nothing under `src/lib/charts`. A full local `npm run test` under load on 2026-11-13 also
+  failed once in this file, probably the same test (not confirmed). It's a timing check like the
+  resize one above: the poll gave up before the strips' cursors had moved. **Revisit when** it
+  fails again, or with the next change to the charts: wait on the cursors' settled position
+  rather than a fixed poll window.
 - **The WebKit E2E job is slow on CI.** _Noted 2026-11-10 (the `step-4` → `main` PR, #50)._ The
   `e2e-full (webkit)` job takes 10–13 minutes on GitHub's runner, against about 4 for Chromium
   and 6 for Firefox, and about 2 minutes for the same suite locally in the same Playwright image
