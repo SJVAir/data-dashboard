@@ -10,9 +10,9 @@ import {
 	HMS_SMOKE,
 	MAP_POLLUTANTS_MAX,
 	MAP_TYPE,
+	drawableShowing,
 	mapOptions,
-	pollutantLayers,
-	showingOf
+	pollutantLayers
 } from "$lib/widgets/map/options";
 import type { WidgetType } from "$lib/widgets/registry";
 import { mainLayer } from "$lib/widgets/shared/input";
@@ -137,11 +137,12 @@ export function toMapDraft(
  */
 export function mapShowingOnly(
 	draft: Draft,
-	catalog: CatalogEntry[]
+	catalog: CatalogEntry[],
+	drawable: readonly string[] | undefined
 ): { draft: Draft; dropped: NowDropped[] } {
 	const options = mapOptions(draft);
 	const pollutants = pollutantLayers(draft.data, catalog);
-	const showing = showingOf(draft.data, options, catalog);
+	const showing = drawableShowing(draft.data, options, catalog, drawable);
 	const first = pollutants[0] ?? draft.data.layers[0];
 	const layer: Layer = structuredClone({ ...first, ...(showing ? { entryType: showing } : {}) });
 	const dropped: NowDropped[] = [];
@@ -167,9 +168,10 @@ export function fromMapDraft(
 	draft: Draft,
 	type: WidgetType,
 	catalog: CatalogEntry[],
-	levels: Level[] | "unavailable" = "unavailable"
+	levels: Level[] | "unavailable" = "unavailable",
+	drawable?: readonly string[]
 ): NowConversion {
-	const one = mapShowingOnly(draft, catalog);
+	const one = mapShowingOnly(draft, catalog, drawable);
 	const converted =
 		type.time === "now"
 			? toNowDraft(one.draft, type, catalog, levels, mapType)

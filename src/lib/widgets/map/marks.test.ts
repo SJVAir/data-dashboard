@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ChangeSchema } from "$lib/changes/types";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { canMark, hiddenMarks, marksChange, sameIds } from "./marks";
+import { canMark, hiddenMarks, hiddenReasons, marksChange, sameIds } from "./marks";
 import { MAP_MARKS_MAX } from "./options";
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
@@ -77,5 +77,50 @@ describe("marksChange", () => {
 			options: { from: undefined, to: { marks: ["a"] } }
 		});
 		expect(marksChange(mapWidget(), [])).toBeNull();
+	});
+});
+
+describe("hiddenReasons", () => {
+	const monitors = new Map([
+		["a", { type: "purpleair" }],
+		["b", { type: "airnow" }],
+		["c", { type: "purpleair" }],
+		["d", { type: "purpleair" }]
+	]);
+	const reports = (type: string) => (type === "airnow" ? false : true);
+	const loaded = new Set(["c"]);
+
+	it("names each reason", () => {
+		expect(hiddenReasons(["a"], monitors, reports, loaded)).toEqual(new Map([["places", 1]]));
+		expect(hiddenReasons(["b"], monitors, reports, loaded)).toEqual(new Map([["pollutant", 1]]));
+		expect(hiddenReasons(["c"], monitors, reports, loaded)).toEqual(new Map([["options", 1]]));
+		expect(hiddenReasons(["zz"], monitors, reports, loaded)).toEqual(new Map([["unknown", 1]]));
+	});
+
+	it("checks the pollutant before the loaded monitors", () => {
+		expect(hiddenReasons(["b"], monitors, reports, new Set(["b"]))).toEqual(
+			new Map([["pollutant", 1]])
+		);
+	});
+
+	it("counts a mix", () => {
+		const out = hiddenReasons(["b", "b", "a", "zz"], monitors, reports, loaded);
+		expect(out).toEqual(
+			new Map([
+				["pollutant", 2],
+				["places", 1],
+				["unknown", 1]
+			])
+		);
+	});
+
+	it("is unknown for all while the metadata isn't there", () => {
+		expect(hiddenReasons(["a", "b"], null, reports, loaded)).toEqual(new Map([["unknown", 2]]));
+	});
+
+	it("does not guess when the type's reports are unknown", () => {
+		expect(hiddenReasons(["a"], monitors, () => undefined, loaded)).toEqual(
+			new Map([["places", 1]])
+		);
 	});
 });

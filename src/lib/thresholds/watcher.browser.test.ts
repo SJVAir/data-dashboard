@@ -157,8 +157,8 @@ beforeEach(async () => {
 		catalog: async () => CATALOG,
 		monitorType: async (id) => (id === "pa" || id === "pb" ? "purpleair" : null),
 		monitors: async () => [
-			{ id: "pa", name: "PA", type: "purpleair", county: "Fresno", active: true },
-			{ id: "pb", name: "PB", type: "purpleair", county: "Fresno", active: true }
+			{ id: "pa", name: "PA", type: "purpleair", county: "Fresno", active: true, inside: false },
+			{ id: "pb", name: "PB", type: "purpleair", county: "Fresno", active: true, inside: false }
 		],
 		levels: async (entryType) => {
 			levelCalls++;

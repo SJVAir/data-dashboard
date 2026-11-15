@@ -94,7 +94,31 @@ export const MAP_MESSAGES: Record<MessageKey, Message> = {
 	mapsdk_collocation_colocated: fill(m.mapsdk_collocation_colocated),
 	mapsdk_collocation_interval_avg: fill(m.mapsdk_collocation_interval_avg),
 	mapsdk_collocation_updated: fill(m.mapsdk_collocation_updated),
-	mapsdk_card_close: fill(m.mapsdk_card_close)
+	mapsdk_card_close: fill(m.mapsdk_card_close),
+	mapsdk_location_type_unknown: fill(m.mapsdk_location_type_unknown),
+	mapsdk_school_address: fill(m.mapsdk_school_address),
+	mapsdk_school_district: fill(m.mapsdk_school_district),
+	mapsdk_school_grades: fill(m.mapsdk_school_grades),
+	mapsdk_schools_cluster_line: fill(m.mapsdk_schools_cluster_line),
+	mapsdk_schools_legend_school: fill(m.mapsdk_schools_legend_school),
+	mapsdk_options_toolbar_label: fill(m.mapsdk_options_toolbar_label),
+	mapsdk_options_open: fill(m.mapsdk_options_open),
+	mapsdk_options_close: fill(m.mapsdk_options_close),
+	mapsdk_options_title: fill(m.mapsdk_options_title),
+	mapsdk_options_monitors: fill(m.mapsdk_options_monitors),
+	mapsdk_options_layers: fill(m.mapsdk_options_layers),
+	mapsdk_options_overlays: fill(m.mapsdk_options_overlays),
+	mapsdk_options_settings: fill(m.mapsdk_options_settings),
+	mapsdk_options_inactive: fill(m.mapsdk_options_inactive),
+	mapsdk_options_inside: fill(m.mapsdk_options_inside),
+	mapsdk_options_collocation_sites: fill(m.mapsdk_options_collocation_sites),
+	mapsdk_options_fire_smoke: fill(m.mapsdk_options_fire_smoke),
+	mapsdk_options_schools: fill(m.mapsdk_options_schools),
+	mapsdk_options_marker_clusters: fill(m.mapsdk_options_marker_clusters),
+	mapsdk_options_basemap: fill(m.mapsdk_options_basemap),
+	mapsdk_options_theme: fill(m.mapsdk_options_theme),
+	mapsdk_options_reset: fill(m.mapsdk_options_reset),
+	mapsdk_options_none: fill(m.mapsdk_options_none)
 };
 
 /** map-sdk's `messages` provider over the dashboard's Paraglide catalog. */

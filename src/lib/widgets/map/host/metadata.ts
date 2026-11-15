@@ -20,8 +20,7 @@ const providers = new WeakMap<MetadataSource, MetadataProvider>();
 
 /**
  * map-sdk's metadata, read from the dashboard's own `MetadataSource` so map-sdk fetches nothing.
- * One provider per source (so every map on the page shares it). Not implemented yet:
- * `locationTypeLabel` (`@sjvair/map-sdk` `0.1.0-beta.12`).
+ * One provider per source (so every map on the page shares it).
  */
 export function mapMetadata(source: MetadataSource): MetadataProvider {
 	let provider = providers.get(source);
@@ -33,6 +32,33 @@ export function mapMetadata(source: MetadataSource): MetadataProvider {
 		return catalog.find((d) => d.id === dataset)?.entryTypes.find((e) => e.id === entryType);
 	};
 	provider = {
+		monitorGroups: (signal) => guarded(signal, () => source.monitorGroups(signal)),
+		monitorTypeGroup: (type, signal) =>
+			guarded(signal, async () => {
+				const [types, groups] = await Promise.all([
+					source.monitorTypes(signal),
+					source.monitorGroups(signal)
+				]);
+				const key = types.find((t) => t.type === type)?.group;
+				return key && groups?.some((g) => g.key === key) ? key : undefined;
+			}),
+		monitorTypeReports: async (type, entryType, signal) => {
+			try {
+				const info = (await source.monitorTypes(signal)).find((t) => t.type === type);
+				// An unknown type, or an entry without the flag (an older server's), is unknown.
+				if (!info || info.unflagged?.includes(entryType)) return UNAVAILABLE;
+				return info.published.includes(entryType);
+			} catch (error) {
+				if (signal?.aborted) throw error;
+				return UNAVAILABLE;
+			}
+		},
+		entryTypeHelp: (ref, signal) =>
+			guarded(signal, async () =>
+				ref.dataset === "air-quality" ? source.entryTypeHelp(ref.entryType, signal) : undefined
+			),
+		locationTypeLabel: (type, signal) =>
+			guarded(signal, () => source.locationTypeLabel(type, signal)),
 		// The server's raw scale; map-sdk's `Scale` is the SDK's type for the same shape.
 		scale: (ref, signal) =>
 			guarded(

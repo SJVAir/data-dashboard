@@ -2,10 +2,23 @@
 	"data": {
 		"default_pollutant": "pm25",
 		"available_pollutants": ["pm25"],
+		"monitor_groups": {
+			"reference": {
+				"key": "reference",
+				"label": "Reference-grade",
+				"order": 0
+			},
+			"low-cost": {
+				"key": "low-cost",
+				"label": "Low-cost sensors",
+				"order": 1
+			}
+		},
 		"monitors": {
 			"airnow": {
 				"label": "AirNow",
 				"type": "airnow",
+				"group": "reference",
 				"expected_interval": "1 hour",
 				"entries": {
 					"pm25": {
@@ -24,6 +37,7 @@
 			"purpleair": {
 				"label": "PurpleAir",
 				"type": "purpleair",
+				"group": "low-cost",
 				"expected_interval": "2 min",
 				"entries": {
 					"pm25": {
@@ -57,6 +71,7 @@
 				"label": "PM2.5",
 				"type": "pm25",
 				"units": "µg/m³",
+				"description": "Fine particles from smoke, dust, and vehicle exhaust.",
 				"epa_aqs_code": 88101,
 				"scale": {
 					"id": "pm25",

@@ -141,9 +141,9 @@ beforeEach(async () => {
 		monitorType: async (id) =>
 			({ "m-pa": "purpleair", "m-bam": "bam1022", voz: "vozbox", "m-x": "purpleair" })[id] ?? null,
 		monitors: async () => [
-			{ id: "m-pa", name: "PA", type: "purpleair", county: "Fresno", active: true },
-			{ id: "m-bam", name: "BAM", type: "bam1022", county: "Fresno", active: true },
-			{ id: "voz", name: "VOZ", type: "vozbox", county: "Fresno", active: true }
+			{ id: "m-pa", name: "PA", type: "purpleair", county: "Fresno", active: true, inside: false },
+			{ id: "m-bam", name: "BAM", type: "bam1022", county: "Fresno", active: true, inside: false },
+			{ id: "voz", name: "VOZ", type: "vozbox", county: "Fresno", active: true, inside: false }
 		]
 	});
 	const regions: RegionResolver = { resolve: async () => "unsupported" };

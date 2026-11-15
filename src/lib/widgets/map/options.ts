@@ -20,9 +20,34 @@ export const MapOptionsSchema = z.strictObject({
 		.array(SafeIdSchema)
 		.max(MAP_MARKS_MAX)
 		.refine((ids) => new Set(ids).size === ids.length, { message: "Marks must be unique" })
+		.optional(),
+	/** The basemap's id (missing: the preset's default). */
+	basemap: SafeIdSchema.optional(),
+	clustered: z.boolean().optional(),
+	fireAndSmoke: z.boolean().optional(),
+	/** Show inactive monitors. */
+	inactive: z.boolean().optional(),
+	/** Show indoor monitors. */
+	inside: z.boolean().optional(),
+	/** Monitor types switched off. */
+	hiddenTypes: z
+		.array(SafeIdSchema)
+		.max(32)
+		.refine((ids) => new Set(ids).size === ids.length, { message: "Types must be unique" })
 		.optional()
 });
 export type MapOptions = z.infer<typeof MapOptionsSchema>;
+
+/** The options the toolbar owns (everything but `marks`). */
+export const MAP_TOOLBAR_KEYS = [
+	"showing",
+	"basemap",
+	"clustered",
+	"fireAndSmoke",
+	"inactive",
+	"inside",
+	"hiddenTypes"
+] as const;
 
 /** A Map's options; invalid or missing options read as none (nothing marked). */
 export function mapOptions(widget: Pick<WidgetInstance, "options">): MapOptions {

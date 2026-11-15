@@ -169,7 +169,9 @@
 	// shape or not, is checked as what `fromMapDraft` converts it to: the pollutant showing, at its
 	// places.
 	const blockData = $derived(
-		known && plain.type === MAP_TYPE ? mapShowingOnly(plain, known).draft.data : plain.data
+		known && plain.type === MAP_TYPE
+			? mapShowingOnly(plain, known, mapPollutants).draft.data
+			: plain.data
 	);
 	const showAs = $derived(
 		dataTypes().map((t) => ({
@@ -449,7 +451,9 @@
 			return;
 		}
 		// From a Map, the pollutant showing is the one that converts.
-		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
+		const drawable = plain.type === MAP_TYPE ? await loadMapPollutants() : undefined;
+		const base = (d: Draft) =>
+			d.type === MAP_TYPE ? mapShowingOnly(d, catalog, drawable).draft : d;
 		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
@@ -461,7 +465,7 @@
 		}
 		const converted =
 			fresh.type === MAP_TYPE
-				? fromMapDraft(fresh, next, catalog, levels)
+				? fromMapDraft(fresh, next, catalog, levels, drawable)
 				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
@@ -480,7 +484,9 @@
 		defaultOwed = false;
 		if (to.time !== "now" && isNow) {
 			const converted =
-				plain.type === MAP_TYPE ? fromMapDraft(plain, to, known ?? []) : fromNowDraft(plain, to);
+				plain.type === MAP_TYPE
+					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants)
+					: fromNowDraft(plain, to);
 			replaceDraft(converted.draft);
 			noteConversion(converted);
 		}
