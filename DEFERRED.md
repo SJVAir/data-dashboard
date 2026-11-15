@@ -2484,6 +2484,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   Alerts and Subscriptions screens render `{monitor.county} County`, so a monitor with no
   county reads "County". Pre-existing, not caused by the Alerts fix. **Revisit with** the
   next change to those screens. Needs a mobile plan and an app release.
+- **Mobile tab bar doesn't highlight Monitor Map while a monitor is open.** _Noted
+  2026-11-15 (mobile #117 emulator QA)._ `src/app/layout/TabBar.svelte` marks the tab
+  active with `isActive("/monitor-map/")`, an exact match, so on
+  `/monitor-map/monitor/:id` neither tab is highlighted. Pre-existing in mobile's own
+  code, not caused by the monitor-map `5.0.0-beta.2` re-pin, and kept out of that
+  chore. **Revisit with** the next change to mobile's tab bar or routing, or before
+  mobile 5.0.0's go-live release if the user wants it fixed then. Needs a mobile plan and
+  an app release.
 
 ## Accounts
 
