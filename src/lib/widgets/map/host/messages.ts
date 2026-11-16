@@ -55,6 +55,8 @@ export const MAP_MESSAGES: Record<MessageKey, Message> = {
 	mapsdk_error_retry: fill(m.mapsdk_error_retry),
 	mapsdk_legend_label: fill(m.mapsdk_legend_label),
 	mapsdk_legend_threshold: fill(m.mapsdk_legend_threshold),
+	mapsdk_legend_no_figure: fill(m.mapsdk_legend_no_figure),
+	mapsdk_reading_pause: fill(m.mapsdk_reading_pause),
 	mapsdk_controls_label: fill(m.mapsdk_controls_label),
 	mapsdk_selection_label: fill(m.mapsdk_selection_label),
 	mapsdk_no_reading: fill(m.mapsdk_no_reading),

@@ -9,15 +9,16 @@
 		MapView,
 		monitorsPlugin,
 		OptionsToolbar,
+		regionsPlugin,
 		type CardContext,
 		type FocusAreaPlugin,
 		type MapContext
 	} from "@sjvair/map-sdk";
-	import type { SpatialSelection } from "@sjvair/map-sdk/data";
+	import type { MonitorFeatureProperties, SpatialSelection } from "@sjvair/map-sdk/data";
 	import { ancestorAnimationsSettled } from "$lib/charts/settled";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import { getMetadata, getQueryClient } from "$lib/data";
+	import { getMetadata, getQueryClient, getResolvers } from "$lib/data";
 	import { LiveQuery } from "$lib/data/live-query.svelte";
 	import type { CatalogEntry, MonitorTypeInfo } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
@@ -26,6 +27,9 @@
 	import { formatNumber } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
+	import { directoryFor } from "$lib/places/host";
+	import type { RegionTypeInfo } from "$lib/places/types";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { entryMeta, nowInput, placesLayer } from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
@@ -34,7 +38,9 @@
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
 	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
+	import { fillRegionType, withNoFigureDetail } from "./data/fill";
 	import { MapData } from "./data/loaded.svelte";
+	import { isThin } from "./data/monitors";
 	import { MapDays } from "./day-mode.svelte";
 	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
@@ -125,6 +131,9 @@
 		},
 		get onDay() {
 			return days.onDay;
+		},
+		get fillLabel() {
+			return fillInfo ? m.map_fill_row({ regionType: fillInfo.plural }) : undefined;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
@@ -144,6 +153,35 @@
 		}
 	});
 	onDestroy(() => days.destroy());
+
+	// The region fill: the saved type, drawn only while the place directory lists it (an unknown
+	// type draws nothing, offers no row and writes nothing; it applies again if the type returns).
+	/** The region types a Map can fill; undefined until loaded (or when they can't be). */
+	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
+	const savedFill = $derived(wiring.saved.fill);
+	$effect(() => {
+		if (!savedFill || fillTypes) return;
+		const controller = new AbortController();
+		directoryFor(metadata, getResolvers().regions)
+			.regionTypes(controller.signal)
+			.then(
+				(types) => {
+					if (!controller.signal.aborted) fillTypes = types;
+				},
+				(error: unknown) => {
+					if (!controller.signal.aborted) report(error);
+				}
+			);
+		return () => controller.abort();
+	});
+	/** The region type filled, when the metadata lists it; null for no fill. */
+	const fillType = $derived(fillRegionType(savedFill, fillTypes));
+	const fillInfo = $derived(fillType ? fillTypes?.find((t) => t.type === fillType) : undefined);
+	/**
+	 * The pollutant's daily figure's name (`daily_statistic_label`, e.g. "24-hour average"), for
+	 * the monitors on a day stop; undefined on now, or when the scale names none.
+	 */
+	let dailyFigureLabel = $state<{ for: string; label: string | undefined } | null>(null);
 	/**
 	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
 	 * first layer pollutant it does. Never saved back into the options.
@@ -154,6 +192,27 @@
 			known,
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
 		)?.entryType.label
+	);
+	$effect(() => {
+		const type = entryType;
+		if (!type || !days.onDay || dailyFigureLabel?.for === type) return;
+		const controller = new AbortController();
+		metadata.dailyFigure(type, controller.signal).then(
+			(figure) => {
+				if (!controller.signal.aborted) {
+					dailyFigureLabel = { for: type, label: figure?.label ?? undefined };
+				}
+			},
+			// Without it the monitors keep their interval note: nothing to show or report here.
+			() => {}
+		);
+		return () => controller.abort();
+	});
+	/** On a day stop, what the monitors' figure is ("24-hour average"); unset on now. */
+	const figureLabel = $derived(
+		days.onDay && dailyFigureLabel && dailyFigureLabel.for === entryType
+			? dailyFigureLabel.label
+			: undefined
 	);
 	const idle = $derived(
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
@@ -281,11 +340,27 @@
 		},
 		get ahead() {
 			return days.ahead;
+		},
+		get fill() {
+			return fillType;
 		}
 	};
 	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());
-	const { monitorsSource, smokeSource, fireSource, hotspotsSource } = data;
+	const { monitorsSource, smokeSource, fireSource, hotspotsSource, fillSource } = data;
+
+	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
+	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
+	/** The fill's layer label: on now it says the figure is today's so far. */
+	const fillLabel = $derived(
+		!fillInfo
+			? undefined
+			: days.onDay
+				? fillInfo.plural
+				: m.map_fill_today_so_far({ regionType: fillInfo.plural })
+	);
+	/** The fill failed to load, while it's shown. */
+	const fillFailed = $derived(fillDrawn && data.fillFailed);
 
 	// Smoke and fire: now's or the day's, over the whole map, when on (the toolbar's switch hides
 	// them, their data still loading).
@@ -328,6 +403,8 @@
 		const label = entryLabel;
 		const selectionMode = markable ? "multiple" : "none";
 		const clusters = clustered;
+		const onDay = days.onDay;
+		const figure = figureLabel;
 		if (!current || !label || !loads) return;
 		untrack(() =>
 			current.addPlugin(
@@ -335,7 +412,10 @@
 					source: monitorsSource,
 					layerLabel: label,
 					selectedStyle: "ring",
-					clustered: clusters
+					clustered: clusters,
+					// On a day stop: why a monitor has no figure, and what its figure is. Unset on now.
+					...(onDay && { detail: thinDetail }),
+					...(figure && { figureLabel: figure })
 				}),
 				{
 					selectionMode,
@@ -357,6 +437,31 @@
 		const shown = untrack(() => current.getSelection("monitors"));
 		if (!sameIds(shown?.ids ?? [], selection?.ids ?? []))
 			current.setSelection("monitors", selection);
+	});
+
+	/** A day's monitor without enough data for a figure says so where "No level" would be. */
+	function thinDetail(props: MonitorFeatureProperties): string | undefined {
+		return isThin(props) ? m.calendar_not_enough_data() : undefined;
+	}
+
+	// The fill: under the focus area (so its wash dims the fill outside the places), over the
+	// basemap. Regions can't be marked; one with no figure is an outline reading "No data".
+	$effect(() => {
+		const current = map;
+		const label = fillLabel;
+		if (!current || !label || !loads || !fillDrawn) return;
+		const plugin = withNoFigureDetail(
+			regionsPlugin({
+				id: "fill",
+				source: fillSource,
+				layerLabel: label,
+				selectable: false,
+				noFigure: "outline"
+			}),
+			m.map_fill_no_data()
+		);
+		untrack(() => current.addPlugin(plugin, { before: "focus" }));
+		return () => current.removePlugin(plugin.id);
 	});
 
 	/** Under the monitors when they're on the map, else on top. */
@@ -531,6 +636,15 @@
 			""
 		)
 	);
+	/**
+	 * The feature list's note: on a day stop, what the monitors' figure is (said once, not on
+	 * every row), then the map's notes.
+	 */
+	const listNote = $derived(
+		figureLabel && hiddenText
+			? m.sentence_join({ first: figureLabel, second: hiddenText })
+			: figureLabel || hiddenText || undefined
+	);
 	/** The map's accessible name, which also says which marks aren't shown and why. */
 	const mapLabel = $derived(
 		!title
@@ -644,7 +758,7 @@
 			<WidgetSkeleton />
 		</div>
 	{/if}
-	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed}
+	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed || fillFailed}
 		<!-- A compact banner under the toolbar: the map stays usable, but for its buttons. -->
 		<div
 			class="pointer-events-none absolute inset-x-0 top-[var(--mapsdk-toolbar-height,0px)] flex flex-col gap-1 p-2"
@@ -704,6 +818,23 @@
 					</Button>
 				</div>
 			{/if}
+			{#if fillFailed}
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+					role="status"
+					data-map-fill-note
+				>
+					<p class="text-muted-foreground">{m.map_fill_failed()}</p>
+					<Button
+						size="sm"
+						variant="outline"
+						class="pointer-events-auto"
+						onclick={() => data.retryFill()}
+					>
+						{m.widget_state_retry()}
+					</Button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 {/snippet}
@@ -730,7 +861,7 @@
 					class="min-h-0 w-full flex-1"
 					active={onScreen.active}
 					label={mapLabel}
-					featureList={{ reveal: "focus", note: hiddenText || undefined }}
+					featureList={{ reveal: "focus", note: listNote }}
 					selectionBar={false}
 					tooltip="pointer"
 					card={{ actions: cardActions }}

@@ -11,7 +11,13 @@ vi.mock("$lib/data", () => ({
 }));
 
 import type { Snapshot, SnapshotFigure } from "$lib/data/snapshot";
-import { createMonitorsEntry, snapshotScope, toDayFeatures, toMonitorFeatures } from "./monitors";
+import {
+	createMonitorsEntry,
+	isThin,
+	snapshotScope,
+	toDayFeatures,
+	toMonitorFeatures
+} from "./monitors";
 
 const get = vi.mocked(getMonitors);
 
@@ -138,8 +144,10 @@ describe("a day's monitors", () => {
 			timestamp: null
 		});
 		expect(out.features[0].geometry.coordinates).toEqual([-119.7, 36.7]);
-		// Not enough data: drawn with no value (no level).
+		// Not enough data: drawn with no value (no level), marked thin for the plugin's detail.
 		expect(out.features[1].properties.value).toBeNull();
+		expect(isThin(out.features[1].properties)).toBe(true);
+		expect(isThin(out.features[0].properties)).toBe(false);
 	});
 
 	it("maps the places' scope onto the snapshot's, with a stable key", () => {

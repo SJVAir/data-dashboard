@@ -18,7 +18,7 @@ import {
 	pollutantLayers,
 	type MapOptions
 } from "../options";
-import type { MapToolbar, MapToolbarBuild } from "./toolbar.svelte";
+import { FILL_KEY, type MapToolbar, type MapToolbarBuild } from "./toolbar.svelte";
 import { activeFilters, isExempt, toOptions, type MapOffer, type MonitorFilters } from "./values";
 
 /** What the wiring reads from the widget: an object of getters, each read on its own. */
@@ -38,6 +38,11 @@ export type MapToolbarWiringInput = {
 	readonly toolbar: MapToolbar | null;
 	/** A day stop shows (not now): the toolbar offers no Inactive row. */
 	readonly onDay: boolean;
+	/**
+	 * The fill's region type, as the Layers row names it (its plural label); undefined with no
+	 * fill the metadata lists (no row then).
+	 */
+	readonly fillLabel: string | undefined;
 };
 
 export type MapToolbarState = MapToolbarBuild & {
@@ -57,6 +62,7 @@ function optionKeys(changed: string[]): (keyof MapOptions)[] {
 	return unique(
 		changed.flatMap((key): (keyof MapOptions)[] => {
 			if (key === "pollutant") return ["showing"];
+			if (key === FILL_KEY) return ["fillShown"];
 			if (key.startsWith(TYPE_PREFIX)) return ["hiddenTypes"];
 			return (MAP_TOOLBAR_KEYS as readonly string[]).includes(key) ? [key as keyof MapOptions] : [];
 		})
@@ -115,11 +121,16 @@ export class MapToolbarWiring {
 			hasInactive: features.some((f) => f.properties.isActive === false),
 			hasInside: features.some((f) => f.properties.location === "inside"),
 			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed,
-			fill: false
+			fill: this.#in.fillLabel !== undefined
 		};
 		return JSON.stringify(offer);
 	});
 	readonly offer = $derived<MapOffer>(JSON.parse(this.#offerKey));
+	/**
+	 * Whether the fill shows: `fillShown: false` hides it only while its row is offered (a saved
+	 * value applies only while its row is offered).
+	 */
+	readonly fillShown = $derived(!(this.offer.fill && this.options.fillShown === false));
 
 	/** The toolbar's groups, values and defaults; null until the map is made. */
 	readonly state = $derived.by<MapToolbarState | null>(() => {
@@ -127,21 +138,29 @@ export class MapToolbarWiring {
 		if (!toolbar) return null;
 		const offer = this.offer;
 		const day = this.#in.onDay;
+		const fillLabel = this.#in.fillLabel;
 		if (this.#in.tileOptions?.mode === "view") {
 			const { widget, catalog, drawable } = this.#in;
 			const saved = this.saved;
 			const drawn = drawableShowing(widget.data, saved, catalog, drawable);
-			const owner = toolbar.build({ offer, drawn, options: saved, day });
+			const owner = toolbar.build({ offer, drawn, options: saved, day, fillLabel });
 			const shown = toolbar.build({
 				offer,
 				drawn: this.drawn,
 				options: this.options,
 				ownerValues: owner.values,
-				day
+				day,
+				fillLabel
 			});
 			return { ...shown, presetDefaults: owner.defaults, ownerValues: owner.values };
 		}
-		const shown = toolbar.build({ offer, drawn: this.drawn, options: this.options, day });
+		const shown = toolbar.build({
+			offer,
+			drawn: this.drawn,
+			options: this.options,
+			day,
+			fillLabel
+		});
 		return { ...shown, presetDefaults: shown.defaults, ownerValues: undefined };
 	});
 

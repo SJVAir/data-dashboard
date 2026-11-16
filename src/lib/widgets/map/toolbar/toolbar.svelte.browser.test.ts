@@ -158,6 +158,43 @@ describe("MapToolbar", () => {
 		expect(values.fireAndSmoke).toBe(false);
 	});
 
+	it("a fill alone: a Layers group with its row, named by the region type, on by default", () => {
+		const { groups, defaults, values } = new MapToolbar(stubMap()).build({
+			offer: offer({ fill: true }),
+			drawn: "pm25",
+			options: { fillShown: false },
+			fillLabel: "ZIP Codes"
+		});
+		expect(ids(groups)).toEqual(["layers", "settings"]);
+		const layers = group(groups, "layers");
+		expect(layers.rows).toHaveLength(1);
+		expect(layers.rows[0]).toMatchObject({ kind: "checkbox", id: "regions", label: "ZIP Codes" });
+		expect((layers.rows[0] as { icon?: unknown }).icon).toBeTypeOf("function");
+		expect(defaults.regions).toBe(true);
+		expect(values.regions).toBe(false);
+	});
+
+	it("smoke and fire and a fill: one Layers group, Fire & Smoke then the fill", () => {
+		const { groups } = new MapToolbar(stubMap()).build({
+			offer: offer({ smokeAndFire: true, fill: true }),
+			drawn: "pm25",
+			options: {},
+			fillLabel: "ZIP Codes"
+		});
+		expect(group(groups, "layers").rows.map((r) => r.id)).toEqual(["fireAndSmoke", "regions"]);
+	});
+
+	it("no fill row without a fill, and the defaults leave regions out", () => {
+		const { groups, defaults } = new MapToolbar(stubMap()).build({
+			offer: offer({ fill: false }),
+			drawn: "pm25",
+			options: {},
+			fillLabel: "ZIP Codes"
+		});
+		expect(ids(groups)).toEqual(["settings"]);
+		expect(defaults).not.toHaveProperty("regions");
+	});
+
 	it("without smoke and fire, defaults leave fireAndSmoke out", () => {
 		const { defaults } = new MapToolbar(stubMap()).build({
 			offer: offer(),

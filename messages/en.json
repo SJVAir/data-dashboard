@@ -1206,6 +1206,10 @@
 	"map_day_none_yet": "No days to show yet",
 	"map_day_unrated": "{pollutant}'s days can't be rated",
 	"map_day_no_figures": "No figures for this day",
+	"map_fill_today_so_far": "{regionType}, today so far",
+	"map_fill_row": "{regionType}",
+	"map_fill_no_data": "No data",
+	"map_fill_failed": "The region fill couldn't be loaded.",
 	"map_marks_hidden_day": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
@@ -1342,6 +1346,8 @@
 	"mapsdk_error_retry": "Try again",
 	"mapsdk_legend_label": "Legend",
 	"mapsdk_legend_threshold": "from {value}",
+	"mapsdk_legend_no_figure": "No data",
+	"mapsdk_reading_pause": ", ",
 	"mapsdk_controls_label": "Map controls",
 	"mapsdk_selection_label": "Selection",
 	"mapsdk_no_reading": "No reading",

@@ -5,7 +5,7 @@ import type {
 	FireFeatureProperties,
 	MonitorFeatureProperties
 } from "@sjvair/map-sdk/data";
-import type { MonitorLatest } from "@sjvair/sdk";
+import type { MonitorLatest, RegionSummaryBulkType } from "@sjvair/sdk";
 import type { NowClient, NowSource, NowState } from "$lib/data/now/client";
 import { NowQuery } from "$lib/data/now/now-query.svelte";
 import type { Layer } from "$lib/data/schema";
@@ -17,6 +17,7 @@ import { hasSmokeAndFire } from "$lib/get-data/map";
 import { mapMessages } from "../host/messages";
 import { monitorIds } from "../sources";
 import { filterMonitors, placeMonitors, type MonitorFilters } from "../toolbar/values";
+import { fillEntry, fillScale, type FillData, type FillSource } from "./fill";
 import { hmsEntry, type HmsData } from "./hms";
 import {
 	monitorsEntry,
@@ -41,6 +42,8 @@ export type MapDataInput = {
 	at: SnapshotAt;
 	/** The days fetched ahead of a step (the neighbouring day stops); none on now. */
 	ahead: readonly string[];
+	/** The region type filled (one the metadata lists); null for no fill. */
+	fill: RegionSummaryBulkType | null;
 };
 
 /** A day's monitors: the list (names, positions) and the day's figures. */
@@ -110,9 +113,26 @@ function hmsSourceOf<P extends FireFeatureProperties>(
 	};
 }
 
+/** The fill's source for the regions plugin, reading the query's current state. */
+function fillSourceOf(d: MapData): DataSource {
+	return {
+		get status() {
+			return dataStatus(d.fillState);
+		},
+		get features() {
+			return d.fillState.data?.features ?? null;
+		},
+		get scale() {
+			const entryType = d.fillFor;
+			return entryType ? fillScale(entryType) : null;
+		}
+	};
+}
+
 /**
  * The map widget's loaded data: the monitors (the pollutant showing's readings, or the day
- * showing's figures, limited by the places) and smoke and fire (now's or the day's). Its effects
+ * showing's figures, limited by the places), the region fill (the day's figures, or today's so
+ * far on now; over the whole map) and smoke and fire (now's or the day's). Its effects
  * run in their own root; `destroy()` ends them and the queries. Give the input as an object of
  * getters, so each field is read on its own (the filters follow the loaded monitors: reading them
  * with the places would be a cycle).
@@ -125,9 +145,11 @@ export class MapData {
 	readonly monitorsQuery: NowQuery<MonitorLatest[]>;
 	readonly dayQuery: NowQuery<Snapshot>;
 	readonly hmsQuery: NowQuery<HmsData>;
+	readonly fillQuery: NowQuery<FillData>;
 	/** The neighbouring days, fetched ahead and never polled. */
 	readonly #dayAhead: NowQuery<Snapshot>[];
 	readonly #hmsAhead: NowQuery<HmsData>[];
+	readonly #fillAhead: NowQuery<FillData>[];
 
 	#getInput: () => MapDataInput;
 	#rating: DayRating;
@@ -145,6 +167,9 @@ export class MapData {
 	/** What the day query was set for; while it isn't `#wantedDayKey`, its data is stale. */
 	#dayResolvedFor = $state<string | null>(null);
 	#daySource = $state.raw<DaySource | null>(null);
+	#fillSource = $state.raw<FillSource | null>(null);
+	/** The pollutant the fill query loads (its scale). */
+	#fillFor = $state<string | undefined>();
 	/** Whether the map is worth drawing (on screen, the page visible). */
 	#polling = $state(true);
 
@@ -162,6 +187,7 @@ export class MapData {
 		return at === "now" ? "now" : at.day;
 	});
 	readonly #aheadKey = $derived.by(() => this.#getInput().ahead.join(","));
+	readonly #fill = $derived.by(() => this.#getInput().fill);
 	/** What the monitors are wanted for now: the places and the pollutant showing. */
 	readonly #wantedKey = $derived(`${this.#placesKey}|${this.#entryType ?? ""}`);
 	/** What the day's figures are wanted for: the places, the pollutant and the day. */
@@ -298,6 +324,12 @@ export class MapData {
 	readonly hotspotsSource: DataSource<FireFeatureProperties>;
 	readonly hmsFailed = $derived(this.hmsState.status === "error");
 
+	readonly fillState = $derived.by(() => this.fillQuery.state);
+	/** The fill's source for the regions plugin; no features until it loads. */
+	readonly fillSource: DataSource;
+	/** The fill failed to load. */
+	readonly fillFailed = $derived(this.fillState.status === "error");
+
 	constructor(getInput: () => MapDataInput, deps: { now: NowClient; rating: DayRating }) {
 		this.#getInput = getInput;
 		this.#rating = deps.rating;
@@ -305,6 +337,7 @@ export class MapData {
 		this.monitorsQuery = new NowQuery<MonitorLatest[]>(deps.now);
 		this.dayQuery = new NowQuery<Snapshot>(deps.now);
 		this.hmsQuery = new NowQuery<HmsData>(deps.now);
+		this.fillQuery = new NowQuery<FillData>(deps.now);
 		const ahead = <T>() =>
 			Array.from({ length: AHEAD }, () => {
 				const query = new NowQuery<T>(deps.now);
@@ -313,16 +346,19 @@ export class MapData {
 			});
 		this.#dayAhead = ahead<Snapshot>();
 		this.#hmsAhead = ahead<HmsData>();
+		this.#fillAhead = ahead<FillData>();
 
 		this.monitorsSource = monitorsSourceOf(this);
 		this.smokeSource = hmsSourceOf(this, "smoke");
 		this.fireSource = hmsSourceOf(this, "fireGroups");
 		this.hotspotsSource = hmsSourceOf(this, "fireHotspots");
+		this.fillSource = fillSourceOf(this);
 
 		this.#stopEffects = $effect.root(() => {
 			this.#resolveMonitors();
 			this.#resolveDay();
 			this.#resolveHms();
+			this.#resolveFill();
 			this.#poll();
 		});
 	}
@@ -348,12 +384,24 @@ export class MapData {
 		this.hmsQuery.retry();
 	}
 
+	retryFill(): void {
+		this.fillQuery.retry();
+	}
+
+	/** The pollutant the fill loads (its scale); undefined with no fill. */
+	get fillFor(): string | undefined {
+		return this.#fillFor;
+	}
+
 	destroy(): void {
 		this.#stopEffects();
 		this.monitorsQuery.destroy();
 		this.dayQuery.destroy();
 		this.hmsQuery.destroy();
-		for (const query of [...this.#dayAhead, ...this.#hmsAhead]) query.destroy();
+		this.fillQuery.destroy();
+		for (const query of [...this.#dayAhead, ...this.#hmsAhead, ...this.#fillAhead]) {
+			query.destroy();
+		}
 	}
 
 	/**
@@ -390,6 +438,13 @@ export class MapData {
 			this.monitorsQuery.setPolling(on && !day);
 			this.dayQuery.setPolling(on && dayPolls);
 			this.hmsQuery.setPolling(on && (!day || dayPolls));
+		});
+		$effect(() => {
+			// The fill: today so far hourly on now; a day's hourly while it isn't all final.
+			const on = this.#polling;
+			const source = this.#fillSource;
+			const value = this.fillState.data;
+			this.fillQuery.setPolling(on && !!source && source.poll(value));
 		});
 	}
 
@@ -528,6 +583,33 @@ export class MapData {
 			return () => {
 				cancelled = true;
 			};
+		});
+	}
+
+	#resolveFill(): void {
+		$effect(() => {
+			const day = this.#day;
+			const type = this.#entryType;
+			const regionType = this.#fill;
+			const ahead = this.#ahead();
+			if (!this.#loads || !type || !regionType) {
+				this.#fillSource = null;
+				this.#fillFor = undefined;
+				this.fillQuery.set(null);
+				for (const query of this.#fillAhead) query.set(null);
+				return;
+			}
+			const sourceFor = (at: SnapshotAt) => fillEntry.source({ regionType, entryType: type, at });
+			const source = sourceFor(day === "now" ? "now" : { day });
+			this.#fillSource = source;
+			this.#fillFor = type;
+			this.#switch<FillData>([
+				[this.fillQuery, source],
+				...this.#fillAhead.map((query, i): [NowQuery<FillData>, NowSource<FillData> | null] => [
+					query,
+					ahead[i] ? sourceFor({ day: ahead[i] }) : null
+				])
+			]);
 		});
 	}
 }

@@ -1,7 +1,15 @@
 import "../../../app.css";
 import axe from "axe-core";
 import type { Feature } from "geojson";
-import { getHMSFire, getHMSSmoke, getMonitorSummariesBulkDaily, getMonitors } from "@sjvair/sdk";
+import {
+	getHMSFire,
+	getHMSSmoke,
+	getMonitorSummariesBulkDaily,
+	getMonitors,
+	getRegionSummariesBulkDaily,
+	getRegionSummariesBulkDailyOpen,
+	getRegionsMeta
+} from "@sjvair/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
@@ -33,7 +41,7 @@ import { dayStops } from "./days";
 import { mapConfig } from "./host/config";
 import { mapMessages } from "./host/messages";
 import { mapOptions } from "./options";
-import { regionShapes } from "./regions";
+import { regionShapes, regionTypeShapes } from "./regions";
 import {
 	FAKE_TOOLBAR_HEIGHT,
 	FakeGl,
@@ -91,6 +99,7 @@ vi.mock("@sjvair/map-sdk", async (original) => {
 			};
 		},
 		monitorsPlugin: plugin("monitors"),
+		regionsPlugin: plugin("regions"),
 		hmsSmokePlugin: plugin("hms-smoke"),
 		hmsFirePlugin: plugin("hms-fire"),
 		cleanFires: (d: unknown[]) => d,
@@ -105,7 +114,10 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getMonitors: vi.fn(),
 	getMonitorSummariesBulkDaily: vi.fn(),
 	getHMSSmoke: vi.fn(),
-	getHMSFire: vi.fn()
+	getHMSFire: vi.fn(),
+	getRegionsMeta: vi.fn(),
+	getRegionSummariesBulkDaily: vi.fn(),
+	getRegionSummariesBulkDailyOpen: vi.fn()
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: vi.fn() }));
 vi.mock("./host/metadata", () => ({ mapMetadata: () => ({}) }));
@@ -118,7 +130,8 @@ vi.mock("$lib/data", () => ({
 }));
 vi.mock("./regions", async (original) => ({
 	...(await original<typeof import("./regions")>()),
-	regionShapes: vi.fn()
+	regionShapes: vi.fn(),
+	regionTypeShapes: vi.fn()
 }));
 vi.mock("$lib/components/dialogs/lazy.svelte", async (original) => ({
 	...(await original<typeof import("$lib/components/dialogs/lazy.svelte")>()),
@@ -2322,4 +2335,333 @@ test("a map with no range shows no day stepper", async () => {
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	expect(frame.querySelector("[data-map-days]")).toBeNull();
 	expect(getMonitorSummariesBulkDaily).not.toHaveBeenCalled();
+});
+
+// The monitors on a day stop: "Not enough data", and what the figure is.
+
+type MonitorsOptions = {
+	detail?: (props: Record<string, unknown>) => string | undefined;
+	figureLabel?: string;
+};
+const monitorsOptionsOf = (map: FakeMap) =>
+	map.plugins.find((p) => p.id === "monitors")?.options as MonitorsOptions | undefined;
+const listNoteOf = (map: FakeMap) => (map.view.featureList as { note?: string } | undefined)?.note;
+
+test("on a day, a thin monitor reads Not enough data and the figure is named; on Now neither", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
+	dailyFigures({ "2026-09-09": { a: 20, b: null } });
+	const range = { kind: "trailing", amount: 3, unit: "day" } as const;
+	const stops = dayStops(range, todayPacific());
+	const before = (stops.at(-2) as { day: string }).day;
+	dailyFigures({ [before]: { a: 20, b: null } });
+	await show(rangedMap(region("019"), undefined, range));
+	const map = await madeMap();
+	// Now: the live readings keep map-sdk's own look.
+	await expect.poll(dayLabel).toBe(m.map_day_now());
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(monitorsOptionsOf(map)?.detail).toBeUndefined();
+	expect(monitorsOptionsOf(map)?.figureLabel).toBeUndefined();
+	expect(listNoteOf(map)).toBeUndefined();
+
+	await previousDay().click();
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 20, b: null });
+	await expect.poll(() => monitorsOptionsOf(map)?.figureLabel).toBe(PM25_FIGURE.label);
+	const source = map.plugins.find((p) => p.id === "monitors")!.options.source as {
+		features: { features: { properties: Record<string, unknown> }[] };
+	};
+	const [a, b] = source.features.features.map((f) => f.properties);
+	const detail = monitorsOptionsOf(map)!.detail!;
+	expect(detail(b)).toBe(m.calendar_not_enough_data());
+	expect(detail(a)).toBeUndefined();
+	// The list names the figure once, above its rows.
+	expect(listNoteOf(map)).toBe(PM25_FIGURE.label);
+
+	await nextDay().click();
+	await expect.poll(() => monitorsOptionsOf(map)?.figureLabel).toBeUndefined();
+	expect(monitorsOptionsOf(map)?.detail).toBeUndefined();
+	expect(listNoteOf(map)).toBeUndefined();
+});
+
+// Region fills.
+
+const ZIP_META = {
+	types: {
+		county: {
+			type: "county",
+			label: "County",
+			label_plural: "Counties",
+			name_template: "{name} County",
+			count: 8,
+			parents: [],
+			browsable: true
+		},
+		zipcode: {
+			type: "zipcode",
+			label: "ZIP code",
+			label_plural: "ZIP Codes",
+			name_template: "ZIP {name}",
+			count: 3,
+			parents: ["county"],
+			browsable: true
+		},
+		mtrs: {
+			type: "mtrs",
+			label: "Section",
+			label_plural: "Sections",
+			name_template: null,
+			count: 9000,
+			parents: [],
+			browsable: false
+		}
+	},
+	location_types: {},
+	buffers: []
+};
+
+/** A ZIP code's shape: server id `z<code>`. */
+function zipShape(code: string, x: number) {
+	const s = square(x, 0);
+	return {
+		...s,
+		id: `z${code}`,
+		properties: {
+			id: `z${code}`,
+			name: code,
+			slug: code,
+			type: "zipcode",
+			external_id: code,
+			retired: null
+		}
+	};
+}
+
+/** Three ZIP codes; the summaries hold rows for the first two only. */
+function zipFill(today = 5, day: Record<string, number> = {}) {
+	vi.mocked(getRegionsMeta).mockResolvedValue(ZIP_META as never);
+	vi.mocked(regionTypeShapes).mockResolvedValue([
+		zipShape("93721", 10),
+		zipShape("93722", 11),
+		zipShape("93723", 12)
+	] as never);
+	vi.mocked(getRegionSummariesBulkDailyOpen).mockResolvedValue([
+		{ id: "z93721", summaries: [dayRow(todayPacific(), today, false)] },
+		{ id: "z93722", summaries: [dayRow(todayPacific(), null, false)] }
+	] as never);
+	vi.mocked(getRegionSummariesBulkDaily).mockImplementation((async (config: { start: string }) =>
+		Object.entries(day).map(([code, value]) => ({
+			id: `z${code}`,
+			summaries: [dayRow(config.start, value)]
+		}))) as never);
+}
+
+type FillPlugin = {
+	kind: string;
+	options: {
+		id: string;
+		layerLabel: string;
+		selectable: boolean;
+		noFigure: string;
+		source: {
+			features: { features: { properties: Record<string, unknown> }[] } | null;
+			scale: unknown;
+			status: unknown;
+		};
+	};
+	addOptions?: Record<string, unknown>;
+};
+const fillOf = (map: FakeMap) =>
+	map.plugins.find((p) => p.id === "fill") as unknown as FillPlugin | undefined;
+/** The fill's value per region ref. */
+function fillValues(map: FakeMap): Record<string, unknown> | undefined {
+	const features = fillOf(map)?.options.source.features?.features;
+	if (!features) return undefined;
+	return Object.fromEntries(features.map((f) => [f.properties.refKey, f.properties.value]));
+}
+
+test("a fill draws under the focus area, every region of its type, today so far on Now", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await show({ ...mapWidget(region("019")), options: { fill: "zipcode" } });
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus", "monitors"]);
+	const fill = fillOf(map)!;
+	expect(fill.kind).toBe("regions");
+	expect(fill.addOptions).toEqual({ before: "focus" });
+	expect(fill.options).toMatchObject({
+		id: "fill",
+		layerLabel: m.map_fill_today_so_far({ regionType: "ZIP Codes" }),
+		selectable: false,
+		noFigure: "outline"
+	});
+	expect(fill.options.layerLabel).toBe("ZIP Codes, today so far");
+	await expect
+		.poll(() => fillValues(map))
+		.toEqual({
+			"region:zipcode:93721": 5,
+			// A row without enough data, and a region missing from the summaries: no figure (no data).
+			"region:zipcode:93722": null,
+			"region:zipcode:93723": null
+		});
+	expect(fill.options.source.features!.features[0].properties.name).toBe("ZIP 93721");
+	expect(fill.options.source.status).toEqual({ state: "ready" });
+	// The monitors' ScaleRef exactly: the legend shares one section.
+	const monitors = map.plugins.find((p) => p.id === "monitors")!.options.source as {
+		scale: unknown;
+	};
+	expect(fill.options.source.scale).toEqual({ dataset: "air-quality", entryType: "pm25" });
+	expect(fill.options.source.scale).toEqual(monitors.scale);
+	// Today's open-day rows for the whole type, over the whole map (not the places).
+	expect(getRegionSummariesBulkDailyOpen).toHaveBeenCalledWith(
+		{ entryType: "pm25", type: "zipcode" },
+		expect.anything()
+	);
+	expect(regionTypeShapes).toHaveBeenCalledWith("zipcode", expect.anything());
+	const entry = () => nowClient.entries().find((e) => e.key.startsWith("map-fill"));
+	await expect.poll(entry).toMatchObject({ key: "map-fill:pm25:zipcode:today", polling: true });
+});
+
+test("on a day, the fill draws the day's figures, labelled by its type", async () => {
+	rated();
+	zipFill(5, { "93721": 40 });
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-09": { a: 20 } });
+	await show(rangedMap(region("019"), { fill: "zipcode" }));
+	const map = await madeMap();
+	await expect.poll(dayLabel).toBe("Wednesday, September 9, 2026");
+	await expect
+		.poll(() => fillValues(map))
+		.toEqual({
+			"region:zipcode:93721": 40,
+			"region:zipcode:93722": null,
+			"region:zipcode:93723": null
+		});
+	expect(fillOf(map)!.options.layerLabel).toBe("ZIP Codes");
+	expect(getRegionSummariesBulkDaily).toHaveBeenCalledWith(
+		{ entryType: "pm25", start: "2026-09-09", end: "2026-09-09", type: "zipcode" },
+		expect.anything()
+	);
+	expect(getRegionSummariesBulkDailyOpen).not.toHaveBeenCalled();
+	// A final day isn't polled.
+	const entry = nowClient.entries().find((e) => e.key === "map-fill:pm25:zipcode:2026-09-09");
+	expect(entry).toMatchObject({ polling: false });
+});
+
+test("the Layers group shows with a fill alone; its row hides the fill without a new request", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = { ...mapWidget(region("019")), options: { fill: "zipcode" } };
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus", "monitors"]);
+	await expect.poll(() => fillValues(map)).toBeTruthy();
+	const box = screen.getByRole("checkbox", { name: "ZIP Codes" });
+	await expect.element(box).toBeChecked();
+	expect(
+		screen.getByRole("checkbox", { name: mapMessages("mapsdk_options_fire_smoke") }).query()
+	).toBeNull();
+	const asked = vi.mocked(getRegionSummariesBulkDailyOpen).mock.calls.length;
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(optionsOf()).toEqual({ fill: "zipcode", fillShown: false });
+	// Its data keeps loading: showing it again draws at once.
+	const fill = () => nowClient.entries().find((e) => e.key.startsWith("map-fill"));
+	expect(fill()?.subscribers ?? 0).toBeGreaterThan(0);
+	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
+	await expect.poll(optionsOf).toEqual({ fill: "zipcode" });
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus", "monitors"]);
+	expect(fillValues(map)).toBeTruthy();
+	expect(getRegionSummariesBulkDailyOpen).toHaveBeenCalledTimes(asked);
+	await box.click();
+	await expect.poll(() => optionsOf()?.fillShown).toBe(false);
+	await box.click();
+	await expect.poll(optionsOf).toEqual({ fill: "zipcode" });
+});
+
+test("a saved fill the regions meta doesn't list draws no fill, offers no row, writes nothing", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	for (const type of ["mtrs", "nowhere"]) {
+		fakeMaps.reset();
+		const widget = { ...mapWidget(region("019")), options: { fill: type, fillShown: false } };
+		const screen = await showLive(widget, editing());
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		await expect.poll(() => vi.mocked(getRegionsMeta).mock.calls.length).toBeGreaterThan(0);
+		await new Promise((r) => setTimeout(r, 50));
+		expect(pluginIds(map)).toEqual(["focus", "monitors"]);
+		expect(screen.getByRole("checkbox", { name: "Sections" }).query()).toBeNull();
+		expect(
+			screen.getByRole("button", { name: mapMessages("mapsdk_options_layers") }).query()
+		).toBeNull();
+		expect(getRegionSummariesBulkDailyOpen).not.toHaveBeenCalled();
+		expect(regionTypeShapes).not.toHaveBeenCalled();
+		expect(optionsOf()).toEqual({ fill: type, fillShown: false });
+		await screen.unmount();
+	}
+});
+
+test("a viewer hides the fill for themselves, writing nothing", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = { ...mapWidget(region("019")), options: { fill: "zipcode" } };
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus", "monitors"]);
+	await screen.getByRole("checkbox", { name: "ZIP Codes" }).click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(changes.get(widget.id)).toEqual({ fillShown: false });
+	expect(optionsOf()).toEqual({ fill: "zipcode" });
+	await screen.getByRole("checkbox", { name: "ZIP Codes" }).click();
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus", "monitors"]);
+	expect(changes.get(widget.id)).toBeUndefined();
+});
+
+test("a hidden fill (fillShown false) loads but isn't drawn", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await show({ ...mapWidget(region("019")), options: { fill: "zipcode", fillShown: false } });
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => getRegionSummariesBulkDailyOpen).toHaveBeenCalled();
+	expect(pluginIds(map)).toEqual(["focus", "monitors"]);
+});
+
+test("clicking a region shows its card with no Select button", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const screen = await showLive({ ...mapWidget(region("019")), options: { fill: "zipcode" } });
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => fillValues(map)).toBeTruthy();
+	pin(map, "region:zipcode:93721", "fill");
+	await expect
+		.poll(() => frame.querySelector(`[data-fake-card="region:zipcode:93721"]`))
+		.toBeTruthy();
+	expect(screen.getByRole("button", { name: m.map_mark_select() }).query()).toBeNull();
+});
+
+test("a fill that fails to load keeps the map, with a note and Retry", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getRegionSummariesBulkDailyOpen).mockRejectedValueOnce(new Error("offline"));
+	const screen = await show({ ...mapWidget(region("019")), options: { fill: "zipcode" } });
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_fill_failed())).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(fillOf(map)!.options.source.status).toEqual({ state: "ready" });
+	await frame.querySelector<HTMLElement>("[data-map-fill-note] button")!.click();
+	await expect.poll(() => screen.getByText(m.map_fill_failed()).query()).toBeNull();
+	await expect.poll(() => fillValues(map)?.["region:zipcode:93721"]).toBe(5);
 });

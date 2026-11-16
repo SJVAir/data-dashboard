@@ -75,16 +75,23 @@ export function toDayFeatures(list: MonitorLatest[], snapshot: Snapshot): Collec
 	for (const monitor of list) {
 		const figure = snapshot.figures.get(monitor.id);
 		if (!figure || !monitor.position) continue;
-		// A `thin` figure draws with no value; Task 12 wires map-sdk's monitors `detail` slot
-		// (`@sjvair/map-sdk` `0.1.0-beta.15`) so it reads "Not enough data".
-		features.push(
-			monitorFeature(
-				{ ...monitor, position: monitor.position },
-				{ value: figure.value, isActive: true, timestamp: null }
-			)
+		const feature = monitorFeature(
+			{ ...monitor, position: monitor.position },
+			{ value: figure.value, isActive: true, timestamp: null }
 		);
+		// Not enough data that day: no value, and the monitors plugin's `detail` says why.
+		if (figure.kind === "thin") (feature.properties as DayMonitorProperties).thin = true;
+		features.push(feature);
 	}
 	return { type: "FeatureCollection", features };
+}
+
+/** A day's monitor: `thin` when it had a row that day without enough data for a figure. */
+export type DayMonitorProperties = MonitorFeatureProperties & { thin?: true };
+
+/** Whether a day's monitor had too little data that day for a figure. */
+export function isThin(props: MonitorFeatureProperties): boolean {
+	return (props as DayMonitorProperties).thin === true;
 }
 
 /** The places' scope as the snapshot query takes it, with a key that names its kind. */
