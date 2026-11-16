@@ -168,6 +168,7 @@
 	--map-icon-settings: #696969;
 	--map-icon-clusters: #1c86ee;
 	--map-icon-fire: #f84400;
+	--map-icon-notices: #8a4a9e;
 }
 
 /* The two dark blocks must stay identical (a test checks): System dark unless forced light, and forced dark. */
@@ -214,6 +215,7 @@
 		--map-icon-settings: #a9a9a9;
 		--map-icon-clusters: #4aa8ff;
 		--map-icon-fire: #ff7a45;
+		--map-icon-notices: #c99ad9;
 	}
 }
 
@@ -259,6 +261,7 @@
 	--map-icon-settings: #a9a9a9;
 	--map-icon-clusters: #4aa8ff;
 	--map-icon-fire: #ff7a45;
+	--map-icon-notices: #c99ad9;
 }
 
 @media (prefers-reduced-motion: reduce) {

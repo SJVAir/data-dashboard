@@ -2,8 +2,10 @@ import "../../../app.css";
 import axe from "axe-core";
 import type { Feature } from "geojson";
 import {
+	getActivePesticideNotices,
 	getHMSFire,
 	getHMSSmoke,
+	getPesticidesMeta,
 	getMonitorSummariesBulkDaily,
 	getMonitors,
 	getRegionSummariesBulkDaily,
@@ -23,6 +25,7 @@ import type { PlaceInfo, QueryInput } from "$lib/data/types";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { resetPesticideMeta } from "$lib/data/pesticide-meta";
 import { pacificDay, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { setPlatform } from "$lib/platform";
@@ -102,6 +105,7 @@ vi.mock("@sjvair/map-sdk", async (original) => {
 		regionsPlugin: plugin("regions"),
 		hmsSmokePlugin: plugin("hms-smoke"),
 		hmsFirePlugin: plugin("hms-fire"),
+		pointsPlugin: plugin("points"),
 		cleanFires: (d: unknown[]) => d,
 		groupFires: (d: { id: string; coordinates: [number, number]; frp: number }[]) =>
 			d.map((f) => ({ id: f.id, coordinates: f.coordinates, avgFrp: f.frp, count: 1 })),
@@ -115,6 +119,8 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getMonitorSummariesBulkDaily: vi.fn(),
 	getHMSSmoke: vi.fn(),
 	getHMSFire: vi.fn(),
+	getActivePesticideNotices: vi.fn(),
+	getPesticidesMeta: vi.fn(),
 	getRegionsMeta: vi.fn(),
 	getRegionSummariesBulkDaily: vi.fn(),
 	getRegionSummariesBulkDailyOpen: vi.fn()
@@ -207,7 +213,8 @@ function namingClient(): QueryClient {
 const CATALOG: CatalogEntry[] = [
 	...FIXTURE_CATALOG,
 	{ id: "hms-smoke", label: "Wildfire Smoke", entryTypes: [], geographies: ["polygon"] },
-	{ id: "hms-fire", label: "Fire Detections", entryTypes: [], geographies: ["point"] }
+	{ id: "hms-fire", label: "Fire Detections", entryTypes: [], geographies: ["point"] },
+	{ id: "pesticide-notices", label: "Spray Notices", entryTypes: [], geographies: ["point"] }
 ];
 
 /** A monitor's latest reading, at `[lon, lat]`. */
@@ -232,6 +239,44 @@ function drawn(map: FakeMap): string[] | undefined {
 	return source?.features?.features.map((f) => f.properties.refKey.replace(/^monitor:/, ""));
 }
 
+/** The pesticides meta: the filter params the notice endpoints take (no commodity). */
+const PESTICIDES_META = {
+	categories: [],
+	iarc_groups: [],
+	methods: [],
+	narrows: [],
+	placeholder_chemicals: [],
+	notice_filters: ["chemical_id", "product_id", "category", "iarc_group", "narrow", "aerial_ground"]
+};
+
+/** A spray notice in MTRS section `section`, as the server gives it. */
+function sprayNotice(id: string, section: string) {
+	return {
+		type: "Feature",
+		id,
+		geometry: { type: "Point", coordinates: [-119.5, 36.5] },
+		properties: {
+			id,
+			scheduled_application: "2026-11-12T08:00:00-08:00",
+			scheduled_end: "2026-11-16T08:00:00-08:00",
+			county: "Fresno",
+			application_method: "Ground",
+			treated_amount: 10,
+			treated_units: "A",
+			section: `Section ${section}`,
+			section_id: section,
+			products: [],
+			chemicals: []
+		}
+	};
+}
+
+const noticeCollection = (features: unknown[]) => ({
+	type: "FeatureCollection",
+	as_of: "",
+	features
+});
+
 let frame: HTMLDivElement;
 let nowClient: NowClient;
 let platform: MemoryPlatform;
@@ -249,6 +294,9 @@ beforeEach(async () => {
 	vi.mocked(getHMSSmoke).mockResolvedValue([] as never);
 	vi.mocked(getHMSFire).mockResolvedValue([] as never);
 	vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([] as never);
+	resetPesticideMeta();
+	vi.mocked(getPesticidesMeta).mockResolvedValue(PESTICIDES_META as never);
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(noticeCollection([]) as never);
 	vi.mocked(mapConfig).mockReturnValue({ maptilerKey: "test", projection: "mercator" });
 	const { getMetadata, getQueryClient } = await import("$lib/data");
 	vi.mocked(getMetadata).mockReturnValue(fixtureMetadata({ catalog: async () => CATALOG }));
@@ -2755,4 +2803,155 @@ test("a fill that fails to load keeps the map, with a note and Retry", async () 
 	await frame.querySelector<HTMLElement>("[data-map-fill-note] button")!.click();
 	await expect.poll(() => screen.getByText(m.map_fill_failed()).query()).toBeNull();
 	await expect.poll(() => fillValues(map)?.["region:zipcode:93721"]).toBe(5);
+});
+
+// Spray notices.
+
+type NoticesPlugin = {
+	kind: string;
+	options: {
+		id: string;
+		layerLabel: string;
+		count?: { property: string };
+		cluster?: { radius: number; maxZoom: number; properties?: unknown };
+		source: {
+			features: { features: { properties: Record<string, unknown> }[] } | null;
+			scale: unknown;
+			status: unknown;
+		};
+	};
+	addOptions?: Record<string, unknown>;
+};
+const noticesOf = (map: FakeMap) =>
+	map.plugins.find((p) => p.id === "notices") as unknown as NoticesPlugin | undefined;
+
+/** A Map of county 019 with the spray notices layer. */
+function noticesMap(): WidgetInstance {
+	return {
+		...mapWidget({}),
+		data: layers(region("019"), [{ dataset: "pesticide-notices" }])
+	};
+}
+
+test("adds the notices plugin under the monitors when the tile has notices", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	const notices = noticesOf(map)!;
+	expect(notices.kind).toBe("points");
+	expect(notices.addOptions).toEqual({ before: "monitors" });
+	expect(notices.options).toMatchObject({
+		id: "notices",
+		layerLabel: "Spray Notices",
+		count: { property: "count" }
+	});
+	// Clustered (the toolbar's default), summed by map-sdk itself: no clusterProperties of ours.
+	expect(notices.options.cluster).toBeDefined();
+	expect(notices.options.cluster?.properties).toBeUndefined();
+	await expect.poll(() => notices.options.source.features?.features).toHaveLength(1);
+	expect(notices.options.source.features!.features[0].properties).toMatchObject({ count: 2 });
+	expect(notices.options.source.scale).toBeNull();
+	// Over the whole map: never limited by the places.
+	expect(getActivePesticideNotices).toHaveBeenCalledWith(
+		expect.not.objectContaining({ bbox: expect.anything() })
+	);
+});
+
+test("no notices plugin and no fetch without the layer", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await show(mapWidget(region("019")));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(getActivePesticideNotices).not.toHaveBeenCalled();
+});
+
+test("the notices row appears only when the tile has notices", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const without = await showLive(mapWidget(region("019")), editing());
+	const first = await madeMap();
+	first.ready = true;
+	await expect.poll(() => drawn(first)).toEqual(["a"]);
+	expect(
+		without.getByRole("button", { name: mapMessages("mapsdk_options_layers") }).query()
+	).toBeNull();
+	expect(without.getByRole("checkbox", { name: "Spray Notices" }).query()).toBeNull();
+	await without.unmount();
+
+	fakeMaps.reset();
+	const screen = await showLive(noticesMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.element(screen.getByRole("checkbox", { name: "Spray Notices" })).toBeChecked();
+	expect(fakeToolbars.last!.groups.find((g) => g.id === "layers")?.rows.map((r) => r.id)).toEqual([
+		"notices"
+	]);
+});
+
+test("the Layers row hides notices without unloading them", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1")]) as never
+	);
+	const screen = await showLive(noticesMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const asked = vi.mocked(getActivePesticideNotices).mock.calls.length;
+	const box = screen.getByRole("checkbox", { name: "Spray Notices" });
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(optionsOf()).toEqual({ noticesShown: false });
+	// Their data keeps loading: showing them again draws at once, with no new request.
+	const entry = () => nowClient.entries().find((e) => e.key.startsWith("map-notices"));
+	expect(entry()?.subscribers ?? 0).toBeGreaterThan(0);
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	expect(optionsOf()).toBeUndefined();
+	expect(noticesOf(map)!.options.source.features?.features).toHaveLength(1);
+	expect(getActivePesticideNotices).toHaveBeenCalledTimes(asked);
+});
+
+test("a viewer hides the notices for themselves, writing nothing", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = noticesMap();
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	await screen.getByRole("checkbox", { name: "Spray Notices" }).click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	// The row's key is held as the option it writes (noticesShown), nothing else.
+	expect(changes.get(widget.id)).toEqual({ noticesShown: false });
+	expect(optionsOf()).toBeUndefined();
+	await screen.getByRole("checkbox", { name: "Spray Notices" }).click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	expect(changes.get(widget.id)).toBeUndefined();
+});
+
+test("notices failure note: Retry fetches again while the monitors stay drawn", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getActivePesticideNotices)
+		.mockRejectedValueOnce(new Error("offline"))
+		.mockResolvedValue(noticeCollection([sprayNotice("n1", "s1")]) as never);
+	const screen = await show(noticesMap());
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_notices_failed())).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
+	// map-sdk sees no error, so its legend offers no second Retry: only the note's.
+	expect(noticesOf(map)!.options.source.status).toEqual({ state: "ready" });
+	const note = frame.querySelector<HTMLElement>("[data-map-notices-note]")!;
+	expect(note.querySelectorAll("button")).toHaveLength(1);
+	await note.querySelector("button")!.click();
+	await expect.poll(() => screen.getByText(m.map_notices_failed()).query()).toBeNull();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	expect(getActivePesticideNotices).toHaveBeenCalledTimes(2);
+	expect(drawn(map)).toEqual(["a"]);
 });

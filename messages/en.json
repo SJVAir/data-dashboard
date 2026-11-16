@@ -1156,6 +1156,7 @@
 	"getdata_map_fill_none": "None",
 	"getdata_map_notices_switch": "Show spray notices",
 	"getdata_map_notices_filters": "Filter spray notices",
+	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
 	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
 	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",

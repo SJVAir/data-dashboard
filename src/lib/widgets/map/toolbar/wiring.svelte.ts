@@ -50,6 +50,10 @@ export type MapToolbarWiringInput = {
 	 * fill the metadata lists (no row then).
 	 */
 	readonly fillLabel: string | undefined;
+	/** Whether the tile has the spray notices layer. */
+	readonly notices: boolean;
+	/** The spray notices' label (the catalog's); undefined while unknown (no row then). */
+	readonly noticesLabel: string | undefined;
 };
 
 export type MapToolbarState = MapToolbarBuild & {
@@ -130,8 +134,7 @@ export class MapToolbarWiring {
 			hasInside: features.some((f) => f.properties.location === "inside"),
 			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed,
 			fill: this.#in.fillLabel !== undefined,
-			// Task 6 wires the spray notices layer.
-			notices: false
+			notices: this.#in.notices && this.#in.noticesLabel !== undefined
 		};
 		return JSON.stringify(offer);
 	});
@@ -141,6 +144,8 @@ export class MapToolbarWiring {
 	 * value applies only while its row is offered).
 	 */
 	readonly fillShown = $derived(!(this.offer.fill && this.options.fillShown === false));
+	/** Whether the spray notices show: `noticesShown: false` hides them while their row is offered. */
+	readonly noticesShown = $derived(!(this.offer.notices && this.options.noticesShown === false));
 
 	/** The toolbar's groups, values and defaults; null until the map is made. */
 	readonly state = $derived.by<MapToolbarState | null>(() => {
@@ -149,18 +154,20 @@ export class MapToolbarWiring {
 		const offer = this.offer;
 		const day = this.#in.onDay;
 		const fillLabel = this.#in.fillLabel;
+		const noticesLabel = this.#in.noticesLabel;
 		if (this.#in.tileOptions?.mode === "view") {
 			const { widget, catalog, drawable } = this.#in;
 			const saved = this.saved;
 			const drawn = drawableShowing(widget.data, saved, catalog, drawable);
-			const owner = toolbar.build({ offer, drawn, options: saved, day, fillLabel });
+			const owner = toolbar.build({ offer, drawn, options: saved, day, fillLabel, noticesLabel });
 			const shown = toolbar.build({
 				offer,
 				drawn: this.drawn,
 				options: this.options,
 				ownerValues: owner.values,
 				day,
-				fillLabel
+				fillLabel,
+				noticesLabel
 			});
 			return { ...shown, presetDefaults: owner.defaults, ownerValues: owner.values };
 		}
@@ -169,7 +176,8 @@ export class MapToolbarWiring {
 			drawn: this.drawn,
 			options: this.options,
 			day,
-			fillLabel
+			fillLabel,
+			noticesLabel
 		});
 		return { ...shown, presetDefaults: shown.defaults, ownerValues: undefined };
 	});

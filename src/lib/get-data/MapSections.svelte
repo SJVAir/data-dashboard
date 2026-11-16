@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Accordion } from "bits-ui";
+	import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 	import type { WidgetDataConfig } from "$lib/data/schema";
@@ -11,6 +12,7 @@
 	import { nowPollutants } from "./now";
 	import type { PesticideFilters as Filters } from "$lib/data/schema";
 	import PesticideFilters from "./PesticideFilters.svelte";
+	import { pesticideMeta } from "./sources";
 	import SectionTrigger from "./SectionTrigger.svelte";
 
 	let {
@@ -72,6 +74,35 @@
 	const smoke = $derived(hasSmokeAndFire(data));
 	const noticesEntry = $derived(catalog.find((c) => c.id === PESTICIDE_NOTICES));
 	const notices = $derived(hasNotices(data));
+	const noticeFiltersSaved = $derived(mapPesticideFilters(data));
+
+	/** The filter params the notice endpoints take (the pesticides meta's); undefined until known. */
+	let noticeFilters = $state.raw<readonly string[] | undefined>();
+	$effect(() => {
+		if (!notices || noticeFilters) return;
+		const controller = new AbortController();
+		pesticideMeta(controller.signal).then(
+			(meta) => (noticeFilters = meta.notice_filters),
+			() => {
+				// Unknown: nothing is named (the filters' own section says the meta didn't load).
+			}
+		);
+		return () => controller.abort();
+	});
+	/** Each filter's name, as the filters show it. */
+	const FILTER_LABELS: Record<keyof Filters, () => string> = {
+		chemical: m.get_data_filter_chemical,
+		commodity: m.get_data_filter_crop,
+		product: m.get_data_filter_product,
+		category: m.get_data_filter_category,
+		iarcGroup: m.get_data_filter_iarc,
+		method: m.get_data_filter_method,
+		narrow: m.get_data_filter_narrow
+	};
+	/** The saved filters the notices can't apply: still shown and kept, and named. */
+	const noticesSkipped = $derived(
+		notices && noticeFilters ? noticeFiltersSkipped(noticeFiltersSaved ?? {}, noticeFilters) : []
+	);
 	const fillChoices = $derived(fillTypes ?? []);
 	/** The saved fill, only while it's offered (else None shows; the saved value stays). */
 	const fillShown = $derived(fillChoices.find((t) => t.type === fill));
@@ -165,7 +196,12 @@
 				</label>
 				{#if notices}
 					<div role="group" aria-label={m.getdata_map_notices_filters()}>
-						<PesticideFilters filters={mapPesticideFilters(data)} onchange={onfilters} />
+						<PesticideFilters filters={noticeFiltersSaved} onchange={onfilters} />
+						{#each noticesSkipped as key (key)}
+							<p class="text-muted-foreground mt-2 text-xs" data-notices-skipped={key}>
+								{m.getdata_map_notices_filter_skipped({ filter: FILTER_LABELS[key]() })}
+							</p>
+						{/each}
 					</div>
 				{/if}
 			</Accordion.Content>
