@@ -3,7 +3,7 @@
 Status: brainstormed with the user 2026-11-15, on `step-5-spec-4` (from `step-5` at 9d4b460).
 Checked by a fresh builder read: two questions for the user (the Now fill's data; the no-figure
 look and the legend), the rest settled as my calls below, and five contradictions with the code
-fixed. Not yet approved.
+fixed. **Approved by the user 2026-11-15.**
 
 Calls marked **(my call)** are the brainstorming session's own; everything else is the user's
 (this brainstorm, or earlier ones recorded in `ARCHITECTURE.md` → "Map SDK").
