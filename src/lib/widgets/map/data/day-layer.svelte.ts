@@ -13,7 +13,7 @@ export type DayLayerOptions<T> = {
 	/** The source for now or a day; null when nothing loads. May resolve async. */
 	sourceFor(at: SnapshotAt): MaybeSource<T> | Promise<MaybeSource<T>>;
 	/** Whether the shown query polls, given the day showing and its loaded value. */
-	polls(at: SnapshotAt, value: T | undefined): boolean;
+	polls(at: SnapshotAt, value: T | undefined, source: NowSource<T> | null): boolean;
 };
 
 type Input = { on: boolean; at: SnapshotAt; ahead: readonly string[]; today: string };
@@ -30,6 +30,7 @@ export class DayLayer<T> {
 	readonly #ahead: NowQuery<T>[];
 	#cancel: (() => void) | null = null;
 	#at = $state.raw<SnapshotAt | null>(null);
+	#source = $state.raw<MaybeSource<T>>(null);
 	#polling = $state(true);
 	#stop: () => void;
 
@@ -37,19 +38,29 @@ export class DayLayer<T> {
 		this.#now = now;
 		this.#opts = opts;
 		this.#main = new NowQuery<T>(now);
-		this.#ahead = Array.from({ length: AHEAD }, () => new NowQuery<T>(now));
+		this.#ahead = Array.from({ length: AHEAD }, () => {
+			const query = new NowQuery<T>(now);
+			query.setPolling(false);
+			return query;
+		});
 		this.#stop = $effect.root(() => {
 			$effect(() => {
 				const at = this.#at;
 				const on = this.#polling;
 				const value = this.#main.state.data;
-				this.#main.setPolling(on && at !== null && opts.polls(at, value));
+				const source = this.#source;
+				this.#main.setPolling(on && at !== null && opts.polls(at, value, source));
 			});
 		});
 	}
 
 	get state(): NowState<T> {
 		return this.#main.state;
+	}
+
+	/** The main query's current source, or null. */
+	get source(): MaybeSource<T> {
+		return this.#source;
 	}
 
 	get failed(): boolean {
@@ -63,6 +74,7 @@ export class DayLayer<T> {
 		if (!on) {
 			untrack(() => {
 				this.#at = null;
+				this.#source = null;
 				this.#main.set(null);
 				for (const query of this.#ahead) query.set(null);
 			});
@@ -76,6 +88,7 @@ export class DayLayer<T> {
 		const apply = (found: MaybeSource<T>[]) =>
 			untrack(() => {
 				this.#at = at;
+				this.#source = found[0] ?? null;
 				switchQueries<T>(this.#now, [
 					[this.#main, found[0] ?? null],
 					...this.#ahead.map((query, i): [NowQuery<T>, MaybeSource<T>] => [
