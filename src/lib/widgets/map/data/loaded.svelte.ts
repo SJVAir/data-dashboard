@@ -6,16 +6,27 @@ import type {
 } from "@sjvair/map-sdk/data";
 import type { RegionSummaryBulkType } from "@sjvair/sdk";
 import type { NowClient } from "$lib/data/now/client";
-import type { Layer } from "$lib/data/schema";
+import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
+import type { Layer, PesticideFilters } from "$lib/data/schema";
+import type { UnavailableReason } from "$lib/data/types";
 import type { SnapshotAt } from "$lib/data/snapshot";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { hasSmokeAndFire } from "$lib/get-data/map";
+import { hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
 import { mapMessages } from "../host/messages";
+import { PESTICIDE_NOTICES } from "../options";
 import type { MonitorFilters } from "../toolbar/values";
 import { AHEAD, DayLayer } from "./day-layer.svelte";
 import { fillEntry, fillPolls, fillSourceOf, type FillData, type FillSource } from "./fill";
 import { hmsEntry, hmsPolls, hmsSourceOf, type HmsData } from "./hms";
 import { MonitorsBlock } from "./monitors-block.svelte";
+import {
+	noticeFilterNames,
+	noticesEntry,
+	noticesPolls,
+	noticesSourceOf,
+	type NoticeFeatureProperties,
+	type NoticeItem
+} from "./notices";
 import type { DayRating } from "./monitors";
 
 /** What the data blocks read from the widget, each time they run. */
@@ -41,7 +52,8 @@ export type MapDataInput = {
 /**
  * The map widget's loaded data: the monitors (the pollutant showing's readings, or the day
  * showing's figures, limited by the places), the region fill (the day's figures, or today's so
- * far on now; over the whole map) and smoke and fire (now's or the day's). Its effects
+ * far on now; over the whole map), smoke and fire (now's or the day's) and the spray notices
+ * (active now, or on the day showing; narrowed by the pesticide filters). Its effects
  * run in their own root; `destroy()` ends them and the queries. Give the input as an object of
  * getters, so each field is read on its own (the filters follow the loaded monitors: reading them
  * with the places would be a cycle).
@@ -54,12 +66,19 @@ export class MapData {
 	readonly #monitors: MonitorsBlock;
 	readonly #hms: DayLayer<HmsData>;
 	readonly #fill: DayLayer<FillData>;
+	readonly #notices: DayLayer<NoticeItem[]>;
 
 	#getInput: () => MapDataInput;
 	#stopEffects: () => void;
 
 	/** The pollutant the fill query loads (its scale). */
 	#fillFor = $state<string | undefined>();
+	/** Why the notices can't load (a saved filter gone), if they can't. */
+	#noticesUnavailable = $state<UnavailableReason | undefined>();
+	/** Counts the notices' updates, so a late answer for an older one is ignored. */
+	#noticesRun = 0;
+	/** The filter params the notice endpoints take (the server's meta); null until loaded. */
+	#noticeFilters = $state.raw<readonly string[] | null>(null);
 
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
@@ -72,6 +91,33 @@ export class MapData {
 	readonly #aheadKey = $derived.by(() => this.#getInput().ahead.join(","));
 	readonly #today = $derived.by(() => this.#getInput().today);
 	readonly #regionType = $derived.by(() => this.#getInput().fill);
+	/** The notices' saved filters, as a key (the notices are refetched when it changes). */
+	readonly #noticesFiltersKey = $derived.by(() =>
+		JSON.stringify(
+			this.#getInput().widget.data.layers.find((l) => l.dataset === PESTICIDE_NOTICES)?.filters ??
+				{}
+		)
+	);
+
+	/** Whether the tile has the spray notices layer. */
+	readonly notices = $derived.by(() => hasNotices(this.#getInput().widget.data));
+	/** The notices as map-sdk data; before they load, with no features. */
+	readonly noticesDrawn: DataSource<NoticeFeatureProperties> = $derived(
+		noticesEntry.toDataSources(this.noticesState.data ?? [], {
+			messages: mapMessages,
+			entryType: this.#entryType ?? ""
+		}).notices
+	);
+	readonly noticesFailed = $derived(this.noticesState.status === "error");
+	/**
+	 * The saved pesticide filters that are set but don't apply to notices (the server's meta
+	 * doesn't list them), so they can be named; empty when none or the meta isn't loaded.
+	 */
+	readonly noticesSkipped: (keyof PesticideFilters)[] = $derived.by(() => {
+		const names = this.#noticeFilters;
+		const filters = JSON.parse(this.#noticesFiltersKey) as PesticideFilters;
+		return this.notices && names ? noticeFiltersSkipped(filters, names) : [];
+	});
 
 	/** Whether smoke and fire are on. */
 	readonly smokeAndFire = $derived.by(() => hasSmokeAndFire(this.#getInput().widget.data));
@@ -92,6 +138,8 @@ export class MapData {
 	readonly hotspotsSource: DataSource<FireFeatureProperties>;
 	/** The fill's source for the regions plugin; no features until it loads. */
 	readonly fillSource: DataSource;
+	/** The notices' source, one feature per section; no features until they load. */
+	readonly noticesSource: DataSource<NoticeFeatureProperties>;
 
 	constructor(getInput: () => MapDataInput, deps: { now: NowClient; rating: DayRating }) {
 		this.#getInput = getInput;
@@ -117,12 +165,28 @@ export class MapData {
 			// Every source the fill holds is one `fillEntry` made.
 			polls: (_at, value, source) => fillPolls(source as FillSource | null, value)
 		});
+		this.#notices = new DayLayer<NoticeItem[]>(deps.now, {
+			sourceFor: async (at) => {
+				const run = this.#noticesRun;
+				const data = untrack(() => $state.snapshot(this.#getInput().widget.data));
+				const source = await noticesEntry.source({ data, entryType: "", at });
+				// Gone filters are gone on every day: any answer for the current update tells.
+				if (run === this.#noticesRun) {
+					this.#noticesUnavailable =
+						source && "unavailable" in source ? source.unavailable : undefined;
+				}
+				return source && "fetch" in source ? source : null;
+			},
+			// Now: hourly. A day: hourly until the server stops rewriting it.
+			polls: (at) => noticesPolls(at)
+		});
 
 		this.monitorsSource = this.#monitors.monitorsSource;
 		this.smokeSource = hmsSourceOf(this, "smoke");
 		this.fireSource = hmsSourceOf(this, "fireGroups");
 		this.hotspotsSource = hmsSourceOf(this, "fireHotspots");
 		this.fillSource = fillSourceOf(this);
+		this.noticesSource = noticesSourceOf(this);
 
 		this.#stopEffects = $effect.root(() => {
 			$effect(() => {
@@ -139,6 +203,23 @@ export class MapData {
 				const on = this.#loads && !!type && !!this.#regionType;
 				this.#fillFor = on ? type : undefined;
 				this.#fill.update({ on, at: this.#at(), ahead: this.#ahead(), today: this.#today });
+			});
+			$effect(() => {
+				const on = this.#loads && this.notices;
+				// Only a trigger: the source reads the filters from the widget.
+				void this.#noticesFiltersKey;
+				this.#noticesRun++;
+				if (!on) this.#noticesUnavailable = undefined;
+				this.#notices.update({ on, at: this.#at(), ahead: this.#ahead(), today: this.#today });
+			});
+			$effect(() => {
+				if (!(this.#loads && this.notices) || untrack(() => this.#noticeFilters)) return;
+				noticeFilterNames().then(
+					(names) => (this.#noticeFilters = names),
+					() => {
+						// Unknown until a later load: nothing is named as skipped meanwhile.
+					}
+				);
 			});
 		});
 	}
@@ -229,12 +310,23 @@ export class MapData {
 	get fillFor(): string | undefined {
 		return this.#fillFor;
 	}
+	get noticesQuery(): DayLayer<NoticeItem[]>["query"] {
+		return this.#notices.query;
+	}
+	get noticesState(): DayLayer<NoticeItem[]>["state"] {
+		return this.#notices.state;
+	}
+	/** Why the notices can't load (a saved filter the server no longer has), if they can't. */
+	get noticesUnavailable(): UnavailableReason | undefined {
+		return this.#noticesUnavailable;
+	}
 
 	/** Polls the live data (and a day's figures not final yet) only while the map is worth drawing. */
 	setPolling(on: boolean): void {
 		this.#monitors.setPolling(on);
 		this.#hms.setPolling(on);
 		this.#fill.setPolling(on);
+		this.#notices.setPolling(on);
 	}
 
 	/** Fetches again what failed: the list, the day's figures, or both. */
@@ -250,11 +342,16 @@ export class MapData {
 		this.#fill.retry();
 	}
 
+	retryNotices(): void {
+		this.#notices.retry();
+	}
+
 	destroy(): void {
 		this.#stopEffects();
 		this.#monitors.destroy();
 		this.#hms.destroy();
 		this.#fill.destroy();
+		this.#notices.destroy();
 	}
 
 	/** Now, or the day showing (built from the day's key). */

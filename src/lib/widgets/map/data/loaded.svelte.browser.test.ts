@@ -13,8 +13,27 @@ const fakes = vi.hoisted(() => ({
 	fillFetch: vi.fn<(key: string) => Promise<unknown>>(async () => ({
 		features: { type: "FeatureCollection", features: [] },
 		final: true
-	}))
+	})),
+	noticesFetch: vi.fn<(key: string) => Promise<unknown>>(async () => []),
+	noticesUnavailable: { value: false }
 }));
+
+vi.mock("./notices", async (original) => {
+	const real = await original<typeof import("./notices")>();
+	return {
+		...real,
+		noticesEntry: {
+			...real.noticesEntry,
+			source: async ({ data, at }: { data: WidgetInstance["data"]; at: SnapshotAt }) => {
+				if (!data.layers.some((l) => l.dataset === "pesticide-notices")) return null;
+				if (fakes.noticesUnavailable.value) return { unavailable: "filter-gone" };
+				const key = `notices:${at === "now" ? "now" : at.day}`;
+				return { key, cadence: "hour", fetch: () => fakes.noticesFetch(key) };
+			}
+		},
+		noticeFilterNames: async () => ["chemical_id", "category"]
+	};
+});
 
 vi.mock("./hms", async (original) => {
 	const real = await original<typeof import("./hms")>();
@@ -96,13 +115,29 @@ const WIDGET: WidgetInstance = {
 	}
 } as WidgetInstance;
 
-function setup(first: { at: SnapshotAt; ahead?: string[]; fill?: MapDataInput["fill"] }) {
+const WITH_NOTICES: WidgetInstance = {
+	...WIDGET,
+	data: {
+		layers: [
+			...WIDGET.data.layers,
+			{ dataset: "pesticide-notices", filters: { chemical: "c1", commodity: "k1" } }
+		]
+	}
+} as WidgetInstance;
+
+function setup(first: {
+	at: SnapshotAt;
+	ahead?: string[];
+	fill?: MapDataInput["fill"];
+	widget?: WidgetInstance;
+}) {
 	const now = createNowClient({ activity: createMemoryActivity(), now: () => new Date() });
 	let at = $state.raw<SnapshotAt>(first.at);
 	let ahead = $state.raw<readonly string[]>(first.ahead ?? []);
+	const widget = first.widget ?? WIDGET;
 	const input: MapDataInput = {
-		widget: WIDGET,
-		layer: WIDGET.data.layers[0],
+		widget,
+		layer: widget.data.layers[0],
 		entryType: "pm25",
 		loads: true,
 		filters: null,
@@ -138,6 +173,9 @@ beforeEach(() => {
 		final: true
 	}));
 	fakes.dayFinal.value = false;
+	fakes.noticesFetch.mockClear();
+	fakes.noticesFetch.mockImplementation(async () => []);
+	fakes.noticesUnavailable.value = false;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -219,6 +257,79 @@ describe("MapData", () => {
 		expect(fakes.hmsFetch).toHaveBeenCalledTimes(2);
 		expect(t.data.hmsFailed).toBe(false);
 		expect(t.data.hmsState.status).toBe("ready");
+		t.data.destroy();
+	});
+
+	it("notices follow the day and fetch the neighbours ahead", async () => {
+		const keys = () => fakes.noticesFetch.mock.calls.map((c) => c[0]);
+		const t = setup({
+			at: { day: "2026-11-10" },
+			ahead: ["2026-11-09", "2026-11-11"],
+			widget: WITH_NOTICES
+		});
+		await flush();
+		expect(t.data.notices).toBe(true);
+		expect([...keys()].sort()).toEqual([
+			"notices:2026-11-09",
+			"notices:2026-11-10",
+			"notices:2026-11-11"
+		]);
+		expect(t.data.noticesState.status).toBe("ready");
+		expect(t.data.noticesSource.status).toEqual({ state: "ready" });
+		expect(t.data.noticesSource.scale).toBeNull();
+		// The saved commodity filter doesn't apply to notices: named, not dropped silently.
+		expect(t.data.noticesSkipped).toEqual(["commodity"]);
+		// A step to a day fetched ahead fetches nothing new for it.
+		t.set({ at: { day: "2026-11-11" }, ahead: ["2026-11-10", "2026-11-12"] });
+		await flush();
+		expect(keys().filter((k) => k === "notices:2026-11-11")).toHaveLength(1);
+		expect(keys().filter((k) => k === "notices:2026-11-12")).toHaveLength(1);
+		t.data.destroy();
+	});
+
+	it("notices on now poll hourly; a settled day doesn't", async () => {
+		const keys = () => fakes.noticesFetch.mock.calls.map((c) => c[0]);
+		const now = setup({ at: "now", widget: WITH_NOTICES });
+		await flush();
+		await vi.advanceTimersByTimeAsync(HOUR);
+		expect(keys().filter((k) => k === "notices:now").length).toBeGreaterThan(1);
+		now.data.destroy();
+
+		fakes.noticesFetch.mockClear();
+		const settled = setup({ at: { day: "2026-11-01" }, widget: WITH_NOTICES });
+		await flush();
+		await vi.advanceTimersByTimeAsync(HOUR);
+		expect(keys().filter((k) => k === "notices:2026-11-01")).toHaveLength(1);
+		settled.data.destroy();
+	});
+
+	it("without the notices layer nothing loads", async () => {
+		const t = setup({ at: "now" });
+		await flush();
+		expect(t.data.notices).toBe(false);
+		expect(fakes.noticesFetch).not.toHaveBeenCalled();
+		expect(t.data.noticesSkipped).toEqual([]);
+		t.data.destroy();
+	});
+
+	it("a filter the server no longer has makes the notices unavailable", async () => {
+		fakes.noticesUnavailable.value = true;
+		const t = setup({ at: "now", widget: WITH_NOTICES });
+		await flush();
+		expect(t.data.noticesUnavailable).toBe("filter-gone");
+		expect(fakes.noticesFetch).not.toHaveBeenCalled();
+		t.data.destroy();
+	});
+
+	it("retryNotices fetches the notices again after a failure", async () => {
+		fakes.noticesFetch.mockRejectedValueOnce(new Error("offline"));
+		const t = setup({ at: { day: "2026-11-10" }, widget: WITH_NOTICES });
+		await flush();
+		expect(t.data.noticesFailed).toBe(true);
+		t.data.retryNotices();
+		await flush();
+		expect(fakes.noticesFetch).toHaveBeenCalledTimes(2);
+		expect(t.data.noticesFailed).toBe(false);
 		t.data.destroy();
 	});
 });

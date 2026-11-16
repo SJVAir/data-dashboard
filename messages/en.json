@@ -1212,6 +1212,32 @@
 	"map_day_no_figures": "No figures for this day",
 	"map_fill_today_so_far": "{regionType}, today so far",
 	"map_fill_failed": "The region fill couldn't be loaded.",
+	"map_notices_failed": "Spray notices couldn't be loaded.",
+	"map_notices_name": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input section",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {section}",
+				"countPlural=other": "{count} spray notices, {section}"
+			}
+		}
+	],
+	"map_notices_name_no_section": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice",
+				"countPlural=other": "{count} spray notices"
+			}
+		}
+	],
 	"map_marks_hidden_day": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],

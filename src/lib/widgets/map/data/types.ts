@@ -9,7 +9,7 @@ export type MapDataInput = { data: WidgetDataConfig; entryType: string; at: Snap
 
 /** One map data set: how the dashboard loads it, and how it becomes map-sdk data. */
 export interface MapDataEntry<T, P extends MapFeatureProperties = MapFeatureProperties> {
-	id: "monitors" | "hms";
+	id: "monitors" | "hms" | "notices";
 	/**
 	 * The now source for this tile's data; `{ unavailable }` with the reason when the places can't
 	 * be scoped; null when there is nothing to load (no layer for it).

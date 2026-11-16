@@ -2,6 +2,7 @@ import {
 	getCoverage,
 	getPesticidesForPlace,
 	pesticidePlaceFilterErrors,
+	type ActivePesticideNoticesParams,
 	type PesticidesForPlaceFilters
 } from "@sjvair/sdk";
 import { todayPacific } from "$lib/format";
@@ -68,6 +69,25 @@ function rangeYears(range: ResolvedRange): { first: number; last: number } {
 	};
 }
 
+type CodeParams = Pick<
+	ActivePesticideNoticesParams,
+	"category" | "iarc_group" | "aerial_ground" | "narrow"
+>;
+
+/** The saved category, cancer group, method and narrowing codes as the server's params. */
+function codeParams(filters: PesticideFilters): CodeParams {
+	return {
+		...(filters.category && { category: filters.category }),
+		...(filters.iarcGroup !== undefined && {
+			iarc_group: filters.iarcGroup as CodeParams["iarc_group"]
+		}),
+		...(filters.method !== undefined && {
+			aerial_ground: filters.method as CodeParams["aerial_ground"]
+		}),
+		...(filters.narrow !== undefined && { narrow: filters.narrow as CodeParams["narrow"] })
+	};
+}
+
 /** The place endpoint's filters for a layer's saved filters and the range's Pacific years. */
 export function toWire(filters: PesticideFilters, range: ResolvedRange): PesticidesForPlaceFilters {
 	const { first, last } = rangeYears(range);
@@ -75,19 +95,72 @@ export function toWire(filters: PesticideFilters, range: ResolvedRange): Pestici
 		...(filters.chemical !== undefined && { chemical: filters.chemical }),
 		...(filters.commodity !== undefined && { commodity: filters.commodity }),
 		...(filters.product !== undefined && { product: filters.product }),
-		...(filters.category && { category: filters.category }),
-		...(filters.iarcGroup !== undefined && {
-			iarc_group: filters.iarcGroup as PesticidesForPlaceFilters["iarc_group"]
-		}),
-		...(filters.method !== undefined && {
-			aerial_ground: filters.method as PesticidesForPlaceFilters["aerial_ground"]
-		}),
-		...(filters.narrow !== undefined && {
-			narrow: filters.narrow as PesticidesForPlaceFilters["narrow"]
-		}),
+		...codeParams(filters),
 		year__gte: first,
 		year__lte: last
 	};
+}
+
+type NoticeParams = Pick<
+	ActivePesticideNoticesParams,
+	"chemical_id" | "product_id" | "category" | "iarc_group" | "aerial_ground" | "narrow"
+>;
+
+/**
+ * Each saved filter's notice param (`pesticidesMeta().notice_filters` names those the notice
+ * endpoints take); a filter with none (the commodity) has no entry.
+ */
+const NOTICE_PARAMS: Partial<Record<keyof PesticideFilters, keyof NoticeParams>> = {
+	chemical: "chemical_id",
+	product: "product_id",
+	category: "category",
+	iarcGroup: "iarc_group",
+	method: "aerial_ground",
+	narrow: "narrow"
+};
+
+/** Every saved filter, in the order they are named. */
+const FILTER_KEYS: (keyof PesticideFilters)[] = [
+	"chemical",
+	"commodity",
+	"product",
+	"category",
+	"iarcGroup",
+	"method",
+	"narrow"
+];
+
+/**
+ * The spray notices params for a layer's saved filters: only those the server lists in
+ * `noticeFilters` (its meta's `notice_filters`) are sent; the rest are named by
+ * `noticeFiltersSkipped`, never dropped silently.
+ */
+export function toNoticeParams(
+	filters: PesticideFilters,
+	noticeFilters: readonly string[]
+): NoticeParams {
+	const all: NoticeParams = {
+		...(filters.chemical !== undefined && { chemical_id: filters.chemical }),
+		...(filters.product !== undefined && { product_id: filters.product }),
+		...codeParams(filters)
+	};
+	const params: NoticeParams = {};
+	for (const name of Object.keys(all) as (keyof NoticeParams)[]) {
+		if (noticeFilters.includes(name)) Object.assign(params, { [name]: all[name] });
+	}
+	return params;
+}
+
+/** The saved filters that are set but that the notice endpoints don't take (today a commodity). */
+export function noticeFiltersSkipped(
+	filters: PesticideFilters,
+	noticeFilters: readonly string[]
+): (keyof PesticideFilters)[] {
+	return FILTER_KEYS.filter((key) => {
+		if (filters[key] === undefined) return false;
+		const param = NOTICE_PARAMS[key];
+		return !param || !noticeFilters.includes(param);
+	});
 }
 
 function point(t: number, value: number): SeriesPoint {
