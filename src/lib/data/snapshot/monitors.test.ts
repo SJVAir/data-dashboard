@@ -97,6 +97,21 @@ describe("monitorDaySource", () => {
 		expect(snap.final).toBe(false);
 	});
 
+	it("treats a day equal to today as today, never final", async () => {
+		stub.mockResolvedValue([{ id: "a", summaries: [row(TODAY, 5)] }]);
+		const snap = await monitorDaySource({
+			entryType: "pm25",
+			day: TODAY,
+			scope: { kind: "all" },
+			scopeKey: "all",
+			figure,
+			levels,
+			today: () => TODAY
+		}).fetch(signal);
+		expect(snap.figures.get("a")?.kind).toBe("today");
+		expect(snap.final).toBe(false);
+	});
+
 	it("marks a null field thin", async () => {
 		stub.mockResolvedValue([{ id: "a", summaries: [row(DAY, null)] }]);
 		const snap = await source().fetch(signal);

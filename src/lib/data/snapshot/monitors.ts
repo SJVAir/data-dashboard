@@ -1,22 +1,9 @@
-import { TZDate } from "@date-fns/tz";
-import { getMonitorSummariesBulkDaily } from "@sjvair/sdk";
-import { TIME_ZONE, toKey } from "$lib/format";
+import { getMonitorSummariesBulkDaily, type MonitorWithSummaries } from "@sjvair/sdk";
 import { dayState } from "../day-state";
 import type { DailyFigure, Level } from "../metadata";
 import type { NowSource } from "../now/client";
+import { numberOf, rowDate } from "./rows";
 import type { MonitorScope, Snapshot, SnapshotFigure } from "./types";
-
-type Row = { timestamp: string; is_final?: boolean } & Record<string, unknown>;
-
-/** The Pacific date a summary row starts on. */
-function rowDate(row: Row): string {
-	return toKey(new TZDate(Date.parse(row.timestamp), TIME_ZONE));
-}
-
-/** A figure field's value: a finite number, else `null`. */
-function numberOf(value: unknown): number | null {
-	return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
 
 /**
  * One day's figure for each monitor, from one daily bulk request. A monitor with no row that day
@@ -43,9 +30,9 @@ export function monitorDaySource(args: {
 				end: day,
 				...(scope.kind === "regions" && { region: scope.ids })
 			};
-			const monitors = (await getMonitorSummariesBulkDaily(config, {
+			const monitors: MonitorWithSummaries[] = await getMonitorSummariesBulkDaily(config, {
 				signal
-			})) as unknown as { id: string; summaries: Row[] }[];
+			});
 			const wanted = scope.kind === "monitors" ? new Set(scope.ids) : null;
 			const today = args.today();
 			const figures = new Map<string, SnapshotFigure>();
@@ -55,7 +42,7 @@ export function monitorDaySource(args: {
 				const found = monitor.summaries.find((r) => rowDate(r) === day);
 				if (!found) continue;
 				const row = {
-					figure: figure ? numberOf(found[figure.field]) : null,
+					figure: figure ? numberOf((found as Record<string, unknown>)[figure.field]) : null,
 					final: found.is_final
 				};
 				const state = dayState({ date: day, today, row, figure, levels });

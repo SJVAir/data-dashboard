@@ -112,7 +112,6 @@ const CODED_REGION_TYPES: Record<CodedRegionType, true> = {
 	urban_area: true,
 	protected: true,
 	ab617: true,
-	place: true,
 	mtrs: true,
 	custom: true
 };
