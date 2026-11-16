@@ -398,8 +398,15 @@ first; this plan argues from it and doesn't repeat its reasons).
   (sqid → external id, from the type's GeoJSON features); a region with no external id is left
   out.
 
-- [ ] **Step 1:** Confirm the final parameter names with the coordinator and update this plan's
-  Global Constraints if they changed. Move the pin; `npm run check` and `npm run test` pass.
+- [ ] **Step 1:** Move the pin; `npm run check` and `npm run test` pass. The SDK's names (sdk-js
+  #63, from `@sjvair/sdk/regions`): `RegionSummaryBulkType = Exclude<RegionType, "land_use">`;
+  `RegionSummaryBulkScope = { region: string | string[]; type?: never } | { type:
+  RegionSummaryBulkType; region?: never }`; `RegionSummaryBulkRequestConfig = { entryType; start;
+  end } & RegionSummaryBulkScope`; `RegionSummaryBulkOpenRequestConfig = { entryType } &
+  RegionSummaryBulkScope`. Fetchers unchanged, e.g. `getRegionSummariesBulkDaily({ entryType:
+  "pm25", start, end, type: "tract" })`, `getRegionSummariesBulkDailyOpen({ entryType, type })`.
+  Narrow the `fill` option's string to `RegionSummaryBulkType` with a type guard (an unknown or
+  `land_use` value draws no fill, as the spec says) so it type-checks without a cast.
 - [ ] **Step 2: Failing tests:** one request per day with `type` and no `region`; today's row only
   from open days; sqid → `type:code`; non-final day polls, final doesn't.
 - [ ] **Step 3:** Implement. **Step 4:** Pass.
