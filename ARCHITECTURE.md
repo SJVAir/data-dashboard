@@ -3315,6 +3315,18 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    `regions/?within=…&within_mode=overlaps` (also the geojson variant): it keeps regions with
    at least 1% of their own area inside the parents and adds `also_in`; the default
    `contained` mode is unchanged. Details in sjvair.com's step 3 spec 1.
+   **Whole-type bulk region summaries** (sjvair.com #334, `@sjvair/sdk` `5.0.0-beta.11`,
+   2026-11-15, for step 5 spec 4's region fills): `regions/<entry_type>/summaries/<res>/` and
+   `…/summaries/daily/open/` take exactly one of `region` (repeatable sqids; retired and
+   old-vintage regions included) or `type` (one region type; SDK `RegionSummaryBulkType`, every
+   type but `land_use`). `type` is a SQL sub-select, so it has no id list and no 1,000-field
+   limit. It returns current regions with a boundary (tracts on `TRACT_VINTAGE` only), the same
+   set `/regions/geojson/` draws, but **only those with a summary row** (for open days, an hourly
+   row since the first open day). A shape missing from the response is "no data", not an error.
+   Both or neither is a 400 (`exclusive`, `required`); `land_use` or an unknown type is
+   `invalid_choice`; a blank `type=` counts as absent. Paging is unchanged: 168 rows a page with
+   the cross-page merge, open days 100 regions a page. The SDK's `RegionType` no longer has
+   `place` (the server dropped place regions in 2026-09).
 6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
    **Built:** `monitors/meta/` carries `stages` and `processors` labels (pesticide lists stay
    with the pesticide spec).
