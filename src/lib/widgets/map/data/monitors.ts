@@ -75,6 +75,8 @@ export function toDayFeatures(list: MonitorLatest[], snapshot: Snapshot): Collec
 	for (const monitor of list) {
 		const figure = snapshot.figures.get(monitor.id);
 		if (!figure || !monitor.position) continue;
+		// A `thin` figure draws with no value; Task 12 wires map-sdk's monitors `detail` slot
+		// (`@sjvair/map-sdk` `0.1.0-beta.15`) so it reads "Not enough data".
 		features.push(
 			monitorFeature(
 				{ ...monitor, position: monitor.position },

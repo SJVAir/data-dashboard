@@ -520,8 +520,10 @@
 	const unratedLine = $derived(
 		data.dayUnrated && entryLabel ? m.map_day_unrated({ pollutant: entryLabel }) : ""
 	);
+	/** On a day stop that has loaded: no monitor in the places has a figure that day. */
+	const noFiguresLine = $derived(data.dayNoFigures ? m.map_day_no_figures() : "");
 	/** The map's notes: the day's, then why marks are hidden. */
-	const noteLines = $derived(unratedLine ? [unratedLine, ...hiddenLines] : hiddenLines);
+	const noteLines = $derived([unratedLine, noFiguresLine, ...hiddenLines].filter(Boolean));
 	/** The notes as one text, for the map's list and its name. */
 	const hiddenText = $derived(
 		noteLines.reduce(

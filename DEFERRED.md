@@ -1698,15 +1698,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
   (step 4 → step 5/6), or map-sdk takes on a new layer type. _Noted 2026-11-11 (step 5 spec 1):
   the Map widget shows the live readings only. **Revisit with** step 5 spec 4 (date ranges)._
-- **A day's monitor text on the Map: "Not enough data" and the figure's name.** _Deferred
-  2026-11-15 (step 5 spec 4, Task 9)._ On a day stop a monitor with a row but no figure draws
-  with no value, so its list row and accessible name read map-sdk's "No level" and its tooltip
-  "No reading", not "Not enough data"; and the tooltip's header is the pollutant's label, not
-  the day's figure name (`daily_statistic_label`). map-sdk's `pointsPlugin` has a per-feature
-  `detail` slot, but `monitorsPlugin` (`@sjvair/map-sdk` `0.1.0-beta.13` and `0.1.0-beta.15`)
-  doesn't pass one through, and its tooltip has no figure-name slot; the dashboard doesn't patch
-  map-sdk or work around it. Why: a map-sdk change, through the coordinator. **Revisit when**
-  map-sdk's monitors preset takes a `detail` (and a figure name for its tooltip).
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:

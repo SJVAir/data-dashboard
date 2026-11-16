@@ -77,10 +77,13 @@ export class MapDays {
 	);
 	/** A day stop shows. */
 	readonly onDay = $derived(this.#atKey !== "" && this.#atKey !== "now");
-	/** The neighbouring day stops, fetched ahead so a step draws at once; none on now. */
+	/**
+	 * The neighbouring day stops (one each side), fetched ahead so a step draws at once; from the
+	 * Now stop, the day before it.
+	 */
 	readonly ahead = $derived.by(() => {
-		if (!this.onDay) return [];
 		const i = this.index;
+		if (i < 0) return [];
 		return [this.stops[i - 1], this.stops[i + 1]].flatMap((s) => (s && s !== "now" ? [s.day] : []));
 	});
 

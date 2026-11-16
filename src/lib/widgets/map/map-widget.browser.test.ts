@@ -3,7 +3,7 @@ import axe from "axe-core";
 import type { Feature } from "geojson";
 import { getHMSFire, getHMSSmoke, getMonitorSummariesBulkDaily, getMonitors } from "@sjvair/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 import type { DateRangeSpec, Layer } from "$lib/data/schema";
@@ -1953,6 +1953,66 @@ test("a pollutant change on a day keeps the day, and draws nothing stale while i
 	expect(dayLabel()).toBe("Tuesday, September 8, 2026");
 });
 
+test("a place change on a day keeps the day, and draws nothing stale while it resolves", async () => {
+	rated();
+	vi.mocked(getMonitors).mockImplementation(
+		async (_type, options) => [reading(options?.region?.[0] === "r029" ? "b" : "a")] as never
+	);
+	vi.mocked(getMonitorSummariesBulkDaily).mockImplementation((async (config: {
+		start: string;
+		region?: string[];
+	}) =>
+		config.region?.[0] === "r029"
+			? [{ id: "b", summaries: [dayRow(config.start, 29)] }]
+			: [{ id: "a", summaries: [dayRow(config.start, 19)] }]) as never);
+	const gate = holdableRegions();
+	const widget = rangedMap(region("019"), { day: "2026-09-08" });
+	const screen = await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 19 });
+	gate.held = true;
+	const before = gate.calls;
+	await screen.rerender({
+		widget: { ...widget, data: { ...rangedMap(region("029")).data } }
+	});
+	await expect.poll(() => gate.calls).toBeGreaterThan(before);
+	expect(drawnValues(map)).toBeUndefined();
+	expect(dayLabel()).toBe("Tuesday, September 8, 2026");
+	gate.release();
+	await expect.poll(() => drawnValues(map)).toEqual({ b: 29 });
+	expect(vi.mocked(getMonitorSummariesBulkDaily).mock.calls.map((c) => c[0])).toContainEqual({
+		entryType: "pm25",
+		start: "2026-09-08",
+		end: "2026-09-08",
+		region: ["r029"]
+	});
+	expect(dayLabel()).toBe("Tuesday, September 8, 2026");
+});
+
+test("stepping back to a day still fetched ahead never asks for it twice", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const held = new Map<string, () => void>();
+	vi.mocked(getMonitorSummariesBulkDaily).mockImplementation((async (config: { start: string }) => {
+		await new Promise<void>((r) => held.set(config.start, r));
+		return [{ id: "a", summaries: [dayRow(config.start, Number(config.start.slice(-2)))] }];
+	}) as never);
+	await show(rangedMap(region("019")));
+	const map = await madeMap();
+	// The last stop (still in flight) and the day before, ahead.
+	await expect.poll(() => [...daysAsked()].sort()).toEqual(["2026-09-08", "2026-09-09"]);
+	await previousDay().click();
+	await expect.poll(dayLabel).toBe("Tuesday, September 8, 2026");
+	await nextDay().click();
+	await expect.poll(dayLabel).toBe("Wednesday, September 9, 2026");
+	await new Promise((r) => setTimeout(r, 50));
+	// Each day asked for once: the one in flight was kept, never aborted and asked again.
+	expect(daysAsked().filter((d) => d === "2026-09-09")).toHaveLength(1);
+	expect(daysAsked().filter((d) => d === "2026-09-08")).toHaveLength(1);
+	for (const answer of held.values()) answer();
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 9 });
+});
+
 test("smoke and fire follow the day, and the Fire & Smoke row still hides them", async () => {
 	rated();
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
@@ -1994,6 +2054,47 @@ test("on a day stop the Inactive row isn't offered and filters nothing; on Now i
 	await expect.poll(dayLabel).toBe(m.map_day_now());
 	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
 	await expect.element(inactive).toBeVisible();
+});
+
+test("a saved Inactive choice filters nothing on a day stop, and filters again on Now", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([
+		...twoTypes(),
+		{ ...reading("c"), is_active: false }
+	] as never);
+	const range = { kind: "trailing", amount: 3, unit: "day" } as const;
+	const yesterday = (dayStops(range, todayPacific()).at(-2) as { day: string }).day;
+	dailyFigures({ [yesterday]: { a: 1, b: 2, c: 3 } });
+	await showLive(rangedMap(region("019"), { day: yesterday, inactive: false }, range), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["a", "b", "c"]);
+	await nextDay().click();
+	await expect.poll(dayLabel).toBe(m.map_day_now());
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	expect(optionsOf()).toEqual({ inactive: false });
+});
+
+test("a day with no figures for the places' monitors says so, once it has loaded", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
+	let answer: () => void = () => {};
+	vi.mocked(getMonitorSummariesBulkDaily).mockImplementation((async (config: { start: string }) => {
+		if (config.start === "2026-09-09") await new Promise<void>((r) => (answer = r));
+		return [];
+	}) as never);
+	await show(rangedMap(region("019")));
+	const map = await madeMap();
+	const notes = () => frame.querySelector("[data-map-marks-hidden]")?.textContent;
+	await expect.poll(() => vi.mocked(getMonitorSummariesBulkDaily).mock.calls.length).toBe(2);
+	// Never while the day loads.
+	await new Promise((r) => setTimeout(r, 50));
+	expect(notes()).toBe("");
+	answer();
+	await expect.poll(notes).toBe(m.map_day_no_figures());
+	expect(drawnValues(map)).toEqual({});
+	expect(map.view.label).toContain(m.map_day_no_figures());
+	expect(frame.textContent).not.toContain(m.map_no_monitors_here());
 });
 
 test("a hidden mark with no figure that day gives its reason line", async () => {
@@ -2043,16 +2144,27 @@ test("refresh: a final past day isn't asked for again; one not final is, hourly"
 	}
 });
 
-test("refresh: the Now stop keeps the live monitors' 3-minute poll", async () => {
+test("refresh: the Now stop keeps the live monitors' 3-minute poll, and fetches the day before ahead", async () => {
 	rated();
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
-	await show(rangedMap(region("019"), undefined, { kind: "trailing", amount: 3, unit: "day" }));
+	const range = { kind: "trailing", amount: 3, unit: "day" } as const;
+	const stops = dayStops(range, todayPacific());
+	const before = (stops.at(-2) as { day: string }).day;
+	dailyFigures({ [before]: { a: 4 } });
+	await show(rangedMap(region("019"), undefined, range));
 	const map = await madeMap();
 	await expect.poll(dayLabel).toBe(m.map_day_now());
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	const monitors = () => nowClient.entries().find((e) => e.key.startsWith("map-monitors"));
 	await expect.poll(monitors).toMatchObject({ resolution: "raw", polling: true });
-	expect(getMonitorSummariesBulkDaily).not.toHaveBeenCalled();
+	// Only the day before the Now stop, fetched ahead and never polled.
+	await expect.poll(daysAsked).toEqual([before]);
+	const ahead = nowClient.entries().find((e) => e.key.startsWith("snapshot:monitors"));
+	expect(ahead).toMatchObject({ polling: false });
+	// Stepping to it draws at once, with no new request for it.
+	await previousDay().click();
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 4 });
+	expect(daysAsked().filter((d) => d === before)).toHaveLength(1);
 });
 
 test("a saved day outside the range opens on the last stop, writing nothing", async () => {
@@ -2104,6 +2216,35 @@ test("editing: a step saves the day, the last stop removes it, and a run is one 
 	await expect.poll(() => optionsOf()).toEqual({ day: "2026-09-07" });
 	await expect.poll(dayLabel).toBe("Monday, September 7, 2026");
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 7 });
+	// Redo gives the run's last day (the last stop, stored as missing).
+	app().current.session!.redo();
+	await expect.poll(() => optionsOf()).toBeUndefined();
+	await expect.poll(dayLabel).toBe("Wednesday, September 9, 2026");
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 9 });
+});
+
+test("a step that goes nowhere (End on the last stop) writes nothing and starts no run", async () => {
+	rated();
+	frame.style.width = "900px";
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-08": { a: 8 }, "2026-09-09": { a: 9 } });
+	await showLive(rangedMap(region("019")), editing());
+	const session = app().current.session!;
+	const apply = vi.spyOn(session, "apply");
+	const amend = vi.spyOn(session, "amend");
+	const map = await madeMap();
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 9 });
+	const slider = page.getByRole("slider");
+	(slider.element() as HTMLElement).focus();
+	await userEvent.keyboard("{End}");
+	await new Promise((r) => setTimeout(r, 50));
+	expect(apply).not.toHaveBeenCalled();
+	expect(amend).not.toHaveBeenCalled();
+	// The next step, at once, is a run's first: its own undo step.
+	await previousDay().click();
+	await expect.poll(() => optionsOf()).toEqual({ day: "2026-09-08" });
+	expect(apply).toHaveBeenCalledTimes(1);
+	expect(amend).not.toHaveBeenCalled();
 });
 
 test("a viewer of a read-only view steps for themselves, writing nothing; Make a copy keeps the day", async () => {

@@ -6,7 +6,7 @@ import type {
 	MonitorFeatureProperties
 } from "@sjvair/map-sdk/data";
 import type { MonitorLatest } from "@sjvair/sdk";
-import type { NowClient, NowState } from "$lib/data/now/client";
+import type { NowClient, NowSource, NowState } from "$lib/data/now/client";
 import { NowQuery } from "$lib/data/now/now-query.svelte";
 import type { Layer } from "$lib/data/schema";
 import type { Snapshot, SnapshotAt } from "$lib/data/snapshot";
@@ -131,6 +131,7 @@ export class MapData {
 
 	#getInput: () => MapDataInput;
 	#rating: DayRating;
+	#now: NowClient;
 	#stopEffects: () => void;
 
 	/** The pollutant the monitors query loads (the readings' scale). */
@@ -235,6 +236,17 @@ export class MapData {
 	readonly dayNotFinal = $derived(
 		this.onDay && this.monitorsCurrent && this.dayState.data?.final === false
 	);
+	/**
+	 * The day has loaded, and no monitor in the places has a figure that day (there are monitors
+	 * in the places: with none, "no monitors here" says so). Never while the day loads.
+	 */
+	readonly dayNoFigures = $derived(
+		this.onDay &&
+			this.monitorsCurrent &&
+			this.monitorsState.status === "ready" &&
+			(this.monitorsLoaded?.features.length ?? 0) === 0 &&
+			(this.inPlaces?.size ?? 0) > 0
+	);
 	readonly #filters = $derived.by(() => this.#getInput().filters);
 	/** The monitors that are the tile's own places: the filters never hide them. */
 	readonly exempt = $derived.by(() => {
@@ -289,6 +301,7 @@ export class MapData {
 	constructor(getInput: () => MapDataInput, deps: { now: NowClient; rating: DayRating }) {
 		this.#getInput = getInput;
 		this.#rating = deps.rating;
+		this.#now = deps.now;
 		this.monitorsQuery = new NowQuery<MonitorLatest[]>(deps.now);
 		this.dayQuery = new NowQuery<Snapshot>(deps.now);
 		this.hmsQuery = new NowQuery<HmsData>(deps.now);
@@ -341,6 +354,22 @@ export class MapData {
 		this.dayQuery.destroy();
 		this.hmsQuery.destroy();
 		for (const query of [...this.#dayAhead, ...this.#hmsAhead]) query.destroy();
+	}
+
+	/**
+	 * Sets each query to its source, holding every wanted source while they switch, so a key one
+	 * query lets go and another takes up (a day stepped back to, still wanted ahead) is never
+	 * dropped, and its fetch in flight never aborted and asked for again.
+	 */
+	#switch<T>(pairs: [NowQuery<T>, NowSource<T> | null][]): void {
+		const holds = pairs.flatMap(([, source]) => {
+			if (!source) return [];
+			const hold = this.#now.subscribe(source, () => {});
+			hold.setPolling(false);
+			return [hold];
+		});
+		for (const [query, source] of pairs) query.set(source);
+		for (const hold of holds) hold.unsubscribe();
 	}
 
 	/** The days to fetch ahead, as the input names them. */
@@ -436,7 +465,7 @@ export class MapData {
 			const wanted = this.#wantedKey;
 			const scope = this.#scope;
 			const ahead = this.#ahead();
-			if (!loads || !type || day === "now" || !scope || scope.for !== wanted) {
+			if (!loads || !type || !scope || scope.for !== wanted) {
 				// Nothing stale stands for the day wanted while its scope resolves.
 				this.#daySource = null;
 				this.#dayResolvedFor = null;
@@ -452,11 +481,17 @@ export class MapData {
 					rating: this.#rating,
 					today: () => todayPacific()
 				});
-			const source = sourceFor(day);
+			// On the Now stop only the day before it is fetched ahead.
+			const source = day === "now" ? null : sourceFor(day);
 			this.#daySource = source;
-			this.dayQuery.set(source);
-			this.#dayResolvedFor = `${wanted}|${day}`;
-			this.#dayAhead.forEach((query, i) => query.set(ahead[i] ? sourceFor(ahead[i]) : null));
+			this.#dayResolvedFor = source ? `${wanted}|${day}` : null;
+			this.#switch<Snapshot>([
+				[this.dayQuery, source],
+				...this.#dayAhead.map((query, i): [NowQuery<Snapshot>, NowSource<Snapshot> | null] => [
+					query,
+					ahead[i] ? sourceFor(ahead[i]) : null
+				])
+			]);
 		});
 	}
 
@@ -475,15 +510,20 @@ export class MapData {
 			}));
 			let cancelled = false;
 			const sourceFor = (at: SnapshotAt) => hmsEntry.source({ ...input, at });
-			void sourceFor(day === "now" ? "now" : { day }).then((source) => {
-				if (!cancelled) this.hmsQuery.set(source && "fetch" in source ? source : null);
-			});
-			this.#hmsAhead.forEach((query, i) => {
-				const next = day === "now" ? undefined : ahead[i];
-				if (!next) return query.set(null);
-				void sourceFor({ day: next }).then((source) => {
-					if (!cancelled) query.set(source && "fetch" in source ? source : null);
-				});
+			const found = (source: Awaited<ReturnType<typeof sourceFor>>) =>
+				source && "fetch" in source ? source : null;
+			void Promise.all([
+				sourceFor(day === "now" ? "now" : { day }),
+				...this.#hmsAhead.map((_, i) => (ahead[i] ? sourceFor({ day: ahead[i] }) : null))
+			]).then(([main, ...next]) => {
+				if (cancelled) return;
+				this.#switch<HmsData>([
+					[this.hmsQuery, found(main)],
+					...this.#hmsAhead.map((query, i): [NowQuery<HmsData>, NowSource<HmsData> | null] => [
+						query,
+						next[i] ? found(next[i]) : null
+					])
+				]);
 			});
 			return () => {
 				cancelled = true;

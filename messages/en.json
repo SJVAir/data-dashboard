@@ -1202,6 +1202,7 @@
 	"map_day_not_final": "Not final yet",
 	"map_day_none_yet": "No days to show yet",
 	"map_day_unrated": "{pollutant}'s days can't be rated",
+	"map_day_no_figures": "No figures for this day",
 	"map_marks_hidden_day": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
