@@ -1126,6 +1126,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   exact test when a shape's label point or whole bbox is inside the view. The bbox pre-check
   already rejects most shapes, and no slowdown has been measured. **Revisit when** moving the map
   with many detailed shapes (all counties, a big plume day) is measurably slow.
+  _Measured 2026-11-16 (map-sdk `0.1.0-beta.17`, session `map-sdk-d9`):_ 2500 sections in view
+  cost 0.70 ms median (1.60 ms max) per move for `features()` plus the in-view test (Chromium,
+  1200×800 map), well under a frame, so this stays deferred.
 
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
@@ -1930,6 +1933,13 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
   needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
   the parity review needs a published build.
+- **map-sdk: the lens flashes its newly covered townships clear for about a frame on each
+  recentre.** _Deferred 2026-11-16 (the user, map-sdk `0.1.0-beta.17`, session `map-sdk-d9`)._ The
+  townships' `lensHidden` feature state applies on the next frame, while the sections' `setData`
+  goes through MapLibre's worker, so for one frame the block is transparent before its sections
+  draw. A single frame is hard to see. Fix when needed: hide the townships only after the lens
+  source's `sourcedata`/load event for that data. **Revisit when** someone notices the flash on the
+  dashboard, or before map-sdk 1.0.
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
