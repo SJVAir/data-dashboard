@@ -1249,6 +1249,17 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   line. **Why deferred:** cosmetic and pre-existing (no hotfix urgency before go-live).
   **Revisit with** the next monitor-map change to the detail panel, or before monitor-map 5.0.0
   final; whether `county` should be filled server-side is a separate question.
+- **monitor-map: a selected monitor may show no ring while its panel is open.** _Found 2026-11-15
+  (monitor-map comparison rerun, `monitor-map-78`; not investigated)._ In a local 1440 px
+  screenshot taken after selecting a monitor through the keyboard list, the selected marker had
+  no ring with the panel open. Whether that's expected is unchecked. **Why deferred:** an
+  untriaged observation, not a confirmed bug (no hotfix urgency). **Revisit when** selection
+  styling comes up in monitor-map or map-sdk, or at the parity review; check it first.
+- **monitor-map: at 1024 px with a monitor panel open, the search button wraps below the
+  toolbar.** _Found 2026-11-15 (`monitor-map-78`, after #135)._ The toolbar keeps its dropdowns.
+  4.3 at 1024 px wasn't compared, so it may be pre-existing. **Why deferred:** untriaged, cosmetic.
+  **Revisit at** the parity review (compare 4.3 at 1024 px) or the next monitor-map toolbar or
+  search change.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
@@ -1910,6 +1921,21 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
   Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
   spec): a known difference from 4.3 for the parity review.
+- **`@sjvair/monitor-map` `5.0.0-beta.3` (with map-sdk `0.1.0-beta.15`, #135).** _Deferred
+  2026-11-15 (the user: "beta.3 later")._ `release/5.0.0` beaecf8 has the beta.15 re-pin, the phone
+  search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
+  needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
+  the parity review needs a published build.
+- **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
+  in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
+  Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
+  row; `monitorsPlugin`'s `detail` and `figureLabel`, including the cluster line; the chevron on
+  checkbox rows with children; and the narrow toolbar's search slot. Also missing since `0.1.0-beta.16`
+  ([#33](https://github.com/SJVAir/map-sdk/pull/33)): "No data" in the list row, accessible name,
+  tooltip and ViewSummary for no-figure outlines, the unfilled list swatch, and the Legend's
+  no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
+  then (the prompt didn't carry it); the user set the new trigger on 2026-11-15. Why: the user wants the demo
+  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit when** the user asks, or before map-sdk's 1.0 release.
 
 ## Widgets
 
