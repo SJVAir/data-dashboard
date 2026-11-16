@@ -44,7 +44,7 @@
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
 	import {
-		HIDDEN_REASON_ORDER,
+		hiddenReasonLines,
 		canMark,
 		hiddenMarks,
 		hiddenReasons,
@@ -468,7 +468,7 @@
 	/** Whether a type reports the pollutant drawn; undefined when that isn't known. */
 	function reports(type: string): boolean | undefined {
 		const info = monitorTypes?.find((t) => t.type === type);
-		if (!info || !entryType || !entryLabel) return undefined;
+		if (!info || !entryType) return undefined;
 		return info.published.includes(entryType) || (info.unflagged?.includes(entryType) ?? false);
 	}
 	/** One line per reason the marks are hidden, in order. */
@@ -481,15 +481,14 @@
 			reports,
 			loaded ? monitorIds(loaded) : new Set()
 		);
-		return HIDDEN_REASON_ORDER.filter((r) => reasons.has(r)).map((reason) => {
-			const n = reasons.get(reason)!;
-			return m.map_marks_hidden({
+		return hiddenReasonLines(reasons, entryLabel).map(({ reason, count }) =>
+			m.map_marks_hidden({
 				reason,
 				pollutant: entryLabel ?? "",
-				count: formatNumber(n),
-				countValue: n
-			});
-		});
+				count: formatNumber(count),
+				countValue: count
+			})
+		);
 	});
 	/** The lines as one text, for the map's list and its name. */
 	const hiddenText = $derived(

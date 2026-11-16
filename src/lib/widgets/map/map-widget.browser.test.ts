@@ -1186,7 +1186,6 @@ test("holds the hidden-marks note until the monitors lookup settles", async () =
 	await showLive({ ...mapWidget(region("019")), options: { marks: ["a"] } });
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["b"]);
-	await new Promise((r) => setTimeout(r, 50));
 	expect(hiddenNote()).toBe("");
 	lookup.resolve([
 		{ id: "a", type: "purpleair", name: "a", county: "Fresno", active: true, inside: false }

@@ -72,3 +72,22 @@ export function hiddenReasons(
 	}
 	return counts;
 }
+
+/**
+ * The reasons to show, in order, with their counts. Without a pollutant label a "pollutant"
+ * reason can't be worded, so its marks count as `unknown` ("aren't shown").
+ */
+export function hiddenReasonLines(
+	reasons: ReadonlyMap<HiddenReason, number>,
+	label: string | undefined
+): Array<{ reason: HiddenReason; count: number }> {
+	const counts = new Map(reasons);
+	if (!label && counts.has("pollutant")) {
+		counts.set("unknown", (counts.get("unknown") ?? 0) + counts.get("pollutant")!);
+		counts.delete("pollutant");
+	}
+	return HIDDEN_REASON_ORDER.filter((r) => counts.has(r)).map((reason) => ({
+		reason,
+		count: counts.get(reason)!
+	}));
+}

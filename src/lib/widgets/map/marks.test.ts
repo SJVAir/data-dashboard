@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { ChangeSchema } from "$lib/changes/types";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { canMark, hiddenMarks, hiddenReasons, marksChange, sameIds } from "./marks";
+import {
+	canMark,
+	hiddenMarks,
+	hiddenReasonLines,
+	hiddenReasons,
+	marksChange,
+	sameIds
+} from "./marks";
 import { MAP_MARKS_MAX } from "./options";
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
@@ -122,5 +129,33 @@ describe("hiddenReasons", () => {
 		expect(hiddenReasons(["a"], monitors, () => undefined, loaded)).toEqual(
 			new Map([["places", 1]])
 		);
+	});
+});
+
+describe("hiddenReasonLines", () => {
+	const reasons = new Map<"pollutant" | "options" | "places" | "unknown", number>([
+		["unknown", 1],
+		["pollutant", 2],
+		["places", 1]
+	]);
+
+	it("orders the reasons", () => {
+		expect(hiddenReasonLines(reasons, "Ozone")).toEqual([
+			{ reason: "pollutant", count: 2 },
+			{ reason: "places", count: 1 },
+			{ reason: "unknown", count: 1 }
+		]);
+	});
+
+	it("never words a pollutant reason without a label: it joins the aren't-shown line", () => {
+		for (const label of [undefined, ""]) {
+			expect(hiddenReasonLines(reasons, label)).toEqual([
+				{ reason: "places", count: 1 },
+				{ reason: "unknown", count: 3 }
+			]);
+		}
+		expect(hiddenReasonLines(new Map([["pollutant", 1]]), undefined)).toEqual([
+			{ reason: "unknown", count: 1 }
+		]);
 	});
 });
