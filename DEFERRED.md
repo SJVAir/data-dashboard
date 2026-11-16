@@ -1951,6 +1951,13 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   already opens at once and fills in later. **Revisit when** someone reports Share feeling slow on
   a large dashboard: open the dialog first and build the link inside it, as the points path does.
 
+- **`@sjvair/sdk`'s pesticide map functions don't take CDPR codes.** _Deferred 2026-11-16 (the
+  user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`/`13`)._ `getActivePesticideNotices`,
+  `getPesticideSections` and `getPesticideTownships` expose only the sqid filters (`chemical_id`,
+  `product_id`, `commodity_id`) and `aerial_ground`, not the server's CDPR-code `chemical`,
+  `product`, `commodity` or SprayDays-wording `method`. Why: nothing calls them (the dashboard uses
+  `pesticides/place/`'s sqids). Adding them later isn't a breaking change. **Revisit when** an app
+  needs to filter by CDPR codes (for example, porting the Pesticides explorer onto the SDK).
 - **`@sjvair/sdk` doesn't wrap `pesticides/notices/archive/`.** _Deferred 2026-11-16 (the
   user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`)._ Nothing calls it: the Map shows a
   past day's notices through `notices/active/?date=`. The archive takes the same parameters, plus
