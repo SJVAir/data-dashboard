@@ -1922,6 +1922,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
   needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
   the parity review needs a published build.
+- **map-sdk: a notice's card doesn't hold a hover lens.** _Deferred 2026-11-16 (the user, in
+  step 5 spec 5 session `data-dashboard-30`)._ `@sjvair/map-sdk` `0.1.0-beta.17` holds an unpinned
+  lens only while a lens section's card is open. The dashboard needs a notice's card to hold it too
+  (spec 5: "a lens section's or notice's card keeps it"). `0.1.0-beta.17` released without it,
+  since 5a doesn't use the lens. **Revisit before** the step 5 spec 5b plan: map-sdk changes it in
+  the next beta (`0.1.0-beta.18`).
 - **map-sdk: the lens flashes its newly covered townships clear for about a frame on each
   recentre.** _Deferred 2026-11-16 (the user, map-sdk `0.1.0-beta.17`, session `map-sdk-d9`)._ The
   townships' `lensHidden` feature state applies on the next frame, while the sections' `setData`
