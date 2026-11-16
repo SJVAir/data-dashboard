@@ -1891,9 +1891,8 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   ([#33](https://github.com/SJVAir/map-sdk/pull/33)): "No data" in the list row, accessible name,
   tooltip and ViewSummary for no-figure outlines, the unfilled list swatch, and the Legend's
   no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
-  then (the prompt didn't carry it); the new trigger is the user's call. Why: the user wants the demo
-  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit
-  when** the user asks, or the next map-sdk beta's work starts.
+  then (the prompt didn't carry it); the user set the new trigger on 2026-11-15. Why: the user wants the demo
+  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit when** the user asks, or before map-sdk's 1.0 release.
 
 ## Widgets
 
