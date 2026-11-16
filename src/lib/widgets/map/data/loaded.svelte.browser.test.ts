@@ -15,7 +15,8 @@ const fakes = vi.hoisted(() => ({
 		final: true
 	})),
 	noticesFetch: vi.fn<(key: string) => Promise<unknown>>(async () => []),
-	noticesUnavailable: { value: false }
+	noticesUnavailable: { value: false },
+	noticeFilterNames: vi.fn<() => Promise<string[]>>(async () => ["chemical_id", "category"])
 }));
 
 vi.mock("./notices", async (original) => {
@@ -31,7 +32,7 @@ vi.mock("./notices", async (original) => {
 				return { key, cadence: "hour", fetch: () => fakes.noticesFetch(key) };
 			}
 		},
-		noticeFilterNames: async () => ["chemical_id", "category"]
+		noticeFilterNames: () => fakes.noticeFilterNames()
 	};
 });
 
@@ -176,6 +177,8 @@ beforeEach(() => {
 	fakes.noticesFetch.mockClear();
 	fakes.noticesFetch.mockImplementation(async () => []);
 	fakes.noticesUnavailable.value = false;
+	fakes.noticeFilterNames.mockReset();
+	fakes.noticeFilterNames.mockImplementation(async () => ["chemical_id", "category"]);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -330,6 +333,21 @@ describe("MapData", () => {
 		await flush();
 		expect(fakes.noticesFetch).toHaveBeenCalledTimes(2);
 		expect(t.data.noticesFailed).toBe(false);
+		t.data.destroy();
+	});
+
+	it("a failed meta load is retried when the notices load, so skipped filters are named", async () => {
+		fakes.noticeFilterNames.mockRejectedValueOnce(new Error("offline"));
+		let release!: () => void;
+		fakes.noticesFetch.mockImplementationOnce(
+			() => new Promise<unknown>((resolve) => (release = () => resolve([])))
+		);
+		const t = setup({ at: "now", widget: WITH_NOTICES });
+		await flush();
+		release();
+		await flush();
+		expect(t.data.noticesState.status).toBe("ready");
+		expect(t.data.noticesSkipped).toEqual(["commodity"]);
 		t.data.destroy();
 	});
 });

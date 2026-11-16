@@ -79,6 +79,8 @@ export class MapData {
 	#noticesRun = 0;
 	/** The filter params the notice endpoints take (the server's meta); null until loaded. */
 	#noticeFilters = $state.raw<readonly string[] | null>(null);
+	/** A load of the notice filter names is in flight (not reactive: only a guard). */
+	#noticeFiltersLoading = false;
 
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
@@ -213,13 +215,12 @@ export class MapData {
 				this.#notices.update({ on, at: this.#at(), ahead: this.#ahead(), today: this.#today });
 			});
 			$effect(() => {
-				if (!(this.#loads && this.notices) || untrack(() => this.#noticeFilters)) return;
-				noticeFilterNames().then(
-					(names) => (this.#noticeFilters = names),
-					() => {
-						// Unknown until a later load: nothing is named as skipped meanwhile.
-					}
-				);
+				// Tried again each time the notices' state changes: the fetch loads the meta too, so a
+				// failed load here can't leave notices drawn without naming the filters they skip.
+				void this.noticesState.status;
+				if (!(this.#loads && this.notices)) return;
+				if (this.#noticeFiltersLoading || untrack(() => this.#noticeFilters)) return;
+				this.#loadNoticeFilters();
 			});
 		});
 	}
@@ -352,6 +353,25 @@ export class MapData {
 		this.#hms.destroy();
 		this.#fill.destroy();
 		this.#notices.destroy();
+	}
+
+	/**
+	 * Loads the filter params the notice endpoints take. On a failure they stay unknown (nothing
+	 * named as skipped) until the notices' state next changes, except when the notices have loaded
+	 * meanwhile: their fetch kept the meta, so it is asked again at once (once).
+	 */
+	#loadNoticeFilters(again = true): void {
+		this.#noticeFiltersLoading = true;
+		noticeFilterNames().then(
+			(names) => {
+				this.#noticeFiltersLoading = false;
+				this.#noticeFilters = names;
+			},
+			() => {
+				this.#noticeFiltersLoading = false;
+				if (again && this.noticesState.status === "ready") this.#loadNoticeFilters(false);
+			}
+		);
 	}
 
 	/** Now, or the day showing (built from the day's key). */
