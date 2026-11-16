@@ -11,6 +11,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **sdk-js has no pull-request CI.** _Deferred 2026-11-15 (the user; noticed on sdk-js #63,
+  session sdk-js-c0)._ Its only workflow, `.github/workflows/publish.yml`, runs on `v*` tags and
+  `workflow_dispatch`, so PRs into `release/5.0.0` show no checks (#62 and #63 had none). Each
+  session runs the tests, `deno fmt --check`, lint, check and `deno publish --dry-run` locally on
+  the last commit before asking for a merge. The fix is a small PR workflow running the same
+  steps. **Revisit before** `@sjvair/sdk` 5.0.0 final, or sooner if a merge breaks something a
+  local run would have caught.
 - **Initial bundle: the hand-kept `BARRELED` list and further trims.** _Deferred 2026-11-04
   (step 4 spec 1, Task 15)._ The build keeps the app chunk's modules in one file
   (`appGroup()` in `vite.config.ts`), found by walking the static imports from `src/main.ts`.
