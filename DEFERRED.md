@@ -1341,6 +1341,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (`camp/apps/regions/models.py`), so a new source would make `/regions/locations/` and
   `/pesticides/locations/` fail to parse in the SDK. **Revisit when** sjvair.com adds a location
   source: add the value to `locationSourceSchema` in the same change.
+  _Update 2026-11-16:_ the user chose in sdk-js (session `sdk-js-99`) to accept the known values
+  plus any other string for location `source` and `type` (`"cde-public" | "cde-private" |
+"cdss-ccl" | (string & {})`), in `@sjvair/sdk` `5.0.0-beta.12`. Remove this entry when that
+  merges.
 
 - **One figure per place for a whole range ("where was it worst over the period").**
   _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
@@ -1947,6 +1951,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   already opens at once and fills in later. **Revisit when** someone reports Share feeling slow on
   a large dashboard: open the dialog first and build the link inside it, as the points path does.
 
+- **`@sjvair/sdk` doesn't wrap `pesticides/notices/archive/`.** _Deferred 2026-11-16 (the
+  user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`)._ Nothing calls it: the Map shows a
+  past day's notices through `notices/active/?date=`. The archive takes the same parameters, plus
+  year and month. **Revisit when** an app needs past notices by year or month (a notices history
+  view or a past-notice list), not by day.
 - **The Pesticides explorer doesn't read the new pesticide meta or class breaks.** _Deferred
   2026-11-16 (sjvair.com pesticide Map work, session `sjvair-com-5a`; the user's rule for that
   work: the Pesticides and Facility Emissions explorers must not change behaviour, only get more
