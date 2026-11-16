@@ -1210,6 +1210,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses
   `protected`. **Revisit when** the step 3 metadata plan and the Release 2 alerts plan
   start, to confirm the zones were imported.
+- **sjvair.com: old-vintage census tracts still get summaries.** _Deferred 2026-11-15 (the
+  user; found while scoping spec 4's whole-type region summaries, sjvair-com-8a)._ Tracts whose
+  boundary isn't `TRACT_VINTAGE` ('2020', `camp/apps/regions/querysets.py`) are "kept for
+  CalEnviroScreen 4, never shown", but the region summary tasks still compute their rows (locally
+  380 tracts have daily rows, 300 of them current). That's wasted work. The region list
+  (`/regions/?type=tract`, all 1,161 tracts) stays as it is (the user, 2026-11-15), since the old
+  tracts may serve CES4 lookups. Nothing shown uses the old rows: the whole-type scope and
+  `/regions/geojson/` use `current_vintage()`. **Revisit with** the next sjvair.com change to the
+  region summary tasks, or if summary task time becomes a problem.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
