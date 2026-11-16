@@ -4,17 +4,19 @@
 	import { tick } from "svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import { pesticideMeta } from "$lib/data/pesticide-meta";
-	import { formatDateTime, formatNumber } from "$lib/format";
+	import { formatDate, formatDateTime, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { NoticeItem } from "./data/notices";
 
 	// A spray notice marker's card: one notice's detail, or a list of a section's notices, each
 	// row opening its detail. The explainer and the SprayDays link come from the pesticide meta.
+	// On hover (map-sdk's non-interactive tooltip) it is a static summary with nothing focusable.
 	let {
 		notices,
 		section,
 		county,
 		onNow,
+		interactive = true,
 		now = () => new Date()
 	}: {
 		notices: NoticeItem[];
@@ -22,6 +24,8 @@
 		county: string | null;
 		/** On now (not a past day): an active notice gets its "Active" tag. */
 		onNow: boolean;
+		/** The pinned card (default); false for the hover tooltip's static form. */
+		interactive?: boolean;
 		/** The clock for the "Active" tag (for tests). */
 		now?: () => Date;
 	} = $props();
@@ -37,6 +41,8 @@
 
 	let meta = $state<PesticidesMeta | null>(null);
 	$effect(() => {
+		// The hover form shows neither the explainer nor the link.
+		if (!interactive) return;
 		const controller = new AbortController();
 		pesticideMeta(controller.signal).then(
 			(value) => (meta = value),
@@ -134,92 +140,116 @@
 	{/if}
 {/snippet}
 
-<div class="mapsdk-tooltip-wide flex max-h-80 flex-col gap-2 overflow-y-auto" data-notice-card>
-	{#if shown}
-		{#if sorted.length > 1}
-			<button
-				bind:this={backButton}
-				type="button"
-				class="text-link focus-visible:ring-ring self-start rounded-sm text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
-				onclick={back}
-			>
-				{m.map_notice_back(countArgs)}
-			</button>
-		{/if}
-		<div class="flex flex-wrap items-center gap-1">
-			<p class="font-semibold">{when(shown.scheduled)}</p>
-			{@render activeTag(shown)}
-		</div>
-		<p>{m.map_notice_through({ date: when(shown.scheduledEnd) })}</p>
-		<p class="text-muted-foreground">{where}</p>
-		{#if amount(shown)}
-			<p>{amount(shown)}</p>
-		{/if}
-		{#if shown.method}
-			<p>{m.map_notice_method({ method: shown.method })}</p>
-		{/if}
-		<div>
-			<p class="font-medium">{m.map_notice_products()}</p>
-			{@render names(shown.products)}
-		</div>
-		<div>
-			<p class="font-medium">{m.map_notice_chemicals()}</p>
-			{@render names(shown.chemicals)}
-		</div>
-	{:else}
-		<p class="font-semibold">{m.map_notice_list_heading(countArgs)}</p>
-		<p class="text-muted-foreground">{where}</p>
-		<ul class="flex flex-col gap-1">
-			{#each sorted as notice (notice.id)}
-				<li>
-					<button
-						bind:this={rows[notice.id]}
-						type="button"
-						class="border-border hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring flex w-full flex-col items-start rounded-sm border px-2 py-1 text-left focus-visible:ring-2 focus-visible:outline-none"
-						onclick={() => open(notice.id)}
-					>
-						<span class="flex flex-wrap items-center gap-1">
-							<span class="font-medium">{when(notice.scheduled)}</span>
-							{@render activeTag(notice)}
-						</span>
-						{#if amount(notice)}
-							<span>{amount(notice)}</span>
-						{/if}
-						{#if notice.method}
-							<span>{m.map_notice_method({ method: notice.method })}</span>
-						{/if}
-					</button>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-	{#if explainer}
-		<div class="border-border flex flex-col gap-0.5 border-t pt-2 text-xs">
-			{#if sourceHref}
-				<a
-					href={sourceHref}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="text-link font-medium underline underline-offset-4"
-				>
-					{explainer.title}
-					<ExternalLinkCue class="inline size-3 align-baseline" />
-				</a>
-			{:else}
-				<p class="font-medium">{explainer.title}</p>
+{#if !interactive}
+	<div class="flex flex-col gap-1" data-notice-card="hover">
+		{#if sorted.length === 1}
+			<div class="flex flex-wrap items-center gap-1">
+				<p class="font-semibold">{when(sorted[0].scheduled)}</p>
+				{@render activeTag(sorted[0])}
+			</div>
+			<p class="text-muted-foreground">{where}</p>
+			{#if amount(sorted[0])}
+				<p>{amount(sorted[0])}</p>
 			{/if}
-			<p class="text-muted-foreground">{explainer.summary}</p>
-		</div>
-	{/if}
-	{#if signupHref}
-		<a
-			href={signupHref}
-			target="_blank"
-			rel="noopener noreferrer"
-			class="text-link text-sm underline underline-offset-4"
-		>
-			{m.map_notice_spraydays()}
-			<ExternalLinkCue class="inline size-3.5 align-baseline" />
-		</a>
-	{/if}
-</div>
+		{:else if sorted.length > 1}
+			<p class="font-semibold">{m.map_notice_list_heading(countArgs)}</p>
+			<p class="text-muted-foreground">{where}</p>
+			<p>
+				{m.map_notice_list_span({
+					first: formatDate(new Date(sorted[0].scheduled)),
+					last: formatDate(new Date(sorted[sorted.length - 1].scheduled))
+				})}
+			</p>
+		{/if}
+	</div>
+{:else}
+	<div class="mapsdk-tooltip-wide flex max-h-80 flex-col gap-2 overflow-y-auto" data-notice-card>
+		{#if shown}
+			{#if sorted.length > 1}
+				<button
+					bind:this={backButton}
+					type="button"
+					class="text-link focus-visible:ring-ring self-start rounded-sm text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
+					onclick={back}
+				>
+					{m.map_notice_back(countArgs)}
+				</button>
+			{/if}
+			<div class="flex flex-wrap items-center gap-1">
+				<p class="font-semibold">{when(shown.scheduled)}</p>
+				{@render activeTag(shown)}
+			</div>
+			<p>{m.map_notice_through({ date: when(shown.scheduledEnd) })}</p>
+			<p class="text-muted-foreground">{where}</p>
+			{#if amount(shown)}
+				<p>{amount(shown)}</p>
+			{/if}
+			{#if shown.method}
+				<p>{m.map_notice_method({ method: shown.method })}</p>
+			{/if}
+			<div>
+				<p class="font-medium">{m.map_notice_products()}</p>
+				{@render names(shown.products)}
+			</div>
+			<div>
+				<p class="font-medium">{m.map_notice_chemicals()}</p>
+				{@render names(shown.chemicals)}
+			</div>
+		{:else}
+			<p class="font-semibold">{m.map_notice_list_heading(countArgs)}</p>
+			<p class="text-muted-foreground">{where}</p>
+			<ul class="flex flex-col gap-1">
+				{#each sorted as notice (notice.id)}
+					<li>
+						<button
+							bind:this={rows[notice.id]}
+							type="button"
+							class="border-border hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring flex w-full flex-col items-start rounded-sm border px-2 py-1 text-left focus-visible:ring-2 focus-visible:outline-none"
+							onclick={() => open(notice.id)}
+						>
+							<span class="flex flex-wrap items-center gap-1">
+								<span class="font-medium">{when(notice.scheduled)}</span>
+								{@render activeTag(notice)}
+							</span>
+							{#if amount(notice)}
+								<span>{amount(notice)}</span>
+							{/if}
+							{#if notice.method}
+								<span>{m.map_notice_method({ method: notice.method })}</span>
+							{/if}
+						</button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if explainer}
+			<div class="border-border flex flex-col gap-0.5 border-t pt-2 text-xs">
+				{#if sourceHref}
+					<a
+						href={sourceHref}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-link font-medium underline underline-offset-4"
+					>
+						{explainer.title}
+						<ExternalLinkCue class="inline size-3 align-baseline" />
+					</a>
+				{:else}
+					<p class="font-medium">{explainer.title}</p>
+				{/if}
+				<p class="text-muted-foreground">{explainer.summary}</p>
+			</div>
+		{/if}
+		{#if signupHref}
+			<a
+				href={signupHref}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-link text-sm underline underline-offset-4"
+			>
+				{m.map_notice_spraydays()}
+				<ExternalLinkCue class="inline size-3.5 align-baseline" />
+			</a>
+		{/if}
+	</div>
+{/if}

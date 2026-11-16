@@ -2881,15 +2881,25 @@ test("a notices marker's card is the notice card, from the source's notices arra
 	const props = notices.options.source.features!.features[0].properties;
 	// map-sdk hands the tooltip the source's properties: the notices are objects, not JSON.
 	expect(Array.isArray(props.notices)).toBe(true);
-	const snippet = notices.options.tooltip!({}, props, {});
-	expect(snippet).toBeDefined();
-	const card = await render(RenderSnippet, { snippet: snippet! });
+	const item = { refKey: props.refKey };
+	// On hover (nothing pinned): the static form, with nothing focusable.
+	const hover = notices.options.tooltip!(item, props, {});
+	expect(hover).toBeDefined();
+	const tip = await render(RenderSnippet, { snippet: hover! });
 	await expect
-		.element(card.getByText(m.map_notice_list_heading({ count: "2", countValue: 2 })))
+		.element(tip.getByText(m.map_notice_list_heading({ count: "2", countValue: 2 })))
 		.toBeVisible();
 	await expect
-		.element(card.getByText(m.map_notice_where({ section: "Section s1", county: "Fresno" })))
+		.element(tip.getByText(m.map_notice_where({ section: "Section s1", county: "Fresno" })))
 		.toBeVisible();
+	expect(tip.container.querySelectorAll("button, a, [tabindex]")).toHaveLength(0);
+	tip.unmount();
+	// Pinned: the interactive card, one button per notice.
+	map.pinned = { hit: { pluginId: "notices", refKey: props.refKey as string, name: "" } };
+	const card = await render(RenderSnippet, {
+		snippet: notices.options.tooltip!(item, props, {})!
+	});
+	await expect.poll(() => card.container.querySelectorAll("button").length).toBe(2);
 	card.unmount();
 });
 

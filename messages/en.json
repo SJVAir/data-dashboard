@@ -1303,6 +1303,7 @@
 			}
 		}
 	],
+	"map_notice_list_span": "Scheduled from {first} to {last}",
 	"map_notice_spraydays": "Sign up with SprayDays",
 	"map_marks_hidden_day": [
 		{

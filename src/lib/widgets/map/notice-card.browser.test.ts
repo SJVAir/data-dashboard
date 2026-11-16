@@ -11,7 +11,7 @@ import { render } from "vitest-browser-svelte";
 import { userEvent } from "vitest/browser";
 import "../../../app.css";
 import { resetPesticideMeta } from "$lib/data/pesticide-meta";
-import { formatDateTime, formatNumber } from "$lib/format";
+import { formatDate, formatDateTime, formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import type { NoticeItem } from "./data/notices";
 import NoticeCard from "./NoticeCard.svelte";
@@ -69,6 +69,7 @@ async function setup(props: {
 	county?: string | null;
 	onNow?: boolean;
 	now?: () => Date;
+	interactive?: boolean;
 }) {
 	return render(NoticeCard, {
 		section: "M15S20E01",
@@ -252,5 +253,53 @@ describe("NoticeCard", () => {
 		const list = await setup({ notices: [notice({ id: "a" }), notice({ id: "b" })] });
 		const listResults = await axe.run(list.container);
 		expect(listResults.violations).toEqual([]);
+	});
+
+	describe("the hover form", () => {
+		const FOCUSABLE = "button, a, input, select, textarea, [tabindex]";
+		const list = () => [
+			notice({ id: "a", scheduled: "2026-11-12T06:00:00-08:00" }),
+			notice({ id: "b", scheduled: "2026-11-14T09:30:00-08:00" })
+		];
+
+		it("one notice: its date and time, place and amount, with nothing focusable", async () => {
+			const screen = await setup({ notices: [notice()], interactive: false });
+			await expect.element(screen.getByText(at("2026-11-14T09:30:00-08:00"))).toBeVisible();
+			await expect
+				.element(screen.getByText(m.map_notice_where({ section: "M15S20E01", county: "Fresno" })))
+				.toBeVisible();
+			await expect
+				.element(screen.getByText(m.map_notice_amount({ amount: formatNumber(12.5), units: "A" })))
+				.toBeVisible();
+			// Give the meta time to arrive: the hover form still shows no links.
+			await new Promise((r) => setTimeout(r, 50));
+			expect(screen.container.querySelectorAll(FOCUSABLE)).toHaveLength(0);
+			expect(screen.container.textContent).not.toContain("Telone II");
+		});
+
+		it("several notices: the heading and a summary, without row buttons", async () => {
+			const screen = await setup({ notices: list(), interactive: false });
+			await expect
+				.element(screen.getByText(m.map_notice_list_heading({ count: "2", countValue: 2 })))
+				.toBeVisible();
+			await expect
+				.element(
+					screen.getByText(
+						m.map_notice_list_span({
+							first: formatDate(new Date("2026-11-12T06:00:00-08:00")),
+							last: formatDate(new Date("2026-11-14T09:30:00-08:00"))
+						})
+					)
+				)
+				.toBeVisible();
+			await new Promise((r) => setTimeout(r, 50));
+			expect(screen.container.querySelectorAll(FOCUSABLE)).toHaveLength(0);
+		});
+
+		it("the pinned form still has its buttons and links", async () => {
+			const screen = await setup({ notices: list() });
+			await expect.poll(() => screen.container.querySelectorAll("a").length).toBe(2);
+			expect(screen.container.querySelectorAll("button")).toHaveLength(2);
+		});
 	});
 });

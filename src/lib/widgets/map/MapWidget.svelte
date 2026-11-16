@@ -548,9 +548,15 @@
 			source: noticesSource,
 			layerLabel: label,
 			count: { property: "count" },
-			// The card (its own heading); read when shown, so it follows the day stop.
-			tooltip: (_item, props: NoticeFeatureProperties) =>
-				noticeTooltip(props, (days.at ?? "now") === "now"),
+			// The card (its own heading); read when shown, so it follows the day stop and the pin.
+			// map-sdk shows the interactive card for the pinned or keyboard-focused feature and a
+			// non-interactive tooltip on hover, which gets the static form.
+			tooltip: (item, props: NoticeFeatureProperties) =>
+				noticeTooltip(
+					props,
+					(days.at ?? "now") === "now",
+					current.focusedKey === item.refKey || current.pinned?.hit.refKey === item.refKey
+				),
 			tooltipShowsName: true,
 			...(clusters && { cluster: NOTICES_CLUSTER })
 		});
