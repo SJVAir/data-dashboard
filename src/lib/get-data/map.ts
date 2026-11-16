@@ -2,7 +2,7 @@
  * Get data for the Map: its pollutants, smoke and fire, and converting a draft to and from it.
  */
 import type { CatalogEntry, Level } from "$lib/data/metadata";
-import type { DateRangeSpec, Layer, WidgetDataConfig } from "$lib/data/schema";
+import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
 import { fromLayer } from "$lib/places/selection";
@@ -13,6 +13,7 @@ import {
 	MAP_MAX_DAYS,
 	MAP_POLLUTANTS_MAX,
 	MAP_TYPE,
+	PESTICIDE_NOTICES,
 	drawableShowing,
 	mapOptions,
 	pollutantLayers
@@ -21,7 +22,7 @@ import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
 import { mainLayer } from "$lib/widgets/shared/input";
 import { blockedBySpan } from "./date-presets";
 import type { Draft } from "./draft.svelte";
-import { keepingPlaces } from "./layers";
+import { keepingPlaces, PESTICIDES } from "./layers";
 import {
 	fromNowDraft,
 	isDefaultRange,
@@ -83,10 +84,53 @@ export function hasSmokeAndFire(data: WidgetDataConfig): boolean {
 export function setSmokeAndFire(data: WidgetDataConfig, on: boolean): void {
 	if (on) {
 		for (const dataset of [HMS_SMOKE, HMS_FIRE]) {
-			if (!data.layers.some((l) => l.dataset === dataset)) data.layers.push({ dataset });
+			if (data.layers.some((l) => l.dataset === dataset)) continue;
+			// Ahead of the notices, which stay last.
+			const at = data.layers.findIndex((l) => l.dataset === PESTICIDE_NOTICES);
+			data.layers.splice(at < 0 ? data.layers.length : at, 0, { dataset });
 		}
 	} else {
 		data.layers = data.layers.filter((l) => l.dataset !== HMS_SMOKE && l.dataset !== HMS_FIRE);
+	}
+}
+
+/** Whether `data` has the spray notices layer. */
+export function hasNotices(data: WidgetDataConfig): boolean {
+	return data.layers.some((l) => l.dataset === PESTICIDE_NOTICES);
+}
+
+/** Adds the place-less spray notices layer after smoke and fire (the last layer), or removes it. */
+export function setNotices(data: WidgetDataConfig, on: boolean): void {
+	if (on) {
+		if (!hasNotices(data)) data.layers.push({ dataset: PESTICIDE_NOTICES });
+	} else {
+		data.layers = data.layers.filter((l) => l.dataset !== PESTICIDE_NOTICES);
+	}
+}
+
+/** The layers that take pesticide filters: the notices, and (later) pesticide use. */
+function pesticideLayers(data: WidgetDataConfig): Layer[] {
+	return data.layers.filter((l) => l.dataset === PESTICIDE_NOTICES || l.dataset === PESTICIDES);
+}
+
+/** The first pesticide layer's filters (the layers are kept in step). */
+export function mapPesticideFilters(data: WidgetDataConfig): PesticideFilters | undefined {
+	return pesticideLayers(data).find((l) => l.filters)?.filters;
+}
+
+/** Writes `filters` to every pesticide layer; nothing in them removes them. */
+export function setMapPesticideFilters(
+	data: WidgetDataConfig,
+	filters: PesticideFilters | undefined
+): void {
+	const kept: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(filters ?? {})) {
+		if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
+		kept[key] = value;
+	}
+	for (const layer of pesticideLayers(data)) {
+		if (Object.keys(kept).length > 0) layer.filters = structuredClone(kept) as PesticideFilters;
+		else delete layer.filters;
 	}
 }
 
@@ -94,7 +138,8 @@ export function setSmokeAndFire(data: WidgetDataConfig, on: boolean): void {
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
  * selection and no date range the Map's span rules out (none is Now); one to
  * `MAP_POLLUTANTS_MAX` air-quality layers first, the first holding at most `maxPlaces` places and
- * the others none; then only place-less smoke and fire layers.
+ * the others none; then only place-less smoke and fire layers and, last, one spray notices layer (place-less, with
+ * no entry type, and optional filters).
  */
 export function isMapShaped(draft: Draft, now: Date = new Date()): boolean {
 	const { data } = draft;
@@ -107,7 +152,12 @@ export function isMapShaped(draft: Draft, now: Date = new Date()): boolean {
 	if (pollutants.some((l) => !l.entryType)) return false;
 	if (fromLayer(pollutants[0]).length > (mapType.accepts?.maxPlaces ?? 1)) return false;
 	if (pollutants.slice(1).some((l) => fromLayer(l).length > 0)) return false;
-	return rest.every((l) => isHms(l) && !l.entryType && fromLayer(l).length === 0);
+	const notices = rest.filter((l) => l.dataset === PESTICIDE_NOTICES);
+	if (notices.length > 1 || (notices[0] && notices[0] !== rest[rest.length - 1])) return false;
+	return rest.every(
+		(l) =>
+			(isHms(l) || l.dataset === PESTICIDE_NOTICES) && !l.entryType && fromLayer(l).length === 0
+	);
 }
 
 /**
@@ -177,10 +227,16 @@ export function toMapDraft(
 		}
 	}
 	if (draft.data.layers.some(isHms)) setSmokeAndFire(data, true);
+	const notices = fromMap
+		? draft.data.layers.find((l) => l.dataset === PESTICIDE_NOTICES)
+		: undefined;
+	if (notices) data.layers.push(structuredClone(notices));
 	// The places' layer, the pollutants kept and smoke (carried over as smoke and fire) aren't
 	// left out.
 	const source = mainLayer(draft.data, catalog) ?? draft.data.layers[0];
-	const others = draft.data.layers.some((l) => l !== source && !kept.has(l) && !isHms(l));
+	const others = draft.data.layers.some(
+		(l) => l !== source && !kept.has(l) && !isHms(l) && l !== notices
+	);
 	const dropped: NowDropped[] = converted.dropped.filter(
 		(d) => d !== "dates" && (d !== "overlays" || others)
 	);

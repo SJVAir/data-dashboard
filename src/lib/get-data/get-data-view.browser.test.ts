@@ -158,7 +158,14 @@ const CATALOG: CatalogEntry[] = [
 		label: "Wildfire Smoke",
 		entryTypes: [{ ...FORECASTS_ENTRY.entryTypes[0], id: "smoke-density", label: "Smoke density" }],
 		geographies: ["region"]
-	}
+	},
+	{
+		id: "pesticide-notices",
+		label: "Pesticide Spray Notices",
+		description: "Notices of intent to spray.",
+		entryTypes: [{ ...FORECASTS_ENTRY.entryTypes[0], id: "spray-notice", label: "Spray notice" }],
+		geographies: ["point"]
+	} as CatalogEntry
 ];
 
 /** Air quality for monitors and regions: three daily points per place. */
@@ -1003,6 +1010,28 @@ describe("now widgets", () => {
 			{ dataset: "hms-fire" }
 		]);
 		await smoke.click();
+		expect((await current()).data.layers).toHaveLength(1);
+	});
+
+	test("the Spray notices section switches the layer on and shows its filters", async () => {
+		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		await expect
+			.element(page.getByRole("heading", { name: "Pesticide Spray Notices" }))
+			.toBeVisible();
+		await expect.element(page.getByText("Notices of intent to spray.")).toBeVisible();
+		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
+		await expect.element(notices).not.toBeChecked();
+		await expect
+			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.not.toBeInTheDocument();
+		await notices.click();
+		await expect.element(notices).toBeChecked();
+		await expect
+			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.toBeVisible();
+		await animationsSettled(host);
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-notices" }]);
+		await notices.click();
 		expect((await current()).data.layers).toHaveLength(1);
 	});
 

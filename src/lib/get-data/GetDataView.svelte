@@ -70,6 +70,8 @@
 		mapShowingOnly,
 		setMapPollutant,
 		setMapFill,
+		setMapPesticideFilters,
+		setNotices,
 		setSmokeAndFire,
 		toMapDraft
 	} from "./map";
@@ -738,6 +740,8 @@
 							offered={offeredPollutants(known, mapPollutants ?? [])}
 							onpollutant={(e, on) => setMapPollutant(draft.data, known, e, on)}
 							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
+							onnotices={(on) => setNotices(draft.data, on)}
+							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}
 							fill={mapOptions(plain).fill}
 							{fillTypes}
 							onfill={(type) => setMapFill(draft, type)}

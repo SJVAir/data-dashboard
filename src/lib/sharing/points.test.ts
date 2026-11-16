@@ -253,6 +253,27 @@ describe("hasPoints and pointSwaps", () => {
 		expect(mocked.placeRegion).not.toHaveBeenCalled();
 	});
 
+	it("a place-less notices layer passes the point swap unchanged", async () => {
+		const map: WidgetInstance = {
+			id: "m",
+			type: MAP_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: {
+				layers: [
+					pm25({ kind: "region", type: "zipcode", code: "93721" }),
+					{ dataset: "pesticide-notices", filters: { chemical: "c1" } }
+				]
+			}
+		};
+		const doc = docWith(map);
+		expect(hasPoints(doc)).toBe(false);
+		const swaps = await pointSwaps(doc);
+		expect(swaps).toEqual([]);
+		expect(withSwaps(doc, swaps).body.widgets[1].data.layers).toEqual(map.data.layers);
+		expect(mocked.placeRegion).not.toHaveBeenCalled();
+	});
+
 	it("keeps a Forecast strip's place: its point is looked up as a PM2.5 one", async () => {
 		const strip: WidgetInstance = {
 			id: "f",

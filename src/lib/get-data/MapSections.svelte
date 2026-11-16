@@ -6,9 +6,11 @@
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { RegionTypeInfo } from "$lib/places/types";
-	import { pollutantLayers } from "$lib/widgets/map/options";
-	import { hasSmokeAndFire, MAP_POLLUTANTS_MAX } from "./map";
+	import { PESTICIDE_NOTICES, pollutantLayers } from "$lib/widgets/map/options";
+	import { hasNotices, hasSmokeAndFire, MAP_POLLUTANTS_MAX, mapPesticideFilters } from "./map";
 	import { nowPollutants } from "./now";
+	import type { PesticideFilters as Filters } from "$lib/data/schema";
+	import PesticideFilters from "./PesticideFilters.svelte";
 	import SectionTrigger from "./SectionTrigger.svelte";
 
 	let {
@@ -17,6 +19,8 @@
 		offered,
 		onpollutant,
 		onsmoke,
+		onnotices,
+		onfilters,
 		fill,
 		fillTypes,
 		onfill
@@ -30,6 +34,10 @@
 		onpollutant: (entryType: string, on: boolean) => void;
 		/** Smoke and fire on or off (both together). */
 		onsmoke: (on: boolean) => void;
+		/** Spray notices on or off. */
+		onnotices: (on: boolean) => void;
+		/** The pesticide filters chosen for the notices (the whole new set). */
+		onfilters: (filters: Filters) => void;
 		/** The region type saved as the fill (missing: none). */
 		fill?: string;
 		/** The types the directory offers; undefined while loading or when it failed (None only). */
@@ -41,6 +49,7 @@
 	const uid = $props.id();
 	const AIR_QUALITY = "air-quality";
 	const SMOKE_AND_FIRE = "smoke-and-fire";
+	const NOTICES = "notices";
 	const FILL = "fill";
 
 	const airQuality = $derived(catalog.find((c) => c.id === AIR_QUALITY));
@@ -61,12 +70,14 @@
 	);
 	const atCap = $derived(chosen.length >= MAP_POLLUTANTS_MAX);
 	const smoke = $derived(hasSmokeAndFire(data));
+	const noticesEntry = $derived(catalog.find((c) => c.id === PESTICIDE_NOTICES));
+	const notices = $derived(hasNotices(data));
 	const fillChoices = $derived(fillTypes ?? []);
 	/** The saved fill, only while it's offered (else None shows; the saved value stays). */
 	const fillShown = $derived(fillChoices.find((t) => t.type === fill));
 
-	// The sections start open: there are only three, each short.
-	let open = $state<string[]>([AIR_QUALITY, SMOKE_AND_FIRE, FILL]);
+	// The sections start open: there are only four, each short.
+	let open = $state<string[]>([AIR_QUALITY, SMOKE_AND_FIRE, NOTICES, FILL]);
 </script>
 
 {#snippet reason(id: string, text: string)}
@@ -135,6 +146,31 @@
 			</div>
 		</Accordion.Content>
 	</Accordion.Item>
+	{#if noticesEntry || notices}
+		<Accordion.Item value={NOTICES} class="border-card-border rounded-(--radius-control) border">
+			<SectionTrigger label={noticesEntry?.label ?? PESTICIDE_NOTICES} />
+			<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
+				{#if noticesEntry?.description}
+					<p class="text-muted-foreground text-xs">{noticesEntry.description}</p>
+				{/if}
+				<label class="flex min-h-6 items-center gap-2 text-sm">
+					<input
+						type="checkbox"
+						role="switch"
+						class="accent-primary size-4"
+						checked={notices}
+						onchange={(e) => onnotices(e.currentTarget.checked)}
+					/>
+					<span>{m.getdata_map_notices_switch()}</span>
+				</label>
+				{#if notices}
+					<div role="group" aria-label={m.getdata_map_notices_filters()}>
+						<PesticideFilters filters={mapPesticideFilters(data)} onchange={onfilters} />
+					</div>
+				{/if}
+			</Accordion.Content>
+		</Accordion.Item>
+	{/if}
 	<Accordion.Item value={FILL} class="border-card-border rounded-(--radius-control) border">
 		<SectionTrigger label={m.getdata_map_fill()} detail={fillShown?.plural} />
 		<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
