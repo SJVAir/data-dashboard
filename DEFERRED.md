@@ -1331,9 +1331,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `/pesticides/locations/` fail to parse in the SDK. **Revisit when** sjvair.com adds a location
   source: add the value to `locationSourceSchema` in the same change.
 
-- **The Map refreshes only when its date range includes today.** _Deferred 2026-11-12 (step 5
-  spec 2; the user)._ A past-only range loads once and never polls. Why: spec 2 has no date range
-  (the Map keeps `time: "now"`). **Revisit with** spec 4's date-range mode.
+- **One figure per place for a whole range ("where was it worst over the period").**
+  _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
+  figure for the whole range. Why: a year of daily rows for a whole region type is too much to
+  load, and the right shape is a server-side figure per region per range. **Revisit when**
+  someone asks for it, or the server offers that figure.
 
 - **The focus school drawn twice.** _Deferred 2026-11-12 (step 5 spec 2)._ A school is both the
   focus pin and, once schools are a Map data set, a school badge. The user's lean (not a decision)
@@ -1654,7 +1656,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
   when** the map widget uses whole-layer queries (Release 1 step 5). _Noted 2026-11-11 (step 5
   spec 1): the Map widget uses map-sdk's live monitors store, not whole-layer queries, so this
-  doesn't bite yet. Step 5 spec 4's date-range data is where it does._
+  doesn't bite yet._ _Noted 2026-11-15 (step 5 spec 4): the Map's ranged data uses the snapshot
+  query (one bulk request per day), not whole-layer range queries, so it still doesn't bite.
+  **Revisit when** a whole-layer series is needed._
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -1737,8 +1741,10 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
   values where nothing was measured; the day it shows; and which daily figure (spec 5's
   per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
-  (step 4 → step 5/6), or map-sdk takes on a new layer type. _Noted 2026-11-11 (step 5 spec 1):
-  the Map widget shows the live readings only. **Revisit with** step 5 spec 4 (date ranges)._
+  (step 4 → step 5/6), or map-sdk takes on a new layer type. _Updated 2026-11-15 (step 5 spec
+  4): day-by-day monitors and region fills are built (the stepper, and a fill by region type). A
+  smooth interpolated surface stays deferred, because it shows values where nothing was
+  measured. **Revisit if** someone asks for it._
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:

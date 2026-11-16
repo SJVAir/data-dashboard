@@ -176,7 +176,7 @@ Installed:
 | `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)                          |
 | `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                                |
 | `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                          |
-| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (0.1.0-beta.11, pinned exactly; lazy) |
+| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (0.1.0-beta.15, pinned exactly; lazy) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 

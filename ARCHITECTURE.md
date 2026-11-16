@@ -1420,6 +1420,12 @@ type DateRangeSpec =
   `meta/datasets/`, or any failed fetch, gives `catalog-unavailable` (retried on the next
   query). Production stays unavailable until sjvair.com #293 (which adds the catalog and the
   code filter on `regions/`) is live there.
+- **The snapshot query** (step 5 spec 4, `src/lib/data/snapshot/`): a second read shape beside the
+  series query, for a whole layer at one moment: **one figure per place for one day** (or
+  today so far), not a series per place. It uses the bulk summaries (one request per day, scoped
+  by regions or, for a region fill, by a whole region type), applies the same day rules as the
+  calendars (`day-state.ts`), and is polled only while a day is not final. Series queries are
+  unchanged.
 - **`timeSubRange` lives on `WidgetDataConfig`** (decided 2026-10-22), next to `dateRange`,
   not on each layer's descriptor: the range is per widget. A layer resolves to a
   `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
@@ -1963,6 +1969,53 @@ spec lists the exact map-sdk changes. **Built for monitor-map (5.0.0-beta.2, 202
 `MonitorMapLayout` renders map-sdk's `OptionsToolbar` from map-sdk's presets (monitors, HMS,
 settings), plus its own EV charger and Wind groups, with the host's values in one flat record.
 
+**The Map's days and region fills (step 5 spec 4, built 2026-11-15; spec
+`docs/superpowers/specs/2026-11-15-step-5-spec-4-map-days-and-fills-design.md`).**
+
+- **Days.** A Map with a date range steps through it one Pacific day at a time. Its **stops** are
+  each day of the range before today, then **Now** if the range includes today (`days.ts`, the
+  day rules shared with the calendars; future days are cut). A range without today opens on
+  its last day; one with today opens on Now. A past day loads from the **snapshot query**
+  (below), Now from the live readings as before. A Map with no range is Now only and shows no
+  stepper.
+- **The day stepper** (`DayStepper.svelte`, below the map): Previous and Next buttons and the
+  standard slider pattern (arrows one day, Page Up and Down a week, Home and End the ends;
+  `aria-valuetext` the long date or "Now"); on a narrow tile only the buttons and the date.
+  Every drag has the buttons and keys as its alternative.
+- **The saved day** is the Map option `day` (a Pacific date key). Missing means the last stop and
+  the last stop is never written; a saved day outside the range falls back to the last stop,
+  drawn and not saved. **A run of steps is one undo step** (steps within a second of the last
+  fold into it; `step-run.ts`). **A viewer's step is held in the page**, never written, so a
+  read-only or live-shared dashboard steps with no write; "Make a copy" keeps it. `day` isn't a
+  toolbar key, so Reset leaves it.
+- **What a day shows.** The monitors draw each monitor's daily figure for the day (the
+  scale's `daily_statistic`, named by `figureLabel`); a monitor with too thin a day reads "Not
+  enough data". The toolbar offers no Inactive row on a day stop (a monitor with a figure that
+  day was reporting), and smoke and fire are the day's (`hms/*?date=`).
+- **Refresh.** Now polls as before; a day polls hourly only until every figure is final; a range
+  without today never polls once its days are final. "Today" turns over at Pacific midnight (the
+  stepper checks once a minute while a range shows).
+- **Region fills.** The region type is the Map option `fill` (a region type id), written by Get
+  data's "Fill regions by", not a layer: a fill has no pollutant of its own (it follows
+  `showing`). It is validated against the region metadata when drawn: an unknown type draws no
+  fill and the toolbar offers no row, and nothing is written. map-sdk's `regionsPlugin` draws every
+  current region of the type over the whole valley, under the monitors and the focus area, with
+  `selectable: false`; each figure is the day's, or on Now today's so far, and the layer label
+  says so ("ZIP Codes, today so far"; the type's plural label otherwise). A region with no figure is drawn
+  **outlined with no fill and reads "No data"** (in the list, the tooltip and the legend's
+  no-figure row). The legend has **one section** for the pollutant, shared by monitors and
+  fill, because both use the same `ScaleRef` (and the source's `scale` must be the same object
+  on each read: map-sdk matches a resolved scale by identity). The Layers group's fill row (a
+  checkbox, the type's plural label) hides the fill without unloading it, saved as `fillShown`
+  (only `false` is stored; a toolbar key that Reset clears).
+- **The snapshot query** (`src/lib/data/snapshot/`, imported only by lazy chunks): one figure per
+  place for one day, from the bulk summaries. `monitorDaySource` asks
+  `monitors/<type>/summaries/daily/` scoped by region; `regionDaySource` and `regionTodaySource`
+  ask `regions/<entry_type>/summaries/daily/` and `…/daily/open/` with `type=<Region.Type>`
+  (the server's whole-type scope, current regions only, so tracts match the GeoJSON's 978).
+  They share the calendars' `dayState` rules for final, pending, today and unrated figures.
+  A region the summaries leave out is a region with no figure, never an error.
+
 **The Map tile's toolbar (decided by the user 2026-11-12, in the step 5 spec 2 brainstorm; built
 in spec 3, 2026-11-13).** A Map tile is not a copy of monitor-map: its toolbar offers options only
 for the data that tile holds.
@@ -1972,9 +2025,10 @@ for the data that tile holds.
   Layers: the tile has smoke and fire, and its one row counts as a choice). There is no Overlays
   group: wind belongs to monitor-map, outside map-sdk, and the tile has no overlay data. Settings
   always shows, because its options set up the map itself.
-- **Layers holds only Fire & Smoke** (the user, 2026-11-13): a show/hide switch for both layers.
-  It doesn't add or remove the data, which stays a Get data choice (the layers' data stays loaded
-  while hidden, so showing again is instant). The places' outline (focus area) is always drawn,
+- **Layers holds only Fire & Smoke** (the user, 2026-11-13; **and the region fill's row since
+  step 5 spec 4**): a show/hide switch for each. It doesn't add or remove the data, which stays a
+  Get data choice (the layers' data stays loaded while hidden, so showing again is instant, with no
+  new request). The group shows when the tile has a fill or smoke and fire. The places' outline (focus area) is always drawn,
   with no row.
 - **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
   inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
@@ -2031,9 +2085,9 @@ for the data that tile holds.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.13` (never a range or a dist-tag; moved from
-  `0.1.0-beta.11` in step 5 spec 3, 2026-11-13) and `@sjvair/sdk` `5.0.0-beta.10`
-  (`npm:@jsr/sjvair__sdk@5.0.0-beta.10`). The dashboard no longer depends on `@maptiler/sdk`
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.15` (never a range or a dist-tag; moved from
+  `0.1.0-beta.13` in step 5 spec 4, 2026-11-15, for region fills) and `@sjvair/sdk` `5.0.0-beta.11`
+  (`npm:@jsr/sjvair__sdk@5.0.0-beta.11`; the whole-type region scope). The dashboard no longer depends on `@maptiler/sdk`
   directly: the pin's label comes from map-sdk's focus area.
 - **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection
   (no globe), `cooperativeGestures: true` (Ctrl/⌘-scroll or two fingers zoom, so scrolling the
@@ -2049,7 +2103,7 @@ for the data that tile holds.
   hidden (through the platform's `activity`, which the map takes from `useApp()`), retries and
   error states. Live monitors refresh on the `"raw"` cadence (3 minutes), smoke and fire on
   `"hour"`. Adding a data set later (schools, pesticides) means adding an entry. The Map
-  refreshes only when its date range includes today (a rule for spec 4; see `DEFERRED.md`).
+  refreshes only while its date range includes today (spec 4; see "The Map's days and region fills").
 - **What a Map tile holds.** One set of places (on the first pollutant layer only, so every
   place-handling path sees one place), one or more pollutants (one `air-quality` layer each, from
   the monitors meta's `available_pollutants`; at most 6, since `LAYERS_MAX` is 8 less smoke and
@@ -2341,8 +2395,10 @@ the dataset accordions, plus a **separate pollutant control** for Current condit
 **single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
 `target` field was removed so every widget type stores places the same way). Current
 conditions and "Can we go outside?" have one pollutant layer (heat for "Can we go
-outside?" follows from the same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "now"` in step 5
-spec 1, with one pollutant layer holding up to 25 places (spec 3 adds a date range).
+outside?" follows from the same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "range"` with the
+**`now` flag** (step 5 spec 4, 2026-11-15): the type offers "Now" as a When choice, and a Map with
+no `dateRange` shows now, as it did in specs 1–3 (`offersNow` and `showsNow` in
+`src/lib/widgets/time.ts`). It holds one pollutant layer with up to 25 places.
 
 **`accepts.datasets` is explicit** (decided 2026-11-05, step 4 spec 3). It lists the catalog
 dataset ids a type can show; a type with no list accepts no datasets, so a new type can't
