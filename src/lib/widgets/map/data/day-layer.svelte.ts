@@ -58,6 +58,11 @@ export class DayLayer<T> {
 		return this.#main.state;
 	}
 
+	/** The main query (for now or the day showing). */
+	get query(): NowQuery<T> {
+		return this.#main;
+	}
+
 	/** The main query's current source, or null. */
 	get source(): MaybeSource<T> {
 		return this.#source;
