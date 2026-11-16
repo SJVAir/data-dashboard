@@ -11,8 +11,9 @@ import type { LocationResolver, PointResolver } from "./registry";
 const FALLBACK_TYPES = ["zipcode", "city", "county"] as const;
 
 /**
- * The location sources `getLocationsByCode` takes. The SDK exports the list only as a type, so
- * it is spelled out here; the `Record` makes the compiler flag a source added to the SDK.
+ * The location sources `getLocationsByCode` is asked for. The SDK's `LocationSource` is open-ended
+ * (its known values or any string), so the compiler no longer flags a new source: add it here when
+ * the server gains one. Any other source resolves to nothing rather than a failed request.
  */
 const LOCATION_SOURCES: Record<LocationSource, true> = {
 	"cde-public": true,
