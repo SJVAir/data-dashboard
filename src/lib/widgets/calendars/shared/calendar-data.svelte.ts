@@ -4,7 +4,7 @@ import type { DailyFigure, Level } from "$lib/data/metadata";
 import type { QueryState } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { CALENDAR_DEFAULT_RANGES, calendarInput } from "$lib/calendars/input";
-import { dayStates, type DayState } from "$lib/calendars/day-state";
+import { dayStates, type DayState } from "$lib/data/day-state";
 import type { Selectable } from "$lib/calendars/selection";
 import { figureName } from "$lib/calendars/figure";
 import { addDays, todayPacific } from "$lib/format";

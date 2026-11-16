@@ -1,4 +1,4 @@
-import { ratedForCount, type DayState } from "$lib/calendars/day-state";
+import { ratedForCount, type DayState } from "$lib/data/day-state";
 import type { Level } from "$lib/data/metadata";
 import { formatLongWeekdayDate, formatValue } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
