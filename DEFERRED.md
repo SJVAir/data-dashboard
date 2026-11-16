@@ -1867,6 +1867,13 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
   Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
   spec): a known difference from 4.3 for the parity review.
+- **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
+  in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
+  Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
+  row; `monitorsPlugin`'s `detail` and `figureLabel`, including the cluster line; the chevron on
+  checkbox rows with children; and the narrow toolbar's search slot. Why: the user wants the demo
+  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit
+  when** the user asks, or the next map-sdk beta's work starts.
 
 ## Widgets
 
