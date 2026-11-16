@@ -137,6 +137,10 @@ export async function routeMapMeta(context: BrowserContext): Promise<void> {
 		async (route) => {
 			const meta = (await json<MonitorsMeta>(`${API_FIXTURES}monitors/meta.json`))!;
 			meta.data.available_pollutants.push(ozone.catalog.id);
+			// The scale's label differs from the pollutant's, so a legend title still on the
+			// scale's label (before the pollutant's has loaded) can't pass for the final one.
+			const pm25 = meta.data.entries.pm25 as { scale: { label: string } };
+			pm25.scale.label = "Fine particles";
 			meta.data.entries[ozone.catalog.id] = ozone.entry;
 			for (const [type, entry] of Object.entries(ozone.monitors)) {
 				meta.data.monitors[type].entries[ozone.catalog.id] = entry;
@@ -169,6 +173,11 @@ export async function routeMapDays(
 		async (route) => {
 			const url = new URL(route.request().url());
 			const day = url.searchParams.get("start") ?? "";
+			// The Map asks for one day at a time: anything else is a wrong request.
+			if (url.searchParams.get("end") !== day) {
+				await route.fulfill({ status: 400, json: { error: "end must equal start" } });
+				return;
+			}
 			const regions = url.searchParams.getAll("region").flatMap((r) => r.split(","));
 			const wanted = new Set(regions.flatMap((r) => REGION_MONITORS[r] ?? []));
 			const [, type] = MONITOR_DAILY.exec(url.pathname)!;
@@ -274,6 +283,10 @@ export async function routeMapFill(context: BrowserContext, figures: FillFigures
 			const url = new URL(route.request().url());
 			const [, entry, open] = REGION_BULK.exec(url.pathname)!;
 			const day = open ? figures.todayDate : (url.searchParams.get("start") ?? "");
+			// A day's fill asks for that one day: anything else is a wrong request.
+			if (!open && url.searchParams.get("end") !== day) {
+				return route.fulfill({ status: 400, json: { error: "end must equal start" } });
+			}
 			const byCode = open ? figures.today : (figures.days[day] ?? {});
 			const data = FILL_ZIPS.filter((z) => byCode[z.code] !== undefined).map((z) => ({
 				id: z.id,

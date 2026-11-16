@@ -636,6 +636,16 @@ test("Shift-click marks a monitor, the card's Remove unmarks it, and undo marks 
 	);
 });
 
+/** The Pacific date every day test's clock stands on (noon), whatever zone the machine is in. */
+const TODAY = "2026-11-15T12:00:00-08:00";
+/** Fresno County's Drummond Street monitor, by day: Good, Moderate, then Unhealthy for Sensitive Groups. */
+const DAYS = {
+	"2026-11-09": { figures: { [DRUMMOND]: 5 } },
+	"2026-11-10": { figures: { [DRUMMOND]: 20 }, smoke: true },
+	"2026-11-11": { figures: { [DRUMMOND]: 40 } }
+};
+const PAST_RANGE = { kind: "custom", start: "2026-11-09", end: "2026-11-11" };
+
 test.describe("shared by a live link", () => {
 	test.use({ account: maria });
 
@@ -788,16 +798,6 @@ test.describe("shared by a live link", () => {
 	});
 });
 
-/** The Pacific date every day test's clock stands on (noon), whatever zone the machine is in. */
-const TODAY = "2026-11-15T12:00:00-08:00";
-/** Fresno County's Drummond Street monitor, by day: Good, Moderate, then Unhealthy for Sensitive Groups. */
-const DAYS = {
-	"2026-11-09": { figures: { [DRUMMOND]: 5 } },
-	"2026-11-10": { figures: { [DRUMMOND]: 20 }, smoke: true },
-	"2026-11-11": { figures: { [DRUMMOND]: 40 } }
-};
-const PAST_RANGE = { kind: "custom", start: "2026-11-09", end: "2026-11-11" };
-
 /** The day stepper's slider, below the Map (its value text is the day's long date, or "Now"). */
 function daySlider(page: Page): Locator {
 	return page.getByRole("slider", { name: "Day", exact: true });
@@ -870,9 +870,17 @@ test.describe("a Map's days", () => {
 		await expect(page.getByRole("button", { name: "Next day" })).toBeDisabled();
 
 		await page.getByRole("button", { name: "Previous day" }).click();
-		// The day before today, which the fixtures hold no figures for.
+		// The day before today, which the fixtures hold no figures for: the note says so once the
+		// day has loaded (so the empty count isn't the day still loading).
 		await expect(slider).toHaveAttribute("aria-valuetext", /November 14, 2026$/);
-		await expect(inView(map)).toHaveCount(0);
+		await expect(page.getByRole("status").getByText("No figures for this day")).toBeVisible();
+		// The note is part of the map's name too.
+		const noted = page.getByRole("region", {
+			name: `${FRESNO_MAP} map. No figures for this day`,
+			exact: true
+		});
+		await expect(noted).toBeVisible();
+		await expect(inView(noted)).toHaveCount(0);
 		await slider.focus();
 		await page.keyboard.press("End");
 		await expect(slider).toHaveAttribute("aria-valuetext", "Now");
@@ -1131,6 +1139,15 @@ test.describe("a Map's region fill", () => {
 		return map.getByRole("region", { name: "Legend", exact: true });
 	}
 
+	/** No WCAG 2.2 AA violations with the legend drawn, in light and then dark. */
+	async function expectNoViolationsInBothThemes(page: Page): Promise<void> {
+		await page.emulateMedia({ colorScheme: "light" });
+		await expectNoViolations(page);
+		await page.emulateMedia({ colorScheme: "dark" });
+		await expectNoViolations(page);
+		await page.emulateMedia({ colorScheme: "light" });
+	}
+
 	/** The map's summary line for the fill ("ZIP Codes, today so far: 1 Good, ..."). */
 	function fillLine(map: Locator): Locator {
 		return map.getByText(/^ZIP Codes(, today so far)?: /);
@@ -1156,6 +1173,7 @@ test.describe("a Map's region fill", () => {
 		await expect(titles).toHaveCount(1);
 		await expect(titles).toHaveText("PM2.5 (µg/m³)");
 		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
+		await expectNoViolationsInBothThemes(page);
 
 		// Today's figures so far; the ZIP with none reads No data (not a level).
 		const list = await featureList(map);
@@ -1197,6 +1215,7 @@ test.describe("a Map's region fill", () => {
 		await expect(titles).toHaveCount(1);
 		await expect(titles).toHaveText("PM2.5 (µg/m³)");
 		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
+		await expectNoViolationsInBothThemes(page);
 		// The day's fill: the layer is the day's, not today so far.
 		await expect(fillLine(map)).toHaveText(/^ZIP Codes: /);
 
