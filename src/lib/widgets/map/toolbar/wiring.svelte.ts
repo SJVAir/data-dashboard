@@ -112,7 +112,8 @@ export class MapToolbarWiring {
 			types: unique(features.map((f) => f.properties.type)),
 			hasInactive: features.some((f) => f.properties.isActive === false),
 			hasInside: features.some((f) => f.properties.location === "inside"),
-			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed
+			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed,
+			fill: false
 		};
 		return JSON.stringify(offer);
 	});

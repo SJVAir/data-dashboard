@@ -13,6 +13,8 @@ export type MapOffer = {
 	hasInactive: boolean;
 	hasInside: boolean;
 	smokeAndFire: boolean;
+	/** The tile has a drawable fill. */
+	fill: boolean;
 };
 
 export type MonitorFilters = {
@@ -36,6 +38,7 @@ export function toValues(
 		const saved = options[key];
 		if (saved !== undefined) values[key] = saved;
 	}
+	values.regions = options.fillShown !== false;
 	if (drawn !== undefined) values.pollutant = drawn;
 	const hidden = new Set(options.hiddenTypes);
 	for (const type of offer.types) values[`${TYPE_PREFIX}${type}`] = !hidden.has(type);
@@ -63,6 +66,9 @@ export function toOptions(
 		} else if (key === "pollutant") {
 			if (typeof value !== "string" || value === firstPollutant) delete out.showing;
 			else out.showing = value;
+		} else if (key === "regions") {
+			if (value === false) out.fillShown = false;
+			else delete out.fillShown;
 		} else if ((FLAT_KEYS as readonly string[]).includes(key)) {
 			if (value === undefined || value === defaults[key]) delete out[key];
 			else out[key] = value;
@@ -104,7 +110,7 @@ export function groupsShown(
 	return {
 		pollutant: offer.pollutants.length >= 2,
 		monitors: monitorRowCount >= 2,
-		layers: offer.smokeAndFire
+		layers: offer.smokeAndFire || offer.fill
 	};
 }
 
