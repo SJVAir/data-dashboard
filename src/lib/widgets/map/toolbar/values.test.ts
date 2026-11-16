@@ -106,17 +106,17 @@ describe("toValues", () => {
 
 describe("activeFilters", () => {
 	it("filters nothing by types when the row is not offered", () => {
-		const f = activeFilters({ hiddenTypes: ["purpleair"] }, offer, { ...rows, types: false });
+		const f = activeFilters({ hiddenTypes: ["purpleair"] }, offer, { ...rows, types: false }, {});
 		expect(f.hiddenTypes.size).toBe(0);
 	});
 
 	it("hides inactive by default when the row is offered", () => {
-		expect(activeFilters({}, offer, rows).hideInactive).toBe(true);
-		expect(activeFilters({ inactive: true }, offer, rows).hideInactive).toBe(false);
+		expect(activeFilters({}, offer, rows, {}).hideInactive).toBe(true);
+		expect(activeFilters({ inactive: true }, offer, rows, {}).hideInactive).toBe(false);
 	});
 
 	it("does not filter by a row that is not offered", () => {
-		const f = activeFilters({}, offer, { ...rows, inactive: false, inside: false });
+		const f = activeFilters({}, offer, { ...rows, inactive: false, inside: false }, {});
 		expect(f.hideInactive).toBe(false);
 		expect(f.hideInside).toBe(false);
 	});

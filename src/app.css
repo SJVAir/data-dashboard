@@ -167,7 +167,7 @@
 	--map-icon-theme: #708090;
 	--map-icon-settings: #696969;
 	--map-icon-clusters: #1c86ee;
-	--map-icon-fire: #ff4500;
+	--map-icon-fire: #f84400;
 }
 
 /* The two dark blocks must stay identical (a test checks): System dark unless forced light, and forced dark. */

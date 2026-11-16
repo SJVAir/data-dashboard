@@ -1372,16 +1372,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 - **Step 5 spec 3 review leftovers.** _Deferred 2026-11-13 (step 5 spec 3, per-task and final
   reviews)._ Small things the reviews let stay:
-  - **Do at the start of spec 4** (the user, 2026-11-15, as with spec 2's leftovers at the start
-    of spec 3), because a person could notice them:
-    - The hidden-marks note's `pollutant: entryLabel ?? ""` would read "doesn't report " with no
-      name if the label were missing: fall back to the "aren't shown" line.
-    - The fire tint is 2.9998:1 on a hovered row (the light `--accent`), a hair under 3:1: darken
-      `--map-icon-fire`'s light value one step and add the hovered surface to the contrast test.
-    - The hidden-marks reasons read "isn't shown" briefly while the metadata loads, then change:
-      hold the note until the monitors lookup settles (still "aren't shown" if it fails).
-    - `activeFilters`' optional `defaults` falls back silently when a caller forgets it: make it
-      required.
   - **Code:** `activeFilters`' unused `offer` parameter; the unique refine and the bare `max(32)`
     on `hiddenTypes` duplicate `marks`' pattern; `routeOneOutline`'s non-null assertion. **Fix
     with** the next change to each.

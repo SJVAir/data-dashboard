@@ -1161,6 +1161,50 @@ test("gives each reason its own line, in order, in the list note and the map's n
 	expect((map.view.featureList as { note?: string }).note).toBe(notes);
 });
 
+/** Metadata whose monitors lookup the test settles itself. */
+async function lookupMetadata() {
+	const { getMetadata } = await import("$lib/data");
+	let resolve!: (list: unknown[]) => void;
+	let reject!: (error: Error) => void;
+	const pending = new Promise<unknown[]>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({
+			catalog: async () => CATALOG,
+			monitors: () => pending as never,
+			monitorTypes: async () => []
+		})
+	);
+	return { resolve, reject };
+}
+
+test("holds the hidden-marks note until the monitors lookup settles", async () => {
+	const lookup = await lookupMetadata();
+	vi.mocked(getMonitors).mockResolvedValue([reading("b")] as never);
+	await showLive({ ...mapWidget(region("019")), options: { marks: ["a"] } });
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["b"]);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(hiddenNote()).toBe("");
+	lookup.resolve([
+		{ id: "a", type: "purpleair", name: "a", county: "Fresno", active: true, inside: false }
+	]);
+	await expect.poll(hiddenNote).not.toBe("");
+});
+
+test("says the marks aren't shown when the monitors lookup fails", async () => {
+	const lookup = await lookupMetadata();
+	vi.mocked(getMonitors).mockResolvedValue([reading("b")] as never);
+	await showLive({ ...mapWidget(region("019")), options: { marks: ["a"] } });
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["b"]);
+	expect(hiddenNote()).toBe("");
+	lookup.reject(new Error("down"));
+	await expect.poll(hiddenNote).toBe(reasonLine("unknown"));
+});
+
 test("keeps marks when the places change, and undo shows them again", async () => {
 	vi.mocked(getMonitors).mockImplementation(
 		async (_type, options) =>

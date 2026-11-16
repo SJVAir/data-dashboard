@@ -87,7 +87,7 @@ export function activeFilters(
 	options: MapOptions,
 	_offer: MapOffer,
 	rows: { types: boolean; inactive: boolean; inside: boolean },
-	defaults: OptionValues = {}
+	defaults: OptionValues
 ): MonitorFilters {
 	return {
 		hiddenTypes: rows.types ? new Set(options.hiddenTypes) : new Set(),

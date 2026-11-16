@@ -452,23 +452,28 @@
 	// reasons; null while loading or when they can't be loaded (the plain wording then).
 	let monitorList = $state.raw<ReadonlyMap<string, { type: string }> | null>(null);
 	let monitorTypes = $state.raw<MonitorTypeInfo[] | null>(null);
-	void metadata.monitors().then(
-		(list) => (monitorList = new Map(list.map((x) => [x.id, x]))),
-		() => (monitorList = null)
-	);
-	void metadata.monitorTypes().then(
-		(types) => (monitorTypes = types),
-		() => (monitorTypes = null)
-	);
+	// Whether both lookups have settled (either way); the note waits for it so its reasons don't
+	// change once they are on screen.
+	let lookupsSettled = $state(false);
+	void Promise.allSettled([
+		metadata.monitors().then(
+			(list) => (monitorList = new Map(list.map((x) => [x.id, x]))),
+			() => (monitorList = null)
+		),
+		metadata.monitorTypes().then(
+			(types) => (monitorTypes = types),
+			() => (monitorTypes = null)
+		)
+	]).then(() => (lookupsSettled = true));
 	/** Whether a type reports the pollutant drawn; undefined when that isn't known. */
 	function reports(type: string): boolean | undefined {
 		const info = monitorTypes?.find((t) => t.type === type);
-		if (!info || !entryType) return undefined;
+		if (!info || !entryType || !entryLabel) return undefined;
 		return info.published.includes(entryType) || (info.unflagged?.includes(entryType) ?? false);
 	}
 	/** One line per reason the marks are hidden, in order. */
 	const hiddenLines = $derived.by(() => {
-		if (!hidden.length) return [];
+		if (!hidden.length || !lookupsSettled) return [];
 		const loaded = data.monitorsLoaded;
 		const reasons = hiddenReasons(
 			hidden,
@@ -497,7 +502,7 @@
 	const mapLabel = $derived(
 		!title
 			? undefined
-			: hidden.length
+			: hiddenText
 				? m.map_label_marks_hidden({ title, notes: hiddenText })
 				: m.map_label({ title })
 	);
@@ -698,7 +703,7 @@
 				/>
 			</svelte:boundary>
 			<p
-				class={["text-muted-foreground text-xs", hidden.length && "px-2 pt-1"]}
+				class={["text-muted-foreground text-xs", hiddenLines.length && "px-2 pt-1"]}
 				role="status"
 				data-map-marks-hidden
 			>
