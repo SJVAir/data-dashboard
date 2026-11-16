@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import {
+	MAP_POLLUTANTS_MAX,
 	MapOptionsSchema,
 	mapOptions,
 	drawableShowing,
@@ -133,5 +134,15 @@ describe("drawableShowing", () => {
 		expect(MapOptionsSchema.safeParse({ hiddenTypes: ids(33) }).success).toBe(false);
 		expect(MapOptionsSchema.safeParse({ hiddenTypes: ids(32) }).success).toBe(true);
 		expect(MapOptionsSchema.safeParse({ nope: 1 }).success).toBe(false);
+	});
+});
+
+describe("notices option", () => {
+	it("noticesShown accepts only false", () => {
+		expect(MapOptionsSchema.safeParse({ noticesShown: false }).success).toBe(true);
+		expect(MapOptionsSchema.safeParse({ noticesShown: true }).success).toBe(false);
+	});
+	it("MAP_POLLUTANTS_MAX is 4", () => {
+		expect(MAP_POLLUTANTS_MAX).toBe(4);
 	});
 });

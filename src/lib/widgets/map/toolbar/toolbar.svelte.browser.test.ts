@@ -55,6 +55,7 @@ const offer = (over: Partial<MapOffer> = {}): MapOffer => ({
 	hasInside: false,
 	smokeAndFire: false,
 	fill: false,
+	notices: false,
 	...over
 });
 

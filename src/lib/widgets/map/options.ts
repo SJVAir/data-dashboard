@@ -9,8 +9,13 @@ export const MAP_MARKS_MAX = 25;
 /** The Map's smoke and fire layers: place-less, drawn over the whole map. */
 export const HMS_SMOKE = "hms-smoke";
 export const HMS_FIRE = "hms-fire";
-/** The most pollutants a Map holds: the layer limit less the smoke and fire layers. */
-export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 2;
+/** The Map's spray notices layer: place-less, drawn over the whole map. */
+export const PESTICIDE_NOTICES = "pesticide-notices";
+/**
+ * The most pollutants a Map holds: the layer limit less four (smoke, fire, spray notices, and the
+ * one 5b uses).
+ */
+export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 4;
 /** The most days a Map's date range covers (a year, with its leap day). */
 export const MAP_MAX_DAYS = 366;
 
@@ -34,6 +39,8 @@ export const MapOptionsSchema = z.strictObject({
 	fill: SafeIdSchema.optional(),
 	/** Only `false` is stored (missing: the fill is shown). */
 	fillShown: z.literal(false).optional(),
+	/** Only `false` is stored (missing: the spray notices are shown). */
+	noticesShown: z.literal(false).optional(),
 	clustered: z.boolean().optional(),
 	fireAndSmoke: z.boolean().optional(),
 	/** Show inactive monitors. */
@@ -56,6 +63,7 @@ export const MAP_TOOLBAR_KEYS = [
 	"clustered",
 	"fireAndSmoke",
 	"fillShown",
+	"noticesShown",
 	"inactive",
 	"inside",
 	"hiddenTypes"

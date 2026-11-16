@@ -4,6 +4,9 @@ import type { FeatureCollection, Geometry } from "geojson";
 import type { Layer } from "$lib/data/schema";
 import { MAP_TOOLBAR_KEYS, type MapOptions } from "../options";
 
+/** The toolbar value key of the spray notices row. */
+export const NOTICES_KEY = "notices";
+
 /** What the tile's data offers the toolbar. */
 export type MapOffer = {
 	/** Drawable pollutant layers, in order. */
@@ -15,6 +18,8 @@ export type MapOffer = {
 	smokeAndFire: boolean;
 	/** The tile has a drawable fill. */
 	fill: boolean;
+	/** The tile has a drawable spray notices layer. */
+	notices: boolean;
 };
 
 export type MonitorFilters = {
@@ -39,6 +44,7 @@ export function toValues(
 		if (saved !== undefined) values[key] = saved;
 	}
 	values.regions = options.fillShown !== false;
+	values[NOTICES_KEY] = options.noticesShown !== false;
 	if (drawn !== undefined) values.pollutant = drawn;
 	const hidden = new Set(options.hiddenTypes);
 	for (const type of offer.types) values[`${TYPE_PREFIX}${type}`] = !hidden.has(type);
@@ -69,6 +75,9 @@ export function toOptions(
 		} else if (key === "regions") {
 			if (value === false) out.fillShown = false;
 			else delete out.fillShown;
+		} else if (key === NOTICES_KEY) {
+			if (value === false) out.noticesShown = false;
+			else delete out.noticesShown;
 		} else if ((FLAT_KEYS as readonly string[]).includes(key)) {
 			if (value === undefined || value === defaults[key]) delete out[key];
 			else out[key] = value;
@@ -110,7 +119,7 @@ export function groupsShown(
 	return {
 		pollutant: offer.pollutants.length >= 2,
 		monitors: monitorRowCount >= 2,
-		layers: offer.smokeAndFire || offer.fill
+		layers: offer.smokeAndFire || offer.fill || offer.notices
 	};
 }
 

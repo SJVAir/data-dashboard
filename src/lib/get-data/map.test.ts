@@ -59,11 +59,11 @@ describe("setMapPollutant", () => {
 		expect(shape(d)).toEqual([["pm25", true]]);
 	});
 
-	it("stops at 6 pollutants", () => {
+	it("stops at 4 pollutants", () => {
 		const d = tile("pm25");
 		for (const id of IDS.slice(1)) setMapPollutant(d, CATALOG, id, true);
-		expect(MAP_POLLUTANTS_MAX).toBe(6);
-		expect(d.layers).toHaveLength(6);
+		expect(MAP_POLLUTANTS_MAX).toBe(4);
+		expect(d.layers).toHaveLength(4);
 		expect(d.layers.some((l) => l.entryType === "x1")).toBe(false);
 	});
 

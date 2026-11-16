@@ -19,7 +19,14 @@ import {
 	type MapOptions
 } from "../options";
 import { FILL_KEY, type MapToolbar, type MapToolbarBuild } from "./toolbar.svelte";
-import { activeFilters, isExempt, toOptions, type MapOffer, type MonitorFilters } from "./values";
+import {
+	activeFilters,
+	isExempt,
+	NOTICES_KEY,
+	toOptions,
+	type MapOffer,
+	type MonitorFilters
+} from "./values";
 
 /** What the wiring reads from the widget: an object of getters, each read on its own. */
 export type MapToolbarWiringInput = {
@@ -63,6 +70,7 @@ function optionKeys(changed: string[]): (keyof MapOptions)[] {
 		changed.flatMap((key): (keyof MapOptions)[] => {
 			if (key === "pollutant") return ["showing"];
 			if (key === FILL_KEY) return ["fillShown"];
+			if (key === NOTICES_KEY) return ["noticesShown"];
 			if (key.startsWith(TYPE_PREFIX)) return ["hiddenTypes"];
 			return (MAP_TOOLBAR_KEYS as readonly string[]).includes(key) ? [key as keyof MapOptions] : [];
 		})
@@ -121,7 +129,9 @@ export class MapToolbarWiring {
 			hasInactive: features.some((f) => f.properties.isActive === false),
 			hasInside: features.some((f) => f.properties.location === "inside"),
 			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed,
-			fill: this.#in.fillLabel !== undefined
+			fill: this.#in.fillLabel !== undefined,
+			// Task 6 wires the spray notices layer.
+			notices: false
 		};
 		return JSON.stringify(offer);
 	});
