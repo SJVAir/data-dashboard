@@ -1249,6 +1249,17 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   line. **Why deferred:** cosmetic and pre-existing (no hotfix urgency before go-live).
   **Revisit with** the next monitor-map change to the detail panel, or before monitor-map 5.0.0
   final; whether `county` should be filled server-side is a separate question.
+- **monitor-map: a selected monitor may show no ring while its panel is open.** _Found 2026-11-15
+  (monitor-map comparison rerun, `monitor-map-78`; not investigated)._ In a local 1440 px
+  screenshot taken after selecting a monitor through the keyboard list, the selected marker had
+  no ring with the panel open. Whether that's expected is unchecked. **Why deferred:** an
+  untriaged observation, not a confirmed bug (no hotfix urgency). **Revisit when** selection
+  styling comes up in monitor-map or map-sdk, or at the parity review; check it first.
+- **monitor-map: at 1024 px with a monitor panel open, the search button wraps below the
+  toolbar.** _Found 2026-11-15 (`monitor-map-78`, after #135)._ The toolbar keeps its dropdowns.
+  4.3 at 1024 px wasn't compared, so it may be pre-existing. **Why deferred:** untriaged, cosmetic.
+  **Revisit at** the parity review (compare 4.3 at 1024 px) or the next monitor-map toolbar or
+  search change.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
