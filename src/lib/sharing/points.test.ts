@@ -165,6 +165,37 @@ describe("hasPoints and pointSwaps", () => {
 		expect(hasPoints(swapped)).toBe(false);
 	});
 
+	it("a Map with a date range holding a point shares the same way, by the now lookup", async () => {
+		const map: WidgetInstance = {
+			id: "m",
+			type: MAP_TYPE,
+			title: null,
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: {
+				dateRange: { kind: "trailing", amount: 7, unit: "day" },
+				layers: [pm25(POINT)]
+			}
+		};
+		const doc = docWith(map);
+		const swaps = await pointSwaps(doc);
+		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
+			layer: pm25(POINT),
+			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+			pin: "hour"
+		});
+		const swapped = withSwaps(doc, swaps);
+		expect(swapped.body.widgets[1].data.layers[0].place).toEqual({
+			kind: "region",
+			type: "zipcode",
+			code: "93721"
+		});
+		expect(swapped.body.widgets[1].data.dateRange).toEqual({
+			kind: "trailing",
+			amount: 7,
+			unit: "day"
+		});
+	});
+
 	it("shares a Map holding a point with PM2.5 and ozone as one region swap on the places layer", async () => {
 		const map: WidgetInstance = {
 			id: "m",

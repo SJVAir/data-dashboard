@@ -1007,6 +1007,7 @@
 	"getdata_preset_specific_month": "A specific month…",
 	"getdata_preset_specific_year": "A specific year…",
 	"getdata_preset_custom": "Custom range…",
+	"getdata_when_now": "Now",
 	"get_data_when": "When",
 	"get_data_where": "Where",
 	"get_data_what": "What",
@@ -1081,6 +1082,16 @@
 			"match": {
 				"countPlural=one": "This widget shows up to {count} place, so the others were left out.",
 				"countPlural=other": "This widget shows up to {count} places, so the others were left out."
+			}
+		}
+	],
+	"get_data_range_cut_left_out": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} day, so the earlier days were left out.",
+				"countPlural=other": "This widget shows up to {count} days, so the earlier days were left out."
 			}
 		}
 	],

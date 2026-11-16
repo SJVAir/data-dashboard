@@ -24,6 +24,7 @@
 	import { isCalendarType } from "$lib/calendars/types";
 	import { DEFAULT_LAYER } from "$lib/widgets/defaults";
 	import { getWidgetType } from "$lib/widgets/registry";
+	import { offersNow } from "$lib/widgets/time";
 	import {
 		chartInput,
 		nowInput,
@@ -289,11 +290,12 @@
 			...pointData,
 			layers: pointData.layers.map(placesQueryLayer)
 		};
-		// A now tile reads the layer's hourly averages, not 30 days of them.
-		// A calendar reads one daily row per day.
+		// A now tile reads the layer's hourly averages, not 30 days of them; a Map frames its places
+		// the same way, with a range or not. A calendar reads one daily row per day.
+		const type = getWidgetType(widgetType);
 		const input = isCalendarType(widgetType)
 			? calendarInput(lookup, ctx.catalog, widgetType)
-			: getWidgetType(widgetType)?.time === "now"
+			: type && offersNow(type)
 				? nowInput(placesLayer(lookup, ctx.catalog))
 				: chartInput(lookup, ctx.catalog, ctx.max).input;
 		if (!input) return null;

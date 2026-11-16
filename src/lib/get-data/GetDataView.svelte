@@ -27,6 +27,7 @@
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
+	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
 	import {
 		entryMeta,
@@ -150,8 +151,13 @@
 	});
 
 	const type = $derived(getWidgetType(plain.type));
-	/** A "now" type: no dates, one layer with one place (see `now.ts`). */
-	const isNow = $derived(type?.time === "now");
+	/**
+	 * A type with a now shape (a now type, or the Map with or without a range): its places on one
+	 * layer, its own What, no Show values (see `now.ts`, `map.ts`).
+	 */
+	const isNow = $derived(!!type && offersNow(type));
+	/** A now type proper: no When (the Map has one, with a Now choice). */
+	const nowOnly = $derived(type?.time === "now");
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
 	// A Forecast strip's one layer has no entry type, so isn't a `mainLayer`; it holds the place.
 	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
@@ -176,7 +182,8 @@
 	const showAs = $derived(
 		dataTypes().map((t) => ({
 			type: t,
-			block: known && t.time !== "now" ? typeBlock(t, blockData, known, now) : null
+			// A type that offers now converts the draft to its shape, so it's never blocked.
+			block: known && !offersNow(t) ? typeBlock(t, blockData, known, now) : null
 		}))
 	);
 	const choices = $derived.by(() => {
@@ -294,7 +301,12 @@
 		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
 	}
 
-	function setRange(spec: DateRangeSpec): void {
+	/** Sets the range, or (`undefined`, for a type with `now`) Now. */
+	function setRange(spec: DateRangeSpec | undefined): void {
+		if (!spec) {
+			delete draft.data.dateRange;
+			return;
+		}
 		draft.data.dateRange = spec;
 		// A calendar's day selection that the new range no longer holds is dropped with it.
 		const sel = draft.data.timeSubRange && $state.snapshot(draft.data.timeSubRange);
@@ -379,6 +391,10 @@
 					: m.get_data_pollutant_instead({ pollutant: to, previous })
 			);
 		}
+		if (what.includes("range-cut")) {
+			const days = getWidgetType(plain.type)?.span?.maxDays ?? 0;
+			out.push(m.get_data_range_cut_left_out({ count: formatNumber(days), countValue: days }));
+		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		const days = dropped.conversion.selection;
@@ -426,13 +442,13 @@
 
 	/** Whether `d` already has now type `t`'s shape (the Map's own, for the Map). */
 	function shaped(d: Draft, t: WidgetType): boolean {
-		return t.type === MAP_TYPE ? isMapShaped(d) : isNowShaped(d, t);
+		return t.type === MAP_TYPE ? isMapShaped(d, now) : isNowShaped(d, t);
 	}
 
 	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
 	function sourceType(snapshot: Draft): WidgetType | undefined {
 		const from = getWidgetType(snapshot.type);
-		return from?.time === "now" && !shaped(snapshot, from) ? undefined : from;
+		return from && offersNow(from) && !shaped(snapshot, from) ? undefined : from;
 	}
 
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
@@ -444,7 +460,7 @@
 			const allowed = await loadMapPollutants();
 			if (id !== changeId) return;
 			mapPollutants = allowed;
-			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed);
+			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed, now);
 			defaultOwed = false;
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -476,13 +492,13 @@
 	function setType(next: string): void {
 		const to = getWidgetType(next);
 		if (!to) return;
-		if (to.time === "now" && known) {
+		if (offersNow(to) && known) {
 			void convertToNow(to, known);
 			return;
 		}
 		changeId++;
 		defaultOwed = false;
-		if (to.time !== "now" && isNow) {
+		if (!offersNow(to) && isNow) {
 			const converted =
 				plain.type === MAP_TYPE
 					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants)
@@ -518,7 +534,7 @@
 	// known. A saved now widget already has the shape.
 	$effect(() => {
 		const to = type;
-		if (!known || to?.time !== "now") return;
+		if (!known || !to || !offersNow(to)) return;
 		if (!untrack(() => shaped(plain, to))) void convertToNow(to, known);
 	});
 
@@ -637,11 +653,17 @@
 				</div>
 			{/if}
 
-			{#if !isNow}
+			{#if !nowOnly}
 				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
 					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
 					{#if type}
-						<WhenControl {type} value={range} {now} onchange={setRange} />
+						<!-- A type with `now` (the Map) passes no range for Now. -->
+						<WhenControl
+							{type}
+							value={type.now ? plain.data.dateRange : range}
+							{now}
+							onchange={setRange}
+						/>
 					{/if}
 				</section>
 			{/if}

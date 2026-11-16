@@ -7,6 +7,7 @@
 	import { formatDateRange, todayPacific } from "$lib/format";
 	import { resolveRange } from "$lib/format/range";
 	import { m } from "$lib/paraglide/messages.js";
+	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import type { WidgetType } from "$lib/widgets/registry";
 	import {
 		blockedBySpan,
@@ -22,18 +23,30 @@
 		now,
 		onchange
 	}: {
-		/** The widget type the range is for: its date methods and span limit the list. */
-		type: Pick<WidgetType, "dateMethods" | "span">;
-		value: DateRangeSpec;
+		/**
+		 * The widget type the range is for: its date methods and span limit the list, and `now`
+		 * adds a "Now" choice ahead of them.
+		 */
+		type: Pick<WidgetType, "dateMethods" | "span" | "now">;
+		/** The range; none is Now (for a type with `now`). */
+		value: DateRangeSpec | undefined;
 		now: Date;
-		onchange: (spec: DateRangeSpec) => void;
+		/** A range was chosen, or Now (`undefined`). */
+		onchange: (spec: DateRangeSpec | undefined) => void;
 	} = $props();
 
 	const uid = $props.id();
 
+	/** The "Now" choice's id (no preset's). */
+	const NOW_ID = "now";
+	const showsNow = $derived(!!type.now && !value);
+	/** The range the date choices start from: the value, or for Now the default range. */
+	const base = $derived(value ?? DEFAULT_RANGE);
+
 	const presets = $derived(presetsFor(type, now));
 	const selectedId = $derived.by(() => {
-		const id = presetIdFor(value);
+		if (showsNow) return NOW_ID;
+		const id = presetIdFor(base);
 		return presets.some((p) => p.id === id) ? id : "custom";
 	});
 	const selected = $derived(presets.find((p) => p.id === selectedId));
@@ -54,11 +67,11 @@
 		if (preset.spec) return preset.spec;
 		const today = todayPacific(now);
 		if (preset.needs === "range") {
-			const r = resolveRange(value, now);
+			const r = resolveRange(base, now);
 			return { kind: "custom", start: r.firstDate, end: r.lastDate };
 		}
 		const unit = preset.needs as "day" | "week" | "month" | "year";
-		const start = value.kind === "set" && value.unit === unit ? value.start : today;
+		const start = value?.kind === "set" && value.unit === unit ? value.start : today;
 		return { kind: "set", unit, start };
 	}
 
@@ -77,13 +90,18 @@
 	);
 
 	function choose(id: string): void {
+		if (id === NOW_ID) {
+			inputError = null;
+			onchange(undefined);
+			return;
+		}
 		const preset = presets.find((p) => p.id === id);
 		if (!preset || reasons.get(id)) return;
 		inputError = null;
 		onchange(specFor(preset));
 	}
 
-	const resolved = $derived(resolveRange(value, now));
+	const resolved = $derived(resolveRange(base, now));
 	const rangeText = $derived.by(() => {
 		const range = formatDateRange(resolved.firstDate, resolved.lastDate);
 		return resolved.rolling ? m.get_data_range_rolling({ range }) : range;
@@ -114,11 +132,11 @@
 	// "Custom range" shows its dates even for a rolling length the list doesn't have (a saved
 	// "last 45 days"): seeded from what it resolves to now, the first edit makes it custom.
 	const custom = $derived.by(() => {
-		if (value.kind === "custom") return value;
+		if (value?.kind === "custom") return value;
 		if (selectedId !== "custom") return null;
 		return { kind: "custom" as const, start: resolved.firstDate, end: resolved.lastDate };
 	});
-	const setSpec = $derived(value.kind === "set" ? value : null);
+	const setSpec = $derived(value?.kind === "set" ? value : null);
 
 	const errorId = `${uid}-error`;
 	const labelId = `${uid}-label`;
@@ -126,6 +144,25 @@
 	const triggerId = `${uid}-trigger`;
 	const inputClass = "w-full max-w-56";
 </script>
+
+{#snippet item(id: string, label: string, reason: string | null)}
+	<Select.Item
+		value={id}
+		{label}
+		disabled={!!reason}
+		class="data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:text-muted-foreground flex min-h-6 cursor-default items-start gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-disabled:cursor-not-allowed"
+	>
+		{#snippet children({ selected: on })}
+			<span class="flex size-4 shrink-0 items-center">
+				{#if on}<CheckIcon class="size-4" aria-hidden="true" />{/if}
+			</span>
+			<span class="flex flex-col">
+				<span>{label}</span>
+				{#if reason}<span class="text-xs">{reason}</span>{/if}
+			</span>
+		{/snippet}
+	</Select.Item>
+{/snippet}
 
 <div class="flex flex-col gap-2">
 	<Select.Root type="single" value={selectedId} onValueChange={choose}>
@@ -135,7 +172,9 @@
 			aria-labelledby="{labelId} {valueId}"
 			class="border-input bg-card text-foreground flex h-8 w-full max-w-64 items-center justify-between gap-2 rounded-(--radius-control) border px-2.5 text-sm"
 		>
-			<span id={valueId}>{selected?.label() ?? m.getdata_preset_custom()}</span>
+			<span id={valueId}>
+				{showsNow ? m.getdata_when_now() : (selected?.label() ?? m.getdata_preset_custom())}
+			</span>
 			<ChevronDownIcon class="text-muted-foreground size-4" aria-hidden="true" />
 		</Select.Trigger>
 		<Select.Portal>
@@ -144,6 +183,11 @@
 				class="border-card-border shadow-card bg-popover text-popover-foreground z-50 max-h-(--bits-select-content-available-height) min-w-(--bits-select-anchor-width) overflow-y-auto rounded-lg border p-1"
 			>
 				<Select.Viewport>
+					{#if type.now}
+						<Select.Group>
+							{@render item(NOW_ID, m.getdata_when_now(), null)}
+						</Select.Group>
+					{/if}
 					{#each groups as g (g.group)}
 						<Select.Group>
 							{#if g.group !== "custom"}
@@ -152,23 +196,7 @@
 								</Select.GroupHeading>
 							{/if}
 							{#each g.items as preset (preset.id)}
-								{@const reason = reasons.get(preset.id)}
-								<Select.Item
-									value={preset.id}
-									label={preset.label()}
-									disabled={!!reason}
-									class="data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:text-muted-foreground flex min-h-6 cursor-default items-start gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-disabled:cursor-not-allowed"
-								>
-									{#snippet children({ selected: on })}
-										<span class="flex size-4 shrink-0 items-center">
-											{#if on}<CheckIcon class="size-4" aria-hidden="true" />{/if}
-										</span>
-										<span class="flex flex-col">
-											<span>{preset.label()}</span>
-											{#if reason}<span class="text-xs">{reason}</span>{/if}
-										</span>
-									{/snippet}
-								</Select.Item>
+								{@render item(preset.id, preset.label(), reasons.get(preset.id) ?? null)}
 							{/each}
 						</Select.Group>
 					{/each}
@@ -248,5 +276,7 @@
 		<p id={errorId} class="text-destructive text-xs">{inputError}</p>
 	{/if}
 
-	<p class="text-muted-foreground text-xs" data-testid="resolved-range">{rangeText}</p>
+	{#if !showsNow}
+		<p class="text-muted-foreground text-xs" data-testid="resolved-range">{rangeText}</p>
+	{/if}
 </div>

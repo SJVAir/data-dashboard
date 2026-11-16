@@ -6,6 +6,7 @@ import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { getWidgetType } from "$lib/widgets/registry";
+import { offersNow } from "$lib/widgets/time";
 import { chartInput, nowInput, placesLayer, placesQueryLayer } from "$lib/widgets/shared/input";
 import { barHasPoint, hasPoints, pointLayers } from "./point-layers";
 
@@ -84,7 +85,9 @@ function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
 	const query = placesQueryLayer(places);
 	if (isCalendarType(widget.type))
 		return calendarInput({ ...data, layers: [query] }, undefined, widget.type);
-	if (getWidgetType(widget.type)?.time === "now") return nowInput(query);
+	// A Map is looked up as it frames its places now, whether or not it has a range.
+	const type = getWidgetType(widget.type);
+	if (type && offersNow(type)) return nowInput(query);
 	return chartInput({ ...data, layers: [query] }, undefined, 1).input;
 }
 

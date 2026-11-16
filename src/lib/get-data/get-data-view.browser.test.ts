@@ -868,19 +868,22 @@ describe("now widgets", () => {
 		expect("thresholds" in (await current())).toBe(false);
 	});
 
-	test("Show as Map keeps the chart's places", async () => {
+	test("Show as Map keeps the chart's places and range", async () => {
 		const { current } = await show(monitorsDraft(["m1", "m2", "m3"]));
 		await page.getByRole("radio", { name: "Map" }).click();
 		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
-		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
 		await expect
 			.element(page.getByText(m.get_data_extra_places_left_out()))
 			.not.toBeInTheDocument();
 		await expect.element(alert()).not.toBeInTheDocument();
-		await expect.element(page.getByRole("button", { name: /^Dates/ })).not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: /^Dates/ }))
+			.toHaveTextContent("Last 30 days");
 		expect(await current()).toEqual({
 			type: "map",
 			data: {
+				dateRange: { kind: "trailing", amount: 30, unit: "day" },
 				layers: [
 					{
 						dataset: "air-quality",
@@ -890,6 +893,46 @@ describe("now widgets", () => {
 				]
 			}
 		});
+	});
+
+	test("a Map's When offers Now and the date methods, with no Show values", async () => {
+		const { current } = await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+				]
+			}
+		});
+		const dates = page.getByRole("button", { name: /^Dates/ });
+		await expect.element(dates).toHaveTextContent(m.getdata_when_now());
+		await expect.element(page.getByTestId("resolved-range")).not.toBeInTheDocument();
+		await expect
+			.element(page.getByText(m.get_data_show_values(), { exact: true }))
+			.not.toBeInTheDocument();
+		await dates.click();
+		await expect
+			.element(page.getByRole("option", { name: m.getdata_when_now(), exact: true }))
+			.toHaveAttribute("aria-selected", "true");
+		// Every date method: trailing, to-date, a specific period and a custom range.
+		for (const name of [
+			m.getdata_preset_last_7_days(),
+			m.getdata_preset_this_month(),
+			m.getdata_preset_specific_day(),
+			m.getdata_preset_custom()
+		]) {
+			await expect.element(page.getByRole("option", { name, exact: true })).toBeVisible();
+		}
+		await page.getByRole("option", { name: "Last 7 days" }).click();
+		await animationsSettled(document.body);
+		await expect.element(dates).toHaveTextContent("Last 7 days");
+		await expect
+			.element(page.getByText(m.get_data_show_values(), { exact: true }))
+			.not.toBeInTheDocument();
+		expect((await current()).data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
+		await chooseDates(m.getdata_when_now());
+		await expect.element(dates).toHaveTextContent(m.getdata_when_now());
+		expect("dateRange" in (await current()).data).toBe(false);
 	});
 
 	test("shows the Map pollutant checkboxes, and the last one can't be unchecked", async () => {
