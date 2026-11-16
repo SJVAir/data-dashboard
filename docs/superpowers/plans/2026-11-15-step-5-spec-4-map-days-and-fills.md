@@ -24,11 +24,10 @@ first; this plan argues from it and doesn't repeat its reasons).
 - Branch `step-5-spec-4` from `step-5`; PR into `step-5`. Never merge without the user's yes.
 - Pins stay exact. `@sjvair/sdk` `5.0.0-beta.10` until Task 11; `@sjvair/map-sdk` `0.1.0-beta.13`
   until Task 12. Name packages with full versions in docs and commits.
-- **Tasks 11 and 12 are blocked** on the coordinator (`data-dashboard-2b`): the SDK beta with the
-  whole-type region scope, and `@sjvair/map-sdk` `0.1.0-beta.15` (no-figure regions, one shared
+- **Tasks 11 and 12 are blocked** on the coordinator (`data-dashboard-2b`): `@sjvair/sdk` `5.0.0-beta.11`
+  (the whole-type region scope; published after the server PR merges into `develop`), and `@sjvair/map-sdk` `0.1.0-beta.15` (no-figure regions, one shared
   legend section). Do Tasks 1–10 and 13's non-fill parts first; never work around a missing beta.
-- Server shape for Task 11 (**provisional** until sjvair.com's spec is approved; the coordinator
-  confirms): `type=<Region.Type>` on `/regions/<entry_type>/summaries/<res>/` and
+- Server shape for Task 11 (final: the user approved sjvair.com's spec, 2026-11-15): `type=<Region.Type>` on `/regions/<entry_type>/summaries/<res>/` and
   `/regions/<entry_type>/summaries/daily/open/`; exactly one of `type` or `region` (both or
   neither: 400); `land_use` and unknown types 400; current regions only (matches
   `/regions/geojson/`); empty type is an empty 200; paging (168 rows), shape and cache headers
@@ -382,10 +381,10 @@ first; this plan argues from it and doesn't repeat its reasons).
 - [ ] **Step 2:** Run; fail. **Step 3:** Implement. **Step 4:** Pass.
 - [ ] **Step 5:** Lint, check, commit: `feat(get-data): a Map's region fill`.
 
-### Task 11 (blocked on the SDK beta): region snapshots
+### Task 11 (blocked on `@sjvair/sdk` `5.0.0-beta.11`): region snapshots
 
 **Files:**
-- Modify: `package.json` / lockfile (`@sjvair/sdk` exact pin `npm:@jsr/sjvair__sdk@<beta>`)
+- Modify: `package.json` / lockfile (`@sjvair/sdk` exact pin `npm:@jsr/sjvair__sdk@5.0.0-beta.11`)
 - Create: `src/lib/data/snapshot/regions.ts`, `regions.test.ts`
 
 **Interfaces:**
@@ -404,7 +403,7 @@ first; this plan argues from it and doesn't repeat its reasons).
 - [ ] **Step 2: Failing tests:** one request per day with `type` and no `region`; today's row only
   from open days; sqid → `type:code`; non-final day polls, final doesn't.
 - [ ] **Step 3:** Implement. **Step 4:** Pass.
-- [ ] **Step 5:** Lint, check, commit: `feat(data): region snapshots (SDK <beta>)`.
+- [ ] **Step 5:** Lint, check, commit: `feat(data): region snapshots (@sjvair/sdk 5.0.0-beta.11)`.
 
 ### Task 12 (blocked on `@sjvair/map-sdk` `0.1.0-beta.15`): the fill on the map
 
