@@ -38,7 +38,7 @@
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
 	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
-	import { fillRegionType, withNoFigureDetail } from "./data/fill";
+	import { fillRegionType } from "./data/fill";
 	import { MapData } from "./data/loaded.svelte";
 	import { isThin } from "./data/monitors";
 	import { MapDays } from "./day-mode.svelte";
@@ -475,16 +475,13 @@
 		const current = map;
 		const label = fillLabel;
 		if (!current || !label || !loads || !fillDrawn) return;
-		const plugin = withNoFigureDetail(
-			regionsPlugin({
-				id: "fill",
-				source: fillSource,
-				layerLabel: label,
-				selectable: false,
-				noFigure: "outline"
-			}),
-			m.map_fill_no_data()
-		);
+		const plugin = regionsPlugin({
+			id: "fill",
+			source: fillSource,
+			layerLabel: label,
+			selectable: false,
+			noFigure: "outline"
+		});
 		untrack(() => current.addPlugin(plugin, { before: "focus" }));
 		return () => current.removePlugin(plugin.id);
 	});

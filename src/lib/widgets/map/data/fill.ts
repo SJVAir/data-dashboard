@@ -1,5 +1,4 @@
 import type { RegionFeature, RegionSummaryBulkType } from "@sjvair/sdk";
-import type { FeatureListItem, MapPlugin } from "@sjvair/map-sdk";
 import { encodeRef, type MapFeatureProperties, type ScaleRef } from "@sjvair/map-sdk/data";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { getMetadata, getResolvers } from "$lib/data";
@@ -54,18 +53,6 @@ export function fillRegionType(
 ): RegionSummaryBulkType | null {
 	const found = types && fillableTypes(types).find((t) => t.type === saved);
 	return found ? (found.type as RegionSummaryBulkType) : null;
-}
-
-/**
- * `plugin` with `detail` on every feature it lists (map-sdk shows it only where a feature has no
- * level), so a region with no figure reads "No data" in the list, its accessible name and the
- * tooltip, as the legend's no-figure row does. `regionsPlugin` takes no `detail` of its own.
- */
-export function withNoFigureDetail(plugin: MapPlugin, detail: string): MapPlugin {
-	const features = plugin.features?.bind(plugin);
-	if (!features) return plugin;
-	plugin.features = (): FeatureListItem[] => features().map((item) => ({ ...item, detail }));
-	return plugin;
 }
 
 /** The fill's scale: the same ScaleRef as the monitors', so the legend shares one section. */

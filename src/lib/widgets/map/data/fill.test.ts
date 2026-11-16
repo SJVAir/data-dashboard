@@ -13,15 +13,7 @@ import {
 } from "@sjvair/sdk";
 import type { DailyFigure, Level } from "$lib/data/metadata";
 import { pacificDay } from "$lib/format";
-import type { MapPlugin } from "@sjvair/map-sdk";
-import {
-	createFillEntry,
-	fillEntry,
-	fillRegionType,
-	fillScale,
-	withNoFigureDetail,
-	type FillContext
-} from "./fill";
+import { createFillEntry, fillEntry, fillRegionType, fillScale, type FillContext } from "./fill";
 
 const level = (key: string, min: number, max: number | null, tier: number): Level => ({
 	key,
@@ -180,28 +172,5 @@ describe("the app's fill entry across Pacific midnight", () => {
 		// 00:01 Pacific on November 15.
 		vi.setSystemTime(new Date("2026-11-15T08:01:00Z"));
 		expect(source().key).toBe("map-fill:pm25:zipcode:today:2026-11-15");
-	});
-});
-
-describe("withNoFigureDetail", () => {
-	it("gives every listed region the no-data detail (map-sdk shows it only with no level)", () => {
-		const item = { refKey: "region:zipcode:93721", name: "ZIP 93721", selectable: false };
-		const plugin = {
-			id: "fill",
-			label: "ZIP Codes",
-			items: [item],
-			setup: () => () => {},
-			features(this: { items: (typeof item)[] }) {
-				return this.items;
-			}
-		} as unknown as MapPlugin;
-		const wrapped = withNoFigureDetail(plugin, "No data");
-		expect(wrapped).toBe(plugin);
-		expect(wrapped.features?.()).toEqual([{ ...item, detail: "No data" }]);
-	});
-
-	it("leaves a plugin that lists nothing as it is", () => {
-		const plugin = { id: "fill", setup: () => () => {} } as unknown as MapPlugin;
-		expect(withNoFigureDetail(plugin, "No data").features).toBeUndefined();
 	});
 });

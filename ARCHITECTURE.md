@@ -2097,7 +2097,7 @@ for the data that tile holds.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.15` (never a range or a dist-tag; moved from
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.16` (never a range or a dist-tag; moved from
   `0.1.0-beta.13` in step 5 spec 4, 2026-11-15, for region fills) and `@sjvair/sdk` `5.0.0-beta.11`
   (`npm:@jsr/sjvair__sdk@5.0.0-beta.11`; the whole-type region scope). The dashboard no longer depends on `@maptiler/sdk`
   directly: the pin's label comes from map-sdk's focus area.

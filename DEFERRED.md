@@ -1725,16 +1725,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Map plugins
 
-- **map-sdk: `regionsPlugin` has no `detail`.** _Deferred 2026-11-15 (step 5 spec 4, Task 12)._
-  A fill's region with no figure must read "No data" in the feature list, its accessible name
-  and the tooltip (the legend's `mapsdk_legend_no_figure` row already does), but
-  `@sjvair/map-sdk` `0.1.0-beta.15` gives `detail` only to `pointsPlugin` and `monitorsPlugin`;
-  a no-figure region reads "No level". The dashboard wraps the plugin's `features()` to put
-  `detail` on its items (`withNoFigureDetail` in `src/lib/widgets/map/data/fill.ts`; map-sdk
-  shows it only where there's no level). **Why deferred:** beta.15 is published and the
-  wrap uses only `FeatureListItem.detail`, a documented field. **Revisit with** the next
-  map-sdk change to `shapesPlugin`: add `detail?(props)` (or have `noFigure: "outline"` read
-  "No data" by itself), then drop the wrap.
 - **The regions meta doesn't say which types the server simplifies.** _Deferred 2026-11-15
   (step 5 spec 4, Task 12)._ `regions/geojson/?simplify=1` is accepted only for county,
   zipcode and tract (sjvair.com answers 400 for any other type), and no `regions/meta/` field
