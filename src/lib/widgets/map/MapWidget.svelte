@@ -42,6 +42,7 @@
 	import { fillRegionType } from "./data/fill";
 	import { MapData } from "./data/loaded.svelte";
 	import { isThin } from "./data/monitors";
+	import type { NoticeFeatureProperties } from "./data/notices";
 	import { MapDays } from "./day-mode.svelte";
 	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
@@ -51,6 +52,7 @@
 	import { mapFormat } from "./host/format";
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
+	import { noticeTooltip } from "./notice-tooltip";
 	import { OnScreen } from "./on-screen.svelte";
 	import {
 		hiddenReasonLines,
@@ -546,6 +548,10 @@
 			source: noticesSource,
 			layerLabel: label,
 			count: { property: "count" },
+			// The card (its own heading); read when shown, so it follows the day stop.
+			tooltip: (_item, props: NoticeFeatureProperties) =>
+				noticeTooltip(props, (days.at ?? "now") === "now"),
+			tooltipShowsName: true,
 			...(clusters && { cluster: NOTICES_CLUSTER })
 		});
 		untrack(() => current.addPlugin(plugin, underMonitors(current)));

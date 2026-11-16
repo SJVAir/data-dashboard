@@ -1,6 +1,7 @@
 import "../../../app.css";
 import axe from "axe-core";
 import type { Feature } from "geojson";
+import type { Snippet } from "svelte";
 import {
 	getActivePesticideNotices,
 	getHMSFire,
@@ -56,6 +57,7 @@ import Preview from "$lib/get-data/Preview.svelte";
 import { registerWidgetType } from "../registry";
 import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
+import RenderSnippet from "./test-harness/RenderSnippet.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
 vi.mock("@sjvair/map-sdk", async (original) => {
@@ -246,6 +248,9 @@ const PESTICIDES_META = {
 	methods: [],
 	narrows: [],
 	placeholder_chemicals: [],
+	badges: [],
+	notes: {},
+	links: { spraydays_signup: "" },
 	notice_filters: ["chemical_id", "product_id", "category", "iarc_group", "narrow", "aerial_ground"]
 };
 
@@ -2814,6 +2819,8 @@ type NoticesPlugin = {
 		layerLabel: string;
 		count?: { property: string };
 		cluster?: { radius: number; maxZoom: number; properties?: unknown };
+		tooltip?: (item: unknown, props: Record<string, unknown>, env: unknown) => Snippet | undefined;
+		tooltipShowsName?: boolean;
 		source: {
 			features: { features: { properties: Record<string, unknown> }[] } | null;
 			scale: unknown;
@@ -2859,6 +2866,31 @@ test("adds the notices plugin under the monitors when the tile has notices", asy
 	expect(getActivePesticideNotices).toHaveBeenCalledWith(
 		expect.not.objectContaining({ bbox: expect.anything() })
 	);
+});
+
+test("a notices marker's card is the notice card, from the source's notices array", async () => {
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const notices = noticesOf(map)!;
+	// The card shows its own heading, so map-sdk draws no name above it.
+	expect(notices.options.tooltipShowsName).toBe(true);
+	const props = notices.options.source.features!.features[0].properties;
+	// map-sdk hands the tooltip the source's properties: the notices are objects, not JSON.
+	expect(Array.isArray(props.notices)).toBe(true);
+	const snippet = notices.options.tooltip!({}, props, {});
+	expect(snippet).toBeDefined();
+	const card = await render(RenderSnippet, { snippet: snippet! });
+	await expect
+		.element(card.getByText(m.map_notice_list_heading({ count: "2", countValue: 2 })))
+		.toBeVisible();
+	await expect
+		.element(card.getByText(m.map_notice_where({ section: "Section s1", county: "Fresno" })))
+		.toBeVisible();
+	card.unmount();
 });
 
 test("no notices plugin and no fetch without the layer", async () => {

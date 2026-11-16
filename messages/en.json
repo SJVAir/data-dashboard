@@ -1270,6 +1270,40 @@
 			}
 		}
 	],
+	"map_notice_active": "Active",
+	"map_notice_through": "May begin through {date}",
+	"map_notice_where": "{section} · {county} (the square mile, not the field)",
+	"map_notice_where_section": "{section} (the square mile, not the field)",
+	"map_notice_where_county": "{county} (the area, not the field)",
+	"map_notice_where_no_place": "Section and county not given",
+	"map_notice_amount": "{amount} {units} treated",
+	"map_notice_amount_no_units": "{amount} treated",
+	"map_notice_method": "Method: {method}",
+	"map_notice_products": "Products",
+	"map_notice_chemicals": "Chemicals",
+	"map_notice_of_concern": "of concern",
+	"map_notice_none_listed": "None listed",
+	"map_notice_list_heading": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} notice of intent",
+				"countPlural=other": "{count} notices of intent"
+			}
+		}
+	],
+	"map_notice_back": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Back to the notice",
+				"countPlural=other": "Back to all {count} notices"
+			}
+		}
+	],
+	"map_notice_spraydays": "Sign up with SprayDays",
 	"map_marks_hidden_day": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
