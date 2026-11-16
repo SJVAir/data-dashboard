@@ -399,7 +399,7 @@ first; this plan argues from it and doesn't repeat its reasons).
   out.
 
 - [ ] **Step 1:** Move the pin; `npm run check` and `npm run test` pass. The SDK's names (sdk-js
-  #63, from `@sjvair/sdk/regions`): `RegionSummaryBulkType = Exclude<RegionType, "land_use" | "place">`;
+  #63, from `@sjvair/sdk/regions`): `RegionSummaryBulkType = Exclude<RegionType, "land_use">` (`place` is gone from `RegionType` itself in 5.0.0-beta.11; delete `place: true` from `src/lib/data/adapters/registry.ts`'s `CODED_REGION_TYPES` in the re-pin commit);
   `RegionSummaryBulkScope = { region: string | string[]; type?: never } | { type:
   RegionSummaryBulkType; region?: never }`; `RegionSummaryBulkRequestConfig = { entryType; start;
   end } & RegionSummaryBulkScope`; `RegionSummaryBulkOpenRequestConfig = { entryType } &
