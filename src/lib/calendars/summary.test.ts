@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Level } from "$lib/data/metadata";
-import type { DayState } from "./day-state";
+import type { DayState } from "$lib/data/day-state";
 import { selectionSummary } from "./summary";
 
 const level = (key: string, min: number, max: number | null, tier: number): Level => ({

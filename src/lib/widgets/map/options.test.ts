@@ -80,6 +80,16 @@ describe("Map options", () => {
 		expect(MapOptionsSchema.safeParse({ marks: ["a", "a"] }).success).toBe(false);
 		expect(MapOptionsSchema.safeParse({ marks: ["a b"] }).success).toBe(false);
 	});
+
+	it("accepts a day, a fill and fillShown false; rejects a bad day and fillShown true", () => {
+		expect(
+			MapOptionsSchema.safeParse({ day: "2026-11-14", fill: "city", fillShown: false }).success
+		).toBe(true);
+		expect(MapOptionsSchema.safeParse({ day: "2026-1-14" }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ day: "yesterday" }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ fill: "a b" }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ fillShown: true }).success).toBe(false);
+	});
 });
 
 describe("drawableShowing", () => {

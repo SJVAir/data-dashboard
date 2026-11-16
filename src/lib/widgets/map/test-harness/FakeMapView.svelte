@@ -53,6 +53,9 @@
 			refKey,
 			item: null,
 			get selectable() {
+				// A plugin made with `selectable: false` (the fill) has nothing to pick.
+				const plugin = map.plugins.find((p) => p.id === pluginId);
+				if (plugin?.options.selectable === false) return false;
 				return map.getSelectionMode(pluginId) !== "none" && ref.kind !== "feature";
 			},
 			get selected() {

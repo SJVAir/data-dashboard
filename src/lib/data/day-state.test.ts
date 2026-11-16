@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pacificDay, todayPacific } from "$lib/format";
 import type { SeriesPoint } from "$lib/data/types";
 import type { DailyFigure, Level } from "$lib/data/metadata";
-import { dayStates, ratedForCount, thresholdCount, type DayState } from "./day-state";
+import { dayState, dayStates, ratedForCount, thresholdCount, type DayState } from "./day-state";
 
 const level = (key: string, min: number, max: number | null, tier: number): Level => ({
 	key,
@@ -142,5 +142,42 @@ describe("thresholdCount", () => {
 	it("ratedForCount covers rated and today with a value only", () => {
 		expect(ratedForCount(st("today", null))).toBe(false);
 		expect(ratedForCount(st("pending", 5))).toBe(false);
+	});
+});
+
+describe("dayState", () => {
+	const one = (
+		date: string,
+		row: { figure: number | null; final?: boolean } | undefined,
+		fig: DailyFigure | null = figure
+	) => dayState({ date, today, row, figure: fig, levels });
+
+	it("is none without a row", () => {
+		expect(one("2026-11-05", undefined).kind).toBe("none");
+	});
+
+	it("is thin when the row has no figure", () => {
+		expect(one("2026-11-05", { figure: null }).kind).toBe("thin");
+	});
+
+	it("is pending when the row is not final", () => {
+		const s = one("2026-11-05", { figure: 12, final: false });
+		expect(s.kind).toBe("pending");
+		expect(s.value).toBe(12);
+	});
+
+	it("is rated with its level when final", () => {
+		const s = one("2026-11-05", { figure: 12 });
+		expect(s.kind).toBe("rated");
+		expect(s.level?.key).toBe("moderate");
+	});
+
+	it("is unrated without a scale figure, and today stays today", () => {
+		expect(one("2026-11-05", { figure: 12 }, null).kind).toBe("unrated");
+		expect(one(today, { figure: 12 }, null).kind).toBe("today");
+	});
+
+	it("is future after today", () => {
+		expect(one("2026-11-10", undefined).kind).toBe("future");
 	});
 });

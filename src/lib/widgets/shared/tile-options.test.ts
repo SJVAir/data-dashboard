@@ -118,6 +118,44 @@ describe("edit mode", () => {
 	});
 });
 
+describe("a run of steps", () => {
+	const at = (day: string) => map({ day });
+	const steps = (ctx: TileOptionsContext, widget: WidgetInstance) => {
+		changeTileOptions(ctx, widget, { day: "2026-11-02" }, ["day"]);
+		changeTileOptions(ctx, widget, { day: "2026-11-03" }, ["day"], { amend: true });
+		changeTileOptions(ctx, widget, { day: "2026-11-04" }, ["day"], { amend: true });
+	};
+
+	it("is one undo step in edit mode", async () => {
+		const s = await session(makeDoc([at("2026-11-01")]));
+		const ctx: TileOptionsContext = { mode: "edit", session: () => s };
+		steps(ctx, at("2026-11-01"));
+		expect(s.doc.body.widgets[0].options).toEqual({ day: "2026-11-04" });
+		s.undo();
+		expect(s.doc.body.widgets[0].options).toEqual({ day: "2026-11-01" });
+	});
+
+	// The spec asks for the run's last day on Redo.
+	it("redo gives the run's last day", async () => {
+		const s = await session(makeDoc([at("2026-11-01")]));
+		const ctx: TileOptionsContext = { mode: "edit", session: () => s };
+		steps(ctx, at("2026-11-01"));
+		s.undo();
+		s.redo();
+		expect(s.doc.body.widgets[0].options).toEqual({ day: "2026-11-04" });
+	});
+
+	it("writes nothing to the session in view mode and holds the last day", async () => {
+		const s = await session(makeDoc([at("2026-11-01")]));
+		const ctx = view();
+		const before = s.doc;
+		const widget = s.doc.body.widgets[0];
+		steps(ctx, widget);
+		expect(s.doc).toBe(before);
+		expect(tileOptions(ctx, widget)).toEqual({ day: "2026-11-04" });
+	});
+});
+
 describe("view mode", () => {
 	it("holds a change for the visit and leaves the document alone", async () => {
 		const s = await session(makeDoc([map({ clustered: false })]));

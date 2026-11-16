@@ -128,6 +128,18 @@ describe("calendar types", () => {
 	});
 });
 
+describe("the Map type", () => {
+	test("is a range type that offers Now, by the day, up to 366 days", async () => {
+		const { mapType } = await import("./map");
+		expect(mapType.time).toBe("range");
+		expect(mapType.now).toBe(true);
+		expect(mapType.resolution).toBe("day");
+		expect(mapType.span).toEqual({ minDays: 1, maxDays: 366 });
+		expect(mapType.dateMethods).toBeUndefined();
+		expect(mapType.defaultRange).toBeUndefined();
+	});
+});
+
 describe("every widget type", () => {
 	test("its default size is at least its minimum size", async () => {
 		const all = [

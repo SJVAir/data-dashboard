@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Level } from "$lib/data/metadata";
-	import type { DayState } from "$lib/calendars/day-state";
+	import type { DayState } from "$lib/data/day-state";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import LevelChip from "../../shared/LevelChip.svelte";

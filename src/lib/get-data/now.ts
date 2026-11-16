@@ -18,12 +18,22 @@ import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import type { WidgetType } from "$lib/widgets/registry";
+import { offersNow } from "$lib/widgets/time";
 import { mainLayer, placesQueryLayer } from "$lib/widgets/shared/input";
 import type { Draft } from "./draft.svelte";
 
 /** What a conversion left out or changed, for the form's notes. */
 export type NowDropped =
-	"dates" | "overlays" | "places" | "alert" | "pollutant" | "selection" | "outside" | "marks";
+	| "dates"
+	| "overlays"
+	| "places"
+	| "alert"
+	| "pollutant"
+	| "selection"
+	| "outside"
+	| "marks"
+	| "range-cut"
+	| "fill";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
@@ -154,7 +164,7 @@ export function toNowDraft(
 	// From a Chart, its line's level carries over as the alert level (the level the person chose
 	// as notable; `keptThreshold` keeps it when the new scale has it). A Chart with its line Off
 	// still gets the default.
-	const defaultWhenOff = !(fromType?.time === "now" && fromType.thresholds);
+	const defaultWhenOff = !(fromType && offersNow(fromType) && fromType.thresholds);
 	let thresholds: Threshold[] | undefined;
 	let defaultOwed = false;
 	if (!type.thresholds) {
@@ -207,7 +217,7 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	// A Chart's line is its own opt-in, so a tile's alert level isn't carried to it; a calendar's
 	// threshold is the same alert level, so it is.
 	const thresholds =
-		(type.time === "now" || isCalendarType(type.type)) && type.thresholds && draft.thresholds
+		(offersNow(type) || isCalendarType(type.type)) && type.thresholds && draft.thresholds
 			? draft.thresholds
 			: undefined;
 	return {
@@ -245,6 +255,18 @@ export function selectionFits(sel: TimeSubRange, range: DateRangeSpec, now: Date
 }
 
 /**
+ * Whether `range` is no range the person chose: none, or still `from`'s default range (its
+ * `defaultRange`, else `DEFAULT_RANGE`) or `DEFAULT_RANGE`.
+ */
+export function isDefaultRange(
+	range: DateRangeSpec | undefined,
+	from: WidgetType | undefined
+): boolean {
+	const same = (a: DateRangeSpec, b: DateRangeSpec) => JSON.stringify(a) === JSON.stringify(b);
+	return !range || same(range, from?.defaultRange ?? DEFAULT_RANGE) || same(range, DEFAULT_RANGE);
+}
+
+/**
  * The date range and day selection a range draft has once it's `to`, from `from`: a draft still
  * on `from`'s default range gets `to`'s default (a calendar's default gives way to the Chart's);
  * the selection is dropped when `to` isn't a calendar (`left`) or when it no longer fits the new
@@ -261,12 +283,7 @@ export function switchRange(
 	left?: TimeSubRange;
 	outside?: TimeSubRange;
 } {
-	const same = (a: DateRangeSpec | undefined, b: DateRangeSpec) =>
-		JSON.stringify(a) === JSON.stringify(b);
-	const wasDefault =
-		!data.dateRange ||
-		same(data.dateRange, from?.defaultRange ?? DEFAULT_RANGE) ||
-		same(data.dateRange, DEFAULT_RANGE);
+	const wasDefault = isDefaultRange(data.dateRange, from);
 	let dateRange = data.dateRange;
 	if (wasDefault && to.defaultRange) dateRange = structuredClone(to.defaultRange);
 	else if (wasDefault && from && isCalendarType(from.type)) {

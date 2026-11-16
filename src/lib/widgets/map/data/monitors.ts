@@ -2,10 +2,17 @@ import { getMonitors, type MonitorEntryType, type MonitorLatest } from "@sjvair/
 import { encodeRef, type DataSource, type MonitorFeatureProperties } from "@sjvair/map-sdk/data";
 import type { FeatureCollection, Point } from "geojson";
 import { getResolvers, placeRegion } from "$lib/data";
+import type { MetadataSource } from "$lib/data/metadata";
 import type { NowSource } from "$lib/data/now/client";
+import {
+	monitorDaySource,
+	type MonitorScope as SnapshotScope,
+	type Snapshot
+} from "$lib/data/snapshot";
+import type { UnavailableReason } from "$lib/data/types";
 import { pollutantLayers } from "../options";
-import { monitorScope, type ScopeContext } from "./scope";
-import type { MapDataEntry } from "./types";
+import { monitorScope, type MonitorScope, type ScopeContext } from "./scope";
+import type { MapDataEntry, MapDataInput } from "./types";
 
 type Collection = FeatureCollection<Point, MonitorFeatureProperties>;
 
@@ -17,39 +24,123 @@ function readingValue(monitor: MonitorLatest): number | null {
 	return Number.isFinite(value) ? value : null;
 }
 
+/** One monitor as map-sdk's monitor feature (the shape its own store draws); no mark. */
+function monitorFeature(
+	monitor: MonitorLatest & { position: NonNullable<MonitorLatest["position"]> },
+	over: Pick<MonitorFeatureProperties, "value" | "isActive" | "timestamp">
+): Collection["features"][number] {
+	return {
+		type: "Feature",
+		geometry: { type: "Point", coordinates: monitor.position.coordinates },
+		properties: {
+			refKey: encodeRef({ kind: "monitor", id: monitor.id }),
+			name: monitor.name,
+			value: over.value,
+			type: monitor.type,
+			isActive: over.isActive,
+			isSjvair: monitor.is_sjvair,
+			location: monitor.location === "inside" ? "inside" : "outside",
+			timestamp: over.timestamp
+		}
+	};
+}
+
 /** Monitors as map-sdk's monitor features (the shape its own store draws); no position, no mark. */
 export function toMonitorFeatures(readings: MonitorLatest[]): Collection {
 	const features: Collection["features"] = [];
 	for (const monitor of readings) {
 		if (!monitor.position) continue;
-		features.push({
-			type: "Feature",
-			geometry: { type: "Point", coordinates: monitor.position.coordinates },
-			properties: {
-				refKey: encodeRef({ kind: "monitor", id: monitor.id }),
-				name: monitor.name,
-				value: readingValue(monitor),
-				type: monitor.type,
-				isActive: monitor.is_active,
-				isSjvair: monitor.is_sjvair,
-				location: monitor.location === "inside" ? "inside" : "outside",
-				timestamp: monitor.latest.timestamp
-			}
-		});
+		features.push(
+			monitorFeature(
+				{ ...monitor, position: monitor.position },
+				{
+					value: readingValue(monitor),
+					isActive: monitor.is_active,
+					timestamp: monitor.latest.timestamp
+				}
+			)
+		);
 	}
 	return { type: "FeatureCollection", features };
 }
 
+/**
+ * A day's monitors: those of the list (names, positions, types) with a row that day, each with
+ * the day's figure (`null` when there wasn't enough data, or the days can't be rated, so no
+ * level). A monitor with a figure that day was reporting, so it draws active; a day's figure has
+ * no reading time.
+ */
+export function toDayFeatures(list: MonitorLatest[], snapshot: Snapshot): Collection {
+	const features: Collection["features"] = [];
+	for (const monitor of list) {
+		const figure = snapshot.figures.get(monitor.id);
+		if (!figure || !monitor.position) continue;
+		const feature = monitorFeature(
+			{ ...monitor, position: monitor.position },
+			{ value: figure.value, isActive: true, timestamp: null }
+		);
+		// Not enough data that day: no value, and the monitors plugin's `detail` says why.
+		if (figure.kind === "thin") (feature.properties as DayMonitorProperties).thin = true;
+		features.push(feature);
+	}
+	return { type: "FeatureCollection", features };
+}
+
+/** A day's monitor: `thin` when it had a row that day without enough data for a figure. */
+export type DayMonitorProperties = MonitorFeatureProperties & { thin?: true };
+
+/** Whether a day's monitor had too little data that day for a figure. */
+export function isThin(props: MonitorFeatureProperties): boolean {
+	return (props as DayMonitorProperties).thin === true;
+}
+
+/** The places' scope as the snapshot query takes it, with a key that names its kind. */
+export function snapshotScope(scope: MonitorScope): { scope: SnapshotScope; scopeKey: string } {
+	return {
+		scope: { kind: scope.kind, ids: scope.ids },
+		scopeKey: `${scope.kind}:${scope.key}`
+	};
+}
+
 export type MonitorsEntryContext = ScopeContext & { now: () => Date };
 
+/** The monitors list's source, with the places' scope it was resolved for. */
+export type MonitorsListSource = NowSource<MonitorLatest[]> & { scope: MonitorScope };
+
+export type MonitorsEntry = Omit<
+	MapDataEntry<MonitorLatest[], MonitorFeatureProperties>,
+	"source"
+> & {
+	source(
+		input: MapDataInput,
+		signal?: AbortSignal
+	): Promise<MonitorsListSource | { unavailable: UnavailableReason } | null>;
+	/**
+	 * One day's figures for the monitors in `scope` (the list source's). The pollutant's daily
+	 * figure and levels are looked up when it fetches, so a failed lookup is the fetch's error.
+	 */
+	daySource(args: {
+		scope: MonitorScope;
+		entryType: string;
+		day: string;
+		rating: DayRating;
+		today: () => string;
+	}): DaySource;
+};
+
+/** Where a pollutant's daily figure (`daily_statistic`) and levels come from. */
+export type DayRating = Pick<MetadataSource, "dailyFigure" | "levels">;
+
+/** A day's figures for the monitors, polled while `poll` says so (until they are all final). */
+export type DaySource = ReturnType<typeof monitorDaySource>;
+
 /**
- * The monitors entry: the pollutant showing's latest readings, limited by the places (the first
- * pollutant layer's). Regions go to the server's `at` endpoint; monitor places take the current
- * list filtered to their ids.
+ * The monitors entry: the pollutant showing's monitors and latest readings, limited by the places
+ * (the first pollutant layer's). Regions go to the server's `at` endpoint; monitor places take the
+ * current list filtered to their ids. The list is the same on every day (a day's figures come
+ * from `daySource`, joined to it by id), so its key holds no day.
  */
-export function createMonitorsEntry(
-	ctx: MonitorsEntryContext
-): MapDataEntry<MonitorLatest[], MonitorFeatureProperties> {
+export function createMonitorsEntry(ctx: MonitorsEntryContext): MonitorsEntry {
 	return {
 		id: "monitors",
 		async source({ data, entryType }, signal) {
@@ -58,9 +149,10 @@ export function createMonitorsEntry(
 			const scope = await monitorScope(layer, ctx, signal);
 			if ("unavailable" in scope) return scope;
 			const type = entryType as MonitorEntryType;
-			const source: NowSource<MonitorLatest[]> = {
+			const source: MonitorsListSource = {
 				key: `map-monitors:${entryType}:${scope.key}`,
 				cadence: "raw",
+				scope,
 				fetch: async (s) => {
 					if (scope.kind === "regions") {
 						const found = await getMonitors(
@@ -76,6 +168,21 @@ export function createMonitorsEntry(
 				}
 			};
 			return source;
+		},
+		daySource({ scope, entryType, day, rating, today }) {
+			const args = { ...snapshotScope(scope), entryType, day, today };
+			// The key, cadence and poll rule don't depend on the figure or levels.
+			const shape = monitorDaySource({ ...args, figure: null, levels: [] });
+			return {
+				...shape,
+				async fetch(signal) {
+					const [figure, levels] = await Promise.all([
+						rating.dailyFigure(entryType, signal),
+						rating.levels(entryType, signal)
+					]);
+					return monitorDaySource({ ...args, figure, levels }).fetch(signal);
+				}
+			};
 		},
 		toDataSources(value, { entryType }) {
 			const source: DataSource<MonitorFeatureProperties> = {

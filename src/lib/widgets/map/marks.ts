@@ -35,11 +35,12 @@ export function marksChange(widget: WidgetInstance, marks: string[]): Change | n
 }
 
 /** Why a marked monitor isn't drawn. */
-export type HiddenReason = "pollutant" | "options" | "places" | "unknown";
+export type HiddenReason = "pollutant" | "day" | "options" | "places" | "unknown";
 
 /** The reasons in the order their lines are shown. */
 export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
 	"pollutant",
+	"day",
 	"options",
 	"places",
 	"unknown"
@@ -48,27 +49,51 @@ export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
 /**
  * Counts the hidden marks by reason. A mark whose monitor the metadata doesn't list is
  * `unknown`; one whose type doesn't report the pollutant drawn is `pollutant`; one among the
- * loaded monitors (so in the places) that the toolbar's filters hide is `options`; the rest are
- * outside the places. `monitors` is null while the metadata is loading (or failed). The tile's
- * own monitors (its places) are never filtered, so never hidden, so never `options`.
+ * loaded monitors (so in the places) is `day` when a day shows (`dayDrawn`: the monitors with a
+ * figure that day) and it has none that day, else `options` (the toolbar's filters hide it); the
+ * rest are outside the places. `monitors` is null while the metadata is loading (or failed). The
+ * tile's own monitors (its places) are never filtered, so never `options`.
  */
 export function hiddenReasons(
 	hidden: readonly string[],
 	monitors: ReadonlyMap<string, { type: string }> | null,
 	reports: (type: string) => boolean | undefined,
-	loadedIds: ReadonlySet<string>
+	loadedIds: ReadonlySet<string>,
+	dayDrawn?: ReadonlySet<string>
 ): Map<HiddenReason, number> {
 	const counts = new Map<HiddenReason, number>();
 	for (const id of hidden) {
 		const monitor = monitors?.get(id);
+		const inPlaces = loadedIds.has(id);
 		const reason: HiddenReason = !monitor
 			? "unknown"
 			: reports(monitor.type) === false
 				? "pollutant"
-				: loadedIds.has(id)
-					? "options"
-					: "places";
+				: inPlaces && dayDrawn && !dayDrawn.has(id)
+					? "day"
+					: inPlaces
+						? "options"
+						: "places";
 		counts.set(reason, (counts.get(reason) ?? 0) + 1);
 	}
 	return counts;
+}
+
+/**
+ * The reasons to show, in order, with their counts. Without a pollutant label a "pollutant"
+ * reason can't be worded, so its marks count as `unknown` ("aren't shown").
+ */
+export function hiddenReasonLines(
+	reasons: ReadonlyMap<HiddenReason, number>,
+	label: string | undefined
+): Array<{ reason: HiddenReason; count: number }> {
+	const counts = new Map(reasons);
+	if (!label && counts.has("pollutant")) {
+		counts.set("unknown", (counts.get("unknown") ?? 0) + counts.get("pollutant")!);
+		counts.delete("pollutant");
+	}
+	return HIDDEN_REASON_ORDER.filter((r) => counts.has(r)).map((reason) => ({
+		reason,
+		count: counts.get(reason)!
+	}));
 }

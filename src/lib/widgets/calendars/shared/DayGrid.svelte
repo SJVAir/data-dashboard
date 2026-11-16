@@ -5,7 +5,7 @@
 
 <script lang="ts">
 	import { tick, type Snippet } from "svelte";
-	import type { DayState } from "$lib/calendars/day-state";
+	import type { DayState } from "$lib/data/day-state";
 	import { clampSelectable, moveFocus, spanOf, type Layout } from "$lib/calendars/selection";
 	import type { CalendarData } from "./calendar-data.svelte";
 	import { useCalendarTip } from "./calendar-tip.svelte";

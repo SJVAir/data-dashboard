@@ -11,6 +11,8 @@ export const HMS_SMOKE = "hms-smoke";
 export const HMS_FIRE = "hms-fire";
 /** The most pollutants a Map holds: the layer limit less the smoke and fire layers. */
 export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 2;
+/** The most days a Map's date range covers (a year, with its leap day). */
+export const MAP_MAX_DAYS = 366;
 
 export const MapOptionsSchema = z.strictObject({
 	/** The entry type drawn now (one of the pollutant layers'). */
@@ -23,6 +25,15 @@ export const MapOptionsSchema = z.strictObject({
 		.optional(),
 	/** The basemap's id (missing: the preset's default). */
 	basemap: SafeIdSchema.optional(),
+	/** The day shown, as a Pacific date key (missing: the last stop). */
+	day: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.optional(),
+	/** The region type filled (missing: no fill). */
+	fill: SafeIdSchema.optional(),
+	/** Only `false` is stored (missing: the fill is shown). */
+	fillShown: z.literal(false).optional(),
 	clustered: z.boolean().optional(),
 	fireAndSmoke: z.boolean().optional(),
 	/** Show inactive monitors. */
@@ -44,6 +55,7 @@ export const MAP_TOOLBAR_KEYS = [
 	"basemap",
 	"clustered",
 	"fireAndSmoke",
+	"fillShown",
 	"inactive",
 	"inside",
 	"hiddenTypes"

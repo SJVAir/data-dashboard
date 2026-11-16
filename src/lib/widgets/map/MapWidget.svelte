@@ -9,15 +9,16 @@
 		MapView,
 		monitorsPlugin,
 		OptionsToolbar,
+		regionsPlugin,
 		type CardContext,
 		type FocusAreaPlugin,
 		type MapContext
 	} from "@sjvair/map-sdk";
-	import type { SpatialSelection } from "@sjvair/map-sdk/data";
+	import type { MonitorFeatureProperties, SpatialSelection } from "@sjvair/map-sdk/data";
 	import { ancestorAnimationsSettled } from "$lib/charts/settled";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import { getMetadata, getQueryClient } from "$lib/data";
+	import { getMetadata, getQueryClient, getResolvers } from "$lib/data";
 	import { LiveQuery } from "$lib/data/live-query.svelte";
 	import type { CatalogEntry, MonitorTypeInfo } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
@@ -26,6 +27,9 @@
 	import { formatNumber } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
+	import { directoryFor } from "$lib/places/host";
+	import type { RegionTypeInfo } from "$lib/places/types";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { entryMeta, nowInput, placesLayer } from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
@@ -34,7 +38,11 @@
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
 	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
+	import { fillRegionType } from "./data/fill";
 	import { MapData } from "./data/loaded.svelte";
+	import { isThin } from "./data/monitors";
+	import { MapDays } from "./day-mode.svelte";
+	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
 	import { focusGeometry } from "./focus";
 	import { fitTarget } from "./framing";
@@ -44,7 +52,7 @@
 	import { mapMetadata } from "./host/metadata";
 	import { OnScreen } from "./on-screen.svelte";
 	import {
-		HIDDEN_REASON_ORDER,
+		hiddenReasonLines,
 		canMark,
 		hiddenMarks,
 		hiddenReasons,
@@ -61,6 +69,8 @@
 
 	/** Below this widget width the legend folds into a "Legend" button. */
 	const NARROW_PX = 360;
+	/** Below this widget width (the toolbar's narrow breakpoint) the day stepper drops its slider. */
+	const STEPPER_NARROW_REM = 48;
 	const FIT_PADDING = 32;
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
@@ -118,10 +128,68 @@
 		},
 		get toolbar() {
 			return toolbar;
+		},
+		get onDay() {
+			return days.onDay;
+		},
+		get fillLabel() {
+			return fillInfo?.plural;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
 	const shown = $derived(wiring.options);
+	// The days of the tile's range: the stop showing, and the stepper's steps (saved, or a
+	// viewer's held). Without a range the tile shows now.
+	const days: MapDays = new MapDays({
+		get widget() {
+			return widget;
+		},
+		tileOptions: tileOptionsContext,
+		get options() {
+			return wiring.options;
+		},
+		get saved() {
+			return wiring.saved;
+		}
+	});
+	onDestroy(() => days.destroy());
+
+	// The region fill: the saved type, drawn only while the place directory lists it (an unknown
+	// type draws nothing, offers no row and writes nothing; it applies again if the type returns).
+	/** The region types a Map can fill; undefined until loaded (or when they can't be). */
+	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
+	/** The region types couldn't be loaded: the fill's note offers Retry, which asks again. */
+	let fillTypesFailed = $state(false);
+	/** Bumped by Retry, to look the region types up again. */
+	let fillTypesTries = $state(0);
+	const savedFill = $derived(wiring.saved.fill);
+	$effect(() => {
+		void fillTypesTries;
+		if (!savedFill || fillTypes) return;
+		const controller = new AbortController();
+		fillTypesFailed = false;
+		directoryFor(metadata, getResolvers().regions)
+			.regionTypes(controller.signal)
+			.then(
+				(types) => {
+					if (!controller.signal.aborted) fillTypes = types;
+				},
+				(error: unknown) => {
+					if (controller.signal.aborted) return;
+					fillTypesFailed = true;
+					report(error);
+				}
+			);
+		return () => controller.abort();
+	});
+	/** The region type filled, when the metadata lists it; null for no fill. */
+	const fillType = $derived(fillRegionType(savedFill, fillTypes));
+	const fillInfo = $derived(fillType ? fillTypes?.find((t) => t.type === fillType) : undefined);
+	/**
+	 * The pollutant's daily figure's name (`daily_statistic_label`, e.g. "24-hour average"), for
+	 * the monitors on a day stop; undefined on now, or when the scale names none.
+	 */
+	let dailyFigureLabel = $state<{ for: string; label: string | undefined } | null>(null);
 	/**
 	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
 	 * first layer pollutant it does. Never saved back into the options.
@@ -132,6 +200,29 @@
 			known,
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
 		)?.entryType.label
+	);
+	// Looked up for any ranged tile (on its Now stop too), so a step to a day knows it already.
+	$effect(() => {
+		const type = entryType;
+		if (!type || !days.ranged || dailyFigureLabel?.for === type) return;
+		const controller = new AbortController();
+		const settle = (label: string | undefined) => {
+			if (!controller.signal.aborted) dailyFigureLabel = { for: type, label };
+		};
+		metadata.dailyFigure(type, controller.signal).then(
+			(figure) => settle(figure?.label ?? undefined),
+			// Without it the monitors keep their interval note: nothing to show or report here.
+			() => settle(undefined)
+		);
+		return () => controller.abort();
+	});
+	/** Whether the figure's name is known for the pollutant drawn (or isn't needed: on now). */
+	const figureLabelSettled = $derived(!days.onDay || dailyFigureLabel?.for === entryType);
+	/** On a day stop, what the monitors' figure is ("24-hour average"); unset on now. */
+	const figureLabel = $derived(
+		days.onDay && dailyFigureLabel && dailyFigureLabel.for === entryType
+			? dailyFigureLabel.label
+			: undefined
 	);
 	const idle = $derived(
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
@@ -147,8 +238,8 @@
 		return "ok";
 	});
 	const supported = $derived(support === "ok");
-	/** Whether the tile loads its data: a map is (or will be) drawn. */
-	const loads = $derived(!!config && supported && !idle);
+	/** Whether the tile loads its data: a map is (or will be) drawn, with now or a day to show. */
+	const loads = $derived(!!config && supported && !idle && days.at !== null);
 
 	const frame = new MapFrame(() => layer);
 	onDestroy(() => frame.destroy());
@@ -253,14 +344,50 @@
 		},
 		get filters() {
 			return wiring.filters;
+		},
+		get at() {
+			return days.at ?? "now";
+		},
+		get ahead() {
+			return days.ahead;
+		},
+		get today() {
+			return days.today;
+		},
+		get fill() {
+			return fillType;
 		}
 	};
-	const data: MapData = new MapData(() => dataInput, { now: getNowClient() });
+	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());
-	const { monitorsSource, smokeSource, fireSource, hotspotsSource } = data;
+	const { monitorsSource, smokeSource, fireSource, hotspotsSource, fillSource } = data;
 
-	// Smoke and fire: today's, over the whole map, when on (the toolbar's switch hides them, their
-	// data still loading).
+	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
+	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
+	/** The fill's layer label: on now it says the figure is today's so far. */
+	const fillLabel = $derived(
+		!fillInfo
+			? undefined
+			: days.onDay
+				? fillInfo.plural
+				: m.map_fill_today_so_far({ regionType: fillInfo.plural })
+	);
+	/**
+	 * The fill failed to load, while it's shown; or the region types it's checked against
+	 * couldn't be looked up (with a saved fill, so it can't be drawn).
+	 */
+	const fillFailed = $derived(
+		(fillDrawn && data.fillFailed) || (!!savedFill && !fillTypes && fillTypesFailed)
+	);
+
+	/** The fill note's Retry: the region types' lookup if that failed, else the fill. */
+	function retryFill(): void {
+		if (fillTypesFailed && !fillTypes) fillTypesTries++;
+		else data.retryFill();
+	}
+
+	// Smoke and fire: now's or the day's, over the whole map, when on (the toolbar's switch hides
+	// them, their data still loading).
 	const smokeAndFire = $derived(data.smokeAndFire && shown.fireAndSmoke !== false);
 	/** Smoke and fire failed to load, while they're shown. */
 	const hmsFailed = $derived(data.hmsFailed && shown.fireAndSmoke !== false);
@@ -300,14 +427,20 @@
 		const label = entryLabel;
 		const selectionMode = markable ? "multiple" : "none";
 		const clusters = clustered;
-		if (!current || !label || !loads) return;
+		const onDay = days.onDay;
+		const figure = figureLabel;
+		// On a day, made once its figure's name is known: one plugin per stop, not two.
+		if (!current || !label || !loads || !figureLabelSettled) return;
 		untrack(() =>
 			current.addPlugin(
 				monitorsPlugin({
 					source: monitorsSource,
 					layerLabel: label,
 					selectedStyle: "ring",
-					clustered: clusters
+					clustered: clusters,
+					// On a day stop: why a monitor has no figure, and what its figure is. Unset on now.
+					...(onDay && { detail: thinDetail }),
+					...(figure && { figureLabel: figure })
 				}),
 				{
 					selectionMode,
@@ -329,6 +462,28 @@
 		const shown = untrack(() => current.getSelection("monitors"));
 		if (!sameIds(shown?.ids ?? [], selection?.ids ?? []))
 			current.setSelection("monitors", selection);
+	});
+
+	/** A day's monitor without enough data for a figure says so where "No level" would be. */
+	function thinDetail(props: MonitorFeatureProperties): string | undefined {
+		return isThin(props) ? m.calendar_not_enough_data() : undefined;
+	}
+
+	// The fill: under the focus area (so its wash dims the fill outside the places), over the
+	// basemap. Regions can't be marked; one with no figure is an outline reading "No data".
+	$effect(() => {
+		const current = map;
+		const label = fillLabel;
+		if (!current || !label || !loads || !fillDrawn) return;
+		const plugin = regionsPlugin({
+			id: "fill",
+			source: fillSource,
+			layerLabel: label,
+			selectable: false,
+			noFigure: "outline"
+		});
+		untrack(() => current.addPlugin(plugin, { before: "focus" }));
+		return () => current.removePlugin(plugin.id);
 	});
 
 	/** Under the monitors when they're on the map, else on top. */
@@ -366,7 +521,7 @@
 	let body = $state<HTMLDivElement>();
 	const positions = $derived(
 		frame.frame?.focus === "monitor"
-			? monitorPositions(data.monitorsLoaded, frame.frame.monitors)
+			? monitorPositions(data.placesLoaded, frame.frame.monitors)
 			: new Map<string, [number, number]>()
 	);
 	const target = $derived(frame.frame ? fitTarget(frame.frame, frame.shapes, positions) : null);
@@ -452,14 +607,19 @@
 	// reasons; null while loading or when they can't be loaded (the plain wording then).
 	let monitorList = $state.raw<ReadonlyMap<string, { type: string }> | null>(null);
 	let monitorTypes = $state.raw<MonitorTypeInfo[] | null>(null);
-	void metadata.monitors().then(
-		(list) => (monitorList = new Map(list.map((x) => [x.id, x]))),
-		() => (monitorList = null)
-	);
-	void metadata.monitorTypes().then(
-		(types) => (monitorTypes = types),
-		() => (monitorTypes = null)
-	);
+	// Whether both lookups have settled (either way); the note waits for it so its reasons don't
+	// change once they are on screen.
+	let lookupsSettled = $state(false);
+	void Promise.allSettled([
+		metadata.monitors().then(
+			(list) => (monitorList = new Map(list.map((x) => [x.id, x]))),
+			() => (monitorList = null)
+		),
+		metadata.monitorTypes().then(
+			(types) => (monitorTypes = types),
+			() => (monitorTypes = null)
+		)
+	]).then(() => (lookupsSettled = true));
 	/** Whether a type reports the pollutant drawn; undefined when that isn't known. */
 	function reports(type: string): boolean | undefined {
 		const info = monitorTypes?.find((t) => t.type === type);
@@ -468,36 +628,50 @@
 	}
 	/** One line per reason the marks are hidden, in order. */
 	const hiddenLines = $derived.by(() => {
-		if (!hidden.length) return [];
-		const loaded = data.monitorsLoaded;
+		if (!hidden.length || !lookupsSettled) return [];
 		const reasons = hiddenReasons(
 			hidden,
 			monitorList && monitorTypes ? monitorList : null,
 			reports,
-			loaded ? monitorIds(loaded) : new Set()
+			data.inPlaces ?? new Set(),
+			data.dayDrawn
 		);
-		return HIDDEN_REASON_ORDER.filter((r) => reasons.has(r)).map((reason) => {
-			const n = reasons.get(reason)!;
-			return m.map_marks_hidden({
-				reason,
-				pollutant: entryLabel ?? "",
-				count: formatNumber(n),
-				countValue: n
-			});
+		return hiddenReasonLines(reasons, entryLabel).map(({ reason, count }) => {
+			const counted = { count: formatNumber(count), countValue: count };
+			return reason === "day"
+				? m.map_marks_hidden_day(counted)
+				: m.map_marks_hidden({ reason, pollutant: entryLabel ?? "", ...counted });
 		});
 	});
-	/** The lines as one text, for the map's list and its name. */
+	/** On a day stop, once: the pollutant's days can't be rated (its scale has no daily figure). */
+	const unratedLine = $derived(
+		data.dayUnrated && entryLabel ? m.map_day_unrated({ pollutant: entryLabel }) : ""
+	);
+	/** On a day stop that has loaded: no monitor in the places has a figure that day. */
+	const noFiguresLine = $derived(data.dayNoFigures ? m.map_day_no_figures() : "");
+	/** The map's notes: the day's, then why marks are hidden. */
+	const noteLines = $derived([unratedLine, noFiguresLine, ...hiddenLines].filter(Boolean));
+	/** The notes as one text, for the map's list and its name. */
 	const hiddenText = $derived(
-		hiddenLines.reduce(
+		noteLines.reduce(
 			(all, line) => (all ? m.sentence_join({ first: all, second: line }) : line),
 			""
 		)
+	);
+	/**
+	 * The feature list's note: on a day stop, what the monitors' figure is (said once, not on
+	 * every row), then the map's notes.
+	 */
+	const listNote = $derived(
+		figureLabel && hiddenText
+			? m.sentence_join({ first: figureLabel, second: hiddenText })
+			: figureLabel || hiddenText || undefined
 	);
 	/** The map's accessible name, which also says which marks aren't shown and why. */
 	const mapLabel = $derived(
 		!title
 			? undefined
-			: hidden.length
+			: hiddenText
 				? m.map_label_marks_hidden({ title, notes: hiddenText })
 				: m.map_label({ title })
 	);
@@ -517,7 +691,7 @@
 		!note &&
 			data.monitorsCurrent &&
 			data.monitorsState.status === "ready" &&
-			(data.monitorsDrawn?.features?.features.length ?? 0) === 0
+			(data.inPlaces?.size ?? 0) === 0
 	);
 
 	/** What the widget shows instead of the map, if anything. */
@@ -546,6 +720,9 @@
 
 	let width = $state(0);
 	const narrow = $derived(width > 0 && width < NARROW_PX);
+	/** The toolbar's narrow breakpoint (48rem), which the day stepper follows. */
+	const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+	const stepperNarrow = $derived(width > 0 && width < STEPPER_NARROW_REM * remPx);
 	let legendOpen = $state(false);
 </script>
 
@@ -603,7 +780,7 @@
 			<WidgetSkeleton />
 		</div>
 	{/if}
-	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed}
+	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed || fillFailed}
 		<!-- A compact banner under the toolbar: the map stays usable, but for its buttons. -->
 		<div
 			class="pointer-events-none absolute inset-x-0 top-[var(--mapsdk-toolbar-height,0px)] flex flex-col gap-1 p-2"
@@ -626,7 +803,7 @@
 					class="bg-card text-muted-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 text-center text-sm"
 					role="status"
 				>
-					{m.map_no_monitors_here()}
+					{days.onDay ? m.map_no_monitors_here_day() : m.map_no_monitors_here()}
 				</p>
 			{/if}
 			{#if data.monitorsRefreshFailed}
@@ -663,6 +840,18 @@
 					</Button>
 				</div>
 			{/if}
+			{#if fillFailed}
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+					role="status"
+					data-map-fill-note
+				>
+					<p class="text-muted-foreground">{m.map_fill_failed()}</p>
+					<Button size="sm" variant="outline" class="pointer-events-auto" onclick={retryFill}>
+						{m.widget_state_retry()}
+					</Button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 {/snippet}
@@ -689,7 +878,7 @@
 					class="min-h-0 w-full flex-1"
 					active={onScreen.active}
 					label={mapLabel}
-					featureList={{ reveal: "focus", note: hiddenText || undefined }}
+					featureList={{ reveal: "focus", note: listNote }}
 					selectionBar={false}
 					tooltip="pointer"
 					card={{ actions: cardActions }}
@@ -697,12 +886,24 @@
 					{overlays}
 				/>
 			</svelte:boundary>
+			{#if days.ranged}
+				<div class="border-border border-t" data-map-days>
+					<DayStepper
+						stops={days.stops}
+						at={days.index}
+						notFinal={data.dayNotFinal}
+						narrow={stepperNarrow}
+						onstep={days.step}
+						ondragend={days.dragEnd}
+					/>
+				</div>
+			{/if}
 			<p
-				class={["text-muted-foreground text-xs", hidden.length && "px-2 pt-1"]}
+				class={["text-muted-foreground text-xs", noteLines.length && "px-2 pt-1"]}
 				role="status"
 				data-map-marks-hidden
 			>
-				{#each hiddenLines as line (line)}
+				{#each noteLines as line (line)}
 					<span class="block">{line}</span>
 				{/each}
 			</p>

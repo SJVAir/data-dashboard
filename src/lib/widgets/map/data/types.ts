@@ -1,10 +1,11 @@
 import type { DataSource, MapFeatureProperties, MessageProvider } from "@sjvair/map-sdk/data";
 import type { WidgetDataConfig } from "$lib/data/schema";
+import type { SnapshotAt } from "$lib/data/snapshot";
 import type { UnavailableReason } from "$lib/data/types";
 import type { NowSource } from "$lib/data/now/client";
 
-/** What an entry loads for: the tile's layers and the pollutant showing. */
-export type MapDataInput = { data: WidgetDataConfig; entryType: string };
+/** What an entry loads for: the tile's layers, the pollutant showing, and now or the day showing. */
+export type MapDataInput = { data: WidgetDataConfig; entryType: string; at: SnapshotAt };
 
 /** One map data set: how the dashboard loads it, and how it becomes map-sdk data. */
 export interface MapDataEntry<T, P extends MapFeatureProperties = MapFeatureProperties> {

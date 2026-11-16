@@ -56,7 +56,9 @@ const fake = vi.hoisted(() => ({
 	/** Names of the chemical, crop and product ids. */
 	names: {} as Record<string, string>,
 	/** Holds a search's answer back (by its query) until the promise settles. */
-	delay: undefined as ((q: string) => Promise<void>) | undefined
+	delay: undefined as ((q: string) => Promise<void>) | undefined,
+	/** The region types the directory offers (default: the real directory). */
+	regionTypes: undefined as (() => Promise<unknown[]>) | undefined
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -94,6 +96,16 @@ vi.mock("$lib/data", () => ({
 	placeRegion: async () => null
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.now }));
+vi.mock("$lib/places/host", async (original) => {
+	const actual = await original<typeof import("$lib/places/host")>();
+	return {
+		...actual,
+		directoryFor: (...args: Parameters<typeof actual.directoryFor>) => {
+			const real = actual.directoryFor(...args);
+			return fake.regionTypes ? { ...real, regionTypes: fake.regionTypes } : real;
+		}
+	};
+});
 vi.mock("./sources", () => ({
 	stationsForLayer: async () => fake.stations,
 	searchPesticides: async (params: { type: string; q: string; limit?: number }) => {
@@ -228,6 +240,7 @@ beforeEach(async () => {
 	fake.hits = { results: [], more: false };
 	fake.names = {};
 	fake.delay = undefined;
+	fake.regionTypes = undefined;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
@@ -868,16 +881,18 @@ describe("now widgets", () => {
 		expect("thresholds" in (await current())).toBe(false);
 	});
 
-	test("Show as Map keeps the chart's places", async () => {
+	test("Show as Map keeps the chart's places; its untouched 30 days become Now", async () => {
 		const { current } = await show(monitorsDraft(["m1", "m2", "m3"]));
 		await page.getByRole("radio", { name: "Map" }).click();
 		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
-		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
+		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
 		await expect
 			.element(page.getByText(m.get_data_extra_places_left_out()))
 			.not.toBeInTheDocument();
 		await expect.element(alert()).not.toBeInTheDocument();
-		await expect.element(page.getByRole("button", { name: /^Dates/ })).not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: /^Dates/ }))
+			.toHaveTextContent(m.getdata_when_now());
 		expect(await current()).toEqual({
 			type: "map",
 			data: {
@@ -890,6 +905,58 @@ describe("now widgets", () => {
 				]
 			}
 		});
+	});
+
+	test("Show as Map keeps a range the person chose", async () => {
+		const chart = monitorsDraft(["m1"]);
+		chart.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
+		const { current } = await show(chart);
+		await page.getByRole("radio", { name: "Map" }).click();
+		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
+		await expect
+			.element(page.getByRole("button", { name: /^Dates/ }))
+			.toHaveTextContent(m.getdata_preset_last_7_days());
+		expect((await current()).data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
+	});
+
+	test("a Map's When offers Now and the date methods, with no Show values", async () => {
+		const { current } = await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+				]
+			}
+		});
+		const dates = page.getByRole("button", { name: /^Dates/ });
+		await expect.element(dates).toHaveTextContent(m.getdata_when_now());
+		await expect.element(page.getByTestId("resolved-range")).not.toBeInTheDocument();
+		await expect
+			.element(page.getByText(m.get_data_show_values(), { exact: true }))
+			.not.toBeInTheDocument();
+		await dates.click();
+		await expect
+			.element(page.getByRole("option", { name: m.getdata_when_now(), exact: true }))
+			.toHaveAttribute("aria-selected", "true");
+		// Every date method: trailing, to-date, a specific period and a custom range.
+		for (const name of [
+			m.getdata_preset_last_7_days(),
+			m.getdata_preset_this_month(),
+			m.getdata_preset_specific_day(),
+			m.getdata_preset_custom()
+		]) {
+			await expect.element(page.getByRole("option", { name, exact: true })).toBeVisible();
+		}
+		await page.getByRole("option", { name: "Last 7 days" }).click();
+		await animationsSettled(document.body);
+		await expect.element(dates).toHaveTextContent("Last 7 days");
+		await expect
+			.element(page.getByText(m.get_data_show_values(), { exact: true }))
+			.not.toBeInTheDocument();
+		expect((await current()).data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
+		await chooseDates(m.getdata_when_now());
+		await expect.element(dates).toHaveTextContent(m.getdata_when_now());
+		expect("dateRange" in (await current()).data).toBe(false);
 	});
 
 	test("shows the Map pollutant checkboxes, and the last one can't be unchecked", async () => {
@@ -982,7 +1049,7 @@ describe("now widgets", () => {
 		expect("options" in out).toBe(false);
 	});
 
-	test("an unshaped Map draft with marks, switched to Current conditions, notes the marks left out", async () => {
+	test("a Map draft with marks, switched to Current conditions, notes the marks left out", async () => {
 		await show({
 			type: "map",
 			data: {
@@ -997,7 +1064,7 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
 	});
 
-	test("a Map draft not yet in the Map's shape, with several pollutants and smoke, can switch to Chart or Data table", async () => {
+	test("a Map draft not yet in the Map's shape (a Chart's smoke layer), with several pollutants, can switch to Chart or Data table", async () => {
 		// Holding the map's pollutant list back keeps the draft as the link gave it (with dates).
 		let release!: (p: string[]) => void;
 		fake.metadata = fixtureMetadata({
@@ -1010,7 +1077,8 @@ describe("now widgets", () => {
 				layers: [
 					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
 					{ dataset: "air-quality", entryType: "o3" },
-					{ dataset: "hms-smoke" }
+					// A Chart's smoke layer (an entry type) isn't the Map's place-less smoke.
+					{ dataset: "hms-smoke", entryType: "smoke-density" }
 				],
 				dateRange: { kind: "trailing", amount: 7, unit: "day" }
 			}
@@ -1073,6 +1141,67 @@ describe("now widgets", () => {
 		session.undo();
 		expect(session.doc.body.widgets[0].data).toEqual(widget.data);
 		expect(session.canUndo).toBe(false);
+	});
+
+	describe("Fill regions by", () => {
+		const type = (t: string, label: string, plural: string) => ({
+			type: t,
+			label,
+			plural,
+			count: 5,
+			parents: []
+		});
+		const fillGroup = () => page.getByRole("group", { name: m.getdata_map_fill() });
+
+		test("lists None and the directory's types the Map draws, None chosen; choosing saves the fill, None removes it", async () => {
+			fake.regionTypes = async () => [
+				type("county", "County", "Counties"),
+				type("land_use", "Land use", "Land uses"),
+				type("zipcode", "ZIP code", "ZIP codes")
+			];
+			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+			const none = fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() });
+			await expect.element(none).toBeChecked();
+			await expect.element(fillGroup().getByRole("radio", { name: "Counties" })).toBeVisible();
+			// Land use is browsable, but the bulk summaries don't take it: the Map can't fill by it.
+			await expect
+				.element(fillGroup().getByRole("radio", { name: "Land uses" }))
+				.not.toBeInTheDocument();
+			expect(fillGroup().getByRole("radio").elements()).toHaveLength(3);
+			await fillGroup().getByRole("radio", { name: "ZIP codes" }).click();
+			expect((await current()).options).toEqual({ fill: "zipcode" });
+			await none.click();
+			expect((await current()).options).toBeUndefined();
+		});
+
+		test("a saved fill is checked, and converting to a Chart drops it with a note", async () => {
+			fake.regionTypes = async () => [type("zipcode", "ZIP code", "ZIP codes")];
+			const { current } = await show(
+				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
+			);
+			await expect.element(fillGroup().getByRole("radio", { name: "ZIP codes" })).toBeChecked();
+			await page.getByRole("radio", { name: "Chart" }).click();
+			await expect.element(page.getByText(m.getdata_note_fill_dropped())).toBeVisible();
+			expect((await current()).options).toBeUndefined();
+			await page.getByRole("radio", { name: "Map" }).click();
+			await expect
+				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
+				.toBeChecked();
+		});
+
+		test("a saved fill survives the directory failing; only None shows", async () => {
+			fake.regionTypes = async () => {
+				throw new Error("offline");
+			};
+			const { current } = await show(
+				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
+			);
+			await expect
+				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
+				.toBeVisible();
+			expect(fillGroup().getByRole("radio").elements()).toHaveLength(1);
+			expect((await current()).options).toEqual({ fill: "zipcode" });
+		});
 	});
 
 	test("a Map link with 30 places opens cut to 25, and says so", async () => {

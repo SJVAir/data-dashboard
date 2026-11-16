@@ -10,7 +10,16 @@ import {
 } from "@sjvair/map-sdk";
 import { mapMessages } from "../host/messages";
 import type { MapOptions } from "../options";
-import { basemap, clusters, fire, layers, monitors, settings, theme } from "./icons.svelte";
+import {
+	basemap,
+	clusters,
+	fire,
+	layers,
+	monitors,
+	regions,
+	settings,
+	theme
+} from "./icons.svelte";
 import { groupsShown, toValues, type MapOffer } from "./values";
 
 export type MapToolbarInput = {
@@ -20,7 +29,17 @@ export type MapToolbarInput = {
 	options: MapOptions;
 	/** A viewer's toolbar: the owner's values are what Reset puts back (never what's shown). */
 	ownerValues?: OptionValues;
+	/**
+	 * A day stop shows: the Inactive row isn't offered (a monitor with a figure that day was
+	 * reporting), so a saved Inactive choice filters nothing there.
+	 */
+	day?: boolean;
+	/** The fill row's label (the region type's plural label), while the tile has a fill. */
+	fillLabel?: string;
 };
+
+/** The fill row's value key (option `fillShown`): on by default, so the fill shows. */
+export const FILL_KEY = "regions";
 
 /** Which monitor filter rows the toolbar offers (a row not offered filters nothing). */
 export type MapToolbarRows = { types: boolean; inactive: boolean; inside: boolean };
@@ -54,12 +73,19 @@ export class MapToolbar {
 		this.#monitors = monitorsOptions(map);
 	}
 
-	build({ offer, drawn, options, ownerValues }: MapToolbarInput): MapToolbarBuild {
+	build({
+		offer,
+		drawn,
+		options,
+		ownerValues,
+		day = false,
+		fillLabel
+	}: MapToolbarInput): MapToolbarBuild {
 		const forMonitors = this.#monitors.groups({
 			types: offer.types,
 			pollutants: offer.pollutants,
 			pollutant: drawn ?? null,
-			hasInactive: offer.hasInactive,
+			hasInactive: offer.hasInactive && !day,
 			hasInside: offer.hasInside,
 			collocation: false,
 			icons: { monitors },
@@ -71,6 +97,13 @@ export class MapToolbar {
 		const shown = groupsShown(offer, offered.length);
 
 		const hms = offer.smokeAndFire ? hmsOptions(this.#map, { icon: fire }) : undefined;
+		const fill: OptionRow | undefined =
+			offer.fill && fillLabel
+				? { kind: "checkbox", id: FILL_KEY, label: fillLabel, icon: regions }
+				: undefined;
+		const layerRows: OptionRow[] = [];
+		if (hms) layerRows.push(hms.row);
+		if (fill) layerRows.push(fill);
 		const forSettings = settingsGroup(this.#map, {
 			icon: settings,
 			cluster: CLUSTER,
@@ -81,13 +114,13 @@ export class MapToolbar {
 		const groups: OptionGroup[] = [];
 		if (shown.pollutant && pollutantGroup) groups.push(pollutantGroup);
 		if (shown.monitors && monitorsGroup) groups.push(monitorsGroup);
-		if (shown.layers && hms) {
+		if (shown.layers && layerRows.length) {
 			groups.push({
 				id: "layers",
 				label: mapMessages("mapsdk_options_layers"),
 				icon: layers,
 				cluster: CLUSTER,
-				rows: [hms.row]
+				rows: layerRows
 			});
 		}
 		groups.push(...forSettings.groups);
@@ -95,7 +128,8 @@ export class MapToolbar {
 		const presets: OptionValues = {
 			...forMonitors.defaults,
 			...forSettings.defaults,
-			...hms?.defaults
+			...hms?.defaults,
+			...(fill && { [FILL_KEY]: true })
 		};
 		const rows: MapToolbarRows = {
 			types: shown.monitors && offered.some((id) => id.startsWith("type:")),

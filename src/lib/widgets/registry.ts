@@ -24,6 +24,11 @@ export type WidgetType = {
 	minSize: { w: number; h: number };
 	defaultSize: { w: number; h: number };
 	time: "range" | "now" | "none";
+	/**
+	 * A range type that also offers "Now" as a When choice (the Map): a widget with no
+	 * `dateRange` shows now. Read it through `offersNow` and `showsNow` (`./time`).
+	 */
+	now?: boolean;
 	thresholds: boolean;
 	analyzable: boolean;
 	/** Offers "Download data (CSV)". */

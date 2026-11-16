@@ -30,28 +30,35 @@ export function dayStates(args: {
 
 	const states = new Map<string, DayState>();
 	for (const date of dates) {
-		const make = (kind: DayKind, value: number | null = null): DayState => ({
-			date,
-			kind,
-			value,
-			level: value === null ? null : (levelFor(levels, value) ?? null)
-		});
-		if (date > today) {
-			states.set(date, make("future"));
-			continue;
-		}
-		if (figure === null) {
-			states.set(date, make(date === today ? "today" : "unrated"));
-			continue;
-		}
 		const point = byDate.get(date);
-		const value = point?.figure ?? null;
-		if (date === today) states.set(date, make("today", value));
-		else if (!point) states.set(date, make("none"));
-		else if (point.final === false) states.set(date, make("pending", value));
-		else states.set(date, make(value === null ? "thin" : "rated", value));
+		const row = point && { figure: point.figure ?? null, final: point.final };
+		states.set(date, dayState({ date, today, row, figure, levels }));
 	}
 	return states;
+}
+
+/** One day's state, from its row (if any) read with a figure. */
+export function dayState(args: {
+	date: string;
+	today: string;
+	row: { figure: number | null; final?: boolean } | undefined;
+	figure: DailyFigure | null;
+	levels: Level[];
+}): DayState {
+	const { date, today, row, figure, levels } = args;
+	const make = (kind: DayKind, value: number | null = null): DayState => ({
+		date,
+		kind,
+		value,
+		level: value === null ? null : (levelFor(levels, value) ?? null)
+	});
+	if (date > today) return make("future");
+	if (figure === null) return make(date === today ? "today" : "unrated");
+	const value = row?.figure ?? null;
+	if (date === today) return make("today", value);
+	if (!row) return make("none");
+	if (row.final === false) return make("pending", value);
+	return make(value === null ? "thin" : "rated", value);
 }
 
 /** Whether the day's figure counts toward threshold counts and summaries. */

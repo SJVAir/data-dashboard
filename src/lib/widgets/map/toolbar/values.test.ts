@@ -25,7 +25,8 @@ const offer: MapOffer = {
 	types: ["purpleair", "airnow"],
 	hasInactive: true,
 	hasInside: true,
-	smokeAndFire: false
+	smokeAndFire: false,
+	fill: false
 };
 const rows = { types: true, inactive: true, inside: true };
 
@@ -106,17 +107,17 @@ describe("toValues", () => {
 
 describe("activeFilters", () => {
 	it("filters nothing by types when the row is not offered", () => {
-		const f = activeFilters({ hiddenTypes: ["purpleair"] }, offer, { ...rows, types: false });
+		const f = activeFilters({ hiddenTypes: ["purpleair"] }, offer, { ...rows, types: false }, {});
 		expect(f.hiddenTypes.size).toBe(0);
 	});
 
 	it("hides inactive by default when the row is offered", () => {
-		expect(activeFilters({}, offer, rows).hideInactive).toBe(true);
-		expect(activeFilters({ inactive: true }, offer, rows).hideInactive).toBe(false);
+		expect(activeFilters({}, offer, rows, {}).hideInactive).toBe(true);
+		expect(activeFilters({ inactive: true }, offer, rows, {}).hideInactive).toBe(false);
 	});
 
 	it("does not filter by a row that is not offered", () => {
-		const f = activeFilters({}, offer, { ...rows, inactive: false, inside: false });
+		const f = activeFilters({}, offer, { ...rows, inactive: false, inside: false }, {});
 		expect(f.hideInactive).toBe(false);
 		expect(f.hideInside).toBe(false);
 	});
@@ -137,6 +138,30 @@ describe("groupsShown", () => {
 	});
 });
 
+describe("fillShown", () => {
+	it("toOptions: regions true removes fillShown, false stores false", () => {
+		const on = toOptions(
+			{ fillShown: false },
+			{ ...defaults, regions: true },
+			["regions"],
+			defaults,
+			"pm25"
+		);
+		expect(on).not.toHaveProperty("fillShown");
+		const off = toOptions({}, { ...defaults, regions: false }, ["regions"], defaults, "pm25");
+		expect(off.fillShown).toBe(false);
+	});
+
+	it("toValues gives regions true with no saved value, false when saved false", () => {
+		expect(toValues({}, offer, defaults, "pm25").regions).toBe(true);
+		expect(toValues({ fillShown: false }, offer, defaults, "pm25").regions).toBe(false);
+	});
+
+	it("shows the layers group with a fill and no smoke and fire", () => {
+		expect(groupsShown({ ...offer, fill: true }, 3).layers).toBe(true);
+	});
+});
+
 describe("withoutToolbar", () => {
 	it("keeps marks and drops every toolbar key", () => {
 		expect(
@@ -151,6 +176,12 @@ describe("withoutToolbar", () => {
 				hiddenTypes: ["t"]
 			})
 		).toEqual({ marks: ["a"] });
+	});
+
+	it("clears fillShown and keeps day and fill", () => {
+		expect(
+			withoutToolbar({ day: "2026-11-14", fill: "city", fillShown: false, showing: "o3" })
+		).toEqual({ day: "2026-11-14", fill: "city" });
 	});
 });
 

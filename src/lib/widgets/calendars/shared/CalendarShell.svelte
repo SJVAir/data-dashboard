@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { thresholdCount, type DayState } from "$lib/calendars/day-state";
+	import { thresholdCount, type DayState } from "$lib/data/day-state";
 	import { selectionSummary } from "$lib/calendars/summary";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import type { WidgetInstance } from "$lib/documents/schema";

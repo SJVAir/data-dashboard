@@ -100,13 +100,15 @@ export function tileOptions(
 /**
  * The tile's options changed to `next` (all of them; `changedKeys` names the ones that changed).
  * Edit: one undoable change (nothing when equal, or when the widget isn't in the current
- * editable dashboard). View: the changed keys held for the visit.
+ * editable dashboard; with `amend`, stored without an undo step of its own, so a run of steps
+ * is one). View: the changed keys held for the visit (`amend` has no meaning there).
  */
 export function changeTileOptions(
 	ctx: TileOptionsContext | undefined,
 	widget: WidgetInstance,
 	next: Options | undefined,
-	changedKeys: string[]
+	changedKeys: string[],
+	opts: { amend?: boolean } = {}
 ): void {
 	if (!ctx) return;
 	if (ctx.mode === "view") {
@@ -120,7 +122,9 @@ export function changeTileOptions(
 	const current = session.doc.body.widgets.find((w) => w.id === widget.id);
 	if (!current) return;
 	const change = optionsChange(current, next);
-	if (change) session.apply(change);
+	if (!change) return;
+	if (opts.amend) session.amend(change);
+	else session.apply(change);
 }
 
 /** View mode: forgets the viewer's `keys` for `widget` (back to the owner's values). */

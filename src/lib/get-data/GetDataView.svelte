@@ -7,9 +7,10 @@
 	import { onDestroy, untrack } from "svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { Button } from "$lib/components/ui/button";
-	import { adapterOffers, getMetadata } from "$lib/data";
+	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
+	import { fillableTypes } from "$lib/data/snapshot";
 	import {
 		LIMITS,
 		type DateRangeSpec,
@@ -20,13 +21,18 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
+	import { directoryFor } from "$lib/places/host";
 	import { fromLayer, toLayerPlaces, type Picks } from "$lib/places/selection";
+	import type { RegionTypeInfo } from "$lib/places/types";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
+	import { MAP_MAX_DAYS, mapOptions } from "$lib/widgets/map/options";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
+	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
 	import {
 		entryMeta,
@@ -63,6 +69,7 @@
 		isMapShaped,
 		mapShowingOnly,
 		setMapPollutant,
+		setMapFill,
 		setSmokeAndFire,
 		toMapDraft
 	} from "./map";
@@ -134,6 +141,24 @@
 	 * they can't be loaded, the same as a server that lists none.
 	 */
 	let mapPollutants = $state.raw<string[] | undefined>();
+	/**
+	 * The region types a Map can fill (the place directory's that the Map draws), once loaded;
+	 * undefined while loading or when they can't be loaded (a saved fill is kept either way).
+	 */
+	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
+	$effect(() => {
+		if (plain.type !== MAP_TYPE || fillTypes) return;
+		const controller = new AbortController();
+		void directoryFor(getMetadata(), getResolvers().regions)
+			.regionTypes(controller.signal)
+			.then((types) => {
+				if (!controller.signal.aborted) fillTypes = fillableTypes(types);
+			})
+			.catch((error: unknown) => {
+				if (!controller.signal.aborted) report(error);
+			});
+		return () => controller.abort();
+	});
 	const loadMapPollutants = async () => {
 		const p = await getMetadata().mapPollutants();
 		return p === "unavailable" ? [] : p;
@@ -150,8 +175,13 @@
 	});
 
 	const type = $derived(getWidgetType(plain.type));
-	/** A "now" type: no dates, one layer with one place (see `now.ts`). */
-	const isNow = $derived(type?.time === "now");
+	/**
+	 * A type with a now shape (a now type, or the Map with or without a range): its places on one
+	 * layer, its own What, no Show values (see `now.ts`, `map.ts`).
+	 */
+	const isNow = $derived(!!type && offersNow(type));
+	/** A now type proper: no When (the Map has one, with a Now choice). */
+	const nowOnly = $derived(type?.time === "now");
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
 	// A Forecast strip's one layer has no entry type, so isn't a `mainLayer`; it holds the place.
 	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
@@ -176,7 +206,8 @@
 	const showAs = $derived(
 		dataTypes().map((t) => ({
 			type: t,
-			block: known && t.time !== "now" ? typeBlock(t, blockData, known, now) : null
+			// A type that offers now converts the draft to its shape, so it's never blocked.
+			block: known && !offersNow(t) ? typeBlock(t, blockData, known, now) : null
 		}))
 	);
 	const choices = $derived.by(() => {
@@ -294,7 +325,12 @@
 		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
 	}
 
-	function setRange(spec: DateRangeSpec): void {
+	/** Sets the range, or (`undefined`, for a type with `now`) Now. */
+	function setRange(spec: DateRangeSpec | undefined): void {
+		if (!spec) {
+			delete draft.data.dateRange;
+			return;
+		}
 		draft.data.dateRange = spec;
 		// A calendar's day selection that the new range no longer holds is dropped with it.
 		const sel = draft.data.timeSubRange && $state.snapshot(draft.data.timeSubRange);
@@ -379,7 +415,12 @@
 					: m.get_data_pollutant_instead({ pollutant: to, previous })
 			);
 		}
+		if (what.includes("range-cut")) {
+			const count = formatNumber(MAP_MAX_DAYS);
+			out.push(m.get_data_range_cut_left_out({ count, countValue: MAP_MAX_DAYS }));
+		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
+		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		const days = dropped.conversion.selection;
 		if (days) {
@@ -426,13 +467,13 @@
 
 	/** Whether `d` already has now type `t`'s shape (the Map's own, for the Map). */
 	function shaped(d: Draft, t: WidgetType): boolean {
-		return t.type === MAP_TYPE ? isMapShaped(d) : isNowShaped(d, t);
+		return t.type === MAP_TYPE ? isMapShaped(d, now) : isNowShaped(d, t);
 	}
 
 	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
 	function sourceType(snapshot: Draft): WidgetType | undefined {
 		const from = getWidgetType(snapshot.type);
-		return from?.time === "now" && !shaped(snapshot, from) ? undefined : from;
+		return from && offersNow(from) && !shaped(snapshot, from) ? undefined : from;
 	}
 
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
@@ -444,7 +485,7 @@
 			const allowed = await loadMapPollutants();
 			if (id !== changeId) return;
 			mapPollutants = allowed;
-			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed);
+			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed, now);
 			defaultOwed = false;
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -465,7 +506,7 @@
 		}
 		const converted =
 			fresh.type === MAP_TYPE
-				? fromMapDraft(fresh, next, catalog, levels, drawable)
+				? fromMapDraft(fresh, next, catalog, levels, drawable, now)
 				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
@@ -476,16 +517,16 @@
 	function setType(next: string): void {
 		const to = getWidgetType(next);
 		if (!to) return;
-		if (to.time === "now" && known) {
+		if (offersNow(to) && known) {
 			void convertToNow(to, known);
 			return;
 		}
 		changeId++;
 		defaultOwed = false;
-		if (to.time !== "now" && isNow) {
+		if (!offersNow(to) && isNow) {
 			const converted =
 				plain.type === MAP_TYPE
-					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants)
+					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants, now)
 					: fromNowDraft(plain, to);
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -518,7 +559,7 @@
 	// known. A saved now widget already has the shape.
 	$effect(() => {
 		const to = type;
-		if (!known || to?.time !== "now") return;
+		if (!known || !to || !offersNow(to)) return;
 		if (!untrack(() => shaped(plain, to))) void convertToNow(to, known);
 	});
 
@@ -637,11 +678,17 @@
 				</div>
 			{/if}
 
-			{#if !isNow}
+			{#if !nowOnly}
 				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
 					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
 					{#if type}
-						<WhenControl {type} value={range} {now} onchange={setRange} />
+						<!-- A type with `now` (the Map) passes no range for Now. -->
+						<WhenControl
+							{type}
+							value={type.now ? plain.data.dateRange : range}
+							{now}
+							onchange={setRange}
+						/>
 					{/if}
 				</section>
 			{/if}
@@ -691,6 +738,9 @@
 							offered={offeredPollutants(known, mapPollutants ?? [])}
 							onpollutant={(e, on) => setMapPollutant(draft.data, known, e, on)}
 							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
+							fill={mapOptions(plain).fill}
+							{fillTypes}
+							onfill={(type) => setMapFill(draft, type)}
 						/>
 					</section>
 				{:else if plain.type === CURRENT_TYPE || type?.thresholds}

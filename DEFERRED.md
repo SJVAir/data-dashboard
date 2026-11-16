@@ -1342,9 +1342,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `/pesticides/locations/` fail to parse in the SDK. **Revisit when** sjvair.com adds a location
   source: add the value to `locationSourceSchema` in the same change.
 
-- **The Map refreshes only when its date range includes today.** _Deferred 2026-11-12 (step 5
-  spec 2; the user)._ A past-only range loads once and never polls. Why: spec 2 has no date range
-  (the Map keeps `time: "now"`). **Revisit with** spec 4's date-range mode.
+- **One figure per place for a whole range ("where was it worst over the period").**
+  _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
+  figure for the whole range. Why: a year of daily rows for a whole region type is too much to
+  load, and the right shape is a server-side figure per region per range. **Revisit when**
+  someone asks for it, or the server offers that figure.
 
 - **The focus school drawn twice.** _Deferred 2026-11-12 (step 5 spec 2)._ A school is both the
   focus pin and, once schools are a Map data set, a school badge. The user's lean (not a decision)
@@ -1404,16 +1406,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 - **Step 5 spec 3 review leftovers.** _Deferred 2026-11-13 (step 5 spec 3, per-task and final
   reviews)._ Small things the reviews let stay:
-  - **Do at the start of spec 4** (the user, 2026-11-15, as with spec 2's leftovers at the start
-    of spec 3), because a person could notice them:
-    - The hidden-marks note's `pollutant: entryLabel ?? ""` would read "doesn't report " with no
-      name if the label were missing: fall back to the "aren't shown" line.
-    - The fire tint is 2.9998:1 on a hovered row (the light `--accent`), a hair under 3:1: darken
-      `--map-icon-fire`'s light value one step and add the hovered surface to the contrast test.
-    - The hidden-marks reasons read "isn't shown" briefly while the metadata loads, then change:
-      hold the note until the monitors lookup settles (still "aren't shown" if it fails).
-    - `activeFilters`' optional `defaults` falls back silently when a caller forgets it: make it
-      required.
   - **Code:** `activeFilters`' unused `offer` parameter; the unique refine and the bare `max(32)`
     on `hiddenTypes` duplicate `marks`' pattern; `routeOneOutline`'s non-null assertion. **Fix
     with** the next change to each.
@@ -1442,6 +1434,43 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - A toolbar change whose next options fail validation is skipped silently.
     - No test for `drawable` `[]`.
     - The E2E `waitForTimeout(1500)`, the `fake.signedInAs` reach-in, and the `liveLinkTo` cast.
+
+- **Step 5 spec 4 review leftovers.** _Deferred 2026-11-15 (step 5 spec 4, per-task and final
+  reviews)._ Small things the reviews let stay, each with its revisit trigger:
+  - **No browser tests for smoke and fire's prefetch, retry or refresh on a day.** E2E covers
+    each day's smoke; the gap is the timing of prefetch, retry and refresh. **Add when** spec 5
+    adds day-following layers (pesticides, spray notices) to `MapData`.
+  - **`remPx` is read once** (`MapWidget.svelte`): a font-size change mid-visit leaves the 48rem
+    toolbar breakpoint stale until the tile remounts. **Revisit if** someone reports it, or when
+    the toolbar's breakpoint becomes a shared helper.
+  - **`loaded.svelte.ts` has grown to about 620 lines.** **Revisit at** spec 5, when pesticide
+    sources join: split the per-dataset blocks out of `MapData`.
+  - **Smoke and fire on a day poll only while that day's monitor figures aren't final** (the
+    ruling recorded in `ARCHITECTURE.md`): HMS has no `is_final`, so a late plume for a settled
+    day isn't picked up. **Revisit if** the server gives HMS a final flag, or late plumes are
+    reported.
+  - **Message key prefixes `getdata_` and `get_data_` are mixed** (the catalog already held
+    both, e.g. `getdata_preset_*`). **Revisit with** a catalog-wide key tidy.
+  - **The per-row figure logic is repeated** in `snapshot/regions.ts` and `snapshot/monitors.ts`
+    (two copies of about 10 lines). **Revisit at** spec 5, when the pesticide snapshot would be
+    the third: extract `figureOfRow` into `rows.ts`.
+  - **City and school district fills load unsimplified whole-type GeoJSON** (measured at most
+    0.79 MB gzip, fetched once per page). **Revisit when** the regions meta gains a per-type
+    `simplify` flag (already deferred), or a type's payload grows past about 1 MB gzip.
+  - **Switching the pollutant on a day stop drops the monitors** for a moment, until the
+    figure-label lookup (memoized metadata) settles. **Revisit if** it shows in testing, or when
+    label lookups move into `MapData` (every layer pollutant's label looked up up front).
+  - **On a past day, a monitor that has left the current monitors list isn't drawn**, and its
+    mark is counted as "outside the places" rather than "no figure for this day": a day's
+    figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. **Revisit when**
+    spec 6 reads series for marked monitors, or when someone reports it.
+  - **A step can still fold into an unrelated edit** made within the 1 s `StepRun` window
+    (`step-run.ts`): the run closes on time and on a drag's end, not on another kind of change.
+    Rare (a person editing something else within a second of stepping). **Revisit if** someone
+    reports a lost undo boundary, or when another control joins the undo runs.
+  - **`fillRegionType` casts** (`as RegionSummaryBulkType`) where a type predicate on
+    `fillableTypes` would do. Cosmetic; behaviour is covered by tests. **Revisit when** the
+    function is next touched, or `fillableTypes` gains a second caller.
 
 ## Analysis & data
 
@@ -1675,7 +1704,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
   when** the map widget uses whole-layer queries (Release 1 step 5). _Noted 2026-11-11 (step 5
   spec 1): the Map widget uses map-sdk's live monitors store, not whole-layer queries, so this
-  doesn't bite yet. Step 5 spec 4's date-range data is where it does._
+  doesn't bite yet._ _Noted 2026-11-15 (step 5 spec 4): the Map's ranged data uses the snapshot
+  query (one bulk request per day), not whole-layer range queries, so it still doesn't bite.
+  **Revisit when** a whole-layer series is needed._
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -1712,6 +1743,16 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Map plugins
 
+- **The regions meta doesn't say which types the server simplifies.** _Deferred 2026-11-15
+  (step 5 spec 4, Task 12)._ `regions/geojson/?simplify=1` is accepted only for county,
+  zipcode and tract (sjvair.com answers 400 for any other type), and no `regions/meta/` field
+  says so, so the dashboard holds that list (`SIMPLIFIED_TYPES` in
+  `src/lib/widgets/map/regions.ts`). It also stops the outline lookup asking for simplified
+  city or school district shapes, which the server refuses. **Why deferred:** a server
+  metadata field is a sjvair.com change, and the list changes only with the server's.
+  **Revisit with** the next sjvair.com regions meta change: add a per-type `simplify` flag
+  and read it here.
+
 - **Map plugins for the remaining server datasets.** _Deferred 2026-09-24 (docs review);
   updated 2026-11-03 (map-sdk milestone 1 spec)._ map-sdk milestone 1 covers monitors, region
   fill, HMS smoke and fire, **CalHeatScore ZIPs, and forecast zones** (the user moved the last
@@ -1738,8 +1779,10 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
   values where nothing was measured; the day it shows; and which daily figure (spec 5's
   per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
-  (step 4 → step 5/6), or map-sdk takes on a new layer type. _Noted 2026-11-11 (step 5 spec 1):
-  the Map widget shows the live readings only. **Revisit with** step 5 spec 4 (date ranges)._
+  (step 4 → step 5/6), or map-sdk takes on a new layer type. _Updated 2026-11-15 (step 5 spec
+  4): day-by-day monitors and region fills are built (the stepper, and a fill by region type). A
+  smooth interpolated surface stays deferred, because it shows values where nothing was
+  measured. **Revisit if** someone asks for it._
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:

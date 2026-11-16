@@ -21,9 +21,48 @@ const messages = ((key: string, params?: { count?: number }) =>
 
 describe("hmsEntry", () => {
 	it("keys on today's Pacific date, refreshed hourly", async () => {
-		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
+		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25", at: "now" });
 		expect((source as Src | null)?.key).toMatch(/^map-hms:\d{4}-\d{2}-\d{2}$/);
 		expect((source as Src | null)?.cadence).toBe("hour");
+	});
+
+	it("on now, asks for today's (no date)", async () => {
+		vi.mocked(getHMSSmoke)
+			.mockClear()
+			.mockResolvedValue([] as never);
+		vi.mocked(getHMSFire)
+			.mockClear()
+			.mockResolvedValue([] as never);
+		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25", at: "now" });
+		await (source as Src).fetch(new AbortController().signal);
+		expect(vi.mocked(getHMSSmoke).mock.calls[0][0]).toBeUndefined();
+		expect(vi.mocked(getHMSFire).mock.calls[0][0]).toBeUndefined();
+	});
+
+	it("on a day, asks for that day's, keyed by the day", async () => {
+		vi.mocked(getHMSSmoke)
+			.mockClear()
+			.mockResolvedValue([] as never);
+		vi.mocked(getHMSFire)
+			.mockClear()
+			.mockResolvedValue([] as never);
+		const source = await hmsEntry.source({
+			data: { layers: [] },
+			entryType: "pm25",
+			at: { day: "2026-09-09" }
+		});
+		expect((source as Src).key).toBe("map-hms:2026-09-09");
+		expect((source as Src).cadence).toBe("hour");
+		const controller = new AbortController();
+		await (source as Src).fetch(controller.signal);
+		expect(vi.mocked(getHMSSmoke).mock.calls[0]).toEqual([
+			{ date: "2026-09-09" },
+			{ signal: controller.signal }
+		]);
+		expect(vi.mocked(getHMSFire).mock.calls[0]).toEqual([
+			{ date: "2026-09-09" },
+			{ signal: controller.signal }
+		]);
 	});
 
 	it("gives today's smoke and grouped fires", async () => {
@@ -44,7 +83,7 @@ describe("hmsEntry", () => {
 				geometry: { type: "Point", coordinates: [-119.001, 36.001] }
 			}
 		] as never);
-		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
+		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25", at: "now" });
 		const value = await (source as Src).fetch(new AbortController().signal);
 		const out = hmsEntry.toDataSources(value, { messages, entryType: "pm25" });
 		expect(Object.keys(out).sort()).toEqual(["fireGroups", "fireHotspots", "smoke"]);
@@ -71,7 +110,7 @@ describe("hmsEntry", () => {
 		vi.mocked(getHMSFire)
 			.mockClear()
 			.mockResolvedValue([] as never);
-		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
+		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25", at: "now" });
 		const controller = new AbortController();
 		await (source as Src).fetch(controller.signal);
 		expect(vi.mocked(getHMSSmoke).mock.calls[0][1]).toEqual({ signal: controller.signal });
@@ -91,7 +130,7 @@ describe("hmsEntry", () => {
 		}) as never;
 		vi.mocked(getHMSSmoke).mockImplementation(honouring);
 		vi.mocked(getHMSFire).mockImplementation(honouring);
-		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25" });
+		const source = await hmsEntry.source({ data: { layers: [] }, entryType: "pm25", at: "now" });
 		const pending = (source as Src).fetch(controller.signal);
 		controller.abort();
 		await expect(pending).rejects.toMatchObject({ name: "AbortError" });

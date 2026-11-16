@@ -1007,6 +1007,7 @@
 	"getdata_preset_specific_month": "A specific month…",
 	"getdata_preset_specific_year": "A specific year…",
 	"getdata_preset_custom": "Custom range…",
+	"getdata_when_now": "Now",
 	"get_data_when": "When",
 	"get_data_where": "Where",
 	"get_data_what": "What",
@@ -1064,6 +1065,7 @@
 		}
 	],
 	"get_data_smoke_and_fire": "Smoke and fire",
+	"getdata_note_fill_dropped": "Filled regions only apply to the map, so the fill was left out.",
 	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
 	"get_data_show_as": "Show as",
 	"get_data_pollutant": "Pollutant",
@@ -1081,6 +1083,16 @@
 			"match": {
 				"countPlural=one": "This widget shows up to {count} place, so the others were left out.",
 				"countPlural=other": "This widget shows up to {count} places, so the others were left out."
+			}
+		}
+	],
+	"get_data_range_cut_left_out": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} day, so the earlier days were left out.",
+				"countPlural=other": "This widget shows up to {count} days, so the earlier days were left out."
 			}
 		}
 	],
@@ -1140,9 +1152,11 @@
 	"get_data_discard": "Discard",
 	"get_data_keep_editing": "Keep editing",
 	"get_data_none": "None",
+	"getdata_map_fill": "Fill regions by",
+	"getdata_map_fill_none": "None",
 	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
-	"get_data_map_smoke_help": "Shows today's smoke plumes and fire detections seen by satellite, everywhere on the map, not only at this map's places.",
+	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",
 	"get_data_keep_one": "Keep at least one pollutant, weather or pesticide layer.",
 	"get_data_level_only": "Add a pollutant, weather or pesticide layer to chart this.",
 	"get_data_station": "Station",
@@ -1182,8 +1196,30 @@
 	"map_label_marks_hidden": "{title} map. {notes}",
 	"map_layer_places": "Places",
 	"map_no_monitors_here": "No monitors here report this pollutant right now.",
+	"map_no_monitors_here_day": "No monitors here report this pollutant on this day.",
 	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
 	"map_refresh_failed": "Couldn't refresh. Showing earlier readings.",
+	"map_day_previous": "Previous day",
+	"map_day_next": "Next day",
+	"map_day_slider": "Day",
+	"map_day_now": "Now",
+	"map_day_not_final": "Not final yet",
+	"map_day_value_not_final": "{day}, not final yet",
+	"map_day_none_yet": "No days to show yet",
+	"map_day_unrated": "{pollutant}'s days can't be rated",
+	"map_day_no_figures": "No figures for this day",
+	"map_fill_today_so_far": "{regionType}, today so far",
+	"map_fill_failed": "The region fill couldn't be loaded.",
+	"map_marks_hidden_day": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} marked monitor has no figure for this day",
+				"countPlural=other": "{count} marked monitors have no figure for this day"
+			}
+		}
+	],
 	"map_mark_select": "Select",
 	"map_mark_remove": "Remove",
 	"map_marks_limit": [
@@ -1310,6 +1346,8 @@
 	"mapsdk_error_retry": "Try again",
 	"mapsdk_legend_label": "Legend",
 	"mapsdk_legend_threshold": "from {value}",
+	"mapsdk_legend_no_figure": "No data",
+	"mapsdk_reading_pause": ", ",
 	"mapsdk_controls_label": "Map controls",
 	"mapsdk_selection_label": "Selection",
 	"mapsdk_no_reading": "No reading",
