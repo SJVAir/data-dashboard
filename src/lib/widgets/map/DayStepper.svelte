@@ -1,0 +1,99 @@
+<script lang="ts">
+	import ChevronLeft from "@lucide/svelte/icons/chevron-left";
+	import ChevronRight from "@lucide/svelte/icons/chevron-right";
+	import { Button } from "$lib/components/ui/button";
+	import { Slider } from "$lib/components/ui/slider";
+	import { formatLongWeekdayDate } from "$lib/format";
+	import { m } from "$lib/paraglide/messages.js";
+	import { stepKey, type Stop } from "./days";
+
+	type Props = {
+		stops: Stop[];
+		/** Index of the stop shown. */
+		at: number;
+		/** The shown day's readings may still change. */
+		notFinal: boolean;
+		/** Too narrow for the slider: only the buttons and the date. */
+		narrow: boolean;
+		/**
+		 * Accepted for the caller's convenience but deliberately not used to disable anything: a
+		 * viewer's step changes only their own view, so a read-only dashboard can still step.
+		 */
+		readOnly?: boolean;
+		onstep: (index: number, via: "button" | "key" | "slider") => void;
+		/** A slider drag ended (the caller closes its undo run). */
+		ondragend: () => void;
+	};
+
+	let { stops, at, notFinal, narrow, readOnly = false, onstep, ondragend }: Props = $props();
+
+	const stop = $derived(stops[at]);
+	const label = $derived(
+		stop === undefined
+			? ""
+			: stop === "now"
+				? m.map_day_now()
+				: formatLongWeekdayDate(stop.day, { year: true })
+	);
+
+	// The standard slider keys, run through `stepKey` so the steps (Page Up/Down is a week) are
+	// exactly ours; bits-ui never sees them.
+	function onkeydown(event: KeyboardEvent) {
+		if (event.altKey || event.ctrlKey || event.metaKey) return;
+		const next = stepKey(event.key, at, stops.length);
+		if (next === null) return;
+		event.preventDefault();
+		event.stopPropagation();
+		if (next !== at) onstep(next, "key");
+	}
+</script>
+
+{#if stops.length === 0}
+	<p class="text-muted-foreground px-2 py-1 text-sm">{m.map_day_none_yet()}</p>
+{:else}
+	<div
+		class="flex items-center gap-2 px-2 py-1"
+		data-day-stepper
+		data-read-only={readOnly || undefined}
+	>
+		<Button
+			variant="ghost"
+			size="icon"
+			aria-label={m.map_day_previous()}
+			disabled={at <= 0}
+			onclick={() => onstep(at - 1, "button")}
+		>
+			<ChevronLeft aria-hidden="true" />
+		</Button>
+		{#if !narrow}
+			<div class="min-w-24 flex-1" onkeydowncapture={onkeydown}>
+				<Slider
+					value={at}
+					min={0}
+					max={stops.length - 1}
+					step={1}
+					onValueChange={(v) => {
+						if (v !== at) onstep(v, "slider");
+					}}
+					onValueCommit={() => ondragend()}
+					thumbProps={{ "aria-label": m.map_day_slider(), "aria-valuetext": label }}
+				/>
+			</div>
+		{/if}
+		<Button
+			variant="ghost"
+			size="icon"
+			aria-label={m.map_day_next()}
+			disabled={at >= stops.length - 1}
+			onclick={() => onstep(at + 1, "button")}
+		>
+			<ChevronRight aria-hidden="true" />
+		</Button>
+		<span class="flex flex-wrap items-baseline gap-x-2 text-sm" aria-live="polite">
+			<span class="font-medium" data-day-label>{label}</span>
+			{#if notFinal}
+				<span class="text-muted-foreground text-xs">{m.map_day_not_final()}</span>
+			{/if}
+		</span>
+	</div>
+{/if}

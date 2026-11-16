@@ -1195,6 +1195,12 @@
 	"map_no_monitors_here": "No monitors here report this pollutant right now.",
 	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
 	"map_refresh_failed": "Couldn't refresh. Showing earlier readings.",
+	"map_day_previous": "Previous day",
+	"map_day_next": "Next day",
+	"map_day_slider": "Day",
+	"map_day_now": "Now",
+	"map_day_not_final": "Not final yet",
+	"map_day_none_yet": "No days to show yet",
 	"map_mark_select": "Select",
 	"map_mark_remove": "Remove",
 	"map_marks_limit": [
