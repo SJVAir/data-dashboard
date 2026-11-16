@@ -576,6 +576,11 @@ string`) now get the union return type. The mobile app passes a string token, so
        `lib/monitors/mod_test.ts` and `lib/regions/mod_test.ts` (sdk-js #59), so `TEST_REMOTE` runs check production.
        Exact commands come with the merged PR. **Why deferred:** nothing touches production until `develop` deploys.
        **Revisit:** at the deploy.
+  - **Pesticide Map API (sjvair.com #335 and #336, merged into `develop` 2026-11-16, session
+    `sjvair-com-5a`):** nothing to run. No migration, backfill or config. The new cache keys
+    start empty, the notices version creates itself on first read, and section detail starts
+    cold once (its cache key version changed). `@sjvair/sdk` `5.0.0-beta.12` and `5.0.0-beta.13`
+    need them deployed.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
