@@ -226,6 +226,8 @@ export const FILL_ZIPS = [
 /** Each ZIP's figure on a past day (by date) and today so far; a ZIP with none has no row. */
 export type FillFigures = {
 	days: Record<string, Record<string, number>>;
+	/** The Pacific date today so far is for (the test clock's). */
+	todayDate: string;
 	today: Record<string, number>;
 };
 
@@ -271,7 +273,7 @@ export async function routeMapFill(context: BrowserContext, figures: FillFigures
 		(route) => {
 			const url = new URL(route.request().url());
 			const [, entry, open] = REGION_BULK.exec(url.pathname)!;
-			const day = open ? "2026-11-15" : (url.searchParams.get("start") ?? "");
+			const day = open ? figures.todayDate : (url.searchParams.get("start") ?? "");
 			const byCode = open ? figures.today : (figures.days[day] ?? {});
 			const data = FILL_ZIPS.filter((z) => byCode[z.code] !== undefined).map((z) => ({
 				id: z.id,

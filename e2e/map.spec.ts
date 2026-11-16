@@ -1120,6 +1120,7 @@ test.describe("a Map's region fill", () => {
 		await routeMapDays(context, DAYS);
 		await routeMapFill(context, {
 			days: { "2026-11-11": { "93721": 5, "93722": 20 } },
+			todayDate: "2026-11-15",
 			today: { "93721": 8, "93722": 30 }
 		});
 		await page.clock.install({ time: TODAY });
@@ -1153,7 +1154,7 @@ test.describe("a Map's region fill", () => {
 		const legend = legendOf(map);
 		const titles = legend.getByRole("heading", { level: 3 });
 		await expect(titles).toHaveCount(1);
-		await expect(titles).toHaveText(/^PM2\.5/);
+		await expect(titles).toHaveText("PM2.5 (µg/m³)");
 		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
 
 		// Today's figures so far; the ZIP with none reads No data (not a level).
@@ -1178,6 +1179,8 @@ test.describe("a Map's region fill", () => {
 		await row.check();
 		await expect(fillLine(map)).toHaveText(/^ZIP Codes, today so far: /);
 		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
+		// Held for a moment: a refetch fired late would still count.
+		await page.waitForTimeout(1_000);
 		expect(zipRequests.length).toBe(requests);
 	});
 
@@ -1187,10 +1190,12 @@ test.describe("a Map's region fill", () => {
 		await openSharedDoc(page, fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-11" }));
 		const map = mapOf(page, FRESNO_MAP);
 		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+		// The day's monitor is drawn too (Drummond Street, USG that day), under the same one section.
+		await expect(inView(map)).toHaveText("PM2.5: 1 Unhealthy for Sensitive Groups");
 		const legend = legendOf(map);
 		const titles = legend.getByRole("heading", { level: 3 });
 		await expect(titles).toHaveCount(1);
-		await expect(titles).toHaveText(/^PM2\.5/);
+		await expect(titles).toHaveText("PM2.5 (µg/m³)");
 		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
 		// The day's fill: the layer is the day's, not today so far.
 		await expect(fillLine(map)).toHaveText(/^ZIP Codes: /);

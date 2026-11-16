@@ -2033,7 +2033,9 @@ for the data that tile holds.
 - **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
   inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
   draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor
-  among the loaded ones for the pollutant showing isn't offered.
+  among the loaded ones for the pollutant showing isn't offered. On a day stop (spec 4) the
+  Inactive row isn't offered, and `day` isn't a toolbar key, so Reset leaves it (see "The Map's
+  days and region fills").
 - **Left out on purpose:** a search slot (the place picker does that job), a "None" pollutant (a
   Map tile always draws one), and Collocation Sites (the dashboard loads none).
 - **Settings** keeps monitor-map's set: marker clusters, basemap, basemap theme (the variant), and
@@ -2110,7 +2112,8 @@ for the data that tile holds.
   fire), and smoke and fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added
   and removed together). Saved options (`options.ts`, `MapOptionsSchema`): `showing` (the entry
   type drawn now; the first pollutant until the toolbar switches it, which spec 3 added) and
-  `marks` (monitor ids, at most 25, unique). Invalid or missing options read as none.
+  `marks` (monitor ids, at most 25, unique); spec 4 added `day`, `fill` and `fillShown` (see "The
+  Map's days and region fills"). Invalid or missing options read as none.
 - **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
   those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
   in its `placeRegion` region, the one the frame uses), and only those reporting the pollutant
@@ -2320,8 +2323,8 @@ a date range outside their span.
 `src/lib/widgets/map/`. The descriptor (`index.ts`) is in the initial bundle and imports only an
 icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
 
-- **The descriptor:** `type: "map"`, label "Map", `time: "now"` (spec 3 adds a date range and
-  may redefine this), `accepts: { datasets: ["air-quality"], maxPollutantLayers: 1, maxPlaces:
+- **The descriptor:** `type: "map"`, label "Map", `time: "now"` (since spec 4 it is `time: "range"` with
+  the `now` flag), `accepts: { datasets: ["air-quality"], maxPollutantLayers: 1, maxPlaces:
 25, onlyPollutant: true }`, `thresholds`, `analyzable` and `downloadable` all `false`,
   `menu: () => []`. "Change place" and "Edit data" come from the generic items. Sizes: 6 × 6 by
   default, 3 × 4 at minimum.
