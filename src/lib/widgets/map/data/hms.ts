@@ -25,17 +25,21 @@ function ready<P extends MapFeatureProperties>(
 	return { status: { state: "ready" }, features, scale };
 }
 
-/** Today's smoke plumes and fire detections: drawn everywhere, never limited by the places. */
+/**
+ * The smoke plumes and fire detections of the day showing (today's on now): drawn everywhere,
+ * never limited by the places.
+ */
 export const hmsEntry: MapDataEntry<HmsData> = {
 	id: "hms",
-	async source() {
+	async source({ at }) {
+		const query = at === "now" ? undefined : { date: at.day };
 		return {
-			key: `map-hms:${todayPacific()}`,
+			key: `map-hms:${at === "now" ? todayPacific() : at.day}`,
 			cadence: "hour",
 			fetch: async (signal) => {
 				const [smoke, fires] = await Promise.all([
-					getHMSSmoke(undefined, { signal }),
-					getHMSFire(undefined, { signal })
+					getHMSSmoke(query, { signal }),
+					getHMSFire(query, { signal })
 				]);
 				return { smoke, fires };
 			}

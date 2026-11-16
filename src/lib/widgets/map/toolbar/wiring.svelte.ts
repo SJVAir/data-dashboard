@@ -36,6 +36,8 @@ export type MapToolbarWiringInput = {
 	readonly smokeAndFireNamed: boolean;
 	/** The map's toolbar presets; null until the map is made. */
 	readonly toolbar: MapToolbar | null;
+	/** A day stop shows (not now): the toolbar offers no Inactive row. */
+	readonly onDay: boolean;
 };
 
 export type MapToolbarState = MapToolbarBuild & {
@@ -124,20 +126,22 @@ export class MapToolbarWiring {
 		const toolbar = this.#in.toolbar;
 		if (!toolbar) return null;
 		const offer = this.offer;
+		const day = this.#in.onDay;
 		if (this.#in.tileOptions?.mode === "view") {
 			const { widget, catalog, drawable } = this.#in;
 			const saved = this.saved;
 			const drawn = drawableShowing(widget.data, saved, catalog, drawable);
-			const owner = toolbar.build({ offer, drawn, options: saved });
+			const owner = toolbar.build({ offer, drawn, options: saved, day });
 			const shown = toolbar.build({
 				offer,
 				drawn: this.drawn,
 				options: this.options,
-				ownerValues: owner.values
+				ownerValues: owner.values,
+				day
 			});
 			return { ...shown, presetDefaults: owner.defaults, ownerValues: owner.values };
 		}
-		const shown = toolbar.build({ offer, drawn: this.drawn, options: this.options });
+		const shown = toolbar.build({ offer, drawn: this.drawn, options: this.options, day });
 		return { ...shown, presetDefaults: shown.defaults, ownerValues: undefined };
 	});
 

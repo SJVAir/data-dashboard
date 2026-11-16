@@ -35,6 +35,8 @@
 	import { placeLabel } from "../title";
 	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
 	import { MapData } from "./data/loaded.svelte";
+	import { MapDays } from "./day-mode.svelte";
+	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
 	import { focusGeometry } from "./focus";
 	import { fitTarget } from "./framing";
@@ -61,6 +63,8 @@
 
 	/** Below this widget width the legend folds into a "Legend" button. */
 	const NARROW_PX = 360;
+	/** Below this widget width (the toolbar's narrow breakpoint) the day stepper drops its slider. */
+	const STEPPER_NARROW_REM = 48;
 	const FIT_PADDING = 32;
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
@@ -118,10 +122,28 @@
 		},
 		get toolbar() {
 			return toolbar;
+		},
+		get onDay() {
+			return days.onDay;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
 	const shown = $derived(wiring.options);
+	// The days of the tile's range: the stop showing, and the stepper's steps (saved, or a
+	// viewer's held). Without a range the tile shows now.
+	const days: MapDays = new MapDays({
+		get widget() {
+			return widget;
+		},
+		tileOptions: tileOptionsContext,
+		get options() {
+			return wiring.options;
+		},
+		get saved() {
+			return wiring.saved;
+		}
+	});
+	onDestroy(() => days.destroy());
 	/**
 	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
 	 * first layer pollutant it does. Never saved back into the options.
@@ -147,8 +169,8 @@
 		return "ok";
 	});
 	const supported = $derived(support === "ok");
-	/** Whether the tile loads its data: a map is (or will be) drawn. */
-	const loads = $derived(!!config && supported && !idle);
+	/** Whether the tile loads its data: a map is (or will be) drawn, with now or a day to show. */
+	const loads = $derived(!!config && supported && !idle && days.at !== null);
 
 	const frame = new MapFrame(() => layer);
 	onDestroy(() => frame.destroy());
@@ -253,14 +275,20 @@
 		},
 		get filters() {
 			return wiring.filters;
+		},
+		get at() {
+			return days.at ?? "now";
+		},
+		get ahead() {
+			return days.ahead;
 		}
 	};
-	const data: MapData = new MapData(() => dataInput, { now: getNowClient() });
+	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());
 	const { monitorsSource, smokeSource, fireSource, hotspotsSource } = data;
 
-	// Smoke and fire: today's, over the whole map, when on (the toolbar's switch hides them, their
-	// data still loading).
+	// Smoke and fire: now's or the day's, over the whole map, when on (the toolbar's switch hides
+	// them, their data still loading).
 	const smokeAndFire = $derived(data.smokeAndFire && shown.fireAndSmoke !== false);
 	/** Smoke and fire failed to load, while they're shown. */
 	const hmsFailed = $derived(data.hmsFailed && shown.fireAndSmoke !== false);
@@ -366,7 +394,7 @@
 	let body = $state<HTMLDivElement>();
 	const positions = $derived(
 		frame.frame?.focus === "monitor"
-			? monitorPositions(data.monitorsLoaded, frame.frame.monitors)
+			? monitorPositions(data.placesLoaded, frame.frame.monitors)
 			: new Map<string, [number, number]>()
 	);
 	const target = $derived(frame.frame ? fitTarget(frame.frame, frame.shapes, positions) : null);
@@ -474,25 +502,29 @@
 	/** One line per reason the marks are hidden, in order. */
 	const hiddenLines = $derived.by(() => {
 		if (!hidden.length || !lookupsSettled) return [];
-		const loaded = data.monitorsLoaded;
 		const reasons = hiddenReasons(
 			hidden,
 			monitorList && monitorTypes ? monitorList : null,
 			reports,
-			loaded ? monitorIds(loaded) : new Set()
+			data.inPlaces ?? new Set(),
+			data.dayDrawn
 		);
-		return hiddenReasonLines(reasons, entryLabel).map(({ reason, count }) =>
-			m.map_marks_hidden({
-				reason,
-				pollutant: entryLabel ?? "",
-				count: formatNumber(count),
-				countValue: count
-			})
-		);
+		return hiddenReasonLines(reasons, entryLabel).map(({ reason, count }) => {
+			const counted = { count: formatNumber(count), countValue: count };
+			return reason === "day"
+				? m.map_marks_hidden_day(counted)
+				: m.map_marks_hidden({ reason, pollutant: entryLabel ?? "", ...counted });
+		});
 	});
-	/** The lines as one text, for the map's list and its name. */
+	/** On a day stop, once: the pollutant's days can't be rated (its scale has no daily figure). */
+	const unratedLine = $derived(
+		data.dayUnrated && entryLabel ? m.map_day_unrated({ pollutant: entryLabel }) : ""
+	);
+	/** The map's notes: the day's, then why marks are hidden. */
+	const noteLines = $derived(unratedLine ? [unratedLine, ...hiddenLines] : hiddenLines);
+	/** The notes as one text, for the map's list and its name. */
 	const hiddenText = $derived(
-		hiddenLines.reduce(
+		noteLines.reduce(
 			(all, line) => (all ? m.sentence_join({ first: all, second: line }) : line),
 			""
 		)
@@ -521,7 +553,7 @@
 		!note &&
 			data.monitorsCurrent &&
 			data.monitorsState.status === "ready" &&
-			(data.monitorsDrawn?.features?.features.length ?? 0) === 0
+			(data.inPlaces?.size ?? 0) === 0
 	);
 
 	/** What the widget shows instead of the map, if anything. */
@@ -550,6 +582,9 @@
 
 	let width = $state(0);
 	const narrow = $derived(width > 0 && width < NARROW_PX);
+	/** The toolbar's narrow breakpoint (48rem), which the day stepper follows. */
+	const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+	const stepperNarrow = $derived(width > 0 && width < STEPPER_NARROW_REM * remPx);
 	let legendOpen = $state(false);
 </script>
 
@@ -701,12 +736,24 @@
 					{overlays}
 				/>
 			</svelte:boundary>
+			{#if days.ranged}
+				<div class="border-border border-t" data-map-days>
+					<DayStepper
+						stops={days.stops}
+						at={days.index}
+						notFinal={data.dayNotFinal}
+						narrow={stepperNarrow}
+						onstep={days.step}
+						ondragend={days.dragEnd}
+					/>
+				</div>
+			{/if}
 			<p
-				class={["text-muted-foreground text-xs", hiddenLines.length && "px-2 pt-1"]}
+				class={["text-muted-foreground text-xs", noteLines.length && "px-2 pt-1"]}
 				role="status"
 				data-map-marks-hidden
 			>
-				{#each hiddenLines as line (line)}
+				{#each noteLines as line (line)}
 					<span class="block">{line}</span>
 				{/each}
 			</p>

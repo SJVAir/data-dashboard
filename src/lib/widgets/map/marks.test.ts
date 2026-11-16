@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ChangeSchema } from "$lib/changes/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import {
+	HIDDEN_REASON_ORDER,
 	canMark,
 	hiddenMarks,
 	hiddenReasonLines,
@@ -125,6 +126,25 @@ describe("hiddenReasons", () => {
 		expect(hiddenReasons(["a", "b"], null, reports, loaded)).toEqual(new Map([["unknown", 2]]));
 	});
 
+	it("on a day, a mark in the places with no row that day is day, before the options", () => {
+		const dayDrawn = new Set(["d"]);
+		const inPlaces = new Set(["c", "d"]);
+		expect(hiddenReasons(["c"], monitors, reports, inPlaces, dayDrawn)).toEqual(
+			new Map([["day", 1]])
+		);
+		// Drawn that day but hidden: the options; outside the places: still places.
+		expect(hiddenReasons(["d", "a"], monitors, reports, inPlaces, dayDrawn)).toEqual(
+			new Map([
+				["options", 1],
+				["places", 1]
+			])
+		);
+		// The pollutant comes first.
+		expect(hiddenReasons(["b"], monitors, reports, new Set(["b"]), dayDrawn)).toEqual(
+			new Map([["pollutant", 1]])
+		);
+	});
+
 	it("does not guess when the type's reports are unknown", () => {
 		expect(hiddenReasons(["a"], monitors, () => undefined, loaded)).toEqual(
 			new Map([["places", 1]])
@@ -138,6 +158,24 @@ describe("hiddenReasonLines", () => {
 		["pollutant", 2],
 		["places", 1]
 	]);
+
+	it("puts the day's line after the pollutant's", () => {
+		expect(HIDDEN_REASON_ORDER).toEqual(["pollutant", "day", "options", "places", "unknown"]);
+		expect(
+			hiddenReasonLines(
+				new Map([
+					["places", 1],
+					["day", 2],
+					["pollutant", 1]
+				]),
+				"Ozone"
+			)
+		).toEqual([
+			{ reason: "pollutant", count: 1 },
+			{ reason: "day", count: 2 },
+			{ reason: "places", count: 1 }
+		]);
+	});
 
 	it("orders the reasons", () => {
 		expect(hiddenReasonLines(reasons, "Ozone")).toEqual([

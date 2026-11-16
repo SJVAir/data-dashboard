@@ -129,6 +129,19 @@ describe("MapToolbar", () => {
 		expect(defaults).toMatchObject({ inactive: false, inside: false, clustered: true });
 	});
 
+	it("on a day stop the Inactive row isn't offered; Inside and the types still are", () => {
+		const { groups, rows } = new MapToolbar(stubMap()).build({
+			offer: offer({ hasInactive: true, hasInside: true }),
+			drawn: "pm25",
+			options: { inactive: true },
+			day: true
+		});
+		expect(rows).toEqual({ types: true, inactive: false, inside: true });
+		const monitors = group(groups, "monitors").rows.map((r) => r.id);
+		expect(monitors).not.toContain("inactive");
+		expect(monitors).toContain("inside");
+	});
+
 	it("smoke and fire: a Layers group with one Fire & Smoke checkbox", () => {
 		const { groups, defaults, values } = new MapToolbar(stubMap()).build({
 			offer: offer({ smokeAndFire: true }),
