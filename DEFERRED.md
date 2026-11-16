@@ -1947,6 +1947,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   already opens at once and fills in later. **Revisit when** someone reports Share feeling slow on
   a large dashboard: open the dialog first and build the link inside it, as the points path does.
 
+- **The Pesticides explorer doesn't read the new pesticide meta or class breaks.** _Deferred
+  2026-11-16 (sjvair.com pesticide Map work, session `sjvair-com-5a`; the user's rule for that
+  work: the Pesticides and Facility Emissions explorers must not change behaviour, only get more
+  efficient)._ The explorer keeps its own templates and on-screen ranking. It doesn't read
+  `pesticides/meta/` `notes`, `badges` or `ramp`, or the valley-wide `classes` the dashboard's Map
+  uses, so the two can shade the same section differently. **Revisit when** someone decides the
+  explorer should match the dashboard's valley-wide shading, or when the explorer's copy is next
+  reworked.
 - **Pesticide widgets and `pesticides/meta/`.** _Deferred 2026-11-03 (step 3 second batch,
   agreed with the user)._ No step 4 widget shows pesticide data, and widgets need more than
   metadata: the numbers the Pesticides Explorer shows (year-over-year change, month × year
@@ -2232,7 +2240,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   adds a location place.
 - **A note on when pesticide data is released.** _Deferred 2026-11-07 (step 4 spec 3b)._ A
   neutral note in the dataset's catalog description (server text), offered and not taken.
-  **Revisit if** people ask why recent months are empty.
+  **Revisit if** people ask why recent months are empty. _Update 2026-11-16:_ sjvair.com's
+  pesticide PR 1 (session `sjvair-com-5a`) adds the text as `pesticides/meta/` `notes.pur_lag`,
+  which step 5 spec 5 shows on the Map. Remove this entry when that lands.
 - **Choosing a weather station per place or per layer.** _Deferred 2026-11-07 (step 4 spec
   3b)._ One station per Weather section, and the choice shows only for one place (rain from two
   stations, or a station for each of several places, can't be asked for). **Revisit if**
