@@ -1217,6 +1217,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses
   `protected`. **Revisit when** the step 3 metadata plan and the Release 2 alerts plan
   start, to confirm the zones were imported.
+- **sjvair.com: a bulk summary request with two errors reports only the date error.** _Deferred
+  2026-11-15 (sjvair.com #334, sjvair-com-8a)._ A request with neither `region` nor `type` and a
+  bad date span gets only the date error, because `BulkSummaryDateRangeForm.clean` raises instead
+  of calling `add_error` (the monitor bulk form shares it). It's a 400 either way. **Revisit
+  when** the bulk date form is next touched, or if a client needs every error at once.
 - **sjvair.com: old-vintage census tracts still get summaries.** _Deferred 2026-11-15 (the
   user; found while scoping spec 4's whole-type region summaries, sjvair-com-8a)._ Tracts whose
   boundary isn't `TRACT_VINTAGE` ('2020', `camp/apps/regions/querysets.py`) are "kept for
