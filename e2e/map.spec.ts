@@ -28,7 +28,7 @@ import {
 	widgetMenuItem,
 	widgetTitles
 } from "./helpers";
-import { routeMapMeta, routeMapReadings, routeOneOutline } from "./map-data-server";
+import { routeMapDays, routeMapMeta, routeMapReadings, routeOneOutline } from "./map-data-server";
 
 test.use({ reducedMotion: "reduce" });
 
@@ -161,7 +161,7 @@ const FRESNO_COUNTY = { kind: "region", type: "county", code: "06019" };
  * A shared dashboard holding one full-width Map of Fresno County's PM2.5 (wide enough for the
  * toolbar's dropdowns), with `more` layers after it.
  */
-function wideDoc(more: Array<Record<string, string>> = []) {
+function wideDoc(more: Array<Record<string, string>> = [], dateRange?: Record<string, unknown>) {
 	return {
 		kind: "dashboard",
 		schemaVersion: 1,
@@ -175,7 +175,8 @@ function wideDoc(more: Array<Record<string, string>> = []) {
 					title: null,
 					rect: { x: 0, y: 0, w: 12, h: 8 },
 					data: {
-						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO_COUNTY }, ...more]
+						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO_COUNTY }, ...more],
+						...(dateRange && { dateRange })
 					}
 				}
 			]
@@ -697,6 +698,55 @@ test.describe("shared by a live link", () => {
 		await expect(inView(copy)).toHaveCount(0);
 	});
 
+	test("a viewer steps through the days with nothing sent, and Make a copy keeps the day", async ({
+		page,
+		documentsServer
+	}) => {
+		const url = await liveLinkTo(page, wideDoc([], PAST_RANGE));
+		const viewer = await documentsServer.newDevice();
+		viewer.account.set(sam);
+		await routeMapDays(viewer.context, DAYS);
+		await viewer.page.clock.install({ time: TODAY });
+		// Every write the viewer's page sends to the documents API.
+		const writes: string[] = [];
+		viewer.page.on("request", (request) => {
+			const { pathname } = new URL(request.url());
+			if (request.method() !== "GET" && pathname.includes("/api/2.0/documents/")) {
+				writes.push(`${request.method()} ${pathname}`);
+			}
+		});
+		await viewer.page.goto(url);
+		const map = mapOf(viewer.page, FRESNO_MAP);
+		const slider = daySlider(viewer.page);
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+
+		// The stepper is live for a viewer: a button, a key, and the data follows.
+		await viewer.page.getByRole("button", { name: "Previous day" }).click();
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 10, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Moderate");
+		await slider.focus();
+		await viewer.page.keyboard.press("Home");
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 9, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
+		// Past the autosave delay (500 ms): nothing was sent, and the owner's document is as it was.
+		await viewer.page.waitForTimeout(1_500);
+		expect(writes).toEqual([]);
+		const token = url.split("/").pop()!;
+		documentsServer.fake.signedInAs = null;
+		const shared = await documentsServer.fake.shared(token);
+		expect(shared.version).toBe(1);
+
+		// Positive control: the copy's upload goes through the same listener.
+		await viewer.page.getByRole("button", { name: "Make a copy" }).click();
+		await expect(viewer.page).toHaveURL(DASHBOARD_URL);
+		await expect(
+			nav(viewer.page).getByText("Saved to your account", { exact: true })
+		).toBeVisible();
+		expect(writes.length).toBeGreaterThan(0);
+		// The copy keeps the day the viewer stepped to.
+		await expect(daySlider(viewer.page)).toHaveAttribute("aria-valuetext", /November 9, 2026$/);
+	});
+
 	test("a viewer sees the card and the saved mark, with no Select or Remove", async ({
 		page,
 		documentsServer
@@ -729,6 +779,98 @@ test.describe("shared by a live link", () => {
 		await gl.click({ modifiers: ["Shift"] });
 		await viewer.page.waitForTimeout(1_000);
 		await expect(selectionLine(map)).toHaveText("PM2.5: 1 selected", { timeout: 0 });
+	});
+});
+
+/** The Pacific date every day test's clock stands on (noon), whatever zone the machine is in. */
+const TODAY = "2026-11-15T12:00:00-08:00";
+/** Fresno County's Drummond Street monitor, by day: Good, Moderate, then Unhealthy for Sensitive Groups. */
+const DAYS = {
+	"2026-11-09": { figures: { [DRUMMOND]: 5 } },
+	"2026-11-10": { figures: { [DRUMMOND]: 20 }, smoke: true },
+	"2026-11-11": { figures: { [DRUMMOND]: 40 } }
+};
+const PAST_RANGE = { kind: "custom", start: "2026-11-09", end: "2026-11-11" };
+
+/** The day stepper's slider, below the Map (its value text is the day's long date, or "Now"). */
+function daySlider(page: Page): Locator {
+	return page.getByRole("slider", { name: "Day", exact: true });
+}
+
+/** The map's smoke line ("Wildfire Smoke: 1 Light", or "0 Wildfire Smoke"): the plumes of the day showing. */
+function smokeCount(map: Locator): Locator {
+	return map.getByText(/^(\d+ Wildfire Smoke|Wildfire Smoke: .+)$/);
+}
+
+test.describe("a Map's days", () => {
+	test.beforeEach(async ({ context, page }) => {
+		await routeMapMeta(context);
+		await routeMapDays(context, DAYS);
+		await page.clock.install({ time: TODAY });
+	});
+
+	test("steps through a past range's days with keys and buttons, with each day's monitors and smoke", async ({
+		page
+	}) => {
+		await openSharedDoc(
+			page,
+			wideDoc([{ dataset: "hms-smoke" }, { dataset: "hms-fire" }], PAST_RANGE)
+		);
+		const map = mapOf(page, FRESNO_MAP);
+		const slider = daySlider(page);
+		// A past range opens on its last day.
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Unhealthy for Sensitive Groups");
+
+		// Buttons: the day before (Moderate, with the day's smoke), then the first (Good).
+		await page.getByRole("button", { name: "Previous day" }).click();
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 10, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Moderate");
+		await expect(smokeCount(map)).toHaveText("Wildfire Smoke: 1 Light");
+		await page.getByRole("button", { name: "Previous day" }).click();
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 9, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
+		await expect(page.getByRole("button", { name: "Previous day" })).toBeDisabled();
+		// A day with no smoke draws none.
+		await expect(smokeCount(map)).toHaveText("0 Wildfire Smoke");
+
+		// Keys on the slider: End and Home go to the last and first day, arrows one day.
+		await slider.focus();
+		await page.keyboard.press("End");
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Unhealthy for Sensitive Groups");
+		await page.keyboard.press("ArrowLeft");
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 10, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Moderate");
+		await page.keyboard.press("Home");
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 9, 2026$/);
+		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
+		await page.keyboard.press("ArrowRight");
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 10, 2026$/);
+		await page.getByRole("button", { name: "Next day" }).click();
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+		await expect(page.getByRole("button", { name: "Next day" })).toBeDisabled();
+	});
+
+	test("a range with today opens on Now, and the days before it step back", async ({ page }) => {
+		await openSharedDoc(
+			page,
+			wideDoc([], { kind: "custom", start: "2026-11-09", end: "2026-11-15" })
+		);
+		const map = mapOf(page, FRESNO_MAP);
+		const slider = daySlider(page);
+		await expect(slider).toHaveAttribute("aria-valuetext", "Now");
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		await expect(page.getByRole("button", { name: "Next day" })).toBeDisabled();
+
+		await page.getByRole("button", { name: "Previous day" }).click();
+		// The day before today, which the fixtures hold no figures for.
+		await expect(slider).toHaveAttribute("aria-valuetext", /November 14, 2026$/);
+		await expect(inView(map)).toHaveCount(0);
+		await slider.focus();
+		await page.keyboard.press("End");
+		await expect(slider).toHaveAttribute("aria-valuetext", "Now");
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
 	});
 });
 

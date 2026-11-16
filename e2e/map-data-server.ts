@@ -145,3 +145,67 @@ export async function routeMapMeta(context: BrowserContext): Promise<void> {
 		}
 	);
 }
+
+const MONITOR_DAILY = /\/api\/2\.0\/monitors\/([a-z0-9]+)\/summaries\/daily\/$/;
+const HMS_DAY = /\/api\/2\.0\/hms\/(smoke|fire)\/$/;
+
+/** One fixture day: each monitor's 24-hour figure, and whether the day has the fixture smoke. */
+export type MapDay = { figures: Record<string, number>; smoke?: boolean };
+
+/**
+ * Answers the Map's past days, by `YYYY-MM-DD` (Pacific): the bulk daily monitor summaries
+ * (`monitors/<type>/summaries/daily/?start=&end=&region=…`, one final row for each fixture
+ * monitor of the regions asked for that has a figure that day) and the dated smoke and fire
+ * (`hms/smoke/?date=`: the fixture plume on a day with `smoke`, else none; no fire). A day not in
+ * `days` has no monitor rows and no smoke. Requests with no `date` (today's smoke and fire) go on
+ * to the fixture files.
+ */
+export async function routeMapDays(
+	context: BrowserContext,
+	days: Record<string, MapDay>
+): Promise<void> {
+	await context.route(
+		(url) => MONITOR_DAILY.test(url.pathname) && url.searchParams.has("region"),
+		async (route) => {
+			const url = new URL(route.request().url());
+			const day = url.searchParams.get("start") ?? "";
+			const regions = url.searchParams.getAll("region").flatMap((r) => r.split(","));
+			const wanted = new Set(regions.flatMap((r) => REGION_MONITORS[r] ?? []));
+			const [, type] = MONITOR_DAILY.exec(url.pathname)!;
+			const list = await json<{ data: { id: string; name: string }[] }>(
+				`${API_FIXTURES}monitors/${type}/current.json`
+			);
+			const data = (list?.data ?? [])
+				.filter((m) => wanted.has(m.id) && days[day]?.figures[m.id] !== undefined)
+				.map((m) => ({
+					id: m.id,
+					name: m.name,
+					summaries: [
+						{
+							timestamp: `${day}T00:00:00-08:00`,
+							entry_type: type,
+							resolution: "day",
+							count: 24,
+							expected_count: 24,
+							mean_24h: days[day].figures[m.id],
+							is_final: true
+						}
+					]
+				}));
+			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+	await context.route(
+		(url) => HMS_DAY.test(url.pathname) && url.searchParams.has("date"),
+		async (route) => {
+			const url = new URL(route.request().url());
+			const [, kind] = HMS_DAY.exec(url.pathname)!;
+			const file = await json<{ data: unknown[] }>(`${API_FIXTURES}hms/${kind}.json`);
+			const smoky = kind === "smoke" && days[url.searchParams.get("date") ?? ""]?.smoke;
+			const data = smoky ? file!.data : [];
+			await route.fulfill({
+				json: { data, page: 1, count: data.length, pages: 1, has_next_page: false }
+			});
+		}
+	);
+}
