@@ -53,8 +53,11 @@ reports these, with their exact names and shapes:**
   `pesticides/meta/`, the explainer text (notice meaning, data lag) and the SprayDays link.
 - sdk-js: the `@sjvair/sdk` `5.0.0` beta with a function for `notices/active/`, called
   `getActivePesticideNotices` in this plan. Use the name sdk-js picks.
-- map-sdk: `@sjvair/map-sdk` `0.1.0-beta.17`, if it carries the legend note slot or a marker
-  count label. If notices need nothing new from map-sdk, stay on `0.1.0-beta.16`.
+- map-sdk: the beta with a **count label on unclustered markers** (from a host property), an
+  opt-in **cluster label showing the sum** (`clusterProperties` such as
+  `{ count: ["+", ["get", "count"]] }`), and the **legend note slot**. Unclustered markers can't
+  show a host count on `0.1.0-beta.16`. map-sdk-d9 may ship these as an early beta ahead of 5b's
+  lens work, and the coordinator gives the exact version.
 
 If a piece is late, 5a waits for it. Never work around it with a raw `fetch`, hardcoded text or a
 client-side substitute.
@@ -339,9 +342,11 @@ client-side substitute.
   surface and the hovered `--accent`, at 3:1 for icons and markers.
 - [ ] **Step 3: Run** `npm run test:browser -- src/lib/widgets/map` and
   `npx vitest run src/lib/theme`. Expected: FAIL.
-- [ ] **Step 4: Implement.** Use the legend note slot if `0.1.0-beta.17` adds one. Otherwise put
-  the explainer in the widget's legend area beside map-sdk's Legend and record why in
-  `DEFERRED.md`.
+- [ ] **Step 4: Implement.**
+  - Markers show their `count` through map-sdk's new count label.
+  - Clusters sum `count` with `clusterProperties` and show the sum through the opt-in bubble
+    label.
+  - The explainer and the no-notices line go in the legend note slot.
 - [ ] **Step 5: Run the tests.** Expected: PASS.
 - [ ] **Step 6: Commit** `feat(map): draw spray notices with a Layers row and legend`.
 
