@@ -1049,7 +1049,7 @@ describe("now widgets", () => {
 		expect("options" in out).toBe(false);
 	});
 
-	test("an unshaped Map draft with marks, switched to Current conditions, notes the marks left out", async () => {
+	test("a Map draft with marks, switched to Current conditions, notes the marks left out", async () => {
 		await show({
 			type: "map",
 			data: {
@@ -1153,17 +1153,19 @@ describe("now widgets", () => {
 		});
 		const fillGroup = () => page.getByRole("group", { name: m.getdata_map_fill() });
 
-		test("lists None and the directory's types, None chosen; choosing saves the fill, None removes it", async () => {
+		test("lists None and the directory's types the Map draws, None chosen; choosing saves the fill, None removes it", async () => {
 			fake.regionTypes = async () => [
 				type("county", "County", "Counties"),
+				type("land_use", "Land use", "Land uses"),
 				type("zipcode", "ZIP code", "ZIP codes")
 			];
 			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
 			const none = fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() });
 			await expect.element(none).toBeChecked();
 			await expect.element(fillGroup().getByRole("radio", { name: "Counties" })).toBeVisible();
+			// Land use is browsable, but the bulk summaries don't take it: the Map can't fill by it.
 			await expect
-				.element(fillGroup().getByRole("radio", { name: "mtrs" }))
+				.element(fillGroup().getByRole("radio", { name: "Land uses" }))
 				.not.toBeInTheDocument();
 			expect(fillGroup().getByRole("radio").elements()).toHaveLength(3);
 			await fillGroup().getByRole("radio", { name: "ZIP codes" }).click();

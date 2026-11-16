@@ -351,6 +351,9 @@
 		get ahead() {
 			return days.ahead;
 		},
+		get today() {
+			return days.today;
+		},
 		get fill() {
 			return fillType;
 		}
@@ -803,7 +806,7 @@
 					class="bg-card text-muted-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 text-center text-sm"
 					role="status"
 				>
-					{m.map_no_monitors_here()}
+					{days.onDay ? m.map_no_monitors_here_day() : m.map_no_monitors_here()}
 				</p>
 			{/if}
 			{#if data.monitorsRefreshFailed}

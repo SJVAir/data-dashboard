@@ -92,6 +92,10 @@ describe("dayOption", () => {
 });
 
 describe("stepKey", () => {
+	it("handles no key when there are no stops", () => {
+		expect(stepKey("ArrowLeft", 0, 0)).toBeNull();
+		expect(stepKey("End", 0, 0)).toBeNull();
+	});
 	it("moves by one", () => {
 		expect(stepKey("ArrowLeft", 3, 10)).toBe(2);
 		expect(stepKey("ArrowDown", 3, 10)).toBe(2);

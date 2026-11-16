@@ -15,17 +15,16 @@
 		notFinal: boolean;
 		/** Too narrow for the slider: only the buttons and the date. */
 		narrow: boolean;
-		/**
-		 * Accepted for the caller's convenience but deliberately not used to disable anything: a
-		 * viewer's step changes only their own view, so a read-only dashboard can still step.
-		 */
-		readOnly?: boolean;
 		onstep: (index: number, via: "button" | "key" | "slider") => void;
 		/** A slider drag ended (the caller closes its undo run). */
 		ondragend: () => void;
 	};
 
-	let { stops, at, notFinal, narrow, readOnly = false, onstep, ondragend }: Props = $props();
+	let { stops, at, notFinal, narrow, onstep, ondragend }: Props = $props();
+
+	// While the slider has focus it announces each step itself (its value text), so the date's
+	// live region stays quiet: a step is announced once.
+	let sliderFocused = $state(false);
 
 	const stop = $derived(stops[at]);
 	const label = $derived(
@@ -51,11 +50,7 @@
 {#if stops.length === 0}
 	<p class="text-muted-foreground px-2 py-1 text-sm">{m.map_day_none_yet()}</p>
 {:else}
-	<div
-		class="flex items-center gap-2 px-2 py-1"
-		data-day-stepper
-		data-read-only={readOnly || undefined}
-	>
+	<div class="flex items-center gap-2 px-2 py-1" data-day-stepper>
 		<Button
 			variant="ghost"
 			size="icon"
@@ -66,7 +61,12 @@
 			<ChevronLeft aria-hidden="true" />
 		</Button>
 		{#if !narrow}
-			<div class="min-w-24 flex-1" onkeydowncapture={onkeydown}>
+			<div
+				class="min-w-24 flex-1"
+				onkeydowncapture={onkeydown}
+				onfocusin={() => (sliderFocused = true)}
+				onfocusout={() => (sliderFocused = false)}
+			>
 				<Slider
 					value={at}
 					min={0}
@@ -89,7 +89,11 @@
 		>
 			<ChevronRight aria-hidden="true" />
 		</Button>
-		<span class="flex flex-wrap items-baseline gap-x-2 text-sm" aria-live="polite">
+		<span
+			class="flex flex-wrap items-baseline gap-x-2 text-sm"
+			aria-live={sliderFocused && !narrow ? "off" : "polite"}
+			data-day-status
+		>
 			<span class="font-medium" data-day-label>{label}</span>
 			{#if notFinal}
 				<span class="text-muted-foreground text-xs">{m.map_day_not_final()}</span>

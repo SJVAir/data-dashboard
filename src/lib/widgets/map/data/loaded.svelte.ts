@@ -42,6 +42,8 @@ export type MapDataInput = {
 	at: SnapshotAt;
 	/** The days fetched ahead of a step (the neighbouring day stops); none on now. */
 	ahead: readonly string[];
+	/** Today's Pacific date key: Now's smoke and fill are remade when it turns over. */
+	today: string;
 	/** The region type filled (one the metadata lists); null for no fill. */
 	fill: RegionSummaryBulkType | null;
 };
@@ -191,6 +193,7 @@ export class MapData {
 		return at === "now" ? "now" : at.day;
 	});
 	readonly #aheadKey = $derived.by(() => this.#getInput().ahead.join(","));
+	readonly #today = $derived.by(() => this.#getInput().today);
 	readonly #fill = $derived.by(() => this.#getInput().fill);
 	/** What the monitors are wanted for now: the places and the pollutant showing. */
 	readonly #wantedKey = $derived(`${this.#placesKey}|${this.#entryType ?? ""}`);
@@ -557,6 +560,8 @@ export class MapData {
 	#resolveHms(): void {
 		$effect(() => {
 			const day = this.#day;
+			// Now's source is keyed by today's date: remade at Pacific midnight.
+			void this.#today;
 			const ahead = this.#ahead();
 			if (!this.#loads || !this.smokeAndFire) {
 				this.hmsQuery.set(null);
@@ -593,6 +598,8 @@ export class MapData {
 	#resolveFill(): void {
 		$effect(() => {
 			const day = this.#day;
+			// Now's source is keyed by today's date: remade at Pacific midnight.
+			void this.#today;
 			const type = this.#entryType;
 			const regionType = this.#fill;
 			const ahead = this.#ahead();

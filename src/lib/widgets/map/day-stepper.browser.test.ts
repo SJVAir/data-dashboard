@@ -1,10 +1,26 @@
 import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
-import { userEvent } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 import "../../../app.css";
 import DayStepper from "./DayStepper.svelte";
 import type { Stop } from "./days";
+
+declare module "vitest/browser" {
+	interface BrowserCommands {
+		setColorScheme: (scheme: "light" | "dark" | null) => Promise<void>;
+	}
+}
+
+/** A token's color, resolved the way the browser resolves it in an outline or a shadow. */
+function tokenColor(token: string): string {
+	const probe = document.createElement("span");
+	probe.style.color = `var(${token})`;
+	document.body.append(probe);
+	const color = getComputedStyle(probe).color;
+	probe.remove();
+	return color;
+}
 
 const STOPS: Stop[] = [
 	{ day: "2026-11-06" },
@@ -27,7 +43,6 @@ async function setup(over: Record<string, unknown> = {}) {
 		at: 4,
 		notFinal: false,
 		narrow: false,
-		readOnly: false,
 		onstep,
 		ondragend,
 		...over
@@ -102,7 +117,7 @@ describe("DayStepper", () => {
 
 	it("reports a pointer move on the slider as a slider step, then the end of the drag", async () => {
 		const { container, onstep, ondragend } = await setup();
-		const root = container.querySelector("[data-slider-root]") as HTMLElement;
+		const root = container.querySelector('[data-slot="slider"]') as HTMLElement;
 		const box = root.getBoundingClientRect();
 		const y = box.top + box.height / 2;
 		const fire = (type: string, x: number) =>
@@ -131,10 +146,46 @@ describe("DayStepper", () => {
 		expect(screen.getByRole("slider").elements()).toHaveLength(0);
 	});
 
-	it("still steps when read only", async () => {
-		const { screen, onstep } = await setup({ readOnly: true });
-		await screen.getByRole("button", { name: "Next day" }).click();
-		expect(onstep).toHaveBeenCalledWith(5, "button");
+	it("announces the date through its live region only while the slider isn't focused", async () => {
+		const { screen, container } = await setup();
+		const status = container.querySelector("[data-day-status]") as HTMLElement;
+		expect(status.getAttribute("aria-live")).toBe("polite");
+		// The slider announces its own steps (its value text): the live region stays quiet.
+		(screen.getByRole("slider").element() as HTMLElement).focus();
+		await expect.poll(() => status.getAttribute("aria-live")).toBe("off");
+		(screen.getByRole("button", { name: "Next day" }).element() as HTMLElement).focus();
+		await expect.poll(() => status.getAttribute("aria-live")).toBe("polite");
+	});
+
+	describe.each(["light", "dark"] as const)("the slider's focus (%s)", (scheme) => {
+		it("shows the app's focus ring on the thumb, and hover doesn't", async () => {
+			await commands.setColorScheme(scheme);
+			try {
+				const { screen } = await setup();
+				const thumb = screen.getByRole("slider").element() as HTMLElement;
+				// Hover alone: no ring, so hover never looks like focus.
+				await userEvent.hover(thumb);
+				let style = getComputedStyle(thumb);
+				expect(style.outlineStyle).toBe("none");
+				expect(style.boxShadow).not.toContain(tokenColor("--ring-edge"));
+				// Keyboard focus: the 2px --ring outline with the --ring-edge ring (contrast.test.ts
+				// checks both against the card, the page and the slider's track).
+				(screen.getByRole("button", { name: "Previous day" }).element() as HTMLElement).focus();
+				await userEvent.tab();
+				await expect.poll(() => document.activeElement).toBe(thumb);
+				expect(thumb.matches(":focus-visible")).toBe(true);
+				style = getComputedStyle(thumb);
+				expect(style.outlineStyle).toBe("solid");
+				expect(style.outlineWidth).toBe("2px");
+				expect(style.outlineColor).toBe(tokenColor("--ring"));
+				// The ring (a box-shadow) fades in with the thumb's transition.
+				await expect
+					.poll(() => getComputedStyle(thumb).boxShadow)
+					.toContain(tokenColor("--ring-edge"));
+			} finally {
+				await commands.setColorScheme(null);
+			}
+		});
 	});
 
 	it("has no axe violations", async () => {

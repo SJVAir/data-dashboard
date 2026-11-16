@@ -8,7 +8,12 @@ vi.mock("@sjvair/sdk", () => ({
 import { getRegionSummariesBulkDaily, getRegionSummariesBulkDailyOpen } from "@sjvair/sdk";
 import { pacificDay } from "$lib/format";
 import type { DailyFigure, Level } from "../metadata";
-import { isRegionSummaryBulkType, regionDaySource, regionTodaySource } from "./regions";
+import {
+	fillableTypes,
+	isRegionSummaryBulkType,
+	regionDaySource,
+	regionTodaySource
+} from "./regions";
 import type { Snapshot } from "./types";
 
 const level = (key: string, min: number, max: number | null, tier: number): Level => ({
@@ -129,9 +134,9 @@ describe("regionTodaySource", () => {
 		]);
 	});
 
-	it("keys as today, polls always, and requests the open days by type", async () => {
+	it("keys by today's date, polls always, and requests the open days by type", async () => {
 		const s = regionTodaySource(base);
-		expect(s.key).toBe("snapshot:regions:pm25:zipcode:today");
+		expect(s.key).toBe(`snapshot:regions:pm25:zipcode:today:${TODAY}`);
 		expect(s.cadence).toBe("hour");
 		expect(s.poll()).toBe(true);
 		await s.fetch(signal);
@@ -147,6 +152,13 @@ describe("regionTodaySource", () => {
 			kind: "today"
 		});
 		expect(snap.final).toBe(false);
+	});
+});
+
+describe("fillableTypes", () => {
+	it("keeps the types the bulk summaries take, in order", () => {
+		const types = ["zipcode", "land_use", "county", "nope"].map((type) => ({ type }));
+		expect(fillableTypes(types)).toEqual([{ type: "zipcode" }, { type: "county" }]);
 	});
 });
 

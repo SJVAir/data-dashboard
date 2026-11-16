@@ -33,6 +33,11 @@ export function isRegionSummaryBulkType(type: string): type is RegionSummaryBulk
 	return Object.hasOwn(BULK_TYPES, type);
 }
 
+/** The region types a fill can draw: those the bulk summaries take, in their order. */
+export function fillableTypes<T extends { type: string }>(types: readonly T[]): T[] {
+	return types.filter((t) => isRegionSummaryBulkType(t.type));
+}
+
 type Args = {
 	entryType: string;
 	regionType: string;
@@ -105,7 +110,7 @@ export function regionTodaySource(
 ): NowSource<Snapshot> & { poll: () => true } {
 	const { entryType, regionType } = args;
 	return {
-		key: `snapshot:regions:${entryType}:${regionType}:today`,
+		key: `snapshot:regions:${entryType}:${regionType}:today:${args.today()}`,
 		cadence: "hour",
 		poll: () => true,
 		async fetch(signal) {

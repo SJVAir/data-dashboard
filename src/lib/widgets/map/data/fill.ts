@@ -5,7 +5,7 @@ import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { getMetadata, getResolvers } from "$lib/data";
 import type { NowSource } from "$lib/data/now/client";
 import {
-	isRegionSummaryBulkType,
+	fillableTypes,
 	regionDaySource,
 	regionTodaySource,
 	type Snapshot,
@@ -52,8 +52,8 @@ export function fillRegionType(
 	saved: string | undefined,
 	types: readonly { type: string }[] | undefined
 ): RegionSummaryBulkType | null {
-	if (!saved || !types?.some((t) => t.type === saved)) return null;
-	return isRegionSummaryBulkType(saved) ? saved : null;
+	const found = types && fillableTypes(types).find((t) => t.type === saved);
+	return found ? (found.type as RegionSummaryBulkType) : null;
 }
 
 /**
@@ -105,7 +105,8 @@ export function createFillEntry(ctx: FillContext): FillEntry {
 		source({ regionType, entryType, at }) {
 			const now = at === "now";
 			return {
-				key: `map-fill:${entryType}:${regionType}:${now ? "today" : at.day}`,
+				// Now is keyed by today's Pacific date, so it is a new source after midnight.
+				key: `map-fill:${entryType}:${regionType}:${now ? `today:${ctx.today()}` : at.day}`,
 				cadence: "hour",
 				// Now: today so far, hourly. A day: hourly until every figure is final.
 				poll: (value) => now || !value?.final,

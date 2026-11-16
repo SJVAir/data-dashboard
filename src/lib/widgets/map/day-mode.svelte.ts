@@ -6,7 +6,7 @@ import {
 	viewerReset,
 	type TileOptionsContext
 } from "../shared/tile-options.svelte";
-import { dayOption, dayStops, openStop, type Stop } from "./days";
+import { dayOption, dayStops, openStop, stopKey, type Stop } from "./days";
 import type { MapOptions } from "./options";
 import { StepRun } from "./step-run";
 
@@ -20,11 +20,11 @@ export type MapDaysInput = {
 	readonly saved: MapOptions;
 };
 
-/** "Today" turns over at Pacific midnight: the clock ticks once a minute while a range shows. */
+/**
+ * "Today" turns over at Pacific midnight: the clock ticks once a minute (a range's stops and
+ * the Now stop's day follow it).
+ */
 const TICK_MS = 60_000;
-
-/** A stop as a primitive key: its day, or "now". */
-const stopKey = (stop: Stop): string => (stop === "now" ? "now" : stop.day);
 
 /** The Pacific date key at epoch ms `at`. */
 const todayAt = (at: number): string => todayPacific(new Date(at));
@@ -91,7 +91,6 @@ export class MapDays {
 		this.#in = input;
 		this.#stopEffects = $effect.root(() => {
 			$effect(() => {
-				if (!this.ranged) return;
 				const timer = setInterval(() => (this.#clock = Date.now()), TICK_MS);
 				return () => clearInterval(timer);
 			});
@@ -100,16 +99,17 @@ export class MapDays {
 
 	/**
 	 * The stepper's step to stop `index`. A step that changes the day is saved (the last stop as
-	 * missing), folded into the run's undo step when it continues one; a viewer's is held for the
-	 * visit (back at the owner's day, forgotten). A step that can't go anywhere is still shown.
+	 * missing), folded into the run's undo step when it continues one (but not after an undo: with
+	 * something to redo, the step is its own undo step, which clears redo); a viewer's is held for
+	 * the visit (back at the owner's day, forgotten). A step that can't go anywhere is still shown.
 	 */
 	readonly step = (index: number): void => {
 		const stops = this.stops;
 		const to = stops[index];
 		if (!to || stopKey(to) === this.#atKey) return;
-		const { amend } = this.#run.next();
-		const value = dayOption(to, stops);
 		const { widget, tileOptions: ctx, options, saved } = this.#in;
+		const amend = this.#run.next().amend && !canRedo(ctx);
+		const value = dayOption(to, stops);
 		const next: MapOptions = { ...options };
 		if (value === undefined) delete next.day;
 		else next.day = value;
@@ -127,6 +127,11 @@ export class MapDays {
 	destroy(): void {
 		this.#stopEffects();
 	}
+}
+
+/** Whether the tile's session has an undone step to redo (a step then can't fold into a run). */
+function canRedo(ctx: TileOptionsContext | undefined): boolean {
+	return ctx?.mode === "edit" && !!ctx.session()?.canRedo;
 }
 
 /** Whether a step can be saved (an editable dashboard holding the tile) or held (a viewer's). */

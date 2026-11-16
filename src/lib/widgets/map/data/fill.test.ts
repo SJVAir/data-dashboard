@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@sjvair/sdk", async (original) => ({
 	...(await original<typeof import("@sjvair/sdk")>()),
@@ -16,6 +16,7 @@ import { pacificDay } from "$lib/format";
 import type { MapPlugin } from "@sjvair/map-sdk";
 import {
 	createFillEntry,
+	fillEntry,
 	fillRegionType,
 	fillScale,
 	withNoFigureDetail,
@@ -109,7 +110,7 @@ describe("the fill entry", () => {
 		const day = entry.source({ regionType: "zipcode", entryType: "pm25", at: { day: DAY } });
 		const now = entry.source({ regionType: "zipcode", entryType: "pm25", at: "now" });
 		expect(day.key).toBe("map-fill:pm25:zipcode:2026-11-09");
-		expect(now.key).toBe("map-fill:pm25:zipcode:today");
+		expect(now.key).toBe(`map-fill:pm25:zipcode:today:${TODAY}`);
 		expect(day.cadence).toBe("hour");
 		expect(now.cadence).toBe("hour");
 	});
@@ -162,6 +163,23 @@ describe("the fill entry", () => {
 
 	it("has the pollutant's ScaleRef, as the monitors do (so the legend shares one section)", () => {
 		expect(fillScale("pm25")).toEqual({ dataset: "air-quality", entryType: "pm25" });
+	});
+});
+
+describe("the app's fill entry across Pacific midnight", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("keys Now by the Pacific date, not the browser's", () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		const source = () => fillEntry.source({ regionType: "zipcode", entryType: "pm25", at: "now" });
+		// 23:59 Pacific on November 14 (already November 15 in New York or UTC).
+		vi.setSystemTime(new Date("2026-11-15T07:59:00Z"));
+		expect(source().key).toBe("map-fill:pm25:zipcode:today:2026-11-14");
+		// 00:01 Pacific on November 15.
+		vi.setSystemTime(new Date("2026-11-15T08:01:00Z"));
+		expect(source().key).toBe("map-fill:pm25:zipcode:today:2026-11-15");
 	});
 });
 

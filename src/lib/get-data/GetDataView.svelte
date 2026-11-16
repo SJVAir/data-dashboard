@@ -10,6 +10,7 @@
 	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
+	import { fillableTypes } from "$lib/data/snapshot";
 	import {
 		LIMITS,
 		type DateRangeSpec,
@@ -141,8 +142,8 @@
 	 */
 	let mapPollutants = $state.raw<string[] | undefined>();
 	/**
-	 * The region types a Map can fill (the place directory's), once loaded; undefined while
-	 * loading or when they can't be loaded (a saved fill is kept either way).
+	 * The region types a Map can fill (the place directory's that the Map draws), once loaded;
+	 * undefined while loading or when they can't be loaded (a saved fill is kept either way).
 	 */
 	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
 	$effect(() => {
@@ -151,7 +152,7 @@
 		void directoryFor(getMetadata(), getResolvers().regions)
 			.regionTypes(controller.signal)
 			.then((types) => {
-				if (!controller.signal.aborted) fillTypes = types;
+				if (!controller.signal.aborted) fillTypes = fillableTypes(types);
 			})
 			.catch((error: unknown) => {
 				if (!controller.signal.aborted) report(error);

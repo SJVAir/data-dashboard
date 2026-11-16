@@ -3,6 +3,9 @@ import { resolveRange, type DateRangeSpec } from "$lib/format/range";
 
 export type Stop = { day: string } | "now";
 
+/** A stop as a primitive: its day, or "now". */
+export const stopKey = (stop: Stop): string => (stop === "now" ? "now" : stop.day);
+
 const MS_PER_DAY = 86_400_000;
 
 /** `YYYY-MM-DD` plus `days`, by calendar (UTC) arithmetic so a DST change never shifts a day. */
@@ -32,12 +35,13 @@ export function openStop(saved: string | undefined, stops: Stop[]): Stop | null 
 /** The option value for a stop: the last stop is stored as missing. */
 export function dayOption(stop: Stop, stops: Stop[]): string | undefined {
 	const last = stops[stops.length - 1];
-	if (stop === "now" ? last === "now" : last !== "now" && last?.day === stop.day) return undefined;
-	return stop === "now" ? undefined : stop.day;
+	if (stop === "now" || (last !== undefined && stopKey(stop) === stopKey(last))) return undefined;
+	return stop.day;
 }
 
 /** The stop a key moves to (slider pattern); null for keys it doesn't handle. */
 export function stepKey(key: string, at: number, count: number): number | null {
+	if (count === 0) return null;
 	const clamp = (i: number) => Math.min(Math.max(i, 0), count - 1);
 	switch (key) {
 		case "ArrowLeft":

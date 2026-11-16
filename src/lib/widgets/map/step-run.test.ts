@@ -14,6 +14,16 @@ describe("StepRun", () => {
 		expect(run.next().amend).toBe(false);
 	});
 
+	it("continues a step exactly at the window and starts again just past it", () => {
+		let t = 0;
+		const run = new StepRun(1000, () => t);
+		run.next();
+		t = 1000;
+		expect(run.next().amend).toBe(true);
+		t = 2001;
+		expect(run.next().amend).toBe(false);
+	});
+
 	it("end() closes the run", () => {
 		let t = 0;
 		const run = new StepRun(1000, () => t);

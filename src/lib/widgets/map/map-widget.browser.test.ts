@@ -871,6 +871,16 @@ test("loads no smoke or fire when off", async () => {
 	expect(getHMSFire).not.toHaveBeenCalled();
 });
 
+test("on a day stop, the no-monitors note speaks of the day, not now", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([] as never);
+	dailyFigures({ "2026-09-09": {} });
+	const screen = await show(rangedMap(region("019")));
+	await madeMap();
+	await expect.element(screen.getByText(m.map_no_monitors_here_day())).toBeVisible();
+	expect(screen.getByText(m.map_no_monitors_here()).query()).toBeNull();
+});
+
 test("shows a note, not an error, when the places hold no monitors", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([] as never);
 	const screen = await show(mapWidget(region("019")));
@@ -2236,6 +2246,30 @@ test("editing: a step saves the day, the last stop removes it, and a run is one 
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 9 });
 });
 
+test("editing: a step at once after an undo is its own undo step, and clears redo", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-07": { a: 7 }, "2026-09-08": { a: 8 }, "2026-09-09": { a: 9 } });
+	await showLive(rangedMap(region("019"), { day: "2026-09-07" }), editing());
+	const session = app().current.session!;
+	const map = await madeMap();
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 7 });
+	await nextDay().click();
+	await expect.poll(() => optionsOf()).toEqual({ day: "2026-09-08" });
+	session.undo();
+	await expect.poll(() => optionsOf()).toEqual({ day: "2026-09-07" });
+	expect(session.canRedo).toBe(true);
+	// Within the run's window: still a new undo step, since there is something to redo.
+	const amend = vi.spyOn(session, "amend");
+	await nextDay().click();
+	await expect.poll(() => optionsOf()).toEqual({ day: "2026-09-08" });
+	expect(amend).not.toHaveBeenCalled();
+	expect(session.canUndo).toBe(true);
+	expect(session.canRedo).toBe(false);
+	session.undo();
+	await expect.poll(() => optionsOf()).toEqual({ day: "2026-09-07" });
+});
+
 test("a step that goes nowhere (End on the last stop) writes nothing and starts no run", async () => {
 	rated();
 	frame.style.width = "900px";
@@ -2526,7 +2560,40 @@ test("a fill draws under the focus area, every region of its type, today so far 
 	);
 	expect(regionTypeShapes).toHaveBeenCalledWith("zipcode", expect.anything());
 	const entry = () => nowClient.entries().find((e) => e.key.startsWith("map-fill"));
-	await expect.poll(entry).toMatchObject({ key: "map-fill:pm25:zipcode:today", polling: true });
+	await expect
+		.poll(entry)
+		.toMatchObject({ key: `map-fill:pm25:zipcode:today:${todayPacific()}`, polling: true });
+});
+
+test("the Now fill is a new source at Pacific midnight, not yesterday's held for an hour", async () => {
+	rated();
+	vi.useFakeTimers({
+		toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+		shouldAdvanceTime: true
+	});
+	try {
+		// 23:59:30 Pacific on November 14 (already November 15 in New York or UTC).
+		vi.setSystemTime(new Date("2026-11-15T07:59:30Z"));
+		nowClient = createNowClient({ activity: { visible: () => true, onChange: () => () => {} } });
+		vi.mocked(getNowClient).mockReturnValue(nowClient);
+		zipFill();
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		await show({ ...mapWidget(region("019")), options: { fill: "zipcode" } });
+		await madeMap();
+		const keys = () =>
+			nowClient
+				.entries()
+				.map((e) => e.key)
+				.filter((k) => k.startsWith("map-fill"));
+		await expect.poll(keys).toEqual(["map-fill:pm25:zipcode:today:2026-11-14"]);
+		const asked = vi.mocked(getRegionSummariesBulkDailyOpen).mock.calls.length;
+		// The clock's next minute tick is past midnight: today's fill is asked for at once.
+		await vi.advanceTimersByTimeAsync(61_000);
+		await expect.poll(keys).toContain("map-fill:pm25:zipcode:today:2026-11-15");
+		expect(vi.mocked(getRegionSummariesBulkDailyOpen).mock.calls.length).toBeGreaterThan(asked);
+	} finally {
+		vi.useRealTimers();
+	}
 });
 
 test("on a day, the fill draws the day's figures, labelled by its type", async () => {

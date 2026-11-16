@@ -37,10 +37,12 @@
 	>
 		<SliderPrimitive.Range data-slot="slider-range" class="bg-primary absolute h-full" />
 	</span>
+	<!-- No focus or hover ring of its own: the app's one focus indicator (app.css) applies, and
+	     hover only tints the thumb, so focus never looks like hover. -->
 	<SliderPrimitive.Thumb
 		index={0}
 		data-slot="slider-thumb"
-		class="border-primary bg-background ring-ring/50 duration-fast ease-standard block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] outline-none hover:ring-3 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50"
+		class="border-primary bg-background hover:bg-accent duration-fast ease-standard block size-4 shrink-0 rounded-full border shadow-sm transition-[color,background-color,box-shadow] disabled:pointer-events-none disabled:opacity-50"
 		{...thumbProps}
 	/>
 </SliderPrimitive.Root>

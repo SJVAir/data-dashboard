@@ -79,7 +79,9 @@ describe("dark tokens", () => {
 		["--ring", "--card", 3],
 		["--ring", "--background", 3],
 		["--ring", "--popover", 3],
-		["--ring", "--accent", 3]
+		["--ring", "--accent", 3],
+		// The slider thumb's ring crosses its track.
+		["--ring", "--muted", 3]
 	];
 
 	for (const [fg, bg, min] of pairs) {
@@ -111,7 +113,9 @@ describe("light tokens", () => {
 		["--ring-edge", "--background", 3],
 		// Menu items draw the ring inset, against the menu and the item's accent fill.
 		["--ring-edge", "--popover", 3],
-		["--ring-edge", "--accent", 3]
+		["--ring-edge", "--accent", 3],
+		// The slider thumb's ring crosses its track.
+		["--ring-edge", "--muted", 3]
 	];
 
 	for (const [fg, bg, min] of pairs) {

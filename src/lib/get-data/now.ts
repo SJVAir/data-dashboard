@@ -255,12 +255,6 @@ export function selectionFits(sel: TimeSubRange, range: DateRangeSpec, now: Date
 }
 
 /**
- * The date range and day selection a range draft has once it's `to`, from `from`: a draft still
- * on `from`'s default range gets `to`'s default (a calendar's default gives way to the Chart's);
- * the selection is dropped when `to` isn't a calendar (`left`) or when it no longer fits the new
- * range (`outside`).
- */
-/**
  * Whether `range` is no range the person chose: none, or still `from`'s default range (its
  * `defaultRange`, else `DEFAULT_RANGE`) or `DEFAULT_RANGE`.
  */
@@ -272,6 +266,12 @@ export function isDefaultRange(
 	return !range || same(range, from?.defaultRange ?? DEFAULT_RANGE) || same(range, DEFAULT_RANGE);
 }
 
+/**
+ * The date range and day selection a range draft has once it's `to`, from `from`: a draft still
+ * on `from`'s default range gets `to`'s default (a calendar's default gives way to the Chart's);
+ * the selection is dropped when `to` isn't a calendar (`left`) or when it no longer fits the new
+ * range (`outside`).
+ */
 export function switchRange(
 	data: { dateRange?: DateRangeSpec; timeSubRange?: TimeSubRange },
 	from: WidgetType | undefined,
