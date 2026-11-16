@@ -1951,6 +1951,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   already opens at once and fills in later. **Revisit when** someone reports Share feeling slow on
   a large dashboard: open the dialog first and build the link inside it, as the points path does.
 
+- **sjvair.com: chemical re-imports don't retire cached notice days.** _Deferred 2026-11-16
+  (sjvair.com [#335](https://github.com/SJVAir/sjvair.com/pull/335), session `sjvair-com-5a`)._
+  `import_prop65`, `import_carbtac` and `import_comptox` don't bump the notices cache version, so
+  `notices/active/?date=` answers for settled days can show `category`/IARC matches and
+  `is_of_concern` up to 24 h stale after a reclassification. Why: rare and bounded at 24 h, and the
+  fix (bump the notices version from those imports) touches import commands outside #335's spec.
+  **Revisit if** a reclassification is visibly wrong on the dashboard's notices, or the next time
+  those import commands change.
 - **`@sjvair/sdk`'s pesticide map functions don't take CDPR codes.** _Deferred 2026-11-16 (the
   user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`/`13`)._ `getActivePesticideNotices`,
   `getPesticideSections` and `getPesticideTownships` expose only the sqid filters (`chemical_id`,
