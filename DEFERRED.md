@@ -1338,17 +1338,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   alone (no reading, no "No level"). **Revisit on** an accessibility pass of the map, or with part 5
   if the list gets per-layer groups.
 
-- **The SDK's school and child-care source list is strict.** _Noted 2026-11-11 (sdk-js #61; the
-  user: record it)._ `@sjvair/sdk`'s `locationSourceSchema` accepts only `cde-public`,
-  `cde-private` and `cdss-ccl`, but sjvair.com's `Location.source` is a plain CharField
-  (`camp/apps/regions/models.py`), so a new source would make `/regions/locations/` and
-  `/pesticides/locations/` fail to parse in the SDK. **Revisit when** sjvair.com adds a location
-  source: add the value to `locationSourceSchema` in the same change.
-  _Update 2026-11-16:_ the user chose in sdk-js (session `sdk-js-99`) to accept the known values
-  plus any other string for location `source` and `type` (`"cde-public" | "cde-private" |
-"cdss-ccl" | (string & {})`), in `@sjvair/sdk` `5.0.0-beta.12` (fixed in sdk-js #65). Remove this entry when that
-  merges.
-
 - **One figure per place for a whole range ("where was it worst over the period").**
   _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
   figure for the whole range. Why: a year of daily rows for a whole region type is too much to
