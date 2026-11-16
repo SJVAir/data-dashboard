@@ -295,9 +295,9 @@ now" and reads the `now` flag and the missing `dateRange` accordingly; the build
 - **Marks:** a hidden mark gains a reason line, "has no figure for this day" (one Paraglide message,
   folded with the others through `sentence_join`). The note's other reasons are unchanged.
 - **The tooltip, list row and accessible name** of a monitor on a day give the day's figure name
-  (`daily_statistic_label`), value, unit and level, and "Not final yet" when it applies (my call:
-  through map-sdk's existing item text; if it has no slot for the figure name, tell the coordinator
-  rather than work around it).
+  (`daily_statistic_label`), value, unit and level. "Not final yet" shows once, in the stepper strip
+  (the user's decision, 2026-11-15), not per monitor. (My call: through map-sdk's existing item
+  text; if it has no slot for the figure name, tell the coordinator rather than work around it.)
 
 ## Part 4: region fills
 

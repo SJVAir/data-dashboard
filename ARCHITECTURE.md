@@ -1981,7 +1981,10 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
 - **The day stepper** (`DayStepper.svelte`, below the map): Previous and Next buttons and the
   standard slider pattern (arrows one day, Page Up and Down a week, Home and End the ends;
   `aria-valuetext` the long date or "Now"); on a narrow tile only the buttons and the date.
-  Every drag has the buttons and keys as its alternative.
+  Every drag has the buttons and keys as its alternative. **"Not final yet"** shows once, in the
+  strip beside the day's name, when the day's figures aren't final (the user, 2026-11-15); a
+  monitor's tooltip, list row and accessible name give the figure name, value, unit and level
+  only.
 - **The saved day** is the Map option `day` (a Pacific date key). Missing means the last stop and
   the last stop is never written; a saved day outside the range falls back to the last stop,
   drawn and not saved. **A run of steps is one undo step** (steps within a second of the last
