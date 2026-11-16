@@ -423,8 +423,15 @@ first; this plan argues from it and doesn't repeat its reasons).
 - Test: `data/fill.test.ts`, `map-widget.browser.test.ts`, `toolbar/toolbar.svelte.browser.test.ts`
 
 **Interfaces:**
-- Consumes: Task 11's sources; map-sdk beta.15's no-figure and shared-legend options (names from
-  the coordinator); `regionsPlugin({ id: "fill", source, layerLabel, selectable: false, ... })`.
+- Consumes: Task 11's sources; `@sjvair/map-sdk` `0.1.0-beta.15` (designed, not yet built; names
+  may change in its review): `regionsPlugin({ id: "fill", source, layerLabel, selectable: false,
+  noFigure: "outline", fillOpacity?, outline? })` (`noFigure` default `"neutral"`; `"outline"`
+  draws a no-level feature unfilled with a `--foreground` outline). `Legend` merges scale
+  sections whose sources share a **ScaleRef** (same dataset + entryType; a literal `Scale` never
+  merges), titled with the pollutant label, placed at the fill's slot, with a "No data" row
+  (new key `mapsdk_legend_no_figure`, map it in `host/messages.ts`) while a feature has no
+  figure. Both the monitors source and the fill must pass the ScaleRef `{ dataset:
+  "air-quality", entryType }` (the monitors entry already does, `data/monitors.ts:84`).
 - Messages: `map_fill_today_so_far` "{regionType}, today so far", `map_fill_row` (the Layers
   row's label, from the region type's plural label), `map_fill_no_data` "No data".
 
