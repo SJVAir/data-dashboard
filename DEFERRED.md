@@ -1343,7 +1343,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   source: add the value to `locationSourceSchema` in the same change.
   _Update 2026-11-16:_ the user chose in sdk-js (session `sdk-js-99`) to accept the known values
   plus any other string for location `source` and `type` (`"cde-public" | "cde-private" |
-"cdss-ccl" | (string & {})`), in `@sjvair/sdk` `5.0.0-beta.12`. Remove this entry when that
+"cdss-ccl" | (string & {})`), in `@sjvair/sdk` `5.0.0-beta.12` (fixed in sdk-js #65). Remove this entry when that
   merges.
 
 - **One figure per place for a whole range ("where was it worst over the period").**
