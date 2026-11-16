@@ -1867,6 +1867,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
   Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
   spec): a known difference from 4.3 for the parity review.
+- **`@sjvair/monitor-map` `5.0.0-beta.3` (with map-sdk `0.1.0-beta.15`, #135).** _Deferred
+  2026-11-15 (the user: "beta.3 later")._ `release/5.0.0` beaecf8 has the beta.15 re-pin, the phone
+  search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
+  needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
+  the parity review needs a published build.
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
