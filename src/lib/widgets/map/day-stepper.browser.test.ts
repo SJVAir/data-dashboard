@@ -84,6 +84,20 @@ describe("DayStepper", () => {
 			.toHaveAttribute("aria-valuetext", "Tuesday, November 10, 2026");
 	});
 
+	it("adds not final yet to the slider's value text when the day isn't final", async () => {
+		const { screen } = await setup({ notFinal: true });
+		await expect
+			.element(screen.getByRole("slider", { name: "Day" }))
+			.toHaveAttribute("aria-valuetext", "Tuesday, November 10, 2026, not final yet");
+	});
+
+	it("adds not final yet to Now's value text too", async () => {
+		const { screen } = await setup({ at: 9, notFinal: true });
+		await expect
+			.element(screen.getByRole("slider", { name: "Day" }))
+			.toHaveAttribute("aria-valuetext", "Now, not final yet");
+	});
+
 	it("gives the slider Now as its value text on the now stop", async () => {
 		const { screen } = await setup({ at: 9 });
 		await expect

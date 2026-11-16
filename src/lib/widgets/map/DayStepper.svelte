@@ -35,6 +35,10 @@
 				: formatLongWeekdayDate(stop.day, { year: true })
 	);
 
+	// What the slider announces: the strip's live region is off while it has focus, so "not final
+	// yet" is part of its value text.
+	const valueText = $derived(notFinal ? m.map_day_value_not_final({ day: label }) : label);
+
 	// The standard slider keys, run through `stepKey` so the steps (Page Up/Down is a week) are
 	// exactly ours; bits-ui never sees them.
 	function onkeydown(event: KeyboardEvent) {
@@ -76,7 +80,7 @@
 						if (v !== at) onstep(v, "slider");
 					}}
 					onValueCommit={() => ondragend()}
-					thumbProps={{ "aria-label": m.map_day_slider(), "aria-valuetext": label }}
+					thumbProps={{ "aria-label": m.map_day_slider(), "aria-valuetext": valueText }}
 				/>
 			</div>
 		{/if}

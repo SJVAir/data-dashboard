@@ -1453,6 +1453,13 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     mark is counted as "outside the places" rather than "no figure for this day": a day's
     figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. **Revisit when**
     spec 6 reads series for marked monitors, or when someone reports it.
+  - **A step can still fold into an unrelated edit** made within the 1 s `StepRun` window
+    (`step-run.ts`): the run closes on time and on a drag's end, not on another kind of change.
+    Rare (a person editing something else within a second of stepping). **Revisit if** someone
+    reports a lost undo boundary, or when another control joins the undo runs.
+  - **`fillRegionType` casts** (`as RegionSummaryBulkType`) where a type predicate on
+    `fillableTypes` would do. Cosmetic; behaviour is covered by tests. **Revisit when** the
+    function is next touched, or `fillableTypes` gains a second caller.
 
 ## Analysis & data
 

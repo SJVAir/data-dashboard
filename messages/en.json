@@ -1204,6 +1204,7 @@
 	"map_day_slider": "Day",
 	"map_day_now": "Now",
 	"map_day_not_final": "Not final yet",
+	"map_day_value_not_final": "{day}, not final yet",
 	"map_day_none_yet": "No days to show yet",
 	"map_day_unrated": "{pollutant}'s days can't be rated",
 	"map_day_no_figures": "No figures for this day",
