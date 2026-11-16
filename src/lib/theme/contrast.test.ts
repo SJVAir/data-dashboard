@@ -80,7 +80,8 @@ describe("dark tokens", () => {
 		["--ring", "--background", 3],
 		["--ring", "--popover", 3],
 		["--ring", "--accent", 3],
-		// The slider thumb's ring crosses its track.
+		// The slider thumb's ring crosses its track. The radio button (WhichPlaceDialog) takes the same
+		// ring on --popover and --background, covered above.
 		["--ring", "--muted", 3]
 	];
 
@@ -114,7 +115,8 @@ describe("light tokens", () => {
 		// Menu items draw the ring inset, against the menu and the item's accent fill.
 		["--ring-edge", "--popover", 3],
 		["--ring-edge", "--accent", 3],
-		// The slider thumb's ring crosses its track.
+		// The slider thumb's ring crosses its track. The radio button (WhichPlaceDialog) takes the same
+		// ring on --popover and --background, covered above.
 		["--ring-edge", "--muted", 3]
 	];
 
