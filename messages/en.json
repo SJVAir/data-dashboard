@@ -1219,6 +1219,22 @@
 				"input count",
 				"input countValue",
 				"input section",
+				"input county",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {section}, {county}",
+				"countPlural=other": "{count} spray notices, {section}, {county}"
+			}
+		}
+	],
+	"map_notices_name_section": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input section",
 				"local countPlural = countValue: plural"
 			],
 			"selectors": ["countPlural"],
@@ -1228,7 +1244,22 @@
 			}
 		}
 	],
-	"map_notices_name_no_section": [
+	"map_notices_name_county": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input county",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {county}",
+				"countPlural=other": "{count} spray notices, {county}"
+			}
+		}
+	],
+	"map_notices_name_no_place": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],

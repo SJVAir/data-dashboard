@@ -107,6 +107,21 @@ function toItem(feature: ActivePesticideNoticeFeature): NoticeItem | null {
 }
 
 /**
+ * A marker's name: how many notices, then the section and county (the notices of one section
+ * share both); a variant for each the server leaves out.
+ */
+function markerName(
+	counted: { count: string; countValue: number },
+	{ section, county }: NoticeItem
+): string {
+	if (section !== null && county !== null)
+		return m.map_notices_name({ ...counted, section, county });
+	if (section !== null) return m.map_notices_name_section({ ...counted, section });
+	if (county !== null) return m.map_notices_name_county({ ...counted, county });
+	return m.map_notices_name_no_place(counted);
+}
+
+/**
  * The spray notices active on the day showing (on now, those active now), narrowed by the
  * layer's pesticide filters: drawn everywhere, never limited by the places. With a `date` the
  * server gives those scheduled from Pacific 00:00 four days before the day to the day's end.
@@ -148,17 +163,13 @@ export const noticesEntry: MapDataEntry<NoticeItem[], NoticeFeatureProperties> =
 		for (const [id, group] of groups) {
 			const sorted = group.toSorted((a, b) => Date.parse(a.scheduled) - Date.parse(b.scheduled));
 			const count = sorted.length;
-			const section = sorted[0].section;
 			const counted = { count: formatNumber(count), countValue: count };
 			features.push({
 				type: "Feature",
 				geometry: { type: "Point", coordinates: sorted[0].coordinates },
 				properties: {
 					refKey: encodeRef({ kind: "feature", id }),
-					name:
-						section === null
-							? m.map_notices_name_no_section(counted)
-							: m.map_notices_name({ ...counted, section }),
+					name: markerName(counted, sorted[0]),
 					value: count,
 					count,
 					notices: sorted

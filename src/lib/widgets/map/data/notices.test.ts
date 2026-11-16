@@ -115,8 +115,8 @@ describe("noticesEntry", () => {
 		expect(s2.properties.count).toBe(1);
 		expect(s1.properties.value).toBe(2);
 		expect(s1.properties.notices.map((n) => n.id)).toEqual(["n3", "n1"]);
-		expect(s1.properties.name).toBe("2 spray notices, Section s1");
-		expect(s2.properties.name).toBe("1 spray notice, Section s2");
+		expect(s1.properties.name).toBe("2 spray notices, Section s1, Fresno");
+		expect(s2.properties.name).toBe("1 spray notice, Section s2, Fresno");
 		expect(s1.geometry).toEqual({ type: "Point", coordinates: [-119.5, 36.5] });
 		expect(s1.properties.notices[0]).toEqual({
 			id: "n3",
@@ -158,7 +158,31 @@ describe("noticesEntry", () => {
 		const out = noticesEntry.toDataSources(value, { messages, entryType: "pm25" });
 		const features = out.notices.features!.features;
 		expect(features.map((f) => f.properties.refKey)).toEqual(["feature:n1", "feature:n2"]);
-		expect(features[0].properties.name).toBe("1 spray notice");
+		expect(features[0].properties.name).toBe("1 spray notice, Fresno");
+	});
+
+	it("a marker is named by whichever of section and county the server gives", async () => {
+		const withCounty = (n: ReturnType<typeof notice>, county: string | null) => ({
+			...n,
+			properties: { ...n.properties, county }
+		});
+		vi.mocked(getActivePesticideNotices).mockResolvedValue({
+			type: "FeatureCollection",
+			as_of: "",
+			features: [
+				withCounty(notice("n1", "s1", "2026-11-14T09:00:00-08:00"), null),
+				withCounty(notice("n2", "s1", "2026-11-15T09:00:00-08:00"), null),
+				withCounty(notice("n3", null, "2026-11-15T09:00:00-08:00"), null),
+				notice("n4", "s4", "2026-11-15T09:00:00-08:00")
+			]
+		} as never);
+		const value = await (await sourceOf("now")).fetch(new AbortController().signal);
+		const out = noticesEntry.toDataSources(value, { messages, entryType: "pm25" });
+		expect(out.notices.features!.features.map((f) => f.properties.name)).toEqual([
+			"2 spray notices, Section s1",
+			"1 spray notice",
+			"1 spray notice, Section s4, Fresno"
+		]);
 	});
 
 	it("notices key includes filters", async () => {
