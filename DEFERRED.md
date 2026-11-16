@@ -1887,7 +1887,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
   row; `monitorsPlugin`'s `detail` and `figureLabel`, including the cluster line; the chevron on
-  checkbox rows with children; and the narrow toolbar's search slot. Why: the user wants the demo
+  checkbox rows with children; and the narrow toolbar's search slot. Also missing since `0.1.0-beta.16`
+  ([#33](https://github.com/SJVAir/map-sdk/pull/33)): "No data" in the list row, accessible name,
+  tooltip and ViewSummary for no-figure outlines, the unfilled list swatch, and the Legend's
+  no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
+  then (the prompt didn't carry it); the new trigger is the user's call. Why: the user wants the demo
   updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit
   when** the user asks, or the next map-sdk beta's work starts.
 
