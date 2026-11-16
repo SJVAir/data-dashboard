@@ -133,7 +133,7 @@
 			return days.onDay;
 		},
 		get fillLabel() {
-			return fillInfo ? m.map_fill_row({ regionType: fillInfo.plural }) : undefined;
+			return fillInfo?.plural;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
@@ -158,10 +158,16 @@
 	// type draws nothing, offers no row and writes nothing; it applies again if the type returns).
 	/** The region types a Map can fill; undefined until loaded (or when they can't be). */
 	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
+	/** The region types couldn't be loaded: the fill's note offers Retry, which asks again. */
+	let fillTypesFailed = $state(false);
+	/** Bumped by Retry, to look the region types up again. */
+	let fillTypesTries = $state(0);
 	const savedFill = $derived(wiring.saved.fill);
 	$effect(() => {
+		void fillTypesTries;
 		if (!savedFill || fillTypes) return;
 		const controller = new AbortController();
+		fillTypesFailed = false;
 		directoryFor(metadata, getResolvers().regions)
 			.regionTypes(controller.signal)
 			.then(
@@ -169,7 +175,9 @@
 					if (!controller.signal.aborted) fillTypes = types;
 				},
 				(error: unknown) => {
-					if (!controller.signal.aborted) report(error);
+					if (controller.signal.aborted) return;
+					fillTypesFailed = true;
+					report(error);
 				}
 			);
 		return () => controller.abort();
@@ -193,21 +201,23 @@
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
 		)?.entryType.label
 	);
+	// Looked up for any ranged tile (on its Now stop too), so a step to a day knows it already.
 	$effect(() => {
 		const type = entryType;
-		if (!type || !days.onDay || dailyFigureLabel?.for === type) return;
+		if (!type || !days.ranged || dailyFigureLabel?.for === type) return;
 		const controller = new AbortController();
+		const settle = (label: string | undefined) => {
+			if (!controller.signal.aborted) dailyFigureLabel = { for: type, label };
+		};
 		metadata.dailyFigure(type, controller.signal).then(
-			(figure) => {
-				if (!controller.signal.aborted) {
-					dailyFigureLabel = { for: type, label: figure?.label ?? undefined };
-				}
-			},
+			(figure) => settle(figure?.label ?? undefined),
 			// Without it the monitors keep their interval note: nothing to show or report here.
-			() => {}
+			() => settle(undefined)
 		);
 		return () => controller.abort();
 	});
+	/** Whether the figure's name is known for the pollutant drawn (or isn't needed: on now). */
+	const figureLabelSettled = $derived(!days.onDay || dailyFigureLabel?.for === entryType);
 	/** On a day stop, what the monitors' figure is ("24-hour average"); unset on now. */
 	const figureLabel = $derived(
 		days.onDay && dailyFigureLabel && dailyFigureLabel.for === entryType
@@ -359,8 +369,19 @@
 				? fillInfo.plural
 				: m.map_fill_today_so_far({ regionType: fillInfo.plural })
 	);
-	/** The fill failed to load, while it's shown. */
-	const fillFailed = $derived(fillDrawn && data.fillFailed);
+	/**
+	 * The fill failed to load, while it's shown; or the region types it's checked against
+	 * couldn't be looked up (with a saved fill, so it can't be drawn).
+	 */
+	const fillFailed = $derived(
+		(fillDrawn && data.fillFailed) || (!!savedFill && !fillTypes && fillTypesFailed)
+	);
+
+	/** The fill note's Retry: the region types' lookup if that failed, else the fill. */
+	function retryFill(): void {
+		if (fillTypesFailed && !fillTypes) fillTypesTries++;
+		else data.retryFill();
+	}
 
 	// Smoke and fire: now's or the day's, over the whole map, when on (the toolbar's switch hides
 	// them, their data still loading).
@@ -405,7 +426,8 @@
 		const clusters = clustered;
 		const onDay = days.onDay;
 		const figure = figureLabel;
-		if (!current || !label || !loads) return;
+		// On a day, made once its figure's name is known: one plugin per stop, not two.
+		if (!current || !label || !loads || !figureLabelSettled) return;
 		untrack(() =>
 			current.addPlugin(
 				monitorsPlugin({
@@ -825,12 +847,7 @@
 					data-map-fill-note
 				>
 					<p class="text-muted-foreground">{m.map_fill_failed()}</p>
-					<Button
-						size="sm"
-						variant="outline"
-						class="pointer-events-auto"
-						onclick={() => data.retryFill()}
-					>
+					<Button size="sm" variant="outline" class="pointer-events-auto" onclick={retryFill}>
 						{m.widget_state_retry()}
 					</Button>
 				</div>

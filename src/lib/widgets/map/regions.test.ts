@@ -116,10 +116,8 @@ describe("regionTypeShapes", () => {
 		const controller = new AbortController();
 		const shapes = await regionTypeShapes("zipcode", controller.signal);
 		expect(shapes.map((f) => f.properties.external_id)).toEqual(["93701", "93702"]);
-		expect(geojson).toHaveBeenCalledWith(
-			{ type: "zipcode", simplify: true },
-			{ signal: controller.signal }
-		);
+		// The shared request carries no one caller's signal.
+		expect(geojson).toHaveBeenCalledWith({ type: "zipcode", simplify: true });
 		await regionTypeShapes("zipcode");
 		expect(geojson).toHaveBeenCalledTimes(1);
 	});
@@ -129,10 +127,46 @@ describe("regionTypeShapes", () => {
 		vi.resetModules();
 		const { regionTypeShapes } = await import("./regions");
 		await regionTypeShapes("school_district");
-		expect(geojson).toHaveBeenCalledWith(
-			{ type: "school_district", simplify: false },
-			expect.anything()
-		);
+		expect(geojson).toHaveBeenCalledWith({ type: "school_district", simplify: false });
+	});
+
+	it("shares one request between callers at the same time", async () => {
+		wholeType();
+		vi.resetModules();
+		const { regionTypeShapes } = await import("./regions");
+		const [a, b] = await Promise.all([regionTypeShapes("zipcode"), regionTypeShapes("zipcode")]);
+		expect(geojson).toHaveBeenCalledTimes(1);
+		expect(a).toBe(b);
+	});
+
+	it("drops a failed request, so the next call asks again", async () => {
+		wholeType();
+		geojson.mockRejectedValueOnce(new Error("offline"));
+		vi.resetModules();
+		const { regionTypeShapes } = await import("./regions");
+		await expect(regionTypeShapes("zipcode")).rejects.toThrow("offline");
+		const shapes = await regionTypeShapes("zipcode");
+		expect(shapes).toHaveLength(2);
+		expect(geojson).toHaveBeenCalledTimes(2);
+	});
+
+	it("an aborted caller stops only its own wait, never the shared request", async () => {
+		let answer!: (value: unknown) => void;
+		geojson.mockImplementation(() => new Promise((resolve) => (answer = resolve)) as never);
+		vi.resetModules();
+		const { regionTypeShapes } = await import("./regions");
+		const controller = new AbortController();
+		const aborted = regionTypeShapes("zipcode", controller.signal);
+		const other = regionTypeShapes("zipcode", new AbortController().signal);
+		controller.abort();
+		await expect(aborted).rejects.toMatchObject({ name: "AbortError" });
+		answer({ type: "FeatureCollection", features: [feature("zipcode", "93701")] });
+		expect((await other).map((f) => f.properties.external_id)).toEqual(["93701"]);
+		expect(geojson).toHaveBeenCalledTimes(1);
+		// An already-aborted signal doesn't wait at all.
+		await expect(regionTypeShapes("zipcode", controller.signal)).rejects.toMatchObject({
+			name: "AbortError"
+		});
 	});
 
 	it("serves later outlines of the same regions", async () => {

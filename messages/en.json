@@ -1207,7 +1207,6 @@
 	"map_day_unrated": "{pollutant}'s days can't be rated",
 	"map_day_no_figures": "No figures for this day",
 	"map_fill_today_so_far": "{regionType}, today so far",
-	"map_fill_row": "{regionType}",
 	"map_fill_no_data": "No data",
 	"map_fill_failed": "The region fill couldn't be loaded.",
 	"map_marks_hidden_day": [

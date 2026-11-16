@@ -2364,9 +2364,14 @@ test("on a day, a thin monitor reads Not enough data and the figure is named; on
 	expect(monitorsOptionsOf(map)?.figureLabel).toBeUndefined();
 	expect(listNoteOf(map)).toBeUndefined();
 
+	const added = vi.spyOn(map, "addPlugin");
 	await previousDay().click();
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 20, b: null });
 	await expect.poll(() => monitorsOptionsOf(map)?.figureLabel).toBe(PM25_FIGURE.label);
+	await new Promise((r) => setTimeout(r, 50));
+	// One new monitors plugin for the step, with its detail and figure name together.
+	expect(added.mock.calls.filter(([p]) => p.id === "monitors")).toHaveLength(1);
+	added.mockRestore();
 	const source = map.plugins.find((p) => p.id === "monitors")!.options.source as {
 		features: { features: { properties: Record<string, unknown> }[] };
 	};
@@ -2649,6 +2654,23 @@ test("clicking a region shows its card with no Select button", async () => {
 		.poll(() => frame.querySelector(`[data-fake-card="region:zipcode:93721"]`))
 		.toBeTruthy();
 	expect(screen.getByRole("button", { name: m.map_mark_select() }).query()).toBeNull();
+});
+
+test("a failed region types lookup says the fill couldn't load, and Retry looks again", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getRegionsMeta).mockRejectedValueOnce(new Error("offline"));
+	const screen = await show({ ...mapWidget(region("019")), options: { fill: "zipcode" } });
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_fill_failed())).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(pluginIds(map)).toEqual(["focus", "monitors"]);
+	await frame.querySelector<HTMLElement>("[data-map-fill-note] button")!.click();
+	await expect.poll(() => screen.getByText(m.map_fill_failed()).query()).toBeNull();
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus", "monitors"]);
+	await expect.poll(() => fillValues(map)?.["region:zipcode:93721"]).toBe(5);
+	expect(getRegionsMeta).toHaveBeenCalledTimes(2);
 });
 
 test("a fill that fails to load keeps the map, with a note and Retry", async () => {

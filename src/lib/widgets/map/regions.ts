@@ -22,8 +22,11 @@ export function simplifies(type: string): boolean {
 
 /** Region shapes fetched this page, by `type:code`, shared by every map. */
 const cache = new Map<string, Feature>();
-/** Every current region of a type (a fill's), fetched this page, shared by every map. */
-const typeCache = new Map<string, RegionFeature[]>();
+/**
+ * Every current region of a type (a fill's), fetched this page, shared by every map: the request
+ * itself, so callers at the same time share one download. A failed request is dropped.
+ */
+const typeCache = new Map<string, Promise<RegionFeature[]>>();
 
 /**
  * The shapes of `refs`, by `type:code` (simplified where the server does, for outlines). Codes
@@ -61,22 +64,52 @@ export async function regionShapes(
 	return shapes;
 }
 
+/** The abort error of `signal`, as fetch gives it. */
+function abortError(signal: AbortSignal): unknown {
+	return signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
+}
+
+/** `request`'s result, unless `signal` aborts first: an abort stops only this wait. */
+function until<T>(request: Promise<T>, signal?: AbortSignal): Promise<T> {
+	if (!signal) return request;
+	if (signal.aborted) return Promise.reject(abortError(signal));
+	return new Promise<T>((resolve, reject) => {
+		const onAbort = () => reject(abortError(signal));
+		signal.addEventListener("abort", onAbort, { once: true });
+		request.then(
+			(value) => {
+				signal.removeEventListener("abort", onAbort);
+				resolve(value);
+			},
+			(error: unknown) => {
+				signal.removeEventListener("abort", onAbort);
+				reject(error);
+			}
+		);
+	});
+}
+
 /**
  * Every current region of `type` (one request, simplified where the server does), fetched once
- * per page. Its shapes also serve later outlines of the same regions.
+ * per page. Callers at the same time share the request; a caller's `signal` stops only its own
+ * wait, never the shared download. A failed request is dropped, so the next call asks again. Its
+ * shapes also serve later outlines of the same regions.
  */
-export async function regionTypeShapes(
-	type: RegionType,
-	signal?: AbortSignal
-): Promise<RegionFeature[]> {
-	const cached = typeCache.get(type);
-	if (cached) return cached;
-	const collection = await getRegionsGeoJSON({ type, simplify: simplifies(type) }, { signal });
-	const features = collection.features;
-	typeCache.set(type, features);
-	for (const feature of features) {
-		const code = feature.properties.external_id;
-		if (code) cache.set(regionKey({ type, code }), feature as Feature);
+export function regionTypeShapes(type: RegionType, signal?: AbortSignal): Promise<RegionFeature[]> {
+	let request = typeCache.get(type);
+	if (!request) {
+		const made = getRegionsGeoJSON({ type, simplify: simplifies(type) }).then((collection) => {
+			for (const feature of collection.features) {
+				const code = feature.properties.external_id;
+				if (code) cache.set(regionKey({ type, code }), feature as Feature);
+			}
+			return collection.features;
+		});
+		made.catch(() => {
+			if (typeCache.get(type) === made) typeCache.delete(type);
+		});
+		typeCache.set(type, made);
+		request = made;
 	}
-	return features;
+	return until(request, signal);
 }
