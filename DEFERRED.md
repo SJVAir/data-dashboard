@@ -1424,6 +1424,36 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - No test for `drawable` `[]`.
     - The E2E `waitForTimeout(1500)`, the `fake.signedInAs` reach-in, and the `liveLinkTo` cast.
 
+- **Step 5 spec 4 review leftovers.** _Deferred 2026-11-15 (step 5 spec 4, per-task and final
+  reviews)._ Small things the reviews let stay, each with its revisit trigger:
+  - **No browser tests for smoke and fire's prefetch, retry or refresh on a day.** E2E covers
+    each day's smoke; the gap is the timing of prefetch, retry and refresh. **Add when** spec 5
+    adds day-following layers (pesticides, spray notices) to `MapData`.
+  - **`remPx` is read once** (`MapWidget.svelte`): a font-size change mid-visit leaves the 48rem
+    toolbar breakpoint stale until the tile remounts. **Revisit if** someone reports it, or when
+    the toolbar's breakpoint becomes a shared helper.
+  - **`loaded.svelte.ts` has grown to about 620 lines.** **Revisit at** spec 5, when pesticide
+    sources join: split the per-dataset blocks out of `MapData`.
+  - **Smoke and fire on a day poll only while that day's monitor figures aren't final** (the
+    ruling recorded in `ARCHITECTURE.md`): HMS has no `is_final`, so a late plume for a settled
+    day isn't picked up. **Revisit if** the server gives HMS a final flag, or late plumes are
+    reported.
+  - **Message key prefixes `getdata_` and `get_data_` are mixed** (the catalog already held
+    both, e.g. `getdata_preset_*`). **Revisit with** a catalog-wide key tidy.
+  - **The per-row figure logic is repeated** in `snapshot/regions.ts` and `snapshot/monitors.ts`
+    (two copies of about 10 lines). **Revisit at** spec 5, when the pesticide snapshot would be
+    the third: extract `figureOfRow` into `rows.ts`.
+  - **City and school district fills load unsimplified whole-type GeoJSON** (measured at most
+    0.79 MB gzip, fetched once per page). **Revisit when** the regions meta gains a per-type
+    `simplify` flag (already deferred), or a type's payload grows past about 1 MB gzip.
+  - **Switching the pollutant on a day stop drops the monitors** for a moment, until the
+    figure-label lookup (memoized metadata) settles. **Revisit if** it shows in testing, or when
+    label lookups move into `MapData` (every layer pollutant's label looked up up front).
+  - **On a past day, a monitor that has left the current monitors list isn't drawn**, and its
+    mark is counted as "outside the places" rather than "no figure for this day": a day's
+    figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. **Revisit when**
+    spec 6 reads series for marked monitors, or when someone reports it.
+
 ## Analysis & data
 
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3

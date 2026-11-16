@@ -1991,10 +1991,20 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
 - **What a day shows.** The monitors draw each monitor's daily figure for the day (the
   scale's `daily_statistic`, named by `figureLabel`); a monitor with too thin a day reads "Not
   enough data". The toolbar offers no Inactive row on a day stop (a monitor with a figure that
-  day was reporting), and smoke and fire are the day's (`hms/*?date=`).
+  day was reporting), and smoke and fire are the day's (`hms/*?date=`). **A day stop where no
+  monitor in the places has a figure says "No figures for this day"** (a ruling where the spec
+  is silent: once the day has loaded, never while it loads; it joins the map's notes and its
+  accessible name).
+- **Fetching ahead.** The neighbouring day stops (one each side) are fetched ahead, so a step
+  draws at once; from Now, the day before it. That holds for the monitors' figures, smoke and
+  fire, and the fill. Sources that are still wanted are kept while the queries swap, so a day
+  fetched ahead is never aborted and fetched again.
 - **Refresh.** Now polls as before; a day polls hourly only until every figure is final; a range
-  without today never polls once its days are final. "Today" turns over at Pacific midnight (the
-  stepper checks once a minute while a range shows).
+  without today never polls once its days are final. **Smoke and fire on a day poll only while
+  that day's monitor figures aren't final** (HMS has no final flag, so the monitors' stand in
+  for it; a late plume for a settled day isn't picked up; see `DEFERRED.md`). "Today" turns over
+  at Pacific midnight (the Map checks once a minute); Now's smoke and fill are keyed by today's
+  Pacific date, so they are fetched afresh after midnight.
 - **Region fills.** The region type is the Map option `fill` (a region type id), written by Get
   data's "Fill regions by", not a layer: a fill has no pollutant of its own (it follows
   `showing`). It is validated against the region metadata when drawn: an unknown type draws no
