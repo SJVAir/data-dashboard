@@ -209,3 +209,88 @@ export async function routeMapDays(
 		}
 	);
 }
+
+const REGION_BULK = /\/api\/2\.0\/regions\/([a-z0-9]+)\/summaries\/daily\/(open\/)?$/;
+
+/**
+ * A ZIP code fill's fixture ZIPs (fake, made-up squares inside Fresno County's fixture outline):
+ * the whole-type region GeoJSON lists all three, the bulk summaries only the first two, so
+ * `93999` is a region with no figure.
+ */
+export const FILL_ZIPS = [
+	{ id: "zfil1", code: "93721", name: "93721", lon: -119.9 },
+	{ id: "zfil2", code: "93722", name: "93722", lon: -119.7 },
+	{ id: "zfil3", code: "93999", name: "93999", lon: -119.5 }
+];
+
+/** Each ZIP's figure on a past day (by date) and today so far; a ZIP with none has no row. */
+export type FillFigures = {
+	days: Record<string, Record<string, number>>;
+	today: Record<string, number>;
+};
+
+/**
+ * Answers the whole-type region requests of a ZIP fill: `regions/geojson/?type=zipcode` (no
+ * `external_id`) with the three `FILL_ZIPS` as squares; the bulk daily summaries
+ * (`regions/<entry>/summaries/daily/?type=zipcode&start=&end=`) and the open-day rows
+ * (`…/daily/open/?type=zipcode`) with `figures`, leaving out any ZIP with none. Any other
+ * region request goes on to the handlers routed before.
+ */
+export async function routeMapFill(context: BrowserContext, figures: FillFigures): Promise<void> {
+	await context.route(
+		(url) =>
+			GEOJSON.test(url.pathname) &&
+			url.searchParams.get("type") === "zipcode" &&
+			!url.searchParams.has("external_id"),
+		(route) =>
+			route.fulfill({
+				json: {
+					type: "FeatureCollection",
+					features: FILL_ZIPS.map(({ id, code, name, lon }) => ({
+						type: "Feature",
+						id,
+						geometry: {
+							type: "Polygon",
+							coordinates: [
+								[
+									[lon, 36.7],
+									[lon + 0.15, 36.7],
+									[lon + 0.15, 36.85],
+									[lon, 36.85],
+									[lon, 36.7]
+								]
+							]
+						},
+						properties: { id, name, slug: id, type: "zipcode", external_id: code, retired: null }
+					}))
+				}
+			})
+	);
+	await context.route(
+		(url) => REGION_BULK.test(url.pathname) && url.searchParams.get("type") === "zipcode",
+		(route) => {
+			const url = new URL(route.request().url());
+			const [, entry, open] = REGION_BULK.exec(url.pathname)!;
+			const day = open ? "2026-11-15" : (url.searchParams.get("start") ?? "");
+			const byCode = open ? figures.today : (figures.days[day] ?? {});
+			const data = FILL_ZIPS.filter((z) => byCode[z.code] !== undefined).map((z) => ({
+				id: z.id,
+				name: z.name,
+				slug: z.id,
+				type: "zipcode",
+				summaries: [
+					{
+						timestamp: `${day}T00:00:00-08:00`,
+						entry_type: entry,
+						resolution: "day",
+						count: 24,
+						expected_count: 24,
+						mean_24h: byCode[z.code],
+						is_final: !open
+					}
+				]
+			}));
+			return route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+}

@@ -28,7 +28,13 @@ import {
 	widgetMenuItem,
 	widgetTitles
 } from "./helpers";
-import { routeMapDays, routeMapMeta, routeMapReadings, routeOneOutline } from "./map-data-server";
+import {
+	routeMapDays,
+	routeMapFill,
+	routeMapMeta,
+	routeMapReadings,
+	routeOneOutline
+} from "./map-data-server";
 
 test.use({ reducedMotion: "reduce" });
 
@@ -1100,3 +1106,101 @@ for (const colorScheme of ["light", "dark"] as const) {
 		await expectNoViolations(page);
 	});
 }
+
+/** A county map with a ZIP code fill, over `range`. */
+function fillDoc(range: Record<string, unknown>) {
+	const doc = wideDoc([], range);
+	Object.assign(doc.body.widgets[0], { options: { fill: "zipcode" } });
+	return doc;
+}
+
+test.describe("a Map's region fill", () => {
+	test.beforeEach(async ({ context, page }) => {
+		await routeMapMeta(context);
+		await routeMapDays(context, DAYS);
+		await routeMapFill(context, {
+			days: { "2026-11-11": { "93721": 5, "93722": 20 } },
+			today: { "93721": 8, "93722": 30 }
+		});
+		await page.clock.install({ time: TODAY });
+	});
+
+	/** The map's legend (map-sdk's own): one section for a pollutant, whoever draws it. */
+	function legendOf(map: Locator): Locator {
+		return map.getByRole("region", { name: "Legend", exact: true });
+	}
+
+	/** The map's summary line for the fill ("ZIP Codes, today so far: 1 Good, ..."). */
+	function fillLine(map: Locator): Locator {
+		return map.getByText(/^ZIP Codes(, today so far)?: /);
+	}
+
+	test("on Now the fill reads today so far, shares the legend and says No data where a ZIP has none", async ({
+		page
+	}) => {
+		const zipRequests: string[] = [];
+		page.on("request", (request) => {
+			const url = new URL(request.url());
+			if (url.searchParams.get("type") === "zipcode") zipRequests.push(url.pathname);
+		});
+		await openSharedDoc(page, fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-15" }));
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", "Now");
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+
+		// One legend section, titled by the pollutant once it has loaded (it starts with the scale's
+		// label), shared by the monitors and the fill, with a No data row.
+		const legend = legendOf(map);
+		const titles = legend.getByRole("heading", { level: 3 });
+		await expect(titles).toHaveCount(1);
+		await expect(titles).toHaveText(/^PM2\.5/);
+		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
+
+		// Today's figures so far; the ZIP with none reads No data (not a level).
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: "ZIP 93721, 8.0 µg/m³, Good" })).toHaveCount(1);
+		await expect(list.getByRole("option", { name: "ZIP 93722, 30.0 µg/m³, Moderate" })).toHaveCount(
+			1
+		);
+		await expect(list.getByRole("option", { name: "ZIP 93999, No data" })).toHaveCount(1);
+		await page.keyboard.press("Escape");
+		// The layer reads as today's so far.
+		await expect(fillLine(map)).toHaveText(/^ZIP Codes, today so far: /);
+
+		// The Layers row hides the fill and shows it again, with no new request.
+		const requests = zipRequests.length;
+		await openMenu(map, "Layers");
+		const row = toolbarOf(map).getByRole("checkbox", { name: "ZIP Codes", exact: true });
+		await expect(row).toBeChecked();
+		await row.uncheck();
+		await expect(fillLine(map)).toHaveCount(0);
+		await expect(legend.getByText("No data", { exact: true })).toHaveCount(0);
+		await row.check();
+		await expect(fillLine(map)).toHaveText(/^ZIP Codes, today so far: /);
+		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
+		expect(zipRequests.length).toBe(requests);
+	});
+
+	test("on a day the fill is the day's figures, and a ZIP with none reads No data", async ({
+		page
+	}) => {
+		await openSharedDoc(page, fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-11" }));
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+		const legend = legendOf(map);
+		const titles = legend.getByRole("heading", { level: 3 });
+		await expect(titles).toHaveCount(1);
+		await expect(titles).toHaveText(/^PM2\.5/);
+		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
+		// The day's fill: the layer is the day's, not today so far.
+		await expect(fillLine(map)).toHaveText(/^ZIP Codes: /);
+
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: "ZIP 93721, 5.0 µg/m³, Good" })).toHaveCount(1);
+		await expect(list.getByRole("option", { name: "ZIP 93722, 20.0 µg/m³, Moderate" })).toHaveCount(
+			1
+		);
+		await expect(list.getByRole("option", { name: "ZIP 93999, No data" })).toHaveCount(1);
+		await page.keyboard.press("Escape");
+	});
+});
