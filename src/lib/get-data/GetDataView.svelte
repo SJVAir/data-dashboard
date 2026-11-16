@@ -7,7 +7,7 @@
 	import { onDestroy, untrack } from "svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { Button } from "$lib/components/ui/button";
-	import { adapterOffers, getMetadata } from "$lib/data";
+	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import {
@@ -20,13 +20,16 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
+	import { directoryFor } from "$lib/places/host";
 	import { fromLayer, toLayerPlaces, type Picks } from "$lib/places/selection";
+	import type { RegionTypeInfo } from "$lib/places/types";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
-	import { MAP_MAX_DAYS } from "$lib/widgets/map/options";
+	import { MAP_MAX_DAYS, mapOptions } from "$lib/widgets/map/options";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
@@ -65,6 +68,7 @@
 		isMapShaped,
 		mapShowingOnly,
 		setMapPollutant,
+		setMapFill,
 		setSmokeAndFire,
 		toMapDraft
 	} from "./map";
@@ -136,6 +140,24 @@
 	 * they can't be loaded, the same as a server that lists none.
 	 */
 	let mapPollutants = $state.raw<string[] | undefined>();
+	/**
+	 * The region types a Map can fill (the place directory's), once loaded; undefined while
+	 * loading or when they can't be loaded (a saved fill is kept either way).
+	 */
+	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
+	$effect(() => {
+		if (plain.type !== MAP_TYPE || fillTypes) return;
+		const controller = new AbortController();
+		void directoryFor(getMetadata(), getResolvers().regions)
+			.regionTypes(controller.signal)
+			.then((types) => {
+				if (!controller.signal.aborted) fillTypes = types;
+			})
+			.catch((error: unknown) => {
+				if (!controller.signal.aborted) report(error);
+			});
+		return () => controller.abort();
+	});
 	const loadMapPollutants = async () => {
 		const p = await getMetadata().mapPollutants();
 		return p === "unavailable" ? [] : p;
@@ -397,6 +419,7 @@
 			out.push(m.get_data_range_cut_left_out({ count, countValue: MAP_MAX_DAYS }));
 		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
+		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		const days = dropped.conversion.selection;
 		if (days) {
@@ -714,6 +737,9 @@
 							offered={offeredPollutants(known, mapPollutants ?? [])}
 							onpollutant={(e, on) => setMapPollutant(draft.data, known, e, on)}
 							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
+							fill={mapOptions(plain).fill}
+							{fillTypes}
+							onfill={(type) => setMapFill(draft, type)}
 						/>
 					</section>
 				{:else if plain.type === CURRENT_TYPE || type?.thresholds}

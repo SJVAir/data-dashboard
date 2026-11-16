@@ -5,6 +5,7 @@
 	import type { WidgetDataConfig } from "$lib/data/schema";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import type { RegionTypeInfo } from "$lib/places/types";
 	import { pollutantLayers } from "$lib/widgets/map/options";
 	import { hasSmokeAndFire, MAP_POLLUTANTS_MAX } from "./map";
 	import { nowPollutants } from "./now";
@@ -15,7 +16,10 @@
 		catalog,
 		offered,
 		onpollutant,
-		onsmoke
+		onsmoke,
+		fill,
+		fillTypes,
+		onfill
 	}: {
 		/** The Map draft's data (plain). */
 		data: WidgetDataConfig;
@@ -26,11 +30,18 @@
 		onpollutant: (entryType: string, on: boolean) => void;
 		/** Smoke and fire on or off (both together). */
 		onsmoke: (on: boolean) => void;
+		/** The region type saved as the fill (missing: none). */
+		fill?: string;
+		/** The types the directory offers; undefined while loading or when it failed (None only). */
+		fillTypes?: RegionTypeInfo[];
+		/** A fill chosen (a region type), or none (undefined). */
+		onfill: (type: string | undefined) => void;
 	} = $props();
 
 	const uid = $props.id();
 	const AIR_QUALITY = "air-quality";
 	const SMOKE_AND_FIRE = "smoke-and-fire";
+	const FILL = "fill";
 
 	const airQuality = $derived(catalog.find((c) => c.id === AIR_QUALITY));
 	const chosen = $derived(
@@ -50,9 +61,12 @@
 	);
 	const atCap = $derived(chosen.length >= MAP_POLLUTANTS_MAX);
 	const smoke = $derived(hasSmokeAndFire(data));
+	const fillChoices = $derived(fillTypes ?? []);
+	/** The saved fill, only while it's offered (else None shows; the saved value stays). */
+	const fillShown = $derived(fillChoices.find((t) => t.type === fill));
 
-	// Both sections start open: there are only two, each short.
-	let open = $state<string[]>([AIR_QUALITY, SMOKE_AND_FIRE]);
+	// The sections start open: there are only three, each short.
+	let open = $state<string[]>([AIR_QUALITY, SMOKE_AND_FIRE, FILL]);
 </script>
 
 {#snippet reason(id: string, text: string)}
@@ -119,6 +133,36 @@
 				</label>
 				<Toggletip label={m.get_data_map_smoke_help_label()} text={m.get_data_map_smoke_help()} />
 			</div>
+		</Accordion.Content>
+	</Accordion.Item>
+	<Accordion.Item value={FILL} class="border-card-border rounded-(--radius-control) border">
+		<SectionTrigger label={m.getdata_map_fill()} detail={fillShown?.plural} />
+		<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
+			<fieldset class="flex flex-col gap-1">
+				<legend class="sr-only">{m.getdata_map_fill()}</legend>
+				<label class="flex min-h-6 items-center gap-2 text-sm">
+					<input
+						type="radio"
+						name="{uid}-fill"
+						class="accent-primary size-4"
+						checked={!fillShown}
+						onchange={() => onfill(undefined)}
+					/>
+					<span>{m.getdata_map_fill_none()}</span>
+				</label>
+				{#each fillChoices as choice (choice.type)}
+					<label class="flex min-h-6 items-center gap-2 text-sm">
+						<input
+							type="radio"
+							name="{uid}-fill"
+							class="accent-primary size-4"
+							checked={fillShown?.type === choice.type}
+							onchange={() => onfill(choice.type)}
+						/>
+						<span>{choice.plural}</span>
+					</label>
+				{/each}
+			</fieldset>
 		</Accordion.Content>
 	</Accordion.Item>
 </Accordion.Root>

@@ -56,7 +56,9 @@ const fake = vi.hoisted(() => ({
 	/** Names of the chemical, crop and product ids. */
 	names: {} as Record<string, string>,
 	/** Holds a search's answer back (by its query) until the promise settles. */
-	delay: undefined as ((q: string) => Promise<void>) | undefined
+	delay: undefined as ((q: string) => Promise<void>) | undefined,
+	/** The region types the directory offers (default: the real directory). */
+	regionTypes: undefined as (() => Promise<unknown[]>) | undefined
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -94,6 +96,16 @@ vi.mock("$lib/data", () => ({
 	placeRegion: async () => null
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.now }));
+vi.mock("$lib/places/host", async (original) => {
+	const actual = await original<typeof import("$lib/places/host")>();
+	return {
+		...actual,
+		directoryFor: (...args: Parameters<typeof actual.directoryFor>) => {
+			const real = actual.directoryFor(...args);
+			return fake.regionTypes ? { ...real, regionTypes: fake.regionTypes } : real;
+		}
+	};
+});
 vi.mock("./sources", () => ({
 	stationsForLayer: async () => fake.stations,
 	searchPesticides: async (params: { type: string; q: string; limit?: number }) => {
@@ -228,6 +240,7 @@ beforeEach(async () => {
 	fake.hits = { results: [], more: false };
 	fake.names = {};
 	fake.delay = undefined;
+	fake.regionTypes = undefined;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
@@ -1128,6 +1141,65 @@ describe("now widgets", () => {
 		session.undo();
 		expect(session.doc.body.widgets[0].data).toEqual(widget.data);
 		expect(session.canUndo).toBe(false);
+	});
+
+	describe("Fill regions by", () => {
+		const type = (t: string, label: string, plural: string) => ({
+			type: t,
+			label,
+			plural,
+			count: 5,
+			parents: []
+		});
+		const fillGroup = () => page.getByRole("group", { name: m.getdata_map_fill() });
+
+		test("lists None and the directory's types, None chosen; choosing saves the fill, None removes it", async () => {
+			fake.regionTypes = async () => [
+				type("county", "County", "Counties"),
+				type("zipcode", "ZIP code", "ZIP codes")
+			];
+			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+			const none = fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() });
+			await expect.element(none).toBeChecked();
+			await expect.element(fillGroup().getByRole("radio", { name: "Counties" })).toBeVisible();
+			await expect
+				.element(fillGroup().getByRole("radio", { name: "mtrs" }))
+				.not.toBeInTheDocument();
+			expect(fillGroup().getByRole("radio").elements()).toHaveLength(3);
+			await fillGroup().getByRole("radio", { name: "ZIP codes" }).click();
+			expect((await current()).options).toEqual({ fill: "zipcode" });
+			await none.click();
+			expect((await current()).options).toBeUndefined();
+		});
+
+		test("a saved fill is checked, and converting to a Chart drops it with a note", async () => {
+			fake.regionTypes = async () => [type("zipcode", "ZIP code", "ZIP codes")];
+			const { current } = await show(
+				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
+			);
+			await expect.element(fillGroup().getByRole("radio", { name: "ZIP codes" })).toBeChecked();
+			await page.getByRole("radio", { name: "Chart" }).click();
+			await expect.element(page.getByText(m.getdata_note_fill_dropped())).toBeVisible();
+			expect((await current()).options).toBeUndefined();
+			await page.getByRole("radio", { name: "Map" }).click();
+			await expect
+				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
+				.toBeChecked();
+		});
+
+		test("a saved fill survives the directory failing; only None shows", async () => {
+			fake.regionTypes = async () => {
+				throw new Error("offline");
+			};
+			const { current } = await show(
+				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
+			);
+			await expect
+				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
+				.toBeVisible();
+			expect(fillGroup().getByRole("radio").elements()).toHaveLength(1);
+			expect((await current()).options).toEqual({ fill: "zipcode" });
+		});
 	});
 
 	test("a Map link with 30 places opens cut to 25, and says so", async () => {

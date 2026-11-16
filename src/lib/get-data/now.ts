@@ -32,7 +32,8 @@ export type NowDropped =
 	| "selection"
 	| "outside"
 	| "marks"
-	| "range-cut";
+	| "range-cut"
+	| "fill";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";

@@ -60,6 +60,15 @@ export function setMapPollutant(
 	}
 }
 
+/** Fills the Map's regions by `type` (a region type id), or with none (`undefined`). */
+export function setMapFill(draft: Draft, type: string | undefined): void {
+	const options = { ...mapOptions(draft) };
+	if (type) options.fill = type;
+	else delete options.fill;
+	if (Object.keys(options).length) draft.options = options;
+	else delete draft.options;
+}
+
 /** Whether `layer` is a smoke or fire layer (a Map's, or a Chart's smoke at a place). */
 function isHms(layer: Layer): boolean {
 	return layer.dataset === HMS_SMOKE || layer.dataset === HMS_FIRE;
@@ -190,7 +199,8 @@ export function toMapDraft(
 /**
  * A Map draft cut to one layer: its first pollutant layer (holding the places) as the pollutant
  * showing, over its range (if it has one), with no options. `dropped` says when other pollutants
- * or smoke and fire were left out (`"overlays"`) and when marks were (`"marks"`).
+ * or smoke and fire were left out (`"overlays"`), when marks were (`"marks"`) and when a
+ * region fill was (`"fill"`).
  */
 export function mapShowingOnly(
 	draft: Draft,
@@ -205,6 +215,7 @@ export function mapShowingOnly(
 	const dropped: NowDropped[] = [];
 	if (draft.data.layers.length > 1) dropped.push("overlays");
 	if (options.marks?.length) dropped.push("marks");
+	if (options.fill) dropped.push("fill");
 	return {
 		draft: {
 			type: draft.type,

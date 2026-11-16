@@ -1065,6 +1065,7 @@
 		}
 	],
 	"get_data_smoke_and_fire": "Smoke and fire",
+	"getdata_note_fill_dropped": "Filled regions only apply to the map, so the fill was left out.",
 	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
 	"get_data_show_as": "Show as",
 	"get_data_pollutant": "Pollutant",
@@ -1151,6 +1152,8 @@
 	"get_data_discard": "Discard",
 	"get_data_keep_editing": "Keep editing",
 	"get_data_none": "None",
+	"getdata_map_fill": "Fill regions by",
+	"getdata_map_fill_none": "None",
 	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
 	"get_data_map_smoke_help": "Shows today's smoke plumes and fire detections seen by satellite, everywhere on the map, not only at this map's places.",

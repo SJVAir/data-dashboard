@@ -18,6 +18,7 @@ import {
 	isMapShaped,
 	mapShowingOnly,
 	MAP_POLLUTANTS_MAX,
+	setMapFill,
 	setMapPollutant,
 	setSmokeAndFire,
 	toMapDraft
@@ -103,6 +104,29 @@ describe("setSmokeAndFire with one of the pair", () => {
 	});
 });
 
+describe("setMapFill", () => {
+	const draft = (options?: Draft["options"]): Draft => ({
+		type: MAP_TYPE,
+		data: tile("pm25"),
+		...(options ? { options } : {})
+	});
+
+	it("writes the fill, keeping the other options", () => {
+		const d = draft({ marks: ["a"] });
+		setMapFill(d, "zipcode");
+		expect(d.options).toEqual({ marks: ["a"], fill: "zipcode" });
+	});
+
+	it("removes the fill, and the options when nothing else is left", () => {
+		const d = draft({ fill: "zipcode", basemap: "dark" });
+		setMapFill(d, undefined);
+		expect(d.options).toEqual({ basemap: "dark" });
+		const only = draft({ fill: "zipcode" });
+		setMapFill(only, undefined);
+		expect(only.options).toBeUndefined();
+	});
+});
+
 describe("converting to and from the Map", () => {
 	const ALLOWED = ["o3", "pm25"];
 	const monitors = (n: number) => Array.from({ length: n }, (_, i) => `m${i + 1}`);
@@ -120,6 +144,26 @@ describe("converting to and from the Map", () => {
 		if (smoke) setSmokeAndFire(data, true);
 		return { type: MAP_TYPE, data, ...(options ? { options } : {}) };
 	};
+
+	it("converting a Map with a fill to a Chart drops the fill and day with a note; back never invents one", () => {
+		const withFill = mapDraft(["pm25"], { fill: "zipcode", day: "2026-11-10" }, false);
+		const c = fromMapDraft(withFill, chartType, CATALOG);
+		expect(c.dropped).toEqual(["fill"]);
+		expect(c.draft.options).toBeUndefined();
+		const back = toMapDraft(c.draft, CATALOG, ALLOWED, NOW);
+		expect(mapOptions(back.draft).fill).toBeUndefined();
+		expect(back.dropped).not.toContain("fill");
+		// A Map with no fill adds no note.
+		expect(fromMapDraft(mapDraft(["pm25"], undefined, false), chartType, CATALOG).dropped).toEqual(
+			[]
+		);
+	});
+
+	it("a Map to Map conversion keeps the fill", () => {
+		const c = toMapDraft(mapDraft(["pm25"], { fill: "zipcode" }, false), CATALOG, ALLOWED, NOW);
+		expect(mapOptions(c.draft).fill).toBe("zipcode");
+		expect(c.dropped).toEqual([]);
+	});
 
 	it("converts a Chart with PM2.5 and smoke, on the default 30 days, to a Map on Now with PM2.5 and smoke and fire", () => {
 		const c = toMapDraft(
