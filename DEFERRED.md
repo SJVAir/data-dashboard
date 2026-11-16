@@ -1927,7 +1927,7 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   lens only while a lens section's card is open. The dashboard needs a notice's card to hold it too
   (spec 5: "a lens section's or notice's card keeps it"). `0.1.0-beta.17` released without it,
   since 5a doesn't use the lens. **Revisit before** the step 5 spec 5b plan: map-sdk changes it in
-  the next beta (`0.1.0-beta.18`).
+  the next beta (`0.1.0-beta.18`). Fixed in map-sdk #35; remove this entry when it merges and is released.
 - **map-sdk: the lens flashes its newly covered townships clear for about a frame on each
   recentre.** _Deferred 2026-11-16 (the user, map-sdk `0.1.0-beta.17`, session `map-sdk-d9`)._ The
   townships' `lensHidden` feature state applies on the next frame, while the sections' `setData`
