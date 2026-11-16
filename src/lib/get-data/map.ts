@@ -6,11 +6,11 @@ import type { DateRangeSpec, Layer, WidgetDataConfig } from "$lib/data/schema";
 import { addDays } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
 import { fromLayer } from "$lib/places/selection";
-import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { mapType } from "$lib/widgets/map";
 import {
 	HMS_FIRE,
 	HMS_SMOKE,
+	MAP_MAX_DAYS,
 	MAP_POLLUTANTS_MAX,
 	MAP_TYPE,
 	drawableShowing,
@@ -19,11 +19,16 @@ import {
 } from "$lib/widgets/map/options";
 import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
 import { mainLayer } from "$lib/widgets/shared/input";
-import { offersNow } from "$lib/widgets/time";
 import { blockedBySpan } from "./date-presets";
 import type { Draft } from "./draft.svelte";
 import { keepingPlaces } from "./layers";
-import { fromNowDraft, toNowDraft, type NowConversion, type NowDropped } from "./now";
+import {
+	fromNowDraft,
+	isDefaultRange,
+	toNowDraft,
+	type NowConversion,
+	type NowDropped
+} from "./now";
 
 export { HMS_FIRE, HMS_SMOKE, MAP_POLLUTANTS_MAX } from "$lib/widgets/map/options";
 
@@ -97,41 +102,41 @@ export function isMapShaped(draft: Draft, now: Date = new Date()): boolean {
 }
 
 /**
- * The range `draft` shows: its own, else a range type's default (none, Now, for a type that
- * offers now).
+ * The range the person chose for `draft`: a Map's own, else one that isn't still its type's
+ * default (`isDefaultRange`, the rule `switchRange` follows). An untouched default isn't a
+ * choice, so a new Map is Now.
  */
-function shownRange(draft: Draft): DateRangeSpec | undefined {
-	if (draft.data.dateRange) return draft.data.dateRange;
-	const type = getWidgetType(draft.type);
-	return type?.time === "range" && !offersNow(type)
-		? (type.defaultRange ?? DEFAULT_RANGE)
-		: undefined;
+function chosenRange(draft: Draft): DateRangeSpec | undefined {
+	const range = draft.data.dateRange;
+	if (draft.type === MAP_TYPE) return range;
+	return isDefaultRange(range, getWidgetType(draft.type)) ? undefined : range;
 }
 
 /**
  * `range` as the Map takes it: as it is within the Map's span; a longer one cut to its last
- * `maxDays` days (`cut`: a rolling one as the trailing days up to today, so it keeps rolling);
- * none for one shorter than a day (a few trailing hours), which the Map can't step through.
+ * `MAP_MAX_DAYS` days (`cut`: a rolling one as the trailing days up to today, so it keeps
+ * rolling); none for one shorter than a day (a few trailing hours), which the Map can't step
+ * through.
  */
 function mapRange(range: DateRangeSpec, now: Date): { range?: DateRangeSpec; cut?: true } {
 	const block = blockedBySpan(range, mapType.span, now);
 	if (!block) return { range: structuredClone(range) };
-	const maxDays = mapType.span?.maxDays;
-	if (block === "too-short" || maxDays === undefined) return {};
+	if (block === "too-short") return {};
 	if (range.kind === "trailing") {
-		return { range: { kind: "trailing", amount: maxDays, unit: "day" }, cut: true };
+		return { range: { kind: "trailing", amount: MAP_MAX_DAYS, unit: "day" }, cut: true };
 	}
 	const { lastDate } = resolveRange(range, now);
 	return {
-		range: { kind: "custom", start: addDays(lastDate, -(maxDays - 1)), end: lastDate },
+		range: { kind: "custom", start: addDays(lastDate, -(MAP_MAX_DAYS - 1)), end: lastDate },
 		cut: true
 	};
 }
 
 /**
  * `draft` (any type) as a Map: the source's pollutant (or the first offered), its places (≤ 25),
- * smoke and fire on when the source had a smoke layer, and the range it shows (`mapRange`: cut
- * to the Map's 366 days with a `"range-cut"` note; none is Now). A day selection is dropped with
+ * smoke and fire on when the source had a smoke layer, and the range the person chose
+ * (`chosenRange`, then `mapRange`: cut to the Map's 366 days with a `"range-cut"` note; none,
+ * or a default range, is Now). A day selection is dropped with
  * a `"selection"` note. A Map draft (one opened over its place cap, say) keeps its other offered
  * pollutants, its smoke and fire and its options.
  */
@@ -143,7 +148,7 @@ export function toMapDraft(
 ): NowConversion {
 	const converted = toNowDraft(draft, mapType, catalog, [], undefined, allowed);
 	const data = converted.draft.data;
-	const shown = shownRange(draft);
+	const shown = chosenRange(draft);
 	const range = shown ? mapRange(shown, now) : {};
 	if (range.range) data.dateRange = range.range;
 	const selection = draft.data.timeSubRange;
@@ -217,15 +222,16 @@ export function mapShowingOnly(
  * A Map draft as `type`: the pollutant showing at the places; smoke, fire and marks dropped with
  * notes. A now type then follows its own rules (`toNowDraft`, with `levels`: the alert level's
  * scale, or `"unavailable"` to leave the default owed; a range is left out with a note); a range
- * type takes the Map's range (a Map on Now: the type's default range) and its place cap
- * (`fromNowDraft`).
+ * type takes the Map's range when it fits the type's span (else, and for a Map on Now, the
+ * type's default range) and its place cap (`fromNowDraft`).
  */
 export function fromMapDraft(
 	draft: Draft,
 	type: WidgetType,
 	catalog: CatalogEntry[],
 	levels: Level[] | "unavailable" = "unavailable",
-	drawable?: readonly string[]
+	drawable?: readonly string[],
+	now: Date = new Date()
 ): NowConversion {
 	const one = mapShowingOnly(draft, catalog, drawable);
 	// `type` is never the Map (Map to Map goes through `toMapDraft`), so a now type here is one.
@@ -234,7 +240,9 @@ export function fromMapDraft(
 			? toNowDraft(one.draft, type, catalog, levels, mapType)
 			: fromNowDraft(one.draft, type);
 	const range = one.draft.data.dateRange;
-	if (type.time !== "now" && range) converted.draft.data.dateRange = structuredClone(range);
+	if (type.time !== "now" && range && !blockedBySpan(range, type.span, now)) {
+		converted.draft.data.dateRange = structuredClone(range);
+	}
 	return {
 		...converted,
 		dropped: [...new Set([...one.dropped, ...converted.dropped])]

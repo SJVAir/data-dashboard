@@ -3,9 +3,12 @@ import type { CatalogEntry } from "$lib/data/metadata";
 import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import { CHART_TYPE, chartType } from "$lib/widgets/chart";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
+import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { currentType } from "$lib/widgets/current";
 import { MAP_TYPE } from "$lib/widgets/map";
 import { mapOptions } from "$lib/widgets/map/options";
+import { registerWidgetType } from "$lib/widgets/registry";
 import type { Draft } from "./draft.svelte";
 import {
 	fromMapDraft,
@@ -118,7 +121,7 @@ describe("converting to and from the Map", () => {
 		return { type: MAP_TYPE, data, ...(options ? { options } : {}) };
 	};
 
-	it("converts a Chart with PM2.5 and smoke to a Map with PM2.5 and smoke and fire, over its range", () => {
+	it("converts a Chart with PM2.5 and smoke, on the default 30 days, to a Map on Now with PM2.5 and smoke and fire", () => {
 		const c = toMapDraft(
 			chartOf([
 				{ dataset: "air-quality", entryType: "pm25", resolution: "day", place: FRESNO },
@@ -130,7 +133,6 @@ describe("converting to and from the Map", () => {
 		expect(c.draft).toEqual({
 			type: MAP_TYPE,
 			data: {
-				dateRange: { kind: "trailing", amount: 30, unit: "day" },
 				layers: [
 					{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
 					{ dataset: HMS_SMOKE },
@@ -138,17 +140,31 @@ describe("converting to and from the Map", () => {
 				]
 			}
 		});
+		// An untouched default range isn't a choice, so nothing is noted as left out.
 		expect(c.dropped).toEqual([]);
 	});
 
-	it("a Chart's range is kept into the Map; its day selection is dropped with a note", () => {
+	it("a range the person chose is kept into the Map; a day selection is dropped with a note", () => {
 		const draft = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
-		draft.data.timeSubRange = { start: "2026-11-01", end: "2026-11-03" };
+		draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
+		draft.data.timeSubRange = { start: "2026-11-10", end: "2026-11-11" };
 		const c = toMapDraft(draft, CATALOG, ALLOWED, NOW);
-		expect(c.draft.data.dateRange).toEqual({ kind: "trailing", amount: 30, unit: "day" });
+		expect(c.draft.data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
 		expect(c.draft.data.timeSubRange).toBeUndefined();
 		expect(c.dropped).toEqual(["selection"]);
-		expect(c.selection).toEqual({ start: "2026-11-01", end: "2026-11-03" });
+		expect(c.selection).toEqual({ start: "2026-11-10", end: "2026-11-11" });
+	});
+
+	it("a calendar still on its own default range converts to a Map on Now", () => {
+		const draft: Draft = {
+			type: monthCalendarType.type,
+			data: {
+				dateRange: { kind: "to-date", unit: "month" },
+				layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+			}
+		};
+		registerWidgetType(monthCalendarType);
+		expect(toMapDraft(draft, CATALOG, ALLOWED, NOW).draft.data.dateRange).toBeUndefined();
 	});
 
 	it("a range over 366 days is cut to its last 366 days, with a note", () => {
@@ -181,6 +197,12 @@ describe("converting to and from the Map", () => {
 		expect(onNow.draft.data.dateRange).toEqual(DEFAULT_RANGE);
 		// To a now type, the range is left out with a note.
 		expect(fromMapDraft(ranged, currentType, CATALOG).dropped).toContain("dates");
+		// A range the target can't show (one day, for the contribution calendar's 7 at least)
+		// gives way to the target's default.
+		const day = mapDraft(["pm25"], undefined, false);
+		day.data.dateRange = { kind: "set", unit: "day", start: "2026-11-10" };
+		const calendar = fromMapDraft(day, contributionCalendarType, CATALOG, "unavailable", [], NOW);
+		expect(calendar.draft.data.dateRange).toEqual(contributionCalendarType.defaultRange);
 	});
 
 	it("notes other overlays a Chart had alongside its smoke", () => {

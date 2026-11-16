@@ -1,7 +1,7 @@
 import Map from "@lucide/svelte/icons/map";
 import { m } from "$lib/paraglide/messages.js";
 import type { WidgetType } from "../registry";
-import { HMS_FIRE, HMS_SMOKE, MAP_POLLUTANTS_MAX, MAP_TYPE } from "./options";
+import { HMS_FIRE, HMS_SMOKE, MAP_MAX_DAYS, MAP_POLLUTANTS_MAX, MAP_TYPE } from "./options";
 import { mapStartData } from "./start";
 
 export { MAP_TYPE } from "./options";
@@ -19,7 +19,7 @@ export const mapType: WidgetType = {
 	time: "range",
 	now: true,
 	resolution: "day",
-	span: { minDays: 1, maxDays: 366 },
+	span: { minDays: 1, maxDays: MAP_MAX_DAYS },
 	thresholds: false,
 	analyzable: false,
 	downloadable: false,

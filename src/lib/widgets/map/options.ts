@@ -11,6 +11,8 @@ export const HMS_SMOKE = "hms-smoke";
 export const HMS_FIRE = "hms-fire";
 /** The most pollutants a Map holds: the layer limit less the smoke and fire layers. */
 export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 2;
+/** The most days a Map's date range covers (a year, with its leap day). */
+export const MAP_MAX_DAYS = 366;
 
 export const MapOptionsSchema = z.strictObject({
 	/** The entry type drawn now (one of the pollutant layers'). */

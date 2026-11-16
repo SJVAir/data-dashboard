@@ -259,6 +259,18 @@ export function selectionFits(sel: TimeSubRange, range: DateRangeSpec, now: Date
  * the selection is dropped when `to` isn't a calendar (`left`) or when it no longer fits the new
  * range (`outside`).
  */
+/**
+ * Whether `range` is no range the person chose: none, or still `from`'s default range (its
+ * `defaultRange`, else `DEFAULT_RANGE`) or `DEFAULT_RANGE`.
+ */
+export function isDefaultRange(
+	range: DateRangeSpec | undefined,
+	from: WidgetType | undefined
+): boolean {
+	const same = (a: DateRangeSpec, b: DateRangeSpec) => JSON.stringify(a) === JSON.stringify(b);
+	return !range || same(range, from?.defaultRange ?? DEFAULT_RANGE) || same(range, DEFAULT_RANGE);
+}
+
 export function switchRange(
 	data: { dateRange?: DateRangeSpec; timeSubRange?: TimeSubRange },
 	from: WidgetType | undefined,
@@ -270,12 +282,7 @@ export function switchRange(
 	left?: TimeSubRange;
 	outside?: TimeSubRange;
 } {
-	const same = (a: DateRangeSpec | undefined, b: DateRangeSpec) =>
-		JSON.stringify(a) === JSON.stringify(b);
-	const wasDefault =
-		!data.dateRange ||
-		same(data.dateRange, from?.defaultRange ?? DEFAULT_RANGE) ||
-		same(data.dateRange, DEFAULT_RANGE);
+	const wasDefault = isDefaultRange(data.dateRange, from);
 	let dateRange = data.dateRange;
 	if (wasDefault && to.defaultRange) dateRange = structuredClone(to.defaultRange);
 	else if (wasDefault && from && isCalendarType(from.type)) {

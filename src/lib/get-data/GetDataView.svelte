@@ -26,6 +26,7 @@
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
+	import { MAP_MAX_DAYS } from "$lib/widgets/map/options";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
@@ -392,8 +393,8 @@
 			);
 		}
 		if (what.includes("range-cut")) {
-			const days = getWidgetType(plain.type)?.span?.maxDays ?? 0;
-			out.push(m.get_data_range_cut_left_out({ count: formatNumber(days), countValue: days }));
+			const count = formatNumber(MAP_MAX_DAYS);
+			out.push(m.get_data_range_cut_left_out({ count, countValue: MAP_MAX_DAYS }));
 		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
@@ -481,7 +482,7 @@
 		}
 		const converted =
 			fresh.type === MAP_TYPE
-				? fromMapDraft(fresh, next, catalog, levels, drawable)
+				? fromMapDraft(fresh, next, catalog, levels, drawable, now)
 				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
@@ -501,7 +502,7 @@
 		if (!offersNow(to) && isNow) {
 			const converted =
 				plain.type === MAP_TYPE
-					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants)
+					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants, now)
 					: fromNowDraft(plain, to);
 			replaceDraft(converted.draft);
 			noteConversion(converted);

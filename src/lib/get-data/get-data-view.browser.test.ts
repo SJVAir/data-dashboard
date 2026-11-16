@@ -868,7 +868,7 @@ describe("now widgets", () => {
 		expect("thresholds" in (await current())).toBe(false);
 	});
 
-	test("Show as Map keeps the chart's places and range", async () => {
+	test("Show as Map keeps the chart's places; its untouched 30 days become Now", async () => {
 		const { current } = await show(monitorsDraft(["m1", "m2", "m3"]));
 		await page.getByRole("radio", { name: "Map" }).click();
 		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
@@ -879,11 +879,10 @@ describe("now widgets", () => {
 		await expect.element(alert()).not.toBeInTheDocument();
 		await expect
 			.element(page.getByRole("button", { name: /^Dates/ }))
-			.toHaveTextContent("Last 30 days");
+			.toHaveTextContent(m.getdata_when_now());
 		expect(await current()).toEqual({
 			type: "map",
 			data: {
-				dateRange: { kind: "trailing", amount: 30, unit: "day" },
 				layers: [
 					{
 						dataset: "air-quality",
@@ -893,6 +892,18 @@ describe("now widgets", () => {
 				]
 			}
 		});
+	});
+
+	test("Show as Map keeps a range the person chose", async () => {
+		const chart = monitorsDraft(["m1"]);
+		chart.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
+		const { current } = await show(chart);
+		await page.getByRole("radio", { name: "Map" }).click();
+		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
+		await expect
+			.element(page.getByRole("button", { name: /^Dates/ }))
+			.toHaveTextContent(m.getdata_preset_last_7_days());
+		expect((await current()).data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
 	});
 
 	test("a Map's When offers Now and the date methods, with no Show values", async () => {
@@ -1040,7 +1051,7 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
 	});
 
-	test("a Map draft not yet in the Map's shape, with several pollutants and smoke, can switch to Chart or Data table", async () => {
+	test("a Map draft not yet in the Map's shape (a Chart's smoke layer), with several pollutants, can switch to Chart or Data table", async () => {
 		// Holding the map's pollutant list back keeps the draft as the link gave it (with dates).
 		let release!: (p: string[]) => void;
 		fake.metadata = fixtureMetadata({
@@ -1053,7 +1064,8 @@ describe("now widgets", () => {
 				layers: [
 					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
 					{ dataset: "air-quality", entryType: "o3" },
-					{ dataset: "hms-smoke" }
+					// A Chart's smoke layer (an entry type) isn't the Map's place-less smoke.
+					{ dataset: "hms-smoke", entryType: "smoke-density" }
 				],
 				dateRange: { kind: "trailing", amount: 7, unit: "day" }
 			}
