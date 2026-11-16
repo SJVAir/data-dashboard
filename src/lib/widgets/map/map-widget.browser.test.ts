@@ -2517,6 +2517,8 @@ test("a fill draws under the focus area, every region of its type, today so far 
 	};
 	expect(fill.options.source.scale).toEqual({ dataset: "air-quality", entryType: "pm25" });
 	expect(fill.options.source.scale).toEqual(monitors.scale);
+	// map-sdk matches a resolved scale to its source by identity: each read gives the same object.
+	expect(fill.options.source.scale).toBe(fill.options.source.scale);
 	// Today's open-day rows for the whole type, over the whole map (not the places).
 	expect(getRegionSummariesBulkDailyOpen).toHaveBeenCalledWith(
 		{ entryType: "pm25", type: "zipcode" },

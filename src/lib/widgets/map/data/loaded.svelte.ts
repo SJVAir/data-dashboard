@@ -115,6 +115,8 @@ function hmsSourceOf<P extends FireFeatureProperties>(
 
 /** The fill's source for the regions plugin, reading the query's current state. */
 function fillSourceOf(d: MapData): DataSource {
+	// map-sdk matches a resolved scale to its source's by identity: one ScaleRef per pollutant.
+	let known: { entryType: string; scale: ReturnType<typeof fillScale> } | undefined;
 	return {
 		get status() {
 			return dataStatus(d.fillState);
@@ -124,7 +126,9 @@ function fillSourceOf(d: MapData): DataSource {
 		},
 		get scale() {
 			const entryType = d.fillFor;
-			return entryType ? fillScale(entryType) : null;
+			if (!entryType) return null;
+			if (known?.entryType !== entryType) known = { entryType, scale: fillScale(entryType) };
+			return known.scale;
 		}
 	};
 }
