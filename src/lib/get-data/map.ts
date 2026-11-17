@@ -138,8 +138,8 @@ export function setMapPesticideFilters(
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
  * selection and no date range the Map's span rules out (none is Now); one to
  * `MAP_POLLUTANTS_MAX` air-quality layers first, the first holding at most `maxPlaces` places and
- * the others none; then only place-less smoke and fire layers and, last, one spray notices layer (place-less, with
- * no entry type, and optional filters).
+ * the others none; then only place-less smoke and fire layers and, last, one spray notices layer
+ * (place-less, with no entry type, and optional filters).
  */
 export function isMapShaped(draft: Draft, now: Date = new Date()): boolean {
 	const { data } = draft;
