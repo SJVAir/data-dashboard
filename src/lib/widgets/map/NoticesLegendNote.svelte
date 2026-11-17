@@ -34,8 +34,19 @@
 		return () => controller.abort();
 	});
 
-	/** The filters as a key, so an equal set saved again asks for nothing. */
-	const filtersKey = $derived(JSON.stringify(filters ?? {}));
+	/**
+	 * The filters that apply to notices (a skipped one has its own line), as a key, so an equal
+	 * set saved again asks for nothing.
+	 */
+	const filtersKey = $derived(
+		JSON.stringify(
+			Object.fromEntries(
+				Object.entries(filters ?? {}).filter(
+					([key]) => !skipped.includes(key as keyof PesticideFilters)
+				)
+			)
+		)
+	);
 	let named = $state.raw<string | null>(null);
 	$effect(() => {
 		const saved = JSON.parse(filtersKey) as PesticideFilters;

@@ -3139,9 +3139,32 @@ test("the legend says which filters don't apply to spray notices", async () => {
 			note.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() }))
 		)
 		.toBeVisible();
-	// The category applies: it isn't named as skipped.
+	// The category applies: it isn't named as skipped, and it alone is named as filtering.
 	expect(note.container.textContent).not.toContain(
 		m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_category() })
+	);
+	await expect
+		.element(note.getByText(m.map_notices_legend_filters({ filters: "Fumigants" })))
+		.toBeVisible();
+	expect(note.container.textContent).not.toContain("Grapes");
+	note.unmount();
+});
+
+test("with only filters that don't apply, the legend names none as filtering", async () => {
+	vi.mocked(getCommodityDetails).mockResolvedValue({ display_name: "Grapes" } as never);
+	await show(noticesMap({ commodity: "k1" }));
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect
+		.element(
+			note.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() }))
+		)
+		.toBeVisible();
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	await new Promise((r) => setTimeout(r, 50));
+	expect(note.container.textContent).not.toContain("Grapes");
+	expect(note.container.textContent).not.toContain(
+		m.map_notices_legend_filters({ filters: "" }).trim()
 	);
 	note.unmount();
 });
