@@ -103,6 +103,18 @@ type MapMeta = {
 	datasets: unknown[];
 };
 type Catalog = { data: { datasets: { id: string; entry_types: unknown[] }[] } };
+
+/** The catalog fixture plus ozone and the smoke and fire datasets (`fixtures/map-meta.json`). */
+async function mapCatalog(): Promise<Catalog> {
+	const { ozone, datasets } = (await json<MapMeta>(FIXTURES + "map-meta.json"))!;
+	const catalog = (await json<Catalog>(`${API_FIXTURES}meta/datasets.json`))!;
+	for (const dataset of catalog.data.datasets) {
+		if (dataset.id === "air-quality") dataset.entry_types.push(ozone.catalog);
+	}
+	catalog.data.datasets.push(...(datasets as Catalog["data"]["datasets"]));
+	return catalog;
+}
+
 type MonitorsMeta = {
 	data: {
 		available_pollutants: string[];
@@ -120,17 +132,10 @@ type MonitorsMeta = {
  * spec: the other specs' Get data offers only what the fixture files hold.
  */
 export async function routeMapMeta(context: BrowserContext): Promise<void> {
-	const { ozone, datasets } = (await json<MapMeta>(FIXTURES + "map-meta.json"))!;
+	const { ozone } = (await json<MapMeta>(FIXTURES + "map-meta.json"))!;
 	await context.route(
 		(url) => CATALOG.test(url.pathname),
-		async (route) => {
-			const catalog = (await json<Catalog>(`${API_FIXTURES}meta/datasets.json`))!;
-			for (const dataset of catalog.data.datasets) {
-				if (dataset.id === "air-quality") dataset.entry_types.push(ozone.catalog);
-			}
-			catalog.data.datasets.push(...(datasets as Catalog["data"]["datasets"]));
-			await route.fulfill({ json: catalog });
-		}
+		async (route) => route.fulfill({ json: await mapCatalog() })
 	);
 	await context.route(
 		(url) => MONITORS_META.test(url.pathname),
@@ -308,4 +313,193 @@ export async function routeMapFill(context: BrowserContext, figures: FillFigures
 			return route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 		}
 	);
+}
+
+const PESTICIDES_META = /\/api\/2\.0\/pesticides\/meta\/$/;
+const NOTICES = /\/api\/2\.0\/pesticides\/notices\/active\/$/;
+const COMMODITY = /\/api\/2\.0\/pesticides\/commodities\/([a-z0-9]+)\/$/;
+
+/** The fake commodity a notices layer's filters can name (the notice endpoints don't take one). */
+export const NOTICE_COMMODITY = { id: "kgrp1", display_name: "Grapes" };
+
+/**
+ * The notices' explainer and the SprayDays link (fake wording, the server's shape). The catalog
+ * names the layer "Pesticide Spray Notices" and the scale "Spray Notices", as the server does, so
+ * a legend title on the wrong one can't pass.
+ */
+export const NOTICES_META = {
+	catalogLabel: "Pesticide Spray Notices",
+	scaleLabel: "Spray Notices",
+	explainerTitle: "What a notice means",
+	explainerSummary: "A plan to apply, not proof that spraying happened.",
+	explainerSource: "https://spraydays.example/about",
+	signup: "https://spraydays.example/"
+};
+
+/** One fixture spray notice: fake, at a point in the valley. */
+export type NoticeFixture = {
+	id: string;
+	/** The MTRS section's id; notices in one section share one marker. */
+	sectionId: string;
+	section: string;
+	county: string;
+	/** `[lon, lat]`, the section's centre. */
+	at: [number, number];
+	/** When it's scheduled (ISO 8601, with its offset); its window ends four days later. */
+	scheduled: string;
+	/** On a dated request: whether the window had ended by that day (default false). */
+	past?: boolean;
+};
+
+function noticeFeature(notice: NoticeFixture, dated: boolean) {
+	const end = new Date(Date.parse(notice.scheduled) + 4 * 24 * 3_600_000).toISOString();
+	return {
+		type: "Feature",
+		id: notice.id,
+		geometry: { type: "Point", coordinates: notice.at },
+		properties: {
+			id: notice.id,
+			scheduled_application: notice.scheduled,
+			scheduled_end: end,
+			county: notice.county,
+			application_method: "Fumigation",
+			aerial_ground: "F",
+			treated_amount: 12.5,
+			treated_units: "Acres",
+			section: notice.section,
+			section_id: notice.sectionId,
+			products: [{ id: "prd01", name: "EXAMPLE SOIL FUMIGANT" }],
+			chemicals: [
+				{ id: "chm01", name: "EXAMPLE-CHEM", display_name: "Example-chem", is_of_concern: true }
+			],
+			...(dated && { past: notice.past ?? false })
+		}
+	};
+}
+
+/** The notices requests the page made, in order (their query strings, as sent). */
+export type NoticesRequests = URLSearchParams[];
+
+/**
+ * Spray notices on the Map, as the server has them (shapes from a local response, fake values):
+ * `routeMapMeta`'s dataset catalog plus `pesticide-notices` (route `routeMapMeta` first, for the
+ * monitors meta; this catalog wins); the pesticides meta (`pesticides/meta.json`) plus the spray-notice scale, the
+ * explainer, the SprayDays link and the `notice_filters` (all but the commodity); the fake
+ * commodity's details; and `pesticides/notices/active/`, answered from `byDate` by the request's
+ * `date` (`"now"` for a request with none), with `past` only on a dated one. A day not in
+ * `byDate` has none. Returns the notices requests made.
+ */
+export async function routeMapNotices(
+	context: BrowserContext,
+	byDate: Record<string, NoticeFixture[]>
+): Promise<NoticesRequests> {
+	await context.route(
+		(url) => CATALOG.test(url.pathname),
+		async (route) => {
+			const catalog = await mapCatalog();
+			catalog.data.datasets.push({
+				id: "pesticide-notices",
+				label: NOTICES_META.catalogLabel,
+				description: "Advance notices of planned restricted-use pesticide applications.",
+				source: "SprayDays (California DPR)",
+				license: "",
+				geographies: ["point"],
+				meta_url: "/api/2.0/pesticides/meta/",
+				places_url: "",
+				entry_types: [
+					{
+						id: "spray-notice",
+						label: NOTICES_META.scaleLabel,
+						kind: "other",
+						units: "",
+						resolutions: ["day"],
+						aggregate: "sum",
+						display: { precision: 0, chart: "bar", y_min: 0 },
+						retired: null
+					}
+				],
+				retired: null
+			} as unknown as Catalog["data"]["datasets"][number]);
+			await route.fulfill({ json: catalog });
+		}
+	);
+	await context.route(
+		(url) => PESTICIDES_META.test(url.pathname),
+		async (route) => {
+			const meta = (await json<{ data: Record<string, unknown> }>(
+				`${API_FIXTURES}pesticides/meta.json`
+			))!;
+			Object.assign(meta.data, {
+				notes: {
+					noi_meaning: {
+						key: "noi_meaning",
+						title: NOTICES_META.explainerTitle,
+						summary: NOTICES_META.explainerSummary,
+						detail: null,
+						source_url: NOTICES_META.explainerSource
+					}
+				},
+				badges: [],
+				links: { spraydays_signup: NOTICES_META.signup },
+				notice_filters: [
+					"chemical_id",
+					"product_id",
+					"category",
+					"iarc_group",
+					"narrow",
+					"aerial_ground"
+				],
+				years: [2023],
+				ramp: { colors: ["#deebf7", "#08306b"], no_data: "#f0f0f0" },
+				scales: {
+					"spray-notice": {
+						id: "spray-notice",
+						label: NOTICES_META.scaleLabel,
+						units: "",
+						kind: "category",
+						source: { name: "SprayDays", url: NOTICES_META.signup },
+						averaging_hours: null,
+						daily_statistic: null,
+						daily_statistic_label: null,
+						levels: [
+							{
+								key: "notice",
+								label: "Spray notice",
+								color: "#e64980",
+								tier: null,
+								description: "",
+								guidance: "",
+								min: null,
+								max: null,
+								value: "notice",
+								opacity: null
+							}
+						]
+					}
+				}
+			});
+			await route.fulfill({ json: meta });
+		}
+	);
+	await context.route(
+		(url) => COMMODITY.exec(url.pathname)?.[1] === NOTICE_COMMODITY.id,
+		(route) =>
+			route.fulfill({
+				json: { data: { ...NOTICE_COMMODITY, name: "GRAPES", code: 29141 } }
+			})
+	);
+	const requests: NoticesRequests = [];
+	await context.route(
+		(url) => NOTICES.test(url.pathname),
+		(route) => {
+			const params = new URL(route.request().url()).searchParams;
+			requests.push(params);
+			const date = params.get("date");
+			const features = (byDate[date ?? "now"] ?? []).map((n) => noticeFeature(n, date !== null));
+			return route.fulfill({
+				json: { type: "FeatureCollection", as_of: "2026-11-15T20:00:00+00:00", features }
+			});
+		}
+	);
+	return requests;
 }

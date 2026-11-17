@@ -29,11 +29,16 @@ import {
 	widgetTitles
 } from "./helpers";
 import {
+	NOTICE_COMMODITY,
+	NOTICES_META,
 	routeMapDays,
 	routeMapFill,
 	routeMapMeta,
+	routeMapNotices,
 	routeMapReadings,
-	routeOneOutline
+	routeOneOutline,
+	type NoticeFixture,
+	type NoticesRequests
 } from "./map-data-server";
 
 test.use({ reducedMotion: "reduce" });
@@ -1226,5 +1231,338 @@ test.describe("a Map's region fill", () => {
 		);
 		await expect(list.getByRole("option", { name: "ZIP 93999, No data" })).toHaveCount(1);
 		await page.keyboard.press("Escape");
+	});
+});
+
+/** A range ending today: it opens on Now, and Previous day steps to November 14. */
+const NOTICES_RANGE = { kind: "custom", start: "2026-11-09", end: "2026-11-15" };
+/**
+ * The middle of Fresno County's fixture outline, which a county Map is framed on: the centre of
+ * the GL map. Away from Drummond Street, the only monitor drawn.
+ */
+const COUNTY_MIDDLE: [number, number] = [-119.63965, 36.74635];
+/** Now's notices: two in one section in the middle of the county, one in Tulare County. */
+const NOTICES_NOW_FIXTURES: NoticeFixture[] = [
+	{
+		id: "ntc01",
+		sectionId: "sec01",
+		section: "MDM-T14S-R21E-10",
+		county: "Fresno County",
+		at: COUNTY_MIDDLE,
+		scheduled: "2026-11-15T07:00:00-08:00"
+	},
+	{
+		id: "ntc02",
+		sectionId: "sec01",
+		section: "MDM-T14S-R21E-10",
+		county: "Fresno County",
+		at: COUNTY_MIDDLE,
+		scheduled: "2026-11-13T07:00:00-08:00"
+	},
+	{
+		id: "ntc03",
+		sectionId: "sec02",
+		section: "MDM-T19S-R25E-22",
+		county: "Tulare County",
+		at: [-119.3, 36.3],
+		scheduled: "2026-11-14T09:00:00-08:00"
+	}
+];
+/** November 14's: one notice, in the west of the county, its window still open that day. */
+const NOTICES_DAY_FIXTURES: NoticeFixture[] = [
+	{
+		id: "ntc04",
+		sectionId: "sec03",
+		section: "MDM-T15S-R15E-03",
+		county: "Fresno County",
+		at: [-120.2, 36.6],
+		scheduled: "2026-11-12T08:00:00-08:00",
+		past: false
+	}
+];
+const NOW_SECTION = /^2 spray notices, MDM-T14S-R21E-10, Fresno County/;
+const NOW_TULARE = /^1 spray notice, MDM-T19S-R25E-22, Tulare County/;
+const DAY_SECTION = /^1 spray notice, MDM-T15S-R15E-03, Fresno County/;
+
+/** Closes the map's open feature list with its List button (Esc closes it only from inside). */
+async function closeFeatureList(map: Locator): Promise<void> {
+	const button = map.getByRole("button", { name: "List of features on the map" });
+	await button.focus();
+	await button.press("Enter");
+	await expect(map.getByRole("listbox", { name: "Features on the map" })).toBeHidden();
+}
+
+test.describe("a Map's spray notices", () => {
+	let noticesRequests: NoticesRequests;
+
+	test.beforeEach(async ({ context, page }) => {
+		await routeMapMeta(context);
+		await routeMapDays(context, DAYS);
+		noticesRequests = await routeMapNotices(context, {
+			now: NOTICES_NOW_FIXTURES,
+			"2026-11-14": NOTICES_DAY_FIXTURES
+		});
+		// Noon Pacific, as the other day tests: under Playwright's fake clock the app's Pacific
+		// "today" follows the machine's zone (with the real clock it doesn't), so a later hour
+		// would be the next day in New York or UTC.
+		await page.clock.install({ time: TODAY });
+	});
+
+	/** A full-width Fresno County Map with spray notices (and `filters` on them), over a week to today. */
+	function noticesDoc(filters?: Record<string, unknown>) {
+		return wideDoc([{ dataset: "pesticide-notices", ...(filters && { filters }) }], NOTICES_RANGE);
+	}
+
+	function legendOf(map: Locator): Locator {
+		return map.getByRole("region", { name: "Legend", exact: true });
+	}
+
+	/** The feature list's spray notice markers. */
+	function noticeOptions(list: Locator): Locator {
+		return list.getByRole("option", { name: /spray notices?, / });
+	}
+
+	async function expectNoViolationsInBothThemes(page: Page): Promise<void> {
+		await page.emulateMedia({ colorScheme: "light" });
+		await expectNoViolations(page);
+		await page.emulateMedia({ colorScheme: "dark" });
+		await expectNoViolations(page);
+		await page.emulateMedia({ colorScheme: "light" });
+	}
+
+	test("notices on Now: the marker count, the legend row and the explainer", async ({ page }) => {
+		await openSharedDoc(page, noticesDoc());
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", "Now");
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+
+		// One marker per section, named by its count, section and county; drawn valley-wide, not
+		// only in the county.
+		const list = await featureList(map);
+		await expect(noticeOptions(list)).toHaveCount(2);
+		await expect(list.getByRole("option", { name: NOW_SECTION })).toHaveCount(1);
+		await expect(list.getByRole("option", { name: NOW_TULARE })).toHaveCount(1);
+		await closeFeatureList(map);
+
+		// The legend's notices section: titled by the catalog's name for the layer (not the scale's),
+		// the scale's one level, what a marker's number means, and the explainer linking out.
+		const legend = legendOf(map);
+		await expect(
+			legend.getByRole("heading", { level: 3, name: NOTICES_META.catalogLabel, exact: true })
+		).toBeVisible();
+		await expect(legend.getByText("Spray notice", { exact: true })).toBeVisible();
+		await expect(legend.getByText("Numbered: how many notices", { exact: true })).toBeVisible();
+		await expect(legend.getByText(NOTICES_META.explainerSummary, { exact: true })).toBeVisible();
+		await expect(
+			legend.getByRole("link", { name: new RegExp(NOTICES_META.explainerTitle) })
+		).toHaveAttribute("href", NOTICES_META.explainerSource);
+		// Now's none-for-the-day line is a day's only.
+		await expect(legend.getByText("No spray notices for this day")).toHaveCount(0);
+		await expectNoViolationsInBothThemes(page);
+
+		// Now asks with no date, valley-wide (no area). The day before is fetched ahead, by its
+		// Pacific date.
+		expect(noticesRequests.some((params) => !params.has("date"))).toBe(true);
+		const dates = noticesRequests.flatMap((params) => params.getAll("date"));
+		expect(dates.every((date) => date === "2026-11-14")).toBe(true);
+		for (const params of noticesRequests) {
+			expect(params.has("bbox")).toBe(false);
+			expect(params.has("region")).toBe(false);
+		}
+	});
+
+	test("notices follow a step to a past day", async ({ page }) => {
+		await openSharedDoc(
+			page,
+			noticesDoc({ chemical: "gs65e", commodity: NOTICE_COMMODITY.id, category: ["fumigant"] })
+		);
+		// A day with no monitor figures adds its note to the map's name.
+		const map = page.getByRole("region", { name: /^PM2\.5 · Fresno County map/ });
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", "Now");
+		let list = await featureList(map);
+		await expect(list.getByRole("option", { name: NOW_SECTION })).toHaveCount(1);
+		await closeFeatureList(map);
+
+		await page.getByRole("button", { name: "Previous day" }).click();
+		// The Pacific day before today.
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", /November 14, 2026$/);
+		list = await featureList(map);
+		await expect(list.getByRole("option", { name: DAY_SECTION })).toHaveCount(1);
+		await expect(noticeOptions(list)).toHaveCount(1);
+		await closeFeatureList(map);
+
+		// The day's request carries its Pacific date, and only the filters the notices take: the
+		// chemical and category, never the commodity.
+		const dated = noticesRequests.filter((params) => params.has("date"));
+		expect(dated.map((params) => params.get("date"))).toContain("2026-11-14");
+		for (const params of noticesRequests) {
+			expect(params.get("chemical_id")).toBe("gs65e");
+			expect(params.getAll("category")).toEqual(["fumigant"]);
+			expect(params.has("commodity")).toBe(false);
+			expect(params.has("commodity_id")).toBe(false);
+		}
+
+		// The legend names the filters that apply, and says the crop doesn't.
+		const legend = legendOf(map);
+		await expect(legend.getByText("Filtered by Sulfur · Fumigant", { exact: true })).toBeVisible();
+		await expect(
+			legend.getByText("Crop: doesn't apply to spray notices", { exact: true })
+		).toBeVisible();
+		await expect(legend.getByText("Grapes")).toHaveCount(0);
+		await expectNoViolationsInBothThemes(page);
+
+		// A day with none says so; the explainer stays.
+		await page.getByRole("button", { name: "Previous day" }).click();
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", /November 13, 2026$/);
+		await expect(legend.getByText("No spray notices for this day", { exact: true })).toBeVisible();
+		await expect(legend.getByText(NOTICES_META.explainerSummary, { exact: true })).toBeVisible();
+		await expectNoViolationsInBothThemes(page);
+	});
+
+	/**
+	 * Opens the map's feature list, Tabs into it (past its sort buttons) and moves its active row
+	 * down to the option named `name` with the arrow keys (the list keeps focus). Returns the list.
+	 */
+	async function toListRow(map: Locator, name: RegExp): Promise<Locator> {
+		const list = await featureList(map);
+		const row = list.getByRole("option", { name });
+		await expect(row).toHaveCount(1);
+		const page = map.page();
+		for (let i = 0; i < 5 && !(await list.evaluate((el) => el === document.activeElement)); i++) {
+			await page.keyboard.press("Tab");
+		}
+		await expect(list).toBeFocused();
+		const target = (await row.getAttribute("id"))!;
+		await page.keyboard.press("Home");
+		const options = await list.getByRole("option").count();
+		for (let i = 0; i < options; i++) {
+			if ((await list.getAttribute("aria-activedescendant")) === target) break;
+			await page.keyboard.press("ArrowDown");
+		}
+		await expect(list).toHaveAttribute("aria-activedescendant", target);
+		return list;
+	}
+
+	test("the notice card opens from the feature list by keyboard", async ({ page }) => {
+		await openSharedDoc(page, noticesDoc());
+		const map = mapOf(page, FRESNO_MAP);
+		const list = await toListRow(map, NOW_SECTION);
+		await page.keyboard.press("Enter");
+
+		// The section's card, named by the marker, headed by its count of notices, with a row for each.
+		const card = map.getByRole("group", { name: NOW_SECTION });
+		await expect(card).toBeVisible();
+		await expect(card.getByText("2 notices of intent", { exact: true })).toBeVisible();
+		await expect(card.getByRole("listitem").getByRole("button")).toHaveCount(2);
+		await expect(list).toBeFocused();
+
+		// Esc in the list closes the card first; the list stays open.
+		await page.keyboard.press("Escape");
+		await expect(card).toBeHidden();
+		await expect(list).toBeVisible();
+	});
+
+	// Known bug, found writing these tests: when focus leaves the feature list for the notice card,
+	// the card's content is mounted again (most likely as its tooltip snippet reads the map's focused
+	// key, which the list clears on blur), so the element just focused goes away and focus falls to
+	// the page.
+	// A second Tab then reaches the card. Remove `test.fail` once it's fixed.
+	test("Tab from the feature list into a notice card keeps focus there", async ({ page }) => {
+		test.fail();
+		await openSharedDoc(page, noticesDoc());
+		const map = mapOf(page, FRESNO_MAP);
+		await toListRow(map, NOW_SECTION);
+		await page.keyboard.press("Enter");
+		const card = map.getByRole("group", { name: NOW_SECTION });
+		await expect(card.getByText("2 notices of intent", { exact: true })).toBeVisible();
+		await page.keyboard.press("Tab");
+		await expect(card.getByRole("listitem").getByRole("button").first()).toBeFocused({
+			timeout: 2_000
+		});
+	});
+
+	test("a notice's hover summary has nothing focusable, and its opened card does", async ({
+		page
+	}) => {
+		await openSharedDoc(page, noticesDoc());
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: NOW_SECTION })).toHaveCount(1);
+		await closeFeatureList(map);
+
+		// The section's marker is in the middle of the GL map (the county's framing): hovered, it
+		// shows the static summary, with nothing to focus.
+		const box = (await glMap(map).boundingBox())!;
+		const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		await page.mouse.move(middle.x, middle.y);
+		const tip = map.getByRole("tooltip");
+		await expect(tip).toBeVisible();
+		await expect(tip).toContainText("2 notices of intent");
+		await expect(tip).toContainText("MDM-T14S-R21E-10");
+		const focusable = "a[href], button, input, select, textarea, [tabindex]";
+		await expect(tip.locator(focusable)).toHaveCount(0);
+
+		// A click pins the card: the same notices, now with a row for each and the SprayDays link.
+		await page.mouse.click(middle.x, middle.y);
+		const card = map.getByRole("group", { name: NOW_SECTION });
+		await expect(card).toBeVisible();
+		await expect(tip).toHaveCount(0);
+		const rows = card.getByRole("listitem").getByRole("button");
+		await expect(rows).toHaveCount(2);
+		await expect(card.getByRole("link", { name: /Sign up with SprayDays/ })).toHaveAttribute(
+			"href",
+			NOTICES_META.signup
+		);
+		// A row opens its notice (the earliest first), focus moves to Back, and Back returns to
+		// the list with focus on that row.
+		await rows.first().focus();
+		await page.keyboard.press("Enter");
+		const back = card.getByRole("button", { name: "Back to all 2 notices" });
+		await expect(back).toBeFocused();
+		await expect(card.getByText("Method: Field fumigation", { exact: true })).toBeVisible();
+		await expect(card.getByText("Example-chem", { exact: true })).toBeVisible();
+		await page.keyboard.press("Enter");
+		await expect(card.getByText("2 notices of intent", { exact: true })).toBeVisible();
+		await expect(rows.first()).toBeFocused();
+		await expectNoViolationsInBothThemes(page);
+
+		await card.getByRole("button", { name: "Close" }).click();
+		await expect(card).toBeHidden();
+	});
+
+	test("the Layers row hides notices", async ({ page }) => {
+		await openSharedDoc(page, noticesDoc());
+		const map = mapOf(page, FRESNO_MAP);
+		const legend = legendOf(map);
+		const title = legend.getByRole("heading", {
+			level: 3,
+			name: NOTICES_META.catalogLabel,
+			exact: true
+		});
+		await expect(title).toBeVisible();
+
+		await openMenu(map, "Layers");
+		const row = toolbarOf(map).getByRole("checkbox", {
+			name: NOTICES_META.catalogLabel,
+			exact: true
+		});
+		await expect(row).toBeChecked();
+		await row.uncheck();
+		await expect(title).toHaveCount(0);
+		await expect(legend.getByText(NOTICES_META.explainerSummary)).toHaveCount(0);
+		let list = await featureList(map);
+		await expect(noticeOptions(list)).toHaveCount(0);
+		// The monitors stay.
+		await expect(list.getByRole("option", { name: /^Fresno - Drummond Street/ })).toHaveCount(1);
+		await closeFeatureList(map);
+		await expectSaved(page);
+
+		await openMenu(map, "Layers");
+		await row.check();
+		await expect(title).toBeVisible();
+		list = await featureList(map);
+		await expect(noticeOptions(list)).toHaveCount(2);
+		await closeFeatureList(map);
 	});
 });
