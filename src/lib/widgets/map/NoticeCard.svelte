@@ -1,7 +1,7 @@
 <script lang="ts">
 	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import type { PesticidesMeta } from "@sjvair/sdk";
-	import { tick } from "svelte";
+	import { tick, untrack } from "svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
 	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import { formatDate, formatDateTime, formatNumber } from "$lib/format";
@@ -93,7 +93,23 @@
 	const countArgs = $derived({ count: formatNumber(sorted.length), countValue: sorted.length });
 
 	let backButton = $state<HTMLButtonElement>();
+	let cardElement = $state<HTMLDivElement>();
 	const rows: Record<string, HTMLButtonElement> = {};
+
+	// The marker's notices update in place (a refetch). When the open notice is no longer among
+	// them, the card goes back to the list (or the one notice left), and focus that was in the
+	// card stays in it: on the list's first row, or on the card. Run before the DOM updates, while
+	// the focused Back button is still there to be seen.
+	$effect.pre(() => {
+		if (openId === null || sorted.some((n) => n.id === openId)) return;
+		const hadFocus = untrack(() => !!cardElement?.contains(document.activeElement));
+		openId = null;
+		if (!hadFocus) return;
+		void tick().then(() => {
+			const first = sorted.length > 1 ? rows[sorted[0].id] : undefined;
+			(first ?? cardElement)?.focus();
+		});
+	});
 
 	/** Opens a row's notice, moving focus into it (the row it was on goes away). */
 	async function open(id: string) {
@@ -162,7 +178,12 @@
 		{/if}
 	</div>
 {:else}
-	<div class="mapsdk-tooltip-wide flex max-h-80 flex-col gap-2 overflow-y-auto" data-notice-card>
+	<div
+		bind:this={cardElement}
+		tabindex="-1"
+		class="mapsdk-tooltip-wide focus-visible:ring-ring flex max-h-80 flex-col gap-2 overflow-y-auto rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+		data-notice-card
+	>
 		{#if shown}
 			{#if sorted.length > 1}
 				<button

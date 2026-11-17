@@ -15,7 +15,7 @@ import {
 	getRegionSummariesBulkDailyOpen,
 	getRegionsMeta
 } from "@sjvair/sdk";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import { getMetadata, getResolvers, placeRegion } from "$lib/data";
@@ -29,7 +29,7 @@ import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { resetPesticideMeta } from "$lib/data/pesticide-meta";
-import { pacificDay, todayPacific } from "$lib/format";
+import { formatNumber, pacificDay, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
@@ -2978,6 +2978,108 @@ test("a notice card keeps focus when map-sdk asks for its content again", async 
 	expect(row.isConnected).toBe(true);
 	expect(document.activeElement).toBe(row);
 	card.unmount();
+});
+
+describe("a notice card across a notices refetch", () => {
+	/** A notice with another amount, as a later fetch might give it. */
+	const treated = (notice: ReturnType<typeof sprayNotice>, amount: number) => ({
+		...notice,
+		properties: { ...notice.properties, treated_amount: amount }
+	});
+
+	/** The pinned card of the one marker, with the detail of its second notice open. */
+	async function openSecond() {
+		const map = await madeMap();
+		await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+		const notices = noticesOf(map)!;
+		const propsNow = () => notices.options.source.features!.features[0].properties;
+		const props = propsNow();
+		const item = { refKey: props.refKey };
+		map.pinned = { hit: { pluginId: "notices", refKey: props.refKey as string, name: "" } };
+		const first = notices.options.tooltip!(item, props, {})!;
+		const card = await render(RenderSnippet, { snippet: first });
+		await expect.poll(() => card.container.querySelectorAll("li button").length).toBe(2);
+		card.container.querySelectorAll<HTMLButtonElement>("li button")[1].click();
+		const backLabel = m.map_notice_back({ count: "2", countValue: 2 });
+		await expect.poll(() => document.activeElement?.textContent?.trim()).toBe(backLabel);
+		const back = document.activeElement as HTMLButtonElement;
+		/** Refetches the notices, then asks for the card again as map-sdk does on new props. */
+		async function refetch() {
+			const before = propsNow();
+			nowClient.refetch(nowClient.entries().find((e) => e.key.startsWith("map-notices"))!.key);
+			await expect.poll(() => propsNow()).not.toBe(before);
+			const again = notices.options.tooltip!(item, propsNow(), {})!;
+			await card.rerender({ snippet: again });
+			return again;
+		}
+		return { card, first, back, refetch };
+	}
+
+	test("keeps the open detail and the focus on Back", async () => {
+		vi.mocked(getActivePesticideNotices).mockResolvedValue(
+			noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+		);
+		await show(noticesMap());
+		const { card, first, back, refetch } = await openSecond();
+		expect(await refetch()).toBe(first);
+		expect(back.isConnected).toBe(true);
+		expect(document.activeElement).toBe(back);
+		card.unmount();
+	});
+
+	test("shows the new data in the open card", async () => {
+		vi.mocked(getActivePesticideNotices)
+			.mockResolvedValueOnce(
+				noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+			)
+			.mockResolvedValue(
+				noticeCollection([sprayNotice("n1", "s1"), treated(sprayNotice("n2", "s1"), 25)]) as never
+			);
+		await show(noticesMap());
+		const { card, back, refetch } = await openSecond();
+		const amount = (value: number) =>
+			m.map_notice_amount({ amount: formatNumber(value), units: "A" });
+		await expect.element(card.getByText(amount(10))).toBeVisible();
+		await refetch();
+		await expect.element(card.getByText(amount(25))).toBeVisible();
+		expect(document.activeElement).toBe(back);
+		card.unmount();
+	});
+
+	test("when the open notice is gone, falls back to the list with focus kept in the card", async () => {
+		vi.mocked(getActivePesticideNotices)
+			.mockResolvedValueOnce(
+				noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+			)
+			.mockResolvedValueOnce(
+				noticeCollection([
+					sprayNotice("n1", "s1"),
+					sprayNotice("n3", "s1"),
+					sprayNotice("n4", "s1")
+				]) as never
+			)
+			.mockResolvedValue(noticeCollection([sprayNotice("n1", "s1")]) as never);
+		await show(noticesMap());
+		const { card, refetch } = await openSecond();
+		await refetch();
+		// The list again, focus on its first row.
+		await expect.poll(() => card.container.querySelectorAll("li button").length).toBe(3);
+		const rows = card.container.querySelectorAll<HTMLButtonElement>("li button");
+		await expect.poll(() => document.activeElement).toBe(rows[0]);
+		// Open a row, then the marker drops to one notice, not the one open: its detail, focus
+		// still in the card.
+		rows[2].click();
+		const backLabel = m.map_notice_back({ count: "3", countValue: 3 });
+		await expect.poll(() => document.activeElement?.textContent?.trim()).toBe(backLabel);
+		await refetch();
+		await expect.poll(() => card.container.querySelectorAll("button").length).toBe(0);
+		await expect
+			.poll(() =>
+				card.container.querySelector("[data-notice-card]")?.contains(document.activeElement)
+			)
+			.toBe(true);
+		card.unmount();
+	});
 });
 
 test("no notices plugin and no fetch without the layer", async () => {

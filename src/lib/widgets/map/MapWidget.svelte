@@ -53,7 +53,7 @@
 	import { mapFormat } from "./host/format";
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
-	import { noticeTooltip } from "./notice-tooltip";
+	import { noticeTooltips } from "./notice-tooltip";
 	import NoticesLegendNote from "./NoticesLegendNote.svelte";
 	import { OnScreen } from "./on-screen.svelte";
 	import {
@@ -568,6 +568,7 @@
 		const label = noticesLabel;
 		const clusters = clustered;
 		if (!current || !label || !loads || !noticesDrawn) return;
+		const noticeTooltip = noticeTooltips((refKey) => noticesByRef.get(refKey));
 		const plugin = pointsPlugin({
 			id: "notices",
 			source: noticesSource,
@@ -590,6 +591,13 @@
 		untrack(() => current.addPlugin(plugin, underMonitors(current)));
 		return () => current.removePlugin(plugin.id);
 	});
+
+	/** Each notices marker's latest properties, by refKey: an open card follows its marker. */
+	const noticesByRef = $derived(
+		new Map(
+			(noticesSource.features?.features ?? []).map((f) => [f.properties.refKey, f.properties])
+		)
+	);
 
 	const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
