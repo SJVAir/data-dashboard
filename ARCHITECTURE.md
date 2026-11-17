@@ -1742,6 +1742,23 @@ pollutant is drawn; the places only decide what's highlighted and where the came
   pinned card for a click or tap, its own map-sdk release, which spec 1 needs before it merges.
   Feature picking (method A: the card's Select/Remove and Shift-click) comes in spec 2.
 
+**A Map's pesticide filters (step 5 spec 5a, built 2026-11-16).** A Map has **one pesticide
+filter set**, the same `PesticideFiltersSchema` charts' pesticide layers use (chemical, commodity,
+product, categories, cancer group, method, narrow-to). It is saved on each pesticide layer (the
+notices now; pesticide use in 5b) and kept in step by `setMapPesticideFilters`
+(`src/lib/get-data/map.ts`); `mapPesticideFilters` reads the first. Get data's Map section edits
+it with `PesticideFilters.svelte`, shown with the "Spray notices" switch. Turning notices off
+removes the layer and its filters. Filters are owner choices in Get data, never toolbar rows.
+
+- **Only what the notices take is sent.** The notices request carries only the filters the
+  pesticides meta lists in `notice_filters` (`toNoticeParams`). A saved filter not listed (the
+  crop: notices record none) is named "‹filter›: doesn't apply to spray notices" in Get data and
+  in the legend, and is left out of the legend's "Filtered by" line. It is never dropped
+  silently.
+- **Filter-gone** works as on charts, but only for the filters the notices take: a saved
+  chemical or product the server no longer has, or a code the meta no longer lists, makes the
+  layer unavailable with a banner. A gone crop doesn't.
+
 ## Map SDK: `@sjvair/map-sdk` + monitor-map rebuilt on it
 
 Decided 2026-09-23 (IDEA.md Open Question #3), **restructured 2026-09-24**. IDEA.md calls
@@ -2000,14 +2017,24 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
   accessible name).
 - **Fetching ahead.** The neighbouring day stops (one each side) are fetched ahead, so a step
   draws at once; from Now, the day before it. That holds for the monitors' figures, smoke and
-  fire, and the fill. Sources that are still wanted are kept while the queries swap, so a day
-  fetched ahead is never aborted and fetched again.
+  fire, the fill, and the spray notices (spec 5a). Sources that are still wanted are kept while
+  the queries swap, so a day fetched ahead is never aborted and fetched again.
 - **Refresh.** Now polls as before; a day polls hourly only until every figure is final; a range
   without today never polls once its days are final. **Smoke and fire on a day poll only while
   that day's monitor figures aren't final** (HMS has no final flag, so the monitors' stand in
   for it; a late plume for a settled day isn't picked up; see `DEFERRED.md`). "Today" turns over
   at Pacific midnight (the Map checks once a minute); Now's smoke and fill are keyed by today's
   Pacific date, so they are fetched afresh after midnight.
+- **Spray notices follow the day** (step 5 spec 5a). Now shows the notices active now; a day stop
+  shows those active on that Pacific day (`?date=`: scheduled from Pacific 00:00 of D-4 to before
+  Pacific 00:00 of D+1). **Now polls hourly** (`"hour"`): the server imports SprayDays once a
+  day, at 14:00 UTC, and an hourly poll picks the import up within an hour without the dashboard
+  hardcoding the schedule. **A past day polls hourly until Pacific 00:00 of D+5, then never**
+  (`noticesPolls`; the user, 2026-11-16): the daily import rewrites notices up to 4 days back, so
+  a day isn't settled until then. Now's cache key has its own prefix (`map-notices:now:<today>`)
+  apart from a day stop's (`map-notices:<day>`), so after midnight yesterday's stop never takes
+  over Now's undated data; it still carries today's Pacific date, so Now is fetched afresh after
+  midnight.
 - **Region fills.** The region type is the Map option `fill` (a region type id), written by Get
   data's "Fill regions by", not a layer: a fill has no pollutant of its own (it follows
   `showing`). It is validated against the region metadata when drawn: an unknown type draws no
@@ -2039,9 +2066,12 @@ for the data that tile holds.
   group: wind belongs to monitor-map, outside map-sdk, and the tile has no overlay data. Settings
   always shows, because its options set up the map itself.
 - **Layers holds only Fire & Smoke** (the user, 2026-11-13; **and the region fill's row since
-  step 5 spec 4**): a show/hide switch for each. It doesn't add or remove the data, which stays a
-  Get data choice (the layers' data stays loaded while hidden, so showing again is instant, with no
-  new request). The group shows when the tile has a fill or smoke and fire. The places' outline (focus area) is always drawn,
+  step 5 spec 4, and a "Spray notices" row since spec 5a**): a show/hide switch for each. It
+  doesn't add or remove the data, which stays a Get data choice (the layers' data stays loaded
+  while hidden, so showing again is instant, with no new request). The group shows when the tile
+  has a fill, smoke and fire, or notices. The notices row (`NOTICES_KEY`, in `toolbar/values.ts`)
+  is saved as `noticesShown`: only `false` is stored, and it is a toolbar key, so Reset clears it.
+  It applies only while the row is offered. The places' outline (focus area) is always drawn,
   with no row.
 - **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
   inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
@@ -2100,10 +2130,23 @@ for the data that tile holds.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.16` (never a range or a dist-tag; moved from
-  `0.1.0-beta.13` in step 5 spec 4, 2026-11-15, for region fills) and `@sjvair/sdk` `5.0.0-beta.11`
-  (`npm:@jsr/sjvair__sdk@5.0.0-beta.11`; the whole-type region scope). The dashboard no longer depends on `@maptiler/sdk`
-  directly: the pin's label comes from map-sdk's focus area.
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.19` and `@sjvair/sdk` `5.0.0-beta.13`
+  (`npm:@jsr/sjvair__sdk@5.0.0-beta.13`), never a range or a dist-tag. The moves:
+  - map-sdk `0.1.0-beta.16` (step 5 spec 4, 2026-11-15): region fills.
+  - map-sdk `0.1.0-beta.17` (step 5 spec 5a, 2026-11-16): shapes `zoomRange`, the lens, count
+    markers, and the legend's units line and note slot.
+  - map-sdk `0.1.0-beta.18` (spec 5a): a notice card holds the hover lens (used in 5b).
+  - map-sdk `0.1.0-beta.19` (spec 5a): count numbers drawn black or white by contrast with the
+    level colour (WCAG 1.4.3).
+  - SDK `5.0.0-beta.11` (spec 4): the whole-type region scope.
+  - SDK `5.0.0-beta.12` (spec 5a): `getActivePesticideNotices`, and the pesticides meta's notes,
+    badges, links and `notice_filters`.
+  - SDK `5.0.0-beta.13` (spec 5a): sections, townships and classes with colours (for 5b), the
+    meta's `spray-notice` scale, and each notice's `aerial_ground`.
+
+  The dashboard no longer depends on `@maptiler/sdk` directly: the pin's label comes from
+  map-sdk's focus area.
+
 - **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection
   (no globe), `cooperativeGestures: true` (Ctrl/⌘-scroll or two fingers zoom, so scrolling the
   page never zooms a map; also in fullscreen) and `telemetry: false`. MapTiler's usage report is
@@ -2119,14 +2162,62 @@ for the data that tile holds.
   error states. Live monitors refresh on the `"raw"` cadence (3 minutes), smoke and fire on
   `"hour"`. Adding a data set later (schools, pesticides) means adding an entry. The Map
   refreshes only while its date range includes today (spec 4; see "The Map's days and region fills").
+- **`MapData` is split into blocks** (step 5 spec 5a, `src/lib/widgets/map/data/`).
+  `loaded.svelte.ts`'s `MapData` keeps only the orchestration: the input, polling, the day's
+  fetch-ahead and destroy. The monitors are a `MonitorsBlock` (`monitors-block.svelte.ts`). Smoke
+  and fire, the fill and the notices are each a **`DayLayer`** (`day-layer.svelte.ts`): one main
+  query for Now or the day showing, plus `AHEAD` queries for the neighbouring days, which never
+  poll. Each block says how its source is made (`sourceFor`, which may be async) and when it polls
+  (`polls`). `switchQueries` (`switch.ts`) keeps the sources still wanted while the queries swap,
+  and `dataStatus` (`status.ts`) maps a query's state to map-sdk's. Every block is wired to
+  `setPolling` and `destroy`. A new day-following data set (pesticide use in 5b) is one more
+  `DayLayer`.
 - **What a Map tile holds.** One set of places (on the first pollutant layer only, so every
   place-handling path sees one place), one or more pollutants (one `air-quality` layer each, from
-  the monitors meta's `available_pollutants`; at most 6, since `LAYERS_MAX` is 8 less smoke and
-  fire), and smoke and fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added
-  and removed together). Saved options (`options.ts`, `MapOptionsSchema`): `showing` (the entry
-  type drawn now; the first pollutant until the toolbar switches it, which spec 3 added) and
-  `marks` (monitor ids, at most 25, unique); spec 4 added `day`, `fill` and `fillShown` (see "The
-  Map's days and region fills"). Invalid or missing options read as none.
+  the monitors meta's `available_pollutants`; at most 4, `MAP_POLLUTANTS_MAX`, since `LAYERS_MAX`
+  is 8 less smoke, fire, notices and pesticide use; step 5 spec 5a lowered it from 6), smoke and
+  fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added and removed together),
+  and spray notices on or off (the place-less `{ dataset: "pesticide-notices", filters? }`, spec
+  5a). Saved options (`options.ts`, `MapOptionsSchema`): `showing` (the entry type drawn now; the
+  first pollutant until the toolbar switches it, which spec 3 added) and `marks` (monitor ids, at
+  most 25, unique); spec 4 added `day`, `fill` and `fillShown` (see "The Map's days and region
+  fills"), and spec 5a added `noticesShown`. Invalid or missing options read as none.
+- **Spray notices** (step 5 spec 5a, built 2026-11-16; spec
+  `docs/superpowers/specs/2026-11-16-step-5-spec-5-pesticides-and-notices-design.md`). The
+  catalog's `pesticide-notices` (entry type `spray-notice`), loaded by `notices.ts` from
+  `pesticides/notices/active/` (Now) or `?date=` (a day stop; see "The Map's days and region
+  fills"), **valley-wide**: no bbox or region is sent, and the cache keys hold only the date and
+  the filter ids. The server caps a request at 2,000 matches; production's busiest 5-day window
+  since 2026-05-30 is 224 (see `DEFERRED.md` for early spring).
+  - **Markers.** Each notice is drawn at its section's centre (SprayDays gives the square mile,
+    not the field). The notices of one section are one `pointsPlugin` marker with a count
+    (`count: { property: "count" }`); a notice with no section is a marker of its own
+    (`notice:<id>`). They cluster, with summed counts, while the toolbar's Clusters setting is on
+    (radius 40, max zoom 9, as the monitors).
+  - **Colour and legend from the server.** The colour, the legend row and its label come from
+    the pesticides meta's one-level `scales["spray-notice"]` (the user, 2026-11-16, chosen over a
+    map-sdk change for unscaled layers), through one `ScaleRef` constant (`NOTICES_SCALE`), since
+    map-sdk matches a resolved scale by identity. map-sdk draws the count number black or white
+    by contrast with that colour. The legend's units line reads "Numbered: how many notices", and
+    its note (`NoticesLegendNote.svelte`) holds the "none" line ("No spray notices for this day",
+    or "No spray notices right now" on Now; the user, 2026-11-16), the active filters, the
+    filters that don't apply, and the meta's explainer.
+  - **The card** (`NoticeCard.svelte`, through `noticeTooltips` in `notice-tooltip.ts`): the
+    scheduled window, an "Active" tag on Now only, section and county, amount and units, the
+    method (the meta's `methods` label for the notice's `aerial_ground`), products and chemicals
+    with "of concern" in text, the explainer and the SprayDays sign-up link (http(s) only).
+    Several notices in a section give a list card, each row opening its notice, with Back. On
+    hover it is a **static summary** (nothing focusable inside map-sdk's `role=tooltip`); pinned
+    or keyboard-focused it is interactive (WCAG 2.4.3, 4.1.2). Snippets are cached by refKey and
+    form, and the card reads its marker's latest properties, so a poll or a day-stop change
+    updates an open card in place and keeps the open notice and focus. If the open notice
+    leaves, the card falls back to the list, keeping focus inside it.
+  - **Accessible names** come from Paraglide plurals ("2 spray notices, ‹section›, ‹county›",
+    with whole-sentence variants when the section or county is missing), so the feature list
+    reaches every notice and the count is never only on the marker.
+  - **Failures.** A failed load shows the note banner with Retry. A saved filter the server no
+    longer has makes the source `unavailable` (`filter-gone`) with a banner, never an empty
+    layer; only filters the notices take (the meta's `notice_filters`) can do that.
 - **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
   those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
   in its `placeRegion` region, the one the frame uses), and only those reporting the pollutant
@@ -2182,10 +2273,14 @@ for the data that tile holds.
   on entering or leaving fullscreen, after the frame's animations settle. A pan or zoom lasts
   only for the moment (it survives a theme switch's style reload). A map holding an exact point
   frames the point's region, never the point (see "Widget data selection").
-- **Layers:** the monitors, smoke and fire as the tile's entries give them (`selectedStyle:
-"ring"` marks the marked monitors), and map-sdk's **focus area** (`focusAreaPlugin`, `focus.ts`):
-  the places' outline with the surround dimmed, or a labelled pin for a school or exact point. It
-  replaces spec 1's outline layer, pin layer and the dashboard's own pin label. Monitor places get
+- **Layers:** the monitors, smoke and fire, and the spray notices as the tile's entries give
+  them (`selectedStyle: "ring"` marks the marked monitors), and map-sdk's **focus area**
+  (`focusAreaPlugin`, `focus.ts`): the places' outline with the surround dimmed, or a labelled
+  pin for a school or exact point. It
+  replaces spec 1's outline layer, pin layer and the dashboard's own pin label. **Draw order,
+  bottom to top:** the fill, the focus area, smoke and fire and the notices (each placed under
+  the monitors), then the monitors (spec 5a ruling: notices sit above the focus area, and the
+  monitors stay on top). Monitor places get
   no focus area (only those monitors are drawn and the camera fits them). Region geometry comes
   from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
   (each region fetched once, one request per region type). `featureList={{ reveal: "focus" }}` is
@@ -3404,6 +3499,14 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    with the pesticide spec).
 7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
    **Built:** each catalog entry type has `display: {precision, chart, y_min}`.
+
+**The pesticides meta for spray notices** (step 5 spec 5a, `@sjvair/sdk` `5.0.0-beta.12` and
+`5.0.0-beta.13`). `pesticides/meta/` gives the Map's notices everything they show: the
+one-level `scales["spray-notice"]` scale (the marker colour, the legend row and its label;
+pink `#e64980`, the user's pick), `notes` (the explainer, such as `noi_meaning`; server English,
+displayed and never stored), `links.spraydays_signup`, `badges`, the `methods` labels the card
+reads by each notice's `aerial_ground` (sjvair.com #338), and `notice_filters`. No colour, label
+or link is hardcoded.
 
 **Shared action tiers** (decided 2026-09-28). Scales with different step counts and names
 (6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every

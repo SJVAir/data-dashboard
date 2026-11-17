@@ -1192,8 +1192,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   doesn't list them. **Revisit when** map-sdk shows readings at the metadata's precision (map-sdk
   change 8 in the spec), or the server lists more pollutants.
 - **Year-over-year change on the map** (a diverging scale). _Deferred 2026-11-11 (step 5 spec
-  1)._ It comes after step 5 spec 5 (pesticide use). **Revisit when** a researcher or agency asks
-  for trends on the map.
+  1); updated 2026-11-16 (step 5 spec 5)._ This includes the Pesticides Explorer's compare (its
+  change map between two years), which spec 5 leaves out: a Map's pesticide use shows one fixed
+  period. **Revisit after** spec 6, or when an agency or researcher asks for trends on the map.
+- **A township detail endpoint** (top chemicals per township). _Deferred 2026-11-16 (step 5 spec
+  5)._ The township card shows the period's three figures and the section count, but no top
+  chemicals, since only sections have a detail endpoint (`sections/<id>/`). Why: it needs a new
+  server endpoint and SDK function, and the section card already names a section's chemicals.
+  **Revisit when** someone asks for a township's chemicals.
 - **The Map widget's 25-place cap.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ A map
   holds at most 25 places (`accepts.maxPlaces`). Picking more than 25 by hand is rare, but every
   ZIP code in Fresno County (about 60) would go over it. The document-wide `SELECTION_MAX` (500)
@@ -1202,7 +1208,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
-  pesticide analyses need parcel-level (MTRS) selection.
+  pesticide analyses need parcel-level (MTRS) selection, or with step 5 spec 6 (trigger added
+  2026-11-16, step 5 spec 5).
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server
   (migrations 0009/0010); name lookup now tries city, then CDP, then urban area. New types
@@ -1335,12 +1342,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   alone (no reading, no "No level"). **Revisit on** an accessibility pass of the map, or with part 5
   if the list gets per-layer groups.
 
-- **The SDK's school and child-care source list is strict.** _Noted 2026-11-11 (sdk-js #61; the
-  user: record it)._ `@sjvair/sdk`'s `locationSourceSchema` accepts only `cde-public`,
-  `cde-private` and `cdss-ccl`, but sjvair.com's `Location.source` is a plain CharField
-  (`camp/apps/regions/models.py`), so a new source would make `/regions/locations/` and
-  `/pesticides/locations/` fail to parse in the SDK. **Revisit when** sjvair.com adds a location
-  source: add the value to `locationSourceSchema` in the same change.
+- **The dashboard's school and child-care source table is hand-kept.** _Noted 2026-11-11 (sdk-js
+  #61; the user: record it); updated 2026-11-16 (step 5 spec 5a)._ The SDK's strict source list
+  is fixed: since `@sjvair/sdk` `5.0.0-beta.12`, `LocationSource` and `LocationType` accept any
+  string, so a new source no longer fails `/regions/locations/` or `/pesticides/locations/`. But
+  the dashboard's `LOCATION_SOURCES` table (`src/lib/data/adapters/places.ts`) is keyed on the
+  open type, so the compiler no longer flags a new source, and an unlisted one resolves to
+  nothing. **Revisit when** sjvair.com adds a location source: add it to the table in the same
+  change.
 
 - **One figure per place for a whole range ("where was it worst over the period").**
   _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
@@ -1366,16 +1375,19 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   deferred again 2026-11-13 (step 5 spec 3, the user): it would be a new data set in Get data and
   a second Layers row. Spec 3 moved the pin to `0.1.0-beta.13` and the adapter now implements
   `locationTypeLabel`, so what is left is the schools data set itself, an entry in
-  `src/lib/widgets/map/data/` and its Layers row. **Revisit when** spec 5's design starts.
+  `src/lib/widgets/map/data/` and its Layers row. The user moved the trigger to after spec 5
+  (2026-11-16). **Revisit after** spec 5 (pesticide use and spray notices).
 
 - **Spec 6 charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
   kept but hidden (outside the places, or not reporting the pollutant showing) are not sent to a
   chart or table. **Revisit with** spec 6.
 
-- **More than 6 pollutants on one Map.** _Deferred 2026-11-12 (step 5 spec 2)._ A tile holds at
-  most `LAYERS_MAX` (8) less smoke and fire, so 6 pollutants, and Get data stops offering more.
-  The server offers 6 or fewer today. **Revisit when** the server's `available_pollutants` grows
-  past 6.
+- **More than 4 pollutants on one Map.** _Deferred 2026-11-12 (step 5 spec 2); lowered from 6 on
+  2026-11-16 (step 5 spec 5)._ A tile holds at most `LAYERS_MAX` (8) less smoke, fire, spray
+  notices and pesticide use, so 4 pollutants (`MAP_POLLUTANTS_MAX`), and Get data stops offering
+  more. The server offers 2 today (ozone and PM2.5). A saved Map with 5 or 6 pollutants no
+  longer counts as Map-shaped in Get data (`isMapShaped`), which can't happen while the server
+  offers 2. **Revisit when** the server's `available_pollutants` grows past 4.
 
 - **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
   (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn
@@ -1437,14 +1449,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 - **Step 5 spec 4 review leftovers.** _Deferred 2026-11-15 (step 5 spec 4, per-task and final
   reviews)._ Small things the reviews let stay, each with its revisit trigger:
-  - **No browser tests for smoke and fire's prefetch, retry or refresh on a day.** E2E covers
-    each day's smoke; the gap is the timing of prefetch, retry and refresh. **Add when** spec 5
-    adds day-following layers (pesticides, spray notices) to `MapData`.
   - **`remPx` is read once** (`MapWidget.svelte`): a font-size change mid-visit leaves the 48rem
     toolbar breakpoint stale until the tile remounts. **Revisit if** someone reports it, or when
     the toolbar's breakpoint becomes a shared helper.
-  - **`loaded.svelte.ts` has grown to about 620 lines.** **Revisit at** spec 5, when pesticide
-    sources join: split the per-dataset blocks out of `MapData`.
   - **Smoke and fire on a day poll only while that day's monitor figures aren't final** (the
     ruling recorded in `ARCHITECTURE.md`): HMS has no `is_final`, so a late plume for a settled
     day isn't picked up. **Revisit if** the server gives HMS a final flag, or late plumes are
@@ -1452,8 +1459,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   - **Message key prefixes `getdata_` and `get_data_` are mixed** (the catalog already held
     both, e.g. `getdata_preset_*`). **Revisit with** a catalog-wide key tidy.
   - **The per-row figure logic is repeated** in `snapshot/regions.ts` and `snapshot/monitors.ts`
-    (two copies of about 10 lines). **Revisit at** spec 5, when the pesticide snapshot would be
-    the third: extract `figureOfRow` into `rows.ts`.
+    (two copies of about 10 lines). Spec 5a didn't extract `figureOfRow`: pesticide use is read
+    from `sections/` and `townships/` responses, not from summary rows, so no third copy exists.
+    **Revisit when** a third summary-row snapshot appears.
   - **City and school district fills load unsimplified whole-type GeoJSON** (measured at most
     0.79 MB gzip, fetched once per page). **Revisit when** the regions meta gains a per-type
     `simplify` flag (already deferred), or a type's payload grows past about 1 MB gzip.
@@ -1471,6 +1479,103 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   - **`fillRegionType` casts** (`as RegionSummaryBulkType`) where a type predicate on
     `fillableTypes` would do. Cosmetic; behaviour is covered by tests. **Revisit when** the
     function is next touched, or `fillableTypes` gains a second caller.
+
+- **Step 5 spec 5a review leftovers.** _Deferred 2026-11-16 (step 5 spec 5a, spray notices;
+  per-task and final reviews, and the final fix wave)._ Small things the reviews let stay. Unless
+  an item says otherwise, **fix or add with** the next change to the code it names (spec 5b
+  touches most of it).
+  - **Limits found while building**, each with its own trigger:
+    - **The notices' 2,000-match cap is unmeasured for early spring.** Production has no notices
+      before late May 2026; its busiest 5-day window since then is 224, so the valley-wide request
+      has about 9x headroom. **Revisit after** the first spring season, or on a 400 "bbox too
+      large".
+    - **The Map E2E clock is pinned to noon Pacific.** Playwright's fake clock makes the app's
+      Pacific "today" follow the machine zone (after 21:30 PT on a New York machine), so the tests
+      fix the time, and the New York run barely exercises the Pacific-date rule. The real clock
+      is correct. **Revisit when** a late-evening Pacific check is needed.
+    - **map-sdk's legend status row ignores the unavailable reason** and shows generic text; the
+      dashboard's banner carries the reason. While unavailable, the status row also replaces the
+      section, so the legend note doesn't show. A map-sdk candidate. **Revisit with** the next
+      map-sdk legend change.
+    - **A server without `scales["spray-notice"]`** makes the legend say "isn't available right
+      now" while the markers would draw (neutral). The server has the scale (#338). **Revisit
+      if** the server drops it.
+    - **Notices with no geometry are dropped without saying so.** **Revisit if** the server sends
+      geometry-less notices in practice (count them in the legend note then).
+    - **`meta.notes.noi_meaning` and `meta.links` aren't guarded** (`NoticeCard.svelte`): the SDK
+      types make them required. **Revisit if** the server makes them optional.
+    - **If the pesticides meta fails to load, a gone chemical shows Retry**, not filter-gone
+      (`filtersGone` needs the meta's `notice_filters` first); the fetch, which needs the meta
+      too, fails with Retry. **Revisit if** someone reports the wrong message.
+    - **Turning notices off and on loses their filters**: the filters live on the layer, as the
+      spec says. **Revisit when** pesticide use joins (5b): the filter set may outlive the layer
+      then.
+  - **The notice card:**
+    - The "Active" tag isn't live while a card stays open (it changes at most once per window).
+    - When the open notice leaves on a refetch and one notice remains, focus goes to the card's
+      root (`tabindex="-1"`, with a focus ring), not a control. Moving it to the card's first link
+      is the alternative; **revisit with** the copy and accessibility check.
+    - A snippet handed out but never mounted stays cached until the plugin is removed (bounded by
+      markers × forms).
+    - `NoticeCard` holds the whole pesticides meta in `$state` (a deep proxy); `$state.raw`, as
+      `NoticesLegendNote` uses, would do.
+    - `amount()` is computed twice (use `{@const}`).
+    - A null `at` in `MapWidget` is treated as Now (`!days.onDay` would say it).
+  - **Data blocks** (`src/lib/widgets/map/data/`):
+    - `DayLayer`'s ahead input is silently capped at `AHEAD` (`MapData` caps it itself).
+    - `MonitorsBlock` re-derives `#entryType`, `#loads`, `#day` and `#aheadKey` and inlines the
+      ahead parsing (share a helper beside `AHEAD`); `monitors-block.svelte.ts` is 385 lines of
+      moved code.
+    - The `source as FillSource | null` cast in `loaded.svelte.ts` (a `DayLayer<T, S>` source
+      type parameter would remove it).
+    - `DayLayer.query` exposes the raw `NowQuery` (document it as read-only).
+    - A day that settles while shown keeps polling until the polling effect next re-runs (at
+      most one extra request).
+    - `MapData` passes `noticesPolls` `Date.now()`, not the now client's clock.
+    - `#noticesFiltersKey` is plain `JSON.stringify` (order-dependent; reuse `notices.ts`'
+      `filtersKey`). The now client's key is order-independent, so there's no extra request.
+    - Notice groups follow the server's order (sort them for deterministic markers).
+    - The import cycle `metadata.ts` ↔ `pesticide-meta.ts` (`untilAborted`); it works today.
+      **Revisit if** it bites.
+  - **Get data and the widget:**
+    - Get data shows the raw dataset id (`pesticide-notices`) as the section heading when the
+      catalog lacks the entry (`MapSections.svelte`); use a Paraglide fallback.
+    - Get data's "doesn't apply" lines aren't tied to their filter field for screen readers
+      (`aria-describedby`); the text sits next to the group.
+    - A failed meta load in Get data refetches only on toggle.
+    - Before the pesticides meta loads, the legend's "Filtered by" can briefly name a skipped
+      filter (self-correcting).
+    - The note banner markup is in three copies (smoke and fire, fill, notices): share a
+      component.
+    - `MapWidget.svelte` has grown to about 1,040 lines. **Revisit with** spec 5b, which grows it
+      too: split it then.
+  - **Test gaps:**
+    - No E2E opens a notice's detail and waits for a poll: the refetch browser tests call the
+      plugin's `tooltip` by hand, as map-sdk's `MapTooltip` does, not the real `MapTooltip`.
+    - No E2E for the Now "No spray notices right now" line (the browser tests cover it).
+    - The `DayLayer` "remakes now source" test doesn't check the old key was released.
+    - No tests for the midnight remake of smoke and fire or the fill on Now, `destroy()` stopping
+      fetches, `setPolling(false)` reaching every block, or `monitorsCurrent` after a place
+      change (each block is wired; the final review checked).
+    - No test that changing a notices filter refetches (add an integration test with 5b's
+      filters).
+    - No browser test for the Spray notices section staying hidden with no catalog entry.
+    - Cluster radius and max zoom aren't asserted, and no test runs with Clusters off.
+    - No test opens a list row by Enter or Space (the rows are native buttons).
+    - The MapWidget wiring tests cover only the pinned path (the fake map has no `focusedKey`);
+      E2E covers focus.
+    - The list-form axe run doesn't wait for the meta (E2E's axe run covers the full card).
+    - Fixed 50 ms waits before negative assertions in the notice card tests.
+    - The day-refresh browser test ("a final past day isn't asked for again") is timing-sensitive
+      under machine load (passes alone).
+    - E2E: `featureList()` leaves focus on the List button; `toContain("2026-11-14")` is met by
+      Now's prefetch (the list assertion carries the proof); asserting the only dated request is
+      the prefetch ties the test to prefetch internals; `toListRow` has bounded loops with
+      non-retrying reads; the fixtures' `past` flag is never asserted in the UI (the UI doesn't
+      use it); the Tulare fixture points are approximate real locations (county-level; use
+      clearly fake points); `routeMapNotices`' doc comment runs over 100 columns.
+    - Process: the Get data browser test never ran RED (written after the implementation), and
+      the catalog fixture uses an `as CatalogEntry` cast.
 
 ## Analysis & data
 
@@ -1758,7 +1863,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   fill, HMS smoke and fire, **CalHeatScore ZIPs, and forecast zones** (the user moved the last
   two in). Collocation, EV, and wind are milestone 2 (below); "weather" in monitor-map is only
   the detail panel's temperature lookup, not a map layer. Deferred: pesticide use and
-  SprayDays notices, CalEnviroScreen tracts, CEIDARS facilities, TEMPO rasters. Most can run
+  SprayDays notices, CalEnviroScreen tracts, CEIDARS facilities, TEMPO rasters. **SprayDays
+  notices are done** (the dashboard's Map, step 5 spec 5a, 2026-11-16, on `pointsPlugin` with
+  count markers), and pesticide use follows in spec 5b. Most can run
   on map-sdk's general points and shapes plugins plus their metadata scale with little or no
   preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
   needs one on a map (pesticide notices likely first, alongside the alerts work).
@@ -3282,3 +3389,8 @@ Dropped 2026-11-09 by the user (step 4 spec 5 brainstorm, "drop it, just do the 
   calendars; spec 6's starter drops the heatmap's slot. Starter analysis #2 (Release 3) is not
   affected. The mockup is kept in
   `docs/superpowers/mockups/2026-11-09-step-4-spec-5-heatmap-coloring.html`.
+
+Dropped 2026-11-16 by the user (step 5 spec 5 design):
+
+- **The Pesticides Explorer's Tweaks on the Map** (ramp, number of bins, basemap). The metadata
+  decides ramps and bins, and the Map's Settings already holds the basemap.

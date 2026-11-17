@@ -252,33 +252,42 @@ The deferrals this spec makes due (`DEFERRED.md` → "Step 5 spec 4 review lefto
   ahead; Now polls on the `"hour"` cadence (the user, 2026-11-16: the server imports notices
   once a day, at 14:00 UTC, and hourly polling picks that import up within an hour without the
   dashboard hardcoding the server's schedule; requests are small and served from the server's
-  5-minute cache); a past day never polls (my call: a day's notices are settled
-  once it has passed); after midnight, Now's notices are keyed by the Pacific date.
+  5-minute cache); a past day polls hourly until Pacific 00:00 of D+5, and a settled day never
+  polls (the user, 2026-11-16: the server's daily 14:00 UTC import rewrites notices up to 4 days
+  back; see "Calls made after the builder check"); after midnight, Now's notices are keyed by the
+  Pacific date, apart from a day stop's.
 - **Where they're drawn:** across the whole valley, not clipped to the tile's places (my call,
-  like smoke and fire). Each notice is drawn at its section's centre: SprayDays gives the square
-  mile, not the field, and the card says so. Several notices in one section are **one marker with
-  a count**, and markers cluster when zoomed far out. Notices draw above the fill and the use
-  layer and below the monitors (my call: monitors stay on top, as in spec 4).
-- **Filters:** the Map's pesticide filters (Part 3) apply to notices too. A filter the server
-  can't apply to notices is a known open point (see "Open with the server").
+  like smoke and fire), loaded in one valley-wide request. Each notice is drawn at its section's
+  centre: SprayDays gives the square mile, not the field, and the card says so. Several notices in
+  one section are **one marker with a count**, and markers cluster when zoomed far out (while the
+  toolbar's Clusters setting is on). Notices draw above the fill, the use layer and the focus area, and below the monitors (my
+  call: monitors stay on top, as in spec 4).
+- **Filters:** the Map's pesticide filters (Part 3) apply to notices too, as far as the server
+  takes them: the request sends only the meta's `notice_filters`, and a saved filter it doesn't
+  list (the crop) is named "doesn't apply to spray notices" (see "Calls made after the builder
+  check").
 - **The notice card:**
-  - The scheduled date and time, with an "Active" tag when it applies, and "may begin through
-    ‹date›".
+  - The scheduled date and time, with an "Active" tag when it applies (on Now only), and "may
+    begin through ‹date›".
   - The section and county.
-  - The treated amount and units, and the method.
+  - The treated amount and units, and the method (the meta's label for the notice's
+    `aerial_ground`).
   - Products, then chemicals, with the "of concern" marker.
   - A "Sign up with SprayDays" link.
   - The explainer note: a plan, not proof; restricted materials only.
 
   Several notices in one section get a list card ("3 notices of intent"), each row with its date,
   amount and method, opening that notice. The wording and labels come from the meta and the
-  catalog, and dates go through `format`.
+  catalog, and dates go through `format`. On hover the card is a static summary; pinned or
+  focused it is interactive.
 - **Toolbar:** the Layers group gains a "Spray notices" show/hide row (like Fire & Smoke). It
   hides without unloading, saved as `noticesShown` (only `false` is stored; a toolbar key Reset
   clears).
-- **Legend:** a notices row (marker, label, "numbered: how many") and the explainer note. With no
-  notices for the day it reads "No spray notices for this day" (my call), and the note still
-  reminds that this doesn't mean no spraying.
+- **Legend:** a notices row (marker, label, "numbered: how many") and the explainer note. The
+  marker's colour and the row come from the server's one-level `spray-notice` scale. With no
+  notices for the day it reads "No spray notices for this day" (my call), or on Now "No spray
+  notices right now" (the user, 2026-11-16), and the note still reminds that this doesn't mean no
+  spraying.
 - **Accessibility:** markers are in map-sdk's feature list, one row per section ("2 spray notices,
   ‹section›, ‹county›"), so a keyboard user reaches every notice. The count is in the accessible
   name, not only on the marker.
@@ -436,7 +445,10 @@ The deferrals this spec makes due (`DEFERRED.md` → "Step 5 spec 4 review lefto
 - How the Pesticide use group lays out the period choice on a narrow toolbar.
 - Draw order between use and the fill (see Part 2), recorded with why.
 
-## Calls made after the builder check (mine)
+## Calls made after the builder check
+
+The first four calls are mine, made at the builder check. The rest were made while building 5a,
+each marked as mine or the user's.
 
 - **The layer limit.** A Map's layers stay within `LIMITS.LAYERS_MAX` (8): smoke, fire, notices
   and use take 4, so `MAP_POLLUTANTS_MAX` becomes `LAYERS_MAX - 4` (4). The server offers 2
@@ -455,7 +467,49 @@ The deferrals this spec makes due (`DEFERRED.md` → "Step 5 spec 4 review lefto
 - **Error reports never carry request URLs' query strings.** The web platform's reporter
   (`src/lib/platform/web/errors.ts`) already drops breadcrumbs and query strings and keeps only the
   route pattern, so no new scrubbing is needed for this spec's requests.
+- **Notices poll on past days too** (the user, 2026-11-16). A past day's notices poll hourly
+  until Pacific 00:00 of D+5, and a settled day never polls. This replaces "a past day never
+  polls" (my call, made before the server said past days change): the server's daily 14:00 UTC
+  SprayDays import rewrites notices up to 4 days back. The cost is a few hourly requests for
+  recent days.
+- **The notice colour and legend come from the server** (the user, 2026-11-16).
+  `pesticides/meta/` gives a one-level `scales["spray-notice"]` (pink `#e64980`, the user's pick),
+  and the dashboard passes it as the notices' scale. This replaces the plan's
+  `--map-notice-marker` token, and was chosen over a map-sdk change for unscaled layers.
+- **The count number is readable on the colour** (the user, 2026-11-16). `@sjvair/map-sdk`
+  `0.1.0-beta.19` draws it black or white by contrast with the level colour (WCAG 1.4.3): a
+  number in `--background` on the pink was 3.43:1 in light mode.
+- **The method label** (the user, 2026-11-16). The card shows the meta's `methods` label by the
+  notice's `aerial_ground` key (sjvair.com #338), not SprayDays' own wording.
+- **Filters the notices don't take** (mine). The notices request sends only the meta's
+  `notice_filters`. A saved filter that doesn't apply (the crop) is named "doesn't apply to spray
+  notices" in Get data and in the legend, and is left out of "Filtered by". Only applicable
+  filters can make the layer filter-gone.
+- **Now with no notices** reads "No spray notices right now" (the user, 2026-11-16).
+- **The notice card's two forms, and the Active tag** (mine). On hover the card is a static
+  summary (nothing focusable inside map-sdk's tooltip); pinned or keyboard-focused it is
+  interactive (WCAG 2.4.3, 4.1.2). The "Active" tag shows on Now only: on a past day every notice
+  returned was active that day.
+- **The lens** (the user, 2026-11-16). A notice's card holds the hover lens, as a section's card
+  does. Shipped in `@sjvair/map-sdk` `0.1.0-beta.18`; it applies in 5b.
+- **Notices load valley-wide** (mine). The server caps a request at 2,000 matches; production's
+  busiest 5-day window since 2026-05-30 is 224, so a valley-wide request fits with room. Early
+  spring isn't measured yet (`DEFERRED.md`).
+- **Notices draw above the focus area** (mine), under the monitors, and **cluster only while the
+  toolbar's Clusters setting is on** (mine): the setting applies to every clustered layer.
 
 ## Open with the server
 
 _(Filled when sjvair.com, sdk-js and map-sdk report back.)_
+
+For 5a, all answered:
+
+- **Filters on notices:** the map endpoints take `pesticides/place/`'s sqids for chemical and
+  product, and `aerial_ground` codes for the method; notices record no crop (`commodity_id` is a
+  400), and the meta lists the filters they take in `notice_filters`.
+- **`date=` on `notices/active/`:** a notice is active on D when scheduled from Pacific 00:00 of
+  D-4 to before Pacific 00:00 of D+1; with `date=` each feature has `past`. A day is settled from
+  Pacific 00:00 of D+5.
+- **The spray-notice scale and `aerial_ground`:** sjvair.com #338, in `@sjvair/sdk`
+  `5.0.0-beta.13`.
+- **The 2,000-match cap:** fits a valley-wide request (see above).
