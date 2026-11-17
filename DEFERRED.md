@@ -1528,7 +1528,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - **map-sdk's legend status row ignores the unavailable reason** and shows generic text; the
       dashboard's banner carries the reason. While unavailable, the status row also replaces the
       section, so the legend note doesn't show. A map-sdk candidate. **Revisit with** the next
-      map-sdk legend change.
+      map-sdk legend change. _Being fixed in `@sjvair/map-sdk` `0.1.0-beta.20` (the user,
+      2026-11-17, session `map-sdk-a2`): the status row shows the source's `reason` and keeps the
+      section's note. Remove this item when beta.20 is published and the dashboard pins it._
     - **A server without `scales["spray-notice"]`** makes the legend say "isn't available right
       now" while the markers would draw (neutral). The server has the scale (#338). **Revisit
       if** the server drops it.
