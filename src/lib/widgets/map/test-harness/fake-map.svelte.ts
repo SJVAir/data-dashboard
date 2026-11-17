@@ -76,6 +76,8 @@ export class FakeMap {
 	selectionCalls: [string, unknown][] = [];
 	/** The pinned card's feature (map-sdk's `Hovered`), set by a click on the fake MapView with `card`. */
 	pinned = $state.raw<{ hit: { pluginId: string; refKey: string; name: string } } | null>(null);
+	/** The keyboard-focused feature list item's refKey (map-sdk's `focusedKey`); set by the test. */
+	focusedKey = $state<string | null>(null);
 	/** Every camera move asked for, in order. */
 	cameraCalls: CameraCall[] = [];
 	/** map-sdk's reactive camera and view bounds, as MapView records them; set by the test. */

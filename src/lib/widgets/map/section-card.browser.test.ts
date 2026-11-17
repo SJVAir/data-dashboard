@@ -21,6 +21,7 @@ import axe from "axe-core";
 import { getPesticideSectionDetails, getPesticidesMeta } from "@sjvair/sdk";
 import type { FeatureListItem, MapContext } from "@sjvair/map-sdk";
 import { createRawSnippet, type Snippet } from "svelte";
+import { SvelteMap } from "svelte/reactivity";
 import { render } from "vitest-browser-svelte";
 import "../../../app.css";
 import { resetPesticideMeta } from "$lib/data/pesticide-meta";
@@ -280,28 +281,39 @@ describe("sectionDetail", () => {
 
 describe("a section's card on the map", () => {
 	type Tooltip = (item: FeatureListItem, props: UseProps, env: unknown) => Snippet | undefined;
-	const source = (features: UseProps[]) =>
-		({
+	/** A data source holding `features`, reactively (as the use block's sources are). */
+	const source = (features: UseProps[]) => {
+		const held = new SvelteMap([[0, features]]);
+		return {
 			status: { state: "ready" },
-			features: {
-				type: "FeatureCollection",
-				features: features.map((properties) => ({
-					type: "Feature",
-					geometry: { type: "Point", coordinates: [0, 0] },
-					properties
-				}))
+			get features() {
+				return {
+					type: "FeatureCollection",
+					features: held.get(0)!.map((properties) => ({
+						type: "Feature",
+						geometry: { type: "Point", coordinates: [0, 0] },
+						properties
+					}))
+				};
 			},
-			scale: null
-		}) as never;
+			scale: null,
+			set: (next: UseProps[]) => held.set(0, next)
+		};
+	};
 
-	async function tooltipOf(id: "lens" | "sections") {
+	/**
+	 * The `id` plugin's card for the section, as map-sdk asks for it: pinned, keyboard-focused
+	 * (the feature list), or hovered (neither).
+	 */
+	async function tooltipOf(id: "lens" | "sections", form: "pinned" | "focused" | "hovered") {
 		const map = new FakeMap();
 		map.addPlugin({ id: "focus", kind: "focus", options: {} });
+		const sections = source([section()]);
 		await render(UseLayers, {
 			map: map as unknown as MapContext,
-			townships: source([]),
-			sections: source([section()]),
-			lensSource: source([section()]),
+			townships: source([]) as never,
+			sections: sections as never,
+			lensSource: source([section()]) as never,
 			block: () => [],
 			parentOf: () => null,
 			label: "Pounds Applied, 2023",
@@ -316,16 +328,18 @@ describe("a section's card on the map", () => {
 			onlens: () => {}
 		});
 		await expect.poll(() => map.plugins.some((p) => p.id === id)).toBe(true);
-		// Pinned: the card is the interactive form.
-		map.pinned = { hit: { pluginId: id, refKey: section().refKey, name: section().name } };
+		const refKey = section().refKey;
+		if (form === "pinned") map.pinned = { hit: { pluginId: id, refKey, name: section().name } };
+		if (form === "focused") map.focusedKey = refKey;
 		const tooltip = map.plugins.find((p) => p.id === id)!.options.tooltip as Tooltip;
-		const item = { refKey: section().refKey, name: section().name } as FeatureListItem;
-		return tooltip(item, section(), { scale: SCALE })!;
+		const item = { refKey, name: section().name } as FeatureListItem;
+		return { snippet: tooltip(item, section(), { scale: SCALE })!, sections };
 	}
 
 	for (const id of ["lens", "sections"] as const) {
 		it(`a pinned section from the ${id} shows its months and chemicals`, async () => {
-			const screen = await render(RenderSnippet, { snippet: await tooltipOf(id) });
+			const { snippet } = await tooltipOf(id, "pinned");
+			const screen = await render(RenderSnippet, { snippet });
 			await expect
 				.element(screen.getByText(m.map_use_card_peak({ month: monthName(4) })))
 				.toBeVisible();
@@ -333,4 +347,41 @@ describe("a section's card on the map", () => {
 			expect(getPesticideSectionDetails).toHaveBeenCalledWith("s1", { year: 2023 });
 		});
 	}
+
+	it("a keyboard-focused section gets the interactive form", async () => {
+		const { snippet } = await tooltipOf("sections", "focused");
+		const screen = await render(RenderSnippet, { snippet });
+		await expect.element(screen.getByRole("group", { name: section().name })).toBeVisible();
+		await expect
+			.element(screen.getByText(m.map_use_card_peak({ month: monthName(4) })))
+			.toBeVisible();
+	});
+
+	for (const id of ["lens", "sections"] as const) {
+		it(`a hovered section from the ${id} fetches nothing`, async () => {
+			const { snippet } = await tooltipOf(id, "hovered");
+			const screen = await render(RenderSnippet, { snippet });
+			await expect.element(screen.getByText(section().name)).toBeVisible();
+			expect(focusables(screen.container)).toHaveLength(0);
+			// Give a fetch the chance to start.
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			expect(getPesticideSectionDetails).not.toHaveBeenCalled();
+			expect(getPesticidesMeta).not.toHaveBeenCalled();
+		});
+	}
+
+	it("a map refetch with the same section doesn't ask for its details again after a failure", async () => {
+		vi.mocked(getPesticideSectionDetails).mockRejectedValueOnce(new Error("down"));
+		const { snippet, sections } = await tooltipOf("sections", "pinned");
+		const screen = await render(RenderSnippet, { snippet });
+		await expect.element(screen.getByText(m.map_use_card_detail_failed())).toBeVisible();
+		// The refetch: new properties for the same section.
+		sections.set([section({ lbs_chemical: 600, value: 600 })]);
+		await expect
+			.element(screen.getByText(m.map_use_card_value({ value: formatValue(600, 0), units: "lbs" })))
+			.toBeVisible();
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(1);
+		await expect.element(screen.getByText(m.map_use_card_detail_failed())).toBeVisible();
+	});
 });

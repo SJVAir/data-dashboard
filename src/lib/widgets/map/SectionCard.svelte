@@ -38,15 +38,19 @@
 	let detail = $state.raw<PesticideSectionDetail | null>(null);
 	let failed = $state(false);
 	let tries = $state(0);
+	// Keyed on primitives: a map refetch makes new properties for the same section, which must
+	// neither ask again nor retry a failure (only Retry does).
+	const sectionId = $derived(props.id);
+	const year = $derived(period.year);
 	$effect(() => {
 		// The hover form fetches nothing: every pointer move across sections would ask.
 		if (!interactive) return;
-		const id = props.id;
-		const year = period.year;
+		const id = sectionId;
+		const asked = year;
 		void tries;
 		const controller = new AbortController();
 		failed = false;
-		sectionDetail(id, year, controller.signal).then(
+		sectionDetail(id, asked, controller.signal).then(
 			(value) => (detail = value),
 			() => {
 				if (!controller.signal.aborted) failed = true;
