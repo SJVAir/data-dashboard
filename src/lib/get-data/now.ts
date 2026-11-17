@@ -33,7 +33,8 @@ export type NowDropped =
 	| "outside"
 	| "marks"
 	| "range-cut"
-	| "fill";
+	| "fill"
+	| "use-period";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
@@ -125,6 +126,8 @@ export type NowConversion = {
 	fromLine?: Level;
 	/** With `"selection"` or `"outside"` in `dropped`: the days that were selected. */
 	selection?: TimeSubRange;
+	/** With `"use-period"` in `dropped`: the pesticide use period left out (`YYYY` or `YYYY-MM`). */
+	usePeriod?: string;
 };
 
 /**

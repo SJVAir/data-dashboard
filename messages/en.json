@@ -1155,8 +1155,24 @@
 	"getdata_map_fill": "Fill regions by",
 	"getdata_map_fill_none": "None",
 	"getdata_map_notices_switch": "Show spray notices",
-	"getdata_map_notices_filters": "Filter spray notices",
+	"getdata_map_pesticide_filters": "Filter pesticides",
 	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
+	"getdata_map_use_switch": "Show pesticide use",
+	"getdata_map_use_period": "Year",
+	"getdata_map_use_whole_year": "Whole year",
+	"getdata_map_use_month": "Month",
+	"getdata_map_use_no_years": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
+	"getdata_map_section_fallback": [
+		{
+			"declarations": ["input section"],
+			"selectors": ["section"],
+			"match": {
+				"section=notices": "Spray notices",
+				"section=*": "Pesticide use"
+			}
+		}
+	],
+	"convert_dropped_use_period": "Pesticide use for {period} isn't in these dates, so it was left out.",
 	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
 	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",

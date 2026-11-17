@@ -7,14 +7,21 @@
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { RegionTypeInfo } from "$lib/places/types";
-	import { PESTICIDE_NOTICES, pollutantLayers } from "$lib/widgets/map/options";
+	import { PESTICIDE_NOTICES, PESTICIDE_USE, pollutantLayers } from "$lib/widgets/map/options";
 	import { PESTICIDE_FILTER_NAMES } from "./filter-names";
-	import { hasNotices, hasSmokeAndFire, MAP_POLLUTANTS_MAX, mapPesticideFilters } from "./map";
+	import {
+		hasNotices,
+		hasSmokeAndFire,
+		hasUse,
+		MAP_POLLUTANTS_MAX,
+		mapPesticideFilters
+	} from "./map";
 	import { nowPollutants } from "./now";
 	import type { PesticideFilters as Filters } from "$lib/data/schema";
 	import PesticideFilters from "./PesticideFilters.svelte";
 	import { pesticideMeta } from "./sources";
 	import SectionTrigger from "./SectionTrigger.svelte";
+	import UsePeriodPicker from "./UsePeriodPicker.svelte";
 
 	let {
 		data,
@@ -24,6 +31,10 @@
 		onsmoke,
 		onnotices,
 		onfilters,
+		years,
+		usePeriod,
+		onuse,
+		onperiod,
 		fill,
 		fillTypes,
 		onfill
@@ -39,8 +50,19 @@
 		onsmoke: (on: boolean) => void;
 		/** Spray notices on or off. */
 		onnotices: (on: boolean) => void;
-		/** The pesticide filters chosen for the notices (the whole new set). */
+		/** The pesticide filters chosen for the notices and use (the whole new set). */
 		onfilters: (filters: Filters) => void;
+		/**
+		 * The years with use data (the pesticide meta's, newest first); undefined while loading,
+		 * empty when none are listed or they couldn't be loaded.
+		 */
+		years: readonly number[] | undefined;
+		/** The saved use period (the Map's `usePeriod` option). */
+		usePeriod?: string;
+		/** Pesticide use on or off. */
+		onuse: (on: boolean) => void;
+		/** A use period chosen (`YYYY` or `YYYY-MM`). */
+		onperiod: (value: string) => void;
 		/** The region type saved as the fill (missing: none). */
 		fill?: string;
 		/** The types the directory offers; undefined while loading or when it failed (None only). */
@@ -53,6 +75,7 @@
 	const AIR_QUALITY = "air-quality";
 	const SMOKE_AND_FIRE = "smoke-and-fire";
 	const NOTICES = "notices";
+	const USE = "use";
 	const FILL = "fill";
 
 	const airQuality = $derived(catalog.find((c) => c.id === AIR_QUALITY));
@@ -75,6 +98,10 @@
 	const smoke = $derived(hasSmokeAndFire(data));
 	const noticesEntry = $derived(catalog.find((c) => c.id === PESTICIDE_NOTICES));
 	const notices = $derived(hasNotices(data));
+	const useEntry = $derived(catalog.find((c) => c.id === PESTICIDE_USE));
+	const use = $derived(hasUse(data));
+	const noYears = $derived(years?.length === 0);
+	/** The Map's one filter set, kept in step on both pesticide layers. */
 	const noticeFiltersSaved = $derived(mapPesticideFilters(data));
 
 	/** The filter params the notice endpoints take (the pesticides meta's); undefined until known. */
@@ -98,12 +125,23 @@
 	/** The saved fill, only while it's offered (else None shows; the saved value stays). */
 	const fillShown = $derived(fillChoices.find((t) => t.type === fill));
 
-	// The sections start open: there are only four, each short.
-	let open = $state<string[]>([AIR_QUALITY, SMOKE_AND_FIRE, NOTICES, FILL]);
+	// The sections start open: there are only five, each short.
+	let open = $state<string[]>([AIR_QUALITY, SMOKE_AND_FIRE, NOTICES, USE, FILL]);
 </script>
 
 {#snippet reason(id: string, text: string)}
 	<span {id} class="text-muted-foreground text-xs">{text}</span>
+{/snippet}
+
+{#snippet filterSet()}
+	<div role="group" aria-label={m.getdata_map_pesticide_filters()}>
+		<PesticideFilters filters={noticeFiltersSaved} onchange={onfilters} />
+		{#each noticesSkipped as key (key)}
+			<p class="text-muted-foreground mt-2 text-xs" data-notices-skipped={key}>
+				{m.getdata_map_notices_filter_skipped({ filter: PESTICIDE_FILTER_NAMES[key]() })}
+			</p>
+		{/each}
+	</div>
 {/snippet}
 
 <Accordion.Root type="multiple" bind:value={open} class="flex flex-col gap-2">
@@ -170,7 +208,9 @@
 	</Accordion.Item>
 	{#if noticesEntry || notices}
 		<Accordion.Item value={NOTICES} class="border-card-border rounded-(--radius-control) border">
-			<SectionTrigger label={noticesEntry?.label ?? PESTICIDE_NOTICES} />
+			<SectionTrigger
+				label={noticesEntry?.label ?? m.getdata_map_section_fallback({ section: "notices" })}
+			/>
 			<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
 				{#if noticesEntry?.description}
 					<p class="text-muted-foreground text-xs">{noticesEntry.description}</p>
@@ -185,15 +225,46 @@
 					/>
 					<span>{m.getdata_map_notices_switch()}</span>
 				</label>
-				{#if notices}
-					<div role="group" aria-label={m.getdata_map_notices_filters()}>
-						<PesticideFilters filters={noticeFiltersSaved} onchange={onfilters} />
-						{#each noticesSkipped as key (key)}
-							<p class="text-muted-foreground mt-2 text-xs" data-notices-skipped={key}>
-								{m.getdata_map_notices_filter_skipped({ filter: PESTICIDE_FILTER_NAMES[key]() })}
-							</p>
-						{/each}
-					</div>
+				<!-- With use on, the one filter set shows in its section. -->
+				{#if notices && !use}
+					{@render filterSet()}
+				{/if}
+			</Accordion.Content>
+		</Accordion.Item>
+	{/if}
+	{#if useEntry || use}
+		<Accordion.Item value={USE} class="border-card-border rounded-(--radius-control) border">
+			<SectionTrigger
+				label={useEntry?.label ?? m.getdata_map_section_fallback({ section: "use" })}
+			/>
+			<Accordion.Content class="flex flex-col gap-2 px-2 pb-2">
+				{#if useEntry?.description}
+					<p class="text-muted-foreground text-xs">{useEntry.description}</p>
+				{/if}
+				<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
+					<label class="flex items-center gap-2">
+						<input
+							type="checkbox"
+							role="switch"
+							class="accent-primary size-4"
+							checked={use}
+							disabled={!use && !years?.length}
+							aria-describedby={!use && noYears ? `${uid}-use-no-years` : undefined}
+							onchange={(e) => onuse(e.currentTarget.checked)}
+						/>
+						<span class={[!use && !years?.length && "text-muted-foreground"]}
+							>{m.getdata_map_use_switch()}</span
+						>
+					</label>
+					{#if !use && noYears}
+						{@render reason(`${uid}-use-no-years`, m.getdata_map_use_no_years())}
+					{/if}
+				</div>
+				{#if use}
+					{#if years?.length}
+						<UsePeriodPicker value={usePeriod} {years} onchange={onperiod} />
+					{/if}
+					{@render filterSet()}
 				{/if}
 			</Accordion.Content>
 		</Accordion.Item>
