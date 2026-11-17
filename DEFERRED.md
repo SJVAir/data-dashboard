@@ -1218,6 +1218,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   only after narrowing to a small parent area needs its own design. **Revisit when**
   pesticide analyses need parcel-level (MTRS) selection, or with step 5 spec 6 (trigger added
   2026-11-16, step 5 spec 5).
+- **Readable names for MTRS sections.** _Deferred 2026-11-17 (the user, while planning step 5
+  spec 6)._ A section's name is its PLSS code (for example `MDM-T14S-R20E-07`). The Map's section
+  card shows it, and so would any chart of a marked section. The user accepted the codes for now,
+  since the Pesticides Explorer shows sections the same way. A readable name would come from the
+  server, never be built in the dashboard. **Revisit when** people find the codes confusing (for
+  example in the private preview), or the explorer gets readable section names.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server
   (migrations 0009/0010); name lookup now tries city, then CDP, then urban area. New types
