@@ -3,47 +3,37 @@
 	import {
 		createMap,
 		focusAreaPlugin,
-		hmsFirePlugin,
-		hmsSmokePlugin,
-		Legend,
 		MapView,
 		monitorsPlugin,
 		OptionsToolbar,
-		pointsPlugin,
-		regionsPlugin,
 		type CardContext,
 		type FocusAreaPlugin,
 		type MapContext
 	} from "@sjvair/map-sdk";
 	import type { MonitorFeatureProperties, SpatialSelection } from "@sjvair/map-sdk/data";
-	import { ancestorAnimationsSettled } from "$lib/charts/settled";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import { getMetadata, getQueryClient, getResolvers } from "$lib/data";
-	import { LiveQuery } from "$lib/data/live-query.svelte";
-	import type { CatalogEntry, MonitorTypeInfo } from "$lib/data/metadata";
+	import { getMetadata } from "$lib/data";
+	import type { CatalogEntry } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
-	import { directoryFor } from "$lib/places/host";
-	import type { RegionTypeInfo } from "$lib/places/types";
-	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
-	import { entryMeta, nowInput, placesLayer } from "../shared/input";
+	import { entryMeta, placesLayer } from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
-	import { placeLabel } from "../title";
-	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
+	import { generatedTitle } from "../titles.svelte";
 	import { navigate } from "../../../router";
-	import { fillRegionType } from "./data/fill";
 	import { MapData } from "./data/loaded.svelte";
 	import { isThin } from "./data/monitors";
-	import type { NoticeFeatureProperties } from "./data/notices";
+	import { fitCamera } from "./camera.svelte";
+	import { MapDailyFigure } from "./daily-figure.svelte";
+	import { MapFillTypes } from "./data/fill-types.svelte";
 	import { MapDays } from "./day-mode.svelte";
 	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
@@ -53,19 +43,19 @@
 	import { mapFormat } from "./host/format";
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
-	import { noticeTooltips } from "./notice-tooltip";
+	import { syncMapTitle } from "./map-title.svelte";
+	import { MapNoteLines } from "./note-lines.svelte";
+	import FillLayer from "./layers/FillLayer.svelte";
+	import HmsLayers from "./layers/HmsLayers.svelte";
+	import NoticesLayer from "./layers/NoticesLayer.svelte";
+	import MapLegendOverlay from "./MapLegendOverlay.svelte";
+	import type { MapNoteProps } from "./MapNote.svelte";
+	import MapNotes from "./MapNotes.svelte";
 	import NoticesLegendNote from "./NoticesLegendNote.svelte";
 	import { OnScreen } from "./on-screen.svelte";
-	import {
-		hiddenReasonLines,
-		canMark,
-		hiddenMarks,
-		hiddenReasons,
-		marksChange,
-		sameIds
-	} from "./marks";
+	import { canMark, marksChange, sameIds } from "./marks";
 	import { MAP_MARKS_MAX, mapOptions, PESTICIDE_NOTICES, pollutantLayers } from "./options";
-	import { monitorIds, monitorPositions } from "./sources";
+	import { monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
 	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
 
@@ -76,9 +66,6 @@
 	const NARROW_PX = 360;
 	/** Below this widget width (the toolbar's narrow breakpoint) the day stepper drops its slider. */
 	const STEPPER_NARROW_REM = 48;
-	const FIT_PADDING = 32;
-	/** The notices' clusters, as the monitors' (map-sdk sums their counts itself). */
-	const NOTICES_CLUSTER = { radius: 40, maxZoom: 9 };
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 	const config = mapConfig();
@@ -167,42 +154,12 @@
 	});
 	onDestroy(() => days.destroy());
 
-	// The region fill: the saved type, drawn only while the place directory lists it (an unknown
-	// type draws nothing, offers no row and writes nothing; it applies again if the type returns).
-	/** The region types a Map can fill; undefined until loaded (or when they can't be). */
-	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
-	/** The region types couldn't be loaded: the fill's note offers Retry, which asks again. */
-	let fillTypesFailed = $state(false);
-	/** Bumped by Retry, to look the region types up again. */
-	let fillTypesTries = $state(0);
 	const savedFill = $derived(wiring.saved.fill);
-	$effect(() => {
-		void fillTypesTries;
-		if (!savedFill || fillTypes) return;
-		const controller = new AbortController();
-		fillTypesFailed = false;
-		directoryFor(metadata, getResolvers().regions)
-			.regionTypes(controller.signal)
-			.then(
-				(types) => {
-					if (!controller.signal.aborted) fillTypes = types;
-				},
-				(error: unknown) => {
-					if (controller.signal.aborted) return;
-					fillTypesFailed = true;
-					report(error);
-				}
-			);
-		return () => controller.abort();
-	});
+	const fillTypes = new MapFillTypes(() => savedFill, metadata);
+	onDestroy(() => fillTypes.destroy());
 	/** The region type filled, when the metadata lists it; null for no fill. */
-	const fillType = $derived(fillRegionType(savedFill, fillTypes));
-	const fillInfo = $derived(fillType ? fillTypes?.find((t) => t.type === fillType) : undefined);
-	/**
-	 * The pollutant's daily figure's name (`daily_statistic_label`, e.g. "24-hour average"), for
-	 * the monitors on a day stop; undefined on now, or when the scale names none.
-	 */
-	let dailyFigureLabel = $state<{ for: string; label: string | undefined } | null>(null);
+	const fillType = $derived(fillTypes.type);
+	const fillInfo = $derived(fillTypes.info);
 	/**
 	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
 	 * first layer pollutant it does. Never saved back into the options.
@@ -214,29 +171,25 @@
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
 		)?.entryType.label
 	);
-	// Looked up for any ranged tile (on its Now stop too), so a step to a day knows it already.
-	$effect(() => {
-		const type = entryType;
-		if (!type || !days.ranged || dailyFigureLabel?.for === type) return;
-		const controller = new AbortController();
-		const settle = (label: string | undefined) => {
-			if (!controller.signal.aborted) dailyFigureLabel = { for: type, label };
-		};
-		metadata.dailyFigure(type, controller.signal).then(
-			(figure) => settle(figure?.label ?? undefined),
-			// Without it the monitors keep their interval note: nothing to show or report here.
-			() => settle(undefined)
-		);
-		return () => controller.abort();
-	});
-	/** Whether the figure's name is known for the pollutant drawn (or isn't needed: on now). */
-	const figureLabelSettled = $derived(!days.onDay || dailyFigureLabel?.for === entryType);
-	/** On a day stop, what the monitors' figure is ("24-hour average"); unset on now. */
-	const figureLabel = $derived(
-		days.onDay && dailyFigureLabel && dailyFigureLabel.for === entryType
-			? dailyFigureLabel.label
-			: undefined
+	const dailyFigure = new MapDailyFigure(
+		{
+			get entryType() {
+				return entryType;
+			},
+			get ranged() {
+				return days.ranged;
+			},
+			get onDay() {
+				return days.onDay;
+			}
+		},
+		metadata
 	);
+	onDestroy(() => dailyFigure.destroy());
+	/** Whether the figure's name is known for the pollutant drawn (or isn't needed: on now). */
+	const figureLabelSettled = $derived(dailyFigure.settled);
+	/** On a day stop, what the monitors' figure is ("24-hour average"); unset on now. */
+	const figureLabel = $derived(dailyFigure.label);
 	const idle = $derived(
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
 	);
@@ -391,12 +344,12 @@
 	 * couldn't be looked up (with a saved fill, so it can't be drawn).
 	 */
 	const fillFailed = $derived(
-		(fillDrawn && data.fillFailed) || (!!savedFill && !fillTypes && fillTypesFailed)
+		(fillDrawn && data.fillFailed) || (!!savedFill && !fillTypes.types && fillTypes.failed)
 	);
 
 	/** The fill note's Retry: the region types' lookup if that failed, else the fill. */
 	function retryFill(): void {
-		if (fillTypesFailed && !fillTypes) fillTypesTries++;
+		if (fillTypes.failed && !fillTypes.types) fillTypes.retry();
 		else data.retryFill();
 	}
 
@@ -472,7 +425,8 @@
 		if (change) session.apply(change);
 	}
 
-	// The plugins, added and removed as the layers change: smoke and fire under the monitors.
+	// The monitors' plugin, added and removed as its inputs change. The other layers' plugins are
+	// added by their components (`layers/`), under the monitors.
 	$effect(() => {
 		const current = map;
 		const label = entryLabel;
@@ -520,93 +474,12 @@
 		return isThin(props) ? m.calendar_not_enough_data() : undefined;
 	}
 
-	// The fill: under the focus area (so its wash dims the fill outside the places), over the
-	// basemap. Regions can't be marked; one with no figure is an outline reading "No data".
-	$effect(() => {
-		const current = map;
-		const label = fillLabel;
-		if (!current || !label || !loads || !fillDrawn) return;
-		const plugin = regionsPlugin({
-			id: "fill",
-			source: fillSource,
-			layerLabel: label,
-			selectable: false,
-			noFigure: "outline"
-		});
-		untrack(() => current.addPlugin(plugin, { before: "focus" }));
-		return () => current.removePlugin(plugin.id);
-	});
-
-	/** Under the monitors when they're on the map, else on top. */
-	function underMonitors(current: MapContext): { before?: string } {
-		return untrack(() => current.plugins.some((p) => p.id === "monitors"))
-			? { before: "monitors" }
-			: {};
-	}
-
-	$effect(() => {
-		const current = map;
-		const label = smokeLabel;
-		if (!current || !label || !loads || !smokeAndFire) return;
-		const plugin = hmsSmokePlugin({ source: smokeSource, layerLabel: label });
-		untrack(() => current.addPlugin(plugin, underMonitors(current)));
-		return () => current.removePlugin(plugin.id);
-	});
-
-	$effect(() => {
-		const current = map;
-		const label = fireLabel;
-		if (!current || !label || !loads || !smokeAndFire) return;
-		const plugin = hmsFirePlugin({
-			source: fireSource,
-			hotspots: hotspotsSource,
-			layerLabel: label
-		});
-		untrack(() => current.addPlugin(plugin, underMonitors(current)));
-		return () => current.removePlugin(plugin.id);
-	});
-
-	// The notices: above the fill, under the monitors; numbered markers, in the color of the
-	// server's one-level spray-notice scale. Clustered as the monitors are. The legend section is
-	// the scale's level, a units line for the number, and the note (none for the day, filters,
-	// the explainer).
-	$effect(() => {
-		const current = map;
-		const label = noticesLabel;
-		const clusters = clustered;
-		if (!current || !label || !loads || !noticesDrawn) return;
-		const noticeTooltip = noticeTooltips((refKey) => noticesByRef.get(refKey));
-		const plugin = pointsPlugin({
-			id: "notices",
-			source: noticesSource,
-			layerLabel: label,
-			count: { property: "count" },
-			legendUnits: m.map_notices_legend_units(),
-			legendNote: noticesNote,
-			// The card (its own heading); read when shown, so it follows the day stop and the pin.
-			// map-sdk shows the interactive card for the pinned or keyboard-focused feature and a
-			// non-interactive tooltip on hover, which gets the static form.
-			tooltip: (item, props: NoticeFeatureProperties) =>
-				noticeTooltip(
-					props,
-					(days.at ?? "now") === "now",
-					current.focusedKey === item.refKey || current.pinned?.hit.refKey === item.refKey
-				),
-			tooltipShowsName: true,
-			...(clusters && { cluster: NOTICES_CLUSTER })
-		});
-		untrack(() => current.addPlugin(plugin, underMonitors(current)));
-		return () => current.removePlugin(plugin.id);
-	});
-
 	/** Each notices marker's latest properties, by refKey: an open card follows its marker. */
 	const noticesByRef = $derived(
 		new Map(
 			(noticesSource.features?.features ?? []).map((f) => [f.properties.refKey, f.properties])
 		)
 	);
-
-	const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 	// The camera: fitted to the places on each change and on each (re-)attach, never saved.
 	let body = $state<HTMLDivElement>();
@@ -616,42 +489,20 @@
 			: new Map<string, [number, number]>()
 	);
 	const target = $derived(frame.frame ? fitTarget(frame.frame, frame.shapes, positions) : null);
-	/**
-	 * What was last fitted, and in which size (fullscreen or not), while attached. Reset on detach,
-	 * so re-attaching refits; a style reload (ready false while still attached) keeps it, so the
-	 * person's pan survives a basemap or theme change.
-	 */
-	let fitted: string | null = null;
 
-	$effect(() => {
-		const current = map;
-		const t = target;
-		const big = fullscreen;
-		if (!current?.attached) {
-			fitted = null;
-			return;
+	fitCamera({
+		get map() {
+			return map;
+		},
+		get target() {
+			return target;
+		},
+		get fullscreen() {
+			return fullscreen;
+		},
+		get body() {
+			return body;
 		}
-		if (!current.ready) return;
-		// A null target leaves the camera where it is (the Valley's view on opening).
-		if (!t) return;
-		// Entering or leaving fullscreen refits too: the same map, in another size.
-		const key = JSON.stringify([t, big]);
-		if (key === fitted) return;
-		fitted = key;
-		const el = body;
-		void (el ? ancestorAnimationsSettled(el) : Promise.resolve()).then(async () => {
-			// MapLibre takes its container's new size in a ResizeObserver, which runs after the
-			// next frame's animation callbacks: fit after that, at the size the map now has.
-			await nextFrame();
-			await nextFrame();
-			if (fitted !== key || !current.ready) return;
-			if ("bbox" in t) {
-				const [west, south, east, north] = t.bbox;
-				current.fitBounds({ west, south, east, north }, { padding: FIT_PADDING });
-			} else {
-				current.easeTo({ center: t.center, minZoom: t.minZoom });
-			}
-		});
 	});
 
 	const onScreen = new OnScreen(() => body, { activity: app.platform.activity });
@@ -662,93 +513,61 @@
 		data.setPolling(on);
 	});
 
-	// The title: the one place's label (from the "now" lookup), or how many places.
-	const titleQuery = new LiveQuery(getQueryClient(), null);
-	titleQuery.setPolling(false);
-	onDestroy(() => titleQuery.destroy());
-	const count = $derived(layer?.selection?.ids.length ?? (layer?.place ? 1 : 0));
-	$effect(() => {
-		titleQuery.set(!idle && supported && count === 1 ? nowInput(layer) : null);
-	});
-	$effect(() => {
-		const label = entryLabel;
-		if (!label || idle) return;
-		if (count > 1) {
-			const places = m.get_data_places_count({ count: formatNumber(count), countValue: count });
-			setGeneratedTitle(widget.id, m.label_join({ first: label, second: places }));
-			return;
-		}
-		const s = titleQuery.state;
-		const place = s.status === "ready" ? s.data.places[0] : undefined;
-		if (place) {
-			setGeneratedTitle(
-				widget.id,
-				m.label_join({ first: label, second: placeLabel(place, viewer) })
-			);
-		}
-	});
+	syncMapTitle(
+		{
+			get widgetId() {
+				return widget.id;
+			},
+			get layer() {
+				return layer;
+			},
+			get entryLabel() {
+				return entryLabel;
+			},
+			get idle() {
+				return idle;
+			},
+			get supported() {
+				return supported;
+			}
+		},
+		viewer
+	);
 	const title = $derived(widget.title ?? generatedTitle(widget.id));
 
-	/** The marked monitors not drawn now; none until the monitors for now have loaded. */
-	const hidden = $derived.by(() => {
-		const features = monitorsSource.features;
-		return features ? hiddenMarks(marks, monitorIds(features)) : [];
-	});
-	// Every monitor the server lists and the types' reported pollutants, for the hidden marks'
-	// reasons; null while loading or when they can't be loaded (the plain wording then).
-	let monitorList = $state.raw<ReadonlyMap<string, { type: string }> | null>(null);
-	let monitorTypes = $state.raw<MonitorTypeInfo[] | null>(null);
-	// Whether both lookups have settled (either way); the note waits for it so its reasons don't
-	// change once they are on screen.
-	let lookupsSettled = $state(false);
-	void Promise.allSettled([
-		metadata.monitors().then(
-			(list) => (monitorList = new Map(list.map((x) => [x.id, x]))),
-			() => (monitorList = null)
-		),
-		metadata.monitorTypes().then(
-			(types) => (monitorTypes = types),
-			() => (monitorTypes = null)
-		)
-	]).then(() => (lookupsSettled = true));
-	/** Whether a type reports the pollutant drawn; undefined when that isn't known. */
-	function reports(type: string): boolean | undefined {
-		const info = monitorTypes?.find((t) => t.type === type);
-		if (!info || !entryType) return undefined;
-		return info.published.includes(entryType) || (info.unflagged?.includes(entryType) ?? false);
-	}
-	/** One line per reason the marks are hidden, in order. */
-	const hiddenLines = $derived.by(() => {
-		if (!hidden.length || !lookupsSettled) return [];
-		const reasons = hiddenReasons(
-			hidden,
-			monitorList && monitorTypes ? monitorList : null,
-			reports,
-			data.inPlaces ?? new Set(),
-			data.dayDrawn
-		);
-		return hiddenReasonLines(reasons, entryLabel).map(({ reason, count }) => {
-			const counted = { count: formatNumber(count), countValue: count };
-			return reason === "day"
-				? m.map_marks_hidden_day(counted)
-				: m.map_marks_hidden({ reason, pollutant: entryLabel ?? "", ...counted });
-		});
-	});
-	/** On a day stop, once: the pollutant's days can't be rated (its scale has no daily figure). */
-	const unratedLine = $derived(
-		data.dayUnrated && entryLabel ? m.map_day_unrated({ pollutant: entryLabel }) : ""
+	const noteLinesOf = new MapNoteLines(
+		{
+			get monitors() {
+				return monitorsSource.features;
+			},
+			get marks() {
+				return marks;
+			},
+			get entryType() {
+				return entryType;
+			},
+			get entryLabel() {
+				return entryLabel;
+			},
+			get inPlaces() {
+				return data.inPlaces;
+			},
+			get dayDrawn() {
+				return data.dayDrawn;
+			},
+			get dayUnrated() {
+				return data.dayUnrated;
+			},
+			get dayNoFigures() {
+				return data.dayNoFigures;
+			}
+		},
+		metadata
 	);
-	/** On a day stop that has loaded: no monitor in the places has a figure that day. */
-	const noFiguresLine = $derived(data.dayNoFigures ? m.map_day_no_figures() : "");
 	/** The map's notes: the day's, then why marks are hidden. */
-	const noteLines = $derived([unratedLine, noFiguresLine, ...hiddenLines].filter(Boolean));
+	const noteLines = $derived(noteLinesOf.lines);
 	/** The notes as one text, for the map's list and its name. */
-	const hiddenText = $derived(
-		noteLines.reduce(
-			(all, line) => (all ? m.sentence_join({ first: all, second: line }) : line),
-			""
-		)
-	);
+	const hiddenText = $derived(noteLinesOf.text);
 	/**
 	 * The feature list's note: on a day stop, what the monitors' figure is (said once, not on
 	 * every row), then the map's notes.
@@ -784,6 +603,48 @@
 			data.monitorsState.status === "ready" &&
 			(data.inPlaces?.size ?? 0) === 0
 	);
+
+	/** The layers' notes under the toolbar, in order. */
+	const mapNotes = $derived.by(() => {
+		const notes: MapNoteProps[] = [];
+		if (data.monitorsRefreshFailed) {
+			notes.push({
+				message: m.map_refresh_failed(),
+				hook: "map-refresh-note",
+				action: { label: m.widget_state_retry(), onclick: () => data.retryMonitors() }
+			});
+		}
+		if (hmsFailed) {
+			notes.push({
+				message: m.map_smoke_fire_failed(),
+				hook: "map-hms-note",
+				action: { label: m.widget_state_retry(), onclick: () => data.retryHms() }
+			});
+		}
+		if (fillFailed) {
+			notes.push({
+				message: m.map_fill_failed(),
+				hook: "map-fill-note",
+				action: { label: m.widget_state_retry(), onclick: retryFill }
+			});
+		}
+		if (noticesFailed) {
+			notes.push({
+				message: m.map_notices_failed(),
+				hook: "map-notices-note",
+				action: { label: m.widget_state_retry(), onclick: () => data.retryNotices() }
+			});
+		}
+		// No Retry: only another filter brings the notices back (Edit data, for an editor).
+		if (noticesGone) {
+			notes.push({
+				message: m.map_notices_filter_gone(),
+				hook: "map-notices-gone",
+				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
+			});
+		}
+		return notes;
+	});
 
 	/** What the widget shows instead of the map, if anything. */
 	const instead = $derived.by<QueryState | null>(() => {
@@ -846,28 +707,7 @@
 
 {#snippet overlays()}
 	{#if map}
-		<div
-			class="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-col items-start gap-1"
-		>
-			{#if narrow}
-				<Button
-					size="sm"
-					variant="outline"
-					class="pointer-events-auto"
-					aria-expanded={legendOpen}
-					onclick={() => (legendOpen = !legendOpen)}
-				>
-					{m.map_legend_toggle()}
-				</Button>
-			{/if}
-			{#if !narrow || legendOpen}
-				<div
-					class="bg-card text-card-foreground border-border shadow-card pointer-events-auto max-w-72 rounded-(--radius-control) border p-2 text-xs"
-				>
-					<Legend {map} framed={false} />
-				</div>
-			{/if}
-		</div>
+		<MapLegendOverlay {map} {narrow} bind:open={legendOpen} />
 	{/if}
 	{#if map && (!map.ready || data.monitorsLoading)}
 		<!-- Over the map and its legend, under the notes (the toolbar and list stay usable). -->
@@ -875,113 +715,40 @@
 			<WidgetSkeleton />
 		</div>
 	{/if}
-	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed || fillFailed || noticesFailed || noticesGone}
-		<!-- A compact banner under the toolbar: the map stays usable, but for its buttons. -->
-		<div
-			class="pointer-events-none absolute inset-x-0 top-[var(--mapsdk-toolbar-height,0px)] flex flex-col gap-1 p-2"
-			data-map-note
-		>
-			{#if note}
-				<div
-					class="bg-card text-card-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 [&_button]:pointer-events-auto"
-				>
-					<WidgetState
-						state={note}
-						{widget}
-						onretry={retry}
-						onchoose={() => openPlacePicker({ widgetId: widget.id })}
-						children={nothing}
-					/>
-				</div>
-			{:else if noMonitors}
-				<p
-					class="bg-card text-muted-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 text-center text-sm"
-					role="status"
-				>
-					{days.onDay ? m.map_no_monitors_here_day() : m.map_no_monitors_here()}
-				</p>
-			{/if}
-			{#if data.monitorsRefreshFailed}
-				<div
-					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
-					role="status"
-					data-map-refresh-note
-				>
-					<p class="text-muted-foreground">{m.map_refresh_failed()}</p>
-					<Button
-						size="sm"
-						variant="outline"
-						class="pointer-events-auto"
-						onclick={() => data.retryMonitors()}
-					>
-						{m.widget_state_retry()}
-					</Button>
-				</div>
-			{/if}
-			{#if hmsFailed}
-				<div
-					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
-					role="status"
-					data-map-hms-note
-				>
-					<p class="text-muted-foreground">{m.map_smoke_fire_failed()}</p>
-					<Button
-						size="sm"
-						variant="outline"
-						class="pointer-events-auto"
-						onclick={() => data.retryHms()}
-					>
-						{m.widget_state_retry()}
-					</Button>
-				</div>
-			{/if}
-			{#if fillFailed}
-				<div
-					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
-					role="status"
-					data-map-fill-note
-				>
-					<p class="text-muted-foreground">{m.map_fill_failed()}</p>
-					<Button size="sm" variant="outline" class="pointer-events-auto" onclick={retryFill}>
-						{m.widget_state_retry()}
-					</Button>
-				</div>
-			{/if}
-			{#if noticesFailed}
-				<div
-					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
-					role="status"
-					data-map-notices-note
-				>
-					<p class="text-muted-foreground">{m.map_notices_failed()}</p>
-					<Button
-						size="sm"
-						variant="outline"
-						class="pointer-events-auto"
-						onclick={() => data.retryNotices()}
-					>
-						{m.widget_state_retry()}
-					</Button>
-				</div>
-			{/if}
-			{#if noticesGone}
-				<!-- No Retry: only another filter brings the notices back (Edit data, for an editor). -->
-				<div
-					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
-					role="status"
-					data-map-notices-gone
-				>
-					<p class="text-muted-foreground">{m.map_notices_filter_gone()}</p>
-					{#if markable}
-						<Button size="sm" variant="outline" class="pointer-events-auto" onclick={editData}>
-							{m.widget_edit_data()}
-						</Button>
-					{/if}
-				</div>
-			{/if}
-		</div>
-	{/if}
+	<MapNotes
+		{widget}
+		place={note}
+		{noMonitors}
+		onDay={days.onDay}
+		onretry={retry}
+		notes={mapNotes}
+	/>
 {/snippet}
+
+{#if map}
+	<FillLayer {map} source={fillSource} label={fillLabel} {loads} drawn={fillDrawn} />
+	<HmsLayers
+		{map}
+		{smokeSource}
+		{fireSource}
+		{hotspotsSource}
+		{smokeLabel}
+		{fireLabel}
+		{loads}
+		shown={smokeAndFire}
+	/>
+	<NoticesLayer
+		{map}
+		source={noticesSource}
+		label={noticesLabel}
+		drawn={noticesDrawn}
+		{loads}
+		{clustered}
+		onNow={(days.at ?? "now") === "now"}
+		byRef={noticesByRef}
+		note={noticesNote}
+	/>
+{/if}
 
 <div class="relative h-full w-full" bind:this={body} bind:clientWidth={width}>
 	{#if !config}
