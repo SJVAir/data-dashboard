@@ -1462,13 +1462,9 @@ test.describe("a Map's spray notices", () => {
 		await expect(list).toBeVisible();
 	});
 
-	// Known bug, found writing these tests: when focus leaves the feature list for the notice card,
-	// the card's content is mounted again (most likely as its tooltip snippet reads the map's focused
-	// key, which the list clears on blur), so the element just focused goes away and focus falls to
-	// the page.
-	// A second Tab then reaches the card. Remove `test.fail` once it's fixed.
+	// When focus leaves the feature list, the list clears the map's focused key and map-sdk asks for
+	// the card's content again: the card must stay mounted, so the button Tab reached keeps focus.
 	test("Tab from the feature list into a notice card keeps focus there", async ({ page }) => {
-		test.fail();
 		await openSharedDoc(page, noticesDoc());
 		const map = mapOf(page, FRESNO_MAP);
 		await toListRow(map, NOW_SECTION);

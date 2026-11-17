@@ -2951,6 +2951,35 @@ test("a notices marker's card is the notice card, from the source's notices arra
 	card.unmount();
 });
 
+test("a notice card keeps focus when map-sdk asks for its content again", async () => {
+	// map-sdk re-reads the tooltip whenever the card's feature is found again, e.g. when Tab moves
+	// focus from the feature list into the card and the list clears its focused key while the
+	// card stays pinned. The same card must come back, or the focused button is detached.
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const notices = noticesOf(map)!;
+	const props = notices.options.source.features!.features[0].properties;
+	const item = { refKey: props.refKey };
+	map.pinned = { hit: { pluginId: "notices", refKey: props.refKey as string, name: "" } };
+	const first = notices.options.tooltip!(item, props, {})!;
+	const card = await render(RenderSnippet, { snippet: first });
+	await expect.poll(() => card.container.querySelectorAll("li button").length).toBe(2);
+	const row = card.container.querySelector<HTMLButtonElement>("li button")!;
+	row.focus();
+	expect(document.activeElement).toBe(row);
+	// Asked again with nothing changed: the same snippet, so nothing mounts again.
+	const again = notices.options.tooltip!(item, props, {})!;
+	expect(again).toBe(first);
+	await card.rerender({ snippet: again });
+	expect(row.isConnected).toBe(true);
+	expect(document.activeElement).toBe(row);
+	card.unmount();
+});
+
 test("no notices plugin and no fetch without the layer", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 	await show(mapWidget(region("019")));
