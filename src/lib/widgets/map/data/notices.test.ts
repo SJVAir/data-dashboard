@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@sjvair/sdk", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@sjvair/sdk")>()),
@@ -235,7 +235,28 @@ describe("noticesEntry", () => {
 
 	it("now is keyed by today's Pacific date", async () => {
 		const source = await sourceOf("now");
-		expect(source.key).toBe(`map-notices:${todayPacific()}|{}`);
+		expect(source.key).toBe(`map-notices:now:${todayPacific()}|{}`);
+	});
+
+	describe("across Pacific midnight", () => {
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it("now is a new source, and yesterday's day stop never takes over now's", async () => {
+			vi.useFakeTimers({ toFake: ["Date"] });
+			// 23:59 Pacific on November 14 (already November 15 in New York or UTC).
+			vi.setSystemTime(new Date("2026-11-15T07:59:00Z"));
+			const before = (await sourceOf("now")).key;
+			expect(before).toBe("map-notices:now:2026-11-14|{}");
+			// 00:01 Pacific on November 15: now is remade, and November 14 as a day stop (asked
+			// for with its date) has a key of its own, not the one holding now's undated notices.
+			vi.setSystemTime(new Date("2026-11-15T08:01:00Z"));
+			expect((await sourceOf("now")).key).toBe("map-notices:now:2026-11-15|{}");
+			const yesterday = (await sourceOf({ day: "2026-11-14" })).key;
+			expect(yesterday).toBe("map-notices:2026-11-14|{}");
+			expect(yesterday).not.toBe(before);
+		});
 	});
 
 	it("now asks without a date, a day asks with it", async () => {

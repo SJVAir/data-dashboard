@@ -172,7 +172,9 @@ export const noticesEntry: MapDataEntry<NoticesData, NoticeFeatureProperties> = 
 		if (!layer) return null;
 		const filters = layer.filters ?? {};
 		if (await filtersGone(filters)) return { unavailable: "filter-gone" };
-		const day = at === "now" ? todayPacific() : at.day;
+		// Now has a prefix of its own: it's asked for with no date, so after Pacific midnight
+		// yesterday's day stop (asked for with its date) must never take over now's entry.
+		const day = at === "now" ? `now:${todayPacific()}` : at.day;
 		return {
 			// Date and filters only: the request's area never reaches a key.
 			key: `map-notices:${day}|${filtersKey(filters)}`,
