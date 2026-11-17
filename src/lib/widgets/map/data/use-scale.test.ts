@@ -1,0 +1,45 @@
+import { describe, expect, it } from "vitest";
+import { levelFor, NO_LEVEL } from "@sjvair/map-sdk/data";
+import { buildUseScale, registerUseScale, useScaleFor, useScaleRef } from "./use-scale";
+
+const INFO = { label: "Pounds applied", units: "lbs", precision: 0 };
+const CLASSES = { breaks: [10, 100, 1000], min: null, colors: ["#aaa", "#bbb", "#ccc"] };
+
+describe("use scale", () => {
+	it("one level per break, colours in order, zero is no level", () => {
+		const scale = buildUseScale(CLASSES, INFO);
+		expect(scale.levels.map((l) => l.color)).toEqual(["#aaa", "#bbb", "#ccc"]);
+		expect(scale.levels.map((l) => l.key)).toEqual(["c1", "c2", "c3"]);
+		expect(levelFor(0, scale)).toBe(NO_LEVEL);
+		expect(levelFor(5, scale)).toMatchObject({ key: "c1" });
+		expect(levelFor(5000, scale)).toMatchObject({ key: "c3" });
+		expect(scale.levels[0].label).toBe("Up to 10");
+		expect(scale.levels[1].label).toBe("10 to 100");
+	});
+
+	it("a value equal to a break is in that break's class", () => {
+		const scale = buildUseScale(CLASSES, INFO);
+		expect(levelFor(10, scale)).toMatchObject({ key: "c1" });
+		expect(levelFor(10.5, scale)).toMatchObject({ key: "c2" });
+		expect(levelFor(100, scale)).toMatchObject({ key: "c2" });
+	});
+
+	it("fewer than 8 breaks give fewer levels, and empty classes give none", () => {
+		expect(
+			buildUseScale({ breaks: [1, 2], min: null, colors: ["#a", "#b"] }, INFO).levels
+		).toHaveLength(2);
+		expect(buildUseScale({ breaks: [], min: null, colors: [] }, INFO).levels).toHaveLength(0);
+	});
+
+	it("equal classes keep one ref and one scale, other classes make a new scale", () => {
+		const ref = useScaleRef("pounds-applied", "section", "q1");
+		expect(useScaleRef("pounds-applied", "section", "q1")).toBe(ref);
+		expect(useScaleRef("pounds-applied", "township", "q1")).not.toBe(ref);
+		registerUseScale(ref, CLASSES, INFO);
+		const first = useScaleFor(ref);
+		registerUseScale(ref, { ...CLASSES, breaks: [...CLASSES.breaks] }, INFO);
+		expect(useScaleFor(ref)).toBe(first);
+		registerUseScale(ref, { ...CLASSES, breaks: [20, 100, 1000] }, INFO);
+		expect(useScaleFor(ref)).not.toBe(first);
+	});
+});
