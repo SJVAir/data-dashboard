@@ -1,15 +1,27 @@
 <script lang="ts">
 	import { untrack, type Snippet } from "svelte";
-	import { shapesLens, shapesPlugin, type MapContext, type ShapesLens } from "@sjvair/map-sdk";
+	import {
+		shapesLens,
+		shapesPlugin,
+		type FeatureListItem,
+		type MapContext,
+		type ShapesLens
+	} from "@sjvair/map-sdk";
 	import type { DataSource } from "@sjvair/map-sdk/data";
+	import { filterSummary } from "$lib/data/pesticide-meta";
 	import { m } from "$lib/paraglide/messages.js";
-	import type { UseProps } from "../data/use";
+	import { filtersKey } from "../data/filters-key";
+	import type { UseProps, UseQuery } from "../data/use";
+	import { useScaleFor } from "../data/use-scale";
+	import { joinLabels, type UseFigure } from "../use-card";
+	import { useTooltips } from "../use-tooltip";
 	import { beforeIn } from "./order";
 
 	/**
 	 * Pesticide use's three plugins, `[townships, lens, sections]`, above the fill and under the
 	 * focus area (`UNDER_FOCUS`), added while use is drawn; renders nothing. The townships draw below the section
 	 * zoom and the sections from it; the lens opens a township's block into sections on hover.
+	 * Each draws its features' cards (`useTooltips`).
 	 */
 	let {
 		map,
@@ -22,6 +34,8 @@
 		units,
 		zoom,
 		queryKey,
+		query,
+		figures,
 		drawn,
 		loads,
 		note,
@@ -45,6 +59,10 @@
 		zoom: number;
 		/** What use draws (the figure, the period and the filters), as a key. */
 		queryKey: string | null;
+		/** What use draws; read when the plugins are made (`queryKey` remakes them). */
+		query: UseQuery | null;
+		/** The catalog's figures the map draws, for the cards. */
+		figures: UseFigure[];
 		/** Whether use is on the map. */
 		drawn: boolean;
 		/** Whether the tile loads its data. */
@@ -57,6 +75,31 @@
 		lens?: ShapesLens | null;
 	} = $props();
 
+	/** Each township's and section's latest properties, by refKey: an open card follows them. */
+	const byRef = $derived(
+		new Map(
+			[townships, lensSource, sections].flatMap((source) =>
+				(source.features?.features ?? []).map((f) => [f.properties.refKey, f.properties] as const)
+			)
+		)
+	);
+
+	/** The active filters' names, for the cards' "Filtered by" line. */
+	let filtersLine = $state<string | null>(null);
+	const filters = $derived(filtersKey(query?.filters ?? {}));
+	$effect(() => {
+		const saved = JSON.parse(filters) as UseQuery["filters"];
+		const controller = new AbortController();
+		filterSummary(saved, controller.signal).then(
+			(labels) => (filtersLine = joinLabels(labels)),
+			// A gone filter is the map's own note; any other failure leaves the line out.
+			() => {
+				if (!controller.signal.aborted) filtersLine = null;
+			}
+		);
+		return () => controller.abort();
+	});
+
 	// Made again only when the zoom, the figure or the query changes: a plugin belongs to one map
 	// and one set of options.
 	$effect(() => {
@@ -66,7 +109,34 @@
 		const legendNote = note;
 		const unitsOf = units;
 		void queryKey;
-		if (!layerLabel || !loads || !drawn) return;
+		const q = untrack(() => query);
+		const catalog = untrack(() => figures);
+		if (!layerLabel || !loads || !drawn || !q) return;
+		// The lens, once made: "Show square miles" pins it.
+		let made: ShapesLens | null = null;
+		const cards = useTooltips({
+			current: (refKey) => byRef.get(refKey),
+			scale: (props) => {
+				const ref = props.level === "township" ? townships.scale : sections.scale;
+				// The use block's sources hold a ref, registered before they expose it.
+				if (!ref) return null;
+				return "dataset" in ref ? (useScaleFor(ref) ?? null) : ref;
+			},
+			figure: q.figure,
+			period: q.period,
+			figures: catalog,
+			filtersLine: () => filtersLine,
+			onshow: (refKey) => made?.pin(refKey),
+			onzoom: (item) => current.easeTo({ center: item.lngLat, minZoom: z })
+		});
+		// map-sdk shows the interactive card for the pinned or keyboard-focused feature and a
+		// non-interactive tooltip on hover, which gets the static form.
+		const tooltip = (item: FeatureListItem, props: UseProps) =>
+			cards(
+				item,
+				props,
+				current.focusedKey === item.refKey || current.pinned?.hit.refKey === item.refKey
+			);
 		const legendUnits = m.map_use_units_township({ units: unitsOf });
 		const sectionUnits = m.map_use_units_section({ units: unitsOf });
 		const parents = shapesPlugin({
@@ -77,9 +147,11 @@
 			noFigure: "outline",
 			zoomRange: { max: z },
 			legendUnits,
-			legendNote
+			legendNote,
+			tooltip,
+			tooltipShowsName: true
 		});
-		const made = shapesLens({
+		made = shapesLens({
 			id: "lens",
 			parents,
 			source: lensSource,
@@ -87,7 +159,9 @@
 			parentOf,
 			layerLabel,
 			noFigure: "outline",
-			legendUnits: sectionUnits
+			legendUnits: sectionUnits,
+			tooltip,
+			tooltipShowsName: true
 		});
 		const children = shapesPlugin({
 			id: "sections",
@@ -98,18 +172,21 @@
 			zoomRange: { min: z },
 			selectable: false,
 			legendUnits: sectionUnits,
-			legendNote
+			legendNote,
+			tooltip,
+			tooltipShowsName: true
 		});
-		const plugins = [parents, made, children];
+		const lensPlugin = made;
+		const plugins = [parents, lensPlugin, children];
 		untrack(() => {
 			// In list order, each at its place among the layers under the focus area.
 			for (const plugin of plugins) current.addPlugin(plugin, beforeIn(current, plugin.id));
-			lens = made;
+			lens = lensPlugin;
 		});
 		return () => {
 			for (const plugin of plugins) current.removePlugin(plugin.id);
 			untrack(() => {
-				if (lens === made) lens = null;
+				if (lens === lensPlugin) lens = null;
 			});
 		};
 	});

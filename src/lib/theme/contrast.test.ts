@@ -73,7 +73,10 @@ const shared: Pair[] = [
 		"use"
 	].flatMap((icon): Pair[] =>
 		["--background", "--popover", "--accent"].map((bg): Pair => [`--map-icon-${icon}`, bg, 3])
-	)
+	),
+	// The section card's month bars, on the card (map-sdk's cards draw on --popover).
+	["--map-use-bar", "--card", 3],
+	["--map-use-bar", "--popover", 3]
 ];
 
 describe("dark tokens", () => {

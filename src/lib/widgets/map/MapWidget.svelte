@@ -427,6 +427,15 @@
 			? m.map_use_layer({ figure: useFigureInfo.label, period: periodLabel(usePeriod) })
 			: undefined
 	);
+	/** The figures the use cards list: the catalog's labels, units and precision. */
+	const useCardFigures = $derived(
+		useFigures.map((t) => ({
+			id: t.id,
+			label: t.label,
+			units: t.units,
+			precision: t.precision ?? 0
+		}))
+	);
 	/** The query as a key: the plugins are made again when it changes. */
 	const useKey = $derived(useQuery ? JSON.stringify(useQuery) : null);
 	/** The township the lens is centred on (the lens plugin's, through UseLayers). */
@@ -910,6 +919,8 @@
 		units={useFigureInfo?.units ?? ""}
 		zoom={useZoom}
 		queryKey={useKey}
+		query={useQuery}
+		figures={useCardFigures}
 		drawn={useLayersDrawn}
 		{loads}
 		note={useNote}

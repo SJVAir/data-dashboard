@@ -24,6 +24,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { filtersKey as keyOf } from "./data/filters-key";
 	import { webHref } from "./notice-links";
+	import { joinLabels } from "./use-card";
 	import { periodLabel, type UsePeriod } from "./use-period";
 
 	/** The server's notes the use legend shows, in order. */
@@ -71,10 +72,7 @@
 		const controller = new AbortController();
 		filterSummary(saved, controller.signal).then(
 			(labels) => {
-				const joined =
-					labels.length === 0
-						? null
-						: labels.reduce((all, label) => m.label_join({ first: all, second: label }));
+				const joined = joinLabels(labels);
 				lastNamed.set(key, joined);
 				named = joined;
 			},
