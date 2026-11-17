@@ -124,6 +124,8 @@ export class UseBlock {
 	#townshipsLoad: AbortController | null = null;
 	#sectionsRun = 0;
 	#sectionsLoad: AbortController | null = null;
+	/** The key of the sections load in flight; null with none. */
+	#sectionsFor: string | null = null;
 	#sectionsTimer: ReturnType<typeof setTimeout> | undefined;
 	#lensTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Lens blocks in flight, as `key|center`. */
@@ -331,6 +333,8 @@ export class UseBlock {
 		const ready = this.#ready;
 		void this.#sectionsRetries;
 		clearTimeout(this.#sectionsTimer);
+		// Off, or another key: a load in flight is for a query no longer shown, so it writes nothing.
+		if (this.#sectionsLoad && (!on || key !== this.#sectionsFor)) this.#dropSections();
 		if (!on || key === null || !atSections || boundsKey === null || !ready) return;
 		untrack(() => {
 			const bounds = this.#getInput().bounds as Bounds;
@@ -343,9 +347,18 @@ export class UseBlock {
 		});
 	}
 
+	/** Stops the sections load in flight, if any, so it writes nothing. */
+	#dropSections(): void {
+		this.#sectionsRun++;
+		this.#sectionsLoad?.abort();
+		this.#sectionsLoad = null;
+		this.#sectionsFor = null;
+	}
+
 	async #loadSections(query: UseQuery, key: string, view: Bounds) {
 		const run = ++this.#sectionsRun;
 		this.#sectionsLoad?.abort();
+		this.#sectionsFor = key;
 		const load = new AbortController();
 		this.#sectionsLoad = load;
 		const signal = load.signal;
@@ -370,6 +383,11 @@ export class UseBlock {
 			if (!current() || isAbort(error)) return;
 			if (error instanceof TooLarge) this.refusedZoom++;
 			else this.sectionsFailed = true;
+		} finally {
+			if (this.#sectionsLoad === load) {
+				this.#sectionsLoad = null;
+				this.#sectionsFor = null;
+			}
 		}
 	}
 
@@ -420,7 +438,8 @@ export class UseBlock {
 				blocks: new Set([...(prior?.blocks ?? []), id])
 			};
 		} catch (error) {
-			if (signal.aborted || isAbort(error) || this.#key !== key) return;
+			// Off, or another key: the failure is for a query no longer shown.
+			if (signal.aborted || isAbort(error) || this.#key !== key || !this.#on) return;
 			this.sectionsFailed = true;
 		} finally {
 			this.#lensPending.delete(blockKey);

@@ -16,9 +16,9 @@ import type { Bounds } from "@sjvair/map-sdk";
 import { encodeRef, type DataSource, type ScaleRef } from "@sjvair/map-sdk/data";
 import { resetPesticideMeta } from "$lib/data/pesticide-meta";
 import { PESTICIDE_USE } from "../options";
-import { resetUseCaches, type UseProps, type UseQuery } from "./use";
+import { resetUseCaches, useQueryKey, type UseProps, type UseQuery } from "./use";
 import { UseBlock, type UseBlockInput } from "./use-block.svelte";
-import { useScaleFor } from "./use-scale";
+import { useScaleFor, useScaleRef } from "./use-scale";
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 
@@ -63,7 +63,7 @@ function townships(geometry: boolean) {
 	};
 }
 
-function sections() {
+function sections(id = "s1") {
 	return {
 		type: "FeatureCollection",
 		year: 2023,
@@ -71,9 +71,9 @@ function sections() {
 		features: [
 			{
 				type: "Feature",
-				id: "s1",
+				id,
 				geometry: square(0.01, 0.01, 0.01),
-				properties: { id: "s1", mtrs: "T-0-01", county: null, ...totals(5) }
+				properties: { id, mtrs: "T-0-01", county: null, ...totals(5) }
 			}
 		]
 	};
@@ -244,7 +244,8 @@ describe("UseBlock", () => {
 		await flush();
 		expect(t.block.lens.features?.features).toHaveLength(1);
 		expectRegistered(t.block.lens);
-		expect(t.block.lens.scale).toBe(t.block.sections.scale ?? t.block.lens.scale);
+		// The sections' ref: one legend section for the sections and the lens.
+		expect(t.block.lens.scale).toBe(useScaleRef("pounds-applied", "section", useQueryKey(query())));
 
 		// Away and back: the block is cached.
 		t.set({ lensCenter: null });
@@ -252,12 +253,43 @@ describe("UseBlock", () => {
 		await vi.advanceTimersByTimeAsync(100);
 		expect(sectionCalls()).toHaveLength(1);
 		// Another block loads, and the first block's features stay.
+		vi.mocked(getPesticideSections).mockImplementationOnce(async () => sections("s2") as never);
 		t.set({ lensCenter: ref("T-3") });
 		await vi.advanceTimersByTimeAsync(50);
 		expect(sectionCalls()).toHaveLength(2);
 		await flush();
-		expect(t.block.lens.features?.features.length).toBeGreaterThanOrEqual(1);
+		expect(t.block.lens.features?.features.map((f) => f.properties.id).toSorted()).toEqual([
+			"s1",
+			"s2"
+		]);
 		t.block.destroy();
+	});
+
+	it("a sections load for an old key writes nothing after the key changes", async () => {
+		const fails: ((error: unknown) => void)[] = [];
+		vi.mocked(getPesticideSections).mockImplementation(
+			() => new Promise((_, reject) => fails.push(reject))
+		);
+		const t = setup({ zoom: 11 });
+		await vi.advanceTimersByTimeAsync(300);
+		expect(sectionCalls()).toHaveLength(1);
+		// A new period while the padded box is in flight; then the server refuses the old box.
+		t.set({ query: query({ year: 2023, month: 7 }) });
+		fails[0](badRequest());
+		await flush();
+		// No unpadded retry for the old key, and no refusal counted.
+		expect(sectionCalls().filter((c) => c.bbox[0] === VIEW.west)).toHaveLength(0);
+		expect(t.block.refusedZoom).toBe(0);
+		// Nor a failure for a query no longer shown.
+		const off = setup({ zoom: 11 });
+		await vi.advanceTimersByTimeAsync(300);
+		const pending = fails.length - 1;
+		off.set({ on: false });
+		fails[pending](new Error("offline"));
+		await flush();
+		expect(off.block.sectionsFailed).toBe(false);
+		t.block.destroy();
+		off.block.destroy();
 	});
 
 	it("blockOf and parentOf answer in refKeys", async () => {
