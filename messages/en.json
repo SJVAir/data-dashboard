@@ -1218,6 +1218,7 @@
 	"map_notices_legend_units": "Numbered: how many notices",
 	"map_notices_legend_filters": "Filtered by {filters}",
 	"map_notices_none_day": "No spray notices for this day",
+	"map_notices_none_now": "No spray notices right now",
 	"map_notices_name": [
 		{
 			"declarations": [

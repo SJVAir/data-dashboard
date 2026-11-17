@@ -7,20 +7,21 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { webHref } from "./notice-links";
 
-	// The foot of the spray notices' legend section: "none for this day" on a day stop with none,
-	// the active filters (named as charts' legends name them), the filters that don't apply to
-	// notices, and the explainer note from the pesticides meta (as text; its link only an href).
+	// The foot of the spray notices' legend section: "none for this day" on a day stop with none
+	// ("none right now" on now), the active filters (named as charts' legends name them), the
+	// filters that don't apply to notices, and the explainer note from the pesticides meta (as
+	// text; its link only an href).
 	let {
 		filters,
 		skipped,
-		noneOnDay
+		none
 	}: {
 		/** The notices layer's saved filters. */
 		filters: PesticideFilters | undefined;
 		/** The saved filters the notice endpoints don't take. */
 		skipped: readonly (keyof PesticideFilters)[];
-		/** A day stop has loaded, with no notices. */
-		noneOnDay: boolean;
+		/** The notices have loaded with none: for the day stop, or now; null otherwise. */
+		none: "day" | "now" | null;
 	} = $props();
 
 	let meta = $state.raw<PesticidesMeta | null>(null);
@@ -70,8 +71,10 @@
 </script>
 
 <div class="flex flex-col gap-1" data-notices-legend-note>
-	{#if noneOnDay}
+	{#if none === "day"}
 		<p class="text-foreground font-medium">{m.map_notices_none_day()}</p>
+	{:else if none === "now"}
+		<p class="text-foreground font-medium">{m.map_notices_none_now()}</p>
 	{/if}
 	{#if named}
 		<p>{m.map_notices_legend_filters({ filters: named })}</p>

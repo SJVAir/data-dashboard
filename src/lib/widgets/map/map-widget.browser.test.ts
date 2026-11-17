@@ -3208,6 +3208,7 @@ test("a day with no notices says so, with the explainer", async () => {
 		.toBeGreaterThan(0);
 	const note = await noticesNote(map);
 	await expect.element(note.getByText(m.map_notices_none_day())).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
 	// The explainer still reminds that no notice doesn't mean no spraying; its title links out.
 	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
 	const link = note.getByRole("link", {
@@ -3218,12 +3219,45 @@ test("a day with no notices says so, with the explainer", async () => {
 	note.unmount();
 });
 
-test("on now, no notices isn't called a day without them; the explainer shows", async () => {
+test("on now, no notices says none right now, not a day without them; the explainer shows", async () => {
+	await show(noticesMap());
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(m.map_notices_none_now())).toBeVisible();
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
+	note.unmount();
+});
+
+test("on now, the none line waits for the notices to load", async () => {
+	vi.mocked(getActivePesticideNotices).mockReturnValue(new Promise(() => {}) as never);
 	await show(noticesMap());
 	const map = await madeMap();
 	const note = await noticesNote(map);
 	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
-	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+	note.unmount();
+});
+
+test("on now, a failed fetch isn't called none", async () => {
+	vi.mocked(getActivePesticideNotices).mockRejectedValue(new Error("offline"));
+	const screen = await show(noticesMap());
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_notices_failed())).toBeVisible();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+	note.unmount();
+});
+
+test("on now, a gone filter isn't called none", async () => {
+	vi.mocked(getChemicalDetails).mockRejectedValue(notFound());
+	const screen = await show(noticesMap({ chemical: "gone" }));
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_notices_filter_gone())).toBeVisible();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
 	note.unmount();
 });
 
