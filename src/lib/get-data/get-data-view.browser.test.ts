@@ -57,8 +57,13 @@ const fake = vi.hoisted(() => ({
 	names: {} as Record<string, string>,
 	/** Holds a search's answer back (by its query) until the promise settles. */
 	delay: undefined as ((q: string) => Promise<void>) | undefined,
-	/** The region types the directory offers (default: the real directory). */
-	regionTypes: undefined as (() => Promise<unknown[]>) | undefined
+	/**
+	 * The region types the directory offers (default: none, so no test asks the network for the
+	 * regions meta).
+	 */
+	regionTypes: undefined as (() => Promise<unknown[]>) | undefined,
+	/** The pesticide meta's answer (default: `PESTICIDE_META`). */
+	pesticideMeta: undefined as (() => Promise<unknown>) | undefined
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -118,7 +123,7 @@ vi.mock("./sources", () => ({
 		await fake.delay?.(params.q);
 		return params.q.trim().length < 2 ? { results: [], more: false } : hits;
 	},
-	pesticideMeta: async () => PESTICIDE_META,
+	pesticideMeta: async () => (fake.pesticideMeta ? fake.pesticideMeta() : PESTICIDE_META),
 	filterLabels: async (f: Record<string, string | undefined>) =>
 		Object.fromEntries(
 			["chemical", "commodity", "product"]
@@ -250,7 +255,8 @@ beforeEach(async () => {
 	fake.hits = { results: [], more: false };
 	fake.names = {};
 	fake.delay = undefined;
-	fake.regionTypes = undefined;
+	fake.regionTypes = async () => [];
+	fake.pesticideMeta = undefined;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
@@ -1104,6 +1110,36 @@ describe("now widgets", () => {
 		await use.click();
 		expect((await current()).data.layers).toHaveLength(1);
 		expect((await current()).options).toBeUndefined();
+	});
+
+	test("the Pesticide use switch says why it's off: the years couldn't load (Retry asks again), or none are listed", async () => {
+		let fail = true;
+		fake.pesticideMeta = async () => {
+			if (fail) throw new Error("offline");
+			return PESTICIDE_META;
+		};
+		const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await expect.element(page.getByText(m.getdata_map_use_years_unavailable())).toBeVisible();
+		await expect.element(use).toBeDisabled();
+		await expect.element(use).toHaveAccessibleDescription(m.getdata_map_use_years_unavailable());
+		fail = false;
+		await page.getByRole("button", { name: m.get_data_retry() }).click();
+		await expect.element(use).toBeEnabled();
+		await expect
+			.element(page.getByText(m.getdata_map_use_years_unavailable()))
+			.not.toBeInTheDocument();
+		await use.click();
+		expect((await current()).options).toEqual({ usePeriod: "2023" });
+	});
+
+	test("with no years listed, the Pesticide use switch is off with a neutral note", async () => {
+		fake.pesticideMeta = async () => ({ ...PESTICIDE_META, years: [] });
+		await show(monitorsDraft(["m1"], { type: "map" }));
+		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await expect.element(page.getByText(m.getdata_map_use_no_years())).toBeVisible();
+		await expect.element(use).toBeDisabled();
+		expect(page.getByRole("button", { name: m.get_data_retry() }).query()).toBeNull();
 	});
 
 	test("one filter set shows once for both pesticide layers", async () => {

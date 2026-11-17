@@ -258,9 +258,17 @@ function periodInRange(p: UsePeriod, range: DateRangeSpec, now: Date): boolean {
 	return first >= firstDate && last <= lastDate;
 }
 
+/** Whether any of `p` falls inside `range`. */
+function periodOverlaps(p: UsePeriod, range: DateRangeSpec, now: Date): boolean {
+	const { firstDate, lastDate } = resolveRange(range, now);
+	const { first, last } = periodDays(p);
+	return first <= lastDate && last >= firstDate;
+}
+
 /**
  * The use period a chart's range gives the Map: its last full year that `years` lists, else the
- * latest listed year.
+ * latest listed year. `range` is the chart's own, read before the Map's 366-day cut (the spec's
+ * "the chart's range").
  */
 function periodFromRange(
 	range: DateRangeSpec | undefined,
@@ -443,7 +451,7 @@ export function mapShowingOnly(
  * type's default range) and its place cap (`fromNowDraft`).
  *
  * A Chart also takes the use, as a pesticide layer of the figure drawn (`useFigureOf`) with the
- * Map's filters, when its whole period falls inside the Chart's range; otherwise the use is left
+ * Map's filters, when any of its period falls inside the Chart's range; otherwise the use is left
  * out with a `"use-period"` note naming the period (`usePeriod`). Any other type leaves it out
  * (`"overlays"`).
  */
@@ -477,7 +485,7 @@ export function fromMapDraft(
 		const first = pollutantLayers(draft.data, catalog)[0] ?? draft.data.layers[0];
 		const others = draft.data.layers.some((l) => l !== first && l !== use);
 		if (!others) dropped = dropped.filter((d) => d !== "overlays");
-		if (periodInRange(period, chartRange, now)) {
+		if (periodOverlaps(period, chartRange, now)) {
 			converted.draft.data.layers.push({
 				dataset: PESTICIDE_USE,
 				entryType: figure,

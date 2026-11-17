@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Accordion } from "bits-ui";
+	import { Button } from "$lib/components/ui/button";
 	import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
@@ -34,6 +35,7 @@
 		years,
 		usePeriod,
 		onuse,
+		onretryyears,
 		onperiod,
 		fill,
 		fillTypes,
@@ -54,13 +56,15 @@
 		onfilters: (filters: Filters) => void;
 		/**
 		 * The years with use data (the pesticide meta's, newest first); undefined while loading,
-		 * empty when none are listed or they couldn't be loaded.
+		 * `"unavailable"` when they couldn't be loaded, empty when the server lists none.
 		 */
-		years: readonly number[] | undefined;
+		years: readonly number[] | "unavailable" | undefined;
 		/** The saved use period (the Map's `usePeriod` option). */
 		usePeriod?: string;
 		/** Pesticide use on or off. */
 		onuse: (on: boolean) => void;
+		/** Asks for the years again after they couldn't be loaded. */
+		onretryyears: () => void;
 		/** A use period chosen (`YYYY` or `YYYY-MM`). */
 		onperiod: (value: string) => void;
 		/** The region type saved as the fill (missing: none). */
@@ -100,7 +104,15 @@
 	const notices = $derived(hasNotices(data));
 	const useEntry = $derived(catalog.find((c) => c.id === PESTICIDE_USE));
 	const use = $derived(hasUse(data));
-	const noYears = $derived(years?.length === 0);
+	const listed = $derived(Array.isArray(years) ? years : []);
+	/** Why use can't be switched on, when the years are known not to allow it. */
+	const blocked = $derived(
+		years === "unavailable"
+			? m.getdata_map_use_years_unavailable()
+			: Array.isArray(years) && years.length === 0
+				? m.getdata_map_use_no_years()
+				: undefined
+	);
 	/** The Map's one filter set, kept in step on both pesticide layers. */
 	const noticeFiltersSaved = $derived(mapPesticideFilters(data));
 
@@ -248,22 +260,27 @@
 							role="switch"
 							class="accent-primary size-4"
 							checked={use}
-							disabled={!use && !years?.length}
-							aria-describedby={!use && noYears ? `${uid}-use-no-years` : undefined}
+							disabled={!use && listed.length === 0}
+							aria-describedby={!use && blocked ? `${uid}-use-blocked` : undefined}
 							onchange={(e) => onuse(e.currentTarget.checked)}
 						/>
-						<span class={[!use && !years?.length && "text-muted-foreground"]}
+						<span class={[!use && listed.length === 0 && "text-muted-foreground"]}
 							>{m.getdata_map_use_switch()}</span
 						>
 					</label>
-					{#if !use && noYears}
-						{@render reason(`${uid}-use-no-years`, m.getdata_map_use_no_years())}
+					{#if !use && blocked}
+						{@render reason(`${uid}-use-blocked`, blocked)}
 					{/if}
 				</div>
+				{#if years === "unavailable"}
+					<div>
+						<Button variant="outline" size="sm" onclick={onretryyears}>{m.get_data_retry()}</Button>
+					</div>
+				{/if}
+				{#if use && listed.length > 0}
+					<UsePeriodPicker value={usePeriod} years={listed} onchange={onperiod} />
+				{/if}
 				{#if use}
-					{#if years?.length}
-						<UsePeriodPicker value={usePeriod} {years} onchange={onperiod} />
-					{/if}
 					{@render filterSet()}
 				{/if}
 			</Accordion.Content>

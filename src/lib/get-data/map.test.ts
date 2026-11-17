@@ -685,8 +685,13 @@ describe("pesticide use on a Map", () => {
 		]);
 		expect(c.dropped).toEqual([]);
 		expect(c.draft.options).toBeUndefined();
-		// The whole year isn't inside a range that starts in March.
-		const outside = map("2023", { kind: "custom", start: "2023-03-01", end: "2023-12-31" });
+		// A range holding part of the period keeps the use.
+		const partial = map("2023", { kind: "custom", start: "2023-03-01", end: "2023-12-31" });
+		const some = fromMapDraft(partial, chartType, USE_CATALOG, "unavailable", undefined, NOW);
+		expect(some.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality", "pesticide-use"]);
+		expect(some.dropped).toEqual([]);
+		// A range holding none of it drops the use with the note.
+		const outside = map("2023", { kind: "custom", start: "2024-01-01", end: "2024-06-30" });
 		const out = fromMapDraft(outside, chartType, USE_CATALOG, "unavailable", undefined, NOW);
 		expect(out.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality"]);
 		expect(out.dropped).toEqual(["use-period"]);

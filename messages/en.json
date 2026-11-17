@@ -1161,7 +1161,8 @@
 	"getdata_map_use_period": "Year",
 	"getdata_map_use_whole_year": "Whole year",
 	"getdata_map_use_month": "Month",
-	"getdata_map_use_no_years": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
+	"getdata_map_use_no_years": "No years with pesticide use data are available yet.",
+	"getdata_map_use_years_unavailable": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
 	"getdata_map_section_fallback": [
 		{
 			"declarations": ["input section"],

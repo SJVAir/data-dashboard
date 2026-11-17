@@ -165,17 +165,22 @@
 		return () => controller.abort();
 	});
 	/**
-	 * The years with pesticide use data (the pesticide meta's, newest first), once loaded; `[]`
-	 * when they can't be loaded, the same as a server that lists none (use can't be switched on).
+	 * The years with pesticide use data (the pesticide meta's, newest first), once loaded;
+	 * `"unavailable"` when they couldn't be loaded (Retry asks again). Either way, or with none
+	 * listed, use can't be switched on.
 	 */
-	let useYears = $state.raw<readonly number[] | undefined>();
-	const loadUseYears = (): Promise<readonly number[]> =>
+	let useYears = $state.raw<readonly number[] | "unavailable" | undefined>();
+	let useYearsTry = $state(0);
+	const loadUseYears = (): Promise<readonly number[] | "unavailable"> =>
 		pesticideMeta().then(
 			(meta) => meta.years ?? [],
-			() => []
+			() => "unavailable" as const
 		);
+	/** Keyed on a primitive, so an edit doesn't ask for the years again. */
+	const isMap = $derived(plain.type === MAP_TYPE);
 	$effect(() => {
-		if (plain.type !== MAP_TYPE || useYears) return;
+		void useYearsTry;
+		if (!isMap || untrack(() => Array.isArray(useYears))) return;
 		let active = true;
 		void loadUseYears().then((y) => {
 			if (active) useYears = y;
@@ -520,12 +525,18 @@
 			const hasPesticides = draft.data.layers.some((l) => l.dataset === PESTICIDE_USE);
 			const [allowed, years] = await Promise.all([
 				loadMapPollutants(),
-				hasPesticides ? loadUseYears() : Promise.resolve(useYears ?? [])
+				hasPesticides ? loadUseYears() : Promise.resolve(useYears)
 			]);
 			if (id !== changeId) return;
 			mapPollutants = allowed;
 			if (hasPesticides) useYears = years;
-			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed, now, years);
+			const converted = toMapDraft(
+				$state.snapshot(draft) as Draft,
+				catalog,
+				allowed,
+				now,
+				Array.isArray(years) ? years : []
+			);
 			defaultOwed = false;
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -782,7 +793,11 @@
 							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}
 							years={useYears}
 							usePeriod={mapOptions(plain).usePeriod}
-							onuse={(on) => setUse(draft, on, useYears ?? [])}
+							onuse={(on) => setUse(draft, on, Array.isArray(useYears) ? useYears : [])}
+							onretryyears={() => {
+								useYears = undefined;
+								useYearsTry++;
+							}}
 							onperiod={(value) => setMapUsePeriod(value)}
 							fill={mapOptions(plain).fill}
 							{fillTypes}
