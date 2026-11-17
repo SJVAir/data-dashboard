@@ -8,6 +8,12 @@
 	let lastNotes: PesticideNote[] | null = null;
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a cache read at mount, not state
 	const lastNamed = new Map<string, string | null>();
+
+	/** Forgets the kept lines (for tests). */
+	export function resetUseLegendNote(): void {
+		lastNotes = null;
+		lastNamed.clear();
+	}
 </script>
 
 <script lang="ts">
@@ -73,7 +79,9 @@
 				named = joined;
 			},
 			// A gone filter is the map's own note; any other failure leaves the line out.
-			() => {}
+			() => {
+				if (!controller.signal.aborted) named = null;
+			}
 		);
 		return () => controller.abort();
 	});

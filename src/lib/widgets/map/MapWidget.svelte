@@ -3,6 +3,7 @@
 	import {
 		createMap,
 		focusAreaPlugin,
+		geometryBbox,
 		MapView,
 		monitorsPlugin,
 		OptionsToolbar,
@@ -68,7 +69,7 @@
 		PESTICIDE_USE,
 		pollutantLayers
 	} from "./options";
-	import { parsePeriod, periodLabel, periodListed } from "./use-period";
+	import { parsePeriod, periodLabel, periodListed, type UsePeriod } from "./use-period";
 	import { monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
 	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
@@ -116,12 +117,16 @@
 	);
 	/** The years with pesticide use data (the meta's, newest first); undefined until loaded. */
 	let useYears = $state.raw<number[] | undefined>();
+	/** Counts asks for the years; the use note's Retry asks again after a failure. */
+	let useYearsTries = $state(0);
 	$effect(() => {
+		void useYearsTries;
 		if (!useLayer) return;
 		const controller = new AbortController();
 		pesticideMeta(controller.signal).then(
 			(meta) => (useYears = meta.years),
-			// Without the years the toolbar offers no use rows; use itself still loads (or says why).
+			// Without the years the toolbar offers no use rows; use itself fails too (its note's
+			// Retry asks for both again).
 			() => {}
 		);
 		return () => controller.abort();
@@ -390,7 +395,16 @@
 	// that switches townships to sections.
 	const useFigureId = $derived(wiring.useFigure);
 	const useFigureInfo = $derived(useFigures.find((t) => t.id === useFigureId));
-	const usePeriod = $derived(parsePeriod(shown.usePeriod));
+	/**
+	 * The period drawn: the saved one, else the latest listed year (drawn, never written; the
+	 * toolbar shows the same).
+	 */
+	const usePeriod = $derived.by<UsePeriod | null>(() => {
+		const saved = parsePeriod(shown.usePeriod);
+		if (saved) return saved;
+		const latest = useYears?.[0];
+		return latest === undefined ? null : { year: latest, month: null };
+	});
 	/** Use is on the map: the tile has it, the catalog names it and its figure, and it's shown. */
 	const useDrawn = $derived(
 		!!useLayer && !!datasetLabel(PESTICIDE_USE) && !!useFigureInfo && !!usePeriod && wiring.useShown
@@ -430,10 +444,36 @@
 	/** The map body's size (the legend folds, the stepper narrows, the section zoom). */
 	let width = $state(0);
 	let height = $state(0);
+	/**
+	 * The latitude the section zoom is computed at: fixed, so a pan never re-makes the plugins. The
+	 * places' centre, else the middle of the valley's townships; null until either is known.
+	 */
+	const useLat = $derived.by<number | null>(() => {
+		const fit = target;
+		if (fit && "bbox" in fit) return (fit.bbox[1] + fit.bbox[3]) / 2;
+		if (fit) return fit.center[1];
+		let south = Infinity;
+		let north = -Infinity;
+		for (const f of data.useBlock.townships.features?.features ?? []) {
+			const box = geometryBbox(f.geometry);
+			if (!box) continue;
+			south = Math.min(south, box[1]);
+			north = Math.max(north, box[3]);
+		}
+		return south <= north ? (south + north) / 2 : null;
+	});
 	/** The section zoom for the map's size and latitude, raised by the server's refusals. */
 	const useZoom = $derived(
-		Math.round(sectionZoom(width, height, map?.camera.center[1] ?? 0) + data.useBlock.refusedZoom)
+		Math.round(sectionZoom(width, height, useLat ?? 0) + data.useBlock.refusedZoom)
 	);
+	/** The use plugins are made once the map has a size and the latitude is known (made once). */
+	const useLayersDrawn = $derived(useDrawn && width > 0 && height > 0 && useLat !== null);
+
+	/** The use note's Retry: what failed, and the years if they couldn't be loaded. */
+	function retryUse(): void {
+		data.retryUse();
+		if (useYears === undefined) useYearsTries++;
+	}
 	const useFailed = $derived(useDrawn && data.useBlock.townshipsState === "error");
 	const useGone = $derived(useDrawn && data.useUnavailable === "filter-gone");
 	const useSectionsFailed = $derived(useDrawn && data.useBlock.sectionsFailed);
@@ -756,7 +796,7 @@
 			notes.push({
 				message: m.map_use_failed(),
 				hook: "map-use-failed",
-				action: { label: m.widget_state_retry(), onclick: () => data.retryUse() }
+				action: { label: m.widget_state_retry(), onclick: retryUse }
 			});
 		}
 		if (useGone) {
@@ -770,7 +810,7 @@
 			notes.push({
 				message: m.map_use_sections_failed(),
 				hook: "map-use-sections-failed",
-				action: { label: m.widget_state_retry(), onclick: () => data.retryUse() }
+				action: { label: m.widget_state_retry(), onclick: retryUse }
 			});
 		}
 		return notes;
@@ -870,7 +910,7 @@
 		units={useFigureInfo?.units ?? ""}
 		zoom={useZoom}
 		queryKey={useKey}
-		drawn={useDrawn}
+		drawn={useLayersDrawn}
 		{loads}
 		note={useNote}
 		onlens={(center) => (lensCenter = center)}

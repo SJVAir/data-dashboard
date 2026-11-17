@@ -4,10 +4,11 @@
 	import type { DataSource } from "@sjvair/map-sdk/data";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { UseProps } from "../data/use";
+	import { beforeIn } from "./order";
 
 	/**
-	 * Pesticide use's three plugins, `[townships, lens, sections]`, under the fill (else under the
-	 * focus area), added while use is drawn; renders nothing. The townships draw below the section
+	 * Pesticide use's three plugins, `[townships, lens, sections]`, above the fill and under the
+	 * focus area (`UNDER_FOCUS`), added while use is drawn; renders nothing. The townships draw below the section
 	 * zoom and the sections from it; the lens opens a township's block into sections on hover.
 	 */
 	let {
@@ -101,10 +102,8 @@
 		});
 		const plugins = [parents, made, children];
 		untrack(() => {
-			// Under the fill when it's on (it stays readable over use), else under the focus area. A
-			// fill added later goes under the focus area, so it lands over use either way.
-			const before = current.plugins.some((p) => p.id === "fill") ? "fill" : "focus";
-			for (const plugin of plugins) current.addPlugin(plugin, { before });
+			// In list order, each at its place among the layers under the focus area.
+			for (const plugin of plugins) current.addPlugin(plugin, beforeIn(current, plugin.id));
 			lens = made;
 		});
 		return () => {

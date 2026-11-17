@@ -3,7 +3,10 @@
 	import { Button } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";
 
-	/** The map's legend, bottom left; folded into a "Legend" button while the widget is narrow. */
+	/**
+	 * The map's legend, bottom left, never over the toolbar (it scrolls instead); folded into a
+	 * "Legend" button while the widget is narrow.
+	 */
 	let {
 		map,
 		narrow,
@@ -17,7 +20,7 @@
 </script>
 
 <div
-	class="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-col items-start gap-1"
+	class="pointer-events-none absolute top-[calc(var(--mapsdk-toolbar-height,0px)+0.5rem)] bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-col items-start justify-end gap-1"
 >
 	{#if narrow}
 		<Button
@@ -31,8 +34,13 @@
 		</Button>
 	{/if}
 	{#if !narrow || open}
+		<!-- Scrolls when taller than the map under the toolbar; focusable, so a keyboard can scroll it. -->
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 		<div
-			class="bg-card text-card-foreground border-border shadow-card pointer-events-auto max-w-72 rounded-(--radius-control) border p-2 text-xs"
+			class="bg-card text-card-foreground border-border shadow-card pointer-events-auto min-h-0 max-w-72 overflow-y-auto overscroll-contain rounded-(--radius-control) border p-2 text-xs"
+			role="region"
+			aria-label={m.map_legend_region()}
+			tabindex="0"
 		>
 			<Legend {map} framed={false} />
 		</div>

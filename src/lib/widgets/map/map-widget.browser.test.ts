@@ -65,6 +65,7 @@ import Preview from "$lib/get-data/Preview.svelte";
 import { registerWidgetType } from "../registry";
 import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
+import { resetUseLegendNote } from "./UseLegendNote.svelte";
 import RenderSnippet from "./test-harness/RenderSnippet.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
@@ -385,6 +386,7 @@ beforeEach(async () => {
 	vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([] as never);
 	resetPesticideMeta();
 	resetUseCaches();
+	resetUseLegendNote();
 	vi.mocked(getPesticideTownships).mockResolvedValue(useTownships() as never);
 	vi.mocked(getPesticideSections).mockResolvedValue(useSections() as never);
 	vi.mocked(getPesticidesMeta).mockResolvedValue(PESTICIDES_META as never);
@@ -3511,15 +3513,16 @@ async function useNote(map: FakeMap) {
 const useBox = () => frame.querySelector<HTMLInputElement>('[data-option="use"]');
 const useSelect = (id: string) => frame.querySelector<HTMLSelectElement>(`[data-option="${id}"]`)!;
 
-test("adds townships, lens and sections, in that order, under the fill", async () => {
+/** The draw order with a fill and use, bottom first: use above the fill, under the focus area. */
+const FILL_UNDER_USE = ["fill", "townships", "lens", "sections", "focus", "monitors"];
+
+test("adds townships, lens and sections, in that order, above the fill when both mount together", async () => {
 	rated();
 	zipFill();
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 	await show(useMap({ fill: "zipcode" }));
 	const map = await madeMap();
-	await expect
-		.poll(() => pluginIds(map))
-		.toEqual(["townships", "lens", "sections", "fill", "focus", "monitors"]);
+	await expect.poll(() => pluginIds(map)).toEqual(FILL_UNDER_USE);
 	expect(useOf(map, "townships")).toMatchObject({
 		kind: "shapes",
 		options: {
@@ -3551,6 +3554,42 @@ test("adds townships, lens and sections, in that order, under the fill", async (
 	const sectionsScale = useOf(map, "sections")!.options.source.scale;
 	expect(useOf(map, "lens")!.options.source.scale).toBe(sectionsScale);
 	expect(useOf(map, "townships")!.options.source.scale).not.toBe(sectionsScale);
+});
+
+test("use draws above the fill when the fill is on first", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const screen = await showLive(useMap({ fill: "zipcode", useShown: false }), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus", "monitors"]);
+	await screen.getByRole("checkbox", { name: "Pesticide Use" }).click();
+	await expect.poll(() => pluginIds(map)).toEqual(FILL_UNDER_USE);
+	expect(useOf(map, "townships")!.addOptions).toEqual({ before: "focus" });
+});
+
+test("use draws above the fill when use is on first, and after the fill is re-made", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const screen = await showLive(useMap({ fill: "zipcode", fillShown: false }), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect
+		.poll(() => pluginIds(map))
+		.toEqual(["townships", "lens", "sections", "focus", "monitors"]);
+	const box = screen.getByRole("checkbox", { name: "ZIP Codes" });
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(FILL_UNDER_USE);
+	expect(useOf(map, "fill")!.addOptions).toEqual({ before: "townships" });
+	// Hidden and shown again: the fill is made again, still under use.
+	await box.click();
+	await expect
+		.poll(() => pluginIds(map))
+		.toEqual(["townships", "lens", "sections", "focus", "monitors"]);
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(FILL_UNDER_USE);
 });
 
 test("without a fill, use goes under the focus area", async () => {
@@ -3798,4 +3837,74 @@ test("a failed sections load says so, and Retry asks again", async () => {
 	await note.querySelector("button")!.click();
 	await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
 	expect(screen.getByText(m.map_use_sections_failed()).query()).toBeNull();
+});
+
+test("a use layer without a period draws the latest year and writes nothing", async () => {
+	const widget = useMap();
+	delete (widget.options as Record<string, unknown>).usePeriod;
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Pounds Applied, 2023");
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	expect((vi.mocked(getPesticideTownships).mock.calls[0][0] as { year: number }).year).toBe(2023);
+	await expect
+		.element(screen.getByRole("combobox", { name: m.map_use_year() }))
+		.toHaveValue("2023");
+	expect(optionsOf()).toEqual({});
+});
+
+test("a pan doesn't re-make the use plugins", async () => {
+	// A big map, whose section zoom (12 here) depends on the latitude it's computed at.
+	await page.viewport(2000, 1400);
+	frame.style.width = "1900px";
+	frame.style.height = "1300px";
+	await show(useMap());
+	const map = await madeMap();
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const made = useOf(map, "townships");
+	expect(made!.options.zoomRange).toEqual({ max: 12 });
+	// A pan far north (where the section zoom at the camera's latitude would differ).
+	map.camera.center = [-119.7, 70];
+	map.bounds = { west: -120, south: 69.9, east: -119.4, north: 70.1 };
+	await new Promise((r) => setTimeout(r, 100));
+	expect(useOf(map, "townships")).toBe(made);
+});
+
+test("a failed pesticide meta is asked again by the use note's Retry, bringing the use rows", async () => {
+	vi.mocked(getPesticidesMeta).mockRejectedValue(new Error("offline"));
+	const screen = await showLive(useMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.element(screen.getByText(m.map_use_failed())).toBeVisible();
+	expect(useSelect("useYear")).toBeNull();
+	vi.mocked(getPesticidesMeta).mockResolvedValue(PESTICIDES_META as never);
+	await frame.querySelector<HTMLElement>("[data-map-use-failed] button")!.click();
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	await expect.poll(() => useSelect("useYear")?.value).toBe("2023");
+});
+
+test("at about 300 px tall the legend fits under the toolbar and scrolls", async () => {
+	frame.style.height = "300px";
+	const screen = await show(mapWidget(region("019")));
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => frame.querySelector("[data-legend]")).toBeTruthy();
+	const card = frame.querySelector("[data-legend]")!.parentElement!;
+	// A legend taller than the map, as with several layers.
+	const tall = document.createElement("div");
+	tall.style.height = "1000px";
+	card.appendChild(tall);
+	const view = frame.querySelector<HTMLElement>("[data-fake-map]")!.getBoundingClientRect();
+	const box = card.getBoundingClientRect();
+	expect(box.top).toBeGreaterThanOrEqual(view.top + FAKE_TOOLBAR_HEIGHT);
+	expect(box.bottom).toBeLessThanOrEqual(view.bottom);
+	expect(card.scrollHeight).toBeGreaterThan(card.clientHeight);
+	expect(getComputedStyle(card).overflowY).toBe("auto");
+	// Scrollable, so it can be reached and scrolled by keyboard.
+	expect(card.getAttribute("tabindex")).toBe("0");
+	await expect.element(screen.getByRole("region", { name: m.map_legend_region() })).toBeVisible();
+	tall.remove();
+	const results = await axe.run(frame);
+	expect(results.violations).toEqual([]);
 });

@@ -2,6 +2,7 @@
 	import { untrack } from "svelte";
 	import { regionsPlugin, type MapContext } from "@sjvair/map-sdk";
 	import type { DataSource } from "@sjvair/map-sdk/data";
+	import { beforeIn } from "./order";
 
 	/** The region fill's plugin, added while it's drawn; renders nothing. */
 	let {
@@ -21,8 +22,8 @@
 		drawn: boolean;
 	} = $props();
 
-	// The fill: under the focus area (so its wash dims the fill outside the places), over the
-	// basemap. Regions can't be marked; one with no figure is an outline reading "No data".
+	// The fill: under pesticide use and the focus area (so its wash dims the fill outside the
+	// places), over the basemap. Regions can't be marked; one with no figure is an outline reading "No data".
 	$effect(() => {
 		const current = map;
 		const layerLabel = label;
@@ -34,7 +35,7 @@
 			selectable: false,
 			noFigure: "outline"
 		});
-		untrack(() => current.addPlugin(plugin, { before: "focus" }));
+		untrack(() => current.addPlugin(plugin, beforeIn(current, plugin.id)));
 		return () => current.removePlugin(plugin.id);
 	});
 </script>
