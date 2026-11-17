@@ -576,6 +576,11 @@ string`) now get the union return type. The mobile app passes a string token, so
        `lib/monitors/mod_test.ts` and `lib/regions/mod_test.ts` (sdk-js #59), so `TEST_REMOTE` runs check production.
        Exact commands come with the merged PR. **Why deferred:** nothing touches production until `develop` deploys.
        **Revisit:** at the deploy.
+  - **Pesticide Map API (sjvair.com #335 and #336, merged into `develop` 2026-11-16, session
+    `sjvair-com-5a`):** nothing to run. No migration, backfill or config. The new cache keys
+    start empty, the notices version creates itself on first read, and section detail starts
+    cold once (its cache key version changed). `@sjvair/sdk` `5.0.0-beta.12` and `5.0.0-beta.13`
+    need them deployed.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
@@ -1126,6 +1131,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   exact test when a shape's label point or whole bbox is inside the view. The bbox pre-check
   already rejects most shapes, and no slowdown has been measured. **Revisit when** moving the map
   with many detailed shapes (all counties, a big plume day) is measurably slow.
+  _Measured 2026-11-16 (map-sdk `0.1.0-beta.17`, session `map-sdk-d9`):_ 2500 sections in view
+  cost 0.70 ms median (1.60 ms max) per move for `features()` plus the in-view test (Chromium,
+  1200×800 map), well under a frame, so this stays deferred.
 
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
@@ -2042,6 +2050,13 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
   needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
   the parity review needs a published build.
+- **map-sdk: the lens flashes its newly covered townships clear for about a frame on each
+  recentre.** _Deferred 2026-11-16 (the user, map-sdk `0.1.0-beta.17`, session `map-sdk-d9`)._ The
+  townships' `lensHidden` feature state applies on the next frame, while the sections' `setData`
+  goes through MapLibre's worker, so for one frame the block is transparent before its sections
+  draw. A single frame is hard to see. Fix when needed: hide the townships only after the lens
+  source's `sourcedata`/load event for that data. **Revisit when** someone notices the flash on the
+  dashboard, or before map-sdk 1.0.
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
@@ -2063,6 +2078,34 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   already opens at once and fills in later. **Revisit when** someone reports Share feeling slow on
   a large dashboard: open the dialog first and build the link inside it, as the points path does.
 
+- **sjvair.com: chemical re-imports don't retire cached notice days.** _Deferred 2026-11-16
+  (sjvair.com [#335](https://github.com/SJVAir/sjvair.com/pull/335), session `sjvair-com-5a`)._
+  `import_prop65`, `import_carbtac` and `import_comptox` don't bump the notices cache version, so
+  `notices/active/?date=` answers for settled days can show `category`/IARC matches and
+  `is_of_concern` up to 24 h stale after a reclassification. Why: rare and bounded at 24 h, and the
+  fix (bump the notices version from those imports) touches import commands outside #335's spec.
+  **Revisit if** a reclassification is visibly wrong on the dashboard's notices, or the next time
+  those import commands change.
+- **`@sjvair/sdk`'s pesticide map functions don't take CDPR codes.** _Deferred 2026-11-16 (the
+  user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`/`13`)._ `getActivePesticideNotices`,
+  `getPesticideSections` and `getPesticideTownships` expose only the sqid filters (`chemical_id`,
+  `product_id`, `commodity_id`) and `aerial_ground`, not the server's CDPR-code `chemical`,
+  `product`, `commodity` or SprayDays-wording `method`. Why: nothing calls them (the dashboard uses
+  `pesticides/place/`'s sqids). Adding them later isn't a breaking change. **Revisit when** an app
+  needs to filter by CDPR codes (for example, porting the Pesticides explorer onto the SDK).
+- **`@sjvair/sdk` doesn't wrap `pesticides/notices/archive/`.** _Deferred 2026-11-16 (the
+  user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`)._ Nothing calls it: the Map shows a
+  past day's notices through `notices/active/?date=`. The archive takes the same parameters, plus
+  year and month. **Revisit when** an app needs past notices by year or month (a notices history
+  view or a past-notice list), not by day.
+- **The Pesticides explorer doesn't read the new pesticide meta or class breaks.** _Deferred
+  2026-11-16 (sjvair.com pesticide Map work, session `sjvair-com-5a`; the user's rule for that
+  work: the Pesticides and Facility Emissions explorers must not change behaviour, only get more
+  efficient)._ The explorer keeps its own templates and on-screen ranking. It doesn't read
+  `pesticides/meta/` `notes`, `badges` or `ramp`, or the valley-wide `classes` the dashboard's Map
+  uses, so the two can shade the same section differently. **Revisit when** someone decides the
+  explorer should match the dashboard's valley-wide shading, or when the explorer's copy is next
+  reworked.
 - **Pesticide widgets and `pesticides/meta/`.** _Deferred 2026-11-03 (step 3 second batch,
   agreed with the user)._ No step 4 widget shows pesticide data, and widgets need more than
   metadata: the numbers the Pesticides Explorer shows (year-over-year change, month × year
@@ -2348,7 +2391,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   adds a location place.
 - **A note on when pesticide data is released.** _Deferred 2026-11-07 (step 4 spec 3b)._ A
   neutral note in the dataset's catalog description (server text), offered and not taken.
-  **Revisit if** people ask why recent months are empty.
+  **Revisit if** people ask why recent months are empty. _Update 2026-11-16:_ sjvair.com's
+  pesticide PR 1 (session `sjvair-com-5a`) adds the text as `pesticides/meta/` `notes.pur_lag`,
+  which step 5 spec 5 shows on the Map. Remove this entry when that lands.
 - **Choosing a weather station per place or per layer.** _Deferred 2026-11-07 (step 4 spec
   3b)._ One station per Weather section, and the choice shows only for one place (rain from two
   stations, or a station for each of several places, can't be asked for). **Revisit if**
