@@ -23,7 +23,10 @@ const SOURCE = "https://cdpr.example/noi";
 const META = {
 	categories: [],
 	iarc_groups: [],
-	methods: [{ key: "ground", label: "Ground" }],
+	methods: [
+		{ key: "G", label: "Ground" },
+		{ key: "F", label: "Field fumigation" }
+	],
 	narrows: [],
 	placeholder_chemicals: [],
 	badges: [],
@@ -46,6 +49,7 @@ function notice(over: Partial<NoticeItem> = {}): NoticeItem {
 		scheduled: "2026-11-14T09:30:00-08:00",
 		scheduledEnd: "2026-11-18T09:30:00-08:00",
 		method: "Fumigation",
+		methodKey: "F",
 		amount: 12.5,
 		units: "A",
 		county: "Fresno",
@@ -99,9 +103,9 @@ describe("NoticeCard", () => {
 		await expect
 			.element(screen.getByText(m.map_notice_amount({ amount: formatNumber(12.5), units: "A" })))
 			.toBeVisible();
-		// The notice's own wording, as SprayDays gives it.
+		// The meta's label for the notice's method key.
 		await expect
-			.element(screen.getByText(m.map_notice_method({ method: "Fumigation" })))
+			.element(screen.getByText(m.map_notice_method({ method: "Field fumigation" })))
 			.toBeVisible();
 		await expect.element(screen.getByText(m.map_notice_products())).toBeVisible();
 		await expect.element(screen.getByText("Telone II")).toBeVisible();
@@ -116,11 +120,42 @@ describe("NoticeCard", () => {
 	});
 
 	it("leaves out the method and the units when the notice has none", async () => {
-		const screen = await setup({ notices: [notice({ method: "", units: "", amount: 3 })] });
+		// No wording is the `none` key, which the meta doesn't list.
+		const screen = await setup({
+			notices: [notice({ method: "", methodKey: "none", units: "", amount: 3 })]
+		});
 		await expect
 			.element(screen.getByText(m.map_notice_amount_no_units({ amount: formatNumber(3) })))
 			.toBeVisible();
+		await new Promise((r) => setTimeout(r, 50));
 		expect(screen.container.textContent).not.toContain(m.map_notice_method({ method: "" }));
+	});
+
+	it("the method label comes from the meta by key, with the wording only as a fallback", async () => {
+		const labelled = await setup({ notices: [notice({ methodKey: "G", method: "Ground rig" })] });
+		await expect
+			.element(labelled.getByText(m.map_notice_method({ method: "Ground" })))
+			.toBeVisible();
+		expect(labelled.container.textContent).not.toContain("Ground rig");
+		labelled.unmount();
+		// A key the meta doesn't list (`O`, `none`): SprayDays' wording.
+		const unlisted = await setup({ notices: [notice({ methodKey: "O", method: "Chemigation" })] });
+		await expect
+			.element(unlisted.getByText(m.map_notice_method({ method: "Chemigation" })))
+			.toBeVisible();
+		unlisted.unmount();
+		// Before the meta loads: the wording, then the label.
+		let resolve!: (value: unknown) => void;
+		resetPesticideMeta();
+		vi.mocked(getPesticidesMeta).mockReturnValue(new Promise((r) => (resolve = r)) as never);
+		const waiting = await setup({ notices: [notice()] });
+		await expect
+			.element(waiting.getByText(m.map_notice_method({ method: "Fumigation" })))
+			.toBeVisible();
+		resolve(META);
+		await expect
+			.element(waiting.getByText(m.map_notice_method({ method: "Field fumigation" })))
+			.toBeVisible();
 	});
 
 	it("names the place by whole-sentence variants when the server leaves part out", async () => {
@@ -184,7 +219,7 @@ describe("NoticeCard", () => {
 			.toBeVisible();
 		const rows = screen
 			.getByRole("button")
-			.filter({ hasText: m.map_notice_method({ method: "Fumigation" }) });
+			.filter({ hasText: m.map_notice_method({ method: "Field fumigation" }) });
 		await expect.poll(() => rows.elements().length).toBe(3);
 		const texts = rows.elements().map((row) => row.textContent ?? "");
 		expect(texts[0]).toContain(at("2026-11-12T06:00:00-08:00"));

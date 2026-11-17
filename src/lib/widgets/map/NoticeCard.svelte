@@ -7,9 +7,11 @@
 	import { formatDate, formatDateTime, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { NoticeItem } from "./data/notices";
+	import { webHref } from "./notice-links";
 
 	// A spray notice marker's card: one notice's detail, or a list of a section's notices, each
-	// row opening its detail. The explainer and the SprayDays link come from the pesticide meta.
+	// row opening its detail. The explainer, the SprayDays link and the method labels come from the
+	// pesticide meta.
 	// On hover (map-sdk's non-interactive tooltip) it is a static summary with nothing focusable.
 	let {
 		notices,
@@ -52,20 +54,17 @@
 		return () => controller.abort();
 	});
 
-	/** Only an http(s) address from the meta becomes a link. */
-	function safeHref(url: string | undefined): string | null {
-		if (!url) return null;
-		try {
-			const { protocol } = new URL(url);
-			return protocol === "https:" || protocol === "http:" ? url : null;
-		} catch {
-			return null;
-		}
-	}
-
 	const explainer = $derived(meta?.notes.noi_meaning ?? null);
-	const sourceHref = $derived(safeHref(explainer?.source_url));
-	const signupHref = $derived(safeHref(meta?.links.spraydays_signup));
+	const sourceHref = $derived(webHref(explainer?.source_url));
+	const signupHref = $derived(webHref(meta?.links.spraydays_signup));
+
+	/**
+	 * The method's name: the meta's label for the notice's method key; SprayDays' own wording
+	 * while the meta hasn't loaded, or for a key it doesn't list (`none`, or one it dropped).
+	 */
+	function method(notice: NoticeItem): string {
+		return meta?.methods.find((entry) => entry.key === notice.methodKey)?.label ?? notice.method;
+	}
 
 	// On a past day every notice shown was active that day, so none is tagged.
 	function active(notice: NoticeItem): boolean {
@@ -184,8 +183,8 @@
 			{#if amount(shown)}
 				<p>{amount(shown)}</p>
 			{/if}
-			{#if shown.method}
-				<p>{m.map_notice_method({ method: shown.method })}</p>
+			{#if method(shown)}
+				<p>{m.map_notice_method({ method: method(shown) })}</p>
 			{/if}
 			<div>
 				<p class="font-medium">{m.map_notice_products()}</p>
@@ -214,8 +213,8 @@
 							{#if amount(notice)}
 								<span>{amount(notice)}</span>
 							{/if}
-							{#if notice.method}
-								<span>{m.map_notice_method({ method: notice.method })}</span>
+							{#if method(notice)}
+								<span>{m.map_notice_method({ method: method(notice) })}</span>
 							{/if}
 						</button>
 					</li>

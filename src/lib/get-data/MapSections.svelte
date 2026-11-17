@@ -8,6 +8,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import type { RegionTypeInfo } from "$lib/places/types";
 	import { PESTICIDE_NOTICES, pollutantLayers } from "$lib/widgets/map/options";
+	import { PESTICIDE_FILTER_NAMES } from "./filter-names";
 	import { hasNotices, hasSmokeAndFire, MAP_POLLUTANTS_MAX, mapPesticideFilters } from "./map";
 	import { nowPollutants } from "./now";
 	import type { PesticideFilters as Filters } from "$lib/data/schema";
@@ -89,16 +90,6 @@
 		);
 		return () => controller.abort();
 	});
-	/** Each filter's name, as the filters show it. */
-	const FILTER_LABELS: Record<keyof Filters, () => string> = {
-		chemical: m.get_data_filter_chemical,
-		commodity: m.get_data_filter_crop,
-		product: m.get_data_filter_product,
-		category: m.get_data_filter_category,
-		iarcGroup: m.get_data_filter_iarc,
-		method: m.get_data_filter_method,
-		narrow: m.get_data_filter_narrow
-	};
 	/** The saved filters the notices can't apply: still shown and kept, and named. */
 	const noticesSkipped = $derived(
 		notices && noticeFilters ? noticeFiltersSkipped(noticeFiltersSaved ?? {}, noticeFilters) : []
@@ -199,7 +190,7 @@
 						<PesticideFilters filters={noticeFiltersSaved} onchange={onfilters} />
 						{#each noticesSkipped as key (key)}
 							<p class="text-muted-foreground mt-2 text-xs" data-notices-skipped={key}>
-								{m.getdata_map_notices_filter_skipped({ filter: FILTER_LABELS[key]() })}
+								{m.getdata_map_notices_filter_skipped({ filter: PESTICIDE_FILTER_NAMES[key]() })}
 							</p>
 						{/each}
 					</div>

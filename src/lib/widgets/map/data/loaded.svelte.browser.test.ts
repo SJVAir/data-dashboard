@@ -6,6 +6,7 @@ import type { WidgetInstance } from "$lib/documents/schema";
 import type { FillData } from "./fill";
 import type { HmsData } from "./hms";
 import { MapData, type MapDataInput } from "./loaded.svelte";
+import { NOTICES_SCALE } from "./notices";
 
 const fakes = vi.hoisted(() => ({
 	hmsFetch: vi.fn<(key: string) => Promise<unknown>>(async () => ({ smoke: [], fires: [] })),
@@ -14,7 +15,10 @@ const fakes = vi.hoisted(() => ({
 		features: { type: "FeatureCollection", features: [] },
 		final: true
 	})),
-	noticesFetch: vi.fn<(key: string) => Promise<unknown>>(async () => []),
+	noticesFetch: vi.fn<(key: string) => Promise<unknown>>(async () => ({
+		notices: [],
+		value: null
+	})),
 	noticesUnavailable: { value: false },
 	noticeFilterNames: vi.fn<() => Promise<string[]>>(async () => ["chemical_id", "category"])
 }));
@@ -175,7 +179,7 @@ beforeEach(() => {
 	}));
 	fakes.dayFinal.value = false;
 	fakes.noticesFetch.mockClear();
-	fakes.noticesFetch.mockImplementation(async () => []);
+	fakes.noticesFetch.mockImplementation(async () => ({ notices: [], value: null }));
 	fakes.noticesUnavailable.value = false;
 	fakes.noticeFilterNames.mockReset();
 	fakes.noticeFilterNames.mockImplementation(async () => ["chemical_id", "category"]);
@@ -279,7 +283,8 @@ describe("MapData", () => {
 		]);
 		expect(t.data.noticesState.status).toBe("ready");
 		expect(t.data.noticesSource.status).toEqual({ state: "ready" });
-		expect(t.data.noticesSource.scale).toBeNull();
+		expect(t.data.noticesSource.scale).toBe(NOTICES_SCALE);
+		expect(t.data.noticesSource.features?.features).toEqual([]);
 		// The saved commodity filter doesn't apply to notices: named, not dropped silently.
 		expect(t.data.noticesSkipped).toEqual(["commodity"]);
 		// A step to a day fetched ahead fetches nothing new for it.
@@ -320,6 +325,8 @@ describe("MapData", () => {
 		const t = setup({ at: "now", widget: WITH_NOTICES });
 		await flush();
 		expect(t.data.noticesUnavailable).toBe("filter-gone");
+		// map-sdk's legend says the layer is unavailable: never a silent empty layer.
+		expect(t.data.noticesSource.status).toEqual({ state: "unavailable", reason: "filter-gone" });
 		expect(fakes.noticesFetch).not.toHaveBeenCalled();
 		t.data.destroy();
 	});
@@ -340,7 +347,8 @@ describe("MapData", () => {
 		fakes.noticeFilterNames.mockRejectedValueOnce(new Error("offline"));
 		let release!: () => void;
 		fakes.noticesFetch.mockImplementationOnce(
-			() => new Promise<unknown>((resolve) => (release = () => resolve([])))
+			() =>
+				new Promise<unknown>((resolve) => (release = () => resolve({ notices: [], value: null })))
 		);
 		const t = setup({ at: "now", widget: WITH_NOTICES });
 		await flush();

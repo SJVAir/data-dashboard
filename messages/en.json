@@ -1214,6 +1214,10 @@
 	"map_fill_today_so_far": "{regionType}, today so far",
 	"map_fill_failed": "The region fill couldn't be loaded.",
 	"map_notices_failed": "Spray notices couldn't be loaded.",
+	"map_notices_filter_gone": "Spray notices can't be shown: a filter they use is no longer available.",
+	"map_notices_legend_units": "Numbered: how many notices",
+	"map_notices_legend_filters": "Filtered by {filters}",
+	"map_notices_none_day": "No spray notices for this day",
 	"map_notices_name": [
 		{
 			"declarations": [

@@ -4,6 +4,8 @@ import type { Feature } from "geojson";
 import type { Snippet } from "svelte";
 import {
 	getActivePesticideNotices,
+	getChemicalDetails,
+	getCommodityDetails,
 	getHMSFire,
 	getHMSSmoke,
 	getPesticidesMeta,
@@ -44,6 +46,7 @@ import { generatedTitle } from "../titles.svelte";
 import { dayStops } from "./days";
 import { mapConfig } from "./host/config";
 import { mapMessages } from "./host/messages";
+import { NOTICES_SCALE } from "./data/notices";
 import { mapOptions } from "./options";
 import { regionShapes, regionTypeShapes } from "./regions";
 import {
@@ -122,6 +125,8 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getHMSSmoke: vi.fn(),
 	getHMSFire: vi.fn(),
 	getActivePesticideNotices: vi.fn(),
+	getChemicalDetails: vi.fn(),
+	getCommodityDetails: vi.fn(),
 	getPesticidesMeta: vi.fn(),
 	getRegionsMeta: vi.fn(),
 	getRegionSummariesBulkDaily: vi.fn(),
@@ -241,17 +246,45 @@ function drawn(map: FakeMap): string[] | undefined {
 	return source?.features?.features.map((f) => f.properties.refKey.replace(/^monitor:/, ""));
 }
 
-/** The pesticides meta: the filter params the notice endpoints take (no commodity). */
+const NOI_SOURCE = "https://cdpr.example/noi";
+
+/**
+ * The pesticides meta: the filter params the notice endpoints take (no commodity), the notices'
+ * explainer, and their one-level scale.
+ */
 const PESTICIDES_META = {
-	categories: [],
+	categories: [{ key: "fumigant", label: "Fumigants", description: "", in_use: true }],
 	iarc_groups: [],
 	methods: [],
 	narrows: [],
 	placeholder_chemicals: [],
 	badges: [],
-	notes: {},
+	notes: {
+		noi_meaning: {
+			key: "noi_meaning",
+			title: "What a notice means",
+			summary: "A plan to apply, not proof it happened. Restricted materials only.",
+			detail: null,
+			source_url: NOI_SOURCE
+		}
+	},
 	links: { spraydays_signup: "" },
-	notice_filters: ["chemical_id", "product_id", "category", "iarc_group", "narrow", "aerial_ground"]
+	notice_filters: [
+		"chemical_id",
+		"product_id",
+		"category",
+		"iarc_group",
+		"narrow",
+		"aerial_ground"
+	],
+	scales: {
+		"spray-notice": {
+			id: "spray-notice",
+			label: "Spray Notices",
+			kind: "category",
+			levels: [{ key: "notice", label: "Spray notice", color: "#e64980", value: "notice" }]
+		}
+	}
 };
 
 /** A spray notice in MTRS section `section`, as the server gives it. */
@@ -266,6 +299,7 @@ function sprayNotice(id: string, section: string) {
 			scheduled_end: "2026-11-16T08:00:00-08:00",
 			county: "Fresno",
 			application_method: "Ground",
+			aerial_ground: "G",
 			treated_amount: 10,
 			treated_units: "A",
 			section: `Section ${section}`,
@@ -2817,6 +2851,8 @@ type NoticesPlugin = {
 	options: {
 		id: string;
 		layerLabel: string;
+		legendUnits?: string;
+		legendNote?: Snippet;
 		count?: { property: string };
 		cluster?: { radius: number; maxZoom: number; properties?: unknown };
 		tooltip?: (item: unknown, props: Record<string, unknown>, env: unknown) => Snippet | undefined;
@@ -2832,12 +2868,22 @@ type NoticesPlugin = {
 const noticesOf = (map: FakeMap) =>
 	map.plugins.find((p) => p.id === "notices") as unknown as NoticesPlugin | undefined;
 
-/** A Map of county 019 with the spray notices layer. */
-function noticesMap(): WidgetInstance {
+/** A Map of county 019 with the spray notices layer (with `filters`, if given). */
+function noticesMap(filters?: Record<string, unknown>): WidgetInstance {
 	return {
 		...mapWidget({}),
-		data: layers(region("019"), [{ dataset: "pesticide-notices" }])
+		data: layers(region("019"), [{ dataset: "pesticide-notices", ...(filters && { filters }) }])
 	};
+}
+
+/** The notices plugin's legend note, rendered as map-sdk's legend does, once it's added. */
+async function noticesNote(map: FakeMap) {
+	await expect.poll(() => noticesOf(map)?.options.legendNote).toBeDefined();
+	return render(RenderSnippet, { snippet: noticesOf(map)!.options.legendNote! });
+}
+
+function notFound(): Error {
+	return new Error("Not found", { cause: { result: { status: 404 } } });
 }
 
 test("adds the notices plugin under the monitors when the tile has notices", async () => {
@@ -2860,8 +2906,10 @@ test("adds the notices plugin under the monitors when the tile has notices", asy
 	expect(notices.options.cluster).toBeDefined();
 	expect(notices.options.cluster?.properties).toBeUndefined();
 	await expect.poll(() => notices.options.source.features?.features).toHaveLength(1);
-	expect(notices.options.source.features!.features[0].properties).toMatchObject({ count: 2 });
-	expect(notices.options.source.scale).toBeNull();
+	expect(notices.options.source.features!.features[0].properties).toMatchObject({
+		count: 2,
+		value: "notice"
+	});
 	// Over the whole map: never limited by the places.
 	expect(getActivePesticideNotices).toHaveBeenCalledWith(
 		expect.not.objectContaining({ bbox: expect.anything() })
@@ -2996,4 +3044,122 @@ test("notices failure note: Retry fetches again while the monitors stay drawn", 
 	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
 	expect(getActivePesticideNotices).toHaveBeenCalledTimes(2);
 	expect(drawn(map)).toEqual(["a"]);
+});
+
+test("the notices source's scale is one stable ScaleRef", async () => {
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const source = noticesOf(map)!.options.source;
+	// map-sdk matches the resolved scale to its source's by identity: the same object every read.
+	expect(source.scale).toBe(NOTICES_SCALE);
+	expect(source.scale).toBe(source.scale);
+	expect(NOTICES_SCALE).toEqual({ dataset: "pesticide-notices", entryType: "spray-notice" });
+	// The legend row's units line: what a marker's number means.
+	expect(noticesOf(map)!.options.legendUnits).toBe(m.map_notices_legend_units());
+});
+
+test("a day with no notices says so, with the explainer", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-09": { a: 9 } });
+	const widget: WidgetInstance = {
+		...rangedMap(region("019")),
+		data: { ...layers(region("019"), [{ dataset: "pesticide-notices" }]), dateRange: RANGE }
+	};
+	await show(widget);
+	const map = await madeMap();
+	await expect
+		.poll(() => vi.mocked(getActivePesticideNotices).mock.calls.length)
+		.toBeGreaterThan(0);
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(m.map_notices_none_day())).toBeVisible();
+	// The explainer still reminds that no notice doesn't mean no spraying; its title links out.
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	const link = note.getByRole("link", {
+		name: new RegExp(PESTICIDES_META.notes.noi_meaning.title)
+	});
+	await expect.element(link).toHaveAttribute("href", NOI_SOURCE);
+	await expect.element(link).toHaveAttribute("rel", "noopener noreferrer");
+	note.unmount();
+});
+
+test("on now, no notices isn't called a day without them; the explainer shows", async () => {
+	await show(noticesMap());
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
+	note.unmount();
+});
+
+test("a day with notices doesn't say there are none", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-09": { a: 9 } });
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1")]) as never
+	);
+	const widget: WidgetInstance = {
+		...rangedMap(region("019")),
+		data: { ...layers(region("019"), [{ dataset: "pesticide-notices" }]), dateRange: RANGE }
+	};
+	await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
+	note.unmount();
+});
+
+test("the legend names the active filters", async () => {
+	vi.mocked(getChemicalDetails).mockResolvedValue({ display_name: "1,3-Dichloropropene" } as never);
+	await show(noticesMap({ chemical: "c1", category: ["fumigant"] }));
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	// As charts' legends name them: the filters' names, joined as labels are.
+	const named = m.label_join({ first: "1,3-Dichloropropene", second: "Fumigants" });
+	await expect
+		.element(note.getByText(m.map_notices_legend_filters({ filters: named })))
+		.toBeVisible();
+	note.unmount();
+});
+
+test("the legend says which filters don't apply to spray notices", async () => {
+	vi.mocked(getCommodityDetails).mockResolvedValue({ display_name: "Grapes" } as never);
+	await show(noticesMap({ commodity: "k1", category: ["fumigant"] }));
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect
+		.element(
+			note.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() }))
+		)
+		.toBeVisible();
+	// The category applies: it isn't named as skipped.
+	expect(note.container.textContent).not.toContain(
+		m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_category() })
+	);
+	note.unmount();
+});
+
+test("a gone filter is said, not an empty layer", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getChemicalDetails).mockRejectedValue(notFound());
+	const screen = await show(noticesMap({ chemical: "gone" }));
+	const map = await madeMap();
+	// map-sdk's legend shows the layer as unavailable (a status row), with no features drawn.
+	await expect
+		.poll(() => noticesOf(map)?.options.source.status)
+		.toEqual({ state: "unavailable", reason: "filter-gone" });
+	expect(noticesOf(map)!.options.source.features).toBeNull();
+	// And the map says why, with Edit data to change the filter; the monitors stay drawn.
+	await expect.element(screen.getByText(m.map_notices_filter_gone())).toBeVisible();
+	expect(frame.querySelector("[data-map-notices-gone]")).toBeTruthy();
+	await expect.element(screen.getByRole("button", { name: m.widget_edit_data() })).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(getActivePesticideNotices).not.toHaveBeenCalled();
 });

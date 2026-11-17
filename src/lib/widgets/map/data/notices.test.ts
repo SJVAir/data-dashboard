@@ -19,9 +19,9 @@ import { resetPesticideMeta } from "$lib/data/pesticide-meta";
 import type { PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import type { NowSource } from "$lib/data/now/client";
 import { addDays, pacificDay, todayPacific } from "$lib/format";
-import { noticesEntry, noticesPolls, type NoticeItem } from "./notices";
+import { NOTICES_SCALE, noticesEntry, noticesPolls, type NoticesData } from "./notices";
 
-type Src = NowSource<NoticeItem[]>;
+type Src = NowSource<NoticesData>;
 
 const META = {
 	categories: [{ key: "carcinogen", label: "Carcinogen", description: "", in_use: true }],
@@ -29,7 +29,23 @@ const META = {
 	methods: [{ key: "A", label: "Aerial" }],
 	narrows: [{ key: "concern", label: "Chemicals of concern", description: "" }],
 	placeholder_chemicals: [],
-	notice_filters: ["chemical_id", "product_id", "category", "iarc_group", "narrow", "aerial_ground"]
+	notice_filters: [
+		"chemical_id",
+		"product_id",
+		"category",
+		"iarc_group",
+		"narrow",
+		"aerial_ground"
+	],
+	/** The server's one-level category scale for the notice marker (its value isn't its key). */
+	scales: {
+		"spray-notice": {
+			id: "spray-notice",
+			label: "Spray Notices",
+			kind: "category",
+			levels: [{ key: "notice", label: "Spray notice", color: "#e64980", value: "notice-level" }]
+		}
+	}
 };
 
 function notFound(): Error {
@@ -53,6 +69,7 @@ const notice = (id: string, section: string | null, scheduled: string, past?: bo
 		scheduled_end: scheduled,
 		county: "Fresno",
 		application_method: "Ground",
+		aerial_ground: "G",
 		treated_amount: 10,
 		treated_units: "A",
 		section: section && `Section ${section}`,
@@ -106,14 +123,18 @@ describe("noticesEntry", () => {
 		const value = await source.fetch(new AbortController().signal);
 		const out = noticesEntry.toDataSources(value, { messages, entryType: "pm25" });
 		expect(Object.keys(out)).toEqual(["notices"]);
-		expect(out.notices.scale).toBeNull();
+		// One stable ScaleRef: map-sdk matches a resolved scale to its source's by identity.
+		expect(out.notices.scale).toBe(NOTICES_SCALE);
+		expect(NOTICES_SCALE).toEqual({ dataset: "pesticide-notices", entryType: "spray-notice" });
 		const features = out.notices.features!.features;
 		expect(features).toHaveLength(2);
 		const s1 = features.find((f) => f.properties.refKey === "feature:s1")!;
 		const s2 = features.find((f) => f.properties.refKey === "feature:s2")!;
 		expect(s1.properties.count).toBe(2);
 		expect(s2.properties.count).toBe(1);
-		expect(s1.properties.value).toBe(2);
+		// The value matches the scale's one level (its `value` from the meta, not its key).
+		expect(s1.properties.value).toBe("notice-level");
+		expect(s2.properties.value).toBe("notice-level");
 		expect(s1.properties.notices.map((n) => n.id)).toEqual(["n3", "n1"]);
 		expect(s1.properties.name).toBe("2 spray notices, Section s1, Fresno");
 		expect(s2.properties.name).toBe("1 spray notice, Section s2, Fresno");
@@ -123,6 +144,7 @@ describe("noticesEntry", () => {
 			scheduled: "2026-11-14T09:00:00-08:00",
 			scheduledEnd: "2026-11-14T09:00:00-08:00",
 			method: "Ground",
+			methodKey: "G",
 			amount: 10,
 			units: "A",
 			county: "Fresno",
@@ -142,7 +164,20 @@ describe("noticesEntry", () => {
 			features: [notice("n1", "s1", "2026-11-14T09:00:00-08:00", true), placeless]
 		} as never);
 		const value = await (await sourceOf({ day: "2026-11-16" })).fetch(new AbortController().signal);
-		expect(value.map((n) => [n.id, n.past])).toEqual([["n1", true]]);
+		expect(value.notices.map((n) => [n.id, n.past])).toEqual([["n1", true]]);
+	});
+
+	it("without the meta's spray-notice scale a marker has no value (drawn neutral)", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue({ ...META, scales: {} } as never);
+		vi.mocked(getActivePesticideNotices).mockResolvedValue({
+			type: "FeatureCollection",
+			as_of: "",
+			features: [notice("n1", "s1", "2026-11-14T09:00:00-08:00")]
+		} as never);
+		const value = await (await sourceOf("now")).fetch(new AbortController().signal);
+		const out = noticesEntry.toDataSources(value, { messages, entryType: "pm25" });
+		expect(out.notices.features!.features[0].properties.value).toBeNull();
+		expect(out.notices.scale).toBe(NOTICES_SCALE);
 	});
 
 	it("a notice with no section is a marker of its own", async () => {

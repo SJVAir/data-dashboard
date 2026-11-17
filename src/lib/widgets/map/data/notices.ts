@@ -1,8 +1,15 @@
 import { getActivePesticideNotices, type ActivePesticideNoticeFeature } from "@sjvair/sdk";
-import { encodeRef, type DataSource, type MapFeatureProperties } from "@sjvair/map-sdk/data";
+import {
+	encodeRef,
+	type DataSource,
+	type DataStatus,
+	type MapFeatureProperties,
+	type ScaleRef
+} from "@sjvair/map-sdk/data";
 import type { Feature, FeatureCollection, Point } from "geojson";
 import { toNoticeParams } from "$lib/data/adapters/pesticides";
 import type { NowState } from "$lib/data/now/client";
+import type { UnavailableReason } from "$lib/data/types";
 import { codesKnown, FilterGone, filterLabels, pesticideMeta } from "$lib/data/pesticide-meta";
 import type { PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import type { SnapshotAt } from "$lib/data/snapshot";
@@ -21,6 +28,11 @@ export type NoticeItem = {
 	scheduledEnd: string;
 	/** SprayDays' wording for the method, e.g. "Ground"; may be empty. */
 	method: string;
+	/**
+	 * The method as the `aerial_ground` filter codes it (`G`, `A`, `F`, `O` or `none`): the card
+	 * labels it from the pesticides meta's `methods`.
+	 */
+	methodKey: string;
 	amount: number | null;
 	/** The units of `amount`; may be empty. */
 	units: string;
@@ -36,6 +48,21 @@ export type NoticeItem = {
 	/** Whether the window had ended by the day showing; absent on now. */
 	past?: boolean;
 };
+
+/**
+ * The loaded notices, with the value every marker carries: the pesticides meta's spray-notice
+ * level's `value` (null when the meta has no such scale, so the markers draw neutral).
+ */
+export type NoticesData = { notices: NoticeItem[]; value: string | null };
+
+/** Before the notices load: none, and no value. */
+export const NO_NOTICES: NoticesData = { notices: [], value: null };
+
+/**
+ * The notices' scale: the server's one-level `spray-notice` scale (from the pesticides meta).
+ * One constant, as map-sdk matches a resolved scale to its source's by identity.
+ */
+export const NOTICES_SCALE: ScaleRef = { dataset: PESTICIDE_NOTICES, entryType: "spray-notice" };
 
 /** One marker: the notices of one section, sorted by when they're scheduled. */
 export type NoticeFeatureProperties = MapFeatureProperties & {
@@ -80,6 +107,17 @@ export async function noticeFilterNames(signal?: AbortSignal): Promise<string[]>
 	return (await pesticideMeta(signal)).notice_filters;
 }
 
+/**
+ * The value a notice marker carries so map-sdk's category match finds the scale's level: the
+ * level's own `value` (the match reads it, not the key). The scale has one level; null without it.
+ */
+function levelValue(meta: Awaited<ReturnType<typeof pesticideMeta>>): string | null {
+	const level = meta.scales[NOTICES_SCALE.entryType]?.levels.find(
+		(l) => l.value !== null && l.value !== undefined
+	);
+	return level ? String(level.value) : null;
+}
+
 function toItem(feature: ActivePesticideNoticeFeature): NoticeItem | null {
 	// A notice with no location can't be drawn.
 	if (!feature.geometry) return null;
@@ -90,6 +128,7 @@ function toItem(feature: ActivePesticideNoticeFeature): NoticeItem | null {
 		scheduled: p.scheduled_application,
 		scheduledEnd: p.scheduled_end,
 		method: p.application_method,
+		methodKey: p.aerial_ground,
 		amount: p.treated_amount,
 		units: p.treated_units,
 		county: p.county,
@@ -126,7 +165,7 @@ function markerName(
  * layer's pesticide filters: drawn everywhere, never limited by the places. With a `date` the
  * server gives those scheduled from Pacific 00:00 four days before the day to the day's end.
  */
-export const noticesEntry: MapDataEntry<NoticeItem[], NoticeFeatureProperties> = {
+export const noticesEntry: MapDataEntry<NoticesData, NoticeFeatureProperties> = {
 	id: "notices",
 	async source({ data, at }) {
 		const layer = noticesLayer(data);
@@ -139,18 +178,20 @@ export const noticesEntry: MapDataEntry<NoticeItem[], NoticeFeatureProperties> =
 			key: `map-notices:${day}|${filtersKey(filters)}`,
 			cadence: "hour",
 			fetch: async (signal) => {
-				const params = toNoticeParams(filters, await noticeFilterNames(signal));
+				const meta = await pesticideMeta(signal);
+				const params = toNoticeParams(filters, meta.notice_filters);
 				const collection =
 					at === "now"
 						? await getActivePesticideNotices({ ...params, signal })
 						: await getActivePesticideNotices({ ...params, date: at.day, signal });
-				return collection.features
+				const notices = collection.features
 					.map((feature) => toItem(feature))
 					.filter((item): item is NoticeItem => item !== null);
+				return { notices, value: levelValue(meta) };
 			}
 		};
 	},
-	toDataSources(notices) {
+	toDataSources({ notices, value }) {
 		// One marker per section; a notice with no section is a marker of its own.
 		const groups = new Map<string, NoticeItem[]>();
 		for (const notice of notices) {
@@ -170,7 +211,7 @@ export const noticesEntry: MapDataEntry<NoticeItem[], NoticeFeatureProperties> =
 				properties: {
 					refKey: encodeRef({ kind: "feature", id }),
 					name: markerName(counted, sorted[0]),
-					value: count,
+					value,
 					count,
 					notices: sorted
 				}
@@ -180,7 +221,7 @@ export const noticesEntry: MapDataEntry<NoticeItem[], NoticeFeatureProperties> =
 			type: "FeatureCollection",
 			features
 		};
-		return { notices: { status: { state: "ready" }, features: collection, scale: null } };
+		return { notices: { status: { state: "ready" }, features: collection, scale: NOTICES_SCALE } };
 	}
 };
 
@@ -194,20 +235,25 @@ export function noticesPolls(at: SnapshotAt, nowMs: number = Date.now()): boolea
 	return nowMs < pacificDay(addDays(at.day, 5)).getTime();
 }
 
-/** The notices' source for the map, reading the loaded state as it is. */
+/**
+ * The notices' source for the map, reading the loaded state as it is. A saved filter gone makes
+ * it unavailable (map-sdk's legend says so), never an empty layer.
+ */
 export function noticesSourceOf(d: {
-	readonly noticesState: NowState<NoticeItem[]>;
+	readonly noticesState: NowState<NoticesData>;
 	readonly noticesDrawn: DataSource<NoticeFeatureProperties>;
+	readonly noticesUnavailable: UnavailableReason | undefined;
 }): DataSource<NoticeFeatureProperties> {
 	return {
-		get status() {
-			return dataStatus(d.noticesState);
+		get status(): DataStatus {
+			const reason = d.noticesUnavailable;
+			return reason ? { state: "unavailable", reason } : dataStatus(d.noticesState);
 		},
 		get features() {
 			return d.noticesState.data === undefined ? null : d.noticesDrawn.features;
 		},
 		get scale() {
-			return null;
+			return NOTICES_SCALE;
 		}
 	};
 }

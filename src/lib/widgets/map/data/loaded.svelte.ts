@@ -20,12 +20,13 @@ import { fillEntry, fillPolls, fillSourceOf, type FillData, type FillSource } fr
 import { hmsEntry, hmsPolls, hmsSourceOf, type HmsData } from "./hms";
 import { MonitorsBlock } from "./monitors-block.svelte";
 import {
+	NO_NOTICES,
 	noticeFilterNames,
 	noticesEntry,
 	noticesPolls,
 	noticesSourceOf,
 	type NoticeFeatureProperties,
-	type NoticeItem
+	type NoticesData
 } from "./notices";
 import type { DayRating } from "./monitors";
 
@@ -66,7 +67,7 @@ export class MapData {
 	readonly #monitors: MonitorsBlock;
 	readonly #hms: DayLayer<HmsData>;
 	readonly #fill: DayLayer<FillData>;
-	readonly #notices: DayLayer<NoticeItem[]>;
+	readonly #notices: DayLayer<NoticesData>;
 
 	#getInput: () => MapDataInput;
 	#stopEffects: () => void;
@@ -105,7 +106,7 @@ export class MapData {
 	readonly notices = $derived.by(() => hasNotices(this.#getInput().widget.data));
 	/** The notices as map-sdk data; before they load, with no features. */
 	readonly noticesDrawn: DataSource<NoticeFeatureProperties> = $derived(
-		noticesEntry.toDataSources(this.noticesState.data ?? [], {
+		noticesEntry.toDataSources(this.noticesState.data ?? NO_NOTICES, {
 			messages: mapMessages,
 			entryType: this.#entryType ?? ""
 		}).notices
@@ -167,7 +168,7 @@ export class MapData {
 			// Every source the fill holds is one `fillEntry` made.
 			polls: (_at, value, source) => fillPolls(source as FillSource | null, value)
 		});
-		this.#notices = new DayLayer<NoticeItem[]>(deps.now, {
+		this.#notices = new DayLayer<NoticesData>(deps.now, {
 			sourceFor: async (at) => {
 				const run = this.#noticesRun;
 				const data = untrack(() => $state.snapshot(this.#getInput().widget.data));
@@ -311,10 +312,10 @@ export class MapData {
 	get fillFor(): string | undefined {
 		return this.#fillFor;
 	}
-	get noticesQuery(): DayLayer<NoticeItem[]>["query"] {
+	get noticesQuery(): DayLayer<NoticesData>["query"] {
 		return this.#notices.query;
 	}
-	get noticesState(): DayLayer<NoticeItem[]>["state"] {
+	get noticesState(): DayLayer<NoticesData>["state"] {
 		return this.#notices.state;
 	}
 	/** Why the notices can't load (a saved filter the server no longer has), if they can't. */

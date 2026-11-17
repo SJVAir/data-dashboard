@@ -39,6 +39,7 @@
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
 	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
+	import { navigate } from "../../../router";
 	import { fillRegionType } from "./data/fill";
 	import { MapData } from "./data/loaded.svelte";
 	import { isThin } from "./data/monitors";
@@ -53,6 +54,7 @@
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
 	import { noticeTooltip } from "./notice-tooltip";
+	import NoticesLegendNote from "./NoticesLegendNote.svelte";
 	import { OnScreen } from "./on-screen.svelte";
 	import {
 		hiddenReasonLines,
@@ -416,6 +418,18 @@
 	const noticesDrawn = $derived(!!noticesLabel && data.notices && wiring.noticesShown);
 	/** The notices failed to load, while they're shown. */
 	const noticesFailed = $derived(noticesDrawn && data.noticesFailed);
+	/** A saved filter of the notices is gone, while they're shown: said, never an empty layer. */
+	const noticesGone = $derived(noticesDrawn && data.noticesUnavailable === "filter-gone");
+	/** The notices layer's saved filters, which the legend names. */
+	const noticeFilters = $derived(
+		widget.data.layers.find((l) => l.dataset === PESTICIDE_NOTICES)?.filters
+	);
+	/** A day stop has loaded with no notices (the legend says so; now's none says nothing). */
+	const noNoticesOnDay = $derived(
+		days.onDay &&
+			data.noticesState.status === "ready" &&
+			data.noticesState.data.notices.length === 0
+	);
 
 	// Marks: monitors the person marks, saved in the options (one undo step each).
 	const marks = $derived(mapOptions(widget).marks ?? []);
@@ -431,6 +445,15 @@
 	});
 	const limitMessage = () =>
 		m.map_marks_limit({ count: formatNumber(MAP_MARKS_MAX), countValue: MAP_MARKS_MAX });
+
+	/** Edit data on this widget (where a gone notices filter is changed). */
+	function editData(): void {
+		const session = app.current.session;
+		if (!session || session.readOnly) return;
+		void navigate("/dashboards/:id/widgets/:widgetId/edit", {
+			params: { id: session.doc.id, widgetId: widget.id }
+		});
+	}
 
 	/** A person's mark or unmark on the map, saved (a starter's edit goes to its copy). */
 	function saveMarks(selection: SpatialSelection | null): void {
@@ -536,8 +559,10 @@
 		return () => current.removePlugin(plugin.id);
 	});
 
-	// The notices: above the fill, under the monitors; numbered markers, in map-sdk's neutral color
-	// (their source has no scale). Clustered as the monitors are.
+	// The notices: above the fill, under the monitors; numbered markers, in the color of the
+	// server's one-level spray-notice scale. Clustered as the monitors are. The legend section is
+	// the scale's level, a units line for the number, and the note (none for the day, filters,
+	// the explainer).
 	$effect(() => {
 		const current = map;
 		const label = noticesLabel;
@@ -548,6 +573,8 @@
 			source: noticesSource,
 			layerLabel: label,
 			count: { property: "count" },
+			legendUnits: m.map_notices_legend_units(),
+			legendNote: noticesNote,
 			// The card (its own heading); read when shown, so it follows the day stop and the pin.
 			// map-sdk shows the interactive card for the pinned or keyboard-focused feature and a
 			// non-interactive tooltip on hover, which gets the static form.
@@ -777,6 +804,14 @@
 
 {#snippet nothing()}{/snippet}
 
+{#snippet noticesNote()}
+	<NoticesLegendNote
+		filters={noticeFilters}
+		skipped={data.noticesSkipped}
+		noneOnDay={noNoticesOnDay}
+	/>
+{/snippet}
+
 {#snippet cardActions(ctx: CardContext)}
 	{#if ctx.selectable}
 		<Button size="sm" variant="outline" onclick={() => ctx.toggle()}>
@@ -829,7 +864,7 @@
 			<WidgetSkeleton />
 		</div>
 	{/if}
-	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed || fillFailed || noticesFailed}
+	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed || fillFailed || noticesFailed || noticesGone}
 		<!-- A compact banner under the toolbar: the map stays usable, but for its buttons. -->
 		<div
 			class="pointer-events-none absolute inset-x-0 top-[var(--mapsdk-toolbar-height,0px)] flex flex-col gap-1 p-2"
@@ -916,6 +951,21 @@
 					>
 						{m.widget_state_retry()}
 					</Button>
+				</div>
+			{/if}
+			{#if noticesGone}
+				<!-- No Retry: only another filter brings the notices back (Edit data, for an editor). -->
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+					role="status"
+					data-map-notices-gone
+				>
+					<p class="text-muted-foreground">{m.map_notices_filter_gone()}</p>
+					{#if markable}
+						<Button size="sm" variant="outline" class="pointer-events-auto" onclick={editData}>
+							{m.widget_edit_data()}
+						</Button>
+					{/if}
 				</div>
 			{/if}
 		</div>
