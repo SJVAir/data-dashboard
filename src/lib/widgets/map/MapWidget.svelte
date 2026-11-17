@@ -31,6 +31,7 @@
 	import { navigate } from "../../../router";
 	import { MapData } from "./data/loaded.svelte";
 	import { isThin } from "./data/monitors";
+	import { SECTION_ZOOM } from "./data/use-geometry";
 	import { fitCamera } from "./camera.svelte";
 	import { MapDailyFigure } from "./daily-figure.svelte";
 	import { MapFillTypes } from "./data/fill-types.svelte";
@@ -322,7 +323,13 @@
 		},
 		get fill() {
 			return fillType;
-		}
+		},
+		// No use query yet, so pesticide use loads nothing.
+		useQuery: null,
+		bounds: null,
+		zoom: 0,
+		sectionZoom: SECTION_ZOOM,
+		lensCenter: null
 	};
 	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());

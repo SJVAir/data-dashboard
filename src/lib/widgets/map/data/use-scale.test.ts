@@ -43,3 +43,11 @@ describe("use scale", () => {
 		expect(useScaleFor(ref)).not.toBe(first);
 	});
 });
+
+describe("use scale guards", () => {
+	it("colours that don't match the breaks build an empty scale, never undefined colours", () => {
+		const scale = buildUseScale({ breaks: [1, 2, 3], min: null, colors: ["#a", "#b"] }, INFO);
+		expect(scale.levels).toHaveLength(0);
+		expect(scale.source).toBeNull();
+	});
+});

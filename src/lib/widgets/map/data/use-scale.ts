@@ -38,16 +38,20 @@ export function useScaleRef(figure: string, level: UseLevel, queryKey: string): 
 	return ref;
 }
 
-/** A range scale with one level per break; 0 is no level (the outline). */
+/**
+ * A range scale with one level per break; 0 is no level (the outline). Colours that don't pair
+ * one to one with the breaks build no levels (an empty scale), never a level with no colour.
+ */
 export function buildUseScale(classes: PesticideUseClass, info: UseScaleInfo): Scale {
-	const { breaks, colors } = classes;
+	const { colors } = classes;
+	const breaks = classes.breaks.length === colors.length ? classes.breaks : [];
 	const fmt = (n: number) => formatValue(n, info.precision);
-	return {
+	const scale: Scale = {
 		id: "",
 		label: info.label,
 		units: info.units,
 		kind: "range",
-		source: "",
+		source: null,
 		averaging_hours: null,
 		daily_statistic: null,
 		daily_statistic_label: null,
@@ -66,7 +70,8 @@ export function buildUseScale(classes: PesticideUseClass, info: UseScaleInfo): S
 			max: i === breaks.length - 1 ? null : nextUp(b),
 			value: null
 		}))
-	} as unknown as Scale;
+	};
+	return scale;
 }
 
 const sameClasses = (a: PesticideUseClass, b: PesticideUseClass) =>

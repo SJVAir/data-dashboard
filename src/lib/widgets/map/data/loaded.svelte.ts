@@ -4,6 +4,7 @@ import type {
 	FireFeatureProperties,
 	MonitorFeatureProperties
 } from "@sjvair/map-sdk/data";
+import type { Bounds } from "@sjvair/map-sdk";
 import type { RegionSummaryBulkType } from "@sjvair/sdk";
 import type { NowClient } from "$lib/data/now/client";
 import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
@@ -13,9 +14,10 @@ import type { SnapshotAt } from "$lib/data/snapshot";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
 import { mapMessages } from "../host/messages";
-import { PESTICIDE_NOTICES } from "../options";
+import { PESTICIDE_NOTICES, PESTICIDE_USE } from "../options";
 import type { MonitorFilters } from "../toolbar/values";
 import { AHEAD, DayLayer } from "./day-layer.svelte";
+import { filtersKey } from "./filters-key";
 import { fillEntry, fillPolls, fillSourceOf, type FillData, type FillSource } from "./fill";
 import { hmsEntry, hmsPolls, hmsSourceOf, type HmsData } from "./hms";
 import { MonitorsBlock } from "./monitors-block.svelte";
@@ -29,6 +31,8 @@ import {
 	type NoticesData
 } from "./notices";
 import type { DayRating } from "./monitors";
+import type { UseQuery } from "./use";
+import { UseBlock } from "./use-block.svelte";
 
 /** What the data blocks read from the widget, each time they run. */
 export type MapDataInput = {
@@ -48,6 +52,15 @@ export type MapDataInput = {
 	today: string;
 	/** The region type filled (one the metadata lists); null for no fill. */
 	fill: RegionSummaryBulkType | null;
+	/** What pesticide use draws (figure, period, filters); null until the figure is known. */
+	useQuery: UseQuery | null;
+	/** The map's view; null before the map has one. */
+	bounds: Bounds | null;
+	zoom: number;
+	/** The zoom from which use is drawn by section (with any refused zoom added). */
+	sectionZoom: number;
+	/** The township refKey the use lens is centred on, or null. */
+	lensCenter: string | null;
 };
 
 /**
@@ -68,6 +81,8 @@ export class MapData {
 	readonly #hms: DayLayer<HmsData>;
 	readonly #fill: DayLayer<FillData>;
 	readonly #notices: DayLayer<NoticesData>;
+	/** Pesticide use: the townships, the sections in view and the lens's block. */
+	readonly useBlock: UseBlock;
 
 	#getInput: () => MapDataInput;
 	#stopEffects: () => void;
@@ -96,10 +111,15 @@ export class MapData {
 	readonly #regionType = $derived.by(() => this.#getInput().fill);
 	/** The notices' saved filters, as a key (the notices are refetched when it changes). */
 	readonly #noticesFiltersKey = $derived.by(() =>
-		JSON.stringify(
+		filtersKey(
 			this.#getInput().widget.data.layers.find((l) => l.dataset === PESTICIDE_NOTICES)?.filters ??
 				{}
 		)
+	);
+
+	/** Whether the tile has the pesticide use layer. */
+	readonly use = $derived.by(() =>
+		this.#getInput().widget.data.layers.some((l) => l.dataset === PESTICIDE_USE)
 	);
 
 	/** Whether the tile has the spray notices layer. */
@@ -183,6 +203,28 @@ export class MapData {
 			// Now: hourly. A day: hourly until the server stops rewriting it.
 			polls: (at) => noticesPolls(at)
 		});
+
+		const useOn = () => this.#loads && this.use;
+		this.useBlock = new UseBlock(() => ({
+			get on() {
+				return useOn();
+			},
+			get query() {
+				return getInput().useQuery;
+			},
+			get bounds() {
+				return getInput().bounds;
+			},
+			get zoom() {
+				return getInput().zoom;
+			},
+			get sectionZoom() {
+				return getInput().sectionZoom;
+			},
+			get lensCenter() {
+				return getInput().lensCenter;
+			}
+		}));
 
 		this.monitorsSource = this.#monitors.monitorsSource;
 		this.smokeSource = hmsSourceOf(this, "smoke");
@@ -323,6 +365,11 @@ export class MapData {
 		return this.#noticesUnavailable;
 	}
 
+	/** Why pesticide use can't load (a saved filter the server no longer has), if it can't. */
+	get useUnavailable(): UnavailableReason | undefined {
+		return this.useBlock.townshipsState === "filter-gone" ? "filter-gone" : undefined;
+	}
+
 	/** Polls the live data (and a day's figures not final yet) only while the map is worth drawing. */
 	setPolling(on: boolean): void {
 		this.#monitors.setPolling(on);
@@ -348,12 +395,18 @@ export class MapData {
 		this.#notices.retry();
 	}
 
+	/** Asks again for the pesticide use that failed (never polled: it changes once a year). */
+	retryUse(): void {
+		this.useBlock.retry();
+	}
+
 	destroy(): void {
 		this.#stopEffects();
 		this.#monitors.destroy();
 		this.#hms.destroy();
 		this.#fill.destroy();
 		this.#notices.destroy();
+		this.useBlock.destroy();
 	}
 
 	/**
