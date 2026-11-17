@@ -134,7 +134,8 @@ export class MapToolbarWiring {
 			hasInside: features.some((f) => f.properties.location === "inside"),
 			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed,
 			fill: this.#in.fillLabel !== undefined,
-			notices: this.#in.notices && this.#in.noticesLabel !== undefined
+			notices: this.#in.notices && this.#in.noticesLabel !== undefined,
+			use: null
 		};
 		return JSON.stringify(offer);
 	});
