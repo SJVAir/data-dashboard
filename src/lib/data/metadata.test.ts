@@ -7,6 +7,7 @@ vi.mock("@sjvair/sdk", () => ({
 	getHMSMeta: vi.fn(),
 	getForecastsMeta: vi.fn(),
 	getCalHeatScoreMeta: vi.fn(),
+	getPesticidesMeta: vi.fn(),
 	getRegionsMeta: vi.fn()
 }));
 
@@ -17,6 +18,7 @@ import {
 	getHMSMeta,
 	getMonitorsList,
 	getMonitorsMeta,
+	getPesticidesMeta,
 	getRegionsMeta
 } from "@sjvair/sdk";
 import {
@@ -26,6 +28,7 @@ import {
 	type CatalogEntry,
 	type Level
 } from "./metadata";
+import { resetPesticideMeta } from "./pesticide-meta";
 import { fixtureMetadata } from "./testing/fixtures";
 import {
 	SDK_DATASET_CATALOG,
@@ -747,6 +750,28 @@ describe("serverScale and monitorTypeInterval", () => {
 		expect(await md.serverScale("hms-fire", "fire-radiative-power")).toBe(fire);
 		expect(await md.serverScale("hms-fire", "nope")).toBeNull();
 		expect(getHMSMeta).toHaveBeenCalledTimes(1);
+	});
+
+	it("the spray-notice scale comes from the pesticides meta, shared with its other readers", async () => {
+		resetPesticideMeta();
+		const notice = {
+			id: "spray-notice",
+			label: "Spray Notices",
+			kind: "category",
+			levels: [{ ...lvl("notice", "Spray notice", "#e64980", 0, null, null), value: "notice" }]
+		};
+		vi.mocked(getPesticidesMeta).mockResolvedValue({ scales: { "spray-notice": notice } } as never);
+		const md = createWebMetadata();
+		expect(await md.serverScale("pesticide-notices", "spray-notice")).toBe(notice);
+		expect(await md.serverScale("pesticide-notices", "nope")).toBeNull();
+		// Its levels too, by the same routing; `levels` stays the monitors meta's.
+		const levels = await md.datasetLevels("pesticide-notices", "spray-notice");
+		expect(levels.map((l) => [l.key, l.label, l.color, l.value])).toEqual([
+			["notice", "Spray notice", "#e64980", "notice"]
+		]);
+		expect(await md.levels("spray-notice")).toEqual([]);
+		expect(getPesticidesMeta).toHaveBeenCalledTimes(1);
+		resetPesticideMeta();
 	});
 
 	it("reads a monitor type's reporting interval", async () => {

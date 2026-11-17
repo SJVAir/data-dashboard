@@ -9,6 +9,7 @@
 		MapView,
 		monitorsPlugin,
 		OptionsToolbar,
+		pointsPlugin,
 		regionsPlugin,
 		type CardContext,
 		type FocusAreaPlugin,
@@ -38,9 +39,11 @@
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
 	import { generatedTitle, setGeneratedTitle } from "../titles.svelte";
+	import { navigate } from "../../../router";
 	import { fillRegionType } from "./data/fill";
 	import { MapData } from "./data/loaded.svelte";
 	import { isThin } from "./data/monitors";
+	import type { NoticeFeatureProperties } from "./data/notices";
 	import { MapDays } from "./day-mode.svelte";
 	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
@@ -50,6 +53,8 @@
 	import { mapFormat } from "./host/format";
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
+	import { noticeTooltips } from "./notice-tooltip";
+	import NoticesLegendNote from "./NoticesLegendNote.svelte";
 	import { OnScreen } from "./on-screen.svelte";
 	import {
 		hiddenReasonLines,
@@ -59,7 +64,7 @@
 		marksChange,
 		sameIds
 	} from "./marks";
-	import { MAP_MARKS_MAX, mapOptions, pollutantLayers } from "./options";
+	import { MAP_MARKS_MAX, mapOptions, PESTICIDE_NOTICES, pollutantLayers } from "./options";
 	import { monitorIds, monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
 	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
@@ -72,6 +77,8 @@
 	/** Below this widget width (the toolbar's narrow breakpoint) the day stepper drops its slider. */
 	const STEPPER_NARROW_REM = 48;
 	const FIT_PADDING = 32;
+	/** The notices' clusters, as the monitors' (map-sdk sums their counts itself). */
+	const NOTICES_CLUSTER = { radius: 40, maxZoom: 9 };
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 	const config = mapConfig();
@@ -134,6 +141,12 @@
 		},
 		get fillLabel() {
 			return fillInfo?.plural;
+		},
+		get notices() {
+			return data.notices;
+		},
+		get noticesLabel() {
+			return noticesLabel;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
@@ -360,7 +373,8 @@
 	};
 	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());
-	const { monitorsSource, smokeSource, fireSource, hotspotsSource, fillSource } = data;
+	const { monitorsSource, smokeSource, fireSource, hotspotsSource, fillSource, noticesSource } =
+		data;
 
 	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
 	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
@@ -396,6 +410,34 @@
 	const smokeLabel = $derived(datasetLabel(HMS_SMOKE));
 	const fireLabel = $derived(datasetLabel(HMS_FIRE));
 
+	// Spray notices: the day's (or now's), over the whole map, when the tile has them (the Layers
+	// row hides them, their data still loading).
+	/** The notices' layer label: the catalog's name for the data set. */
+	const noticesLabel = $derived(datasetLabel(PESTICIDE_NOTICES));
+	/** The notices are on the map: the tile has them, the catalog names them, and they're shown. */
+	const noticesDrawn = $derived(!!noticesLabel && data.notices && wiring.noticesShown);
+	/** The notices failed to load, while they're shown. */
+	const noticesFailed = $derived(noticesDrawn && data.noticesFailed);
+	/** A saved filter of the notices is gone, while they're shown: said, never an empty layer. */
+	const noticesGone = $derived(noticesDrawn && data.noticesUnavailable === "filter-gone");
+	/** The notices layer's saved filters, which the legend names. */
+	const noticeFilters = $derived(
+		widget.data.layers.find((l) => l.dataset === PESTICIDE_NOTICES)?.filters
+	);
+	/**
+	 * The notices have loaded with none, for the day stop or for now (the legend says so); never
+	 * while loading, after a failure or with a filter gone.
+	 */
+	const noNotices = $derived<"day" | "now" | null>(
+		!noticesGone &&
+			data.noticesState.status === "ready" &&
+			data.noticesState.data.notices.length === 0
+			? days.onDay
+				? "day"
+				: "now"
+			: null
+	);
+
 	// Marks: monitors the person marks, saved in the options (one undo step each).
 	const marks = $derived(mapOptions(widget).marks ?? []);
 	const marksSelection = $derived<SpatialSelection | null>(
@@ -410,6 +452,15 @@
 	});
 	const limitMessage = () =>
 		m.map_marks_limit({ count: formatNumber(MAP_MARKS_MAX), countValue: MAP_MARKS_MAX });
+
+	/** Edit data on this widget (where a gone notices filter is changed). */
+	function editData(): void {
+		const session = app.current.session;
+		if (!session || session.readOnly) return;
+		void navigate("/dashboards/:id/widgets/:widgetId/edit", {
+			params: { id: session.doc.id, widgetId: widget.id }
+		});
+	}
 
 	/** A person's mark or unmark on the map, saved (a starter's edit goes to its copy). */
 	function saveMarks(selection: SpatialSelection | null): void {
@@ -514,6 +565,46 @@
 		untrack(() => current.addPlugin(plugin, underMonitors(current)));
 		return () => current.removePlugin(plugin.id);
 	});
+
+	// The notices: above the fill, under the monitors; numbered markers, in the color of the
+	// server's one-level spray-notice scale. Clustered as the monitors are. The legend section is
+	// the scale's level, a units line for the number, and the note (none for the day, filters,
+	// the explainer).
+	$effect(() => {
+		const current = map;
+		const label = noticesLabel;
+		const clusters = clustered;
+		if (!current || !label || !loads || !noticesDrawn) return;
+		const noticeTooltip = noticeTooltips((refKey) => noticesByRef.get(refKey));
+		const plugin = pointsPlugin({
+			id: "notices",
+			source: noticesSource,
+			layerLabel: label,
+			count: { property: "count" },
+			legendUnits: m.map_notices_legend_units(),
+			legendNote: noticesNote,
+			// The card (its own heading); read when shown, so it follows the day stop and the pin.
+			// map-sdk shows the interactive card for the pinned or keyboard-focused feature and a
+			// non-interactive tooltip on hover, which gets the static form.
+			tooltip: (item, props: NoticeFeatureProperties) =>
+				noticeTooltip(
+					props,
+					(days.at ?? "now") === "now",
+					current.focusedKey === item.refKey || current.pinned?.hit.refKey === item.refKey
+				),
+			tooltipShowsName: true,
+			...(clusters && { cluster: NOTICES_CLUSTER })
+		});
+		untrack(() => current.addPlugin(plugin, underMonitors(current)));
+		return () => current.removePlugin(plugin.id);
+	});
+
+	/** Each notices marker's latest properties, by refKey: an open card follows its marker. */
+	const noticesByRef = $derived(
+		new Map(
+			(noticesSource.features?.features ?? []).map((f) => [f.properties.refKey, f.properties])
+		)
+	);
 
 	const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -728,6 +819,10 @@
 
 {#snippet nothing()}{/snippet}
 
+{#snippet noticesNote()}
+	<NoticesLegendNote filters={noticeFilters} skipped={data.noticesSkipped} none={noNotices} />
+{/snippet}
+
 {#snippet cardActions(ctx: CardContext)}
 	{#if ctx.selectable}
 		<Button size="sm" variant="outline" onclick={() => ctx.toggle()}>
@@ -780,7 +875,7 @@
 			<WidgetSkeleton />
 		</div>
 	{/if}
-	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed || fillFailed}
+	{#if note || noMonitors || data.monitorsRefreshFailed || hmsFailed || fillFailed || noticesFailed || noticesGone}
 		<!-- A compact banner under the toolbar: the map stays usable, but for its buttons. -->
 		<div
 			class="pointer-events-none absolute inset-x-0 top-[var(--mapsdk-toolbar-height,0px)] flex flex-col gap-1 p-2"
@@ -850,6 +945,38 @@
 					<Button size="sm" variant="outline" class="pointer-events-auto" onclick={retryFill}>
 						{m.widget_state_retry()}
 					</Button>
+				</div>
+			{/if}
+			{#if noticesFailed}
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+					role="status"
+					data-map-notices-note
+				>
+					<p class="text-muted-foreground">{m.map_notices_failed()}</p>
+					<Button
+						size="sm"
+						variant="outline"
+						class="pointer-events-auto"
+						onclick={() => data.retryNotices()}
+					>
+						{m.widget_state_retry()}
+					</Button>
+				</div>
+			{/if}
+			{#if noticesGone}
+				<!-- No Retry: only another filter brings the notices back (Edit data, for an editor). -->
+				<div
+					class="bg-card text-card-foreground border-border shadow-card mx-auto flex max-w-96 items-center gap-2 rounded-(--radius-control) border px-3 py-2 text-sm"
+					role="status"
+					data-map-notices-gone
+				>
+					<p class="text-muted-foreground">{m.map_notices_filter_gone()}</p>
+					{#if markable}
+						<Button size="sm" variant="outline" class="pointer-events-auto" onclick={editData}>
+							{m.widget_edit_data()}
+						</Button>
+					{/if}
 				</div>
 			{/if}
 		</div>

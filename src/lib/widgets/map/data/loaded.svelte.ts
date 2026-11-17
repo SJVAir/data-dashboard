@@ -1,32 +1,34 @@
 import { untrack } from "svelte";
 import type {
 	DataSource,
-	DataStatus,
 	FireFeatureProperties,
 	MonitorFeatureProperties
 } from "@sjvair/map-sdk/data";
-import type { MonitorLatest, RegionSummaryBulkType } from "@sjvair/sdk";
-import type { NowClient, NowSource, NowState } from "$lib/data/now/client";
-import { NowQuery } from "$lib/data/now/now-query.svelte";
-import type { Layer } from "$lib/data/schema";
-import type { Snapshot, SnapshotAt } from "$lib/data/snapshot";
+import type { RegionSummaryBulkType } from "@sjvair/sdk";
+import type { NowClient } from "$lib/data/now/client";
+import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
+import type { Layer, PesticideFilters } from "$lib/data/schema";
 import type { UnavailableReason } from "$lib/data/types";
+import type { SnapshotAt } from "$lib/data/snapshot";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { todayPacific } from "$lib/format";
-import { hasSmokeAndFire } from "$lib/get-data/map";
+import { hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
 import { mapMessages } from "../host/messages";
-import { monitorIds } from "../sources";
-import { filterMonitors, placeMonitors, type MonitorFilters } from "../toolbar/values";
-import { fillEntry, fillScale, type FillData, type FillSource } from "./fill";
-import { hmsEntry, type HmsData } from "./hms";
+import { PESTICIDE_NOTICES } from "../options";
+import type { MonitorFilters } from "../toolbar/values";
+import { AHEAD, DayLayer } from "./day-layer.svelte";
+import { fillEntry, fillPolls, fillSourceOf, type FillData, type FillSource } from "./fill";
+import { hmsEntry, hmsPolls, hmsSourceOf, type HmsData } from "./hms";
+import { MonitorsBlock } from "./monitors-block.svelte";
 import {
-	monitorsEntry,
-	toDayFeatures,
-	toMonitorFeatures,
-	type DayRating,
-	type DaySource
-} from "./monitors";
-import type { MonitorScope } from "./scope";
+	NO_NOTICES,
+	noticeFilterNames,
+	noticesEntry,
+	noticesPolls,
+	noticesSourceOf,
+	type NoticeFeatureProperties,
+	type NoticesData
+} from "./notices";
+import type { DayRating } from "./monitors";
 
 /** What the data blocks read from the widget, each time they run. */
 export type MapDataInput = {
@@ -48,97 +50,11 @@ export type MapDataInput = {
 	fill: RegionSummaryBulkType | null;
 };
 
-/** A day's monitors: the list (names, positions) and the day's figures. */
-type DayValue = { list: MonitorLatest[]; day: Snapshot };
-
-/** How many neighbouring days are fetched ahead (one each side). */
-const AHEAD = 2;
-
-const EMPTY_SNAPSHOT: Snapshot = { figures: new Map(), final: true, unrated: false };
-
-/**
- * A now state as map-sdk's data status. Errors are the widget's to show (its error state or
- * its notes, each with one Retry), so map-sdk never sees one: held data reads as ready.
- */
-function dataStatus(state: NowState<unknown>): DataStatus {
-	return state.data === undefined && state.status !== "error"
-		? { state: "loading" }
-		: { state: "ready" };
-}
-
-/** The list's and the day's states as one: an error if either failed, ready once both are. */
-function combined(list: NowState<MonitorLatest[]>, day: NowState<Snapshot>): NowState<DayValue> {
-	const data =
-		list.data !== undefined && day.data !== undefined
-			? { list: list.data, day: day.data }
-			: undefined;
-	const failed = list.status === "error" ? list : day.status === "error" ? day : null;
-	if (failed) return { status: "error", error: failed.error, ...(data && { data }) };
-	if (list.status === "ready" && day.status === "ready" && data) {
-		return { status: "ready", data, fetchedAt: Math.min(list.fetchedAt, day.fetchedAt) };
-	}
-	return { status: "loading", ...(data && { data }) };
-}
-
-/** One source for the monitors plugin, reading the query's current state. */
-function monitorsSourceOf(d: MapData): DataSource<MonitorFeatureProperties> {
-	return {
-		get status(): DataStatus {
-			return d.monitorsCurrent ? dataStatus(d.monitorsState) : { state: "loading" };
-		},
-		get features() {
-			return d.monitorsShown;
-		},
-		get scale() {
-			return d.monitorsDrawn?.scale ?? null;
-		}
-	};
-}
-
-/** One source per smoke and fire plugin source, reading the query's current state. */
-function hmsSourceOf<P extends FireFeatureProperties>(
-	d: MapData,
-	key: "smoke" | "fireGroups" | "fireHotspots"
-): DataSource<P> {
-	return {
-		get status() {
-			return dataStatus(d.hmsState);
-		},
-		get features() {
-			return d.hmsState.data === undefined
-				? null
-				: (d.hmsDrawn[key].features as DataSource<P>["features"]);
-		},
-		get scale() {
-			return d.hmsDrawn[key].scale;
-		}
-	};
-}
-
-/** The fill's source for the regions plugin, reading the query's current state. */
-function fillSourceOf(d: MapData): DataSource {
-	// map-sdk matches a resolved scale to its source's by identity: one ScaleRef per pollutant.
-	let known: { entryType: string; scale: ReturnType<typeof fillScale> } | undefined;
-	return {
-		get status() {
-			return dataStatus(d.fillState);
-		},
-		get features() {
-			return d.fillState.data?.features ?? null;
-		},
-		get scale() {
-			const entryType = d.fillFor;
-			if (!entryType) return null;
-			if (known?.entryType !== entryType) known = { entryType, scale: fillScale(entryType) };
-			return known.scale;
-		}
-	};
-}
-
 /**
  * The map widget's loaded data: the monitors (the pollutant showing's readings, or the day
  * showing's figures, limited by the places), the region fill (the day's figures, or today's so
- * far on now; over the whole map) and smoke and fire (now's or the day's). Its effects
+ * far on now; over the whole map), smoke and fire (now's or the day's) and the spray notices
+ * (active now, or on the day showing; narrowed by the pesticide filters). Its effects
  * run in their own root; `destroy()` ends them and the queries. Give the input as an object of
  * getters, so each field is read on its own (the filters follow the loaded monitors: reading them
  * with the places would be a cycle).
@@ -148,42 +64,25 @@ function fillSourceOf(d: MapData): DataSource {
  * days are fetched ahead.
  */
 export class MapData {
-	readonly monitorsQuery: NowQuery<MonitorLatest[]>;
-	readonly dayQuery: NowQuery<Snapshot>;
-	readonly hmsQuery: NowQuery<HmsData>;
-	readonly fillQuery: NowQuery<FillData>;
-	/** The neighbouring days, fetched ahead and never polled. */
-	readonly #dayAhead: NowQuery<Snapshot>[];
-	readonly #hmsAhead: NowQuery<HmsData>[];
-	readonly #fillAhead: NowQuery<FillData>[];
+	readonly #monitors: MonitorsBlock;
+	readonly #hms: DayLayer<HmsData>;
+	readonly #fill: DayLayer<FillData>;
+	readonly #notices: DayLayer<NoticesData>;
 
 	#getInput: () => MapDataInput;
-	#rating: DayRating;
-	#now: NowClient;
 	#stopEffects: () => void;
 
-	/** The pollutant the monitors query loads (the readings' scale). */
-	#monitorsFor = $state<string | undefined>();
-	/** Why the places can't be scoped to monitors, if they can't. */
-	#monitorsUnavailable = $state.raw<UnavailableReason | null>(null);
-	/** What the monitors query was resolved for; while it isn't `wantedKey`, its data is stale. */
-	#resolvedFor = $state<string | null>(null);
-	/** The places' scope, and the `wantedKey` it was resolved for (a day's figures need it). */
-	#scope = $state.raw<{ for: string; scope: MonitorScope } | null>(null);
-	/** What the day query was set for; while it isn't `#wantedDayKey`, its data is stale. */
-	#dayResolvedFor = $state<string | null>(null);
-	#daySource = $state.raw<DaySource | null>(null);
-	#fillSource = $state.raw<FillSource | null>(null);
 	/** The pollutant the fill query loads (its scale). */
 	#fillFor = $state<string | undefined>();
-	/** Whether the map is worth drawing (on screen, the page visible). */
-	#polling = $state(true);
+	/** Why the notices can't load (a saved filter gone), if they can't. */
+	#noticesUnavailable = $state<UnavailableReason | undefined>();
+	/** Counts the notices' updates, so a late answer for an older one is ignored. */
+	#noticesRun = 0;
+	/** The filter params the notice endpoints take (the server's meta); null until loaded. */
+	#noticeFilters = $state.raw<readonly string[] | null>(null);
+	/** A load of the notice filter names is in flight (not reactive: only a guard). */
+	#noticeFiltersLoading = false;
 
-	/** The places, as a key: the monitors' scope is resolved again only when they change. */
-	readonly #placesKey = $derived.by(() => {
-		const layer = this.#getInput().layer;
-		return layer ? JSON.stringify([layer.place ?? null, layer.selection ?? null]) : "";
-	});
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
 	readonly #loads = $derived.by(() => this.#getInput().loads);
@@ -194,131 +93,37 @@ export class MapData {
 	});
 	readonly #aheadKey = $derived.by(() => this.#getInput().ahead.join(","));
 	readonly #today = $derived.by(() => this.#getInput().today);
-	readonly #fill = $derived.by(() => this.#getInput().fill);
-	/** What the monitors are wanted for now: the places and the pollutant showing. */
-	readonly #wantedKey = $derived(`${this.#placesKey}|${this.#entryType ?? ""}`);
-	/** What the day's figures are wanted for: the places, the pollutant and the day. */
-	readonly #wantedDayKey = $derived(`${this.#wantedKey}|${this.#day}`);
+	readonly #regionType = $derived.by(() => this.#getInput().fill);
+	/** The notices' saved filters, as a key (the notices are refetched when it changes). */
+	readonly #noticesFiltersKey = $derived.by(() =>
+		JSON.stringify(
+			this.#getInput().widget.data.layers.find((l) => l.dataset === PESTICIDE_NOTICES)?.filters ??
+				{}
+		)
+	);
 
-	/** A day shows (not now). */
-	readonly onDay = $derived(this.#day !== "now");
-	/**
-	 * Whether the query is for the places and pollutant (and day) wanted now. After a change,
-	 * until the new scope resolves, the old readings are neither drawn nor counted.
-	 */
-	readonly monitorsCurrent = $derived(
-		this.#resolvedFor === this.#wantedKey &&
-			(!this.onDay || this.#dayResolvedFor === this.#wantedDayKey)
-	);
-	readonly listState = $derived.by(() => this.monitorsQuery.state);
-	readonly dayState = $derived.by(() => this.dayQuery.state);
-	/** The monitors' state: the list's on now; on a day, the list's and the day's as one. */
-	readonly monitorsState = $derived<NowState<MonitorLatest[] | DayValue>>(
-		this.onDay ? combined(this.listState, this.dayState) : this.listState
-	);
-	readonly monitorsData = $derived(this.monitorsState.data);
-	/** The monitors as map-sdk data; before they load, with no features but the scale. */
-	readonly monitorsDrawn = $derived.by(() => {
-		const entryType = this.#entryType;
-		const type = this.monitorsCurrent ? (this.#monitorsFor ?? entryType) : entryType;
-		if (!type) return null;
-		const list = this.listState.data ?? [];
-		const drawn = monitorsEntry.toDataSources(list, {
+	/** Whether the tile has the spray notices layer. */
+	readonly notices = $derived.by(() => hasNotices(this.#getInput().widget.data));
+	/** The notices as map-sdk data; before they load, with no features. */
+	readonly noticesDrawn: DataSource<NoticeFeatureProperties> = $derived(
+		noticesEntry.toDataSources(this.noticesState.data ?? NO_NOTICES, {
 			messages: mapMessages,
-			entryType: type
-		}).monitors;
-		if (!this.onDay) return drawn;
-		const day = this.dayState.data;
-		return { ...drawn, features: toDayFeatures(day ? list : [], day ?? EMPTY_SNAPSHOT) };
-	});
+			entryType: this.#entryType ?? ""
+		}).notices
+	);
+	readonly noticesFailed = $derived(this.noticesState.status === "error");
 	/**
-	 * The monitors loaded for the places and pollutant (and day) wanted now, before the toolbar's
-	 * filters; null until they load. Like `monitorsDrawn`, unfiltered ("no monitors here" isn't
-	 * "all filtered out", and the camera doesn't follow the filters).
+	 * The saved pesticide filters that are set but don't apply to notices (the server's meta
+	 * doesn't list them), so they can be named; empty when none or the meta isn't loaded.
 	 */
-	readonly monitorsLoaded = $derived(
-		!this.monitorsCurrent || this.monitorsData === undefined
-			? null
-			: (this.monitorsDrawn?.features ?? null)
-	);
-	/**
-	 * The monitors in the places (with a position) for the pollutant showing, before the filters;
-	 * null until they load. On now, those loaded; on a day, every listed one, with a figure that
-	 * day or not (the same on every day, so the camera doesn't move with a step).
-	 */
-	readonly placesLoaded = $derived.by(() => {
-		if (!this.onDay) return this.monitorsLoaded;
-		const list = this.listState.data;
-		return this.#resolvedFor === this.#wantedKey && list ? toMonitorFeatures(list) : null;
-	});
-	/** The ids of `placesLoaded`. */
-	readonly inPlaces = $derived.by<ReadonlySet<string> | null>(() => {
-		const loaded = this.placesLoaded;
-		return loaded ? monitorIds(loaded) : null;
-	});
-	/** On a day, the monitors with a figure that day (before the filters); undefined on now. */
-	readonly dayDrawn = $derived.by<ReadonlySet<string> | undefined>(() => {
-		const loaded = this.monitorsLoaded;
-		return this.onDay && loaded ? monitorIds(loaded) : undefined;
-	});
-	/** The day's figures can't be rated (the pollutant's scale has no daily figure). */
-	readonly dayUnrated = $derived(
-		this.onDay && this.monitorsCurrent && this.dayState.data?.unrated === true
-	);
-	/** The day's figures aren't all final yet. */
-	readonly dayNotFinal = $derived(
-		this.onDay && this.monitorsCurrent && this.dayState.data?.final === false
-	);
-	/**
-	 * The day has loaded, and no monitor in the places has a figure that day (there are monitors
-	 * in the places: with none, "no monitors here" says so). Never while the day loads.
-	 */
-	readonly dayNoFigures = $derived(
-		this.onDay &&
-			this.monitorsCurrent &&
-			this.monitorsState.status === "ready" &&
-			(this.monitorsLoaded?.features.length ?? 0) === 0 &&
-			(this.inPlaces?.size ?? 0) > 0
-	);
-	readonly #filters = $derived.by(() => this.#getInput().filters);
-	/** The monitors that are the tile's own places: the filters never hide them. */
-	readonly exempt = $derived.by(() => {
-		// Keyed by the places, so a new layer object with the same places changes nothing.
-		void this.#placesKey;
-		return untrack(() => placeMonitors(this.#getInput().layer));
-	});
-	/** The monitors drawn: those loaded, after the toolbar's filters (the places' own kept). */
-	readonly monitorsShown = $derived.by(() => {
-		const features = this.monitorsLoaded;
-		const filters = this.#filters;
-		return filters ? filterMonitors(features, filters, this.exempt) : features;
-	});
-	/** One source for the monitors plugin, reading the query's current state. */
-	readonly monitorsSource: DataSource<MonitorFeatureProperties>;
-	/** Loading the monitors for the first time (the skeleton shows over the map). */
-	readonly monitorsLoading = $derived(
-		this.#loads &&
-			!this.#monitorsUnavailable &&
-			this.monitorsData === undefined &&
-			this.monitorsState.status !== "error"
-	);
-	/** A refresh failed: the earlier readings stay drawn, with a note and Retry. */
-	readonly monitorsRefreshFailed = $derived(
-		this.monitorsCurrent && this.monitorsState.status === "error" && this.monitorsData !== undefined
-	);
-	/** A monitor place the loaded readings don't list (retired, say): the map still draws. */
-	readonly unlisted = $derived.by(() => {
-		const place = this.#getInput().layer?.place;
-		const state = this.listState;
-		if (!this.monitorsCurrent || state.status !== "ready" || place?.kind !== "monitor") {
-			return false;
-		}
-		return !state.data.some((reading) => reading.id === place.id);
+	readonly noticesSkipped: (keyof PesticideFilters)[] = $derived.by(() => {
+		const names = this.#noticeFilters;
+		const filters = JSON.parse(this.#noticesFiltersKey) as PesticideFilters;
+		return this.notices && names ? noticeFiltersSkipped(filters, names) : [];
 	});
 
 	/** Whether smoke and fire are on. */
 	readonly smokeAndFire = $derived.by(() => hasSmokeAndFire(this.#getInput().widget.data));
-	readonly hmsState = $derived.by(() => this.hmsQuery.state);
 	/** Smoke and fire as map-sdk data; before they load, with no features but the scales. */
 	readonly hmsDrawn = $derived(
 		hmsEntry.toDataSources(this.hmsState.data ?? { smoke: [], fires: [] }, {
@@ -326,301 +131,259 @@ export class MapData {
 			entryType: this.#entryType ?? ""
 		})
 	);
-	readonly smokeSource: DataSource<FireFeatureProperties>;
-	readonly fireSource: DataSource<FireFeatureProperties>;
-	readonly hotspotsSource: DataSource<FireFeatureProperties>;
 	readonly hmsFailed = $derived(this.hmsState.status === "error");
-
-	readonly fillState = $derived.by(() => this.fillQuery.state);
-	/** The fill's source for the regions plugin; no features until it loads. */
-	readonly fillSource: DataSource;
 	/** The fill failed to load. */
 	readonly fillFailed = $derived(this.fillState.status === "error");
 
+	readonly monitorsSource: DataSource<MonitorFeatureProperties>;
+	readonly smokeSource: DataSource<FireFeatureProperties>;
+	readonly fireSource: DataSource<FireFeatureProperties>;
+	readonly hotspotsSource: DataSource<FireFeatureProperties>;
+	/** The fill's source for the regions plugin; no features until it loads. */
+	readonly fillSource: DataSource;
+	/** The notices' source, one feature per section; no features until they load. */
+	readonly noticesSource: DataSource<NoticeFeatureProperties>;
+
 	constructor(getInput: () => MapDataInput, deps: { now: NowClient; rating: DayRating }) {
 		this.#getInput = getInput;
-		this.#rating = deps.rating;
-		this.#now = deps.now;
-		this.monitorsQuery = new NowQuery<MonitorLatest[]>(deps.now);
-		this.dayQuery = new NowQuery<Snapshot>(deps.now);
-		this.hmsQuery = new NowQuery<HmsData>(deps.now);
-		this.fillQuery = new NowQuery<FillData>(deps.now);
-		const ahead = <T>() =>
-			Array.from({ length: AHEAD }, () => {
-				const query = new NowQuery<T>(deps.now);
-				query.setPolling(false);
-				return query;
-			});
-		this.#dayAhead = ahead<Snapshot>();
-		this.#hmsAhead = ahead<HmsData>();
-		this.#fillAhead = ahead<FillData>();
+		this.#monitors = new MonitorsBlock(getInput, deps);
+		this.#hms = new DayLayer<HmsData>(deps.now, {
+			sourceFor: async (at) => {
+				const input = untrack(() => ({
+					data: $state.snapshot(this.#getInput().widget.data),
+					entryType: this.#entryType ?? ""
+				}));
+				const source = await hmsEntry.source({ ...input, at });
+				return source && "fetch" in source ? source : null;
+			},
+			// Now: hourly. A day: hourly while its monitors' figures aren't all final.
+			polls: (at) => hmsPolls(at, this.#monitors.dayPolls)
+		});
+		this.#fill = new DayLayer<FillData>(deps.now, {
+			sourceFor: (at) => {
+				const entryType = this.#entryType;
+				const regionType = this.#regionType;
+				return entryType && regionType ? fillEntry.source({ regionType, entryType, at }) : null;
+			},
+			// Every source the fill holds is one `fillEntry` made.
+			polls: (_at, value, source) => fillPolls(source as FillSource | null, value)
+		});
+		this.#notices = new DayLayer<NoticesData>(deps.now, {
+			sourceFor: async (at) => {
+				const run = this.#noticesRun;
+				const data = untrack(() => $state.snapshot(this.#getInput().widget.data));
+				const source = await noticesEntry.source({ data, entryType: "", at });
+				// Gone filters are gone on every day: any answer for the current update tells.
+				if (run === this.#noticesRun) {
+					this.#noticesUnavailable =
+						source && "unavailable" in source ? source.unavailable : undefined;
+				}
+				return source && "fetch" in source ? source : null;
+			},
+			// Now: hourly. A day: hourly until the server stops rewriting it.
+			polls: (at) => noticesPolls(at)
+		});
 
-		this.monitorsSource = monitorsSourceOf(this);
+		this.monitorsSource = this.#monitors.monitorsSource;
 		this.smokeSource = hmsSourceOf(this, "smoke");
 		this.fireSource = hmsSourceOf(this, "fireGroups");
 		this.hotspotsSource = hmsSourceOf(this, "fireHotspots");
 		this.fillSource = fillSourceOf(this);
+		this.noticesSource = noticesSourceOf(this);
 
 		this.#stopEffects = $effect.root(() => {
-			this.#resolveMonitors();
-			this.#resolveDay();
-			this.#resolveHms();
-			this.#resolveFill();
-			this.#poll();
+			$effect(() => {
+				// Now's source is keyed by today's date: remade at Pacific midnight.
+				this.#hms.update({
+					on: this.#loads && this.smokeAndFire,
+					at: this.#at(),
+					ahead: this.#ahead(),
+					today: this.#today
+				});
+			});
+			$effect(() => {
+				const type = this.#entryType;
+				const on = this.#loads && !!type && !!this.#regionType;
+				this.#fillFor = on ? type : undefined;
+				this.#fill.update({ on, at: this.#at(), ahead: this.#ahead(), today: this.#today });
+			});
+			$effect(() => {
+				const on = this.#loads && this.notices;
+				// Only a trigger: the source reads the filters from the widget.
+				void this.#noticesFiltersKey;
+				this.#noticesRun++;
+				if (!on) this.#noticesUnavailable = undefined;
+				this.#notices.update({ on, at: this.#at(), ahead: this.#ahead(), today: this.#today });
+			});
+			$effect(() => {
+				// Tried again each time the notices' state changes: the fetch loads the meta too, so a
+				// failed load here can't leave notices drawn without naming the filters they skip.
+				void this.noticesState.status;
+				if (!(this.#loads && this.notices)) return;
+				if (this.#noticeFiltersLoading || untrack(() => this.#noticeFilters)) return;
+				this.#loadNoticeFilters();
+			});
 		});
 	}
 
+	/** The monitors' members, as the block holds them. */
+	get monitorsQuery(): MonitorsBlock["monitorsQuery"] {
+		return this.#monitors.monitorsQuery;
+	}
+	get dayQuery(): MonitorsBlock["dayQuery"] {
+		return this.#monitors.dayQuery;
+	}
+	/** A day shows (not now). */
+	get onDay(): boolean {
+		return this.#monitors.onDay;
+	}
+	get monitorsCurrent(): boolean {
+		return this.#monitors.monitorsCurrent;
+	}
+	get listState(): MonitorsBlock["listState"] {
+		return this.#monitors.listState;
+	}
+	get dayState(): MonitorsBlock["dayState"] {
+		return this.#monitors.dayState;
+	}
+	get monitorsState(): MonitorsBlock["monitorsState"] {
+		return this.#monitors.monitorsState;
+	}
+	get monitorsData(): MonitorsBlock["monitorsData"] {
+		return this.#monitors.monitorsData;
+	}
+	get monitorsDrawn(): MonitorsBlock["monitorsDrawn"] {
+		return this.#monitors.monitorsDrawn;
+	}
+	get monitorsLoaded(): MonitorsBlock["monitorsLoaded"] {
+		return this.#monitors.monitorsLoaded;
+	}
+	get placesLoaded(): MonitorsBlock["placesLoaded"] {
+		return this.#monitors.placesLoaded;
+	}
+	get inPlaces(): MonitorsBlock["inPlaces"] {
+		return this.#monitors.inPlaces;
+	}
+	get dayDrawn(): MonitorsBlock["dayDrawn"] {
+		return this.#monitors.dayDrawn;
+	}
+	get dayUnrated(): boolean {
+		return this.#monitors.dayUnrated;
+	}
+	get dayNotFinal(): boolean {
+		return this.#monitors.dayNotFinal;
+	}
+	get dayNoFigures(): boolean {
+		return this.#monitors.dayNoFigures;
+	}
+	get exempt(): MonitorsBlock["exempt"] {
+		return this.#monitors.exempt;
+	}
+	get monitorsShown(): MonitorsBlock["monitorsShown"] {
+		return this.#monitors.monitorsShown;
+	}
+	get monitorsLoading(): boolean {
+		return this.#monitors.monitorsLoading;
+	}
+	get monitorsRefreshFailed(): boolean {
+		return this.#monitors.monitorsRefreshFailed;
+	}
+	get unlisted(): boolean {
+		return this.#monitors.unlisted;
+	}
 	/** Why the places can't be scoped to monitors, if they can't. */
-	get monitorsUnavailable(): UnavailableReason | null {
-		return this.#monitorsUnavailable;
+	get monitorsUnavailable(): MonitorsBlock["monitorsUnavailable"] {
+		return this.#monitors.monitorsUnavailable;
 	}
 
-	/** Polls the live data (and a day's figures not final yet) only while the map is worth drawing. */
-	setPolling(on: boolean): void {
-		this.#polling = on;
+	get hmsQuery(): DayLayer<HmsData>["query"] {
+		return this.#hms.query;
 	}
-
-	/** Fetches again what failed: the list, the day's figures, or both. */
-	retryMonitors(): void {
-		const day = this.onDay && this.dayState.status === "error";
-		if (!day || this.listState.status === "error") this.monitorsQuery.retry();
-		if (day) this.dayQuery.retry();
+	get hmsState(): DayLayer<HmsData>["state"] {
+		return this.#hms.state;
 	}
-
-	retryHms(): void {
-		this.hmsQuery.retry();
+	get fillQuery(): DayLayer<FillData>["query"] {
+		return this.#fill.query;
 	}
-
-	retryFill(): void {
-		this.fillQuery.retry();
+	get fillState(): DayLayer<FillData>["state"] {
+		return this.#fill.state;
 	}
-
 	/** The pollutant the fill loads (its scale); undefined with no fill. */
 	get fillFor(): string | undefined {
 		return this.#fillFor;
 	}
+	get noticesQuery(): DayLayer<NoticesData>["query"] {
+		return this.#notices.query;
+	}
+	get noticesState(): DayLayer<NoticesData>["state"] {
+		return this.#notices.state;
+	}
+	/** Why the notices can't load (a saved filter the server no longer has), if they can't. */
+	get noticesUnavailable(): UnavailableReason | undefined {
+		return this.#noticesUnavailable;
+	}
+
+	/** Polls the live data (and a day's figures not final yet) only while the map is worth drawing. */
+	setPolling(on: boolean): void {
+		this.#monitors.setPolling(on);
+		this.#hms.setPolling(on);
+		this.#fill.setPolling(on);
+		this.#notices.setPolling(on);
+	}
+
+	/** Fetches again what failed: the list, the day's figures, or both. */
+	retryMonitors(): void {
+		this.#monitors.retry();
+	}
+
+	retryHms(): void {
+		this.#hms.retry();
+	}
+
+	retryFill(): void {
+		this.#fill.retry();
+	}
+
+	retryNotices(): void {
+		this.#notices.retry();
+	}
 
 	destroy(): void {
 		this.#stopEffects();
-		this.monitorsQuery.destroy();
-		this.dayQuery.destroy();
-		this.hmsQuery.destroy();
-		this.fillQuery.destroy();
-		for (const query of [...this.#dayAhead, ...this.#hmsAhead, ...this.#fillAhead]) {
-			query.destroy();
-		}
+		this.#monitors.destroy();
+		this.#hms.destroy();
+		this.#fill.destroy();
+		this.#notices.destroy();
 	}
 
 	/**
-	 * Sets each query to its source, holding every wanted source while they switch, so a key one
-	 * query lets go and another takes up (a day stepped back to, still wanted ahead) is never
-	 * dropped, and its fetch in flight never aborted and asked for again.
+	 * Loads the filter params the notice endpoints take. On a failure they stay unknown (nothing
+	 * named as skipped) until the notices' state next changes, except when the notices have loaded
+	 * meanwhile: their fetch kept the meta, so it is asked again at once (once).
 	 */
-	#switch<T>(pairs: [NowQuery<T>, NowSource<T> | null][]): void {
-		const holds = pairs.flatMap(([, source]) => {
-			if (!source) return [];
-			const hold = this.#now.subscribe(source, () => {});
-			hold.setPolling(false);
-			return [hold];
-		});
-		for (const [query, source] of pairs) query.set(source);
-		for (const hold of holds) hold.unsubscribe();
+	#loadNoticeFilters(again = true): void {
+		this.#noticeFiltersLoading = true;
+		noticeFilterNames().then(
+			(names) => {
+				this.#noticeFiltersLoading = false;
+				this.#noticeFilters = names;
+			},
+			() => {
+				this.#noticeFiltersLoading = false;
+				if (again && this.noticesState.status === "ready") this.#loadNoticeFilters(false);
+			}
+		);
+	}
+
+	/** Now, or the day showing (built from the day's key). */
+	#at(): SnapshotAt {
+		const day = this.#day;
+		return day === "now" ? "now" : { day };
 	}
 
 	/** The days to fetch ahead, as the input names them. */
 	#ahead(): string[] {
 		const key = this.#aheadKey;
 		return key ? key.split(",").slice(0, AHEAD) : [];
-	}
-
-	#poll(): void {
-		$effect(() => {
-			const on = this.#polling;
-			const day = this.onDay;
-			const figures = this.dayState.data;
-			const source = this.#daySource;
-			// Now: the live readings every 3 minutes, smoke and fire hourly. A day: its figures
-			// (and its smoke and fire) hourly while they aren't all final; its list never.
-			const dayPolls = day && !!source && source.poll(figures);
-			this.monitorsQuery.setPolling(on && !day);
-			this.dayQuery.setPolling(on && dayPolls);
-			this.hmsQuery.setPolling(on && (!day || dayPolls));
-		});
-		$effect(() => {
-			// The fill: today so far hourly on now; a day's hourly while it isn't all final.
-			const on = this.#polling;
-			const source = this.#fillSource;
-			const value = this.fillState.data;
-			this.fillQuery.setPolling(on && !!source && source.poll(value));
-		});
-	}
-
-	#resolveMonitors(): void {
-		$effect(() => {
-			const wanted = this.#wantedKey;
-			const type = this.#entryType;
-			const loads = this.#loads;
-			const widget = untrack(() => this.#getInput().widget);
-			if (!loads || !type) {
-				this.#monitorsUnavailable = null;
-				this.#scope = null;
-				this.monitorsQuery.set(null);
-				return;
-			}
-			const data = untrack(() => $state.snapshot(widget.data));
-			let cancelled = false;
-			const abort = new AbortController();
-			// The list is the same on every day: its scope never depends on the day.
-			const resolve = (signal?: AbortSignal) =>
-				monitorsEntry.source({ data, entryType: type, at: "now" }, signal);
-			resolve(abort.signal).then(
-				(source) => {
-					if (cancelled) return;
-					const found = source && "fetch" in source ? source : null;
-					this.#monitorsUnavailable = source && "unavailable" in source ? source.unavailable : null;
-					this.#monitorsFor = type;
-					this.#scope = found ? { for: wanted, scope: found.scope } : null;
-					this.#resolvedFor = wanted;
-					this.monitorsQuery.set(found);
-				},
-				(error: unknown) => {
-					if (cancelled) return;
-					this.#monitorsUnavailable = null;
-					this.#monitorsFor = type;
-					this.#scope = null;
-					this.#resolvedFor = wanted;
-					// The scope couldn't be resolved: keyed by widget (never by the places), and Retry
-					// resolves it again before fetching.
-					let failedOnce = false;
-					this.monitorsQuery.set({
-						key: `map-monitors:unresolved:${widget.id}`,
-						cadence: "raw",
-						fetch: async (signal) => {
-							// The first fetch reports the failure that got us here; later ones try again.
-							if (!failedOnce) {
-								failedOnce = true;
-								throw error;
-							}
-							const source = await resolve(signal);
-							if (!source || "unavailable" in source) {
-								this.#monitorsUnavailable = source?.unavailable ?? null;
-								return [];
-							}
-							if (!cancelled) this.#scope = { for: wanted, scope: source.scope };
-							return source.fetch(signal);
-						}
-					});
-				}
-			);
-			return () => {
-				cancelled = true;
-				abort.abort();
-			};
-		});
-	}
-
-	#resolveDay(): void {
-		$effect(() => {
-			const day = this.#day;
-			const type = this.#entryType;
-			const loads = this.#loads;
-			const wanted = this.#wantedKey;
-			const scope = this.#scope;
-			const ahead = this.#ahead();
-			if (!loads || !type || !scope || scope.for !== wanted) {
-				// Nothing stale stands for the day wanted while its scope resolves.
-				this.#daySource = null;
-				this.#dayResolvedFor = null;
-				this.dayQuery.set(null);
-				for (const query of this.#dayAhead) query.set(null);
-				return;
-			}
-			const sourceFor = (d: string) =>
-				monitorsEntry.daySource({
-					scope: scope.scope,
-					entryType: type,
-					day: d,
-					rating: this.#rating,
-					today: () => todayPacific()
-				});
-			// On the Now stop only the day before it is fetched ahead.
-			const source = day === "now" ? null : sourceFor(day);
-			this.#daySource = source;
-			this.#dayResolvedFor = source ? `${wanted}|${day}` : null;
-			this.#switch<Snapshot>([
-				[this.dayQuery, source],
-				...this.#dayAhead.map((query, i): [NowQuery<Snapshot>, NowSource<Snapshot> | null] => [
-					query,
-					ahead[i] ? sourceFor(ahead[i]) : null
-				])
-			]);
-		});
-	}
-
-	#resolveHms(): void {
-		$effect(() => {
-			const day = this.#day;
-			// Now's source is keyed by today's date: remade at Pacific midnight.
-			void this.#today;
-			const ahead = this.#ahead();
-			if (!this.#loads || !this.smokeAndFire) {
-				this.hmsQuery.set(null);
-				for (const query of this.#hmsAhead) query.set(null);
-				return;
-			}
-			const input = untrack(() => ({
-				data: $state.snapshot(this.#getInput().widget.data),
-				entryType: this.#entryType ?? ""
-			}));
-			let cancelled = false;
-			const sourceFor = (at: SnapshotAt) => hmsEntry.source({ ...input, at });
-			const found = (source: Awaited<ReturnType<typeof sourceFor>>) =>
-				source && "fetch" in source ? source : null;
-			void Promise.all([
-				sourceFor(day === "now" ? "now" : { day }),
-				...this.#hmsAhead.map((_, i) => (ahead[i] ? sourceFor({ day: ahead[i] }) : null))
-			]).then(([main, ...next]) => {
-				if (cancelled) return;
-				this.#switch<HmsData>([
-					[this.hmsQuery, found(main)],
-					...this.#hmsAhead.map((query, i): [NowQuery<HmsData>, NowSource<HmsData> | null] => [
-						query,
-						next[i] ? found(next[i]) : null
-					])
-				]);
-			});
-			return () => {
-				cancelled = true;
-			};
-		});
-	}
-
-	#resolveFill(): void {
-		$effect(() => {
-			const day = this.#day;
-			// Now's source is keyed by today's date: remade at Pacific midnight.
-			void this.#today;
-			const type = this.#entryType;
-			const regionType = this.#fill;
-			const ahead = this.#ahead();
-			if (!this.#loads || !type || !regionType) {
-				this.#fillSource = null;
-				this.#fillFor = undefined;
-				this.fillQuery.set(null);
-				for (const query of this.#fillAhead) query.set(null);
-				return;
-			}
-			const sourceFor = (at: SnapshotAt) => fillEntry.source({ regionType, entryType: type, at });
-			const source = sourceFor(day === "now" ? "now" : { day });
-			this.#fillSource = source;
-			this.#fillFor = type;
-			this.#switch<FillData>([
-				[this.fillQuery, source],
-				...this.#fillAhead.map((query, i): [NowQuery<FillData>, NowSource<FillData> | null] => [
-					query,
-					ahead[i] ? sourceFor({ day: ahead[i] }) : null
-				])
-			]);
-		});
 	}
 }

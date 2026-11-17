@@ -1,8 +1,13 @@
 import type { RegionFeature, RegionSummaryBulkType } from "@sjvair/sdk";
-import { encodeRef, type MapFeatureProperties, type ScaleRef } from "@sjvair/map-sdk/data";
+import {
+	encodeRef,
+	type DataSource,
+	type MapFeatureProperties,
+	type ScaleRef
+} from "@sjvair/map-sdk/data";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { getMetadata, getResolvers } from "$lib/data";
-import type { NowSource } from "$lib/data/now/client";
+import type { NowSource, NowState } from "$lib/data/now/client";
 import {
 	fillableTypes,
 	regionDaySource,
@@ -14,6 +19,7 @@ import { todayPacific } from "$lib/format";
 import { directoryFor } from "$lib/places/host";
 import { regionTypeShapes } from "../regions";
 import type { DayRating } from "./monitors";
+import { dataStatus } from "./status";
 
 /** A fill as map-sdk draws it: every region of the type, each with its figure or none. */
 export type FillData = {
@@ -33,6 +39,11 @@ export type FillContext = {
 };
 
 export type FillSource = NowSource<FillData> & { poll(value: FillData | undefined): boolean };
+
+/** Whether the fill polls (hourly): as its source says (today so far; a day until all final). */
+export function fillPolls(source: FillSource | null, value: FillData | undefined): boolean {
+	return !!source && source.poll(value);
+}
 
 export type FillEntry = {
 	/** A fill of `regionType` by `entryType`'s figure: the day's, or today's so far on now. */
@@ -58,6 +69,30 @@ export function fillRegionType(
 /** The fill's scale: the same ScaleRef as the monitors', so the legend shares one section. */
 export function fillScale(entryType: string): ScaleRef {
 	return { dataset: "air-quality", entryType };
+}
+
+/** The fill's source for the regions plugin, reading the loaded state as it is. */
+export function fillSourceOf(d: {
+	readonly fillState: NowState<FillData>;
+	/** The pollutant the fill loads (its scale); undefined with no fill. */
+	readonly fillFor: string | undefined;
+}): DataSource {
+	// map-sdk matches a resolved scale to its source's by identity: one ScaleRef per pollutant.
+	let known: { entryType: string; scale: ReturnType<typeof fillScale> } | undefined;
+	return {
+		get status() {
+			return dataStatus(d.fillState);
+		},
+		get features() {
+			return d.fillState.data?.features ?? null;
+		},
+		get scale() {
+			const entryType = d.fillFor;
+			if (!entryType) return null;
+			if (known?.entryType !== entryType) known = { entryType, scale: fillScale(entryType) };
+			return known.scale;
+		}
+	};
 }
 
 /**

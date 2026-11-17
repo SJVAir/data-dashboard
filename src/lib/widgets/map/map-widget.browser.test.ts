@@ -1,16 +1,21 @@
 import "../../../app.css";
 import axe from "axe-core";
 import type { Feature } from "geojson";
+import type { Snippet } from "svelte";
 import {
+	getActivePesticideNotices,
+	getChemicalDetails,
+	getCommodityDetails,
 	getHMSFire,
 	getHMSSmoke,
+	getPesticidesMeta,
 	getMonitorSummariesBulkDaily,
 	getMonitors,
 	getRegionSummariesBulkDaily,
 	getRegionSummariesBulkDailyOpen,
 	getRegionsMeta
 } from "@sjvair/sdk";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import { getMetadata, getResolvers, placeRegion } from "$lib/data";
@@ -23,7 +28,8 @@ import type { PlaceInfo, QueryInput } from "$lib/data/types";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
-import { pacificDay, todayPacific } from "$lib/format";
+import { resetPesticideMeta } from "$lib/data/pesticide-meta";
+import { formatNumber, pacificDay, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
@@ -40,6 +46,7 @@ import { generatedTitle } from "../titles.svelte";
 import { dayStops } from "./days";
 import { mapConfig } from "./host/config";
 import { mapMessages } from "./host/messages";
+import { NOTICES_SCALE } from "./data/notices";
 import { mapOptions } from "./options";
 import { regionShapes, regionTypeShapes } from "./regions";
 import {
@@ -53,6 +60,7 @@ import Preview from "$lib/get-data/Preview.svelte";
 import { registerWidgetType } from "../registry";
 import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
+import RenderSnippet from "./test-harness/RenderSnippet.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
 vi.mock("@sjvair/map-sdk", async (original) => {
@@ -102,6 +110,7 @@ vi.mock("@sjvair/map-sdk", async (original) => {
 		regionsPlugin: plugin("regions"),
 		hmsSmokePlugin: plugin("hms-smoke"),
 		hmsFirePlugin: plugin("hms-fire"),
+		pointsPlugin: plugin("points"),
 		cleanFires: (d: unknown[]) => d,
 		groupFires: (d: { id: string; coordinates: [number, number]; frp: number }[]) =>
 			d.map((f) => ({ id: f.id, coordinates: f.coordinates, avgFrp: f.frp, count: 1 })),
@@ -115,6 +124,10 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getMonitorSummariesBulkDaily: vi.fn(),
 	getHMSSmoke: vi.fn(),
 	getHMSFire: vi.fn(),
+	getActivePesticideNotices: vi.fn(),
+	getChemicalDetails: vi.fn(),
+	getCommodityDetails: vi.fn(),
+	getPesticidesMeta: vi.fn(),
 	getRegionsMeta: vi.fn(),
 	getRegionSummariesBulkDaily: vi.fn(),
 	getRegionSummariesBulkDailyOpen: vi.fn()
@@ -207,7 +220,8 @@ function namingClient(): QueryClient {
 const CATALOG: CatalogEntry[] = [
 	...FIXTURE_CATALOG,
 	{ id: "hms-smoke", label: "Wildfire Smoke", entryTypes: [], geographies: ["polygon"] },
-	{ id: "hms-fire", label: "Fire Detections", entryTypes: [], geographies: ["point"] }
+	{ id: "hms-fire", label: "Fire Detections", entryTypes: [], geographies: ["point"] },
+	{ id: "pesticide-notices", label: "Spray Notices", entryTypes: [], geographies: ["point"] }
 ];
 
 /** A monitor's latest reading, at `[lon, lat]`. */
@@ -232,6 +246,76 @@ function drawn(map: FakeMap): string[] | undefined {
 	return source?.features?.features.map((f) => f.properties.refKey.replace(/^monitor:/, ""));
 }
 
+const NOI_SOURCE = "https://cdpr.example/noi";
+
+/**
+ * The pesticides meta: the filter params the notice endpoints take (no commodity), the notices'
+ * explainer, and their one-level scale.
+ */
+const PESTICIDES_META = {
+	categories: [{ key: "fumigant", label: "Fumigants", description: "", in_use: true }],
+	iarc_groups: [],
+	methods: [],
+	narrows: [],
+	placeholder_chemicals: [],
+	badges: [],
+	notes: {
+		noi_meaning: {
+			key: "noi_meaning",
+			title: "What a notice means",
+			summary: "A plan to apply, not proof it happened. Restricted materials only.",
+			detail: null,
+			source_url: NOI_SOURCE
+		}
+	},
+	links: { spraydays_signup: "" },
+	notice_filters: [
+		"chemical_id",
+		"product_id",
+		"category",
+		"iarc_group",
+		"narrow",
+		"aerial_ground"
+	],
+	scales: {
+		"spray-notice": {
+			id: "spray-notice",
+			label: "Spray Notices",
+			kind: "category",
+			levels: [{ key: "notice", label: "Spray notice", color: "#e64980", value: "notice" }]
+		}
+	}
+};
+
+/** A spray notice in MTRS section `section`, as the server gives it. */
+function sprayNotice(id: string, section: string) {
+	return {
+		type: "Feature",
+		id,
+		geometry: { type: "Point", coordinates: [-119.5, 36.5] },
+		properties: {
+			id,
+			scheduled_application: "2026-11-12T08:00:00-08:00",
+			scheduled_end: "2026-11-16T08:00:00-08:00",
+			county: "Fresno",
+			application_method: "Ground",
+			aerial_ground: "G",
+			treated_amount: 10,
+			treated_units: "A",
+			section: `Section ${section}`,
+			section_id: section,
+			products: [],
+			chemicals: []
+		}
+	};
+}
+
+const noticeCollection = (features: unknown[]) => ({
+	type: "FeatureCollection",
+	as_of: "",
+	features
+});
+
 let frame: HTMLDivElement;
 let nowClient: NowClient;
 let platform: MemoryPlatform;
@@ -249,6 +333,9 @@ beforeEach(async () => {
 	vi.mocked(getHMSSmoke).mockResolvedValue([] as never);
 	vi.mocked(getHMSFire).mockResolvedValue([] as never);
 	vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([] as never);
+	resetPesticideMeta();
+	vi.mocked(getPesticidesMeta).mockResolvedValue(PESTICIDES_META as never);
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(noticeCollection([]) as never);
 	vi.mocked(mapConfig).mockReturnValue({ maptilerKey: "test", projection: "mercator" });
 	const { getMetadata, getQueryClient } = await import("$lib/data");
 	vi.mocked(getMetadata).mockReturnValue(fixtureMetadata({ catalog: async () => CATALOG }));
@@ -2755,4 +2842,512 @@ test("a fill that fails to load keeps the map, with a note and Retry", async () 
 	await frame.querySelector<HTMLElement>("[data-map-fill-note] button")!.click();
 	await expect.poll(() => screen.getByText(m.map_fill_failed()).query()).toBeNull();
 	await expect.poll(() => fillValues(map)?.["region:zipcode:93721"]).toBe(5);
+});
+
+// Spray notices.
+
+type NoticesPlugin = {
+	kind: string;
+	options: {
+		id: string;
+		layerLabel: string;
+		legendUnits?: string;
+		legendNote?: Snippet;
+		count?: { property: string };
+		cluster?: { radius: number; maxZoom: number; properties?: unknown };
+		tooltip?: (item: unknown, props: Record<string, unknown>, env: unknown) => Snippet | undefined;
+		tooltipShowsName?: boolean;
+		source: {
+			features: { features: { properties: Record<string, unknown> }[] } | null;
+			scale: unknown;
+			status: unknown;
+		};
+	};
+	addOptions?: Record<string, unknown>;
+};
+const noticesOf = (map: FakeMap) =>
+	map.plugins.find((p) => p.id === "notices") as unknown as NoticesPlugin | undefined;
+
+/** A Map of county 019 with the spray notices layer (with `filters`, if given). */
+function noticesMap(filters?: Record<string, unknown>): WidgetInstance {
+	return {
+		...mapWidget({}),
+		data: layers(region("019"), [{ dataset: "pesticide-notices", ...(filters && { filters }) }])
+	};
+}
+
+/** The notices plugin's legend note, rendered as map-sdk's legend does, once it's added. */
+async function noticesNote(map: FakeMap) {
+	await expect.poll(() => noticesOf(map)?.options.legendNote).toBeDefined();
+	return render(RenderSnippet, { snippet: noticesOf(map)!.options.legendNote! });
+}
+
+function notFound(): Error {
+	return new Error("Not found", { cause: { result: { status: 404 } } });
+}
+
+test("adds the notices plugin under the monitors when the tile has notices", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	const notices = noticesOf(map)!;
+	expect(notices.kind).toBe("points");
+	expect(notices.addOptions).toEqual({ before: "monitors" });
+	expect(notices.options).toMatchObject({
+		id: "notices",
+		layerLabel: "Spray Notices",
+		count: { property: "count" }
+	});
+	// Clustered (the toolbar's default), summed by map-sdk itself: no clusterProperties of ours.
+	expect(notices.options.cluster).toBeDefined();
+	expect(notices.options.cluster?.properties).toBeUndefined();
+	await expect.poll(() => notices.options.source.features?.features).toHaveLength(1);
+	expect(notices.options.source.features!.features[0].properties).toMatchObject({
+		count: 2,
+		value: "notice"
+	});
+	// Over the whole map: never limited by the places.
+	expect(getActivePesticideNotices).toHaveBeenCalledWith(
+		expect.not.objectContaining({ bbox: expect.anything() })
+	);
+});
+
+test("a notices marker's card is the notice card, from the source's notices array", async () => {
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const notices = noticesOf(map)!;
+	// The card shows its own heading, so map-sdk draws no name above it.
+	expect(notices.options.tooltipShowsName).toBe(true);
+	const props = notices.options.source.features!.features[0].properties;
+	// map-sdk hands the tooltip the source's properties: the notices are objects, not JSON.
+	expect(Array.isArray(props.notices)).toBe(true);
+	const item = { refKey: props.refKey };
+	// On hover (nothing pinned): the static form, with nothing focusable.
+	const hover = notices.options.tooltip!(item, props, {});
+	expect(hover).toBeDefined();
+	const tip = await render(RenderSnippet, { snippet: hover! });
+	await expect
+		.element(tip.getByText(m.map_notice_list_heading({ count: "2", countValue: 2 })))
+		.toBeVisible();
+	await expect
+		.element(tip.getByText(m.map_notice_where({ section: "Section s1", county: "Fresno" })))
+		.toBeVisible();
+	expect(tip.container.querySelectorAll("button, a, [tabindex]")).toHaveLength(0);
+	tip.unmount();
+	// Pinned: the interactive card, one button per notice.
+	map.pinned = { hit: { pluginId: "notices", refKey: props.refKey as string, name: "" } };
+	const card = await render(RenderSnippet, {
+		snippet: notices.options.tooltip!(item, props, {})!
+	});
+	await expect.poll(() => card.container.querySelectorAll("button").length).toBe(2);
+	card.unmount();
+});
+
+test("a notice card keeps focus when map-sdk asks for its content again", async () => {
+	// map-sdk re-reads the tooltip whenever the card's feature is found again, e.g. when Tab moves
+	// focus from the feature list into the card and the list clears its focused key while the
+	// card stays pinned. The same card must come back, or the focused button is detached.
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const notices = noticesOf(map)!;
+	const props = notices.options.source.features!.features[0].properties;
+	const item = { refKey: props.refKey };
+	map.pinned = { hit: { pluginId: "notices", refKey: props.refKey as string, name: "" } };
+	const first = notices.options.tooltip!(item, props, {})!;
+	const card = await render(RenderSnippet, { snippet: first });
+	await expect.poll(() => card.container.querySelectorAll("li button").length).toBe(2);
+	const row = card.container.querySelector<HTMLButtonElement>("li button")!;
+	row.focus();
+	expect(document.activeElement).toBe(row);
+	// Asked again with nothing changed: the same snippet, so nothing mounts again.
+	const again = notices.options.tooltip!(item, props, {})!;
+	expect(again).toBe(first);
+	await card.rerender({ snippet: again });
+	expect(row.isConnected).toBe(true);
+	expect(document.activeElement).toBe(row);
+	card.unmount();
+});
+
+describe("a notice card across a notices refetch", () => {
+	/** A notice with another amount, as a later fetch might give it. */
+	const treated = (notice: ReturnType<typeof sprayNotice>, amount: number) => ({
+		...notice,
+		properties: { ...notice.properties, treated_amount: amount }
+	});
+
+	/** The pinned card of the one marker, with the detail of its second notice open. */
+	async function openSecond() {
+		const map = await madeMap();
+		await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+		const notices = noticesOf(map)!;
+		const propsNow = () => notices.options.source.features!.features[0].properties;
+		const props = propsNow();
+		const item = { refKey: props.refKey };
+		map.pinned = { hit: { pluginId: "notices", refKey: props.refKey as string, name: "" } };
+		const first = notices.options.tooltip!(item, props, {})!;
+		const card = await render(RenderSnippet, { snippet: first });
+		await expect.poll(() => card.container.querySelectorAll("li button").length).toBe(2);
+		card.container.querySelectorAll<HTMLButtonElement>("li button")[1].click();
+		const backLabel = m.map_notice_back({ count: "2", countValue: 2 });
+		await expect.poll(() => document.activeElement?.textContent?.trim()).toBe(backLabel);
+		const back = document.activeElement as HTMLButtonElement;
+		/** Refetches the notices, then asks for the card again as map-sdk does on new props. */
+		async function refetch() {
+			const before = propsNow();
+			nowClient.refetch(nowClient.entries().find((e) => e.key.startsWith("map-notices"))!.key);
+			await expect.poll(() => propsNow()).not.toBe(before);
+			const again = notices.options.tooltip!(item, propsNow(), {})!;
+			await card.rerender({ snippet: again });
+			return again;
+		}
+		return { card, first, back, refetch };
+	}
+
+	test("keeps the open detail and the focus on Back", async () => {
+		vi.mocked(getActivePesticideNotices).mockResolvedValue(
+			noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+		);
+		await show(noticesMap());
+		const { card, first, back, refetch } = await openSecond();
+		expect(await refetch()).toBe(first);
+		expect(back.isConnected).toBe(true);
+		expect(document.activeElement).toBe(back);
+		card.unmount();
+	});
+
+	test("shows the new data in the open card", async () => {
+		vi.mocked(getActivePesticideNotices)
+			.mockResolvedValueOnce(
+				noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+			)
+			.mockResolvedValue(
+				noticeCollection([sprayNotice("n1", "s1"), treated(sprayNotice("n2", "s1"), 25)]) as never
+			);
+		await show(noticesMap());
+		const { card, back, refetch } = await openSecond();
+		const amount = (value: number) =>
+			m.map_notice_amount({ amount: formatNumber(value), units: "A" });
+		await expect.element(card.getByText(amount(10))).toBeVisible();
+		await refetch();
+		await expect.element(card.getByText(amount(25))).toBeVisible();
+		expect(document.activeElement).toBe(back);
+		card.unmount();
+	});
+
+	test("when the open notice is gone, falls back to the list with focus kept in the card", async () => {
+		vi.mocked(getActivePesticideNotices)
+			.mockResolvedValueOnce(
+				noticeCollection([sprayNotice("n1", "s1"), sprayNotice("n2", "s1")]) as never
+			)
+			.mockResolvedValueOnce(
+				noticeCollection([
+					sprayNotice("n1", "s1"),
+					sprayNotice("n3", "s1"),
+					sprayNotice("n4", "s1")
+				]) as never
+			)
+			.mockResolvedValue(noticeCollection([sprayNotice("n1", "s1")]) as never);
+		await show(noticesMap());
+		const { card, refetch } = await openSecond();
+		await refetch();
+		// The list again, focus on its first row.
+		await expect.poll(() => card.container.querySelectorAll("li button").length).toBe(3);
+		const rows = card.container.querySelectorAll<HTMLButtonElement>("li button");
+		await expect.poll(() => document.activeElement).toBe(rows[0]);
+		// Open a row, then the marker drops to one notice, not the one open: its detail, focus
+		// still in the card.
+		rows[2].click();
+		const backLabel = m.map_notice_back({ count: "3", countValue: 3 });
+		await expect.poll(() => document.activeElement?.textContent?.trim()).toBe(backLabel);
+		await refetch();
+		await expect.poll(() => card.container.querySelectorAll("button").length).toBe(0);
+		await expect
+			.poll(() =>
+				card.container.querySelector("[data-notice-card]")?.contains(document.activeElement)
+			)
+			.toBe(true);
+		card.unmount();
+	});
+});
+
+test("no notices plugin and no fetch without the layer", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await show(mapWidget(region("019")));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(getActivePesticideNotices).not.toHaveBeenCalled();
+});
+
+test("the notices row appears only when the tile has notices", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const without = await showLive(mapWidget(region("019")), editing());
+	const first = await madeMap();
+	first.ready = true;
+	await expect.poll(() => drawn(first)).toEqual(["a"]);
+	expect(
+		without.getByRole("button", { name: mapMessages("mapsdk_options_layers") }).query()
+	).toBeNull();
+	expect(without.getByRole("checkbox", { name: "Spray Notices" }).query()).toBeNull();
+	await without.unmount();
+
+	fakeMaps.reset();
+	const screen = await showLive(noticesMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.element(screen.getByRole("checkbox", { name: "Spray Notices" })).toBeChecked();
+	expect(fakeToolbars.last!.groups.find((g) => g.id === "layers")?.rows.map((r) => r.id)).toEqual([
+		"notices"
+	]);
+});
+
+test("the Layers row hides notices without unloading them", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1")]) as never
+	);
+	const screen = await showLive(noticesMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const asked = vi.mocked(getActivePesticideNotices).mock.calls.length;
+	const box = screen.getByRole("checkbox", { name: "Spray Notices" });
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(optionsOf()).toEqual({ noticesShown: false });
+	// Their data keeps loading: showing them again draws at once, with no new request.
+	const entry = () => nowClient.entries().find((e) => e.key.startsWith("map-notices"));
+	expect(entry()?.subscribers ?? 0).toBeGreaterThan(0);
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	expect(optionsOf()).toBeUndefined();
+	expect(noticesOf(map)!.options.source.features?.features).toHaveLength(1);
+	expect(getActivePesticideNotices).toHaveBeenCalledTimes(asked);
+});
+
+test("a viewer hides the notices for themselves, writing nothing", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = noticesMap();
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	await screen.getByRole("checkbox", { name: "Spray Notices" }).click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	// The row's key is held as the option it writes (noticesShown), nothing else.
+	expect(changes.get(widget.id)).toEqual({ noticesShown: false });
+	expect(optionsOf()).toBeUndefined();
+	await screen.getByRole("checkbox", { name: "Spray Notices" }).click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "notices", "monitors"]);
+	expect(changes.get(widget.id)).toBeUndefined();
+});
+
+test("notices failure note: Retry fetches again while the monitors stay drawn", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getActivePesticideNotices)
+		.mockRejectedValueOnce(new Error("offline"))
+		.mockResolvedValue(noticeCollection([sprayNotice("n1", "s1")]) as never);
+	const screen = await show(noticesMap());
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_notices_failed())).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
+	// map-sdk sees no error, so its legend offers no second Retry: only the note's.
+	expect(noticesOf(map)!.options.source.status).toEqual({ state: "ready" });
+	const note = frame.querySelector<HTMLElement>("[data-map-notices-note]")!;
+	expect(note.querySelectorAll("button")).toHaveLength(1);
+	await note.querySelector("button")!.click();
+	await expect.poll(() => screen.getByText(m.map_notices_failed()).query()).toBeNull();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	expect(getActivePesticideNotices).toHaveBeenCalledTimes(2);
+	expect(drawn(map)).toEqual(["a"]);
+});
+
+test("the notices source's scale is one stable ScaleRef", async () => {
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1")]) as never
+	);
+	await show(noticesMap());
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const source = noticesOf(map)!.options.source;
+	// map-sdk matches the resolved scale to its source's by identity: the same object every read.
+	expect(source.scale).toBe(NOTICES_SCALE);
+	expect(source.scale).toBe(source.scale);
+	expect(NOTICES_SCALE).toEqual({ dataset: "pesticide-notices", entryType: "spray-notice" });
+	// The legend row's units line: what a marker's number means.
+	expect(noticesOf(map)!.options.legendUnits).toBe(m.map_notices_legend_units());
+});
+
+test("a day with no notices says so, with the explainer", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-09": { a: 9 } });
+	const widget: WidgetInstance = {
+		...rangedMap(region("019")),
+		data: { ...layers(region("019"), [{ dataset: "pesticide-notices" }]), dateRange: RANGE }
+	};
+	await show(widget);
+	const map = await madeMap();
+	await expect
+		.poll(() => vi.mocked(getActivePesticideNotices).mock.calls.length)
+		.toBeGreaterThan(0);
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(m.map_notices_none_day())).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+	// The explainer still reminds that no notice doesn't mean no spraying; its title links out.
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	const link = note.getByRole("link", {
+		name: new RegExp(PESTICIDES_META.notes.noi_meaning.title)
+	});
+	await expect.element(link).toHaveAttribute("href", NOI_SOURCE);
+	await expect.element(link).toHaveAttribute("rel", "noopener noreferrer");
+	note.unmount();
+});
+
+test("on now, no notices says none right now, not a day without them; the explainer shows", async () => {
+	await show(noticesMap());
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(m.map_notices_none_now())).toBeVisible();
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
+	note.unmount();
+});
+
+test("on now, the none line waits for the notices to load", async () => {
+	vi.mocked(getActivePesticideNotices).mockReturnValue(new Promise(() => {}) as never);
+	await show(noticesMap());
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+	note.unmount();
+});
+
+test("on now, a failed fetch isn't called none", async () => {
+	vi.mocked(getActivePesticideNotices).mockRejectedValue(new Error("offline"));
+	const screen = await show(noticesMap());
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_notices_failed())).toBeVisible();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+	note.unmount();
+});
+
+test("on now, a gone filter isn't called none", async () => {
+	vi.mocked(getChemicalDetails).mockRejectedValue(notFound());
+	const screen = await show(noticesMap({ chemical: "gone" }));
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_notices_filter_gone())).toBeVisible();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+	note.unmount();
+});
+
+test("a day with notices doesn't say there are none", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-09": { a: 9 } });
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "s1")]) as never
+	);
+	const widget: WidgetInstance = {
+		...rangedMap(region("019")),
+		data: { ...layers(region("019"), [{ dataset: "pesticide-notices" }]), dateRange: RANGE }
+	};
+	await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
+	note.unmount();
+});
+
+test("the legend names the active filters", async () => {
+	vi.mocked(getChemicalDetails).mockResolvedValue({ display_name: "1,3-Dichloropropene" } as never);
+	await show(noticesMap({ chemical: "c1", category: ["fumigant"] }));
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	// As charts' legends name them: the filters' names, joined as labels are.
+	const named = m.label_join({ first: "1,3-Dichloropropene", second: "Fumigants" });
+	await expect
+		.element(note.getByText(m.map_notices_legend_filters({ filters: named })))
+		.toBeVisible();
+	note.unmount();
+});
+
+test("the legend says which filters don't apply to spray notices", async () => {
+	vi.mocked(getCommodityDetails).mockResolvedValue({ display_name: "Grapes" } as never);
+	await show(noticesMap({ commodity: "k1", category: ["fumigant"] }));
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect
+		.element(
+			note.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() }))
+		)
+		.toBeVisible();
+	// The category applies: it isn't named as skipped, and it alone is named as filtering.
+	expect(note.container.textContent).not.toContain(
+		m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_category() })
+	);
+	await expect
+		.element(note.getByText(m.map_notices_legend_filters({ filters: "Fumigants" })))
+		.toBeVisible();
+	expect(note.container.textContent).not.toContain("Grapes");
+	note.unmount();
+});
+
+test("with only filters that don't apply, the legend names none as filtering", async () => {
+	vi.mocked(getCommodityDetails).mockResolvedValue({ display_name: "Grapes" } as never);
+	await show(noticesMap({ commodity: "k1" }));
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect
+		.element(
+			note.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() }))
+		)
+		.toBeVisible();
+	await expect.element(note.getByText(PESTICIDES_META.notes.noi_meaning.summary)).toBeVisible();
+	await new Promise((r) => setTimeout(r, 50));
+	expect(note.container.textContent).not.toContain("Grapes");
+	expect(note.container.textContent).not.toContain(
+		m.map_notices_legend_filters({ filters: "" }).trim()
+	);
+	note.unmount();
+});
+
+test("a gone filter is said, not an empty layer", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getChemicalDetails).mockRejectedValue(notFound());
+	const screen = await show(noticesMap({ chemical: "gone" }));
+	const map = await madeMap();
+	// map-sdk's legend shows the layer as unavailable (a status row), with no features drawn.
+	await expect
+		.poll(() => noticesOf(map)?.options.source.status)
+		.toEqual({ state: "unavailable", reason: "filter-gone" });
+	expect(noticesOf(map)!.options.source.features).toBeNull();
+	// And the map says why, with Edit data to change the filter; the monitors stay drawn.
+	await expect.element(screen.getByText(m.map_notices_filter_gone())).toBeVisible();
+	expect(frame.querySelector("[data-map-notices-gone]")).toBeTruthy();
+	await expect.element(screen.getByRole("button", { name: m.widget_edit_data() })).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(getActivePesticideNotices).not.toHaveBeenCalled();
 });

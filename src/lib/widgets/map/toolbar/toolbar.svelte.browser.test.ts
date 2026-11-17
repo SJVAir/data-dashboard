@@ -55,6 +55,7 @@ const offer = (over: Partial<MapOffer> = {}): MapOffer => ({
 	hasInside: false,
 	smokeAndFire: false,
 	fill: false,
+	notices: false,
 	...over
 });
 
@@ -182,6 +183,40 @@ describe("MapToolbar", () => {
 			fillLabel: "ZIP Codes"
 		});
 		expect(group(groups, "layers").rows.map((r) => r.id)).toEqual(["fireAndSmoke", "regions"]);
+	});
+
+	it("notices: a Layers row after Fire & Smoke and the fill, named by the catalog, on by default", () => {
+		const { groups, defaults, values } = new MapToolbar(stubMap()).build({
+			offer: offer({ smokeAndFire: true, fill: true, notices: true }),
+			drawn: "pm25",
+			options: { noticesShown: false },
+			fillLabel: "ZIP Codes",
+			noticesLabel: "Spray Notices"
+		});
+		const rows = group(groups, "layers").rows;
+		expect(rows.map((r) => r.id)).toEqual(["fireAndSmoke", "regions", "notices"]);
+		expect(rows[2]).toMatchObject({ kind: "checkbox", id: "notices", label: "Spray Notices" });
+		expect((rows[2] as { icon?: unknown }).icon).toBeTypeOf("function");
+		expect(defaults.notices).toBe(true);
+		expect(values.notices).toBe(false);
+	});
+
+	it("notices alone show the Layers group; without them, no row and no default", () => {
+		const alone = new MapToolbar(stubMap()).build({
+			offer: offer({ notices: true }),
+			drawn: "pm25",
+			options: {},
+			noticesLabel: "Spray Notices"
+		});
+		expect(ids(alone.groups)).toEqual(["layers", "settings"]);
+		const without = new MapToolbar(stubMap()).build({
+			offer: offer({ notices: false }),
+			drawn: "pm25",
+			options: {},
+			noticesLabel: "Spray Notices"
+		});
+		expect(ids(without.groups)).toEqual(["settings"]);
+		expect(without.defaults).not.toHaveProperty("notices");
 	});
 
 	it("no fill row without a fill, and the defaults leave regions out", () => {

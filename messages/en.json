@@ -1154,6 +1154,9 @@
 	"get_data_none": "None",
 	"getdata_map_fill": "Fill regions by",
 	"getdata_map_fill_none": "None",
+	"getdata_map_notices_switch": "Show spray notices",
+	"getdata_map_notices_filters": "Filter spray notices",
+	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
 	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
 	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",
@@ -1210,6 +1213,103 @@
 	"map_day_no_figures": "No figures for this day",
 	"map_fill_today_so_far": "{regionType}, today so far",
 	"map_fill_failed": "The region fill couldn't be loaded.",
+	"map_notices_failed": "Spray notices couldn't be loaded.",
+	"map_notices_filter_gone": "Spray notices can't be shown: a filter they use is no longer available.",
+	"map_notices_legend_units": "Numbered: how many notices",
+	"map_notices_legend_filters": "Filtered by {filters}",
+	"map_notices_none_day": "No spray notices for this day",
+	"map_notices_none_now": "No spray notices right now",
+	"map_notices_name": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input section",
+				"input county",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {section}, {county}",
+				"countPlural=other": "{count} spray notices, {section}, {county}"
+			}
+		}
+	],
+	"map_notices_name_section": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input section",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {section}",
+				"countPlural=other": "{count} spray notices, {section}"
+			}
+		}
+	],
+	"map_notices_name_county": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input county",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {county}",
+				"countPlural=other": "{count} spray notices, {county}"
+			}
+		}
+	],
+	"map_notices_name_no_place": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice",
+				"countPlural=other": "{count} spray notices"
+			}
+		}
+	],
+	"map_notice_active": "Active",
+	"map_notice_through": "May begin through {date}",
+	"map_notice_where": "{section} · {county} (the square mile, not the field)",
+	"map_notice_where_section": "{section} (the square mile, not the field)",
+	"map_notice_where_county": "{county} (the area, not the field)",
+	"map_notice_where_no_place": "Section and county not given",
+	"map_notice_amount": "{amount} {units} treated",
+	"map_notice_amount_no_units": "{amount} treated",
+	"map_notice_method": "Method: {method}",
+	"map_notice_products": "Products",
+	"map_notice_chemicals": "Chemicals",
+	"map_notice_of_concern": "of concern",
+	"map_notice_none_listed": "None listed",
+	"map_notice_list_heading": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} notice of intent",
+				"countPlural=other": "{count} notices of intent"
+			}
+		}
+	],
+	"map_notice_back": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Back to the notice",
+				"countPlural=other": "Back to all {count} notices"
+			}
+		}
+	],
+	"map_notice_list_span": "Scheduled from {first} to {last}",
+	"map_notice_spraydays": "Sign up with SprayDays",
 	"map_marks_hidden_day": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],

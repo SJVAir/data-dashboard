@@ -26,7 +26,8 @@ const offer: MapOffer = {
 	hasInactive: true,
 	hasInside: true,
 	smokeAndFire: false,
-	fill: false
+	fill: false,
+	notices: false
 };
 const rows = { types: true, inactive: true, inside: true };
 
@@ -260,5 +261,30 @@ describe("placeMonitors", () => {
 		expect(placeMonitors(undefined).size).toBe(0);
 		expect(placeMonitors({ place: { kind: "region", type: "county", code: "019" } }).size).toBe(0);
 		expect(placeMonitors({ selection: { kind: "regions", ids: ["r019"] } }).size).toBe(0);
+	});
+});
+
+describe("notices", () => {
+	it("the notices row maps to noticesShown and back, and on is never written", () => {
+		const on = toOptions(
+			{ noticesShown: false },
+			{ ...defaults, notices: true },
+			["notices"],
+			defaults,
+			"pm25"
+		);
+		expect(on).not.toHaveProperty("noticesShown");
+		const off = toOptions({}, { ...defaults, notices: false }, ["notices"], defaults, "pm25");
+		expect(off.noticesShown).toBe(false);
+		expect(toValues({}, offer, defaults, "pm25").notices).toBe(true);
+		expect(toValues({ noticesShown: false }, offer, defaults, "pm25").notices).toBe(false);
+	});
+	it("Layers shows for notices alone", () => {
+		expect(groupsShown({ ...offer, notices: true }, 3).layers).toBe(true);
+	});
+	it("Reset removes noticesShown", () => {
+		expect(withoutToolbar({ noticesShown: false, day: "2026-11-14" })).toEqual({
+			day: "2026-11-14"
+		});
 	});
 });

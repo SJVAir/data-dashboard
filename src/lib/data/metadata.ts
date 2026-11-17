@@ -11,6 +11,7 @@ import {
 	type SchoolGuidelines,
 	type Retired
 } from "@sjvair/sdk";
+import { pesticideMeta } from "./pesticide-meta";
 import type { Resolution } from "./schema";
 
 export type Retirement = { since: string; replacedBy?: string };
@@ -105,7 +106,8 @@ export interface MetadataSource {
 	levels(entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/**
 	 * The levels of a dataset's entry type: the forecasts scales for `"forecasts"`, the HMS
-	 * scales for `"hms-smoke"`, the CalHeatScore scales for `"calheatscore"`, otherwise the same as `levels`. `[]` if no scale.
+	 * scales for `"hms-smoke"`, the CalHeatScore scales for `"calheatscore"`, the pesticides
+	 * meta's for `"pesticide-notices"`, otherwise the same as `levels`. `[]` if no scale.
 	 */
 	datasetLevels(dataset: string, entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/**
@@ -350,7 +352,8 @@ export function createWebMetadata(): MetadataSource {
 		},
 		levels: monitorLevels,
 		async datasetLevels(dataset, entryType, signal) {
-			// Each dataset with scales names its own meta endpoint here (forecasts, hms-smoke); the
+			// Each dataset with scales names its own meta endpoint here (forecasts, hms-smoke, the
+			// pesticides meta for the spray notices, shared with pesticide-meta's one fetch); the
 			// rest use the monitors'. A new dataset with its own scales adds its endpoint.
 			if (dataset === "forecasts") {
 				return mapScaleLevels((await forecastsMeta(signal)).scales[entryType]?.levels);
@@ -360,6 +363,9 @@ export function createWebMetadata(): MetadataSource {
 			}
 			if (dataset === "calheatscore") {
 				return mapScaleLevels((await heatMeta(signal)).scales[entryType]?.levels);
+			}
+			if (dataset === "pesticide-notices") {
+				return mapScaleLevels((await pesticideMeta(signal)).scales[entryType]?.levels);
 			}
 			return monitorLevels(entryType, signal);
 		},
@@ -371,7 +377,9 @@ export function createWebMetadata(): MetadataSource {
 						? (await hmsMeta(signal)).scales
 						: dataset === "calheatscore"
 							? (await heatMeta(signal)).scales
-							: undefined;
+							: dataset === "pesticide-notices"
+								? (await pesticideMeta(signal)).scales
+								: undefined;
 			const own = await scales();
 			if (own) return Object.hasOwn(own, entryType) ? own[entryType] : null;
 			return (await meta(signal)).entries[entryType]?.scale ?? null;
@@ -395,7 +403,9 @@ export function createWebMetadata(): MetadataSource {
 						? (await hmsMeta(signal)).scales[entryType]
 						: dataset === "calheatscore"
 							? (await heatMeta(signal)).scales[entryType]
-							: (await meta(signal)).entries[entryType]?.scale;
+							: dataset === "pesticide-notices"
+								? (await pesticideMeta(signal)).scales[entryType]
+								: (await meta(signal)).entries[entryType]?.scale;
 			return scale?.source ?? null;
 		},
 		async defaultProcessor(monitorType, entryType, signal) {

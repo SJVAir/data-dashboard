@@ -16,11 +16,12 @@ import {
 	fire,
 	layers,
 	monitors,
+	notices,
 	regions,
 	settings,
 	theme
 } from "./icons.svelte";
-import { groupsShown, toValues, type MapOffer } from "./values";
+import { groupsShown, NOTICES_KEY, toValues, type MapOffer } from "./values";
 
 export type MapToolbarInput = {
 	offer: MapOffer;
@@ -36,6 +37,8 @@ export type MapToolbarInput = {
 	day?: boolean;
 	/** The fill row's label (the region type's plural label), while the tile has a fill. */
 	fillLabel?: string;
+	/** The spray notices row's label (the catalog's), while the tile has the layer. */
+	noticesLabel?: string;
 };
 
 /** The fill row's value key (option `fillShown`): on by default, so the fill shows. */
@@ -79,7 +82,8 @@ export class MapToolbar {
 		options,
 		ownerValues,
 		day = false,
-		fillLabel
+		fillLabel,
+		noticesLabel
 	}: MapToolbarInput): MapToolbarBuild {
 		const forMonitors = this.#monitors.groups({
 			types: offer.types,
@@ -101,9 +105,14 @@ export class MapToolbar {
 			offer.fill && fillLabel
 				? { kind: "checkbox", id: FILL_KEY, label: fillLabel, icon: regions }
 				: undefined;
+		const noticesRow: OptionRow | undefined =
+			offer.notices && noticesLabel
+				? { kind: "checkbox", id: NOTICES_KEY, label: noticesLabel, icon: notices }
+				: undefined;
 		const layerRows: OptionRow[] = [];
 		if (hms) layerRows.push(hms.row);
 		if (fill) layerRows.push(fill);
+		if (noticesRow) layerRows.push(noticesRow);
 		const forSettings = settingsGroup(this.#map, {
 			icon: settings,
 			cluster: CLUSTER,
@@ -129,7 +138,8 @@ export class MapToolbar {
 			...forMonitors.defaults,
 			...forSettings.defaults,
 			...hms?.defaults,
-			...(fill && { [FILL_KEY]: true })
+			...(fill && { [FILL_KEY]: true }),
+			...(noticesRow && { [NOTICES_KEY]: true })
 		};
 		const rows: MapToolbarRows = {
 			types: shown.monitors && offered.some((id) => id.startsWith("type:")),

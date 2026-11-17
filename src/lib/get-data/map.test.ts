@@ -7,7 +7,7 @@ import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { currentType } from "$lib/widgets/current";
 import { MAP_TYPE } from "$lib/widgets/map";
-import { mapOptions } from "$lib/widgets/map/options";
+import { mapOptions, PESTICIDE_NOTICES } from "$lib/widgets/map/options";
 import { registerWidgetType } from "$lib/widgets/registry";
 import type { Draft } from "./draft.svelte";
 import {
@@ -16,10 +16,14 @@ import {
 	HMS_FIRE,
 	HMS_SMOKE,
 	isMapShaped,
+	hasNotices,
+	mapPesticideFilters,
 	mapShowingOnly,
 	MAP_POLLUTANTS_MAX,
 	setMapFill,
+	setMapPesticideFilters,
 	setMapPollutant,
+	setNotices,
 	setSmokeAndFire,
 	toMapDraft
 } from "./map";
@@ -59,11 +63,11 @@ describe("setMapPollutant", () => {
 		expect(shape(d)).toEqual([["pm25", true]]);
 	});
 
-	it("stops at 6 pollutants", () => {
+	it("stops at 4 pollutants", () => {
 		const d = tile("pm25");
 		for (const id of IDS.slice(1)) setMapPollutant(d, CATALOG, id, true);
-		expect(MAP_POLLUTANTS_MAX).toBe(6);
-		expect(d.layers).toHaveLength(6);
+		expect(MAP_POLLUTANTS_MAX).toBe(4);
+		expect(d.layers).toHaveLength(4);
 		expect(d.layers.some((l) => l.entryType === "x1")).toBe(false);
 	});
 
@@ -104,6 +108,43 @@ describe("setSmokeAndFire with one of the pair", () => {
 	});
 });
 
+describe("setNotices", () => {
+	it("adds one place-less notices layer after smoke and fire, and removes it", () => {
+		const d = tile("pm25");
+		setSmokeAndFire(d, true);
+		expect(hasNotices(d)).toBe(false);
+		setNotices(d, true);
+		setNotices(d, true);
+		expect(d.layers.slice(1)).toEqual([
+			{ dataset: HMS_SMOKE },
+			{ dataset: HMS_FIRE },
+			{ dataset: PESTICIDE_NOTICES }
+		]);
+		expect(hasNotices(d)).toBe(true);
+		setNotices(d, false);
+		expect(d.layers.map((l) => l.dataset)).toEqual(["air-quality", HMS_SMOKE, HMS_FIRE]);
+	});
+});
+
+describe("setMapPesticideFilters", () => {
+	it("keeps every pesticide layer in step", () => {
+		const d = tile("pm25");
+		setNotices(d, true);
+		d.layers.push({ dataset: "pesticide-use", entryType: "amount" });
+		expect(mapPesticideFilters(d)).toBeUndefined();
+		setMapPesticideFilters(d, { chemical: "c1" });
+		expect(d.layers.slice(1).map((l) => l.filters)).toEqual([
+			{ chemical: "c1" },
+			{ chemical: "c1" }
+		]);
+		expect(mapPesticideFilters(d)).toEqual({ chemical: "c1" });
+		d.layers[1].filters = { chemical: "c1" };
+		setMapPesticideFilters(d, {});
+		expect(d.layers.some((l) => "filters" in l)).toBe(false);
+		expect(mapPesticideFilters(d)).toBeUndefined();
+	});
+});
+
 describe("setMapFill", () => {
 	const draft = (options?: Draft["options"]): Draft => ({
 		type: MAP_TYPE,
@@ -124,6 +165,48 @@ describe("setMapFill", () => {
 		const only = draft({ fill: "zipcode" });
 		setMapFill(only, undefined);
 		expect(only.options).toBeUndefined();
+	});
+});
+
+describe("a Map with notices", () => {
+	const noticesDraft = (): Draft => {
+		const data = tile("pm25");
+		setSmokeAndFire(data, true);
+		setNotices(data, true);
+		setMapPesticideFilters(data, { chemical: "c1" });
+		return { type: MAP_TYPE, data };
+	};
+
+	it("isMapShaped accepts a notices layer", () => {
+		expect(isMapShaped(noticesDraft(), NOW)).toBe(true);
+		const alone = noticesDraft();
+		alone.data.layers = alone.data.layers.filter((l) => l.dataset !== HMS_SMOKE);
+		expect(isMapShaped(alone, NOW)).toBe(true);
+		const placed = noticesDraft();
+		placed.data.layers[3].place = FRESNO;
+		expect(isMapShaped(placed, NOW)).toBe(false);
+		const typed = noticesDraft();
+		typed.data.layers[3].entryType = "spray-notice";
+		expect(isMapShaped(typed, NOW)).toBe(false);
+		const twice = noticesDraft();
+		twice.data.layers.push({ dataset: PESTICIDE_NOTICES });
+		expect(isMapShaped(twice, NOW)).toBe(false);
+	});
+
+	it("toMapDraft keeps a Map's notices and filters", () => {
+		const c = toMapDraft(noticesDraft(), CATALOG, ["o3", "pm25"], NOW);
+		expect(c.draft.data.layers.slice(1)).toEqual([
+			{ dataset: HMS_SMOKE },
+			{ dataset: HMS_FIRE },
+			{ dataset: PESTICIDE_NOTICES, filters: { chemical: "c1" } }
+		]);
+		expect(c.dropped).toEqual([]);
+	});
+
+	it("a Map with notices shown as a chart drops them with the overlays note", () => {
+		const c = fromMapDraft(noticesDraft(), chartType, CATALOG);
+		expect(c.dropped).toContain("overlays");
+		expect(c.draft.data.layers.some((l) => l.dataset === PESTICIDE_NOTICES)).toBe(false);
 	});
 });
 

@@ -8,7 +8,10 @@ import {
 	type ScaleRef
 } from "@sjvair/map-sdk/data";
 import type { Feature, FeatureCollection, Geometry, Point } from "geojson";
+import type { NowState } from "$lib/data/now/client";
+import type { SnapshotAt } from "$lib/data/snapshot";
 import { todayPacific } from "$lib/format";
+import { dataStatus } from "./status";
 import type { MapDataEntry } from "./types";
 
 const SMOKE_SCALE: ScaleRef = { dataset: "hms-smoke", entryType: "smoke-density" };
@@ -90,3 +93,34 @@ export const hmsEntry: MapDataEntry<HmsData> = {
 		};
 	}
 };
+
+/**
+ * Whether smoke and fire poll (hourly): always on now; on a day, while the monitors' figures that
+ * day poll (`dayPolls`: they aren't all final).
+ */
+export function hmsPolls(at: SnapshotAt, dayPolls: boolean): boolean {
+	return at === "now" || dayPolls;
+}
+
+/** One source per smoke and fire plugin source, reading the loaded state as it is. */
+export function hmsSourceOf<P extends FireFeatureProperties>(
+	d: {
+		readonly hmsState: NowState<HmsData>;
+		readonly hmsDrawn: Record<"smoke" | "fireGroups" | "fireHotspots", DataSource>;
+	},
+	key: "smoke" | "fireGroups" | "fireHotspots"
+): DataSource<P> {
+	return {
+		get status() {
+			return dataStatus(d.hmsState);
+		},
+		get features() {
+			return d.hmsState.data === undefined
+				? null
+				: (d.hmsDrawn[key].features as DataSource<P>["features"]);
+		},
+		get scale() {
+			return d.hmsDrawn[key].scale;
+		}
+	};
+}

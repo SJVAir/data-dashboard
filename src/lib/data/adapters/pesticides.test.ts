@@ -32,6 +32,8 @@ import {
 	filterLabels,
 	pesticideMeta,
 	resetPesticideCaches,
+	noticeFiltersSkipped,
+	toNoticeParams,
 	toWire,
 	pesticidesAdapter
 } from "./pesticides";
@@ -477,5 +479,54 @@ describe("through the query client", () => {
 		if (ready?.status !== "ready") throw new Error("not ready");
 		expect(ready.data.resolution).toBe("month");
 		expect(ready.data.series[0].points.map((p) => p.mean)).toEqual([5]);
+	});
+});
+
+describe("notice filters", () => {
+	const NOTICE_FILTERS = [
+		"chemical_id",
+		"product_id",
+		"category",
+		"iarc_group",
+		"narrow",
+		"aerial_ground"
+	];
+	const ALL: PesticideFilters = {
+		chemical: "c1",
+		commodity: "k1",
+		product: "p1",
+		category: ["carcinogen"],
+		iarcGroup: "1",
+		method: "A",
+		narrow: "concern"
+	};
+
+	it("toNoticeParams renames to the notice params, without commodity", () => {
+		expect(toNoticeParams(ALL, NOTICE_FILTERS)).toEqual({
+			chemical_id: "c1",
+			product_id: "p1",
+			category: ["carcinogen"],
+			iarc_group: "1",
+			aerial_ground: "A",
+			narrow: "concern"
+		});
+	});
+
+	it("toNoticeParams sends only the filters the server lists for notices", () => {
+		expect(toNoticeParams(ALL, ["category", "aerial_ground"])).toEqual({
+			category: ["carcinogen"],
+			aerial_ground: "A"
+		});
+		expect(toNoticeParams({}, NOTICE_FILTERS)).toEqual({});
+	});
+
+	it("noticeFiltersSkipped names the set filters notices can't take", () => {
+		expect(noticeFiltersSkipped(ALL, NOTICE_FILTERS)).toEqual(["commodity"]);
+		expect(noticeFiltersSkipped({ chemical: "c1" }, NOTICE_FILTERS)).toEqual([]);
+		expect(noticeFiltersSkipped({ chemical: "c1", method: "A" }, ["category"])).toEqual([
+			"chemical",
+			"method"
+		]);
+		expect(noticeFiltersSkipped({}, [])).toEqual([]);
 	});
 });

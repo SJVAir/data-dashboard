@@ -68,7 +68,9 @@ const PESTICIDE_META = vi.hoisted(() => ({
 	iarc_groups: [{ key: "1", label: "Carcinogens", description: "Group 1" }],
 	methods: [{ key: "A", label: "Air" }],
 	narrows: [{ key: "concern", label: "Chemicals of concern", description: "A list" }],
-	placeholder_chemicals: [{ id: "unk", name: "UNKNOWN" }]
+	placeholder_chemicals: [{ id: "unk", name: "UNKNOWN" }],
+	// The notice endpoints take no commodity.
+	notice_filters: ["chemical_id", "product_id", "category", "iarc_group", "narrow", "aerial_ground"]
 }));
 vi.mock("$lib/data", () => ({
 	adapterOffers: () => [
@@ -158,7 +160,14 @@ const CATALOG: CatalogEntry[] = [
 		label: "Wildfire Smoke",
 		entryTypes: [{ ...FORECASTS_ENTRY.entryTypes[0], id: "smoke-density", label: "Smoke density" }],
 		geographies: ["region"]
-	}
+	},
+	{
+		id: "pesticide-notices",
+		label: "Pesticide Spray Notices",
+		description: "Notices of intent to spray.",
+		entryTypes: [{ ...FORECASTS_ENTRY.entryTypes[0], id: "spray-notice", label: "Spray notice" }],
+		geographies: ["point"]
+	} as CatalogEntry
 ];
 
 /** Air quality for monitors and regions: three daily points per place. */
@@ -1004,6 +1013,59 @@ describe("now widgets", () => {
 		]);
 		await smoke.click();
 		expect((await current()).data.layers).toHaveLength(1);
+	});
+
+	test("the Spray notices section switches the layer on and shows its filters", async () => {
+		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		await expect
+			.element(page.getByRole("heading", { name: "Pesticide Spray Notices" }))
+			.toBeVisible();
+		await expect.element(page.getByText("Notices of intent to spray.")).toBeVisible();
+		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
+		await expect.element(notices).not.toBeChecked();
+		await expect
+			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.not.toBeInTheDocument();
+		await notices.click();
+		await expect.element(notices).toBeChecked();
+		await expect
+			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.toBeVisible();
+		await animationsSettled(host);
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-notices" }]);
+		await notices.click();
+		expect((await current()).data.layers).toHaveLength(1);
+	});
+
+	test("the Spray notices section names a saved filter that doesn't apply to notices, and keeps it", async () => {
+		const skipped = m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() });
+		const { current } = await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "pesticide-notices", filters: { chemical: "c1", commodity: "k1" } }
+				]
+			}
+		});
+		await expect.element(page.getByText(skipped)).toBeVisible();
+		// Only the commodity: the chemical applies.
+		expect(
+			page
+				.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_chemical() }))
+				.query()
+		).toBeNull();
+		// The filter is still shown and kept.
+		await expect
+			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.toBeVisible();
+		expect((await current()).data.layers[1]).toEqual({
+			dataset: "pesticide-notices",
+			filters: { chemical: "c1", commodity: "k1" }
+		});
+		// With the switch off, the section says nothing about the filters.
+		await page.getByRole("switch", { name: m.getdata_map_notices_switch() }).click();
+		await expect.element(page.getByText(skipped)).not.toBeInTheDocument();
 	});
 
 	test("a Chart's smoke turns smoke and fire on; back to a Chart notes what's left out", async () => {
