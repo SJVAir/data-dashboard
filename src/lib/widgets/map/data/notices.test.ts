@@ -192,8 +192,29 @@ describe("noticesEntry", () => {
 		const value = await (await sourceOf("now")).fetch(new AbortController().signal);
 		const out = noticesEntry.toDataSources(value, { messages, entryType: "pm25" });
 		const features = out.notices.features!.features;
-		expect(features.map((f) => f.properties.refKey)).toEqual(["feature:n1", "feature:n2"]);
+		expect(features.map((f) => f.properties.refKey)).toEqual([
+			"feature:notice:n1",
+			"feature:notice:n2"
+		]);
 		expect(features[0].properties.name).toBe("1 spray notice, Fresno");
+	});
+
+	it("a notice with no section never shares a marker with a section of the same id", async () => {
+		vi.mocked(getActivePesticideNotices).mockResolvedValue({
+			type: "FeatureCollection",
+			as_of: "",
+			features: [
+				notice("n1", "x1", "2026-11-14T09:00:00-08:00"),
+				notice("x1", null, "2026-11-15T09:00:00-08:00")
+			]
+		} as never);
+		const value = await (await sourceOf("now")).fetch(new AbortController().signal);
+		const out = noticesEntry.toDataSources(value, { messages, entryType: "pm25" });
+		const features = out.notices.features!.features;
+		expect(features.map((f) => [f.properties.refKey, f.properties.count])).toEqual([
+			["feature:x1", 1],
+			["feature:notice:x1", 1]
+		]);
 	});
 
 	it("a marker is named by whichever of section and county the server gives", async () => {

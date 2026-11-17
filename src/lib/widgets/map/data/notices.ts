@@ -194,10 +194,11 @@ export const noticesEntry: MapDataEntry<NoticesData, NoticeFeatureProperties> = 
 		};
 	},
 	toDataSources({ notices, value }) {
-		// One marker per section; a notice with no section is a marker of its own.
+		// One marker per section; a notice with no section is a marker of its own, keyed apart
+		// from the section ids so the two never merge.
 		const groups = new Map<string, NoticeItem[]>();
 		for (const notice of notices) {
-			const key = notice.sectionId ?? notice.id;
+			const key = notice.sectionId ?? `notice:${notice.id}`;
 			const group = groups.get(key);
 			if (group) group.push(notice);
 			else groups.set(key, [notice]);
