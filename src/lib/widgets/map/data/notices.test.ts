@@ -329,6 +329,35 @@ describe("noticesEntry", () => {
 		expect(source).toEqual({ unavailable: "filter-gone" });
 	});
 
+	it("a gone filter that notices don't take isn't filter-gone", async () => {
+		vi.mocked(getCommodityDetails).mockRejectedValue(notFound());
+		vi.mocked(getChemicalDetails).mockResolvedValue({ display_name: "Chem" } as never);
+		const gone = await noticesEntry.source({
+			data: data({ commodity: "gone" }),
+			entryType: "pm25",
+			at: "now"
+		});
+		expect(gone && "fetch" in gone).toBe(true);
+		const withChemical = await noticesEntry.source({
+			data: data({ commodity: "gone", chemical: "c1" }),
+			entryType: "pm25",
+			at: "now"
+		});
+		expect(withChemical && "fetch" in withChemical).toBe(true);
+		// A code filter the meta doesn't list for notices is skipped too.
+		vi.mocked(getPesticidesMeta).mockResolvedValue({
+			...META,
+			notice_filters: ["chemical_id"]
+		} as never);
+		resetPesticideMeta();
+		const code = await noticesEntry.source({
+			data: data({ category: ["retired"] }),
+			entryType: "pm25",
+			at: "now"
+		});
+		expect(code && "fetch" in code).toBe(true);
+	});
+
 	it("a failed filter lookup still gives a source (the fetch shows the error)", async () => {
 		vi.mocked(getChemicalDetails).mockRejectedValue(new Error("offline"));
 		const source = await noticesEntry.source({

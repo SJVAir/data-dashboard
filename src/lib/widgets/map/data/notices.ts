@@ -7,7 +7,7 @@ import {
 	type ScaleRef
 } from "@sjvair/map-sdk/data";
 import type { Feature, FeatureCollection, Point } from "geojson";
-import { toNoticeParams } from "$lib/data/adapters/pesticides";
+import { noticeFiltersSkipped, toNoticeParams } from "$lib/data/adapters/pesticides";
 import type { NowState } from "$lib/data/now/client";
 import type { UnavailableReason } from "$lib/data/types";
 import { codesKnown, FilterGone, filterLabels, pesticideMeta } from "$lib/data/pesticide-meta";
@@ -89,13 +89,19 @@ function filtersKey(filters: PesticideFilters): string {
 
 /**
  * Whether a saved chemical or product the server no longer has, or a code its meta no longer
- * lists, makes the notices unavailable (as the chart adapter checks). Any other failure is left
- * to the fetch, which shows it with Retry.
+ * lists, makes the notices unavailable (as the chart adapter checks). Only the filters the
+ * notices take count (the meta's `notice_filters`): a gone commodity, which they never take,
+ * doesn't. Any other failure is left to the fetch, which shows it with Retry.
  */
 async function filtersGone(filters: PesticideFilters): Promise<boolean> {
 	if (Object.keys(filters).length === 0) return false;
 	try {
-		const [, known] = await Promise.all([filterLabels(filters), codesKnown(filters)]);
+		const skipped = new Set<string>(noticeFiltersSkipped(filters, await noticeFilterNames()));
+		const applied: PesticideFilters = Object.fromEntries(
+			Object.entries(filters).filter(([key]) => !skipped.has(key))
+		);
+		if (Object.keys(applied).length === 0) return false;
+		const [, known] = await Promise.all([filterLabels(applied), codesKnown(applied)]);
 		return !known;
 	} catch (error) {
 		return error instanceof FilterGone;
