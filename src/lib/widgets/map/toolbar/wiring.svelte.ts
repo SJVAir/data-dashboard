@@ -16,14 +16,23 @@ import {
 	drawableShowing,
 	mapOptions,
 	pollutantLayers,
+	useFigureOf,
 	type MapOptions
 } from "../options";
-import { FILL_KEY, type MapToolbar, type MapToolbarBuild } from "./toolbar.svelte";
+import {
+	FILL_KEY,
+	type MapToolbar,
+	type MapToolbarBuild,
+	type UseFigureInfo
+} from "./toolbar.svelte";
 import {
 	activeFilters,
 	isExempt,
 	NOTICES_KEY,
 	toOptions,
+	USE_KEY,
+	USE_MONTH_KEY,
+	USE_YEAR_KEY,
 	type MapOffer,
 	type MonitorFilters
 } from "./values";
@@ -54,6 +63,14 @@ export type MapToolbarWiringInput = {
 	readonly notices: boolean;
 	/** The spray notices' label (the catalog's); undefined while unknown (no row then). */
 	readonly noticesLabel: string | undefined;
+	/** Whether the tile has the pesticide use layer. */
+	readonly use: boolean;
+	/** The pesticide use label (the catalog's); undefined while unknown (no row then). */
+	readonly useLabel: string | undefined;
+	/** The catalog's pesticide use figures the map draws, in order. */
+	readonly useFigures: readonly UseFigureInfo[];
+	/** The years with pesticide use data (the meta's, newest first); undefined until loaded. */
+	readonly useYears: readonly number[] | undefined;
 };
 
 export type MapToolbarState = MapToolbarBuild & {
@@ -75,6 +92,9 @@ function optionKeys(changed: string[]): (keyof MapOptions)[] {
 			if (key === "pollutant") return ["showing"];
 			if (key === FILL_KEY) return ["fillShown"];
 			if (key === NOTICES_KEY) return ["noticesShown"];
+			if (key === USE_KEY) return ["useShown"];
+			// The period's selects write one option; it isn't a toolbar (Reset) key.
+			if (key === USE_YEAR_KEY || key === USE_MONTH_KEY) return ["usePeriod"];
 			if (key.startsWith(TYPE_PREFIX)) return ["hiddenTypes"];
 			return (MAP_TOOLBAR_KEYS as readonly string[]).includes(key) ? [key as keyof MapOptions] : [];
 		})
@@ -111,6 +131,8 @@ export class MapToolbarWiring {
 			? mapOptions({ options: tileOptions(this.#in.tileOptions, this.#in.widget) })
 			: this.saved
 	);
+	/** The pesticide use figure drawn now (the saved one, or the catalog's first). Never saved. */
+	readonly useFigure = $derived.by(() => useFigureOf(this.options, this.#in.catalog));
 	/** The pollutant drawn now (the one showing, or its fallback). Never saved. */
 	readonly drawn = $derived.by(() =>
 		drawableShowing(this.#in.widget.data, this.options, this.#in.catalog, this.#in.drawable)
@@ -135,11 +157,18 @@ export class MapToolbarWiring {
 			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed,
 			fill: this.#in.fillLabel !== undefined,
 			notices: this.#in.notices && this.#in.noticesLabel !== undefined,
-			use: null
+			use: this.#useOffer()
 		};
 		return JSON.stringify(offer);
 	});
 	readonly offer = $derived<MapOffer>(JSON.parse(this.#offerKey));
+
+	/** What the use rows offer: the figures and the listed years; null without the layer. */
+	#useOffer(): MapOffer["use"] {
+		const { use, useLabel, useFigures, useYears } = this.#in;
+		if (!use || useLabel === undefined || !useYears || useFigures.length === 0) return null;
+		return { figures: useFigures.map((f) => f.id), years: [...useYears] };
+	}
 	/**
 	 * Whether the fill shows: `fillShown: false` hides it only while its row is offered (a saved
 	 * value applies only while its row is offered).
@@ -147,6 +176,11 @@ export class MapToolbarWiring {
 	readonly fillShown = $derived(!(this.offer.fill && this.options.fillShown === false));
 	/** Whether the spray notices show: `noticesShown: false` hides them while their row is offered. */
 	readonly noticesShown = $derived(!(this.offer.notices && this.options.noticesShown === false));
+	/**
+	 * Whether pesticide use shows: `useShown: false` hides it (also before its row is offered, so
+	 * a hidden use never flashes while the years load).
+	 */
+	readonly useShown = $derived(this.options.useShown !== false);
 
 	/** The toolbar's groups, values and defaults; null until the map is made. */
 	readonly state = $derived.by<MapToolbarState | null>(() => {
@@ -154,21 +188,30 @@ export class MapToolbarWiring {
 		if (!toolbar) return null;
 		const offer = this.offer;
 		const day = this.#in.onDay;
-		const fillLabel = this.#in.fillLabel;
-		const noticesLabel = this.#in.noticesLabel;
+		const labels = {
+			day,
+			fillLabel: this.#in.fillLabel,
+			noticesLabel: this.#in.noticesLabel,
+			useLabel: this.#in.useLabel,
+			useFigures: this.#in.useFigures
+		};
 		if (this.#in.tileOptions?.mode === "view") {
 			const { widget, catalog, drawable } = this.#in;
 			const saved = this.saved;
-			const drawn = drawableShowing(widget.data, saved, catalog, drawable);
-			const owner = toolbar.build({ offer, drawn, options: saved, day, fillLabel, noticesLabel });
+			const owner = toolbar.build({
+				offer,
+				drawn: drawableShowing(widget.data, saved, catalog, drawable),
+				options: saved,
+				useFigure: useFigureOf(saved, catalog),
+				...labels
+			});
 			const shown = toolbar.build({
 				offer,
 				drawn: this.drawn,
 				options: this.options,
+				useFigure: this.useFigure,
 				ownerValues: owner.values,
-				day,
-				fillLabel,
-				noticesLabel
+				...labels
 			});
 			return { ...shown, presetDefaults: owner.defaults, ownerValues: owner.values };
 		}
@@ -176,9 +219,8 @@ export class MapToolbarWiring {
 			offer,
 			drawn: this.drawn,
 			options: this.options,
-			day,
-			fillLabel,
-			noticesLabel
+			useFigure: this.useFigure,
+			...labels
 		});
 		return { ...shown, presetDefaults: shown.defaults, ownerValues: undefined };
 	});
@@ -216,7 +258,8 @@ export class MapToolbarWiring {
 			next,
 			changed,
 			state.presetDefaults,
-			this.offer.pollutants[0]
+			this.offer.pollutants[0],
+			this.offer.use?.figures[0]
 		);
 		if (!MapOptionsSchema.safeParse(options).success) return;
 		const keys = optionKeys(changed);

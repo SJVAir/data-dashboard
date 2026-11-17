@@ -76,7 +76,11 @@ export class FakeMap {
 	selectionCalls: [string, unknown][] = [];
 	/** The pinned card's feature (map-sdk's `Hovered`), set by a click on the fake MapView with `card`. */
 	pinned = $state.raw<{ hit: { pluginId: string; refKey: string; name: string } } | null>(null);
-	camera: CameraCall[] = [];
+	/** Every camera move asked for, in order. */
+	cameraCalls: CameraCall[] = [];
+	/** map-sdk's reactive camera and view bounds, as MapView records them; set by the test. */
+	camera = $state({ center: [-119.7, 36.7] as [number, number], zoom: 8, bearing: 0, pitch: 0 });
+	bounds = $state.raw<{ west: number; south: number; east: number; north: number } | null>(null);
 	destroyed = false;
 	/** What the last MapView showing this map was given. */
 	view = $state.raw<Record<string, unknown>>({});
@@ -162,10 +166,10 @@ export class FakeMap {
 		this.pinned = null;
 	}
 	fitBounds(bounds: unknown, options: unknown) {
-		this.camera.push({ kind: "fitBounds", bounds, options });
+		this.cameraCalls.push({ kind: "fitBounds", bounds, options });
 	}
 	easeTo(target: unknown) {
-		this.camera.push({ kind: "easeTo", target });
+		this.cameraCalls.push({ kind: "easeTo", target });
 	}
 	destroy() {
 		this.destroyed = true;
@@ -197,6 +201,7 @@ export const fakeMaps = {
 	failView: false,
 	reset() {
 		this.made = [];
+		fakeLenses.length = 0;
 		this.fail = false;
 		this.failView = false;
 	},
@@ -215,4 +220,34 @@ export function createFakeMap(): FakeMap {
 	const map = new FakeMap();
 	fakeMaps.made.push(map);
 	return map;
+}
+
+/** map-sdk's `shapesLens` stand-in: its reactive `center` is set by the test or by `pin`. */
+export class FakeLens {
+	readonly kind = "lens";
+	readonly id: string;
+	readonly options: Record<string, unknown>;
+	center = $state<string | null>(null);
+	pinned = $state(false);
+	constructor(options: { id: string }) {
+		this.id = options.id;
+		this.options = options;
+	}
+	pin(refKey: string) {
+		this.center = refKey;
+		this.pinned = true;
+	}
+	release() {
+		this.center = null;
+		this.pinned = false;
+	}
+}
+
+/** Every lens made, in order (the map holds a copy without its reactive fields). */
+export const fakeLenses: FakeLens[] = [];
+
+export function createFakeLens(options: { id: string }): FakeLens {
+	const lens = new FakeLens(options);
+	fakeLenses.push(lens);
+	return lens;
 }

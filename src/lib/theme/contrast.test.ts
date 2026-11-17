@@ -61,9 +61,18 @@ const shared: Pair[] = [
 	["--chart-5", "--card", 3],
 	// The Map toolbar's icons, on its background (map-sdk's toolbar draws on --background), on
 	// the menu surface, and on a hovered row (--accent).
-	...["monitors", "layers", "basemap", "theme", "settings", "clusters", "fire", "notices"].flatMap(
-		(icon): Pair[] =>
-			["--background", "--popover", "--accent"].map((bg): Pair => [`--map-icon-${icon}`, bg, 3])
+	...[
+		"monitors",
+		"layers",
+		"basemap",
+		"theme",
+		"settings",
+		"clusters",
+		"fire",
+		"notices",
+		"use"
+	].flatMap((icon): Pair[] =>
+		["--background", "--popover", "--accent"].map((bg): Pair => [`--map-icon-${icon}`, bg, 3])
 	)
 ];
 

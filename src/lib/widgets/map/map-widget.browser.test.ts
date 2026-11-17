@@ -9,12 +9,15 @@ import {
 	getHMSFire,
 	getHMSSmoke,
 	getPesticidesMeta,
+	getPesticideSections,
+	getPesticideTownships,
 	getMonitorSummariesBulkDaily,
 	getMonitors,
 	getRegionSummariesBulkDaily,
 	getRegionSummariesBulkDailyOpen,
 	getRegionsMeta
 } from "@sjvair/sdk";
+import { encodeRef } from "@sjvair/map-sdk/data";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
@@ -47,11 +50,13 @@ import { dayStops } from "./days";
 import { mapConfig } from "./host/config";
 import { mapMessages } from "./host/messages";
 import { NOTICES_SCALE } from "./data/notices";
+import { resetUseCaches } from "./data/use";
 import { mapOptions } from "./options";
 import { regionShapes, regionTypeShapes } from "./regions";
 import {
 	FAKE_TOOLBAR_HEIGHT,
 	FakeGl,
+	fakeLenses,
 	fakeMaps,
 	fakeToolbars,
 	type FakeMap
@@ -65,7 +70,7 @@ import SessionMap from "./test-harness/SessionMap.svelte";
 
 vi.mock("@sjvair/map-sdk", async (original) => {
 	const sdk = await original<typeof import("@sjvair/map-sdk")>();
-	const { createFakeMap } = await import("./test-harness/fake-map.svelte");
+	const { createFakeLens, createFakeMap } = await import("./test-harness/fake-map.svelte");
 	const { default: MapView } = await import("./test-harness/FakeMapView.svelte");
 	const { default: Legend } = await import("./test-harness/FakeLegend.svelte");
 	const { default: OptionsToolbar } = await import("./test-harness/FakeOptionsToolbar.svelte");
@@ -111,6 +116,8 @@ vi.mock("@sjvair/map-sdk", async (original) => {
 		hmsSmokePlugin: plugin("hms-smoke"),
 		hmsFirePlugin: plugin("hms-fire"),
 		pointsPlugin: plugin("points"),
+		shapesPlugin: plugin("shapes"),
+		shapesLens: createFakeLens,
 		cleanFires: (d: unknown[]) => d,
 		groupFires: (d: { id: string; coordinates: [number, number]; frp: number }[]) =>
 			d.map((f) => ({ id: f.id, coordinates: f.coordinates, avgFrp: f.frp, count: 1 })),
@@ -128,6 +135,8 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getChemicalDetails: vi.fn(),
 	getCommodityDetails: vi.fn(),
 	getPesticidesMeta: vi.fn(),
+	getPesticideSections: vi.fn(),
+	getPesticideTownships: vi.fn(),
 	getRegionsMeta: vi.fn(),
 	getRegionSummariesBulkDaily: vi.fn(),
 	getRegionSummariesBulkDailyOpen: vi.fn()
@@ -216,12 +225,36 @@ function namingClient(): QueryClient {
 	};
 }
 
+/** A pesticide use figure, as the catalog lists it. */
+function useFigure(id: string, label: string, units: string): CatalogEntry["entryTypes"][number] {
+	return {
+		id,
+		label,
+		units,
+		kind: "other",
+		resolutions: ["month", "year"],
+		precision: 0,
+		yMin: 0,
+		chart: "bar",
+		aggregate: "sum"
+	};
+}
+
 /** The catalog with the smoke and fire datasets, as the server lists them. */
 const CATALOG: CatalogEntry[] = [
 	...FIXTURE_CATALOG,
 	{ id: "hms-smoke", label: "Wildfire Smoke", entryTypes: [], geographies: ["polygon"] },
 	{ id: "hms-fire", label: "Fire Detections", entryTypes: [], geographies: ["point"] },
-	{ id: "pesticide-notices", label: "Spray Notices", entryTypes: [], geographies: ["point"] }
+	{ id: "pesticide-notices", label: "Spray Notices", entryTypes: [], geographies: ["point"] },
+	{
+		id: "pesticide-use",
+		label: "Pesticide Use",
+		entryTypes: [
+			useFigure("pounds-applied", "Pounds Applied", "lbs"),
+			useFigure("acres-treated", "Acres Treated", "acres")
+		],
+		geographies: ["region"]
+	}
 ];
 
 /** A monitor's latest reading, at `[lon, lat]`. */
@@ -247,6 +280,8 @@ function drawn(map: FakeMap): string[] | undefined {
 }
 
 const NOI_SOURCE = "https://cdpr.example/noi";
+const SHADES_SOURCE = "https://cdpr.example/shades";
+const LAG_SOURCE = "https://cdpr.example/lag";
 
 /**
  * The pesticides meta: the filter params the notice endpoints take (no commodity), the notices'
@@ -266,8 +301,23 @@ const PESTICIDES_META = {
 			summary: "A plan to apply, not proof it happened. Restricted materials only.",
 			detail: null,
 			source_url: NOI_SOURCE
+		},
+		shades_valley: {
+			key: "shades_valley",
+			title: "How the shades work",
+			summary: "Each shade is a class of the whole valley's use.",
+			detail: null,
+			source_url: SHADES_SOURCE
+		},
+		pur_lag: {
+			key: "pur_lag",
+			title: "Use is reported late",
+			summary: "Use data comes out about two years after the year ends.",
+			detail: null,
+			source_url: LAG_SOURCE
 		}
 	},
+	years: [2023, 2022],
 	links: { spraydays_signup: "" },
 	notice_filters: [
 		"chemical_id",
@@ -334,6 +384,9 @@ beforeEach(async () => {
 	vi.mocked(getHMSFire).mockResolvedValue([] as never);
 	vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([] as never);
 	resetPesticideMeta();
+	resetUseCaches();
+	vi.mocked(getPesticideTownships).mockResolvedValue(useTownships() as never);
+	vi.mocked(getPesticideSections).mockResolvedValue(useSections() as never);
 	vi.mocked(getPesticidesMeta).mockResolvedValue(PESTICIDES_META as never);
 	vi.mocked(getActivePesticideNotices).mockResolvedValue(noticeCollection([]) as never);
 	vi.mocked(mapConfig).mockReturnValue({ maptilerKey: "test", projection: "mercator" });
@@ -476,10 +529,10 @@ test("one region is the focus area, and fits", async () => {
 	expect(map.plugins.map((p) => p.id)).not.toContain("places");
 	expect(map.plugins.map((p) => p.id)).not.toContain("pin");
 	expect(document.querySelector("[data-pin-label]")).toBeNull();
-	expect(map.camera).toEqual([]);
+	expect(map.cameraCalls).toEqual([]);
 	map.ready = true;
 	await expect
-		.poll(() => map.camera)
+		.poll(() => map.cameraCalls)
 		.toEqual([
 			{
 				kind: "fitBounds",
@@ -501,7 +554,7 @@ test("a point fits its region and focuses the point, labeled for owner and share
 		});
 	map.ready = true;
 	await expect
-		.poll(() => map.camera)
+		.poll(() => map.cameraCalls)
 		.toEqual([
 			{
 				kind: "fitBounds",
@@ -566,10 +619,10 @@ test("fits once the monitors are loaded", async () => {
 	await expect.poll(() => vi.mocked(getMonitors).mock.calls.length).toBe(1);
 	// Nothing known to fit yet: the map stays on the Valley's view.
 	await new Promise((r) => setTimeout(r, 50));
-	expect(map.camera).toEqual([]);
+	expect(map.cameraCalls).toEqual([]);
 	load([reading("a", -120, 36), reading("b", -119, 37), reading("c", -100, 30)]);
 	await expect
-		.poll(() => map.camera)
+		.poll(() => map.cameraCalls)
 		.toEqual([
 			{
 				kind: "fitBounds",
@@ -585,16 +638,16 @@ test("refits to the current layer after re-attach", async () => {
 	const map = await madeMap();
 	await expect.poll(() => map.view.active).toBe(true);
 	map.ready = true;
-	await expect.poll(() => map.camera).toHaveLength(1);
+	await expect.poll(() => map.cameraCalls).toHaveLength(1);
 	// Detached (off-screen), the layer changes; nothing moves until the map is back.
 	map.attached = false;
 	map.ready = false;
 	await screen.rerender({ widget: { ...widget, data: mapWidget(region("029")).data } });
 	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:029"].geometry);
-	expect(map.camera).toHaveLength(1);
+	expect(map.cameraCalls).toHaveLength(1);
 	map.ready = true;
-	await expect.poll(() => map.camera).toHaveLength(2);
-	expect(map.camera[1]).toEqual({
+	await expect.poll(() => map.cameraCalls).toHaveLength(2);
+	expect(map.cameraCalls[1]).toEqual({
 		kind: "fitBounds",
 		bounds: { west: 5, south: 5, east: 6, north: 6 },
 		options: { padding: 32 }
@@ -606,13 +659,13 @@ test("a style reload doesn't refit (the person's pan stays)", async () => {
 	await show(mapWidget(region("019")));
 	const map = await madeMap();
 	map.ready = true;
-	await expect.poll(() => map.camera).toHaveLength(1);
+	await expect.poll(() => map.cameraCalls).toHaveLength(1);
 	// Still attached: a basemap or theme change reloads the style.
 	map.ready = false;
 	await new Promise((r) => setTimeout(r, 20));
 	map.ready = true;
 	await new Promise((r) => setTimeout(r, 100));
-	expect(map.camera).toHaveLength(1);
+	expect(map.cameraCalls).toHaveLength(1);
 });
 
 test("refits when entering fullscreen", async () => {
@@ -620,15 +673,15 @@ test("refits when entering fullscreen", async () => {
 	const screen = await show(widget);
 	const map = await madeMap();
 	map.ready = true;
-	await expect.poll(() => map.camera).toHaveLength(1);
-	const fit = map.camera[0];
+	await expect.poll(() => map.cameraCalls).toHaveLength(1);
+	const fit = map.cameraCalls[0];
 	await screen.rerender({ widget, fullscreen: true });
-	await expect.poll(() => map.camera).toHaveLength(2);
-	expect(map.camera[1]).toEqual(fit);
+	await expect.poll(() => map.cameraCalls).toHaveLength(2);
+	expect(map.cameraCalls[1]).toEqual(fit);
 	// And again on leaving it.
 	await screen.rerender({ widget, fullscreen: false });
-	await expect.poll(() => map.camera).toHaveLength(3);
-	expect(map.camera[2]).toEqual(fit);
+	await expect.poll(() => map.cameraCalls).toHaveLength(3);
+	expect(map.cameraCalls[2]).toEqual(fit);
 	expect(fakeMaps.made).toHaveLength(1);
 });
 
@@ -1737,7 +1790,7 @@ test("a place change clears the focus area until the new frame arrives", async (
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
-	await expect.poll(() => map.camera).toHaveLength(1);
+	await expect.poll(() => map.cameraCalls).toHaveLength(1);
 	let release = () => {};
 	vi.mocked(regionShapes).mockImplementationOnce(
 		() =>
@@ -1748,10 +1801,10 @@ test("a place change clears the focus area until the new frame arrives", async (
 	await screen.rerender({ widget: { ...widget, data: mapWidget(region("029")).data } });
 	await expect.poll(() => focusOf(map).geometry).toBeNull();
 	// The camera stays where it was meanwhile.
-	expect(map.camera).toHaveLength(1);
+	expect(map.cameraCalls).toHaveLength(1);
 	release();
 	await expect.poll(() => focusOf(map).geometry).toEqual(SHAPES["county:029"].geometry);
-	await expect.poll(() => map.camera).toHaveLength(2);
+	await expect.poll(() => map.cameraCalls).toHaveLength(2);
 });
 
 test("switching a type off leaves the camera where it is", async () => {
@@ -1764,12 +1817,12 @@ test("switching a type off leaves the camera where it is", async () => {
 	const screen = await showLive(mapWidget(region("019")), editing());
 	const map = await madeMap();
 	map.ready = true;
-	await expect.poll(() => map.camera).toHaveLength(1);
+	await expect.poll(() => map.cameraCalls).toHaveLength(1);
 	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
 	await screen.getByRole("checkbox", { name: "airnow" }).click();
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	await new Promise((r) => setTimeout(r, 100));
-	expect(map.camera).toHaveLength(1);
+	expect(map.cameraCalls).toHaveLength(1);
 });
 
 /** Every geometry the map's focus area was set to, in order. */
@@ -1802,7 +1855,7 @@ test("an options-only change (the same places) never clears the focus area", asy
 	await new Promise((r) => setTimeout(r, 100));
 	expect(focusHistory(map).slice(before)).not.toContain(null);
 	expect(focusOf(map).geometry).toEqual(SHAPES["county:019"].geometry);
-	expect(map.camera).toHaveLength(1);
+	expect(map.cameraCalls).toHaveLength(1);
 });
 
 test("another tab's change sets the toolbar's values and applies nothing", async () => {
@@ -2422,15 +2475,15 @@ test("a step doesn't move the camera, even when a monitor place has no figure th
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 9 });
-	await expect.poll(() => map.camera).toHaveLength(1);
-	expect(map.camera[0]).toMatchObject({
+	await expect.poll(() => map.cameraCalls).toHaveLength(1);
+	expect(map.cameraCalls[0]).toMatchObject({
 		kind: "fitBounds",
 		bounds: { west: -120, south: 36, east: -119, north: 37 }
 	});
 	await previousDay().click();
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 8, b: 8 });
 	await new Promise((r) => setTimeout(r, 100));
-	expect(map.camera).toHaveLength(1);
+	expect(map.cameraCalls).toHaveLength(1);
 });
 
 test("the day stepper sits under the map, with its slider only from 48rem wide", async () => {
@@ -3350,4 +3403,399 @@ test("a gone filter is said, not an empty layer", async () => {
 	await expect.element(screen.getByRole("button", { name: m.widget_edit_data() })).toBeVisible();
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	expect(getActivePesticideNotices).not.toHaveBeenCalled();
+});
+
+// Pesticide use: townships, the lens and sections, the toolbar's group and row, the legend note.
+
+const USE_CLASS = { breaks: [10, 100], min: 1, colors: ["#111111", "#222222"] };
+const ACRES_CLASS = { breaks: [5, 50], min: 1, colors: ["#333333", "#444444"] };
+const USE_CLASSES = {
+	lbs_chemical: USE_CLASS,
+	acres_treated: ACRES_CLASS,
+	applications: USE_CLASS
+};
+
+/** A square from (x, y), `size` on a side. */
+const useSquare = (x: number, y: number, size: number) => ({
+	type: "Polygon" as const,
+	coordinates: [
+		[
+			[x, y],
+			[x + size, y],
+			[x + size, y + size],
+			[x, y + size],
+			[x, y]
+		]
+	]
+});
+
+const useTotals = (n: number) => ({
+	lbs_chemical: n,
+	lbs_product: n,
+	acres_treated: n * 2,
+	applications: n * 10
+});
+
+/** Two townships side by side, as the server gives them (with outlines). */
+function useTownships() {
+	return {
+		type: "FeatureCollection",
+		year: 2023,
+		classes: USE_CLASSES,
+		features: ["T-0", "T-1"].map((id, i) => ({
+			type: "Feature",
+			id,
+			geometry: useSquare(-119.8 + i * 0.1, 36.6, 0.1),
+			properties: { id, name: id, sections: 36, ...useTotals(i + 1) }
+		}))
+	};
+}
+
+/** One section in township T-0. */
+function useSections() {
+	return {
+		type: "FeatureCollection",
+		year: 2023,
+		classes: USE_CLASSES,
+		features: [
+			{
+				type: "Feature",
+				id: "s1",
+				geometry: useSquare(-119.79, 36.61, 0.01),
+				properties: { id: "s1", mtrs: "T-0-01", county: "Fresno", ...useTotals(5) }
+			}
+		]
+	};
+}
+
+/** A Map of county 019 with the pesticide use layer for 2023 (with `filters`, if given). */
+function useMap(options: Record<string, unknown> = {}, filters?: Record<string, unknown>) {
+	return {
+		...mapWidget({}),
+		data: layers(region("019"), [{ dataset: "pesticide-use", ...(filters && { filters }) }]),
+		options: { usePeriod: "2023", ...options }
+	} as WidgetInstance;
+}
+
+type UsePlugin = {
+	kind: string;
+	options: {
+		id: string;
+		layerLabel: string;
+		mode?: string;
+		noFigure?: string;
+		selectable?: boolean;
+		zoomRange?: { min?: number; max?: number };
+		legendUnits?: string;
+		legendNote?: Snippet;
+		parents?: { id: string };
+		source: {
+			features: { features: { properties: Record<string, unknown> }[] } | null;
+			scale: { dataset: string; entryType: string } | null;
+			status: unknown;
+		};
+	};
+	addOptions?: Record<string, unknown>;
+};
+const useOf = (map: FakeMap, id: string) =>
+	map.plugins.find((p) => p.id === id) as unknown as UsePlugin | undefined;
+const townshipFeatures = (map: FakeMap) =>
+	useOf(map, "townships")?.options.source.features?.features;
+
+/** The townships plugin's legend note, rendered as map-sdk's legend does, once it's added. */
+async function useNote(map: FakeMap) {
+	await expect.poll(() => useOf(map, "townships")?.options.legendNote).toBeDefined();
+	return render(RenderSnippet, { snippet: useOf(map, "townships")!.options.legendNote! });
+}
+
+const useBox = () => frame.querySelector<HTMLInputElement>('[data-option="use"]');
+const useSelect = (id: string) => frame.querySelector<HTMLSelectElement>(`[data-option="${id}"]`)!;
+
+test("adds townships, lens and sections, in that order, under the fill", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await show(useMap({ fill: "zipcode" }));
+	const map = await madeMap();
+	await expect
+		.poll(() => pluginIds(map))
+		.toEqual(["townships", "lens", "sections", "fill", "focus", "monitors"]);
+	expect(useOf(map, "townships")).toMatchObject({
+		kind: "shapes",
+		options: {
+			mode: "choropleth",
+			noFigure: "outline",
+			layerLabel: "Pounds Applied, 2023",
+			legendUnits: "lbs per township"
+		}
+	});
+	const lens = useOf(map, "lens")!;
+	expect(lens.kind).toBe("lens");
+	expect(lens.options).toMatchObject({
+		noFigure: "outline",
+		layerLabel: "Pounds Applied, 2023",
+		legendUnits: "lbs per section"
+	});
+	expect(lens.options.parents?.id).toBe("townships");
+	expect(useOf(map, "sections")).toMatchObject({
+		kind: "shapes",
+		options: {
+			mode: "choropleth",
+			noFigure: "outline",
+			selectable: false,
+			legendUnits: "lbs per section"
+		}
+	});
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	// The sections and the lens share one scale; the townships have their own.
+	const sectionsScale = useOf(map, "sections")!.options.source.scale;
+	expect(useOf(map, "lens")!.options.source.scale).toBe(sectionsScale);
+	expect(useOf(map, "townships")!.options.source.scale).not.toBe(sectionsScale);
+});
+
+test("without a fill, use goes under the focus area", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	await show(useMap());
+	const map = await madeMap();
+	await expect
+		.poll(() => pluginIds(map))
+		.toEqual(["townships", "lens", "sections", "focus", "monitors"]);
+	for (const id of ["townships", "lens", "sections"]) {
+		expect(useOf(map, id)!.addOptions).toEqual({ before: "focus" });
+	}
+});
+
+test("the zoom ranges meet at the section zoom", async () => {
+	await show(useMap());
+	const map = await madeMap();
+	await expect.poll(() => useOf(map, "sections")).toBeDefined();
+	const z = useOf(map, "townships")!.options.zoomRange!.max!;
+	expect(Number.isInteger(z)).toBe(true);
+	expect(z).toBeGreaterThanOrEqual(11);
+	expect(useOf(map, "townships")!.options.zoomRange).toEqual({ max: z });
+	expect(useOf(map, "sections")!.options.zoomRange).toEqual({ min: z });
+	// From the section zoom, the view's sections are asked for.
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	map.bounds = { west: -119.8, south: 36.6, east: -119.7, north: 36.7 };
+	map.camera.zoom = z;
+	await expect.poll(() => vi.mocked(getPesticideSections).mock.calls.length).toBe(1);
+	await expect
+		.poll(() => useOf(map, "sections")?.options.source.features?.features)
+		.toHaveLength(1);
+});
+
+test("the lens's center loads its block's sections", async () => {
+	await show(useMap());
+	const map = await madeMap();
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const lens = fakeLenses.at(-1)!;
+	lens.center = encodeRef({ kind: "feature", id: "township:T-0" });
+	await expect.poll(() => vi.mocked(getPesticideSections).mock.calls.length).toBe(1);
+	await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
+});
+
+test("the Layers row hides use without unloading it", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const screen = await showLive(useMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const asked = vi.mocked(getPesticideTownships).mock.calls.length;
+	const box = screen.getByRole("checkbox", { name: "Pesticide Use" });
+	await expect.element(box).toBeChecked();
+	expect(useBox()).toBeTruthy();
+	await box.click();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(optionsOf()).toEqual({ usePeriod: "2023", useShown: false });
+	await box.click();
+	await expect
+		.poll(() => pluginIds(map))
+		.toEqual(["townships", "lens", "sections", "focus", "monitors"]);
+	expect(optionsOf()).toEqual({ usePeriod: "2023" });
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	expect(getPesticideTownships).toHaveBeenCalledTimes(asked);
+});
+
+test("the figure select redraws with another scale and writes useFigure, but never the default", async () => {
+	const screen = await showLive(useMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const first = useOf(map, "townships")!;
+	// The source is one object across plugins: its scale is read now, before the change.
+	const firstScale = first.options.source.scale;
+	expect(firstScale?.entryType).toMatch(/^pounds-applied\|/);
+	const asked = vi.mocked(getPesticideTownships).mock.calls.length;
+	const figure = screen.getByRole("combobox", { name: m.map_use_figure() });
+	await expect.element(figure).toHaveValue("pounds-applied");
+	await figure.selectOptions("acres-treated");
+	await expect.poll(optionsOf).toEqual({ usePeriod: "2023", useFigure: "acres-treated" });
+	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Acres Treated, 2023");
+	const next = useOf(map, "townships")!;
+	expect(next).not.toBe(first);
+	expect(next.options.legendUnits).toBe("acres per township");
+	await expect.poll(() => next.options.source.scale?.entryType).toMatch(/^acres-treated\|/);
+	expect(next.options.source.scale).not.toBe(firstScale);
+	// One response carries every figure: nothing new is asked for.
+	expect(getPesticideTownships).toHaveBeenCalledTimes(asked);
+	await figure.selectOptions("pounds-applied");
+	await expect.poll(optionsOf).toEqual({ usePeriod: "2023" });
+});
+
+test("the period selects write usePeriod", async () => {
+	const screen = await showLive(useMap(), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2022");
+	await expect.poll(optionsOf).toEqual({ usePeriod: "2022" });
+	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Pounds Applied, 2022");
+	await expect
+		.poll(() =>
+			vi.mocked(getPesticideTownships).mock.calls.map((c) => (c[0] as { year: number }).year)
+		)
+		.toContain(2022);
+	const month = screen.getByRole("combobox", { name: m.map_use_month() });
+	await month.selectOptions("7");
+	await expect.poll(optionsOf).toEqual({ usePeriod: "2022-07" });
+	await expect
+		.poll(() => useOf(map, "townships")?.options.layerLabel)
+		.toBe(m.map_use_layer({ figure: "Pounds Applied", period: "July 2022" }));
+	await month.selectOptions("all");
+	await expect.poll(optionsOf).toEqual({ usePeriod: "2022" });
+	// A month on its own keeps the year.
+	await month.selectOptions("3");
+	await expect.poll(optionsOf).toEqual({ usePeriod: "2022-03" });
+});
+
+test("viewer changes to the use rows are held", async () => {
+	const widget = useMap();
+	const changes = new ViewerChanges();
+	const screen = await showViewer(widget, changes);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const apply = vi.spyOn(app().current.session!, "apply");
+	await screen.getByRole("combobox", { name: m.map_use_figure() }).selectOptions("acres-treated");
+	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2022");
+	await expect
+		.poll(() => changes.get(widget.id))
+		.toEqual({ useFigure: "acres-treated", usePeriod: "2022" });
+	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Acres Treated, 2022");
+	await screen.getByRole("checkbox", { name: "Pesticide Use" }).click();
+	await expect.poll(() => changes.get(widget.id)?.useShown).toBe(false);
+	expect(apply).not.toHaveBeenCalled();
+	expect(optionsOf()).toEqual({ usePeriod: "2023" });
+	// Reset puts the toolbar's keys back, never the period.
+	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
+	await expect.poll(() => changes.get(widget.id)).toEqual({ usePeriod: "2022" });
+	// Back at the owner's period: nothing is held.
+	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2023");
+	await expect.poll(() => changes.get(widget.id)).toBeUndefined();
+	expect(apply).not.toHaveBeenCalled();
+});
+
+test("an unlisted period says No data for 2017 in the legend", async () => {
+	const screen = await showLive(useMap({ usePeriod: "2017" }), editing());
+	const map = await madeMap();
+	map.ready = true;
+	const note = await useNote(map);
+	await expect.element(note.getByText(m.map_use_no_data({ period: "2017" }))).toBeVisible();
+	expect(m.map_use_no_data({ period: "2017" })).toBe("No data for 2017");
+	expect(useOf(map, "townships")!.options.layerLabel).toBe("Pounds Applied, 2017");
+	await expect.poll(() => townshipFeatures(map)).toEqual([]);
+	expect(getPesticideTownships).not.toHaveBeenCalled();
+	// The year select shows the saved year; nothing is written.
+	await expect
+		.element(screen.getByRole("combobox", { name: m.map_use_year() }))
+		.toHaveValue("2017");
+	expect(optionsOf()).toEqual({ usePeriod: "2017" });
+	note.unmount();
+});
+
+test("an unknown useFigure draws the first, writing nothing", async () => {
+	await showLive(useMap({ useFigure: "gone-figure" }), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Pounds Applied, 2023");
+	expect(useSelect("useFigure").value).toBe("pounds-applied");
+	expect(optionsOf()).toEqual({ usePeriod: "2023", useFigure: "gone-figure" });
+});
+
+test("the legend names the period, the units, the filters, and the server's two notes", async () => {
+	await show(useMap({}, { category: ["fumigant"] }));
+	const map = await madeMap();
+	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Pounds Applied, 2023");
+	expect(useOf(map, "townships")!.options.legendUnits).toBe("lbs per township");
+	const note = await useNote(map);
+	await expect
+		.element(note.getByText(m.map_use_legend_filters({ filters: "Fumigants" })))
+		.toBeVisible();
+	for (const [key, href] of [
+		["shades_valley", SHADES_SOURCE],
+		["pur_lag", LAG_SOURCE]
+	] as const) {
+		const text = PESTICIDES_META.notes[key];
+		await expect.element(note.getByText(text.summary)).toBeVisible();
+		const link = note.getByRole("link", { name: new RegExp(text.title) });
+		await expect.element(link).toHaveAttribute("href", href);
+		await expect.element(link).toHaveAttribute("target", "_blank");
+		await expect.element(link).toHaveAttribute("rel", "noopener noreferrer");
+	}
+	// The lines are ready at once when the note is drawn again (a new plugin): no flicker.
+	note.unmount();
+	const again = await render(RenderSnippet, {
+		snippet: useOf(map, "townships")!.options.legendNote!
+	});
+	expect(again.container.textContent).toContain(m.map_use_legend_filters({ filters: "Fumigants" }));
+	expect(again.container.textContent).toContain(PESTICIDES_META.notes.shades_valley.summary);
+	again.unmount();
+});
+
+test("use failure note with one Retry, with the monitors still drawn", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getPesticideTownships)
+		.mockRejectedValueOnce(new Error("offline"))
+		.mockResolvedValue(useTownships() as never);
+	const screen = await show(useMap());
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_use_failed())).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
+	// map-sdk sees no error, so its legend offers no second Retry: only the note's.
+	expect(useOf(map, "townships")!.options.source.status).toEqual({ state: "ready" });
+	const note = frame.querySelector<HTMLElement>("[data-map-use-failed]")!;
+	expect(note.querySelectorAll("button")).toHaveLength(1);
+	await note.querySelector("button")!.click();
+	await expect.poll(() => screen.getByText(m.map_use_failed()).query()).toBeNull();
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	expect(getPesticideTownships).toHaveBeenCalledTimes(2);
+	expect(drawn(map)).toEqual(["a"]);
+});
+
+test("a gone use filter is said, with Edit data", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	vi.mocked(getChemicalDetails).mockRejectedValue(notFound());
+	const screen = await show(useMap({}, { chemical: "gone" }));
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_use_filter_gone())).toBeVisible();
+	expect(frame.querySelector("[data-map-use-gone]")).toBeTruthy();
+	await expect.element(screen.getByRole("button", { name: m.widget_edit_data() })).toBeVisible();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	expect(getPesticideTownships).not.toHaveBeenCalled();
+});
+
+test("a failed sections load says so, and Retry asks again", async () => {
+	vi.mocked(getPesticideSections)
+		.mockRejectedValueOnce(new Error("offline"))
+		.mockResolvedValue(useSections() as never);
+	const screen = await show(useMap());
+	const map = await madeMap();
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	fakeLenses.at(-1)!.center = encodeRef({ kind: "feature", id: "township:T-0" });
+	await expect.element(screen.getByText(m.map_use_sections_failed())).toBeVisible();
+	const note = frame.querySelector<HTMLElement>("[data-map-use-sections-failed]")!;
+	await note.querySelector("button")!.click();
+	await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
+	expect(screen.getByText(m.map_use_sections_failed()).query()).toBeNull();
 });

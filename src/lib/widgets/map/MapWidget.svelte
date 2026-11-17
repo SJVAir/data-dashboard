@@ -8,7 +8,8 @@
 		OptionsToolbar,
 		type CardContext,
 		type FocusAreaPlugin,
-		type MapContext
+		type MapContext,
+		type ShapesLens
 	} from "@sjvair/map-sdk";
 	import type { MonitorFeatureProperties, SpatialSelection } from "@sjvair/map-sdk/data";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
@@ -16,6 +17,7 @@
 	import { getMetadata } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
+	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
@@ -31,7 +33,9 @@
 	import { navigate } from "../../../router";
 	import { MapData } from "./data/loaded.svelte";
 	import { isThin } from "./data/monitors";
-	import { SECTION_ZOOM } from "./data/use-geometry";
+	import type { UseQuery } from "./data/use";
+	import { USE_FIELDS } from "./data/use-fields";
+	import { sectionZoom } from "./data/use-geometry";
 	import { fitCamera } from "./camera.svelte";
 	import { MapDailyFigure } from "./daily-figure.svelte";
 	import { MapFillTypes } from "./data/fill-types.svelte";
@@ -49,13 +53,22 @@
 	import FillLayer from "./layers/FillLayer.svelte";
 	import HmsLayers from "./layers/HmsLayers.svelte";
 	import NoticesLayer from "./layers/NoticesLayer.svelte";
+	import UseLayers from "./layers/UseLayers.svelte";
 	import MapLegendOverlay from "./MapLegendOverlay.svelte";
 	import type { MapNoteProps } from "./MapNote.svelte";
 	import MapNotes from "./MapNotes.svelte";
 	import NoticesLegendNote from "./NoticesLegendNote.svelte";
+	import UseLegendNote from "./UseLegendNote.svelte";
 	import { OnScreen } from "./on-screen.svelte";
 	import { canMark, marksChange, sameIds } from "./marks";
-	import { MAP_MARKS_MAX, mapOptions, PESTICIDE_NOTICES, pollutantLayers } from "./options";
+	import {
+		MAP_MARKS_MAX,
+		mapOptions,
+		PESTICIDE_NOTICES,
+		PESTICIDE_USE,
+		pollutantLayers
+	} from "./options";
+	import { parsePeriod, periodLabel, periodListed } from "./use-period";
 	import { monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
 	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
@@ -92,6 +105,27 @@
 	const layer = $derived(placesLayer(widget.data, known));
 	/** A dataset's name from the catalog (smoke and fire's layer labels). */
 	const datasetLabel = (id: string) => known?.find((d) => d.id === id)?.label;
+
+	/** The tile's pesticide use layer (place-less), if it has one. */
+	const useLayer = $derived(
+		widget.data.layers.find((l) => l.dataset === PESTICIDE_USE && !l.place && !l.selection)
+	);
+	/** The catalog's pesticide use figures the map draws (its labels, units and precision). */
+	const useFigures = $derived(
+		(known?.find((d) => d.id === PESTICIDE_USE)?.entryTypes ?? []).filter((t) => t.id in USE_FIELDS)
+	);
+	/** The years with pesticide use data (the meta's, newest first); undefined until loaded. */
+	let useYears = $state.raw<number[] | undefined>();
+	$effect(() => {
+		if (!useLayer) return;
+		const controller = new AbortController();
+		pesticideMeta(controller.signal).then(
+			(meta) => (useYears = meta.years),
+			// Without the years the toolbar offers no use rows; use itself still loads (or says why).
+			() => {}
+		);
+		return () => controller.abort();
+	});
 
 	// The toolbar: the options it shows (a viewer's held keys over the saved ones), its changes,
 	// and the filters it puts on the monitors. Its presets are made with the map.
@@ -135,6 +169,18 @@
 		},
 		get noticesLabel() {
 			return noticesLabel;
+		},
+		get use() {
+			return !!useLayer;
+		},
+		get useLabel() {
+			return datasetLabel(PESTICIDE_USE);
+		},
+		get useFigures() {
+			return useFigures;
+		},
+		get useYears() {
+			return useYears;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
@@ -324,17 +370,73 @@
 		get fill() {
 			return fillType;
 		},
-		// No use query yet, so pesticide use loads nothing.
-		useQuery: null,
-		bounds: null,
-		zoom: 0,
-		sectionZoom: SECTION_ZOOM,
-		lensCenter: null
+		get useQuery() {
+			return useQuery;
+		},
+		get bounds() {
+			return map?.bounds ?? null;
+		},
+		get zoom() {
+			return map?.camera.zoom ?? 0;
+		},
+		get sectionZoom() {
+			return useZoom;
+		},
+		get lensCenter() {
+			return lensCenter;
+		}
 	};
+	// Pesticide use: the figure and period drawn (never written back), its query, and the zoom
+	// that switches townships to sections.
+	const useFigureId = $derived(wiring.useFigure);
+	const useFigureInfo = $derived(useFigures.find((t) => t.id === useFigureId));
+	const usePeriod = $derived(parsePeriod(shown.usePeriod));
+	/** Use is on the map: the tile has it, the catalog names it and its figure, and it's shown. */
+	const useDrawn = $derived(
+		!!useLayer && !!datasetLabel(PESTICIDE_USE) && !!useFigureInfo && !!usePeriod && wiring.useShown
+	);
+	/** What use draws; null while it's off, hidden, unparseable, or the catalog lacks it. */
+	const useQuery = $derived.by<UseQuery | null>(() => {
+		const info = useFigureInfo;
+		const period = usePeriod;
+		if (!useDrawn || !info || !period) return null;
+		return {
+			figure: info.id,
+			period,
+			filters: useLayer?.filters ?? {},
+			info: { label: info.label, units: info.units, precision: info.precision ?? 0 }
+		};
+	});
+	/** The use layer's label: the figure and the period ("Pounds Applied, 2023"). */
+	const useLabel = $derived(
+		useFigureInfo && usePeriod
+			? m.map_use_layer({ figure: useFigureInfo.label, period: periodLabel(usePeriod) })
+			: undefined
+	);
+	/** The query as a key: the plugins are made again when it changes. */
+	const useKey = $derived(useQuery ? JSON.stringify(useQuery) : null);
+	/** The township the lens is centred on (the lens plugin's, through UseLayers). */
+	let lensCenter = $state<string | null>(null);
+	/** The lens plugin, for the township card's "Show square miles". */
+	let useLens = $state.raw<ShapesLens | null>(null);
+	/** The period's year isn't one the server lists: nothing is drawn, and the legend says so. */
+	const useUnlisted = $derived(!!usePeriod && !!useYears && !periodListed(usePeriod, useYears));
+
 	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());
 	const { monitorsSource, smokeSource, fireSource, hotspotsSource, fillSource, noticesSource } =
 		data;
+
+	/** The map body's size (the legend folds, the stepper narrows, the section zoom). */
+	let width = $state(0);
+	let height = $state(0);
+	/** The section zoom for the map's size and latitude, raised by the server's refusals. */
+	const useZoom = $derived(
+		Math.round(sectionZoom(width, height, map?.camera.center[1] ?? 0) + data.useBlock.refusedZoom)
+	);
+	const useFailed = $derived(useDrawn && data.useBlock.townshipsState === "error");
+	const useGone = $derived(useDrawn && data.useUnavailable === "filter-gone");
+	const useSectionsFailed = $derived(useDrawn && data.useBlock.sectionsFailed);
 
 	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
 	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
@@ -650,6 +752,27 @@
 				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
 			});
 		}
+		if (useFailed) {
+			notes.push({
+				message: m.map_use_failed(),
+				hook: "map-use-failed",
+				action: { label: m.widget_state_retry(), onclick: () => data.retryUse() }
+			});
+		}
+		if (useGone) {
+			notes.push({
+				message: m.map_use_filter_gone(),
+				hook: "map-use-gone",
+				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
+			});
+		}
+		if (useSectionsFailed) {
+			notes.push({
+				message: m.map_use_sections_failed(),
+				hook: "map-use-sections-failed",
+				action: { label: m.widget_state_retry(), onclick: () => data.retryUse() }
+			});
+		}
 		return notes;
 	});
 
@@ -677,7 +800,6 @@
 		else if (data.monitorsState.status === "error") data.retryMonitors();
 	}
 
-	let width = $state(0);
 	const narrow = $derived(width > 0 && width < NARROW_PX);
 	/** The toolbar's narrow breakpoint (48rem), which the day stepper follows. */
 	const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
@@ -689,6 +811,10 @@
 
 {#snippet noticesNote()}
 	<NoticesLegendNote filters={noticeFilters} skipped={data.noticesSkipped} none={noNotices} />
+{/snippet}
+
+{#snippet useNote()}
+	<UseLegendNote period={usePeriod} unlisted={useUnlisted} filters={useLayer?.filters} />
 {/snippet}
 
 {#snippet cardActions(ctx: CardContext)}
@@ -733,6 +859,23 @@
 {/snippet}
 
 {#if map}
+	<UseLayers
+		{map}
+		townships={data.useBlock.townships}
+		sections={data.useBlock.sections}
+		lensSource={data.useBlock.lens}
+		block={(refKey) => data.useBlock.blockOf(refKey)}
+		parentOf={(props) => data.useBlock.parentOf(props)}
+		label={useLabel}
+		units={useFigureInfo?.units ?? ""}
+		zoom={useZoom}
+		queryKey={useKey}
+		drawn={useDrawn}
+		{loads}
+		note={useNote}
+		onlens={(center) => (lensCenter = center)}
+		bind:lens={useLens}
+	/>
 	<FillLayer {map} source={fillSource} label={fillLabel} {loads} drawn={fillDrawn} />
 	<HmsLayers
 		{map}
@@ -757,7 +900,12 @@
 	/>
 {/if}
 
-<div class="relative h-full w-full" bind:this={body} bind:clientWidth={width}>
+<div
+	class="relative h-full w-full"
+	bind:this={body}
+	bind:clientWidth={width}
+	bind:clientHeight={height}
+>
 	{#if !config}
 		<p class="text-muted-foreground flex h-full items-center justify-center text-center text-sm">
 			{m.map_unavailable_no_key()}

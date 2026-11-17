@@ -8,9 +8,10 @@
 	import RadioTowerIcon from "@lucide/svelte/icons/radio-tower";
 	import SettingsIcon from "@lucide/svelte/icons/settings";
 	import SprayCanIcon from "@lucide/svelte/icons/spray-can";
+	import WheatIcon from "@lucide/svelte/icons/wheat";
 
 	/** The Map toolbar's icons: Lucide, in monitor-map's tints (theme tokens, with dark values). */
-	export { monitors, layers, settings, clusters, basemap, theme, fire, regions, notices };
+	export { monitors, layers, settings, clusters, basemap, theme, fire, regions, notices, use };
 </script>
 
 {#snippet monitors()}
@@ -47,4 +48,8 @@
 
 {#snippet notices()}
 	<SprayCanIcon class="size-full text-(--map-icon-notices)" />
+{/snippet}
+
+{#snippet use()}
+	<WheatIcon class="size-full text-(--map-icon-use)" />
 {/snippet}
