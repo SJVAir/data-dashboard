@@ -345,6 +345,26 @@ describe("UseBlock", () => {
 		t.block.destroy();
 	});
 
+	it("a new key that fails never shows the old key's classes: its empty scale, as no data does", async () => {
+		const t = setup({ zoom: 11, lensCenter: ref("T-1") });
+		await vi.advanceTimersByTimeAsync(200);
+		const oldTownships = t.block.townships.scale as ScaleRef;
+		const oldSections = t.block.sections.scale as ScaleRef;
+		expect(useScaleFor(oldTownships)?.levels.length).toBeGreaterThan(0);
+		expect(useScaleFor(oldSections)?.levels.length).toBeGreaterThan(0);
+		vi.mocked(getPesticideTownships).mockRejectedValueOnce(new Error("offline"));
+		t.set({ query: query({ year: 2023, month: 7 }) });
+		await flush();
+		expect(t.block.townshipsState).toBe("error");
+		for (const source of [t.block.townships, t.block.sections, t.block.lens]) {
+			const scale = source.scale as ScaleRef;
+			expect(scale).not.toBe(oldTownships);
+			expect(scale).not.toBe(oldSections);
+			expect(useScaleFor(scale)?.levels).toEqual([]);
+		}
+		t.block.destroy();
+	});
+
 	it("a failed load reads error, and retry asks again", async () => {
 		vi.mocked(getPesticideTownships).mockRejectedValueOnce(new Error("offline"));
 		const t = setup();

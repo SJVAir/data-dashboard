@@ -176,9 +176,28 @@ export class UseBlock {
 	);
 	readonly #sectionsShown = $derived.by(() => this.#shown(this.#sections, "section"));
 	readonly #lensShown = $derived.by(() => this.#shown(this.#lens, "section"));
-	/** The sections' and the lens's one scale: whichever has loaded for the key. */
+	/**
+	 * When the key's townships failed or a filter is gone, nothing will load for it: an empty scale
+	 * under the key's own ref, as an unlisted period draws, never the previous key's classes.
+	 */
+	readonly #unloadable = $derived(
+		this.townshipsState === "error" || this.townshipsState === "filter-gone"
+	);
+	readonly #townshipsEmpty = $derived.by(() =>
+		this.#unloadable ? this.#shown(null, "township", true) : null
+	);
+	readonly #sectionsEmpty = $derived.by(() =>
+		this.#unloadable || this.sectionsFailed ? this.#shown(null, "section", true) : null
+	);
+	/**
+	 * The sections' and the lens's one scale: whichever has loaded for the key; while they load,
+	 * the last one shown (no legend flicker on a pan).
+	 */
 	readonly #sectionsRef = $derived(
-		this.#sectionsShown?.ref ?? this.#lensShown?.ref ?? this.#lastSectionsRef
+		this.#sectionsShown?.ref ??
+			this.#lensShown?.ref ??
+			this.#sectionsEmpty?.ref ??
+			this.#lastSectionsRef
 	);
 
 	readonly townships: DataSource<UseProps>;
@@ -197,7 +216,11 @@ export class UseBlock {
 				return state === "loading" ? { state: "loading" } : { state: "ready" };
 			},
 			features: () => this.#townshipsShown?.features ?? null,
-			scale: () => this.#townshipsShown?.ref ?? this.#lastTownshipsRef
+			// While the key loads, the last scale shown (the legend reads loading meanwhile).
+			scale: () =>
+				this.#townshipsShown?.ref ??
+				this.#townshipsEmpty?.ref ??
+				(this.townshipsState === "loading" ? this.#lastTownshipsRef : null)
 		});
 		this.sections = sourceOf({
 			status: () => ({ state: "ready" }),
