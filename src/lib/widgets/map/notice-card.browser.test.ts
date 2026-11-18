@@ -325,6 +325,18 @@ describe("NoticeCard", () => {
 		expect(screen.getByRole("link").elements()).toHaveLength(0);
 	});
 
+	it("leaves out the explainer when the meta has no notes at all", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue({ ...META, notes: undefined } as never);
+		const screen = await setup({ notices: [notice()] });
+		// The SprayDays link shows once the meta has loaded; the explainer is left out.
+		await expect
+			.element(
+				screen.getByRole("link", { name: `${m.map_notice_spraydays()} ${m.opens_in_new_tab()}` })
+			)
+			.toBeVisible();
+		expect(screen.getByText(META.notes.noi_meaning.title).elements()).toHaveLength(0);
+	});
+
 	it("has no axe violations, in one and list forms", async () => {
 		const one = await setup({ notices: [notice()] });
 		await expect.element(one.getByText(META.notes.noi_meaning.summary)).toBeVisible();
