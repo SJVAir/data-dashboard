@@ -2093,6 +2093,15 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
   then (the prompt didn't carry it); the user set the new trigger on 2026-11-15. Why: the user wants the demo
   updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit when** the user asks, or before map-sdk's 1.0 release.
+- **map-sdk: one frame of tint at a tile edge when the lens recentres.** _Deferred 2026-11-17 (the
+  user, map-sdk `0.1.0-beta.21`, session `map-sdk-f0`)._ From beta.21 the lens hides its townships
+  once the sections' source has loaded, so it no longer flashes them clear. But MapLibre swaps a
+  GeoJSON source's tiles one at a time. When the view spans several tiles that finish in different
+  frames, the sections in an early tile can draw one frame before the townships under them hide,
+  and the townships show through as a tint, never clear. Seen in 1 of 3 small-grid runs and 0 of 30
+  recentres on a dashboard-like grid. **Why deferred:** rare, one frame, and only a tint. Fixing it
+  needs per-tile hiding or double-buffered section sources. **Revisit when** someone notices a tint
+  at a tile edge on recentre.
 
 ## Widgets
 
