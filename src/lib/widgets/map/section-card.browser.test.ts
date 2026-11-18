@@ -690,6 +690,18 @@ describe("the section card's township line", () => {
 		expect(map.pinCalls).toEqual([]);
 	});
 
+	it("from the section zoom, where the townships aren't drawn, the line is text", async () => {
+		const { map, actions } = await layers();
+		// The section zoom is 12: map-sdk lists no townships there, so it couldn't pin one.
+		map.camera.zoom = 12;
+		const screen = await render(RenderSnippet, {
+			snippet: actions,
+			card: contextOf(map, "sections")
+		});
+		await expect.element(screen.getByText(LINE)).toBeVisible();
+		expect(focusables(screen.container)).toHaveLength(0);
+	});
+
 	it("a township's card and other plugins' cards get no line", async () => {
 		const { map, actions } = await layers();
 		for (const [id, refKey] of [

@@ -99,8 +99,8 @@
 
 	/**
 	 * A section's township, for its card's "In township ‹id› · ‹figure›" line: the figure the map
-	 * shows, from the loaded townships (by `parentOf`). `listed` when the townships hold it (it can
-	 * be pinned); null for a township.
+	 * shows, from the loaded townships (by `parentOf`). `listed` when the townships hold it and are
+	 * drawn (below the section zoom), so map-sdk can pin it; null for a township.
 	 */
 	function townshipOf(props: UseProps): { refKey: string; text: string; listed: boolean } | null {
 		const refKey = parentOf(props);
@@ -118,7 +118,7 @@
 						units: info.units
 					})
 				: m.map_use_card_in_township_no_figure({ township: props.township });
-		return { refKey, text, listed: parent?.level === "township" };
+		return { refKey, text, listed: parent?.level === "township" && map.camera.zoom < zoom };
 	}
 
 	$effect(() => {
