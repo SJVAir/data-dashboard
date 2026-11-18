@@ -1526,24 +1526,13 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
       then.
   - **The notice card:**
     - The "Active" tag isn't live while a card stays open (it changes at most once per window).
-    - When the open notice leaves on a refetch and one notice remains, focus goes to the card's
-      root (`tabindex="-1"`, with a focus ring), not a control. Moving it to the card's first link
-      is the alternative; **revisit with** the copy and accessibility check.
+    - When the open notice (or the focused list row) leaves on a refetch and one notice remains,
+      focus goes to the card's root (`tabindex="-1"`, with a focus ring), not a control. Moving
+      it to the card's first link is the alternative; **revisit with** the copy and accessibility
+      check.
     - A snippet handed out but never mounted stays cached until the plugin is removed (bounded by
       markers × forms).
-    - `NoticeCard` holds the whole pesticides meta in `$state` (a deep proxy); `$state.raw`, as
-      `NoticesLegendNote` uses, would do.
-    - `amount()` is computed twice (use `{@const}`).
     - A null `at` in `MapWidget` is treated as Now (`!days.onDay` would say it).
-    - **A notices refetch can drop keyboard focus to `<body>`** when focus is on a list row and
-      that row's notice disappears, or the list collapses to one notice: the card's `$effect.pre`
-      handles only an open detail. The same WCAG 2.4.3 class as the fixed case, but narrower (an
-      hourly poll, and only when that row's data changes). **Revisit at** the next notice-card
-      work or an accessibility pass.
-    - **The "No spray notices…" lines flicker on each poll**: each poll emits `loading` before
-      `ready`, so the line briefly disappears and comes back (the day line already did this).
-      **Revisit when** the notes keep their last ready state across a poll, or when someone
-      notices the flicker.
   - **Data blocks** (`src/lib/widgets/map/data/`):
     - `DayLayer`'s ahead input is silently capped at `AHEAD` (`MapData` caps it itself).
     - `MonitorsBlock` re-derives `#entryType`, `#loads`, `#day` and `#aheadKey` and inlines the

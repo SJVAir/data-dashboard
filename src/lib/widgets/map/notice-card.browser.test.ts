@@ -255,6 +255,52 @@ describe("NoticeCard", () => {
 		expect(screen.container.textContent).not.toContain("Vapam");
 	});
 
+	it("a refetch that removes the focused list row moves focus to the card, not body", async () => {
+		const row = (id: string, iso: string) => notice({ id, scheduled: iso });
+		const screen = await setup({
+			notices: [
+				row("a", "2026-11-12T06:00:00-08:00"),
+				row("b", "2026-11-14T09:30:00-08:00"),
+				row("c", "2026-11-15T07:00:00-08:00")
+			]
+		});
+		const card = () => screen.container.querySelector("[data-notice-card]")!;
+		const rowOf = (iso: string) => screen.getByRole("button", { name: new RegExp(at(iso)) });
+		// A removed row, with the list still there: focus goes to the list's first row.
+		(rowOf("2026-11-14T09:30:00-08:00").element() as HTMLElement).focus();
+		await screen.rerender({
+			notices: [row("a", "2026-11-12T06:00:00-08:00"), row("c", "2026-11-15T07:00:00-08:00")]
+		});
+		await expect
+			.poll(() => document.activeElement)
+			.toBe(rowOf("2026-11-12T06:00:00-08:00").element());
+		// The list collapses to one notice (its detail, no rows): focus goes to the card.
+		await screen.rerender({ notices: [row("c", "2026-11-15T07:00:00-08:00")] });
+		await expect.poll(() => screen.container.querySelectorAll("li button").length).toBe(0);
+		await expect.poll(() => document.activeElement).toBe(card());
+		expect(document.activeElement).not.toBe(document.body);
+	});
+
+	it("a refetch that keeps the focused row leaves focus on it", async () => {
+		const row = (id: string, iso: string) => notice({ id, scheduled: iso });
+		const screen = await setup({
+			notices: [row("a", "2026-11-12T06:00:00-08:00"), row("b", "2026-11-14T09:30:00-08:00")]
+		});
+		const second = screen.getByRole("button", {
+			name: new RegExp(at("2026-11-14T09:30:00-08:00"))
+		});
+		(second.element() as HTMLElement).focus();
+		await screen.rerender({
+			notices: [
+				row("a", "2026-11-12T06:00:00-08:00"),
+				row("b", "2026-11-14T09:30:00-08:00"),
+				row("d", "2026-11-16T07:00:00-08:00")
+			]
+		});
+		await expect.poll(() => screen.container.querySelectorAll("li button").length).toBe(3);
+		expect(document.activeElement).toBe(second.element());
+	});
+
 	it("the SprayDays link comes from the meta and opens in a new tab with rel noopener", async () => {
 		const screen = await setup({ notices: [notice()] });
 		const link = screen.getByRole("link", {

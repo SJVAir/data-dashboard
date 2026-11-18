@@ -3294,6 +3294,29 @@ test("on now, the none line waits for the notices to load", async () => {
 	note.unmount();
 });
 
+test("the No spray notices line doesn't flicker across a poll, and goes when notices come", async () => {
+	let release!: (value: unknown) => void;
+	vi.mocked(getActivePesticideNotices)
+		.mockResolvedValueOnce(noticeCollection([]) as never)
+		.mockReturnValueOnce(new Promise((resolve) => (release = resolve)) as never);
+	await show(noticesMap());
+	const map = await madeMap();
+	const note = await noticesNote(map);
+	await expect.element(note.getByText(m.map_notices_none_now())).toBeVisible();
+	// The poll: the notices are loading again, and the line stays.
+	nowClient.refetch(nowClient.entries().find((e) => e.key.startsWith("map-notices"))!.key);
+	await expect
+		.poll(() => vi.mocked(getActivePesticideNotices).mock.calls.length)
+		.toBeGreaterThan(1);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(note.container.textContent).toContain(m.map_notices_none_now());
+	// A real change still shows: the poll brings a notice, and the line goes.
+	release(noticeCollection([sprayNotice("n1", "s1")]));
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features).toHaveLength(1);
+	await expect.poll(() => note.container.textContent).not.toContain(m.map_notices_none_now());
+	note.unmount();
+});
+
 test("on now, a failed fetch isn't called none", async () => {
 	vi.mocked(getActivePesticideNotices).mockRejectedValue(new Error("offline"));
 	const screen = await show(noticesMap());

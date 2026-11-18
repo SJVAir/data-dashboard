@@ -537,17 +537,15 @@
 	);
 	/**
 	 * The notices have loaded with none, for the day stop or for now (the legend says so); never
-	 * while loading, after a failure or with a filter gone.
+	 * before they first load, after a failure or with a filter gone. A poll (loading again for
+	 * the same day and filters) keeps the last loaded value, so the line doesn't flicker.
 	 */
-	const noNotices = $derived<"day" | "now" | null>(
-		!noticesGone &&
-			data.noticesState.status === "ready" &&
-			data.noticesState.data.notices.length === 0
-			? days.onDay
-				? "day"
-				: "now"
-			: null
-	);
+	const noNotices = $derived.by<"day" | "now" | null>(() => {
+		const state = data.noticesState;
+		const loaded = state.status === "ready" || state.status === "loading" ? state.data : undefined;
+		if (noticesGone || loaded === undefined || loaded.notices.length > 0) return null;
+		return days.onDay ? "day" : "now";
+	});
 
 	// Marks: monitors the person marks, saved in the options (one undo step each).
 	const marks = $derived(mapOptions(widget).marks ?? []);

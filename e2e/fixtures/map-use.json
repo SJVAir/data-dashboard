@@ -1,0 +1,71 @@
+{
+	"$comment": "Pesticide use on the Map (fake values in the server's shapes). Townships and sections are synthetic squares on a grid built by e2e/map-data-server.ts; their ids use the made-up meridian TST. Classes are the server's valley-wide classes per figure, one colour per break.",
+	"townshipClasses": {
+		"lbs_chemical": {
+			"breaks": [10, 100, 1000],
+			"min": 2,
+			"colors": ["#c6dbef", "#4292c6", "#08306b"]
+		},
+		"acres_treated": {
+			"breaks": [5, 50, 500],
+			"min": 1,
+			"colors": ["#c6dbef", "#4292c6", "#08306b"]
+		},
+		"applications": {
+			"breaks": [2, 20, 200],
+			"min": 1,
+			"colors": ["#c6dbef", "#4292c6", "#08306b"]
+		}
+	},
+	"sectionClasses": {
+		"lbs_chemical": {
+			"breaks": [1, 10, 100],
+			"min": 0.5,
+			"colors": ["#c6dbef", "#4292c6", "#08306b"]
+		},
+		"acres_treated": {
+			"breaks": [1, 5, 50],
+			"min": 0.5,
+			"colors": ["#c6dbef", "#4292c6", "#08306b"]
+		},
+		"applications": { "breaks": [1, 2, 20], "min": 1, "colors": ["#c6dbef", "#4292c6", "#08306b"] }
+	},
+	"townshipPounds": [500, 50, 5, 0, 500],
+	"sectionPounds": [0, 0.5, 5, 50],
+	"notes": {
+		"shades_valley": {
+			"key": "shades_valley",
+			"title": "What the shades mean",
+			"summary": "Each shade ranks a place against the whole valley for the same period.",
+			"detail": null,
+			"source_url": "https://pur.example/shades"
+		},
+		"pur_lag": {
+			"key": "pur_lag",
+			"title": "When use is released",
+			"summary": "Use reports come out about two years after the applications.",
+			"detail": null,
+			"source_url": "https://pur.example/lag"
+		}
+	},
+	"badges": [{ "key": "prop65", "label": "Prop 65", "note": "prop65" }],
+	"topChemicals": [
+		{
+			"id": "chmu1",
+			"name": "EXAMPLE-CHEM A",
+			"display_name": "Example-chem A",
+			"lbs": 40,
+			"is_of_concern": true,
+			"badges": ["prop65"]
+		},
+		{
+			"id": "chmu2",
+			"name": "EXAMPLE-CHEM B",
+			"display_name": "Example-chem B",
+			"lbs": 10,
+			"is_of_concern": false,
+			"badges": []
+		}
+	],
+	"peakMonth": 7
+}

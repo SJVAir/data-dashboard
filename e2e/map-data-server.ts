@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { BrowserContext } from "@playwright/test";
@@ -499,6 +500,289 @@ export async function routeMapNotices(
 			return route.fulfill({
 				json: { type: "FeatureCollection", as_of: "2026-11-15T20:00:00+00:00", features }
 			});
+		}
+	);
+	return requests;
+}
+
+const TOWNSHIPS = /\/api\/2\.0\/pesticides\/townships\/$/;
+const SECTIONS = /\/api\/2\.0\/pesticides\/sections\/$/;
+const SECTION_DETAIL = /\/api\/2\.0\/pesticides\/sections\/([a-z0-9]+)\/$/;
+
+/** A township's or section's square: `[west, south, east, north]`. */
+type Box = [number, number, number, number];
+type UseTotals = { lbs_chemical: number; acres_treated: number; applications: number };
+type UseClasses = Record<
+	keyof UseTotals,
+	{ breaks: number[]; min: number | null; colors: string[] }
+>;
+
+/** One fixture township: a synthetic square with its totals. */
+export type UseTownshipFixture = { id: string; box: Box } & UseTotals;
+/** One fixture section: a sixth of its township's square each way. */
+export type UseSectionFixture = { id: string; mtrs: string; county: string; box: Box } & UseTotals;
+
+/** The pesticide use the Map is routed: the grid, the classes, the section details and the meta. */
+export type UseFixtures = {
+	townships: UseTownshipFixture[];
+	townshipClasses: UseClasses;
+	sections: UseSectionFixture[];
+	sectionClasses: UseClasses;
+	/** A section's details (`sections/<id>/`) for a year. */
+	details: (section: UseSectionFixture, year: number) => Record<string, unknown>;
+	/** What `routeMapUse` adds to the pesticides meta. */
+	meta: Record<string, unknown>;
+};
+
+type UseFile = {
+	townshipClasses: UseClasses;
+	sectionClasses: UseClasses;
+	townshipPounds: number[];
+	sectionPounds: number[];
+	notes: Record<string, { key: string; title: string; summary: string; source_url: string }>;
+	badges: unknown[];
+	topChemicals: unknown[];
+	peakMonth: number;
+};
+
+/** The use fixture's notes, badges and chemicals (`fixtures/map-use.json`). */
+export const USE_FILE = JSON.parse(readFileSync(FIXTURES + "map-use.json", "utf8")) as UseFile;
+
+/** A township's size in degrees (about six miles each way in the valley). */
+const TOWNSHIP_DEG = { lng: 0.108, lat: 0.087 };
+/** The use grid's townships each way: 5 × 5, so a pan at the section zoom still finds sections. */
+const GRID = 5;
+
+const totals = (lbs: number): UseTotals => ({
+	lbs_chemical: lbs,
+	acres_treated: lbs / 2,
+	applications: Math.ceil(lbs / 10)
+});
+
+/**
+ * The use fixtures: a 5 × 5 grid of synthetic square townships centred on `center` (`[lon, lat]`),
+ * named on the made-up meridian `TST` (`TST-T03S-R03E` is the middle one; T01S is the north row,
+ * R01E the west column), each holding 36 square sections numbered row by row from the north-west
+ * (`TST-T03S-R03E-01` … `-36`). The middle township and the corners use the most; one township
+ * per row uses none (no data).
+ */
+export function useFixtures(center: [number, number]): UseFixtures {
+	const townships: UseTownshipFixture[] = [];
+	const sections: UseSectionFixture[] = [];
+	const west = center[0] - (GRID / 2) * TOWNSHIP_DEG.lng;
+	const north = center[1] + (GRID / 2) * TOWNSHIP_DEG.lat;
+	const pad = (n: number) => String(n).padStart(2, "0");
+	for (let row = 0; row < GRID; row++) {
+		for (let col = 0; col < GRID; col++) {
+			const id = `TST-T${pad(row + 1)}S-R${pad(col + 1)}E`;
+			const w = west + col * TOWNSHIP_DEG.lng;
+			const n = north - row * TOWNSHIP_DEG.lat;
+			const box: Box = [w, n - TOWNSHIP_DEG.lat, w + TOWNSHIP_DEG.lng, n];
+			const pounds = USE_FILE.townshipPounds[(row + col) % USE_FILE.townshipPounds.length];
+			townships.push({ id, box, ...totals(pounds) });
+			const step = { lng: TOWNSHIP_DEG.lng / 6, lat: TOWNSHIP_DEG.lat / 6 };
+			for (let i = 0; i < 36; i++) {
+				const r = Math.floor(i / 6);
+				const c = i % 6;
+				const sw = w + c * step.lng;
+				const sn = n - r * step.lat;
+				const lbs = USE_FILE.sectionPounds[(r + c) % USE_FILE.sectionPounds.length];
+				sections.push({
+					id: `ts${row + 1}${col + 1}s${pad(i + 1)}`,
+					mtrs: `${id}-${pad(i + 1)}`,
+					county: "Example County",
+					box: [sw, sn - step.lat, sw + step.lng, sn],
+					...totals(lbs)
+				});
+			}
+		}
+	}
+	return {
+		townships,
+		townshipClasses: USE_FILE.townshipClasses,
+		sections,
+		sectionClasses: USE_FILE.sectionClasses,
+		details: (section, year) => ({
+			id: section.id,
+			mtrs: section.mtrs,
+			county: section.county,
+			year,
+			geometry: square(section.box),
+			years: [
+				{
+					year,
+					lbs_chemical: section.lbs_chemical,
+					lbs_product: section.lbs_chemical * 2,
+					acres_treated: section.acres_treated,
+					applications: section.applications
+				}
+			],
+			months: Array.from({ length: 12 }, (_, i) => {
+				const peak = i + 1 === USE_FILE.peakMonth;
+				return {
+					month: i + 1,
+					lbs_chemical: peak ? 40 : 1,
+					acres_treated: peak ? 20 : 1,
+					applications: peak ? 4 : 1
+				};
+			}),
+			top_chemicals: USE_FILE.topChemicals,
+			top_products: [],
+			top_commodities: []
+		}),
+		meta: {
+			notes: USE_FILE.notes,
+			badges: USE_FILE.badges,
+			years: [2023, 2022],
+			ramp: {
+				colors: ["#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c"],
+				no_data: "#f0f0f0"
+			},
+			links: { spraydays_signup: "https://spraydays.example/" },
+			notice_filters: ["chemical_id", "product_id", "category", "iarc_group", "narrow"],
+			scales: {}
+		}
+	};
+}
+
+function square([w, s, e, n]: Box) {
+	return {
+		type: "Polygon",
+		coordinates: [
+			[
+				[w, s],
+				[e, s],
+				[e, n],
+				[w, n],
+				[w, s]
+			]
+		]
+	};
+}
+
+const touches = (a: Box, b: Box) => a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
+
+/** The use requests the page made, in order (their query strings, as sent). */
+export type UseRequests = {
+	townships: URLSearchParams[];
+	sections: URLSearchParams[];
+	/** `sections/<id>/`: the section id and the query. */
+	details: { id: string; params: URLSearchParams }[];
+};
+
+/** The catalog's pesticide use, as the server lists it (`meta/datasets/`). */
+export const USE_CATALOG = {
+	label: "Pesticide Use",
+	figures: [
+		{ id: "pounds-applied", label: "Pounds Applied", units: "lbs" },
+		{ id: "acres-treated", label: "Acres Treated", units: "acres" },
+		{ id: "applications", label: "Applications", units: "applications" }
+	]
+};
+
+/**
+ * Pesticide use on the Map, as the server has it (its shapes, fake values from `fixtures`):
+ * `routeMapMeta`'s dataset catalog plus `pesticide-use` (route `routeMapMeta` first, for the
+ * monitors meta; this catalog wins); the pesticides meta (`pesticides/meta.json`) plus the
+ * fixtures' notes, badges, years and links; `pesticides/townships/` (every township, with its
+ * outline unless `geometry=0`, and the classes with `classes=1`); `pesticides/sections/?bbox=`
+ * (the sections touching the box, and the classes with `classes=1`); and
+ * `pesticides/sections/<id>/`. Returns the use requests made.
+ */
+export async function routeMapUse(
+	context: BrowserContext,
+	{ townships, townshipClasses, sections, sectionClasses, details, meta }: UseFixtures
+): Promise<UseRequests> {
+	await context.route(
+		(url) => CATALOG.test(url.pathname),
+		async (route) => {
+			const catalog = await mapCatalog();
+			catalog.data.datasets.push({
+				id: "pesticide-use",
+				label: USE_CATALOG.label,
+				description: "Reported agricultural pesticide applications, summed by region.",
+				source: "California DPR Pesticide Use Reporting (PUR)",
+				license: "",
+				geographies: ["region"],
+				meta_url: "/api/2.0/pesticides/meta/",
+				places_url: "",
+				entry_types: USE_CATALOG.figures.map((figure) => ({
+					...figure,
+					kind: "other",
+					resolutions: ["month", "year"],
+					aggregate: "sum",
+					display: { precision: 0, chart: "bar", y_min: 0 },
+					retired: null
+				})),
+				retired: null
+			} as unknown as Catalog["data"]["datasets"][number]);
+			await route.fulfill({ json: catalog });
+		}
+	);
+	await context.route(
+		(url) => PESTICIDES_META.test(url.pathname),
+		async (route) => {
+			const file = (await json<{ data: Record<string, unknown> }>(
+				`${API_FIXTURES}pesticides/meta.json`
+			))!;
+			Object.assign(file.data, meta);
+			await route.fulfill({ json: file });
+		}
+	);
+	const requests: UseRequests = { townships: [], sections: [], details: [] };
+	const year = (params: URLSearchParams) => Number(params.get("year") ?? 2023);
+	await context.route(
+		(url) => TOWNSHIPS.test(url.pathname),
+		(route) => {
+			const params = new URL(route.request().url()).searchParams;
+			requests.townships.push(params);
+			const outlines = params.get("geometry") !== "0";
+			return route.fulfill({
+				json: {
+					type: "FeatureCollection",
+					year: year(params),
+					...(params.get("classes") === "1" && { classes: townshipClasses }),
+					features: townships.map(({ id, box, ...values }) => ({
+						type: "Feature",
+						id,
+						geometry: outlines ? square(box) : null,
+						properties: { id, name: id, sections: 36, lbs_product: 0, ...values }
+					}))
+				}
+			});
+		}
+	);
+	await context.route(
+		(url) => SECTIONS.test(url.pathname),
+		(route) => {
+			const params = new URL(route.request().url()).searchParams;
+			requests.sections.push(params);
+			const bbox = (params.get("bbox") ?? "").split(",").map(Number) as Box;
+			const found = bbox.length === 4 ? sections.filter((s) => touches(s.box, bbox)) : [];
+			return route.fulfill({
+				json: {
+					type: "FeatureCollection",
+					year: year(params),
+					...(params.get("classes") === "1" && { classes: sectionClasses }),
+					features: found.map(({ id, mtrs, county, box, ...values }) => ({
+						type: "Feature",
+						id,
+						geometry: square(box),
+						properties: { id, mtrs, county, lbs_product: 0, ...values }
+					}))
+				}
+			});
+		}
+	);
+	await context.route(
+		(url) => SECTION_DETAIL.test(url.pathname),
+		(route) => {
+			const url = new URL(route.request().url());
+			const [, id] = SECTION_DETAIL.exec(url.pathname)!;
+			requests.details.push({ id, params: url.searchParams });
+			const section = sections.find((s) => s.id === id);
+			if (!section) return route.fulfill({ status: 404, json: { error: "Not found" } });
+			return route.fulfill({ json: details(section, year(url.searchParams)) });
 		}
 	);
 	return requests;

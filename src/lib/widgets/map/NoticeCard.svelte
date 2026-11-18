@@ -41,7 +41,7 @@
 		sorted.length === 1 ? sorted[0] : (sorted.find((n) => n.id === openId) ?? null)
 	);
 
-	let meta = $state<PesticidesMeta | null>(null);
+	let meta = $state.raw<PesticidesMeta | null>(null);
 	$effect(() => {
 		// The hover form shows neither the explainer nor the link.
 		if (!interactive) return;
@@ -96,14 +96,28 @@
 	let cardElement = $state<HTMLDivElement>();
 	const rows: Record<string, HTMLButtonElement> = {};
 
-	// The marker's notices update in place (a refetch). When the open notice is no longer among
-	// them, the card goes back to the list (or the one notice left), and focus that was in the
-	// card stays in it: on the list's first row, or on the card. Run before the DOM updates, while
-	// the focused Back button is still there to be seen.
+	/** The list row that has focus, by notice id, if one has. */
+	function focusedRow(): string | null {
+		const active = document.activeElement;
+		for (const [id, row] of Object.entries(rows)) if (row && row === active) return id;
+		return null;
+	}
+
+	// The marker's notices update in place (a refetch). When the open notice, or the focused list
+	// row, is no longer among them (or the list collapses to one notice, which shows its detail),
+	// the card goes back to the list (or the one notice left), and focus that was in the card
+	// stays in it: on the list's first row, or on the card. Run before the DOM updates, while the
+	// focused Back button or row is still there to be seen.
 	$effect.pre(() => {
-		if (openId === null || sorted.some((n) => n.id === openId)) return;
+		// Read the notices every run, so a refetch always reruns this.
+		const ids = sorted.map((n) => n.id);
+		const has = (id: string) => ids.includes(id);
+		const openGone = openId !== null && !has(openId);
+		const row = untrack(focusedRow);
+		const rowGone = row !== null && (ids.length <= 1 || !has(row));
+		if (!openGone && !rowGone) return;
 		const hadFocus = untrack(() => !!cardElement?.contains(document.activeElement));
-		openId = null;
+		if (openGone) openId = null;
 		if (!hadFocus) return;
 		void tick().then(() => {
 			const first = sorted.length > 1 ? rows[sorted[0].id] : undefined;
@@ -163,8 +177,9 @@
 				{@render activeTag(sorted[0])}
 			</div>
 			<p class="text-muted-foreground">{where}</p>
-			{#if amount(sorted[0])}
-				<p>{amount(sorted[0])}</p>
+			{@const summed = amount(sorted[0])}
+			{#if summed}
+				<p>{summed}</p>
 			{/if}
 		{:else if sorted.length > 1}
 			<p class="font-semibold">{m.map_notice_list_heading(countArgs)}</p>
@@ -201,8 +216,9 @@
 			</div>
 			<p>{m.map_notice_through({ date: when(shown.scheduledEnd) })}</p>
 			<p class="text-muted-foreground">{where}</p>
-			{#if amount(shown)}
-				<p>{amount(shown)}</p>
+			{@const summed = amount(shown)}
+			{#if summed}
+				<p>{summed}</p>
 			{/if}
 			{#if method(shown)}
 				<p>{m.map_notice_method({ method: method(shown) })}</p>
@@ -220,6 +236,7 @@
 			<p class="text-muted-foreground">{where}</p>
 			<ul class="flex flex-col gap-1">
 				{#each sorted as notice (notice.id)}
+					{@const summed = amount(notice)}
 					<li>
 						<button
 							bind:this={rows[notice.id]}
@@ -231,8 +248,8 @@
 								<span class="font-medium">{when(notice.scheduled)}</span>
 								{@render activeTag(notice)}
 							</span>
-							{#if amount(notice)}
-								<span>{amount(notice)}</span>
+							{#if summed}
+								<span>{summed}</span>
 							{/if}
 							{#if method(notice)}
 								<span>{m.map_notice_method({ method: method(notice) })}</span>

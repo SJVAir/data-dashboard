@@ -36,9 +36,14 @@ import {
 	routeMapMeta,
 	routeMapNotices,
 	routeMapReadings,
+	routeMapUse,
 	routeOneOutline,
+	USE_CATALOG,
+	USE_FILE,
+	useFixtures,
 	type NoticeFixture,
-	type NoticesRequests
+	type NoticesRequests,
+	type UseRequests
 } from "./map-data-server";
 
 test.use({ reducedMotion: "reduce" });
@@ -103,13 +108,14 @@ function readingCard(map: Locator): Locator {
 	return map.getByRole("group", { name: "Fresno - Drummond Street" });
 }
 
-/** Opens the map's feature list (its List button) and returns the list. */
+/** Opens the map's feature list (its List button), unless it's open, and returns the list. */
 async function featureList(map: Locator): Promise<Locator> {
+	const list = map.getByRole("listbox", { name: "Features on the map" });
+	if (await list.isVisible()) return list;
 	// The List button shows only while focused (MapView `reveal: "focus"`), like a skip link.
 	const button = map.getByRole("button", { name: "List of features on the map" });
 	await button.focus();
 	await button.press("Enter");
-	const list = map.getByRole("listbox", { name: "Features on the map" });
 	await expect(list).toBeVisible();
 	return list;
 }
@@ -1140,19 +1146,7 @@ test.describe("a Map's region fill", () => {
 	});
 
 	/** The map's legend (map-sdk's own): one section for a pollutant, whoever draws it. */
-	function legendOf(map: Locator): Locator {
-		return map.getByRole("region", { name: "Legend", exact: true });
-	}
-
 	/** No WCAG 2.2 AA violations with the legend drawn, in light and then dark. */
-	async function expectNoViolationsInBothThemes(page: Page): Promise<void> {
-		await page.emulateMedia({ colorScheme: "light" });
-		await expectNoViolations(page);
-		await page.emulateMedia({ colorScheme: "dark" });
-		await expectNoViolations(page);
-		await page.emulateMedia({ colorScheme: "light" });
-	}
-
 	/** The map's summary line for the fill ("ZIP Codes, today so far: 1 Good, ..."). */
 	function fillLine(map: Locator): Locator {
 		return map.getByText(/^ZIP Codes(, today so far)?: /);
@@ -1292,6 +1286,43 @@ async function closeFeatureList(map: Locator): Promise<void> {
 	await expect(map.getByRole("listbox", { name: "Features on the map" })).toBeHidden();
 }
 
+/** The map's legend (map-sdk's). */
+function legendOf(map: Locator): Locator {
+	return map.getByRole("region", { name: "Legend", exact: true });
+}
+
+async function expectNoViolationsInBothThemes(page: Page): Promise<void> {
+	await page.emulateMedia({ colorScheme: "light" });
+	await expectNoViolations(page);
+	await page.emulateMedia({ colorScheme: "dark" });
+	await expectNoViolations(page);
+	await page.emulateMedia({ colorScheme: "light" });
+}
+
+/**
+ * Opens the map's feature list, Tabs into it (past its sort buttons) and moves its active row
+ * down to the option named `name` with the arrow keys (the list keeps focus). Returns the list.
+ */
+async function toListRow(map: Locator, name: RegExp): Promise<Locator> {
+	const list = await featureList(map);
+	const row = list.getByRole("option", { name });
+	await expect(row).toHaveCount(1);
+	const page = map.page();
+	for (let i = 0; i < 5 && !(await list.evaluate((el) => el === document.activeElement)); i++) {
+		await page.keyboard.press("Tab");
+	}
+	await expect(list).toBeFocused();
+	const target = (await row.getAttribute("id"))!;
+	await page.keyboard.press("Home");
+	const options = await list.getByRole("option").count();
+	for (let i = 0; i < options; i++) {
+		if ((await list.getAttribute("aria-activedescendant")) === target) break;
+		await page.keyboard.press("ArrowDown");
+	}
+	await expect(list).toHaveAttribute("aria-activedescendant", target);
+	return list;
+}
+
 test.describe("a Map's spray notices", () => {
 	let noticesRequests: NoticesRequests;
 
@@ -1419,30 +1450,6 @@ test.describe("a Map's spray notices", () => {
 		await expectNoViolationsInBothThemes(page);
 	});
 
-	/**
-	 * Opens the map's feature list, Tabs into it (past its sort buttons) and moves its active row
-	 * down to the option named `name` with the arrow keys (the list keeps focus). Returns the list.
-	 */
-	async function toListRow(map: Locator, name: RegExp): Promise<Locator> {
-		const list = await featureList(map);
-		const row = list.getByRole("option", { name });
-		await expect(row).toHaveCount(1);
-		const page = map.page();
-		for (let i = 0; i < 5 && !(await list.evaluate((el) => el === document.activeElement)); i++) {
-			await page.keyboard.press("Tab");
-		}
-		await expect(list).toBeFocused();
-		const target = (await row.getAttribute("id"))!;
-		await page.keyboard.press("Home");
-		const options = await list.getByRole("option").count();
-		for (let i = 0; i < options; i++) {
-			if ((await list.getAttribute("aria-activedescendant")) === target) break;
-			await page.keyboard.press("ArrowDown");
-		}
-		await expect(list).toHaveAttribute("aria-activedescendant", target);
-		return list;
-	}
-
 	test("the notice card opens from the feature list by keyboard", async ({ page }) => {
 		await openSharedDoc(page, noticesDoc());
 		const map = mapOf(page, FRESNO_MAP);
@@ -1560,5 +1567,296 @@ test.describe("a Map's spray notices", () => {
 		list = await featureList(map);
 		await expect(noticeOptions(list)).toHaveCount(2);
 		await closeFeatureList(map);
+	});
+});
+
+/**
+ * Pesticide use: a 5 × 5 grid of fake square townships centred on the county's middle (the GL
+ * map's centre), `TST-T03S-R03E` the middle one, with 500 lbs (the top class). Use draws the
+ * whole valley's townships under the section zoom, and the view's sections from it.
+ */
+const USE = useFixtures(COUNTY_MIDDLE);
+const MIDDLE_TOWNSHIP = "TST-T03S-R03E";
+/** The middle township's feature list row: its pounds and its class, from the server's breaks. */
+const MIDDLE_ROW = /^TST-T03S-R03E, 500 lbs, 100 to 1,000$/;
+/** A section's feature list row. */
+const SECTION_ROW = /^TST-T0\dS-R0\dE-\d\d, /;
+const TOWNSHIP_BINS = ["Up to 10", "10 to 100", "100 to 1,000"];
+const SECTION_BINS = ["Up to 1", "1 to 10", "10 to 100"];
+/** Location params use must never send: only `bbox` (or nothing) says where. */
+const PLACE_PARAMS = ["county", "lat", "lng", "lon", "radius", "region"];
+
+test.describe("a Map's pesticide use", () => {
+	let useRequests: UseRequests;
+
+	test.beforeEach(async ({ context, page }) => {
+		await routeMapMeta(context);
+		useRequests = await routeMapUse(context, USE);
+		// Noon Pacific, as the other day tests.
+		await page.clock.install({ time: TODAY });
+	});
+
+	// Never county (nor any other place param), in every test: use asks valley-wide or by box.
+	test.afterEach(() => {
+		for (const params of [...useRequests.townships, ...useRequests.sections]) {
+			for (const key of PLACE_PARAMS) expect(params.has(key), `sent ${key}`).toBe(false);
+		}
+	});
+
+	/** A full-width Fresno County Map with pesticide use for 2023 (and `options`). */
+	function useDoc(options: Record<string, unknown> = {}) {
+		const doc = wideDoc([{ dataset: "pesticide-use" }]);
+		Object.assign(doc.body.widgets[0], { options: { usePeriod: "2023", ...options } });
+		return doc;
+	}
+
+	/** The map, once its townships are drawn (the middle one in its feature list). */
+	async function openUseMap(page: Page): Promise<Locator> {
+		await openSharedDoc(page, useDoc());
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		await expect.poll(() => useRequests.townships.length).toBeGreaterThan(0);
+		return map;
+	}
+
+	/** The legend section titled `title` whose units line is `units`. */
+	function useSection(map: Locator, title: string, units: string): Locator {
+		return legendOf(map)
+			.locator(".mapsdk-legend-section")
+			.filter({ has: map.page().getByRole("heading", { level: 3, name: title, exact: true }) })
+			.filter({ hasText: units });
+	}
+
+	/**
+	 * A legend section's class labels: map-sdk's rows under the bar, one per level (not the
+	 * gradient's ticks, which crowd together), each starting with its label.
+	 */
+	function bins(section: Locator): Locator {
+		return section.locator(".mapsdk-legend-items li");
+	}
+
+	/** `labels` as the rows' text: each row starts with its label (a threshold may follow). */
+	const binText = (labels: string[]) =>
+		labels.map((label) => new RegExp(`^\\s*${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`));
+
+	/** The middle of the GL map: the middle township's centre (the county's framing). */
+	async function middleOf(map: Locator): Promise<{ x: number; y: number }> {
+		const box = (await glMap(map).boundingBox())!;
+		return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+	}
+
+	/** Opens the middle township's card from the feature list by keyboard. */
+	async function openMiddleTownship(map: Locator): Promise<Locator> {
+		await toListRow(map, MIDDLE_ROW);
+		await map.page().keyboard.press("Enter");
+		const card = map.getByRole("group", { name: MIDDLE_TOWNSHIP, exact: true });
+		await expect(card).toBeVisible();
+		return card;
+	}
+
+	/** Presses Tab until `target` has focus (at most `tries` times). */
+	async function tabTo(target: Locator, tries = 8): Promise<void> {
+		const page = target.page();
+		for (
+			let i = 0;
+			i < tries && !(await target.evaluate((el) => el === document.activeElement));
+			i++
+		) {
+			await page.keyboard.press("Tab");
+		}
+		await expect(target).toBeFocused();
+	}
+
+	test("townships shade by the server's classes, and the legend names the period and units", async ({
+		page
+	}) => {
+		const map = await openUseMap(page);
+		// Titled by the figure and the period, not the catalog's name for the data set.
+		const legend = legendOf(map);
+		await expect(
+			legend.getByRole("heading", { level: 3, name: "Pounds Applied, 2023", exact: true })
+		).toBeVisible();
+		await expect(
+			legend.getByRole("heading", { level: 3, name: USE_CATALOG.label, exact: true })
+		).toHaveCount(0);
+		const section = useSection(map, "Pounds Applied, 2023", "lbs per township");
+		await expect(section.getByText("lbs per township", { exact: true })).toBeVisible();
+		// One block row per server break, labelled from the breaks; zero use reads No data.
+		await expect(bins(section)).toHaveText(binText(TOWNSHIP_BINS));
+		await expect(section.getByText("No data", { exact: true })).toBeVisible();
+		// The server's notes on the shades and on when use is released, each linking out.
+		for (const note of [USE_FILE.notes.shades_valley, USE_FILE.notes.pur_lag]) {
+			await expect(section.getByText(note.summary, { exact: true })).toBeVisible();
+			await expect(section.getByRole("link", { name: new RegExp(note.title) })).toHaveAttribute(
+				"href",
+				note.source_url
+			);
+		}
+
+		// Each township is classed by the server's breaks.
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: MIDDLE_ROW })).toHaveCount(1);
+		await expect(
+			list.getByRole("option", { name: /^TST-T01S-R03E, 5 lbs, Up to 10$/ })
+		).toHaveCount(1);
+		await closeFeatureList(map);
+		await expectNoViolationsInBothThemes(page);
+
+		// Valley-wide with the classes, its outlines asked for once.
+		const [first] = useRequests.townships;
+		expect(first.get("year")).toBe("2023");
+		expect(first.get("classes")).toBe("1");
+		expect(first.has("geometry")).toBe(false);
+		expect(first.has("month")).toBe(false);
+		expect(first.has("bbox")).toBe(false);
+
+		// A month: the townships again, values only, and the legend names the month.
+		await openMenu(map, "Pesticide use");
+		await toolbarOf(map).getByRole("combobox", { name: "Month", exact: true }).selectOption("7");
+		await expect(
+			legend.getByRole("heading", { level: 3, name: "Pounds Applied, July 2023", exact: true })
+		).toBeVisible();
+		const monthly = useRequests.townships.filter((params) => params.get("month") === "7");
+		expect(monthly.length).toBeGreaterThan(0);
+		for (const params of monthly) {
+			expect(params.get("geometry")).toBe("0");
+			expect(params.get("classes")).toBe("1");
+			expect(params.get("year")).toBe("2023");
+		}
+	});
+
+	test("zooming in loads sections for the view, and the bins don't change after a pan", async ({
+		page
+	}) => {
+		const map = await openUseMap(page);
+		const card = await openMiddleTownship(map);
+		const zoom = card.getByRole("button", { name: "Zoom in", exact: true });
+		await tabTo(zoom);
+		await page.keyboard.press("Enter");
+
+		// At the section zoom: the view's sections, classed by the server's section breaks.
+		const section = useSection(map, "Pounds Applied, 2023", "lbs per section");
+		await expect(bins(section)).toHaveText(binText(SECTION_BINS));
+		const viewRequests = () => useRequests.sections.filter((params) => params.has("bbox"));
+		await expect.poll(() => viewRequests().length).toBeGreaterThan(0);
+		for (const params of viewRequests()) expect(params.get("classes")).toBe("1");
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: SECTION_ROW }).first()).toBeVisible();
+		await closeFeatureList(map);
+		await expectNoViolationsInBothThemes(page);
+
+		// A pan well past the fetched box (the keyboard's arrows, 100 px a press): another box, the
+		// same bins.
+		const before = viewRequests().map((params) => params.get("bbox"));
+		await glMap(map).focus();
+		for (let i = 0; i < 16; i++) await page.keyboard.press("ArrowRight");
+		await expect
+			.poll(() => viewRequests().filter((params) => !before.includes(params.get("bbox"))).length)
+			.toBeGreaterThan(0);
+		await expect(bins(section)).toHaveText(binText(SECTION_BINS));
+	});
+
+	test("the lens opens on hover and its section's card opens on click", async ({ page }) => {
+		const map = await openUseMap(page);
+		// Hovering the middle township opens its block into sections: one request for the block.
+		const middle = await middleOf(map);
+		const at = { x: middle.x + 3, y: middle.y + 3 };
+		await page.mouse.move(at.x, at.y);
+		await expect.poll(() => useRequests.sections.length).toBeGreaterThan(0);
+		const [block] = useRequests.sections;
+		expect(block.get("classes")).toBe("1");
+		const [west, south, east, north] = block.get("bbox")!.split(",").map(Number);
+		const [mw, ms, me, mn] = USE.townships.find((t) => t.id === MIDDLE_TOWNSHIP)!.box;
+		// The 3 × 3 block around the middle township.
+		expect(west).toBeLessThan(mw);
+		expect(east).toBeGreaterThan(me);
+		expect(south).toBeLessThan(ms);
+		expect(north).toBeGreaterThan(mn);
+		// Once the block's sections are drawn, the pointer is over one of them, named in its hover
+		// card (a pointer move finds them once they're drawn).
+		const over = { x: at.x + 1, y: at.y + 1 };
+		const tip = map.getByRole("tooltip");
+		await expect(async () => {
+			await page.mouse.move(at.x, at.y);
+			await page.mouse.move(over.x, over.y);
+			await expect(tip).toContainText(new RegExp(`${MIDDLE_TOWNSHIP}-\\d\\d`), {
+				timeout: 500
+			});
+		}).toPass();
+		const name = /TST-T03S-R03E-\d\d/.exec((await tip.textContent()) ?? "")![0];
+
+		// A click opens the section's card.
+		await page.mouse.click(over.x, over.y);
+		const card = map.getByRole("group", { name, exact: true }).first();
+		await expect(card).toBeVisible();
+		// Under a hover lens, map-sdk 0.1.0-beta.19 shows only the section's name in its card (its
+		// body is tested through the pinned lens).
+		await expect(card).toContainText(name);
+		await expectNoViolationsInBothThemes(page);
+	});
+
+	test("the township card's Show square miles pins the lens from the keyboard, and Escape clears it", async ({
+		page
+	}) => {
+		const map = await openUseMap(page);
+		const card = await openMiddleTownship(map);
+		const show = card.getByRole("button", { name: "Show square miles", exact: true });
+		await tabTo(show);
+		await page.keyboard.press("Enter");
+
+		// The pinned lens lists its block's sections; one opens its card with its months and
+		// chemicals (the section's details for the year).
+		// The list draws only the rows near its active one: type the section's name to reach it.
+		const sectionName = `${MIDDLE_TOWNSHIP}-22`;
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: SECTION_ROW }).first()).toBeVisible();
+		await list.focus();
+		await page.keyboard.type(sectionName);
+		const row = list.getByRole("option", { name: new RegExp(`^${sectionName}, `) });
+		await expect(row).toHaveCount(1);
+		await expect(list).toHaveAttribute("aria-activedescendant", (await row.getAttribute("id"))!);
+		await page.keyboard.press("Enter");
+		const sectionCard = map.getByRole("group", { name: sectionName, exact: true }).first();
+		await expect(sectionCard).toBeVisible();
+		await expect(sectionCard.getByText("Peaks in July", { exact: true })).toBeVisible();
+		await expect(sectionCard.getByText("Top chemicals by pounds", { exact: true })).toBeVisible();
+		await expect(sectionCard.getByText("Example-chem A", { exact: true })).toBeVisible();
+		await expect(sectionCard.getByText("Prop 65", { exact: true })).toBeVisible();
+		const id = USE.sections.find((s) => s.mtrs === sectionName)!.id;
+		expect(useRequests.details.map((d) => [d.id, d.params.get("year")])).toContainEqual([
+			id,
+			"2023"
+		]);
+		await expectNoViolationsInBothThemes(page);
+
+		// Esc closes the card, then lets go of the lens: its sections leave the list.
+		await list.focus();
+		for (let i = 0; i < 3 && (await list.getByRole("option", { name: SECTION_ROW }).count()); i++) {
+			await page.keyboard.press("Escape");
+		}
+		await expect(list.getByRole("option", { name: SECTION_ROW })).toHaveCount(0);
+		await expect(list.getByRole("option", { name: MIDDLE_ROW })).toHaveCount(1);
+	});
+
+	test("sections and townships requests never carry county", async ({ page }) => {
+		const map = await openUseMap(page);
+		// The lens's block, then the view's sections at the section zoom.
+		const middle = await middleOf(map);
+		await page.mouse.move(middle.x + 3, middle.y + 3);
+		await expect.poll(() => useRequests.sections.length).toBeGreaterThan(0);
+		await page.mouse.move(middle.x, 1);
+		const card = await openMiddleTownship(map);
+		await tabTo(card.getByRole("button", { name: "Zoom in", exact: true }));
+		await page.keyboard.press("Enter");
+		await expect.poll(() => useRequests.sections.length).toBeGreaterThan(1);
+
+		expect(useRequests.townships.length).toBeGreaterThan(0);
+		for (const params of useRequests.townships) {
+			for (const key of [...PLACE_PARAMS, "bbox"]) expect(params.has(key), key).toBe(false);
+		}
+		for (const params of useRequests.sections) {
+			for (const key of PLACE_PARAMS) expect(params.has(key), key).toBe(false);
+			expect(params.get("bbox")).toMatch(/^-?[\d.]+(,-?[\d.]+){3}$/);
+		}
 	});
 });
