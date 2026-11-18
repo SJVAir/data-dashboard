@@ -18,7 +18,8 @@ import {
 	getRegionsMeta
 } from "@sjvair/sdk";
 import type { FeatureListItem } from "@sjvair/map-sdk";
-import { encodeRef } from "@sjvair/map-sdk/data";
+import { encodeRef, type ScaleRef } from "@sjvair/map-sdk/data";
+import { useScaleFor } from "./data/use-scale";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
@@ -3806,6 +3807,14 @@ test("an unlisted period says No data for 2017 in the legend", async () => {
 	await expect
 		.poll(() => useOf(map, "townships")?.options.source.status)
 		.toEqual({ state: "unavailable", reason: "no-data", message: "No data for 2017" });
+	// From the section zoom (the townships hidden) the sections plugin carries the row; the lens
+	// adds none.
+	expect(useOf(map, "sections")!.options.source.status).toEqual({
+		state: "unavailable",
+		reason: "no-data",
+		message: "No data for 2017"
+	});
+	expect(useOf(map, "lens")!.options.source.status).toEqual({ state: "ready" });
 	expect(m.map_use_no_data({ period: "2017" })).toBe("No data for 2017");
 	const note = await useNote(map);
 	await expect.element(note.getByText(PESTICIDES_META.notes.shades_valley.summary)).toBeVisible();
@@ -3934,6 +3943,20 @@ describe("use with no fit target yet (the region shapes still loading)", () => {
 			.poll(() => useOf(map, "townships")?.options.layerLabel)
 			.toBe("Pounds Applied, 2022");
 	});
+});
+
+test("moving from an unlisted period to a listed one clears the No data row and brings the classes back", async () => {
+	const screen = await showLive(useMap({ usePeriod: "2017" }), editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect
+		.poll(() => useOf(map, "townships")?.options.source.status)
+		.toMatchObject({ state: "unavailable", reason: "no-data" });
+	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2023");
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const source = useOf(map, "townships")!.options.source;
+	expect(source.status).toEqual({ state: "ready" });
+	expect(useScaleFor(source.scale as ScaleRef)?.levels.length).toBeGreaterThan(0);
 });
 
 test("a gone use filter is said, with Edit data", async () => {

@@ -1930,6 +1930,7 @@ test.describe("a Map's pesticide use", () => {
 		).toBeVisible();
 		expect(useRequests.townships).toEqual([]);
 		expect(useRequests.sections).toEqual([]);
+		await expectNoViolationsInBothThemes(page);
 	});
 
 	test("sections and townships requests never carry county", async ({ page }) => {

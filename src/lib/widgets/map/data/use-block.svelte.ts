@@ -210,22 +210,10 @@ export class UseBlock {
 		this.#getInput = getInput;
 		this.townships = sourceOf({
 			status: () => {
-				const state = this.townshipsState;
-				// The legend's status row says why (the map's banner too, with Edit data).
-				if (state === "filter-gone")
-					return { state: "unavailable", reason: "filter-gone", message: m.map_use_filter_gone() };
-				// A period the server doesn't list: a status row naming it, with the note under it
-				// (an empty scale would make no legend section, and so no note).
-				if (state === "no-data") {
-					const period = this.#getInput().query?.period;
-					return {
-						state: "unavailable",
-						reason: "no-data",
-						...(period && { message: m.map_use_no_data({ period: periodLabel(period) }) })
-					};
-				}
+				const unavailable = this.#unavailable();
+				if (unavailable) return unavailable;
 				// Errors are the widget's to show (a note with Retry), as the other layers do.
-				return state === "loading" ? { state: "loading" } : { state: "ready" };
+				return this.townshipsState === "loading" ? { state: "loading" } : { state: "ready" };
 			},
 			features: () => this.#townshipsShown?.features ?? null,
 			// While the key loads, the last scale shown (the legend reads loading meanwhile).
@@ -235,7 +223,9 @@ export class UseBlock {
 				(this.townshipsState === "loading" ? this.#lastTownshipsRef : null)
 		});
 		this.sections = sourceOf({
-			status: () => ({ state: "ready" }),
+			// From the section zoom (where the townships hide) the sections carry the same row; the
+			// zoom ranges don't overlap, so the legend shows it once. The lens adds none.
+			status: () => this.#unavailable() ?? { state: "ready" },
 			features: () => this.#sectionsShown?.features ?? null,
 			scale: () => this.#sectionsRef
 		});
@@ -258,6 +248,26 @@ export class UseBlock {
 			$effect(() => this.#sectionsEffect());
 			$effect(() => this.#lensEffect());
 		});
+	}
+
+	/**
+	 * Why nothing can load for the key, as the legend's status row (the map's banner says so too,
+	 * with Edit data, for a gone filter): a gone filter, or a period the server doesn't list (an
+	 * empty scale would make no legend section, and so no note). Null otherwise.
+	 */
+	#unavailable(): Extract<DataStatus, { state: "unavailable" }> | null {
+		const state = this.townshipsState;
+		if (state === "filter-gone")
+			return { state: "unavailable", reason: "filter-gone", message: m.map_use_filter_gone() };
+		if (state === "no-data") {
+			const period = this.#getInput().query?.period;
+			return {
+				state: "unavailable",
+				reason: "no-data",
+				...(period && { message: m.map_use_no_data({ period: periodLabel(period) }) })
+			};
+		}
+		return null;
 	}
 
 	/** The township refKeys of the block centred on `refKey` (itself included). */

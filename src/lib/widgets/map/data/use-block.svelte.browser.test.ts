@@ -11,7 +11,12 @@ vi.mock("@sjvair/sdk", async (importOriginal) => ({
 	getProductDetails: vi.fn()
 }));
 
-import { getPesticideSections, getPesticideTownships, getPesticidesMeta } from "@sjvair/sdk";
+import {
+	getChemicalDetails,
+	getPesticideSections,
+	getPesticideTownships,
+	getPesticidesMeta
+} from "@sjvair/sdk";
 import type { Bounds } from "@sjvair/map-sdk";
 import { encodeRef, type DataSource, type ScaleRef } from "@sjvair/map-sdk/data";
 import { resetPesticideMeta } from "$lib/data/pesticide-meta";
@@ -362,6 +367,33 @@ describe("UseBlock", () => {
 			expect(scale).not.toBe(oldSections);
 			expect(useScaleFor(scale)?.levels).toEqual([]);
 		}
+		t.block.destroy();
+	});
+
+	it("from the section zoom, an unlisted period or a gone filter is the sections' status row too; the lens adds none", async () => {
+		const t = setup({
+			query: query({ year: 2017, month: null }),
+			zoom: 12,
+			lensCenter: ref("T-0")
+		});
+		await vi.advanceTimersByTimeAsync(200);
+		const noData = { state: "unavailable", reason: "no-data", message: "No data for 2017" };
+		expect(t.block.townships.status).toEqual(noData);
+		expect(t.block.sections.status).toEqual(noData);
+		expect(t.block.lens.status).toEqual({ state: "ready" });
+		vi.mocked(getChemicalDetails).mockRejectedValue(
+			new Error("Not found", { cause: { result: { status: 404 } } })
+		);
+		t.set({ query: { ...query(), filters: { chemical: "gone" } } });
+		await vi.advanceTimersByTimeAsync(200);
+		expect(t.block.townshipsState).toBe("filter-gone");
+		expect(t.block.sections.status).toMatchObject({ state: "unavailable", reason: "filter-gone" });
+		expect(t.block.lens.status).toEqual({ state: "ready" });
+		// Back to a listed period with no filters: the rows clear.
+		t.set({ query: query() });
+		await vi.advanceTimersByTimeAsync(200);
+		expect(t.block.townships.status).toEqual({ state: "ready" });
+		expect(t.block.sections.status).toEqual({ state: "ready" });
 		t.block.destroy();
 	});
 
