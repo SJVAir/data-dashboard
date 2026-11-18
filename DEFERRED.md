@@ -1625,17 +1625,8 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     `map-title.svelte.ts`), called once from `MapWidget`'s setup, unlike the split's other
     helpers, which are classes with `destroy()`. Both work as written. **Revisit when** either
     needs teardown or a second caller.
-  - **`MapWidget.svelte` is back to about 1,020 lines.** The user accepted about 806 after Task
-    1's split (2026-11-17); the use wiring (Tasks 7 to 11: the section zoom, the lens centre, the
-    pin, the links' notices day) added the rest. **Revisit when** spec 6 or another layer adds to
-    it: move the use wiring into `UseLayers` or a helper then.
-  - **Precision on the use cards.** The shown figure's value takes the scale's label precision
-    when that is higher, so on a scale with fractional breaks a large value in the top class reads
-    "4,567.0 lbs" (`UseCardFigures.svelte`). The "In township" line uses the figure's own
-    precision, so a small figure there can read "0". One rule would fit both: extra digits only
-    when the value at the figure's precision would fall outside its class. **Revisit at** the
-    final review, or when someone reports a figure that reads oddly.
-  - **Only the cards use `scrollFocusable`.** The legend's scroll wrapper, `NoteWidget` and
+  - **`NoteWidget` and `DataTable` don't use `scrollFocusable` yet.** The cards and the map's
+    legend wrapper (a named group) are Tab stops only while they overflow; `NoteWidget` and
     `DataTable` are always a Tab stop (`tabindex="0"`), even when nothing overflows. **Revisit
     with** the copy and accessibility check.
   - **Hand check for the user: an explorer page through the dev server.** The section card's
@@ -2106,11 +2097,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   townships' `lensHidden` feature state applies on the next frame, while the sections' `setData`
   goes through MapLibre's worker, so for one frame the block is transparent before its sections
   draw. A single frame is hard to see. Fix when needed: hide the townships only after the lens
-  source's `sourcedata`/load event for that data. **Revisit when** someone notices the flash on the
-  dashboard, or before map-sdk 1.0. _Seen on the dashboard 2026-11-17 (step 5 spec 5b, Task 7's
-  hand check, on `0.1.0-beta.19`): in the first frame after the lens moves to a neighbour, about
-  60 ms in, the new block still shows township fill, and its sections draw from the next frame.
-  Hard to see; left for map-sdk._
+  source's `sourcedata`/load event for that data. Raised with map-sdk; the dashboard is where it
+  was seen. **Revisit when** map-sdk ships a fix. _Seen on the dashboard 2026-11-17 (step 5 spec
+  5b, Task 7's hand check, on `0.1.0-beta.19`): in the first frame after the lens moves to a
+  neighbour, about 60 ms in, the new block still shows township fill, and its sections draw from
+  the next frame. Hard to see; left for map-sdk._
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
@@ -3497,3 +3488,9 @@ Dropped 2026-11-16 by the user (step 5 spec 5 design):
 
 - **The Pesticides Explorer's Tweaks on the Map** (ramp, number of bins, basemap). The metadata
   decides ramps and bins, and the Map's Settings already holds the basemap.
+
+Dropped 2026-11-17 by the user (step 5 spec 5b final review):
+
+- **Splitting `MapWidget.svelte` again** (deferred 2026-11-17, step 5 spec 5b leftovers). It grew
+  back to about 1,020 lines with the use wiring after Task 1's split; the user said that size is
+  fine as it is (about 1,030 after the final review's fixes).
