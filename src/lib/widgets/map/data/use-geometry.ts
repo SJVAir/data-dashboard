@@ -66,6 +66,10 @@ export function contains(outer: Bounds, inner: Bounds): boolean {
 	);
 }
 
+/**
+ * The bounds around every box in `list`. An empty list gives ±Infinity bounds (west and south
+ * Infinity, east and north -Infinity), so callers pass at least one (the lens checks first).
+ */
 export function unionBounds(list: Bounds[]): Bounds {
 	return {
 		west: Math.min(...list.map((b) => b.west)),
