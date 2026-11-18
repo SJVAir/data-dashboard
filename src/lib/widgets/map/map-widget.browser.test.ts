@@ -1,7 +1,7 @@
 import "../../../app.css";
 import axe from "axe-core";
 import type { Feature } from "geojson";
-import type { Snippet } from "svelte";
+import { flushSync, type Snippet } from "svelte";
 import {
 	getActivePesticideNotices,
 	getChemicalDetails,
@@ -3305,11 +3305,14 @@ test("the No spray notices line doesn't flicker across a poll, and goes when not
 	const note = await noticesNote(map);
 	await expect.element(note.getByText(m.map_notices_none_now())).toBeVisible();
 	// The poll: the notices are loading again, and the line stays.
-	nowClient.refetch(nowClient.entries().find((e) => e.key.startsWith("map-notices"))!.key);
+	const key = nowClient.entries().find((e) => e.key.startsWith("map-notices"))!.key;
+	nowClient.refetch(key);
 	await expect
 		.poll(() => vi.mocked(getActivePesticideNotices).mock.calls.length)
 		.toBeGreaterThan(1);
-	await new Promise((r) => setTimeout(r, 50));
+	// The client hands the widget its loading state as the fetch starts; flush it to the page.
+	expect(nowClient.entries().find((e) => e.key === key)?.inFlight).toBe(true);
+	flushSync();
 	expect(note.container.textContent).toContain(m.map_notices_none_now());
 	// A real change still shows: the poll brings a notice, and the line goes.
 	release(noticeCollection([sprayNotice("n1", "s1")]));

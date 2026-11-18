@@ -20,7 +20,7 @@ vi.mock("@sjvair/map-sdk", async (importOriginal) => {
 import axe from "axe-core";
 import { getPesticideSectionDetails, getPesticidesMeta } from "@sjvair/sdk";
 import type { FeatureListItem, MapContext } from "@sjvair/map-sdk";
-import { createRawSnippet, type Snippet } from "svelte";
+import { createRawSnippet, flushSync, type Snippet } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { render } from "vitest-browser-svelte";
 import "../../../app.css";
@@ -458,7 +458,10 @@ describe("the section card's links", () => {
 	it("the hover form has no links", async () => {
 		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
 		const screen = await card({ interactive: false });
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await expect.element(screen.getByText(section().name)).toBeVisible();
+		// Effects have run: the hover form never asks for the meta its links come from.
+		flushSync();
+		expect(getPesticidesMeta).not.toHaveBeenCalled();
 		expect(screen.container.querySelectorAll("a[href]")).toHaveLength(0);
 	});
 });
