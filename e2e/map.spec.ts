@@ -1849,6 +1849,7 @@ test.describe("a Map's pesticide use", () => {
 		await tabTo(card.getByRole("button", { name: "Zoom in", exact: true }));
 		await page.keyboard.press("Enter");
 		await expect.poll(() => useRequests.sections.length).toBeGreaterThan(1);
+		await expectNoViolationsInBothThemes(page);
 
 		expect(useRequests.townships.length).toBeGreaterThan(0);
 		for (const params of useRequests.townships) {
