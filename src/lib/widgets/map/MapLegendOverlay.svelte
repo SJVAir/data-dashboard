@@ -34,12 +34,11 @@
 		</Button>
 	{/if}
 	{#if !narrow || open}
-		<!-- Scrolls when taller than the map under the toolbar; focusable, so a keyboard can scroll it. -->
+		<!-- Scrolls when taller than the map under the toolbar; focusable, so a keyboard can scroll it.
+		     No role or name of its own: map-sdk's legend inside is the "Legend" region. -->
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 		<div
 			class="bg-card text-card-foreground border-border shadow-card pointer-events-auto min-h-0 max-w-72 overflow-y-auto overscroll-contain rounded-(--radius-control) border p-2 text-xs"
-			role="region"
-			aria-label={m.map_legend_region()}
 			tabindex="0"
 		>
 			<Legend {map} framed={false} />

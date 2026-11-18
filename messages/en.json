@@ -1212,7 +1212,6 @@
 	"map_pin_your_location": "Your location",
 	"map_pin_shared_location": "Shared location",
 	"map_legend_toggle": "Legend",
-	"map_legend_region": "Legend",
 	"map_label": "{title} map",
 	"map_label_marks_hidden": "{title} map. {notes}",
 	"map_layer_places": "Places",

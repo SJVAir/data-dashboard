@@ -3926,7 +3926,10 @@ test("at about 300 px tall the legend fits under the toolbar and scrolls", async
 	expect(getComputedStyle(card).overflowY).toBe("auto");
 	// Scrollable, so it can be reached and scrolled by keyboard.
 	expect(card.getAttribute("tabindex")).toBe("0");
-	await expect.element(screen.getByRole("region", { name: m.map_legend_region() })).toBeVisible();
+	// Not a second "Legend" landmark: map-sdk's legend inside it is the one region named so.
+	expect(card.getAttribute("role")).toBeNull();
+	expect(card.getAttribute("aria-label")).toBeNull();
+	expect(screen.getByRole("region", { name: "Legend" }).elements()).toHaveLength(0);
 	tall.remove();
 	const results = await axe.run(frame);
 	expect(results.violations).toEqual([]);
