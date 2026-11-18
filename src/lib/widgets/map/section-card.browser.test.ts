@@ -717,6 +717,25 @@ describe("the section card's township line", () => {
 		expect(map.pinCalls).toEqual([]);
 	});
 
+	it("a township's own card has no In township line, pinned or hovered", async () => {
+		const map = await layers();
+		const tooltip = map.plugins.find((p) => p.id === "townships")!.options.tooltip as Tooltip;
+		const townshipItem = { refKey: TOWNSHIP_REF, name: ID } as FeatureListItem;
+		for (const pinned of [true, false]) {
+			map.pinned = pinned
+				? { hit: { pluginId: "townships", refKey: TOWNSHIP_REF, name: ID } }
+				: null;
+			const screen = await render(RenderSnippet, {
+				snippet: tooltip(townshipItem, township(), {})
+			});
+			await expect.element(screen.getByRole("heading", { name: ID })).toBeVisible();
+			const text = screen.container.textContent?.replace(/\s+/g, " ") ?? "";
+			expect(text).not.toContain(m.map_use_card_in_township_no_figure({ township: ID }));
+			expect(screen.getByRole("button", { name: BUTTON }).query()).toBeNull();
+			screen.unmount();
+		}
+	});
+
 	it("on hover the line is text, not a button, in the same place as the pinned card's", async () => {
 		const map = await layers();
 		const hover = await cardOf(map, "lens", false);
