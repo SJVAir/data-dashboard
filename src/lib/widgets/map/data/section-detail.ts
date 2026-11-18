@@ -16,7 +16,7 @@ export type SectionDetailQuery = {
 	filters: PesticideFilters;
 };
 
-/** How many answers are kept; the oldest is dropped past it. */
+/** How many answers are kept; the least recently used is dropped past it. */
 const KEPT = 50;
 
 /** Each section's details per query: shared while in flight, kept once answered, dropped on failure. */
@@ -40,7 +40,7 @@ function paramsOf(query: SectionDetailQuery): PesticideSectionDetailFilters {
  * A section's details for the Map's period and filters (its months and top chemicals, filtered),
  * for the section card. Callers at once share one request; a caller's `signal` stops only its own
  * wait, so the shared request carries none. A failed request is dropped, so the next call asks
- * again. The last `KEPT` answers are kept.
+ * again. The `KEPT` most recently used answers are kept.
  */
 export function sectionDetail(
 	id: string,
@@ -49,7 +49,11 @@ export function sectionDetail(
 ): Promise<PesticideSectionDetail> {
 	const key = `${id}|${query.year}|${query.month ?? ""}|${filtersKey(query.filters)}`;
 	let request = details.get(key);
-	if (!request) {
+	if (request) {
+		// Least recently used goes first: a hit moves the entry to the end of the map's order.
+		details.delete(key);
+		details.set(key, request);
+	} else {
 		const made = getPesticideSectionDetails(id, paramsOf(query));
 		made.catch(() => {
 			if (details.get(key) === made) details.delete(key);

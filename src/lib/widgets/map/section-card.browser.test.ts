@@ -310,6 +310,19 @@ describe("sectionDetail", () => {
 		]);
 	});
 
+	it("keeps the 50 most recently used answers: a hit keeps an answer past newer ones", async () => {
+		const query = { year: 2023, filters: {} };
+		for (let i = 0; i < 50; i++) await sectionDetail(`s${i}`, query);
+		// A hit on the oldest makes it the newest, so the next new section drops s1 instead.
+		await sectionDetail("s0", query);
+		await sectionDetail("s50", query);
+		vi.mocked(getPesticideSectionDetails).mockClear();
+		await sectionDetail("s0", query);
+		expect(getPesticideSectionDetails).not.toHaveBeenCalled();
+		await sectionDetail("s1", query);
+		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(1);
+	});
+
 	it("a failed request is dropped, and a caller's abort stops only its own wait", async () => {
 		vi.mocked(getPesticideSectionDetails).mockRejectedValueOnce(new Error("down"));
 		await expect(sectionDetail("s1", { year: 2023, filters: {} })).rejects.toThrow("down");
