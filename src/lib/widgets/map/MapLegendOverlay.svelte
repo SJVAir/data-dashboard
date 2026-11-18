@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Legend, type MapContext } from "@sjvair/map-sdk";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import { Button } from "$lib/components/ui/button";
 	import { m } from "$lib/paraglide/messages.js";
 
@@ -34,12 +35,14 @@
 		</Button>
 	{/if}
 	{#if !narrow || open}
-		<!-- Scrolls when taller than the map under the toolbar; focusable, so a keyboard can scroll it.
-		     No role or name of its own: map-sdk's legend inside is the "Legend" region. -->
-		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+		<!-- Scrolls when taller than the map under the toolbar, and is then a Tab stop, so a keyboard
+		     can scroll it. A named group, not a landmark: map-sdk's legend inside is the "Legend"
+		     region. -->
 		<div
 			class="bg-card text-card-foreground border-border shadow-card pointer-events-auto min-h-0 max-w-72 overflow-y-auto overscroll-contain rounded-(--radius-control) border p-2 text-xs"
-			tabindex="0"
+			role="group"
+			aria-label={m.map_legend_scroll()}
+			{@attach scrollFocusable}
 		>
 			<Legend {map} framed={false} />
 		</div>
