@@ -581,6 +581,13 @@ string`) now get the union return type. The mobile app passes a string token, so
     start empty, the notices version creates itself on first read, and section detail starts
     cold once (its cache key version changed). `@sjvair/sdk` `5.0.0-beta.12` and `5.0.0-beta.13`
     need them deployed.
+  - **Pesticide explorer links (sjvair.com
+    [#339](https://github.com/SJVAir/sjvair.com/pull/339), merged into `develop` 2026-11-17,
+    5e669a70, session `sjvair-com-b6`):** nothing to run. No migration, command or cache clear.
+    It adds meta `links`/`link_params`, opt-in filters on `sections/<id>/`, and the reworded
+    `shades_valley` note. `pesticides/meta/` is public with `max-age=86400`, so browsers may keep
+    the old meta (without the links) for up to a day after the deploy. `@sjvair/sdk`
+    `5.0.0-beta.14` needs it deployed.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
@@ -748,6 +755,17 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   1)._ The Playwright container image's Firefox can't create a WebGL context, so `e2e/map.spec.ts`
   skips on Firefox, saying why. Chromium and WebKit run it. **Revisit when** the image's Firefox
   gains WebGL, or a Firefox-only map bug appears.
+- **sjvair.com CI runs take 8–15 minutes instead of 3–4.** _Deferred 2026-11-17 (the user, in
+  sjvair.com [#339](https://github.com/SJVAir/sjvair.com/pull/339)'s session `sjvair-com-b6`)._
+  A temporary `--durations` run blamed two tests from #334 in `camp/api/v2/summaries/tests.py`
+  (`BulkRegionTypeScopeScaleTests`): `test_more_than_1000_regions_by_type_open_days` (383 s) and
+  `test_more_than_1000_regions_by_type` (323 s). Locally both take under a second (requests
+  0.13 s and 0.28 s). The suspected but unconfirmed cause: on CI, tables bloated by rolled-back
+  inserts from earlier tests in the same xdist worker inflate the planner's estimates, so
+  Postgres JIT runs on each query. The likely fix is turning JIT off for the test database,
+  after confirming with one CI run. **Why deferred:** the cause is unconfirmed, confirming it
+  takes CI experiments, and the user kept it out of #339. **Revisit when** a CI run blocks a
+  merge, or the next sjvair.com session has time for its own branch.
 
 ## Documents & saving
 
@@ -1510,7 +1528,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - **map-sdk's legend status row ignores the unavailable reason** and shows generic text; the
       dashboard's banner carries the reason. While unavailable, the status row also replaces the
       section, so the legend note doesn't show. A map-sdk candidate. **Revisit with** the next
-      map-sdk legend change.
+      map-sdk legend change. _Being fixed in `@sjvair/map-sdk` `0.1.0-beta.20` (the user,
+      2026-11-17, session `map-sdk-a2`): the status row shows the source's `reason` and keeps the
+      section's note. Remove this item when beta.20 is published and the dashboard pins it._
     - **A server without `scales["spray-notice"]`** makes the legend say "isn't available right
       now" while the markers would draw (neutral). The server has the scale (#338). **Revisit
       if** the server drops it.
