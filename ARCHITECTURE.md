@@ -1742,13 +1742,18 @@ pollutant is drawn; the places only decide what's highlighted and where the came
   pinned card for a click or tap, its own map-sdk release, which spec 1 needs before it merges.
   Feature picking (method A: the card's Select/Remove and Shift-click) comes in spec 2.
 
-**A Map's pesticide filters (step 5 spec 5a, built 2026-11-16).** A Map has **one pesticide
-filter set**, the same `PesticideFiltersSchema` charts' pesticide layers use (chemical, commodity,
-product, categories, cancer group, method, narrow-to). It is saved on each pesticide layer (the
-notices now; pesticide use in 5b) and kept in step by `setMapPesticideFilters`
-(`src/lib/get-data/map.ts`); `mapPesticideFilters` reads the first. Get data's Map section edits
-it with `PesticideFilters.svelte`, shown with the "Spray notices" switch. Turning notices off
-removes the layer and its filters. Filters are owner choices in Get data, never toolbar rows.
+**A Map's pesticide filters (step 5 spec 5a, built 2026-11-16; pesticide use joined in 5b,
+2026-11-17).** A Map has **one pesticide filter set**, the same `PesticideFiltersSchema` charts'
+pesticide layers use (chemical, commodity, product, categories, cancer group, method, narrow-to).
+It is saved on each of the Map's pesticide layers (the notices, and the place-less pesticide use)
+and kept in step by `setMapPesticideFilters` (`src/lib/get-data/map.ts`); `mapPesticideFilters`
+reads the first. Get data's Map section edits it with `PesticideFilters.svelte`, shown in the
+"Spray notices" section, and in the "Pesticide use" section once use is on. **The set outlives
+either layer while the other is on:** turning notices off keeps it on the use layer, and turning
+them on again takes it from there (`setNotices`); turning use on takes the notices' set
+(`setUse`). Turning off the last pesticide layer removes the set with it. One set applies to use,
+its classes, the section card's detail, and the notices. Filters are owner choices in Get data,
+never toolbar rows.
 
 - **Only what the notices take is sent.** The notices request carries only the filters the
   pesticides meta lists in `notice_filters` (`toNoticeParams`). A saved filter not listed (the
@@ -1758,6 +1763,9 @@ removes the layer and its filters. Filters are owner choices in Get data, never 
 - **Filter-gone** works as on charts, but only for the filters the notices take: a saved
   chemical or product the server no longer has, or a code the meta no longer lists, makes the
   layer unavailable with a banner. A gone crop doesn't.
+- **Pesticide use takes every filter** (`toUseParams`), so any gone filter makes use
+  unavailable (`useFiltersGone`), with the banner and, since `@sjvair/map-sdk` `0.1.0-beta.20`,
+  the reason in the legend's status row too.
 
 ## Map SDK: `@sjvair/map-sdk` + monitor-map rebuilt on it
 
@@ -2035,6 +2043,11 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
   apart from a day stop's (`map-notices:<day>`), so after midnight yesterday's stop never takes
   over Now's undated data; it still carries today's Pacific date, so Now is fetched afresh after
   midnight.
+- **Pesticide use has its own period** (step 5 spec 5b). It doesn't follow the day stop or the
+  date range: it draws `usePeriod` (a year or a month) on Now and on every day stop alike, and it
+  never polls. Converting to a chart keeps the use only when its period overlaps the chart's
+  range; a chart's pesticide layer converts to a Map's use with the chart range's last full listed
+  year, else the latest.
 - **Region fills.** The region type is the Map option `fill` (a region type id), written by Get
   data's "Fill regions by", not a layer: a fill has no pollutant of its own (it follows
   `showing`). It is validated against the region metadata when drawn: an unknown type draws no
@@ -2071,8 +2084,16 @@ for the data that tile holds.
   while hidden, so showing again is instant, with no new request). The group shows when the tile
   has a fill, smoke and fire, or notices. The notices row (`NOTICES_KEY`, in `toolbar/values.ts`)
   is saved as `noticesShown`: only `false` is stored, and it is a toolbar key, so Reset clears it.
-  It applies only while the row is offered. The places' outline (focus area) is always drawn,
-  with no row.
+  It applies only while the row is offered. Spec 5b adds a "Pesticide use" row (`USE_KEY`), saved
+  as `useShown` the same way. The places' outline (focus area) is always drawn, with no row.
+- **The Pesticide use group** (step 5 spec 5b, built 2026-11-17) shows while the tile has a
+  drawable use layer: a Figure select (the catalog's `pesticide-use` entry types, saved as
+  `useFigure`, missing when it is the first), and the period as a Year select (the meta's
+  `years`, plus a saved year it no longer lists, which draws "No data") and a Month select
+  ("Whole year" or a month), together saved as `usePeriod`. `useFigure` and `useShown` are
+  toolbar keys, so Reset clears them; **`usePeriod` isn't a Reset key**, since Reset never
+  changes the data (the period is also chosen in Get data, and is always present while use is
+  on).
 - **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
   inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
   draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor
@@ -2130,19 +2151,26 @@ for the data that tile holds.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.19` and `@sjvair/sdk` `5.0.0-beta.13`
-  (`npm:@jsr/sjvair__sdk@5.0.0-beta.13`), never a range or a dist-tag. The moves:
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.20` and `@sjvair/sdk` `5.0.0-beta.14`
+  (`npm:@jsr/sjvair__sdk@5.0.0-beta.14`), never a range or a dist-tag. The moves:
   - map-sdk `0.1.0-beta.16` (step 5 spec 4, 2026-11-15): region fills.
   - map-sdk `0.1.0-beta.17` (step 5 spec 5a, 2026-11-16): shapes `zoomRange`, the lens, count
     markers, and the legend's units line and note slot.
   - map-sdk `0.1.0-beta.18` (spec 5a): a notice card holds the hover lens (used in 5b).
   - map-sdk `0.1.0-beta.19` (spec 5a): count numbers drawn black or white by contrast with the
     level colour (WCAG 1.4.3).
+  - map-sdk `0.1.0-beta.20` (spec 5b): `map.pin(pluginId, refKey)` (pin another plugin's
+    feature in place, with no camera move; a hover lens held by the card stays held),
+    `legendDisplay` on shapes plugins and the lens, and the unavailable status's `message` in the
+    legend.
   - SDK `5.0.0-beta.11` (spec 4): the whole-type region scope.
   - SDK `5.0.0-beta.12` (spec 5a): `getActivePesticideNotices`, and the pesticides meta's notes,
     badges, links and `notice_filters`.
   - SDK `5.0.0-beta.13` (spec 5a): sections, townships and classes with colours (for 5b), the
     meta's `spray-notice` scale, and each notice's `aerial_ground`.
+  - SDK `5.0.0-beta.14` (spec 5b): the meta's section and chemical link templates
+    (`links`, `link_params`) with `pesticideLinkUrl`, and `getPesticideSectionDetails` taking the
+    value filters and the month.
 
   The dashboard no longer depends on `@maptiler/sdk` directly: the pin's label comes from
   map-sdk's focus area.
@@ -2170,18 +2198,22 @@ for the data that tile holds.
   poll. Each block says how its source is made (`sourceFor`, which may be async) and when it polls
   (`polls`). `switchQueries` (`switch.ts`) keeps the sources still wanted while the queries swap,
   and `dataStatus` (`status.ts`) maps a query's state to map-sdk's. Every block is wired to
-  `setPolling` and `destroy`. A new day-following data set (pesticide use in 5b) is one more
-  `DayLayer`.
+  `setPolling` and `destroy`. A new day-following data set is one more `DayLayer`. Pesticide use
+  (spec 5b) follows no day, so it is a block of its own, `UseBlock` (`use-block.svelte.ts`; see
+  "Pesticide use" below).
 - **What a Map tile holds.** One set of places (on the first pollutant layer only, so every
   place-handling path sees one place), one or more pollutants (one `air-quality` layer each, from
   the monitors meta's `available_pollutants`; at most 4, `MAP_POLLUTANTS_MAX`, since `LAYERS_MAX`
   is 8 less smoke, fire, notices and pesticide use; step 5 spec 5a lowered it from 6), smoke and
   fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added and removed together),
-  and spray notices on or off (the place-less `{ dataset: "pesticide-notices", filters? }`, spec
-  5a). Saved options (`options.ts`, `MapOptionsSchema`): `showing` (the entry type drawn now; the
-  first pollutant until the toolbar switches it, which spec 3 added) and `marks` (monitor ids, at
-  most 25, unique); spec 4 added `day`, `fill` and `fillShown` (see "The Map's days and region
-  fills"), and spec 5a added `noticesShown`. Invalid or missing options read as none.
+  spray notices on or off (the place-less `{ dataset: "pesticide-notices", filters? }`, spec
+  5a), and pesticide use on or off (the place-less `{ dataset: "pesticide-use", filters? }`, spec
+  5b; a chart's place-held pesticide layers are another thing). Saved options (`options.ts`,
+  `MapOptionsSchema`): `showing` (the entry type drawn now; the first pollutant until the toolbar
+  switches it, which spec 3 added) and `marks` (monitor ids, at most 25, unique); spec 4 added
+  `day`, `fill` and `fillShown` (see "The Map's days and region fills"), spec 5a added
+  `noticesShown`, and spec 5b added `useFigure`, `usePeriod` and `useShown` (removed with the use
+  layer). Invalid or missing options read as none.
 - **Spray notices** (step 5 spec 5a, built 2026-11-16; spec
   `docs/superpowers/specs/2026-11-16-step-5-spec-5-pesticides-and-notices-design.md`). The
   catalog's `pesticide-notices` (entry type `spray-notice`), loaded by `notices.ts` from
@@ -2218,6 +2250,61 @@ for the data that tile holds.
   - **Failures.** A failed load shows the note banner with Retry. A saved filter the server no
     longer has makes the source `unavailable` (`filter-gone`) with a banner, never an empty
     layer; only filters the notices take (the meta's `notice_filters`) can do that.
+- **Pesticide use** (step 5 spec 5b, built 2026-11-17; same spec). The catalog's
+  `pesticide-use`, drawn by township when zoomed out and by square-mile section when zoomed in.
+  - **The figure and the period.** `useFigure` is one of the catalog's `pesticide-use` entry
+    types (pounds applied, acres treated, applications); missing means the catalog's first, an
+    unknown one draws the first, and neither is written. `usePeriod` is `"YYYY"` or `"YYYY-MM"`,
+    written as the meta's latest year when Get data turns use on, and checked against the meta's
+    `years` before any request (the server answers an unlisted year with its latest). A missing
+    period draws the latest listed year, never written; a saved period the meta no longer lists
+    asks for nothing and reads "No data for ‹period›". `use-period.ts` parses and labels it.
+  - **Loading** (`UseBlock`, with `use.ts`). The valley's townships come in one `townships/`
+    request per period and filters, with outlines only the first time (later requests ask
+    values only and join the remembered outlines). From the **section zoom**, the sections in the
+    view padded by half a view (`BBOX_PAD`) come from `sections/?bbox=`, debounced, and are asked
+    again only when the view leaves what is loaded. The section zoom is the explorer's
+    `sectionZoom()` (`use-geometry.ts`): from zoom 11, the first whole zoom whose view at the
+    tile's size holds at most 2,000 square miles, at a fixed latitude (the places' frame, else the
+    valley's townships), so a pan never changes it. A padded box the server refuses (400) is
+    asked again unpadded; a second refusal raises the section zoom one step for the session
+    (`refusedZoom`), with the townships still drawn. In-flight requests are shared and dropped on
+    failure. Nothing sends `county`, a point or a region: only a `bbox`, or nothing. **Use never
+    polls**; its data changes at most once a year.
+  - **The scale.** Each response's `classes.<figure>` becomes a map-sdk `Scale`
+    (`use-scale.ts`): `breaks[i]` is class i's inclusive upper bound, each colour is the class's
+    own `colors[i]` (never sampled from `meta.ramp`), and the labels are formatted through
+    `format` at the catalog's precision, with extra digits only when neighbouring breaks would
+    read the same. It is served through the host metadata provider under a **stable `ScaleRef`
+    per figure, level and query** (map-sdk matches a resolved scale by identity), registered
+    before the source exposes it. Zero use is **outlined with no fill** and reads "No data"
+    (`noFigure: "outline"`; `meta.ramp.no_data` isn't used).
+  - **Three plugins** (`layers/UseLayers.svelte`): `shapesPlugin` "townships" up to the section
+    zoom, `shapesLens` "lens", and `shapesPlugin` "sections" from the section zoom (`zoomRange`),
+    all with `legendDisplay: "blocks"` and one legend section through the shared ref. The legend
+    names the figure, the period and the level, and its note (`UseLegendNote.svelte`) holds "No
+    data for ‹period›", the active filters, and the meta's `pur_lag` and `shades_valley` notes.
+    Feature refKeys are prefixed so plugins never collide: `township:<PLSS id>` and
+    `section:<section id>` (`encodeRef`).
+  - **The lens.** At township zoom, resting on a township (about 50 ms) draws the sections of its
+    3 × 3 block of townships over it, shaded with the valley-wide section classes; leaving clears
+    it after a short grace, and Escape clears it. The township card's "Show square miles" pins
+    it: the keyboard and touch path.
+  - **The cards** (`TownshipCard.svelte`, `SectionCard.svelte`, through `use-tooltip.ts`, cached
+    per feature and form from mount, reading the latest properties by refKey, as notices do). On
+    hover a card is a static summary; pinned or focused it is interactive. Both show the
+    period's three figures, the shown figure's class in words and the active filters. The
+    township card adds the section count, "Show square miles" and "Zoom in". The section card
+    adds, from `sections/<id>/` (asked with the Map's filters, `narrow` and the month, only when
+    interactive; an LRU of 50), the year's months as small bars with a text alternative, "Peaks
+    in ‹month›", and up to 3 top chemicals with their badges in text (ranked by pounds; see
+    `DEFERRED.md`). Its explorer links (Section details, Records here, Notices here, and each
+    chemical's name) come from the meta's `links` through `pesticideLinkUrl`
+    (`section-links.ts`); a link the meta lacks is left out. Its "In township ‹id› · ‹figure›"
+    line makes the id a button ("Open township ‹id›") that swaps in the township's card in place
+    (`map.pin`), while the townships plugin lists the township.
+  - **Failures.** A failed load shows the note banner with Retry; a gone filter makes the sources
+    `unavailable` (`filter-gone`), with the banner and the reason in the legend.
 - **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
   those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
   in its `placeRegion` region, the one the frame uses), and only those reporting the pollutant
@@ -2273,14 +2360,22 @@ for the data that tile holds.
   on entering or leaving fullscreen, after the frame's animations settle. A pan or zoom lasts
   only for the moment (it survives a theme switch's style reload). A map holding an exact point
   frames the point's region, never the point (see "Widget data selection").
-- **Layers:** the monitors, smoke and fire, and the spray notices as the tile's entries give
-  them (`selectedStyle: "ring"` marks the marked monitors), and map-sdk's **focus area**
-  (`focusAreaPlugin`, `focus.ts`): the places' outline with the surround dimmed, or a labelled
-  pin for a school or exact point. It
+- **Layers:** the monitors, smoke and fire, the spray notices and pesticide use as the tile's
+  entries give them (`selectedStyle: "ring"` marks the marked monitors), and map-sdk's **focus
+  area** (`focusAreaPlugin`, `focus.ts`): the places' outline with the surround dimmed, or a
+  labelled pin for a school or exact point. It
   replaces spec 1's outline layer, pin layer and the dashboard's own pin label. **Draw order,
-  bottom to top:** the fill, the focus area, smoke and fire and the notices (each placed under
-  the monitors), then the monitors (spec 5a ruling: notices sit above the focus area, and the
-  monitors stay on top). Monitor places get
+  bottom to top:** the fill, pesticide use (townships, lens, sections), the focus area, smoke and
+  fire and the notices (each placed under the monitors), then the monitors (spec 5a ruling:
+  notices sit above the focus area, and the monitors stay on top; spec 5b ruling, checked on
+  screen: use sits above the fill, or its classes can't be matched to the legend and the fill
+  takes the pointer from the lens). `layers/order.ts` places each layer.
+- **One component per layer** (spec 5b, 2026-11-17): `layers/HmsLayers.svelte`,
+  `FillLayer.svelte`, `NoticesLayer.svelte` and `UseLayers.svelte` add and remove their plugins;
+  `MapNotes.svelte` holds the notes under the toolbar, all through one `MapNote.svelte` banner;
+  `MapLegendOverlay.svelte` holds the legend (its scroll wrapper has `tabindex="0"` but is no
+  second "Legend" region). `MapWidget.svelte` (about 1,020 lines) keeps the map's creation, the
+  marks sync and the wiring. Monitor places get
   no focus area (only those monitors are drawn and the camera fits them). Region geometry comes
   from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
   (each region fetched once, one request per region type). `featureList={{ reveal: "focus" }}` is
@@ -3507,6 +3602,18 @@ pink `#e64980`, the user's pick), `notes` (the explainer, such as `noi_meaning`;
 displayed and never stored), `links.spraydays_signup`, `badges`, the `methods` labels the card
 reads by each notice's `aerial_ground` (sjvair.com #338), and `notice_filters`. No colour, label
 or link is hardcoded.
+
+**The pesticides meta for pesticide use** (step 5 spec 5b, `@sjvair/sdk` `5.0.0-beta.13` and
+`5.0.0-beta.14`). The Map's use reads from `pesticides/meta/`: `years` (the periods offered,
+newest first; a period is checked against it before any request, since the server answers an
+unlisted year with its latest), `notes.pur_lag` (when the data is released) and
+`notes.shades_valley` (how the shading reads) for the legend note, `badges` for the section
+card's chemicals (in text), and `links` with `link_params` for the card's explorer links (filled
+by `pesticideLinkUrl`; a missing link is left out). The classes come with each `townships/` and
+`sections/` response (`classes.<figure>`: inclusive upper `breaks` and one colour per break),
+not from the meta; `meta.ramp` isn't sampled, and `ramp.no_data` isn't used (zero use is an
+outline). The figures' labels, units and precision come from the catalog's `pesticide-use` entry
+types.
 
 **Shared action tiers** (decided 2026-09-28). Scales with different step counts and names
 (6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every

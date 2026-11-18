@@ -322,14 +322,17 @@ The deferrals this spec makes due (`DEFERRED.md` → "Step 5 spec 4 review lefto
   identity** per (figure, level, period, filters), since map-sdk matches a resolved scale by
   identity (spec 4's lesson). The colours come from the meta's ramp, sampled to the class count
   as the server's `sample_ramp` does (my call: the client samples only the server's own ramp, and
-  invents no colour). Zero use is drawn **outlined with no fill** and reads "No data"
-  (`noFigure: "outline"`). The legend names the figure, the period and the level ("Pounds
-  applied, 2023, lbs per township"), and shows the shades note. The class ranges come from the
-  breaks, formatted through `format` with the catalog's precision.
+  invents no colour). _Changed while planning 5b: the colours are the server's own
+  `classes.<figure>.colors`, one per break; see "Calls made after the builder check"._ Zero use
+  is drawn **outlined with no fill** and reads "No data" (`noFigure: "outline"`). The legend
+  names the figure, the period and the level ("Pounds applied, 2023, lbs per township"), and
+  shows the shades note. The class ranges come from the breaks, formatted through `format` with
+  the catalog's precision.
 - **Draw order:** a tile with a fill and use shows both. Use goes under the fill (my call: the
   fill is the air-quality context and stays readable on top at its lower opacity). The builder
   checks this on screen and may swap them, recording why. Monitors, notices and the focus area
-  are always on top.
+  are always on top. _Swapped in 5b: use draws above the fill; see "Calls made after the builder
+  check"._
 - **Toolbar:** a "Pesticide use" group with the figure (a select of three) and the period, plus a
   Layers row "Pesticide use" (show/hide, saved as `useShown`; only `false` is stored).
 - **The lens.**
@@ -346,12 +349,14 @@ The deferrals this spec makes due (`DEFERRED.md` → "Step 5 spec 4 review lefto
   - The section code and county.
   - The period's three figures, with the shown figure's class in words.
   - The top chemicals (up to 3 by the shown figure, as the explorer does), each with its badges
-    in text, never colour alone.
+    in text, never colour alone. _As built: ranked by pounds, since `sections/<id>/` gives
+    pounds only (see `DEFERRED.md`)._
   - The year's 12 months as small bars, with a text alternative listing each month.
   - "Peaks in ‹month›". The month is the largest of the year's months, named through `format`; it
     is left out when every month is zero.
   - **"Open in Pesticides Explorer"**, linking to sjvair.com's `/tools/pesticides/sections/<id>/`
-    with the year.
+    with the year. _Replaced in 5b: the explorer popup's links, from the meta; see "Calls made
+    after the builder check"._
 
   The data comes from `sections/<id>/`, fetched when the card opens and cached per section and
   period.
@@ -447,8 +452,8 @@ The deferrals this spec makes due (`DEFERRED.md` → "Step 5 spec 4 review lefto
 
 ## Calls made after the builder check
 
-The first four calls are mine, made at the builder check. The rest were made while building 5a,
-each marked as mine or the user's.
+The first four calls are mine, made at the builder check. The rest were made while building 5a
+and 5b, each marked as mine, the user's or the builder's.
 
 - **The layer limit.** A Map's layers stay within `LIMITS.LAYERS_MAX` (8): smoke, fire, notices
   and use take 4, so `MAP_POLLUTANTS_MAX` becomes `LAYERS_MAX - 4` (4). The server offers 2
@@ -456,8 +461,10 @@ each marked as mine or the user's.
   and the document schema's own limit doesn't change. `DEFERRED.md` → "More than 6 pollutants on
   one Map" becomes "more than 4".
 - **A Map with use, converted to a chart.** The chart keeps the Map's date range (as today). The
-  use layer comes along only if its period falls inside that range. Otherwise it is dropped, with
-  a conversion note naming the period ("Pesticide use for 2023 isn't in these dates"). The range
+  use layer comes along only if its period **overlaps** that range (the builder, 2026-11-17,
+  replacing "falls inside": a chart range is at most 366 days, so a whole year would almost never
+  fit, and the note's own wording is only true under overlap). Otherwise it is dropped, with a
+  conversion note naming the period ("Pesticide use for 2023 isn't in these dates"). The range
   doesn't follow `usePeriod`, since that would also move the air-quality layers.
 - **A chart with several pesticide layers, converted to a Map.** The Map takes the **first**
   pesticide-use layer: its filters become the Map's filter set, and its entry type becomes
@@ -497,6 +504,87 @@ each marked as mine or the user's.
   spring isn't measured yet (`DEFERRED.md`).
 - **Notices draw above the focus area** (mine), under the monitors, and **cluster only while the
   toolbar's Clusters setting is on** (mine): the setting applies to every clustered layer.
+
+Made while planning and building 5b (2026-11-17):
+
+- **Decisions made while planning** (the user, 2026-11-17):
+  - **The section card's links match the explorer popup's:** Section details, Records here,
+    Notices here, and a link on each top chemical's name. Each opens in a new tab with
+    `ExternalLinkCue` and `rel="noopener noreferrer"`. The card has no "Zoom in" (the township
+    card keeps its own).
+  - **The section card's months and top chemicals follow the Map's filters.** `sections/<id>/`
+    takes the value filters and the month (sjvair.com, typed in `@sjvair/sdk` `5.0.0-beta.14`).
+    The card's own figures come from the filtered map feature.
+  - **Zero use is an outline with no fill**, and the legend reads "No data". `meta.ramp.no_data`
+    isn't used. The server rewords `notes.shades_valley` (it said "Gray means…"); it now ends "An
+    outline with no shading means nothing was reported."
+  - **"Located in".** The section card has a line "In township ‹id› · ‹figure›" that swaps the
+    card for the township's, in place: the mouse path to the township card, which the hover lens
+    otherwise covers. It uses map-sdk's public `map.pin` (`@sjvair/map-sdk` `0.1.0-beta.20`).
+  - **Which cards name the filters:** the section card, the township card and the use legend.
+  - **"Notices here" stays a link.** The section card doesn't list the section's notices, unlike
+    the explorer's popup.
+  - **5a leftovers fixed here:** the `MapWidget` split with one note banner, filters kept across
+    off and on, the filter-change refetch test, and the notice card's flicker and focus items.
+- **The class colours are the server's** (made while planning, 2026-11-17). Each class colour is
+  `classes.<figure>.colors[i]`, one per break and in break order (`@sjvair/sdk` `5.0.0-beta.13`).
+  The client never samples `meta.ramp.colors`, replacing Part 2's sampling call.
+- **The section card's links come from the meta** (the user, 2026-11-17), replacing the
+  hardcoded `/tools/pesticides/sections/<id>/`. `pesticides/meta/` gives `links` (URL templates
+  for `section_page`, `section_records`, `section_notices`, `section_notices_past` and
+  `chemical_page`) and `link_params` (the query parameters each takes), and `@sjvair/sdk`
+  `5.0.0-beta.14`'s `pesticideLinkUrl` fills them by the server's rule. A link the meta lacks is
+  left out. The section links carry the period and the Map's filters; the notices link is
+  `section_notices_past`, with the day's year and month, while the notices layer is on and
+  showing a past day, else `section_notices`. **The chemical link carries the Map's filters
+  except `chemical_id`** (the link names its own chemical), `narrow` included. The links show on
+  the interactive card only, while the detail loads and when it fails too. The dev server proxies
+  `/tools/` and `/static/` to the local stack, since the server builds the links from the
+  request's host.
+- **The section detail follows the Map** (the builder, 2026-11-17). `sections/<id>/` is asked with
+  the Map's filters, `narrow` and, for a month period, the month, only for the interactive card
+  (never on hover). Its cache is keyed by section, year, month and filters, shares a request
+  while in flight, and keeps the 50 most recently used answers (an LRU).
+- **Use draws above the fill** (the builder, checked on screen 2026-11-17; the coordinator
+  agreed), swapping Part 2's provisional order. Under the fill, use's classes can't be matched to
+  the legend, and the fill takes the pointer, so the lens never opens and the township card is
+  out of reach while a fill is on. Bottom to top: the fill, the townships, the lens, the
+  sections, the focus area, smoke and fire and the notices, then the monitors
+  (`layers/order.ts`).
+- **The section zoom** (the builder, 2026-11-17). It is the explorer's `sectionZoom()` with the
+  explorer's values: from zoom 11, the first whole zoom whose view at the tile's size holds at
+  most 2,000 square miles, capped at 18. It reads a fixed latitude (the places' frame, else the
+  valley's townships), so panning never changes it, and the plugins are made once the tile has a
+  size. A padded `sections/` request the server refuses (400) is retried unpadded; a second
+  refusal raises the section zoom one step for the session (`refusedZoom`), and the townships
+  stay drawn meanwhile, so the map is never blank.
+- **Feature refKeys are prefixed** (the builder, 2026-11-17), so plugins never collide:
+  `township:<PLSS id>` and `section:<section id>` (through `encodeRef`), beside the notices'
+  `feature:<section id>`.
+- **A missing `usePeriod` draws the latest listed year** (the builder, 2026-11-17), the year the
+  toolbar shows, and is never written ("fallbacks are drawn, not saved"). A saved period the meta
+  no longer lists still reads "No data for ‹period›" and asks for nothing.
+- **`MapWidget.svelte` at about 806 lines is fine** (the user, 2026-11-17), against the plan's
+  "under 700" aim after the split. The next moves (map creation, the marks sync) depend on plugin
+  order.
+- **The 5a banners stay, and the legend also says why** (the builder, 2026-11-17). On
+  `@sjvair/map-sdk` `0.1.0-beta.20` an unavailable source passes a translated `message`, so the
+  legend's status row names the reason for notices and use (filter-gone). The banners stay: they
+  carry the Edit data action for an editor, and show while the legend is folded on a narrow tile.
+- **The "In township" line** (the builder, 2026-11-17, from the plan's approved wording "whose
+  township name is a button"). It sits in the card body on both forms. On the interactive card
+  only the township id is a button (accessible name "Open township ‹id›"), and only while the
+  townships plugin lists it; from the section zoom on, the id is plain text. A township's own
+  card has no line.
+- **`legendDisplay: "blocks"` on all three use plugins** (the builder, 2026-11-17): townships,
+  lens and sections (plugins sharing a `ScaleRef` take the first one's display). A gradient's
+  tick labels ran together with 8 classes.
+- **The legend's scroll wrapper isn't a second "Legend" region** (the builder, 2026-11-17). It
+  keeps `tabindex="0"` but drops `role="region"` and its label: nested landmarks with the same
+  name are an accessibility bug.
+- **A minors sweep before the docs** (the user, 2026-11-17). The task reviews' minors were fixed
+  in one pass after Task 11; what it left is in `DEFERRED.md` → "Step 5 spec 5b review
+  leftovers".
 
 ## Open with the server
 
