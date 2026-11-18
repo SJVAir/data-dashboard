@@ -182,7 +182,13 @@ async function askTownships(q: UseQuery): Promise<Townships> {
 	return { classes: answer.classes, features: answer.features };
 }
 
-/** Whether `error` is the server's 400 (the SDK keeps the response as the error's cause). */
+/**
+ * Whether `error` is the server's 400 (the SDK keeps the response as the error's cause). Every 400
+ * from `sections/` is read as `TooLarge` (a bbox over the server's cap), though the server also
+ * answers 400 for a bad year or filter. That's safe today: the townships load first with the same
+ * params and would fail on them first, so a 400 that reaches `sections/` is the bbox. The server's
+ * English message isn't matched (it's wording, not a contract).
+ */
 function isBadRequest(error: unknown): boolean {
 	const cause = error instanceof Error ? (error.cause as { result?: { status?: number } }) : null;
 	return cause?.result?.status === 400;
