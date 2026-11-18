@@ -88,12 +88,6 @@
 		)
 	);
 
-	/**
-	 * A section's township, for its card's "In township ‹id› · ‹figure›" line: the figure the map
-	 * shows, from the loaded townships (by `parentOf`). `pinnable` while the townships hold it and
-	 * are drawn on `current` (below the section zoom `z`: map-sdk lists none from there, so it
-	 * couldn't pin one). Null for a township.
-	 */
 	/** The scale the townships are drawn with, once registered; null while it resolves. */
 	function townshipsScale(): Scale | null {
 		const ref = townships.scale;
@@ -101,6 +95,12 @@
 		return "dataset" in ref ? (useScaleFor(ref) ?? null) : ref;
 	}
 
+	/**
+	 * A section's township, for its card's "In township ‹id› · ‹figure›" line: the figure the map
+	 * shows, from the loaded townships (by `parentOf`). `pinnable` while the townships hold it and
+	 * are drawn on `current` (below the section zoom `z`: map-sdk lists none from there, so it
+	 * couldn't pin one). Null for a township.
+	 */
 	function townshipOf(props: UseProps, current: MapContext, z: number): UseTownshipLine | null {
 		const refKey = parentOf(props);
 		if (!refKey) return null;
