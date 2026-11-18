@@ -581,10 +581,27 @@ Made while planning and building 5b (2026-11-17):
   tick labels ran together with 8 classes.
 - **The legend's scroll wrapper isn't a second "Legend" region** (the builder, 2026-11-17). It
   keeps `tabindex="0"` but drops `role="region"` and its label: nested landmarks with the same
-  name are an accessibility bug.
+  name are an accessibility bug. _Replaced in the final review; see "The legend's scroll wrapper
+  is a named group" below._
 - **A minors sweep before the docs** (the user, 2026-11-17). The task reviews' minors were fixed
   in one pass after Task 11; what it left is in `DEFERRED.md` → "Step 5 spec 5b review
   leftovers".
+- **Use numbers on the cards** (the final review, 2026-11-17). A use figure above zero never
+  reads "0": values are written at the catalog's precision, and a non-zero value that would round
+  to zero gets more digits until it doesn't. The shown figure also gets more digits while its
+  rounded value falls outside its own class. One helper, `formatUseValue` (`data/use-scale.ts`),
+  serves all three card figures and the "In township" line.
+- **"No data for ‹period›" and filter-gone in the legend** (the final review, 2026-11-17). When a
+  saved period isn't listed or a filter is gone, the townships and sections sources each report
+  `unavailable` with the message as a translated `message`. map-sdk draws one status row with the
+  note under it, at every zoom (the zoom ranges don't overlap, and the lens adds no row). A key
+  that fails to load exposes its empty scale, never the previous key's classes, and the failure
+  banner says why. The earlier "the layer reads No data for ‹period›" call now works this way.
+- **The legend's scroll wrapper is a named group** (the final review, 2026-11-17). It is
+  `role="group"`, named "Legend, scrollable", and a Tab stop only while it overflows, through the
+  shared `scrollFocusable` attachment (`src/lib/components/shared/scroll-focusable.ts`). map-sdk's
+  legend inside it stays the only "Legend" region. This replaces the "wrapper isn't a second
+  Legend region" call above.
 
 ## Open with the server
 

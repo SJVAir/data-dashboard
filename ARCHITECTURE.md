@@ -2278,12 +2278,20 @@ for the data that tile holds.
     read the same. It is served through the host metadata provider under a **stable `ScaleRef`
     per figure, level and query** (map-sdk matches a resolved scale by identity), registered
     before the source exposes it. Zero use is **outlined with no fill** and reads "No data"
-    (`noFigure: "outline"`; `meta.ramp.no_data` isn't used).
+    (`noFigure: "outline"`; `meta.ramp.no_data` isn't used). The cards' figures and the "In
+    township" line go through one helper, `formatUseValue`: a figure above zero never reads "0"
+    (a value that would round to zero gets more digits until it doesn't), and the shown figure
+    gets more digits while its rounded value falls outside its own class (the final review,
+    2026-11-17).
   - **Three plugins** (`layers/UseLayers.svelte`): `shapesPlugin` "townships" up to the section
     zoom, `shapesLens` "lens", and `shapesPlugin` "sections" from the section zoom (`zoomRange`),
     all with `legendDisplay: "blocks"` and one legend section through the shared ref. The legend
-    names the figure, the period and the level, and its note (`UseLegendNote.svelte`) holds "No
-    data for ‹period›", the active filters, and the meta's `pur_lag` and `shades_valley` notes.
+    names the figure, the period and the level, and its note (`UseLegendNote.svelte`) holds the
+    active filters and the meta's `pur_lag` and `shades_valley` notes. When a saved period isn't
+    listed or a filter is gone, the townships and sections sources report `unavailable` with a
+    translated `message` ("No data for ‹period›", filter-gone), which map-sdk draws as one status
+    row with the note under it at every zoom; the lens adds no row. A key that fails to load
+    exposes its empty scale, never the previous key's classes, and the failure banner says why.
     Feature refKeys are prefixed so plugins never collide: `township:<PLSS id>` and
     `section:<section id>` (`encodeRef`).
   - **The lens.** At township zoom, resting on a township (about 50 ms) draws the sections of its
@@ -2373,8 +2381,9 @@ for the data that tile holds.
 - **One component per layer** (spec 5b, 2026-11-17): `layers/HmsLayers.svelte`,
   `FillLayer.svelte`, `NoticesLayer.svelte` and `UseLayers.svelte` add and remove their plugins;
   `MapNotes.svelte` holds the notes under the toolbar, all through one `MapNote.svelte` banner;
-  `MapLegendOverlay.svelte` holds the legend (its scroll wrapper has `tabindex="0"` but is no
-  second "Legend" region). `MapWidget.svelte` (about 1,020 lines) keeps the map's creation, the
+  `MapLegendOverlay.svelte` holds the legend (its scroll wrapper is `role="group"`, named "Legend,
+  scrollable", and a Tab stop only while it overflows, through the shared `scrollFocusable`
+  attachment in `src/lib/components/shared/`; map-sdk's legend stays the only "Legend" region). `MapWidget.svelte` (about 1,020 lines) keeps the map's creation, the
   marks sync and the wiring. Monitor places get
   no focus area (only those monitors are drawn and the camera fits them). Region geometry comes
   from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
