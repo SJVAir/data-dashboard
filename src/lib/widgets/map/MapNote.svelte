@@ -2,7 +2,8 @@
 	/** One map note: its message, its `data-*` hook, and a button when there's something to do. */
 	export type MapNoteProps = {
 		message: string;
-		hook: string;
+		/** The `data-*` attribute's name after `data-`, such as `map-use-failed`. */
+		hook: `map-${string}`;
 		action?: { label: string; onclick: () => void };
 	};
 </script>
