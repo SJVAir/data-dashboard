@@ -51,6 +51,7 @@ export const MAP_MESSAGES: Record<MessageKey, Message> = {
 	mapsdk_zoom_out: fill(m.mapsdk_zoom_out),
 	mapsdk_map_label: fill(m.mapsdk_map_label),
 	mapsdk_unavailable: fill(m.mapsdk_unavailable),
+	mapsdk_unavailable_line: fill(m.mapsdk_unavailable_line),
 	mapsdk_loading: fill(m.mapsdk_loading),
 	mapsdk_error_retry: fill(m.mapsdk_error_retry),
 	mapsdk_legend_label: fill(m.mapsdk_legend_label),

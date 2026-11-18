@@ -24,6 +24,8 @@ export type UseTooltipContext = {
 	filters: PesticideFilters;
 	/** The past day the notices layer shows (reactively), or null. */
 	noticesDay: () => NoticesDay | null;
+	/** A section's "In township ‹id› · ‹figure›" line (reactively); null for a township. */
+	townshipLine: (props: UseProps) => string | null;
 	/** "Show square miles" on a township. */
 	onshow: (refKey: string) => void;
 	/** "Zoom in" on a township. */
@@ -80,6 +82,9 @@ export function useTooltips(context: UseTooltipContext): UseTooltip {
 					},
 					get noticesDay() {
 						return context.noticesDay();
+					},
+					get townshipLine() {
+						return context.townshipLine(latest());
 					},
 					filters: context.filters,
 					figure: context.figure,

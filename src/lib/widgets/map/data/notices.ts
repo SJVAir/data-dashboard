@@ -245,7 +245,11 @@ export function noticesSourceOf(d: {
 	return {
 		get status(): DataStatus {
 			const reason = d.noticesUnavailable;
-			return reason ? { state: "unavailable", reason } : dataStatus(d.noticesState);
+			if (!reason) return dataStatus(d.noticesState);
+			// The legend's status row says why (the map's banner too, with Edit data).
+			return reason === "filter-gone"
+				? { state: "unavailable", reason, message: m.map_notices_filter_gone() }
+				: { state: "unavailable", reason };
 		},
 		get features() {
 			return d.noticesState.data === undefined ? null : d.noticesDrawn.features;

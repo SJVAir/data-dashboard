@@ -19,7 +19,7 @@ vi.mock("@sjvair/map-sdk", async (importOriginal) => {
 
 import axe from "axe-core";
 import { getPesticideSectionDetails, getPesticidesMeta } from "@sjvair/sdk";
-import type { FeatureListItem, MapContext } from "@sjvair/map-sdk";
+import type { CardContext, FeatureListItem, MapContext } from "@sjvair/map-sdk";
 import { createRawSnippet, type Snippet } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { render } from "vitest-browser-svelte";
@@ -34,7 +34,7 @@ import { buildUseScale } from "./data/use-scale";
 import UseLayers from "./layers/UseLayers.svelte";
 import SectionCard from "./SectionCard.svelte";
 import RenderSnippet from "./test-harness/RenderSnippet.svelte";
-import { FakeMap } from "./test-harness/fake-map.svelte";
+import { FakeMap, fakeLenses } from "./test-harness/fake-map.svelte";
 
 const FIGURES = [
 	{ id: "pounds-applied", label: "Pounds Applied", units: "lbs", precision: 0 },
@@ -162,6 +162,7 @@ function card(over: Record<string, unknown> = {}) {
 			filtersLine: null,
 			filters: {},
 			noticesDay: null,
+			townshipLine: null,
 			interactive: true,
 			...over
 		}
@@ -570,5 +571,156 @@ describe("a section's card on the map", () => {
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(1);
 		await expect.element(screen.getByText(m.map_use_card_detail_failed())).toBeVisible();
+	});
+});
+
+describe("the section card's township line", () => {
+	const TOWNSHIP_REF = "feature:township:MDM-T15S-R20E";
+	const township = (over: Partial<UseProps> = {}): UseProps => ({
+		refKey: TOWNSHIP_REF,
+		name: "MDM-T15S-R20E",
+		value: 1234,
+		level: "township",
+		id: "MDM-T15S-R20E",
+		county: null,
+		township: "MDM-T15S-R20E",
+		sections: 36,
+		lbs_chemical: 1234,
+		acres_treated: 120.5,
+		applications: 12,
+		...over
+	});
+	const sourceOf = (features: UseProps[]) => ({
+		status: { state: "ready" },
+		features: {
+			type: "FeatureCollection",
+			features: features.map((properties) => ({
+				type: "Feature",
+				geometry: { type: "Point", coordinates: [0, 0] },
+				properties
+			}))
+		},
+		scale: null
+	});
+	const LINE = m.map_use_card_in_township({
+		township: "MDM-T15S-R20E",
+		value: formatValue(1234, 0),
+		units: "lbs"
+	});
+
+	/** UseLayers on a fake map with one township and its section, and the card actions it gives. */
+	async function layers(townships: UseProps[] = [township()]) {
+		const map = new FakeMap();
+		map.addPlugin({ id: "focus", kind: "focus", options: {} });
+		let actions: Snippet<[CardContext]> | null = null;
+		await render(UseLayers, {
+			map: map as unknown as MapContext,
+			townships: sourceOf(townships) as never,
+			sections: sourceOf([section()]) as never,
+			lensSource: sourceOf([section()]) as never,
+			block: () => [],
+			parentOf: (props: UseProps) => (props.level === "section" ? TOWNSHIP_REF : null),
+			label: "Pounds Applied, 2023",
+			units: "lbs",
+			zoom: 12,
+			queryKey: "q",
+			query: { figure: "pounds-applied", period: PERIOD, filters: {}, info: FIGURES[0] },
+			noticesDay: null,
+			figures: FIGURES,
+			drawn: true,
+			loads: true,
+			note: createRawSnippet(() => ({ render: () => "<p></p>" })),
+			onlens: () => {},
+			oncardactions: (snippet: Snippet<[CardContext]> | null) => (actions = snippet)
+		});
+		await expect.poll(() => map.plugins.some((p) => p.id === "lens")).toBe(true);
+		await expect.poll(() => actions).not.toBeNull();
+		return { map, actions: actions! };
+	}
+
+	/** The card actions for a section pinned from `pluginId`, as map-sdk renders them. */
+	function contextOf(map: FakeMap, pluginId: string, refKey = section().refKey): CardContext {
+		map.pinned = { hit: { pluginId, refKey, name: section().name } };
+		return {
+			pluginId,
+			ref: { kind: "feature", id: refKey.slice("feature:".length) },
+			refKey,
+			item: { refKey, name: section().name } as FeatureListItem,
+			selectable: false,
+			selected: false,
+			toggle: () => {}
+		};
+	}
+
+	it("the section card names its township and figure", async () => {
+		const { map, actions } = await layers();
+		for (const id of ["lens", "sections"]) {
+			const screen = await render(RenderSnippet, {
+				snippet: actions,
+				card: contextOf(map, id)
+			});
+			await expect.element(screen.getByRole("button", { name: LINE })).toBeVisible();
+			screen.unmount();
+		}
+	});
+
+	it("the township button opens the township card in place, the lens still held, the camera unmoved", async () => {
+		const { map, actions } = await layers();
+		const lens = fakeLenses.at(-1)!;
+		lens.pin(TOWNSHIP_REF);
+		const screen = await render(RenderSnippet, { snippet: actions, card: contextOf(map, "lens") });
+		await screen.getByRole("button", { name: LINE }).click();
+		expect(map.pinCalls).toEqual([["townships", TOWNSHIP_REF]]);
+		expect(map.pinned?.hit).toMatchObject({ pluginId: "townships", refKey: TOWNSHIP_REF });
+		expect(lens.pinned).toBe(true);
+		expect(lens.center).toBe(TOWNSHIP_REF);
+		expect(map.cameraCalls).toEqual([]);
+	});
+
+	it("the township's figure comes from the loaded townships; without it the line has no figure", async () => {
+		const { map, actions } = await layers([]);
+		const screen = await render(RenderSnippet, {
+			snippet: actions,
+			card: contextOf(map, "sections")
+		});
+		const bare = m.map_use_card_in_township_no_figure({ township: "MDM-T15S-R20E" });
+		// Not loaded, it can't be pinned: the line is text.
+		await expect.element(screen.getByText(bare)).toBeVisible();
+		expect(focusables(screen.container)).toHaveLength(0);
+		expect(map.pinCalls).toEqual([]);
+	});
+
+	it("a township's card and other plugins' cards get no line", async () => {
+		const { map, actions } = await layers();
+		for (const [id, refKey] of [
+			["townships", TOWNSHIP_REF],
+			["monitors", "monitor:a"]
+		]) {
+			const screen = await render(RenderSnippet, {
+				snippet: actions,
+				card: contextOf(map, id, refKey)
+			});
+			expect(screen.container.textContent?.trim()).toBe("");
+			screen.unmount();
+		}
+	});
+
+	it("on hover the line is text, not a button", async () => {
+		const { map } = await layers();
+		const tooltip = map.plugins.find((p) => p.id === "lens")!.options.tooltip as (
+			item: FeatureListItem,
+			props: UseProps,
+			env: unknown
+		) => Snippet;
+		const item = { refKey: section().refKey, name: section().name } as FeatureListItem;
+		const screen = await render(RenderSnippet, { snippet: tooltip(item, section(), {}) });
+		await expect.element(screen.getByText(LINE)).toBeVisible();
+		expect(focusables(screen.container)).toHaveLength(0);
+		screen.unmount();
+		// The interactive card leaves the line to its actions (one line, a button).
+		map.pinned = { hit: { pluginId: "lens", refKey: section().refKey, name: section().name } };
+		const pinned = await render(RenderSnippet, { snippet: tooltip(item, section(), {}) });
+		await expect.element(pinned.getByRole("heading", { name: section().name })).toBeVisible();
+		expect(pinned.container.textContent).not.toContain(LINE);
 	});
 });

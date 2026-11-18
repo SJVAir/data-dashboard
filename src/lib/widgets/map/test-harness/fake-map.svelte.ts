@@ -167,6 +167,23 @@ export class FakeMap {
 	unpin() {
 		this.pinned = null;
 	}
+	/** Every `pin` call, in order (`[pluginId, refKey]`). */
+	pinCalls: [string, string][] = [];
+	/**
+	 * map-sdk's `pin`: pins a feature the plugin's source lists, in place of the open card;
+	 * `false`, changing nothing, for a plugin not on the map or a feature it doesn't list.
+	 */
+	pin(pluginId: string, refKey: string): boolean {
+		this.pinCalls.push([pluginId, refKey]);
+		const plugin = this.plugins.find((p) => p.id === pluginId);
+		const source = plugin?.options.source as
+			| { features: { features: { properties: { refKey: string; name?: string } }[] } | null }
+			| undefined;
+		const found = source?.features?.features.find((f) => f.properties.refKey === refKey);
+		if (!found) return false;
+		this.pinned = { hit: { pluginId, refKey, name: found.properties.name ?? refKey } };
+		return true;
+	}
 	fitBounds(bounds: unknown, options: unknown) {
 		this.cameraCalls.push({ kind: "fitBounds", bounds, options });
 	}

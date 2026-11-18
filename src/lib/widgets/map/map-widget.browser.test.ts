@@ -3420,7 +3420,11 @@ test("a gone filter is said, not an empty layer", async () => {
 	// map-sdk's legend shows the layer as unavailable (a status row), with no features drawn.
 	await expect
 		.poll(() => noticesOf(map)?.options.source.status)
-		.toEqual({ state: "unavailable", reason: "filter-gone" });
+		.toEqual({
+			state: "unavailable",
+			reason: "filter-gone",
+			message: m.map_notices_filter_gone()
+		});
 	expect(noticesOf(map)!.options.source.features).toBeNull();
 	// And the map says why, with Edit data to change the filter; the monitors stay drawn.
 	await expect.element(screen.getByText(m.map_notices_filter_gone())).toBeVisible();
@@ -3509,6 +3513,7 @@ type UsePlugin = {
 		layerLabel: string;
 		mode?: string;
 		noFigure?: string;
+		legendDisplay?: string;
 		selectable?: boolean;
 		zoomRange?: { min?: number; max?: number };
 		legendUnits?: string;
@@ -3551,6 +3556,7 @@ test("adds townships, lens and sections, in that order, above the fill when both
 		options: {
 			mode: "choropleth",
 			noFigure: "outline",
+			legendDisplay: "blocks",
 			layerLabel: "Pounds Applied, 2023",
 			legendUnits: "lbs per township"
 		}
@@ -3559,6 +3565,7 @@ test("adds townships, lens and sections, in that order, above the fill when both
 	expect(lens.kind).toBe("lens");
 	expect(lens.options).toMatchObject({
 		noFigure: "outline",
+		legendDisplay: "blocks",
 		layerLabel: "Pounds Applied, 2023",
 		legendUnits: "lbs per section"
 	});
@@ -3568,6 +3575,7 @@ test("adds townships, lens and sections, in that order, above the fill when both
 		options: {
 			mode: "choropleth",
 			noFigure: "outline",
+			legendDisplay: "blocks",
 			selectable: false,
 			legendUnits: "lbs per section"
 		}
@@ -3654,6 +3662,23 @@ test("the lens's center loads its block's sections", async () => {
 	lens.center = encodeRef({ kind: "feature", id: "township:T-0" });
 	await expect.poll(() => vi.mocked(getPesticideSections).mock.calls.length).toBe(1);
 	await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
+});
+
+test("a pinned section's card names its township, a button that pins the township's card", async () => {
+	await show(useMap());
+	const map = await madeMap();
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const township = encodeRef({ kind: "feature", id: "township:T-0" });
+	fakeLenses.at(-1)!.center = township;
+	await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
+	pin(map, encodeRef({ kind: "feature", id: "section:s1" }), "lens");
+	const line = m.map_use_card_in_township({ township: "T-0", value: "1", units: "lbs" });
+	const button = page.getByRole("button", { name: line });
+	await expect.element(button).toBeVisible();
+	await button.click();
+	expect(map.pinCalls).toEqual([["townships", township]]);
+	expect(map.pinned?.hit).toMatchObject({ pluginId: "townships", refKey: township });
+	expect(map.cameraCalls).toEqual([]);
 });
 
 test("the Layers row hides use without unloading it", async () => {

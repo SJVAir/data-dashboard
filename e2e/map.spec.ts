@@ -557,14 +557,20 @@ async function washDifference(browser: Browser, a: Buffer, b: Buffer): Promise<n
 /**
  * Checks that the camera didn't move since `before` (a screenshot of the map's canvas): there is no
  * handle on the GL map's center and zoom in E2E, so the focus area's wash stands in for them. It
- * must cover the same pixels, give or take the markers (under 2% of the map).
+ * must cover the same pixels, give or take the markers (under 2% of the map). `style` is CSS for
+ * both screenshots, such as hiding an open card that moves.
  */
-async function expectStill(browser: Browser, map: Locator, before: Buffer): Promise<void> {
+async function expectStill(
+	browser: Browser,
+	map: Locator,
+	before: Buffer,
+	style?: string
+): Promise<void> {
 	const canvas = map.locator("canvas");
 	// The focus area is part of the comparison, so it must be drawn.
 	expect((await basemapShares(browser, before)).washed).toBeGreaterThan(0.05);
 	await expect
-		.poll(async () => washDifference(browser, before, await canvas.screenshot()))
+		.poll(async () => washDifference(browser, before, await canvas.screenshot({ style })))
 		.toBeLessThan(0.02);
 }
 
@@ -1628,11 +1634,11 @@ test.describe("a Map's pesticide use", () => {
 	}
 
 	/**
-	 * A legend section's class labels: map-sdk's rows under the bar, one per level (not the
-	 * gradient's ticks, which crowd together), each starting with its label.
+	 * A legend section's class labels: map-sdk's labels under its blocks (`legendDisplay:
+	 * "blocks"`), one per level, each starting with its label.
 	 */
 	function bins(section: Locator): Locator {
-		return section.locator(".mapsdk-legend-items li");
+		return section.locator(".mapsdk-legend-block-labels li");
 	}
 
 	/** `labels` as the rows' text: each row starts with its label (a threshold may follow). */
@@ -1785,13 +1791,59 @@ test.describe("a Map's pesticide use", () => {
 		}).toPass();
 		const name = /TST-T03S-R03E-\d\d/.exec((await tip.textContent()) ?? "")![0];
 
-		// A click opens the section's card.
+		// A click opens the section's card, its body drawn under the hover lens too.
 		await page.mouse.click(over.x, over.y);
 		const card = map.getByRole("group", { name, exact: true }).first();
 		await expect(card).toBeVisible();
-		// Under a hover lens, map-sdk 0.1.0-beta.19 shows only the section's name in its card (its
-		// body is tested through the pinned lens).
-		await expect(card).toContainText(name);
+		await expect(card.getByRole("heading", { name, exact: true })).toBeVisible();
+		await expect(card.getByText("Use in 2023", { exact: true })).toBeVisible();
+		await expectNoViolationsInBothThemes(page);
+	});
+
+	test("the section card's township link opens the township card", async ({ page, browser }) => {
+		const map = await openUseMap(page);
+		// The lens's legend section shows only while the lens is open.
+		const lensLegend = useSection(map, "Pounds Applied, 2023", "lbs per section");
+		await expect(lensLegend).toHaveCount(0);
+		// Hover the middle township until the lens draws its sections, then pin one.
+		const middle = await middleOf(map);
+		const at = { x: middle.x + 3, y: middle.y + 3 };
+		const over = { x: at.x + 1, y: at.y + 1 };
+		const tip = map.getByRole("tooltip");
+		const line = `In township ${MIDDLE_TOWNSHIP} · 500 lbs`;
+		await expect(async () => {
+			await page.mouse.move(at.x, at.y);
+			await page.mouse.move(over.x, over.y);
+			await expect(tip).toContainText(new RegExp(`${MIDDLE_TOWNSHIP}-\\d\\d`), {
+				timeout: 500
+			});
+		}).toPass();
+		// On hover the line is text: nothing in the tooltip takes focus.
+		await expect(tip).toContainText(line);
+		await expect(tip.getByRole("button")).toHaveCount(0);
+		const name = /TST-T03S-R03E-\d\d/.exec((await tip.textContent()) ?? "")![0];
+		await page.mouse.click(over.x, over.y);
+		const sectionCard = map.getByRole("group", { name, exact: true }).first();
+		await expect(sectionCard).toBeVisible();
+		await expect(lensLegend).toBeVisible();
+		// The cards and toasts sit over the canvas: hidden, so only the map is compared.
+		const hidden = ".mapsdk-tooltip, [data-sonner-toaster] { visibility: hidden !important; }";
+		const before = await map.locator("canvas").screenshot({ style: hidden });
+
+		// The button swaps the card for the township's, in place, with focus in it.
+		const button = map.getByRole("button", { name: line, exact: true });
+		await button.click();
+		const townshipCard = map.getByRole("group", { name: MIDDLE_TOWNSHIP, exact: true });
+		await expect(townshipCard).toBeVisible();
+		await expect(townshipCard.getByRole("button", { name: "Show square miles" })).toBeVisible();
+		await expect(map.getByRole("group", { name, exact: true })).toHaveCount(0);
+		await expect
+			.poll(() => townshipCard.evaluate((el) => el.contains(document.activeElement)))
+			.toBe(true);
+		// The lens stays open on the township (its legend section stays), and the camera hasn't
+		// moved.
+		await expect(lensLegend).toBeVisible();
+		await expectStill(browser, map, before, hidden);
 		await expectNoViolationsInBothThemes(page);
 	});
 

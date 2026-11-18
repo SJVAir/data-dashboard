@@ -18,8 +18,10 @@
 	// shown one with its class in words), from the map feature itself. Pinned or focused, it also
 	// loads the section's year: the shown figure by month as small bars (with a text list), the
 	// peak month, and its top chemicals with their badges (all following the Map's filters and
-	// month), and links out to the explorer from the meta's templates. On hover (map-sdk's non-interactive
-	// tooltip) it fetches nothing and has nothing focusable. Esc and the lens are map-sdk's.
+	// month), and links out to the explorer from the meta's templates. Its township ("In township
+	// ‹id› · ‹figure›") is text on hover and a button in the card's actions otherwise. On hover
+	// (map-sdk's non-interactive tooltip) it fetches nothing and has nothing focusable. Esc and the
+	// lens are map-sdk's.
 	let {
 		props,
 		figure,
@@ -29,6 +31,7 @@
 		filtersLine,
 		filters,
 		noticesDay,
+		townshipLine,
 		interactive
 	}: {
 		props: UseProps;
@@ -42,6 +45,11 @@
 		filters: PesticideFilters;
 		/** The day the notices layer shows when it shows a past day; null otherwise. */
 		noticesDay: NoticesDay | null;
+		/**
+		 * "In township ‹id› · ‹figure›", or null. The hover form shows it as text; the interactive
+		 * card's line is a button in the card's actions (`UseLayers`), so it isn't repeated here.
+		 */
+		townshipLine: string | null;
 		/** The pinned or focused card; false for the hover tooltip's static form. */
 		interactive: boolean;
 	} = $props();
@@ -138,6 +146,9 @@
 		</p>
 	{/if}
 	<UseCardFigures {props} {figure} {figures} {period} {scale} />
+	{#if !interactive && townshipLine}
+		<p class="text-sm" data-use-township-line>{townshipLine}</p>
+	{/if}
 	{#if interactive && info}
 		{#if failed}
 			<div class="flex flex-wrap items-center gap-2 text-sm">

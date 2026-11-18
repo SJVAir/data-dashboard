@@ -16,6 +16,7 @@ import { resetUseCaches, type UseQuery } from "./use";
 import { createMemoryActivity } from "$lib/platform/memory";
 import { createNowClient } from "$lib/data/now/client";
 import type { Snapshot, SnapshotAt } from "$lib/data/snapshot";
+import { m } from "$lib/paraglide/messages.js";
 import type { WidgetInstance } from "$lib/documents/schema";
 import type { FillData } from "./fill";
 import type { HmsData } from "./hms";
@@ -399,7 +400,11 @@ describe("MapData", () => {
 		await flush();
 		expect(t.data.noticesUnavailable).toBe("filter-gone");
 		// map-sdk's legend says the layer is unavailable: never a silent empty layer.
-		expect(t.data.noticesSource.status).toEqual({ state: "unavailable", reason: "filter-gone" });
+		expect(t.data.noticesSource.status).toEqual({
+			state: "unavailable",
+			reason: "filter-gone",
+			message: m.map_notices_filter_gone()
+		});
 		expect(fakes.noticesFetch).not.toHaveBeenCalled();
 		t.data.destroy();
 	});
@@ -473,7 +478,8 @@ describe("MapData", () => {
 		expect(gone.data.useUnavailable).toBe("filter-gone");
 		expect(gone.data.useBlock.townships.status).toEqual({
 			state: "unavailable",
-			reason: "filter-gone"
+			reason: "filter-gone",
+			message: m.map_use_filter_gone()
 		});
 		expect(getPesticideTownships).not.toHaveBeenCalled();
 		gone.data.destroy();

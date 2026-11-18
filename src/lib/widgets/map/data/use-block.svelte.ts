@@ -10,6 +10,7 @@ import {
 import type { PesticideUseClasses } from "@sjvair/sdk";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { pesticideMeta } from "$lib/data/pesticide-meta";
+import { m } from "$lib/paraglide/messages.js";
 import { periodListed } from "../use-period";
 import {
 	sectionsFor,
@@ -189,7 +190,9 @@ export class UseBlock {
 		this.townships = sourceOf({
 			status: () => {
 				const state = this.townshipsState;
-				if (state === "filter-gone") return { state: "unavailable", reason: "filter-gone" };
+				// The legend's status row says why (the map's banner too, with Edit data).
+				if (state === "filter-gone")
+					return { state: "unavailable", reason: "filter-gone", message: m.map_use_filter_gone() };
 				// Errors are the widget's to show (a note with Retry), as the other layers do.
 				return state === "loading" ? { state: "loading" } : { state: "ready" };
 			},

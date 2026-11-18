@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, onDestroy, untrack } from "svelte";
+	import { getContext, onDestroy, untrack, type Snippet } from "svelte";
 	import {
 		createMap,
 		focusAreaPlugin,
@@ -450,6 +450,8 @@
 	let lensCenter = $state<string | null>(null);
 	/** The lens plugin, for the township card's "Show square miles". */
 	let useLens = $state.raw<ShapesLens | null>(null);
+	/** Use's card actions (a section card's "In township" button), from UseLayers. */
+	let useCardActions = $state.raw<Snippet<[CardContext]> | null>(null);
 	/** The period's year isn't one the server lists: nothing is drawn, and the legend says so. */
 	const useUnlisted = $derived(!!usePeriod && !!useYears && !periodListed(usePeriod, useYears));
 
@@ -873,6 +875,7 @@
 {/snippet}
 
 {#snippet cardActions(ctx: CardContext)}
+	{@render useCardActions?.(ctx)}
 	{#if ctx.selectable}
 		<Button size="sm" variant="outline" onclick={() => ctx.toggle()}>
 			{ctx.selected ? m.map_mark_remove() : m.map_mark_select()}
@@ -932,6 +935,7 @@
 		note={useNote}
 		onlens={(center) => (lensCenter = center)}
 		noticesDay={noticesPastDay}
+		oncardactions={(actions) => (useCardActions = actions)}
 		bind:lens={useLens}
 	/>
 	<FillLayer {map} source={fillSource} label={fillLabel} {loads} drawn={fillDrawn} />
