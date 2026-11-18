@@ -1264,6 +1264,7 @@
 	"map_use_card_zoom_in": "Zoom in",
 	"map_use_card_in_township": "In township {township} · {value} {units}",
 	"map_use_card_in_township_no_figure": "In township {township}",
+	"map_use_card_township_open": "Open township {township}",
 	"map_use_card_link_section": "Section details",
 	"map_use_card_link_records": "Records here",
 	"map_use_card_link_notices": "Notices here",

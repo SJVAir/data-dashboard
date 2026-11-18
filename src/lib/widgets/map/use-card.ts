@@ -40,3 +40,29 @@ export function joinLabels(labels: string[]): string | null {
 		? null
 		: labels.reduce((all, label) => m.label_join({ first: all, second: label }));
 }
+
+/** A section's township, for the section card's "In township ‹id› · ‹figure›" line. */
+export type UseTownshipLine = {
+	refKey: string;
+	/** The township's PLSS id. */
+	id: string;
+	/** The shown figure's value (formatted) and units, from the loaded townships; null if unknown. */
+	figure: { value: string; units: string } | null;
+	/** Whether map-sdk can pin its card now (the id is then a button on the interactive card). */
+	pinnable: boolean;
+};
+
+/** Stands in for the id while the message is split; never in a message's own text. */
+const ID_MARK = "\u2063";
+
+/**
+ * The township line's text before and after the township's id, from one message (so a
+ * translation can put the id anywhere), for the card to put the id, or its button, between.
+ */
+export function townshipLineParts(line: UseTownshipLine): [string, string] {
+	const text = line.figure
+		? m.map_use_card_in_township({ township: ID_MARK, ...line.figure })
+		: m.map_use_card_in_township_no_figure({ township: ID_MARK });
+	const at = text.indexOf(ID_MARK);
+	return at < 0 ? [`${text} `, ""] : [text.slice(0, at), text.slice(at + ID_MARK.length)];
+}

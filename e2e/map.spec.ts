@@ -1818,6 +1818,21 @@ test.describe("a Map's pesticide use", () => {
 				timeout: 500
 			});
 		}).toPass();
+		// Unheld, a hover lens closes once the pointer leaves for the basemap (outside the county)
+		// and its grace is past: the signal the hold is checked by below.
+		const box = (await glMap(map).boundingBox())!;
+		const offCounty = { x: box.x + box.width - 60, y: box.y + box.height - 60 };
+		await expect(lensLegend).toBeVisible();
+		await page.mouse.move(offCounty.x, offCounty.y);
+		await page.waitForTimeout(500);
+		await expect(lensLegend).toHaveCount(0);
+		await expect(async () => {
+			await page.mouse.move(at.x, at.y);
+			await page.mouse.move(over.x, over.y);
+			await expect(tip).toContainText(new RegExp(`${MIDDLE_TOWNSHIP}-\\d\\d`), {
+				timeout: 500
+			});
+		}).toPass();
 		// On hover the line is text: nothing in the tooltip takes focus.
 		await expect(tip).toContainText(line);
 		await expect(tip.getByRole("button")).toHaveCount(0);
@@ -1830,8 +1845,14 @@ test.describe("a Map's pesticide use", () => {
 		const hidden = ".mapsdk-tooltip, [data-sonner-toaster] { visibility: hidden !important; }";
 		const before = await map.locator("canvas").screenshot({ style: hidden });
 
-		// The button swaps the card for the township's, in place, with focus in it.
-		const button = map.getByRole("button", { name: line, exact: true });
+		// The same line in the pinned card, where the township's id is a button (named on its own)
+		// that swaps the card for the township's, in place, with focus in it.
+		await expect(sectionCard).toContainText(line);
+		const button = sectionCard.getByRole("button", {
+			name: `Open township ${MIDDLE_TOWNSHIP}`,
+			exact: true
+		});
+		await expect(button).toHaveText(MIDDLE_TOWNSHIP);
 		await button.click();
 		const townshipCard = map.getByRole("group", { name: MIDDLE_TOWNSHIP, exact: true });
 		await expect(townshipCard).toBeVisible();
@@ -1840,10 +1861,14 @@ test.describe("a Map's pesticide use", () => {
 		await expect
 			.poll(() => townshipCard.evaluate((el) => el.contains(document.activeElement)))
 			.toBe(true);
-		// The lens stays open on the township (its legend section stays), and the camera hasn't
-		// moved.
-		await expect(lensLegend).toBeVisible();
+		// The camera hasn't moved.
 		await expectStill(browser, map, before, hidden);
+		// The card holds the lens: with the pointer off the township (on the basemap, outside the
+		// county) and past the lens's grace, its legend section stays.
+		await page.mouse.move(offCounty.x, offCounty.y);
+		await page.waitForTimeout(500);
+		await expect(lensLegend).toBeVisible();
+		await expect(townshipCard).toBeVisible();
 		await expectNoViolationsInBothThemes(page);
 	});
 

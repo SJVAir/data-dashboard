@@ -9,7 +9,13 @@
 	import { filtersKey } from "./data/filters-key";
 	import { sectionDetail } from "./data/section-detail";
 	import { useField, type UseProps } from "./data/use";
-	import { peakMonth, topChemicals, type UseFigure } from "./use-card";
+	import {
+		peakMonth,
+		topChemicals,
+		townshipLineParts,
+		type UseFigure,
+		type UseTownshipLine
+	} from "./use-card";
 	import UseCardFigures from "./UseCardFigures.svelte";
 	import { chemicalLink, sectionLinks, type NoticesDay } from "./section-links";
 	import type { UsePeriod } from "./use-period";
@@ -18,10 +24,10 @@
 	// shown one with its class in words), from the map feature itself. Pinned or focused, it also
 	// loads the section's year: the shown figure by month as small bars (with a text list), the
 	// peak month, and its top chemicals with their badges (all following the Map's filters and
-	// month), and links out to the explorer from the meta's templates. Its township ("In township
-	// ‹id› · ‹figure›") is text on hover and a button in the card's actions otherwise. On hover
-	// (map-sdk's non-interactive tooltip) it fetches nothing and has nothing focusable. Esc and the
-	// lens are map-sdk's.
+	// month), and links out to the explorer from the meta's templates. Its line "In township ‹id› ·
+	// ‹figure›" sits under the figures in both forms; on the interactive card the id is a button
+	// that swaps the card for the township's. On hover (map-sdk's non-interactive tooltip) it
+	// fetches nothing and has nothing focusable. Esc and the lens are map-sdk's.
 	let {
 		props,
 		figure,
@@ -31,7 +37,8 @@
 		filtersLine,
 		filters,
 		noticesDay,
-		townshipLine,
+		township,
+		ontownship,
 		interactive
 	}: {
 		props: UseProps;
@@ -45,11 +52,10 @@
 		filters: PesticideFilters;
 		/** The day the notices layer shows when it shows a past day; null otherwise. */
 		noticesDay: NoticesDay | null;
-		/**
-		 * "In township ‹id› · ‹figure›", or null. The hover form shows it as text; the interactive
-		 * card's line is a button in the card's actions (`UseLayers`), so it isn't repeated here.
-		 */
-		townshipLine: string | null;
+		/** The section's township, for the "In township ‹id› · ‹figure›" line; null for none. */
+		township: UseTownshipLine | null;
+		/** The township button: swaps the card for the township's (synchronously, for focus). */
+		ontownship?: () => void;
 		/** The pinned or focused card; false for the hover tooltip's static form. */
 		interactive: boolean;
 	} = $props();
@@ -146,8 +152,16 @@
 		</p>
 	{/if}
 	<UseCardFigures {props} {figure} {figures} {period} {scale} />
-	{#if !interactive && townshipLine}
-		<p class="text-sm" data-use-township-line>{townshipLine}</p>
+	{#if township}
+		{@const [before, after] = townshipLineParts(township)}
+		<p class="text-sm">
+			{before}{#if interactive && township.pinnable && ontownship}<button
+					type="button"
+					class={linkClass}
+					aria-label={m.map_use_card_township_open({ township: township.id })}
+					onclick={ontownship}>{township.id}</button
+				>{:else}{township.id}{/if}{after}
+		</p>
 	{/if}
 	{#if interactive && info}
 		{#if failed}

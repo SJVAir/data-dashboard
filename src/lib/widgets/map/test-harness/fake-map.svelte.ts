@@ -171,11 +171,20 @@ export class FakeMap {
 	pinCalls: [string, string][] = [];
 	/**
 	 * map-sdk's `pin`: pins a feature the plugin's source lists, in place of the open card;
-	 * `false`, changing nothing, for a plugin not on the map or a feature it doesn't list.
+	 * `false`, changing nothing, for a plugin not on the map, one outside its zoom range (which
+	 * lists nothing there), or a feature it doesn't list.
 	 */
 	pin(pluginId: string, refKey: string): boolean {
 		this.pinCalls.push([pluginId, refKey]);
 		const plugin = this.plugins.find((p) => p.id === pluginId);
+		const range = plugin?.options.zoomRange as { min?: number; max?: number } | undefined;
+		const zoom = this.camera.zoom;
+		if (
+			range &&
+			((range.min !== undefined && zoom < range.min) ||
+				(range.max !== undefined && zoom >= range.max))
+		)
+			return false;
 		const source = plugin?.options.source as
 			| { features: { features: { properties: { refKey: string; name?: string } }[] } | null }
 			| undefined;

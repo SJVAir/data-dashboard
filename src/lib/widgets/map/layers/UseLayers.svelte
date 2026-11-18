@@ -3,7 +3,6 @@
 	import {
 		shapesLens,
 		shapesPlugin,
-		type CardContext,
 		type FeatureListItem,
 		type MapContext,
 		type ShapesLens
@@ -15,7 +14,7 @@
 	import { filtersKey } from "../data/filters-key";
 	import { useField, type UseProps, type UseQuery } from "../data/use";
 	import { useScaleFor } from "../data/use-scale";
-	import { joinLabels, type UseFigure } from "../use-card";
+	import { joinLabels, type UseFigure, type UseTownshipLine } from "../use-card";
 	import type { NoticesDay } from "../section-links";
 	import { useTooltips } from "../use-tooltip";
 	import { beforeIn } from "./order";
@@ -24,8 +23,8 @@
 	 * Pesticide use's three plugins, `[townships, lens, sections]`, above the fill and under the
 	 * focus area (`UNDER_FOCUS`), added while use is drawn; renders nothing. The townships draw below the section
 	 * zoom and the sections from it; the lens opens a township's block into sections on hover.
-	 * Each draws its features' cards (`useTooltips`). A section's card names its township, a button
-	 * in the card's actions (`oncardactions`) that pins the township's card in its place.
+	 * Each draws its features' cards (`useTooltips`). A section's card names its township, whose id
+	 * is a button that pins the township's card in its place.
 	 */
 	let {
 		map,
@@ -45,7 +44,6 @@
 		note,
 		onlens,
 		noticesDay = null,
-		oncardactions,
 		lens = $bindable(null)
 	}: {
 		map: MapContext;
@@ -79,11 +77,6 @@
 		onlens: (center: string | null) => void;
 		/** The past day the notices layer shows (the section card's "Notices here" link). */
 		noticesDay?: NoticesDay | null;
-		/**
-		 * Gets use's part of MapView's card actions (null when this goes): a section's "In
-		 * township" button.
-		 */
-		oncardactions?: (actions: Snippet<[CardContext]> | null) => void;
 		/** The lens plugin while it's on the map (the township card pins and releases it). */
 		lens?: ShapesLens | null;
 	} = $props();
@@ -99,10 +92,11 @@
 
 	/**
 	 * A section's township, for its card's "In township ‹id› · ‹figure›" line: the figure the map
-	 * shows, from the loaded townships (by `parentOf`). `listed` when the townships hold it and are
-	 * drawn (below the section zoom), so map-sdk can pin it; null for a township.
+	 * shows, from the loaded townships (by `parentOf`). `pinnable` while the townships hold it and
+	 * are drawn on `current` (below the section zoom `z`: map-sdk lists none from there, so it
+	 * couldn't pin one). Null for a township.
 	 */
-	function townshipOf(props: UseProps): { refKey: string; text: string; listed: boolean } | null {
+	function townshipOf(props: UseProps, current: MapContext, z: number): UseTownshipLine | null {
 		const refKey = parentOf(props);
 		if (!refKey) return null;
 		const parent = byRef.get(refKey);
@@ -110,22 +104,16 @@
 		const info = figures.find((f) => f.id === figure);
 		const field = figure ? useField(figure) : undefined;
 		const value = parent && field ? parent[field] : null;
-		const text =
-			info && value !== null
-				? m.map_use_card_in_township({
-						township: props.township,
-						value: formatValue(value, info.precision),
-						units: info.units
-					})
-				: m.map_use_card_in_township_no_figure({ township: props.township });
-		return { refKey, text, listed: parent?.level === "township" && map.camera.zoom < zoom };
+		return {
+			refKey,
+			id: props.township,
+			figure:
+				info && value !== null
+					? { value: formatValue(value, info.precision), units: info.units }
+					: null,
+			pinnable: parent?.level === "township" && current.camera.zoom < z
+		};
 	}
-
-	$effect(() => {
-		const report = oncardactions;
-		report?.(cardActions);
-		return () => report?.(null);
-	});
 
 	/** The active filters' names, for the cards' "Filtered by" line. */
 	let filtersLine = $state<string | null>(null);
@@ -171,7 +159,9 @@
 			filtersLine: () => filtersLine,
 			filters: q.filters,
 			noticesDay: () => noticesDay,
-			townshipLine: (props) => townshipOf(props)?.text ?? null,
+			township: (props) => townshipOf(props, current, z),
+			// Synchronous in the button's handler, so map-sdk moves focus to the township's card.
+			ontownship: (refKey) => current.pin("townships", refKey),
 			onshow: (refKey) => made?.pin(refKey),
 			onzoom: (item) => current.easeTo({ center: item.lngLat, minZoom: z })
 		});
@@ -246,20 +236,3 @@
 		untrack(() => onlens(center));
 	});
 </script>
-
-{#snippet cardActions(ctx: CardContext)}
-	{@const props = byRef.get(ctx.refKey)}
-	{@const line = props ? townshipOf(props) : null}
-	{#if line?.listed}
-		<!-- Pinned synchronously in the handler, so map-sdk moves focus to the township's card. -->
-		<button
-			type="button"
-			class="border-border hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring rounded-sm border px-2 py-1 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
-			onclick={() => map.pin("townships", line.refKey)}
-		>
-			{line.text}
-		</button>
-	{:else if line}
-		<p class="text-sm">{line.text}</p>
-	{/if}
-{/snippet}

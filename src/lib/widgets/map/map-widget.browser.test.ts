@@ -17,6 +17,7 @@ import {
 	getRegionSummariesBulkDailyOpen,
 	getRegionsMeta
 } from "@sjvair/sdk";
+import type { FeatureListItem } from "@sjvair/map-sdk";
 import { encodeRef } from "@sjvair/map-sdk/data";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -3527,6 +3528,7 @@ type UsePlugin = {
 	};
 	addOptions?: Record<string, unknown>;
 };
+type UseTooltipOption = (item: FeatureListItem, props: never, env: unknown) => Snippet | undefined;
 const useOf = (map: FakeMap, id: string) =>
 	map.plugins.find((p) => p.id === id) as unknown as UsePlugin | undefined;
 const townshipFeatures = (map: FakeMap) =>
@@ -3671,11 +3673,21 @@ test("a pinned section's card names its township, a button that pins the townshi
 	const township = encodeRef({ kind: "feature", id: "township:T-0" });
 	fakeLenses.at(-1)!.center = township;
 	await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
-	pin(map, encodeRef({ kind: "feature", id: "section:s1" }), "lens");
-	const line = m.map_use_card_in_township({ township: "T-0", value: "1", units: "lbs" });
-	const button = page.getByRole("button", { name: line });
-	await expect.element(button).toBeVisible();
-	await button.click();
+	const refKey = encodeRef({ kind: "feature", id: "section:s1" });
+	pin(map, refKey, "lens");
+	const props = useOf(map, "lens")!.options.source.features!.features[0].properties;
+	const tooltip = (useOf(map, "lens")!.options as unknown as { tooltip: UseTooltipOption }).tooltip;
+	const card = await render(RenderSnippet, {
+		snippet: tooltip({ refKey, name: "T-0-01" } as FeatureListItem, props as never, {})!
+	});
+	await expect
+		.element(
+			card.getByText(m.map_use_card_in_township({ township: "T-0", value: "1", units: "lbs" }))
+		)
+		.toBeVisible();
+	await card
+		.getByRole("button", { name: m.map_use_card_township_open({ township: "T-0" }) })
+		.click();
 	expect(map.pinCalls).toEqual([["townships", township]]);
 	expect(map.pinned?.hit).toMatchObject({ pluginId: "townships", refKey: township });
 	expect(map.cameraCalls).toEqual([]);

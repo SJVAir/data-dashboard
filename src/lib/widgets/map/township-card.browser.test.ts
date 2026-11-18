@@ -278,7 +278,8 @@ describe("useTooltips", () => {
 			figures: FIGURES,
 			filtersLine: () => null,
 			filters: {},
-			townshipLine: () => null,
+			township: () => null,
+			ontownship: () => false,
 			noticesDay: () => null,
 			onshow: () => {},
 			onzoom: () => {}

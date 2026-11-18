@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildUseScale } from "./data/use-scale";
-import { classInWords, joinLabels, peakMonth, topChemicals } from "./use-card";
+import { m } from "$lib/paraglide/messages.js";
+import { classInWords, joinLabels, peakMonth, topChemicals, townshipLineParts } from "./use-card";
 
 const INFO = { label: "Pounds applied", units: "lbs", precision: 0 };
 const SCALE = buildUseScale(
@@ -42,5 +43,23 @@ describe("use card helpers", () => {
 		expect(joinLabels([])).toBeNull();
 		expect(joinLabels(["Sulfur"])).toBe("Sulfur");
 		expect(joinLabels(["Sulfur", "Grapes", "Ground"])).toBe("Sulfur · Grapes · Ground");
+	});
+});
+
+describe("townshipLineParts", () => {
+	const line = { refKey: "feature:township:T-1", id: "T-1", pinnable: true };
+
+	it("splits the line around the township's id, so only the id can be a button", () => {
+		const parts = townshipLineParts({ ...line, figure: { value: "1,234", units: "lbs" } });
+		expect(parts.join("T-1")).toBe(
+			m.map_use_card_in_township({ township: "T-1", value: "1,234", units: "lbs" })
+		);
+		expect(parts[0]).not.toContain("T-1");
+		expect(parts[1]).toContain("1,234");
+	});
+
+	it("without a figure, the line is the id alone", () => {
+		const parts = townshipLineParts({ ...line, figure: null });
+		expect(parts.join("T-1")).toBe(m.map_use_card_in_township_no_figure({ township: "T-1" }));
 	});
 });

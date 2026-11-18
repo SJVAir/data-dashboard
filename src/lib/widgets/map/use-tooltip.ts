@@ -6,7 +6,7 @@ import type { UseProps } from "./data/use";
 import SectionCard from "./SectionCard.svelte";
 import TownshipCard from "./TownshipCard.svelte";
 import type { NoticesDay } from "./section-links";
-import type { UseFigure } from "./use-card";
+import type { UseFigure, UseTownshipLine } from "./use-card";
 import type { UsePeriod } from "./use-period";
 
 /** What the use cards read: fixed for one set of plugins, but for the getters. */
@@ -24,8 +24,10 @@ export type UseTooltipContext = {
 	filters: PesticideFilters;
 	/** The past day the notices layer shows (reactively), or null. */
 	noticesDay: () => NoticesDay | null;
-	/** A section's "In township ‹id› · ‹figure›" line (reactively); null for a township. */
-	townshipLine: (props: UseProps) => string | null;
+	/** A section's township, for its "In township" line (reactively); null for a township. */
+	township: (props: UseProps) => UseTownshipLine | null;
+	/** The township button: pins the township's card (map-sdk's `pin`; false when refused). */
+	ontownship: (refKey: string) => boolean;
 	/** "Show square miles" on a township. */
 	onshow: (refKey: string) => void;
 	/** "Zoom in" on a township. */
@@ -83,8 +85,8 @@ export function useTooltips(context: UseTooltipContext): UseTooltip {
 					get noticesDay() {
 						return context.noticesDay();
 					},
-					get townshipLine() {
-						return context.townshipLine(latest());
+					get township() {
+						return context.township(latest());
 					},
 					filters: context.filters,
 					figure: context.figure,
@@ -105,7 +107,18 @@ export function useTooltips(context: UseTooltipContext): UseTooltip {
 									Object.getOwnPropertyDescriptors(shared)
 								) as typeof shared & { onshow: () => void; onzoom: () => void }
 							})
-						: mount(SectionCard, { target, props: shared });
+						: mount(SectionCard, {
+								target,
+								props: Object.defineProperties(
+									{
+										ontownship: () => {
+											const township = context.township(latest());
+											if (township?.pinnable) context.ontownship(township.refKey);
+										}
+									},
+									Object.getOwnPropertyDescriptors(shared)
+								) as typeof shared & { ontownship: () => void }
+							});
 				return () => {
 					void unmount(card);
 					// Closed: the next card for this feature starts afresh.
