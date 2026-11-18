@@ -219,6 +219,32 @@ describe("SectionCard", () => {
 		);
 	});
 
+	it("small figures never read 0, and a big one keeps the catalog's precision", async () => {
+		const wholeAcres = FIGURES.map((f) => (f.id === "acres-treated" ? { ...f, precision: 0 } : f));
+		const small = await card({
+			figures: wholeAcres,
+			props: section({ lbs_chemical: 0.3, value: 0.3, acres_treated: 0.3 })
+		});
+		await expect.element(small.getByRole("heading", { name: section().name })).toBeVisible();
+		const text = small.container.textContent ?? "";
+		// The shown figure in "Up to 10", and acres (not shown) at precision 0.
+		expect(text).toContain(m.map_use_card_value({ value: "0.3", units: "lbs" }));
+		expect(text).toContain(m.map_use_card_value({ value: "0.3", units: "acres" }));
+		small.unmount();
+		const fractional = buildUseScale(
+			{ breaks: [0.2, 0.4, 1], min: null, colors: ["#111", "#222", "#333"] },
+			{ label: "Pounds Applied", units: "lbs", precision: 0 }
+		);
+		const big = await card({
+			scale: fractional,
+			props: section({ lbs_chemical: 4567, value: 4567 })
+		});
+		await expect.element(big.getByRole("heading", { name: section().name })).toBeVisible();
+		expect(big.container.textContent).toContain(
+			m.map_use_card_value({ value: formatValue(4567, 0), units: "lbs" })
+		);
+	});
+
 	it("the section card shows 12 bars with a text list, the peak month, and badges as text", async () => {
 		const screen = await card();
 		await expect
@@ -771,6 +797,19 @@ describe("the section card's township line", () => {
 			expect(screen.getByRole("button", { name: BUTTON }).query()).toBeNull();
 			screen.unmount();
 		}
+	});
+
+	it("a small township figure never reads 0 on the line", async () => {
+		const map = await layers([township({ lbs_chemical: 0.3, value: 0.3 })]);
+		const screen = await cardOf(map, "lens");
+		const line = m.map_use_card_in_township({ township: ID, value: "0.3", units: "lbs" });
+		await expect
+			.poll(() =>
+				[...screen.container.querySelectorAll("p")].some(
+					(p) => p.textContent?.replace(/\s+/g, " ").trim() === line
+				)
+			)
+			.toBe(true);
 	});
 
 	it("on hover the line is text, not a button, in the same place as the pinned card's", async () => {

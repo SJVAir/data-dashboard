@@ -1,5 +1,5 @@
 import type { PesticideUseClass } from "@sjvair/sdk";
-import type { Scale, ScaleRef } from "@sjvair/map-sdk/data";
+import { levelFor, NO_LEVEL, type Scale, type ScaleRef } from "@sjvair/map-sdk/data";
 import { formatValue } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { PESTICIDE_USE } from "../options";
@@ -38,16 +38,23 @@ function labelPrecision(breaks: readonly number[], precision: number): number {
 	return precision;
 }
 
-/** Each built scale's label precision (map-sdk's `Scale` has no field for it). */
-const labelPrecisions = new WeakMap<Scale, number>();
-
 /**
- * The fraction digits a use scale's class labels are written with, at least the figure's own;
- * undefined for a scale `buildUseScale` didn't make. The cards write the shown figure's value with
- * it, so a value never reads lower than its own class ("0" in "0.2 to 0.4").
+ * A use figure's value as text, at the catalog's `precision`, with more digits (up to the label
+ * maximum) where that would mislead: a value above 0 never reads "0" (zero means nothing was
+ * reported), and with the `scale` it is drawn with (the shown figure), the rounded value stays in
+ * its own class ("0.4" would sit in "0.2 to 0.4" for 0.41 in "0.4 to 1").
  */
-export function labelPrecisionOf(scale: Scale): number | undefined {
-	return labelPrecisions.get(scale);
+export function formatUseValue(value: number, precision: number, scale?: Scale | null): string {
+	const most = Math.max(precision, MAX_LABEL_PRECISION);
+	const own = scale && value > 0 ? levelFor(value, scale) : null;
+	const classed = own && own !== NO_LEVEL ? own : null;
+	for (let p = precision; p < most; p++) {
+		const rounded = Math.round(value * 10 ** p) / 10 ** p;
+		if (value > 0 && rounded === 0) continue;
+		if (classed && scale && levelFor(rounded, scale) !== classed) continue;
+		return formatValue(value, p);
+	}
+	return formatValue(value, most);
 }
 
 const refs = new Map<string, ScaleRef>();
@@ -104,7 +111,6 @@ export function buildUseScale(classes: PesticideUseClass, info: UseScaleInfo): S
 			value: null
 		}))
 	};
-	labelPrecisions.set(scale, precision);
 	return scale;
 }
 

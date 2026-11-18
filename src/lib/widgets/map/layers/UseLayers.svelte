@@ -7,12 +7,11 @@
 		type MapContext,
 		type ShapesLens
 	} from "@sjvair/map-sdk";
-	import type { DataSource } from "@sjvair/map-sdk/data";
-	import { formatValue } from "$lib/format";
+	import type { DataSource, Scale } from "@sjvair/map-sdk/data";
 	import { m } from "$lib/paraglide/messages.js";
 	import { filtersLine } from "../filters-line.svelte";
 	import { useField, type UseProps, type UseQuery } from "../data/use";
-	import { useScaleFor } from "../data/use-scale";
+	import { formatUseValue, useScaleFor } from "../data/use-scale";
 	import type { UseFigure, UseTownshipLine } from "../use-card";
 	import type { NoticesDay } from "../section-links";
 	import { useTooltips } from "../use-tooltip";
@@ -95,6 +94,13 @@
 	 * are drawn on `current` (below the section zoom `z`: map-sdk lists none from there, so it
 	 * couldn't pin one). Null for a township.
 	 */
+	/** The scale the townships are drawn with, once registered; null while it resolves. */
+	function townshipsScale(): Scale | null {
+		const ref = townships.scale;
+		if (!ref) return null;
+		return "dataset" in ref ? (useScaleFor(ref) ?? null) : ref;
+	}
+
 	function townshipOf(props: UseProps, current: MapContext, z: number): UseTownshipLine | null {
 		const refKey = parentOf(props);
 		if (!refKey) return null;
@@ -108,7 +114,7 @@
 			id: props.township,
 			figure:
 				info && value !== null
-					? { value: formatValue(value, info.precision), units: info.units }
+					? { value: formatUseValue(value, info.precision, townshipsScale()), units: info.units }
 					: null,
 			pinnable: parent?.level === "township" && current.camera.zoom < z
 		};

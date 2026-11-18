@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { levelFor, NO_LEVEL } from "@sjvair/map-sdk/data";
 import {
 	buildUseScale,
-	labelPrecisionOf,
+	formatUseValue,
 	registerUseScale,
 	useScaleFor,
 	useScaleRef
@@ -50,16 +50,6 @@ describe("use scale", () => {
 			INFO
 		);
 		expect(scale.levels.map((l) => l.label)).toEqual(["Up to 0", "0 to 0", "0 to 1"]);
-		expect(labelPrecisionOf(scale)).toBe(0);
-	});
-
-	it("the scale's label precision can be read back", () => {
-		const scale = buildUseScale(
-			{ breaks: [0.2, 0.4, 1], min: null, colors: ["#a", "#b", "#c"] },
-			INFO
-		);
-		expect(labelPrecisionOf(scale)).toBe(1);
-		expect(labelPrecisionOf(buildUseScale(CLASSES, INFO))).toBe(0);
 	});
 
 	it("a precision that already tells the breaks apart is kept", () => {
@@ -100,6 +90,31 @@ describe("use scale", () => {
 		expect(useScaleFor(ref)?.label).toBe("Pounds");
 		registerUseScale(ref, CLASSES, { ...INFO, label: "Pounds", precision: 1 });
 		expect(useScaleFor(ref)?.levels[0].label).toBe("Up to 10.0");
+	});
+});
+
+describe("formatUseValue", () => {
+	const fractional = buildUseScale(
+		{ breaks: [0.2, 0.4, 1], min: null, colors: ["#a", "#b", "#c"] },
+		INFO
+	);
+	it("reads at the catalog's precision when that says what the value is", () => {
+		expect(formatUseValue(4567, 0)).toBe("4,567");
+		// A top-class value with fractional breaks needs no extra digits.
+		expect(formatUseValue(4567, 0, fractional)).toBe("4,567");
+		expect(formatUseValue(0, 0)).toBe("0");
+	});
+	it("a value above zero never reads 0, with no scale (a figure that isn't shown)", () => {
+		expect(formatUseValue(0.3, 0)).toBe("0.3");
+		expect(formatUseValue(0.004, 1)).toBe("0.004");
+	});
+	it("a value above zero never reads 0 in a whole-number class", () => {
+		expect(formatUseValue(0.3, 0, buildUseScale(CLASSES, INFO))).toBe("0.3");
+	});
+	it("the shown figure gets digits until it reads inside its own class", () => {
+		// 0.41 is in "0.4 to 1"; at one digit it would read 0.4, in "0.2 to 0.4".
+		expect(formatUseValue(0.41, 0, fractional)).toBe("0.41");
+		expect(formatUseValue(0.3, 0, fractional)).toBe("0.3");
 	});
 });
 
