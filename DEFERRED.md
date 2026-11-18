@@ -1628,7 +1628,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - Superseded `sections/` requests aren't cancelled, because `getPesticideSections` takes no
       signal (their results are ignored). **Revisit if** panning piles requests up.
   - **The use scale's refs and stored scales grow without a limit** (`use-scale.ts`; one per
-    figure, level and query, small). **Revisit if** a long session shows growth.
+    figure, level and query, small), as does `filtersLine`'s cache of the last names per filters
+    key (`filters-line.svelte.ts`; one short string per filter set used). **Revisit if** a long
+    session shows growth.
 
 ## Analysis & data
 
