@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { levelFor, NO_LEVEL } from "@sjvair/map-sdk/data";
-import { buildUseScale, registerUseScale, useScaleFor, useScaleRef } from "./use-scale";
+import {
+	buildUseScale,
+	labelPrecisionOf,
+	registerUseScale,
+	useScaleFor,
+	useScaleRef
+} from "./use-scale";
 
 const INFO = { label: "Pounds applied", units: "lbs", precision: 0 };
 const CLASSES = { breaks: [10, 100, 1000], min: null, colors: ["#aaa", "#bbb", "#ccc"] };
@@ -36,6 +42,24 @@ describe("use scale", () => {
 			null
 		]);
 		expect(levelFor(0.4, scale)).toMatchObject({ key: "c2" });
+	});
+
+	it("equal neighbouring breaks, which no precision tells apart, keep the figure's precision", () => {
+		const scale = buildUseScale(
+			{ breaks: [0.2, 0.2, 1], min: null, colors: ["#a", "#b", "#c"] },
+			INFO
+		);
+		expect(scale.levels.map((l) => l.label)).toEqual(["Up to 0", "0 to 0", "0 to 1"]);
+		expect(labelPrecisionOf(scale)).toBe(0);
+	});
+
+	it("the scale's label precision can be read back", () => {
+		const scale = buildUseScale(
+			{ breaks: [0.2, 0.4, 1], min: null, colors: ["#a", "#b", "#c"] },
+			INFO
+		);
+		expect(labelPrecisionOf(scale)).toBe(1);
+		expect(labelPrecisionOf(buildUseScale(CLASSES, INFO))).toBe(0);
 	});
 
 	it("a precision that already tells the breaks apart is kept", () => {

@@ -25,16 +25,29 @@ function nextUp(x: number): number {
 const MAX_LABEL_PRECISION = 6;
 
 /**
- * The fewest fraction digits, from the figure's own precision up, at which neighbouring breaks
- * format differently, so no two adjacent class labels read the same (small breaks at precision 0
- * would all read "0"). The breaks themselves are the server's, unchanged.
+ * The fewest fraction digits, from the figure's own precision up to `MAX_LABEL_PRECISION`, at
+ * which neighbouring breaks format differently, so no two adjacent class labels read the same
+ * (small breaks at precision 0 would all read "0"). When none does (equal breaks), the figure's
+ * own precision. The breaks themselves are the server's, unchanged.
  */
 function labelPrecision(breaks: readonly number[], precision: number): number {
-	for (let p = precision; p < MAX_LABEL_PRECISION; p++) {
+	for (let p = precision; p <= Math.max(precision, MAX_LABEL_PRECISION); p++) {
 		const text = breaks.map((b) => formatValue(b, p));
 		if (text.every((t, i) => i === 0 || t !== text[i - 1])) return p;
 	}
-	return Math.max(precision, MAX_LABEL_PRECISION);
+	return precision;
+}
+
+/** Each built scale's label precision (map-sdk's `Scale` has no field for it). */
+const labelPrecisions = new WeakMap<Scale, number>();
+
+/**
+ * The fraction digits a use scale's class labels are written with, at least the figure's own;
+ * undefined for a scale `buildUseScale` didn't make. The cards write the shown figure's value with
+ * it, so a value never reads lower than its own class ("0" in "0.2 to 0.4").
+ */
+export function labelPrecisionOf(scale: Scale): number | undefined {
+	return labelPrecisions.get(scale);
 }
 
 const refs = new Map<string, ScaleRef>();
@@ -91,6 +104,7 @@ export function buildUseScale(classes: PesticideUseClass, info: UseScaleInfo): S
 			value: null
 		}))
 	};
+	labelPrecisions.set(scale, precision);
 	return scale;
 }
 
