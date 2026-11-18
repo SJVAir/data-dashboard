@@ -5,6 +5,7 @@
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays } from "$lib/format";
+import { daysInMonth } from "$lib/format/calendar";
 import { resolveRange } from "$lib/format/range";
 import { fromLayer } from "$lib/places/selection";
 import { mapType } from "$lib/widgets/map";
@@ -246,9 +247,8 @@ export function isMapShaped(draft: Draft, now: Date = new Date()): boolean {
 function periodDays(p: UsePeriod): { first: string; last: string } {
 	const key = periodKey(p);
 	if (p.month === null) return { first: `${key}-01-01`, last: `${key}-12-31` };
-	// Day 0 of the next month is this month's last day (calendar arithmetic, no time zone).
-	const days = new Date(Date.UTC(p.year, p.month, 0)).getUTCDate();
-	return { first: `${key}-01`, last: `${key}-${String(days).padStart(2, "0")}` };
+	const first = `${key}-01`;
+	return { first, last: `${key}-${String(daysInMonth(first)).padStart(2, "0")}` };
 }
 
 /** Whether all of `p` falls inside `range`. */
