@@ -266,6 +266,21 @@ describe("SectionCard", () => {
 		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(2);
 	});
 
+	it("the card is a Tab stop only while its content overflows", async () => {
+		const screen = await card();
+		await expect.poll(() => screen.container.querySelectorAll("[data-use-bar]").length).toBe(12);
+		const el = screen.container.querySelector<HTMLElement>('[data-use-card="section"]')!;
+		el.style.maxHeight = "none";
+		// Still focusable from script (a pinned card takes focus), but not in the Tab order.
+		await expect.poll(() => el.getAttribute("tabindex")).toBe("-1");
+		el.style.maxHeight = "40px";
+		await expect.poll(() => el.getAttribute("tabindex")).toBe("0");
+		const results = await axe.run(screen.container);
+		expect(results.violations.map((v) => v.id)).toEqual([]);
+		el.style.maxHeight = "none";
+		await expect.poll(() => el.getAttribute("tabindex")).toBe("-1");
+	});
+
 	it("has no axe violations, in both forms", async () => {
 		for (const interactive of [true, false]) {
 			const screen = await card({ interactive, filtersLine: "Sulfur" });

@@ -337,6 +337,18 @@ describe("NoticeCard", () => {
 		expect(screen.getByText(META.notes.noi_meaning.title).elements()).toHaveLength(0);
 	});
 
+	it("the card is a Tab stop only while it overflows, and passes axe when it does", async () => {
+		const screen = await setup({ notices: [notice()] });
+		await expect.element(screen.getByText(META.notes.noi_meaning.summary)).toBeVisible();
+		const el = screen.container.querySelector<HTMLElement>("[data-notice-card]")!;
+		el.style.maxHeight = "none";
+		await expect.poll(() => el.getAttribute("tabindex")).toBe("-1");
+		el.style.maxHeight = "40px";
+		await expect.poll(() => el.getAttribute("tabindex")).toBe("0");
+		const results = await axe.run(screen.container);
+		expect(results.violations.map((v) => v.id)).toEqual([]);
+	});
+
 	it("has no axe violations, in one and list forms", async () => {
 		const one = await setup({ notices: [notice()] });
 		await expect.element(one.getByText(META.notes.noi_meaning.summary)).toBeVisible();

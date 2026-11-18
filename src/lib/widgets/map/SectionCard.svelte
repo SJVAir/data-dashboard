@@ -5,6 +5,7 @@
 	import { formatMonthName, formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import type { PesticideFilters } from "$lib/data/schema";
 	import { filtersKey } from "./data/filters-key";
 	import { sectionDetail } from "./data/section-detail";
@@ -120,19 +121,18 @@
 	}
 
 	/**
-	 * The interactive card scrolls when its months and chemicals don't fit, so it is a Tab stop
-	 * (a scrollable region the keyboard can scroll), named for its section. The hover form takes
-	 * no focus.
+	 * The interactive card scrolls when its months and chemicals don't fit, so then it is a Tab stop
+	 * (a scrollable region the keyboard can scroll; `scrollFocusable`), named for its section. The
+	 * hover form takes no focus.
 	 */
 	const linkClass =
 		"text-link focus-visible:ring-ring rounded-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none";
-	const focusTarget = $derived(
-		interactive ? { tabindex: 0, role: "group", "aria-label": props.name } : {}
-	);
+	const focusTarget = $derived(interactive ? { role: "group", "aria-label": props.name } : {});
 </script>
 
 <div
 	{...focusTarget}
+	{@attach interactive && scrollFocusable}
 	class={[
 		"flex flex-col gap-2",
 		interactive &&

@@ -3,6 +3,7 @@
 	import type { PesticidesMeta } from "@sjvair/sdk";
 	import { tick, untrack } from "svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import { formatDate, formatDateTime, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
@@ -195,7 +196,7 @@
 {:else}
 	<div
 		bind:this={cardElement}
-		tabindex="-1"
+		{@attach scrollFocusable}
 		class="mapsdk-tooltip-wide focus-visible:ring-ring flex max-h-80 flex-col gap-2 overflow-y-auto rounded-sm focus-visible:ring-2 focus-visible:outline-none"
 		data-notice-card
 	>
