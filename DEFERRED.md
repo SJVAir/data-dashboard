@@ -1411,7 +1411,8 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   a second Layers row. Spec 3 moved the pin to `0.1.0-beta.13` and the adapter now implements
   `locationTypeLabel`, so what is left is the schools data set itself, an entry in
   `src/lib/widgets/map/data/` and its Layers row. The user moved the trigger to after spec 5
-  (2026-11-16). **Revisit after** spec 5 (pesticide use and spray notices).
+  (2026-11-16), then to after spec 6 (2026-11-17): it becomes its own small spec in step 5, since
+  spec 6 decides how a Map's layers reach charts and tables. **Revisit after** spec 6.
 
 - **Spec 6 charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
   kept but hidden (outside the places, or not reporting the pollutant showing) are not sent to a
