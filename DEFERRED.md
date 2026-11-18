@@ -1603,6 +1603,33 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - Process: the Get data browser test never ran RED (written after the implementation), and
       the catalog fixture uses an `as CatalogEntry` cast.
 
+- **Step 5 spec 5b review leftovers.** _Deferred 2026-11-17 (step 5 spec 5b, pesticide use; the
+  task reviews and the review-leftovers sweep)._ Small things the reviews let stay, each with its
+  own trigger.
+  - **Get data's filter set remounts when use turns on** (`MapSections.svelte`). The one filter
+    set shows in the notices section, and moves to the use section once use is on, so it mounts
+    again there: a half-typed chemical search is lost (focus is on the use switch, outside the
+    set). Keeping it mounted means moving it out of both sections (a shared filters section) or
+    moving a DOM node across accordion items, a layout change the sweep doesn't make. **Revisit
+    with** the copy and accessibility check, or if someone reports losing a search.
+  - **The mouse-drag pan path for sections is untested.** Dragging is map-sdk's job; the tests
+    move the camera directly. **Revisit if** a drag bug is reported.
+  - **Mid-zoom across the section zoom, the township id can briefly be a button that `pin`
+    refuses**, because `map.camera` updates only on moveend. It's harmless (the click does
+    nothing) and corrects itself at moveend. **Revisit if** map-sdk exposes the live zoom.
+  - **`expectStill` (E2E) hides the card's box**, so a camera move small enough to keep the card
+    inside its own box goes unseen. **Revisit if** a camera regression gets past it.
+  - **The use block** (Task 5):
+    - `refusedZoom` only grows (a refused bbox raises the section zoom for the rest of the
+      session). **Revisit when** users report extra zoom on small tiles, or when the server
+      publishes its bbox limit in meta.
+    - When the lens's block has too many sections, it reads as a failure. **Revisit if** the
+      server's limit falls below 324 sections (a 3 x 3 block of townships).
+    - Superseded `sections/` requests aren't cancelled, because `getPesticideSections` takes no
+      signal (their results are ignored). **Revisit if** panning piles requests up.
+  - **The use scale's refs and stored scales grow without a limit** (`use-scale.ts`; one per
+    figure, level and query, small). **Revisit if** a long session shows growth.
+
 ## Analysis & data
 
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
