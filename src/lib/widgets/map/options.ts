@@ -1,9 +1,9 @@
 import { layerKind } from "$lib/data/layer-kind";
 import type { CatalogEntry } from "$lib/data/metadata";
-import { USE_FIELDS } from "./data/use-fields";
 import { LIMITS, SafeIdSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { z } from "$lib/zod";
+import { USE_FIELDS } from "./data/use-fields";
 
 export const MAP_TYPE = "map";
 export const MAP_MARKS_MAX = 25;
