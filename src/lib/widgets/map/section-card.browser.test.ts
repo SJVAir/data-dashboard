@@ -198,6 +198,27 @@ describe("SectionCard", () => {
 		expect(text).toContain(m.map_use_card_value({ value: formatValue(47.5, 1), units: "acres" }));
 	});
 
+	it("a small value reads at its class's precision, never lower than its class", async () => {
+		const scale = buildUseScale(
+			{ breaks: [0.2, 0.4, 1], min: null, colors: ["#111", "#222", "#333"] },
+			{ label: "Pounds Applied", units: "lbs", precision: 0 }
+		);
+		const screen = await card({ scale, props: section({ lbs_chemical: 0.3, value: 0.3 }) });
+		await expect
+			.element(
+				screen.getByText(
+					m.map_use_card_class({ tier: "2", count: "3", range: "0.2 to 0.4", units: "lbs" })
+				)
+			)
+			.toBeVisible();
+		const text = screen.container.textContent ?? "";
+		expect(text).toContain(m.map_use_card_value({ value: formatValue(0.3, 1), units: "lbs" }));
+		// The other figures keep their own precision.
+		expect(text).toContain(
+			m.map_use_card_value({ value: formatValue(5, 0), units: "applications" })
+		);
+	});
+
 	it("the section card shows 12 bars with a text list, the peak month, and badges as text", async () => {
 		const screen = await card();
 		await expect
@@ -279,6 +300,9 @@ describe("SectionCard", () => {
 		expect(results.violations.map((v) => v.id)).toEqual([]);
 		el.style.maxHeight = "none";
 		await expect.poll(() => el.getAttribute("tabindex")).toBe("-1");
+		// The hover form, in the same element after a rerender, takes no tabindex.
+		await screen.rerender({ interactive: false });
+		await expect.poll(() => el.hasAttribute("tabindex")).toBe(false);
 	});
 
 	it("has no axe violations, in both forms", async () => {

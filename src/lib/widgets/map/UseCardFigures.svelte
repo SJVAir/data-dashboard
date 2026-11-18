@@ -4,6 +4,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import type { UseProps } from "./data/use";
 	import { useField } from "./data/use";
+	import { labelPrecisionOf } from "./data/use-scale";
 	import { classInWords, type UseFigure } from "./use-card";
 	import { periodLabel, type UsePeriod } from "./use-period";
 
@@ -36,6 +37,15 @@
 		return field ? props[field] : null;
 	}
 
+	/**
+	 * A figure's fraction digits: the shown one's at least its scale's labels', so its value never
+	 * reads lower than its own class.
+	 */
+	function precisionOf(f: UseFigure): number {
+		const labels = f.id === figure && scale ? labelPrecisionOf(scale) : undefined;
+		return labels === undefined ? f.precision : Math.max(f.precision, labels);
+	}
+
 	const shownClass = $derived.by(() => {
 		const info = figures.find((f) => f.id === figure);
 		const value = info ? valueOf(info) : null;
@@ -62,7 +72,7 @@
 				<div data-use-figure={f.id} class="flex flex-wrap justify-between gap-x-2">
 					<dt class={f.id === figure ? "font-medium" : "text-muted-foreground"}>{f.label}</dt>
 					<dd class="tabular-nums">
-						{m.map_use_card_value({ value: formatValue(value, f.precision), units: f.units })}
+						{m.map_use_card_value({ value: formatValue(value, precisionOf(f)), units: f.units })}
 					</dd>
 					{#if f.id === figure && shownClass}
 						<dd class="text-muted-foreground w-full text-xs">{shownClass}</dd>
