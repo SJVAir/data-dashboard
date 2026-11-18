@@ -37,6 +37,19 @@ function periodValues(period: UsePeriod): PesticideLinkValues {
 	return { year: period.year, month_start: first, month_end: last };
 }
 
+/** The period's and the Map's filters' link values. */
+function linkValues(period: UsePeriod, filters: PesticideFilters): PesticideLinkValues {
+	const use = toUseParams(filters);
+	return {
+		...periodValues(period),
+		chemical_id: use.chemical_id,
+		product_id: use.product_id,
+		commodity_id: use.commodity_id,
+		aerial_ground: use.aerial_ground,
+		narrow: use.narrow
+	};
+}
+
 /**
  * A section card's explorer links, from the pesticides meta's templates: the period and the
  * Map's filters carry over. Notices link to the past-day page when the notices layer shows a
@@ -49,14 +62,8 @@ export function sectionLinks(
 	filters: PesticideFilters,
 	noticesDay: NoticesDay | null
 ): SectionLinks {
-	const use = toUseParams(filters);
 	const values: PesticideLinkValues = {
-		...periodValues(period),
-		chemical_id: use.chemical_id,
-		product_id: use.product_id,
-		commodity_id: use.commodity_id,
-		aerial_ground: use.aerial_ground,
-		narrow: use.narrow,
+		...linkValues(period, filters),
 		...(noticesDay && { notices_year: noticesDay.year, notices_month: noticesDay.month })
 	};
 	return {
@@ -66,11 +73,18 @@ export function sectionLinks(
 	};
 }
 
-/** A chemical's page, for the period (the card's filters are about the section, not it). */
+/**
+ * A chemical's page, for the period and the Map's filters (the template's `link_params` choose
+ * which apply). Not the Map's chemical filter: the page is for this chemical.
+ */
 export function chemicalLink(
 	meta: LinkMeta | undefined,
 	id: string,
-	period: UsePeriod
+	period: UsePeriod,
+	filters: PesticideFilters
 ): string | null {
-	return fill(meta, "chemical_page", id, periodValues(period));
+	return fill(meta, "chemical_page", id, {
+		...linkValues(period, filters),
+		chemical_id: undefined
+	});
 }

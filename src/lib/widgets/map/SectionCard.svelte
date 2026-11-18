@@ -192,7 +192,7 @@
 					<p class="font-medium">{m.map_use_card_top_chemicals()}</p>
 					<ul class="flex flex-col gap-1">
 						{#each chemicals as chemical (chemical.id)}
-							{@const chemicalHref = chemicalLink(meta ?? undefined, chemical.id, period)}
+							{@const chemicalHref = chemicalLink(meta ?? undefined, chemical.id, period, filters)}
 							<li class="flex flex-wrap items-center gap-1" data-use-chemical={chemical.id}>
 								{#if chemicalHref}
 									<a

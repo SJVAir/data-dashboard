@@ -85,10 +85,32 @@ describe("sectionLinks", () => {
 });
 
 describe("chemicalLink", () => {
-	it("fills the chemical's page with the period, not the card's filters", () => {
-		expect(chemicalLink(META, "c9", { year: 2023, month: null })).toBe(
+	it("fills the chemical's page with the period", () => {
+		expect(chemicalLink(META, "c9", { year: 2023, month: null }, {})).toBe(
 			"https://x.test/tools/pesticides/chemicals/c9/?year=2023"
 		);
-		expect(chemicalLink(undefined, "c9", { year: 2023, month: null })).toBeNull();
+		expect(chemicalLink(undefined, "c9", { year: 2023, month: null }, {})).toBeNull();
+	});
+
+	it("carries the Map's filters the template takes, but not its chemical", () => {
+		const withNarrow = {
+			...LINKS,
+			link_params: {
+				...LINKS.link_params,
+				chemical_page: [
+					{ param: "year", from: "year" },
+					{ param: "narrow", from: "narrow" },
+					{ param: "chemical", from: "chemical_id" }
+				]
+			}
+		} as never;
+		expect(
+			chemicalLink(
+				withNarrow,
+				"c9",
+				{ year: 2023, month: null },
+				{ narrow: "of_concern", chemical: "c1" }
+			)
+		).toBe("https://x.test/tools/pesticides/chemicals/c9/?year=2023&narrow=of_concern");
 	});
 });

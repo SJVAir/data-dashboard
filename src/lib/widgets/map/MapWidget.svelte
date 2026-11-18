@@ -21,7 +21,7 @@
 	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatNumber } from "$lib/format";
+	import { formatNumber, parseDateKey } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
@@ -443,7 +443,8 @@
 	const noticesPastDay = $derived.by<NoticesDay | null>(() => {
 		const at = days.at;
 		if (!noticesDrawn || !at || at === "now") return null;
-		return { year: Number(at.day.slice(0, 4)), month: Number(at.day.slice(5, 7)) };
+		const day = parseDateKey(at.day);
+		return { year: day.y, month: day.m };
 	});
 	/** The township the lens is centred on (the lens plugin's, through UseLayers). */
 	let lensCenter = $state<string | null>(null);

@@ -428,6 +428,17 @@ describe("the section card's links", () => {
 			);
 	});
 
+	it("the links show while the detail loads and when it fails", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
+		vi.mocked(getPesticideSectionDetails).mockRejectedValueOnce(new Error("down"));
+		const screen = await card();
+		await expect.element(screen.getByText(m.map_use_card_detail_failed())).toBeVisible();
+		await expect
+			.poll(() => hrefOf(screen.container, m.map_use_card_link_notices()))
+			.toBe("https://x.test/tools/pesticides/notices/?section=s1");
+		expect(hrefOf(screen.container, m.map_use_card_link_section())).toBeTruthy();
+	});
+
 	it("the hover form has no links", async () => {
 		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
 		const screen = await card({ interactive: false });
