@@ -38,7 +38,10 @@ function labelPrecision(breaks: readonly number[], precision: number): number {
 }
 
 const refs = new Map<string, ScaleRef>();
-const stored = new Map<ScaleRef, { classes: PesticideUseClass; scale: Scale }>();
+const stored = new Map<
+	ScaleRef,
+	{ classes: PesticideUseClass; info: UseScaleInfo; scale: Scale }
+>();
 
 /**
  * The stable ref for a use figure at a level and query. The same arguments give the same object;
@@ -98,15 +101,22 @@ const sameClasses = (a: PesticideUseClass, b: PesticideUseClass) =>
 	a.colors.length === b.colors.length &&
 	a.colors.every((x, i) => x === b.colors[i]);
 
-/** Builds and stores the scale for a ref; equal classes keep the stored scale object. */
+const sameInfo = (a: UseScaleInfo, b: UseScaleInfo) =>
+	a.label === b.label && a.units === b.units && a.precision === b.precision;
+
+/**
+ * Builds and stores the scale for a ref; equal classes and info keep the stored scale object.
+ * map-sdk resolves a ref's scale once, so a new scale under the same ref reaches what looks it up
+ * again (the cards), not the legend already drawn; a changed query is a new ref.
+ */
 export function registerUseScale(
 	ref: ScaleRef,
 	classes: PesticideUseClass,
 	info: UseScaleInfo
 ): void {
 	const prior = stored.get(ref);
-	if (prior && sameClasses(prior.classes, classes)) return;
-	stored.set(ref, { classes, scale: buildUseScale(classes, info) });
+	if (prior && sameClasses(prior.classes, classes) && sameInfo(prior.info, info)) return;
+	stored.set(ref, { classes, info: { ...info }, scale: buildUseScale(classes, info) });
 }
 
 export function useScaleFor(ref: ScaleRef): Scale | undefined {

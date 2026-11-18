@@ -65,6 +65,18 @@ describe("use scale", () => {
 		registerUseScale(ref, { ...CLASSES, breaks: [20, 100, 1000] }, INFO);
 		expect(useScaleFor(ref)).not.toBe(first);
 	});
+
+	it("changed scale info under one ref makes a new scale; equal info keeps it", () => {
+		const ref = useScaleRef("pounds-applied", "section", "q-info");
+		registerUseScale(ref, CLASSES, INFO);
+		const first = useScaleFor(ref);
+		registerUseScale(ref, CLASSES, { ...INFO });
+		expect(useScaleFor(ref)).toBe(first);
+		registerUseScale(ref, CLASSES, { ...INFO, label: "Pounds" });
+		expect(useScaleFor(ref)?.label).toBe("Pounds");
+		registerUseScale(ref, CLASSES, { ...INFO, label: "Pounds", precision: 1 });
+		expect(useScaleFor(ref)?.levels[0].label).toBe("Up to 10.0");
+	});
 });
 
 describe("use scale guards", () => {
