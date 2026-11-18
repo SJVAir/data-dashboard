@@ -3893,6 +3893,42 @@ test("use failure note with one Retry, with the monitors still drawn", async () 
 	expect(drawn(map)).toEqual(["a"]);
 });
 
+describe("use with no fit target yet (the region shapes still loading)", () => {
+	beforeEach(() => {
+		vi.mocked(regionShapes).mockImplementation(() => new Promise(() => {}));
+	});
+
+	test("an unlisted period still says No data for 2017", async () => {
+		await showLive(useMap({ usePeriod: "2017" }), editing());
+		const map = await madeMap();
+		map.ready = true;
+		const note = await useNote(map);
+		await expect.element(note.getByText(m.map_use_no_data({ period: "2017" }))).toBeVisible();
+	});
+
+	test("a gone filter still shows the legend's filter-gone row", async () => {
+		vi.mocked(getChemicalDetails).mockRejectedValue(notFound());
+		await show(useMap({}, { chemical: "gone" }));
+		const map = await madeMap();
+		await expect
+			.poll(() => useOf(map, "townships")?.options.source.status)
+			.toMatchObject({ state: "unavailable", reason: "filter-gone" });
+	});
+
+	test("a new period that fails keeps the use layers on the map", async () => {
+		const screen = await showLive(useMap(), editing());
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+		vi.mocked(getPesticideTownships).mockRejectedValueOnce(new Error("offline"));
+		await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2022");
+		await expect.element(screen.getByText(m.map_use_failed())).toBeVisible();
+		await expect
+			.poll(() => useOf(map, "townships")?.options.layerLabel)
+			.toBe("Pounds Applied, 2022");
+	});
+});
+
 test("a gone use filter is said, with Edit data", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 	vi.mocked(getChemicalDetails).mockRejectedValue(notFound());

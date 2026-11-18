@@ -467,10 +467,12 @@
 	 * The latitude the section zoom is computed at: fixed, so a pan never re-makes the plugins. The
 	 * places' centre, else the middle of the valley's townships; null until either is known.
 	 */
+	/** The last latitude known, kept while a new key loads (its townships aren't in yet). */
+	let lastUseLat: number | null = null;
 	const useLat = $derived.by<number | null>(() => {
 		const fit = target;
-		if (fit && "bbox" in fit) return (fit.bbox[1] + fit.bbox[3]) / 2;
-		if (fit) return fit.center[1];
+		if (fit && "bbox" in fit) return (lastUseLat = (fit.bbox[1] + fit.bbox[3]) / 2);
+		if (fit) return (lastUseLat = fit.center[1]);
 		let south = Infinity;
 		let north = -Infinity;
 		for (const f of data.useBlock.townships.features?.features ?? []) {
@@ -479,14 +481,25 @@
 			south = Math.min(south, box[1]);
 			north = Math.max(north, box[3]);
 		}
-		return south <= north ? (south + north) / 2 : null;
+		if (south <= north) lastUseLat = (south + north) / 2;
+		return lastUseLat;
 	});
 	/** The section zoom for the map's size and latitude, raised by the server's refusals. */
 	const useZoom = $derived(
 		Math.round(sectionZoom(width, height, useLat ?? 0) + data.useBlock.refusedZoom)
 	);
 	/** The use plugins are made once the map has a size and the latitude is known (made once). */
-	const useLayersDrawn = $derived(useDrawn && width > 0 && height > 0 && useLat !== null);
+	/**
+	 * Nothing will draw for the key (an unlisted period, a failed load, a gone filter), so the
+	 * section zoom doesn't matter: the plugins go on without a latitude, for the legend's note and
+	 * status row.
+	 */
+	const useNothingToDraw = $derived(
+		["no-data", "error", "filter-gone"].includes(data.useBlock.townshipsState)
+	);
+	const useLayersDrawn = $derived(
+		useDrawn && width > 0 && height > 0 && (useLat !== null || useNothingToDraw)
+	);
 
 	/** The use note's Retry: what failed, and the years if they couldn't be loaded. */
 	function retryUse(): void {
