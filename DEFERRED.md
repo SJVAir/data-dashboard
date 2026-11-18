@@ -2106,7 +2106,8 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   was seen. **Revisit when** map-sdk ships a fix. _Seen on the dashboard 2026-11-17 (step 5 spec
   5b, Task 7's hand check, on `0.1.0-beta.19`): in the first frame after the lens moves to a
   neighbour, about 60 ms in, the new block still shows township fill, and its sections draw from
-  the next frame. Hard to see; left for map-sdk._
+  the next frame. Hard to see; left for map-sdk._ **Fixed in `@sjvair/map-sdk` `0.1.0-beta.21`**
+  (map-sdk #38, 2026-11-17). Remove this item when the dashboard pins beta.21 (step 5 spec 6).
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
