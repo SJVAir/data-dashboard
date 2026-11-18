@@ -11,7 +11,7 @@ import type { PesticideUseClasses } from "@sjvair/sdk";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { pesticideMeta } from "$lib/data/pesticide-meta";
 import { m } from "$lib/paraglide/messages.js";
-import { periodListed } from "../use-period";
+import { periodLabel, periodListed } from "../use-period";
 import {
 	sectionsFor,
 	TooLarge,
@@ -177,11 +177,13 @@ export class UseBlock {
 	readonly #sectionsShown = $derived.by(() => this.#shown(this.#sections, "section"));
 	readonly #lensShown = $derived.by(() => this.#shown(this.#lens, "section"));
 	/**
-	 * When the key's townships failed or a filter is gone, nothing will load for it: an empty scale
-	 * under the key's own ref, as an unlisted period draws, never the previous key's classes.
+	 * When the key's townships failed, a filter is gone or the period isn't listed, nothing will
+	 * load for it: an empty scale under the key's own ref, never the previous key's classes.
 	 */
 	readonly #unloadable = $derived(
-		this.townshipsState === "error" || this.townshipsState === "filter-gone"
+		this.townshipsState === "error" ||
+			this.townshipsState === "filter-gone" ||
+			this.townshipsState === "no-data"
 	);
 	readonly #townshipsEmpty = $derived.by(() =>
 		this.#unloadable ? this.#shown(null, "township", true) : null
@@ -212,6 +214,16 @@ export class UseBlock {
 				// The legend's status row says why (the map's banner too, with Edit data).
 				if (state === "filter-gone")
 					return { state: "unavailable", reason: "filter-gone", message: m.map_use_filter_gone() };
+				// A period the server doesn't list: a status row naming it, with the note under it
+				// (an empty scale would make no legend section, and so no note).
+				if (state === "no-data") {
+					const period = this.#getInput().query?.period;
+					return {
+						state: "unavailable",
+						reason: "no-data",
+						...(period && { message: m.map_use_no_data({ period: periodLabel(period) }) })
+					};
+				}
 				// Errors are the widget's to show (a note with Retry), as the other layers do.
 				return state === "loading" ? { state: "loading" } : { state: "ready" };
 			},

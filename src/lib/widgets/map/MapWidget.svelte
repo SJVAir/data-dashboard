@@ -70,7 +70,7 @@
 		pollutantLayers
 	} from "./options";
 	import type { NoticesDay } from "./section-links";
-	import { parsePeriod, periodLabel, periodListed, type UsePeriod } from "./use-period";
+	import { parsePeriod, periodLabel, type UsePeriod } from "./use-period";
 	import { monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
 	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
@@ -452,8 +452,6 @@
 	let lensCenter = $state<string | null>(null);
 	/** The lens plugin, for the township card's "Show square miles". */
 	let useLens = $state.raw<ShapesLens | null>(null);
-	/** The period's year isn't one the server lists: nothing is drawn, and the legend says so. */
-	const useUnlisted = $derived(!!usePeriod && !!useYears && !periodListed(usePeriod, useYears));
 
 	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());
@@ -463,12 +461,13 @@
 	/** The map body's size (the legend folds, the stepper narrows, the section zoom). */
 	let width = $state(0);
 	let height = $state(0);
-	/**
-	 * The latitude the section zoom is computed at: fixed, so a pan never re-makes the plugins. The
-	 * places' centre, else the middle of the valley's townships; null until either is known.
-	 */
 	/** The last latitude known, kept while a new key loads (its townships aren't in yet). */
 	let lastUseLat: number | null = null;
+	/**
+	 * The latitude the section zoom is computed at: fixed, so a pan never re-makes the plugins. The
+	 * places' centre, else the middle of the valley's townships, else the last one known; null
+	 * until one is.
+	 */
 	const useLat = $derived.by<number | null>(() => {
 		const fit = target;
 		if (fit && "bbox" in fit) return (lastUseLat = (fit.bbox[1] + fit.bbox[3]) / 2);
@@ -488,15 +487,17 @@
 	const useZoom = $derived(
 		Math.round(sectionZoom(width, height, useLat ?? 0) + data.useBlock.refusedZoom)
 	);
-	/** The use plugins are made once the map has a size and the latitude is known (made once). */
 	/**
 	 * Nothing will draw for the key (an unlisted period, a failed load, a gone filter), so the
-	 * section zoom doesn't matter: the plugins go on without a latitude, for the legend's note and
-	 * status row.
+	 * section zoom doesn't matter.
 	 */
 	const useNothingToDraw = $derived(
 		["no-data", "error", "filter-gone"].includes(data.useBlock.townshipsState)
 	);
+	/**
+	 * The use plugins are on the map once it has a size and the latitude is known, or without one
+	 * when nothing will draw (for the legend's status row and note).
+	 */
 	const useLayersDrawn = $derived(
 		useDrawn && width > 0 && height > 0 && (useLat !== null || useNothingToDraw)
 	);
@@ -884,7 +885,7 @@
 {/snippet}
 
 {#snippet useNote()}
-	<UseLegendNote period={usePeriod} unlisted={useUnlisted} filters={useLayer?.filters} />
+	<UseLegendNote filters={useLayer?.filters} />
 {/snippet}
 
 {#snippet cardActions(ctx: CardContext)}

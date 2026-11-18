@@ -1915,6 +1915,23 @@ test.describe("a Map's pesticide use", () => {
 		await expect(list.getByRole("option", { name: MIDDLE_ROW })).toHaveCount(1);
 	});
 
+	test("a saved period the server doesn't list reads No data in the legend, asking nothing", async ({
+		page
+	}) => {
+		await openSharedDoc(page, useDoc({ usePeriod: "2017" }));
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		const legend = legendOf(map);
+		// One row, under the layer's title, with the server's notes under it.
+		await expect(legend.getByText("No data for 2017", { exact: true })).toHaveCount(1);
+		await expect(legend.getByText("No data for 2017", { exact: true })).toBeVisible();
+		await expect(
+			legend.getByText(USE_FILE.notes.shades_valley.summary, { exact: true })
+		).toBeVisible();
+		expect(useRequests.townships).toEqual([]);
+		expect(useRequests.sections).toEqual([]);
+	});
+
 	test("sections and townships requests never carry county", async ({ page }) => {
 		const map = await openUseMap(page);
 		// The lens's block, then the view's sections at the section zoom.

@@ -23,23 +23,17 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { filtersLine } from "./filters-line.svelte";
 	import { webHref } from "./notice-links";
-	import { periodLabel, type UsePeriod } from "./use-period";
 
 	/** The server's notes the use legend shows, in order. */
 	const NOTE_KEYS = ["shades_valley", "pur_lag"] as const;
 
-	// The foot of pesticide use's legend section: "No data for ‹period›" for a period the server
-	// doesn't list, the active filters (named as charts' legends name them), then the server's
-	// notes on the shades and on when use is released (each title linking to its source).
+	// The foot of pesticide use's legend section: the active filters (named as charts' legends
+	// name them), then the server's notes on the shades and on when use is released (each title
+	// linking to its source). A period the server doesn't list is the layer's status row ("No data
+	// for ‹period›", the use block's), which map-sdk draws with this note under it.
 	let {
-		period,
-		unlisted,
 		filters
 	}: {
-		/** The period drawn. */
-		period: UsePeriod | null;
-		/** The server doesn't list the period's year: nothing is drawn. */
-		unlisted: boolean;
 		/** The use layer's saved filters. */
 		filters: PesticideFilters | undefined;
 	} = $props();
@@ -64,11 +58,6 @@
 </script>
 
 <div class="flex flex-col gap-1" data-use-legend-note>
-	{#if unlisted && period}
-		<p class="text-foreground font-medium">
-			{m.map_use_no_data({ period: periodLabel(period) })}
-		</p>
-	{/if}
 	{#if named.current}
 		<p>{m.map_use_legend_filters({ filters: named.current })}</p>
 	{/if}

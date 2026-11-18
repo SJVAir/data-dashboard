@@ -3801,9 +3801,15 @@ test("an unlisted period says No data for 2017 in the legend", async () => {
 	const screen = await showLive(useMap({ usePeriod: "2017" }), editing());
 	const map = await madeMap();
 	map.ready = true;
-	const note = await useNote(map);
-	await expect.element(note.getByText(m.map_use_no_data({ period: "2017" }))).toBeVisible();
+	// A status row map-sdk's legend draws, with the note (filters, server notes) under it; the note
+	// doesn't say it again. (E2E checks the real legend.)
+	await expect
+		.poll(() => useOf(map, "townships")?.options.source.status)
+		.toEqual({ state: "unavailable", reason: "no-data", message: "No data for 2017" });
 	expect(m.map_use_no_data({ period: "2017" })).toBe("No data for 2017");
+	const note = await useNote(map);
+	await expect.element(note.getByText(PESTICIDES_META.notes.shades_valley.summary)).toBeVisible();
+	expect(note.container.textContent).not.toContain("No data for 2017");
 	expect(useOf(map, "townships")!.options.layerLabel).toBe("Pounds Applied, 2017");
 	await expect.poll(() => townshipFeatures(map)).toEqual([]);
 	expect(getPesticideTownships).not.toHaveBeenCalled();
@@ -3902,8 +3908,9 @@ describe("use with no fit target yet (the region shapes still loading)", () => {
 		await showLive(useMap({ usePeriod: "2017" }), editing());
 		const map = await madeMap();
 		map.ready = true;
-		const note = await useNote(map);
-		await expect.element(note.getByText(m.map_use_no_data({ period: "2017" }))).toBeVisible();
+		await expect
+			.poll(() => useOf(map, "townships")?.options.source.status)
+			.toMatchObject({ state: "unavailable", reason: "no-data" });
 	});
 
 	test("a gone filter still shows the legend's filter-gone row", async () => {
