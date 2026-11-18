@@ -1625,6 +1625,10 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     `map-title.svelte.ts`), called once from `MapWidget`'s setup, unlike the split's other
     helpers, which are classes with `destroy()`. Both work as written. **Revisit when** either
     needs teardown or a second caller.
+  - **With no fit target, Retry after a use error briefly takes the use plugins off** while the
+    townships load (`MapWidget.svelte`: `useNothingToDraw` turns false on loading, and the
+    latitude may still be unknown). It's brief and corrects itself once the townships arrive.
+    **Revisit if** someone sees the flicker.
   - **`NoteWidget` and `DataTable` don't use `scrollFocusable` yet.** The cards and the map's
     legend wrapper (a named group) are Tab stops only while they overflow; `NoteWidget` and
     `DataTable` are always a Tab stop (`tabindex="0"`), even when nothing overflows. **Revisit
