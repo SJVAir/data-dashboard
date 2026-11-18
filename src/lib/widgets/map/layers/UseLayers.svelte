@@ -8,13 +8,12 @@
 		type ShapesLens
 	} from "@sjvair/map-sdk";
 	import type { DataSource } from "@sjvair/map-sdk/data";
-	import { filterSummary } from "$lib/data/pesticide-meta";
 	import { formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { filtersKey } from "../data/filters-key";
+	import { filtersLine } from "../filters-line.svelte";
 	import { useField, type UseProps, type UseQuery } from "../data/use";
 	import { useScaleFor } from "../data/use-scale";
-	import { joinLabels, type UseFigure, type UseTownshipLine } from "../use-card";
+	import type { UseFigure, UseTownshipLine } from "../use-card";
 	import type { NoticesDay } from "../section-links";
 	import { useTooltips } from "../use-tooltip";
 	import { beforeIn } from "./order";
@@ -116,20 +115,7 @@
 	}
 
 	/** The active filters' names, for the cards' "Filtered by" line. */
-	let filtersLine = $state<string | null>(null);
-	const filters = $derived(filtersKey(query?.filters ?? {}));
-	$effect(() => {
-		const saved = JSON.parse(filters) as UseQuery["filters"];
-		const controller = new AbortController();
-		filterSummary(saved, controller.signal).then(
-			(labels) => (filtersLine = joinLabels(labels)),
-			// A gone filter is the map's own note; any other failure leaves the line out.
-			() => {
-				if (!controller.signal.aborted) filtersLine = null;
-			}
-		);
-		return () => controller.abort();
-	});
+	const filtersNamed = filtersLine(() => query?.filters);
 
 	// Made again only when the zoom, the figure or the query changes: a plugin belongs to one map
 	// and one set of options.
@@ -156,7 +142,7 @@
 			figure: q.figure,
 			period: q.period,
 			figures: catalog,
-			filtersLine: () => filtersLine,
+			filtersLine: () => filtersNamed.current,
 			filters: q.filters,
 			noticesDay: () => noticesDay,
 			township: (props) => townshipOf(props, current, z),

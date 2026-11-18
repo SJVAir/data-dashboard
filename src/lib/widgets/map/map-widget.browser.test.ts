@@ -3854,6 +3854,24 @@ test("the legend names the period, the units, the filters, and the server's two 
 	again.unmount();
 });
 
+test("a township's card names the use layer's filters, as the legend does", async () => {
+	await show(useMap({}, { category: ["fumigant"] }));
+	const map = await madeMap();
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	const feature = useOf(map, "townships")!.options.source.features!.features[0];
+	const refKey = feature.properties.refKey as string;
+	pin(map, refKey, "townships");
+	const tooltip = (useOf(map, "townships")!.options as unknown as { tooltip: UseTooltipOption })
+		.tooltip;
+	const card = await render(RenderSnippet, {
+		snippet: tooltip({ refKey, name: "T-0" } as FeatureListItem, feature.properties as never, {})!
+	});
+	await expect
+		.element(card.getByText(m.map_use_legend_filters({ filters: "Fumigants" })))
+		.toBeVisible();
+	card.unmount();
+});
+
 test("use failure note with one Retry, with the monitors still drawn", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 	vi.mocked(getPesticideTownships)

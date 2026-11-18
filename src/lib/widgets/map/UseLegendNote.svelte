@@ -1,30 +1,28 @@
 <script lang="ts" module>
 	import type { PesticideNote } from "@sjvair/sdk";
 
+	import { resetFiltersLines } from "./filters-line.svelte";
+
 	/**
-	 * The last ready lines, kept across a remount (a new plugin after a zoom, figure or period
-	 * change draws the note again): the server's notes, and the filters' names by filters key.
+	 * The last ready server notes, kept across a remount (a new plugin after a zoom, figure or
+	 * period change draws the note again); the filters' names are kept by `filtersLine`.
 	 */
 	let lastNotes: PesticideNote[] | null = null;
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a cache read at mount, not state
-	const lastNamed = new Map<string, string | null>();
 
 	/** Forgets the kept lines (for tests). */
 	export function resetUseLegendNote(): void {
 		lastNotes = null;
-		lastNamed.clear();
+		resetFiltersLines();
 	}
 </script>
 
 <script lang="ts">
-	import { untrack } from "svelte";
 	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
-	import { filterSummary, pesticideMeta } from "$lib/data/pesticide-meta";
+	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import type { PesticideFilters } from "$lib/data/schema";
 	import { m } from "$lib/paraglide/messages.js";
-	import { filtersKey as keyOf } from "./data/filters-key";
+	import { filtersLine } from "./filters-line.svelte";
 	import { webHref } from "./notice-links";
-	import { joinLabels } from "./use-card";
 	import { periodLabel, type UsePeriod } from "./use-period";
 
 	/** The server's notes the use legend shows, in order. */
@@ -61,28 +59,8 @@
 		return () => controller.abort();
 	});
 
-	/** The filters as a key, so an equal set saved again asks for nothing. */
-	const filtersKey = $derived(keyOf(filters ?? {}));
-	// The last names shown stay until the new ones are ready (no flicker).
-	let named = $state.raw<string | null>(untrack(() => lastNamed.get(filtersKey) ?? null));
-	$effect(() => {
-		const key = filtersKey;
-		const saved = JSON.parse(key) as PesticideFilters;
-		if (lastNamed.has(key)) named = lastNamed.get(key) ?? null;
-		const controller = new AbortController();
-		filterSummary(saved, controller.signal).then(
-			(labels) => {
-				const joined = joinLabels(labels);
-				lastNamed.set(key, joined);
-				named = joined;
-			},
-			// A gone filter is the map's own note; any other failure leaves the line out.
-			() => {
-				if (!controller.signal.aborted) named = null;
-			}
-		);
-		return () => controller.abort();
-	});
+	// The filters' names; the last ones shown stay until the new ones are ready (no flicker).
+	const named = filtersLine(() => filters);
 </script>
 
 <div class="flex flex-col gap-1" data-use-legend-note>
@@ -91,8 +69,8 @@
 			{m.map_use_no_data({ period: periodLabel(period) })}
 		</p>
 	{/if}
-	{#if named}
-		<p>{m.map_use_legend_filters({ filters: named })}</p>
+	{#if named.current}
+		<p>{m.map_use_legend_filters({ filters: named.current })}</p>
 	{/if}
 	{#each notes ?? [] as note (note.key)}
 		{@const href = webHref(note.source_url)}
