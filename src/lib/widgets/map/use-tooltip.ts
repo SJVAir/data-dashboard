@@ -50,7 +50,8 @@ export type UseTooltip = (
  * pinned card, and every refetch, which makes new properties for the same feature). A new
  * snippet would mount the card again and drop its focus, so one feature in one form keeps one
  * snippet while its card is mounted, and the card reads the feature's latest properties from
- * `current` by refKey, so a refetch updates it in place.
+ * `current` by refKey, so a refetch updates it in place. A snippet is kept from its mount to its
+ * last unmount only, so one map-sdk asks for but never shows holds nothing.
  */
 export function useTooltips(context: UseTooltipContext): UseTooltip {
 	const made = new Map<string, Snippet>();
@@ -72,6 +73,7 @@ export function useTooltips(context: UseTooltipContext): UseTooltip {
 			render: () => "<div></div>",
 			setup(target) {
 				mounted++;
+				made.set(key, snippet);
 				const shared = {
 					get props() {
 						return latest();
@@ -122,11 +124,10 @@ export function useTooltips(context: UseTooltipContext): UseTooltip {
 				return () => {
 					void unmount(card);
 					// Closed: the next card for this feature starts afresh.
-					if (--mounted === 0) made.delete(key);
+					if (--mounted === 0 && made.get(key) === snippet) made.delete(key);
 				};
 			}
 		}));
-		made.set(key, snippet);
 		return snippet;
 	};
 }

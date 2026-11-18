@@ -245,6 +245,20 @@ describe("the use plugins' cards", () => {
 		expect(focusables(screen.container)).toHaveLength(0);
 	});
 
+	it("a card asked for but never mounted is not kept; a mounted one is, until it closes", async () => {
+		const tooltip = await layers();
+		const ask = () => tooltip("townships")!(item(township()), township(), { scale: SCALE })!;
+		const unmounted = ask();
+		// Never mounted: nothing holds it, so the next ask makes a new one.
+		expect(ask()).not.toBe(unmounted);
+		const shown = ask();
+		const screen = await render(RenderSnippet, { snippet: shown });
+		await expect.element(screen.getByText("MDM-T15S-R20E")).toBeVisible();
+		expect(ask()).toBe(shown);
+		screen.unmount();
+		expect(ask()).not.toBe(shown);
+	});
+
 	it("a refetch keeps the open card mounted and focus inside it", async () => {
 		const tooltip = await layers();
 		map.pinned = { hit: { pluginId: "townships", refKey: REF, name: "MDM-T15S-R20E" } };
