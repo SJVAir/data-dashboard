@@ -174,6 +174,13 @@ describe("pesticide use options", () => {
 		expect(useFigureOf({ useFigure: "other" }, USE_CATALOG)).toBe("pounds-applied");
 		expect(useFigureOf({}, undefined)).toBeUndefined();
 	});
+	it("useFigureOf never takes an object prototype key for a figure", () => {
+		const catalog = [
+			{ id: "pesticide-use", entryTypes: ["toString", "acres-treated"].map((id) => ({ id })) }
+		] as unknown as CatalogEntry[];
+		expect(useFigureOf({ useFigure: "toString" }, catalog)).toBe("acres-treated");
+		expect(useFigureOf({}, catalog)).toBe("acres-treated");
+	});
 	it("the toolbar keys include the figure and shown, not the period", () => {
 		expect(MAP_TOOLBAR_KEYS).toContain("useFigure");
 		expect(MAP_TOOLBAR_KEYS).toContain("useShown");

@@ -114,7 +114,9 @@
 	);
 	/** The catalog's pesticide use figures the map draws (its labels, units and precision). */
 	const useFigures = $derived(
-		(known?.find((d) => d.id === PESTICIDE_USE)?.entryTypes ?? []).filter((t) => t.id in USE_FIELDS)
+		(known?.find((d) => d.id === PESTICIDE_USE)?.entryTypes ?? []).filter((t) =>
+			Object.hasOwn(USE_FIELDS, t.id)
+		)
 	);
 	/** The years with pesticide use data (the meta's, newest first); undefined until loaded. */
 	let useYears = $state.raw<number[] | undefined>();

@@ -141,6 +141,6 @@ export function useFigureOf(
 ): string | undefined {
 	const mapped = (catalog?.find((c) => c.id === PESTICIDE_USE)?.entryTypes ?? [])
 		.map((t) => t.id)
-		.filter((id) => id in USE_FIELDS);
+		.filter((id) => Object.hasOwn(USE_FIELDS, id));
 	return options.useFigure && mapped.includes(options.useFigure) ? options.useFigure : mapped[0];
 }
