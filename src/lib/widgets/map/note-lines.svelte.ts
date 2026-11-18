@@ -6,6 +6,9 @@ import { m } from "$lib/paraglide/messages.js";
 import { hiddenMarks, hiddenReasonLines, hiddenReasons } from "./marks";
 import { monitorIds } from "./sources";
 
+/** The stand-in while the places aren't known; never mutated. */
+const NO_PLACES: ReadonlySet<string> = new Set();
+
 /** What the map's notes read from the tile; each field read on its own. */
 export interface NoteLinesInput {
 	/** The monitors drawn now; null until they have loaded. */
@@ -67,8 +70,7 @@ export class MapNoteLines {
 			this.#hidden,
 			this.#monitorList && this.#monitorTypes ? this.#monitorList : null,
 			this.#reports,
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- an empty stand-in, never mutated
-			input.inPlaces ?? new Set(),
+			input.inPlaces ?? NO_PLACES,
 			input.dayDrawn
 		);
 		const entryLabel = input.entryLabel;
