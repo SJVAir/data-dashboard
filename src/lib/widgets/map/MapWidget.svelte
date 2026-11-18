@@ -69,6 +69,7 @@
 		PESTICIDE_USE,
 		pollutantLayers
 	} from "./options";
+	import type { NoticesDay } from "./section-links";
 	import { parsePeriod, periodLabel, periodListed, type UsePeriod } from "./use-period";
 	import { monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
@@ -438,6 +439,12 @@
 	);
 	/** The query as a key: the plugins are made again when it changes. */
 	const useKey = $derived(useQuery ? JSON.stringify(useQuery) : null);
+	/** The day the notices layer shows when that is a past day: the card's "Notices here" link. */
+	const noticesPastDay = $derived.by<NoticesDay | null>(() => {
+		const at = days.at;
+		if (!noticesDrawn || !at || at === "now") return null;
+		return { year: Number(at.day.slice(0, 4)), month: Number(at.day.slice(5, 7)) };
+	});
 	/** The township the lens is centred on (the lens plugin's, through UseLayers). */
 	let lensCenter = $state<string | null>(null);
 	/** The lens plugin, for the township card's "Show square miles". */
@@ -923,6 +930,7 @@
 		{loads}
 		note={useNote}
 		onlens={(center) => (lensCenter = center)}
+		noticesDay={noticesPastDay}
 		bind:lens={useLens}
 	/>
 	<FillLayer {map} source={fillSource} label={fillLabel} {loads} drawn={fillDrawn} />

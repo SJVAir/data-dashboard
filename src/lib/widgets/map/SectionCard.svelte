@@ -4,16 +4,21 @@
 	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import { formatMonthName, formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import ExternalLinkCue from "$lib/components/shared/ExternalLinkCue.svelte";
+	import type { PesticideFilters } from "$lib/data/schema";
+	import { filtersKey } from "./data/filters-key";
 	import { sectionDetail } from "./data/section-detail";
 	import { useField, type UseProps } from "./data/use";
 	import { peakMonth, topChemicals, type UseFigure } from "./use-card";
 	import UseCardFigures from "./UseCardFigures.svelte";
+	import { chemicalLink, sectionLinks, type NoticesDay } from "./section-links";
 	import type { UsePeriod } from "./use-period";
 
 	// A section's card: its MTRS code and county, the active filters, and its three figures (the
 	// shown one with its class in words), from the map feature itself. Pinned or focused, it also
 	// loads the section's year: the shown figure by month as small bars (with a text list), the
-	// peak month, and its top chemicals with their badges. On hover (map-sdk's non-interactive
+	// peak month, and its top chemicals with their badges (all following the Map's filters and
+	// month), and links out to the explorer from the meta's templates. On hover (map-sdk's non-interactive
 	// tooltip) it fetches nothing and has nothing focusable. Esc and the lens are map-sdk's.
 	let {
 		props,
@@ -22,6 +27,8 @@
 		period,
 		scale,
 		filtersLine,
+		filters,
+		noticesDay,
 		interactive
 	}: {
 		props: UseProps;
@@ -31,6 +38,10 @@
 		scale: Scale | null;
 		/** The active filters' names, or null with none. */
 		filtersLine: string | null;
+		/** The Map's saved filters: the card's detail and links follow them. */
+		filters: PesticideFilters;
+		/** The day the notices layer shows when it shows a past day; null otherwise. */
+		noticesDay: NoticesDay | null;
 		/** The pinned or focused card; false for the hover tooltip's static form. */
 		interactive: boolean;
 	} = $props();
@@ -42,11 +53,14 @@
 	// neither ask again nor retry a failure (only Retry does).
 	const sectionId = $derived(props.id);
 	const year = $derived(period.year);
+	const month = $derived(period.month);
+	// The filters as a key, so a map refetch that leaves them unchanged doesn't ask again.
+	const filtersJson = $derived(filtersKey(filters));
 	$effect(() => {
 		// The hover form fetches nothing: every pointer move across sections would ask.
 		if (!interactive) return;
 		const id = sectionId;
-		const asked = year;
+		const asked = { year, month, filters: JSON.parse(filtersJson) as PesticideFilters };
 		void tries;
 		const controller = new AbortController();
 		failed = false;
@@ -71,6 +85,8 @@
 		return () => controller.abort();
 	});
 
+	const links = $derived(sectionLinks(meta ?? undefined, props.id, period, filters, noticesDay));
+
 	const info = $derived(figures.find((f) => f.id === figure));
 	const field = $derived(useField(figure));
 	const pad = (n: number) => String(n).padStart(2, "0");
@@ -94,6 +110,8 @@
 	 * (a scrollable region the keyboard can scroll), named for its section. The hover form takes
 	 * no focus.
 	 */
+	const linkClass =
+		"text-link focus-visible:ring-ring rounded-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none";
 	const focusTarget = $derived(
 		interactive ? { tabindex: 0, role: "group", "aria-label": props.name } : {}
 	);
@@ -174,8 +192,21 @@
 					<p class="font-medium">{m.map_use_card_top_chemicals()}</p>
 					<ul class="flex flex-col gap-1">
 						{#each chemicals as chemical (chemical.id)}
+							{@const chemicalHref = chemicalLink(meta ?? undefined, chemical.id, period)}
 							<li class="flex flex-wrap items-center gap-1" data-use-chemical={chemical.id}>
-								<span>{chemical.display_name}</span>
+								{#if chemicalHref}
+									<a
+										href={chemicalHref}
+										target="_blank"
+										rel="noopener noreferrer"
+										class={linkClass}
+									>
+										{chemical.display_name}
+										<ExternalLinkCue class="inline size-3 align-baseline" />
+									</a>
+								{:else}
+									<span>{chemical.display_name}</span>
+								{/if}
 								{#each badgesOf(chemical.badges) as badge (badge.key)}
 									<span
 										class="border-border text-foreground rounded-sm border px-1 text-xs font-medium"
@@ -187,6 +218,20 @@
 					</ul>
 				</div>
 			{/if}
+		{/if}
+		{#if links.page || links.records || links.notices}
+			<ul class="flex flex-wrap gap-x-3 gap-y-1 text-sm" data-use-links>
+				{#each [[links.page, m.map_use_card_link_section()], [links.records, m.map_use_card_link_records()], [links.notices, m.map_use_card_link_notices()]] as [href, text] (text)}
+					{#if href}
+						<li>
+							<a {href} target="_blank" rel="noopener noreferrer" class={linkClass}>
+								{text}
+								<ExternalLinkCue class="inline size-3 align-baseline" />
+							</a>
+						</li>
+					{/if}
+				{/each}
+			</ul>
 		{/if}
 	{/if}
 </div>

@@ -14,6 +14,7 @@
 	import type { UseProps, UseQuery } from "../data/use";
 	import { useScaleFor } from "../data/use-scale";
 	import { joinLabels, type UseFigure } from "../use-card";
+	import type { NoticesDay } from "../section-links";
 	import { useTooltips } from "../use-tooltip";
 	import { beforeIn } from "./order";
 
@@ -40,6 +41,7 @@
 		loads,
 		note,
 		onlens,
+		noticesDay = null,
 		lens = $bindable(null)
 	}: {
 		map: MapContext;
@@ -71,6 +73,8 @@
 		note: Snippet;
 		/** The township the lens is centred on (null when it drops, or with no lens). */
 		onlens: (center: string | null) => void;
+		/** The past day the notices layer shows (the section card's "Notices here" link). */
+		noticesDay?: NoticesDay | null;
 		/** The lens plugin while it's on the map (the township card pins and releases it). */
 		lens?: ShapesLens | null;
 	} = $props();
@@ -126,6 +130,8 @@
 			period: q.period,
 			figures: catalog,
 			filtersLine: () => filtersLine,
+			filters: q.filters,
+			noticesDay: () => noticesDay,
 			onshow: (refKey) => made?.pin(refKey),
 			onzoom: (item) => current.easeTo({ center: item.lngLat, minZoom: z })
 		});

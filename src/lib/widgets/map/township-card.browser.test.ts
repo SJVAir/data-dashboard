@@ -277,6 +277,8 @@ describe("useTooltips", () => {
 			period: PERIOD,
 			figures: FIGURES,
 			filtersLine: () => null,
+			filters: {},
+			noticesDay: () => null,
 			onshow: () => {},
 			onzoom: () => {}
 		});

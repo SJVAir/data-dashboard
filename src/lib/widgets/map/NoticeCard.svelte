@@ -56,7 +56,7 @@
 
 	const explainer = $derived(meta?.notes.noi_meaning ?? null);
 	const sourceHref = $derived(webHref(explainer?.source_url));
-	const signupHref = $derived(webHref(meta?.links.spraydays_signup));
+	const signupHref = $derived(webHref(meta?.links?.spraydays_signup));
 
 	/**
 	 * The method's name: the meta's label for the notice's method key; SprayDays' own wording

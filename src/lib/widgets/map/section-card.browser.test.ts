@@ -28,7 +28,8 @@ import { resetPesticideMeta } from "$lib/data/pesticide-meta";
 import { formatMonthName, formatValue } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { resetSectionDetails, sectionDetail } from "./data/section-detail";
-import type { UseProps } from "./data/use";
+import type { UseProps, UseQuery } from "./data/use";
+import type { UsePeriod } from "./use-period";
 import { buildUseScale } from "./data/use-scale";
 import UseLayers from "./layers/UseLayers.svelte";
 import SectionCard from "./SectionCard.svelte";
@@ -59,8 +60,33 @@ const META = {
 		{ key: "tac", label: "Toxic air contaminant", note: null }
 	],
 	notes: {},
-	links: {},
+	links: {} as Record<string, string>,
+	link_params: {} as Record<string, { param: string; from: string }[]>,
 	notice_filters: []
+};
+
+const LINKED = {
+	...META,
+	links: {
+		section_page: "https://x.test/tools/pesticides/sections/{id}/",
+		section_records: "https://x.test/tools/pesticides/records/?section={id}",
+		section_notices: "https://x.test/tools/pesticides/notices/?section={id}",
+		section_notices_past: "https://x.test/tools/pesticides/notices/past/?section={id}",
+		chemical_page: "https://x.test/tools/pesticides/chemicals/{id}/"
+	},
+	link_params: {
+		section_page: [{ param: "year", from: "year" }],
+		section_records: [
+			{ param: "year", from: "year" },
+			{ param: "chemical", from: "chemical_id" }
+		],
+		section_notices: [{ param: "chemical", from: "chemical_id" }],
+		section_notices_past: [
+			{ param: "y", from: "notices_year" },
+			{ param: "m", from: "notices_month" }
+		],
+		chemical_page: [{ param: "year", from: "year" }]
+	}
 };
 
 const LBS = [0, 10, 40, 300, 120, 0, 0, 0, 0, 0, 0, 5];
@@ -134,6 +160,8 @@ function card(over: Record<string, unknown> = {}) {
 			period: PERIOD,
 			scale: SCALE,
 			filtersLine: null,
+			filters: {},
+			noticesDay: null,
 			interactive: true,
 			...over
 		}
@@ -258,7 +286,7 @@ describe("sectionDetail", () => {
 		await expect.poll(() => a.container.querySelectorAll("[data-use-bar]").length).toBe(12);
 		await expect.poll(() => b.container.querySelectorAll("[data-use-bar]").length).toBe(12);
 		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(1);
-		await sectionDetail("s1", 2022);
+		await sectionDetail("s1", { year: 2022, filters: {} });
 		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(2);
 		expect(vi.mocked(getPesticideSectionDetails).mock.calls.map((c) => [c[0], c[1]])).toEqual([
 			["s1", { year: 2023 }],
@@ -268,14 +296,143 @@ describe("sectionDetail", () => {
 
 	it("a failed request is dropped, and a caller's abort stops only its own wait", async () => {
 		vi.mocked(getPesticideSectionDetails).mockRejectedValueOnce(new Error("down"));
-		await expect(sectionDetail("s1", 2023)).rejects.toThrow("down");
+		await expect(sectionDetail("s1", { year: 2023, filters: {} })).rejects.toThrow("down");
 		const controller = new AbortController();
-		const aborted = sectionDetail("s1", 2023, controller.signal);
-		const other = sectionDetail("s1", 2023);
+		const aborted = sectionDetail("s1", { year: 2023, filters: {} }, controller.signal);
+		const other = sectionDetail("s1", { year: 2023, filters: {} });
 		controller.abort();
 		await expect(aborted).rejects.toMatchObject({ name: "AbortError" });
 		await expect(other).resolves.toMatchObject({ id: "s1" });
 		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(2);
+	});
+
+	it("the section detail is asked with the Map's filters and month, and keyed by them", async () => {
+		const filters = { chemical: "c1", method: "A", category: ["b", "a"], iarcGroup: "2B" };
+		await sectionDetail("s1", { year: 2023, month: 6, filters });
+		expect(getPesticideSectionDetails).toHaveBeenLastCalledWith("s1", {
+			year: 2023,
+			month: 6,
+			chemical_id: "c1",
+			aerial_ground: "A",
+			category: ["b", "a"],
+			iarc_group: "2B"
+		});
+		// The same ask again (the category list in another order) shares the request.
+		await sectionDetail("s1", {
+			year: 2023,
+			month: 6,
+			filters: { ...filters, category: ["a", "b"] }
+		});
+		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(1);
+		// Another filter, month, or none is another request; a year has no month key.
+		await sectionDetail("s1", { year: 2023, month: 7, filters });
+		await sectionDetail("s1", { year: 2023, filters: { chemical: "c2" } });
+		await sectionDetail("s1", { year: 2023, month: null, filters: {} });
+		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(4);
+		expect(vi.mocked(getPesticideSectionDetails).mock.calls.at(-1)).toEqual(["s1", { year: 2023 }]);
+	});
+
+	it("the detail cache keeps a few entries, dropping the oldest", async () => {
+		for (let i = 0; i < 80; i++) await sectionDetail(`s${i}`, { year: 2023, filters: {} });
+		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(80);
+		await sectionDetail("s79", { year: 2023, filters: {} });
+		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(80);
+		await sectionDetail("s0", { year: 2023, filters: {} });
+		expect(getPesticideSectionDetails).toHaveBeenCalledTimes(81);
+	});
+});
+
+describe("the section card's links", () => {
+	/** The href of the link whose text holds `label` (the cue adds its own screen reader text). */
+	const hrefOf = (root: Element, label: string) =>
+		[...root.querySelectorAll("a[href]")]
+			.find((a) => a.textContent?.includes(label))
+			?.getAttribute("href");
+
+	it("come from the meta templates, open in a new tab with the cue and rel", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
+		const screen = await card({ filters: { chemical: "c1" } });
+		await expect
+			.poll(() => screen.container.querySelectorAll("a[href]").length)
+			.toBeGreaterThanOrEqual(3);
+		const links = [...screen.container.querySelectorAll("a[href]")];
+		for (const a of links) {
+			expect(a.getAttribute("target")).toBe("_blank");
+			expect(a.getAttribute("rel")).toBe("noopener noreferrer");
+			expect(a.querySelector("svg")).not.toBeNull();
+		}
+		expect(hrefOf(screen.container, m.map_use_card_link_section())).toBe(
+			"https://x.test/tools/pesticides/sections/s1/?year=2023"
+		);
+		expect(hrefOf(screen.container, m.map_use_card_link_records())).toBe(
+			"https://x.test/tools/pesticides/records/?section=s1&year=2023&chemical=c1"
+		);
+		expect(hrefOf(screen.container, m.map_use_card_link_notices())).toBe(
+			"https://x.test/tools/pesticides/notices/?section=s1&chemical=c1"
+		);
+	});
+
+	it("a missing meta link is left out", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue({
+			...LINKED,
+			links: { section_page: LINKED.links.section_page }
+		} as never);
+		const screen = await card();
+		await expect
+			.element(screen.getByRole("link", { name: new RegExp(m.map_use_card_link_section()) }))
+			.toBeVisible();
+		expect(screen.container.querySelectorAll("a[href]")).toHaveLength(1);
+		screen.unmount();
+		// A meta with no links at all (an old server) leaves the card as it was.
+		vi.mocked(getPesticidesMeta).mockResolvedValue({ ...LINKED, links: undefined } as never);
+		resetPesticideMeta();
+		const bare = await card();
+		await expect.poll(() => bare.container.querySelectorAll("[data-use-bar]").length).toBe(12);
+		expect(bare.container.querySelectorAll("a[href]")).toHaveLength(0);
+	});
+
+	it("each top chemical's name links to its chemical page", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
+		const screen = await card({ filters: { chemical: "c1" } });
+		await expect
+			.poll(() => screen.container.querySelectorAll("[data-use-chemical] a").length)
+			.toBe(3);
+		const link = screen.container.querySelector('[data-use-chemical="c2"] a')!;
+		expect(link.textContent).toContain("1,3-Dichloropropene");
+		expect(link.getAttribute("href")).toBe(
+			"https://x.test/tools/pesticides/chemicals/c2/?year=2023"
+		);
+	});
+
+	it("Notices here links to the explorer's notices for the section, with no list", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
+		const screen = await card();
+		const link = screen.getByRole("link", { name: new RegExp(m.map_use_card_link_notices()) });
+		await expect.element(link).toBeVisible();
+		expect(screen.container.querySelector("[data-use-notices]")).toBeNull();
+		await expect
+			.element(link)
+			.toHaveAttribute("href", "https://x.test/tools/pesticides/notices/?section=s1");
+		// Only the chemicals are listed; the card holds no notices.
+		expect(screen.container.querySelectorAll("[data-use-chemical]")).toHaveLength(3);
+	});
+
+	it("Notices here is the explorer's past link on a past day", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
+		const screen = await card({ noticesDay: { year: 2026, month: 11 } });
+		await expect
+			.element(screen.getByRole("link", { name: new RegExp(m.map_use_card_link_notices()) }))
+			.toHaveAttribute(
+				"href",
+				"https://x.test/tools/pesticides/notices/past/?section=s1&y=2026&m=11"
+			);
+	});
+
+	it("the hover form has no links", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue(LINKED as never);
+		const screen = await card({ interactive: false });
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(screen.container.querySelectorAll("a[href]")).toHaveLength(0);
 	});
 });
 
@@ -305,7 +462,12 @@ describe("a section's card on the map", () => {
 	 * The `id` plugin's card for the section, as map-sdk asks for it: pinned, keyboard-focused
 	 * (the feature list), or hovered (neither).
 	 */
-	async function tooltipOf(id: "lens" | "sections", form: "pinned" | "focused" | "hovered") {
+	async function tooltipOf(
+		id: "lens" | "sections",
+		form: "pinned" | "focused" | "hovered",
+		filters: UseQuery["filters"] = {},
+		period: UsePeriod = PERIOD
+	) {
 		const map = new FakeMap();
 		map.addPlugin({ id: "focus", kind: "focus", options: {} });
 		const sections = source([section()]);
@@ -320,7 +482,8 @@ describe("a section's card on the map", () => {
 			units: "lbs",
 			zoom: 12,
 			queryKey: "q",
-			query: { figure: "pounds-applied", period: PERIOD, filters: {}, info: FIGURES[0] },
+			query: { figure: "pounds-applied", period, filters, info: FIGURES[0] },
+			noticesDay: null,
 			figures: FIGURES,
 			drawn: true,
 			loads: true,
@@ -347,6 +510,19 @@ describe("a section's card on the map", () => {
 			expect(getPesticideSectionDetails).toHaveBeenCalledWith("s1", { year: 2023 });
 		});
 	}
+
+	it("a pinned section asks for its details with the Map's filters and month", async () => {
+		const { snippet } = await tooltipOf(
+			"sections",
+			"pinned",
+			{ chemical: "c1" },
+			{ year: 2023, month: 6 }
+		);
+		await render(RenderSnippet, { snippet });
+		await expect
+			.poll(() => vi.mocked(getPesticideSectionDetails).mock.calls.at(-1))
+			.toEqual(["s1", { year: 2023, month: 6, chemical_id: "c1" }]);
+	});
 
 	it("a keyboard-focused section gets the interactive form", async () => {
 		const { snippet } = await tooltipOf("sections", "focused");

@@ -80,6 +80,18 @@ describe("findScriptNewTabs", () => {
 	});
 });
 
+describe("the Map's section card", () => {
+	it("opens its explorer links in a new tab, each with the cue and rel", () => {
+		const source = readFileSync(
+			join(process.cwd(), "src/lib/widgets/map/SectionCard.svelte"),
+			"utf8"
+		);
+		expect(source.match(NEW_TAB)?.length ?? 0).toBeGreaterThanOrEqual(2);
+		expect(findUncuedNewTabLinks(source)).toEqual([]);
+		expect(source.match(/rel="noopener noreferrer"/g)?.length).toBe(source.match(NEW_TAB)?.length);
+	});
+});
+
 describe("new-tab cues", () => {
 	const files = walk(join(process.cwd(), "src"));
 	it('gives every target="_blank" link in a component the new-tab cue', () => {

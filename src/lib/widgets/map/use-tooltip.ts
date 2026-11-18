@@ -1,9 +1,11 @@
 import { createRawSnippet, mount, unmount, type Snippet } from "svelte";
 import type { FeatureListItem } from "@sjvair/map-sdk";
 import type { Scale } from "@sjvair/map-sdk/data";
+import type { PesticideFilters } from "$lib/data/schema";
 import type { UseProps } from "./data/use";
 import SectionCard from "./SectionCard.svelte";
 import TownshipCard from "./TownshipCard.svelte";
+import type { NoticesDay } from "./section-links";
 import type { UseFigure } from "./use-card";
 import type { UsePeriod } from "./use-period";
 
@@ -18,6 +20,10 @@ export type UseTooltipContext = {
 	figures: UseFigure[];
 	/** The active filters' names (reactively), or null with none. */
 	filtersLine: () => string | null;
+	/** The Map's saved filters. */
+	filters: PesticideFilters;
+	/** The past day the notices layer shows (reactively), or null. */
+	noticesDay: () => NoticesDay | null;
 	/** "Show square miles" on a township. */
 	onshow: (refKey: string) => void;
 	/** "Zoom in" on a township. */
@@ -72,6 +78,10 @@ export function useTooltips(context: UseTooltipContext): UseTooltip {
 					get filtersLine() {
 						return context.filtersLine();
 					},
+					get noticesDay() {
+						return context.noticesDay();
+					},
+					filters: context.filters,
 					figure: context.figure,
 					figures: context.figures,
 					period: context.period,
