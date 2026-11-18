@@ -7,7 +7,9 @@ import {
 	mapOptions,
 	drawableShowing,
 	pollutantLayers,
-	showingOf
+	showingOf,
+	useFigureOf,
+	MAP_TOOLBAR_KEYS
 } from "./options";
 
 const FRESNO = { kind: "region", type: "city", code: "fresno" } as never;
@@ -144,5 +146,44 @@ describe("notices option", () => {
 	});
 	it("MAP_POLLUTANTS_MAX is 4", () => {
 		expect(MAP_POLLUTANTS_MAX).toBe(4);
+	});
+});
+
+describe("pesticide use options", () => {
+	const USE_CATALOG = [
+		{
+			id: "pesticide-use",
+			entryTypes: ["pounds-applied", "acres-treated", "applications", "other"].map((id) => ({ id }))
+		}
+	] as unknown as CatalogEntry[];
+	it("usePeriod accepts YYYY and YYYY-MM only", () => {
+		expect(MapOptionsSchema.safeParse({ usePeriod: "2023" }).success).toBe(true);
+		expect(MapOptionsSchema.safeParse({ usePeriod: "2023-07" }).success).toBe(true);
+		expect(MapOptionsSchema.safeParse({ usePeriod: "2023-13" }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ usePeriod: "23" }).success).toBe(false);
+	});
+	it("useShown accepts only false", () => {
+		expect(MapOptionsSchema.safeParse({ useShown: false }).success).toBe(true);
+		expect(MapOptionsSchema.safeParse({ useShown: true }).success).toBe(false);
+	});
+	it("useFigureOf falls back to the catalog's first and never writes", () => {
+		const options = { useFigure: "nonsense" };
+		expect(useFigureOf(options, USE_CATALOG)).toBe("pounds-applied");
+		expect(options).toEqual({ useFigure: "nonsense" });
+		expect(useFigureOf({ useFigure: "acres-treated" }, USE_CATALOG)).toBe("acres-treated");
+		expect(useFigureOf({ useFigure: "other" }, USE_CATALOG)).toBe("pounds-applied");
+		expect(useFigureOf({}, undefined)).toBeUndefined();
+	});
+	it("useFigureOf never takes an object prototype key for a figure", () => {
+		const catalog = [
+			{ id: "pesticide-use", entryTypes: ["toString", "acres-treated"].map((id) => ({ id })) }
+		] as unknown as CatalogEntry[];
+		expect(useFigureOf({ useFigure: "toString" }, catalog)).toBe("acres-treated");
+		expect(useFigureOf({}, catalog)).toBe("acres-treated");
+	});
+	it("the toolbar keys include the figure and shown, not the period", () => {
+		expect(MAP_TOOLBAR_KEYS).toContain("useFigure");
+		expect(MAP_TOOLBAR_KEYS).toContain("useShown");
+		expect(MAP_TOOLBAR_KEYS).not.toContain("usePeriod");
 	});
 });

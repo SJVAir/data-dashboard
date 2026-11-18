@@ -1,7 +1,22 @@
+import { flushSync } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@sjvair/sdk", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@sjvair/sdk")>()),
+	getPesticideTownships: vi.fn(),
+	getPesticidesMeta: vi.fn(),
+	getChemicalDetails: vi.fn()
+}));
+
+import { getChemicalDetails, getPesticideTownships, getPesticidesMeta } from "@sjvair/sdk";
+import { resetPesticideMeta } from "$lib/data/pesticide-meta";
+import type { PesticideFilters } from "$lib/data/schema";
+import { SECTION_ZOOM } from "./use-geometry";
+import { resetUseCaches, type UseQuery } from "./use";
 import { createMemoryActivity } from "$lib/platform/memory";
 import { createNowClient } from "$lib/data/now/client";
 import type { Snapshot, SnapshotAt } from "$lib/data/snapshot";
+import { m } from "$lib/paraglide/messages.js";
 import type { WidgetInstance } from "$lib/documents/schema";
 import type { FillData } from "./fill";
 import type { HmsData } from "./hms";
@@ -20,6 +35,8 @@ const fakes = vi.hoisted(() => ({
 		value: null
 	})),
 	noticesUnavailable: { value: false },
+	/** Whether the notices' fake key names the layer's filters (as the real key does). */
+	noticesKeyFilters: { value: false },
 	noticeFilterNames: vi.fn<() => Promise<string[]>>(async () => ["chemical_id", "category"])
 }));
 
@@ -32,7 +49,9 @@ vi.mock("./notices", async (original) => {
 			source: async ({ data, at }: { data: WidgetInstance["data"]; at: SnapshotAt }) => {
 				if (!data.layers.some((l) => l.dataset === "pesticide-notices")) return null;
 				if (fakes.noticesUnavailable.value) return { unavailable: "filter-gone" };
-				const key = `notices:${at === "now" ? "now" : at.day}`;
+				const filters = data.layers.find((l) => l.dataset === "pesticide-notices")?.filters;
+				const named = fakes.noticesKeyFilters.value ? `|${JSON.stringify(filters ?? {})}` : "";
+				const key = `notices:${at === "now" ? "now" : at.day}${named}`;
 				return { key, cadence: "hour", fetch: () => fakes.noticesFetch(key) };
 			}
 		},
@@ -130,19 +149,53 @@ const WITH_NOTICES: WidgetInstance = {
 	}
 } as WidgetInstance;
 
+const USE_CLASS = { breaks: [10], min: 1, colors: ["#111111"] };
+const USE_RESPONSE = {
+	type: "FeatureCollection",
+	year: 2023,
+	classes: { lbs_chemical: USE_CLASS, acres_treated: USE_CLASS, applications: USE_CLASS },
+	features: []
+};
+
+/** A Map with spray notices and pesticide use, both narrowed by `filters`. */
+const withPesticides = (filters: PesticideFilters): WidgetInstance =>
+	({
+		...WIDGET,
+		data: {
+			layers: [
+				...WIDGET.data.layers,
+				{ dataset: "pesticide-notices", filters },
+				{ dataset: "pesticide-use", filters }
+			]
+		}
+	}) as WidgetInstance;
+
+const useQueryOf = (filters: PesticideFilters): UseQuery => ({
+	figure: "pounds-applied",
+	period: { year: 2023, month: null },
+	filters,
+	info: { label: "Pounds Applied", units: "lbs", precision: 0 }
+});
+
 function setup(first: {
 	at: SnapshotAt;
 	ahead?: string[];
 	fill?: MapDataInput["fill"];
 	widget?: WidgetInstance;
+	useQuery?: UseQuery | null;
 }) {
 	const now = createNowClient({ activity: createMemoryActivity(), now: () => new Date() });
 	let at = $state.raw<SnapshotAt>(first.at);
 	let ahead = $state.raw<readonly string[]>(first.ahead ?? []);
-	const widget = first.widget ?? WIDGET;
+	let widget = $state.raw<WidgetInstance>(first.widget ?? WIDGET);
+	let useQuery = $state.raw<UseQuery | null>(first.useQuery ?? null);
 	const input: MapDataInput = {
-		widget,
-		layer: widget.data.layers[0],
+		get widget() {
+			return widget;
+		},
+		get layer() {
+			return widget.data.layers[0];
+		},
 		entryType: "pm25",
 		loads: true,
 		filters: null,
@@ -153,7 +206,14 @@ function setup(first: {
 			return ahead;
 		},
 		today: "2026-11-16",
-		fill: first.fill ?? null
+		fill: first.fill ?? null,
+		get useQuery() {
+			return useQuery;
+		},
+		bounds: null,
+		zoom: 0,
+		sectionZoom: SECTION_ZOOM,
+		lensCenter: null
 	};
 	const rating = { dailyFigure: vi.fn(), levels: vi.fn() } as never;
 	const data = new MapData(() => input, { now, rating });
@@ -162,6 +222,11 @@ function setup(first: {
 		set(next: { at: SnapshotAt; ahead?: string[] }) {
 			at = next.at;
 			ahead = next.ahead ?? [];
+		},
+		setWidget(next: WidgetInstance, nextQuery: UseQuery | null) {
+			widget = next;
+			useQuery = nextQuery;
+			flushSync();
 		}
 	};
 }
@@ -181,6 +246,15 @@ beforeEach(() => {
 	fakes.noticesFetch.mockClear();
 	fakes.noticesFetch.mockImplementation(async () => ({ notices: [], value: null }));
 	fakes.noticesUnavailable.value = false;
+	fakes.noticesKeyFilters.value = false;
+	resetUseCaches();
+	resetPesticideMeta();
+	vi.mocked(getPesticidesMeta).mockReset();
+	vi.mocked(getPesticidesMeta).mockResolvedValue({ years: [2023] } as never);
+	vi.mocked(getChemicalDetails).mockReset();
+	vi.mocked(getChemicalDetails).mockResolvedValue({ display_name: "Chem" } as never);
+	vi.mocked(getPesticideTownships).mockReset();
+	vi.mocked(getPesticideTownships).mockImplementation(async () => USE_RESPONSE as never);
 	fakes.noticeFilterNames.mockReset();
 	fakes.noticeFilterNames.mockImplementation(async () => ["chemical_id", "category"]);
 });
@@ -326,7 +400,11 @@ describe("MapData", () => {
 		await flush();
 		expect(t.data.noticesUnavailable).toBe("filter-gone");
 		// map-sdk's legend says the layer is unavailable: never a silent empty layer.
-		expect(t.data.noticesSource.status).toEqual({ state: "unavailable", reason: "filter-gone" });
+		expect(t.data.noticesSource.status).toEqual({
+			state: "unavailable",
+			reason: "filter-gone",
+			message: m.map_notices_filter_gone()
+		});
 		expect(fakes.noticesFetch).not.toHaveBeenCalled();
 		t.data.destroy();
 	});
@@ -357,5 +435,53 @@ describe("MapData", () => {
 		expect(t.data.noticesState.status).toBe("ready");
 		expect(t.data.noticesSkipped).toEqual(["commodity"]);
 		t.data.destroy();
+	});
+
+	it("changing the Map's filters refetches notices and use", async () => {
+		fakes.noticesKeyFilters.value = true;
+		const t = setup({
+			at: "now",
+			widget: withPesticides({ chemical: "c1" }),
+			useQuery: useQueryOf({ chemical: "c1" })
+		});
+		await flush();
+		expect(t.data.use).toBe(true);
+		expect(fakes.noticesFetch).toHaveBeenCalledTimes(1);
+		expect(getPesticideTownships).toHaveBeenCalledTimes(1);
+		expect(t.data.useBlock.townshipsState).toBe("ready");
+
+		t.setWidget(withPesticides({ chemical: "c2" }), useQueryOf({ chemical: "c2" }));
+		await flush();
+		expect(fakes.noticesFetch).toHaveBeenCalledTimes(2);
+		expect(fakes.noticesFetch.mock.calls[1][0]).toContain("c2");
+		expect(getPesticideTownships).toHaveBeenCalledTimes(2);
+		expect(vi.mocked(getPesticideTownships).mock.calls[1][0]).toMatchObject({ chemical_id: "c2" });
+		t.data.destroy();
+	});
+
+	it("without the use layer nothing loads, and a gone filter makes use unavailable", async () => {
+		const plain = setup({ at: "now", useQuery: useQueryOf({}) });
+		await flush();
+		expect(plain.data.use).toBe(false);
+		expect(getPesticideTownships).not.toHaveBeenCalled();
+		plain.data.destroy();
+
+		vi.mocked(getChemicalDetails).mockRejectedValue(
+			new Error("Not found", { cause: { result: { status: 404 } } })
+		);
+		const gone = setup({
+			at: "now",
+			widget: withPesticides({ chemical: "gone" }),
+			useQuery: useQueryOf({ chemical: "gone" })
+		});
+		await flush();
+		expect(gone.data.useUnavailable).toBe("filter-gone");
+		expect(gone.data.useBlock.townships.status).toEqual({
+			state: "unavailable",
+			reason: "filter-gone",
+			message: m.map_use_filter_gone()
+		});
+		expect(getPesticideTownships).not.toHaveBeenCalled();
+		gone.data.destroy();
 	});
 });

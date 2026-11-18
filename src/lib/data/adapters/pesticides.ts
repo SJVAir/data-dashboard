@@ -3,7 +3,8 @@ import {
 	getPesticidesForPlace,
 	pesticidePlaceFilterErrors,
 	type ActivePesticideNoticesParams,
-	type PesticidesForPlaceFilters
+	type PesticidesForPlaceFilters,
+	type PesticideUseFilters
 } from "@sjvair/sdk";
 import { todayPacific } from "$lib/format";
 import { nextPeriodStart, periodStart, type ResolvedRange } from "$lib/format/range";
@@ -149,6 +150,19 @@ export function toNoticeParams(
 		if (noticeFilters.includes(name)) Object.assign(params, { [name]: all[name] });
 	}
 	return params;
+}
+
+/**
+ * The section and township maps' params for a layer's saved filters. Every filter maps; the
+ * period is the caller's, and the area never comes from the filters (no `county`).
+ */
+export function toUseParams(filters: PesticideFilters): PesticideUseFilters {
+	return {
+		...(filters.chemical !== undefined && { chemical_id: filters.chemical }),
+		...(filters.commodity !== undefined && { commodity_id: filters.commodity }),
+		...(filters.product !== undefined && { product_id: filters.product }),
+		...codeParams(filters)
+	};
 }
 
 /** The saved filters that are set but that the notice endpoints don't take (today a commodity). */

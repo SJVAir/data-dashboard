@@ -1,5 +1,7 @@
 import type { MetadataProvider } from "@sjvair/map-sdk/data";
 import type { MetadataSource } from "$lib/data/metadata";
+import { PESTICIDE_USE } from "../options";
+import { useScaleFor } from "../data/use-scale";
 
 const UNAVAILABLE = "unavailable" as const;
 
@@ -61,16 +63,17 @@ export function mapMetadata(source: MetadataSource): MetadataProvider {
 			guarded(signal, () => source.locationTypeLabel(type, signal)),
 		// The server's raw scale; map-sdk's `Scale` is the SDK's type for the same shape.
 		scale: (ref, signal) =>
-			guarded(
-				signal,
-				async () =>
-					(await source.serverScale(ref.dataset, ref.entryType, signal)) as Awaited<
-						ReturnType<MetadataProvider["scale"]>
-					> | null
-			),
+			guarded(signal, async () => {
+				// Use scales are built from the map responses' classes; the server has none to give.
+				if (ref.dataset === PESTICIDE_USE) return useScaleFor(ref) ?? null;
+				return (await source.serverScale(ref.dataset, ref.entryType, signal)) as Awaited<
+					ReturnType<MetadataProvider["scale"]>
+				> | null;
+			}),
 		entryType: (ref, signal) =>
 			guarded(signal, async () => {
-				const type = await catalogEntryType(ref.dataset, ref.entryType, signal);
+				const entry = ref.dataset === PESTICIDE_USE ? ref.entryType.split("|")[0] : ref.entryType;
+				const type = await catalogEntryType(ref.dataset, entry, signal);
 				return type && { label: type.label, units: type.units, precision: type.precision };
 			}),
 		monitorTypeLabel: (type, signal) =>

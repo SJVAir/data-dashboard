@@ -27,7 +27,8 @@ const offer: MapOffer = {
 	hasInside: true,
 	smokeAndFire: false,
 	fill: false,
-	notices: false
+	notices: false,
+	use: null
 };
 const rows = { types: true, inactive: true, inside: true };
 
@@ -286,5 +287,72 @@ describe("notices", () => {
 		expect(withoutToolbar({ noticesShown: false, day: "2026-11-14" })).toEqual({
 			day: "2026-11-14"
 		});
+	});
+});
+
+describe("pesticide use rows", () => {
+	const useOffer = { ...offer, use: { figures: ["pounds-applied"], years: [2022, 2023] } };
+	it("the use rows map to usePeriod and back", () => {
+		const values = { useYear: "2022", useMonth: "7" };
+		const next = toOptions({}, values, ["useYear", "useMonth"], defaults, "pm25");
+		expect(next).toEqual({ usePeriod: "2022-07" });
+		const shown = toValues(next, useOffer, defaults, "pm25", "pounds-applied");
+		expect(shown.useYear).toBe("2022");
+		expect(shown.useMonth).toBe("7");
+		expect(shown.use).toBe(true);
+		const all = toOptions(
+			next,
+			{ useYear: "2022", useMonth: "all" },
+			["useMonth"],
+			defaults,
+			"pm25"
+		);
+		expect(all).toEqual({ usePeriod: "2022" });
+		expect(toValues(all, useOffer, defaults, "pm25").useMonth).toBe("all");
+	});
+	it("choosing a year keeps the month", () => {
+		const next = toOptions(
+			{ usePeriod: "2022-07" },
+			{ useYear: "2023", useMonth: "7" },
+			["useYear"],
+			defaults,
+			"pm25"
+		);
+		expect(next.usePeriod).toBe("2023-07");
+	});
+	it("the use row and figure map to useShown and useFigure", () => {
+		expect(toOptions({}, { use: false }, ["use"], defaults, undefined)).toEqual({
+			useShown: false
+		});
+		expect(toOptions({ useShown: false }, { use: true }, ["use"], defaults, undefined)).toEqual({});
+		expect(
+			toOptions(
+				{},
+				{ useFigure: "acres-treated" },
+				["useFigure"],
+				defaults,
+				undefined,
+				"pounds-applied"
+			)
+		).toEqual({ useFigure: "acres-treated" });
+		expect(
+			toOptions(
+				{ useFigure: "acres-treated" },
+				{ useFigure: "pounds-applied" },
+				["useFigure"],
+				defaults,
+				undefined,
+				"pounds-applied"
+			)
+		).toEqual({});
+	});
+	it("groupsShown counts the use layer", () => {
+		expect(groupsShown(useOffer, 1)).toMatchObject({ layers: true, use: true });
+		expect(groupsShown(offer, 1).use).toBe(false);
+	});
+	it("Reset removes useFigure and useShown but keeps usePeriod", () => {
+		expect(
+			withoutToolbar({ useFigure: "acres-treated", useShown: false, usePeriod: "2022" })
+		).toEqual({ usePeriod: "2022" });
 	});
 });

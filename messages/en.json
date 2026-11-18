@@ -1155,8 +1155,25 @@
 	"getdata_map_fill": "Fill regions by",
 	"getdata_map_fill_none": "None",
 	"getdata_map_notices_switch": "Show spray notices",
-	"getdata_map_notices_filters": "Filter spray notices",
+	"getdata_map_pesticide_filters": "Filter pesticides",
 	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
+	"getdata_map_use_switch": "Show pesticide use",
+	"getdata_map_use_period": "Year",
+	"getdata_map_use_whole_year": "Whole year",
+	"getdata_map_use_month": "Month",
+	"getdata_map_use_no_years": "No years with pesticide use data are available yet.",
+	"getdata_map_use_years_unavailable": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
+	"getdata_map_section_fallback": [
+		{
+			"declarations": ["input section"],
+			"selectors": ["section"],
+			"match": {
+				"section=notices": "Spray notices",
+				"section=*": "Pesticide use"
+			}
+		}
+	],
+	"convert_dropped_use_period": "Pesticide use for {period} isn't in these dates, so it was left out.",
 	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
 	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",
@@ -1195,6 +1212,7 @@
 	"map_pin_your_location": "Your location",
 	"map_pin_shared_location": "Shared location",
 	"map_legend_toggle": "Legend",
+	"map_legend_scroll": "Legend, scrollable",
 	"map_label": "{title} map",
 	"map_label_marks_hidden": "{title} map. {notes}",
 	"map_layer_places": "Places",
@@ -1310,6 +1328,48 @@
 	],
 	"map_notice_list_span": "Scheduled from {first} to {last}",
 	"map_notice_spraydays": "Sign up with SprayDays",
+	"map_use_class_range": "{low} to {high}",
+	"map_use_class_upto": "Up to {high}",
+	"map_use_layer": "{figure}, {period}",
+	"map_use_units_township": "{units} per township",
+	"map_use_units_section": "{units} per section",
+	"map_use_group": "Pesticide use",
+	"map_use_figure": "Figure",
+	"map_use_year": "Year",
+	"map_use_month": "Month",
+	"map_use_whole_year": "Whole year",
+	"map_use_no_data": "No data for {period}",
+	"map_use_legend_filters": "Filtered by {filters}",
+	"map_use_failed": "Pesticide use couldn't be loaded.",
+	"map_use_filter_gone": "Pesticide use can't be shown: a filter it uses is no longer available.",
+	"map_use_sections_failed": "Pesticide use by section couldn't be loaded.",
+	"map_use_card_figures": "Use in {period}",
+	"map_use_card_value": "{value} {units}",
+	"map_use_card_class": "Shade {tier} of {count}, {range} {units}",
+	"map_use_card_sections": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} square mile",
+				"countPlural=other": "{count} square miles"
+			}
+		}
+	],
+	"map_use_card_show_sections": "Show square miles",
+	"map_use_card_zoom_in": "Zoom in",
+	"map_use_card_in_township": "In township {township} · {value} {units}",
+	"map_use_card_in_township_no_figure": "In township {township}",
+	"map_use_card_township_open": "Open township {township}",
+	"map_use_card_link_section": "Section details",
+	"map_use_card_link_records": "Records here",
+	"map_use_card_link_notices": "Notices here",
+	"map_use_card_months": "By month, {year}",
+	"map_use_card_month_row": "{month}: {value} {units}",
+	"map_use_card_peak": "Peaks in {month}",
+	"map_use_card_top_chemicals": "Top chemicals by pounds",
+	"map_use_card_detail_failed": "This square mile's months and chemicals couldn't be loaded.",
+	"map_use_card_loading": "Loading this square mile's months and chemicals",
 	"map_marks_hidden_day": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
@@ -1442,6 +1502,7 @@
 	"mapsdk_zoom_out": "Zoom out",
 	"mapsdk_map_label": "Map. Use arrow keys to pan, plus and minus to zoom.",
 	"mapsdk_unavailable": "{layer} isn't available right now",
+	"mapsdk_unavailable_line": "Isn't available right now",
 	"mapsdk_loading": "Loading",
 	"mapsdk_error_retry": "Try again",
 	"mapsdk_legend_label": "Legend",

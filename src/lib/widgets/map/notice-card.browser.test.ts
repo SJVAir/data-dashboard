@@ -255,6 +255,52 @@ describe("NoticeCard", () => {
 		expect(screen.container.textContent).not.toContain("Vapam");
 	});
 
+	it("a refetch that removes the focused list row moves focus to the card, not body", async () => {
+		const row = (id: string, iso: string) => notice({ id, scheduled: iso });
+		const screen = await setup({
+			notices: [
+				row("a", "2026-11-12T06:00:00-08:00"),
+				row("b", "2026-11-14T09:30:00-08:00"),
+				row("c", "2026-11-15T07:00:00-08:00")
+			]
+		});
+		const card = () => screen.container.querySelector("[data-notice-card]")!;
+		const rowOf = (iso: string) => screen.getByRole("button", { name: new RegExp(at(iso)) });
+		// A removed row, with the list still there: focus goes to the list's first row.
+		(rowOf("2026-11-14T09:30:00-08:00").element() as HTMLElement).focus();
+		await screen.rerender({
+			notices: [row("a", "2026-11-12T06:00:00-08:00"), row("c", "2026-11-15T07:00:00-08:00")]
+		});
+		await expect
+			.poll(() => document.activeElement)
+			.toBe(rowOf("2026-11-12T06:00:00-08:00").element());
+		// The list collapses to one notice (its detail, no rows): focus goes to the card.
+		await screen.rerender({ notices: [row("c", "2026-11-15T07:00:00-08:00")] });
+		await expect.poll(() => screen.container.querySelectorAll("li button").length).toBe(0);
+		await expect.poll(() => document.activeElement).toBe(card());
+		expect(document.activeElement).not.toBe(document.body);
+	});
+
+	it("a refetch that keeps the focused row leaves focus on it", async () => {
+		const row = (id: string, iso: string) => notice({ id, scheduled: iso });
+		const screen = await setup({
+			notices: [row("a", "2026-11-12T06:00:00-08:00"), row("b", "2026-11-14T09:30:00-08:00")]
+		});
+		const second = screen.getByRole("button", {
+			name: new RegExp(at("2026-11-14T09:30:00-08:00"))
+		});
+		(second.element() as HTMLElement).focus();
+		await screen.rerender({
+			notices: [
+				row("a", "2026-11-12T06:00:00-08:00"),
+				row("b", "2026-11-14T09:30:00-08:00"),
+				row("d", "2026-11-16T07:00:00-08:00")
+			]
+		});
+		await expect.poll(() => screen.container.querySelectorAll("li button").length).toBe(3);
+		expect(document.activeElement).toBe(second.element());
+	});
+
 	it("the SprayDays link comes from the meta and opens in a new tab with rel noopener", async () => {
 		const screen = await setup({ notices: [notice()] });
 		const link = screen.getByRole("link", {
@@ -277,6 +323,30 @@ describe("NoticeCard", () => {
 		await expect.element(screen.getByText("Telone II")).toBeVisible();
 		await new Promise((r) => setTimeout(r, 50));
 		expect(screen.getByRole("link").elements()).toHaveLength(0);
+	});
+
+	it("leaves out the explainer when the meta has no notes at all", async () => {
+		vi.mocked(getPesticidesMeta).mockResolvedValue({ ...META, notes: undefined } as never);
+		const screen = await setup({ notices: [notice()] });
+		// The SprayDays link shows once the meta has loaded; the explainer is left out.
+		await expect
+			.element(
+				screen.getByRole("link", { name: `${m.map_notice_spraydays()} ${m.opens_in_new_tab()}` })
+			)
+			.toBeVisible();
+		expect(screen.getByText(META.notes.noi_meaning.title).elements()).toHaveLength(0);
+	});
+
+	it("the card is a Tab stop only while it overflows, and passes axe when it does", async () => {
+		const screen = await setup({ notices: [notice()] });
+		await expect.element(screen.getByText(META.notes.noi_meaning.summary)).toBeVisible();
+		const el = screen.container.querySelector<HTMLElement>("[data-notice-card]")!;
+		el.style.maxHeight = "none";
+		await expect.poll(() => el.getAttribute("tabindex")).toBe("-1");
+		el.style.maxHeight = "40px";
+		await expect.poll(() => el.getAttribute("tabindex")).toBe("0");
+		const results = await axe.run(screen.container);
+		expect(results.violations.map((v) => v.id)).toEqual([]);
 	});
 
 	it("has no axe violations, in one and list forms", async () => {

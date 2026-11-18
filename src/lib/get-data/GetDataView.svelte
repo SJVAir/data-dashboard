@@ -30,7 +30,7 @@
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
-	import { MAP_MAX_DAYS, mapOptions } from "$lib/widgets/map/options";
+	import { MAP_MAX_DAYS, PESTICIDE_USE, mapOptions } from "$lib/widgets/map/options";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
@@ -73,8 +73,11 @@
 		setMapPesticideFilters,
 		setNotices,
 		setSmokeAndFire,
+		setUse,
 		toMapDraft
 	} from "./map";
+	import { pesticideMeta } from "./sources";
+	import { parsePeriod, periodLabel } from "$lib/widgets/map/use-period";
 	import MapSections from "./MapSections.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
@@ -160,6 +163,31 @@
 				if (!controller.signal.aborted) report(error);
 			});
 		return () => controller.abort();
+	});
+	/**
+	 * The years with pesticide use data (the pesticide meta's, newest first), once loaded;
+	 * `"unavailable"` when they couldn't be loaded (Retry asks again). Either way, or with none
+	 * listed, use can't be switched on.
+	 */
+	let useYears = $state.raw<readonly number[] | "unavailable" | undefined>();
+	let useYearsTry = $state(0);
+	const loadUseYears = (): Promise<readonly number[] | "unavailable"> =>
+		pesticideMeta().then(
+			(meta) => meta.years ?? [],
+			() => "unavailable" as const
+		);
+	/** Keyed on a primitive, so an edit doesn't ask for the years again. */
+	const isMap = $derived(plain.type === MAP_TYPE);
+	$effect(() => {
+		void useYearsTry;
+		if (!isMap || untrack(() => Array.isArray(useYears))) return;
+		let active = true;
+		void loadUseYears().then((y) => {
+			if (active) useYears = y;
+		});
+		return () => {
+			active = false;
+		};
 	});
 	const loadMapPollutants = async () => {
 		const p = await getMetadata().mapPollutants();
@@ -386,6 +414,11 @@
 		else layer.resolution = level;
 	}
 
+	/** Saves the Map's use period (`YYYY` or `YYYY-MM`), keeping its other options. */
+	function setMapUsePeriod(value: string): void {
+		draft.options = { ...mapOptions(draft), usePeriod: value };
+	}
+
 	/** What the last conversion left out or changed, until the next edit of the form. */
 	let dropped = $state.raw<{ after: string; conversion: NowConversion } | null>(null);
 	const notes = $derived.by(() => {
@@ -423,6 +456,10 @@
 		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
+		const usePeriod = parsePeriod(dropped.conversion.usePeriod);
+		if (what.includes("use-period") && usePeriod) {
+			out.push(m.convert_dropped_use_period({ period: periodLabel(usePeriod) }));
+		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		const days = dropped.conversion.selection;
 		if (days) {
@@ -484,10 +521,22 @@
 		if (next.type === MAP_TYPE) {
 			// The Map offers only the monitor map's pollutants (memoized, so loaded once), and has no
 			// alert level, so no scale to wait for.
-			const allowed = await loadMapPollutants();
+			// A pesticide use layer becomes the Map's use, whose period needs the meta's years.
+			const hasPesticides = draft.data.layers.some((l) => l.dataset === PESTICIDE_USE);
+			const [allowed, years] = await Promise.all([
+				loadMapPollutants(),
+				hasPesticides ? loadUseYears() : Promise.resolve(useYears)
+			]);
 			if (id !== changeId) return;
 			mapPollutants = allowed;
-			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed, now);
+			if (hasPesticides) useYears = years;
+			const converted = toMapDraft(
+				$state.snapshot(draft) as Draft,
+				catalog,
+				allowed,
+				now,
+				Array.isArray(years) ? years : []
+			);
 			defaultOwed = false;
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -742,6 +791,14 @@
 							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
 							onnotices={(on) => setNotices(draft.data, on)}
 							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}
+							years={useYears}
+							usePeriod={mapOptions(plain).usePeriod}
+							onuse={(on) => setUse(draft, on, Array.isArray(useYears) ? useYears : [])}
+							onretryyears={() => {
+								useYears = undefined;
+								useYearsTry++;
+							}}
+							onperiod={(value) => setMapUsePeriod(value)}
 							fill={mapOptions(plain).fill}
 							{fillTypes}
 							onfill={(type) => setMapFill(draft, type)}

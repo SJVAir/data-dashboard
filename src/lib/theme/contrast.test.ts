@@ -61,10 +61,22 @@ const shared: Pair[] = [
 	["--chart-5", "--card", 3],
 	// The Map toolbar's icons, on its background (map-sdk's toolbar draws on --background), on
 	// the menu surface, and on a hovered row (--accent).
-	...["monitors", "layers", "basemap", "theme", "settings", "clusters", "fire", "notices"].flatMap(
-		(icon): Pair[] =>
-			["--background", "--popover", "--accent"].map((bg): Pair => [`--map-icon-${icon}`, bg, 3])
-	)
+	...[
+		"monitors",
+		"layers",
+		"basemap",
+		"theme",
+		"settings",
+		"clusters",
+		"fire",
+		"notices",
+		"use"
+	].flatMap((icon): Pair[] =>
+		["--background", "--popover", "--accent"].map((bg): Pair => [`--map-icon-${icon}`, bg, 3])
+	),
+	// The section card's month bars, on the card (map-sdk's cards draw on --popover).
+	["--map-use-bar", "--card", 3],
+	["--map-use-bar", "--popover", 3]
 ];
 
 describe("dark tokens", () => {

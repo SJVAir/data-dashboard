@@ -16,6 +16,7 @@ import type { SnapshotAt } from "$lib/data/snapshot";
 import { addDays, formatNumber, pacificDay, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { PESTICIDE_NOTICES } from "../options";
+import { filtersKey } from "./filters-key";
 import { dataStatus } from "./status";
 import type { MapDataEntry } from "./types";
 
@@ -73,18 +74,6 @@ export type NoticeFeatureProperties = MapFeatureProperties & {
 /** The spray notices layer of `data`, if it has one. */
 function noticesLayer(data: WidgetDataConfig) {
 	return data.layers.find((l) => l.dataset === PESTICIDE_NOTICES);
-}
-
-/**
- * A key for the saved filters that is the same whatever order they were saved in (a category
- * list is a set). Only ids and codes, never coordinates.
- */
-function filtersKey(filters: PesticideFilters): string {
-	const entries = Object.entries(filters)
-		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => [key, Array.isArray(value) ? [...value].sort() : value] as const)
-		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-	return JSON.stringify(Object.fromEntries(entries));
 }
 
 /**
@@ -256,7 +245,11 @@ export function noticesSourceOf(d: {
 	return {
 		get status(): DataStatus {
 			const reason = d.noticesUnavailable;
-			return reason ? { state: "unavailable", reason } : dataStatus(d.noticesState);
+			if (!reason) return dataStatus(d.noticesState);
+			// The legend's status row says why (the map's banner too, with Edit data).
+			return reason === "filter-gone"
+				? { state: "unavailable", reason, message: m.map_notices_filter_gone() }
+				: { state: "unavailable", reason };
 		},
 		get features() {
 			return d.noticesState.data === undefined ? null : d.noticesDrawn.features;

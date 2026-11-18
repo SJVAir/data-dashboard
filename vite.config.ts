@@ -59,16 +59,22 @@ function contractCsp(): string {
 }
 
 /**
- * Dev only: same-origin `/api/` and `/account/` go to the local sjvair.com stack (the app's own
- * routes live under `/workspace/`, so nothing clashes). The Host header is kept so Django sees
- * the dev origin and its CSRF origin check passes. Vite loads `.env` for the app, not for this
+ * Dev only: same-origin `/api/`, `/account/`, `/tools/` and `/static/` go to the local
+ * sjvair.com stack (the app's own routes live under `/workspace/`, so nothing clashes). The Host
+ * header is kept so Django sees the dev origin and its CSRF origin check passes. `/tools/` and
+ * `/static/` are the explorer pages the Map card's links open: the server builds those links
+ * from the request's Host, so in dev they point at this origin, and the pages load their CSS and
+ * JS from `/static/`. (Those pages are in beta: sjvair.com answers 404 unless the signed-in user
+ * is a beta tester or staff.) Vite loads `.env` for the app, not for this
  * file, so `SJVAIR_DEV_SERVER` is read with `loadEnv`.
  */
 function devProxy(mode: string) {
 	const target = loadEnv(mode, process.cwd(), "").SJVAIR_DEV_SERVER || "http://localhost:8000";
 	return {
 		"/api/": { target, changeOrigin: false },
-		"/account/": { target, changeOrigin: false }
+		"/account/": { target, changeOrigin: false },
+		"/tools/": { target, changeOrigin: false },
+		"/static/": { target, changeOrigin: false }
 	};
 }
 

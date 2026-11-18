@@ -1226,6 +1226,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   chemicals, since only sections have a detail endpoint (`sections/<id>/`). Why: it needs a new
   server endpoint and SDK function, and the section card already names a section's chemicals.
   **Revisit when** someone asks for a township's chemicals.
+- **The section card ranks top chemicals by pounds, not the shown figure.** _Deferred 2026-11-17
+  (step 5 spec 5b, Task 8 review)._ `sections/<id>/` `top_chemicals` carry `lbs` only (also in
+  sdk `5.0.0-beta.14`). **Revisit when** the server gives per-chemical acres and applications.
 - **The Map widget's 25-place cap.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ A map
   holds at most 25 places (`accepts.maxPlaces`). Picking more than 25 by hand is rare, but every
   ZIP code in Fresno County (about 60) would go over it. The document-wide `SELECTION_MAX` (500)
@@ -1525,45 +1528,25 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
       Pacific "today" follow the machine zone (after 21:30 PT on a New York machine), so the tests
       fix the time, and the New York run barely exercises the Pacific-date rule. The real clock
       is correct. **Revisit when** a late-evening Pacific check is needed.
-    - **map-sdk's legend status row ignores the unavailable reason** and shows generic text; the
-      dashboard's banner carries the reason. While unavailable, the status row also replaces the
-      section, so the legend note doesn't show. A map-sdk candidate. **Revisit with** the next
-      map-sdk legend change. _Being fixed in `@sjvair/map-sdk` `0.1.0-beta.20` (the user,
-      2026-11-17, session `map-sdk-a2`): the status row shows the source's `reason` and keeps the
-      section's note. Remove this item when beta.20 is published and the dashboard pins it._
     - **A server without `scales["spray-notice"]`** makes the legend say "isn't available right
       now" while the markers would draw (neutral). The server has the scale (#338). **Revisit
       if** the server drops it.
     - **Notices with no geometry are dropped without saying so.** **Revisit if** the server sends
       geometry-less notices in practice (count them in the legend note then).
-    - **`meta.notes.noi_meaning` and `meta.links` aren't guarded** (`NoticeCard.svelte`): the SDK
-      types make them required. **Revisit if** the server makes them optional.
     - **If the pesticides meta fails to load, a gone chemical shows Retry**, not filter-gone
       (`filtersGone` needs the meta's `notice_filters` first); the fetch, which needs the meta
       too, fails with Retry. **Revisit if** someone reports the wrong message.
-    - **Turning notices off and on loses their filters**: the filters live on the layer, as the
-      spec says. **Revisit when** pesticide use joins (5b): the filter set may outlive the layer
-      then.
   - **The notice card:**
     - The "Active" tag isn't live while a card stays open (it changes at most once per window).
-    - When the open notice leaves on a refetch and one notice remains, focus goes to the card's
-      root (`tabindex="-1"`, with a focus ring), not a control. Moving it to the card's first link
-      is the alternative; **revisit with** the copy and accessibility check.
-    - A snippet handed out but never mounted stays cached until the plugin is removed (bounded by
-      markers × forms).
-    - `NoticeCard` holds the whole pesticides meta in `$state` (a deep proxy); `$state.raw`, as
-      `NoticesLegendNote` uses, would do.
-    - `amount()` is computed twice (use `{@const}`).
+    - When the open notice (or the focused list row) leaves on a refetch and one notice remains,
+      focus goes to the card's root (`tabindex="-1"`, with a focus ring), not a control. Moving
+      it to the card's first link is the alternative; **revisit with** the copy and accessibility
+      check.
+    - A notice card's snippet is cached when it is handed out, before it mounts
+      (`notice-tooltip.ts`), so one handed out but never mounted stays cached until the plugin is
+      removed (bounded by markers × forms). Spec 5b fixed this for the use cards (`use-tooltip.ts`
+      caches from mount); do the same here.
     - A null `at` in `MapWidget` is treated as Now (`!days.onDay` would say it).
-    - **A notices refetch can drop keyboard focus to `<body>`** when focus is on a list row and
-      that row's notice disappears, or the list collapses to one notice: the card's `$effect.pre`
-      handles only an open detail. The same WCAG 2.4.3 class as the fixed case, but narrower (an
-      hourly poll, and only when that row's data changes). **Revisit at** the next notice-card
-      work or an accessibility pass.
-    - **The "No spray notices…" lines flicker on each poll**: each poll emits `loading` before
-      `ready`, so the line briefly disappears and comes back (the day line already did this).
-      **Revisit when** the notes keep their last ready state across a poll, or when someone
-      notices the flicker.
   - **Data blocks** (`src/lib/widgets/map/data/`):
     - `DayLayer`'s ahead input is silently capped at `AHEAD` (`MapData` caps it itself).
     - `MonitorsBlock` re-derives `#entryType`, `#loads`, `#day` and `#aheadKey` and inlines the
@@ -1575,23 +1558,15 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - A day that settles while shown keeps polling until the polling effect next re-runs (at
       most one extra request).
     - `MapData` passes `noticesPolls` `Date.now()`, not the now client's clock.
-    - `#noticesFiltersKey` is plain `JSON.stringify` (order-dependent; reuse `notices.ts`'
-      `filtersKey`). The now client's key is order-independent, so there's no extra request.
     - Notice groups follow the server's order (sort them for deterministic markers).
     - The import cycle `metadata.ts` ↔ `pesticide-meta.ts` (`untilAborted`); it works today.
       **Revisit if** it bites.
   - **Get data and the widget:**
-    - Get data shows the raw dataset id (`pesticide-notices`) as the section heading when the
-      catalog lacks the entry (`MapSections.svelte`); use a Paraglide fallback.
     - Get data's "doesn't apply" lines aren't tied to their filter field for screen readers
       (`aria-describedby`); the text sits next to the group.
     - A failed meta load in Get data refetches only on toggle.
     - Before the pesticides meta loads, the legend's "Filtered by" can briefly name a skipped
       filter (self-correcting).
-    - The note banner markup is in three copies (smoke and fire, fill, notices): share a
-      component.
-    - `MapWidget.svelte` has grown to about 1,040 lines. **Revisit with** spec 5b, which grows it
-      too: split it then.
   - **Test gaps:**
     - No E2E opens a notice's detail and waits for a poll: the refetch browser tests call the
       plugin's `tooltip` by hand, as map-sdk's `MapTooltip` does, not the real `MapTooltip`.
@@ -1600,8 +1575,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     - No tests for the midnight remake of smoke and fire or the fill on Now, `destroy()` stopping
       fetches, `setPolling(false)` reaching every block, or `monitorsCurrent` after a place
       change (each block is wired; the final review checked).
-    - No test that changing a notices filter refetches (add an integration test with 5b's
-      filters).
     - No browser test for the Spray notices section staying hidden with no catalog entry.
     - Cluster radius and max zoom aren't asserted, and no test runs with Clusters off.
     - No test opens a list row by Enter or Space (the rows are native buttons).
@@ -1619,6 +1592,52 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
       clearly fake points); `routeMapNotices`' doc comment runs over 100 columns.
     - Process: the Get data browser test never ran RED (written after the implementation), and
       the catalog fixture uses an `as CatalogEntry` cast.
+
+- **Step 5 spec 5b review leftovers.** _Deferred 2026-11-17 (step 5 spec 5b, pesticide use; the
+  task reviews and the review-leftovers sweep)._ Small things the reviews let stay, each with its
+  own trigger.
+  - **Get data's filter set remounts when use turns on** (`MapSections.svelte`). The one filter
+    set shows in the notices section, and moves to the use section once use is on, so it mounts
+    again there: a half-typed chemical search is lost (focus is on the use switch, outside the
+    set). Keeping it mounted means moving it out of both sections (a shared filters section) or
+    moving a DOM node across accordion items, a layout change the sweep doesn't make. **Revisit
+    with** the copy and accessibility check, or if someone reports losing a search.
+  - **The mouse-drag pan path for sections is untested.** Dragging is map-sdk's job; the tests
+    move the camera directly. **Revisit if** a drag bug is reported.
+  - **Mid-zoom across the section zoom, the township id can briefly be a button that `pin`
+    refuses**, because `map.camera` updates only on moveend. It's harmless (the click does
+    nothing) and corrects itself at moveend. **Revisit if** map-sdk exposes the live zoom.
+  - **`expectStill` (E2E) hides the card's box**, so a camera move small enough to keep the card
+    inside its own box goes unseen. **Revisit if** a camera regression gets past it.
+  - **The use block** (Task 5):
+    - `refusedZoom` only grows (a refused bbox raises the section zoom for the rest of the
+      session). **Revisit when** users report extra zoom on small tiles, or when the server
+      publishes its bbox limit in meta.
+    - When the lens's block has too many sections, it reads as a failure. **Revisit if** the
+      server's limit falls below 324 sections (a 3 x 3 block of townships).
+    - Superseded `sections/` requests aren't cancelled, because `getPesticideSections` takes no
+      signal (their results are ignored). **Revisit if** panning piles requests up.
+  - **The use scale's refs and stored scales grow without a limit** (`use-scale.ts`; one per
+    figure, level and query, small), as does `filtersLine`'s cache of the last names per filters
+    key (`filters-line.svelte.ts`; one short string per filter set used). **Revisit if** a long
+    session shows growth.
+  - **`fitCamera` and `syncMapTitle` are init-time functions** (`camera.svelte.ts`,
+    `map-title.svelte.ts`), called once from `MapWidget`'s setup, unlike the split's other
+    helpers, which are classes with `destroy()`. Both work as written. **Revisit when** either
+    needs teardown or a second caller.
+  - **With no fit target, Retry after a use error briefly takes the use plugins off** while the
+    townships load (`MapWidget.svelte`: `useNothingToDraw` turns false on loading, and the
+    latitude may still be unknown). It's brief and corrects itself once the townships arrive.
+    **Revisit if** someone sees the flicker.
+  - **`NoteWidget` and `DataTable` don't use `scrollFocusable` yet.** The cards and the map's
+    legend wrapper (a named group) are Tab stops only while they overflow; `NoteWidget` and
+    `DataTable` are always a Tab stop (`tabindex="0"`), even when nothing overflows. **Revisit
+    with** the copy and accessibility check.
+  - **Hand check for the user: an explorer page through the dev server.** The section card's
+    links open sjvair.com's explorer pages, which sit behind the server's `beta_tools` gate, so
+    opening one through :5173 needs a beta tester's sign-in (unchecked: sjvair.com answers 404
+    without it). The dev proxy's `/static/` assets those pages load were checked (200 with the
+    right types). **Revisit when** the user next signs in as a beta tester on the local stack.
 
 ## Analysis & data
 
@@ -1905,13 +1924,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   updated 2026-11-03 (map-sdk milestone 1 spec)._ map-sdk milestone 1 covers monitors, region
   fill, HMS smoke and fire, **CalHeatScore ZIPs, and forecast zones** (the user moved the last
   two in). Collocation, EV, and wind are milestone 2 (below); "weather" in monitor-map is only
-  the detail panel's temperature lookup, not a map layer. Deferred: pesticide use and
-  SprayDays notices, CalEnviroScreen tracts, CEIDARS facilities, TEMPO rasters. **SprayDays
+  the detail panel's temperature lookup, not a map layer. Deferred: CalEnviroScreen tracts,
+  CEIDARS facilities, TEMPO rasters (pesticide use and SprayDays notices were too). **SprayDays
   notices are done** (the dashboard's Map, step 5 spec 5a, 2026-11-16, on `pointsPlugin` with
-  count markers), and pesticide use follows in spec 5b. Most can run
+  count markers), and **pesticide use is done** (spec 5b, 2026-11-17, on `shapesPlugin` and
+  `shapesLens`). Most can run
   on map-sdk's general points and shapes plugins plus their metadata scale with little or no
   preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
-  needs one on a map (pesticide notices likely first, alongside the alerts work).
+  needs one on a map.
 - **map-sdk: monitor readings round in the list but are cut off in the tooltip.** _Deferred
   2026-11-08 (map-sdk parity defaults, [#15](https://github.com/SJVAir/map-sdk/pull/15); the
   user chose to fix fire only)._ The monitor tooltip cuts its reading to a whole number, as
@@ -2081,8 +2101,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   townships' `lensHidden` feature state applies on the next frame, while the sections' `setData`
   goes through MapLibre's worker, so for one frame the block is transparent before its sections
   draw. A single frame is hard to see. Fix when needed: hide the townships only after the lens
-  source's `sourcedata`/load event for that data. **Revisit when** someone notices the flash on the
-  dashboard, or before map-sdk 1.0.
+  source's `sourcedata`/load event for that data. Raised with map-sdk; the dashboard is where it
+  was seen. **Revisit when** map-sdk ships a fix. _Seen on the dashboard 2026-11-17 (step 5 spec
+  5b, Task 7's hand check, on `0.1.0-beta.19`): in the first frame after the lens moves to a
+  neighbour, about 60 ms in, the new block still shows township fill, and its sections draw from
+  the next frame. Hard to see; left for map-sdk._
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
@@ -2424,11 +2447,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   2026-11-07 (step 4 spec 3b)._ Server-side deferrals (the coordinator records them). The
   dashboard side (a school uses its ZIP, then city, then county) **revisits when** the server
   adds a location place.
-- **A note on when pesticide data is released.** _Deferred 2026-11-07 (step 4 spec 3b)._ A
-  neutral note in the dataset's catalog description (server text), offered and not taken.
-  **Revisit if** people ask why recent months are empty. _Update 2026-11-16:_ sjvair.com's
-  pesticide PR 1 (session `sjvair-com-5a`) adds the text as `pesticides/meta/` `notes.pur_lag`,
-  which step 5 spec 5 shows on the Map. Remove this entry when that lands.
 - **Choosing a weather station per place or per layer.** _Deferred 2026-11-07 (step 4 spec
   3b)._ One station per Weather section, and the choice shows only for one place (rain from two
   stations, or a station for each of several places, can't be asked for). **Revisit if**
@@ -3483,3 +3501,9 @@ Dropped 2026-11-16 by the user (step 5 spec 5 design):
 
 - **The Pesticides Explorer's Tweaks on the Map** (ramp, number of bins, basemap). The metadata
   decides ramps and bins, and the Map's Settings already holds the basemap.
+
+Dropped 2026-11-17 by the user (step 5 spec 5b final review):
+
+- **Splitting `MapWidget.svelte` again** (deferred 2026-11-17, step 5 spec 5b leftovers). It grew
+  back to about 1,020 lines with the use wiring after Task 1's split; the user said that size is
+  fine as it is (about 1,030 after the final review's fixes).

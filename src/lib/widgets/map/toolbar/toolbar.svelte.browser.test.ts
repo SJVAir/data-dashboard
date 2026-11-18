@@ -6,6 +6,7 @@ import {
 } from "@sjvair/map-sdk";
 import type { MetadataProvider } from "@sjvair/map-sdk/data";
 import { describe, expect, it, vi } from "vitest";
+import { m } from "$lib/paraglide/messages.js";
 import { mapMessages } from "../host/messages";
 import { MapToolbar } from "./toolbar.svelte";
 import type { MapOffer } from "./values";
@@ -56,6 +57,7 @@ const offer = (over: Partial<MapOffer> = {}): MapOffer => ({
 	smokeAndFire: false,
 	fill: false,
 	notices: false,
+	use: null,
 	...over
 });
 
@@ -287,5 +289,103 @@ describe("MapToolbar", () => {
 			...g.rows.flatMap((r) => [r.id, ...(r.kind === "group" ? r.children.map((c) => c.id) : [])])
 		]);
 		for (const id of all) expect(id).not.toMatch(/\s/);
+	});
+
+	describe("pesticide use", () => {
+		const USE = { figures: ["pounds-applied", "acres-treated"], years: [2023, 2022] };
+		const FIGURES = [
+			{ id: "pounds-applied", label: "Pounds Applied", units: "lbs" },
+			{ id: "acres-treated", label: "Acres Treated", units: "acres" }
+		];
+		const build = (options = {}, more = {}) =>
+			new MapToolbar(stubMap()).build({
+				offer: offer({ use: USE }),
+				drawn: "pm25",
+				options: { usePeriod: "2023", ...options },
+				useLabel: "Pesticide Use",
+				useFigures: FIGURES,
+				useFigure: "pounds-applied",
+				...more
+			});
+
+		it("offers a Pesticide use group (figure, year, month) and a Layers row with the use icon", () => {
+			const { groups, defaults, values } = build();
+			expect(ids(groups)).toEqual(["layers", "pesticide-use", "settings"]);
+			const layerRows = group(groups, "layers").rows;
+			expect(layerRows.map((r) => r.id)).toEqual(["use"]);
+			expect(layerRows[0]).toMatchObject({ kind: "checkbox", label: "Pesticide Use" });
+			expect((layerRows[0] as { icon?: unknown }).icon).toBeTypeOf("function");
+			const use = group(groups, "pesticide-use");
+			expect(use.label).toBe(m.map_use_group());
+			expect(use.icon).toBeTypeOf("function");
+			expect(kinds(use.rows)).toEqual(["select", "select", "select"]);
+			expect(use.rows.map((r) => r.id)).toEqual(["useFigure", "useYear", "useMonth"]);
+			const [figure, year, month] = use.rows as Extract<OptionRow, { kind: "select" }>[];
+			expect(figure.label).toBe(m.map_use_figure());
+			expect(figure.choices).toEqual([
+				{ value: "pounds-applied", label: "Pounds Applied", unit: "lbs" },
+				{ value: "acres-treated", label: "Acres Treated", unit: "acres" }
+			]);
+			expect(year.label).toBe(m.map_use_year());
+			expect(year.choices.map((c) => [c.value, c.label])).toEqual([
+				["2023", "2023"],
+				["2022", "2022"]
+			]);
+			expect(month.label).toBe(m.map_use_month());
+			expect(month.choices).toHaveLength(13);
+			expect(month.choices[0]).toEqual({ value: "all", label: m.map_use_whole_year() });
+			expect(month.choices[7]).toEqual({ value: "7", label: "July" });
+			expect(defaults).toMatchObject({
+				use: true,
+				useFigure: "pounds-applied",
+				useYear: "2023",
+				useMonth: "all"
+			});
+			expect(values).toMatchObject({
+				use: true,
+				useFigure: "pounds-applied",
+				useYear: "2023",
+				useMonth: "all"
+			});
+		});
+
+		it("a saved year the meta doesn't list is still shown as chosen", () => {
+			const { groups, values } = build({ usePeriod: "2017" });
+			const year = group(groups, "pesticide-use").rows[1] as Extract<OptionRow, { kind: "select" }>;
+			expect(year.choices.map((c) => c.value)).toEqual(["2023", "2022", "2017"]);
+			expect(values.useYear).toBe("2017");
+		});
+
+		it("the defaults hold the period shown, so Reset never changes it", () => {
+			const { defaults } = build(
+				{ usePeriod: "2022-07" },
+				{
+					ownerValues: { use: true, useFigure: "pounds-applied", useYear: "2023", useMonth: "all" }
+				}
+			);
+			expect(defaults).toMatchObject({
+				useFigure: "pounds-applied",
+				useYear: "2022",
+				useMonth: "7"
+			});
+		});
+
+		it("a hidden use shows its row unchecked", () => {
+			expect(build({ useShown: false }).values.use).toBe(false);
+		});
+
+		it("without use, no group, no row and no use defaults", () => {
+			const { groups, defaults } = new MapToolbar(stubMap()).build({
+				offer: offer(),
+				drawn: "pm25",
+				options: {},
+				useLabel: "Pesticide Use",
+				useFigures: FIGURES
+			});
+			expect(ids(groups)).toEqual(["settings"]);
+			for (const key of ["use", "useFigure", "useYear", "useMonth"]) {
+				expect(defaults).not.toHaveProperty(key);
+			}
+		});
 	});
 });

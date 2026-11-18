@@ -169,6 +169,9 @@
 	--map-icon-clusters: #1c86ee;
 	--map-icon-fire: #f84400;
 	--map-icon-notices: #8a4a9e;
+	--map-icon-use: #5f7a1f;
+	/* The section card's month bars. */
+	--map-use-bar: #5f7a1f;
 }
 
 /* The two dark blocks must stay identical (a test checks): System dark unless forced light, and forced dark. */
@@ -216,6 +219,8 @@
 		--map-icon-clusters: #4aa8ff;
 		--map-icon-fire: #ff7a45;
 		--map-icon-notices: #c99ad9;
+		--map-icon-use: #a9c76a;
+		--map-use-bar: #a9c76a;
 	}
 }
 
@@ -262,6 +267,8 @@
 	--map-icon-clusters: #4aa8ff;
 	--map-icon-fire: #ff7a45;
 	--map-icon-notices: #c99ad9;
+	--map-icon-use: #a9c76a;
+	--map-use-bar: #a9c76a;
 }
 
 @media (prefers-reduced-motion: reduce) {

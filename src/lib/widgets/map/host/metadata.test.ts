@@ -11,6 +11,7 @@ import { getDatasetCatalog, getHMSMeta, getMonitorsMeta } from "@sjvair/sdk";
 import type { MetadataSource } from "$lib/data/metadata";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
 import { mapMetadata } from "./metadata";
+import { registerUseScale, useScaleRef } from "../data/use-scale";
 
 const PM25_SCALE = { label: "PM2.5", levels: [{ key: "good" }] };
 const SMOKE_SCALE = { label: "Smoke", levels: [{ key: "light" }] };
@@ -276,5 +277,46 @@ describe("mapMetadata", () => {
 		expect(getMonitorsMeta).not.toHaveBeenCalled();
 		expect(getDatasetCatalog).not.toHaveBeenCalled();
 		expect(getHMSMeta).not.toHaveBeenCalled();
+	});
+});
+
+describe("mapMetadata pesticide use refs", () => {
+	const catalog = async () => [
+		{
+			id: "pesticide-use",
+			label: "Pesticide use",
+			source: "CDPR",
+			geographies: [],
+			entryTypes: [
+				{
+					id: "pounds-applied",
+					label: "Pounds applied",
+					units: "lbs",
+					kind: "total",
+					resolutions: [],
+					precision: 0,
+					yMin: null,
+					chart: null,
+					aggregate: null
+				}
+			]
+		}
+	];
+
+	it("resolves a use ref, and its entry type by the figure", async () => {
+		const md = mapMetadata(stub({ catalog: catalog as MetadataSource["catalog"] }));
+		const ref = useScaleRef("pounds-applied", "township", "meta-test");
+		expect(await md.scale(ref)).toBe("unavailable");
+		registerUseScale(
+			ref,
+			{ breaks: [1, 2], min: null, colors: ["#a", "#b"] },
+			{
+				label: "Pounds applied",
+				units: "lbs",
+				precision: 0
+			}
+		);
+		expect(await md.scale(ref)).toMatchObject({ kind: "range" });
+		expect(await md.entryType(ref)).toMatchObject({ label: "Pounds applied", precision: 0 });
 	});
 });

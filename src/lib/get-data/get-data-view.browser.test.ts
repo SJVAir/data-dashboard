@@ -57,8 +57,13 @@ const fake = vi.hoisted(() => ({
 	names: {} as Record<string, string>,
 	/** Holds a search's answer back (by its query) until the promise settles. */
 	delay: undefined as ((q: string) => Promise<void>) | undefined,
-	/** The region types the directory offers (default: the real directory). */
-	regionTypes: undefined as (() => Promise<unknown[]>) | undefined
+	/**
+	 * The region types the directory offers (default: none, so no test asks the network for the
+	 * regions meta).
+	 */
+	regionTypes: undefined as (() => Promise<unknown[]>) | undefined,
+	/** The pesticide meta's answer (default: `PESTICIDE_META`). */
+	pesticideMeta: undefined as (() => Promise<unknown>) | undefined
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -69,6 +74,7 @@ const PESTICIDE_META = vi.hoisted(() => ({
 	methods: [{ key: "A", label: "Air" }],
 	narrows: [{ key: "concern", label: "Chemicals of concern", description: "A list" }],
 	placeholder_chemicals: [{ id: "unk", name: "UNKNOWN" }],
+	years: [2023, 2022, 2021],
 	// The notice endpoints take no commodity.
 	notice_filters: ["chemical_id", "product_id", "category", "iarc_group", "narrow", "aerial_ground"]
 }));
@@ -117,7 +123,7 @@ vi.mock("./sources", () => ({
 		await fake.delay?.(params.q);
 		return params.q.trim().length < 2 ? { results: [], more: false } : hits;
 	},
-	pesticideMeta: async () => PESTICIDE_META,
+	pesticideMeta: async () => (fake.pesticideMeta ? fake.pesticideMeta() : PESTICIDE_META),
 	filterLabels: async (f: Record<string, string | undefined>) =>
 		Object.fromEntries(
 			["chemical", "commodity", "product"]
@@ -249,7 +255,8 @@ beforeEach(async () => {
 	fake.hits = { results: [], more: false };
 	fake.names = {};
 	fake.delay = undefined;
-	fake.regionTypes = undefined;
+	fake.regionTypes = async () => [];
+	fake.pesticideMeta = undefined;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
@@ -1024,12 +1031,12 @@ describe("now widgets", () => {
 		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
 		await expect.element(notices).not.toBeChecked();
 		await expect
-			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.element(page.getByRole("group", { name: m.getdata_map_pesticide_filters() }))
 			.not.toBeInTheDocument();
 		await notices.click();
 		await expect.element(notices).toBeChecked();
 		await expect
-			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.element(page.getByRole("group", { name: m.getdata_map_pesticide_filters() }))
 			.toBeVisible();
 		await animationsSettled(host);
 		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-notices" }]);
@@ -1057,7 +1064,7 @@ describe("now widgets", () => {
 		).toBeNull();
 		// The filter is still shown and kept.
 		await expect
-			.element(page.getByRole("group", { name: m.getdata_map_notices_filters() }))
+			.element(page.getByRole("group", { name: m.getdata_map_pesticide_filters() }))
 			.toBeVisible();
 		expect((await current()).data.layers[1]).toEqual({
 			dataset: "pesticide-notices",
@@ -1066,6 +1073,158 @@ describe("now widgets", () => {
 		// With the switch off, the section says nothing about the filters.
 		await page.getByRole("switch", { name: m.getdata_map_notices_switch() }).click();
 		await expect.element(page.getByText(skipped)).not.toBeInTheDocument();
+	});
+
+	test("the Pesticide use section switches the layer on with the latest year, and the period picker writes usePeriod", async () => {
+		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		await expect.element(page.getByRole("heading", { name: "Pesticide Use" })).toBeVisible();
+		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await expect.element(use).not.toBeChecked();
+		const year = page.getByRole("combobox", { name: m.getdata_map_use_period() });
+		await expect.element(year).not.toBeInTheDocument();
+		await use.click();
+		await expect.element(use).toBeChecked();
+		await expect.element(year).toHaveValue("2023");
+		await animationsSettled(host);
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
+		expect((await current()).options).toEqual({ usePeriod: "2023" });
+		const years = [...(year.element() as HTMLSelectElement).options].map((o) => o.text);
+		expect(years).toEqual(["2023", "2022", "2021"]);
+		await year.selectOptions("2022");
+		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2022" });
+		// A month of the year: "Whole year" first, then the months by name.
+		const month = page.getByRole("combobox", { name: m.getdata_map_use_month() });
+		await expect.element(month).toHaveValue("");
+		const months = [...(month.element() as HTMLSelectElement).options].map((o) => o.text);
+		expect(months).toHaveLength(13);
+		expect(months[0]).toBe(m.getdata_map_use_whole_year());
+		expect(months[7]).toBe("July");
+		await month.selectOptions("07");
+		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2022-07" });
+		// Another year keeps the month.
+		await year.selectOptions("2021");
+		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2021-07" });
+		await month.selectOptions("");
+		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2021" });
+		expect((await axe.run(host.querySelector("[aria-labelledby$=-what]")!)).violations).toEqual([]);
+		await use.click();
+		expect((await current()).data.layers).toHaveLength(1);
+		expect((await current()).options).toBeUndefined();
+	});
+
+	test("the Pesticide use switch says why it's off: the years couldn't load (Retry asks again), or none are listed", async () => {
+		let fail = true;
+		fake.pesticideMeta = async () => {
+			if (fail) throw new Error("offline");
+			return PESTICIDE_META;
+		};
+		const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await expect.element(page.getByText(m.getdata_map_use_years_unavailable())).toBeVisible();
+		await expect.element(use).toBeDisabled();
+		await expect.element(use).toHaveAccessibleDescription(m.getdata_map_use_years_unavailable());
+		fail = false;
+		await page.getByRole("button", { name: m.get_data_retry() }).click();
+		await expect.element(use).toBeEnabled();
+		await expect
+			.element(page.getByText(m.getdata_map_use_years_unavailable()))
+			.not.toBeInTheDocument();
+		await use.click();
+		expect((await current()).options).toEqual({ usePeriod: "2023" });
+	});
+
+	test("with no years listed, the Pesticide use switch is off with a neutral note", async () => {
+		fake.pesticideMeta = async () => ({ ...PESTICIDE_META, years: [] });
+		await show(monitorsDraft(["m1"], { type: "map" }));
+		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await expect.element(page.getByText(m.getdata_map_use_no_years())).toBeVisible();
+		await expect.element(use).toBeDisabled();
+		expect(page.getByRole("button", { name: m.get_data_retry() }).query()).toBeNull();
+	});
+
+	test("one filter set shows once for both pesticide layers", async () => {
+		const { current } = await show({
+			type: "map",
+			options: { usePeriod: "2023" },
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "pesticide-notices", filters: { chemical: "c1", commodity: "k1" } },
+					{ dataset: "pesticide-use", filters: { chemical: "c1", commodity: "k1" } }
+				]
+			}
+		});
+		const group = page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
+		await expect.element(group).toBeVisible();
+		expect(group.all()).toHaveLength(1);
+		// The crop still doesn't apply to the notices.
+		await expect
+			.element(
+				page.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() }))
+			)
+			.toBeVisible();
+		// A change reaches both layers.
+		await group.getByRole("checkbox", { name: /^Insecticides/ }).click();
+		await expect
+			.poll(async () => (await current()).data.layers.slice(1).map((l) => l.filters))
+			.toEqual([
+				{ chemical: "c1", commodity: "k1", category: ["insecticide"] },
+				{ chemical: "c1", commodity: "k1", category: ["insecticide"] }
+			]);
+		// With notices off, the set stays for the use, and the notices line goes.
+		await page.getByRole("switch", { name: m.getdata_map_notices_switch() }).click();
+		await expect.element(group).toBeVisible();
+		await expect
+			.element(
+				page.getByText(m.getdata_map_notices_filter_skipped({ filter: m.get_data_filter_crop() }))
+			)
+			.not.toBeInTheDocument();
+		// Back on, the notices take the kept filters.
+		await page.getByRole("switch", { name: m.getdata_map_notices_switch() }).click();
+		expect((await current()).data.layers.slice(1)).toEqual([
+			{
+				dataset: "pesticide-notices",
+				filters: { chemical: "c1", commodity: "k1", category: ["insecticide"] }
+			},
+			{
+				dataset: "pesticide-use",
+				filters: { chemical: "c1", commodity: "k1", category: ["insecticide"] }
+			}
+		]);
+		// With both off, there's no filter set.
+		await page.getByRole("switch", { name: m.getdata_map_notices_switch() }).click();
+		await page.getByRole("switch", { name: m.getdata_map_use_switch() }).click();
+		await expect.element(group).not.toBeInTheDocument();
+	});
+
+	test("the sections show a fallback heading without a catalog entry", async () => {
+		fake.metadata = fixtureMetadata({
+			catalog: async () =>
+				CATALOG.filter((c) => c.id !== "pesticide-notices" && c.id !== "pesticide-use")
+		});
+		await show({
+			type: "map",
+			options: { usePeriod: "2023" },
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "pesticide-notices" },
+					{ dataset: "pesticide-use" }
+				]
+			}
+		});
+		await expect
+			.element(
+				page.getByRole("heading", { name: m.getdata_map_section_fallback({ section: "notices" }) })
+			)
+			.toBeVisible();
+		await expect
+			.element(
+				page.getByRole("heading", { name: m.getdata_map_section_fallback({ section: "use" }) })
+			)
+			.toBeVisible();
+		expect(page.getByRole("heading", { name: "pesticide-notices" }).query()).toBeNull();
+		expect(page.getByRole("heading", { name: "pesticide-use" }).query()).toBeNull();
 	});
 
 	test("a Chart's smoke turns smoke and fire on; back to a Chart notes what's left out", async () => {

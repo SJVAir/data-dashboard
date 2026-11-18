@@ -3,6 +3,7 @@ import type { CatalogEntry } from "$lib/data/metadata";
 import { LIMITS, SafeIdSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { z } from "$lib/zod";
+import { USE_FIELDS } from "./data/use-fields";
 
 export const MAP_TYPE = "map";
 export const MAP_MARKS_MAX = 25;
@@ -11,6 +12,8 @@ export const HMS_SMOKE = "hms-smoke";
 export const HMS_FIRE = "hms-fire";
 /** The Map's spray notices layer: place-less, drawn over the whole map. */
 export const PESTICIDE_NOTICES = "pesticide-notices";
+/** The Map's pesticide use layer: place-less, drawn over the whole map. */
+export const PESTICIDE_USE = "pesticide-use";
 /**
  * The most pollutants a Map holds: the layer limit less four (smoke, fire, spray notices, and the
  * one 5b uses).
@@ -41,6 +44,15 @@ export const MapOptionsSchema = z.strictObject({
 	fillShown: z.literal(false).optional(),
 	/** Only `false` is stored (missing: the spray notices are shown). */
 	noticesShown: z.literal(false).optional(),
+	/** The pesticide use figure drawn (a catalog entry type; missing: the first). */
+	useFigure: SafeIdSchema.optional(),
+	/** The pesticide use period: a year, or a month of it (`YYYY` or `YYYY-MM`). */
+	usePeriod: z
+		.string()
+		.regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/)
+		.optional(),
+	/** Only `false` is stored (missing: the pesticide use is shown). */
+	useShown: z.literal(false).optional(),
 	clustered: z.boolean().optional(),
 	fireAndSmoke: z.boolean().optional(),
 	/** Show inactive monitors. */
@@ -64,6 +76,8 @@ export const MAP_TOOLBAR_KEYS = [
 	"fireAndSmoke",
 	"fillShown",
 	"noticesShown",
+	"useFigure",
+	"useShown",
 	"inactive",
 	"inside",
 	"hiddenTypes"
@@ -115,4 +129,18 @@ export function drawableShowing(
 		(l) => l.entryType && drawable.includes(l.entryType)
 	);
 	return first?.entryType ?? showing;
+}
+
+/**
+ * The pesticide use figure to draw: the saved one when the catalog's `pesticide-use` lists it and
+ * `USE_FIELDS` maps it, else the catalog's first mapped one. Never written.
+ */
+export function useFigureOf(
+	options: MapOptions,
+	catalog: CatalogEntry[] | undefined
+): string | undefined {
+	const mapped = (catalog?.find((c) => c.id === PESTICIDE_USE)?.entryTypes ?? [])
+		.map((t) => t.id)
+		.filter((id) => Object.hasOwn(USE_FIELDS, id));
+	return options.useFigure && mapped.includes(options.useFigure) ? options.useFigure : mapped[0];
 }
