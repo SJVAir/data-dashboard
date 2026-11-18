@@ -21,6 +21,22 @@ function nextUp(x: number): number {
 	return f[0];
 }
 
+/** The most fraction digits a label gets while telling close breaks apart. */
+const MAX_LABEL_PRECISION = 6;
+
+/**
+ * The fewest fraction digits, from the figure's own precision up, at which neighbouring breaks
+ * format differently, so no two adjacent class labels read the same (small breaks at precision 0
+ * would all read "0"). The breaks themselves are the server's, unchanged.
+ */
+function labelPrecision(breaks: readonly number[], precision: number): number {
+	for (let p = precision; p < MAX_LABEL_PRECISION; p++) {
+		const text = breaks.map((b) => formatValue(b, p));
+		if (text.every((t, i) => i === 0 || t !== text[i - 1])) return p;
+	}
+	return Math.max(precision, MAX_LABEL_PRECISION);
+}
+
 const refs = new Map<string, ScaleRef>();
 const stored = new Map<ScaleRef, { classes: PesticideUseClass; scale: Scale }>();
 
@@ -45,7 +61,8 @@ export function useScaleRef(figure: string, level: UseLevel, queryKey: string): 
 export function buildUseScale(classes: PesticideUseClass, info: UseScaleInfo): Scale {
 	const { colors } = classes;
 	const breaks = classes.breaks.length === colors.length ? classes.breaks : [];
-	const fmt = (n: number) => formatValue(n, info.precision);
+	const precision = labelPrecision(breaks, info.precision);
+	const fmt = (n: number) => formatValue(n, precision);
 	const scale: Scale = {
 		id: "",
 		label: info.label,

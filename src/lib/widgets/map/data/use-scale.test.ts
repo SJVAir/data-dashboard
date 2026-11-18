@@ -24,6 +24,29 @@ describe("use scale", () => {
 		expect(levelFor(100, scale)).toMatchObject({ key: "c2" });
 	});
 
+	it("small breaks that round alike get the precision that tells them apart", () => {
+		const breaks = [0.2, 0.4, 1];
+		const scale = buildUseScale({ breaks, min: null, colors: ["#a", "#b", "#c"] }, INFO);
+		const labels = scale.levels.map((l) => l.label);
+		expect(labels).toEqual(["Up to 0.2", "0.2 to 0.4", "0.4 to 1.0"]);
+		// The server's breaks, never invented ones.
+		expect(scale.levels.map((l) => l.max)).toEqual([
+			scale.levels[1].min,
+			scale.levels[2].min,
+			null
+		]);
+		expect(levelFor(0.4, scale)).toMatchObject({ key: "c2" });
+	});
+
+	it("a precision that already tells the breaks apart is kept", () => {
+		const scale = buildUseScale(
+			{ breaks: [1, 2.5, 4], min: null, colors: ["#a", "#b", "#c"] },
+			INFO
+		);
+		// 2.5 rounds to 3 at precision 0, apart from 1 and 4, so the labels keep precision 0.
+		expect(scale.levels.map((l) => l.label)).toEqual(["Up to 1", "1 to 3", "3 to 4"]);
+	});
+
 	it("fewer than 8 breaks give fewer levels, and empty classes give none", () => {
 		expect(
 			buildUseScale({ breaks: [1, 2], min: null, colors: ["#a", "#b"] }, INFO).levels
