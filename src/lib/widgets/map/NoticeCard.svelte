@@ -95,7 +95,11 @@
 
 	let backButton = $state<HTMLButtonElement>();
 	let cardElement = $state<HTMLDivElement>();
-	const rows: Record<string, HTMLButtonElement> = {};
+	/**
+	 * The list's row buttons, by notice id. `bind:this` sets a removed row's entry to null, so the
+	 * record never holds a detached button; ids are a marker's notices, so it stays small.
+	 */
+	const rows: Record<string, HTMLButtonElement | null> = {};
 
 	/** The list row that has focus, by notice id, if one has. */
 	function focusedRow(): string | null {
