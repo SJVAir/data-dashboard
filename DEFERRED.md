@@ -1232,8 +1232,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
   step a map by hour.
 - **Smoke, fire and spray notices at Monthly or coarser** (for example days with smoke per
-  month). _Deferred 2026-11-18 (step 5 spec 6a)._ They offer Daily only, so a Monthly or Yearly
-  Map, Chart or Table doesn't offer them. Why: the server has no monthly form of them, and the
+  month). _Deferred 2026-11-18 (step 5 spec 6a)._ They offer Daily only (`layerOffers` in
+  `src/lib/data/dataset-rules.ts`, through `offeredLevels`), so a Monthly or Yearly Map, Chart or
+  Table doesn't offer them. Why: the server has no monthly form of them, and the
   dashboard doesn't compute one. **Revisit when** someone asks for them in monthly data.
 - **A trailing range cut at Yearly stops rolling.** _Deferred 2026-11-18 (step 5 spec 6a, Task
   8)._ When a range too long for the Map (over 366 stops) becomes a Map, it is cut to its last
@@ -1267,19 +1268,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   server, never be built in the dashboard. **Revisit when** people find the codes confusing (for
   example in the private preview), or the explorer gets readable section names.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
-  2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server
-  (migrations 0009/0010); name lookup now tries city, then CDP, then urban area. New types
-  exist: `air_district` and `ab617`. `school_district` has an import command
-  (`import_school_districts`), and there is a new **`Location`** model for schools and
-  child care (`import_schools`). Plans rely on **`school_district`** (school region
-  alerts, the picker) and on the **3 `custom` forecast zones** (Tulare, Kern, Sequoia);
-  the other 6 forecast zones, including Fresno, are county regions, so a zone lookup goes
-  through the forecasts data or a metadata zone list, not `type=custom`. **Production checked
-  2026-10-14** (public API): 201 school districts and the schools are loaded, but there
-  are **0 `custom` regions**, so the 3 forecast zones are missing and production has no
-  forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses
-  `protected`. **Revisit when** the step 3 metadata plan and the Release 2 alerts plan
-  start, to confirm the zones were imported.
+  2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server (migrations
+  0009/0010); name lookup now tries city, then CDP, then urban area. New types exist: `air_district`
+  and `ab617`. `school_district` has an import command (`import_school_districts`), and there is a
+  new **`Location`** model for schools and child care (`import_schools`). Plans rely on
+  **`school_district`** (school region alerts, the picker) and on the **3 `custom` forecast zones**
+  (Tulare, Kern, Sequoia); the other 6 forecast zones, including Fresno, are county regions, so a
+  zone lookup goes through the forecasts data or a metadata zone list, not `type=custom`.
+  **Production checked 2026-10-14** (public API): 201 school districts and the schools are loaded,
+  but there are **0 `custom` regions**, so the 3 forecast zones are missing and production has no
+  forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses `protected`.
+  **Revisit when** the step 3 metadata plan and the Release 2 alerts plan start, to confirm the
+  zones were imported.
 - **sjvair.com: a bulk summary request with two errors reports only the date error.** _Deferred
   2026-11-15 (sjvair.com #334, sjvair-com-8a)._ A request with neither `region` nor `type` and a
   bad date span gets only the date error, because `BulkSummaryDateRangeForm.clean` raises instead
@@ -1679,6 +1679,37 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   the plain mean, but no widget draws it. Why: one place and period should never show two
   numbers, and the scale's figure is what the levels are defined for. **Revisit when** a
   researcher or agency asks for the plain mean.
+- **A just-ended month's row without a figure reads as complete for a few hours.** _Deferred
+  2026-11-19 (step 5 spec 6a, final review)._ On the 1st, before the nightly rollup (about 02:15
+  Pacific), the month that just ended is still the server's open row, but `toPoints`
+  (`src/lib/data/adapters/air-quality-fetch.ts`) sets `partial` by time only, and `final` is set
+  only on figure rows. So a row with no figure (weather, for example) reads as complete until the
+  rollup replaces it. Why: a few hours once a month, and the value is the server's own running
+  row. **Revisit when** someone sees a wrong last-month value early on the 1st, or the server
+  marks every row with `is_final`.
+- **"Pesticide Use" reads capitalised mid-sentence.** _Deferred 2026-11-19 (step 5 spec 6a, final
+  review)._ Notes such as "Pesticide Use isn't reported daily" name the dataset by the server
+  catalog's label, which is title case. Why: labels come from the metadata (never rewritten in the
+  dashboard), so a sentence-case label is a server catalog change. **Revisit when** the server
+  catalog's labels are next edited, or with a copy review.
+- **A pinned calendar's lone dataset isn't greyed in What.** _Deferred 2026-11-19 (step 5 spec 6a,
+  final review)._ A calendar (pinned to Daily) with one dataset that doesn't offer Daily isn't
+  greyed in Get data's What section; the type block ("Show as") catches it instead, so it can't
+  be saved. Why: the person is still told, just in another place. **Revisit when** Get data's
+  What section is next reworked, or someone is confused by it.
+- **The Data table's notes aren't `role="status"`.** _Deferred 2026-11-19 (step 5 spec 6a, final
+  review)._ The notes under a Data table (a layer that doesn't line up, a failed overlay) aren't
+  announced when they appear. Why: graded minor; they sit just above the table, so a screen
+  reader reaches them in reading order. **Revisit with** the next accessibility pass on the widgets, or if a screen-reader user misses
+  one.
+- **Chart figure loose ends.** _Deferred 2026-11-19 (step 5 spec 6a, final review, Task 11)._ A
+  figure with no server label falls back to the "Daily average" or "Monthly average" series
+  names, which would misname a peak figure (only if the server leaves out a label); the chart goes
+  briefly blank while a new figure is looked up; and there are no tests for `DataWidget`'s
+  `figurePending` → error → retry, or for `year` through the widget. Why: the server labels every
+  figure today, and the blank is a short loading state. **Revisit when** the server ships a figure
+  without a label, or with the next change to `src/lib/widgets/shared/data-widget.svelte.ts`
+  (add the tests).
 
 - **sjvair.com: daily rows written by the hourly summarizer, in place of `daily/open/`.**
   _Deferred 2026-11-18 (the user, session `sjvair-com-93`, branch
@@ -2667,8 +2698,7 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     `calendar-data.svelte.ts` stating a cause as fact, the `hidden: 0` that wants a comment, the
     `export *` at the bottom of `format/index.ts`, `final` copying `is_final` without a boolean
     check (the SDK types it), and open-day loaders built for non-figure requests (cheap closures).
-    **Revisit
-    with** the next change to each file.
+    **Revisit with** the next change to each file.
   - **Test gaps:** `daysInclusive` across spring-forward and with start after end, an all-null
     column, six-row months; `ratedForCount`'s positive cases, pending and today days in a summary
     fixture, the `unrated` doc comment, duplicate same-date points (the later wins); a selection
@@ -2679,10 +2709,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     Show-as test (loose), its weather case using census, and the span reason; the adapter's bulk
     all-places path, figure at non-day resolutions, with `worstHour`, and the client carrying
     `figure` (was `dailyFigure`); an open-days call failing the whole query (deliberate: no partial
-    data), a
-    monitor with no published processor, the bulk memo across units, and a yesterday-only open
-    row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the next
-    change to each.
+    data), a monitor with no published processor, the bulk memo across units, and a yesterday-only
+    open row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the
+    next change to each.
 
 - **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
   brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide

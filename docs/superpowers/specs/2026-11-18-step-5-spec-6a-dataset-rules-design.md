@@ -349,3 +349,11 @@ people see.
   nightly row (`is_final: false`) included. Daily and finer still fill today from `daily/open/`,
   and the last completed hour or day is still backfilled from a finer level until its rollup
   runs.
+- **2026-11-19, Current pins Hourly as a now type** (`currentInput`). It holds one air-quality
+  pollutant, which always offers Hourly, so it doesn't go through the rules module.
+- **2026-11-19, a stored level that can't be drawn has one state** (final review): "This data
+  isn't available at the chosen data resolution. Change it in Edit data." It shows when the main
+  layer doesn't offer the stored level, and also for a stored level outside `LEVELS` (a quarter
+  or season from untrusted input; never a silent Automatic) and for hour or raw on a Map. Get
+  data blocks Save for the latter with its own reason: "Choose another data resolution: the
+  saved one isn't offered here." The schema isn't narrowed, so such a document still opens.
