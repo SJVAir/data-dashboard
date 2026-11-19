@@ -150,11 +150,13 @@ async function rawSeries(
 }
 
 /**
- * Summaries over the range: completed periods at the requested resolution, the open period
- * filled from finer levels and aggregated up (one `now` for both, so a period can't be open in
- * one and closed in the other). The last completed period, backfilled from a finer level, is
- * used only where the coarse response lacks it (its rollup hasn't run yet); it is complete data,
- * so not partial. A place a response leaves out has no data: an empty series.
+ * Summaries over the range: completed periods at the requested resolution, and at hour and day the
+ * open period filled from finer levels and aggregated up (one `now` for both, so a period can't be
+ * open in one and closed in the other). Monthly and yearly series come from the server's stored
+ * rows alone, the current period's nightly (not final) row included; a month with no row yet is
+ * missing. The last completed hour or day, backfilled from a finer level, is used only where the
+ * response lacks it (its rollup hasn't run yet); it is complete data, so not partial. A place a
+ * response leaves out has no data: an empty series.
  *
  * `opts` (totals, completeness) is for monitor targets only: bulk endpoints return means, and
  * summing them would be wrong.

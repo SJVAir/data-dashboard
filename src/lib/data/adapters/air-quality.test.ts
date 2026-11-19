@@ -576,20 +576,12 @@ describe("airQualityAdapter.fetch", () => {
 		]);
 	});
 
-	it("this year's monthly data fills October from daily and today from hourly", async () => {
+	it("this year's monthly data is the server's rows only, the open month included", async () => {
 		vi.mocked(getMonitorSummariesMonthly).mockResolvedValue([
 			row("2026-01-01T00:00:00-08:00", 5, 700),
-			row("2026-09-01T00:00:00-07:00", 8, 700)
-		] as never);
-		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
-			row("2026-10-01T00:00:00-07:00", 10, 24),
-			row("2026-10-21T00:00:00-07:00", 20, 24),
-			// Today's daily row (if any) is replaced by the hourly fill.
-			row("2026-10-22T00:00:00-07:00", 99, 12)
-		] as never);
-		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
-			row("2026-10-22T00:00:00-07:00", 30, 12),
-			row("2026-10-22T11:00:00-07:00", 40, 12)
+			row("2026-09-01T00:00:00-07:00", 8, 700),
+			// The nightly row for the open month.
+			{ ...row("2026-10-01T00:00:00-07:00", 12, 500), is_final: false }
 		] as never);
 		const data = await airQualityAdapter.fetch(
 			request({ kind: "monitors", ids: ["m-bam"] }, "month", { kind: "to-date", unit: "year" }),
@@ -601,22 +593,13 @@ describe("airQualityAdapter.fetch", () => {
 			{ ...base, year: 2026 },
 			{ signal }
 		);
-		// October's days fill the open month; September's monthly row exists, so no backfill.
-		expect(vi.mocked(getMonitorSummariesDaily).mock.calls).toEqual([
-			[{ ...base, year: 2026, month: 10 }, { signal }]
+		expect(getMonitorSummariesDaily).not.toHaveBeenCalled();
+		expect(getMonitorSummariesHourly).not.toHaveBeenCalled();
+		expect(data.series[0].points.map((p) => [p.t, p.mean])).toEqual([
+			[Date.parse("2026-01-01T08:00:00Z"), 5],
+			[Date.parse("2026-09-01T07:00:00Z"), 8],
+			[Date.parse("2026-10-01T07:00:00Z"), 12]
 		]);
-		expect(getMonitorSummariesHourly).toHaveBeenCalledExactlyOnceWith(
-			{ ...base, year: 2026, month: 10, day: 22 },
-			{ signal }
-		);
-		const points = data.series[0].points;
-		expect(points.map((p) => [p.t, p.partial])).toEqual([
-			[Date.parse("2026-01-01T08:00:00Z"), false],
-			[Date.parse("2026-09-01T07:00:00Z"), false],
-			[Date.parse("2026-10-01T07:00:00Z"), true]
-		]);
-		expect(points[2].count).toBe(72);
-		expect(points[2].mean).toBeCloseTo((10 * 24 + 20 * 24 + 30 * 12 + 40 * 12) / 72);
 	});
 
 	it("backfills a completed hour the hourly response lacks from raw entries", async () => {
@@ -706,16 +689,11 @@ describe("airQualityAdapter.fetch", () => {
 		expect(points[1].mean).toBeCloseTo((10 * 10 + 20 * 30) / 40);
 	});
 
-	it("month resolution on the 1st fills last month from daily summaries", async () => {
+	it("month resolution on the 1st makes a month with no row missing, not filled", async () => {
 		const now = new Date("2026-11-01T07:30:00Z");
 		vi.mocked(getMonitorSummariesMonthly).mockResolvedValue([
 			row("2026-09-01T00:00:00-07:00", 8, 700)
 		] as never);
-		vi.mocked(getMonitorSummariesDaily).mockImplementation((async (config: { month: number }) =>
-			config.month === 10
-				? [row("2026-10-01T00:00:00-07:00", 10, 24), row("2026-10-31T00:00:00-07:00", 20, 24)]
-				: []) as never);
-		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
 		const data = await airQualityAdapter.fetch(
 			request(
 				{ kind: "monitors", ids: ["m-bam"] },
@@ -726,10 +704,10 @@ describe("airQualityAdapter.fetch", () => {
 			ctx,
 			signal
 		);
-		const points = data.series[0].points;
-		expect(points.map((p) => [p.t, p.partial, p.count, p.mean])).toEqual([
-			[Date.parse("2026-09-01T07:00:00Z"), false, 700, 8],
-			[Date.parse("2026-10-01T07:00:00Z"), false, 48, 15]
+		expect(getMonitorSummariesDaily).not.toHaveBeenCalled();
+		expect(getMonitorSummariesHourly).not.toHaveBeenCalled();
+		expect(data.series[0].points.map((p) => [p.t, p.mean])).toEqual([
+			[Date.parse("2026-09-01T07:00:00Z"), 8]
 		]);
 	});
 
@@ -1346,13 +1324,9 @@ describe("summarySeries options", () => {
 		expect(s.points[0].max).toBe(1.25);
 	});
 
-	it("a region's open month averages its days even when totals are asked (bulk rows are means)", async () => {
-		vi.mocked(getRegionSummariesBulkMonthly).mockResolvedValue([] as never);
-		vi.mocked(getRegionSummariesBulkDaily).mockResolvedValue([
-			{
-				id: "sq1",
-				summaries: [row("2026-11-01T00:00:00-07:00", 1), row("2026-11-02T00:00:00-08:00", 3)]
-			}
+	it("a region's open month is the server's row, never built from daily rows", async () => {
+		vi.mocked(getRegionSummariesBulkMonthly).mockResolvedValue([
+			{ id: "sq1", summaries: [row("2026-11-01T00:00:00-07:00", 2, 48)] }
 		] as never);
 		const now = new Date("2026-11-03T20:00:00Z");
 		const regions = request(
@@ -1368,6 +1342,7 @@ describe("summarySeries options", () => {
 			signal,
 			{ total: true }
 		);
+		expect(getRegionSummariesBulkDaily).not.toHaveBeenCalled();
 		expect(s.points.map((p) => p.mean)).toEqual([2]);
 	});
 

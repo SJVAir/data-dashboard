@@ -20,7 +20,7 @@ function range(start: string, end: string, includesNow = true): ResolvedRange {
 const iso = (s: { start: Date; end: Date }) => [s.start.toISOString(), s.end.toISOString()];
 
 describe("planSegments", () => {
-	it("month range this year: completed months plus a daily and hourly fill", () => {
+	it("month range this year: one monthly segment, no daily or hourly fill", () => {
 		const segs = planSegments({
 			resolution: "month",
 			range: range("2026-01-01T08:00:00Z", "2027-01-01T08:00:00Z"),
@@ -28,30 +28,19 @@ describe("planSegments", () => {
 			offered: ALL
 		});
 		expect(segs).toEqual([
-			{
-				resolution: "month",
-				start: new Date("2026-01-01T08:00:00Z"),
-				end: new Date("2026-10-01T07:00:00Z")
-			},
-			{
-				resolution: "day",
-				start: new Date("2026-09-01T07:00:00Z"),
-				end: new Date("2026-10-01T07:00:00Z"),
-				aggregateTo: "month",
-				backfill: true
-			},
-			{
-				resolution: "day",
-				start: new Date("2026-10-01T07:00:00Z"),
-				end: new Date("2026-10-22T07:00:00Z"),
-				aggregateTo: "month"
-			},
-			{
-				resolution: "hour",
-				start: new Date("2026-10-22T07:00:00Z"),
-				end: NOW,
-				aggregateTo: "month"
-			}
+			{ resolution: "month", start: new Date("2026-01-01T08:00:00Z"), end: NOW }
+		]);
+	});
+
+	it("year range this year: one yearly segment", () => {
+		const segs = planSegments({
+			resolution: "year",
+			range: range("2026-01-01T08:00:00Z", "2027-01-01T08:00:00Z"),
+			now: NOW,
+			offered: ALL
+		});
+		expect(segs).toEqual([
+			{ resolution: "year", start: new Date("2026-01-01T08:00:00Z"), end: NOW }
 		]);
 	});
 
@@ -162,21 +151,16 @@ describe("planSegments", () => {
 		]);
 	});
 
-	it("month resolution on the 1st backfills last month from daily", () => {
-		const now = new Date("2026-11-01T07:30:00Z");
+	it("month resolution on the 1st has no backfill: a missing month is simply missing", () => {
 		const segs = planSegments({
 			resolution: "month",
 			range: range("2026-01-01T08:00:00Z", "2027-01-01T08:00:00Z"),
-			now,
+			now: new Date("2026-11-01T07:30:00Z"),
 			offered: ALL
 		});
-		expect(segs.find((s) => s.backfill)).toEqual({
-			resolution: "day",
-			start: new Date("2026-10-01T07:00:00Z"),
-			end: new Date("2026-11-01T07:00:00Z"),
-			aggregateTo: "month",
-			backfill: true
-		});
+		expect(segs.map((s) => [s.resolution, s.aggregateTo, s.backfill])).toEqual([
+			["month", undefined, undefined]
+		]);
 	});
 
 	it("a range ending with the last completed period still gets the backfill", () => {
@@ -203,17 +187,6 @@ describe("planSegments", () => {
 		expect(segs.some((s) => s.backfill)).toBe(false);
 	});
 
-	it("skips finer levels that are not offered", () => {
-		const segs = planSegments({
-			resolution: "year",
-			range: range("2026-01-01T08:00:00Z", "2027-01-01T08:00:00Z"),
-			now: NOW,
-			offered: ["day", "year"]
-		});
-		expect(segs.map((s) => [s.resolution, s.aggregateTo])).toEqual([["day", "year"]]);
-		expect(segs[0].end).toEqual(NOW);
-	});
-
 	it("leaves the open period to the coarse segment when no finer level is offered", () => {
 		const segs = planSegments({
 			resolution: "month",
@@ -226,7 +199,7 @@ describe("planSegments", () => {
 		]);
 	});
 
-	it("range starting inside the open month clips the fills", () => {
+	it("range starting inside the open month stays one monthly segment", () => {
 		const segs = planSegments({
 			resolution: "month",
 			range: range("2026-10-15T07:00:00Z", "2026-10-23T07:00:00Z"),
@@ -234,8 +207,7 @@ describe("planSegments", () => {
 			offered: ALL
 		});
 		expect(segs.map((s) => [s.resolution, ...iso(s)])).toEqual([
-			["day", "2026-10-15T07:00:00.000Z", "2026-10-22T07:00:00.000Z"],
-			["hour", "2026-10-22T07:00:00.000Z", "2026-10-22T19:00:00.000Z"]
+			["month", "2026-10-15T07:00:00.000Z", "2026-10-22T19:00:00.000Z"]
 		]);
 	});
 
@@ -256,7 +228,8 @@ describe("finerLevel", () => {
 		expect(finerLevel("hour", ALL)).toBe("raw");
 		expect(finerLevel("hour", ["hour", "day"])).toBeNull();
 		expect(finerLevel("day", ALL)).toBe("hour");
-		expect(finerLevel("month", ["day", "month"])).toBe("day");
+		expect(finerLevel("month", ALL)).toBeNull();
+		expect(finerLevel("year", ALL)).toBeNull();
 		expect(finerLevel("raw", ALL)).toBeNull();
 	});
 });

@@ -319,14 +319,10 @@ describe("weatherAdapter", () => {
 		});
 	});
 
-	it("the open month is built from daily rows and summed for totals", async () => {
+	it("the open month is the server's stored row, summed for totals", async () => {
 		vi.mocked(getMonitorSummariesMonthly).mockResolvedValue([
-			row("2026-09-01T07:00:00Z", 0.01, 0.5)
-		] as never);
-		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
-			row("2026-10-03T07:00:00Z", 0.02, 0.1),
-			row("2026-10-04T07:00:00Z", 0.02, 0.2),
-			row("2026-10-05T07:00:00Z", 0.02, 0.4)
+			row("2026-09-01T07:00:00Z", 0.01, 0.5),
+			row("2026-10-01T07:00:00Z", 0.02, 0.7, { is_complete: false })
 		] as never);
 		const spec: DateRangeSpec = { kind: "custom", start: "2026-09-01", end: "2026-10-31" };
 		const rain = await weatherAdapter.fetch(
@@ -338,6 +334,7 @@ describe("weatherAdapter", () => {
 		expect(sept.mean).toBe(0.5);
 		expect(oct.mean).toBeCloseTo(0.7);
 		expect(oct.partial).toBe(true);
+		expect(getMonitorSummariesDaily).not.toHaveBeenCalled();
 		const temp = await weatherAdapter.fetch(
 			request(county, { entryType: "temperature", resolution: "month", spec }),
 			ctx,
