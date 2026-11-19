@@ -8,6 +8,7 @@
 	import { resolveRange } from "$lib/format/range";
 	import { m } from "$lib/paraglide/messages.js";
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+	import { shownRange } from "./shown-range";
 	import type { WidgetType } from "$lib/widgets/registry";
 	import {
 		blockedBySpan,
@@ -32,7 +33,10 @@
 		/** The range; none is Now (for a type with `now`). */
 		value: DateRangeSpec | undefined;
 		now: Date;
-		/** The dataset's resolution: at Monthly or Yearly the shown dates are whole periods. */
+		/**
+		 * The dataset's effective resolution (Automatic included): at Monthly or Yearly the shown
+		 * dates are whole periods.
+		 */
 		resolution?: Resolution;
 		/** A range was chosen, or Now (`undefined`). */
 		onchange: (spec: DateRangeSpec | undefined) => void;
@@ -104,9 +108,16 @@
 		onchange(specFor(preset));
 	}
 
-	const resolved = $derived(resolveRange(base, now, resolution));
+	const shown = $derived(shownRange(base, now, resolution));
+	const resolved = $derived(shown.resolved);
+	// Never a future end: a current month or year shows to today, "so far".
 	const rangeText = $derived.by(() => {
-		const range = formatDateRange(resolved.firstDate, resolved.lastDate);
+		const range = formatDateRange(shown.start, shown.end);
+		if (shown.soFar) {
+			return resolved.rolling
+				? m.get_data_range_rolling_so_far({ range })
+				: m.get_data_range_so_far({ range });
+		}
 		return resolved.rolling ? m.get_data_range_rolling({ range }) : range;
 	});
 

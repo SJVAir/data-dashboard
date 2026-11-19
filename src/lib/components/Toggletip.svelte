@@ -6,7 +6,7 @@
 		label,
 		text
 	}: {
-		/** The button's accessible name (e.g. "About Show values"). */
+		/** The button's accessible name (e.g. "About data resolution"). */
 		label: string;
 		/** The help text, announced when it opens. */
 		text: string;

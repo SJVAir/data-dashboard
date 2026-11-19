@@ -1,15 +1,13 @@
-import { offeredLevels } from "$lib/data/adapters/offered";
 import type { CatalogEntry } from "$lib/data/metadata";
 import { layerKind } from "$lib/data/layer-kind";
-import type { Layer, PesticideFilters, Resolution, WidgetDataConfig } from "$lib/data/schema";
-import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
+import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
+import { mainLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
 /**
  * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). The
- * places, and the main layer's "Show values" level, live on the main layer (`mainLayer`): when an
- * edit changes which layer is main, they move to the new one, so the widget never ends up with no
- * places. An edit that would break a rule (no number layer left, too many overlays) changes
+ * places live on the main layer (`mainLayer`): when an edit changes which layer is main, they
+ * move to the new one, so the widget never ends up with no places. An edit that would break a rule (no number layer left, too many overlays) changes
  * nothing.
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
@@ -46,16 +44,10 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 	return withEntry === 0 || overlayCount(data, catalog) + 1 <= MAX_OVERLAYS;
 }
 
-/** The levels `layer`'s entry type offers that its adapter can fetch ("Show values"' choices). */
-function offeredFor(catalog: CatalogEntry[] | undefined, layer: Layer): Resolution[] {
-	const meta = entryMeta(catalog, layer);
-	return meta ? offeredLevels(layer.dataset, meta.entryType.resolutions) : [];
-}
-
 /**
  * Runs `change`, then moves the places from the old main layer to the new one when the main
- * changed. The dataset's resolution (`data.resolution`) stays, unless the new main doesn't offer
- * it (`offeredFor`: weather has no "Every measurement"): then it goes back to Automatic.
+ * changed. The dataset's resolution (`data.resolution`) always stays: a specific resolution never
+ * changes by itself (Get data shows it blocked, with its reason, when a layer doesn't offer it).
  */
 export function keepingPlaces(
 	data: WidgetDataConfig,
@@ -73,9 +65,6 @@ export function keepingPlaces(
 	delete after.selection;
 	if (carried.place) after.place = carried.place;
 	if (carried.selection) after.selection = carried.selection;
-	if (data.resolution && !offeredFor(catalog, after).includes(data.resolution)) {
-		delete data.resolution;
-	}
 }
 
 /**
@@ -98,9 +87,6 @@ export function setPollutant(
 		const layer = data.layers[at];
 		layer.dataset = pick.dataset;
 		layer.entryType = pick.entryType;
-		// A level the new entry type doesn't offer goes back to Automatic.
-		const offered = offeredFor(catalog, layer);
-		if (data.resolution && !offered.includes(data.resolution)) delete data.resolution;
 		return;
 	}
 	if (!canAddLayer(data, catalog)) return;

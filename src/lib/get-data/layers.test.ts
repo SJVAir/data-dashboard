@@ -64,12 +64,19 @@ describe("draft layers", () => {
 		expect(data.resolution).toBe("day");
 	});
 
-	it("a raw level goes back to Automatic on a weather main (weather has no Every measurement)", () => {
+	it("a specific level never changes by itself: raw stays on a weather main (shown blocked)", () => {
 		const data = pm25With({ ...temperature });
 		data.resolution = "raw";
 		setPollutant(data, CATALOG, null);
 		expect(data.layers).toEqual([{ ...temperature, place: FRESNO }]);
-		expect(data.resolution).toBeUndefined();
+		expect(data.resolution).toBe("raw");
+	});
+
+	it("switching the pollutant keeps a level the new one doesn't offer", () => {
+		const data = pm25With();
+		data.resolution = "raw";
+		setPollutant(data, CATALOG, { dataset: "weather", entryType: "temperature" });
+		expect(data.resolution).toBe("raw");
 	});
 
 	it("the last number layer can't be removed", () => {

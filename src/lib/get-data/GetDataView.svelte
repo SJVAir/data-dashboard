@@ -11,13 +11,7 @@
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import { fillableTypes } from "$lib/data/snapshot";
-	import {
-		LIMITS,
-		type DateRangeSpec,
-		type Layer,
-		type PesticideFilters,
-		type Resolution
-	} from "$lib/data/schema";
+	import { LIMITS, type DateRangeSpec, type Layer, type PesticideFilters } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
@@ -39,7 +33,9 @@
 		mainLayer,
 		placesEntryType,
 		placesLayer,
-		placesQueryLayer
+		placesQueryLayer,
+		widgetEffective,
+		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
 	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
 	import * as layers from "./layers";
@@ -47,7 +43,8 @@
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
-	import ShowValuesControl from "./ShowValuesControl.svelte";
+	import DataResolutionControl from "./DataResolutionControl.svelte";
+	import MoreOptions from "./MoreOptions.svelte";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import {
@@ -81,10 +78,12 @@
 	import MapSections from "./MapSections.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
-	import { formatDateRange, formatList, formatNumber } from "$lib/format";
+	import { formatDate, formatDateRange, formatList, formatNumber } from "$lib/format";
 	import { offeredDatasets, typeBlock } from "./offer";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
-	import { detailChoices } from "./resolution-offer";
+	import { resolutionChoices } from "./resolution-offer";
+	import { shownRange } from "./shown-range";
+	import { MAP_LEVELS, type Level as DataLevel } from "$lib/data/dataset-rules";
 	import ShowAs from "./ShowAs.svelte";
 	import WhatSections from "./WhatSections.svelte";
 	import WhenControl from "./WhenControl.svelte";
@@ -207,7 +206,7 @@
 	const type = $derived(getWidgetType(plain.type));
 	/**
 	 * A type with a now shape (a now type, or the Map with or without a range): its places on one
-	 * layer, its own What, no Show values (see `now.ts`, `map.ts`).
+	 * layer, its own What (see `now.ts`, `map.ts`); the Map with a range has a Data resolution.
 	 */
 	const isNow = $derived(!!type && offersNow(type));
 	/** A now type proper: no When (the Map has one, with a Now choice). */
@@ -240,26 +239,91 @@
 			block: known && !offersNow(t) ? typeBlock(t, blockData, known, now) : null
 		}))
 	);
+	/** Where the places are fetched for, as the dataset rules count it. */
+	const placeKind = $derived(widgetPlaceKind(plain.data, known));
+	/** A Map on Now, or a now type: no range, so no data resolution. */
+	const hasRange = $derived(!nowOnly && (!isMap || !!plain.data.dateRange));
+	/**
+	 * The dataset's resolution (Automatic included, decided from the range as picked), once the
+	 * catalog is known. The When summary and its notes show the range at it.
+	 */
+	const effective = $derived(
+		known && hasRange && type
+			? widgetEffective({ type: plain.type, data: plain.data }, known, placeKind, range, now)
+			: undefined
+	);
+	const resolution = $derived(effective?.resolution ?? plain.data.resolution);
+	/** Data resolution's choices: none for a pinned type, Now, or a widget with no main entry type. */
 	const choices = $derived.by(() => {
-		if (isNow) return null;
-		const meta = entryMeta(known, main);
-		if (!meta) return null;
-		return detailChoices(
-			meta.dataset.id,
-			meta.entryType,
+		if (!known || !hasRange || (isNow && !isMap)) return null;
+		if (!isMap && !entryMeta(known, main)) return null;
+		return resolutionChoices({
+			data: plain.data,
+			catalog: known,
+			place: placeKind,
 			range,
-			picks.length,
-			type?.resolution,
-			now
-		);
+			// The Map counts stops, not points (its own cap).
+			places: isMap ? 1 : picks.length,
+			// The Map's levels are its own (`MAP_LEVELS`), not its type's pin.
+			pin: isMap ? undefined : (type?.resolution as DataLevel | undefined),
+			now,
+			...(isMap ? { within: MAP_LEVELS } : {})
+		});
+	});
+	/**
+	 * A specific resolution never changes by itself: one that no longer fits (the range grew past
+	 * the point budget, or a dataset isn't reported at it) stays chosen, shown blocked with its
+	 * reason, and Add and Save wait until another is chosen.
+	 */
+	const resolutionBlocked = $derived.by(() => {
+		const level = plain.data.resolution;
+		if (!choices || !level) return false;
+		const choice = choices.find((c) => c.level === level);
+		return !choice || !!choice.blocked;
 	});
 
-	// A detail level the range or places can no longer serve goes back to Automatic.
-	$effect(() => {
-		const level = plain.data.resolution;
-		if (!choices || !level) return;
-		const choice = choices.find((c) => c.level === level);
-		if (!choice || choice.blocked) untrack(() => setDetail("auto"));
+	/** A dataset's name, from the catalog. */
+	const datasetLabel = (layer: Layer) =>
+		known?.find((d) => d.id === layer.dataset)?.label ?? layer.dataset;
+	const BY: Record<DataLevel, () => string> = {
+		// Automatic never moves up to Every measurement (it's the finest).
+		raw: () => "",
+		hour: () => m.get_data_resolution_by_hour(),
+		day: () => m.get_data_resolution_by_day(),
+		month: () => m.get_data_resolution_by_month(),
+		year: () => m.get_data_resolution_by_year()
+	};
+	const LEVEL_LABEL: Record<DataLevel, () => string> = {
+		raw: () => m.get_data_resolution_raw(),
+		hour: () => m.get_data_resolution_hour(),
+		day: () => m.get_data_resolution_day(),
+		month: () => m.get_data_resolution_month(),
+		year: () => m.get_data_resolution_year()
+	};
+	/** Automatic moved above the range's level for a dataset: says so, naming both. */
+	const autoNote = $derived.by(() => {
+		if (!choices || !effective?.automatic || !effective.movedBy) return undefined;
+		const level = effective.resolution;
+		return m.get_data_resolution_auto_moved({
+			level: LEVEL_LABEL[level](),
+			dataset: datasetLabel(effective.movedBy),
+			by: BY[level]()
+		});
+	});
+	/** The range resolved wider than picked (whole months or years): the dates it shows. */
+	const widenedNote = $derived.by(() => {
+		if (!effective) return undefined;
+		const level = effective.resolution;
+		if (level !== "month" && level !== "year") return undefined;
+		const shown = shownRange(range, now, level);
+		if (!shown.widened) return undefined;
+		const dates = { start: formatDate(shown.start), end: formatDate(shown.end) };
+		if (level === "month") {
+			return shown.soFar ? m.get_data_range_widened_so_far(dates) : m.get_data_range_widened(dates);
+		}
+		return shown.soFar
+			? m.get_data_range_widened_year_so_far(dates)
+			: m.get_data_range_widened_year(dates);
 	});
 
 	const previewWidget = $derived<WidgetInstance>({
@@ -408,7 +472,7 @@
 	}
 
 	/** Sets the dataset's resolution; Automatic is never stored (it deletes it). */
-	function setDetail(level: "auto" | Resolution): void {
+	function setDetail(level: "auto" | DataLevel): void {
 		if (level === "auto") delete draft.data.resolution;
 		else draft.data.resolution = level;
 	}
@@ -737,10 +801,18 @@
 							{type}
 							value={type.now ? plain.data.dateRange : range}
 							{now}
-							resolution={plain.data.resolution}
+							{resolution}
 							onchange={setRange}
 						/>
 					{/if}
+					<!-- Always mounted, so a new note is announced. -->
+					<p
+						role="status"
+						class={["text-muted-foreground text-xs", !widenedNote && "sr-only"]}
+						data-testid="range-widened-note"
+					>
+						{widenedNote ?? ""}
+					</p>
 				</section>
 			{/if}
 
@@ -844,30 +916,38 @@
 			{/if}
 
 			{#if choices}
-				<section>
-					<ShowValuesControl {choices} value={plain.data.resolution ?? "auto"} onchange={setDetail}>
-						{#if shownLevels}
-							<ThresholdLineControl
-								levels={shownLevels}
-								thresholds={plain.thresholds}
-								onthreshold={setThreshold}
-								onretry={() => alertTry++}
-								marks={isCalendarType(plain.type)}
-							/>
-						{/if}
-					</ShowValuesControl>
-				</section>
-			{:else if !isNow && type?.thresholds && shownLevels}
-				<!-- A type with a pinned resolution (a calendar) has no Show values: the control stands alone. -->
-				<section>
-					<ThresholdLineControl
-						levels={shownLevels}
-						thresholds={plain.thresholds}
-						onthreshold={setThreshold}
-						onretry={() => alertTry++}
-						marks={isCalendarType(plain.type)}
-					/>
-				</section>
+				<DataResolutionControl
+					{choices}
+					value={(plain.data.resolution as DataLevel | undefined) ?? "auto"}
+					{datasetLabel}
+					note={autoNote}
+					onchange={setDetail}
+				/>
+			{/if}
+
+			{#if !isNow && type?.thresholds && shownLevels}
+				{#if type.resolution}
+					<!-- A type with a pinned resolution (a calendar): its level control stands alone. -->
+					<section>
+						<ThresholdLineControl
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setThreshold}
+							onretry={() => alertTry++}
+							marks={isCalendarType(plain.type)}
+						/>
+					</section>
+				{:else}
+					<MoreOptions>
+						<ThresholdLineControl
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setThreshold}
+							onretry={() => alertTry++}
+							marks={isCalendarType(plain.type)}
+						/>
+					</MoreOptions>
+				{/if}
 			{/if}
 		</div>
 
@@ -901,7 +981,11 @@
 	<p role="status" class="sr-only" data-testid="get-data-announcement">{announcement}</p>
 
 	<ActionBar
-		blocked={levelOnly ? m.get_data_level_only() : undefined}
+		blocked={levelOnly
+			? m.get_data_level_only()
+			: resolutionBlocked
+				? m.get_data_resolution_blocked()
+				: undefined}
 		downloading={csvPending("get-data")}
 		ondownload={type?.downloadable ? download : undefined}
 		oncancel={onCancel}
