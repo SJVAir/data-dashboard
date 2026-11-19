@@ -1196,6 +1196,7 @@
 	"get_data_custom_end_year": "End year",
 	"get_data_custom_month": "Month",
 	"get_data_custom_year": "Year",
+	"get_data_custom_year_invalid": "Enter a year as four digits, like 2024.",
 	"get_data_resolution_blocked": "Choose another data resolution: this one doesn't fit these dates, places and datasets.",
 	"get_data_resolution_unknown_blocked": "Choose another data resolution: the saved one isn't offered here.",
 	"get_data_range_widened": "Monthly data covers whole months: showing {start} to {end}.",
@@ -1303,7 +1304,21 @@
 	"map_year_slider": "Year",
 	"map_year_none_yet": "No years to show yet",
 	"map_stop_so_far": "{period} so far",
-	"map_period_days_with_figure": "Only {days} of {expected} days had a figure",
+	"map_period_days_with_figure": [
+		{
+			"declarations": [
+				"input days",
+				"input expected",
+				"input expectedValue",
+				"local expectedPlural = expectedValue: plural"
+			],
+			"selectors": ["expectedPlural"],
+			"match": {
+				"expectedPlural=one": "Only {days} of {expected} day had a figure",
+				"expectedPlural=other": "Only {days} of {expected} days had a figure"
+			}
+		}
+	],
 	"map_period_too_few_days": "Too few days had a figure",
 	"map_day_unrated": "{pollutant}'s days can't be rated",
 	"map_month_unrated": "{pollutant}'s months can't be rated",

@@ -4,8 +4,9 @@ import type { SeriesPoint } from "$lib/data/types";
 /**
  * A number overlay drawn in its own strip under the main chart: the same dates, its own value
  * axis. `name` heads its legend row (the layer and its source); `label` and `unit` label its axis
- * and its readout line. Its points are at the main chart's resolution. `message`, when set, shows in the strip's place instead of a
- * plot (no data, or the layer failed), so the main chart is never affected.
+ * and its readout line. Its points are at the main chart's resolution. `message`, when set, shows
+ * in the strip's place instead of a plot (no data, or the layer failed), so the main chart is
+ * never affected.
  */
 export type ChartStrip = {
 	name: string;

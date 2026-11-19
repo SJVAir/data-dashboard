@@ -691,7 +691,8 @@
 		return counts
 			? m.map_period_days_with_figure({
 					days: formatNumber(counts.days),
-					expected: formatNumber(counts.expected)
+					expected: formatNumber(counts.expected),
+					expectedValue: counts.expected
 				})
 			: m.map_period_too_few_days();
 	}

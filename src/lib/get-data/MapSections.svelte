@@ -8,7 +8,12 @@
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { RegionTypeInfo } from "$lib/places/types";
-	import { PESTICIDE_NOTICES, PESTICIDE_USE, pollutantLayers } from "$lib/widgets/map/options";
+	import {
+		AIR_QUALITY,
+		PESTICIDE_NOTICES,
+		PESTICIDE_USE,
+		pollutantLayers
+	} from "$lib/widgets/map/options";
 	import { PESTICIDE_FILTER_NAMES } from "./filter-names";
 	import {
 		hasNotices,
@@ -75,7 +80,6 @@
 	} = $props();
 
 	const uid = $props.id();
-	const AIR_QUALITY = "air-quality";
 	const SMOKE_AND_FIRE = "smoke-and-fire";
 	const NOTICES = "notices";
 	const USE = "use";

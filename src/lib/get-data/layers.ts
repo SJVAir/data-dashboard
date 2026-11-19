@@ -7,8 +7,8 @@ import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 /**
  * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). The
  * places live on the main layer (`mainLayer`): when an edit changes which layer is main, they
- * move to the new one, so the widget never ends up with no places. An edit that would break a rule (no number layer left, too many overlays) changes
- * nothing.
+ * move to the new one, so the widget never ends up with no places. An edit that would break a
+ * rule (no number layer left, too many overlays) changes nothing.
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */

@@ -884,6 +884,16 @@ test("at Yearly, a custom range is picked in whole years", async () => {
 	await expect
 		.poll(async () => (await current()).data.dateRange)
 		.toEqual({ kind: "custom", start: "2021-01-01", end: "2024-12-31" });
+	// A year that isn't four digits says so (never dropped silently), and stores nothing.
+	await start.fill("21");
+	await userEvent.keyboard("{Tab}");
+	await expect.element(page.getByText(m.get_data_custom_year_invalid())).toBeVisible();
+	await expect.element(start).toHaveAccessibleDescription(m.get_data_custom_year_invalid());
+	expect((await current()).data.dateRange).toEqual({
+		kind: "custom",
+		start: "2021-01-01",
+		end: "2024-12-31"
+	});
 });
 
 function withLayers(ids: string[], ...rest: Draft["data"]["layers"]): Draft {

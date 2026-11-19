@@ -9,6 +9,7 @@ import { resolveRange } from "$lib/format/range";
 import { fromLayer } from "$lib/places/selection";
 import { mapType } from "$lib/widgets/map";
 import {
+	AIR_QUALITY,
 	HMS_FIRE,
 	HMS_SMOKE,
 	MAP_MAX_STOPS,
@@ -38,8 +39,6 @@ import {
 } from "./now";
 
 export { HMS_FIRE, HMS_SMOKE, MAP_POLLUTANTS_MAX } from "$lib/widgets/map/options";
-
-const AIR_QUALITY = "air-quality";
 
 /**
  * Adds or removes an air-quality layer of `entryType`. The places stay on the first pollutant

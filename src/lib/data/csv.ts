@@ -184,9 +184,8 @@ function dataRows(
  * missing value (or NaN) is empty. A raw reading's period ends where it starts. Each overlay's
  * rows follow the main rows, in the same long format with its own entry type; an overlay's
  * places pair with the main's by request index (a point's region can differ by dataset) and
- * carry the main place's columns. A number overlay coarser than the main (a month's pesticide
- * use under daily data) keeps its own `period_start`/`period_end` and `resolution`, so it reads as
- * the whole period's value. A weather overlay's rows carry the station (`source_id`,
+ * carry the main place's columns. Every overlay is at the main's resolution (the dataset rules),
+ * and each row still carries its own `period_start`/`period_end` and `resolution`. A weather overlay's rows carry the station (`source_id`,
  * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
  * `aggregate` says whether a value is a total or an average. Each row then describes its own
  * figure (the value the widget shows; `mean` stays the period's plain mean): `figure` (empty when

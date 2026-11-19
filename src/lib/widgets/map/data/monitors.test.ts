@@ -7,6 +7,7 @@ import {
 	getMonitors
 } from "@sjvair/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { m } from "$lib/paraglide/messages.js";
 
 vi.mock("@sjvair/sdk", () => ({
 	getMonitors: vi.fn(),
@@ -169,6 +170,21 @@ describe("a day's monitors", () => {
 		);
 		expect(isThin(out.features[0].properties)).toBe(true);
 		expect(thinDays(out.features[0].properties)).toEqual({ days: 20, expected: 31 });
+	});
+
+	it("a month with none of its days' figures keeps the 0-of-N counts, said plainly", () => {
+		const out = toDayFeatures(
+			[monitor("a")],
+			snapshot([["a", { value: null, level: null, kind: "thin", days: { days: 0, expected: 30 } }]])
+		);
+		expect(thinDays(out.features[0].properties)).toEqual({ days: 0, expected: 30 });
+		expect(m.map_period_days_with_figure({ days: "0", expected: "30", expectedValue: 30 })).toBe(
+			"Only 0 of 30 days had a figure"
+		);
+		// Never "of 1 days".
+		expect(m.map_period_days_with_figure({ days: "0", expected: "1", expectedValue: 1 })).toBe(
+			"Only 0 of 1 day had a figure"
+		);
 	});
 
 	it("maps the places' scope onto the snapshot's, with a stable key", () => {

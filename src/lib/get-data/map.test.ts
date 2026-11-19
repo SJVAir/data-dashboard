@@ -18,6 +18,7 @@ import {
 	isMapShaped,
 	hasNotices,
 	hasUse,
+	mapLevelOf,
 	mapPesticideFilters,
 	mapShowingOnly,
 	MAP_POLLUTANTS_MAX,
@@ -517,7 +518,11 @@ describe("pesticide use on a Map", () => {
 	const USE_CATALOG = [
 		{
 			id: "air-quality",
-			entryTypes: IDS.map((id) => ({ id, kind: "pollutant", resolutions: ["raw"] }))
+			entryTypes: IDS.map((id) => ({
+				id,
+				kind: "pollutant",
+				resolutions: ["raw", "hour", "day", "month", "year"]
+			}))
 		},
 		{
 			id: "pesticide-use",
@@ -686,6 +691,8 @@ describe("pesticide use on a Map", () => {
 		);
 		expect(untouched.draft.data.dateRange).toEqual(DEFAULT_RANGE);
 		expect(untouched.dropped).not.toContain("dates");
+		// The use moves the Map's Automatic to Monthly, so the kept range steps by month.
+		expect(mapLevelOf(untouched.draft.data, USE_CATALOG, DEFAULT_RANGE, NOW)).toBe("month");
 		// Without use, the untouched default still makes a Map on Now.
 		const plain = toMapDraft(
 			chartOver(structuredClone(DEFAULT_RANGE))([layers[0]]),

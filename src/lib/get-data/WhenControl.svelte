@@ -172,7 +172,11 @@
 	 */
 	function setWhole(side: "start" | "end", part: "month" | "year", raw: string): void {
 		if (!custom || !wholeUnit) return;
-		if (part === "year" && !/^\d{4}$/.test(raw)) return;
+		if (part === "year" && !/^\d{4}$/.test(raw)) {
+			// Said under the inputs (WCAG 3.3.1), never dropped silently; nothing is stored.
+			inputError = m.get_data_custom_year_invalid();
+			return;
+		}
 		const months = { start: custom.start.slice(0, 7), end: custom.end.slice(0, 7) };
 		const [year, month] = months[side].split("-");
 		months[side] = part === "year" ? `${raw}-${month}` : `${year}-${raw}`;

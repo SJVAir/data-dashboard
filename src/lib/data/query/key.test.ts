@@ -85,7 +85,7 @@ describe("queryKey station and filters", () => {
 		);
 	});
 
-	it("a daily figure changes the key, and an absent one leaves it alone", () => {
+	it("a figure changes the key, and an absent one leaves it alone", () => {
 		const plain = queryKey(parts);
 		const withFigure = queryKey({ ...parts, figure: "mean_24h" });
 		expect(withFigure).not.toBe(plain);

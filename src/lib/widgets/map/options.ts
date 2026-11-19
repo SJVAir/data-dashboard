@@ -7,6 +7,8 @@ import { USE_FIELDS } from "./data/use-fields";
 
 export const MAP_TYPE = "map";
 export const MAP_MARKS_MAX = 25;
+/** The Map's pollutants' dataset: each pollutant is an air-quality layer. */
+export const AIR_QUALITY = "air-quality";
 /** The Map's smoke and fire layers: place-less, drawn over the whole map. */
 export const HMS_SMOKE = "hms-smoke";
 export const HMS_FIRE = "hms-fire";

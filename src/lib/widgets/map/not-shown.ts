@@ -2,7 +2,7 @@ import type { Effective } from "$lib/data/dataset-rules";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import { m } from "$lib/paraglide/messages.js";
-import { PESTICIDE_USE } from "./options";
+import { AIR_QUALITY, PESTICIDE_USE } from "./options";
 
 /**
  * The place-less datasets a Map doesn't draw (only from untrusted input: Get data never builds
@@ -16,7 +16,7 @@ export function mapNotShown(data: WidgetDataConfig, effective: Effective | null)
 		? effective.misfits
 		: data.layers.filter((l) => l.dataset === PESTICIDE_USE);
 	const datasets = layers
-		.filter((l) => l.dataset !== "air-quality" && !l.place && !l.selection)
+		.filter((l) => l.dataset !== AIR_QUALITY && !l.place && !l.selection)
 		.map((l) => l.dataset);
 	return datasets.filter((d, i) => datasets.indexOf(d) === i);
 }

@@ -38,6 +38,7 @@ import {
 	getMonitorSummariesDaily,
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
+	getMonitorSummariesYearly,
 	getRegionSummariesBulkDaily,
 	getRegionSummariesBulkHourly,
 	getRegionSummariesBulkMonthly
@@ -599,6 +600,33 @@ describe("airQualityAdapter.fetch", () => {
 			[Date.parse("2026-01-01T08:00:00Z"), 5],
 			[Date.parse("2026-09-01T07:00:00Z"), 8],
 			[Date.parse("2026-10-01T07:00:00Z"), 12]
+		]);
+		// The open month is partial; the ended ones aren't.
+		expect(data.series[0].points.map((p) => p.partial)).toEqual([false, false, true]);
+	});
+
+	it("yearly data is the server's yearly rows only: no daily or monthly fill", async () => {
+		vi.mocked(getMonitorSummariesYearly).mockResolvedValue([
+			row("2025-01-01T00:00:00-08:00", 9, 8000),
+			{ ...row("2026-01-01T00:00:00-08:00", 11, 7000), is_final: false }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request({ kind: "monitors", ids: ["m-bam"] }, "year", {
+				kind: "custom",
+				start: "2025-01-01",
+				end: "2026-12-31"
+			}),
+			ctx,
+			signal
+		);
+		expect(getMonitorSummariesYearly).toHaveBeenCalled();
+		expect(getMonitorSummariesMonthly).not.toHaveBeenCalled();
+		expect(getMonitorSummariesDaily).not.toHaveBeenCalled();
+		expect(getMonitorSummariesDailyOpen).not.toHaveBeenCalled();
+		expect(getMonitorSummariesHourly).not.toHaveBeenCalled();
+		expect(data.series[0].points.map((p) => [p.t, p.mean, p.partial])).toEqual([
+			[Date.parse("2025-01-01T08:00:00Z"), 9, false],
+			[Date.parse("2026-01-01T08:00:00Z"), 11, true]
 		]);
 	});
 

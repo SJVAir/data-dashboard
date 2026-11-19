@@ -24,7 +24,7 @@ import {
 import type { FeatureListItem } from "@sjvair/map-sdk";
 import { encodeRef, type ScaleRef } from "@sjvair/map-sdk/data";
 import { useScaleFor } from "./data/use-scale";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import { getMetadata, getResolvers, placeRegion } from "$lib/data";
@@ -2109,6 +2109,22 @@ test("a pollutant whose days can't be rated draws no levels, and the note says s
 	expect(map.view.label).toContain(line);
 });
 
+test("a pollutant whose months or years can't be rated says so for the month or year", async () => {
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({ catalog: async () => CATALOG, figure: async () => null })
+	);
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const range = { kind: "custom", start: "2026-07-01", end: "2026-09-30" } as const;
+	const screen = await show(periodMap("month", range));
+	const map = await madeMap();
+	const month = m.map_month_unrated({ pollutant: "PM2.5" });
+	await expect.poll(() => map.view.label).toContain(month);
+	await screen.rerender({ widget: periodMap("year", range) });
+	const year = m.map_year_unrated({ pollutant: "PM2.5" });
+	await expect.poll(() => map.view.label).toContain(year);
+	expect(map.view.label).not.toContain(month);
+});
+
 test("the neighbouring days load ahead: a step draws at once, with no new request for it", async () => {
 	rated();
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
@@ -2387,9 +2403,9 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 			}
 		).features.features.find((f) => f.properties.refKey === `monitor:${id}`)!.properties;
 	expect(monitorsOptionsOf(map)!.detail!(props("b"))).toBe(
-		m.map_period_days_with_figure({ days: "20", expected: "30" })
+		m.map_period_days_with_figure({ days: "20", expected: "30", expectedValue: 30 })
 	);
-	expect(m.map_period_days_with_figure({ days: "20", expected: "30" })).toBe(
+	expect(m.map_period_days_with_figure({ days: "20", expected: "30", expectedValue: 30 })).toBe(
 		"Only 20 of 30 days had a figure"
 	);
 	expect(monitorsOptionsOf(map)!.detail!(props("a"))).toBeUndefined();
@@ -4183,6 +4199,7 @@ test("a mixed Map from a share link opens without errors, draws the pollutant, a
 	if (loaded.status !== "ok") throw new Error("the mixed document should open");
 	const widget = loaded.doc.body.widgets[0];
 	const errors = vi.spyOn(console, "error");
+	onTestFinished(() => errors.mockRestore());
 	const screen = await showLive(widget, editing());
 	const map = await madeMap();
 	map.ready = true;
@@ -4191,8 +4208,8 @@ test("a mixed Map from a share link opens without errors, draws the pollutant, a
 	expect(getPesticideTownships).not.toHaveBeenCalled();
 	expect(errors).not.toHaveBeenCalled();
 	// Opening never rewrites what was shared (key order aside: the schema's order is what saves).
-	expect(loaded.doc).toEqual(JSON.parse(stored));
-	expect(app().current.session!.doc.body.widgets[0].data).toEqual(raw.body.widgets[0].data);
+	expect(loaded.doc).toStrictEqual(JSON.parse(stored));
+	expect(app().current.session!.doc.body.widgets[0].data).toStrictEqual(raw.body.widgets[0].data);
 });
 
 test("a Map on Now with use draws no use and says so", async () => {

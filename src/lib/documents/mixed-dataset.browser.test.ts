@@ -1,5 +1,5 @@
 import "../../app.css";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { AdapterRequest } from "$lib/data/adapters/registry";
@@ -123,6 +123,7 @@ test("a mixed document opens, and its stored form isn't rewritten", () => {
 test("the Chart at Hourly draws its main layer and says smoke and use don't line up", async () => {
 	const widget = open().body.widgets[0];
 	const errors = vi.spyOn(console, "error");
+	onTestFinished(() => errors.mockRestore());
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"
