@@ -588,6 +588,22 @@ string`) now get the union return type. The mobile app passes a string token, so
     `shades_valley` note. `pesticides/meta/` is public with `max-age=86400`, so browsers may keep
     the old meta (without the links) for up to a day after the deploy. `@sjvair/sdk`
     `5.0.0-beta.14` needs it deployed.
+  - **Period daily statistic and nightly current-period rows (sjvair.com
+    [#342](https://github.com/SJVAir/sjvair.com/pull/342), merged into `develop` 2026-11-18, fd3f0080,
+    session `sjvair-com-93`; exact commands in its "Production at deploy"), in order:**
+    1. **Deploy** with the other summaries migrations: the release phase runs `summaries.0008`
+       and `0009` together (each with a 10 s `lock_timeout`, metadata-only columns), away from
+       :40–:50 and with no `SummaryBackfillJob` running. Rollback: `migrate summaries 0007`.
+    2. **After the Daily peaks steps above** (the AirNow -999 monitor and region rebuilds, the
+       AQLite rebuilds and the scoped `fill_daily_peaks`), run the scoped
+       `fill_period_statistics` for the same monitor types and region types, `--dry-run` first.
+       Later rebuilds, repairs and catch-up rollups fill the field themselves, because every
+       coarse write goes through it.
+    3. **Wait one night:** current-period rows appear on their own at 02:15 / 02:20 Pacific
+       (local deploy-night cost: 35 s for monitors and 62 s for regions on a laptop; production
+       will be slower). Announce after that night, and after the backfill, because settled
+       responses are cached for 24 hours.
+       `@sjvair/sdk` `5.0.0-beta.15` and the dashboard's step 5 spec 6a need this deployed.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
@@ -1711,6 +1727,43 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   without a label, or with the next change to `src/lib/widgets/shared/data-widget.svelte.ts`
   (add the tests).
 
+- **sjvair.com #342 final-review minors (period daily statistic).** _Deferred 2026-11-18
+  (session `sjvair-com-93`'s final review; all non-blocking)._
+  1. `_backfill_complete_chunk` reads `now` before its cascade and ignores
+     `roll_current_periods`' `stopped`, so a cascade that crosses midnight silently skips the
+     current periods until the next night. Rare, and it fixes itself the next night. **Revisit
+     when** the backfill job is next touched.
+  2. In nightly mode, an owner whose earlier days in the period a backfill rewrote isn't
+     re-rolled until it reports again or the period ends (`rebuild_summaries` and
+     `repair_summaries` pass ids, so they re-roll). The owner-level design accepts this.
+     **Revisit if** a backfill is ever run over the current period on production.
+  3. On spring-forward Sunday the 02:15 / 02:20 tasks don't run, as with the 02:30 integrity
+     check (documented). **Revisit before** 2027-03-14, or whenever `pacific_crontab` changes.
+  4. With more than one summaries worker, the 02:30 integrity check can report a false
+     `missing_current_periods` (documented). **Revisit when** production's worker count is
+     known.
+  5. Test polish: a misindented dict in `test_clean_data_returns_zeros_and_logs_nothing`, no
+     region twin for the guard-before-fills test, helper polish in `test_period_stats.py`.
+     **Revisit with** the next change to those files.
+
+- **sjvair.com: profile and speed up the nightly current-periods run.** _Deferred 2026-11-18
+  (the user, session `sjvair-com-93`, sjvair.com #342)._ Profile a scoped nightly run phase by
+  phase (DB reads, t-digest merge, upserts, daily-figure fill), then pick from:
+  - (a) merge the month incrementally (last night's partial row plus yesterday's daily sketch,
+    not up to 31 sketches); the stats stay exact, and only p25/p75 can differ slightly until
+    the final rollup;
+  - (b) split owners across Huey tasks, which helps only with more than one summaries worker;
+  - (c) a compiled t-digest library in place of the pure-Python `tdigest` 0.5.2.2: every
+    rollup gets faster, but new rows' percentiles differ slightly, and the stored-sketch
+    format needs checking;
+  - (d) a numpy centroid merge of our own (the server session prefers (c)).
+    Local laptop timings: deploy night 34.9 s (monitors) and 62.3 s (regions); a near-steady
+    night after the Nov 8–17 catch-up (540 of 568 monitor and 1,122 of 1,216 region owners
+    reporting, month rolls merging up to 17 daily sketches) 49.9 s and 92.9 s. **Why deferred:** the
+    user wants to go through optimizations together later, and #342 doesn't depend on it.
+    **Revisit when** the user starts the optimization pass, or the production nightly run
+    (02:15 / 02:20 Pacific) runs long or overlaps the 02:30 integrity check.
+
 - **sjvair.com: daily rows written by the hourly summarizer, in place of `daily/open/`.**
   _Deferred 2026-11-18 (the user, session `sjvair-com-93`, branch
   `feature/period-daily-statistic`)._ That branch writes the current month, quarter, season and
@@ -1980,6 +2033,15 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   invalidate the keys from the import commands.
 
 ## Map plugins
+
+- **map-sdk: list the two new `Scale` keys in `NO_SCALE`.** _Deferred 2026-11-18 (the
+  coordinator, from `@sjvair/sdk` `5.0.0-beta.15`'s approved shape, session `sdk-js-9f`)._
+  beta.15 adds the required `Scale` keys `period_statistic` and `period_statistic_label`, and
+  map-sdk's literal `NO_SCALE` (`src/lib/plugins/scale-resolution.svelte.ts`) lists every key,
+  so map-sdk's own type check fails once it builds against beta.15. Nothing breaks at runtime,
+  and the dashboard's pins are unaffected. **Why deferred:** a two-line change, too small for a
+  map-sdk release of its own. **Revisit when** map-sdk next moves its dev pin to `@sjvair/sdk`
+  `5.0.0-beta.15` or later: add both keys as `null` in that release.
 
 - **The regions meta doesn't say which types the server simplifies.** _Deferred 2026-11-15
   (step 5 spec 4, Task 12)._ `regions/geojson/?simplify=1` is accepted only for county,
