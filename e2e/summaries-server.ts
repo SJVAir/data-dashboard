@@ -3,7 +3,12 @@ import type { BrowserContext } from "@playwright/test";
 
 const TIME_ZONE = "America/Los_Angeles";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const SUMMARIES = /\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\/(hourly|daily)\/$/;
+const SUMMARIES =
+	/\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\/(hourly|daily|monthly)\/$/;
+
+/** One monitor's monthly rows for a year: `monitors/<id>/summaries/<entry>/monthly/<year>/`. */
+const MONITOR_MONTHLY =
+	/\/api\/2\.0\/monitors\/([A-Za-z0-9_-]+)\/summaries\/([a-z0-9-]+)\/monthly\/(\d{4})\/$/;
 
 /** One monitor's summaries by month (daily) or day (hourly): `monitors/<id>/summaries/<entry>/…`. */
 const MONITOR_SUMMARIES =
@@ -38,6 +43,46 @@ function periods(start: string, end: string, hourly: boolean): TZDate[] {
 		out.push(new TZDate(t, TIME_ZONE));
 	}
 	return out;
+}
+
+/**
+ * The month starts (Pacific) from `start` to `end` (inclusive dates) whose month has ended by now
+ * (a monthly row exists only after its month: the open month is filled from daily rows).
+ */
+function monthPeriods(start: string, end: string): TZDate[] {
+	const [y, m] = start.split("-").map(Number);
+	const [ey, em, ed] = end.split("-").map(Number);
+	const stop = new TZDate(ey, em - 1, ed + 1, TIME_ZONE).getTime();
+	const now = Date.now();
+	const out: TZDate[] = [];
+	for (let i = 0; ; i++) {
+		const t = new TZDate(y, m - 1 + i, 1, TIME_ZONE).getTime();
+		const next = new TZDate(y, m + i, 1, TIME_ZONE).getTime();
+		if (t >= stop || next > now) break;
+		out.push(new TZDate(t, TIME_ZONE));
+	}
+	return out;
+}
+
+/** A monthly row for the month starting at `p`, with the figures a monthly row carries. */
+function monthRow(p: TZDate, entryType: string) {
+	const mean = reading(p.getTime());
+	return {
+		timestamp: p.toISOString(),
+		entry_type: entryType,
+		resolution: "month",
+		count: 720,
+		expected_count: 720,
+		is_complete: true,
+		minimum: mean - 2,
+		maximum: mean + 2,
+		mean,
+		stddev: 1,
+		p25: mean - 1,
+		p75: mean + 1,
+		sum: mean * 720,
+		...figures(mean, false, true)
+	};
 }
 
 /** The server's figure fields for a row with `mean`: the daily figure only on a daily row. */
@@ -114,6 +159,17 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 		}
 	);
 	await context.route(
+		(url) => MONITOR_MONTHLY.test(url.pathname),
+		async (route) => {
+			const url = new URL(route.request().url());
+			const [, , entryType, year] = MONITOR_MONTHLY.exec(url.pathname)!;
+			const data = monthPeriods(`${year}-01-01`, `${year}-12-31`).map((p) =>
+				monthRow(p, entryType)
+			);
+			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+	await context.route(
 		(url) => SUMMARIES.test(url.pathname),
 		async (route) => {
 			const url = new URL(route.request().url());
@@ -125,6 +181,15 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 			// A malformed date would make the period loop run forever: fail the request instead.
 			if (!DATE.test(start) || !DATE.test(end)) {
 				await route.fulfill({ status: 400, json: { detail: "start and end must be dates" } });
+				return;
+			}
+			if (resolution === "monthly") {
+				const rows = monthPeriods(start, end).map((p) => ({
+					...monthRow(p, entryType),
+					station_count: 1
+				}));
+				const data = ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries: rows }));
+				await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 				return;
 			}
 			const hourly = resolution === "hourly";

@@ -241,9 +241,11 @@ test("downloads a CSV with station and filter columns", async ({ page }) => {
 		// Pounds applied is a total.
 		expect(row.aggregate).toBe("sum");
 	}
-	// The main rows carry neither.
+	// The main rows carry neither. Pesticide use is monthly at best, so with Automatic the whole
+	// dataset is Monthly: the last 30 days reach into two months (the open one is partial).
 	const main = rows.filter((r) => r.entry_type === "pm25");
-	expect(main).toHaveLength(30);
+	expect(main).toHaveLength(2);
+	expect(main.every((r) => r.resolution === "month")).toBe(true);
 	expect(main.every((r) => r.source_id === "" && r.filters === "")).toBe(true);
 	expect(main.every((r) => r.aggregate === "mean")).toBe(true);
 });
