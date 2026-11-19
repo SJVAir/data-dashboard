@@ -21,7 +21,7 @@ import {
 	widgetTitles
 } from "./helpers";
 
-const GET_DATA = { level: 1, name: "Get data" } as const;
+const GET_DATA = { level: 1, name: "Data Portal" } as const;
 const STARTER = STARTER_TITLES.length;
 
 /** The CSV `page`'s Download CSV button saves, as rows of cells (simple: no quoted commas). */
@@ -40,7 +40,7 @@ test("Data nav → Add to dashboard lands highlighted, Undo removes it", async (
 	const dashboardUrl = page.url();
 	await expect(widgetTitles(page)).toHaveCount(STARTER);
 
-	await nav(page).getByRole("link", { name: "Data", exact: true }).click();
+	await nav(page).getByRole("link", { name: "Data Portal", exact: true }).click();
 	await expect(page).toHaveURL(/\/workspace\/data$/);
 	await expect(page.getByRole("heading", GET_DATA)).toBeFocused();
 	// It opens filled in: Fresno County PM2.5 for the last 30 days, previewed.
@@ -72,8 +72,8 @@ test("Edit data → Save changes, Undo restores", async ({ page }) => {
 	await expect(widgetTitles(page).last()).toHaveText(CHART_TITLE);
 
 	// The one just added, after the starter's own Chart.
-	await widgetMenuItem(page, CHART_TITLE, "Edit data", 1);
-	await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeFocused();
+	await widgetMenuItem(page, CHART_TITLE, "Open in Data Portal", 1);
+	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeFocused();
 	await page.getByRole("button", { name: /^Dates / }).click();
 	await page.getByRole("option", { name: "Last 7 days" }).click();
 	await page.getByRole("button", { name: "Save changes" }).click();
@@ -147,7 +147,7 @@ async function openSection(page: Page, name: RegExp): Promise<void> {
 
 test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ page }) => {
 	await makeOwnCopy(page);
-	await nav(page).getByRole("link", { name: "Data", exact: true }).click();
+	await nav(page).getByRole("link", { name: "Data Portal", exact: true }).click();
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 
 	// Fresno County has one place, so the station can be chosen: the nearest is the default.
@@ -327,8 +327,8 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await expect(widgetTitles(page).last()).toHaveText(title);
 
 	// The one just added, after the starter's own Current conditions.
-	await widgetMenuItem(page, title, "Edit data", 1);
-	await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeFocused();
+	await widgetMenuItem(page, title, "Open in Data Portal", 1);
+	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeFocused();
 	await expect(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
 	await expect(page.getByRole("combobox", { name: "Alert level" })).toHaveValue(usg);
 	// Opening a saved now widget converts nothing.

@@ -115,9 +115,12 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
 ### Get data (formerly the Data Explorer and "Widget Creation view")
 
 **Renamed 2026-11-05 (the user, step 4 spec 3, which built it; spec:
-`docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).** The top nav says
-**"Data"**; the page heading is **"Get data"**, or **"Edit data"** when opened from a widget. In
-docs it's "the Get data view". Older text saying "Widget Creation" or "Data Explorer" means this
+`docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).** **Shown to people as
+the "Data Portal"** (the user, 2026-11-19, step 5 spec 6a; it was "Data" in the nav, "Get data"
+and "Edit data" as headings): the top nav and the heading say **"Data Portal"**, opened from a
+widget the heading adds "Changing a widget's data", the widget menu item is **"Open in Data
+Portal"**, and messages say "…in the Data Portal". In docs and code it's still "the Get data
+view" (and "Edit data" for it opened on a widget). Older text saying "Widget Creation" or "Data Explorer" means this
 view. People mostly know what they want, so it isn't an explorer (sjvair.com's Pesticide and
 Facility Emissions explorers are "the explorers"). It doesn't overlap Release 3's Analysis view.
 
@@ -3455,6 +3458,8 @@ commented out).
    single place that sends a language (`Accept-Language`), currently always `en`.
 8. **Layouts tolerate longer text** (Spanish ≈ 20–30% longer): no fixed-width text
    containers sized for English.
+9. **Names of places in the app are capitalized as proper nouns** ("Data Portal"; the user,
+   2026-11-19); all other UI text is in sentence case ("Add widget", "Download CSV").
 
 Deferred until translations exist (see `DEFERRED.md`): language picker, translation
 files, translated content for the server's (currently empty) catalogs, per-language

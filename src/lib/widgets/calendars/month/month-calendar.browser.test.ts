@@ -211,6 +211,19 @@ test("a rated day: number, value, label, level color, outline, readable ink and 
 	expect(text(grid.querySelector("[role=columnheader]"))).toContain("Sunday");
 });
 
+test("a stored level the scale lacks points an editor at the Data Portal, but not a viewer", async () => {
+	const widget = calendar({ thresholds: [{ level: "gone" }] });
+	const editor = await show(widget);
+	await expect
+		.element(editor.screen.getByText(m.calendar_level_missing(), { exact: true }))
+		.toBeVisible();
+	if (editor.session) editor.session.readOnly = "invalid";
+	await expect
+		.element(editor.screen.getByText(m.calendar_level_missing_view(), { exact: true }))
+		.toBeVisible();
+	expect(frame.textContent).not.toContain("Data Portal");
+});
+
 test("with a threshold: the mark and 'at or above'; with a selection: 'selected'", async () => {
 	const widget = calendar({ thresholds: [{ level: "moderate" }] });
 	widget.data.timeSubRange = { start: "2026-11-06", end: "2026-11-06" };

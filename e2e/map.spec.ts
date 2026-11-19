@@ -956,8 +956,8 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 
 	test("Get data adds ozone and smoke and fire to a Map, and both stay", async ({ page }) => {
 		const map = await addMap(page);
-		await widgetMenuItem(page, FRESNO_MAP, "Edit data");
-		await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeVisible();
+		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
+		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
 		await page.getByRole("checkbox", { name: "Ozone" }).check();
 		await page.getByRole("checkbox", { name: "Smoke and fire" }).check();
 		await page.getByRole("button", { name: "Save changes" }).click();
@@ -973,8 +973,8 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await expect(list.getByRole("option", { name: /^2 fire detections/ })).toHaveCount(1);
 		await page.keyboard.press("Escape");
 
-		await widgetMenuItem(page, FRESNO_MAP, "Edit data");
-		await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeVisible();
+		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
+		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
 		await expect(page.getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Smoke and fire" })).toBeChecked();

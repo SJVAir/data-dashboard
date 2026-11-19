@@ -230,6 +230,9 @@
 		>
 			{mode.kind === "edit" ? m.edit_data_heading() : m.get_data_heading()}
 		</h1>
+		{#if mode.kind === "edit"}
+			<p class="text-muted-foreground px-(--grid-gap) text-sm">{m.edit_data_subheading()}</p>
+		{/if}
 		{#key modeKey}
 			{#if initial}
 				<GetDataView

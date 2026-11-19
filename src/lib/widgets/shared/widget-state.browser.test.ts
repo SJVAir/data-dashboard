@@ -165,7 +165,7 @@ test("no-resolution doesn't point a read-only dashboard at Edit data", async () 
 	const view = "This data isn't available at the chosen data resolution.";
 	expect(m.widget_state_unavailable_no_resolution_view()).toBe(view);
 	await expect.element(screen.getByText(view, { exact: true })).toBeInTheDocument();
-	expect(screen.container.textContent).not.toContain("Edit data");
+	expect(screen.container.textContent).not.toContain("Data Portal");
 });
 
 test("the no-longer-available card: Remove removes the widget; no Choose another without onchoose", async () => {

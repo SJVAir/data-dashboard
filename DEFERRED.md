@@ -3057,12 +3057,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## UI & UX
 
-- **A new name for "Edit data".** _Noted 2026-11-19 (step 5 spec 6a, the user)._ "Edit data"
-  doesn't read well as the name of a screen, and it now appears inside other messages too (the
-  widget's "unavailable at the chosen data resolution" state and the chart, table and Map "isn't
-  shown" notes say "Change it in Edit data"). The name is in `edit_data_heading`,
-  `widget_edit_data` and those messages; the screen is Get data opened on a widget. **Revisit
-  when** the user picks a name (then rename every string that uses it in one change).
 - **Command palette (Ctrl+K) and per-action keyboard shortcuts** (beyond undo/redo and
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action

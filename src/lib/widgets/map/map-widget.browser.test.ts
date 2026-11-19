@@ -4161,7 +4161,7 @@ test("a Daily Map with use (from a share link: Get data never builds one) draws 
 	map.ready = true;
 	await expect.element(screen.getByText(notLinedUp("Pesticide Use"))).toBeVisible();
 	expect(m.map_layer_not_lined_up({ dataset: "Pesticide Use" })).toBe(
-		"Pesticide Use isn't shown at this data resolution. Change it in Edit data."
+		"Pesticide Use isn't shown at this data resolution. Change it in the Data Portal."
 	);
 	await expect.element(screen.getByRole("button", { name: m.widget_edit_data() })).toBeVisible();
 	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);

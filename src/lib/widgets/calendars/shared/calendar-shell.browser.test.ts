@@ -236,7 +236,9 @@ test("no threshold: no count line and no threshold mark in the legend", async ()
 
 test("a stored level the scale lacks: no count, no mark, and the missing-level note", async () => {
 	const { screen, data } = await show(calendar({ thresholds: [{ level: "gone" }] }));
-	await expect.element(screen.getByText(m.calendar_level_missing())).toBeVisible();
+	// No dashboard is open here (as on a shared view), so the note leaves out the Data Portal.
+	await expect.element(screen.getByText(m.calendar_level_missing_view())).toBeVisible();
+	expect(frame.textContent).not.toContain("Data Portal");
 	expect(data.threshold).toBeNull();
 	expect(data.thresholdMissing).toBe(true);
 	expect(frame.querySelector("[data-calendar-count]")).toBeNull();

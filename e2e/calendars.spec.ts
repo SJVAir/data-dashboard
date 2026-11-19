@@ -20,7 +20,7 @@ import {
 
 test.use({ reducedMotion: "reduce" });
 
-const GET_DATA = { level: 1, name: "Get data" } as const;
+const GET_DATA = { level: 1, name: "Data Portal" } as const;
 const NOT_RATED_NOTE = /doesn't say yet how to rate a whole day/;
 const FRESNO = { kind: "region", type: "county", code: "06019" };
 
@@ -39,7 +39,7 @@ async function pastDay(scope: Locator, n: number): Promise<Locator> {
 
 /** Opens Get data from the top nav and picks the calendar `name` under "Show as". */
 async function showAs(page: Page, name: string): Promise<void> {
-	await nav(page).getByRole("link", { name: "Data", exact: true }).click();
+	await nav(page).getByRole("link", { name: "Data Portal", exact: true }).click();
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await page.getByRole("radio", { name }).click();

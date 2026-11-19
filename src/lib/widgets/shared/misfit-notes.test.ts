@@ -24,14 +24,14 @@ test("a note per misfit layer, naming its dataset and the level", () => {
 		true
 	);
 	expect(notes).toEqual([
-		"Pesticide use isn't shown: it isn't reported daily. Change the data resolution in Edit data."
+		"Pesticide use isn't shown: it isn't reported daily. Change the data resolution in the Data Portal."
 	]);
 });
 
 test("raw says there are no individual measurements", () => {
 	const smoke = layer("smoke");
 	expect(misfitNotes([overlay(smoke, "Smoke")], effective("raw", [smoke]), true)).toEqual([
-		"Smoke isn't shown: it has no individual measurements. Change the data resolution in Edit data."
+		"Smoke isn't shown: it has no individual measurements. Change the data resolution in the Data Portal."
 	]);
 });
 
