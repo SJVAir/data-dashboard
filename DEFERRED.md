@@ -588,6 +588,22 @@ string`) now get the union return type. The mobile app passes a string token, so
     `shades_valley` note. `pesticides/meta/` is public with `max-age=86400`, so browsers may keep
     the old meta (without the links) for up to a day after the deploy. `@sjvair/sdk`
     `5.0.0-beta.14` needs it deployed.
+  - **Period daily statistic and nightly current-period rows (sjvair.com
+    [#342](https://github.com/SJVAir/sjvair.com/pull/342), open into `develop` 2026-11-18,
+    session `sjvair-com-93`; exact commands in its "Production at deploy"), in order:**
+    1. **Deploy** with the other summaries migrations: the release phase runs `summaries.0008`
+       and `0009` together (each with a 10 s `lock_timeout`, metadata-only columns), away from
+       :40–:50 and with no `SummaryBackfillJob` running. Rollback: `migrate summaries 0007`.
+    2. **After the Daily peaks steps above** (the AirNow -999 monitor and region rebuilds, the
+       AQLite rebuilds and the scoped `fill_daily_peaks`), run the scoped
+       `fill_period_statistics` for the same monitor types and region types, `--dry-run` first.
+       Later rebuilds, repairs and catch-up rollups fill the field themselves, because every
+       coarse write goes through it.
+    3. **Wait one night:** current-period rows appear on their own at 02:15 / 02:20 Pacific
+       (local deploy-night cost: 35 s for monitors and 62 s for regions on a laptop; production
+       will be slower). Announce after that night, and after the backfill, because settled
+       responses are cached for 24 hours.
+       `@sjvair/sdk` `5.0.0-beta.15` and the dashboard's step 5 spec 6a need this deployed.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
