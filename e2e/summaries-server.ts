@@ -4,7 +4,7 @@ import type { BrowserContext } from "@playwright/test";
 const TIME_ZONE = "America/Los_Angeles";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SUMMARIES =
-	/\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\/(hourly|daily|monthly)\/$/;
+	/\/api\/2\.0\/(regions|monitors)\/([A-Za-z0-9_-]+)\/summaries\/(hourly|daily|monthly|yearly)\/$/;
 
 /** One monitor's monthly rows for a year: `monitors/<id>/summaries/<entry>/monthly/<year>/`. */
 const MONITOR_MONTHLY =
@@ -61,6 +61,30 @@ function monthPeriods(start: string, end: string): TZDate[] {
 		out.push(new TZDate(t, TIME_ZONE));
 	}
 	return out;
+}
+
+/**
+ * The year starts (Pacific) from `start` to `end` (inclusive dates) that have begun by now: an
+ * ended year's row, and the open year's nightly row, not final yet.
+ */
+function yearPeriods(start: string, end: string): TZDate[] {
+	const [y] = start.split("-").map(Number);
+	const [ey, em, ed] = end.split("-").map(Number);
+	const stop = new TZDate(ey, em - 1, ed + 1, TIME_ZONE).getTime();
+	const now = Date.now();
+	const out: TZDate[] = [];
+	for (let i = 0; ; i++) {
+		const t = new TZDate(y + i, 0, 1, TIME_ZONE).getTime();
+		if (t >= stop || t > now) break;
+		out.push(new TZDate(t, TIME_ZONE));
+	}
+	return out;
+}
+
+/** A yearly row for the year starting at `p`, with the figures a yearly row carries. */
+function yearRow(p: TZDate, entryType: string) {
+	const ended = new TZDate(p.getFullYear() + 1, 0, 1, TIME_ZONE).getTime() <= Date.now();
+	return { ...monthRow(p, entryType), resolution: "year", is_final: ended };
 }
 
 /** The start (epoch ms) of the month after the one starting at `p`. */
@@ -132,7 +156,7 @@ function todayRow(entryType: string) {
 
 /**
  * Answers the bulk summaries endpoints (`api/2.0/{regions,monitors}/<entry>/summaries/{hourly,
- * daily}/`) with a row for every period in the requested dates that has begun, for each region
+ * daily,monthly,yearly}/`) with a row for every period in the requested dates that has begun, for each region
  * or monitor asked for: the Chart's data in E2E tests. Unlike the fixture files, the answer
  * depends on the query (the dates and places).
  */
@@ -196,11 +220,11 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 				await route.fulfill({ status: 400, json: { detail: "start and end must be dates" } });
 				return;
 			}
-			if (resolution === "monthly") {
-				const rows = monthPeriods(start, end).map((p) => ({
-					...monthRow(p, entryType),
-					station_count: 1
-				}));
+			if (resolution === "monthly" || resolution === "yearly") {
+				const rows =
+					resolution === "monthly"
+						? monthPeriods(start, end).map((p) => ({ ...monthRow(p, entryType), station_count: 1 }))
+						: yearPeriods(start, end).map((p) => ({ ...yearRow(p, entryType), station_count: 1 }));
 				const data = ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries: rows }));
 				await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 				return;

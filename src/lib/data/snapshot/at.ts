@@ -1,5 +1,4 @@
-import type { NowSource } from "../now/client";
-import type { Snapshot, SnapshotAt } from "./types";
+import type { SnapshotAt } from "./types";
 
 /** A snapshot time as a primitive: `"now"`, a day's key, or `month:…` / `year:…` by its start. */
 export function atKey(at: SnapshotAt): string {
@@ -20,19 +19,4 @@ export function isPeriodAt(
 	at: SnapshotAt
 ): at is Extract<SnapshotAt, { start: string; resolution: "month" | "year" }> {
 	return at !== "now" && "start" in at;
-}
-
-/**
- * A month or year stop's snapshot: no figures yet (the Map's monthly and yearly figures aren't
- * read yet), so every place draws as no data. Final, so it never polls.
- */
-export function periodSnapshotSource(
-	key: string
-): NowSource<Snapshot> & { poll: (s: Snapshot | undefined) => boolean } {
-	return {
-		key,
-		cadence: "hour",
-		poll: () => false,
-		fetch: async () => ({ figures: new Map(), final: true, unrated: false })
-	};
 }

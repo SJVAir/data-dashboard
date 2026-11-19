@@ -1,10 +1,18 @@
 import type { MonitorLatest } from "@sjvair/sdk";
 import type { NowSource } from "$lib/data/now/client";
 type Src = NowSource<MonitorLatest[]>;
-import { getMonitorSummariesBulkDaily, getMonitors } from "@sjvair/sdk";
+import {
+	getMonitorSummariesBulkDaily,
+	getMonitorSummariesBulkMonthly,
+	getMonitors
+} from "@sjvair/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@sjvair/sdk", () => ({ getMonitors: vi.fn(), getMonitorSummariesBulkDaily: vi.fn() }));
+vi.mock("@sjvair/sdk", () => ({
+	getMonitors: vi.fn(),
+	getMonitorSummariesBulkDaily: vi.fn(),
+	getMonitorSummariesBulkMonthly: vi.fn()
+}));
 vi.mock("$lib/data", () => ({
 	getResolvers: () => ({ regions: { resolve: async () => null } }),
 	placeRegion: async () => null
@@ -177,10 +185,10 @@ describe("a day's monitors", () => {
 			figure: vi.fn(async () => ({ field: "max_1h", label: null })),
 			levels: vi.fn(async () => [])
 		};
-		const source = entry().daySource({
+		const source = entry().stopSource({
 			scope: { kind: "regions", ids: ["r1"], key: "r1" },
 			entryType: "o3",
-			day: "2026-09-09",
+			at: { day: "2026-09-09" },
 			rating,
 			today: () => "2026-11-15"
 		});
@@ -195,6 +203,39 @@ describe("a day's monitors", () => {
 			region: ["r1"]
 		});
 		expect(snap.figures.get("a")).toMatchObject({ value: 61, kind: "rated" });
+		expect(source.poll(snap)).toBe(false);
+	});
+
+	it("a month's source reads the bulk monthly summaries and the month's figure", async () => {
+		const bulk = vi.mocked(getMonitorSummariesBulkMonthly);
+		bulk.mockResolvedValue([
+			{
+				id: "a",
+				summaries: [{ timestamp: "2026-09-01T07:00:00Z", is_final: true, daily_statistic_mean: 14 }]
+			}
+		] as never);
+		const rating = {
+			figure: vi.fn(async () => ({ field: "daily_statistic_mean", label: "Average" })),
+			levels: vi.fn(async () => [])
+		};
+		const source = entry().stopSource({
+			scope: { kind: "regions", ids: ["r1"], key: "r1" },
+			entryType: "pm25",
+			at: { start: "2026-09-01", resolution: "month" },
+			rating,
+			today: () => "2026-11-15"
+		});
+		expect(source.key).toBe("snapshot:monitors:pm25:regions:r1:month:2026-09-01");
+		const snap = await source.fetch(new AbortController().signal);
+		expect(rating.figure).toHaveBeenCalledWith("pm25", "month", expect.anything());
+		expect(vi.mocked(getMonitorSummariesBulkDaily)).not.toHaveBeenCalled();
+		expect(bulk.mock.calls[0][0]).toEqual({
+			entryType: "pm25",
+			start: "2026-09-01",
+			end: "2026-09-30",
+			region: ["r1"]
+		});
+		expect(snap.figures.get("a")).toMatchObject({ value: 14, kind: "rated" });
 		expect(source.poll(snap)).toBe(false);
 	});
 });

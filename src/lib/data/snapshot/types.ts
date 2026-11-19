@@ -12,7 +12,7 @@ export type SnapshotFigure = { value: number | null; level: Level | null; kind: 
 export type Snapshot = {
 	/** Keyed by monitor id, or by region `type:code`. */
 	figures: Map<string, SnapshotFigure>;
-	/** Every figure final (a day only); false makes the source poll hourly. */
+	/** Every figure final (a past stop only); false makes the source poll hourly. */
 	final: boolean;
 	/** The scale has no daily_statistic: every figure is unrated. */
 	unrated: boolean;

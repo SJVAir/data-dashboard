@@ -37,7 +37,7 @@
 	import { USE_FIELDS } from "./data/use-fields";
 	import { sectionZoom } from "./data/use-geometry";
 	import { fitCamera } from "./camera.svelte";
-	import { MapDailyFigure } from "./daily-figure.svelte";
+	import { MapPeriodFigure } from "./period-figure.svelte";
 	import { MapFillTypes } from "./data/fill-types.svelte";
 	import { MapDays } from "./day-mode.svelte";
 	import { mapLevel, type MapLevel } from "./days";
@@ -232,10 +232,13 @@
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
 		)?.entryType.label
 	);
-	const dailyFigure = new MapDailyFigure(
+	const periodFigure = new MapPeriodFigure(
 		{
 			get entryType() {
 				return entryType;
+			},
+			get resolution() {
+				return days.resolution;
 			},
 			get ranged() {
 				return days.ranged;
@@ -246,11 +249,14 @@
 		},
 		metadata
 	);
-	onDestroy(() => dailyFigure.destroy());
+	onDestroy(() => periodFigure.destroy());
 	/** Whether the figure's name is known for the pollutant drawn (or isn't needed: on now). */
-	const figureLabelSettled = $derived(dailyFigure.settled);
-	/** On a day stop, what the monitors' figure is ("24-hour average"); unset on now. */
-	const figureLabel = $derived(dailyFigure.label);
+	const figureLabelSettled = $derived(periodFigure.settled);
+	/**
+	 * On a stop, what the monitors' figure is ("24-hour average", or at Monthly and Yearly "Average
+	 * of 24-hour averages"); unset on now.
+	 */
+	const figureLabel = $derived(periodFigure.label);
 	const idle = $derived(
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
 	);
@@ -645,7 +651,7 @@
 					layerLabel: label,
 					selectedStyle: "ring",
 					clustered: clusters,
-					// On a day stop: why a monitor has no figure, and what its figure is. Unset on now.
+					// On a stop: why a monitor has no figure, and what its figure is. Unset on now.
 					...(onDay && { detail: thinDetail }),
 					...(figure && { figureLabel: figure })
 				}),
@@ -671,9 +677,15 @@
 			current.setSelection("monitors", selection);
 	});
 
-	/** A day's monitor without enough data for a figure says so where "No level" would be. */
+	/**
+	 * A stop's monitor without enough data for a figure says so where "No level" would be: a day
+	 * had too few readings; a month or year too few days with a figure.
+	 */
 	function thinDetail(props: MonitorFeatureProperties): string | undefined {
-		return isThin(props) ? m.calendar_not_enough_data() : undefined;
+		if (!isThin(props)) return undefined;
+		return days.resolution === "day"
+			? m.calendar_not_enough_data()
+			: m.map_period_not_enough_days();
 	}
 
 	/** Each notices marker's latest properties, by refKey: an open card follows its marker. */

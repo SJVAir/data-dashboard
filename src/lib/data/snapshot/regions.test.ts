@@ -2,16 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@sjvair/sdk", () => ({
 	getRegionSummariesBulkDaily: vi.fn(),
-	getRegionSummariesBulkDailyOpen: vi.fn()
+	getRegionSummariesBulkDailyOpen: vi.fn(),
+	getRegionSummariesBulkMonthly: vi.fn(),
+	getRegionSummariesBulkYearly: vi.fn()
 }));
 
-import { getRegionSummariesBulkDaily, getRegionSummariesBulkDailyOpen } from "@sjvair/sdk";
+import {
+	getRegionSummariesBulkDaily,
+	getRegionSummariesBulkDailyOpen,
+	getRegionSummariesBulkMonthly,
+	getRegionSummariesBulkYearly
+} from "@sjvair/sdk";
 import { pacificDay } from "$lib/format";
 import type { Figure, Level } from "../metadata";
 import {
 	fillableTypes,
 	isRegionSummaryBulkType,
 	regionDaySource,
+	regionPeriodSource,
 	regionTodaySource
 } from "./regions";
 import type { Snapshot } from "./types";
@@ -152,6 +160,68 @@ describe("regionTodaySource", () => {
 			kind: "today"
 		});
 		expect(snap.final).toBe(false);
+	});
+});
+
+describe("regionPeriodSource", () => {
+	const monthly = vi.mocked(getRegionSummariesBulkMonthly) as unknown as ReturnType<typeof vi.fn>;
+	const yearly = vi.mocked(getRegionSummariesBulkYearly) as unknown as ReturnType<typeof vi.fn>;
+	const periodFigure: Figure = { field: "daily_statistic_mean", label: "Average" };
+	const periodRow = (start: string, mean: number | null, is_final = true) => ({
+		timestamp: pacificDay(start).toISOString(),
+		is_final,
+		daily_statistic_mean: mean
+	});
+	const OCT = { start: "2026-10-01", resolution: "month" } as const;
+	const args = { ...base, figure: periodFigure };
+
+	beforeEach(() => {
+		monthly.mockReset();
+		yearly.mockReset();
+		monthly.mockResolvedValue([
+			{ id: "r1", summaries: [periodRow("2026-10-01", 5)] },
+			{ id: "r2", summaries: [periodRow("2026-10-01", null)] }
+		]);
+	});
+
+	it("keys by period and reads the bulk monthly summaries for the month, by type", async () => {
+		const s = regionPeriodSource({ ...args, at: OCT });
+		expect(s.key).toBe("snapshot:regions:pm25:zipcode:month:2026-10-01");
+		const snap = await s.fetch(signal);
+		expect(daily).not.toHaveBeenCalled();
+		expect(monthly).toHaveBeenCalledWith(
+			{ entryType: "pm25", start: "2026-10-01", end: "2026-10-31", type: "zipcode" },
+			{ signal }
+		);
+		expect(snap.figures.get("zipcode:93721")).toEqual({
+			value: 5,
+			level: levels[0],
+			kind: "rated"
+		});
+		expect(snap.figures.get("zipcode:93722")).toEqual({ value: null, level: null, kind: "thin" });
+		expect(snap.final).toBe(true);
+		expect(s.poll(snap)).toBe(false);
+	});
+
+	it("reads the bulk yearly summaries for a year; the current year polls while not final", async () => {
+		yearly.mockResolvedValue([{ id: "r1", summaries: [periodRow("2026-01-01", 6, false)] }]);
+		const s = regionPeriodSource({ ...args, at: { start: "2026-01-01", resolution: "year" } });
+		const snap = await s.fetch(signal);
+		expect(yearly).toHaveBeenCalledWith(
+			{ entryType: "pm25", start: "2026-01-01", end: "2026-12-31", type: "zipcode" },
+			{ signal }
+		);
+		expect(snap.figures.get("zipcode:93721")?.kind).toBe("pending");
+		expect(snap.final).toBe(false);
+		expect(s.poll(snap)).toBe(true);
+	});
+
+	it("requests nothing for a type the bulk summaries do not take", async () => {
+		const snap = await regionPeriodSource({ ...args, regionType: "land_use", at: OCT }).fetch(
+			signal
+		);
+		expect(monthly).not.toHaveBeenCalled();
+		expect(snap.figures.size).toBe(0);
 	});
 });
 

@@ -32,6 +32,7 @@ import {
 	NOTICE_COMMODITY,
 	NOTICES_META,
 	routeMapDays,
+	routeMapPeriods,
 	routeMapFill,
 	routeMapMeta,
 	routeMapNotices,
@@ -875,30 +876,41 @@ test.describe("a Map's days", () => {
 		await expect(page.getByRole("button", { name: "Next day" })).toBeDisabled();
 	});
 
-	test("a Monthly Map steps by month with the keys, the current month last and so far", async ({
+	test("a Monthly Map steps by month with the keys, each month's figure drawn, the current month last, so far and not final", async ({
+		context,
 		page
 	}) => {
+		// Drummond Street's average of 24-hour averages: October Moderate; November so far Good,
+		// its nightly row not final; September has no row.
+		await routeMapPeriods(context, {
+			"2026-10-01": { figures: { [DRUMMOND]: 20 } },
+			"2026-11-01": { figures: { [DRUMMOND]: 5 }, final: false }
+		});
 		const doc = wideDoc([], { kind: "custom", start: "2026-09-01", end: "2026-11-30" });
 		Object.assign(doc.body.widgets[0].data, { resolution: "month" });
 		await openSharedDoc(page, doc);
+		const map = mapOf(page, FRESNO_MAP);
 		const slider = page.getByRole("slider", { name: "Month" });
-		// The current month is the last stop (no Now at Monthly), so far.
-		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far");
+		// The current month is the last stop (no Now at Monthly), so far and not final yet.
+		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far, not final yet");
 		await expect(page.locator("[data-day-label]")).toHaveText("November 2026 so far");
+		await expect(page.locator("[data-day-status]")).toContainText("Not final yet");
 		await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
-		// No monthly figures are drawn yet: the month says so.
-		await expect(page.getByRole("status").getByText("No figures for this month")).toBeVisible();
+		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
 
 		await slider.focus();
 		await page.keyboard.press("ArrowLeft");
 		await expect(slider).toHaveAttribute("aria-valuetext", "October 2026");
 		await expect(slider).toBeFocused();
+		await expect(inView(map)).toHaveText("PM2.5: 1 Moderate");
 		await page.keyboard.press("Home");
 		await expect(slider).toHaveAttribute("aria-valuetext", "September 2026");
 		await expect(slider).toBeFocused();
 		await expect(page.getByRole("button", { name: "Previous month" })).toBeDisabled();
+		// No row for September: the month says so.
+		await expect(page.getByRole("status").getByText("No figures for this month")).toBeVisible();
 		await page.keyboard.press("End");
-		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far");
+		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far, not final yet");
 		await expect(slider).toBeFocused();
 	});
 
@@ -1624,6 +1636,8 @@ test.describe("a Map's pesticide use", () => {
 
 	test.beforeEach(async ({ context, page }) => {
 		await routeMapMeta(context);
+		// Drummond Street's 2023 average of 24-hour averages: Good.
+		await routeMapPeriods(context, { "2023-01-01": { figures: { [DRUMMOND]: 5 } } });
 		useRequests = await routeMapUse(context, USE);
 		// Noon Pacific, as the other day tests.
 		await page.clock.install({ time: TODAY });
@@ -1651,8 +1665,8 @@ test.describe("a Map's pesticide use", () => {
 	}
 
 	/**
-	 * The use Map. At a month or year stop the monitors have no figures yet, which its name says
-	 * ("… map. No figures for this year"), so it's found by the start of its name.
+	 * The use Map. At a month with no monitor rows its name says so ("… map. No figures for this
+	 * month"), so it's found by the start of its name.
 	 */
 	function useMapOf(page: Page): Locator {
 		return page.getByRole("region", { name: /^PM2\.5 · Fresno County map\b/ });
@@ -1666,9 +1680,8 @@ test.describe("a Map's pesticide use", () => {
 			legendOf(map).getByRole("heading", { level: 3, name: "Pounds Applied, 2023", exact: true })
 		).toBeVisible();
 		await expect.poll(() => useRequests.townships.length).toBeGreaterThan(0);
-		// At a year stop no monitor has a figure yet, so the monitors' line can't say the map has
-		// loaded and fitted the county: wait for its requests to settle instead.
-		await map.page().waitForLoadState("networkidle");
+		// The monitors' line says the map has loaded the year's figures and fitted the county.
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
 		return map;
 	}
 

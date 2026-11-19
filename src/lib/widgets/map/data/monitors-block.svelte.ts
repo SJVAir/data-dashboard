@@ -3,13 +3,7 @@ import type { DataSource, DataStatus, MonitorFeatureProperties } from "@sjvair/m
 import type { MonitorLatest } from "@sjvair/sdk";
 import type { NowClient, NowSource, NowState } from "$lib/data/now/client";
 import { NowQuery } from "$lib/data/now/now-query.svelte";
-import {
-	atKey,
-	atOfKey,
-	isPeriodAt,
-	periodSnapshotSource,
-	type Snapshot
-} from "$lib/data/snapshot";
+import { atKey, atOfKey, type Snapshot } from "$lib/data/snapshot";
 import type { UnavailableReason } from "$lib/data/types";
 import { todayPacific } from "$lib/format";
 import { mapMessages } from "../host/messages";
@@ -364,23 +358,20 @@ export class MonitorsBlock {
 				for (const query of this.#dayAhead) query.set(null);
 				return;
 			}
-			const sourceFor = (d: string) =>
-				monitorsEntry.daySource({
-					scope: scope.scope,
-					entryType: type,
-					day: d,
-					rating: this.#rating,
-					today: () => todayPacific()
-				});
-			// On the Now stop only the day before it is fetched ahead. A month or year has no
-			// figures yet: every monitor draws as no data.
-			const at = atOfKey(day);
-			const source =
-				at === "now"
+			const sourceFor = (key: string) => {
+				const at = atOfKey(key);
+				return at === "now"
 					? null
-					: isPeriodAt(at)
-						? periodSnapshotSource(`snapshot:monitors:none:${day}`)
-						: sourceFor(day);
+					: monitorsEntry.stopSource({
+							scope: scope.scope,
+							entryType: type,
+							at,
+							rating: this.#rating,
+							today: () => todayPacific()
+						});
+			};
+			// On the Now stop only the day before it is fetched ahead; at Monthly and Yearly nothing.
+			const source = sourceFor(day);
 			this.#daySource = source;
 			this.#dayResolvedFor = source ? `${wanted}|${day}` : null;
 			switchQueries<Snapshot>(this.#now, [

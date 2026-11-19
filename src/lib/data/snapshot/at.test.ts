@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { atKey, atOfKey, isPeriodAt, periodSnapshotSource } from "./at";
+import { atKey, atOfKey, isPeriodAt } from "./at";
+import { periodEnd, periodHolds } from "./period";
 
 describe("snapshot times", () => {
 	it("round-trips now, a day, a month and a year through their keys", () => {
@@ -19,10 +20,18 @@ describe("snapshot times", () => {
 		expect(isPeriodAt({ start: "2026-11-01", resolution: "month" })).toBe(true);
 	});
 
-	it("gives a period no figures, final, never polling", async () => {
-		const source = periodSnapshotSource("k");
-		const value = await source.fetch(new AbortController().signal);
-		expect(value).toEqual({ figures: new Map(), final: true, unrated: false });
-		expect(source.poll(value)).toBe(false);
+	it("ends a month on its last day and a year on December 31st", () => {
+		expect(periodEnd({ start: "2026-02-01", resolution: "month" })).toBe("2026-02-28");
+		expect(periodEnd({ start: "2024-02-01", resolution: "month" })).toBe("2024-02-29");
+		expect(periodEnd({ start: "2026-10-01", resolution: "month" })).toBe("2026-10-31");
+		expect(periodEnd({ start: "2026-01-01", resolution: "year" })).toBe("2026-12-31");
+	});
+
+	it("knows the current month or year (it holds today)", () => {
+		const nov = { start: "2026-11-01", resolution: "month" } as const;
+		expect(periodHolds(nov, "2026-11-01")).toBe(true);
+		expect(periodHolds(nov, "2026-11-30")).toBe(true);
+		expect(periodHolds(nov, "2026-12-01")).toBe(false);
+		expect(periodHolds({ start: "2026-01-01", resolution: "year" }, "2026-11-19")).toBe(true);
 	});
 });

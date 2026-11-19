@@ -103,8 +103,8 @@ vi.mock("./monitors", async (original) => {
 				scope: { kind: "regions", ids: ["1"], key: "1" },
 				fetch: async () => []
 			}),
-			daySource: ({ day }: { day: string }) => ({
-				key: `monitors:day:${day}`,
+			stopSource: ({ at }: { at: { day: string } }) => ({
+				key: `monitors:day:${at.day}`,
 				cadence: "hour",
 				poll: (s: Snapshot | undefined) => !s?.final,
 				fetch: async (): Promise<Snapshot> => ({

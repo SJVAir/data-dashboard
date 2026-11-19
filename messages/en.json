@@ -1302,6 +1302,7 @@
 	"map_year_slider": "Year",
 	"map_year_none_yet": "No years to show yet",
 	"map_stop_so_far": "{period} so far",
+	"map_period_not_enough_days": "Fewer than 75% of the days had a figure",
 	"map_day_unrated": "{pollutant}'s days can't be rated",
 	"map_month_unrated": "{pollutant}'s months can't be rated",
 	"map_year_unrated": "{pollutant}'s years can't be rated",

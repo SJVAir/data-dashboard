@@ -1,12 +1,16 @@
 import {
 	getRegionSummariesBulkDaily,
 	getRegionSummariesBulkDailyOpen,
+	getRegionSummariesBulkMonthly,
+	getRegionSummariesBulkYearly,
 	type RegionSummaryBulkType,
 	type RegionWithSummaries
 } from "@sjvair/sdk";
 import { dayState } from "../day-state";
 import type { Figure, Level } from "../metadata";
 import type { NowSource } from "../now/client";
+import { atKey } from "./at";
+import { periodEnd, periodFigure, periodHolds, type PeriodAt } from "./period";
 import { numberOf, rowDate } from "./rows";
 import type { Snapshot, SnapshotFigure } from "./types";
 
@@ -121,6 +125,45 @@ export function regionTodaySource(
 				{ signal }
 			);
 			return snapshotOf(regions, { ...args, day });
+		}
+	};
+}
+
+/**
+ * One month's or year's figure for every region of a type, keyed `type:code`, from one bulk
+ * monthly or yearly request scoped by `type`: the average of the daily figures, coloured by the
+ * daily levels. Polled hourly until every row is final; the current period is never final.
+ */
+export function regionPeriodSource(
+	args: Omit<Args, "day"> & { at: PeriodAt }
+): NowSource<Snapshot> & { poll: (s: Snapshot | undefined) => boolean } {
+	const { entryType, regionType, at, figure, levels, codes } = args;
+	return {
+		key: `snapshot:regions:${entryType}:${regionType}:${atKey(at)}`,
+		cadence: "hour",
+		poll: (s) => !s?.final,
+		async fetch(signal) {
+			const figures = new Map<string, SnapshotFigure>();
+			let final = !periodHolds(at, args.today());
+			if (!isRegionSummaryBulkType(regionType)) {
+				return { figures, final, unrated: figure === null };
+			}
+			const bulk =
+				at.resolution === "year" ? getRegionSummariesBulkYearly : getRegionSummariesBulkMonthly;
+			const regions = await bulk(
+				{ entryType, start: at.start, end: periodEnd(at), type: regionType },
+				{ signal }
+			);
+			for (const region of regions) {
+				const code = codes(region.id);
+				if (code === undefined) continue;
+				const found = region.summaries.find((r) => rowDate(r) === at.start);
+				if (!found) continue;
+				if (!found.is_final) final = false;
+				const row = found as unknown as Record<string, unknown> & { is_final: boolean };
+				figures.set(`${regionType}:${code}`, periodFigure({ row, figure, levels }));
+			}
+			return { figures, final, unrated: figure === null };
 		}
 	};
 }

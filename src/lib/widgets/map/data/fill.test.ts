@@ -3,12 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@sjvair/sdk", async (original) => ({
 	...(await original<typeof import("@sjvair/sdk")>()),
 	getRegionSummariesBulkDaily: vi.fn(),
-	getRegionSummariesBulkDailyOpen: vi.fn()
+	getRegionSummariesBulkDailyOpen: vi.fn(),
+	getRegionSummariesBulkMonthly: vi.fn(),
+	getRegionSummariesBulkYearly: vi.fn()
 }));
 
 import {
 	getRegionSummariesBulkDaily,
 	getRegionSummariesBulkDailyOpen,
+	getRegionSummariesBulkMonthly,
+	getRegionSummariesBulkYearly,
 	type RegionFeature
 } from "@sjvair/sdk";
 import type { Figure, Level } from "$lib/data/metadata";
@@ -33,6 +37,8 @@ const TODAY = "2026-11-12";
 
 const daily = vi.mocked(getRegionSummariesBulkDaily) as unknown as ReturnType<typeof vi.fn>;
 const open = vi.mocked(getRegionSummariesBulkDailyOpen) as unknown as ReturnType<typeof vi.fn>;
+const monthly = vi.mocked(getRegionSummariesBulkMonthly) as unknown as ReturnType<typeof vi.fn>;
+const yearly = vi.mocked(getRegionSummariesBulkYearly) as unknown as ReturnType<typeof vi.fn>;
 const signal = new AbortController().signal;
 
 const row = (day: string, mean: number | null, is_final = true) => ({
@@ -73,6 +79,8 @@ let ctx: FillContext;
 beforeEach(() => {
 	daily.mockReset();
 	open.mockReset();
+	monthly.mockReset();
+	yearly.mockReset();
 	ctx = {
 		shapes: vi.fn(async () => [shape("93721"), shape("93722"), shape(null, "No code")]),
 		names: async () => (r) => `ZIP ${r.name}`,
@@ -145,16 +153,65 @@ describe("the fill entry", () => {
 		expect(source.poll(await source.fetch(signal))).toBe(true);
 	});
 
-	it("draws every region with no figure on a month stop, asks for no day, and never polls", async () => {
+	it("draws a month's figure (the scale's period figure) per region, from the bulk monthly rows", async () => {
+		const periodFigure: Figure = { field: "daily_statistic_mean", label: "Average" };
+		const resolutions: string[] = [];
+		ctx.rating = {
+			figure: async (_type, resolution) => {
+				resolutions.push(resolution);
+				return periodFigure;
+			},
+			levels: async () => levels
+		};
+		monthly.mockResolvedValue([
+			{
+				id: "z93721",
+				summaries: [
+					{
+						timestamp: pacificDay("2026-10-01").toISOString(),
+						is_final: true,
+						daily_statistic_mean: 12
+					}
+				]
+			}
+		]);
 		const entry = createFillEntry(ctx);
 		const at = { start: "2026-10-01", resolution: "month" } as const;
 		const source = entry.source({ regionType: "zipcode", entryType: "pm25", at });
 		expect(source.key).toBe("map-fill:pm25:zipcode:month:2026-10-01");
 		const value = await source.fetch(signal);
+		expect(resolutions).toEqual(["month"]);
 		expect(daily).not.toHaveBeenCalled();
 		expect(open).not.toHaveBeenCalled();
-		expect(value.features.features.map((f) => f.properties.value)).toEqual([null, null]);
+		expect(monthly.mock.calls[0][0]).toEqual({
+			entryType: "pm25",
+			start: "2026-10-01",
+			end: "2026-10-31",
+			type: "zipcode"
+		});
+		expect(value.features.features.map((f) => f.properties.value)).toEqual([12, null]);
 		expect(source.poll(value)).toBe(false);
+	});
+
+	it("keeps the current year polling while its nightly row isn't final", async () => {
+		yearly.mockResolvedValue([
+			{
+				id: "z93721",
+				summaries: [
+					{
+						timestamp: pacificDay("2026-01-01").toISOString(),
+						is_final: false,
+						daily_statistic_mean: 7
+					}
+				]
+			}
+		]);
+		const at = { start: "2026-01-01", resolution: "year" } as const;
+		const source = createFillEntry(ctx).source({ regionType: "zipcode", entryType: "pm25", at });
+		const value = await source.fetch(signal);
+		expect(yearly).toHaveBeenCalledTimes(1);
+		expect(value.final).toBe(false);
+		expect(source.poll(value)).toBe(true);
 	});
 
 	it("draws every region with no figure when the days can't be rated", async () => {
