@@ -2349,18 +2349,42 @@ test("a fill on the current month says this month so far; a past month just name
 	await expect.poll(() => fillOf(map)?.options.layerLabel).toBe("ZIP Codes");
 });
 
-test("a month stop never says there are no spray notices for the day", async () => {
+test("smoke, fire and spray notices draw only at Daily: a Monthly Map (untrusted) hides their rows and says why", async () => {
 	rated();
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 	const range = { kind: "custom", start: "2026-07-01", end: "2026-09-30" } as const;
-	await show(periodMap("month", range, undefined, [{ dataset: "pesticide-notices" }]));
+	const widget = periodMap("month", range, undefined, [{ dataset: "pesticide-notices" }]);
+	widget.data.layers.splice(1, 0, { dataset: "hms-smoke" }, { dataset: "hms-fire" });
+	const screen = await showLive(widget, editing());
 	const map = await madeMap();
+	map.ready = true;
 	await expect.poll(dayLabel).toBe("September 2026");
-	// Notices are daily: none are asked for, and the legend claims nothing about the month.
+	for (const dataset of ["Wildfire Smoke", "Fire Detections", "Spray Notices"]) {
+		await expect.element(screen.getByText(notLinedUp(dataset))).toBeVisible();
+	}
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
 	expect(getActivePesticideNotices).not.toHaveBeenCalled();
-	const note = await noticesNote(map);
-	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
-	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+	expect(getHMSSmoke).not.toHaveBeenCalled();
+	// No Layers rows for them (the group goes with its last row).
+	expect(frame.querySelector('[data-option="fireAndSmoke"]')).toBeNull();
+	expect(frame.querySelector('[data-option="notices"]')).toBeNull();
+});
+
+test("at Daily, smoke, fire and spray notices draw with their rows and no note", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = rangedMap(region("019"));
+	widget.data.layers.push({ dataset: "hms-smoke" }, { dataset: "hms-fire" });
+	widget.data.layers.push({ dataset: "pesticide-notices" });
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect
+		.poll(() => pluginIds(map))
+		.toEqual(["focus", "hms-smoke", "hms-fire", "notices", "monitors"]);
+	expect(frame.querySelector('[data-option="fireAndSmoke"]')).toBeTruthy();
+	expect(frame.querySelector('[data-option="notices"]')).toBeTruthy();
+	expect(screen.getByText(notLinedUp("Wildfire Smoke")).query()).toBeNull();
 });
 
 test("refresh: a final past day isn't asked for again; one not final is, hourly", async () => {
@@ -3588,14 +3612,33 @@ function useSections() {
 	};
 }
 
-/** A Map of county 019 with the pesticide use layer for 2023 (with `filters`, if given). */
-function useMap(options: Record<string, unknown> = {}, filters?: Record<string, unknown>) {
+/**
+ * A Yearly Map of county 019 over `first`–`last` (one stop, 2023, by default) with the pesticide
+ * use layer (with `filters`, if given): use follows the stop showing.
+ */
+function useMap(
+	options: Record<string, unknown> = {},
+	filters?: Record<string, unknown>,
+	first = 2023,
+	last = first
+) {
 	return {
 		...mapWidget({}),
-		data: layers(region("019"), [{ dataset: "pesticide-use", ...(filters && { filters }) }]),
-		options: { usePeriod: "2023", ...options }
+		data: {
+			...layers(region("019"), [{ dataset: "pesticide-use", ...(filters && { filters }) }]),
+			dateRange: { kind: "custom", start: `${first}-01-01`, end: `${last}-12-31` },
+			resolution: "year"
+		},
+		options
 	} as WidgetInstance;
 }
+
+/** The years and months the townships were asked for, in order. */
+const useAsked = () =>
+	vi
+		.mocked(getPesticideTownships)
+		.mock.calls.map((c) => c[0] as { year: number; month?: number })
+		.map((q) => (q.month === undefined ? String(q.year) : `${q.year}-${q.month}`));
 
 type UsePlugin = {
 	kind: string;
@@ -3795,12 +3838,12 @@ test("the Layers row hides use without unloading it", async () => {
 	expect(useBox()).toBeTruthy();
 	await box.click();
 	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
-	expect(optionsOf()).toEqual({ usePeriod: "2023", useShown: false });
+	expect(optionsOf()).toEqual({ useShown: false });
 	await box.click();
 	await expect
 		.poll(() => pluginIds(map))
 		.toEqual(["townships", "lens", "sections", "focus", "monitors"]);
-	expect(optionsOf()).toEqual({ usePeriod: "2023" });
+	expect(optionsOf() ?? {}).toEqual({});
 	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
 	expect(getPesticideTownships).toHaveBeenCalledTimes(asked);
 });
@@ -3818,7 +3861,7 @@ test("the figure select redraws with another scale and writes useFigure, but nev
 	const figure = screen.getByRole("combobox", { name: m.map_use_figure() });
 	await expect.element(figure).toHaveValue("pounds-applied");
 	await figure.selectOptions("acres-treated");
-	await expect.poll(optionsOf).toEqual({ usePeriod: "2023", useFigure: "acres-treated" });
+	await expect.poll(optionsOf).toEqual({ useFigure: "acres-treated" });
 	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Acres Treated, 2023");
 	const next = useOf(map, "townships")!;
 	expect(next).not.toBe(first);
@@ -3828,33 +3871,80 @@ test("the figure select redraws with another scale and writes useFigure, but nev
 	// One response carries every figure: nothing new is asked for.
 	expect(getPesticideTownships).toHaveBeenCalledTimes(asked);
 	await figure.selectOptions("pounds-applied");
-	await expect.poll(optionsOf).toEqual({ usePeriod: "2023" });
+	await expect.poll(() => optionsOf() ?? {}).toEqual({});
 });
 
-test("the period selects write usePeriod", async () => {
-	const screen = await showLive(useMap(), editing());
+test("a Yearly Map's use asks for the stop's year, and a step asks for the year before", async () => {
+	await showLive(useMap({}, undefined, 2022, 2023), editing());
 	const map = await madeMap();
 	map.ready = true;
+	await expect.poll(dayLabel).toBe("2023");
 	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
-	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2022");
-	await expect.poll(optionsOf).toEqual({ usePeriod: "2022" });
+	expect(useAsked()).toEqual(["2023"]);
+	expect(useOf(map, "townships")!.options.layerLabel).toBe("Pounds Applied, 2023");
+	// No period selects: the stepper is the period.
+	expect(useSelect("useYear")).toBeNull();
+	await page.getByRole("button", { name: m.map_year_previous() }).click();
 	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Pounds Applied, 2022");
-	await expect
-		.poll(() =>
-			vi.mocked(getPesticideTownships).mock.calls.map((c) => (c[0] as { year: number }).year)
-		)
-		.toContain(2022);
-	const month = screen.getByRole("combobox", { name: m.map_use_month() });
-	await month.selectOptions("7");
-	await expect.poll(optionsOf).toEqual({ usePeriod: "2022-07" });
+	await expect.poll(useAsked).toEqual(["2023", "2022"]);
+	expect(optionsOf()).toEqual({ at: "2022-01-01" });
+});
+
+test("a Monthly Map's use asks for the stop's month, and a step asks for the month before", async () => {
+	const widget = useMap();
+	widget.data.dateRange = { kind: "custom", start: "2023-06-01", end: "2023-07-31" };
+	widget.data.resolution = "month";
+	await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(dayLabel).toBe("July 2023");
+	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+	expect(useAsked()).toEqual(["2023-7"]);
+	expect(useOf(map, "townships")!.options.layerLabel).toBe(
+		m.map_use_layer({ figure: "Pounds Applied", period: "July 2023" })
+	);
+	await page.getByRole("button", { name: m.map_month_previous() }).click();
 	await expect
 		.poll(() => useOf(map, "townships")?.options.layerLabel)
-		.toBe(m.map_use_layer({ figure: "Pounds Applied", period: "July 2022" }));
-	await month.selectOptions("all");
-	await expect.poll(optionsOf).toEqual({ usePeriod: "2022" });
-	// A month on its own keeps the year.
-	await month.selectOptions("3");
-	await expect.poll(optionsOf).toEqual({ usePeriod: "2022-03" });
+		.toBe(m.map_use_layer({ figure: "Pounds Applied", period: "June 2023" }));
+	await expect.poll(useAsked).toEqual(["2023-7", "2023-6"]);
+});
+
+/** The Map's note that `dataset` isn't drawn at the resolution (or on Now). */
+const notLinedUp = (dataset: string) => m.map_layer_not_lined_up({ dataset });
+
+test("a Daily Map with use (from a share link: Get data never builds one) draws no use and says so", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = useMap();
+	widget.data.dateRange = { kind: "custom", start: "2023-06-01", end: "2023-06-30" };
+	widget.data.resolution = "day";
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.element(screen.getByText(notLinedUp("Pesticide Use"))).toBeVisible();
+	expect(m.map_layer_not_lined_up({ dataset: "Pesticide Use" })).toBe(
+		"Pesticide Use isn't shown at this data resolution. Change it in Edit data."
+	);
+	await expect.element(screen.getByRole("button", { name: m.widget_edit_data() })).toBeVisible();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	// No use row and no use group in the toolbar, and nothing asked for.
+	expect(useBox()).toBeNull();
+	expect(useSelect("useFigure")).toBeNull();
+	expect(getPesticideTownships).not.toHaveBeenCalled();
+});
+
+test("a Map on Now with use draws no use and says so", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const widget = useMap();
+	delete widget.data.dateRange;
+	delete widget.data.resolution;
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.element(screen.getByText(notLinedUp("Pesticide Use"))).toBeVisible();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(useBox()).toBeNull();
+	expect(getPesticideTownships).not.toHaveBeenCalled();
 });
 
 test("viewer changes to the use rows are held", async () => {
@@ -3866,53 +3956,44 @@ test("viewer changes to the use rows are held", async () => {
 	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
 	const apply = vi.spyOn(app().current.session!, "apply");
 	await screen.getByRole("combobox", { name: m.map_use_figure() }).selectOptions("acres-treated");
-	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2022");
-	await expect
-		.poll(() => changes.get(widget.id))
-		.toEqual({ useFigure: "acres-treated", usePeriod: "2022" });
-	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Acres Treated, 2022");
+	await expect.poll(() => changes.get(widget.id)).toEqual({ useFigure: "acres-treated" });
+	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Acres Treated, 2023");
 	await screen.getByRole("checkbox", { name: "Pesticide Use" }).click();
 	await expect.poll(() => changes.get(widget.id)?.useShown).toBe(false);
 	expect(apply).not.toHaveBeenCalled();
-	expect(optionsOf()).toEqual({ usePeriod: "2023" });
-	// Reset puts the toolbar's keys back, never the period.
+	expect(optionsOf() ?? {}).toEqual({});
+	// Reset puts the toolbar's keys back: nothing is held.
 	await screen.getByRole("button", { name: mapMessages("mapsdk_options_reset") }).click();
-	await expect.poll(() => changes.get(widget.id)).toEqual({ usePeriod: "2022" });
-	// Back at the owner's period: nothing is held.
-	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2023");
 	await expect.poll(() => changes.get(widget.id)).toBeUndefined();
 	expect(apply).not.toHaveBeenCalled();
 });
 
-test("an unlisted period says No data for 2017 in the legend", async () => {
-	const screen = await showLive(useMap({ usePeriod: "2017" }), editing());
+test("a period the server doesn't list says no use is reported for it yet, in the legend", async () => {
+	await showLive(useMap({}, undefined, 2017), editing());
 	const map = await madeMap();
 	map.ready = true;
+	const none = m.map_use_none_yet({ period: "2017" });
+	expect(none).toBe("No pesticide use reported for 2017 yet.");
 	// A status row map-sdk's legend draws, with the note (filters, server notes) under it; the note
 	// doesn't say it again. (E2E checks the real legend.)
 	await expect
 		.poll(() => useOf(map, "townships")?.options.source.status)
-		.toEqual({ state: "unavailable", reason: "no-data", message: "No data for 2017" });
+		.toEqual({ state: "unavailable", reason: "no-data", message: none });
 	// From the section zoom (the townships hidden) the sections plugin carries the row; the lens
 	// adds none.
 	expect(useOf(map, "sections")!.options.source.status).toEqual({
 		state: "unavailable",
 		reason: "no-data",
-		message: "No data for 2017"
+		message: none
 	});
 	expect(useOf(map, "lens")!.options.source.status).toEqual({ state: "ready" });
-	expect(m.map_use_no_data({ period: "2017" })).toBe("No data for 2017");
 	const note = await useNote(map);
 	await expect.element(note.getByText(PESTICIDES_META.notes.shades_valley.summary)).toBeVisible();
-	expect(note.container.textContent).not.toContain("No data for 2017");
+	expect(note.container.textContent).not.toContain(none);
 	expect(useOf(map, "townships")!.options.layerLabel).toBe("Pounds Applied, 2017");
 	await expect.poll(() => townshipFeatures(map)).toEqual([]);
 	expect(getPesticideTownships).not.toHaveBeenCalled();
-	// The year select shows the saved year; nothing is written.
-	await expect
-		.element(screen.getByRole("combobox", { name: m.map_use_year() }))
-		.toHaveValue("2017");
-	expect(optionsOf()).toEqual({ usePeriod: "2017" });
+	expect(optionsOf() ?? {}).toEqual({});
 	note.unmount();
 });
 
@@ -3922,7 +4003,7 @@ test("an unknown useFigure draws the first, writing nothing", async () => {
 	map.ready = true;
 	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Pounds Applied, 2023");
 	expect(useSelect("useFigure").value).toBe("pounds-applied");
-	expect(optionsOf()).toEqual({ usePeriod: "2023", useFigure: "gone-figure" });
+	expect(optionsOf()).toEqual({ useFigure: "gone-figure" });
 });
 
 test("the legend names the period, the units, the filters, and the server's two notes", async () => {
@@ -3981,7 +4062,7 @@ test("use failure note with one Retry, with the monitors still drawn", async () 
 	const screen = await show(useMap());
 	const map = await madeMap();
 	await expect.element(screen.getByText(m.map_use_failed())).toBeVisible();
-	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => pluginIds(map)).toContain("monitors");
 	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
 	// map-sdk sees no error, so its legend offers no second Retry: only the note's.
 	expect(useOf(map, "townships")!.options.source.status).toEqual({ state: "ready" });
@@ -3991,7 +4072,7 @@ test("use failure note with one Retry, with the monitors still drawn", async () 
 	await expect.poll(() => screen.getByText(m.map_use_failed()).query()).toBeNull();
 	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
 	expect(getPesticideTownships).toHaveBeenCalledTimes(2);
-	expect(drawn(map)).toEqual(["a"]);
+	expect(pluginIds(map)).toContain("monitors");
 });
 
 describe("use with no fit target yet (the region shapes still loading)", () => {
@@ -3999,8 +4080,8 @@ describe("use with no fit target yet (the region shapes still loading)", () => {
 		vi.mocked(regionShapes).mockImplementation(() => new Promise(() => {}));
 	});
 
-	test("an unlisted period still says No data for 2017", async () => {
-		await showLive(useMap({ usePeriod: "2017" }), editing());
+	test("an unlisted period still says no use is reported for 2017", async () => {
+		await showLive(useMap({}, undefined, 2017), editing());
 		const map = await madeMap();
 		map.ready = true;
 		await expect
@@ -4018,12 +4099,12 @@ describe("use with no fit target yet (the region shapes still loading)", () => {
 	});
 
 	test("a new period that fails keeps the use layers on the map", async () => {
-		const screen = await showLive(useMap(), editing());
+		const screen = await showLive(useMap({}, undefined, 2022, 2023), editing());
 		const map = await madeMap();
 		map.ready = true;
 		await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
 		vi.mocked(getPesticideTownships).mockRejectedValueOnce(new Error("offline"));
-		await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2022");
+		await page.getByRole("button", { name: m.map_year_previous() }).click();
 		await expect.element(screen.getByText(m.map_use_failed())).toBeVisible();
 		await expect
 			.poll(() => useOf(map, "townships")?.options.layerLabel)
@@ -4031,14 +4112,15 @@ describe("use with no fit target yet (the region shapes still loading)", () => {
 	});
 });
 
-test("moving from an unlisted period to a listed one clears the No data row and brings the classes back", async () => {
-	const screen = await showLive(useMap({ usePeriod: "2017" }), editing());
+test("stepping from an unlisted period to a listed one clears the none-yet row and brings the classes back", async () => {
+	// 2023 then 2024 (the server lists up to 2023), opened on 2024.
+	await showLive(useMap({}, undefined, 2023, 2024), editing());
 	const map = await madeMap();
 	map.ready = true;
 	await expect
 		.poll(() => useOf(map, "townships")?.options.source.status)
 		.toMatchObject({ state: "unavailable", reason: "no-data" });
-	await screen.getByRole("combobox", { name: m.map_use_year() }).selectOptions("2023");
+	await page.getByRole("button", { name: m.map_year_previous() }).click();
 	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
 	const source = useOf(map, "townships")!.options.source;
 	expect(source.status).toEqual({ state: "ready" });
@@ -4053,7 +4135,7 @@ test("a gone use filter is said, with Edit data", async () => {
 	await expect.element(screen.getByText(m.map_use_filter_gone())).toBeVisible();
 	expect(frame.querySelector("[data-map-use-gone]")).toBeTruthy();
 	await expect.element(screen.getByRole("button", { name: m.widget_edit_data() })).toBeVisible();
-	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => pluginIds(map)).toContain("monitors");
 	expect(getPesticideTownships).not.toHaveBeenCalled();
 });
 
@@ -4070,21 +4152,6 @@ test("a failed sections load says so, and Retry asks again", async () => {
 	await note.querySelector("button")!.click();
 	await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
 	expect(screen.getByText(m.map_use_sections_failed()).query()).toBeNull();
-});
-
-test("a use layer without a period draws the latest year and writes nothing", async () => {
-	const widget = useMap();
-	delete (widget.options as Record<string, unknown>).usePeriod;
-	const screen = await showLive(widget, editing());
-	const map = await madeMap();
-	map.ready = true;
-	await expect.poll(() => useOf(map, "townships")?.options.layerLabel).toBe("Pounds Applied, 2023");
-	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
-	expect((vi.mocked(getPesticideTownships).mock.calls[0][0] as { year: number }).year).toBe(2023);
-	await expect
-		.element(screen.getByRole("combobox", { name: m.map_use_year() }))
-		.toHaveValue("2023");
-	expect(optionsOf()).toEqual({});
 });
 
 test("a pan doesn't re-make the use plugins", async () => {
@@ -4104,17 +4171,16 @@ test("a pan doesn't re-make the use plugins", async () => {
 	expect(useOf(map, "townships")).toBe(made);
 });
 
-test("a failed pesticide meta is asked again by the use note's Retry, bringing the use rows", async () => {
+test("a failed pesticide meta is asked again by the use note's Retry", async () => {
 	vi.mocked(getPesticidesMeta).mockRejectedValue(new Error("offline"));
 	const screen = await showLive(useMap(), editing());
 	const map = await madeMap();
 	map.ready = true;
 	await expect.element(screen.getByText(m.map_use_failed())).toBeVisible();
-	expect(useSelect("useYear")).toBeNull();
 	vi.mocked(getPesticidesMeta).mockResolvedValue(PESTICIDES_META as never);
 	await frame.querySelector<HTMLElement>("[data-map-use-failed] button")!.click();
 	await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
-	await expect.poll(() => useSelect("useYear")?.value).toBe("2023");
+	expect(screen.getByText(m.map_use_failed()).query()).toBeNull();
 });
 
 test("at about 300 px tall the legend fits under the toolbar and scrolls", async () => {

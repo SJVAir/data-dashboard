@@ -22,7 +22,6 @@
 	import PesticideFilters from "./PesticideFilters.svelte";
 	import { pesticideMeta } from "./sources";
 	import SectionTrigger from "./SectionTrigger.svelte";
-	import UsePeriodPicker from "./UsePeriodPicker.svelte";
 
 	let {
 		data,
@@ -33,10 +32,8 @@
 		onnotices,
 		onfilters,
 		years,
-		usePeriod,
 		onuse,
 		onretryyears,
-		onperiod,
 		fill,
 		fillTypes,
 		onfill,
@@ -60,14 +57,10 @@
 		 * `"unavailable"` when they couldn't be loaded, empty when the server lists none.
 		 */
 		years: readonly number[] | "unavailable" | undefined;
-		/** The saved use period (the Map's `usePeriod` option). */
-		usePeriod?: string;
 		/** Pesticide use on or off. */
 		onuse: (on: boolean) => void;
 		/** Asks for the years again after they couldn't be loaded. */
 		onretryyears: () => void;
-		/** A use period chosen (`YYYY` or `YYYY-MM`). */
-		onperiod: (value: string) => void;
 		/** The region type saved as the fill (missing: none). */
 		fill?: string;
 		/** The types the directory offers; undefined while loading or when it failed (None only). */
@@ -300,9 +293,6 @@
 					<div>
 						<Button variant="outline" size="sm" onclick={onretryyears}>{m.get_data_retry()}</Button>
 					</div>
-				{/if}
-				{#if use && listed.length > 0}
-					<UsePeriodPicker value={usePeriod} years={listed} onchange={onperiod} />
 				{/if}
 				{#if use}
 					{@render filterSet()}

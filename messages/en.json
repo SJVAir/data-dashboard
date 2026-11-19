@@ -1226,9 +1226,6 @@
 	"getdata_map_pesticide_filters": "Filter pesticides",
 	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
 	"getdata_map_use_switch": "Show pesticide use",
-	"getdata_map_use_period": "Year",
-	"getdata_map_use_whole_year": "Whole year",
-	"getdata_map_use_month": "Month",
 	"getdata_map_use_no_years": "No years with pesticide use data are available yet.",
 	"getdata_map_use_years_unavailable": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
 	"getdata_map_section_fallback": [
@@ -1241,7 +1238,6 @@
 			}
 		}
 	],
-	"convert_dropped_use_period": "Pesticide use for {period} isn't in these dates, so it was left out.",
 	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
 	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",
@@ -1420,10 +1416,8 @@
 	"map_use_units_section": "{units} per section",
 	"map_use_group": "Pesticide use",
 	"map_use_figure": "Figure",
-	"map_use_year": "Year",
-	"map_use_month": "Month",
-	"map_use_whole_year": "Whole year",
-	"map_use_no_data": "No data for {period}",
+	"map_use_none_yet": "No pesticide use reported for {period} yet.",
+	"map_layer_not_lined_up": "{dataset} isn't shown at this data resolution. Change it in Edit data.",
 	"map_use_legend_filters": "Filtered by {filters}",
 	"map_use_failed": "Pesticide use couldn't be loaded.",
 	"map_use_filter_gone": "Pesticide use can't be shown: a filter it uses is no longer available.",

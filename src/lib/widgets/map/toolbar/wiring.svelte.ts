@@ -11,8 +11,12 @@ import {
 	type TileOptionsContext
 } from "../../shared/tile-options.svelte";
 import {
+	HMS_FIRE,
+	HMS_SMOKE,
 	MAP_TOOLBAR_KEYS,
 	MapOptionsSchema,
+	PESTICIDE_NOTICES,
+	PESTICIDE_USE,
 	drawableShowing,
 	mapOptions,
 	pollutantLayers,
@@ -31,8 +35,6 @@ import {
 	NOTICES_KEY,
 	toOptions,
 	USE_KEY,
-	USE_MONTH_KEY,
-	USE_YEAR_KEY,
 	type MapOffer,
 	type MonitorFilters
 } from "./values";
@@ -50,6 +52,11 @@ export type MapToolbarWiringInput = {
 	readonly exempt: ReadonlySet<string>;
 	/** Whether the catalog names both smoke and fire (their rows' and layers' labels). */
 	readonly smokeAndFireNamed: boolean;
+	/**
+	 * The place-less datasets the Map doesn't draw at its resolution (or, for pesticide use, on
+	 * Now): their rows aren't offered.
+	 */
+	readonly notShown: readonly string[];
 	/** The map's toolbar presets; null until the map is made. */
 	readonly toolbar: MapToolbar | null;
 	/** A day stop shows (not now): the toolbar offers no Inactive row. */
@@ -69,8 +76,6 @@ export type MapToolbarWiringInput = {
 	readonly useLabel: string | undefined;
 	/** The catalog's pesticide use figures the map draws, in order. */
 	readonly useFigures: readonly UseFigureInfo[];
-	/** The years with pesticide use data (the meta's, newest first); undefined until loaded. */
-	readonly useYears: readonly number[] | undefined;
 };
 
 export type MapToolbarState = MapToolbarBuild & {
@@ -93,8 +98,6 @@ function optionKeys(changed: string[]): (keyof MapOptions)[] {
 			if (key === FILL_KEY) return ["fillShown"];
 			if (key === NOTICES_KEY) return ["noticesShown"];
 			if (key === USE_KEY) return ["useShown"];
-			// The period's selects write one option; it isn't a toolbar (Reset) key.
-			if (key === USE_YEAR_KEY || key === USE_MONTH_KEY) return ["usePeriod"];
 			if (key.startsWith(TYPE_PREFIX)) return ["hiddenTypes"];
 			return (MAP_TOOLBAR_KEYS as readonly string[]).includes(key) ? [key as keyof MapOptions] : [];
 		})
@@ -140,7 +143,7 @@ export class MapToolbarWiring {
 
 	/** What the data offers, as a key: the toolbar is built again only when it changes. */
 	readonly #offerKey = $derived.by(() => {
-		const { widget, catalog, drawable } = this.#in;
+		const { widget, catalog, drawable, notShown } = this.#in;
 		const pollutants = pollutantLayers(widget.data, catalog).flatMap((l) =>
 			l.entryType && drawable?.includes(l.entryType) ? [l.entryType] : []
 		);
@@ -154,20 +157,28 @@ export class MapToolbarWiring {
 			types: unique(features.map((f) => f.properties.type)),
 			hasInactive: features.some((f) => f.properties.isActive === false),
 			hasInside: features.some((f) => f.properties.location === "inside"),
-			smokeAndFire: hasSmokeAndFire(widget.data) && this.#in.smokeAndFireNamed,
+			smokeAndFire:
+				hasSmokeAndFire(widget.data) &&
+				this.#in.smokeAndFireNamed &&
+				!notShown.includes(HMS_SMOKE) &&
+				!notShown.includes(HMS_FIRE),
 			fill: this.#in.fillLabel !== undefined,
-			notices: this.#in.notices && this.#in.noticesLabel !== undefined,
+			notices:
+				this.#in.notices &&
+				this.#in.noticesLabel !== undefined &&
+				!notShown.includes(PESTICIDE_NOTICES),
 			use: this.#useOffer()
 		};
 		return JSON.stringify(offer);
 	});
 	readonly offer = $derived<MapOffer>(JSON.parse(this.#offerKey));
 
-	/** What the use rows offer: the figures and the listed years; null without the layer. */
+	/** What the use rows offer: the figures; null without the layer, or where it isn't drawn. */
 	#useOffer(): MapOffer["use"] {
-		const { use, useLabel, useFigures, useYears } = this.#in;
-		if (!use || useLabel === undefined || !useYears || useFigures.length === 0) return null;
-		return { figures: useFigures.map((f) => f.id), years: [...useYears] };
+		const { use, useLabel, useFigures, notShown } = this.#in;
+		if (!use || useLabel === undefined || useFigures.length === 0) return null;
+		if (notShown.includes(PESTICIDE_USE)) return null;
+		return { figures: useFigures.map((f) => f.id) };
 	}
 	/**
 	 * Whether the fill shows: `fillShown: false` hides it only while its row is offered (a saved
@@ -178,7 +189,7 @@ export class MapToolbarWiring {
 	readonly noticesShown = $derived(!(this.offer.notices && this.options.noticesShown === false));
 	/**
 	 * Whether pesticide use shows: `useShown: false` hides it (also before its row is offered, so
-	 * a hidden use never flashes while the years load).
+	 * a hidden use never flashes while the catalog loads).
 	 */
 	readonly useShown = $derived(this.options.useShown !== false);
 

@@ -52,11 +52,6 @@ export const MapOptionsSchema = z.strictObject({
 	noticesShown: z.literal(false).optional(),
 	/** The pesticide use figure drawn (a catalog entry type; missing: the first). */
 	useFigure: SafeIdSchema.optional(),
-	/** The pesticide use period: a year, or a month of it (`YYYY` or `YYYY-MM`). */
-	usePeriod: z
-		.string()
-		.regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/)
-		.optional(),
 	/** Only `false` is stored (missing: the pesticide use is shown). */
 	useShown: z.literal(false).optional(),
 	clustered: z.boolean().optional(),

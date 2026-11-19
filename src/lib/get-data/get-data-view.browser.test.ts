@@ -1383,37 +1383,18 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(skipped)).not.toBeInTheDocument();
 	});
 
-	test("the Pesticide use section switches the layer on with the latest year, and the period picker writes usePeriod", async () => {
+	test("the Pesticide use section switches the layer on, with no period of its own (the Map's stops are)", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
 		await expect.element(page.getByRole("heading", { name: "Pesticide Use" })).toBeVisible();
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
 		await expect.element(use).not.toBeChecked();
-		const year = page.getByRole("combobox", { name: m.getdata_map_use_period() });
-		await expect.element(year).not.toBeInTheDocument();
 		await use.click();
 		await expect.element(use).toBeChecked();
-		await expect.element(year).toHaveValue("2023");
 		await animationsSettled(host);
 		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
-		expect((await current()).options).toEqual({ usePeriod: "2023" });
-		const years = [...(year.element() as HTMLSelectElement).options].map((o) => o.text);
-		expect(years).toEqual(["2023", "2022", "2021"]);
-		await year.selectOptions("2022");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2022" });
-		// A month of the year: "Whole year" first, then the months by name.
-		const month = page.getByRole("combobox", { name: m.getdata_map_use_month() });
-		await expect.element(month).toHaveValue("");
-		const months = [...(month.element() as HTMLSelectElement).options].map((o) => o.text);
-		expect(months).toHaveLength(13);
-		expect(months[0]).toBe(m.getdata_map_use_whole_year());
-		expect(months[7]).toBe("July");
-		await month.selectOptions("07");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2022-07" });
-		// Another year keeps the month.
-		await year.selectOptions("2021");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2021-07" });
-		await month.selectOptions("");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2021" });
+		expect((await current()).options).toBeUndefined();
+		expect(page.getByRole("combobox", { name: "Year" }).query()).toBeNull();
+		expect(page.getByRole("combobox", { name: "Month" }).query()).toBeNull();
 		expect((await axe.run(host.querySelector("[aria-labelledby$=-what]")!)).violations).toEqual([]);
 		await use.click();
 		expect((await current()).data.layers).toHaveLength(1);
@@ -1438,7 +1419,7 @@ describe("now widgets", () => {
 			.element(page.getByText(m.getdata_map_use_years_unavailable()))
 			.not.toBeInTheDocument();
 		await use.click();
-		expect((await current()).options).toEqual({ usePeriod: "2023" });
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
 	});
 
 	test("with no years listed, the Pesticide use switch is off with a neutral note", async () => {
@@ -1453,7 +1434,6 @@ describe("now widgets", () => {
 	test("one filter set shows once for both pesticide layers", async () => {
 		const { latest } = await show({
 			type: "map",
-			options: { usePeriod: "2023" },
 			data: {
 				layers: [
 					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
@@ -1519,7 +1499,6 @@ describe("now widgets", () => {
 		});
 		await show({
 			type: "map",
-			options: { usePeriod: "2023" },
 			data: {
 				layers: [
 					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },

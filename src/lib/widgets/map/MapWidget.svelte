@@ -18,7 +18,6 @@
 	import { getMetadata } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
-	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
@@ -71,7 +70,8 @@
 		pollutantLayers
 	} from "./options";
 	import type { NoticesDay } from "./section-links";
-	import { parsePeriod, periodLabel, type UsePeriod } from "./use-period";
+	import { mapNotShown, notShownNotes } from "./not-shown";
+	import { periodLabel, periodOfStop, type UsePeriod } from "./use-period";
 	import { monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
 	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
@@ -119,22 +119,6 @@
 			Object.hasOwn(USE_FIELDS, t.id)
 		)
 	);
-	/** The years with pesticide use data (the meta's, newest first); undefined until loaded. */
-	let useYears = $state.raw<number[] | undefined>();
-	/** Counts asks for the years; the use note's Retry asks again after a failure. */
-	let useYearsTries = $state(0);
-	$effect(() => {
-		void useYearsTries;
-		if (!useLayer) return;
-		const controller = new AbortController();
-		pesticideMeta(controller.signal).then(
-			(meta) => (useYears = meta.years),
-			// Without the years the toolbar offers no use rows; use itself fails too (its note's
-			// Retry asks for both again).
-			() => {}
-		);
-		return () => controller.abort();
-	});
 
 	// The toolbar: the options it shows (a viewer's held keys over the saved ones), its changes,
 	// and the filters it puts on the monitors. Its presets are made with the map.
@@ -164,6 +148,9 @@
 		get smokeAndFireNamed() {
 			return !!datasetLabel(HMS_SMOKE) && !!datasetLabel(HMS_FIRE);
 		},
+		get notShown() {
+			return notShown;
+		},
 		get toolbar() {
 			return toolbar;
 		},
@@ -187,24 +174,28 @@
 		},
 		get useFigures() {
 			return useFigures;
-		},
-		get useYears() {
-			return useYears;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
 	const shown = $derived(wiring.options);
 	/**
-	 * The Map's resolution over its range (Automatic included: the finest level from Daily up that
-	 * every layer offers), as of today: what the stops step by. Daily without a range.
+	 * The Map's dataset over its range (Automatic included: the finest level from Daily up that
+	 * every layer offers), as of today; null without a range (Now).
 	 */
-	const resolution = $derived.by<MapLevel>(() => {
+	const effective = $derived.by(() => {
 		const range = widget.data.dateRange;
-		if (!range) return "day";
+		if (!range) return null;
 		const place = widgetPlaceKind(widget.data, known);
 		const now = pacificDay(days.today, 12);
-		return mapLevel(widgetEffective(widget, known, place, range, now).resolution);
+		return widgetEffective(widget, known, place, range, now);
 	});
+	/** What the stops step by: the effective resolution; Daily without a range. */
+	const resolution = $derived<MapLevel>(effective ? mapLevel(effective.resolution) : "day");
+	/**
+	 * The place-less datasets not drawn at the resolution (or, for use, on Now), from untrusted
+	 * input: no plugin, no toolbar row, and a note. Known once the catalog is.
+	 */
+	const notShown = $derived(known ? mapNotShown(widget.data, effective) : []);
 	// The periods of the tile's range at its resolution: the stop showing, and the stepper's steps
 	// (saved, or a viewer's held). Without a range the tile shows now.
 	const days: MapDays = new MapDays({
@@ -413,24 +404,24 @@
 	// that switches townships to sections.
 	const useFigureId = $derived(wiring.useFigure);
 	const useFigureInfo = $derived(useFigures.find((t) => t.id === useFigureId));
+	/** The period drawn: the month or year stop showing (none on a day or on Now). */
+	const stopPeriod = $derived.by<UsePeriod | null>(() => (days.at ? periodOfStop(days.at) : null));
 	/**
-	 * The period drawn: the saved one, else the latest listed year (drawn, never written; the
-	 * toolbar shows the same).
+	 * Use is on the map: the tile has it, the catalog names it and its figure, a month or year stop
+	 * shows, and it's shown.
 	 */
-	const usePeriod = $derived.by<UsePeriod | null>(() => {
-		const saved = parsePeriod(shown.usePeriod);
-		if (saved) return saved;
-		const latest = useYears?.[0];
-		return latest === undefined ? null : { year: latest, month: null };
-	});
-	/** Use is on the map: the tile has it, the catalog names it and its figure, and it's shown. */
 	const useDrawn = $derived(
-		!!useLayer && !!datasetLabel(PESTICIDE_USE) && !!useFigureInfo && !!usePeriod && wiring.useShown
+		!!useLayer &&
+			!!datasetLabel(PESTICIDE_USE) &&
+			!!useFigureInfo &&
+			!!stopPeriod &&
+			!notShown.includes(PESTICIDE_USE) &&
+			wiring.useShown
 	);
 	/** What use draws; null while it's off, hidden, unparseable, or the catalog lacks it. */
 	const useQuery = $derived.by<UseQuery | null>(() => {
 		const info = useFigureInfo;
-		const period = usePeriod;
+		const period = stopPeriod;
 		if (!useDrawn || !info || !period) return null;
 		return {
 			figure: info.id,
@@ -441,8 +432,8 @@
 	});
 	/** The use layer's label: the figure and the period ("Pounds Applied, 2023"). */
 	const useLabel = $derived(
-		useFigureInfo && usePeriod
-			? m.map_use_layer({ figure: useFigureInfo.label, period: periodLabel(usePeriod) })
+		useFigureInfo && stopPeriod
+			? m.map_use_layer({ figure: useFigureInfo.label, period: periodLabel(stopPeriod) })
 			: undefined
 	);
 	/** The figures the use cards list: the catalog's labels, units and precision. */
@@ -517,10 +508,9 @@
 		useDrawn && width > 0 && height > 0 && (useLat !== null || useNothingToDraw)
 	);
 
-	/** The use note's Retry: what failed, and the years if they couldn't be loaded. */
+	/** The use note's Retry: what failed. */
 	function retryUse(): void {
 		data.retryUse();
-		if (useYears === undefined) useYearsTries++;
 	}
 	const useFailed = $derived(useDrawn && data.useBlock.townshipsState === "error");
 	const useGone = $derived(useDrawn && data.useUnavailable === "filter-gone");
@@ -556,10 +546,15 @@
 	}
 
 	// Smoke and fire: now's or the day's, over the whole map, when on (the toolbar's switch hides
-	// them, their data still loading).
-	const smokeAndFire = $derived(data.smokeAndFire && shown.fireAndSmoke !== false);
+	// them, their data still loading). Daily only: not drawn at Monthly or Yearly.
+	const smokeAndFire = $derived(
+		data.smokeAndFire &&
+			shown.fireAndSmoke !== false &&
+			!notShown.includes(HMS_SMOKE) &&
+			!notShown.includes(HMS_FIRE)
+	);
 	/** Smoke and fire failed to load, while they're shown. */
-	const hmsFailed = $derived(data.hmsFailed && shown.fireAndSmoke !== false);
+	const hmsFailed = $derived(data.hmsFailed && smokeAndFire);
 	/** Marker clusters: the saved choice, else the preset's default. */
 	const clustered = $derived(shown.clustered ?? wiring.state?.presetDefaults.clustered !== false);
 	const smokeLabel = $derived(datasetLabel(HMS_SMOKE));
@@ -569,8 +564,13 @@
 	// row hides them, their data still loading).
 	/** The notices' layer label: the catalog's name for the data set. */
 	const noticesLabel = $derived(datasetLabel(PESTICIDE_NOTICES));
-	/** The notices are on the map: the tile has them, the catalog names them, and they're shown. */
-	const noticesDrawn = $derived(!!noticesLabel && data.notices && wiring.noticesShown);
+	/**
+	 * The notices are on the map: the tile has them, the catalog names them, the resolution is
+	 * Daily (or Now), and they're shown.
+	 */
+	const noticesDrawn = $derived(
+		!!noticesLabel && data.notices && !notShown.includes(PESTICIDE_NOTICES) && wiring.noticesShown
+	);
 	/** The notices failed to load, while they're shown. */
 	const noticesFailed = $derived(noticesDrawn && data.noticesFailed);
 	/** A saved filter of the notices is gone, while they're shown: said, never an empty layer. */
@@ -867,6 +867,14 @@
 				message: m.map_use_sections_failed(),
 				hook: "map-use-sections-failed",
 				action: { label: m.widget_state_retry(), onclick: retryUse }
+			});
+		}
+		// No Retry: only another resolution (or dates) brings them back (Edit data, for an editor).
+		for (const { id, message } of notShownNotes(notShown, known)) {
+			notes.push({
+				message,
+				hook: `map-not-shown-${id}`,
+				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
 			});
 		}
 		return notes;

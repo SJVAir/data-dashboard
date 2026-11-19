@@ -377,7 +377,11 @@ describe("UseBlock", () => {
 			lensCenter: ref("T-0")
 		});
 		await vi.advanceTimersByTimeAsync(200);
-		const noData = { state: "unavailable", reason: "no-data", message: "No data for 2017" };
+		const noData = {
+			state: "unavailable",
+			reason: "no-data",
+			message: "No pesticide use reported for 2017 yet."
+		};
 		expect(t.block.townships.status).toEqual(noData);
 		expect(t.block.sections.status).toEqual(noData);
 		expect(t.block.lens.status).toEqual({ state: "ready" });

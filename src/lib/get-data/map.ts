@@ -5,7 +5,6 @@
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays, parseDateKey } from "$lib/format";
-import { daysInMonth } from "$lib/format/calendar";
 import { resolveRange } from "$lib/format/range";
 import { fromLayer } from "$lib/places/selection";
 import { mapType } from "$lib/widgets/map";
@@ -23,7 +22,6 @@ import {
 	useFigureOf,
 	type MapOptions
 } from "$lib/widgets/map/options";
-import { parsePeriod, periodKey, periodListed, type UsePeriod } from "$lib/widgets/map/use-period";
 import { CHART_TYPE } from "$lib/widgets/chart";
 import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
 import { mapLevel, type MapLevel } from "$lib/widgets/map/days";
@@ -152,7 +150,7 @@ export function hasUse(data: WidgetDataConfig): boolean {
 }
 
 /** The use options, which go with the use layer. */
-const USE_OPTIONS = ["usePeriod", "useFigure", "useShown"] as const;
+const USE_OPTIONS = ["useFigure", "useShown"] as const;
 
 /** Writes `options` to `draft`, or removes them when nothing is left. */
 function writeOptions(draft: Draft, options: MapOptions): void {
@@ -161,28 +159,23 @@ function writeOptions(draft: Draft, options: MapOptions): void {
 }
 
 /**
- * Adds the place-less pesticide use layer last, with the Map's filter set, and a `usePeriod` of
- * the latest of `years` (the meta's, newest first) unless a listed one is saved; or removes it
- * with its options. With no years listed, nothing is added.
+ * Adds the place-less pesticide use layer last, with the Map's filter set (its period is the
+ * Map's stop showing); or removes it with its options.
  */
-export function setUse(draft: Draft, on: boolean, years: readonly number[]): void {
+export function setUse(draft: Draft, on: boolean): void {
 	const { data } = draft;
-	const options = { ...mapOptions(draft) };
 	if (on) {
-		if (years.length === 0) return;
-		if (!hasUse(data)) {
-			const filters = mapPesticideFilters(data);
-			data.layers.push({
-				dataset: PESTICIDE_USE,
-				...(filters ? { filters: copyFilters(filters) } : {})
-			});
-		}
-		const saved = parsePeriod(options.usePeriod);
-		if (!saved || !periodListed(saved, years)) options.usePeriod = String(years[0]);
-	} else {
-		data.layers = data.layers.filter((l) => !(l.dataset === PESTICIDE_USE && placeLess(l)));
-		for (const key of USE_OPTIONS) delete options[key];
+		if (hasUse(data)) return;
+		const filters = mapPesticideFilters(data);
+		data.layers.push({
+			dataset: PESTICIDE_USE,
+			...(filters ? { filters: copyFilters(filters) } : {})
+		});
+		return;
 	}
+	const options = { ...mapOptions(draft) };
+	data.layers = data.layers.filter((l) => !(l.dataset === PESTICIDE_USE && placeLess(l)));
+	for (const key of USE_OPTIONS) delete options[key];
 	writeOptions(draft, options);
 }
 
@@ -252,46 +245,6 @@ export function isMapShaped(
 	return true;
 }
 
-/** The first and last days of `p`, as Pacific date keys. */
-function periodDays(p: UsePeriod): { first: string; last: string } {
-	const key = periodKey(p);
-	if (p.month === null) return { first: `${key}-01-01`, last: `${key}-12-31` };
-	const first = `${key}-01`;
-	return { first, last: `${key}-${String(daysInMonth(first)).padStart(2, "0")}` };
-}
-
-/** Whether all of `p` falls inside `range`. */
-function periodInRange(p: UsePeriod, range: DateRangeSpec, now: Date): boolean {
-	const { firstDate, lastDate } = resolveRange(range, now);
-	const { first, last } = periodDays(p);
-	return first >= firstDate && last <= lastDate;
-}
-
-/** Whether any of `p` falls inside `range`. */
-function periodOverlaps(p: UsePeriod, range: DateRangeSpec, now: Date): boolean {
-	const { firstDate, lastDate } = resolveRange(range, now);
-	const { first, last } = periodDays(p);
-	return first <= lastDate && last >= firstDate;
-}
-
-/**
- * The use period a chart's range gives the Map: its last full year that `years` lists, else the
- * latest listed year. `range` is the chart's own, read before the Map's 366-day cut (the spec's
- * "the chart's range").
- */
-function periodFromRange(
-	range: DateRangeSpec | undefined,
-	years: readonly number[],
-	now: Date
-): string {
-	if (range) {
-		for (const year of [...years].sort((a, b) => b - a)) {
-			if (periodInRange({ year, month: null }, range, now)) return String(year);
-		}
-	}
-	return String(years[0]);
-}
-
 /** The Map's own use layer: the place-less one. */
 function mapUseLayer(data: WidgetDataConfig): Layer | undefined {
 	return data.layers.find((l) => l.dataset === PESTICIDE_USE && placeLess(l));
@@ -300,11 +253,12 @@ function mapUseLayer(data: WidgetDataConfig): Layer | undefined {
 /**
  * The range the person chose for `draft`: a Map's own, else one that isn't still its type's
  * default (`isDefaultRange`, the rule `switchRange` follows). An untouched default isn't a
- * choice, so a new Map is Now.
+ * choice, so a new Map is Now; but one with pesticide use (`withUse`) keeps it, since use isn't
+ * drawn on Now.
  */
-function chosenRange(draft: Draft): DateRangeSpec | undefined {
+function chosenRange(draft: Draft, withUse: boolean): DateRangeSpec | undefined {
 	const range = draft.data.dateRange;
-	if (draft.type === MAP_TYPE) return range;
+	if (draft.type === MAP_TYPE || withUse) return range;
 	return isDefaultRange(range, getWidgetType(draft.type)) ? undefined : range;
 }
 
@@ -368,25 +322,20 @@ function mapRange(
  * pollutants, its smoke and fire, its notices and use, and its options.
  *
  * From another type, the first pesticide use layer becomes the Map's use: its filters are the
- * Map's filter set, its entry type the `useFigure` (unless it's the catalog's first, the
- * default), and the `usePeriod` the range's last full year that `years` (the pesticide meta's,
- * newest first) lists, else the latest. Other use layers are left out (`"overlays"`), as is the
- * use with no years known. A chart of pesticide use only gets the first offered pollutant,
- * holding its places.
+ * Map's filter set and its entry type the `useFigure` (unless it's the catalog's first, the
+ * default); the source's range is kept even when it's the type's untouched default, since use
+ * isn't drawn on Now. Other use layers are left out (`"overlays"`). A chart of pesticide use only
+ * gets the first offered pollutant, holding its places. The Map's resolution (and so its cut) is
+ * that of the layers it ends with.
  */
 export function toMapDraft(
 	draft: Draft,
 	catalog: CatalogEntry[],
 	allowed: string[],
-	now: Date = new Date(),
-	years: readonly number[] = []
+	now: Date = new Date()
 ): NowConversion {
 	const converted = toNowDraft(draft, mapType, catalog, [], undefined, allowed);
 	const data = converted.draft.data;
-	const shown = chosenRange(draft);
-	const level = shown ? mapLevelOf(data, catalog, shown, now) : "day";
-	const range = shown ? mapRange(shown, now, level) : {};
-	if (range.range) data.dateRange = range.range;
 	const selection = draft.data.timeSubRange;
 	const first = data.layers[0];
 	const fromMap = draft.type === MAP_TYPE;
@@ -413,7 +362,7 @@ export function toMapDraft(
 	if (fromMap) {
 		use = mapUseLayer(draft.data);
 		if (use) data.layers.push(structuredClone(use));
-	} else if (years.length > 0) {
+	} else {
 		use = draft.data.layers.find((l) => l.dataset === PESTICIDE_USE);
 		if (use) {
 			data.layers.push({
@@ -423,9 +372,12 @@ export function toMapDraft(
 			if (use.entryType && use.entryType !== useFigureOf({}, catalog)) {
 				useOptions.useFigure = use.entryType;
 			}
-			useOptions.usePeriod = periodFromRange(draft.data.dateRange, years, now);
 		}
 	}
+	const shown = chosenRange(draft, !!use);
+	const level = shown ? mapLevelOf(data, catalog, shown, now) : "day";
+	const range = shown ? mapRange(shown, now, level) : {};
+	if (range.range) data.dateRange = range.range;
 	// The places' layer, the pollutants kept, smoke (carried over as smoke and fire) and the use
 	// taken aren't left out.
 	const source = mainLayer(draft.data, catalog) ?? draft.data.layers[0];
@@ -493,9 +445,8 @@ export function mapShowingOnly(
  * type's default range) and its place cap (`fromNowDraft`).
  *
  * A Chart also takes the use, as a pesticide layer of the figure drawn (`useFigureOf`) with the
- * Map's filters, when any of its period falls inside the Chart's range; otherwise the use is left
- * out with a `"use-period"` note naming the period (`usePeriod`). Any other type leaves it out
- * (`"overlays"`).
+ * Map's filters (its periods are the Chart's, at the Chart's resolution). Any other type leaves
+ * it out (`"overlays"`).
  */
 export function fromMapDraft(
 	draft: Draft,
@@ -516,31 +467,18 @@ export function fromMapDraft(
 		converted.draft.data.dateRange = structuredClone(range);
 	}
 	const use = mapUseLayer(draft.data);
-	const options = mapOptions(draft);
-	const period = parsePeriod(options.usePeriod);
-	const figure = useFigureOf(options, catalog);
-	const chartRange = converted.draft.data.dateRange;
+	const figure = useFigureOf(mapOptions(draft), catalog);
 	let dropped = [...one.dropped];
-	let usePeriod: string | undefined;
-	if (use && type.type === CHART_TYPE && period && figure && chartRange) {
+	if (use && type.type === CHART_TYPE && figure) {
 		// The use has its own outcome, so "overlays" stays only for the other layers left out.
 		const first = pollutantLayers(draft.data, catalog)[0] ?? draft.data.layers[0];
 		const others = draft.data.layers.some((l) => l !== first && l !== use);
 		if (!others) dropped = dropped.filter((d) => d !== "overlays");
-		if (periodOverlaps(period, chartRange, now)) {
-			converted.draft.data.layers.push({
-				dataset: PESTICIDE_USE,
-				entryType: figure,
-				...(use.filters ? { filters: copyFilters(use.filters) } : {})
-			});
-		} else {
-			dropped.push("use-period");
-			usePeriod = periodKey(period);
-		}
+		converted.draft.data.layers.push({
+			dataset: PESTICIDE_USE,
+			entryType: figure,
+			...(use.filters ? { filters: copyFilters(use.filters) } : {})
+		});
 	}
-	return {
-		...converted,
-		dropped: [...new Set([...dropped, ...converted.dropped])],
-		...(usePeriod ? { usePeriod } : {})
-	};
+	return { ...converted, dropped: [...new Set([...dropped, ...converted.dropped])] };
 }

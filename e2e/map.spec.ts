@@ -1636,19 +1636,39 @@ test.describe("a Map's pesticide use", () => {
 		}
 	});
 
-	/** A full-width Fresno County Map with pesticide use for 2023 (and `options`). */
-	function useDoc(options: Record<string, unknown> = {}) {
-		const doc = wideDoc([{ dataset: "pesticide-use" }]);
-		Object.assign(doc.body.widgets[0], { options: { usePeriod: "2023", ...options } });
+	/**
+	 * A full-width Fresno County Map with pesticide use: Yearly over `year` (one stop), or at
+	 * `resolution` over `range`; use follows the stop showing.
+	 */
+	function useDoc(
+		year = 2023,
+		resolution: "month" | "year" = "year",
+		range = { kind: "custom", start: `${year}-01-01`, end: `${year}-12-31` }
+	) {
+		const doc = wideDoc([{ dataset: "pesticide-use" }], range);
+		Object.assign(doc.body.widgets[0].data, { resolution });
 		return doc;
+	}
+
+	/**
+	 * The use Map. At a month or year stop the monitors have no figures yet, which its name says
+	 * ("… map. No figures for this year"), so it's found by the start of its name.
+	 */
+	function useMapOf(page: Page): Locator {
+		return page.getByRole("region", { name: /^PM2\.5 · Fresno County map\b/ });
 	}
 
 	/** The map, once its townships are drawn (the middle one in its feature list). */
 	async function openUseMap(page: Page): Promise<Locator> {
 		await openSharedDoc(page, useDoc());
-		const map = mapOf(page, FRESNO_MAP);
-		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		const map = useMapOf(page);
+		await expect(
+			legendOf(map).getByRole("heading", { level: 3, name: "Pounds Applied, 2023", exact: true })
+		).toBeVisible();
 		await expect.poll(() => useRequests.townships.length).toBeGreaterThan(0);
+		// At a year stop no monitor has a figure yet, so the monitors' line can't say the map has
+		// loaded and fitted the county: wait for its requests to settle instead.
+		await map.page().waitForLoadState("networkidle");
 		return map;
 	}
 
@@ -1742,20 +1762,33 @@ test.describe("a Map's pesticide use", () => {
 		expect(first.has("geometry")).toBe(false);
 		expect(first.has("month")).toBe(false);
 		expect(first.has("bbox")).toBe(false);
+	});
 
-		// A month: the townships again, values only, and the legend names the month.
-		await openMenu(map, "Pesticide use");
-		await toolbarOf(map).getByRole("combobox", { name: "Month", exact: true }).selectOption("7");
+	test("a Monthly Map's use is the stop's month, and stepping asks for the month before", async ({
+		page
+	}) => {
+		const range = { kind: "custom", start: "2023-06-01", end: "2023-07-31" };
+		await openSharedDoc(page, useDoc(2023, "month", range));
+		const map = useMapOf(page);
+		const legend = legendOf(map);
 		await expect(
 			legend.getByRole("heading", { level: 3, name: "Pounds Applied, July 2023", exact: true })
 		).toBeVisible();
-		const monthly = useRequests.townships.filter((params) => params.get("month") === "7");
-		expect(monthly.length).toBeGreaterThan(0);
-		for (const params of monthly) {
-			expect(params.get("geometry")).toBe("0");
+		const inMonth = (month: string) =>
+			useRequests.townships.filter((params) => params.get("month") === month);
+		expect(inMonth("7").length).toBeGreaterThan(0);
+		for (const params of inMonth("7")) {
 			expect(params.get("classes")).toBe("1");
 			expect(params.get("year")).toBe("2023");
 		}
+		await page.getByRole("button", { name: "Previous month", exact: true }).click();
+		await expect(
+			legend.getByRole("heading", { level: 3, name: "Pounds Applied, June 2023", exact: true })
+		).toBeVisible();
+		// The townships again, values only (the outlines are known).
+		await expect.poll(() => inMonth("6").length).toBeGreaterThan(0);
+		for (const params of inMonth("6")) expect(params.get("geometry")).toBe("0");
+		await expectNoViolationsInBothThemes(page);
 	});
 
 	test("zooming in loads sections for the view, and the bins don't change after a pan", async ({
@@ -1942,16 +1975,16 @@ test.describe("a Map's pesticide use", () => {
 		await expect(list.getByRole("option", { name: MIDDLE_ROW })).toHaveCount(1);
 	});
 
-	test("a saved period the server doesn't list reads No data in the legend, asking nothing", async ({
+	test("a period the server doesn't list says no use is reported yet in the legend, asking nothing", async ({
 		page
 	}) => {
-		await openSharedDoc(page, useDoc({ usePeriod: "2017" }));
-		const map = mapOf(page, FRESNO_MAP);
-		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		await openSharedDoc(page, useDoc(2017));
+		const map = useMapOf(page);
 		const legend = legendOf(map);
 		// One row, under the layer's title, with the server's notes under it.
-		await expect(legend.getByText("No data for 2017", { exact: true })).toHaveCount(1);
-		await expect(legend.getByText("No data for 2017", { exact: true })).toBeVisible();
+		const none = "No pesticide use reported for 2017 yet.";
+		await expect(legend.getByText(none, { exact: true })).toHaveCount(1);
+		await expect(legend.getByText(none, { exact: true })).toBeVisible();
 		await expect(
 			legend.getByText(USE_FILE.notes.shades_valley.summary, { exact: true })
 		).toBeVisible();

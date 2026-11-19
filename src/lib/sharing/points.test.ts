@@ -305,7 +305,7 @@ describe("hasPoints and pointSwaps", () => {
 			type: MAP_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
-			options: { usePeriod: "2023" },
+			options: { useFigure: "acres-treated" },
 			data: {
 				layers: [
 					pm25(POINT),
@@ -325,7 +325,7 @@ describe("hasPoints and pointSwaps", () => {
 			code: "93721"
 		});
 		expect(swapped.data.layers.slice(1)).toEqual(map.data.layers.slice(1));
-		expect(swapped.options).toEqual({ usePeriod: "2023" });
+		expect(swapped.options).toEqual({ useFigure: "acres-treated" });
 	});
 
 	it("keeps a Forecast strip's place: its point is looked up as a PM2.5 one", async () => {

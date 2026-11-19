@@ -81,7 +81,6 @@
 		toMapDraft
 	} from "./map";
 	import { pesticideMeta } from "./sources";
-	import { parsePeriod, periodLabel } from "$lib/widgets/map/use-period";
 	import MapSections from "./MapSections.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
@@ -549,11 +548,6 @@
 		else draft.data.resolution = level;
 	}
 
-	/** Saves the Map's use period (`YYYY` or `YYYY-MM`), keeping its other options. */
-	function setMapUsePeriod(value: string): void {
-		draft.options = { ...mapOptions(draft), usePeriod: value };
-	}
-
 	/** What the last conversion left out or changed, until the next edit of the form. */
 	let dropped = $state.raw<{ after: string; conversion: NowConversion } | null>(null);
 	const notes = $derived.by(() => {
@@ -598,10 +592,6 @@
 		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
-		const usePeriod = parsePeriod(dropped.conversion.usePeriod);
-		if (what.includes("use-period") && usePeriod) {
-			out.push(m.convert_dropped_use_period({ period: periodLabel(usePeriod) }));
-		}
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		const days = dropped.conversion.selection;
 		if (days) {
@@ -663,22 +653,10 @@
 		if (next.type === MAP_TYPE) {
 			// The Map offers only the monitor map's pollutants (memoized, so loaded once), and has no
 			// alert level, so no scale to wait for.
-			// A pesticide use layer becomes the Map's use, whose period needs the meta's years.
-			const hasPesticides = draft.data.layers.some((l) => l.dataset === PESTICIDE_USE);
-			const [allowed, years] = await Promise.all([
-				loadMapPollutants(),
-				hasPesticides ? loadUseYears() : Promise.resolve(useYears)
-			]);
+			const allowed = await loadMapPollutants();
 			if (id !== changeId) return;
 			mapPollutants = allowed;
-			if (hasPesticides) useYears = years;
-			const converted = toMapDraft(
-				$state.snapshot(draft) as Draft,
-				catalog,
-				allowed,
-				now,
-				Array.isArray(years) ? years : []
-			);
+			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed, now);
 			defaultOwed = false;
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -944,13 +922,11 @@
 							onnotices={(on) => setNotices(draft.data, on)}
 							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}
 							years={useYears}
-							usePeriod={mapOptions(plain).usePeriod}
-							onuse={(on) => setUse(draft, on, Array.isArray(useYears) ? useYears : [])}
+							onuse={(on) => setUse(draft, on)}
 							onretryyears={() => {
 								useYears = undefined;
 								useYearsTry++;
 							}}
-							onperiod={(value) => setMapUsePeriod(value)}
 							fill={mapOptions(plain).fill}
 							blocks={mapBlocks}
 							{fillTypes}
