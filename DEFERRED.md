@@ -1642,6 +1642,16 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Analysis & data
 
+- **sjvair.com: daily rows written by the hourly summarizer, in place of `daily/open/`.**
+  _Deferred 2026-11-18 (the user, session `sjvair-com-93`, branch
+  `feature/period-daily-statistic`)._ That branch writes the current month, quarter, season and
+  year rows nightly (through yesterday), but today's daily figure stays on the request-built
+  `daily/open/`. Writing today's daily rows from the hourly summarizer (:45/:50) would retire
+  that endpoint. It's deferred for three reasons: it removes an endpoint `@sjvair/sdk` uses, it
+  adds work to the timing-sensitive hourly tasks, and it needs a guard so a late hourly run
+  can't overwrite a final daily row. **Revisit after** that branch merges and the nightly
+  task's production cost is known. It's a separate follow-up branch.
+
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
   spec 4 final review, graded minor)._ Since sjvair.com #303, an empty `date` counts as no date
   filter, so `hms/smoke/?date=` alone now gets the today default (before, it returned every
