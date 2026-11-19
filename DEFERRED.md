@@ -1953,6 +1953,15 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Map plugins
 
+- **map-sdk: list the two new `Scale` keys in `NO_SCALE`.** _Deferred 2026-11-18 (the
+  coordinator, from `@sjvair/sdk` `5.0.0-beta.15`'s approved shape, session `sdk-js-9f`)._
+  beta.15 adds the required `Scale` keys `period_statistic` and `period_statistic_label`, and
+  map-sdk's literal `NO_SCALE` (`src/lib/plugins/scale-resolution.svelte.ts`) lists every key,
+  so map-sdk's own type check fails once it builds against beta.15. Nothing breaks at runtime,
+  and the dashboard's pins are unaffected. **Why deferred:** a two-line change, too small for a
+  map-sdk release of its own. **Revisit when** map-sdk next moves its dev pin to `@sjvair/sdk`
+  `5.0.0-beta.15` or later: add both keys as `null` in that release.
+
 - **The regions meta doesn't say which types the server simplifies.** _Deferred 2026-11-15
   (step 5 spec 4, Task 12)._ `regions/geojson/?simplify=1` is accepted only for county,
   zipcode and tract (sjvair.com answers 400 for any other type), and no `regions/meta/` field
