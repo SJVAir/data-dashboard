@@ -197,8 +197,8 @@ export type WidgetInputs = {
  * A widget's queries: the main layer (`chartInput`) and each overlay (`overlayInput`), all at the
  * dataset's resolution (`widgetEffective` as of `now`). An overlay that doesn't offer that
  * resolution (from untrusted input, a share link or an import; or while the catalog isn't known
- * yet) gets no input and isn't fetched. No main input (no place, or a stored level the widget doesn't offer:
- * `Effective.unusable`), no overlays.
+ * yet) gets no input and isn't fetched. No main input (no place, or a stored level the widget
+ * doesn't offer: `Effective.unusable`), no overlays.
  *
  * `figure` is the looked-up figure for `figureFor` (the caller looks it up, since it is async):
  * the main reads it (`QueryInput.figure`); `null` or absent reads the plain mean. Overlays never

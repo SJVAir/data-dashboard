@@ -51,8 +51,8 @@ export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
  * `unknown`; one whose type doesn't report the pollutant drawn is `pollutant`; one among the
  * loaded monitors (so in the places) is `period` when a stop shows (`dayDrawn`: the monitors with
  * a figure for the stop's period) and it has none for it, else `options` (the toolbar's filters
- * hide it); the rest are outside the places. `monitors` is null while the metadata is loading (or failed). The
- * tile's own monitors (its places) are never filtered, so never `options`.
+ * hide it); the rest are outside the places. `monitors` is null while the metadata is loading (or
+ * failed). The tile's own monitors (its places) are never filtered, so never `options`.
  */
 export function hiddenReasons(
 	hidden: readonly string[],

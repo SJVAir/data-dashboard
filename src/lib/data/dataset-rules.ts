@@ -77,7 +77,8 @@ export type Effective = {
 	 * Set when the stored level is none the widget offers (a quarter or season, or hour or raw on
 	 * a Map; only from untrusted input): nothing is drawn, the widget says the data isn't available
 	 * at the chosen data resolution, and Get data blocks Save. `resolution` is then Automatic's,
-	 * only so callers keep a level; `misfits` is empty.
+	 * only so callers keep a level; `misfits` is empty. While unusable, place lookups (share
+	 * points, the place picker) return no region, so a shared point is cleared rather than swapped.
 	 */
 	unusable?: true;
 };

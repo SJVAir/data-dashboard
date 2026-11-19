@@ -1700,8 +1700,8 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 - **The Data table's notes aren't `role="status"`.** _Deferred 2026-11-19 (step 5 spec 6a, final
   review)._ The notes under a Data table (a layer that doesn't line up, a failed overlay) aren't
   announced when they appear. Why: graded minor; they sit just above the table, so a screen
-  reader reaches them in reading order. **Revisit with** the next accessibility pass on the widgets, or if a screen-reader user misses
-  one.
+  reader reaches them in reading order. **Revisit with** the next accessibility pass on the
+  widgets, or if a screen-reader user misses one.
 - **Chart figure loose ends.** _Deferred 2026-11-19 (step 5 spec 6a, final review, Task 11)._ A
   figure with no server label falls back to the "Daily average" or "Monthly average" series
   names, which would misname a peak figure (only if the server leaves out a label); the chart goes

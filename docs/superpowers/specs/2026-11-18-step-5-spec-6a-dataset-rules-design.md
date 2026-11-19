@@ -355,5 +355,5 @@ people see.
   isn't available at the chosen data resolution. Change it in Edit data." It shows when the main
   layer doesn't offer the stored level, and also for a stored level outside `LEVELS` (a quarter
   or season from untrusted input; never a silent Automatic) and for hour or raw on a Map. Get
-  data blocks Save for the latter with its own reason: "Choose another data resolution: the
-  saved one isn't offered here." The schema isn't narrowed, so such a document still opens.
+  data blocks Save for the latter with its own reason: "Choose another data resolution: this
+  widget can't show the one it has." The schema isn't narrowed, so such a document still opens.
