@@ -10,6 +10,7 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import { useApp } from "$lib/store/app.svelte";
 	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
 	import { misfitNotes } from "../shared/misfit-notes";
 	import { overlayPlaceFor, sharedSource } from "../shared/overlays";
@@ -20,6 +21,10 @@
 	import { chartType } from "./index";
 
 	let { widget }: { widget: WidgetInstance } = $props();
+
+	const app = useApp();
+	/** Whether notes can point at Edit data: the dashboard isn't read-only. */
+	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
 
 	const MAX_PLACES = chartType.accepts?.maxPlaces ?? 5;
 	const w = new DataWidget(() => widget, MAX_PLACES);
@@ -145,7 +150,7 @@
 					yMin={w.meta?.entryType.yMin ?? null}
 					overlays={overlays.bands}
 					notes={[
-						...misfitNotes(w.overlays, w.picked.effective),
+						...misfitNotes(w.overlays, w.picked.effective, editable),
 						...overlays.notes,
 						...(threshold.missing ? [m.chart_level_line_missing()] : [])
 					]}

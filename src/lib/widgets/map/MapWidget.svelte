@@ -891,7 +891,7 @@
 			});
 		}
 		// No Retry: only another resolution (or dates) brings them back (Edit data, for an editor).
-		for (const { id, message } of notShownNotes(notShown, known)) {
+		for (const { id, message } of notShownNotes(notShown, known, markable)) {
 			notes.push({
 				message,
 				hook: `map-not-shown-${id}`,

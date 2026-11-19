@@ -564,7 +564,9 @@ test("a stored level outside the levels (a quarter, from a link) says it can't b
 	const widget = chartWidget(["m1"]);
 	(widget.data as { resolution?: string }).resolution = "quarter";
 	const screen = await show(widget);
-	await expect.element(screen.getByText(m.widget_state_unavailable_no_resolution())).toBeVisible();
+	await expect
+		.element(screen.getByText(m.widget_state_unavailable_no_resolution_view()))
+		.toBeVisible();
 	expect(requests).toEqual([]);
 });
 
@@ -581,7 +583,9 @@ test("a stored level the main layer doesn't offer says it can't be drawn", async
 	widget.data.resolution = "day";
 	widget.data.layers = [{ ...POUNDS, place: { kind: "monitor", id: "m1" } }];
 	const screen = await show(widget);
-	await expect.element(screen.getByText(m.widget_state_unavailable_no_resolution())).toBeVisible();
+	await expect
+		.element(screen.getByText(m.widget_state_unavailable_no_resolution_view()))
+		.toBeVisible();
 });
 
 test("a daily chart from an untrusted document draws without pesticide use and says why", async () => {
@@ -599,9 +603,12 @@ test("a daily chart from an untrusted document draws without pesticide use and s
 	const screen = await show(widget);
 	await expect
 		.element(
-			screen.getByText(m.widget_layer_not_lined_up({ dataset: "Pesticide Use", level: "daily" }), {
-				exact: true
-			})
+			screen.getByText(
+				m.widget_layer_not_lined_up_view({ dataset: "Pesticide Use", level: "daily" }),
+				{
+					exact: true
+				}
+			)
 		)
 		.toBeVisible();
 	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();

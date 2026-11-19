@@ -36,10 +36,15 @@ describe("notShownNotes", () => {
 		{ id: "pesticide-use", label: "Pesticide Use" }
 	] as unknown as CatalogEntry[];
 	it("names each dataset by the catalog's label, skipping ones it doesn't list", () => {
-		expect(notShownNotes(["hms-smoke", "hms-fire", "pesticide-use"], catalog)).toEqual([
+		expect(notShownNotes(["hms-smoke", "hms-fire", "pesticide-use"], catalog, true)).toEqual([
 			{ id: "hms-smoke", message: m.map_layer_not_lined_up({ dataset: "Wildfire Smoke" }) },
 			{ id: "pesticide-use", message: m.map_layer_not_lined_up({ dataset: "Pesticide Use" }) }
 		]);
-		expect(notShownNotes(["hms-smoke"], undefined)).toEqual([]);
+		expect(notShownNotes(["hms-smoke"], undefined, true)).toEqual([]);
+	});
+	it("doesn't point a read-only dashboard at Edit data", () => {
+		expect(notShownNotes(["hms-smoke"], catalog, false)).toEqual([
+			{ id: "hms-smoke", message: "Wildfire Smoke isn't shown at this data resolution." }
+		]);
 	});
 });

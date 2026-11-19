@@ -23,14 +23,20 @@ export function mapNotShown(data: WidgetDataConfig, effective: Effective | null)
 
 /**
  * One note per dataset not drawn (by its id), naming it by the catalog's label (one it doesn't
- * list yet gets none) and saying to change the resolution in Edit data.
+ * list yet gets none) and, when the dashboard can be edited, saying to change the resolution in
+ * Edit data.
  */
 export function notShownNotes(
 	datasets: readonly string[],
-	catalog: CatalogEntry[] | undefined
+	catalog: CatalogEntry[] | undefined,
+	editable: boolean
 ): { id: string; message: string }[] {
 	return datasets.flatMap((id) => {
 		const dataset = catalog?.find((c) => c.id === id)?.label;
-		return dataset ? [{ id, message: m.map_layer_not_lined_up({ dataset }) }] : [];
+		if (!dataset) return [];
+		const message = editable
+			? m.map_layer_not_lined_up({ dataset })
+			: m.map_layer_not_lined_up_view({ dataset });
+		return [{ id, message }];
 	});
 }

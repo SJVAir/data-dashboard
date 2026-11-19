@@ -133,7 +133,8 @@ test("the Chart at Hourly draws its main layer and says smoke and use don't line
 		props: { widget },
 		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
 	});
-	const note = (dataset: string) => m.widget_layer_not_lined_up({ dataset, level: "hourly" });
+	// No dashboard is open here (as on a shared view), so the notes leave out Edit data.
+	const note = (dataset: string) => m.widget_layer_not_lined_up_view({ dataset, level: "hourly" });
 	await expect.element(screen.getByText(note("Pesticide Use"), { exact: true })).toBeVisible();
 	const smoke = CATALOG.find((c) => c.id === "hms-smoke")!.label;
 	await expect.element(screen.getByText(note(smoke), { exact: true })).toBeVisible();

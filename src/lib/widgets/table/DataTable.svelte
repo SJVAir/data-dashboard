@@ -27,6 +27,8 @@
 	let { widget }: { widget: WidgetInstance } = $props();
 
 	const app = useApp();
+	/** Whether notes can point at Edit data: the dashboard isn't read-only. */
+	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
 	const MAX_PLACES = dataTableType.accepts?.maxPlaces ?? 10;
 	/**
 	 * "Wide enough" for the extra columns: the widget body is as wide as six grid columns. The grid
@@ -136,7 +138,7 @@
 			}
 			return [];
 		});
-		return [...misfitNotes(w.overlays, w.picked.effective), ...failed];
+		return [...misfitNotes(w.overlays, w.picked.effective, editable), ...failed];
 	}
 
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */

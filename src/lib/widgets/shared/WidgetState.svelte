@@ -59,7 +59,10 @@
 		"unknown-dataset": () => m.widget_state_unavailable_unknown_dataset(),
 		"unknown-entry-type": () => m.widget_state_unavailable_unknown_entry_type(),
 		"no-adapter": () => m.widget_state_unavailable_no_adapter(),
-		"no-resolution": () => m.widget_state_unavailable_no_resolution(),
+		"no-resolution": () =>
+			editable
+				? m.widget_state_unavailable_no_resolution()
+				: m.widget_state_unavailable_no_resolution_view(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
 		"point-outside": () => m.widget_state_unavailable_point_outside(),
 		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw()
