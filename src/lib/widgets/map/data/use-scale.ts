@@ -95,6 +95,8 @@ export function buildUseScale(classes: PesticideUseClass, info: UseScaleInfo): S
 		averaging_hours: null,
 		daily_statistic: null,
 		daily_statistic_label: null,
+		period_statistic: null,
+		period_statistic_label: null,
 		levels: breaks.map((b, i) => ({
 			key: `c${i + 1}`,
 			label:

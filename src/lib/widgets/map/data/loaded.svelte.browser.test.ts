@@ -51,7 +51,7 @@ vi.mock("./notices", async (original) => {
 				if (fakes.noticesUnavailable.value) return { unavailable: "filter-gone" };
 				const filters = data.layers.find((l) => l.dataset === "pesticide-notices")?.filters;
 				const named = fakes.noticesKeyFilters.value ? `|${JSON.stringify(filters ?? {})}` : "";
-				const key = `notices:${at === "now" ? "now" : at.day}${named}`;
+				const key = `notices:${at === "now" ? "now" : "day" in at ? at.day : `${at.resolution}:${at.start}`}${named}`;
 				return { key, cadence: "hour", fetch: () => fakes.noticesFetch(key) };
 			}
 		},
@@ -66,7 +66,7 @@ vi.mock("./hms", async (original) => {
 		hmsEntry: {
 			...real.hmsEntry,
 			source: async ({ at }: { at: SnapshotAt }) => {
-				const key = `hms:${at === "now" ? "now" : at.day}`;
+				const key = `hms:${at === "now" ? "now" : "day" in at ? at.day : `${at.resolution}:${at.start}`}`;
 				return { key, cadence: "hour", fetch: () => fakes.hmsFetch(key) };
 			}
 		}
@@ -79,7 +79,7 @@ vi.mock("./fill", async (original) => {
 		...real,
 		fillEntry: {
 			source: ({ at }: { at: SnapshotAt }) => {
-				const key = `fill:${at === "now" ? "now" : at.day}`;
+				const key = `fill:${at === "now" ? "now" : "day" in at ? at.day : `${at.resolution}:${at.start}`}`;
 				return {
 					key,
 					cadence: "hour",
@@ -103,8 +103,8 @@ vi.mock("./monitors", async (original) => {
 				scope: { kind: "regions", ids: ["1"], key: "1" },
 				fetch: async () => []
 			}),
-			daySource: ({ day }: { day: string }) => ({
-				key: `monitors:day:${day}`,
+			stopSource: ({ at }: { at: { day: string } }) => ({
+				key: `monitors:day:${at.day}`,
 				cadence: "hour",
 				poll: (s: Snapshot | undefined) => !s?.final,
 				fetch: async (): Promise<Snapshot> => ({
@@ -215,7 +215,7 @@ function setup(first: {
 		sectionZoom: SECTION_ZOOM,
 		lensCenter: null
 	};
-	const rating = { dailyFigure: vi.fn(), levels: vi.fn() } as never;
+	const rating = { figure: vi.fn(), levels: vi.fn() } as never;
 	const data = new MapData(() => input, { now, rating });
 	return {
 		data,

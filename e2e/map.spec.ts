@@ -32,6 +32,7 @@ import {
 	NOTICE_COMMODITY,
 	NOTICES_META,
 	routeMapDays,
+	routeMapPeriods,
 	routeMapFill,
 	routeMapMeta,
 	routeMapNotices,
@@ -875,6 +876,49 @@ test.describe("a Map's days", () => {
 		await expect(page.getByRole("button", { name: "Next day" })).toBeDisabled();
 	});
 
+	test("a Monthly Map steps by month with the keys, each month's figure drawn, the current month last, so far and not final", async ({
+		context,
+		page
+	}) => {
+		// Drummond Street's average of 24-hour averages: October Moderate; November so far Good,
+		// its nightly row not final; September has no row.
+		await routeMapPeriods(context, {
+			"2026-10-01": { figures: { [DRUMMOND]: 20 } },
+			"2026-11-01": { figures: { [DRUMMOND]: 5 }, final: false }
+		});
+		const doc = wideDoc([], { kind: "custom", start: "2026-09-01", end: "2026-11-30" });
+		Object.assign(doc.body.widgets[0].data, { resolution: "month" });
+		await openSharedDoc(page, doc);
+		const map = mapOf(page, FRESNO_MAP);
+		const slider = page.getByRole("slider", { name: "Month" });
+		// The current month is the last stop (no Now at Monthly), so far and not final yet.
+		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far, not final yet");
+		await expect(page.locator("[data-day-label]")).toHaveText("November 2026 so far");
+		await expect(page.locator("[data-day-status]")).toContainText("Not final yet");
+		await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
+		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
+		// The figure is named by the scale's period_statistic_label, where map-sdk shows it (its
+		// legend has no figure name): the feature list's note, above the rows.
+		await featureList(map);
+		await expect(map.getByText("Average of 24-hour averages", { exact: true })).toBeVisible();
+		await closeFeatureList(map);
+
+		await slider.focus();
+		await page.keyboard.press("ArrowLeft");
+		await expect(slider).toHaveAttribute("aria-valuetext", "October 2026");
+		await expect(slider).toBeFocused();
+		await expect(inView(map)).toHaveText("PM2.5: 1 Moderate");
+		await page.keyboard.press("Home");
+		await expect(slider).toHaveAttribute("aria-valuetext", "September 2026");
+		await expect(slider).toBeFocused();
+		await expect(page.getByRole("button", { name: "Previous month" })).toBeDisabled();
+		// No row for September: the month says so.
+		await expect(page.getByRole("status").getByText("No figures for this month")).toBeVisible();
+		await page.keyboard.press("End");
+		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far, not final yet");
+		await expect(slider).toBeFocused();
+	});
+
 	test("a range with today opens on Now, and the days before it step back", async ({ page }) => {
 		await openSharedDoc(
 			page,
@@ -912,8 +956,8 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 
 	test("Get data adds ozone and smoke and fire to a Map, and both stay", async ({ page }) => {
 		const map = await addMap(page);
-		await widgetMenuItem(page, FRESNO_MAP, "Edit data");
-		await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeVisible();
+		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
+		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
 		await page.getByRole("checkbox", { name: "Ozone" }).check();
 		await page.getByRole("checkbox", { name: "Smoke and fire" }).check();
 		await page.getByRole("button", { name: "Save changes" }).click();
@@ -929,8 +973,8 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await expect(list.getByRole("option", { name: /^2 fire detections/ })).toHaveCount(1);
 		await page.keyboard.press("Escape");
 
-		await widgetMenuItem(page, FRESNO_MAP, "Edit data");
-		await expect(page.getByRole("heading", { level: 1, name: "Edit data" })).toBeVisible();
+		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
+		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
 		await expect(page.getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Smoke and fire" })).toBeChecked();
@@ -1597,6 +1641,8 @@ test.describe("a Map's pesticide use", () => {
 
 	test.beforeEach(async ({ context, page }) => {
 		await routeMapMeta(context);
+		// Drummond Street's 2023 average of 24-hour averages: Good.
+		await routeMapPeriods(context, { "2023-01-01": { figures: { [DRUMMOND]: 5 } } });
 		useRequests = await routeMapUse(context, USE);
 		// Noon Pacific, as the other day tests.
 		await page.clock.install({ time: TODAY });
@@ -1609,19 +1655,38 @@ test.describe("a Map's pesticide use", () => {
 		}
 	});
 
-	/** A full-width Fresno County Map with pesticide use for 2023 (and `options`). */
-	function useDoc(options: Record<string, unknown> = {}) {
-		const doc = wideDoc([{ dataset: "pesticide-use" }]);
-		Object.assign(doc.body.widgets[0], { options: { usePeriod: "2023", ...options } });
+	/**
+	 * A full-width Fresno County Map with pesticide use: Yearly over `year` (one stop), or at
+	 * `resolution` over `range`; use follows the stop showing.
+	 */
+	function useDoc(
+		year = 2023,
+		resolution: "month" | "year" = "year",
+		range = { kind: "custom", start: `${year}-01-01`, end: `${year}-12-31` }
+	) {
+		const doc = wideDoc([{ dataset: "pesticide-use" }], range);
+		Object.assign(doc.body.widgets[0].data, { resolution });
 		return doc;
+	}
+
+	/**
+	 * The use Map. At a month with no monitor rows its name says so ("… map. No figures for this
+	 * month"), so it's found by the start of its name.
+	 */
+	function useMapOf(page: Page): Locator {
+		return page.getByRole("region", { name: /^PM2\.5 · Fresno County map\b/ });
 	}
 
 	/** The map, once its townships are drawn (the middle one in its feature list). */
 	async function openUseMap(page: Page): Promise<Locator> {
 		await openSharedDoc(page, useDoc());
-		const map = mapOf(page, FRESNO_MAP);
-		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		const map = useMapOf(page);
+		await expect(
+			legendOf(map).getByRole("heading", { level: 3, name: "Pounds Applied, 2023", exact: true })
+		).toBeVisible();
 		await expect.poll(() => useRequests.townships.length).toBeGreaterThan(0);
+		// The monitors' line says the map has loaded the year's figures and fitted the county.
+		await expect(inView(map)).toHaveText(FRESNO_VIEW);
 		return map;
 	}
 
@@ -1715,20 +1780,33 @@ test.describe("a Map's pesticide use", () => {
 		expect(first.has("geometry")).toBe(false);
 		expect(first.has("month")).toBe(false);
 		expect(first.has("bbox")).toBe(false);
+	});
 
-		// A month: the townships again, values only, and the legend names the month.
-		await openMenu(map, "Pesticide use");
-		await toolbarOf(map).getByRole("combobox", { name: "Month", exact: true }).selectOption("7");
+	test("a Monthly Map's use is the stop's month, and stepping asks for the month before", async ({
+		page
+	}) => {
+		const range = { kind: "custom", start: "2023-06-01", end: "2023-07-31" };
+		await openSharedDoc(page, useDoc(2023, "month", range));
+		const map = useMapOf(page);
+		const legend = legendOf(map);
 		await expect(
 			legend.getByRole("heading", { level: 3, name: "Pounds Applied, July 2023", exact: true })
 		).toBeVisible();
-		const monthly = useRequests.townships.filter((params) => params.get("month") === "7");
-		expect(monthly.length).toBeGreaterThan(0);
-		for (const params of monthly) {
-			expect(params.get("geometry")).toBe("0");
+		const inMonth = (month: string) =>
+			useRequests.townships.filter((params) => params.get("month") === month);
+		expect(inMonth("7").length).toBeGreaterThan(0);
+		for (const params of inMonth("7")) {
 			expect(params.get("classes")).toBe("1");
 			expect(params.get("year")).toBe("2023");
 		}
+		await page.getByRole("button", { name: "Previous month", exact: true }).click();
+		await expect(
+			legend.getByRole("heading", { level: 3, name: "Pounds Applied, June 2023", exact: true })
+		).toBeVisible();
+		// The townships again, values only (the outlines are known).
+		await expect.poll(() => inMonth("6").length).toBeGreaterThan(0);
+		for (const params of inMonth("6")) expect(params.get("geometry")).toBe("0");
+		await expectNoViolationsInBothThemes(page);
 	});
 
 	test("zooming in loads sections for the view, and the bins don't change after a pan", async ({
@@ -1915,16 +1993,16 @@ test.describe("a Map's pesticide use", () => {
 		await expect(list.getByRole("option", { name: MIDDLE_ROW })).toHaveCount(1);
 	});
 
-	test("a saved period the server doesn't list reads No data in the legend, asking nothing", async ({
+	test("a period the server doesn't list says no use is reported yet in the legend, asking nothing", async ({
 		page
 	}) => {
-		await openSharedDoc(page, useDoc({ usePeriod: "2017" }));
-		const map = mapOf(page, FRESNO_MAP);
-		await expect(inView(map)).toHaveText(FRESNO_VIEW);
+		await openSharedDoc(page, useDoc(2017));
+		const map = useMapOf(page);
 		const legend = legendOf(map);
 		// One row, under the layer's title, with the server's notes under it.
-		await expect(legend.getByText("No data for 2017", { exact: true })).toHaveCount(1);
-		await expect(legend.getByText("No data for 2017", { exact: true })).toBeVisible();
+		const none = "No pesticide use reported for 2017 yet.";
+		await expect(legend.getByText(none, { exact: true })).toHaveCount(1);
+		await expect(legend.getByText(none, { exact: true })).toBeVisible();
 		await expect(
 			legend.getByText(USE_FILE.notes.shades_valley.summary, { exact: true })
 		).toBeVisible();

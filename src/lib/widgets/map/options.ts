@@ -7,6 +7,8 @@ import { USE_FIELDS } from "./data/use-fields";
 
 export const MAP_TYPE = "map";
 export const MAP_MARKS_MAX = 25;
+/** The Map's pollutants' dataset: each pollutant is an air-quality layer. */
+export const AIR_QUALITY = "air-quality";
 /** The Map's smoke and fire layers: place-less, drawn over the whole map. */
 export const HMS_SMOKE = "hms-smoke";
 export const HMS_FIRE = "hms-fire";
@@ -19,8 +21,11 @@ export const PESTICIDE_USE = "pesticide-use";
  * one 5b uses).
  */
 export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 4;
-/** The most days a Map's date range covers (a year, with its leap day). */
-export const MAP_MAX_DAYS = 366;
+/**
+ * The most stops a Map's date range has at its resolution (366 days at Daily, 366 months at
+ * Monthly, and so on), counted on the range widened to whole periods.
+ */
+export const MAP_MAX_STOPS = 366;
 
 export const MapOptionsSchema = z.strictObject({
 	/** The entry type drawn now (one of the pollutant layers'). */
@@ -33,8 +38,11 @@ export const MapOptionsSchema = z.strictObject({
 		.optional(),
 	/** The basemap's id (missing: the preset's default). */
 	basemap: SafeIdSchema.optional(),
-	/** The day shown, as a Pacific date key (missing: the last stop). */
-	day: z
+	/**
+	 * The stop shown: the Pacific date key of its period's start (a day, a month's first day, a
+	 * year's first day; missing: the last stop).
+	 */
+	at: z
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
 		.optional(),
@@ -46,11 +54,6 @@ export const MapOptionsSchema = z.strictObject({
 	noticesShown: z.literal(false).optional(),
 	/** The pesticide use figure drawn (a catalog entry type; missing: the first). */
 	useFigure: SafeIdSchema.optional(),
-	/** The pesticide use period: a year, or a month of it (`YYYY` or `YYYY-MM`). */
-	usePeriod: z
-		.string()
-		.regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/)
-		.optional(),
 	/** Only `false` is stored (missing: the pesticide use is shown). */
 	useShown: z.literal(false).optional(),
 	clustered: z.boolean().optional(),

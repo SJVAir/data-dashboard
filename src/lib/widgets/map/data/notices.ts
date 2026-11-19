@@ -12,7 +12,7 @@ import type { NowState } from "$lib/data/now/client";
 import type { UnavailableReason } from "$lib/data/types";
 import { codesKnown, FilterGone, filterLabels, pesticideMeta } from "$lib/data/pesticide-meta";
 import type { PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
-import type { SnapshotAt } from "$lib/data/snapshot";
+import { isPeriodAt, type SnapshotAt } from "$lib/data/snapshot";
 import { addDays, formatNumber, pacificDay, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { PESTICIDE_NOTICES } from "../options";
@@ -164,7 +164,8 @@ export const noticesEntry: MapDataEntry<NoticesData, NoticeFeatureProperties> = 
 	id: "notices",
 	async source({ data, at }) {
 		const layer = noticesLayer(data);
-		if (!layer) return null;
+		// Spray notices are daily: a month or year stop has none.
+		if (!layer || isPeriodAt(at)) return null;
 		const filters = layer.filters ?? {};
 		if (await filtersGone(filters)) return { unavailable: "filter-gone" };
 		// Now has a prefix of its own: it's asked for with no date, so after Pacific midnight
@@ -230,6 +231,7 @@ export const noticesEntry: MapDataEntry<NoticesData, NoticeFeatureProperties> = 
  */
 export function noticesPolls(at: SnapshotAt, nowMs: number = Date.now()): boolean {
 	if (at === "now") return true;
+	if (isPeriodAt(at)) return false;
 	return nowMs < pacificDay(addDays(at.day, 5)).getTime();
 }
 

@@ -56,6 +56,19 @@ describe("date presets", () => {
 		expect(blockedBySpan(spec, undefined, NOW)).toBeNull();
 	});
 
+	it("span maxStops counts stops at the resolution, on the widened range", () => {
+		const months30: DateRangeSpec = { kind: "custom", start: "2024-01-01", end: "2026-06-30" };
+		expect(blockedBySpan(months30, { minDays: 1, maxStops: 366 }, NOW, "month")).toBeNull();
+		expect(blockedBySpan(months30, { minDays: 1, maxStops: 366 }, NOW, "day")).toBe("too-long");
+		expect(blockedBySpan(months30, { minDays: 1, maxStops: 366 }, NOW)).toBe("too-long");
+		expect(blockedBySpan(months30, { maxStops: 2 }, NOW, "year")).toBe("too-long");
+		expect(blockedBySpan(months30, { maxStops: 3 }, NOW, "year")).toBeNull();
+		// Mid-month to mid-month widens to whole months: 13 of them.
+		const mid: DateRangeSpec = { kind: "custom", start: "2025-01-15", end: "2026-01-15" };
+		expect(blockedBySpan(mid, { maxStops: 12 }, NOW, "month")).toBe("too-long");
+		expect(blockedBySpan(mid, { maxStops: 13 }, NOW, "month")).toBeNull();
+	});
+
 	it("span minDays blocks short ranges, and 24 hours counts as one day", () => {
 		const day: DateRangeSpec = { kind: "set", unit: "day", start: "2026-11-01" };
 		expect(blockedBySpan(day, { minDays: 7 }, NOW)).toBe("too-short");

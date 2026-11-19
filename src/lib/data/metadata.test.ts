@@ -583,41 +583,96 @@ describe("createWebMetadata", () => {
 	});
 });
 
-describe("dailyFigure", () => {
-	it("the memory source names the figure for an entry type that has one", async () => {
+describe("figure", () => {
+	it("the memory source names each resolution's figure from its fixture scales", async () => {
 		const md = fixtureMetadata();
-		expect(await md.dailyFigure("o3")).toEqual({
+		expect(await md.figure("o3", "day")).toEqual({
 			field: "max_1h",
 			label: "Highest 1-hour average"
 		});
-		expect(await md.dailyFigure("pm25")).toBeNull();
+		expect(await md.figure("pm25", "month")).toEqual({
+			field: "daily_statistic_mean",
+			label: "Average of 24-hour averages"
+		});
+		expect(await md.figure("pm25", "hour")).toBeNull();
+		expect(await md.figure("temperature", "day")).toBeNull();
 	});
 
-	it("the web source reads the scale's daily_statistic and its label", async () => {
-		const scale = (daily_statistic: string | null, daily_statistic_label: string | null) => ({
-			levels: [],
-			averaging_hours: null,
-			daily_statistic,
-			daily_statistic_label
-		});
+	// The scale keys as a local `monitors/meta/` serves them (sjvair.com #342, 2026-11-18).
+	const scale = (
+		daily_statistic: string | null,
+		daily_statistic_label: string | null,
+		period_statistic: string | null,
+		period_statistic_label: string | null
+	) => ({
+		levels: [],
+		averaging_hours: null,
+		daily_statistic,
+		daily_statistic_label,
+		period_statistic,
+		period_statistic_label
+	});
+
+	beforeEach(() => {
 		vi.mocked(getMonitorsMeta).mockResolvedValue({
 			...META,
 			entries: {
-				o3: { scale: scale("max_1h", "Highest 1-hour average") },
-				pm25: { scale: scale(null, null) },
-				co: { scale: scale("max_8h", null) },
+				o3: {
+					scale: scale(
+						"max_1h",
+						"Highest 1-hour average",
+						"daily_statistic_mean",
+						"Average of daily highest 1-hour averages"
+					)
+				},
+				pm25: {
+					scale: scale(
+						"mean_24h",
+						"24-hour average",
+						"daily_statistic_mean",
+						"Average of 24-hour averages"
+					)
+				},
+				co: { scale: scale("max_8h", null, "daily_statistic_mean", null) },
+				nox: { scale: scale(null, null, null, null) },
 				humidity: { scale: null }
 			}
 		} as never);
+	});
+
+	it("at day, the web source reads the scale's daily_statistic and its label", async () => {
 		const md = createWebMetadata();
-		expect(await md.dailyFigure("o3")).toEqual({
+		expect(await md.figure("o3", "day")).toEqual({
 			field: "max_1h",
 			label: "Highest 1-hour average"
 		});
-		expect(await md.dailyFigure("pm25")).toBeNull();
-		expect(await md.dailyFigure("co")).toEqual({ field: "max_8h", label: null });
-		expect(await md.dailyFigure("humidity")).toBeNull();
-		expect(await md.dailyFigure("nope")).toBeNull();
+		expect(await md.figure("co", "day")).toEqual({ field: "max_8h", label: null });
+	});
+
+	it("at month and year, it reads the scale's period_statistic and its label", async () => {
+		const md = createWebMetadata();
+		for (const level of ["month", "year"] as const) {
+			expect(await md.figure("pm25", level)).toEqual({
+				field: "daily_statistic_mean",
+				label: "Average of 24-hour averages"
+			});
+			expect(await md.figure("o3", level)).toEqual({
+				field: "daily_statistic_mean",
+				label: "Average of daily highest 1-hour averages"
+			});
+			expect(await md.figure("co", level)).toEqual({ field: "daily_statistic_mean", label: null });
+		}
+	});
+
+	it("is null (the plain mean) at raw and hour, and with no scale field", async () => {
+		const md = createWebMetadata();
+		expect(await md.figure("pm25", "raw")).toBeNull();
+		expect(await md.figure("pm25", "hour")).toBeNull();
+		for (const level of ["day", "month", "year"] as const) {
+			expect(await md.figure("nox", level)).toBeNull();
+			expect(await md.figure("humidity", level)).toBeNull();
+			expect(await md.figure("nope", level)).toBeNull();
+		}
 	});
 });
 

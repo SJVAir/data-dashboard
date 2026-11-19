@@ -43,7 +43,11 @@ export type WidgetType = {
 	placePicker?: boolean;
 	resolution?: Resolution;
 	dateMethods?: DateRangeSpec["kind"][];
-	span?: { minDays?: number; maxDays?: number };
+	/**
+	 * The range's limits: `minDays` and `maxDays` in Pacific calendar days; `maxStops` in periods
+	 * at the dataset's resolution, on the range widened to whole periods (the Map's stops).
+	 */
+	span?: { minDays?: number; maxDays?: number; maxStops?: number };
 	/** The range a new widget of this type (and one with no range of its own) shows. */
 	defaultRange?: DateRangeSpec;
 	menu: (ctx: MenuContext, env: WidgetMenuEnv) => MenuItem[];

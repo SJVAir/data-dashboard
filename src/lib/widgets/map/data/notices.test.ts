@@ -382,6 +382,16 @@ describe("noticesPolls", () => {
 		expect(noticesPolls({ day: today }, NOW)).toBe(true);
 	});
 
+	it("has no source on a month or year stop (notices are daily)", async () => {
+		const at = { start: "2026-11-01", resolution: "month" } as const;
+		expect(await noticesEntry.source({ data: data(), entryType: "pm25", at })).toBeNull();
+	});
+
+	it("a month or year stop never polls", () => {
+		expect(noticesPolls({ start: "2026-11-01", resolution: "month" }, NOW)).toBe(false);
+		expect(noticesPolls({ start: "2026-01-01", resolution: "year" }, NOW)).toBe(false);
+	});
+
 	it("a settled day never polls", () => {
 		expect(noticesPolls({ day: addDays(today, -5) }, NOW)).toBe(false);
 		expect(noticesPolls({ day: addDays(today, -30) }, NOW)).toBe(false);

@@ -3,16 +3,13 @@ import { decodeRef, type MonitorFeatureProperties } from "@sjvair/map-sdk/data";
 import type { FeatureCollection, Geometry } from "geojson";
 import type { Layer } from "$lib/data/schema";
 import { MAP_TOOLBAR_KEYS, type MapOptions } from "../options";
-import { parsePeriod, periodKey } from "../use-period";
 
 /** The toolbar value key of the spray notices row. */
 export const NOTICES_KEY = "notices";
 
-/** The toolbar value keys of the pesticide use rows (the Layers row, the figure, the period). */
+/** The toolbar value keys of the pesticide use rows (the Layers row, the figure). */
 export const USE_KEY = "use";
 export const USE_FIGURE_KEY = "useFigure";
-export const USE_YEAR_KEY = "useYear";
-export const USE_MONTH_KEY = "useMonth";
 
 /** What the tile's data offers the toolbar. */
 export type MapOffer = {
@@ -27,8 +24,8 @@ export type MapOffer = {
 	fill: boolean;
 	/** The tile has a drawable spray notices layer. */
 	notices: boolean;
-	/** The tile has a drawable pesticide use layer: its figures and the years it lists. */
-	use: { figures: string[]; years: number[] } | null;
+	/** The tile has a drawable pesticide use layer: its figures. */
+	use: { figures: string[] } | null;
 };
 
 export type MonitorFilters = {
@@ -57,11 +54,6 @@ export function toValues(
 	values[NOTICES_KEY] = options.noticesShown !== false;
 	values[USE_KEY] = options.useShown !== false;
 	if (drawnFigure !== undefined) values[USE_FIGURE_KEY] = drawnFigure;
-	const period = parsePeriod(options.usePeriod);
-	if (period) {
-		values[USE_YEAR_KEY] = String(period.year);
-		values[USE_MONTH_KEY] = period.month === null ? "all" : String(period.month);
-	}
 	if (drawn !== undefined) values.pollutant = drawn;
 	const hidden = new Set(options.hiddenTypes);
 	for (const type of offer.types) values[`${TYPE_PREFIX}${type}`] = !hidden.has(type);
@@ -80,7 +72,6 @@ export function toOptions(
 	const out: Record<string, unknown> = { ...current };
 	const hidden = new Set(current.hiddenTypes);
 	let typesChanged = false;
-	let periodChanged = false;
 	for (const key of changed) {
 		const value = next[key];
 		if (key.startsWith(TYPE_PREFIX)) {
@@ -103,19 +94,9 @@ export function toOptions(
 		} else if (key === USE_FIGURE_KEY) {
 			if (typeof value !== "string" || value === firstFigure) delete out.useFigure;
 			else out.useFigure = value;
-		} else if (key === USE_YEAR_KEY || key === USE_MONTH_KEY) {
-			periodChanged = true;
 		} else if ((FLAT_KEYS as readonly string[]).includes(key)) {
 			if (value === undefined || value === defaults[key]) delete out[key];
 			else out[key] = value;
-		}
-	}
-	if (periodChanged) {
-		const year = Number(next[USE_YEAR_KEY]);
-		if (!Number.isInteger(year)) delete out.usePeriod;
-		else {
-			const month = next[USE_MONTH_KEY] === "all" ? null : Number(next[USE_MONTH_KEY]);
-			out.usePeriod = periodKey({ year, month: month && month >= 1 && month <= 12 ? month : null });
 		}
 	}
 	if (typesChanged) {

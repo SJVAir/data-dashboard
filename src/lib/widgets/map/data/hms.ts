@@ -9,7 +9,7 @@ import {
 } from "@sjvair/map-sdk/data";
 import type { Feature, FeatureCollection, Geometry, Point } from "geojson";
 import type { NowState } from "$lib/data/now/client";
-import type { SnapshotAt } from "$lib/data/snapshot";
+import { isPeriodAt, type SnapshotAt } from "$lib/data/snapshot";
 import { todayPacific } from "$lib/format";
 import { dataStatus } from "./status";
 import type { MapDataEntry } from "./types";
@@ -35,6 +35,8 @@ function ready<P extends MapFeatureProperties>(
 export const hmsEntry: MapDataEntry<HmsData> = {
 	id: "hms",
 	async source({ at }) {
+		// Smoke and fire are daily: a month or year stop has none.
+		if (isPeriodAt(at)) return null;
 		const query = at === "now" ? undefined : { date: at.day };
 		return {
 			key: `map-hms:${at === "now" ? todayPacific() : at.day}`,
@@ -99,7 +101,7 @@ export const hmsEntry: MapDataEntry<HmsData> = {
  * day poll (`dayPolls`: they aren't all final).
  */
 export function hmsPolls(at: SnapshotAt, dayPolls: boolean): boolean {
-	return at === "now" || dayPolls;
+	return at === "now" || (!isPeriodAt(at) && dayPolls);
 }
 
 /** One source per smoke and fire plugin source, reading the loaded state as it is. */

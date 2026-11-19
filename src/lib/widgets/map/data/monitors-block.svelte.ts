@@ -3,7 +3,7 @@ import type { DataSource, DataStatus, MonitorFeatureProperties } from "@sjvair/m
 import type { MonitorLatest } from "@sjvair/sdk";
 import type { NowClient, NowSource, NowState } from "$lib/data/now/client";
 import { NowQuery } from "$lib/data/now/now-query.svelte";
-import type { Snapshot } from "$lib/data/snapshot";
+import { atKey, atOfKey, type Snapshot } from "$lib/data/snapshot";
 import type { UnavailableReason } from "$lib/data/types";
 import { todayPacific } from "$lib/format";
 import { mapMessages } from "../host/messages";
@@ -95,11 +95,8 @@ export class MonitorsBlock {
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
 	readonly #loads = $derived.by(() => this.#getInput().loads);
-	/** `"now"`, or the day showing's date key. */
-	readonly #day = $derived.by(() => {
-		const at = this.#getInput().at;
-		return at === "now" ? "now" : at.day;
-	});
+	/** `"now"`, the day showing's date key, or the month or year showing's (`atKey`). */
+	readonly #day = $derived.by(() => atKey(this.#getInput().at));
 	readonly #aheadKey = $derived.by(() => this.#getInput().ahead.join(","));
 	/** What the monitors are wanted for now: the places and the pollutant showing. */
 	readonly #wantedKey = $derived(`${this.#placesKey}|${this.#entryType ?? ""}`);
@@ -361,16 +358,20 @@ export class MonitorsBlock {
 				for (const query of this.#dayAhead) query.set(null);
 				return;
 			}
-			const sourceFor = (d: string) =>
-				monitorsEntry.daySource({
-					scope: scope.scope,
-					entryType: type,
-					day: d,
-					rating: this.#rating,
-					today: () => todayPacific()
-				});
-			// On the Now stop only the day before it is fetched ahead.
-			const source = day === "now" ? null : sourceFor(day);
+			const sourceFor = (key: string) => {
+				const at = atOfKey(key);
+				return at === "now"
+					? null
+					: monitorsEntry.stopSource({
+							scope: scope.scope,
+							entryType: type,
+							at,
+							rating: this.#rating,
+							today: () => todayPacific()
+						});
+			};
+			// On the Now stop only the day before it is fetched ahead; at Monthly and Yearly nothing.
+			const source = sourceFor(day);
 			this.#daySource = source;
 			this.#dayResolvedFor = source ? `${wanted}|${day}` : null;
 			switchQueries<Snapshot>(this.#now, [

@@ -9,7 +9,7 @@ import type {
 	RegionResolver
 } from "../adapters/registry";
 import type { MetadataSource } from "../metadata";
-import { chooseResolution } from "../resolution";
+import { fetchLevel } from "../resolution";
 import type { DateRangeSpec, Resolution, TimeSubRange } from "../schema";
 import { filterToSubRange } from "../sub-range";
 import type { QueryData, QueryInput, QueryState, Target, UnavailableReason } from "../types";
@@ -81,8 +81,8 @@ type Plan = {
 	pick: Pick;
 };
 
-/** What the resolution choice depends on besides the range, kept so a refetch can redo it. */
-type Pick = { pin?: Resolution; override?: "auto" | Resolution; worstHour: boolean };
+/** What the fetch choice depends on besides the range, kept so a refetch can redo it. */
+type Pick = { resolution: Resolution; worstHour: boolean };
 
 type Choice = { resolution: Resolution; downsampleFromRaw: boolean; worstHour: boolean };
 
@@ -146,7 +146,10 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		for (const listener of [...changeListeners]) listener();
 	}
 
-	/** The resolution (and worst-hour flag) for a range; shared by planning and refetching. */
+	/**
+	 * How to fetch the input's resolution (`fetchLevel`), and the worst-hour flag for a range;
+	 * shared by planning and refetching.
+	 */
 	function choose(
 		spec: DateRangeSpec,
 		range: ReturnType<typeof resolveRange>,
@@ -155,13 +158,9 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		pick: Pick
 	): Choice | { unavailable: UnavailableReason } {
 		const spanDays = calendarSpanDays(spec, range);
-		let choice;
-		try {
-			choice = chooseResolution({ spanDays, offered, pin: pick.pin, override: pick.override });
-		} catch (error) {
-			if (!(error instanceof RangeError)) throw error;
+		const choice = fetchLevel(pick.resolution, offered);
+		if (!choice)
 			return { unavailable: target.kind === "all" ? "whole-layer-raw" : "no-resolution" };
-		}
 		if (target.kind === "all" && (choice.resolution === "raw" || choice.downsampleFromRaw)) {
 			return { unavailable: "whole-layer-raw" };
 		}
@@ -195,13 +194,9 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		const target = await adapter.target(layer, ctx);
 		if ("unavailable" in target) return target;
 
-		const range = resolveRange(input.dateRange, at);
+		const range = resolveRange(input.dateRange, at, input.resolution);
 		const offered = adapter.offered(entryType.resolutions, target);
-		const pick: Pick = {
-			pin: input.pin,
-			override: layer.resolution,
-			worstHour: input.worstHour === true
-		};
+		const pick: Pick = { resolution: input.resolution, worstHour: input.worstHour === true };
 		const choice = choose(input.dateRange, range, offered, target, pick);
 		if ("unavailable" in choice) return choice;
 		const { resolution, downsampleFromRaw, worstHour } = choice;
@@ -213,7 +208,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			downsampleFromRaw,
 			range: keyRange(input.dateRange, range),
 			worstHour,
-			dailyFigure: input.dailyFigure,
+			figure: input.figure,
 			station: layer.station,
 			filters: layer.filters
 		});
@@ -228,7 +223,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 				resolution,
 				downsampleFromRaw,
 				worstHour,
-				...(input.dailyFigure && { dailyFigure: input.dailyFigure }),
+				...(input.figure && { figure: input.figure }),
 				range,
 				offered,
 				now: at,
@@ -440,21 +435,20 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			const entry = cache.get(key);
 			if (!entry || entry.controller) return;
 			const at = now();
-			const range = resolveRange(entry.spec, at);
+			const range = resolveRange(entry.spec, at, entry.pick.resolution);
 			const prev = entry.request;
 			const choice = choose(entry.spec, range, prev.offered, prev.target, entry.pick);
-			// A re-pick that comes back `unavailable` (the new resolution isn't offered, say) falls
-			// through and keeps refetching at the old resolution: the old data is still right for
-			// what it covers, and moving subscribers would swap a working chart for an
-			// "unavailable" state over a boundary the user never chose.
+			// The resolution is the input's, so only the worst-hour flag can change (a range that grew
+			// past its limit). A re-pick that comes back `unavailable` falls through and keeps
+			// refetching as before: the old data is still right for what it covers.
 			if (
 				!("unavailable" in choice) &&
 				(choice.resolution !== prev.resolution ||
 					choice.downsampleFromRaw !== prev.downsampleFromRaw ||
 					choice.worstHour !== prev.worstHour)
 			) {
-				// The range grew across a ladder boundary: subscribers move to the entry for the
-				// new resolution, which this entry's data cannot serve.
+				// Subscribers move to the entry for the new choice, which this entry's data cannot
+				// serve.
 				for (const sub of [...entry.subscribers]) {
 					if (!sub.input) continue;
 					sub.inputJson = undefined;

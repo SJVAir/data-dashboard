@@ -16,15 +16,19 @@ export type Segment = {
 	backfill?: true;
 };
 
-/** Finer levels to try, in order, for the open part of a requested resolution. */
+/**
+ * Finer levels to try, in order, for the open part of a requested resolution. Months and years
+ * have none: the server stores the current month's and year's rows itself (a nightly run, not
+ * final), so a coarse series is never filled from daily or hourly data.
+ */
 const FINER: Record<Resolution, Resolution[]> = {
 	raw: [],
 	hour: ["raw"],
 	day: ["hour"],
-	month: ["day", "hour"],
-	quarter: ["month", "day", "hour"],
-	season: ["month", "day", "hour"],
-	year: ["month", "day", "hour"]
+	month: [],
+	quarter: [],
+	season: [],
+	year: []
 };
 
 /** The next finer offered level below `level`, or `null` (one level down only). */
@@ -33,10 +37,11 @@ export function finerLevel(level: Resolution, offered: Resolution[]): Resolution
 }
 
 /**
- * Splits a range into fetchable segments. Server rollups for a period exist only after it
- * ends, so completed periods come from one segment of the requested resolution and the open
+ * Splits a range into fetchable segments. Hourly and daily rollups for a period exist only after
+ * it ends, so completed periods come from one segment of the requested resolution and the open
  * period (the one containing `now`) is filled from finer offered levels, each level filling
- * the open part of the one above it. Fill segments carry `aggregateTo: resolution`. Rollups
+ * the open part of the one above it. Monthly and yearly series are one segment: their open
+ * period's row comes from the server. Fill segments carry `aggregateTo: resolution`. Rollups
  * also lag the period's end, so the last completed period is backed up by a `backfill` segment
  * at the next finer offered level, covering exactly that period.
  */

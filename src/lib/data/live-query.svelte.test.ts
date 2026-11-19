@@ -33,7 +33,8 @@ function setup(metadata = fixtureMetadata()) {
 
 const input: QueryInput = {
 	layer: { dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m-pa" } },
-	dateRange: { kind: "trailing", amount: 7, unit: "day" }
+	dateRange: { kind: "trailing", amount: 7, unit: "day" },
+	resolution: "hour"
 };
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

@@ -12,6 +12,7 @@ import {
 	type Retired
 } from "@sjvair/sdk";
 import { pesticideMeta } from "./pesticide-meta";
+import type { Level as DatasetLevel } from "./dataset-rules";
 import type { Resolution } from "./schema";
 
 export type Retirement = { since: string; replacedBy?: string };
@@ -96,8 +97,37 @@ export type MonitorTypeInfo = {
 	unflagged?: string[];
 };
 
-/** The summary field that colors a day, with its label; `label` is `null` when the server has none. */
-export type DailyFigure = { field: string; label: string | null };
+/**
+ * The summary field a pollutant's value is read from at a resolution (its "figure"), with its
+ * label; `label` is `null` when the server has none.
+ */
+export type Figure = { field: string; label: string | null };
+
+/** The figure keys of a monitors-meta scale (`null` or missing when it has none). */
+export type FigureScale = {
+	daily_statistic?: string | null;
+	daily_statistic_label?: string | null;
+	period_statistic?: string | null;
+	period_statistic_label?: string | null;
+};
+
+/**
+ * A scale's figure at `resolution`: at `day` its `daily_statistic` (with its label); at `month`
+ * and `year` its `period_statistic` (the average of the daily figures); otherwise, or when the
+ * scale names none, `null`: the plain mean.
+ */
+export function figureFromScale(
+	scale: FigureScale | null | undefined,
+	resolution: DatasetLevel
+): Figure | null {
+	const [field, label] =
+		resolution === "day"
+			? [scale?.daily_statistic, scale?.daily_statistic_label]
+			: resolution === "month" || resolution === "year"
+				? [scale?.period_statistic, scale?.period_statistic_label]
+				: [null, null];
+	return field ? { field, label: label ?? null } : null;
+}
 
 export interface MetadataSource {
 	/** `"unavailable"` when the server has no catalog or it can't be fetched; never rejects except for `signal`'s abort. */
@@ -144,8 +174,11 @@ export interface MetadataSource {
 		entryType: string,
 		signal?: AbortSignal
 	): Promise<{ windowMinutes: number; expectedIntervalMinutes: number | null } | null>;
-	/** The entry type's daily figure (`scale.daily_statistic`); `null` when it has none. */
-	dailyFigure(entryType: string, signal?: AbortSignal): Promise<DailyFigure | null>;
+	/**
+	 * The entry type's figure at `resolution` (`figureFromScale` of its monitors-meta scale):
+	 * `null` is the plain mean.
+	 */
+	figure(entryType: string, resolution: DatasetLevel, signal?: AbortSignal): Promise<Figure | null>;
 	/**
 	 * The monitors meta's `available_pollutants`, in server order; `[]` when it lists none, and
 	 * `"unavailable"` when it can't be loaded. Never rejects except for `signal`'s abort.
@@ -387,10 +420,8 @@ export function createWebMetadata(): MetadataSource {
 		async monitorTypeInterval(type, signal) {
 			return (await meta(signal)).monitors[type]?.expected_interval || null;
 		},
-		async dailyFigure(entryType, signal) {
-			const scale = (await meta(signal)).entries[entryType]?.scale;
-			if (!scale?.daily_statistic) return null;
-			return { field: scale.daily_statistic, label: scale.daily_statistic_label ?? null };
+		async figure(entryType, resolution, signal) {
+			return figureFromScale((await meta(signal)).entries[entryType]?.scale, resolution);
 		},
 		async schoolGuidelines(entryType, signal) {
 			return (await meta(signal)).entries[entryType]?.school_guidelines ?? null;

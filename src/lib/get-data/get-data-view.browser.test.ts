@@ -19,7 +19,7 @@ import {
 } from "$lib/data/testing/dataset-catalog";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { QueryData } from "$lib/data/types";
-import { formatDateRange } from "$lib/format";
+import { formatDate, formatDateRange, todayPacific } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -288,6 +288,7 @@ async function show(initial: Draft = defaultDraft()) {
 	document.body.appendChild(host);
 	const added: Draft[] = [];
 	const targets: string[] = [];
+	const changes: Draft[] = [];
 	const screen = await render(GetDataView, {
 		target: host,
 		props: {
@@ -302,7 +303,8 @@ async function show(initial: Draft = defaultDraft()) {
 					added.push(draft);
 				}
 			},
-			onCancel: () => {}
+			onCancel: () => {},
+			onchange: (draft: Draft) => changes.push(draft)
 		},
 		context: new Map([[APP_CONTEXT_KEY, app]])
 	});
@@ -311,7 +313,9 @@ async function show(initial: Draft = defaultDraft()) {
 		await page.getByRole("button", { name: "Add to Home" }).click();
 		return added.at(-1)!;
 	};
-	return { screen, host, platform, current, targets };
+	/** The draft as it stands, without adding it (for a draft that can't be added). */
+	const latest = () => changes.at(-1)!;
+	return { screen, host, platform, current, latest, targets };
 }
 
 /** The preview's canvas appears. The first test pays for loading the chart code, so it waits longer. */
@@ -481,14 +485,13 @@ test("opens a Chart draft with 6 places without looping", async () => {
 	}
 });
 
-test("Detail hides for a pinned type; Every measurement is disabled over 90 days with a reason", async () => {
+test("Data resolution hides for a pinned type; Every measurement is disabled over 90 days with a reason", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };
 	const { host } = await show(draft);
-	await page.getByRole("button", { name: "More options" }).click();
-	const raw = page.getByRole("radio", { name: m.get_data_show_values_raw() });
+	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
 	await expect.element(raw).toBeDisabled();
-	await expect.element(raw).toHaveAccessibleDescription(m.get_data_show_values_too_many());
+	await expect.element(raw).toHaveAccessibleDescription(m.get_data_resolution_too_many());
 	// Hourly over more than 31 days is served (a month per request).
 	await expect.element(page.getByRole("radio", { name: "Hourly" })).toBeEnabled();
 	await expect.element(page.getByRole("radio", { name: "Daily" })).toBeEnabled();
@@ -498,27 +501,94 @@ test("Detail hides for a pinned type; Every measurement is disabled over 90 days
 	try {
 		await show(draft);
 		await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeVisible();
-		expect(page.getByRole("button", { name: "More options" }).elements()).toHaveLength(0);
+		expect(page.getByRole("heading", { name: m.get_data_resolution() }).elements()).toHaveLength(0);
+		expect(page.getByRole("radio", { name: "Automatic" }).elements()).toHaveLength(0);
 	} finally {
 		delete chartType.resolution;
 	}
 });
 
-test('More options shows "Show values" with a help button', async () => {
+test("Data resolution is its own section after What, with a help button; the line is in More options", async () => {
 	const { host } = await show(monitorsDraft(["m1"]));
-	await page.getByRole("button", { name: "More options" }).click();
-	await expect.element(page.getByText(m.get_data_show_values(), { exact: true })).toBeVisible();
-	expect(m.get_data_show_values()).toBe("Show values");
+	const heading = page.getByRole("heading", { name: m.get_data_resolution(), exact: true });
+	await expect.element(heading).toBeVisible();
+	expect(m.get_data_resolution()).toBe("Data resolution");
+	// After What, and not inside More options (visible without opening it).
+	const what = page.getByRole("heading", { name: m.get_data_what(), exact: true }).element();
+	expect(
+		what.compareDocumentPosition(heading.element()) & Node.DOCUMENT_POSITION_FOLLOWING
+	).toBeTruthy();
+	const more = page.getByRole("button", { name: "More options" });
+	expect(more.element().closest("[data-state]")?.contains(heading.element())).toBe(false);
+	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeVisible();
 	// The help button sits beside the group's name, not inside it.
 	await expect
-		.element(page.getByRole("group", { name: m.get_data_show_values(), exact: true }))
+		.element(page.getByRole("group", { name: m.get_data_resolution(), exact: true }))
 		.toBeVisible();
-	const help = page.getByRole("button", { name: m.get_data_show_values_help_label() });
+	const help = page.getByRole("button", { name: m.get_data_resolution_help_label() });
 	await expect.element(help).toBeVisible();
 	await help.click();
 	await expect
-		.element(page.getByRole("status").filter({ hasText: m.get_data_show_values_help() }))
+		.element(page.getByRole("status").filter({ hasText: m.get_data_resolution_help() }))
 		.toBeVisible();
+	// The threshold line control is what More options holds.
+	const line = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	expect(line.elements()).toHaveLength(0);
+	await more.click();
+	await expect.element(line).toBeVisible();
+	host.remove();
+});
+
+test("adding pesticide use on Automatic says Automatic moved to Monthly; removing it clears the note", async () => {
+	const { host, current } = await show(monitorsDraft(["m1"]));
+	const note = page.getByTestId("resolution-note");
+	await expect.element(note).toHaveTextContent("");
+	await openSection(/^Pesticide Use/);
+	await page.getByRole("button", { name: m.get_data_pesticide_add_first() }).click();
+	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
+	await expect
+		.element(note)
+		.toHaveTextContent(
+			"Automatic data resolution is now Monthly: Pesticide Use is reported by month."
+		);
+	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
+	// The finer levels are greyed, naming the dataset.
+	const daily = page.getByRole("radio", { name: "Daily" });
+	await expect.element(daily).toBeDisabled();
+	await expect.element(daily).toHaveAccessibleDescription("Pesticide Use isn't reported daily");
+	await expect.element(page.getByRole("radio", { name: "Monthly" })).toBeEnabled();
+	// Automatic is never stored.
+	expect((await current()).data).not.toHaveProperty("resolution");
+	// Last 30 days at Monthly covers whole months, so the dates widen (to today, so far).
+	await expect.element(page.getByTestId("range-widened-note")).toHaveTextContent(
+		m.get_data_range_widened_so_far({
+			start: formatDate(
+				resolveRange({ kind: "trailing", amount: 30, unit: "day" }, new Date(), "month").firstDate
+			),
+			end: formatDate(todayPacific())
+		})
+	);
+	await page.getByRole("button", { name: /^Remove/ }).click();
+	await expect.element(note).toHaveTextContent("");
+	await expect.element(daily).toBeEnabled();
+	await expect.element(page.getByTestId("range-widened-note")).toHaveTextContent("");
+	host.remove();
+});
+
+test("a custom range at Monthly shows the whole months it covers", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "custom", start: "2026-03-10", end: "2026-04-20" };
+	draft.data.resolution = "month";
+	const { host } = await show(draft);
+	await expect.element(page.getByTestId("range-widened-note")).toHaveTextContent(
+		m.get_data_range_widened({
+			start: formatDate("2026-03-01"),
+			end: formatDate("2026-04-30")
+		})
+	);
+	await expect
+		.element(page.getByTestId("resolved-range"))
+		.toHaveTextContent(formatDateRange("2026-03-01", "2026-04-30"));
 	host.remove();
 });
 
@@ -571,15 +641,14 @@ test("the pollutant can't be cleared without a number layer; overlays can't stan
 	expect(layers[1]).toEqual({ dataset: "forecasts", entryType: "burn-status" });
 });
 
-test("choosing Hourly stores resolution: 'hour' on the main layer; Automatic stores none", async () => {
+test("choosing Hourly stores the data's resolution: 'hour'; Automatic stores none", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
-	await page.getByRole("button", { name: "More options" }).click();
 	await page.getByRole("radio", { name: "Hourly" }).click();
-	expect((await current()).data.layers[0].resolution).toBe("hour");
+	expect((await current()).data.resolution).toBe("hour");
 	await page.getByRole("radio", { name: "Automatic" }).click();
-	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
+	expect((await current()).data).not.toHaveProperty("resolution");
 });
 
 test("Download CSV saves the draft's data", async () => {
@@ -609,20 +678,222 @@ test("a refetch keeps the place names; a failed query shows the count", async ()
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("1 place");
 });
 
-test("a detail level the new range can't serve goes back to Automatic", async () => {
+test("a chosen level the new range can't serve stays, blocked, and Add waits", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
-	await page.getByRole("button", { name: "More options" }).click();
-	await page.getByRole("radio", { name: m.get_data_show_values_raw() }).click();
-	expect((await current()).data.layers[0].resolution).toBe("raw");
-	// 90 days of raw readings is more than the point budget.
+	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
+	await raw.click();
+	expect((await current()).data.resolution).toBe("raw");
+	// 90 days of raw readings is more than the point budget: it never changes by itself.
 	await chooseDates("Last 90 days");
-	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
+	await expect.element(raw).toBeChecked();
+	await expect.element(raw).toHaveAccessibleDescription(m.get_data_resolution_too_many());
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
+	await expect.element(add).toHaveAccessibleDescription(m.get_data_resolution_blocked());
+	// Choosing another level unblocks it.
+	await page.getByRole("radio", { name: "Automatic" }).click();
+	await expect.element(add).toBeEnabled();
+	expect((await current()).data).not.toHaveProperty("resolution");
+});
+
+test("a stored level outside the levels (a quarter, untrusted) blocks Add with its own reason", async () => {
+	const draft = monitorsDraft(["m1"]);
+	(draft.data as { resolution?: string }).resolution = "quarter";
+	const { current } = await show(draft);
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
+	await expect.element(add).toHaveAccessibleDescription(m.get_data_resolution_unknown_blocked());
+	await page.getByRole("radio", { name: "Automatic" }).click();
+	await expect.element(add).toBeEnabled();
+	expect((await current()).data).not.toHaveProperty("resolution");
+});
+
+test("a draft carrying a dataset that doesn't line up (untrusted) blocks Add, naming it, until it's fixed", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.resolution = "day";
+	draft.data.layers.push({ dataset: "pesticide-use", entryType: "pounds-applied" });
+	const { current } = await show(draft);
+	const daily = page.getByRole("radio", { name: "Daily" });
+	await expect.element(daily).toBeChecked();
+	await expect.element(daily).toHaveAccessibleDescription("Pesticide Use isn't reported daily");
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
 	await expect
-		.element(page.getByRole("radio", { name: m.get_data_show_values_raw() }))
-		.toBeDisabled();
-	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
+		.element(add)
+		.toHaveAccessibleDescription(
+			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
+		);
+	await page.getByRole("radio", { name: "Monthly" }).click();
+	await expect.element(add).toBeEnabled();
+	expect((await current()).data.resolution).toBe("month");
+});
+
+test("a mixed draft on Automatic blocks Add, naming the dataset the main layer can't line up with", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.layers.push(
+		{ dataset: "hms-smoke", entryType: "smoke-density" },
+		{ dataset: "pesticide-use", entryType: "pounds-applied" }
+	);
+	await show(draft);
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
+	await expect
+		.element(add)
+		.toHaveAccessibleDescription(
+			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
+		);
+	await openSection(/^Pesticide Use/);
+	await page.getByRole("button", { name: /^Remove/ }).click();
+	await expect.element(add).toBeEnabled();
+});
+
+test("at Daily, pesticide use is greyed: it's reported by month", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.resolution = "day";
+	await show(draft);
+	await openSection(/^Pesticide Use/);
+	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
+	await expect.element(addUse).toBeDisabled();
+	await expect
+		.element(addUse)
+		.toHaveAccessibleDescription(
+			"Reported by month. Set the data resolution to Monthly to add it."
+		);
+	await page.getByRole("radio", { name: "Monthly" }).click();
+	await expect.element(addUse).toBeEnabled();
+});
+
+test("at Hourly, smoke and forecasts are greyed (reported by day); weather is not", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.resolution = "hour";
+	await show(draft);
+	await openSection(/^Wildfire Smoke/);
+	const smoke = page.getByRole("checkbox", { name: "Smoke density" });
+	await expect.element(smoke).toBeDisabled();
+	await expect
+		.element(smoke)
+		.toHaveAccessibleDescription("Reported by day. Set the data resolution to Daily to add it.");
+	await openSection(/^Weather/);
+	await expect
+		.element(page.getByRole("checkbox", { name: "Temperature", exact: true }))
+		.toBeEnabled();
+});
+
+test("at Every measurement, weather is greyed: it has no individual measurements", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "trailing", amount: 2, unit: "day" };
+	draft.data.resolution = "raw";
+	await show(draft);
+	await openSection(/^Weather/);
+	const temperature = page.getByRole("checkbox", { name: "Temperature", exact: true });
+	await expect.element(temperature).toBeDisabled();
+	await expect
+		.element(temperature)
+		.toHaveAccessibleDescription(
+			"Has no individual measurements. Set the data resolution to Hourly to add it."
+		);
+});
+
+test("with weather chosen, Every measurement says weather has no individual measurements", async () => {
+	const draft = withLayers(["m1"], TEMPERATURE);
+	draft.data.dateRange = { kind: "trailing", amount: 2, unit: "day" };
+	await show(draft);
+	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
+	await expect.element(raw).toBeDisabled();
+	await expect.element(raw).toHaveAccessibleDescription("Weather has no individual measurements");
+});
+
+test("on Automatic, only a dataset sharing no level with those chosen is greyed", async () => {
+	await show(monitorsDraft(["m1"]));
+	await openSection(/^Wildfire Smoke/);
+	const smoke = page.getByRole("checkbox", { name: "Smoke density" });
+	await expect.element(smoke).toBeEnabled();
+	await openSection(/^Pesticide Use/);
+	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
+	await expect.element(addUse).toBeEnabled();
+	// Smoke is reported by day and pesticide use by month: once smoke is on, use can't line up.
+	await smoke.click();
+	await expect.element(addUse).toBeDisabled();
+	await expect
+		.element(addUse)
+		.toHaveAccessibleDescription(
+			"Can't line up with the datasets you chose: it's reported by month."
+		);
+	await expect.element(page.getByText(/line up with the datasets you chose/)).toBeVisible();
+	await smoke.click();
+	await expect.element(addUse).toBeEnabled();
+});
+
+test("Show as greys the Map at Hourly, and a calendar at Monthly", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.resolution = "hour";
+	await show(draft);
+	const map = page.getByRole("radio", { name: "Map" });
+	await expect.element(map).toBeDisabled();
+	await expect.element(map).toHaveAccessibleDescription(m.get_data_map_resolution());
+	await page.getByRole("radio", { name: "Monthly" }).click();
+	await expect.element(map).toBeEnabled();
+	const calendar = page.getByRole("radio", { name: "Month calendar" });
+	await expect.element(calendar).toBeDisabled();
+	await expect
+		.element(calendar)
+		.toHaveAccessibleDescription("Month calendar can't show monthly data.");
+});
+
+test("at Monthly, a custom range is picked in whole months: the first and last days are stored", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "custom", start: "2026-03-10", end: "2026-04-20" };
+	draft.data.resolution = "month";
+	const { current } = await show(draft);
+	const start = page.getByRole("group", { name: m.get_data_custom_start_month() });
+	const end = page.getByRole("group", { name: m.get_data_custom_end_month() });
+	await expect.element(start.getByRole("combobox", { name: "Month" })).toHaveValue("03");
+	await expect.element(start.getByRole("spinbutton", { name: "Year" })).toHaveValue(2026);
+	await expect.element(end.getByRole("combobox", { name: "Month" })).toHaveValue("04");
+	expect(page.getByRole("textbox", { name: m.get_data_custom_start() }).query()).toBeNull();
+	await start.getByRole("combobox", { name: "Month" }).selectOptions("01");
+	await expect
+		.poll(async () => (await current()).data.dateRange)
+		.toEqual({ kind: "custom", start: "2026-01-01", end: "2026-04-30" });
+	await end.getByRole("combobox", { name: "Month" }).selectOptions("02");
+	await expect
+		.poll(async () => (await current()).data.dateRange)
+		.toEqual({ kind: "custom", start: "2026-01-01", end: "2026-02-28" });
+	// An end before the start says so, and stores nothing.
+	await start.getByRole("spinbutton", { name: "Year" }).fill("2027");
+	await userEvent.keyboard("{Tab}");
+	await expect.element(page.getByText(m.get_data_custom_order())).toBeVisible();
+	expect((await current()).data.dateRange).toEqual({
+		kind: "custom",
+		start: "2026-01-01",
+		end: "2026-02-28"
+	});
+});
+
+test("at Yearly, a custom range is picked in whole years", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "custom", start: "2022-03-10", end: "2024-04-20" };
+	draft.data.resolution = "year";
+	const { current } = await show(draft);
+	const start = page.getByRole("spinbutton", { name: m.get_data_custom_start_year() });
+	await expect.element(start).toHaveValue(2022);
+	await start.fill("2021");
+	await userEvent.keyboard("{Tab}");
+	await expect
+		.poll(async () => (await current()).data.dateRange)
+		.toEqual({ kind: "custom", start: "2021-01-01", end: "2024-12-31" });
+	// A year that isn't four digits says so (never dropped silently), and stores nothing.
+	await start.fill("21");
+	await userEvent.keyboard("{Tab}");
+	await expect.element(page.getByText(m.get_data_custom_year_invalid())).toBeVisible();
+	await expect.element(start).toHaveAccessibleDescription(m.get_data_custom_year_invalid());
+	expect((await current()).data.dateRange).toEqual({
+		kind: "custom",
+		start: "2021-01-01",
+		end: "2024-12-31"
+	});
 });
 
 function withLayers(ids: string[], ...rest: Draft["data"]["layers"]): Draft {
@@ -935,7 +1206,7 @@ describe("now widgets", () => {
 		expect((await current()).data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
 	});
 
-	test("a Map's When offers Now and the date methods, with no Show values", async () => {
+	test("a Map's When offers Now and the date methods; Data resolution only with a range", async () => {
 		const { current } = await show({
 			type: "map",
 			data: {
@@ -948,7 +1219,7 @@ describe("now widgets", () => {
 		await expect.element(dates).toHaveTextContent(m.getdata_when_now());
 		await expect.element(page.getByTestId("resolved-range")).not.toBeInTheDocument();
 		await expect
-			.element(page.getByText(m.get_data_show_values(), { exact: true }))
+			.element(page.getByRole("heading", { name: m.get_data_resolution(), exact: true }))
 			.not.toBeInTheDocument();
 		await dates.click();
 		await expect
@@ -966,13 +1237,72 @@ describe("now widgets", () => {
 		await page.getByRole("option", { name: "Last 7 days" }).click();
 		await animationsSettled(document.body);
 		await expect.element(dates).toHaveTextContent("Last 7 days");
+		// With a range, the Map offers Daily, Monthly and Yearly only.
 		await expect
-			.element(page.getByText(m.get_data_show_values(), { exact: true }))
-			.not.toBeInTheDocument();
+			.element(page.getByRole("heading", { name: m.get_data_resolution(), exact: true }))
+			.toBeVisible();
+		const levels = page
+			.getByRole("group", { name: m.get_data_resolution(), exact: true })
+			.getByRole("radio")
+			.elements()
+			.map((el) => el.closest("label")?.textContent?.trim());
+		expect(levels).toEqual(["Automatic", "Daily", "Monthly", "Yearly"]);
 		expect((await current()).data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
 		await chooseDates(m.getdata_when_now());
 		await expect.element(dates).toHaveTextContent(m.getdata_when_now());
 		expect("dateRange" in (await current()).data).toBe(false);
+	});
+
+	test("a Map greys pesticide use on Now, and smoke, fire and notices at Monthly", async () => {
+		const { current } = await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+				]
+			}
+		});
+		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await expect.element(use).toBeDisabled();
+		await expect
+			.element(use)
+			.toHaveAccessibleDescription(
+				"Reported by month, so it isn't shown on Now. Choose dates to add it."
+			);
+		const smoke = page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() });
+		await expect.element(smoke).toBeEnabled();
+		await chooseDates("Last 7 days");
+		await expect.element(use).toBeEnabled();
+		await page.getByRole("radio", { name: "Monthly" }).click();
+		await expect.element(smoke).toBeDisabled();
+		await expect
+			.element(smoke)
+			.toHaveAccessibleDescription("Reported by day. Set the data resolution to Daily to add it.");
+		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
+		await expect.element(notices).toBeDisabled();
+		await use.click();
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
+	});
+
+	test("a Map on Now carrying pesticide use (untrusted) blocks Add until dates are chosen", async () => {
+		await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "pesticide-use" }
+				]
+			}
+		});
+		const add = page.getByRole("button", { name: "Add to Home" });
+		await expect.element(add).toBeDisabled();
+		await expect
+			.element(add)
+			.toHaveAccessibleDescription(
+				"Pesticide Use isn't shown on Now. Choose dates, or turn it off."
+			);
+		await chooseDates("Last 7 days");
+		await expect.element(add).toBeEnabled();
 	});
 
 	test("shows the Map pollutant checkboxes, and the last one can't be unchecked", async () => {
@@ -1075,37 +1405,18 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(skipped)).not.toBeInTheDocument();
 	});
 
-	test("the Pesticide use section switches the layer on with the latest year, and the period picker writes usePeriod", async () => {
+	test("the Pesticide use section switches the layer on, with no period of its own (the Map's stops are)", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
 		await expect.element(page.getByRole("heading", { name: "Pesticide Use" })).toBeVisible();
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
 		await expect.element(use).not.toBeChecked();
-		const year = page.getByRole("combobox", { name: m.getdata_map_use_period() });
-		await expect.element(year).not.toBeInTheDocument();
 		await use.click();
 		await expect.element(use).toBeChecked();
-		await expect.element(year).toHaveValue("2023");
 		await animationsSettled(host);
 		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
-		expect((await current()).options).toEqual({ usePeriod: "2023" });
-		const years = [...(year.element() as HTMLSelectElement).options].map((o) => o.text);
-		expect(years).toEqual(["2023", "2022", "2021"]);
-		await year.selectOptions("2022");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2022" });
-		// A month of the year: "Whole year" first, then the months by name.
-		const month = page.getByRole("combobox", { name: m.getdata_map_use_month() });
-		await expect.element(month).toHaveValue("");
-		const months = [...(month.element() as HTMLSelectElement).options].map((o) => o.text);
-		expect(months).toHaveLength(13);
-		expect(months[0]).toBe(m.getdata_map_use_whole_year());
-		expect(months[7]).toBe("July");
-		await month.selectOptions("07");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2022-07" });
-		// Another year keeps the month.
-		await year.selectOptions("2021");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2021-07" });
-		await month.selectOptions("");
-		await expect.poll(async () => (await current()).options).toEqual({ usePeriod: "2021" });
+		expect((await current()).options).toBeUndefined();
+		expect(page.getByRole("combobox", { name: "Year" }).query()).toBeNull();
+		expect(page.getByRole("combobox", { name: "Month" }).query()).toBeNull();
 		expect((await axe.run(host.querySelector("[aria-labelledby$=-what]")!)).violations).toEqual([]);
 		await use.click();
 		expect((await current()).data.layers).toHaveLength(1);
@@ -1130,7 +1441,7 @@ describe("now widgets", () => {
 			.element(page.getByText(m.getdata_map_use_years_unavailable()))
 			.not.toBeInTheDocument();
 		await use.click();
-		expect((await current()).options).toEqual({ usePeriod: "2023" });
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
 	});
 
 	test("with no years listed, the Pesticide use switch is off with a neutral note", async () => {
@@ -1143,9 +1454,8 @@ describe("now widgets", () => {
 	});
 
 	test("one filter set shows once for both pesticide layers", async () => {
-		const { current } = await show({
+		const { latest } = await show({
 			type: "map",
-			options: { usePeriod: "2023" },
 			data: {
 				layers: [
 					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
@@ -1154,6 +1464,9 @@ describe("now widgets", () => {
 				]
 			}
 		});
+		// Notices (by day) and use (by month) never line up, and use isn't shown on Now: only a link
+		// can carry both, and it can't be added as it is.
+		await expect.element(page.getByRole("button", { name: "Add to Home" })).toBeDisabled();
 		const group = page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
 		await expect.element(group).toBeVisible();
 		expect(group.all()).toHaveLength(1);
@@ -1166,7 +1479,11 @@ describe("now widgets", () => {
 		// A change reaches both layers.
 		await group.getByRole("checkbox", { name: /^Insecticides/ }).click();
 		await expect
-			.poll(async () => (await current()).data.layers.slice(1).map((l) => l.filters))
+			.poll(async () =>
+				latest()
+					.data.layers.slice(1)
+					.map((l) => l.filters)
+			)
 			.toEqual([
 				{ chemical: "c1", commodity: "k1", category: ["insecticide"] },
 				{ chemical: "c1", commodity: "k1", category: ["insecticide"] }
@@ -1181,7 +1498,7 @@ describe("now widgets", () => {
 			.not.toBeInTheDocument();
 		// Back on, the notices take the kept filters.
 		await page.getByRole("switch", { name: m.getdata_map_notices_switch() }).click();
-		expect((await current()).data.layers.slice(1)).toEqual([
+		expect(latest().data.layers.slice(1)).toEqual([
 			{
 				dataset: "pesticide-notices",
 				filters: { chemical: "c1", commodity: "k1", category: ["insecticide"] }
@@ -1204,7 +1521,6 @@ describe("now widgets", () => {
 		});
 		await show({
 			type: "map",
-			options: { usePeriod: "2023" },
 			data: {
 				layers: [
 					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
@@ -1698,7 +2014,8 @@ test("Threshold line is hidden for a non-pollutant main layer, and the saved one
 	await openSection(/^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
 	await page.getByRole("radio", { name: "None" }).click();
-	await page.getByRole("button", { name: "More options" }).click();
+	// More options holds only the line, so it goes with it.
+	await expect.element(page.getByRole("button", { name: "More options" })).not.toBeInTheDocument();
 	await expect
 		.element(page.getByRole("combobox", { name: m.get_data_line_at_level() }))
 		.not.toBeInTheDocument();

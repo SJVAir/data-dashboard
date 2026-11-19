@@ -292,7 +292,7 @@ describe("MapToolbar", () => {
 	});
 
 	describe("pesticide use", () => {
-		const USE = { figures: ["pounds-applied", "acres-treated"], years: [2023, 2022] };
+		const USE = { figures: ["pounds-applied", "acres-treated"] };
 		const FIGURES = [
 			{ id: "pounds-applied", label: "Pounds Applied", units: "lbs" },
 			{ id: "acres-treated", label: "Acres Treated", units: "acres" }
@@ -301,14 +301,14 @@ describe("MapToolbar", () => {
 			new MapToolbar(stubMap()).build({
 				offer: offer({ use: USE }),
 				drawn: "pm25",
-				options: { usePeriod: "2023", ...options },
+				options,
 				useLabel: "Pesticide Use",
 				useFigures: FIGURES,
 				useFigure: "pounds-applied",
 				...more
 			});
 
-		it("offers a Pesticide use group (figure, year, month) and a Layers row with the use icon", () => {
+		it("offers a Pesticide use group (the figure only: the period is the stop) and a Layers row with the use icon", () => {
 			const { groups, defaults, values } = build();
 			expect(ids(groups)).toEqual(["layers", "pesticide-use", "settings"]);
 			const layerRows = group(groups, "layers").rows;
@@ -318,56 +318,17 @@ describe("MapToolbar", () => {
 			const use = group(groups, "pesticide-use");
 			expect(use.label).toBe(m.map_use_group());
 			expect(use.icon).toBeTypeOf("function");
-			expect(kinds(use.rows)).toEqual(["select", "select", "select"]);
-			expect(use.rows.map((r) => r.id)).toEqual(["useFigure", "useYear", "useMonth"]);
-			const [figure, year, month] = use.rows as Extract<OptionRow, { kind: "select" }>[];
+			expect(kinds(use.rows)).toEqual(["select"]);
+			expect(use.rows.map((r) => r.id)).toEqual(["useFigure"]);
+			const [figure] = use.rows as Extract<OptionRow, { kind: "select" }>[];
 			expect(figure.label).toBe(m.map_use_figure());
 			expect(figure.choices).toEqual([
 				{ value: "pounds-applied", label: "Pounds Applied", unit: "lbs" },
 				{ value: "acres-treated", label: "Acres Treated", unit: "acres" }
 			]);
-			expect(year.label).toBe(m.map_use_year());
-			expect(year.choices.map((c) => [c.value, c.label])).toEqual([
-				["2023", "2023"],
-				["2022", "2022"]
-			]);
-			expect(month.label).toBe(m.map_use_month());
-			expect(month.choices).toHaveLength(13);
-			expect(month.choices[0]).toEqual({ value: "all", label: m.map_use_whole_year() });
-			expect(month.choices[7]).toEqual({ value: "7", label: "July" });
-			expect(defaults).toMatchObject({
-				use: true,
-				useFigure: "pounds-applied",
-				useYear: "2023",
-				useMonth: "all"
-			});
-			expect(values).toMatchObject({
-				use: true,
-				useFigure: "pounds-applied",
-				useYear: "2023",
-				useMonth: "all"
-			});
-		});
-
-		it("a saved year the meta doesn't list is still shown as chosen", () => {
-			const { groups, values } = build({ usePeriod: "2017" });
-			const year = group(groups, "pesticide-use").rows[1] as Extract<OptionRow, { kind: "select" }>;
-			expect(year.choices.map((c) => c.value)).toEqual(["2023", "2022", "2017"]);
-			expect(values.useYear).toBe("2017");
-		});
-
-		it("the defaults hold the period shown, so Reset never changes it", () => {
-			const { defaults } = build(
-				{ usePeriod: "2022-07" },
-				{
-					ownerValues: { use: true, useFigure: "pounds-applied", useYear: "2023", useMonth: "all" }
-				}
-			);
-			expect(defaults).toMatchObject({
-				useFigure: "pounds-applied",
-				useYear: "2022",
-				useMonth: "7"
-			});
+			expect(defaults).toEqual(expect.objectContaining({ use: true, useFigure: "pounds-applied" }));
+			expect(Object.keys(defaults)).not.toContain("useYear");
+			expect(values).toMatchObject({ use: true, useFigure: "pounds-applied" });
 		});
 
 		it("a hidden use shows its row unchecked", () => {
@@ -383,7 +344,7 @@ describe("MapToolbar", () => {
 				useFigures: FIGURES
 			});
 			expect(ids(groups)).toEqual(["settings"]);
-			for (const key of ["use", "useFigure", "useYear", "useMonth"]) {
+			for (const key of ["use", "useFigure"]) {
 				expect(defaults).not.toHaveProperty(key);
 			}
 		});

@@ -50,7 +50,7 @@ describe("currentInput", () => {
 	it("pins the hour over the current range", () => {
 		const layer = { dataset: "monitors", entryType: "pm25", place: { source: "x", code: "y" } };
 		const input = currentInput(layer as never);
-		expect(input.pin).toBe("hour");
+		expect(input.resolution).toBe("hour");
 		expect(input.dateRange).toEqual(CURRENT_RANGE);
 		expect(input.layer).toBe(layer);
 	});

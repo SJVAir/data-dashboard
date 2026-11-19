@@ -311,8 +311,6 @@ function dailyStrip(extra: Partial<ChartStrip> = {}): ChartStrip {
 		yMin: 0,
 		points: daily(means, false),
 		resolution: "day",
-		wholePeriod: false,
-		aggregate: "sum",
 		...extra
 	};
 }
@@ -325,7 +323,6 @@ const temperature = () =>
 		chart: "line",
 		precision: 1,
 		yMin: null,
-		aggregate: "mean",
 		points: daily({ 1: 61.2, 2: 63, 3: 64.5, 5: 60, 6: 58.25 }, false)
 	});
 
@@ -419,7 +416,7 @@ test("keyboard stepping moves the strips' cursors with the main one", async () =
 	expect(cursorX(strips()[0])).toBeCloseTo(cursorX(main), 0);
 });
 
-test("a coarser strip draws one bar per month and marks the whole-month total", async () => {
+test("a monthly chart's strip draws plain monthly bars with no whole-period tag", async () => {
 	const sept = Date.UTC(2026, 8, 1, 7);
 	const oct = Date.UTC(2026, 9, 1, 7);
 	const strip = dailyStrip({
@@ -428,24 +425,23 @@ test("a coarser strip draws one bar per month and marks the whole-month total", 
 		unit: "lbs",
 		precision: 0,
 		resolution: "month",
-		wholePeriod: true,
 		points: [
 			{ t: sept, mean: 900, min: 900, max: 900, count: 1, partial: false },
 			{ t: oct, mean: 1234, min: 1234, max: 1234, count: 1, partial: false }
 		]
 	});
-	const { screen, chart } = await renderChart(oneplace(), { strips: [strip] });
-	await expect.element(screen.getByText("Monthly total", { exact: true })).toBeVisible();
+	const { chart } = await renderChart(oneplace(), { strips: [strip] });
 	// September lies wholly before the chart's days, so only October's bar is drawn.
 	await expect.poll(() => strips()[0]?.getAttribute("data-bars")).toBe("1");
+	expect(frame.textContent).not.toMatch(/monthly total|Monthly average/i);
 	(chart.element() as HTMLElement).focus();
 	await userEvent.keyboard("{Home}");
 	await expect.poll(() => readout().textContent).toContain("Oct 1, 2026");
 	expect(readout().textContent).toContain("Pounds Applied: 1,234 lbs");
-	expect(readout().textContent).toContain("Total for all of Oct 2026");
+	expect(readout().textContent).not.toContain("Total for all of");
 	await userEvent.keyboard("{End}");
 	await expect.poll(() => readout().textContent).toContain("Oct 10, 2026");
-	expect(readout().textContent).toContain("Pounds Applied: 1,234 lbs");
+	expect(readout().textContent).toContain("Pounds Applied: No data");
 });
 
 test("a strip with a message shows it in the strip's place", async () => {
@@ -504,37 +500,6 @@ test("strips pass axe in light and dark", async () => {
 	expect((await axe.run(frame)).violations).toEqual([]);
 	document.documentElement.setAttribute("data-theme", "dark");
 	expect((await axe.run(frame)).violations).toEqual([]);
-});
-
-test("a coarser averaged strip is never called a total; a summed one is", async () => {
-	const oct = Date.UTC(2026, 9, 1, 7);
-	const month = (extra: Partial<ChartStrip>) =>
-		dailyStrip({
-			resolution: "month",
-			wholePeriod: true,
-			precision: 1,
-			points: [{ t: oct, mean: 61.2, min: 61.2, max: 61.2, count: 1, partial: false }],
-			...extra
-		});
-	const temperature = month({
-		name: "Temperature",
-		label: "Temperature",
-		unit: "°F",
-		chart: "line",
-		aggregate: "mean"
-	});
-	const wind = month({ name: "Wind", label: "Wind", unit: "°", chart: "line", aggregate: null });
-	const { screen, chart } = await renderChart(oneplace(), { strips: [temperature, wind] });
-	await expect.element(screen.getByText("Monthly average", { exact: true })).toBeVisible();
-	(chart.element() as HTMLElement).focus();
-	await userEvent.keyboard("{Home}");
-	await expect.poll(() => readout().textContent).toContain("Temperature: 61.2 °F");
-	expect(readout().textContent).toContain("Wind: 61.2 °");
-	expect(frame.textContent).not.toMatch(/total/i);
-	await screen.rerender({ strips: [month({ aggregate: "sum" })] });
-	await expect.element(screen.getByText("Monthly total", { exact: true })).toBeVisible();
-	await userEvent.keyboard("{End}");
-	await expect.poll(() => readout().textContent).toContain("Total for all of Oct 2026");
 });
 
 test("a threshold line reaches the value axis and is drawn in the level's color", async () => {

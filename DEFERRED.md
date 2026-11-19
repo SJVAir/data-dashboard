@@ -1233,10 +1233,32 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   cuts readings to whole numbers ("map-sdk milestone 2 review leftovers"), and the server
   doesn't list them. **Revisit when** map-sdk shows readings at the metadata's precision (map-sdk
   change 8 in the spec), or the server lists more pollutants.
-- **Year-over-year change on the map** (a diverging scale). _Deferred 2026-11-11 (step 5 spec
-  1); updated 2026-11-16 (step 5 spec 5)._ This includes the Pesticides Explorer's compare (its
-  change map between two years), which spec 5 leaves out: a Map's pesticide use shows one fixed
-  period. **Revisit after** spec 6, or when an agency or researcher asks for trends on the map.
+- **Comparing two datasets** (two time windows side by side, each lined up). _Deferred
+  2026-11-11 (step 5 spec 1, as "Year-over-year change on the map"); updated 2026-11-16 (step 5
+  spec 5); reworded 2026-11-18 (step 5 spec 6a, the user's two-dataset idea)._ Under the
+  "Datasets line up" rule a widget holds one dataset: one range at one resolution. Comparing two
+  windows (this year against last, before and after a change) is two datasets, each following
+  the rule, shown together, for example a change map on a diverging scale or two series on one
+  chart. This includes the Pesticides Explorer's compare (its change map between two years).
+  Why: it needs its own design (how two datasets are chosen, stored and drawn), and spec 6a
+  only set the rule. **Revisit after** step 5 spec 6b, or when an agency or researcher asks for
+  trends.
+- **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
+  month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
+  and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
+  step a map by hour.
+- **Smoke, fire and spray notices at Monthly or coarser** (for example days with smoke per
+  month). _Deferred 2026-11-18 (step 5 spec 6a)._ They offer Daily only (`layerOffers` in
+  `src/lib/data/dataset-rules.ts`, through `offeredLevels`), so a Monthly or Yearly Map, Chart or
+  Table doesn't offer them. Why: the server has no monthly form of them, and the
+  dashboard doesn't compute one. **Revisit when** someone asks for them in monthly data.
+- **A trailing range cut at Yearly stops rolling.** _Deferred 2026-11-18 (step 5 spec 6a, Task
+  8)._ When a range too long for the Map (over 366 stops) becomes a Map, it is cut to its last
+  366 stops. At Daily and Monthly a trailing range stays trailing, so it keeps rolling; at
+  Yearly it becomes a fixed custom range (`mapRange` in `src/lib/get-data/map.ts`), because
+  trailing ranges have no `year` unit. Why: it almost never happens (at Yearly the cut needs a
+  range over 366 years), and a `year` unit changes the stored range shape. **Revisit when**
+  trailing ranges gain a `year` unit, or someone reports a Yearly Map that stopped rolling.
 - **A township detail endpoint** (top chemicals per township). _Deferred 2026-11-16 (step 5 spec
   5)._ The township card shows the period's three figures and the section count, but no top
   chemicals, since only sections have a detail endpoint (`sections/<id>/`). Why: it needs a new
@@ -1253,8 +1275,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
-  pesticide analyses need parcel-level (MTRS) selection, or with step 5 spec 6 (trigger added
-  2026-11-16, step 5 spec 5).
+  pesticide analyses need parcel-level (MTRS) selection, or with step 5 spec 6b (trigger added
+  2026-11-16, step 5 spec 5; spec 6 was split into 6a and 6b on 2026-11-18).
 - **Readable names for MTRS sections.** _Deferred 2026-11-17 (the user, while planning step 5
   spec 6)._ A section's name is its PLSS code (for example `MDM-T14S-R20E-07`). The Map's section
   card shows it, and so would any chart of a marked section. The user accepted the codes for now,
@@ -1262,19 +1284,18 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   server, never be built in the dashboard. **Revisit when** people find the codes confusing (for
   example in the private preview), or the explorer gets readable section names.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
-  2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server
-  (migrations 0009/0010); name lookup now tries city, then CDP, then urban area. New types
-  exist: `air_district` and `ab617`. `school_district` has an import command
-  (`import_school_districts`), and there is a new **`Location`** model for schools and
-  child care (`import_schools`). Plans rely on **`school_district`** (school region
-  alerts, the picker) and on the **3 `custom` forecast zones** (Tulare, Kern, Sequoia);
-  the other 6 forecast zones, including Fresno, are county regions, so a zone lookup goes
-  through the forecasts data or a metadata zone list, not `type=custom`. **Production checked
-  2026-10-14** (public API): 201 school districts and the schools are loaded, but there
-  are **0 `custom` regions**, so the 3 forecast zones are missing and production has no
-  forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses
-  `protected`. **Revisit when** the step 3 metadata plan and the Release 2 alerts plan
-  start, to confirm the zones were imported.
+  2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server (migrations
+  0009/0010); name lookup now tries city, then CDP, then urban area. New types exist: `air_district`
+  and `ab617`. `school_district` has an import command (`import_school_districts`), and there is a
+  new **`Location`** model for schools and child care (`import_schools`). Plans rely on
+  **`school_district`** (school region alerts, the picker) and on the **3 `custom` forecast zones**
+  (Tulare, Kern, Sequoia); the other 6 forecast zones, including Fresno, are county regions, so a
+  zone lookup goes through the forecasts data or a metadata zone list, not `type=custom`.
+  **Production checked 2026-10-14** (public API): 201 school districts and the schools are loaded,
+  but there are **0 `custom` regions**, so the 3 forecast zones are missing and production has no
+  forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses `protected`.
+  **Revisit when** the step 3 metadata plan and the Release 2 alerts plan start, to confirm the
+  zones were imported.
 - **sjvair.com: a bulk summary request with two errors reports only the date error.** _Deferred
   2026-11-15 (sjvair.com #334, sjvair-com-8a)._ A request with neither `region` nor `type` and a
   bad date span gets only the date error, because `BulkSummaryDateRangeForm.clean` raises instead
@@ -1427,12 +1448,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   a second Layers row. Spec 3 moved the pin to `0.1.0-beta.13` and the adapter now implements
   `locationTypeLabel`, so what is left is the schools data set itself, an entry in
   `src/lib/widgets/map/data/` and its Layers row. The user moved the trigger to after spec 5
-  (2026-11-16), then to after spec 6 (2026-11-17): it becomes its own small spec in step 5, since
-  spec 6 decides how a Map's layers reach charts and tables. **Revisit after** spec 6.
+  (2026-11-16), then to after spec 6 (2026-11-17): it becomes its own small spec in step 5 (spec
+  7), since spec 6b decides how a Map's layers reach charts and tables. **Revisit after** spec 6b.
 
-- **Spec 6 charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
+- **Spec 6b charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
   kept but hidden (outside the places, or not reporting the pollutant showing) are not sent to a
-  chart or table. **Revisit with** spec 6.
+  chart or table. **Revisit with** spec 6b ("Show in a chart" / "Show in a table").
 
 - **More than 4 pollutants on one Map.** _Deferred 2026-11-12 (step 5 spec 2); lowered from 6 on
   2026-11-16 (step 5 spec 5)._ A tile holds at most `LAYERS_MAX` (8) less smoke, fire, spray
@@ -1523,7 +1544,7 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   - **On a past day, a monitor that has left the current monitors list isn't drawn**, and its
     mark is counted as "outside the places" rather than "no figure for this day": a day's
     figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. **Revisit when**
-    spec 6 reads series for marked monitors, or when someone reports it.
+    spec 6b reads series for marked monitors, or when someone reports it.
   - **A step can still fold into an unrelated edit** made within the 1 s `StepRun` window
     (`step-run.ts`): the run closes on time and on a drag's end, not on another kind of change.
     Rare (a person editing something else within a second of stepping). **Revisit if** someone
@@ -1658,6 +1679,54 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Analysis & data
 
+- **A weekly data resolution.** _Deferred 2026-11-18 (step 5 spec 6a)._ Get data offers
+  Every measurement, Hourly, Daily, Monthly and Yearly. Why: the server has no weekly summaries;
+  it would need server work, with weeks starting Sunday in Pacific time, and the dashboard
+  computes no coarse figure itself. **Revisit when** someone asks for weekly figures.
+- **Quarterly and Seasonal data resolutions.** _Deferred 2026-11-18 (the user, step 5 spec 6a)._
+  The server and SDK have quarterly and seasonal summaries, but the dashboard never offered
+  them (`LEVELS` in `src/lib/data/dataset-rules.ts`). Why: seasons cross the year boundary
+  (December to February) and need their own whole-period rules and pickers. **Revisit when**
+  someone asks for seasonal or quarterly figures.
+- **Choosing the plain mean instead of the scale's figure** (for example a researcher's "monthly
+  mean ozone" of all hours). _Deferred 2026-11-18 (the user, step 5 spec 6a)._ Every widget
+  shows each pollutant's scale figure: the daily figure at Daily (ozone's highest 1-hour
+  average), the average of the daily figures at Monthly and Yearly. The CSV's `mean` column keeps
+  the plain mean, but no widget draws it. Why: one place and period should never show two
+  numbers, and the scale's figure is what the levels are defined for. **Revisit when** a
+  researcher or agency asks for the plain mean.
+- **A just-ended month's row without a figure reads as complete for a few hours.** _Deferred
+  2026-11-19 (step 5 spec 6a, final review)._ On the 1st, before the nightly rollup (about 02:15
+  Pacific), the month that just ended is still the server's open row, but `toPoints`
+  (`src/lib/data/adapters/air-quality-fetch.ts`) sets `partial` by time only, and `final` is set
+  only on figure rows. So a row with no figure (weather, for example) reads as complete until the
+  rollup replaces it. Why: a few hours once a month, and the value is the server's own running
+  row. **Revisit when** someone sees a wrong last-month value early on the 1st, or the server
+  marks every row with `is_final`.
+- **"Pesticide Use" reads capitalised mid-sentence.** _Deferred 2026-11-19 (step 5 spec 6a, final
+  review)._ Notes such as "Pesticide Use isn't reported daily" name the dataset by the server
+  catalog's label, which is title case. Why: labels come from the metadata (never rewritten in the
+  dashboard), so a sentence-case label is a server catalog change. **Revisit when** the server
+  catalog's labels are next edited, or with a copy review.
+- **A pinned calendar's lone dataset isn't greyed in What.** _Deferred 2026-11-19 (step 5 spec 6a,
+  final review)._ A calendar (pinned to Daily) with one dataset that doesn't offer Daily isn't
+  greyed in Get data's What section; the type block ("Show as") catches it instead, so it can't
+  be saved. Why: the person is still told, just in another place. **Revisit when** Get data's
+  What section is next reworked, or someone is confused by it.
+- **The Data table's notes aren't `role="status"`.** _Deferred 2026-11-19 (step 5 spec 6a, final
+  review)._ The notes under a Data table (a layer that doesn't line up, a failed overlay) aren't
+  announced when they appear. Why: graded minor; they sit just above the table, so a screen
+  reader reaches them in reading order. **Revisit with** the next accessibility pass on the
+  widgets, or if a screen-reader user misses one.
+- **Chart figure loose ends.** _Deferred 2026-11-19 (step 5 spec 6a, final review, Task 11)._ A
+  figure with no server label falls back to the "Daily average" or "Monthly average" series
+  names, which would misname a peak figure (only if the server leaves out a label); the chart goes
+  briefly blank while a new figure is looked up; and there are no tests for `DataWidget`'s
+  `figurePending` → error → retry, or for `year` through the widget. Why: the server labels every
+  figure today, and the blank is a short loading state. **Revisit when** the server ships a figure
+  without a label, or with the next change to `src/lib/widgets/shared/data-widget.svelte.ts`
+  (add the tests).
+
 - **sjvair.com #342 final-review minors (period daily statistic).** _Deferred 2026-11-18
   (session `sjvair-com-93`'s final review; all non-blocking)._
   1. `_backfill_complete_chunk` reads `now` before its cascade and ignores
@@ -1781,15 +1850,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   per-monitor-type switch). PM10 is still raw: the client fetches it span-capped and chunked and
   downsamples it in a worker. **Revisit when** raw PM10 fetches get slow or large. It's now a
   one-line switch per monitor type (or the model flag, if regions should get it too).
-- **To-date summary rows for the current month, quarter, season and year.** _Deferred
-  2026-11-05 (the user, on sjvair.com #313)._ The scheduled rollups write those rows only once a
-  period has ended. `rebuild_summaries` used to also write the current period's rows, which then
-  froze at the rebuild time (and existed only for rebuilt stations), so #313 makes it roll only
-  finished periods, like `repair_summaries`. A proper to-date value needs a small scheduled task
-  that re-rolls the current periods from day rows after each daily rollup, plus decisions on
-  settling, what `is_complete` means mid-period, and region rows. Until then the dashboard
-  computes "so far this month/year" from daily rows. **Revisit when** a widget wants a to-date
-  value or computing it from daily rows gets slow.
 - **Region-level weather summaries.** _Deferred 2026-11-05 (Get data layers, the user)._ CIMIS
   stations get monitor summaries only; there are never region rows for weather. Region
   weighting is built on air-sensor grades and health checks, so weather would need its own
@@ -2180,6 +2240,18 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   neighbour, about 60 ms in, the new block still shows township fill, and its sections draw from
   the next frame. Hard to see; left for map-sdk._ **Fixed in `@sjvair/map-sdk` `0.1.0-beta.21`**
   (map-sdk #38, 2026-11-17). Remove this item when the dashboard pins beta.21 (step 5 spec 6).
+  _The dashboard pins beta.21 since step 5 spec 6a (e78376a, 2026-11-18). The item stays until
+  the user's hand check of the lens passes._
+- **The Map's legend doesn't name the month or year figure.** _Deferred 2026-11-19 (step 5 spec
+  6a, Task 12)._ The spec says a Monthly or Yearly Map's legend names the figure from
+  `period_statistic_label`. map-sdk's `monitorsPlugin` has no legend slot for a figure name, so
+  the dashboard names it in the tooltips (`figureLabel`) and the feature list's note instead, as
+  at Daily. Likewise a region fill with no period figure
+  reads "No data" with no reason, since `regionsPlugin` has no detail slot (monitors say "Only
+  {days} of {expected} days had a figure"). Why: it needs a map-sdk change, and the figure is
+  already named next to every value. **Revisit with** the next map-sdk release the dashboard
+  pins: name the figure in the monitors legend, and give a no-figure region its reason, if that
+  release offers them.
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
@@ -2509,7 +2581,7 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
   summarizes it (a prevailing direction), or someone asks for a wind rose.
 - **"Every measurement" for weather.** _Deferred 2026-11-07 (step 4 spec 3b)._ Weather offers
-  no raw level: "Show values" lists Hourly and coarser, and the raw CIMIS readings (with their
+  no raw level: "Data resolution" lists Hourly and coarser, and the raw CIMIS readings (with their
   dew point and soil temperature `*_f`/`*_c` fields) aren't offered. CIMIS readings are hourly,
   so Hourly shows the same values, and raw rows carry no `value`. A small narrowing of the spec
   ("read the °F field when Every measurement is chosen"). **Revisit if** someone asks for the
@@ -2687,9 +2759,8 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     risk), the year calendar's `pt-5.5` label offset, the `$derived.by` comment in
     `calendar-data.svelte.ts` stating a cause as fact, the `hidden: 0` that wants a comment, the
     `export *` at the bottom of `format/index.ts`, `final` copying `is_final` without a boolean
-    check (the SDK types it), `dailyFigure` in the query key at non-day resolutions (a harmless
-    extra key), and open-day loaders built for non-figure requests (cheap closures). **Revisit
-    with** the next change to each file.
+    check (the SDK types it), and open-day loaders built for non-figure requests (cheap closures).
+    **Revisit with** the next change to each file.
   - **Test gaps:** `daysInclusive` across spring-forward and with start after end, an all-null
     column, six-row months; `ratedForCount`'s positive cases, pending and today days in a summary
     fixture, the `unrated` doc comment, duplicate same-date points (the later wins); a selection
@@ -2699,10 +2770,10 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     drags, including a release outside the grid; Escape's `stopPropagation`; the Get data keyboard
     Show-as test (loose), its weather case using census, and the span reason; the adapter's bulk
     all-places path, figure at non-day resolutions, with `worstHour`, and the client carrying
-    `dailyFigure`; an open-days call failing the whole query (deliberate: no partial data), a
-    monitor with no published processor, the bulk memo across units, and a yesterday-only open
-    row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the next
-    change to each.
+    `figure` (was `dailyFigure`); an open-days call failing the whole query (deliberate: no partial
+    data), a monitor with no published processor, the bulk memo across units, and a yesterday-only
+    open row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the
+    next change to each.
 
 - **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
   brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide

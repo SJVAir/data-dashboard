@@ -10,7 +10,7 @@ import type { NowClient } from "$lib/data/now/client";
 import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
 import type { Layer, PesticideFilters } from "$lib/data/schema";
 import type { UnavailableReason } from "$lib/data/types";
-import type { SnapshotAt } from "$lib/data/snapshot";
+import { atKey, atOfKey, type SnapshotAt } from "$lib/data/snapshot";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
 import { mapMessages } from "../host/messages";
@@ -101,11 +101,8 @@ export class MapData {
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
 	readonly #loads = $derived.by(() => this.#getInput().loads);
-	/** `"now"`, or the day showing's date key. */
-	readonly #day = $derived.by(() => {
-		const at = this.#getInput().at;
-		return at === "now" ? "now" : at.day;
-	});
+	/** `"now"`, the day showing's date key, or the month or year showing's (`atKey`). */
+	readonly #day = $derived.by(() => atKey(this.#getInput().at));
 	readonly #aheadKey = $derived.by(() => this.#getInput().ahead.join(","));
 	readonly #today = $derived.by(() => this.#getInput().today);
 	readonly #regionType = $derived.by(() => this.#getInput().fill);
@@ -428,10 +425,9 @@ export class MapData {
 		);
 	}
 
-	/** Now, or the day showing (built from the day's key). */
+	/** Now, or the day, month or year showing (built from its key). */
 	#at(): SnapshotAt {
-		const day = this.#day;
-		return day === "now" ? "now" : { day };
+		return atOfKey(this.#day);
 	}
 
 	/** The days to fetch ahead, as the input names them. */

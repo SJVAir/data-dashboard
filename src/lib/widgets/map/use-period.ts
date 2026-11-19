@@ -1,13 +1,14 @@
-import { formatMonth, formatYear } from "$lib/format";
+import type { SnapshotAt } from "$lib/data/snapshot";
+import { formatMonth, formatYear, parseDateKey } from "$lib/format";
 
 /** A pesticide use period: a year, or one month of it. */
 export type UsePeriod = { year: number; month: number | null };
 
-/** The period a `usePeriod` option names (`YYYY` or `YYYY-MM`), or null. */
-export function parsePeriod(value: string | undefined): UsePeriod | null {
-	const match = value ? /^(\d{4})(?:-(0[1-9]|1[0-2]))?$/.exec(value) : null;
-	if (!match) return null;
-	return { year: Number(match[1]), month: match[2] ? Number(match[2]) : null };
+/** The use period of a month or year stop (by its start key); null for a day or Now. */
+export function periodOfStop(at: SnapshotAt): UsePeriod | null {
+	if (at === "now" || !("start" in at)) return null;
+	const { y, m } = parseDateKey(at.start);
+	return { year: y, month: at.resolution === "month" ? m : null };
 }
 
 /** `"2023"` or `"2023-07"`. */

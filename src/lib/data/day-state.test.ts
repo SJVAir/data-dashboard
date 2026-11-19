@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pacificDay, todayPacific } from "$lib/format";
 import type { SeriesPoint } from "$lib/data/types";
-import type { DailyFigure, Level } from "$lib/data/metadata";
+import type { Figure, Level } from "$lib/data/metadata";
 import { dayState, dayStates, ratedForCount, thresholdCount, type DayState } from "./day-state";
 
 const level = (key: string, min: number, max: number | null, tier: number): Level => ({
@@ -20,7 +20,7 @@ const levels = [
 	level("moderate", 9.1, 35.5, 1),
 	level("usg", 35.5, null, 2)
 ];
-const figure: DailyFigure = { field: "mean_24h", label: "24-hour average" };
+const figure: Figure = { field: "mean_24h", label: "24-hour average" };
 const today = "2026-11-09";
 
 const point = (date: string, fig: number | null, final?: boolean): SeriesPoint => ({
@@ -34,7 +34,7 @@ const point = (date: string, fig: number | null, final?: boolean): SeriesPoint =
 	...(final === undefined ? {} : { final })
 });
 
-const run = (points: SeriesPoint[], dates: string[], fig: DailyFigure | null = figure, t = today) =>
+const run = (points: SeriesPoint[], dates: string[], fig: Figure | null = figure, t = today) =>
 	dayStates({ points, dates, today: t, figure: fig, levels });
 
 describe("dayStates", () => {
@@ -149,7 +149,7 @@ describe("dayState", () => {
 	const one = (
 		date: string,
 		row: { figure: number | null; final?: boolean } | undefined,
-		fig: DailyFigure | null = figure
+		fig: Figure | null = figure
 	) => dayState({ date, today, row, figure: fig, levels });
 
 	it("is none without a row", () => {

@@ -18,6 +18,7 @@ import {
 	isMapShaped,
 	hasNotices,
 	hasUse,
+	mapLevelOf,
 	mapPesticideFilters,
 	mapShowingOnly,
 	MAP_POLLUTANTS_MAX,
@@ -231,7 +232,7 @@ describe("converting to and from the Map", () => {
 	};
 
 	it("converting a Map with a fill to a Chart drops the fill and day with a note; back never invents one", () => {
-		const withFill = mapDraft(["pm25"], { fill: "zipcode", day: "2026-11-10" }, false);
+		const withFill = mapDraft(["pm25"], { fill: "zipcode", at: "2026-11-10" }, false);
 		const c = fromMapDraft(withFill, chartType, CATALOG);
 		expect(c.dropped).toEqual(["fill"]);
 		expect(c.draft.options).toBeUndefined();
@@ -253,7 +254,7 @@ describe("converting to and from the Map", () => {
 	it("converts a Chart with PM2.5 and smoke, on the default 30 days, to a Map on Now with PM2.5 and smoke and fire", () => {
 		const c = toMapDraft(
 			chartOf([
-				{ dataset: "air-quality", entryType: "pm25", resolution: "day", place: FRESNO },
+				{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
 				{ dataset: HMS_SMOKE, entryType: "smoke-density", place: FRESNO }
 			]),
 			CATALOG,
@@ -296,24 +297,59 @@ describe("converting to and from the Map", () => {
 		expect(toMapDraft(draft, CATALOG, ALLOWED, NOW).draft.data.dateRange).toBeUndefined();
 	});
 
-	it("a range over 366 days is cut to its last 366 days, with a note", () => {
+	/** The catalog with every pollutant offering `levels` only. */
+	const offering = (levels: string[]) =>
+		[
+			{
+				id: "air-quality",
+				entryTypes: IDS.map((id) => ({ id, kind: "pollutant", resolutions: levels }))
+			}
+		] as unknown as typeof CATALOG;
+
+	it("a range over 366 days is cut to its last 366 days at Daily, with a note", () => {
+		const DAILY = offering(["day"]);
 		const fixed = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
 		fixed.data.dateRange = { kind: "custom", start: "2025-01-01", end: "2026-02-04" };
-		const c = toMapDraft(fixed, CATALOG, ALLOWED, NOW);
+		const c = toMapDraft(fixed, DAILY, ALLOWED, NOW);
 		expect(c.draft.data.dateRange).toEqual({
 			kind: "custom",
 			start: "2025-02-04",
 			end: "2026-02-04"
 		});
 		expect(c.dropped).toEqual(["range-cut"]);
-		expect(isMapShaped(fixed, NOW)).toBe(false);
-		expect(isMapShaped(c.draft, NOW)).toBe(true);
+		expect(c.cutAt).toBe("day");
+		expect(isMapShaped(fixed, NOW, DAILY)).toBe(false);
+		expect(isMapShaped(c.draft, NOW, DAILY)).toBe(true);
 		// A rolling range keeps rolling: its last 366 days, up to today.
 		const rolling = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
 		rolling.data.dateRange = { kind: "trailing", amount: 400, unit: "day" };
-		const r = toMapDraft(rolling, CATALOG, ALLOWED, NOW);
+		const r = toMapDraft(rolling, DAILY, ALLOWED, NOW);
 		expect(r.draft.data.dateRange).toEqual({ kind: "trailing", amount: 366, unit: "day" });
 		expect(r.dropped).toEqual(["range-cut"]);
+	});
+
+	it("counts stops, not days: a 30-month range at Monthly is kept whole", () => {
+		const MONTHLY = offering(["day", "month", "year"]);
+		const chart = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
+		chart.data.dateRange = { kind: "custom", start: "2024-01-01", end: "2026-06-30" };
+		const c = toMapDraft(chart, MONTHLY, ALLOWED, NOW);
+		expect(c.draft.data.dateRange).toEqual(chart.data.dateRange);
+		expect(c.dropped).not.toContain("range-cut");
+		expect(isMapShaped(c.draft, NOW, MONTHLY)).toBe(true);
+	});
+
+	it("cuts a range over 366 months to its last 366 months at Monthly", () => {
+		const MONTHLY = offering(["month"]);
+		const chart = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
+		chart.data.dateRange = { kind: "custom", start: "1990-01-01", end: "2026-06-30" };
+		const c = toMapDraft(chart, MONTHLY, ALLOWED, NOW);
+		expect(c.draft.data.dateRange).toEqual({
+			kind: "custom",
+			start: "1996-01-01",
+			end: "2026-06-30"
+		});
+		expect(c.dropped).toEqual(["range-cut"]);
+		expect(c.cutAt).toBe("month");
 	});
 
 	it("a ranged Map converts to a Chart with its range; a Map on Now takes the Chart's default", () => {
@@ -479,9 +515,15 @@ describe("converting to and from the Map", () => {
 
 describe("pesticide use on a Map", () => {
 	const ALLOWED = ["o3", "pm25"];
-	const YEARS = [2023, 2022, 2021];
 	const USE_CATALOG = [
-		...CATALOG,
+		{
+			id: "air-quality",
+			entryTypes: IDS.map((id) => ({
+				id,
+				kind: "pollutant",
+				resolutions: ["raw", "hour", "day", "month", "year"]
+			}))
+		},
 		{
 			id: "pesticide-use",
 			entryTypes: ["pounds-applied", "acres-treated", "applications"].map((id) => ({
@@ -500,32 +542,21 @@ describe("pesticide use on a Map", () => {
 		(dateRange: Draft["data"]["dateRange"]) =>
 		(layers: Layer[]): Draft => ({ type: CHART_TYPE, data: { dateRange, layers } });
 
-	it("setUse adds one place-less use layer with the Map's filters and the latest year, and removes it with its options", () => {
+	it("setUse adds one place-less use layer with the Map's filters, and removes it with its options", () => {
 		const d = mapOf({ basemap: "dark" });
 		setNotices(d.data, true);
 		setMapPesticideFilters(d.data, { chemical: "c1" });
 		expect(hasUse(d.data)).toBe(false);
-		setUse(d, true, YEARS);
-		setUse(d, true, YEARS);
+		setUse(d, true);
+		setUse(d, true);
 		expect(d.data.layers.slice(1)).toEqual([
 			{ dataset: PESTICIDE_NOTICES, filters: { chemical: "c1" } },
 			{ dataset: PESTICIDE_USE, filters: { chemical: "c1" } }
 		]);
 		expect(hasUse(d.data)).toBe(true);
-		expect(mapOptions(d).usePeriod).toBe("2023");
-		// A listed period is kept; an unlisted one is replaced by the latest.
-		d.options = { ...mapOptions(d), usePeriod: "2022-07" };
-		setUse(d, true, YEARS);
-		expect(mapOptions(d).usePeriod).toBe("2022-07");
-		d.options = {
-			...mapOptions(d),
-			usePeriod: "1999",
-			useFigure: "acres-treated",
-			useShown: false
-		};
-		d.data.layers = d.data.layers.filter((l) => l.dataset !== PESTICIDE_USE);
-		setUse(d, true, YEARS);
-		expect(mapOptions(d).usePeriod).toBe("2023");
+		// The use reads its period from the Map's stops: switching it on writes no option.
+		expect(d.options).toEqual({ basemap: "dark" });
+		d.options = { ...mapOptions(d), useFigure: "acres-treated", useShown: false };
 		// Smoke and fire go ahead of the notices and use.
 		setSmokeAndFire(d.data, true);
 		expect(d.data.layers.map((l) => l.dataset).slice(1)).toEqual([
@@ -534,19 +565,14 @@ describe("pesticide use on a Map", () => {
 			PESTICIDE_NOTICES,
 			PESTICIDE_USE
 		]);
-		setUse(d, false, YEARS);
+		setUse(d, false);
 		expect(hasUse(d.data)).toBe(false);
 		expect(d.options).toEqual({ basemap: "dark" });
-		// With no years listed, nothing is added.
-		const none = mapOf();
-		setUse(none, true, []);
-		expect(hasUse(none.data)).toBe(false);
-		expect(none.options).toBeUndefined();
 	});
 
 	it("filters survive turning notices off and on while use is on", () => {
 		const d = mapOf();
-		setUse(d, true, YEARS);
+		setUse(d, true);
 		setNotices(d.data, true);
 		setMapPesticideFilters(d.data, { chemical: "c1", category: ["insecticide"] });
 		setNotices(d.data, false);
@@ -572,14 +598,14 @@ describe("pesticide use on a Map", () => {
 	});
 
 	it("isMapShaped accepts notices then use, and refuses a place-bound use layer", () => {
-		const d = mapOf({ usePeriod: "2023" });
+		const d = mapOf();
 		setSmokeAndFire(d.data, true);
 		setNotices(d.data, true);
-		setUse(d, true, YEARS);
+		setUse(d, true);
 		setMapPesticideFilters(d.data, { chemical: "c1" });
 		expect(isMapShaped(d, NOW)).toBe(true);
 		const useOnly = mapOf();
-		setUse(useOnly, true, YEARS);
+		setUse(useOnly, true);
 		expect(isMapShaped(useOnly, NOW)).toBe(true);
 		const swapped = structuredClone(d);
 		swapped.data.layers.splice(3, 2, swapped.data.layers[4], swapped.data.layers[3]);
@@ -601,14 +627,14 @@ describe("pesticide use on a Map", () => {
 			{ dataset: "pesticide-use", entryType: "acres-treated", filters: { chemical: "c1" } },
 			{ dataset: "pesticide-use", entryType: "pounds-applied", filters: { chemical: "c2" } }
 		]);
-		const c = toMapDraft(chart, USE_CATALOG, ALLOWED, NOW, YEARS);
+		const c = toMapDraft(chart, USE_CATALOG, ALLOWED, NOW);
 		expect(c.draft.data.layers).toEqual([
 			{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
 			{ dataset: PESTICIDE_USE, filters: { chemical: "c1" } }
 		]);
-		expect(c.draft.options).toEqual({ useFigure: "acres-treated", usePeriod: "2022" });
+		expect(c.draft.options).toEqual({ useFigure: "acres-treated" });
 		expect(c.dropped).toContain("overlays");
-		expect(isMapShaped(c.draft, NOW)).toBe(true);
+		expect(isMapShaped(c.draft, NOW, USE_CATALOG)).toBe(true);
 		// The catalog's first figure is the default, so it isn't written; one use layer drops nothing.
 		const one = toMapDraft(
 			chartOver({ kind: "custom", start: "2022-01-01", end: "2022-12-31" })([
@@ -617,10 +643,9 @@ describe("pesticide use on a Map", () => {
 			]),
 			USE_CATALOG,
 			ALLOWED,
-			NOW,
-			YEARS
+			NOW
 		);
-		expect(one.draft.options).toEqual({ usePeriod: "2022" });
+		expect(one.draft.options).toBeUndefined();
 		expect(one.dropped).toEqual([]);
 		// A pesticides-only chart gets the first offered pollutant holding its places.
 		const only = toMapDraft(
@@ -629,8 +654,7 @@ describe("pesticide use on a Map", () => {
 			]),
 			USE_CATALOG,
 			ALLOWED,
-			NOW,
-			YEARS
+			NOW
 		);
 		expect(only.draft.data.layers).toEqual([
 			{ dataset: "air-quality", entryType: "o3", place: FRESNO },
@@ -638,46 +662,56 @@ describe("pesticide use on a Map", () => {
 		]);
 		expect(only.dropped).not.toContain("pollutant");
 		expect(only.pollutant).toBeUndefined();
-		// A Map keeps its use, its filters and its three options.
-		const map = mapOf({ usePeriod: "2022-07", useFigure: "applications", useShown: false });
+		// A Map keeps its use, its filters and its options.
+		const map = mapOf({ useFigure: "applications", useShown: false });
 		setNotices(map.data, true);
-		setUse(map, true, YEARS);
+		setUse(map, true);
 		setMapPesticideFilters(map.data, { chemical: "c1" });
-		const again = toMapDraft(map, USE_CATALOG, ALLOWED, NOW, YEARS);
+		const again = toMapDraft(map, USE_CATALOG, ALLOWED, NOW);
 		expect(again.draft.data.layers).toEqual(map.data.layers);
 		expect(again.draft.options).toEqual(map.options);
 		expect(again.dropped).toEqual([]);
-		// With no years known, a chart's use can't come along.
-		const unknown = toMapDraft(chart, USE_CATALOG, ALLOWED, NOW, []);
-		expect(hasUse(unknown.draft.data)).toBe(false);
-		expect(unknown.dropped).toContain("overlays");
 	});
 
-	it("a chart over 2021–2022 gives usePeriod 2022; one over the current year gives the latest listed year", () => {
+	it("a chart with pesticide use keeps its range as a Map, even its untouched default, so use shows", () => {
 		const layers: Layer[] = [
 			{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
 			{ dataset: "pesticide-use", entryType: "pounds-applied" }
 		];
-		const over = (dateRange: Draft["data"]["dateRange"]) =>
-			mapOptions(toMapDraft(chartOver(dateRange)(layers), USE_CATALOG, ALLOWED, NOW, YEARS).draft)
-				.usePeriod;
-		expect(over({ kind: "custom", start: "2021-01-01", end: "2022-12-31" })).toBe("2022");
-		// Its last full year (2024) isn't listed: the last full year that is.
-		expect(over({ kind: "custom", start: "2022-01-01", end: "2024-12-31" })).toBe("2023");
-		expect(over({ kind: "custom", start: "2021-06-01", end: "2023-05-31" })).toBe("2022");
-		expect(over({ kind: "custom", start: "2026-01-01", end: "2026-11-15" })).toBe("2023");
-		expect(over({ kind: "trailing", amount: 30, unit: "day" })).toBe("2023");
+		const fixed = { kind: "custom", start: "2021-01-01", end: "2022-12-31" } as const;
+		expect(
+			toMapDraft(chartOver(fixed)(layers), USE_CATALOG, ALLOWED, NOW).draft.data.dateRange
+		).toEqual(fixed);
+		// The Chart's default isn't a choice, but Now would leave the use undrawn: it's kept.
+		const untouched = toMapDraft(
+			chartOver(structuredClone(DEFAULT_RANGE))(layers),
+			USE_CATALOG,
+			ALLOWED,
+			NOW
+		);
+		expect(untouched.draft.data.dateRange).toEqual(DEFAULT_RANGE);
+		expect(untouched.dropped).not.toContain("dates");
+		// The use moves the Map's Automatic to Monthly, so the kept range steps by month.
+		expect(mapLevelOf(untouched.draft.data, USE_CATALOG, DEFAULT_RANGE, NOW)).toBe("month");
+		// Without use, the untouched default still makes a Map on Now.
+		const plain = toMapDraft(
+			chartOver(structuredClone(DEFAULT_RANGE))([layers[0]]),
+			USE_CATALOG,
+			ALLOWED,
+			NOW
+		);
+		expect(plain.draft.data.dateRange).toBeUndefined();
 	});
 
-	it("a Map's use shown as a chart becomes a pesticide layer at the Map's places when its period is in range, else drops with the use-period note", () => {
-		const map = (usePeriod: string, dateRange?: Draft["data"]["dateRange"]): Draft => {
-			const d = mapOf({ usePeriod, useFigure: "acres-treated" });
+	it("a Map's use shown as a chart becomes a pesticide layer of the figure drawn, with the Map's filters", () => {
+		const map = (dateRange?: Draft["data"]["dateRange"]): Draft => {
+			const d = mapOf({ useFigure: "acres-treated" });
 			if (dateRange) d.data.dateRange = dateRange;
-			setUse(d, true, YEARS);
+			setUse(d, true);
 			setMapPesticideFilters(d.data, { chemical: "c1" });
 			return d;
 		};
-		const in2023 = map("2023-07", { kind: "custom", start: "2023-01-01", end: "2023-12-31" });
+		const in2023 = map({ kind: "custom", start: "2023-01-01", end: "2023-12-31" });
 		const c = fromMapDraft(in2023, chartType, USE_CATALOG, "unavailable", undefined, NOW);
 		expect(c.draft.data.layers).toEqual([
 			{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
@@ -685,21 +719,10 @@ describe("pesticide use on a Map", () => {
 		]);
 		expect(c.dropped).toEqual([]);
 		expect(c.draft.options).toBeUndefined();
-		// A range holding part of the period keeps the use.
-		const partial = map("2023", { kind: "custom", start: "2023-03-01", end: "2023-12-31" });
-		const some = fromMapDraft(partial, chartType, USE_CATALOG, "unavailable", undefined, NOW);
-		expect(some.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality", "pesticide-use"]);
-		expect(some.dropped).toEqual([]);
-		// A range holding none of it drops the use with the note.
-		const outside = map("2023", { kind: "custom", start: "2024-01-01", end: "2024-06-30" });
-		const out = fromMapDraft(outside, chartType, USE_CATALOG, "unavailable", undefined, NOW);
-		expect(out.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality"]);
-		expect(out.dropped).toEqual(["use-period"]);
-		expect(out.usePeriod).toBe("2023");
-		// A Map on Now: the chart's default 30 days don't hold 2023.
-		expect(
-			fromMapDraft(map("2023"), chartType, USE_CATALOG, "unavailable", undefined, NOW).dropped
-		).toEqual(["use-period"]);
+		// A Map on Now (the use isn't drawn there) still hands its use to the chart.
+		const onNow = fromMapDraft(map(), chartType, USE_CATALOG, "unavailable", undefined, NOW);
+		expect(onNow.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality", "pesticide-use"]);
+		expect(onNow.dropped).toEqual([]);
 		// Any other type drops it with the overlays note.
 		const calendar = fromMapDraft(
 			in2023,
@@ -710,7 +733,6 @@ describe("pesticide use on a Map", () => {
 			NOW
 		);
 		expect(calendar.dropped).toContain("overlays");
-		expect(calendar.dropped).not.toContain("use-period");
 		expect(calendar.draft.data.layers.some((l) => l.dataset === "pesticide-use")).toBe(false);
 	});
 });

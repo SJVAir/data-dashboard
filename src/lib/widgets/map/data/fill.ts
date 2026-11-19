@@ -9,8 +9,11 @@ import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { getMetadata, getResolvers } from "$lib/data";
 import type { NowSource, NowState } from "$lib/data/now/client";
 import {
+	atKey,
 	fillableTypes,
+	isPeriodAt,
 	regionDaySource,
+	regionPeriodSource,
 	regionTodaySource,
 	type Snapshot,
 	type SnapshotAt
@@ -24,7 +27,7 @@ import { dataStatus } from "./status";
 /** A fill as map-sdk draws it: every region of the type, each with its figure or none. */
 export type FillData = {
 	features: FeatureCollection<Geometry, MapFeatureProperties>;
-	/** Every figure final (a day's); false keeps the day polling. */
+	/** Every figure final (a stop's); false keeps the stop polling. */
 	final: boolean;
 };
 
@@ -46,7 +49,10 @@ export function fillPolls(source: FillSource | null, value: FillData | undefined
 }
 
 export type FillEntry = {
-	/** A fill of `regionType` by `entryType`'s figure: the day's, or today's so far on now. */
+	/**
+	 * A fill of `regionType` by `entryType`'s figure: the day's, month's or year's (the average of
+	 * the daily figures), or today's so far on now.
+	 */
 	source(args: {
 		regionType: RegionSummaryBulkType;
 		entryType: string;
@@ -128,15 +134,16 @@ export function createFillEntry(ctx: FillContext): FillEntry {
 			const now = at === "now";
 			return {
 				// Now is keyed by today's Pacific date, so it is a new source after midnight.
-				key: `map-fill:${entryType}:${regionType}:${now ? `today:${ctx.today()}` : at.day}`,
+				key: `map-fill:${entryType}:${regionType}:${now ? `today:${ctx.today()}` : atKey(at)}`,
 				cadence: "hour",
-				// Now: today so far, hourly. A day: hourly until every figure is final.
+				// Now: today so far, hourly. A day, month or year: hourly until every figure is final
+				// (the current month or year never is).
 				poll: (value) => now || !value?.final,
 				async fetch(signal) {
 					const [shapes, name, figure, levels] = await Promise.all([
 						ctx.shapes(regionType, signal),
 						ctx.names(signal),
-						ctx.rating.dailyFigure(entryType, signal),
+						ctx.rating.figure(entryType, isPeriodAt(at) ? at.resolution : "day", signal),
 						ctx.rating.levels(entryType, signal)
 					]);
 					// The summaries name regions by server id; the shapes give their codes.
@@ -155,7 +162,9 @@ export function createFillEntry(ctx: FillContext): FillEntry {
 					};
 					const snapshot = now
 						? await regionTodaySource(args).fetch(signal)
-						: await regionDaySource({ ...args, day: at.day }).fetch(signal);
+						: isPeriodAt(at)
+							? await regionPeriodSource({ ...args, at }).fetch(signal)
+							: await regionDaySource({ ...args, day: at.day }).fetch(signal);
 					return {
 						features: toFillFeatures(shapes, snapshot, regionType, name),
 						final: snapshot.final
@@ -171,7 +180,7 @@ export const fillEntry = createFillEntry({
 	shapes: regionTypeShapes,
 	names: (signal) => directoryFor(getMetadata(), getResolvers().regions).regionNamer(signal),
 	rating: {
-		dailyFigure: (entryType, signal) => getMetadata().dailyFigure(entryType, signal),
+		figure: (entryType, resolution, signal) => getMetadata().figure(entryType, resolution, signal),
 		levels: (entryType, signal) => getMetadata().levels(entryType, signal)
 	},
 	today: () => todayPacific()

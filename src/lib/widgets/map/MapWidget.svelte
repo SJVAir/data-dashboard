@@ -18,14 +18,13 @@
 	import { getMetadata } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
-	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatNumber, parseDateKey } from "$lib/format";
+	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { entryMeta, placesLayer } from "../shared/input";
+	import { entryMeta, placesLayer, widgetEffective, widgetPlaceKind } from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
@@ -33,14 +32,15 @@
 	import { generatedTitle } from "../titles.svelte";
 	import { navigate } from "../../../router";
 	import { MapData } from "./data/loaded.svelte";
-	import { isThin } from "./data/monitors";
+	import { isThin, thinDays } from "./data/monitors";
 	import type { UseQuery } from "./data/use";
 	import { USE_FIELDS } from "./data/use-fields";
 	import { sectionZoom } from "./data/use-geometry";
 	import { fitCamera } from "./camera.svelte";
-	import { MapDailyFigure } from "./daily-figure.svelte";
+	import { MapPeriodFigure } from "./period-figure.svelte";
 	import { MapFillTypes } from "./data/fill-types.svelte";
 	import { MapDays } from "./day-mode.svelte";
+	import { mapLevel, type MapLevel } from "./days";
 	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
 	import { focusGeometry } from "./focus";
@@ -70,7 +70,8 @@
 		pollutantLayers
 	} from "./options";
 	import type { NoticesDay } from "./section-links";
-	import { parsePeriod, periodLabel, type UsePeriod } from "./use-period";
+	import { mapNotShown, notShownNotes } from "./not-shown";
+	import { periodLabel, periodOfStop, type UsePeriod } from "./use-period";
 	import { monitorPositions } from "./sources";
 	import { MapToolbar } from "./toolbar/toolbar.svelte";
 	import { MapToolbarWiring, type MapToolbarWiringInput } from "./toolbar/wiring.svelte";
@@ -118,22 +119,6 @@
 			Object.hasOwn(USE_FIELDS, t.id)
 		)
 	);
-	/** The years with pesticide use data (the meta's, newest first); undefined until loaded. */
-	let useYears = $state.raw<number[] | undefined>();
-	/** Counts asks for the years; the use note's Retry asks again after a failure. */
-	let useYearsTries = $state(0);
-	$effect(() => {
-		void useYearsTries;
-		if (!useLayer) return;
-		const controller = new AbortController();
-		pesticideMeta(controller.signal).then(
-			(meta) => (useYears = meta.years),
-			// Without the years the toolbar offers no use rows; use itself fails too (its note's
-			// Retry asks for both again).
-			() => {}
-		);
-		return () => controller.abort();
-	});
 
 	// The toolbar: the options it shows (a viewer's held keys over the saved ones), its changes,
 	// and the filters it puts on the monitors. Its presets are made with the map.
@@ -163,6 +148,9 @@
 		get smokeAndFireNamed() {
 			return !!datasetLabel(HMS_SMOKE) && !!datasetLabel(HMS_FIRE);
 		},
+		get notShown() {
+			return notShown;
+		},
 		get toolbar() {
 			return toolbar;
 		},
@@ -186,15 +174,30 @@
 		},
 		get useFigures() {
 			return useFigures;
-		},
-		get useYears() {
-			return useYears;
 		}
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
 	const shown = $derived(wiring.options);
-	// The days of the tile's range: the stop showing, and the stepper's steps (saved, or a
-	// viewer's held). Without a range the tile shows now.
+	/**
+	 * The Map's dataset over its range (Automatic included: the finest level from Daily up that
+	 * every layer offers), as of today; null without a range (Now).
+	 */
+	const effective = $derived.by(() => {
+		const range = widget.data.dateRange;
+		if (!range) return null;
+		const place = widgetPlaceKind(widget.data, known);
+		const now = pacificDay(days.today, 12);
+		return widgetEffective(widget, known, place, range, now);
+	});
+	/** What the stops step by: the effective resolution; Daily without a range. */
+	const resolution = $derived<MapLevel>(effective ? mapLevel(effective.resolution) : "day");
+	/**
+	 * The place-less datasets not drawn at the resolution (or, for use, on Now), from untrusted
+	 * input: no plugin, no toolbar row, and a note. Known once the catalog is.
+	 */
+	const notShown = $derived(known ? mapNotShown(widget.data, effective) : []);
+	// The periods of the tile's range at its resolution: the stop showing, and the stepper's steps
+	// (saved, or a viewer's held). Without a range the tile shows now.
 	const days: MapDays = new MapDays({
 		get widget() {
 			return widget;
@@ -205,6 +208,9 @@
 		},
 		get saved() {
 			return wiring.saved;
+		},
+		get resolution() {
+			return resolution;
 		}
 	});
 	onDestroy(() => days.destroy());
@@ -226,10 +232,13 @@
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
 		)?.entryType.label
 	);
-	const dailyFigure = new MapDailyFigure(
+	const periodFigure = new MapPeriodFigure(
 		{
 			get entryType() {
 				return entryType;
+			},
+			get resolution() {
+				return days.resolution;
 			},
 			get ranged() {
 				return days.ranged;
@@ -240,11 +249,14 @@
 		},
 		metadata
 	);
-	onDestroy(() => dailyFigure.destroy());
+	onDestroy(() => periodFigure.destroy());
 	/** Whether the figure's name is known for the pollutant drawn (or isn't needed: on now). */
-	const figureLabelSettled = $derived(dailyFigure.settled);
-	/** On a day stop, what the monitors' figure is ("24-hour average"); unset on now. */
-	const figureLabel = $derived(dailyFigure.label);
+	const figureLabelSettled = $derived(periodFigure.settled);
+	/**
+	 * On a stop, what the monitors' figure is ("24-hour average", or at Monthly and Yearly "Average
+	 * of 24-hour averages"); unset on now.
+	 */
+	const figureLabel = $derived(periodFigure.label);
 	const idle = $derived(
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
 	);
@@ -256,6 +268,8 @@
 		if (catalog === undefined || pollutants === undefined) return "loading";
 		if (pollutants === "unavailable") return "pollutants-failed";
 		if (!entryType || !entryLabel || !pollutants.includes(entryType)) return "unknown-entry-type";
+		// A stored level outside the Map's (hour or raw, from untrusted input) draws nothing.
+		if (effective?.unusable) return "no-resolution";
 		return "ok";
 	});
 	const supported = $derived(support === "ok");
@@ -398,24 +412,24 @@
 	// that switches townships to sections.
 	const useFigureId = $derived(wiring.useFigure);
 	const useFigureInfo = $derived(useFigures.find((t) => t.id === useFigureId));
+	/** The period drawn: the month or year stop showing (none on a day or on Now). */
+	const stopPeriod = $derived.by<UsePeriod | null>(() => (days.at ? periodOfStop(days.at) : null));
 	/**
-	 * The period drawn: the saved one, else the latest listed year (drawn, never written; the
-	 * toolbar shows the same).
+	 * Use is on the map: the tile has it, the catalog names it and its figure, a month or year stop
+	 * shows, and it's shown.
 	 */
-	const usePeriod = $derived.by<UsePeriod | null>(() => {
-		const saved = parsePeriod(shown.usePeriod);
-		if (saved) return saved;
-		const latest = useYears?.[0];
-		return latest === undefined ? null : { year: latest, month: null };
-	});
-	/** Use is on the map: the tile has it, the catalog names it and its figure, and it's shown. */
 	const useDrawn = $derived(
-		!!useLayer && !!datasetLabel(PESTICIDE_USE) && !!useFigureInfo && !!usePeriod && wiring.useShown
+		!!useLayer &&
+			!!datasetLabel(PESTICIDE_USE) &&
+			!!useFigureInfo &&
+			!!stopPeriod &&
+			!notShown.includes(PESTICIDE_USE) &&
+			wiring.useShown
 	);
 	/** What use draws; null while it's off, hidden, unparseable, or the catalog lacks it. */
 	const useQuery = $derived.by<UseQuery | null>(() => {
 		const info = useFigureInfo;
-		const period = usePeriod;
+		const period = stopPeriod;
 		if (!useDrawn || !info || !period) return null;
 		return {
 			figure: info.id,
@@ -426,8 +440,8 @@
 	});
 	/** The use layer's label: the figure and the period ("Pounds Applied, 2023"). */
 	const useLabel = $derived(
-		useFigureInfo && usePeriod
-			? m.map_use_layer({ figure: useFigureInfo.label, period: periodLabel(usePeriod) })
+		useFigureInfo && stopPeriod
+			? m.map_use_layer({ figure: useFigureInfo.label, period: periodLabel(stopPeriod) })
 			: undefined
 	);
 	/** The figures the use cards list: the catalog's labels, units and precision. */
@@ -444,7 +458,7 @@
 	/** The day the notices layer shows when that is a past day: the card's "Notices here" link. */
 	const noticesPastDay = $derived.by<NoticesDay | null>(() => {
 		const at = days.at;
-		if (!noticesDrawn || !at || at === "now") return null;
+		if (!noticesDrawn || !at || at === "now" || !("day" in at)) return null;
 		const day = parseDateKey(at.day);
 		return { year: day.y, month: day.m };
 	});
@@ -502,10 +516,9 @@
 		useDrawn && width > 0 && height > 0 && (useLat !== null || useNothingToDraw)
 	);
 
-	/** The use note's Retry: what failed, and the years if they couldn't be loaded. */
+	/** The use note's Retry: what failed. */
 	function retryUse(): void {
 		data.retryUse();
-		if (useYears === undefined) useYearsTries++;
 	}
 	const useFailed = $derived(useDrawn && data.useBlock.townshipsState === "error");
 	const useGone = $derived(useDrawn && data.useUnavailable === "filter-gone");
@@ -513,14 +526,19 @@
 
 	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
 	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
-	/** The fill's layer label: on now it says the figure is today's so far. */
-	const fillLabel = $derived(
-		!fillInfo
-			? undefined
-			: days.onDay
-				? fillInfo.plural
-				: m.map_fill_today_so_far({ regionType: fillInfo.plural })
-	);
+	/**
+	 * The fill's layer label: on now it says the figure is today's so far, and on the current month
+	 * or year that it's the period's so far.
+	 */
+	const fillLabel = $derived.by(() => {
+		if (!fillInfo) return undefined;
+		const regionType = fillInfo.plural;
+		if (!days.onDay) return m.map_fill_today_so_far({ regionType });
+		if (!days.soFar) return regionType;
+		return days.resolution === "year"
+			? m.map_fill_year_so_far({ regionType })
+			: m.map_fill_month_so_far({ regionType });
+	});
 	/**
 	 * The fill failed to load, while it's shown; or the region types it's checked against
 	 * couldn't be looked up (with a saved fill, so it can't be drawn).
@@ -536,10 +554,15 @@
 	}
 
 	// Smoke and fire: now's or the day's, over the whole map, when on (the toolbar's switch hides
-	// them, their data still loading).
-	const smokeAndFire = $derived(data.smokeAndFire && shown.fireAndSmoke !== false);
+	// them, their data still loading). Daily only: not drawn at Monthly or Yearly.
+	const smokeAndFire = $derived(
+		data.smokeAndFire &&
+			shown.fireAndSmoke !== false &&
+			!notShown.includes(HMS_SMOKE) &&
+			!notShown.includes(HMS_FIRE)
+	);
 	/** Smoke and fire failed to load, while they're shown. */
-	const hmsFailed = $derived(data.hmsFailed && shown.fireAndSmoke !== false);
+	const hmsFailed = $derived(data.hmsFailed && smokeAndFire);
 	/** Marker clusters: the saved choice, else the preset's default. */
 	const clustered = $derived(shown.clustered ?? wiring.state?.presetDefaults.clustered !== false);
 	const smokeLabel = $derived(datasetLabel(HMS_SMOKE));
@@ -549,8 +572,13 @@
 	// row hides them, their data still loading).
 	/** The notices' layer label: the catalog's name for the data set. */
 	const noticesLabel = $derived(datasetLabel(PESTICIDE_NOTICES));
-	/** The notices are on the map: the tile has them, the catalog names them, and they're shown. */
-	const noticesDrawn = $derived(!!noticesLabel && data.notices && wiring.noticesShown);
+	/**
+	 * The notices are on the map: the tile has them, the catalog names them, the resolution is
+	 * Daily (or Now), and they're shown.
+	 */
+	const noticesDrawn = $derived(
+		!!noticesLabel && data.notices && !notShown.includes(PESTICIDE_NOTICES) && wiring.noticesShown
+	);
 	/** The notices failed to load, while they're shown. */
 	const noticesFailed = $derived(noticesDrawn && data.noticesFailed);
 	/** A saved filter of the notices is gone, while they're shown: said, never an empty layer. */
@@ -568,6 +596,8 @@
 		const state = data.noticesState;
 		const loaded = state.status === "ready" || state.status === "loading" ? state.data : undefined;
 		if (noticesGone || loaded === undefined || loaded.notices.length > 0) return null;
+		// Spray notices are daily: a month or year stop has none to say "none" about.
+		if (days.onDay && days.resolution !== "day") return null;
 		return days.onDay ? "day" : "now";
 	});
 
@@ -623,7 +653,7 @@
 					layerLabel: label,
 					selectedStyle: "ring",
 					clustered: clusters,
-					// On a day stop: why a monitor has no figure, and what its figure is. Unset on now.
+					// On a stop: why a monitor has no figure, and what its figure is. Unset on now.
 					...(onDay && { detail: thinDetail }),
 					...(figure && { figureLabel: figure })
 				}),
@@ -649,9 +679,22 @@
 			current.setSelection("monitors", selection);
 	});
 
-	/** A day's monitor without enough data for a figure says so where "No level" would be. */
+	/**
+	 * A stop's monitor without enough data for a figure says so where "No level" would be: a day
+	 * had too few readings; a month or year too few days with a figure ("Only 20 of 31 days had a
+	 * figure", from the row's counts).
+	 */
 	function thinDetail(props: MonitorFeatureProperties): string | undefined {
-		return isThin(props) ? m.calendar_not_enough_data() : undefined;
+		if (!isThin(props)) return undefined;
+		if (days.resolution === "day") return m.calendar_not_enough_data();
+		const counts = thinDays(props);
+		return counts
+			? m.map_period_days_with_figure({
+					days: formatNumber(counts.days),
+					expected: formatNumber(counts.expected),
+					expectedValue: counts.expected
+				})
+			: m.map_period_too_few_days();
 	}
 
 	/** Each notices marker's latest properties, by refKey: an open card follows its marker. */
@@ -740,6 +783,9 @@
 			},
 			get dayNoFigures() {
 				return data.dayNoFigures;
+			},
+			get level() {
+				return days.resolution;
 			}
 		},
 		metadata
@@ -844,6 +890,14 @@
 				action: { label: m.widget_state_retry(), onclick: retryUse }
 			});
 		}
+		// No Retry: only another resolution (or dates) brings them back (Edit data, for an editor).
+		for (const { id, message } of notShownNotes(notShown, known, markable)) {
+			notes.push({
+				message,
+				hook: `map-not-shown-${id}`,
+				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
+			});
+		}
 		return notes;
 	});
 
@@ -924,6 +978,7 @@
 		place={note}
 		{noMonitors}
 		onDay={days.onDay}
+		level={days.resolution}
 		onretry={retry}
 		notes={mapNotes}
 	/>
@@ -1013,6 +1068,7 @@
 				<div class="border-border border-t" data-map-days>
 					<DayStepper
 						stops={days.stops}
+						resolution={days.resolution}
 						at={days.index}
 						notFinal={data.dayNotFinal}
 						narrow={stepperNarrow}

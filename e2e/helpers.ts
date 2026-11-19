@@ -89,9 +89,9 @@ export async function addWidget(page: Page, type = "Chart"): Promise<void> {
 	await page.getByRole("button", { name: "Add widget" }).click();
 	await page.getByRole("menuitem", { name: type, exact: true }).click();
 	if (!DATA_TYPES.includes(type)) return;
-	await expect(page.getByRole("heading", { level: 1, name: "Get data" })).toBeVisible();
+	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
 	await addToButton(page).click();
-	await expect(page.getByRole("heading", { level: 1, name: "Get data" })).toBeHidden();
+	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeHidden();
 }
 
 /** Fills the open rename dialog with `value` and saves. */

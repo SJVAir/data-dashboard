@@ -29,8 +29,9 @@
 
 	// The foot of pesticide use's legend section: the active filters (named as charts' legends
 	// name them), then the server's notes on the shades and on when use is released (each title
-	// linking to its source). A period the server doesn't list is the layer's status row ("No data
-	// for ‹period›", the use block's), which map-sdk draws with this note under it.
+	// linking to its source). A period the server doesn't list is the layer's status row ("No
+	// pesticide use reported for ‹period› yet", the use block's), which map-sdk draws with this
+	// note under it.
 	let {
 		filters
 	}: {

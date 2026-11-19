@@ -1,10 +1,19 @@
 import type { MonitorLatest } from "@sjvair/sdk";
 import type { NowSource } from "$lib/data/now/client";
 type Src = NowSource<MonitorLatest[]>;
-import { getMonitorSummariesBulkDaily, getMonitors } from "@sjvair/sdk";
+import {
+	getMonitorSummariesBulkDaily,
+	getMonitorSummariesBulkMonthly,
+	getMonitors
+} from "@sjvair/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { m } from "$lib/paraglide/messages.js";
 
-vi.mock("@sjvair/sdk", () => ({ getMonitors: vi.fn(), getMonitorSummariesBulkDaily: vi.fn() }));
+vi.mock("@sjvair/sdk", () => ({
+	getMonitors: vi.fn(),
+	getMonitorSummariesBulkDaily: vi.fn(),
+	getMonitorSummariesBulkMonthly: vi.fn()
+}));
 vi.mock("$lib/data", () => ({
 	getResolvers: () => ({ regions: { resolve: async () => null } }),
 	placeRegion: async () => null
@@ -15,6 +24,7 @@ import {
 	createMonitorsEntry,
 	isThin,
 	snapshotScope,
+	thinDays,
 	toDayFeatures,
 	toMonitorFeatures
 } from "./monitors";
@@ -148,6 +158,33 @@ describe("a day's monitors", () => {
 		expect(out.features[1].properties.value).toBeNull();
 		expect(isThin(out.features[1].properties)).toBe(true);
 		expect(isThin(out.features[0].properties)).toBe(false);
+		expect(thinDays(out.features[1].properties)).toBeUndefined();
+	});
+
+	it("a thin month keeps its day counts for the plugin's detail", () => {
+		const out = toDayFeatures(
+			[monitor("a")],
+			snapshot([
+				["a", { value: null, level: null, kind: "thin", days: { days: 20, expected: 31 } }]
+			])
+		);
+		expect(isThin(out.features[0].properties)).toBe(true);
+		expect(thinDays(out.features[0].properties)).toEqual({ days: 20, expected: 31 });
+	});
+
+	it("a month with none of its days' figures keeps the 0-of-N counts, said plainly", () => {
+		const out = toDayFeatures(
+			[monitor("a")],
+			snapshot([["a", { value: null, level: null, kind: "thin", days: { days: 0, expected: 30 } }]])
+		);
+		expect(thinDays(out.features[0].properties)).toEqual({ days: 0, expected: 30 });
+		expect(m.map_period_days_with_figure({ days: "0", expected: "30", expectedValue: 30 })).toBe(
+			"Only 0 of 30 days had a figure"
+		);
+		// Never "of 1 days".
+		expect(m.map_period_days_with_figure({ days: "0", expected: "1", expectedValue: 1 })).toBe(
+			"Only 0 of 1 day had a figure"
+		);
 	});
 
 	it("maps the places' scope onto the snapshot's, with a stable key", () => {
@@ -174,20 +211,20 @@ describe("a day's monitors", () => {
 			{ id: "a", summaries: [{ timestamp: "2026-09-09T07:00:00Z", is_final: true, max_1h: 61 }] }
 		] as never);
 		const rating = {
-			dailyFigure: vi.fn(async () => ({ field: "max_1h", label: null })),
+			figure: vi.fn(async () => ({ field: "max_1h", label: null })),
 			levels: vi.fn(async () => [])
 		};
-		const source = entry().daySource({
+		const source = entry().stopSource({
 			scope: { kind: "regions", ids: ["r1"], key: "r1" },
 			entryType: "o3",
-			day: "2026-09-09",
+			at: { day: "2026-09-09" },
 			rating,
 			today: () => "2026-11-15"
 		});
 		expect(source.key).toBe("snapshot:monitors:o3:regions:r1:2026-09-09");
 		expect(source.cadence).toBe("hour");
 		const snap = await source.fetch(new AbortController().signal);
-		expect(rating.dailyFigure).toHaveBeenCalledWith("o3", expect.anything());
+		expect(rating.figure).toHaveBeenCalledWith("o3", "day", expect.anything());
 		expect(bulk.mock.calls[0][0]).toEqual({
 			entryType: "o3",
 			start: "2026-09-09",
@@ -195,6 +232,39 @@ describe("a day's monitors", () => {
 			region: ["r1"]
 		});
 		expect(snap.figures.get("a")).toMatchObject({ value: 61, kind: "rated" });
+		expect(source.poll(snap)).toBe(false);
+	});
+
+	it("a month's source reads the bulk monthly summaries and the month's figure", async () => {
+		const bulk = vi.mocked(getMonitorSummariesBulkMonthly);
+		bulk.mockResolvedValue([
+			{
+				id: "a",
+				summaries: [{ timestamp: "2026-09-01T07:00:00Z", is_final: true, daily_statistic_mean: 14 }]
+			}
+		] as never);
+		const rating = {
+			figure: vi.fn(async () => ({ field: "daily_statistic_mean", label: "Average" })),
+			levels: vi.fn(async () => [])
+		};
+		const source = entry().stopSource({
+			scope: { kind: "regions", ids: ["r1"], key: "r1" },
+			entryType: "pm25",
+			at: { start: "2026-09-01", resolution: "month" },
+			rating,
+			today: () => "2026-11-15"
+		});
+		expect(source.key).toBe("snapshot:monitors:pm25:regions:r1:month:2026-09-01");
+		const snap = await source.fetch(new AbortController().signal);
+		expect(rating.figure).toHaveBeenCalledWith("pm25", "month", expect.anything());
+		expect(vi.mocked(getMonitorSummariesBulkDaily)).not.toHaveBeenCalled();
+		expect(bulk.mock.calls[0][0]).toEqual({
+			entryType: "pm25",
+			start: "2026-09-01",
+			end: "2026-09-30",
+			region: ["r1"]
+		});
+		expect(snap.figures.get("a")).toMatchObject({ value: 14, kind: "rated" });
 		expect(source.poll(snap)).toBe(false);
 	});
 });

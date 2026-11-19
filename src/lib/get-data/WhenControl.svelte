@@ -3,11 +3,14 @@
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Select } from "bits-ui";
 	import { Input } from "$lib/components/ui/input";
-	import { DateRangeSpecSchema, type DateRangeSpec } from "$lib/data/schema";
-	import { formatDateRange, todayPacific } from "$lib/format";
+	import { isLevel, type Level } from "$lib/data/dataset-rules";
+	import { DateRangeSpecSchema, type DateRangeSpec, type Resolution } from "$lib/data/schema";
+	import { formatDateRange, formatMonthName, todayPacific } from "$lib/format";
 	import { resolveRange } from "$lib/format/range";
 	import { m } from "$lib/paraglide/messages.js";
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+	import { wholePeriodRange } from "./dataset-offer";
+	import { shownRange } from "./shown-range";
 	import type { WidgetType } from "$lib/widgets/registry";
 	import {
 		blockedBySpan,
@@ -21,6 +24,8 @@
 		type,
 		value,
 		now,
+		resolution,
+		resolutionFor,
 		onchange
 	}: {
 		/**
@@ -31,6 +36,16 @@
 		/** The range; none is Now (for a type with `now`). */
 		value: DateRangeSpec | undefined;
 		now: Date;
+		/**
+		 * The dataset's effective resolution (Automatic included): at Monthly or Yearly the shown
+		 * dates are whole periods.
+		 */
+		resolution?: Resolution;
+		/**
+		 * The dataset's effective resolution over another range (Automatic follows the range): a
+		 * type whose span counts stops (the Map) checks each choice at its own. Missing: `resolution`.
+		 */
+		resolutionFor?: (spec: DateRangeSpec) => Level;
 		/** A range was chosen, or Now (`undefined`). */
 		onchange: (spec: DateRangeSpec | undefined) => void;
 	} = $props();
@@ -76,7 +91,8 @@
 	}
 
 	function blockText(spec: DateRangeSpec): string | null {
-		const block = blockedBySpan(spec, type.span, now);
+		const level = resolutionFor?.(spec) ?? (isLevel(resolution) ? resolution : undefined);
+		const block = blockedBySpan(spec, type.span, now, level);
 		if (block === "too-short") return m.get_data_span_too_short();
 		if (block === "too-long") return m.get_data_span_too_long();
 		return null;
@@ -101,9 +117,16 @@
 		onchange(specFor(preset));
 	}
 
-	const resolved = $derived(resolveRange(base, now));
+	const shown = $derived(shownRange(base, now, resolution));
+	const resolved = $derived(shown.resolved);
+	// Never a future end: a current month or year shows to today, "so far".
 	const rangeText = $derived.by(() => {
-		const range = formatDateRange(resolved.firstDate, resolved.lastDate);
+		const range = formatDateRange(shown.start, shown.end);
+		if (shown.soFar) {
+			return resolved.rolling
+				? m.get_data_range_rolling_so_far({ range })
+				: m.get_data_range_so_far({ range });
+		}
 		return resolved.rolling ? m.get_data_range_rolling({ range }) : range;
 	});
 
@@ -137,6 +160,32 @@
 		return { kind: "custom" as const, start: resolved.firstDate, end: resolved.lastDate };
 	});
 	const setSpec = $derived(value?.kind === "set" ? value : null);
+	/** At Monthly or Yearly a custom range is picked in whole months or years. */
+	const wholeUnit = $derived(
+		resolution === "month" || resolution === "year" ? resolution : undefined
+	);
+	const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
+
+	/**
+	 * A whole-period edit: one side's month (`MM`) or year (`YYYY`) changed, the other kept; stored
+	 * from the first day of the start period to the last day of the end period.
+	 */
+	function setWhole(side: "start" | "end", part: "month" | "year", raw: string): void {
+		if (!custom || !wholeUnit) return;
+		if (part === "year" && !/^\d{4}$/.test(raw)) {
+			// Said under the inputs (WCAG 3.3.1), never dropped silently; nothing is stored.
+			inputError = m.get_data_custom_year_invalid();
+			return;
+		}
+		const months = { start: custom.start.slice(0, 7), end: custom.end.slice(0, 7) };
+		const [year, month] = months[side].split("-");
+		months[side] = part === "year" ? `${raw}-${month}` : `${year}-${raw}`;
+		apply(
+			wholeUnit === "year"
+				? wholePeriodRange(months.start.slice(0, 4), months.end.slice(0, 4), "year")
+				: wholePeriodRange(months.start, months.end, "month")
+		);
+	}
 
 	const errorId = `${uid}-error`;
 	const labelId = `${uid}-label`;
@@ -246,6 +295,56 @@
 				/>
 			{/if}
 		</label>
+	{:else if custom && wholeUnit}
+		<div class="flex flex-wrap gap-4">
+			{#each ["start", "end"] as const as side (side)}
+				{@const date = side === "start" ? custom.start : custom.end}
+				{@const captionId = `${uid}-${side}-caption`}
+				{#if wholeUnit === "year"}
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-muted-foreground text-xs">
+							{side === "start" ? m.get_data_custom_start_year() : m.get_data_custom_end_year()}
+						</span>
+						<Input
+							type="number"
+							inputmode="numeric"
+							class="w-24"
+							value={date.slice(0, 4)}
+							aria-describedby={inputError ? errorId : undefined}
+							onchange={(e) => setWhole(side, "year", e.currentTarget.value)}
+						/>
+					</label>
+				{:else}
+					<div class="flex flex-col gap-1 text-sm" role="group" aria-labelledby={captionId}>
+						<span id={captionId} class="text-muted-foreground text-xs">
+							{side === "start" ? m.get_data_custom_start_month() : m.get_data_custom_end_month()}
+						</span>
+						<div class="flex gap-2">
+							<select
+								aria-label={m.get_data_custom_month()}
+								class="border-input bg-card text-field h-8 min-w-0 rounded-(--radius-control) border px-2 md:text-sm"
+								value={date.slice(5, 7)}
+								aria-describedby={inputError ? errorId : undefined}
+								onchange={(e) => setWhole(side, "month", e.currentTarget.value)}
+							>
+								{#each MONTHS as month (month)}
+									<option value={month}>{formatMonthName(`2000-${month}-15`)}</option>
+								{/each}
+							</select>
+							<Input
+								type="number"
+								inputmode="numeric"
+								aria-label={m.get_data_custom_year()}
+								class="w-24"
+								value={date.slice(0, 4)}
+								aria-describedby={inputError ? errorId : undefined}
+								onchange={(e) => setWhole(side, "year", e.currentTarget.value)}
+							/>
+						</div>
+					</div>
+				{/if}
+			{/each}
+		</div>
 	{:else if custom}
 		<div class="flex flex-wrap gap-2">
 			<label class="flex flex-col gap-1 text-sm">

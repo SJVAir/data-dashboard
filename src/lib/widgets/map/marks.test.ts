@@ -126,11 +126,11 @@ describe("hiddenReasons", () => {
 		expect(hiddenReasons(["a", "b"], null, reports, loaded)).toEqual(new Map([["unknown", 2]]));
 	});
 
-	it("on a day, a mark in the places with no row that day is day, before the options", () => {
+	it("on a stop, a mark in the places with no figure for the period is period, before the options", () => {
 		const dayDrawn = new Set(["d"]);
 		const inPlaces = new Set(["c", "d"]);
 		expect(hiddenReasons(["c"], monitors, reports, inPlaces, dayDrawn)).toEqual(
-			new Map([["day", 1]])
+			new Map([["period", 1]])
 		);
 		// Drawn that day but hidden: the options; outside the places: still places.
 		expect(hiddenReasons(["d", "a"], monitors, reports, inPlaces, dayDrawn)).toEqual(
@@ -159,20 +159,20 @@ describe("hiddenReasonLines", () => {
 		["places", 1]
 	]);
 
-	it("puts the day's line after the pollutant's", () => {
-		expect(HIDDEN_REASON_ORDER).toEqual(["pollutant", "day", "options", "places", "unknown"]);
+	it("puts the period's line after the pollutant's", () => {
+		expect(HIDDEN_REASON_ORDER).toEqual(["pollutant", "period", "options", "places", "unknown"]);
 		expect(
 			hiddenReasonLines(
 				new Map([
 					["places", 1],
-					["day", 2],
+					["period", 2],
 					["pollutant", 1]
 				]),
 				"Ozone"
 			)
 		).toEqual([
 			{ reason: "pollutant", count: 1 },
-			{ reason: "day", count: 2 },
+			{ reason: "period", count: 2 },
 			{ reason: "places", count: 1 }
 		]);
 	});

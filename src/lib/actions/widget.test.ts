@@ -272,7 +272,7 @@ describe("Edit data", () => {
 		async (type) => {
 			const { app } = await setup([typed(type)]);
 			const item = editItem(app)!;
-			expect(item).toMatchObject({ label: "Edit data", group: "data" });
+			expect(item).toMatchObject({ label: "Open in Data Portal", group: "data" });
 			vi.mocked(navigate).mockClear();
 			run(item);
 			expect(navigate).toHaveBeenCalledWith("/dashboards/:id/widgets/:widgetId/edit", {

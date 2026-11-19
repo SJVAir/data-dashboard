@@ -40,7 +40,8 @@ export type AlignedSeries = {
 export type XRange = { min: number; max: number };
 
 /**
- * The time axis's extent for a widget's date range: the range (narrowed to `sub` when set) with
+ * The time axis's extent for a widget's date range: the range as fetched (widened to whole
+ * periods at Monthly or Yearly, like the query; narrowed to `sub` when set) with
  * its end clipped to `now`. For a period resolution both ends are period starts, the last being
  * the period at or before now, so a partial period's dot sits at the edge. Undefined when nothing
  * of the range has happened yet.
@@ -51,7 +52,7 @@ export function chartXRange(
 	resolution: Resolution,
 	now: Date
 ): XRange | undefined {
-	const r = resolveRange(dateRange, now);
+	const r = resolveRange(dateRange, now, resolution);
 	let from = r.start.getTime();
 	// Exclusive.
 	let to = Math.min(r.end.getTime(), now.getTime());

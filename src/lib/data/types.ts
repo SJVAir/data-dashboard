@@ -11,7 +11,10 @@ export type SeriesPoint = {
 	partial: boolean;
 	/** A daily point's highest hourly mean and that hour's start (epoch ms); see `worstHours`. */
 	worstHour?: { t: number; value: number };
-	/** A daily point's server figure (`QueryInput.dailyFigure`): `null` when the row has it null. */
+	/**
+	 * The point's server figure (`QueryInput.figure`): `null` when the row has it null ("Not
+	 * enough data"). Present only when a figure was asked for.
+	 */
 	figure?: number | null;
 	/** The row's `is_final`, read together with `figure`; absent when the row has none. */
 	final?: boolean;
@@ -119,16 +122,21 @@ export type Target =
 export type QueryInput = {
 	layer: Layer;
 	dateRange: DateRangeSpec;
-	pin?: Resolution;
+	/**
+	 * The dataset's resolution (`effectiveResolution`), fetched exactly: the level itself, raw
+	 * downsampled to it when only raw is offered, else `no-resolution`. No coarser fallback.
+	 */
+	resolution: Resolution;
 	/**
 	 * Asks for each day's worst hourly average; honored only for one place on a daily view of at
 	 * most `WORST_HOUR_MAX_DAYS` days, and ignored otherwise (it doesn't change the cache key then).
 	 */
 	worstHour?: boolean;
 	/**
-	 * A summary field name (such as `mean_24h`) each daily point carries as `figure`; honored only
-	 * at resolution `"day"`, and part of the cache key when set.
+	 * The summary field (`MetadataSource.figure`, such as `mean_24h` or `daily_statistic_mean`)
+	 * each point carries as `figure`; honored only at `"day"`, `"month"` and `"year"`, and part of
+	 * the cache key when set.
 	 */
-	dailyFigure?: string;
+	figure?: string;
 	timeSubRange?: TimeSubRange;
 };

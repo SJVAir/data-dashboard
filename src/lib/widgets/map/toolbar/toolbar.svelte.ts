@@ -8,11 +8,9 @@ import {
 	type OptionRow,
 	type OptionValues
 } from "@sjvair/map-sdk";
-import { formatMonthName, formatYear } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { mapMessages } from "../host/messages";
 import type { MapOptions } from "../options";
-import { parsePeriod } from "../use-period";
 import {
 	basemap,
 	clusters,
@@ -31,8 +29,6 @@ import {
 	toValues,
 	USE_FIGURE_KEY,
 	USE_KEY,
-	USE_MONTH_KEY,
-	USE_YEAR_KEY,
 	type MapOffer
 } from "./values";
 
@@ -65,9 +61,6 @@ export type UseFigureInfo = { id: string; label: string; units: string };
 
 /** The id of the toolbar's Pesticide use group. */
 export const USE_GROUP = "pesticide-use";
-/** The month select's value for the whole year. */
-const WHOLE_YEAR = "all";
-const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 /** The fill row's value key (option `fillShown`): on by default, so the fill shows. */
 export const FILL_KEY = "regions";
@@ -168,49 +161,17 @@ export class MapToolbar {
 				rows: layerRows
 			});
 		}
-		const period = parsePeriod(options.usePeriod);
-		/** The period's year and month as the selects show them: the saved one, else the latest. */
-		const periodValues: OptionValues = {};
 		if (useOffer) {
-			const year = period?.year ?? useOffer.years[0];
-			if (year !== undefined) periodValues[USE_YEAR_KEY] = String(year);
-			periodValues[USE_MONTH_KEY] = period?.month ? String(period.month) : WHOLE_YEAR;
 			const figures = useOffer.figures.flatMap((id) => {
 				const info = useFigures.find((f) => f.id === id);
 				return info ? [{ value: id, label: info.label, unit: info.units }] : [];
 			});
-			// A saved year the meta no longer lists stays the one shown (it draws "No data").
-			const years = [...useOffer.years];
-			if (period && !years.includes(period.year)) years.push(period.year);
 			groups.push({
 				id: USE_GROUP,
 				label: m.map_use_group(),
 				icon: use,
 				cluster: CLUSTER,
-				rows: [
-					{ kind: "select", id: USE_FIGURE_KEY, label: m.map_use_figure(), choices: figures },
-					{
-						kind: "select",
-						id: USE_YEAR_KEY,
-						label: m.map_use_year(),
-						choices: years.map((y) => ({
-							value: String(y),
-							label: formatYear(`${String(y).padStart(4, "0")}-01-01`)
-						}))
-					},
-					{
-						kind: "select",
-						id: USE_MONTH_KEY,
-						label: m.map_use_month(),
-						choices: [
-							{ value: WHOLE_YEAR, label: m.map_use_whole_year() },
-							...MONTHS.map((n) => ({
-								value: String(n),
-								label: formatMonthName(`2000-${String(n).padStart(2, "0")}-01`)
-							}))
-						]
-					}
-				]
+				rows: [{ kind: "select", id: USE_FIGURE_KEY, label: m.map_use_figure(), choices: figures }]
 			});
 		}
 		groups.push(...forSettings.groups);
@@ -223,8 +184,7 @@ export class MapToolbar {
 			...(noticesRow && { [NOTICES_KEY]: true }),
 			...(useRow && {
 				[USE_KEY]: true,
-				...(useOffer!.figures[0] !== undefined && { [USE_FIGURE_KEY]: useOffer!.figures[0] }),
-				...periodValues
+				...(useOffer!.figures[0] !== undefined && { [USE_FIGURE_KEY]: useOffer!.figures[0] })
 			})
 		};
 		const rows: MapToolbarRows = {
@@ -233,11 +193,10 @@ export class MapToolbar {
 			inside: shown.monitors && offered.includes("inside")
 		};
 		// The values are the options over the presets' defaults, as the map draws them: a viewer's
-		// key held as missing shows the default, not the owner's value. Reset puts back `defaults`,
-		// which hold the period shown: the period isn't a Reset key (Reset never changes the data).
+		// key held as missing shows the default, not the owner's value. Reset puts back `defaults`.
 		return {
 			groups,
-			defaults: { ...(ownerValues ?? presets), ...periodValues },
+			defaults: ownerValues ?? presets,
 			values: toValues(options, offer, presets, drawn, useOffer ? useFigure : undefined),
 			rows
 		};

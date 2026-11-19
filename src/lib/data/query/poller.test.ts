@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryActivity } from "$lib/platform/memory";
 import type { DatasetAdapter, RegionResolver } from "../adapters/registry";
-import type { DateRangeSpec } from "../schema";
+import type { DateRangeSpec, Resolution } from "../schema";
 import { fixtureMetadata } from "../testing/fixtures";
 import type { QueryData, QueryInput } from "../types";
 import { createQueryClient } from "./client";
@@ -70,10 +70,12 @@ function setup() {
 	return { client, calls, mode, activity };
 }
 
-function input(dateRange: DateRangeSpec): QueryInput {
+/** `resolution` defaults to a week's (the range ladder's hourly). */
+function input(dateRange: DateRangeSpec, resolution: Resolution = "hour"): QueryInput {
 	return {
 		layer: { dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m-pa" } },
-		dateRange
+		dateRange,
+		resolution
 	};
 }
 
@@ -95,7 +97,7 @@ describe("startPoller", () => {
 		const { client, calls } = setup();
 		client.subscribe(input(WEEK), ignore);
 		client.subscribe(input({ kind: "custom", start: "2026-01-01", end: "2026-01-07" }), ignore);
-		client.subscribe(input({ kind: "trailing", amount: 1, unit: "day" }), ignore);
+		client.subscribe(input({ kind: "trailing", amount: 1, unit: "day" }, "raw"), ignore);
 		await flush();
 		expect(calls).toHaveLength(3);
 		const past = calls.find((c) => c.key.startsWith("2026-01-01"));
@@ -180,7 +182,7 @@ describe("startPoller", () => {
 	it("paused while hidden", async () => {
 		const { client, calls, activity } = setup();
 		client.subscribe(input(WEEK), ignore);
-		client.subscribe(input({ kind: "trailing", amount: 1, unit: "day" }), ignore);
+		client.subscribe(input({ kind: "trailing", amount: 1, unit: "day" }, "raw"), ignore);
 		await flush();
 		expect(calls).toHaveLength(2);
 

@@ -18,6 +18,8 @@ import { draftChanged, editDraft, saveEdit } from "./edit";
 // The live-link rule's region lookup: any point is in ZIP 93721.
 vi.mock("$lib/data", () => ({
 	placeRegion: async () => ({ type: "zipcode", code: "93721" }),
+	// Point lookups read the catalog for the widget's resolution; without one, Automatic's range level.
+	getMetadata: () => ({ catalog: async () => "unavailable" as const }),
 	getResolvers: () => ({
 		regions: { resolve: async () => ({ id: "z1", name: "ZIP 93721" }) }
 	})

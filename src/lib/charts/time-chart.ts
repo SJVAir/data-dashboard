@@ -14,7 +14,7 @@ import {
 	type XRange
 } from "./series";
 import { drawBars, drawMarkers, drawSticks, type Bar, type Project } from "./sticks";
-import { periodSpan, type ChartStrip } from "./strips";
+import type { ChartStrip } from "./strips";
 import { drawThresholdLine, type ThresholdLine } from "./threshold-line";
 
 export { ancestorAnimationsSettled } from "./settled";
@@ -78,7 +78,7 @@ export type ChartData = {
 	daily?: boolean;
 	/**
 	 * Number overlays, each drawn in its own plot under the main one (in `stripTargets`); the
-	 * count and each strip's `chart` and `wholePeriod` must stay the same across updates.
+	 * count and each strip's `chart` must stay the same across updates.
 	 */
 	strips?: ChartStrip[];
 	/** A level's line across the main plot (display only); the value axis includes it. */
@@ -103,14 +103,18 @@ export type TimeChart = {
 };
 
 function plotData(aligned: AlignedSeries): uPlot.AlignedData {
-	return [aligned.xs, ...aligned.points.map((row) => row.map((p) => (p ? p.mean : null)))];
+	// A point with no value (a figure with not enough data: NaN) is a gap, as a missing one is.
+	return [
+		aligned.xs,
+		...aligned.points.map((row) => row.map((p) => (p && Number.isFinite(p.mean) ? p.mean : null)))
+	];
 }
 
 /** The value axis's extent: from `yMin` (lowered to the data if needed) or 0, up past the data. */
 function valueRange(data: ChartData, levels: Level[]): [number, number] {
-	const values = data.aligned.points.flatMap((row) =>
-		row.flatMap((p) => (p ? [p.mean, p.worstHour?.value ?? p.mean] : []))
-	);
+	const values = data.aligned.points
+		.flatMap((row) => row.flatMap((p) => (p ? [p.mean, p.worstHour?.value ?? p.mean] : [])))
+		.filter(Number.isFinite);
 	const dataMax = values.length ? Math.max(...values) : null;
 	const dataMin = values.length ? Math.min(...values) : 0;
 	const top = valueAxisMax(levels, dataMax);
@@ -165,7 +169,7 @@ function stripRange(strip: ChartStrip): [number, number] {
 	return [floor === null ? niceLo : lo, niceHi];
 }
 
-/** A strip's plotted points: gap-filled at the chart's periods, or each whole period as is. */
+/** A strip's plotted points, gap-filled at the chart's periods. */
 function stripSeries(strip: ChartStrip, range: XRange | undefined): AlignedSeries {
 	const data = {
 		series: [{ place: "strip", points: strip.points }],
@@ -175,7 +179,7 @@ function stripSeries(strip: ChartStrip, range: XRange | undefined): AlignedSerie
 		processor: null,
 		fetchedAt: 0
 	};
-	return alignSeries(data, strip.wholePeriod ? undefined : range);
+	return alignSeries(data, range);
 }
 
 let syncCount = 0;
@@ -522,7 +526,7 @@ export function createTimeChart(
 		return plot;
 	}
 
-	/** A strip's bars, clipped to its plot; a whole-period bar spans its period. */
+	/** A strip's bars, clipped to its plot. */
 	function drawStripBars(p: uPlot, strip: ChartStrip, aligned: AlignedSeries): number {
 		const r = ratio();
 		const toPx = (t: number) => p.valToPos(t, "x", true);
@@ -533,17 +537,8 @@ export function createTimeChart(
 		const list: Bar[] = [];
 		aligned.points[0].forEach((pt, k) => {
 			if (!pt || !Number.isFinite(pt.mean)) return;
-			let x0: number;
-			let x1: number;
-			if (strip.wholePeriod) {
-				const [start, end] = periodSpan(pt.t, strip.resolution);
-				// A hairline gap between neighboring periods.
-				x0 = toPx(start) + r;
-				x1 = toPx(end) - r;
-			} else {
-				x0 = toPx(aligned.xs[k]) - width / 2;
-				x1 = x0 + width;
-			}
+			const x0 = toPx(aligned.xs[k]) - width / 2;
+			const x1 = x0 + width;
 			if (x1 <= left || x0 >= right) return;
 			list.push({ x0, x1, base, top: p.valToPos(pt.mean, "y", true), partial: pt.partial });
 		});
@@ -591,7 +586,11 @@ type SetCursor = (opts: { left: number; top: number }, fire?: boolean, pub?: boo
  */
 export function cursorTo(u: uPlot, idx: number, value: number): void {
 	(u.setCursor as SetCursor)(
-		{ left: u.valToPos(u.data[0][idx], "x"), top: u.valToPos(value, "y") },
+		{
+			left: u.valToPos(u.data[0][idx], "x"),
+			// A period with no value (not enough data) puts the cursor at the axis's foot.
+			top: u.valToPos(Number.isFinite(value) ? value : (u.scales.y.min ?? 0), "y")
+		},
 		true,
 		true
 	);

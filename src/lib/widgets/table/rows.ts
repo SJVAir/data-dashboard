@@ -1,8 +1,5 @@
 import type { Level } from "$lib/data/metadata";
-import type { Resolution } from "$lib/data/schema";
 import type { PlaceInfo, QueryData, SeriesPoint } from "$lib/data/types";
-import { periodSpan } from "$lib/charts/strips";
-import { periodStart } from "$lib/format/range";
 
 /**
  * One period: its start, whether any place's value is still incomplete, a cell per place, and an
@@ -30,50 +27,27 @@ export type OverlayRows = {
 
 /**
  * An overlay column: which overlay, the main place it's for, that overlay's series key and its
- * own place info (a weather layer's station, a pesticide layer's filters). `whole` is the
- * overlay's resolution when it is coarser than the main's (a month's pesticide use under daily
- * rows): each of its cells then repeats one value for the whole period.
+ * own place info (a weather layer's station, a pesticide layer's filters).
  */
 export type OverlayColumn = {
 	overlay: number;
 	place: PlaceInfo;
 	key: string;
 	info: PlaceInfo | undefined;
-	whole: Resolution | null;
 };
-
-/** Day values only line up with periods no longer than a day. */
-export function byDay(data: QueryData): boolean {
-	return data.resolution === "raw" || data.resolution === "hour" || data.resolution === "day";
-}
 
 /**
  * One column per main place per overlay, overlay by overlay. An overlay's places come in the
  * same request order as the main's, so they pair by index (a point's region can differ by
- * dataset). A level overlay has none when the main's periods are longer than a day; a number
- * overlay is pinned to the main's resolution (or the nearest coarser one), so it always lines up.
+ * dataset). Every overlay is fetched at the main's resolution, so its periods are the main's.
  */
 export function overlayColumns(data: QueryData, overlays: OverlayRows[]): OverlayColumn[] {
-	return overlays.flatMap((o, overlay) => {
-		if (o.kind === "level" && !byDay(data)) return [];
-		const whole = o.kind === "number" && o.data.resolution !== data.resolution;
-		return data.places.flatMap((place, i) => {
+	return overlays.flatMap((o, overlay) =>
+		data.places.flatMap((place, i) => {
 			const info = o.data.places[i];
-			return info === undefined
-				? []
-				: [{ overlay, place, key: info.place, info, whole: whole ? o.data.resolution : null }];
-		});
-	});
-}
-
-/** A number overlay column's lookup: the point for a main period starting at `t`. */
-function pointAt(points: SeriesPoint[], resolution: Resolution, whole: boolean) {
-	if (!whole) {
-		const byTime = new Map(points.map((p) => [p.t, p]));
-		return (t: number) => byTime.get(t) ?? null;
-	}
-	const spans = points.map((p) => [periodSpan(p.t, resolution), p] as const);
-	return (t: number) => spans.find(([[start, end]]) => start <= t && t < end)?.[1] ?? null;
+			return info === undefined ? [] : [{ overlay, place, key: info.place, info }];
+		})
+	);
 }
 
 /**
@@ -88,8 +62,7 @@ export function wideRows(data: QueryData, overlays: OverlayRows[] = []): TableRo
 	const times = new Set<number>();
 	for (const s of data.series) for (const p of s.points) times.add(p.t);
 
-	// Each column: the cell for a main period starting at `t`, and for a level overlay, which
-	// day it is (a level is a day's, so an hourly row takes its day's).
+	// Each column: the cell for a main period starting at `t`.
 	const columns = overlayColumns(data, overlays).map((c) => {
 		const { data: od, levels, kind } = overlays[c.overlay];
 		const points = od.series.find((s) => s.place === c.key)?.points ?? [];
@@ -97,8 +70,8 @@ export function wideRows(data: QueryData, overlays: OverlayRows[] = []): TableRo
 			if (data.resolution === "day" && od.resolution === "day") {
 				for (const p of points) times.add(p.t);
 			}
-			const find = pointAt(points, od.resolution, c.whole !== null);
-			return (t: number) => find(t);
+			const byTime = new Map(points.map((p) => [p.t, p]));
+			return (t: number) => byTime.get(t) ?? null;
 		}
 		const days = new Map(
 			points.flatMap((p) => {
@@ -107,8 +80,7 @@ export function wideRows(data: QueryData, overlays: OverlayRows[] = []): TableRo
 			})
 		);
 		if (data.resolution === "day") for (const t of days.keys()) times.add(t);
-		return (t: number) =>
-			days.get(data.resolution === "day" ? t : periodStart(new Date(t), "day").getTime()) ?? null;
+		return (t: number) => days.get(t) ?? null;
 	});
 
 	return [...times]
@@ -123,13 +95,20 @@ export function wideRows(data: QueryData, overlays: OverlayRows[] = []): TableRo
 			};
 		});
 }
-/** Rows ordered by date (`"t"`) or a place's mean; periods with no value there come last either way. */
+/**
+ * Rows ordered by date (`"t"`) or a place's value; periods with no value there (no point, or a
+ * figure with not enough data) come last either way.
+ */
 export function sortRows(rows: TableRow[], column: "t" | number, dir: "asc" | "desc"): TableRow[] {
 	const sign = dir === "asc" ? 1 : -1;
 	return [...rows].sort((a, b) => {
 		if (column === "t") return sign * (a.t - b.t);
-		const x = a.cells[column]?.mean;
-		const y = b.cells[column]?.mean;
+		const value = (r: TableRow) => {
+			const v = r.cells[column]?.mean;
+			return v !== undefined && Number.isFinite(v) ? v : undefined;
+		};
+		const x = value(a);
+		const y = value(b);
 		if (x === undefined && y === undefined) return a.t - b.t;
 		if (x === undefined) return 1;
 		if (y === undefined) return -1;

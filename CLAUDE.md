@@ -80,7 +80,7 @@ reuse existing code only if it's exactly what the new design needs.
   integrations). This repo no longer depends on it (the v1 Monitors tab that embedded its
   `MapShell` was removed in Foundations spec 1). The new dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
-  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestones 1 and 2 merged, published betas through `0.1.0-beta.20`) holds the per-map core, plugins, `MapView`, and data
+  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestones 1 and 2 merged, published betas through `0.1.0-beta.21`) holds the per-map core, plugins, `MapView`, and data
   stores, while monitor-map is rebuilt on it (as its **5.0**) as the monitor-map
   _experience_ (MapShell, routes, panels, options toolbar, legend, the standalone build
   sjvair.com imports), keeping the `/core` and `/routes` entry points the mobile app uses. **Dashboard map widgets use
@@ -114,6 +114,9 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 - **Metadata is the source of truth** (see `ARCHITECTURE.md` → "Metadata as source of
   truth"). Never hardcode labels, units, breakpoints, colors, scales, or coverage — read
   them from server `…/meta/` endpoints; if missing, add them server-side.
+- **Datasets line up (dashboard only)** (see `ARCHITECTURE.md` → "Datasets line up"): every
+  layer in a widget covers the same dates at the same data resolution. Never mix times or
+  resolutions in one dataset; a dataset not offered at the chosen resolution can't be selected.
 - **English-only but translation-ready** (see `ARCHITECTURE.md` →
   "Internationalization"): all UI strings through Paraglide messages, no concatenated
   sentences, all formatting through the shared `format` module, never store generated
@@ -176,7 +179,7 @@ Installed:
 | `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)                          |
 | `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                                |
 | `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                          |
-| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (0.1.0-beta.20, pinned exactly; lazy) |
+| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (0.1.0-beta.21, pinned exactly; lazy) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 

@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
@@ -84,12 +86,15 @@ describe("Map options", () => {
 		expect(MapOptionsSchema.safeParse({ marks: ["a b"] }).success).toBe(false);
 	});
 
-	it("accepts a day, a fill and fillShown false; rejects a bad day and fillShown true", () => {
+	it("accepts a stop's at, a fill and fillShown false; rejects a bad at and fillShown true", () => {
 		expect(
-			MapOptionsSchema.safeParse({ day: "2026-11-14", fill: "city", fillShown: false }).success
+			MapOptionsSchema.safeParse({ at: "2026-11-14", fill: "city", fillShown: false }).success
 		).toBe(true);
-		expect(MapOptionsSchema.safeParse({ day: "2026-1-14" }).success).toBe(false);
-		expect(MapOptionsSchema.safeParse({ day: "yesterday" }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ at: "2026-03-01" }).success).toBe(true);
+		expect(MapOptionsSchema.safeParse({ at: "2026-1-14" }).success).toBe(false);
+		expect(MapOptionsSchema.safeParse({ at: "yesterday" }).success).toBe(false);
+		// The earlier `day` key is gone: a strict object refuses it.
+		expect(MapOptionsSchema.safeParse({ day: "2026-11-14" }).success).toBe(false);
 		expect(MapOptionsSchema.safeParse({ fill: "a b" }).success).toBe(false);
 		expect(MapOptionsSchema.safeParse({ fillShown: true }).success).toBe(false);
 	});
@@ -156,11 +161,8 @@ describe("pesticide use options", () => {
 			entryTypes: ["pounds-applied", "acres-treated", "applications", "other"].map((id) => ({ id }))
 		}
 	] as unknown as CatalogEntry[];
-	it("usePeriod accepts YYYY and YYYY-MM only", () => {
-		expect(MapOptionsSchema.safeParse({ usePeriod: "2023" }).success).toBe(true);
-		expect(MapOptionsSchema.safeParse({ usePeriod: "2023-07" }).success).toBe(true);
-		expect(MapOptionsSchema.safeParse({ usePeriod: "2023-13" }).success).toBe(false);
-		expect(MapOptionsSchema.safeParse({ usePeriod: "23" }).success).toBe(false);
+	it("there is no use period option: use follows the Map's stops", () => {
+		expect(MapOptionsSchema.safeParse({ ["use" + "Period"]: "2023" }).success).toBe(false);
 	});
 	it("useShown accepts only false", () => {
 		expect(MapOptionsSchema.safeParse({ useShown: false }).success).toBe(true);
@@ -181,9 +183,20 @@ describe("pesticide use options", () => {
 		expect(useFigureOf({ useFigure: "toString" }, catalog)).toBe("acres-treated");
 		expect(useFigureOf({}, catalog)).toBe("acres-treated");
 	});
-	it("the toolbar keys include the figure and shown, not the period", () => {
+	it("the toolbar keys include the figure and shown", () => {
 		expect(MAP_TOOLBAR_KEYS).toContain("useFigure");
 		expect(MAP_TOOLBAR_KEYS).toContain("useShown");
-		expect(MAP_TOOLBAR_KEYS).not.toContain("usePeriod");
+	});
+	it("no source file names the removed use period option", () => {
+		const name = "use" + "Period";
+		const walk = (dir: string): string[] =>
+			readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+				const p = join(dir, e.name);
+				return e.isDirectory() ? walk(p) : [p];
+			});
+		const hits = walk(join(process.cwd(), "src")).filter((p) =>
+			readFileSync(p, "utf8").includes(name)
+		);
+		expect(hits).toEqual([]);
 	});
 });

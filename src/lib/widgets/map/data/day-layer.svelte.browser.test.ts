@@ -2,7 +2,7 @@ import { flushSync } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryActivity } from "$lib/platform/memory";
 import { createNowClient, type NowSource } from "$lib/data/now/client";
-import type { SnapshotAt } from "$lib/data/snapshot";
+import { atKey, type SnapshotAt } from "$lib/data/snapshot";
 import { DayLayer } from "./day-layer.svelte";
 
 const NOW = new Date("2026-11-16T19:10:00Z");
@@ -19,10 +19,11 @@ function setup(opts: { fail?: () => boolean } = {}) {
 	});
 	const asked: string[] = [];
 	const pollSources: (string | null)[] = [];
-	const key = (at: SnapshotAt, today: string) => (at === "now" ? `now:${today}` : `day:${at.day}`);
+	const key = (at: SnapshotAt, today: string) =>
+		at === "now" ? `now:${today}` : `day:${atKey(at)}`;
 	let today = "2026-11-16";
 	const sourceFor = vi.fn((at: SnapshotAt): NowSource<number> => {
-		asked.push(at === "now" ? "now" : at.day);
+		asked.push(atKey(at));
 		const k = key(at, today);
 		return { key: k, cadence: "hour", fetch: () => fetch(k) };
 	});

@@ -1,16 +1,14 @@
-import { offeredLevels } from "$lib/data/adapters/offered";
 import type { CatalogEntry } from "$lib/data/metadata";
 import { layerKind } from "$lib/data/layer-kind";
-import type { Layer, PesticideFilters, Resolution, WidgetDataConfig } from "$lib/data/schema";
-import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
+import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
+import { mainLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
 /**
  * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). The
- * places, and the main layer's "Show values" level, live on the main layer (`mainLayer`): when an
- * edit changes which layer is main, they move to the new one, so the widget never ends up with no
- * places. An edit that would break a rule (no number layer left, too many overlays) changes
- * nothing.
+ * places live on the main layer (`mainLayer`): when an edit changes which layer is main, they
+ * move to the new one, so the widget never ends up with no places. An edit that would break a
+ * rule (no number layer left, too many overlays) changes nothing.
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
@@ -46,16 +44,10 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 	return withEntry === 0 || overlayCount(data, catalog) + 1 <= MAX_OVERLAYS;
 }
 
-/** The levels `layer`'s entry type offers that its adapter can fetch ("Show values"' choices). */
-function offeredFor(catalog: CatalogEntry[] | undefined, layer: Layer): Resolution[] {
-	const meta = entryMeta(catalog, layer);
-	return meta ? offeredLevels(layer.dataset, meta.entryType.resolutions) : [];
-}
-
 /**
- * Runs `change`, then moves the places and the "Show values" level from the old main layer to
- * the new one when the main changed. A level the new main doesn't offer (`offeredFor`: weather
- * has no "Every measurement") is dropped.
+ * Runs `change`, then moves the places from the old main layer to the new one when the main
+ * changed. The dataset's resolution (`data.resolution`) always stays: a specific resolution never
+ * changes by itself (Get data shows it blocked, with its reason, when a layer doesn't offer it).
  */
 export function keepingPlaces(
 	data: WidgetDataConfig,
@@ -63,25 +55,16 @@ export function keepingPlaces(
 	change: () => void
 ): void {
 	const before = mainLayer(data, catalog);
-	const carried = before && {
-		place: before.place,
-		selection: before.selection,
-		resolution: before.resolution
-	};
+	const carried = before && { place: before.place, selection: before.selection };
 	change();
 	const after = mainLayer(data, catalog);
 	if (!before || !after || after === before || !carried) return;
 	delete before.place;
 	delete before.selection;
-	delete before.resolution;
 	delete after.place;
 	delete after.selection;
 	if (carried.place) after.place = carried.place;
 	if (carried.selection) after.selection = carried.selection;
-	const level = carried.resolution;
-	const offered = offeredFor(catalog, after);
-	if (level && (level === "auto" || offered.includes(level))) after.resolution = level;
-	else delete after.resolution;
 }
 
 /**
@@ -104,11 +87,6 @@ export function setPollutant(
 		const layer = data.layers[at];
 		layer.dataset = pick.dataset;
 		layer.entryType = pick.entryType;
-		// A level the new entry type doesn't offer goes back to Automatic.
-		const offered = offeredFor(catalog, layer);
-		if (layer.resolution && layer.resolution !== "auto" && !offered.includes(layer.resolution)) {
-			delete layer.resolution;
-		}
 		return;
 	}
 	if (!canAddLayer(data, catalog)) return;

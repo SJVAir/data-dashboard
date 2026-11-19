@@ -3,6 +3,7 @@
 	import type { QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
+	import type { MapLevel } from "./days";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import MapNote, { type MapNoteProps } from "./MapNote.svelte";
 
@@ -16,6 +17,7 @@
 		place,
 		noMonitors,
 		onDay,
+		level = "day",
 		onretry,
 		notes
 	}: {
@@ -25,11 +27,20 @@
 		/** The places are scoped and loaded, but no monitor there reports the pollutant showing. */
 		noMonitors: boolean;
 		onDay: boolean;
+		/** What the stops step by: the no-monitors note names the day, month or year. */
+		level?: MapLevel;
 		/** The place note's Retry. */
 		onretry: () => void;
 		/** The layers' notes, in order; each `hook` is unique. */
 		notes: readonly MapNoteProps[];
 	} = $props();
+
+	/** No monitor here reports the pollutant on the stop showing, at each level. */
+	const NO_MONITORS: Record<MapLevel, () => string> = {
+		day: () => m.map_no_monitors_here_day(),
+		month: () => m.map_no_monitors_here_month(),
+		year: () => m.map_no_monitors_here_year()
+	};
 </script>
 
 {#snippet nothing()}{/snippet}
@@ -56,7 +67,7 @@
 				class="bg-card text-muted-foreground border-border shadow-card mx-auto max-w-96 rounded-(--radius-control) border px-3 py-2 text-center text-sm"
 				role="status"
 			>
-				{onDay ? m.map_no_monitors_here_day() : m.map_no_monitors_here()}
+				{onDay ? NO_MONITORS[level]() : m.map_no_monitors_here()}
 			</p>
 		{/if}
 		{#each notes as note (note.hook)}

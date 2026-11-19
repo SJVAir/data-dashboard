@@ -2,12 +2,15 @@ import { getMonitors, type MonitorEntryType, type MonitorLatest } from "@sjvair/
 import { encodeRef, type DataSource, type MonitorFeatureProperties } from "@sjvair/map-sdk/data";
 import type { FeatureCollection, Point } from "geojson";
 import { getResolvers, placeRegion } from "$lib/data";
-import type { MetadataSource } from "$lib/data/metadata";
+import type { Figure, Level, MetadataSource } from "$lib/data/metadata";
 import type { NowSource } from "$lib/data/now/client";
 import {
+	isPeriodAt,
 	monitorDaySource,
+	monitorPeriodSource,
 	type MonitorScope as SnapshotScope,
-	type Snapshot
+	type Snapshot,
+	type SnapshotAt
 } from "$lib/data/snapshot";
 import type { UnavailableReason } from "$lib/data/types";
 import { pollutantLayers } from "../options";
@@ -65,10 +68,10 @@ export function toMonitorFeatures(readings: MonitorLatest[]): Collection {
 }
 
 /**
- * A day's monitors: those of the list (names, positions, types) with a row that day, each with
- * the day's figure (`null` when there wasn't enough data, or the days can't be rated, so no
- * level). A monitor with a figure that day was reporting, so it draws active; a day's figure has
- * no reading time.
+ * A stop's monitors (a day's, month's or year's): those of the list (names, positions, types) with
+ * a row for it, each with its figure (`null` when there wasn't enough data, or it can't be rated,
+ * so no level). A monitor with a row was reporting, so it draws active; a stop's figure has no
+ * reading time.
  */
 export function toDayFeatures(list: MonitorLatest[], snapshot: Snapshot): Collection {
 	const features: Collection["features"] = [];
@@ -79,15 +82,30 @@ export function toDayFeatures(list: MonitorLatest[], snapshot: Snapshot): Collec
 			{ ...monitor, position: monitor.position },
 			{ value: figure.value, isActive: true, timestamp: null }
 		);
-		// Not enough data that day: no value, and the monitors plugin's `detail` says why.
-		if (figure.kind === "thin") (feature.properties as DayMonitorProperties).thin = true;
+		// Not enough data for the stop: no value, and the monitors plugin's `detail` says why.
+		if (figure.kind === "thin") {
+			const props = feature.properties as DayMonitorProperties;
+			props.thin = true;
+			if (figure.days) props.thinDays = figure.days;
+		}
 		features.push(feature);
 	}
 	return { type: "FeatureCollection", features };
 }
 
-/** A day's monitor: `thin` when it had a row that day without enough data for a figure. */
-export type DayMonitorProperties = MonitorFeatureProperties & { thin?: true };
+/** A stop's monitor: `thin` when it had a row for the stop without enough data for a figure. */
+export type DayMonitorProperties = MonitorFeatureProperties & {
+	thin?: true;
+	/** A thin month or year: how many days had a figure, of those expected. */
+	thinDays?: { days: number; expected: number };
+};
+
+/** A thin month's or year's day counts, when its row has them. */
+export function thinDays(
+	props: MonitorFeatureProperties
+): { days: number; expected: number } | undefined {
+	return (props as DayMonitorProperties).thinDays;
+}
 
 /** Whether a day's monitor had too little data that day for a figure. */
 export function isThin(props: MonitorFeatureProperties): boolean {
@@ -116,29 +134,36 @@ export type MonitorsEntry = Omit<
 		signal?: AbortSignal
 	): Promise<MonitorsListSource | { unavailable: UnavailableReason } | null>;
 	/**
-	 * One day's figures for the monitors in `scope` (the list source's). The pollutant's daily
-	 * figure and levels are looked up when it fetches, so a failed lookup is the fetch's error.
+	 * One stop's figures (a day's, a month's or a year's) for the monitors in `scope` (the list
+	 * source's). The pollutant's figure at the stop's resolution and its levels are looked up when
+	 * it fetches, so a failed lookup is the fetch's error.
 	 */
-	daySource(args: {
+	stopSource(args: {
 		scope: MonitorScope;
 		entryType: string;
-		day: string;
+		at: StopAt;
 		rating: DayRating;
 		today: () => string;
 	}): DaySource;
 };
 
-/** Where a pollutant's daily figure (`daily_statistic`) and levels come from. */
-export type DayRating = Pick<MetadataSource, "dailyFigure" | "levels">;
+/** A stop of a range: a day, or a month or year by its start. */
+export type StopAt = Exclude<SnapshotAt, "now">;
 
-/** A day's figures for the monitors, polled while `poll` says so (until they are all final). */
+/**
+ * Where a pollutant's figure at a resolution (`daily_statistic`, or at Monthly and Yearly
+ * `period_statistic`) and its levels come from.
+ */
+export type DayRating = Pick<MetadataSource, "figure" | "levels">;
+
+/** A stop's figures for the monitors, polled while `poll` says so (until they are all final). */
 export type DaySource = ReturnType<typeof monitorDaySource>;
 
 /**
  * The monitors entry: the pollutant showing's monitors and latest readings, limited by the places
  * (the first pollutant layer's). Regions go to the server's `at` endpoint; monitor places take the
- * current list filtered to their ids. The list is the same on every day (a day's figures come
- * from `daySource`, joined to it by id), so its key holds no day.
+ * current list filtered to their ids. The list is the same on every stop (a stop's figures come
+ * from `stopSource`, joined to it by id), so its key holds no day.
  */
 export function createMonitorsEntry(ctx: MonitorsEntryContext): MonitorsEntry {
 	return {
@@ -169,18 +194,23 @@ export function createMonitorsEntry(ctx: MonitorsEntryContext): MonitorsEntry {
 			};
 			return source;
 		},
-		daySource({ scope, entryType, day, rating, today }) {
-			const args = { ...snapshotScope(scope), entryType, day, today };
+		stopSource({ scope, entryType, at, rating, today }) {
+			const args = { ...snapshotScope(scope), entryType, today };
+			const sourceOf = (rated: { figure: Figure | null; levels: Level[] }) =>
+				isPeriodAt(at)
+					? monitorPeriodSource({ ...args, ...rated, at })
+					: monitorDaySource({ ...args, ...rated, day: at.day });
 			// The key, cadence and poll rule don't depend on the figure or levels.
-			const shape = monitorDaySource({ ...args, figure: null, levels: [] });
+			const shape = sourceOf({ figure: null, levels: [] });
+			const resolution = isPeriodAt(at) ? at.resolution : "day";
 			return {
 				...shape,
 				async fetch(signal) {
 					const [figure, levels] = await Promise.all([
-						rating.dailyFigure(entryType, signal),
+						rating.figure(entryType, resolution, signal),
 						rating.levels(entryType, signal)
 					]);
-					return monitorDaySource({ ...args, figure, levels }).fetch(signal);
+					return sourceOf({ figure, levels }).fetch(signal);
 				}
 			};
 		},

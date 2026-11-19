@@ -154,7 +154,6 @@ export const LayerSchema = z
 		entryType: SafeIdSchema.optional(),
 		place: PlaceRefSchema.optional(),
 		selection: SpatialSelectionSchema.optional(),
-		resolution: z.union([z.literal("auto"), ResolutionSchema]).optional(),
 		/** A weather layer's station (the catalog's station id). */
 		station: SafeIdSchema.optional(),
 		/** A pesticide layer's filters. */
@@ -169,6 +168,12 @@ export type Layer = z.infer<typeof LayerSchema>;
 export const WidgetDataConfigSchema = z.object({
 	dateRange: DateRangeSpecSchema.optional(),
 	timeSubRange: TimeSubRangeSchema.optional(),
+	/**
+	 * The one resolution every layer is fetched at (the dataset rules); missing means Automatic,
+	 * which is never stored. An earlier document's per-layer `resolution` is dropped by
+	 * `LayerSchema` (it opens as Automatic).
+	 */
+	resolution: ResolutionSchema.optional(),
 	layers: z.array(LayerSchema).max(LIMITS.LAYERS_MAX)
 });
 export type WidgetDataConfig = z.infer<typeof WidgetDataConfigSchema>;

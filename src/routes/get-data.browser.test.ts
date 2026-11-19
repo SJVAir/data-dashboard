@@ -67,16 +67,17 @@ test("at /data the heading takes focus and the Data nav link is current", async 
 	await navigate("/data");
 	await render(TopNav, { context });
 	await render(GetData, { context });
-	const heading = page.getByRole("heading", { name: "Get data" });
+	const heading = page.getByRole("heading", { name: "Data Portal" });
 	await expect.element(heading).toHaveFocus();
 	await expect
-		.element(page.getByRole("link", { name: "Data" }))
+		.element(page.getByRole("link", { name: "Data Portal" }))
 		.toHaveAttribute("aria-current", "page");
 });
 
-test("the edit route says Edit data, focused", async () => {
+test("the edit route says Data Portal, focused, and that it's changing a widget", async () => {
 	await editAt({ id: "d1", widgetId: "w1" });
-	await expect.element(page.getByRole("heading", { name: "Edit data" })).toHaveFocus();
+	await expect.element(page.getByRole("heading", { name: "Data Portal" })).toHaveFocus();
+	await expect.element(page.getByText("Changing a widget's data")).toBeVisible();
 });
 
 // Add to dashboard ----------------------------------------------------------------------------
@@ -256,9 +257,9 @@ const discardDialog = () => page.getByRole("alertdialog", { name: "Discard chang
 test("⋯ Edit data opens the widget's data", async () => {
 	await editAt(null, [{ ...preSpec, type: "data-table" }]);
 	await page.getByRole("button", { name: /^Actions for / }).click();
-	await page.getByRole("menuitem", { name: "Edit data" }).click();
+	await page.getByRole("menuitem", { name: "Open in Data Portal" }).click();
 	await expect.poll(() => location.pathname).toBe(editPath);
-	await expect.element(page.getByRole("heading", { name: "Edit data" })).toBeVisible();
+	await expect.element(page.getByRole("heading", { name: "Data Portal" })).toBeVisible();
 	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
 	await expect.element(saveButton()).toBeVisible();
 });
@@ -294,7 +295,7 @@ test("Edit data whose dashboard fails to open says it isn't here, and reports th
 
 test("a pre-spec widget opens unchanged; Save changes with no changes applies nothing", async () => {
 	const { app, platform } = await editAt({ id: "d1", widgetId: "w1" });
-	await expect.element(page.getByRole("heading", { name: "Edit data" })).toBeVisible();
+	await expect.element(page.getByRole("heading", { name: "Data Portal" })).toBeVisible();
 	await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
 	await saveButton().click();
 	const { widget, frame } = await landed(app, "d1");
@@ -345,15 +346,15 @@ test("a nav link or Cancel while dirty asks to discard; with no changes they jus
 	await expect.element(discardDialog()).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing" }).click();
 	await expect.poll(() => location.pathname).toBe(editPath);
-	await page.getByRole("link", { name: "Data" }).click();
+	await page.getByRole("link", { name: "Data Portal" }).click();
 	await expect.element(discardDialog()).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing" }).click();
 	await expect.poll(() => location.pathname).toBe(editPath);
-	await page.getByRole("link", { name: "Data" }).click();
+	await page.getByRole("link", { name: "Data Portal" }).click();
 	await page.getByRole("button", { name: "Discard" }).click();
 	await expect.poll(() => location.pathname).toBe("/workspace/data");
 	// /data starts from the Get data draft, not the widget or the discarded edit.
-	await expect.element(page.getByRole("heading", { name: "Get data" })).toBeVisible();
+	await expect.element(page.getByRole("heading", { name: "Data Portal" })).toBeVisible();
 	await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
 	await expect
 		.element(page.getByRole("button", { name: /^Dates/ }))

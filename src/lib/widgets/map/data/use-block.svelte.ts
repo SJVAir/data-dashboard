@@ -264,7 +264,7 @@ export class UseBlock {
 			return {
 				state: "unavailable",
 				reason: "no-data",
-				...(period && { message: m.map_use_no_data({ period: periodLabel(period) }) })
+				...(period && { message: m.map_use_none_yet({ period: periodLabel(period) }) })
 			};
 		}
 		return null;
@@ -353,7 +353,7 @@ export class UseBlock {
 		try {
 			const meta = await pesticideMeta(signal);
 			if (!current()) return;
-			// A year the server doesn't list falls back to its latest: never ask for one.
+			// A year the server doesn't list has no use reported yet: never ask for one.
 			if (!periodListed(query.period, meta.years)) {
 				this.townshipsState = "no-data";
 				return;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeriesPoint } from "$lib/data/types";
-import { MIN_STRIP_HEIGHT, periodSpan, stripLayout, stripPointAt } from "./strips";
+import { MIN_STRIP_HEIGHT, stripLayout, stripPointAt } from "./strips";
 
 /** Pacific midnight on the first of a 2026 month (0-based): PDT (UTC-7) from April to November. */
 const pacificMonth = (month: number) => Date.UTC(2026, month, 1, month >= 3 && month <= 10 ? 7 : 8);
@@ -45,40 +45,15 @@ describe("stripLayout", () => {
 	});
 });
 
-describe("periodSpan", () => {
-	it("a month bar spans its month", () => {
-		// February (28 days, PST) and March (DST starts on the 8th, so 31 days less an hour).
-		const feb = pacificMonth(1);
-		const mar = pacificMonth(2);
-		const apr = pacificMonth(3);
-		expect(periodSpan(feb, "month")).toEqual([feb, mar]);
-		expect(periodSpan(mar, "month")).toEqual([mar, apr]);
-		expect(apr - mar).toBe(31 * 86_400_000 - 3_600_000);
-	});
-
-	it("a year bar spans its year", () => {
-		const jan = pacificMonth(0);
-		const next = Date.UTC(2027, 0, 1, 8);
-		expect(periodSpan(jan, "year")).toEqual([jan, next]);
-	});
-});
-
 describe("stripPointAt", () => {
 	const feb = pacificMonth(1);
 	const mar = pacificMonth(2);
 	const points = [point(feb, 10), point(mar, 20)];
 
-	it("a whole-period strip gives the period holding the time", () => {
-		const strip = { points, resolution: "month" as const, wholePeriod: true };
-		expect(stripPointAt(strip, feb + 15 * 86_400_000)?.mean).toBe(10);
-		expect(stripPointAt(strip, mar)?.mean).toBe(20);
-		expect(stripPointAt(strip, mar - 1)?.mean).toBe(10);
-		expect(stripPointAt(strip, pacificMonth(3))).toBeNull();
-	});
-
-	it("a strip at the chart's resolution gives the point at that time only", () => {
-		const strip = { points, resolution: "month" as const, wholePeriod: false };
+	it("gives the point at that time only, never one stretched over its period", () => {
+		const strip = { points };
 		expect(stripPointAt(strip, mar)?.mean).toBe(20);
 		expect(stripPointAt(strip, mar + 86_400_000)).toBeNull();
+		expect(stripPointAt(strip, feb + 15 * 86_400_000)).toBeNull();
 	});
 });

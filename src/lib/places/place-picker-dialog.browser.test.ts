@@ -294,7 +294,7 @@ test("on a live-shared dashboard, a now tile's location is looked up as the tile
 	expect(placeRegion.mock.calls[0][0]).toEqual({
 		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-		pin: "hour"
+		resolution: "hour"
 	});
 });
 
@@ -308,7 +308,7 @@ test("a Map's point on a live link saves its region", async () => {
 	expect(placeRegion.mock.calls[0][0]).toEqual({
 		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-		pin: "hour"
+		resolution: "hour"
 	});
 	expect(layerOf(session).place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
 });
@@ -333,7 +333,7 @@ test("saves a point picked for a multi-pollutant Map on a live link as its regio
 			place: { kind: "point", lat: 36.75, lon: -119.79 }
 		}),
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-		pin: "hour"
+		resolution: "hour"
 	});
 	const layers = session.doc.body.widgets[0].data.layers;
 	expect(layers[0].place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
@@ -359,7 +359,7 @@ test("a calendar's location is looked up one row per day, with no sub-range or w
 	expect(input).toEqual({
 		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
-		pin: "day"
+		resolution: "day"
 	});
 	expect(input).not.toHaveProperty("timeSubRange");
 	expect(input).not.toHaveProperty("worstHour");
@@ -423,7 +423,7 @@ test("a Forecast strip's location is looked up as the PM2.5 hourly input a now t
 			place: { kind: "point", lat: 36.75, lon: -119.79 }
 		},
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-		pin: "hour"
+		resolution: "hour"
 	});
 });
 

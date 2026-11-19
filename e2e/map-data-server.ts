@@ -225,6 +225,69 @@ export async function routeMapDays(
 	);
 }
 
+const MONITOR_PERIOD = /\/api\/2\.0\/monitors\/([a-z0-9]+)\/summaries\/(monthly|yearly)\/$/;
+
+/** One fixture month or year: each monitor's figure (null: too few days), and whether final. */
+export type MapPeriod = { figures: Record<string, number | null>; final?: boolean };
+
+/**
+ * Answers the Map's month and year stops, by the period's start (`YYYY-MM-01` or `YYYY-01-01`):
+ * the bulk monthly and yearly monitor summaries (`monitors/<type>/summaries/{monthly,yearly}/
+ * ?start=&end=&region=…`), one row for each fixture monitor of the regions asked for with a figure
+ * that period, its average of daily figures as `daily_statistic_mean`. A period not in `periods`
+ * has no rows. The Map asks for one whole period at a time: anything else is a wrong request.
+ */
+export async function routeMapPeriods(
+	context: BrowserContext,
+	periods: Record<string, MapPeriod>
+): Promise<void> {
+	await context.route(
+		(url) => MONITOR_PERIOD.test(url.pathname) && url.searchParams.has("region"),
+		async (route) => {
+			const url = new URL(route.request().url());
+			const [, type, level] = MONITOR_PERIOD.exec(url.pathname)!;
+			const start = url.searchParams.get("start") ?? "";
+			const [y, m] = start.split("-").map(Number);
+			const last =
+				level === "yearly"
+					? `${y}-12-31`
+					: `${start.slice(0, 7)}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+			if (
+				url.searchParams.get("end") !== last ||
+				!start.endsWith(level === "yearly" ? "-01-01" : "-01")
+			) {
+				await route.fulfill({ status: 400, json: { error: "not one whole period" } });
+				return;
+			}
+			const regions = url.searchParams.getAll("region").flatMap((r) => r.split(","));
+			const wanted = new Set(regions.flatMap((r) => REGION_MONITORS[r] ?? []));
+			const list = await json<{ data: { id: string; name: string }[] }>(
+				`${API_FIXTURES}monitors/${type}/current.json`
+			);
+			const period = periods[start];
+			const data = (list?.data ?? [])
+				.filter((mon) => wanted.has(mon.id) && period?.figures[mon.id] !== undefined)
+				.map((mon) => ({
+					id: mon.id,
+					name: mon.name,
+					summaries: [
+						{
+							// Inside the period's first Pacific day, whatever its offset.
+							timestamp: `${start}T00:00:00-08:00`,
+							entry_type: type,
+							resolution: level === "yearly" ? "year" : "month",
+							daily_statistic_mean: period.figures[mon.id],
+							daily_statistic_days: 30,
+							daily_statistic_expected_days: 30,
+							is_final: period.final !== false
+						}
+					]
+				}));
+			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+}
+
 const REGION_BULK = /\/api\/2\.0\/regions\/([a-z0-9]+)\/summaries\/daily\/(open\/)?$/;
 
 /**
@@ -462,6 +525,8 @@ export async function routeMapNotices(
 						averaging_hours: null,
 						daily_statistic: null,
 						daily_statistic_label: null,
+						period_statistic: null,
+						period_statistic_label: null,
 						levels: [
 							{
 								key: "notice",

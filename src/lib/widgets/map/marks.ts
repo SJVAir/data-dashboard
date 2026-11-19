@@ -35,12 +35,12 @@ export function marksChange(widget: WidgetInstance, marks: string[]): Change | n
 }
 
 /** Why a marked monitor isn't drawn. */
-export type HiddenReason = "pollutant" | "day" | "options" | "places" | "unknown";
+export type HiddenReason = "pollutant" | "period" | "options" | "places" | "unknown";
 
 /** The reasons in the order their lines are shown. */
 export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
 	"pollutant",
-	"day",
+	"period",
 	"options",
 	"places",
 	"unknown"
@@ -49,10 +49,10 @@ export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
 /**
  * Counts the hidden marks by reason. A mark whose monitor the metadata doesn't list is
  * `unknown`; one whose type doesn't report the pollutant drawn is `pollutant`; one among the
- * loaded monitors (so in the places) is `day` when a day shows (`dayDrawn`: the monitors with a
- * figure that day) and it has none that day, else `options` (the toolbar's filters hide it); the
- * rest are outside the places. `monitors` is null while the metadata is loading (or failed). The
- * tile's own monitors (its places) are never filtered, so never `options`.
+ * loaded monitors (so in the places) is `period` when a stop shows (`dayDrawn`: the monitors with
+ * a figure for the stop's period) and it has none for it, else `options` (the toolbar's filters
+ * hide it); the rest are outside the places. `monitors` is null while the metadata is loading (or
+ * failed). The tile's own monitors (its places) are never filtered, so never `options`.
  */
 export function hiddenReasons(
 	hidden: readonly string[],
@@ -70,7 +70,7 @@ export function hiddenReasons(
 			: reports(monitor.type) === false
 				? "pollutant"
 				: inPlaces && dayDrawn && !dayDrawn.has(id)
-					? "day"
+					? "period"
 					: inPlaces
 						? "options"
 						: "places";

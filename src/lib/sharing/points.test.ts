@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChosenPlace, Layer } from "$lib/data/schema";
+import type { CatalogEntry } from "$lib/data/metadata";
+import { FIXTURE_CATALOG } from "$lib/data/testing/fixtures";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -23,10 +25,12 @@ const mocked = vi.hoisted(() => ({
 		vi.fn<
 			(input: QueryInput, signal?: AbortSignal) => Promise<{ type: string; code: string } | null>
 		>(),
-	resolve: vi.fn()
+	resolve: vi.fn(),
+	catalog: vi.fn<() => Promise<CatalogEntry[] | "unavailable">>()
 }));
 vi.mock("$lib/data", () => ({
 	placeRegion: mocked.placeRegion,
+	getMetadata: () => ({ catalog: mocked.catalog }),
 	getResolvers: () => ({ regions: { resolve: mocked.resolve } })
 }));
 
@@ -60,6 +64,8 @@ beforeEach(() => {
 	registerWidgetType(mapType);
 	mocked.placeRegion.mockReset();
 	mocked.resolve.mockReset();
+	mocked.catalog.mockReset();
+	mocked.catalog.mockResolvedValue(FIXTURE_CATALOG);
 	mocked.placeRegion.mockResolvedValue({ type: "zipcode", code: "93721" });
 	mocked.resolve.mockResolvedValue({ id: "z1", name: "ZIP 93721" });
 });
@@ -103,9 +109,28 @@ describe("hasPoints and pointSwaps", () => {
 			}
 		]);
 		const [input, signal] = mocked.placeRegion.mock.calls[0];
-		expect(input).toEqual({ layer: pm25(POINT), dateRange: RANGE, worstHour: true });
+		expect(input).toEqual({
+			layer: pm25(POINT),
+			dateRange: RANGE,
+			resolution: "day",
+			worstHour: true
+		});
 		// Always bounded: a lookup can't wait forever.
 		expect(signal).toBeInstanceOf(AbortSignal);
+	});
+
+	it("looks up at the widget's dataset resolution: a point is a region, so no raw", async () => {
+		const short = { kind: "trailing", amount: 2, unit: "day" } as const;
+		const doc = docWith({
+			...dataWidget("p", [pm25(POINT)]),
+			data: { dateRange: short, layers: [pm25(POINT)] }
+		});
+		await pointSwaps(doc);
+		expect(mocked.placeRegion.mock.calls[0][0].resolution).toBe("hour");
+		// Without the catalog, Automatic is the range's level.
+		mocked.catalog.mockResolvedValue("unavailable");
+		await pointSwaps(doc);
+		expect(mocked.placeRegion.mock.calls[1][0].resolution).toBe("raw");
 	});
 
 	it("looks a calendar's point up one row per day", async () => {
@@ -118,7 +143,7 @@ describe("hasPoints and pointSwaps", () => {
 		};
 		await pointSwaps(docWith(calendar));
 		const [input] = mocked.placeRegion.mock.calls[0];
-		expect(input.pin).toBe("day");
+		expect(input.resolution).toBe("day");
 		expect(input.dateRange).toEqual({ kind: "to-date", unit: "month" });
 		expect(input.worstHour).toBeUndefined();
 		expect(input.timeSubRange).toBeUndefined();
@@ -137,7 +162,7 @@ describe("hasPoints and pointSwaps", () => {
 		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
 			layer: pm25(POINT),
 			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-			pin: "hour"
+			resolution: "hour"
 		});
 	});
 
@@ -154,7 +179,7 @@ describe("hasPoints and pointSwaps", () => {
 		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
 			layer: pm25(POINT),
 			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-			pin: "hour"
+			resolution: "hour"
 		});
 		const swapped = withSwaps(doc, swaps);
 		expect(swapped.body.widgets[1].data.layers[0].place).toEqual({
@@ -181,7 +206,7 @@ describe("hasPoints and pointSwaps", () => {
 		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
 			layer: pm25(POINT),
 			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-			pin: "hour"
+			resolution: "hour"
 		});
 		const swapped = withSwaps(doc, swaps);
 		expect(swapped.body.widgets[1].data.layers[0].place).toEqual({
@@ -280,7 +305,7 @@ describe("hasPoints and pointSwaps", () => {
 			type: MAP_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
-			options: { usePeriod: "2023" },
+			options: { useFigure: "acres-treated" },
 			data: {
 				layers: [
 					pm25(POINT),
@@ -300,7 +325,7 @@ describe("hasPoints and pointSwaps", () => {
 			code: "93721"
 		});
 		expect(swapped.data.layers.slice(1)).toEqual(map.data.layers.slice(1));
-		expect(swapped.options).toEqual({ usePeriod: "2023" });
+		expect(swapped.options).toEqual({ useFigure: "acres-treated" });
 	});
 
 	it("keeps a Forecast strip's place: its point is looked up as a PM2.5 one", async () => {
@@ -316,7 +341,7 @@ describe("hasPoints and pointSwaps", () => {
 		expect(mocked.placeRegion.mock.calls[0][0]).toEqual({
 			layer: pm25(POINT),
 			dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-			pin: "hour"
+			resolution: "hour"
 		});
 		const swapped = withSwaps(doc, swaps);
 		expect(swapped.body.widgets[1].data.layers).toEqual([
@@ -365,16 +390,12 @@ describe("hasPoints and pointSwaps", () => {
 describe("withSwaps", () => {
 	it("swaps each point for its region and leaves everything else alone", async () => {
 		const school = pm25({ kind: "location", source: "cde", code: "1062166" });
-		const doc = docWith(
-			dataWidget("p", [{ ...pm25(POINT), resolution: "auto" }]),
-			dataWidget("s", [school])
-		);
+		const doc = docWith(dataWidget("p", [pm25(POINT)]), dataWidget("s", [school]));
 		const swapped = withSwaps(doc, await pointSwaps(doc));
 		expect(swapped.body.widgets.find((w) => w.id === "p")!.data.layers).toEqual([
 			{
 				dataset: "air-quality",
 				entryType: "pm25",
-				resolution: "auto",
 				place: { kind: "region", type: "zipcode", code: "93721" }
 			}
 		]);

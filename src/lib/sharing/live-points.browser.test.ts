@@ -33,6 +33,8 @@ const mocked = vi.hoisted(() => ({
 }));
 vi.mock("$lib/data", () => ({
 	placeRegion: mocked.placeRegion,
+	// Point lookups read the catalog for the widget's resolution; without one, Automatic's range level.
+	getMetadata: () => ({ catalog: async () => "unavailable" as const }),
 	getResolvers: () => ({
 		regions: { resolve: async () => ({ id: "z1", name: "ZIP 93721" }) }
 	})
