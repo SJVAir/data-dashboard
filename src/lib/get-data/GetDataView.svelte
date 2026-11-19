@@ -307,6 +307,10 @@
 		const choice = choices.find((c) => c.level === level);
 		return !choice || !!choice.blocked;
 	});
+	/** The stored level is none of the choices (a quarter, or hour on a Map; untrusted input). */
+	const resolutionUnknown = $derived(
+		!!choices && !!plain.data.resolution && !choices.some((c) => c.level === plain.data.resolution)
+	);
 
 	/** A dataset's name, from the catalog. */
 	const datasetLabel = (layer: Layer) =>
@@ -1041,7 +1045,12 @@
 	<ActionBar
 		blocked={levelOnly
 			? m.get_data_level_only()
-			: (misfitReason ?? (resolutionBlocked ? m.get_data_resolution_blocked() : undefined))}
+			: (misfitReason ??
+				(resolutionUnknown
+					? m.get_data_resolution_unknown_blocked()
+					: resolutionBlocked
+						? m.get_data_resolution_blocked()
+						: undefined))}
 		downloading={csvPending("get-data")}
 		ondownload={type?.downloadable ? download : undefined}
 		oncancel={onCancel}

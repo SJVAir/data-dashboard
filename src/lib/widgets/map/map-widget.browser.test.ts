@@ -2496,6 +2496,15 @@ function periodMap(
 	};
 }
 
+test("a stored level outside the Map's levels (hour, from a link) can't be drawn, with no map", async () => {
+	const range = { kind: "custom", start: "2026-07-01", end: "2026-09-30" } as const;
+	const widget = periodMap("month", range);
+	widget.data.resolution = "hour";
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_state_unavailable_no_resolution())).toBeVisible();
+	expect(fakeMaps.made).toHaveLength(0);
+});
+
 test("on a month stop, the no-monitors note speaks of the month; on a year stop, of the year", async () => {
 	rated();
 	vi.mocked(getMonitors).mockResolvedValue([] as never);

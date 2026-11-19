@@ -124,6 +124,19 @@ describe("widgetInputs", () => {
 		expect(got.overlays[0]?.resolution).toBe("month");
 	});
 
+	it("a stored level no widget offers (a quarter, from a link) asks for nothing", () => {
+		const data = {
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			resolution: "quarter",
+			layers: [pm25, smoke]
+		} as WidgetDataConfig;
+		const got = widgetInputs(chart(data), RULES_CATALOG, "regions");
+		expect(got.effective.unusable).toBe(true);
+		expect(got.main).toBeNull();
+		expect(got.overlays).toEqual([]);
+		expect(got.figureFor).toBeNull();
+	});
+
 	it("Automatic rises to a level every layer offers", () => {
 		const data: WidgetDataConfig = {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },

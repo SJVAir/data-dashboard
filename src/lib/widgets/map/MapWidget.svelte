@@ -268,6 +268,8 @@
 		if (catalog === undefined || pollutants === undefined) return "loading";
 		if (pollutants === "unavailable") return "pollutants-failed";
 		if (!entryType || !entryLabel || !pollutants.includes(entryType)) return "unknown-entry-type";
+		// A stored level outside the Map's (hour or raw, from untrusted input) draws nothing.
+		if (effective?.unusable) return "no-resolution";
 		return "ok";
 	});
 	const supported = $derived(support === "ok");

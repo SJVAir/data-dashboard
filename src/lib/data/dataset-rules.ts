@@ -17,8 +17,10 @@ const rank = (level: Level): number => LEVELS.indexOf(level);
 
 /**
  * The levels one layer offers (catalog `resolutions` ∩ `offeredLevels`, narrowed by place:
- * regions have no raw). An air-quality entry type listing only `raw` offers every level
- * (downsampled). Unknown dataset or entry type: [].
+ * regions have no raw). An air-quality entry type listing only `raw` offers every level at
+ * monitors (downsampled from raw) and none at regions (no raw there to downsample). Unknown
+ * entry type: []. A place-less layer whose dataset the catalog lacks: `LEVELS` narrowed by
+ * `offeredLevels`.
  */
 export function layerOffers(layer: Layer, catalog: CatalogEntry[], place: PlaceKind): Level[] {
 	let resolutions: readonly Resolution[];
@@ -33,7 +35,10 @@ export function layerOffers(layer: Layer, catalog: CatalogEntry[], place: PlaceK
 		resolutions = dataset ? dataset.entryTypes.flatMap((e) => e.resolutions) : LEVELS;
 	}
 	const downsampled =
-		layer.dataset === "air-quality" && resolutions.length === 1 && resolutions[0] === "raw";
+		layer.dataset === "air-quality" &&
+		place === "monitors" &&
+		resolutions.length === 1 &&
+		resolutions[0] === "raw";
 	const base = downsampled ? [...LEVELS] : offeredLevels(layer.dataset, resolutions);
 	return LEVELS.filter(
 		(level) =>
@@ -68,11 +73,19 @@ export type Effective = {
 	movedBy?: Layer;
 	/** Layers that don't offer `resolution` (only possible from untrusted input). */
 	misfits: Layer[];
+	/**
+	 * Set when the stored level is none the widget offers (a quarter or season, or hour or raw on
+	 * a Map; only from untrusted input): nothing is drawn, the widget says the data isn't available
+	 * at the chosen data resolution, and Get data blocks Save. `resolution` is then Automatic's,
+	 * only so callers keep a level; `misfits` is empty.
+	 */
+	unusable?: true;
 };
 
 /**
  * The dataset's resolution. Pinned types (calendars `day`, Current `hour`) use the pin. Explicit
- * (`data.resolution`): as stored. Automatic: the finest level at or above max(range level, floor)
+ * (`data.resolution`): as stored, or `unusable` when it is outside `within` (never a silent
+ * Automatic). Automatic: the finest level at or above max(range level, floor)
  * every layer offers. When layers share no such level, the main layer (`mainLayer`; a Map's first
  * pollutant) decides and the others are misfits.
  */
@@ -91,8 +104,16 @@ export function effectiveResolution(args: {
 		layers.filter((l) => !layerOffers(l, catalog, place).includes(level));
 
 	if (pin) return { resolution: pin, automatic: false, misfits: misfitsAt(pin) };
-	if (isLevel(data.resolution)) {
-		return { resolution: data.resolution, automatic: false, misfits: misfitsAt(data.resolution) };
+	const stored = data.resolution;
+	if (isLevel(stored) && within.includes(stored)) {
+		return { resolution: stored, automatic: false, misfits: misfitsAt(stored) };
+	}
+	if (stored !== undefined) {
+		const { resolution } = effectiveResolution({
+			...args,
+			data: { ...data, resolution: undefined }
+		});
+		return { resolution, automatic: false, misfits: [], unusable: true };
 	}
 
 	const range = rangeLevel(spanDays);

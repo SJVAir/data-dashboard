@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Layer } from "./schema";
-import { mapDatasetCatalog } from "./metadata";
+import { mapDatasetCatalog, type CatalogEntry } from "./metadata";
 import {
 	MAP_LEVELS,
 	datasetOffers,
@@ -41,12 +41,49 @@ describe("layerOffers", () => {
 	it("offers every level for a raw-only air-quality type", () => {
 		expect(layerOffers(humidity, catalog, "monitors")).toEqual(ALL5);
 	});
+	it("offers nothing for a raw-only air-quality type at regions (no raw to downsample)", () => {
+		expect(layerOffers(humidity, catalog, "regions")).toEqual([]);
+		expect(layerOffers({ dataset: "air-quality", entryType: "pm100" }, catalog, "regions")).toEqual(
+			[]
+		);
+	});
 	it("has no raw for weather", () => {
 		expect(layerOffers(temperature, catalog, "monitors")).toEqual(["hour", "day", "month", "year"]);
 	});
 	it("offers nothing for an unknown dataset or entry type", () => {
 		expect(layerOffers({ dataset: "nope", entryType: "x" }, catalog, "none")).toEqual([]);
 		expect(layerOffers({ dataset: "air-quality", entryType: "x" }, catalog, "none")).toEqual([]);
+	});
+	it("offers every level for a place-less layer whose dataset the catalog lacks", () => {
+		expect(layerOffers({ dataset: "nope" }, catalog, "none")).toEqual(ALL5);
+	});
+	it("offers day for fire and notices when the catalog lists them", () => {
+		const entry = (dataset: string, entryType: string): CatalogEntry => ({
+			id: dataset,
+			label: dataset,
+			geographies: ["polygon"],
+			entryTypes: [
+				{
+					id: entryType,
+					label: entryType,
+					units: "",
+					kind: "other",
+					resolutions: ["raw", "day"],
+					precision: null,
+					yMin: null,
+					chart: null,
+					aggregate: null,
+					available: true
+				}
+			]
+		});
+		const withBoth = [
+			...catalog,
+			entry("hms-fire", "fire-radiative-power"),
+			entry("pesticide-notices", "spray-notice")
+		];
+		expect(layerOffers({ dataset: "hms-fire" }, withBoth, "none")).toEqual(["day"]);
+		expect(layerOffers({ dataset: "pesticide-notices" }, withBoth, "none")).toEqual(["day"]);
 	});
 });
 
@@ -146,6 +183,11 @@ describe("effectiveResolution for a Map's place-less layers", () => {
 		expect(e.resolution).toBe("day");
 		expect(e.misfits).toEqual([useLayer]);
 	});
+	it("lets the first layer decide when no layer has an entry type", () => {
+		const e = effectiveResolution({ ...map, data: { layers: [smokeLayer, useLayer] } });
+		expect(e).toMatchObject({ resolution: "day", automatic: true });
+		expect(e.misfits).toEqual([useLayer]);
+	});
 	it("lists a misfit for an explicit level", () => {
 		const e = effectiveResolution({
 			...map,
@@ -153,11 +195,40 @@ describe("effectiveResolution for a Map's place-less layers", () => {
 		});
 		expect(e.misfits).toEqual([notices]);
 	});
-	it("treats a stored quarter or season (no level offers them) as Automatic", () => {
+	it("marks a stored quarter or season (no level offers them) unusable, never Automatic", () => {
 		for (const resolution of ["quarter", "season"] as const) {
 			const e = effectiveResolution({ ...map, data: { layers: [pm25], resolution } });
-			expect(e).toMatchObject({ resolution: "day", automatic: true });
+			expect(e).toMatchObject({ automatic: false, unusable: true, misfits: [] });
 		}
+	});
+	it("marks a stored hour or raw unusable on a Map (outside its levels)", () => {
+		for (const resolution of ["hour", "raw"] as const) {
+			const e = effectiveResolution({ ...map, data: { layers: [pm25], resolution } });
+			expect(e).toMatchObject({ automatic: false, unusable: true, misfits: [] });
+		}
+	});
+	it("keeps a stored level the widget offers usable", () => {
+		const e = effectiveResolution({ ...map, data: { layers: [pm25], resolution: "month" } });
+		expect(e.unusable).toBeUndefined();
+		const chart = effectiveResolution({
+			catalog,
+			place: "monitors",
+			spanDays: 30,
+			data: { layers: [pm25], resolution: "hour" }
+		});
+		expect(chart).toMatchObject({ resolution: "hour", automatic: false });
+		expect(chart.unusable).toBeUndefined();
+	});
+	it("lets a pin win over a stored quarter", () => {
+		const e = effectiveResolution({
+			catalog,
+			place: "monitors",
+			spanDays: 30,
+			pin: "day",
+			data: { layers: [pm25], resolution: "quarter" }
+		});
+		expect(e).toMatchObject({ resolution: "day", automatic: false });
+		expect(e.unusable).toBeUndefined();
 	});
 });
 

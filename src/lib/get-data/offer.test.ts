@@ -289,6 +289,13 @@ describe("resolutionBlock", () => {
 		);
 	});
 
+	it("greys no type for a stored quarter or season (Save is blocked instead)", () => {
+		for (const resolution of ["quarter", "season"] as const) {
+			expect(resolutionBlock(mapType, data({ resolution }))).toBeNull();
+			expect(resolutionBlock(monthCalendarType, data({ resolution }))).toBeNull();
+		}
+	});
+
 	it("never greys a type with no pin", () => {
 		expect(resolutionBlock(chartType, data({ resolution: "raw" }))).toBeNull();
 		expect(typeBlock(chartType, data({ resolution: "year" }), CATALOG, NOW)).toBeNull();

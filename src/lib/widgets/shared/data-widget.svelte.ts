@@ -219,6 +219,10 @@ export class DataWidget {
 		// looked up the main is held as loading, and a failed lookup is an error (retry looks again):
 		// it never falls back to the plain mean, which would be a second number for the same period.
 		this.shown = $derived.by((): QueryState => {
+			// A stored level the widget doesn't offer (untrusted input): the same state as one the
+			// main layer doesn't offer, which the query client reports itself.
+			if (this.picked.effective?.unusable)
+				return { status: "unavailable", reason: "no-resolution" };
 			if (this.picked.figurePending) {
 				const f = this.#figure;
 				const failed = f && f.key === figureKey && f.error !== undefined;

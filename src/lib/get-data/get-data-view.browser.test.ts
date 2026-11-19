@@ -698,6 +698,18 @@ test("a chosen level the new range can't serve stays, blocked, and Add waits", a
 	expect((await current()).data).not.toHaveProperty("resolution");
 });
 
+test("a stored level outside the levels (a quarter, untrusted) blocks Add with its own reason", async () => {
+	const draft = monitorsDraft(["m1"]);
+	(draft.data as { resolution?: string }).resolution = "quarter";
+	const { current } = await show(draft);
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
+	await expect.element(add).toHaveAccessibleDescription(m.get_data_resolution_unknown_blocked());
+	await page.getByRole("radio", { name: "Automatic" }).click();
+	await expect.element(add).toBeEnabled();
+	expect((await current()).data).not.toHaveProperty("resolution");
+});
+
 test("a draft carrying a dataset that doesn't line up (untrusted) blocks Add, naming it, until it's fixed", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.resolution = "day";

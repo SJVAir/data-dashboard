@@ -560,6 +560,30 @@ test("a weather main shows its plain mean, with no figure asked for", async () =
 	for (const r of requests) expect(r.figure).toBeUndefined();
 });
 
+test("a stored level outside the levels (a quarter, from a link) says it can't be drawn", async () => {
+	const widget = chartWidget(["m1"]);
+	(widget.data as { resolution?: string }).resolution = "quarter";
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_state_unavailable_no_resolution())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
+test("a stored level the main layer doesn't offer says it can't be drawn", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), pesticides({ values: [1200] })],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	widget.data.resolution = "day";
+	widget.data.layers = [{ ...POUNDS, place: { kind: "monitor", id: "m1" } }];
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_state_unavailable_no_resolution())).toBeVisible();
+});
+
 test("a daily chart from an untrusted document draws without pesticide use and says why", async () => {
 	fake.metadata = fixtureMetadata({
 		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]

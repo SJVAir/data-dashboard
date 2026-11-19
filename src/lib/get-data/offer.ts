@@ -1,5 +1,5 @@
 import type { DatasetAdapter } from "$lib/data/adapters/registry";
-import { MAP_LEVELS, type Level } from "$lib/data/dataset-rules";
+import { MAP_LEVELS, isLevel, type Level } from "$lib/data/dataset-rules";
 import { drawsAsBands } from "$lib/data/adapters/bands";
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
@@ -68,11 +68,12 @@ export type TypeBlock = "dataset" | "places" | "span" | "pollutants" | "pollutan
  * The chosen data resolution `type` can't show (`resolutionBlock` → "resolution"), or `null`. The
  * Map with a range shows daily, monthly or yearly data (Automatic keeps to those, and Now has no
  * resolution); a type pinned to a level (a calendar's day) shows only that one. Automatic is never
- * blocked: a pinned type fetches at its pin.
+ * blocked: a pinned type fetches at its pin. A stored value outside `LEVELS` (a quarter or season,
+ * from untrusted input) blocks no type: Save is blocked with its own reason instead.
  */
 export function resolutionBlock(type: WidgetType, data: WidgetDataConfig): Level | null {
-	const chosen = data.resolution as Level | undefined;
-	if (!chosen) return null;
+	const chosen = data.resolution;
+	if (!isLevel(chosen)) return null;
 	if (type.type === MAP_TYPE) {
 		return data.dateRange && !MAP_LEVELS.includes(chosen) ? chosen : null;
 	}
