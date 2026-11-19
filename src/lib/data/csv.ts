@@ -4,8 +4,10 @@ import { SvelteMap } from "svelte/reactivity";
 import { formatList, TIME_ZONE } from "$lib/format";
 import { nextPeriodStart, resolveRange } from "$lib/format/range";
 import type { WidgetInstance } from "$lib/documents/schema";
-import type { CatalogEntry, Level } from "./metadata";
-import type { WidgetDataConfig } from "./schema";
+import type { Level as DatasetLevel } from "./dataset-rules";
+import { layerKind } from "./layer-kind";
+import type { CatalogEntry, Figure, Level } from "./metadata";
+import type { Resolution, WidgetDataConfig } from "./schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { FileAccess } from "$lib/platform/types";
 import { dataFileName } from "$lib/sharing/file-names";
@@ -13,7 +15,6 @@ import { report } from "$lib/safety/report";
 import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import { placeLabel } from "$lib/widgets/title";
 import { calendarInput } from "$lib/calendars/input";
-import { figureName } from "$lib/calendars/figure";
 import { isCalendarType } from "$lib/calendars/types";
 import { entryMeta, widgetInputs, widgetPlaceKind } from "$lib/widgets/shared/input";
 import { overlayLayers } from "$lib/widgets/shared/overlays";
@@ -52,18 +53,24 @@ export const CSV_COLUMNS = [
 	"source_id",
 	"source_name",
 	"filters",
-	"aggregate"
+	"aggregate",
+	"figure",
+	"figure_label",
+	"rated"
 ] as const;
 
 /**
  * What the entry type contributes to every row. `aggregate` is the catalog's: `sum` says each
  * value is its period's total, `mean` its average, and empty that values never roll up.
+ * `figureLabel` is the server's name for the figure the rows were read with
+ * (`daily_statistic_label` or `period_statistic_label`), when they were read with one.
  */
 type EntryInfo = {
 	entryType: string;
 	entryLabel: string;
 	unit: string;
 	aggregate?: "sum" | "mean" | null;
+	figureLabel?: string | null;
 };
 
 /** A Pacific time with its offset: `2026-10-25T00:00:00-07:00`. */
@@ -98,10 +105,14 @@ function placeParts(key: string): { kind: string; id: string } {
 	return { kind: key.slice(0, i), id: key.slice(i + 1) };
 }
 
-/** The "Rated" cell: whether a day's figure was counted, left out, or is still changing. */
+/**
+ * The `rated` cell: whether a row's figure counts on its scale (`yes`), had too little data
+ * (`not_enough_data`), or is still changing (`not_final`); empty for a row read without a figure.
+ */
 function rated(p: SeriesPoint): string {
-	if (p.final === false) return m.csv_rated_not_final();
-	return p.figure === null || p.figure === undefined ? m.csv_rated_not_enough() : m.csv_rated_yes();
+	if (p.figure === undefined) return "";
+	if (p.final === false) return "not_final";
+	return p.figure === null ? "not_enough_data" : "yes";
 }
 
 /** An overlay's data, its entry type, and the labels of its scale levels. */
@@ -109,17 +120,14 @@ export type OverlayCsv = { data: QueryData; meta: EntryInfo; levels: Level[] };
 
 /**
  * One data set's rows, places in request order, oldest first. `placeAt` names the place a series
- * is reported as (the series' own, unless the caller pairs it with a main place). `figure` adds
- * the figure and "Rated" cells (`"values"`), or two empty ones (`"blank"`: an overlay's rows
- * under a main read with a figure).
+ * is reported as (the series' own, unless the caller pairs it with a main place).
  */
 function dataRows(
 	data: QueryData,
 	meta: EntryInfo,
 	levels: Level[],
 	placeAt: (series: QueryData["series"][number], index: number) => PlaceInfo | undefined,
-	viewer: PlaceViewer,
-	figure: "values" | "blank" | false = false
+	viewer: PlaceViewer
 ): string[] {
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
 	const own = new Map(data.places.map((p) => [p.place, p]));
@@ -159,11 +167,11 @@ function dataRows(
 				source?.id ?? "",
 				source?.name ?? "",
 				filters,
-				meta.aggregate ?? ""
+				meta.aggregate ?? "",
+				typeof p.figure === "number" ? plain(p.figure) : "",
+				p.figure === undefined ? "" : (meta.figureLabel ?? ""),
+				rated(p)
 			];
-			if (figure === "values") {
-				row.push(typeof p.figure === "number" ? plain(p.figure) : "", rated(p));
-			} else if (figure === "blank") row.push("", "");
 			lines.push(row.map(cell).join(","));
 		}
 	}
@@ -180,37 +188,25 @@ function dataRows(
  * use under daily data) keeps its own `period_start`/`period_end` and `resolution`, so it reads as
  * the whole period's value. A weather overlay's rows carry the station (`source_id`,
  * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
- * Data read with a figure passes `figureLabel` and gets two more columns, the figure (headed
- * with its label) and "Rated"; `mean` stays the period's plain mean.
- * `aggregate` (last of the common columns, so no earlier column moves) says whether a value is
- * a total or an average.
+ * `aggregate` says whether a value is a total or an average. Each row then describes its own
+ * figure (the value the widget shows; `mean` stays the period's plain mean): `figure` (empty when
+ * null), `figure_label` (the server's name for it) and `rated`, all empty on a row read without
+ * one (the plain mean). New columns go last, so no earlier column moves.
  */
 export function toCsv(
 	data: QueryData,
 	meta: EntryInfo,
 	viewer: PlaceViewer = "owner",
-	overlays: OverlayCsv[] = [],
-	figureLabel?: string
+	overlays: OverlayCsv[] = []
 ): string {
 	const own = new Map(data.places.map((p) => [p.place, p]));
-	const withFigure = figureLabel !== undefined;
-	const header = withFigure
-		? [...CSV_COLUMNS, cell(figureLabel), m.csv_rated()].join(",")
-		: CSV_COLUMNS.join(",");
 	const lines: string[] = [
-		header,
-		...dataRows(data, meta, [], (s) => own.get(s.place), viewer, withFigure && "values")
+		CSV_COLUMNS.join(","),
+		...dataRows(data, meta, [], (s) => own.get(s.place), viewer)
 	];
 	for (const o of overlays) {
 		lines.push(
-			...dataRows(
-				o.data,
-				o.meta,
-				o.levels,
-				(s, i) => data.places[i] ?? o.data.places[i],
-				viewer,
-				withFigure && "blank"
-			)
+			...dataRows(o.data, o.meta, o.levels, (s, i) => data.places[i] ?? o.data.places[i], viewer)
 		);
 	}
 	return `${lines.join("\r\n")}\r\n`;
@@ -248,7 +244,12 @@ async function loadOverlay(
 	try {
 		const info = entryMeta(catalog, layer);
 		if (!info || !input) return null;
-		const state = await firstSettled(input);
+		// A pollutant overlay is read with its own figure, as the main is (`figureOf`).
+		const figure =
+			layerKind(layer, catalog) === "pollutant"
+				? await figureOf(info.entryType.id, input.resolution)
+				: null;
+		const state = await firstSettled(figure ? { ...input, figure: figure.field } : input);
 		if (state.status === "error") throw state.error;
 		if (state.status !== "ready") return null;
 		const levels = await getMetadata().datasetLevels(layer.dataset, info.entryType.id);
@@ -259,13 +260,22 @@ async function loadOverlay(
 				entryType: info.entryType.id,
 				entryLabel: info.entryType.label,
 				unit: info.entryType.units,
-				aggregate: info.entryType.aggregate
+				aggregate: info.entryType.aggregate,
+				figureLabel: figure?.label ?? null
 			}
 		};
 	} catch (error) {
 		report(error);
 		return null;
 	}
+}
+
+/** An entry type's figure at `resolution`; `null` (plain rows) when it has none or the lookup fails. */
+function figureOf(entryType: string, resolution: Resolution): Promise<Figure | null> {
+	const level = resolution as DatasetLevel;
+	return getMetadata()
+		.figure(entryType, level)
+		.catch(() => null);
 }
 
 /** What a download left out: the entry labels of overlays that couldn't be loaded. */
@@ -295,29 +305,19 @@ export async function downloadDataCsv(
 	);
 	const { layer } = chart;
 	let input = chart.main;
-	let figureLabel: string | undefined;
-	// The figure the widget shows (a calendar's is always the day's), with its own column named by
-	// the server's label. A failed lookup, or an entry type with no figure, gives a plain CSV:
-	// without the figure in the query, "Rated" would be false on every row. Only the main (a
-	// pollutant) has a figure, so overlay rows leave the two columns empty.
+	// The figure the widget shows (a calendar's is always the day's). A failed lookup, or an
+	// entry type with no figure, gives plain rows: their figure columns stay empty.
 	const need = calendar
 		? layer?.entryType
 			? { entryType: layer.entryType, resolution: "day" as const }
 			: null
 		: chart.figureFor;
-	const figure = need
-		? await getMetadata()
-				.figure(need.entryType, need.resolution)
-				.catch(() => null)
-		: null;
+	const figure = need ? await figureOf(need.entryType, need.resolution) : null;
 	if (calendar) {
 		// A calendar's own query: one row per day.
 		input = calendarInput(config, catalog, type);
 	}
-	if (input && figure) {
-		input = { ...input, figure: figure.field };
-		figureLabel = calendar ? figureName(figure) : (figure.label ?? figure.field);
-	}
+	if (input && figure) input = { ...input, figure: figure.field };
 	const info = entryMeta(catalog, layer);
 	if (!input || !info) throw new Error("There is no data to download");
 	const state = await firstSettled(input);
@@ -327,7 +327,8 @@ export async function downloadDataCsv(
 		entryType: info.entryType.id,
 		entryLabel: info.entryType.label,
 		unit: info.entryType.units,
-		aggregate: info.entryType.aggregate
+		aggregate: info.entryType.aggregate,
+		figureLabel: figure?.label ?? null
 	};
 	const { data } = state;
 	const layers = overlayLayers(config, catalog);
@@ -350,7 +351,7 @@ export async function downloadDataCsv(
 			firstDate: range.firstDate,
 			lastDate: range.lastDate
 		}),
-		toCsv(data, meta, viewer, overlays, figureLabel),
+		toCsv(data, meta, viewer, overlays),
 		"text/csv"
 	);
 	return { skipped };

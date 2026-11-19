@@ -325,12 +325,54 @@ describe("toCsv overlay rows", () => {
 	};
 	const get = (row: string[], c: (typeof CSV_COLUMNS)[number]) => row[CSV_COLUMNS.indexOf(c)];
 
-	it("under a main read with a figure, overlay rows leave its two columns empty", () => {
-		const rows = parse(toCsv(main, META, "owner", [overlay], "24-hour average"));
-		const n = CSV_COLUMNS.length;
-		for (const row of rows) expect(row).toHaveLength(n + 2);
-		const last = rows.at(-1)!;
-		expect(last.slice(n)).toEqual(["", ""]);
+	it("each row describes its own figure: an overlay read with none leaves the cells blank", () => {
+		const withFigure = data({
+			...main,
+			series: main.series.map((x) => ({
+				...x,
+				points: x.points.map((p) => ({ ...p, figure: 9.5, final: true }))
+			}))
+		});
+		const rows = parse(
+			toCsv(withFigure, { ...META, figureLabel: "24-hour average" }, "owner", [overlay])
+		);
+		for (const row of rows) expect(row).toHaveLength(CSV_COLUMNS.length);
+		const [, first] = rows;
+		expect([get(first, "figure"), get(first, "figure_label"), get(first, "rated")]).toEqual([
+			"9.5",
+			"24-hour average",
+			"yes"
+		]);
+		const o = rows.at(-1)!;
+		expect([get(o, "figure"), get(o, "figure_label"), get(o, "rated")]).toEqual(["", "", ""]);
+	});
+
+	it("an overlay read with its own figure carries its own label", () => {
+		const o3 = {
+			meta: {
+				entryType: "o3",
+				entryLabel: "Ozone",
+				unit: "ppb",
+				figureLabel: "Highest 1-hour average"
+			},
+			levels: [],
+			data: data({
+				series: [
+					{
+						place: "monitor:a",
+						points: [point("2026-11-01T07:00:00Z", { figure: 41, final: true })]
+					}
+				],
+				places: [{ place: "monitor:a", name: "A" }]
+			})
+		};
+		const rows = parse(toCsv(main, META, "owner", [o3])).slice(1);
+		const row = rows.find((r) => get(r, "entry_type") === "o3")!;
+		expect([get(row, "figure"), get(row, "figure_label"), get(row, "rated")]).toEqual([
+			"41",
+			"Highest 1-hour average",
+			"yes"
+		]);
 	});
 
 	it("overlay rows carry level_key and level_label", () => {
@@ -592,7 +634,8 @@ describe("toCsv for weather and pesticide layers", () => {
 		expect(toCsv(main, META).split("\r\n")[0]).toBe(
 			"period_start,period_end,place_kind,place_id,place_name,entry_type,entry_type_label,unit," +
 				"mean,min,max,worst_hour_mean,worst_hour_start,count,resolution,partial," +
-				"computed_from_raw,level_key,level_label,source_id,source_name,filters,aggregate"
+				"computed_from_raw,level_key,level_label,source_id,source_name,filters,aggregate," +
+				"figure,figure_label,rated"
 		);
 	});
 
@@ -626,8 +669,8 @@ describe("toCsv for weather and pesticide layers", () => {
 		const csv = toCsv(main, { ...META, aggregate: "mean" }, "owner", [rain, temp, wind]);
 		const rows = parse(csv).slice(1);
 		expect(rows.map((r) => get(r, "aggregate"))).toEqual(["mean", "sum", "mean", ""]);
-		// Appended: it's the last column.
-		expect(CSV_COLUMNS.at(-1)).toBe("aggregate");
+		// Appended after the earlier columns; only the figure's three follow it.
+		expect(CSV_COLUMNS.at(-4)).toBe("aggregate");
 	});
 });
 
@@ -683,26 +726,31 @@ describe("a calendar's CSV", () => {
 			places: [{ place: "monitor:m1", name: "Monitor 1" }]
 		});
 
-	it("adds the figure and whether the day was rated", () => {
+	const tail = (r: string[]) => r.slice(-3);
+
+	it("ends with figure, figure_label and rated, in machine names", () => {
+		expect(CSV_COLUMNS.slice(-4)).toEqual(["aggregate", "figure", "figure_label", "rated"]);
+	});
+
+	it("writes each day's figure, its label and whether it was rated (a null figure blank)", () => {
 		const d = days([
 			{ figure: 31.9, final: true },
 			{ figure: null, final: true },
 			{ figure: 19.9, final: false }
 		]);
-		const rows = parse(toCsv(d, META, "owner", [], "24-hour average"));
-		const n = CSV_COLUMNS.length;
-		expect(rows[0].slice(n)).toEqual(["24-hour average", "Rated"]);
-		expect(rows.slice(1).map((r) => r.slice(n))).toEqual([
-			["31.9", "Yes"],
-			["", "Not enough data"],
-			["19.9", "Not final yet"]
+		const rows = parse(toCsv(d, { ...META, figureLabel: "24-hour average" }));
+		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+		expect(rows.slice(1).map(tail)).toEqual([
+			["31.9", "24-hour average", "yes"],
+			["", "24-hour average", "not_enough_data"],
+			["19.9", "24-hour average", "not_final"]
 		]);
 	});
 
-	it("leaves a Chart's CSV without the columns", () => {
-		const rows = parse(toCsv(days([{ figure: 31.9, final: true }]), META));
+	it("leaves the cells blank on rows read as the plain mean", () => {
+		const rows = parse(toCsv(days([{}]), META));
 		expect(rows[0]).toEqual([...CSV_COLUMNS]);
-		expect(rows[1]).toHaveLength(CSV_COLUMNS.length);
+		expect(tail(rows[1])).toEqual(["", "", ""]);
 	});
 
 	it("downloads with the calendar's own query and the server's label", async () => {
@@ -738,15 +786,15 @@ describe("a calendar's CSV", () => {
 		seen.push(spy.mock.calls[0][0]);
 		expect(seen[0]).toMatchObject({ resolution: "day", figure: "max_1h" });
 		const rows = parse(saved[0]);
-		expect(rows[0].slice(-2)).toEqual(["Highest 1-hour average", "Rated"]);
-		expect(rows[1].slice(-2)).toEqual(["12.5", "Yes"]);
+		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+		expect(rows[1].slice(-3)).toEqual(["12.5", "Highest 1-hour average", "yes"]);
 	});
 
 	async function download(figure: MetadataSource["figure"]): Promise<string[][]> {
 		const adapter: DatasetAdapter = {
 			...fakeAdapter([]),
-			async fetch() {
-				return { ...days([{ figure: 12.5, final: true }]), fetchedAt: 0 };
+			async fetch(req) {
+				return { ...days([req.figure ? { figure: 12.5, final: true } : {}]), fetchedAt: 0 };
 			}
 		};
 		fake.metadata = fixtureMetadata({ figure });
@@ -773,11 +821,13 @@ describe("a calendar's CSV", () => {
 			throw new Error("down");
 		});
 		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+		expect(rows[1].slice(-3)).toEqual(["", "", ""]);
 	});
 
-	it("adds no columns when the entry type has no daily figure", async () => {
+	it("leaves the label blank when the entry type has no daily figure", async () => {
 		const rows = await download(async () => null);
 		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+		expect(rows[1].slice(-3)).toEqual(["", "", ""]);
 	});
 
 	it("a Chart's monthly CSV carries the figure, its column named by period_statistic_label", async () => {
@@ -817,17 +867,55 @@ describe("a calendar's CSV", () => {
 		});
 		expect(requests[0]).toMatchObject({ resolution: "month", figure: "daily_statistic_mean" });
 		const rows = parse(out);
-		const n = CSV_COLUMNS.length;
-		expect(rows[0].slice(n)).toEqual(["Average of 24-hour averages", "Rated"]);
-		expect(rows.slice(1).map((r) => r.slice(n))).toEqual([
-			["13.2", "Yes"],
-			["", "Not enough data"]
+		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+		expect(rows.slice(1).map((r) => r.slice(-3))).toEqual([
+			["13.2", "Average of 24-hour averages", "yes"],
+			["", "Average of 24-hour averages", "not_enough_data"]
 		]);
 	});
 
-	it("quotes a figure label with a comma in the header", () => {
-		const text = toCsv(days([{ figure: 1, final: true }]), META, "owner", [], "Max, 1-hour");
-		expect(parse(text)[0].slice(-2)).toEqual(["Max, 1-hour", "Rated"]);
+	it("a pollutant overlay is read with its own figure and label", async () => {
+		const requests: AdapterRequest[] = [];
+		const base = fakeAdapter(requests);
+		const adapter: DatasetAdapter = {
+			...base,
+			async fetch(req, ctx, signal) {
+				const got = await base.fetch(req, ctx, signal);
+				return {
+					...got,
+					series: got.series.map((x) => ({
+						...x,
+						points: x.points.map((p) => ({ ...p, figure: req.figure ? 30 : undefined }))
+					}))
+				};
+			}
+		};
+		fake.metadata = fixtureMetadata();
+		fake.client = createQueryClient({
+			adapters: [adapter],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const widget = chartWidget(["m1"]);
+		widget.data.layers.push({ dataset: "air-quality", entryType: "o3" });
+		let out = "";
+		await downloadWidgetCsv(widget, (_n, contents) => {
+			out = contents;
+		});
+		expect(requests.map((r) => [r.entryType, r.figure])).toEqual([
+			["pm25", "mean_24h"],
+			["o3", "max_1h"]
+		]);
+		const rows = parse(out).slice(1);
+		const label = (type: string) =>
+			rows.find((r) => r[CSV_COLUMNS.indexOf("entry_type")] === type)!.slice(-2);
+		expect(label("pm25")).toEqual(["24-hour average", "yes"]);
+		expect(label("o3")).toEqual(["Highest 1-hour average", "yes"]);
+	});
+
+	it("quotes a figure label with a comma", () => {
+		const text = toCsv(days([{ figure: 1, final: true }]), { ...META, figureLabel: "Max, 1-hour" });
+		expect(parse(text)[1].slice(-2)).toEqual(["Max, 1-hour", "yes"]);
 		expect(text).toContain('"Max, 1-hour"');
 	});
 });

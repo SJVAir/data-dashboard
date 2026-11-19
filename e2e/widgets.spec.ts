@@ -16,7 +16,7 @@ const CHART = "Chart of Fresno County";
 const CSV_HEADER =
 	"period_start,period_end,place_kind,place_id,place_name,entry_type,entry_type_label,unit," +
 	"mean,min,max,worst_hour_mean,worst_hour_start,count,resolution,partial,computed_from_raw," +
-	"level_key,level_label,source_id,source_name,filters,aggregate";
+	"level_key,level_label,source_id,source_name,filters,aggregate,figure,figure_label,rated";
 
 test("a Chart and a Data table: data, readout, CSV, duplicate, reload", async ({ page }) => {
 	// A blank dashboard: the starter has a Chart of its own.
@@ -62,9 +62,10 @@ test("a Chart and a Data table: data, readout, CSV, duplicate, reload", async ({
 	const path = test.info().outputPath("data.csv");
 	await file.saveAs(path);
 	const lines = (await readFile(path, "utf8")).split("\r\n");
-	// Daily PM2.5 is read as its figure: two more columns, named by the server's label.
-	expect(lines[0]).toBe(`${CSV_HEADER},24-hour average,Rated`);
+	expect(lines[0]).toBe(CSV_HEADER);
 	expect(lines[1]).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00-0[78]:00,/);
+	// Daily PM2.5 is read as its figure: each row names it with the server's label.
+	expect(lines[1]).toMatch(/,24-hour average,(yes|not_final|not_enough_data)$/);
 	expect(lines.filter(Boolean)).toHaveLength(31);
 
 	// The Chart's frame menu downloads the same way.
