@@ -478,6 +478,31 @@ test("an averaged main stays an average, with no source to name", async () => {
 	await expect.element(key.getByText(m.chart_series_day(), { exact: true })).toBeVisible();
 });
 
+test("a daily chart from an untrusted document draws without pesticide use and says why", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), pesticides({ values: [1200] })],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	widget.data.resolution = "day";
+	widget.data.layers = [{ ...PM25, place: { kind: "monitor", id: "m1" } }, { ...POUNDS }];
+	const screen = await show(widget);
+	await expect
+		.element(
+			screen.getByText(m.widget_layer_not_lined_up({ dataset: "Pesticide Use", level: "daily" }), {
+				exact: true
+			})
+		)
+		.toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	expect(frame.querySelector("[data-strip]")).toBeNull();
+	expect(requests.some((r) => r.entryType === "pounds-applied")).toBe(false);
+});
+
 test("an overlay is fetched alongside the main, at the dataset's resolution", async () => {
 	fake.metadata = fixtureMetadata({
 		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]

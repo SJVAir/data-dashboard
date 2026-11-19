@@ -6,11 +6,10 @@
 	import { csvPending, saveWidgetCsv } from "$lib/data/csv";
 	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
-	import { periodLabel, seriesLabel, type Aggregate } from "$lib/charts/period-label";
+	import { seriesLabel, type Aggregate } from "$lib/charts/period-label";
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
 	import { levelFor } from "$lib/data/metadata";
-	import type { Resolution } from "$lib/data/schema";
 	import type { PlaceInfo, QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatHourRange, formatNumber, formatPeriod, formatValue } from "$lib/format";
@@ -21,7 +20,8 @@
 	import { dataTableType } from "./index";
 	import { sourceLabel } from "../shared/source-label";
 	import { placeLabel } from "../title";
-	import { byDay, overlayColumns, sortRows, wideRows, type OverlayColumn } from "./rows";
+	import { misfitNotes } from "../shared/misfit-notes";
+	import { overlayColumns, sortRows, wideRows, type OverlayColumn } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
@@ -119,33 +119,23 @@
 	}
 
 	/**
-	 * What a whole-period cell is: "Monthly total" for a summed layer, "Monthly average" for a mean
-	 * (never a total), nothing for a layer whose values don't combine over time. The same words as
-	 * the Chart's strip tags.
-	 */
-	function wholeLabel(resolution: Resolution, aggregate: Aggregate): string {
-		return periodLabel(resolution, aggregate) ?? "";
-	}
-
-	/**
 	 * Why an overlay has no columns, so the Table never drops one the Chart shows or explains:
-	 * it failed, or the main's periods are longer than its days.
+	 * it failed, or it doesn't offer the table's resolution (`misfitNotes`).
 	 */
-	function overlayNotes(data: QueryData): string[] {
-		return w.overlays.flatMap((o) => {
+	function overlayNotes(): string[] {
+		const failed = w.overlays.flatMap((o) => {
 			const layer = o.meta?.entryType.label;
 			if (!layer) return [];
 			const s = o.state;
-			const level = layerKind(o.layer, w.catalog) !== "number";
+			const number = layerKind(o.layer, w.catalog) === "number";
 			// Worded as the Chart words it: a number layer says why it's unavailable.
-			if (s.status === "unavailable" && !level) return [unavailableMessage(s.reason)];
+			if (s.status === "unavailable" && number) return [unavailableMessage(s.reason)];
 			if (s.status === "error" || s.status === "unavailable") {
 				return [m.chart_overlay_failed({ layer })];
 			}
-			return s.status === "ready" && level && !byDay(data)
-				? [m.table_overlay_by_day({ layer })]
-				: [];
+			return [];
 		});
+		return [...misfitNotes(w.overlays, w.picked.effective), ...failed];
 	}
 
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */
@@ -177,7 +167,7 @@
 				{@const rows = sortRows(wideRows(data, overlays), sort.column, sort.dir)}
 				{@const columns = overlayColumns(data, overlays)}
 				{@const extra = extras(data)}
-				{@const notes = overlayNotes(data)}
+				{@const notes = overlayNotes()}
 				<div class="flex h-full flex-col">
 					<div class="mb-1 flex items-center justify-between gap-2">
 						<p class="text-muted-foreground text-sm">
@@ -286,11 +276,6 @@
 													/>
 												{:else if cell}
 													<span class="tabular-nums">{formatValue(cell.mean, o.precision)}</span>
-													{#if columns[i].whole}
-														<span class="text-muted-foreground">
-															{wholeLabel(columns[i].whole!, o.aggregate)}
-														</span>
-													{/if}
 												{/if}
 											</td>
 										{/each}

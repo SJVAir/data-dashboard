@@ -14,7 +14,7 @@ import {
 	type XRange
 } from "./series";
 import { drawBars, drawMarkers, drawSticks, type Bar, type Project } from "./sticks";
-import { periodSpan, type ChartStrip } from "./strips";
+import type { ChartStrip } from "./strips";
 import { drawThresholdLine, type ThresholdLine } from "./threshold-line";
 
 export { ancestorAnimationsSettled } from "./settled";
@@ -78,7 +78,7 @@ export type ChartData = {
 	daily?: boolean;
 	/**
 	 * Number overlays, each drawn in its own plot under the main one (in `stripTargets`); the
-	 * count and each strip's `chart` and `wholePeriod` must stay the same across updates.
+	 * count and each strip's `chart` must stay the same across updates.
 	 */
 	strips?: ChartStrip[];
 	/** A level's line across the main plot (display only); the value axis includes it. */
@@ -165,7 +165,7 @@ function stripRange(strip: ChartStrip): [number, number] {
 	return [floor === null ? niceLo : lo, niceHi];
 }
 
-/** A strip's plotted points: gap-filled at the chart's periods, or each whole period as is. */
+/** A strip's plotted points, gap-filled at the chart's periods. */
 function stripSeries(strip: ChartStrip, range: XRange | undefined): AlignedSeries {
 	const data = {
 		series: [{ place: "strip", points: strip.points }],
@@ -175,7 +175,7 @@ function stripSeries(strip: ChartStrip, range: XRange | undefined): AlignedSerie
 		processor: null,
 		fetchedAt: 0
 	};
-	return alignSeries(data, strip.wholePeriod ? undefined : range);
+	return alignSeries(data, range);
 }
 
 let syncCount = 0;
@@ -522,7 +522,7 @@ export function createTimeChart(
 		return plot;
 	}
 
-	/** A strip's bars, clipped to its plot; a whole-period bar spans its period. */
+	/** A strip's bars, clipped to its plot. */
 	function drawStripBars(p: uPlot, strip: ChartStrip, aligned: AlignedSeries): number {
 		const r = ratio();
 		const toPx = (t: number) => p.valToPos(t, "x", true);
@@ -533,17 +533,8 @@ export function createTimeChart(
 		const list: Bar[] = [];
 		aligned.points[0].forEach((pt, k) => {
 			if (!pt || !Number.isFinite(pt.mean)) return;
-			let x0: number;
-			let x1: number;
-			if (strip.wholePeriod) {
-				const [start, end] = periodSpan(pt.t, strip.resolution);
-				// A hairline gap between neighboring periods.
-				x0 = toPx(start) + r;
-				x1 = toPx(end) - r;
-			} else {
-				x0 = toPx(aligned.xs[k]) - width / 2;
-				x1 = x0 + width;
-			}
+			const x0 = toPx(aligned.xs[k]) - width / 2;
+			const x1 = x0 + width;
 			if (x1 <= left || x0 >= right) return;
 			list.push({ x0, x1, base, top: p.valToPos(pt.mean, "y", true), partial: pt.partial });
 		});

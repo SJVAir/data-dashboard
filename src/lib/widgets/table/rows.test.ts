@@ -141,9 +141,9 @@ test("a weather overlay column holds numbers", () => {
 	};
 	const overlays: OverlayRows[] = [{ data: weather, levels: [], kind: "number", aggregate: "sum" }];
 	const columns = overlayColumns(data, overlays);
-	expect(columns.map((c) => [c.place.name, c.info?.source?.id ?? null, c.whole])).toEqual([
-		["A", "80", null],
-		["B", null, null]
+	expect(columns.map((c) => [c.place.name, c.info?.source?.id ?? null])).toEqual([
+		["A", "80"],
+		["B", null]
 	]);
 	const rows = wideRows(data, overlays);
 	expect(rows.map((r) => r.t)).toEqual([1, 2, 3, 4]);
@@ -155,29 +155,40 @@ test("a weather overlay column holds numbers", () => {
 	]);
 });
 
-test("a monthly pesticide overlay fills the days of its month", () => {
+test("a monthly table has one row per month and a monthly pesticide value in its own row", () => {
 	const nov = Date.parse("2026-11-01T08:00:00Z");
 	const dec = Date.parse("2026-12-01T08:00:00Z");
-	const days = [nov, nov + DAY, dec - DAY, dec + DAY];
 	const main: QueryData = {
 		...data,
-		series: [{ place: "monitor:a", points: days.map((t) => pt(t, 5)) }],
+		resolution: "month",
+		series: [{ place: "monitor:a", points: [pt(nov, 5), pt(dec, 6)] }],
+		places: [{ place: "monitor:a", name: "A" }]
+	};
+	const use: QueryData = {
+		...main,
+		series: [{ place: "monitor:a", points: [pt(nov, 1200)] }],
+		places: [{ place: "monitor:a", name: "A", filters: ["Grapes"] }]
+	};
+	const overlays: OverlayRows[] = [{ data: use, levels: [], kind: "number", aggregate: "sum" }];
+	const rows = wideRows(main, overlays);
+	expect(rows.map((r) => r.t)).toEqual([nov, dec]);
+	expect(
+		rows.map((r) => (r.overlays[0] && "mean" in r.overlays[0] ? r.overlays[0].mean : null))
+	).toEqual([1200, null]);
+});
+
+test("a daily table shows no monthly value repeated down its days", () => {
+	const nov = Date.parse("2026-11-01T08:00:00Z");
+	const main: QueryData = {
+		...data,
+		series: [{ place: "monitor:a", points: [pt(nov + DAY, 5), pt(nov + 2 * DAY, 5)] }],
 		places: [{ place: "monitor:a", name: "A" }]
 	};
 	const use: QueryData = {
 		...main,
 		resolution: "month",
-		series: [{ place: "monitor:a", points: [pt(nov, 1200)] }],
-		places: [{ place: "monitor:a", name: "A", filters: ["Grapes"] }]
+		series: [{ place: "monitor:a", points: [pt(nov, 1200)] }]
 	};
-	const overlays: OverlayRows[] = [{ data: use, levels: [], kind: "number", aggregate: "sum" }];
-	const [column] = overlayColumns(main, overlays);
-	// Marked as a whole month, so the table can say it isn't a daily value.
-	expect(column.whole).toBe("month");
-	const rows = wideRows(main, overlays);
-	expect(
-		rows.map((r) => (r.overlays[0] && "mean" in r.overlays[0] ? r.overlays[0].mean : null))
-	).toEqual([1200, 1200, 1200, null]);
-	// The coarser overlay adds no rows of its own.
-	expect(rows.map((r) => r.t)).toEqual(days);
+	const rows = wideRows(main, [{ data: use, levels: [], kind: "number", aggregate: "sum" }]);
+	expect(rows.map((r) => r.overlays[0])).toEqual([null, null]);
 });

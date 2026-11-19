@@ -11,6 +11,7 @@
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
+	import { misfitNotes } from "../shared/misfit-notes";
 	import { overlayPlaceFor, sharedSource } from "../shared/overlays";
 	import { sourceLabel } from "../shared/source-label";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -45,9 +46,10 @@
 	/**
 	 * What the Chart draws for each overlay: a level overlay as one place's day bands, a number
 	 * overlay as one place's strip (the saved "Overlay for" place, or the first, when the places'
-	 * overlays differ). A level overlay with none or that failed gets a note; a number overlay
-	 * shows why in its strip's place, so the main chart is never affected. Overlays still loading,
-	 * or whose dataset the catalog doesn't list, show nothing yet.
+	 * overlays differ), every one at the dataset's resolution. A level overlay with none or that
+	 * failed gets a note; a number overlay shows why in its strip's place, so the main chart is
+	 * never affected. Overlays still loading, not fetched (a misfit: `misfitNotes` says why), or
+	 * whose dataset the catalog doesn't list, show nothing yet.
 	 */
 	function drawn(overlays: WidgetOverlay[], main: QueryData) {
 		const bands = [];
@@ -69,8 +71,6 @@
 				yMin: meta.yMin,
 				points: [],
 				resolution: main.resolution,
-				wholePeriod: false,
-				aggregate: meta.aggregate,
 				...extra
 			});
 			if (s.status === "error" || s.status === "unavailable") {
@@ -100,16 +100,7 @@
 					strips.push(strip({ name, message }));
 					continue;
 				}
-				strips.push(
-					strip({
-						name,
-						points,
-						resolution: s.data.resolution,
-						// Pinned to the main's resolution, an overlay comes back coarser only when its
-						// dataset has nothing finer (pesticide use is monthly).
-						wholePeriod: s.data.resolution !== main.resolution
-					})
-				);
+				strips.push(strip({ name, points }));
 				continue;
 			}
 			if (points.length === 0) {
@@ -153,9 +144,11 @@
 					precision={w.meta?.entryType.precision ?? null}
 					yMin={w.meta?.entryType.yMin ?? null}
 					overlays={overlays.bands}
-					notes={threshold.missing
-						? [...overlays.notes, m.chart_level_line_missing()]
-						: overlays.notes}
+					notes={[
+						...misfitNotes(w.overlays, w.picked.effective),
+						...overlays.notes,
+						...(threshold.missing ? [m.chart_level_line_missing()] : [])
+					]}
 					threshold={threshold.line}
 					strips={overlays.strips}
 					mainChart={w.meta?.entryType.chart === "bar" ? "bar" : "line"}

@@ -316,9 +316,10 @@ test("an overlay that fails says so under the table; one not offered at the reso
 	const before = requests.length;
 	await show(monthly);
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
-	// Burn status offers days only: at Monthly it isn't fetched or shown (its note is a later step's).
+	// Burn status offers days only: at Monthly it isn't fetched or shown (and says why).
 	expect(requests.slice(before).map((r) => r.entryType)).toEqual(["pm25"]);
 	expect(frame.querySelector("thead")!.textContent).not.toContain("Burn status");
+	await expect.poll(() => frame.textContent).toContain("isn't reported monthly");
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
 

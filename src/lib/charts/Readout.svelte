@@ -27,16 +27,12 @@
 		precision?: number | null;
 		/** Each overlay's level on this day, if it has one. */
 		overlays?: { layer: string; level: Level | null }[];
-		/**
-		 * Each strip's value for this period; `whole` marks a coarser summed strip's total for its
-		 * whole period (a month only partly in the range still shows the whole month's total).
-		 */
+		/** Each strip's value for this period. */
 		strips?: {
 			layer: string;
 			unit: string;
 			precision: number | null;
 			point: SeriesPoint | null;
-			whole: string | null;
 		}[];
 	} = $props();
 
@@ -94,9 +90,6 @@
 				value: strip.point ? stripValue(strip.point.mean, strip) : m.chart_no_data()
 			})}
 		</p>
-		{#if strip.whole}
-			<p class="text-muted-foreground">{strip.whole}</p>
-		{/if}
 		{#if strip.point?.partial}
 			<p class="text-muted-foreground">{m.chart_partial()}</p>
 		{/if}
