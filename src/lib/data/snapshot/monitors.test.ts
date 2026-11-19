@@ -230,7 +230,7 @@ describe("monitorPeriodSource", () => {
 		expect(snap.unrated).toBe(false);
 	});
 
-	it("a null figure (fewer than 75% of the days had one) is thin, final or not", async () => {
+	it("a null figure (too few days had one) is thin, final or not", async () => {
 		monthly.mockResolvedValue([
 			{ id: "a", summaries: [periodRow("2026-10-01", null)] },
 			{ id: "b", summaries: [periodRow("2026-10-01", null, false)] }
@@ -238,6 +238,28 @@ describe("monitorPeriodSource", () => {
 		const snap = await period().fetch(signal);
 		expect(snap.figures.get("a")).toEqual({ value: null, level: null, kind: "thin" });
 		expect(snap.figures.get("b")).toEqual({ value: null, level: null, kind: "thin" });
+	});
+
+	it("a thin row with its day counts carries them; a row missing either count, none", async () => {
+		const counted = (days: number | null, expected: number | null) => ({
+			...periodRow("2026-10-01", null),
+			daily_statistic_days: days,
+			daily_statistic_expected_days: expected
+		});
+		monthly.mockResolvedValue([
+			{ id: "a", summaries: [counted(20, 31)] },
+			{ id: "b", summaries: [counted(20, null)] },
+			{ id: "c", summaries: [counted(null, 31)] }
+		]);
+		const snap = await period().fetch(signal);
+		expect(snap.figures.get("a")).toEqual({
+			value: null,
+			level: null,
+			kind: "thin",
+			days: { days: 20, expected: 31 }
+		});
+		expect(snap.figures.get("b")).toEqual({ value: null, level: null, kind: "thin" });
+		expect(snap.figures.get("c")).toEqual({ value: null, level: null, kind: "thin" });
 	});
 
 	it("a not-final row is pending, and the snapshot not final (it polls)", async () => {

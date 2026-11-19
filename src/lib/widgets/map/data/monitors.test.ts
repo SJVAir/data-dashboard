@@ -23,6 +23,7 @@ import {
 	createMonitorsEntry,
 	isThin,
 	snapshotScope,
+	thinDays,
 	toDayFeatures,
 	toMonitorFeatures
 } from "./monitors";
@@ -156,6 +157,18 @@ describe("a day's monitors", () => {
 		expect(out.features[1].properties.value).toBeNull();
 		expect(isThin(out.features[1].properties)).toBe(true);
 		expect(isThin(out.features[0].properties)).toBe(false);
+		expect(thinDays(out.features[1].properties)).toBeUndefined();
+	});
+
+	it("a thin month keeps its day counts for the plugin's detail", () => {
+		const out = toDayFeatures(
+			[monitor("a")],
+			snapshot([
+				["a", { value: null, level: null, kind: "thin", days: { days: 20, expected: 31 } }]
+			])
+		);
+		expect(isThin(out.features[0].properties)).toBe(true);
+		expect(thinDays(out.features[0].properties)).toEqual({ days: 20, expected: 31 });
 	});
 
 	it("maps the places' scope onto the snapshot's, with a stable key", () => {

@@ -32,7 +32,7 @@
 	import { generatedTitle } from "../titles.svelte";
 	import { navigate } from "../../../router";
 	import { MapData } from "./data/loaded.svelte";
-	import { isThin } from "./data/monitors";
+	import { isThin, thinDays } from "./data/monitors";
 	import type { UseQuery } from "./data/use";
 	import { USE_FIELDS } from "./data/use-fields";
 	import { sectionZoom } from "./data/use-geometry";
@@ -679,13 +679,19 @@
 
 	/**
 	 * A stop's monitor without enough data for a figure says so where "No level" would be: a day
-	 * had too few readings; a month or year too few days with a figure.
+	 * had too few readings; a month or year too few days with a figure ("Only 20 of 31 days had a
+	 * figure", from the row's counts).
 	 */
 	function thinDetail(props: MonitorFeatureProperties): string | undefined {
 		if (!isThin(props)) return undefined;
-		return days.resolution === "day"
-			? m.calendar_not_enough_data()
-			: m.map_period_not_enough_days();
+		if (days.resolution === "day") return m.calendar_not_enough_data();
+		const counts = thinDays(props);
+		return counts
+			? m.map_period_days_with_figure({
+					days: formatNumber(counts.days),
+					expected: formatNumber(counts.expected)
+				})
+			: m.map_period_too_few_days();
 	}
 
 	/** Each notices marker's latest properties, by refKey: an open card follows its marker. */

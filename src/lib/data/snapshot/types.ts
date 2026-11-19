@@ -7,7 +7,16 @@ import type { Level } from "../metadata";
  */
 export type SnapshotAt = "now" | { day: string } | { start: string; resolution: "month" | "year" };
 
-export type SnapshotFigure = { value: number | null; level: Level | null; kind: DayKind };
+export type SnapshotFigure = {
+	value: number | null;
+	level: Level | null;
+	kind: DayKind;
+	/**
+	 * A month's or year's too-thin figure: how many days had a figure, of those expected (the row's
+	 * `daily_statistic_days` / `daily_statistic_expected_days`), when the row has both.
+	 */
+	days?: { days: number; expected: number };
+};
 
 export type Snapshot = {
 	/** Keyed by monitor id, or by region `type:code`. */

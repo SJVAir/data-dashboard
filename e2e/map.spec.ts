@@ -897,6 +897,11 @@ test.describe("a Map's days", () => {
 		await expect(page.locator("[data-day-status]")).toContainText("Not final yet");
 		await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
 		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
+		// The figure is named by the scale's period_statistic_label, where map-sdk shows it (its
+		// legend has no figure name): the feature list's note, above the rows.
+		await featureList(map);
+		await expect(map.getByText("Average of 24-hour averages", { exact: true })).toBeVisible();
+		await closeFeatureList(map);
 
 		await slider.focus();
 		await page.keyboard.press("ArrowLeft");

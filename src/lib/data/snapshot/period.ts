@@ -21,7 +21,8 @@ export function periodHolds(at: PeriodAt, today: string): boolean {
 /**
  * One place's figure for a month or year, from its row read with the period's figure (the
  * average of the daily figures, `scale.period_statistic`), coloured by the daily scale's levels.
- * A null figure (fewer than 75% of the days had one) is `thin`, not final or not; a not-final
+ * A null figure (too few of the days had one) is `thin`, not final or not, with the row's day
+ * counts when it has them; a not-final
  * row with a figure is `pending`; no figure for the scale, `unrated`.
  */
 export function periodFigure(args: {
@@ -32,7 +33,16 @@ export function periodFigure(args: {
 	const { row, figure, levels } = args;
 	if (figure === null) return { value: null, level: null, kind: "unrated" };
 	const value = numberOf(row[figure.field]);
-	if (value === null) return { value: null, level: null, kind: "thin" };
+	if (value === null) {
+		const days = numberOf(row.daily_statistic_days);
+		const expected = numberOf(row.daily_statistic_expected_days);
+		return {
+			value: null,
+			level: null,
+			kind: "thin",
+			...(days !== null && expected !== null && { days: { days, expected } })
+		};
+	}
 	return {
 		value,
 		level: levelFor(levels, value) ?? null,

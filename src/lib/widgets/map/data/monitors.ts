@@ -83,14 +83,29 @@ export function toDayFeatures(list: MonitorLatest[], snapshot: Snapshot): Collec
 			{ value: figure.value, isActive: true, timestamp: null }
 		);
 		// Not enough data for the stop: no value, and the monitors plugin's `detail` says why.
-		if (figure.kind === "thin") (feature.properties as DayMonitorProperties).thin = true;
+		if (figure.kind === "thin") {
+			const props = feature.properties as DayMonitorProperties;
+			props.thin = true;
+			if (figure.days) props.thinDays = figure.days;
+		}
 		features.push(feature);
 	}
 	return { type: "FeatureCollection", features };
 }
 
 /** A stop's monitor: `thin` when it had a row for the stop without enough data for a figure. */
-export type DayMonitorProperties = MonitorFeatureProperties & { thin?: true };
+export type DayMonitorProperties = MonitorFeatureProperties & {
+	thin?: true;
+	/** A thin month or year: how many days had a figure, of those expected. */
+	thinDays?: { days: number; expected: number };
+};
+
+/** A thin month's or year's day counts, when its row has them. */
+export function thinDays(
+	props: MonitorFeatureProperties
+): { days: number; expected: number } | undefined {
+	return (props as DayMonitorProperties).thinDays;
+}
 
 /** Whether a day's monitor had too little data that day for a figure. */
 export function isThin(props: MonitorFeatureProperties): boolean {

@@ -1982,22 +1982,41 @@ function dailyFigures(byDay: DayFigures, isFinal = true) {
 }
 
 /** One monitor's or region's monthly or yearly row for the period starting `start`. */
-const periodRow = (start: string, value: number | null, isFinal = true) => ({
+const periodRow = (
+	start: string,
+	value: number | null,
+	isFinal = true,
+	counts: [number, number] | null = null
+) => ({
 	timestamp: pacificDay(start).toISOString(),
 	is_final: isFinal,
 	mean: 99,
-	daily_statistic_mean: value
+	daily_statistic_mean: value,
+	daily_statistic_days: counts?.[0] ?? null,
+	daily_statistic_expected_days: counts?.[1] ?? null
 });
 
 /**
  * The bulk monthly and yearly summaries: each period's figure per monitor, by the period's start
- * (a monitor left out has no row). `notFinal` lists the starts whose rows aren't final yet.
+ * (a monitor left out has no row). `notFinal` lists the starts whose rows aren't final yet;
+ * `counts` gives a start's rows their days with a figure and expected days.
  */
-function periodFigures(byStart: DayFigures, notFinal: string[] = []) {
+function periodFigures(
+	byStart: DayFigures,
+	notFinal: string[] = [],
+	counts: Record<string, [number, number]> = {}
+) {
 	const answer = (async (config: { start: string }) =>
 		Object.entries(byStart[config.start] ?? {}).map(([id, value]) => ({
 			id,
-			summaries: [periodRow(config.start, value, !notFinal.includes(config.start))]
+			summaries: [
+				periodRow(
+					config.start,
+					value,
+					!notFinal.includes(config.start),
+					counts[config.start] ?? null
+				)
+			]
 		}))) as never;
 	vi.mocked(getMonitorSummariesBulkMonthly).mockImplementation(answer);
 	vi.mocked(getMonitorSummariesBulkYearly).mockImplementation(answer);
@@ -2338,7 +2357,10 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 	rated({ monitors: listed.monitors, monitorTypes: listed.monitorTypes });
 	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b"), reading("c")] as never);
 	dailyFigures({ "2026-09-01": { a: 9 } });
-	periodFigures({ "2026-09-01": { a: 14, b: null }, "2026-08-01": { a: 30, b: 4 } });
+	// September's rows carry their day counts; August's don't.
+	periodFigures({ "2026-09-01": { a: 14, b: null }, "2026-08-01": { a: 30, b: null } }, [], {
+		"2026-09-01": [20, 30]
+	});
 	const range = { kind: "custom", start: "2026-07-10", end: "2026-09-20" } as const;
 	const widget = rangedMap(region("019"), { marks: ["c"] }, range);
 	widget.data.resolution = "month";
@@ -2348,7 +2370,7 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 	await expect.poll(dayLabel).toBe("September 2026");
 	await expect.element(page.getByRole("button", { name: "Previous month" })).toBeEnabled();
 	// The month's figure (the average of the daily figures), named by period_statistic_label; a
-	// null one (fewer than 75% of the days had a figure) draws as no data, saying why.
+	// null one (too few days had a figure) draws as no data, saying how many did.
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 14, b: null });
 	expect(monthsAsked()).toEqual(["2026-09-01..2026-09-30"]);
 	expect(vi.mocked(getMonitorSummariesBulkMonthly).mock.calls[0][0]).toMatchObject({
@@ -2364,7 +2386,12 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 				features: { features: { properties: Record<string, unknown> }[] };
 			}
 		).features.features.find((f) => f.properties.refKey === `monitor:${id}`)!.properties;
-	expect(monitorsOptionsOf(map)!.detail!(props("b"))).toBe(m.map_period_not_enough_days());
+	expect(monitorsOptionsOf(map)!.detail!(props("b"))).toBe(
+		m.map_period_days_with_figure({ days: "20", expected: "30" })
+	);
+	expect(m.map_period_days_with_figure({ days: "20", expected: "30" })).toBe(
+		"Only 20 of 30 days had a figure"
+	);
 	expect(monitorsOptionsOf(map)!.detail!(props("a"))).toBeUndefined();
 	// The marked monitor has no row this month: hidden, with the period's reason.
 	const line = m.map_marks_hidden_period({ count: "1", countValue: 1 });
@@ -2373,7 +2400,10 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 
 	await page.getByRole("button", { name: "Previous month" }).click();
 	await expect.poll(dayLabel).toBe("August 2026");
-	await expect.poll(() => drawnValues(map)).toEqual({ a: 30, b: 4 });
+	await expect.poll(() => drawnValues(map)).toEqual({ a: 30, b: null });
+	// No day counts on the row: the reason without them.
+	expect(monitorsOptionsOf(map)!.detail!(props("b"))).toBe(m.map_period_too_few_days());
+	expect(m.map_period_too_few_days()).toBe("Too few days had a figure");
 	expect(monthsAsked()).toEqual(["2026-09-01..2026-09-30", "2026-08-01..2026-08-31"]);
 
 	// July has no rows: no data, the usual way.
