@@ -1728,7 +1728,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (add the tests).
 
 - **sjvair.com #342 final-review minors (period daily statistic).** _Deferred 2026-11-18
-  (session `sjvair-com-93`'s final review; all non-blocking)._
+  (session `sjvair-com-93`'s final review; all non-blocking). **In progress 2026-11-18:** the
+  user asked `sjvair-com-93` to fix all five on `fix/current-periods-backfill` (from
+  `develop`); this entry leaves when that PR merges._
   1. `_backfill_complete_chunk` reads `now` before its cascade and ignores
      `roll_current_periods`' `stopped`, so a cascade that crosses midnight silently skips the
      current periods until the next night. Rare, and it fixes itself the next night. **Revisit
