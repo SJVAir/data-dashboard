@@ -1658,6 +1658,22 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Analysis & data
 
+- **sjvair.com: profile and speed up the nightly current-periods run.** _Deferred 2026-11-18
+  (the user, session `sjvair-com-93`, sjvair.com #342)._ Profile a scoped nightly run phase by
+  phase (DB reads, t-digest merge, upserts, daily-figure fill), then pick from:
+  - (a) merge the month incrementally (last night's partial row plus yesterday's daily sketch,
+    not up to 31 sketches); the stats stay exact, and only p25/p75 can differ slightly until
+    the final rollup;
+  - (b) split owners across Huey tasks, which helps only with more than one summaries worker;
+  - (c) a compiled t-digest library in place of the pure-Python `tdigest` 0.5.2.2: every
+    rollup gets faster, but new rows' percentiles differ slightly, and the stored-sketch
+    format needs checking;
+  - (d) a numpy centroid merge of our own (the server session prefers (c)).
+    Local laptop timings, deploy night: monitors 34.9 s, regions 62.3 s. **Why deferred:** the
+    user wants to go through optimizations together later, and #342 doesn't depend on it.
+    **Revisit when** the user starts the optimization pass, or the production nightly run
+    (02:15 / 02:20 Pacific) runs long or overlaps the 02:30 integrity check.
+
 - **sjvair.com: daily rows written by the hourly summarizer, in place of `daily/open/`.**
   _Deferred 2026-11-18 (the user, session `sjvair-com-93`, branch
   `feature/period-daily-statistic`)._ That branch writes the current month, quarter, season and
